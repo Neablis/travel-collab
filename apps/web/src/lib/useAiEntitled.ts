@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { createContext, createElement, useContext, useEffect, useState, type ReactNode } from "react";
 import type { Entitlement } from "@tc/contracts";
 import { useOnline } from "@/lib/useOnline";
 import type { AccountPlanView } from "@/lib/accountPlan";
@@ -77,10 +77,12 @@ async function readAccountPlan(): Promise<ApiResult<AccountPlanView>> {
  * the permissive direction costs one refused request and being wrong in the
  * strict direction blocks a paying customer on a bad network.
  *
- * **No new endpoint and, in the common case, no new request.** It reads the
- * same `GET /api/account/plan` the account sheet does, through the shared
- * cache (ADR-046), so opening the assistant after opening the sheet joins a
- * stored result instead of asking again.
+ * **Under `(app)/layout.tsx`, no request at all**: the layout sends the
+ * conferred set with the page (`ServedEntitlementsProvider`), so the answer is
+ * known from the first paint and `null` is only what a reader with no session,
+ * or a failed server read, sees. Without it, it reads the same
+ * `GET /api/account/plan` the account sheet does, through the shared cache
+ * (ADR-046).
  */
 export function useAiEntitled(): boolean | null {
   return useEntitled(AI_ASK_ENTITLEMENT);
@@ -97,14 +99,16 @@ export function useAiEntitled(): boolean | null {
  * so it does not spend a request on a 401.
  */
 export function useEntitled(capability: Entitlement, active = true): boolean | null {
+  const served = useContext(ServedEntitlementsContext);
   const [entitled, setEntitled] = useState<boolean | null>(null);
   const online = useOnline();
+  const asks = active && served === null;
 
   // Asks again on reconnecting while the answer is still unknown. Failures are
   // never cached (`cachedRead`), so a read that failed offline is retried
   // rather than leaving `null` for the rest of the visit.
   useEffect(() => {
-    if (!active || !online || entitled !== null) return;
+    if (!asks || !online || entitled !== null) return;
     let live = true;
     void cachedRead(accountPlanKey, readAccountPlan, { dedupeMs: DEDUPE.NAVIGATION }).then(
       (result) => {
@@ -122,7 +126,36 @@ export function useEntitled(capability: Entitlement, active = true): boolean | n
     return () => {
       live = false;
     };
-  }, [capability, active, online, entitled]);
+  }, [capability, asks, online, entitled]);
 
+  // The server's answer, when the layout sent one, wins over `active`: it was
+  // resolved for a signed-in account, while a caller's `active` is often
+  // `useSessionUser()`, which is not known until after the first paint.
+  if (served !== null) return served.includes(capability);
   return active ? entitled : null;
 }
+
+/**
+ * **The plan, sent with the page** (Mitchell, 2026-10-13, M45 decision 3).
+ * `(app)/layout.tsx` resolves what the reader's account is conferred, per
+ * request through the entitlements module, and hands it down here, so every
+ * `useEntitled` under it answers on the first paint, server render included,
+ * with no read of its own: an Ask is in the HTML for a reader who has the
+ * assistant and never for one who has not, with nothing popping in after.
+ *
+ * Per request, never a JWT claim (ADR-045 rule 2): a plan change shows on the
+ * next server render, which is why the plans page refreshes the route once a
+ * change lands. `null`, with no session or when the server could not resolve
+ * it, leaves each hook to ask `/api/account/plan` as it always has.
+ */
+export function ServedEntitlementsProvider({
+  entitlements,
+  children,
+}: {
+  entitlements: readonly Entitlement[] | null;
+  children: ReactNode;
+}) {
+  return createElement(ServedEntitlementsContext.Provider, { value: entitlements }, children);
+}
+
+const ServedEntitlementsContext = createContext<readonly Entitlement[] | null>(null);

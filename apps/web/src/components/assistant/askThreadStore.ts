@@ -29,19 +29,12 @@
  * reasons beside that one: KI-2026-09-02-a (Node 26 leaves
  * `window.localStorage` undefined in the jsdom unit lane), and `SPEC.md` §28,
  * where the old `theme` key still held a stale stored value, which is why the
- * key below carries a version.
+ * key (`lib/askOwnership.ts`) carries a version.
  */
 
 import type { AssistantTurn } from "@/components/assistant/Transcript";
-
-/**
- * **Versioned, because §28 is a recorded incident rather than a worry.** The
- * shape stored here is `AssistantTurn`'s, which is a UI type and will change;
- * a stale value under an unversioned key is read as a current one. Bumping this
- * abandons every stored thread, which is the correct cost for a working surface
- * and would be the wrong one for a record.
- */
-const KEY_PREFIX = "ask_thread_v1";
+import type { BeyondTripAskScope, PlaybookAskPage } from "@/lib/apiClient";
+import { ASK_DRAFT_PREFIX as DRAFT_PREFIX, ASK_THREAD_PREFIX as KEY_PREFIX } from "@/lib/askOwnership";
 
 /**
  * How many turns are kept.
@@ -113,6 +106,7 @@ function storable(turn: AssistantTurn): AssistantTurn {
  * was trying to get back to.
  */
 export function loadAskThread(name: string): AssistantTurn[] {
+  sweepUnownedOnce();
   try {
     const raw = window.localStorage.getItem(keyFor(name));
     if (raw === null) return [];
@@ -194,4 +188,102 @@ function isTurn(value: unknown): value is AssistantTurn {
         typeof (note as { label?: unknown }).label === "string",
     )
   );
+}
+
+/**
+ * The conversation name of a scope about no one trip, which no trip-bound name
+ * (`trip:<id>`, `notebook:<id>`, `page:<id>`) can be. A switch with no default
+ * so a new kind does not compile until it is named here: one that covers many
+ * pages (a playbook's) needs the page in its name, or they share one thread.
+ */
+export function beyondTripThreadName(scope: BeyondTripAskScope): string {
+  switch (scope.kind) {
+    case "account":
+      return "account";
+    case "playbook":
+      return `playbook:${playbookPageName(scope.page)}`;
+    default: {
+      const unhandled: never = scope;
+      return unhandled;
+    }
+  }
+}
+
+/**
+ * One playbook page's part of its thread's name (M45 D9): each shared day by
+ * its id, a city or tag page by what it lists at any `?page=N`, and Discover
+ * as one page whatever its filters are set to, so changing a filter or paging
+ * keeps the conversation.
+ */
+function playbookPageName(page: PlaybookAskPage): string {
+  switch (page.kind) {
+    case "day":
+      return `day:${page.savedDayId}`;
+    case "discover":
+      return "discover";
+    case "city":
+      return `city:${page.slug}`;
+    case "tag":
+      return `tag:${page.tag}:${page.city ?? "everywhere"}`;
+    default: {
+      const unhandled: never = page;
+      return unhandled;
+    }
+  }
+}
+
+// The composer's unsent text, beside its conversation (KI-2026-10-12-g).
+
+/** The stored draft for conversation `name`, or null. Never throws. */
+export function loadAskDraft(name: string): string | null {
+  sweepUnownedOnce();
+  try {
+    return window.localStorage.getItem(`${DRAFT_PREFIX}:${name}`);
+  } catch {
+    return null;
+  }
+}
+
+/** Stores `text` as the draft for `name`; a blank one removes it. Never throws. */
+export function saveAskDraft(name: string, text: string): void {
+  if (text.trim() === "") {
+    clearAskDraft(name);
+    return;
+  }
+  try {
+    window.localStorage.setItem(`${DRAFT_PREFIX}:${name}`, text);
+  } catch {
+    // See `saveAskThread`.
+  }
+}
+
+/** Forgets the draft for `name`. Never throws. */
+export function clearAskDraft(name: string): void {
+  try {
+    window.localStorage.removeItem(`${DRAFT_PREFIX}:${name}`);
+  } catch {
+    // See `saveAskThread`.
+  }
+}
+
+// **Keys from before conversations had owners** (PR 426, round 1): every name
+// was the bare conversation (`trip:<id>`, `account`, `notebook:<id>`,
+// `page:<id>`), so whoever used this browser before can have left a thread or
+// a draft under one. Nothing reads them any more; they are removed once per
+// page load, at the store's first read. An owned name always puts the owner
+// first, so it never has one of these shapes.
+const UNOWNED_KEY = new RegExp(`^(${KEY_PREFIX}|${DRAFT_PREFIX}):(account|(trip|notebook|page):[^:]+)$`);
+let unownedSwept = false;
+
+function sweepUnownedOnce(): void {
+  if (unownedSwept) return;
+  unownedSwept = true;
+  try {
+    const keys = Array.from({ length: window.localStorage.length }, (_, i) => window.localStorage.key(i));
+    for (const key of keys) {
+      if (key !== null && UNOWNED_KEY.test(key)) window.localStorage.removeItem(key);
+    }
+  } catch {
+    // See `saveAskThread`.
+  }
 }

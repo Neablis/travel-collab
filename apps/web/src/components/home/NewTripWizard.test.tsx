@@ -24,8 +24,8 @@ vi.mock("@/lib/apiClient", async (orig) => ({
 // every caller to treat it as entitled — so the default here is also the
 // behaviour every pre-existing test in this file was written against.
 const aiEntitled = { value: null as boolean | null };
-vi.mock("@/components/assistant/useAiEntitled", async (orig) => ({
-  ...(await orig<typeof import("@/components/assistant/useAiEntitled")>()),
+vi.mock("@/lib/useAiEntitled", async (orig) => ({
+  ...(await orig<typeof import("@/lib/useAiEntitled")>()),
   useAiEntitled: () => aiEntitled.value,
 }));
 

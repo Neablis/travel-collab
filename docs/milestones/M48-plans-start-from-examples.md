@@ -52,8 +52,11 @@ milestone stops and nothing ships.
 ## The brief's sketch (a starting point; any of it can change)
 
 - **Examples are days**, not whole trips and not single stops, found by similarity to the request
-  in a vector index. Mitchell created an Upstash Vector index on 2026-10-11 to test with (hybrid:
-  dense `TEXT_EMBEDDING_3_SMALL` hosted by Upstash, cosine, BM25 sparse).
+  in a vector index. **The index is pgvector in the Postgres the app already has (Neon)**, not a
+  separate vector service. Mitchell, 2026-10-12: *"I actually didnt realize we could use our
+  existing DB for a vector db using pgvector in neon"*. This replaces the Upstash Vector index he
+  created on 2026-10-11 to test with (hybrid: dense `TEXT_EMBEDDING_3_SMALL` hosted by Upstash,
+  cosine, BM25 sparse), which this milestone no longer uses.
 - **Days are embedded when they are written**, never while a turn is waiting.
 - **A plan turn retrieves about 8 candidate days** and puts the best few in front of the model.
 - **A later second pass** has a cheap model judge each candidate before it is used. The brief
@@ -84,8 +87,17 @@ Notes for whoever scopes this, from reading the code the brief's author could no
   trip, must stop being used.
 - **Private trip text would be sent to a hosted embedding model.** Nothing user-facing says that
   yet.
-- **A vector index is a new store.** Upstash is in the repo only as an expendable Redis cache
-  (ADR-059), so a second use wants its own ADR.
+- **pgvector is an extension, not a new store**, so embeddings are rows: they sit beside the days
+  they describe, are removed with them, and each Neon branch (preview, production) has its own.
+  Three things come with it that the Upstash index hid:
+  - **Local and CI Postgres are stock `postgres:17`** (`docker-compose.yml`, `ci.yml`), which
+    does not ship pgvector. A migration that runs `CREATE EXTENSION vector` fails there until
+    both images change.
+  - **Nothing embeds the text any more.** Upstash hosted the embedding model. With pgvector the
+    app calls one itself, on write and once per plan turn for the request, and that call is a
+    cost and a failure the fallback in commitment 3 has to cover.
+  - **The sparse half of hybrid search is not built in.** Postgres full-text search is the
+    nearest thing to the BM25 the Upstash index had, and it is a second query to merge.
 
 ## Decisions it needs (recommendations; none answered)
 
@@ -110,12 +122,14 @@ About the feature:
 
 About how it is built, all open:
 
-8. **How examples are found.** The sketch says a vector index, and one exists to test with. The
-   first offline check is the place to compare it with something plainer, such as filtering
-   playbook days by city and tags, which needs no new store.
+8. **How examples are found.** The sketch says a vector index. The first offline check is the
+   place to compare it with something plainer, such as filtering playbook days by city and tags,
+   which needs no extension and no embedding call.
 9. **The example unit** (Sunny's question 3). *Recommended:* the day.
-10. **Where the index lives and how it is kept current**, if decision 8 keeps one: its ADR, when
-    days are embedded and removed, and whether preview and production share it.
+10. **How the index is built and kept current**, if decision 8 keeps one. Where it lives is
+    answered (Mitchell, 2026-10-12): pgvector in the app's own Postgres. Still open: which
+    embedding model and how it is called, dense only or hybrid with full-text search, when days
+    are embedded and removed, and the local and CI Postgres image. It gets an ADR.
 11. **What the second pass is**, once Sunny defines it. Until then it is out of scope.
 
 ## Scope
@@ -134,7 +148,7 @@ About how it is built, all open:
 
 ## Exit gate
 
-- [ ] **Decisions 1–11 are answered and recorded here**, with an ADR for any new store.
+- [ ] **Decisions 1–11 are answered and recorded here**, with an ADR for the index if decision 8 keeps one.
 - [ ] **The baseline is pasted here**: dollars per plan turn, input and output split, plan turns
       per month (`ai-usage` skill output).
 - [ ] **The first offline check is run and its numbers are pasted here**: recall and corpus

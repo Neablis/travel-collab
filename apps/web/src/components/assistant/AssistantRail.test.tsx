@@ -1,8 +1,14 @@
+import { StrictMode, useState } from "react";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ASK_FAILED_MESSAGE } from "@tc/contracts";
 import { AssistantRail } from "./AssistantRail";
+import { BeyondTripAssistant } from "./BeyondTripAssistant";
+import { useAssistantVisibility } from "./useAssistantVisibility";
+import { setViewportMatches } from "../../../vitest.setup";
+import { ownedAskName } from "@/lib/askOwnership";
+import { loadAskDraft, saveAskDraft } from "./askThreadStore";
 import type { AssistantTurn } from "./Transcript";
 
 // **The hook is mocked so the prop's precedence can actually be tested.**
@@ -12,14 +18,22 @@ import type { AssistantTurn } from "./Transcript";
 // `null`. That is the defect CodeRabbit found in the code and it was invisible
 // here for exactly the same reason. `aiEntitledFetched` is what this controls.
 const fetchedEntitlement = vi.hoisted(() => ({ value: null as boolean | null }));
-vi.mock("./useAiEntitled", () => ({
+vi.mock("@/lib/useAiEntitled", () => ({
   useAiEntitled: () => fetchedEntitlement.value,
   AI_ASK_ENTITLEMENT: "ai.ask",
   accountPlanKey: "account:plan",
 }));
 
+// Who is signed in: the draft is stored under their id (`ownedAskName`).
+const session = vi.hoisted(() => ({ user: { id: "user-a" } as { id: string } | null | undefined }));
+vi.mock("@/components/account/useSessionUser", async (orig) => ({
+  ...(await orig<typeof import("@/components/account/useSessionUser")>()),
+  useKnownSessionUser: () => session.user,
+}));
+
 afterEach(() => {
   fetchedEntitlement.value = null;
+  session.user = { id: "user-a" };
   cleanup();
 });
 
@@ -603,7 +617,7 @@ describe("AssistantRail — the sheet is a real modal, not just a scrim", () => 
         <nav aria-label="Phone navigation">
           <a href="/plan">Plan</a>
         </nav>
-        <AssistantRail {...baseProps} presentation="sheet" />
+        <AssistantRail {...baseProps} presentation="sheet" onHide={vi.fn()} />
       </>,
     );
 
@@ -929,5 +943,222 @@ describe("AssistantRail — the dragged position survives leaving the route", ()
       renderRail({ presentation: "floating", onShapeChange: vi.fn(), rememberPositionAs: KEY });
       expect(positionOf(), JSON.stringify(bad)).toEqual({ left: "", top: "" });
     }
+  });
+});
+
+// KI-2026-10-12-g: a reply that leaves the page, or a reload, unmounts the
+// rail with whatever was typed while it answered. The draft is kept per
+// conversation, so it comes back on the next mount under the same name.
+describe("AssistantRail — the unsent draft survives an unmount", () => {
+  afterEach(() => window.localStorage.clear());
+
+  const composer = () => screen.getByPlaceholderText(/ask about this day/i) as HTMLInputElement;
+
+  it("puts back what was typed under the same conversation, and only there", async () => {
+    const first = renderRail({ rememberDraftAs: "trip:a" });
+    fireEvent.change(composer(), { target: { value: "and the second day?" } });
+    first.unmount();
+
+    const again = renderRail({ rememberDraftAs: "trip:a" });
+    await waitFor(() => expect(composer().value).toBe("and the second day?"));
+    again.unmount();
+
+    renderRail({ rememberDraftAs: "trip:b" });
+    expect(composer().value).toBe("");
+  });
+
+  // At once, not after the save's delay: a reload inside it runs no cleanup,
+  // and would bring back a question already asked.
+  it("forgets the draft the moment it is sent", async () => {
+    const onAsk = vi.fn();
+    const first = renderRail({ rememberDraftAs: "trip:a" });
+    fireEvent.change(composer(), { target: { value: "and the second day?" } });
+    first.unmount();
+    renderRail({ onAsk, rememberDraftAs: "trip:a" });
+    await waitFor(() => expect(composer().value).toBe("and the second day?"));
+
+    fireEvent.click(screen.getByRole("button", { name: "Ask the assistant" }));
+    await waitFor(() => expect(composer().value).toBe(""));
+    expect(onAsk).toHaveBeenCalledWith("and the second day?");
+    expect(loadAskDraft(ownedAskName("user-a", "trip:a"))).toBeNull();
+  });
+
+  // The owned name exists only once the session read answers; what was typed
+  // before then is this conversation's draft, and is stored once it does.
+  it("stores what was typed before the session answered, once it does", async () => {
+    session.user = undefined;
+    const view = renderRail({ rememberDraftAs: "account" });
+    fireEvent.change(composer(), { target: { value: "where next?" } });
+    session.user = { id: "user-a" };
+    view.rerender(<AssistantRail {...baseProps} rememberDraftAs="account" />);
+    expect(composer().value).toBe("where next?");
+    await waitFor(() => expect(loadAskDraft(ownedAskName("user-a", "account"))).toBe("where next?"));
+  });
+
+  // PR 426 review, finding 8: a rail handed another conversation's name took
+  // the old one's text along and, a moment later, stored it under the new name.
+  it("swaps the box to the other conversation's draft when the name changes", () => {
+    const view = renderRail({ rememberDraftAs: "trip:a" });
+    fireEvent.change(composer(), { target: { value: "and the second day?" } });
+    view.rerender(<AssistantRail {...baseProps} rememberDraftAs="trip:b" />);
+    expect(composer().value).toBe("");
+    expect(loadAskDraft(ownedAskName("user-a", "trip:a"))).toBe("and the second day?");
+    expect(loadAskDraft(ownedAskName("user-a", "trip:b"))).toBeNull();
+  });
+
+  // PR 426 review, finding 1: another account on this browser must not find
+  // this one's unsent question in its box.
+  it("keeps one account's draft out of another's box", async () => {
+    const first = renderRail({ rememberDraftAs: "account" });
+    fireEvent.change(composer(), { target: { value: "and the second day?" } });
+    first.unmount();
+
+    session.user = { id: "user-b" };
+    const other = renderRail({ rememberDraftAs: "account" });
+    // Effects flushed by `render`'s act, so a restore would already be here.
+    expect(composer().value).toBe("");
+    other.unmount();
+
+    session.user = { id: "user-a" };
+    renderRail({ rememberDraftAs: "account" });
+    await waitFor(() => expect(composer().value).toBe("and the second day?"));
+  });
+});
+
+// PR 426 review round 2, finding 2: Home reached by a client-side navigation
+// already knows who is signed in. Below 1100px a docked rail mounted on the
+// first render's width guess and, unmounting a frame later, flushed its empty
+// box over the draft the sheet had stored.
+describe("Home's assistant — the stored draft survives a mount below 1100px", () => {
+  afterEach(() => {
+    window.localStorage.clear();
+    setViewportMatches({});
+  });
+
+  it.each([
+    ["a phone", { "(max-width: 767px)": true }],
+    ["768-1099px", { "(min-width: 768px) and (max-width: 1099px)": true }],
+  ])("at %s", async (_width, matches) => {
+    setViewportMatches(matches);
+    saveAskDraft(ownedAskName("user-a", "account"), "where should I go next");
+    render(<BeyondTripAssistant scope={{ kind: "account" }} />);
+    // Past the save's delay, so a save armed on the first render has fired.
+    await act(() => new Promise((resolve) => setTimeout(resolve, 400)));
+    expect(loadAskDraft(ownedAskName("user-a", "account"))).toBe("where should I go next");
+  });
+});
+
+// M45 D7: Home's rail answers across every trip.
+describe("AssistantRail — the account scope", () => {
+  it("asks about your trips, with its own hint, when the scope is the account", () => {
+    renderRail({ scope: { kind: "account" }, contextLine: "Across your trips" });
+    expect(screen.getByPlaceholderText("Ask about your trips…")).not.toBeNull();
+    expect(screen.queryByText("Ask about this trip and the conversation stays here.")).toBeNull();
+  });
+
+  it("draws no Hide when the caller offers no way to hide it", () => {
+    render(<AssistantRail {...baseProps} onHide={undefined} />);
+    expect(screen.queryByRole("button", { name: "Hide" })).toBeNull();
+  });
+});
+
+// M45 D6: ⌘K's *Ask: <text>* hands its text to the rail, which sends it the
+// way its own Ask button would, once.
+describe("AssistantRail — text handed in from ⌘K", () => {
+  // In StrictMode, whose second effect run is what the rail's own guard is
+  // for (PR 426 review, finding 6): without it, one hand-off asks twice.
+  it("sends it once, and a second hand-off of the same words sends again", () => {
+    const onAsk = vi.fn();
+    const onIncomingTaken = vi.fn();
+    const props = { ...baseProps, onAsk, onIncomingTaken };
+    const view = render(
+      <StrictMode>
+        <AssistantRail {...props} incoming={{ text: "which city have I been to most?" }} />
+      </StrictMode>,
+    );
+    expect(onAsk).toHaveBeenCalledTimes(1);
+    expect(onAsk).toHaveBeenCalledWith("which city have I been to most?");
+    view.rerender(
+      <StrictMode>
+        <AssistantRail {...props} incoming={{ text: "which city have I been to most?" }} />
+      </StrictMode>,
+    );
+    expect(onAsk).toHaveBeenCalledTimes(2);
+  });
+
+  // PR 426 review, finding 3: the caller drops the hand-off once taken, so a
+  // rail that remounts does not find it and ask it again.
+  it("tells the caller it has taken the hand-off", () => {
+    const onIncomingTaken = vi.fn();
+    renderRail({ incoming: { text: "which city have I been to most?" }, onIncomingTaken });
+    expect(onIncomingTaken).toHaveBeenCalledTimes(1);
+  });
+
+  // PR 426 review, finding 2: the box may hold a follow-up typed while the
+  // turn answers (KI-2026-09-07-c). A hand-off that has to wait, or is
+  // refused, goes in after it rather than over it.
+  it("keeps what was already typed when the hand-off has to wait", () => {
+    const props = { ...baseProps, asking: true, onAsk: vi.fn() };
+    const view = render(<AssistantRail {...props} />);
+    const box = screen.getByPlaceholderText(/ask about this day/i) as HTMLInputElement;
+    fireEvent.change(box, { target: { value: "and dinner that night?" } });
+    view.rerender(<AssistantRail {...props} incoming={{ text: "book a hotel near Gion" }} />);
+    expect(box.value).toBe("and dinner that night? book a hotel near Gion");
+  });
+
+  it("keeps what was already typed when the hand-off is refused", async () => {
+    const props = { ...baseProps, onAsk: vi.fn(async () => false) };
+    const view = render(<AssistantRail {...props} />);
+    const box = screen.getByPlaceholderText(/ask about this day/i) as HTMLInputElement;
+    fireEvent.change(box, { target: { value: "and dinner that night?" } });
+    view.rerender(<AssistantRail {...props} incoming={{ text: "book a hotel near Gion" }} />);
+    await waitFor(() => expect(box.value).toBe("and dinner that night? book a hotel near Gion"));
+  });
+
+  it("leaves it waiting in the composer while a turn is answering", () => {
+    const onAsk = vi.fn();
+    renderRail({ onAsk, asking: true, incoming: { text: "and where next?" } });
+    expect(onAsk).not.toHaveBeenCalled();
+    expect((screen.getByPlaceholderText(/ask about this day/i) as HTMLInputElement).value).toBe("and where next?");
+  });
+});
+
+// PR 426 review round 4, finding 3: opening moves focus into the composer,
+// once. The board's rail remounts while open (its header reload), and a
+// remount that took focus again would pull it from wherever the reader is.
+describe("AssistantRail — focus on open, from useAssistantVisibility", () => {
+  function Surface() {
+    const assistant = useAssistantVisibility();
+    const [mount, setMount] = useState(0);
+    return (
+      <>
+        <button type="button" onClick={assistant.show}>
+          Ask
+        </button>
+        <button type="button" onClick={() => setMount((n) => n + 1)}>
+          Remount
+        </button>
+        <input aria-label="Elsewhere" />
+        {assistant.open ? (
+          <AssistantRail key={mount} {...baseProps} takeFocus={assistant.takeFocus} onHide={assistant.hide} />
+        ) : null}
+      </>
+    );
+  }
+
+  it("takes focus when opened, and not when it remounts while open", async () => {
+    render(<Surface />);
+    await userEvent.click(screen.getByRole("button", { name: "Ask" }));
+    // The keys go wherever focus is, as they do for a keyboard user.
+    await userEvent.keyboard("a");
+    const composer = () => screen.getByPlaceholderText<HTMLInputElement>(/ask about this day/i);
+    expect(composer().value).toBe("a");
+
+    await userEvent.click(screen.getByRole("textbox", { name: "Elsewhere" }));
+    // `fireEvent`, not `userEvent`: a real click would move focus to the button.
+    fireEvent.click(screen.getByRole("button", { name: "Remount" }));
+    await userEvent.keyboard("b");
+    expect((screen.getByRole("textbox", { name: "Elsewhere" }) as HTMLInputElement).value).toBe("b");
+    expect(composer().value).toBe("");
   });
 });

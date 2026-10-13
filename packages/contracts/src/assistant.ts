@@ -83,6 +83,22 @@ export const ASK_FAILED_MESSAGE = "The assistant couldn't answer just now. Try a
  */
 export const ASK_INTERNAL_ERROR_MESSAGE = "The assistant hit a problem on our side, and it has been logged.";
 
+// M45 part 5 (KI-2026-10-12-e): `finalStepText.ts` sends it, `apiClient.ts`
+// applies it and the eval's `grade.ts` replays it. Here because the UI may not
+// import `@/server/*`, the reason `SIMULATED_HEADER` above moved: three hand
+// copies meant a server that renamed `ids` would leave notes on screen with
+// nothing failing to compile.
+/**
+ * The `/ask` stream chunk that takes text back: the text parts, by id, that a
+ * step wrote beside a tool call. Transient, so it is never part of a stored
+ * message; the client removes those parts from what it shows and keeps.
+ */
+export const ASK_RETRACT_CHUNK = "data-retract";
+
+/** The `data` of an `ASK_RETRACT_CHUNK` chunk. */
+export const AskRetractData = z.object({ ids: z.array(z.string()) });
+export type AskRetractData = z.infer<typeof AskRetractData>;
+
 // Derived from `BatchableCommand`'s own options rather than spelled again, for
 // the reason `describeProposedChange`'s exhaustive switch exists: a thirteenth
 // command joins this for free and can never drift from the union it describes.
@@ -175,6 +191,25 @@ export const AssistantProposal = z
      * every proposal that was never meant to be stored.
      */
     notSuggested: z.string().min(1).optional(),
+    /**
+     * Which trip the proposal lands in when it was drafted on no trip's page
+     * (M45 D9): the playbook pages' assistant, whose one write is taking the
+     * playbook on screen into a trip the person named, on a day, or into a new
+     * trip. Absent on every proposal drafted inside a trip, which lands in
+     * that trip as before.
+     *
+     * `startingAt` is the id of the trip's day the playbook's first day merges
+     * onto, the day the person named; absent appends, as the page's own *Add
+     * to trip* does. A new trip takes the playbook's name, as that button's
+     * *Start a new trip* does. Both are approved through the button's own
+     * calls, so this names a target and nothing else.
+     */
+    target: z
+      .discriminatedUnion("kind", [
+        z.object({ kind: z.literal("trip"), tripId: z.string().uuid(), startingAt: z.string().uuid().optional() }),
+        z.object({ kind: z.literal("new-trip"), name: z.string().min(1).max(200) }),
+      ])
+      .optional(),
   })
   // A proposal with nothing in it is not a proposal: there is nothing to
   // review, so the client renders no card and the answer stands on its own
@@ -218,6 +253,71 @@ export type AssistantSuggested = z.infer<typeof AssistantSuggested>;
 export const DroppedInsert = z.object({ name: z.string().min(1), reason: z.string().min(1) });
 export type DroppedInsert = z.infer<typeof DroppedInsert>;
 
+// ---------------------------------------------------------------------------
+// The palette commands a turn names (M45, ADR-072).
+//
+// The assistant moves you around by naming ⌘K commands, never by sending a
+// URL or a handler name (§1). Which ids it may name is an allowlist by family
+// (§3), and it is one predicate here because both ends hold it: the server
+// refuses to queue anything else, and the client drops anything else it reads
+// off the wire, so a URL in a reply cannot navigate even if a server sent one.
+// ---------------------------------------------------------------------------
+
+/** The trip page's views, as `?view=` and the palette's `view:` commands name them. */
+export const TRIP_VIEWS = ["Overview", "Plan", "Calendar", "Map"] as const;
+export type TripView = (typeof TRIP_VIEWS)[number];
+
+const UUID = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
+const VIEW = TRIP_VIEWS.join("|");
+
+// Whole-id matches, never prefixes. Palette ids are not namespaced, so a
+// prefix rule would let a sibling through: `people` is on the list and
+// `settings`, `share` and `undo` are not (ADR-072 §3). `go:trip:` takes
+// exactly the two shapes §6 names and nothing else under it.
+const ASSISTANT_COMMAND_ID = new RegExp(
+  `^(?:view:(?:${VIEW})|go:(?:day|stop|notebook):${UUID}|go:trip:${UUID}(?::view:(?:${VIEW}))?|people|notebook-editing)$`,
+);
+
+/** Whether the assistant may name the palette command `id` (ADR-072 §3 and §6). */
+export function isAssistantCommandId(id: string): boolean {
+  return ASSISTANT_COMMAND_ID.test(id);
+}
+
+// The commands that change app state rather than where you are, which run only
+// on Approve (ADR-072 §4). The client holds this rule as well as the flag on
+// the wire, so a reply that left the flag off still cannot turn editing on.
+const CHANGES_STATE: ReadonlySet<string> = new Set(["notebook-editing"]);
+
+/**
+ * A palette command a turn named, and whether it waits for Approve. `on` is
+ * the state a toggle was asked for: the command itself has no direction, so
+ * without it a card cannot tell "turn editing on" from a page already editing.
+ */
+export const PaletteCommandRef = z.object({ id: z.string().min(1), needsApproval: z.boolean(), on: z.boolean().optional() });
+export type PaletteCommandRef = z.infer<typeof PaletteCommandRef>;
+
+/**
+ * The turn's commands as a reader may act on them: an entry that is not a
+ * well-formed ref to an allowlisted id is DROPPED, not fatal. A bad entry costs
+ * itself and never the proposal or the page the same chunk carries.
+ */
+const PaletteCommands = z.array(z.unknown()).transform((entries): PaletteCommandRef[] =>
+  entries.flatMap((entry) => {
+    const ref = PaletteCommandRef.safeParse(entry);
+    if (!ref.success || !isAssistantCommandId(ref.data.id)) return [];
+    const { id, needsApproval, on } = ref.data;
+    return [{ id, needsApproval: needsApproval || CHANGES_STATE.has(id), ...(on !== undefined && { on }) }];
+  }),
+);
+
+/**
+ * Not an outcome: a sibling any outcome may carry, and the silent one too, so
+ * a turn can answer, propose or write AND take you somewhere. It sits in every
+ * branch below rather than beside the union, and `OUTCOME_KEYS` leaves it out,
+ * so the one-outcome rule is untouched.
+ */
+const WITH_COMMANDS = { paletteCommands: PaletteCommands.optional() };
+
 /**
  * What the stream's final chunk carries, and the only five shapes it may take.
  *
@@ -231,6 +331,7 @@ export type DroppedInsert = z.infer<typeof DroppedInsert>;
  * `{}` is the fifth shape and is a real one: a page-scoped turn that inserted
  * nothing is silence, not a failure — a turn can legitimately answer a question
  * about the page without editing it, which is most of what a conversation does.
+ * A turn that only takes you somewhere is this shape with `paletteCommands`.
  * A turn with no outcome at all sends no `messageMetadata` key instead.
  *
  * **The empty branch is strict and the other four are not, and the asymmetry
@@ -251,13 +352,13 @@ export type DroppedInsert = z.infer<typeof DroppedInsert>;
  * stream part; an unreadable envelope must never break a conversation.
  */
 const AskStreamShape = z.union([
-  z.object({ proposal: AssistantProposal }),
+  z.object({ proposal: AssistantProposal, ...WITH_COMMANDS }),
   /**
    * A planning turn of more than one change, already stored as a suggestion
    * (ADR-067). The same turn never also carries `proposal`: storing it is what
    * replaced the card.
    */
-  z.object({ suggested: AssistantSuggested }),
+  z.object({ suggested: AssistantSuggested, ...WITH_COMMANDS }),
   /**
    * A planning turn that called write tools and had EVERY one refused when
    * resolved against the trip, so there is no proposal to show — with the
@@ -265,7 +366,7 @@ const AskStreamShape = z.union([
    * turn ended on the model's own prose, which reads as if the changes were
    * made (2026-10-10: a deleted trip, three turns, nothing changed, no word why).
    */
-  z.object({ notApplied: z.object({ skipped: z.array(z.string().min(1)).min(1) }) }),
+  z.object({ notApplied: z.object({ skipped: z.array(z.string().min(1)).min(1) }), ...WITH_COMMANDS }),
   /**
    * What a `page`-scoped turn wants INSERTED. Validated server-side against the
    * macro registry before a byte leaves — which this side cannot see — so this
@@ -295,6 +396,7 @@ const AskStreamShape = z.union([
        */
       dropped: z.array(DroppedInsert).optional(),
     }),
+    ...WITH_COMMANDS,
   }),
   /**
    * A page turn whose assembled nodes failed validation, with the server's own
@@ -302,22 +404,25 @@ const AskStreamShape = z.union([
    * has already sent its 200, so the refusal rides out as data the client
    * renders — the nodes themselves still never reach it.
    */
-  z.object({ composeError: z.string().min(1) }),
+  z.object({ composeError: z.string().min(1), ...WITH_COMMANDS }),
   /**
-   * Silence. Strict at runtime for the reason above; typed
-   * `Record<string, never>` rather than the `{}` zod infers, because `{}` is
-   * assignable FROM every object — one `{}` member would make this whole union
-   * accept any object, and a producer's `{ proposalTypo: ... }` would compile.
-   * The transform is identity: this branch still parses `{}` and still rejects
-   * `{ anything: 1 }`. Type only, and only here.
+   * Silence, or only somewhere to go (ADR-072). Strict at runtime for the
+   * reason above: it still parses `{}` and still rejects `{ anything: 1 }`.
+   *
+   * It used to be typed `Record<string, never>`, because the `{}` zod infers
+   * for an empty object is assignable FROM every object, and one such member
+   * would let a producer's `{ proposalTypo: ... }` compile. With
+   * `paletteCommands` in it the inferred type is no longer `{}`: an object
+   * literal with any other key is an excess property, and one that shares no
+   * key with it fails as a weak type, so the type pins the producer as before.
    */
-  z.strictObject({}).transform((nothing): Record<string, never> => nothing),
+  z.strictObject(WITH_COMMANDS),
 ]);
 
-// Derived from the branches rather than spelled again. The empty branch is a
-// transform and contributes no key, which is exactly what it means.
+// Derived from the branches rather than spelled again. `paletteCommands` is in
+// every branch and is not an outcome, so the empty branch contributes none.
 const OUTCOME_KEYS = AskStreamShape.options.flatMap((branch) =>
-  branch instanceof z.ZodObject ? Object.keys(branch.shape) : [],
+  Object.keys(branch.shape).filter((key) => !(key in WITH_COMMANDS)),
 );
 
 /**

@@ -31,6 +31,7 @@ import { DEMO_TRIP_ID } from "@/lib/demoTrip";
 import type { AskIntentRecord } from "@/server/assistant/askAnalytics";
 import {
   ADMISSION,
+  AskRequest,
   taskClassFor,
   DEMO_TRIP_UNSUPPORTED_CODE,
   PAGE_NOT_ON_TRIP_CODE,
@@ -105,6 +106,7 @@ function spyPorts(overrides: Partial<AdmissionPorts> = {}): {
       calls.push("identifyActor");
       return { userId: EDITOR, detail: detailFor("editor", EDITOR) };
     },
+    playbookDayCount: async () => null,
     loadPage: async () => {
       calls.push("loadPage");
       return pageOn(TRIP_ID);
@@ -695,5 +697,82 @@ describe("admission is handed the ceilings selection resolved", () => {
     expect(records[0]!.taskClass).toBe("edit");
     expect(records[0]!.tier).toBe("cheap");
     expect(records[0]!.model).toBe("test/model-cheap");
+  });
+});
+
+// M45: the account door. The same nine stages decide it — one admission path —
+// with no trip for the guard to read: the session answers who is asking, and
+// the scope must be the account's own.
+describe("an account turn", () => {
+  const ACCOUNT_TURN = {
+    messages: [{ id: "m1", role: "user", parts: [{ type: "text", text: "which city have I been to most?" }] }],
+    scope: { kind: "account" },
+  };
+
+  function accountPorts() {
+    const classifiedOn: (string | undefined)[] = [];
+    const spied = spyPorts({
+      identifyActor: async (tripId) => {
+        spied.calls.push(`identifyActor:${tripId}`);
+        return { userId: EDITOR, detail: null };
+      },
+      classify: async (_model, _question, _context, _signal, surface) => {
+        classifiedOn.push(surface);
+        return { ...CLASSIFIED_AS_WRITE, taskClass: "question", intent: "question" };
+      },
+    });
+    return { ...spied, classifiedOn };
+  }
+
+  it("is granted the four aggregate tools and open_trip, and nothing else, on the session alone", async () => {
+    const { ports, calls, records, classifiedOn } = accountPorts();
+    const admission = await evaluateAiGrant({ request: askFor(ACCOUNT_TURN), tripId: null, ports });
+
+    expect(admission.ok).toBe(true);
+    if (!admission.ok) return;
+    expect(admission.grant.tools.map((tool) => tool.name)).toEqual([
+      "spend_by_category",
+      "places_visited",
+      "visit_counts",
+      "suggest_next_country",
+      "open_trip",
+    ]);
+    expect(admission.grant).toMatchObject({ surface: "account", posture: "read-only", taskClass: "question", tripId: null });
+    // No page to load; the classifier still runs, as the off-topic gate.
+    expect(calls).toEqual(["identifyActor:null", "selectModel", "admitQuota"]);
+    expect(classifiedOn).toEqual(["account"]);
+    expect(records).toMatchObject([{ outcome: "granted", tripId: null, surface: "account" }]);
+  });
+
+  it("refuses a trip's scope at the account door, and the account's at a trip's, before a model is chosen", async () => {
+    const atAccount = accountPorts();
+    const wrongScope = await evaluateAiGrant({ request: askFor(TRIP_TURN), tripId: null, ports: atAccount.ports });
+    expect(wrongScope.ok).toBe(false);
+    if (wrongScope.ok) return;
+    expect(wrongScope.refusal).toMatchObject({ stage: "resolveSurface" });
+    expect(wrongScope.refusal.response.status).toBe(400);
+    expect(atAccount.calls).toEqual(["identifyActor:null"]);
+
+    const atTrip = spyPorts();
+    const accountAtTrip = await evaluateAiGrant({ request: askFor(ACCOUNT_TURN), tripId: TRIP_ID, ports: atTrip.ports });
+    expect(accountAtTrip.ok).toBe(false);
+    if (accountAtTrip.ok) return;
+    expect(accountAtTrip.refusal).toMatchObject({ stage: "resolveSurface" });
+    expect(atTrip.calls).toEqual(["identifyActor"]);
+  });
+});
+
+// PR 427 review round 2, m7: Discover's screen and URL take any number of
+// cities and countries, so a scope capped below that turned every question
+// on a long search into a 400 while the list was on screen.
+describe("a Discover scope", () => {
+  it("takes as many cities and countries as the screen can hold", () => {
+    const cities = Array.from({ length: 30 }, (_, i) => `City ${i}`);
+    const countries = Array.from({ length: 26 * 26 }, (_, i) => String.fromCharCode(65 + Math.floor(i / 26), 65 + (i % 26)));
+    const parsed = AskRequest.safeParse({
+      messages: [{ id: "m1", role: "user", parts: [{ type: "text", text: "which is the cheapest?" }] }],
+      scope: { kind: "playbook", page: { kind: "discover", search: { cities, countries } } },
+    });
+    expect(parsed.error?.issues[0]?.message).toBeUndefined();
   });
 });

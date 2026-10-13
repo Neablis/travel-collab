@@ -13,6 +13,64 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-10-13 — `AssistantProposal.target`: a proposal drafted on no trip's page names the trip it lands in (M45 part 5, D9)
+
+- **Added** to `packages/contracts/src/assistant.ts`: an optional `target` on `AssistantProposal`,
+  `{ kind: "trip", tripId, startingAt? }` or `{ kind: "new-trip", name }`. The playbook pages'
+  assistant drafts one card, taking the playbook on screen into a trip the person named (merging
+  onto the day they named, `startingAt`) or into a new trip named after it. Absent on every
+  proposal drafted inside a trip, which lands in that trip as before.
+- Why: a proposal carried no trip because it always landed in the trip the turn was asked on. A
+  playbook page has no trip, so the card must say which, and the client approves it through the
+  page's own *Add to trip* calls (`createTrip`, `insertSavedDay`), which need the id and the day.
+- Consumers updated: `apps/web` (`server/assistant/tools/playbook.ts` writes it;
+  `components/assistant/BeyondTripAssistant.tsx` reads it on Approve; `server/ai/eval/grade.ts`
+  counts a card's playbook days). Not on the public API: `openapi.json`, `API_VERSION` and
+  `API_FINGERPRINT` are unchanged.
+- Breaking? no. Optional field; an older client ignores it, and the trip door never sends it.
+
+## 2026-10-12 — `ASK_RETRACT_CHUNK` / `AskRetractData`: `/ask` takes back text written beside a tool call (M45 part 5, KI-2026-10-12-e)
+
+- **Added** to `packages/contracts/src/assistant.ts`: `ASK_RETRACT_CHUNK` (`"data-retract"`) and
+  `AskRetractData` (`{ ids: string[] }`). The server sends a transient chunk of that type, naming
+  the text part ids a step wrote before going on to a tool call, and the client removes those
+  parts from what it shows and stores (KI-2026-10-12-h records the flicker this costs).
+- Why: the chunk crosses the wire and the UI may not import `@/server/*`, the reason
+  `SIMULATED_HEADER` and `ASK_FAILED_MESSAGE` moved here. Before this it was spelled three times
+  with hand casts, so a server that renamed `ids` would have left notes on screen with nothing
+  failing to compile. The server types its payload with `satisfies AskRetractData`; the client
+  and the eval read it with `AskRetractData.safeParse`.
+- Consumers updated: `apps/web` (`server/ai/finalStepText.ts`, `lib/apiClient.ts`,
+  `server/ai/eval/grade.ts`, and the tests that build or read the chunk). Not on the public API:
+  `openapi.json`, `API_VERSION` and `API_FINGERPRINT` are unchanged.
+- Breaking? no. New chunk; a tab open on an older build ignores an unknown `data-*` part, so it
+  shows the note it would have shown before.
+
+## 2026-10-12 — `AskStreamMetadata.paletteCommands`: the assistant names palette commands (M45 part 2, ADR-072)
+
+- **Added** to `packages/contracts/src/assistant.ts`: `PaletteCommandRef` (`{ id, needsApproval, on? }`;
+  `on` is the state a toggle was asked for, so a card can say when the page is already there),
+  `isAssistantCommandId(id)`, `TRIP_VIEWS` / `TripView`, and an optional `paletteCommands` key on every
+  branch of `AskStreamMetadata`, the silent `{}` branch included. It is not an outcome: `OUTCOME_KEYS`
+  leaves it out, so the one-outcome rule is unchanged, and a turn may answer, propose or write and
+  also take you somewhere.
+- The parse **drops** any entry that is not a well-formed ref to an id the assistant may name
+  (ADR-072 §3 and §6: `view:<View>`, `go:day:`, `go:stop:`, `go:notebook:`, `go:trip:<id>` and
+  `go:trip:<id>:view:<View>`, `people`, `notebook-editing`; whole ids, never prefixes), so a URL in
+  a reply never reaches the page. `notebook-editing` always parses as `needsApproval: true`, and an
+  entry's `on` is kept when present.
+- The empty branch was typed `Record<string, never>` by a transform; it is now
+  `z.strictObject({ paletteCommands })`, whose inferred type still refuses a misspelled key at the
+  producer (excess property, or weak type).
+- Why: M45 D4 and D5. The server queues ids through the same predicate (`PaletteCommandBuffer`,
+  `assistant/deps.ts`) and the client reads them through this parse (`askEventsFromFrame`).
+- Consumers updated: `apps/web` (`server/assistant/deps.ts`, `tools/navigate.ts`,
+  `server/ai/handleAskRequest.ts`, `lib/apiClient.ts`, `components/assistant/*`). Not on the public
+  API: `openapi.json`, `API_VERSION` and `API_FINGERPRINT` are unchanged.
+- Breaking? no for a client of this build. A tab open on an older build drops a chunk that carries
+  only `paletteCommands` (its empty branch is strict), which costs that turn its navigation and
+  nothing else.
+
 ## 2026-10-11 — `TripGlobals.description`: what kind of trip it is, for the *Trip description* widget (M42 part 4, ADR-070 §3)
 
 - **Added** `TripGlobalsDescription` (`packages/contracts/src/globals.ts`): `{ text, counted, tags }`,

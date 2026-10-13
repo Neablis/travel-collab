@@ -16,10 +16,17 @@
 // nothing needs is a key nothing can audit.
 import { currentCallId } from "./callScope";
 import { z } from "zod";
-import type { PageNode, SavedDay, TripDetail } from "@tc/contracts";
+import {
+  isAssistantCommandId,
+  type AssistantProposal,
+  type PageNode,
+  type PaletteCommandRef,
+  type SavedDay,
+  type TripDetail,
+} from "@tc/contracts";
 import type { DiscoverDay } from "@/lib/playbooks";
 import type { RawToolIntent } from "@/server/assistant/batchResolver";
-import type { AskScope } from "@/server/assistant/context";
+import type { AskScope, PlaybookPage } from "@/server/assistant/context";
 import type { BoundingBox } from "@/server/geocoding/geocoder";
 import type { TypedAddresses } from "@/server/assistant/typedAddresses";
 import type { IntentLatch } from "@/server/assistant/intents";
@@ -466,6 +473,36 @@ export function newEscalationBuffer(): EscalationBuffer {
 }
 
 /**
+ * **The palette commands this turn named** (ADR-072), for the stream's final
+ * chunk to carry: a collector for `ProposalBuffer`'s reason, since the tool
+ * runs several frames before `messageMetadata` reads it.
+ *
+ * **The allowlist is enforced here, where every id enters** (§3), so no tool
+ * can queue an id the assistant may not name, however it built it. Ids are
+ * matched whole: palette ids are not namespaced, and `settings` sits beside
+ * `people` in one menu.
+ */
+export interface PaletteCommandBuffer {
+  /** Queues `ref` once. False, queuing nothing, for an id the assistant may not name. */
+  add(ref: PaletteCommandRef): boolean;
+  /** What the turn queued, in the order it named it. */
+  collected(): PaletteCommandRef[];
+}
+
+/** One turn's palette commands. Never shared between turns. */
+export function newPaletteCommandBuffer(): PaletteCommandBuffer {
+  const queued: PaletteCommandRef[] = [];
+  return {
+    add: (ref) => {
+      if (!isAssistantCommandId(ref.id)) return false;
+      if (!queued.some((entry) => entry.id === ref.id)) queued.push({ ...ref });
+      return true;
+    },
+    collected: () => queued.map((ref) => ({ ...ref })),
+  };
+}
+
+/**
  * One notebook of this trip as the page store lists it — the whole of what the
  * kernel learns about a notebook it is not writing into.
  */
@@ -533,6 +570,83 @@ export function newNotebookRefs(load: () => Promise<readonly NotebookListing[]>,
 }
 
 /**
+ * **Every trip an account turn may read, and whose they are** (M45).
+ *
+ * The account surface has no `trip` for the guard to have checked, so the
+ * trips arrive through this port instead: every active trip the asker can
+ * open, each with its members overlaid with who is travelling. Which of them
+ * COUNT (D2) is the domain's call (`travelledTrips`), never the port's.
+ *
+ * `userId` rides on the port rather than on a tool's input for ADR-022 §3's
+ * reason: identity comes from the session, never from anything a model types.
+ */
+export interface AccountTrips {
+  readonly userId: string;
+  /** Read the store once per turn, however many tools ask. */
+  load(): Promise<readonly TripDetail[]>;
+}
+
+/** One turn's account trips for `userId`. Never shared between turns. */
+export function newAccountTrips(userId: string, read: (userId: string) => Promise<readonly TripDetail[]>): AccountTrips {
+  let loading: Promise<readonly TripDetail[]> | null = null;
+  return {
+    userId,
+    load: () => (loading ??= read(userId)),
+  };
+}
+
+/**
+ * **What a playbook page shows, read as the asker** (M45 D9): the playbook on
+ * a shared day, or a list page's own list. A port for `PlaybookLibrary`'s
+ * reason, the library is behind the import wall, and narrow for the same one:
+ * the kernel never builds a query, so a page's tools cannot read past the
+ * page. `page` is the one the turn's scope named, which admission verified.
+ */
+export interface PlaybookPageReads {
+  readonly page: PlaybookPage;
+  /** The playbook on a shared day, or null on a list page. Read once per turn. */
+  day(): Promise<SavedDay | null>;
+  /** The list page's first page of days, as the page lists them; empty on a shared day. Read once per turn. */
+  list(): Promise<readonly DiscoverDay[]>;
+}
+
+/** One turn's playbook page, read lazily and at most once each way. */
+export function newPlaybookPageReads(
+  page: PlaybookPage,
+  read: { day: (savedDayId: string) => Promise<SavedDay | null>; list: (page: PlaybookPage) => Promise<readonly DiscoverDay[]> },
+): PlaybookPageReads {
+  let day: Promise<SavedDay | null> | null = null;
+  let list: Promise<readonly DiscoverDay[]> | null = null;
+  return {
+    page,
+    day: () => (day ??= page.kind === "day" ? read.day(page.savedDayId) : Promise.resolve(null)),
+    list: () => (list ??= page.kind === "day" ? Promise.resolve([]) : read.list(page)),
+  };
+}
+
+/**
+ * Where a playbook page's write lands (M45 D9): the one proposal the turn
+ * drafts, taking the playbook into a trip. One, and the later call replaces
+ * the earlier, because the page's buttons take the playbook into one trip at
+ * a time and a card offering two would be a choice the page never offers.
+ */
+export interface PlaybookProposalBuffer {
+  set(proposal: AssistantProposal): void;
+  collected(): AssistantProposal | null;
+}
+
+/** One turn's playbook proposal. Never shared between turns. */
+export function newPlaybookProposalBuffer(): PlaybookProposalBuffer {
+  let held: AssistantProposal | null = null;
+  return {
+    set: (proposal) => {
+      held = proposal;
+    },
+    collected: () => held,
+  };
+}
+
+/**
  * Everything any tool may reach. `defineTool`'s `needs` indexes into this and
  * nothing else, so "what can this tool touch?" is one line of its definition
  * and the set of answers is this interface.
@@ -576,6 +690,14 @@ export interface AssistantDeps {
   intent: IntentLatch;
   /** How many days `read_day` has read in full this turn, against the per-turn cap. */
   readBudget: DayReadBudget;
+  /** The account surface's trips (M45) — the cross-trip tools' only source. */
+  trips: AccountTrips;
+  /** The palette commands the turn named, for its final chunk (ADR-072). */
+  paletteCommands: PaletteCommandBuffer;
+  /** The playbook page the turn is asked on (M45 D9) — its tools' only source. */
+  playbookPage: PlaybookPageReads;
+  /** Where a shared day's write lands (M45 D9). */
+  playbookProposal: PlaybookProposalBuffer;
 }
 
 export type DepKey = keyof AssistantDeps;
@@ -620,6 +742,10 @@ const TURN_DEP_KEY_SET: Record<TurnDepKey, true> = {
   typedAddresses: true,
   intent: true,
   readBudget: true,
+  trips: true,
+  paletteCommands: true,
+  playbookPage: true,
+  playbookProposal: true,
 };
 export const TURN_DEP_KEYS = Object.keys(TURN_DEP_KEY_SET) as readonly TurnDepKey[];
 

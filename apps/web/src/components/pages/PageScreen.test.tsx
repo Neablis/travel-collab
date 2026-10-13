@@ -16,6 +16,7 @@ import { toStoredPageDoc } from "@/components/pages/editor/storedPageDoc";
 import { fetchTripGlobals } from "@/lib/apiClient";
 import { cachedRead, DEDUPE } from "@/lib/queryCache";
 import { tripKeys } from "@/lib/queryKeys";
+import { findPaletteCommand, runPaletteCommand } from "@/components/palette/paletteRegistry";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
@@ -2158,6 +2159,34 @@ describe("PageScreen — the breadcrumb", () => {
     expect(screen.queryByRole("button", { name: "Done editing" })).toBeNull();
     expect(screen.getByRole("heading", { level: 1, name: "Packing" }).getAttribute("contenteditable")).toBe("false");
     expect(roleAnswered.answered).toHaveBeenCalled();
+  });
+
+  // M45 D4, ADR-068 §2: ⌘K's *Edit › Notebook* is the toolbar's toggle, so
+  // what the palette turns on the button turns off, and the reverse.
+  it("turns editing on and off from ⌘K by the toolbar's own toggle", async () => {
+    await open("f4a5b6c7-d8e9-4f0a-9b1c-2d3e4f506172", null, "editor");
+    await screen.findByRole("button", { name: "Edit page" });
+    expect(findPaletteCommand("notebook-editing")?.target?.label).toBe("Turn editing on");
+
+    act(() => void runPaletteCommand("notebook-editing"));
+    expect(screen.getByRole("button", { name: "Done editing" }).getAttribute("aria-pressed")).toBe("true");
+    expect(findPaletteCommand("notebook-editing")?.target?.label).toBe("Turn editing off");
+
+    await userEvent.click(screen.getByRole("button", { name: "Done editing" }));
+    act(() => void runPaletteCommand("notebook-editing"));
+    expect(screen.getByRole("button", { name: "Done editing" }).getAttribute("aria-pressed")).toBe("true");
+    act(() => void runPaletteCommand("notebook-editing"));
+    expect(screen.getByRole("button", { name: "Edit page" }).getAttribute("aria-pressed")).toBe("false");
+  });
+
+  // ADR-072 §5: what the page withholds from its toolbar, ⌘K withholds too.
+  it("offers a viewer no Edit › Notebook in ⌘K", async () => {
+    const roleAnswered = watchRole();
+    await open("a5b6c7d8-e9f0-4a1b-8c2d-3e4f50617283", null, "viewer");
+    await roleAnswered();
+
+    expect(roleAnswered.answered).toHaveBeenCalled();
+    expect(findPaletteCommand("notebook-editing")).toBeUndefined();
   });
 
   it("still offers an editor Edit page, which opens Editing", async () => {

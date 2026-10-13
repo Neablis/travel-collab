@@ -24,11 +24,15 @@ import { z } from "zod";
 import {
   AMBIENT_DEP_KEYS,
   TURN_DEP_KEYS,
+  newAccountTrips,
   newDayReadBudget,
   newEscalationBuffer,
   newNotebookRefs,
   newPageBuffer,
+  newPaletteCommandBuffer,
   newPlaceCache,
+  newPlaybookPageReads,
+  newPlaybookProposalBuffer,
   newProposalBuffer,
 } from "./deps";
 import { PLANNING_TOOLS } from "./tools/planning";
@@ -41,6 +45,9 @@ import { INTENT_TOOLS } from "./tools/intent";
 import { newIntentLatch } from "./intents";
 import { READ_TOOLS } from "./tools/read";
 import { insertPlaybookDayTool } from "./tools/insertPlaybookDay";
+import { ACROSS_TRIP_TOOLS } from "./tools/acrossTrips";
+import { NAVIGATION_TOOLS } from "./tools/navigate";
+import { PLAYBOOK_TOOLS } from "./tools/playbook";
 
 // **Derived from the two runtime lists, not written out.** This was a
 // hand-typed array of seven strings, which is the manifest shape ADR-043
@@ -65,6 +72,10 @@ const TURN_DEPS = {
   typedAddresses: typedAddressesIn(""),
   intent: newIntentLatch("compose", ["compose"], () => 0),
   readBudget: newDayReadBudget(15),
+  trips: newAccountTrips("registry-reader", async () => []),
+  paletteCommands: newPaletteCommandBuffer(),
+  playbookPage: newPlaybookPageReads({ kind: "discover", search: { cities: [], countries: [], scope: "everyone", sort: "most-added", budget: "any", length: "any", rating: "any", tag: "any", after: null } }, { day: async () => null, list: async () => [] }),
+  playbookProposal: newPlaybookProposalBuffer(),
 };
 
 /** The widget names `insert_widget`'s schema will accept, read off the schema. */
@@ -82,12 +93,15 @@ describe("the registry", () => {
     expect(names.sort()).toEqual(
       [
         ...READ_TOOLS.map((t) => t.name),
+        ...ACROSS_TRIP_TOOLS.map((t) => t.name),
+        ...PLAYBOOK_TOOLS.map((t) => t.name),
         ...PLACE_TOOLS.map((t) => t.name),
         ...PLANNING_TOOLS.map((t) => t.name),
         insertPlaybookDayTool.name,
         ...WIDGET_TOOLS.map((t) => t.name),
         ...PAGE_TOOLS.map((t) => t.name),
         ...INTENT_TOOLS.map((t) => t.name),
+        ...NAVIGATION_TOOLS.map((t) => t.name),
         ...ESCALATION_TOOLS.map((t) => t.name),
       ].sort(),
     );
@@ -121,7 +135,7 @@ describe("the registry", () => {
 
   it("tags every tool for the grant filter, with no holes", () => {
     for (const tool of ASSISTANT_TOOLS) {
-      expect(["itinerary", "library", "pages", "places", "account", "system"], tool.name).toContain(tool.domain);
+      expect(["itinerary", "library", "pages", "places", "account", "system", "playbook", "playbookList"], tool.name).toContain(tool.domain);
       expect(["read", "steer", "spend", "propose", "write"], tool.name).toContain(tool.effect);
       expect(["none", "vendor"], tool.name).toContain(tool.spend);
       // A tool that spends at a vendor cannot call itself a pure read: the

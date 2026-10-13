@@ -7,9 +7,19 @@
 // built against a trip that has since moved.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AssistantTurn } from "@/components/assistant/Transcript";
-import { clearAskThread, loadAskThread, saveAskThread } from "./askThreadStore";
+import { forgetAskConversationsOf, ownedAskName } from "@/lib/askOwnership";
+import {
+  beyondTripThreadName,
+  clearAskDraft,
+  clearAskThread,
+  loadAskDraft,
+  loadAskThread,
+  saveAskDraft,
+  saveAskThread,
+} from "./askThreadStore";
 
-const NAME = "trip:11111111-2222-4333-8444-555566667777";
+// Owned, as every caller stores it: an unowned name is a legacy key, swept.
+const NAME = ownedAskName("user-a", "trip:11111111-2222-4333-8444-555566667777");
 
 const user = (id: string, text: string): AssistantTurn => ({ id, role: "user", text });
 const answer = (id: string, text: string, extra: Partial<Extract<AssistantTurn, { role: "assistant" }>> = {}) =>
@@ -185,5 +195,118 @@ describe("the ask thread store", () => {
   it("ignores a thread stored under a different version", () => {
     window.localStorage.setItem("ask_thread_v0:" + NAME, JSON.stringify([user("u1", "old")]));
     expect(loadAskThread(NAME)).toEqual([]);
+  });
+});
+
+// KI-2026-10-12-g: the composer's unsent text, kept beside its conversation.
+describe("the ask draft store", () => {
+  it("keeps one draft per conversation, and an emptied box is no draft", () => {
+    saveAskDraft(NAME, "and the second day?");
+    saveAskDraft("account", "which city most?");
+    expect(loadAskDraft(NAME)).toBe("and the second day?");
+    expect(loadAskDraft("account")).toBe("which city most?");
+    saveAskDraft(NAME, "   ");
+    expect(loadAskDraft(NAME)).toBeNull();
+    clearAskDraft("account");
+    expect(loadAskDraft("account")).toBeNull();
+  });
+
+  it("degrades to no draft when the browser refuses storage", () => {
+    vi.stubGlobal("localStorage", {
+      getItem: () => {
+        throw new Error("SecurityError");
+      },
+      setItem: () => {
+        throw new Error("SecurityError");
+      },
+      removeItem: () => {
+        throw new Error("SecurityError");
+      },
+    });
+    expect(() => saveAskDraft(NAME, "hello")).not.toThrow();
+    expect(loadAskDraft(NAME)).toBeNull();
+    expect(() => clearAskDraft(NAME)).not.toThrow();
+  });
+});
+
+// PR 426 review, finding 1: sign-out forgets one account's conversations on a
+// shared browser, and no one else's, including an id this one is a prefix of.
+describe("forgetting one account's conversations", () => {
+  it("removes that account's threads and drafts and keeps every other account's", () => {
+    const turn: AssistantTurn = { id: "u1", role: "user", text: "what did I spend?" };
+    saveAskThread(ownedAskName("user-a", "account"), [turn]);
+    saveAskDraft(ownedAskName("user-a", NAME), "and dinner?");
+    saveAskThread(ownedAskName("user-ab", "account"), [turn]);
+    saveAskDraft(ownedAskName("user-b", NAME), "where next?");
+
+    forgetAskConversationsOf("user-a");
+
+    expect(loadAskThread(ownedAskName("user-a", "account"))).toEqual([]);
+    expect(loadAskDraft(ownedAskName("user-a", NAME))).toBeNull();
+    expect(loadAskThread(ownedAskName("user-ab", "account"))).toEqual([turn]);
+    expect(loadAskDraft(ownedAskName("user-b", NAME))).toBe("where next?");
+  });
+});
+
+// PR 426's round 1 put an owner in every name. Keys stored before it have
+// none, and can hold the conversation of whoever used this browser before.
+describe("the keys stored before conversations had owners", () => {
+  it("are removed on the store's first use, and owned keys are kept", async () => {
+    window.localStorage.setItem("ask_thread_v1:trip:11111111-2222-4333-8444-555566667777", "[]");
+    window.localStorage.setItem("ask_thread_v1:account", "[]");
+    window.localStorage.setItem("ask_draft_v1:notebook:t1", "and dinner?");
+    window.localStorage.setItem("ask_draft_v1:page:p1", "a packing list");
+    window.localStorage.setItem(`ask_draft_v1:${NAME}`, "where next?");
+    window.localStorage.setItem("ask_thread_v1:user-a:account", "[]");
+    window.localStorage.setItem("theme", "dark");
+
+    // A fresh module is a fresh page load.
+    vi.resetModules();
+    const store = await import("./askThreadStore");
+    expect(store.loadAskDraft(NAME)).toBe("where next?");
+
+    expect(Object.keys(window.localStorage).sort()).toEqual([`ask_draft_v1:${NAME}`, "ask_thread_v1:user-a:account", "theme"].sort());
+  });
+
+  it("still lets the store work when the browser refuses storage", async () => {
+    vi.stubGlobal("localStorage", {
+      get length(): number {
+        throw new Error("SecurityError");
+      },
+      getItem: () => {
+        throw new Error("SecurityError");
+      },
+    });
+    vi.resetModules();
+    const store = await import("./askThreadStore");
+    expect(store.loadAskDraft(NAME)).toBeNull();
+    expect(store.loadAskThread(NAME)).toEqual([]);
+  });
+});
+
+// M45 D9: one conversation per playbook page. A day's is not a playbook's,
+// neither is Discover's, and a city's is not that city's tag page — or a turn
+// about one would read back as the other's on the next open.
+describe("the playbook pages' conversation names", () => {
+  const DAY = "6e9a2c9e-3f7a-4b6e-9d3f-2b1a5c8d7e6f";
+  const PLAYBOOK = "0b8e1f52-7a3c-4d1e-9f6a-2c5b8d0e1a3f";
+
+  it("names each page apart, and none like the account's", () => {
+    const names = [
+      beyondTripThreadName({ kind: "account" }),
+      beyondTripThreadName({ kind: "playbook", page: { kind: "day", savedDayId: DAY } }),
+      beyondTripThreadName({ kind: "playbook", page: { kind: "day", savedDayId: PLAYBOOK } }),
+      beyondTripThreadName({ kind: "playbook", page: { kind: "discover", search: {} } }),
+      beyondTripThreadName({ kind: "playbook", page: { kind: "city", slug: "kyoto", page: 1 } }),
+      beyondTripThreadName({ kind: "playbook", page: { kind: "tag", tag: "meal", city: "kyoto", page: 1 } }),
+      beyondTripThreadName({ kind: "playbook", page: { kind: "tag", tag: "meal", city: null, page: 1 } }),
+    ];
+    expect(new Set(names).size).toBe(names.length);
+  });
+
+  it("keeps Discover's conversation as its filters and page change", () => {
+    expect(beyondTripThreadName({ kind: "playbook", page: { kind: "discover", search: { cities: ["Kyoto"], tag: "meal", sort: "newest", after: "x" } } })).toBe(
+      beyondTripThreadName({ kind: "playbook", page: { kind: "discover", search: {} } }),
+    );
   });
 });

@@ -22,7 +22,9 @@ import { PlansScreen } from "./PlansScreen";
 //      so. Never charge the old amount silently.
 
 const search = new URLSearchParams();
-vi.mock("next/navigation", () => ({ useSearchParams: () => search }));
+// One router for every render, as Next's is: the pending poll lists it.
+const router = vi.hoisted(() => ({ refresh: vi.fn() }));
+vi.mock("next/navigation", () => ({ useSearchParams: () => search, useRouter: () => router }));
 
 const CATALOGUE: AccountPlanView["catalogue"] = [
   {
@@ -145,6 +147,7 @@ function serve(routes: Routes = {}) {
 
 beforeEach(() => {
   search.delete("checkout");
+  router.refresh.mockClear();
   serve();
 });
 
@@ -665,6 +668,9 @@ describe("coming back from Stripe", () => {
     await screen.findByTestId("plans-pending");
     const result = await screen.findByTestId("plans-result", {}, { timeout: 8000 });
     expect(result.textContent).toContain("no need to sign out");
+    // The layout sends the plan with the page (M45 decision 3): rendered
+    // again, so the next page draws what the new plan offers.
+    expect(router.refresh).toHaveBeenCalledTimes(1);
   });
 
   // **An account that was ALREADY subscribed satisfies "state is active"

@@ -17,8 +17,12 @@ import { useEffect, useRef, useSyncExternalStore } from "react";
 // notebook, the account pages). The entry is a value, not a flag the bar
 // holds — the route still decides which tabs exist (`tabsForScope`).
 
-/** What the tab bar's Ask item needs: whether the assistant is up, and how to bring it up. */
-export type PhoneAskEntry = { open: boolean; onOpen: () => void };
+/**
+ * What the tab bar's Ask item needs: whether the assistant is up, and how to
+ * bring it up. `onAsk` brings it up and sends `text`, for ⌘K's *Ask: <text>*
+ * (M45 D6); a screen that offers none gets no such row.
+ */
+export type PhoneAskEntry = { open: boolean; onOpen: () => void; onAsk?: (text: string) => void };
 
 let entry: PhoneAskEntry | null = null;
 const listeners = new Set<() => void>();
@@ -61,17 +65,24 @@ export function usePhoneAsk(): PhoneAskEntry | null {
 
 /**
  * Offers this screen's assistant as the tab bar's Ask while mounted. `onOpen`
- * `undefined` offers none. `onOpen` may be a fresh function each render: the
- * entry calls whichever is latest, so only `open` changing re-registers.
+ * `undefined` offers none; `onAsk`, sending a question as it opens, is
+ * optional beside it. Either may be a fresh function each render: the entry
+ * calls whichever is latest, so only `open`, or whether each is offered,
+ * changing re-registers.
  */
-export function usePhoneAskEntry(onOpen: (() => void) | undefined, open: boolean): void {
-  const latest = useRef(onOpen);
+export function usePhoneAskEntry(onOpen: (() => void) | undefined, open: boolean, onAsk?: (text: string) => void): void {
+  const latest = useRef({ onOpen, onAsk });
   useEffect(() => {
-    latest.current = onOpen;
+    latest.current = { onOpen, onAsk };
   });
   const offered = onOpen !== undefined;
+  const asks = onAsk !== undefined;
   useEffect(() => {
     if (!offered) return;
-    return registerPhoneAsk({ open, onOpen: () => latest.current?.() });
-  }, [offered, open]);
+    return registerPhoneAsk({
+      open,
+      onOpen: () => latest.current.onOpen?.(),
+      ...(asks ? { onAsk: (text: string) => latest.current.onAsk?.(text) } : {}),
+    });
+  }, [offered, asks, open]);
 }

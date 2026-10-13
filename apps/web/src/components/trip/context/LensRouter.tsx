@@ -1,6 +1,7 @@
 "use client";
 import { createContext, useContext, useMemo } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { TRIP_VIEWS, type TripView } from "@tc/contracts";
 import { isDemoBoardPath } from "@/lib/demoTrip";
 
 // SPEC §24: the trip has **four peer views — Overview · Plan · Calendar · Map**
@@ -28,8 +29,11 @@ import { isDemoBoardPath } from "@/lib/demoTrip";
 // `?view=Timeline|Calendar`, which could express states no tab could reach
 // (`lens=Map&view=Calendar`) and needed `setLensAndView` to write both at once
 // without losing an update. Four peer views need one value.
-export const VIEWS = ["Overview", "Plan", "Calendar", "Map"] as const;
-export type View = (typeof VIEWS)[number];
+//
+// The list is the contract's (ADR-072 §3): the assistant names a view by it,
+// so the page and the allowlist cannot hold two.
+export const VIEWS = TRIP_VIEWS;
+export type View = TripView;
 
 /**
  * Whether this view acts on a single day — §24's `dayScope`.

@@ -3,12 +3,21 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { demoTripDetail } from "@/server/demoTrip";
 import { DEMO_TRIP_ID } from "@/lib/demoTrip";
-import { DAYTIME_END_MINUTES, DAYTIME_START_MINUTES, summarizeFreeDays } from "@tc/domain";
+import { ASK_RETRACT_CHUNK, TripCommand } from "@tc/contracts";
+import {
+  DAYTIME_END_MINUTES,
+  DAYTIME_START_MINUTES,
+  decideTripCommand,
+  evolveTrip,
+  summarizeFreeDays,
+  tripDetailFromState,
+  type TripState,
+} from "@tc/domain";
 import type { AskAnalyticsRecord } from "@/server/assistant/askAnalytics";
 import { OVERVIEW_ABOVE_DAYS } from "@/server/assistant/tools/read";
-import { expectationFor, mostFreeDays } from "./cases";
-import { EVAL_TRIPS, LONG_TRIP_DAYS, longTripCommands } from "./trips";
-import { grade, namesAmount, namesDayNumber, reviewedChanges, type EvalTurn } from "./grade";
+import { accountExpectationFor, expectationFor, mostFreeDays, playbookExpectationFor, type SeededAccountTrip } from "./cases";
+import { ACCOUNT_TRIPS, EVAL_TRIPS, LONG_TRIP_DAYS, accountTripCommands, longTripCommands } from "./trips";
+import { grade, namesAmount, namesDayNumber, retractedText, reviewedChanges, textBeforeToolCall, visibleText, type EvalTurn } from "./grade";
 
 // The fields `grade` reads, on an otherwise ordinary completed turn.
 function turn(over: Partial<AskAnalyticsRecord> = {}, text = "Day 3 is the most open.", proposalCommands = 0): EvalTurn {
@@ -21,7 +30,7 @@ function turn(over: Partial<AskAnalyticsRecord> = {}, text = "Day 3 is the most 
     usage: { inputTokens: 3_000, outputTokens: 200, totalTokens: 3_200 },
     ...over,
   } as AskAnalyticsRecord;
-  return { record, text, proposalCommands };
+  return { record, text, proposalCommands, textBeforeToolCall: false, retracted: { parts: 0, chars: 0 } };
 }
 
 const failing = (checks: ReturnType<typeof grade>) => checks.filter((check) => !check.pass).map((check) => check.name);
@@ -37,7 +46,8 @@ describe("grade", () => {
       maxInputTokens: 10_000,
       namesOneOfDays: [3],
     });
-    expect(checks).toHaveLength(8);
+    // Seven asked for, and "no text before a tool call", which is always on.
+    expect(checks).toHaveLength(8 + 1);
     expect(failing(checks)).toEqual([]);
   });
 
@@ -106,6 +116,31 @@ describe("namesAmount", () => {
   });
 });
 
+// M45: a fact the trips determine and no day or amount can name — the city
+// visited most, how many countries. Case-insensitive, because "kyoto" at the
+// start of a sentence is still Kyoto.
+describe("mentionsOneOf", () => {
+  it("passes an answer that names one of them, in any case, and fails one that names none", () => {
+    expect(failing(grade(turn({}, "Mostly kyoto, three times."), { mentionsOneOf: ["Kyoto"] }))).toEqual([]);
+    expect(failing(grade(turn({}, "Mostly Barcelona."), { mentionsOneOf: ["Kyoto", "Nara"] }))).toEqual([
+      'mentions "Kyoto" or "Nara"',
+    ]);
+  });
+});
+
+// A place name inside another word is not the place: "romantic" is not Oman,
+// "scuba" is not Cuba, "Indian" is not India.
+describe("namesOneOf", () => {
+  it("passes a whole name in any case, and fails one found only inside a word", () => {
+    expect(failing(grade(turn({}, "Try oman, then Jordan."), { namesOneOf: ["Oman"] }))).toEqual([]);
+    expect(failing(grade(turn({}, "Côte d'Ivoire next."), { namesOneOf: ["Côte d'Ivoire"] }))).toEqual([]);
+    expect(failing(grade(turn({}, "A romantic return to Japan."), { namesOneOf: ["Oman"] }))).toEqual(['names "Oman"']);
+    expect(failing(grade(turn({}, "Scuba off Okinawa, an Indian summer."), { namesOneOf: ["Cuba", "India"] }))).toEqual([
+      'names "Cuba" or "India"',
+    ]);
+  });
+});
+
 describe("the cases", () => {
   const japan = demoTripDetail(DEMO_TRIP_ID);
 
@@ -156,9 +191,54 @@ describe("the cases", () => {
     expect(plan.completes ?? true).toBe(true);
   });
 
+  // Over a trip in Japan, every country but Japan is a right answer: one named
+  // only inside "romantic" or "scuba" is not.
+  it("fails a next country that names only one already visited", () => {
+    const next = accountExpectationFor("a-next-country", [{ detail: japan, travelling: true }], japan.members[0]!.userId)!;
+    const said = (text: string) => failing(grade(turn({ toolCalls: [{ name: "suggest_next_country", input: {} }] }, text), next));
+    expect(said("A romantic return to Japan, with scuba off Okinawa and an Indian summer in Hokkaido.")).toEqual([
+      `names one of ${next.namesOneOf!.length} places`,
+    ]);
+    expect(said("Portugal, for the food.")).toEqual([]);
+  });
+
+  // The trip the asker is not going on outranks the right answer to both: an
+  // answer that ranks it too ("Barcelona, then Kyoto") counted it.
+  it("fails an account answer that also ranks the trip the asker is not going on", () => {
+    const asker = "eval-reader";
+    const seeded = ACCOUNT_TRIPS.map((trip, i): SeededAccountTrip => {
+      const tripId = `00000000-0000-4000-8000-${String(i + 1).padStart(12, "0")}`;
+      let state: TripState | null = null;
+      for (const command of [TripCommand.parse({ type: "CreateTrip", tripId, name: trip.name }), ...accountTripCommands(tripId, trip)]) {
+        const decision = decideTripCommand(state, command, { actorId: asker });
+        if (!decision.ok) throw new Error(`the domain refused ${command.type}: ${decision.rejection.message}`);
+        for (const event of decision.events) state = evolveTrip(state, event);
+      }
+      return { detail: tripDetailFromState(state!, "2027-04-01T09:00:00.000Z"), travelling: trip.travelling };
+    });
+    const said = (id: string, tool: string, text: string) =>
+      failing(grade(turn({ toolCalls: [{ name: tool, input: {} }] }, text), accountExpectationFor(id, seeded, asker)!));
+    expect(said("a-city-most", "visit_counts", "Kyoto, 3 days.")).toEqual([]);
+    expect(said("a-city-most", "visit_counts", "Barcelona (4 days), then Kyoto (3).")).toEqual(['does not say "Barcelona"']);
+    expect(said("a-most-expensive-meal", "spend_by_category", "The Kaiseki dinner, at $180.")).toEqual([]);
+    expect(said("a-most-expensive-meal", "spend_by_category", "Disfrutar at $300, ahead of the Kaiseki dinner ($180).")).toEqual([
+      'does not say "Disfrutar"',
+    ]);
+  });
+
   it("has an expectation for every prompt in the live set", () => {
-    const set = JSON.parse(readFileSync(join(import.meta.dirname, "live-set.json"), "utf8")) as { prompts: { id: string }[] };
-    for (const prompt of set.prompts) expect(expectationFor(prompt.id, japan), prompt.id).toBeDefined();
+    const set = JSON.parse(readFileSync(join(import.meta.dirname, "live-set.json"), "utf8")) as {
+      prompts: { id: string; surface?: string }[];
+    };
+    for (const prompt of set.prompts) {
+      const expected =
+        prompt.surface === "account"
+          ? accountExpectationFor(prompt.id, [], "eval-reader")
+          : prompt.surface === "playbook"
+            ? playbookExpectationFor(prompt.id, [])
+            : expectationFor(prompt.id, japan);
+      expect(expected, prompt.id).toBeDefined();
+    }
   });
 
   // A prompt that names a trip the runner cannot seed would fail only on a
@@ -216,6 +296,12 @@ describe("reviewedChanges", () => {
     expect(reviewedChanges(finish({ proposal: { commands: [{}, {}] } }))).toBe(2);
   });
 
+  // M45 D9: a playbook page's card takes one day in by reference and holds no
+  // command, and the add-to-trip case must still pass as proposing.
+  it("counts a card's playbook days beside its commands", () => {
+    expect(reviewedChanges(finish({ proposal: { commands: [], inserts: [{ savedDayId: "d", name: "A day" }] } }))).toBe(1);
+  });
+
   it("counts a stored suggestion's changes, so a multi-change case passes on it", () => {
     const chunks = finish({ suggested: { suggestionId: "s", changeCount: 4, snapshotId: null, snapshotName: null } });
     expect(reviewedChanges(chunks)).toBe(4);
@@ -224,5 +310,89 @@ describe("reviewedChanges", () => {
 
   it("counts nothing for a turn that proposed nothing", () => {
     expect(reviewedChanges([{ type: "finish" }])).toBe(0);
+  });
+});
+
+// KI-2026-10-12-e: a turn whose reply carried the model's note to itself passed
+// every check, because none of them read the reply's text.
+describe("no text before a tool call", () => {
+  const LEAKED =
+    'Gap 5:30–7 pm. Look up a cafe in Shibuya.I\'d add a "Coffee break in Shibuya" stop to day 1, from 5:45 to 6:30 pm. ' +
+    "That fits the gap between the Trunk Hotel check-in, which ends at 5:30 pm, and dinner at Gonpachi at 7 pm. " +
+    "The change is waiting for your approval.";
+
+  it("fails the KI's reply on its seam, from the text alone", () => {
+    expect(failing(grade(turn({}, LEAKED, 1), { proposes: true }))).toEqual(["no text before a tool call"]);
+  });
+
+  it("fails a stream that spoke before it called a tool, whatever the text looks like", () => {
+    const chunks = [
+      { type: "text-delta", delta: "Checking day 1. " },
+      { type: "tool-input-start", toolName: "read_day" },
+      { type: "text-delta", delta: "Day 3 is the most open." },
+    ];
+    expect(textBeforeToolCall(chunks)).toBe(true);
+    expect(failing(grade({ ...turn(), textBeforeToolCall: textBeforeToolCall(chunks) }, {}))).toEqual(["no text before a tool call"]);
+  });
+
+  // The KI's own reproduction: step 1 reads silently, step 2 notes the gap
+  // beside its call, step 3 answers. Text after the first call still leaked.
+  it("fails text written beside a later tool call, not only before the first", () => {
+    const chunks = [
+      { type: "tool-input-start", toolName: "read_day" },
+      { type: "text-delta", delta: "Gap 5:30–7 pm. Look up a cafe." },
+      { type: "tool-input-start", toolName: "search_places" },
+      { type: "text-delta", delta: "Day 1 is free from 5:30 to 7 pm." },
+    ];
+    expect(textBeforeToolCall(chunks)).toBe(true);
+  });
+
+  // An abbreviation is not a seam: two lowercase letters must end the sentence.
+  it("reads a seam only after a word, not an abbreviation", () => {
+    expect(failing(grade(turn({}, "Start at the shrine, e.g.Kyoto's Fushimi Inari, at 7 a.m.Breakfast after."), {}))).toEqual([]);
+    expect(failing(grade(turn({}, "Look up a cafe in Shibuya.I'd add a stop."), {}))).toEqual(["no text before a tool call"]);
+  });
+
+  it("passes text that only follows the tool calls", () => {
+    const chunks = [{ type: "tool-input-start", toolName: "read_day" }, { type: "text-delta", delta: "Day 3 is the most open." }];
+    expect(textBeforeToolCall(chunks)).toBe(false);
+    expect(failing(grade({ ...turn(), textBeforeToolCall: false }, {}))).toEqual([]);
+  });
+
+  // KI-2026-10-12-h: the note streams, then an `ASK_RETRACT_CHUNK` takes it back. The
+  // check grades what is left on screen, so a taken-back note passes and the
+  // same stream without its retraction fails.
+  describe("graded on the text left after retractions", () => {
+    const streamed = (retract: boolean) => [
+      { type: "start-step" },
+      { type: "text-start", id: "0" },
+      { type: "text-delta", id: "0", delta: "Gap 5:30–7 pm. Look up a cafe in Shibuya." },
+      { type: "text-end", id: "0" },
+      ...(retract ? [{ type: ASK_RETRACT_CHUNK, data: { ids: ["0"] }, transient: true }] : []),
+      { type: "tool-input-start", toolName: "search_places" },
+      { type: "finish-step" },
+      { type: "start-step" },
+      // AI SDK 7 gives each text part in a run its own id.
+      { type: "text-start", id: "aitxt-1" },
+      { type: "text-delta", id: "aitxt-1", delta: "I'd add a coffee break to day 1." },
+      { type: "text-end", id: "aitxt-1" },
+      { type: "finish-step" },
+    ];
+    const graded = (chunks: Record<string, unknown>[]) =>
+      failing(grade({ ...turn({}, visibleText(chunks), 1), textBeforeToolCall: textBeforeToolCall(chunks) }, { proposes: true }));
+
+    it("passes when the note was taken back", () => {
+      expect(visibleText(streamed(true))).toBe("I'd add a coffee break to day 1.");
+      expect(graded(streamed(true))).toEqual([]);
+    });
+
+    it("fails when the retraction is skipped", () => {
+      expect(graded(streamed(false))).toEqual(["no text before a tool call"]);
+    });
+
+    it("counts what was taken back, for the report", () => {
+      expect(retractedText(streamed(true))).toEqual({ parts: 1, chars: "Gap 5:30–7 pm. Look up a cafe in Shibuya.".length });
+      expect(retractedText(streamed(false))).toEqual({ parts: 0, chars: 0 });
+    });
   });
 });

@@ -45,6 +45,8 @@ import { forgetPageDraft, readPageDraft, rememberPageDraft, type PageDraft } fro
 import type { ApiError } from "@/lib/apiClient";
 import { usePublishSaveState } from "@/components/SaveLight";
 import { canEditNotebook } from "@/lib/tripRole";
+import { notebookEditingCommand } from "@/components/palette/commands";
+import { usePaletteSource } from "@/components/palette/paletteRegistry";
 import type { DroppedInsert, PageNode } from "@tc/contracts";
 import type { AskEventHandler } from "@/components/assistant/useAskThread";
 import { getMacro } from "@tc/pages";
@@ -831,6 +833,12 @@ export function PageScreen({
   // Inserts waiting for Editing to switch on — see the Reading branch below.
   const pendingInserts = useRef<PendingInsert[]>([]);
   const [pendingCount, setPendingCount] = useState(0);
+  // Turns whose inserts are still waiting on `mayEdit`, counted BEFORE it is
+  // asked. A reply that also names a trip view runs that in the same
+  // synchronous dispatch, long before the role read answers, so this is what
+  // holds it: leaving now would unmount the page before the inserts were even
+  // queued, and lose them without a word (ADR-072 §4; review round 3, PR 424).
+  const insertsAwaitingRole = useRef(0);
   // Whether this reader may edit: the role read Overview's Edit path uses.
   const mayEdit = async (): Promise<boolean> => {
     const access = await cachedRead(tripKeys.access(tripId), () => fetchTripAccess(tripId));
@@ -877,6 +885,7 @@ export function PageScreen({
     // cannot reach a page, so this is deliberately the identity rather than a
     // copy of it that would go stale.
     errorMessage: (error: ApiError) => error.message,
+    holdsLeaving: () => (insertsAwaitingRole.current > 0 ? "what I wrote is still going into this page" : null),
     onEvent: (event, patchAnswer) => {
       // **The server's own refusal, which was being dropped on the floor.** A
       // page turn whose nodes fail registry validation finishes with
@@ -923,7 +932,9 @@ export function PageScreen({
       // The inserts are queued rather than made here, because the edit session
       // only records changes made WHILE editing: the effect below lands them
       // once the render that turned Editing on has reached the editor.
+      insertsAwaitingRole.current += 1;
       void mayEdit().then((allowed) => {
+        insertsAwaitingRole.current -= 1;
         if (!allowed) {
           patchAnswer((turn) => ({ ...turn, text: `${turn.text}\n\n${READING_REFUSAL}` }));
           return;
@@ -956,6 +967,10 @@ export function PageScreen({
   // because only one of the two can be true of any given turn.
   const [turnRefusal, setTurnRefusal] = useState<string | null>(null);
 
+  // ⌘K's *Ask: <text>* (M45 D6), as the board takes it: dropped once the
+  // rail has taken it, since it remounts on the next open and must not
+  // find it again.
+  const [handOff, setHandOff] = useState<{ text: string } | null>(null);
   // **Closing the surface hangs up on the turn.** Unmounting `AssistantRail`
   // does not: `useAskThread` lives HERE, so its cleanup runs only when the whole
   // screen goes, and a turn still streaming would land its `page-inserts` in a
@@ -981,6 +996,10 @@ export function PageScreen({
       ? () => setAssistantOpen(true)
       : undefined,
     assistantOpen,
+    (text) => {
+      setAssistantOpen(true);
+      setHandOff({ text });
+    },
   );
   // **Leaving Editing no longer hangs up, and that is a reversal.** It did,
   // because the assistant was an editing-only control and leaving Editing was
@@ -1054,6 +1073,9 @@ export function PageScreen({
     if (!mayToggleEditing) return;
     setEditing((was) => !was);
   };
+  // ⌘K's *Edit › Notebook*, which is this toggle (ADR-068 §1), offered when
+  // the toolbar's button is.
+  usePaletteSource("notebook", mayToggleEditing && status === "ready" ? [notebookEditingCommand(editing, toggleEditing)] : []);
 
   // **The page's shape in outlines, never a word** (KI-2026-09-20-e). It used
   // to paint `Loading…` alone, the flicker on Overview → Edit Overview; then it
@@ -1631,9 +1653,9 @@ export function PageScreen({
           refusal SAYS so, because an assistant that answers nothing reads as
           broken rather than as declining.
 
-          The panel is not unmounted between openings: closing it hangs up on
-          the turn (`closeAssistant`) but the thread is `useAskThread`'s, which
-          lives on this screen, so a conversation survives being put away. */}
+          The panel unmounts between openings, but the thread is
+          `useAskThread`'s, which lives on this screen: closing hangs up on the
+          turn (`closeAssistant`) and the conversation survives being put away. */}
       {!isPhone && !assistantOpen ? (
         <AssistantBubble open={assistantOpen} onOpen={() => setAssistantOpen(true)} />
       ) : null}
@@ -1673,6 +1695,10 @@ export function PageScreen({
           // §29 / M26 link 10c — see `useAssistantPosition`. Per PAGE, like
           // this screen's own thread: each document is its own reading surface.
           rememberPositionAs={`assistant:position:page:${pageId}`}
+          // The unsent question, per page as well (KI-2026-10-12-g).
+          rememberDraftAs={`page:${pageId}`}
+          incoming={handOff}
+          onIncomingTaken={() => setHandOff(null)}
           // The phone's line is derived from the surface (§23); the desktop's
           // is the panel's own and is deliberately left alone — "Looking at" is
           // the floating panel's voice, "Asking about" is the sheet's, and the
@@ -1693,6 +1719,7 @@ export function PageScreen({
           emptyHint={isPhone ? phoneAsk.emptyHint : undefined}
           asksRemaining={ask.asksRemaining}
           restoreDraft={ask.restoredDraft}
+          onRestoreTaken={ask.clearRestoredDraft}
           onNewConversation={() => {
             setTurnRefusal(null);
             ask.startNewConversation();

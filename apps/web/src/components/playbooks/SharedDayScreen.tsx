@@ -15,7 +15,7 @@ import { mapPanel } from "./sharedDayFacts";
 import { scopedGeometry } from "./sharedDayGeometry";
 import { useDistanceUnit } from "@/components/account/PreferencesProvider";
 import { useSessionUser } from "@/components/account/useSessionUser";
-import { useEntitled } from "@/components/assistant/useAiEntitled";
+import { useEntitled } from "@/lib/useAiEntitled";
 import { Banner } from "@/components/ui/banner";
 import { Button, PHONE_TOUCH } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -50,6 +50,7 @@ import { backQuery } from "./backLink";
 import { LibraryMoved, SyncFailure } from "./ReadStates";
 import { useLibraryRead } from "./useLibraryRead";
 import { AddToTripDialog } from "./AddToTripDialog";
+import { PlaybookAskButton, PlaybookAssistant } from "@/components/assistant/BeyondTripAssistant";
 import { ReportAction } from "./ReportDialog";
 import { ReviewRail } from "./ReviewRail";
 import { ReviewConflictBanner, ReviewsSection } from "./ReviewsSection";
@@ -866,6 +867,10 @@ export function SharedDayScreen({
                     three days said the same thing as the one that moves one. */}
                 {day.dayCount > 1 ? `Add all ${day.dayCount} days to a trip` : "Add to a trip"}
               </Button>
+              {/* The page's assistant (M45 D9), which can press that button
+                  for you on a trip and day you name. Drawn only for an
+                  account whose plan has it; a phone's is the tab bar's. */}
+              <PlaybookAskButton />
 
               {/* Delete, owner-only (Mitchell, 2026-09-01: "add a button to
                   delete a notebook activity you own"). The `Dialog` +
@@ -997,6 +1002,8 @@ export function SharedDayScreen({
           feed.reload();
         }}
       />
+
+      <PlaybookAssistant page={{ kind: "day", savedDayId: day.savedDayId }} contextLine={`Looking at ${day.name}`} />
     </div>
   );
 }

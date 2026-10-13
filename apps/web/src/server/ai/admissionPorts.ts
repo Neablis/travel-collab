@@ -12,8 +12,10 @@
 // admission logic outside the pipeline, and the `ai.grant` record's claim to
 // name everything a turn was allowed would stop being a measurement.
 import * as Sentry from "@sentry/nextjs";
+import { auth } from "@/server/auth";
 import { guard } from "@/server/pages-guard";
 import { getPage } from "@/server/pages";
+import { readableSavedDay } from "@/server/savedDays";
 import { AI_NOT_ENTITLED_CODE, deniedResponse, selectAiModel } from "@/server/ai/modelSelection";
 import { aiQuotas, aiStepQuotas, consumeQuota, quotaRefusal, reserveAiSteps } from "@/server/quota";
 import { classifyAskIntent } from "@/server/ai/askIntent";
@@ -54,8 +56,18 @@ export const logAiGrant: AiGrantSink = (record: AiGrantRecord) => {
 };
 
 export const admissionPorts: AdmissionPorts = {
-  identifyActor: (tripId, minimum) => guard(tripId, minimum),
+  // No trip is the account door (M45): the session alone says who is asking,
+  // with the same 401 `GET /api/trips` answers a signed-out caller.
+  identifyActor: async (tripId, minimum) => {
+    if (tripId !== null) return guard(tripId, minimum);
+    const session = await auth();
+    const userId = session?.user?.id;
+    return userId ? { userId, detail: null } : { error: Response.json({ error: "unauthenticated" }, { status: 401 }) };
+  },
   loadPage: (pageId) => getPage(pageId),
+  // The day page's own read rule (M45 D9): your own days, and anybody's
+  // published one.
+  playbookDayCount: async (savedDayId, readerId) => (await readableSavedDay(savedDayId, readerId))?.dayCount ?? null,
   // `surface: "ask"` is fixed here rather than passed in: there is one door
   // (ADR-033), and a second surface reaching this pipeline would be a new
   // adapter rather than a parameter on an existing one.

@@ -106,6 +106,12 @@ export const EXPOSURE: Readonly<Record<string, Exposure>> = {
   "trips/[tripId]/snapshots/[snapshotId]/restore": PLANNED("Undecided — restoring a snapshot, one revert batch (M40)"),
 
   // ── Never ────────────────────────────────────────────────────────────────
+  // M45: the account assistant, on the trip door's terms.
+  ask: {
+    status: "never",
+    why: "The assistant — a token cannot spend model budget",
+    reaches: [{ module: "@/server/ai/handleAskRequest" }],
+  },
   "trips/[tripId]/ask": {
     status: "never",
     why: "The assistant — a token cannot spend model budget",

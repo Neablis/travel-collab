@@ -19,12 +19,13 @@
         "find_free_time",
         "search_playbooks",
         "search_places",
+        "go_to",
         "request_change_tools"
       ],
-      "toolChars": 6952,
+      "toolChars": 7440,
       "instructionChars": 2624,
-      "totalChars": 9576,
-      "approxTokens": 2893
+      "totalChars": 10064,
+      "approxTokens": 3040
     },
     "trip · edit": {
       "tools": [
@@ -46,12 +47,13 @@
         "DismissConflict",
         "SetTripCurrency",
         "SetTripBudget",
-        "insert_playbook_day"
+        "insert_playbook_day",
+        "go_to"
       ],
-      "toolChars": 22088,
+      "toolChars": 22576,
       "instructionChars": 4138,
-      "totalChars": 26226,
-      "approxTokens": 7923
+      "totalChars": 26714,
+      "approxTokens": 8071
     },
     "trip · plan": {
       "tools": [
@@ -70,12 +72,13 @@
         "UpdateActivity",
         "MoveActivity",
         "RemoveActivity",
-        "insert_playbook_day"
+        "insert_playbook_day",
+        "go_to"
       ],
-      "toolChars": 21029,
+      "toolChars": 21517,
       "instructionChars": 4445,
-      "totalChars": 25474,
-      "approxTokens": 7696
+      "totalChars": 25962,
+      "approxTokens": 7844
     },
     "trip · unsure": {
       "tools": [
@@ -97,12 +100,13 @@
         "DismissConflict",
         "SetTripCurrency",
         "SetTripBudget",
-        "insert_playbook_day"
+        "insert_playbook_day",
+        "go_to"
       ],
-      "toolChars": 22088,
+      "toolChars": 22576,
       "instructionChars": 4138,
-      "totalChars": 26226,
-      "approxTokens": 7923
+      "totalChars": 26714,
+      "approxTokens": 8071
     },
     "page · compose": {
       "tools": [
@@ -111,12 +115,14 @@
         "get_widget",
         "insert_text",
         "insert_widget",
-        "switch_intent"
+        "switch_intent",
+        "go_to",
+        "propose_notebook_editing"
       ],
-      "toolChars": 4946,
+      "toolChars": 5798,
       "instructionChars": 3564,
-      "totalChars": 8510,
-      "approxTokens": 2571
+      "totalChars": 9362,
+      "approxTokens": 2828
     },
     "page · question": {
       "tools": [
@@ -125,12 +131,14 @@
         "find_days",
         "find_free_time",
         "search_playbooks",
-        "switch_intent"
+        "switch_intent",
+        "go_to",
+        "propose_notebook_editing"
       ],
-      "toolChars": 5946,
+      "toolChars": 6798,
       "instructionChars": 1712,
-      "totalChars": 7658,
-      "approxTokens": 2314
+      "totalChars": 8510,
+      "approxTokens": 2571
     }
   },
   "tools": {
@@ -166,9 +174,17 @@
       "chars": 950,
       "approxTokens": 287
     },
+    "spend_by_category": {
+      "chars": 933,
+      "approxTokens": 282
+    },
     "search_playbooks": {
       "chars": 877,
       "approxTokens": 265
+    },
+    "add_playbook_to_trip": {
+      "chars": 854,
+      "approxTokens": 258
     },
     "read_trip": {
       "chars": 853,
@@ -182,6 +198,10 @@
       "chars": 669,
       "approxTokens": 202
     },
+    "suggest_next_country": {
+      "chars": 661,
+      "approxTokens": 200
+    },
     "MoveActivity": {
       "chars": 605,
       "approxTokens": 183
@@ -194,25 +214,57 @@
       "chars": 584,
       "approxTokens": 176
     },
+    "go_to": {
+      "chars": 488,
+      "approxTokens": 147
+    },
+    "visit_counts": {
+      "chars": 483,
+      "approxTokens": 146
+    },
     "DismissConflict": {
       "chars": 470,
       "approxTokens": 142
+    },
+    "search_this_page": {
+      "chars": 418,
+      "approxTokens": 126
     },
     "RemoveDay": {
       "chars": 412,
       "approxTokens": 124
     },
+    "open_trip": {
+      "chars": 401,
+      "approxTokens": 121
+    },
     "SetTripDates": {
       "chars": 395,
       "approxTokens": 119
+    },
+    "start_trip_with_playbook": {
+      "chars": 385,
+      "approxTokens": 116
     },
     "insert_text": {
       "chars": 385,
       "approxTokens": 116
     },
+    "places_visited": {
+      "chars": 370,
+      "approxTokens": 112
+    },
     "SetTripBudget": {
       "chars": 365,
       "approxTokens": 110
+    },
+    "propose_notebook_editing": {
+      "chars": 364,
+      "approxTokens": 110
+    },
+    "read_playbook": {
+      "chars": 338,
+      "approxTokens": 102
     },
     "RemoveActivity": {
       "chars": 319,

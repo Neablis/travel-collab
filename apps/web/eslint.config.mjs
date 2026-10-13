@@ -574,6 +574,21 @@ export default [
     },
   },
   {
+    // THE APP LAYOUT'S PLAN READ (M45, Mitchell's decision 3 of 2026-10-13:
+    // "send the plan with the page"). `(app)/layout.tsx` resolves the reader's
+    // conferred entitlements per request through `@/server/auth` and
+    // `@/server/entitlements/resolver`, and hands them to
+    // `ServedEntitlementsProvider`, so an Ask is in the first HTML for a reader
+    // who has the assistant and absent for one who has not. Fetching its own
+    // `/api/account/plan` would cost the same round trip after paint that the
+    // decision removed. Per request, never a JWT claim (ADR-045 rule 2). That
+    // one file only: the layouts below it and the screens it renders stay UI.
+    files: ["src/app/(app)/layout.tsx"],
+    rules: {
+      "no-restricted-imports": ["error", { patterns: exemptWallPatterns }],
+    },
+  },
+  {
     // THE ELEMENT WALL (design-system.md): text, controls, and tables render
     // through components/ui primitives; no inline styles. Enumerated inline-
     // style exceptions (drag opacity, map container, computed timeline/calendar

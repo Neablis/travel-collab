@@ -333,7 +333,7 @@ const FETCHING_HELPERS: Record<string, () => Promise<ApiResult<unknown>>> = {
   fetchAdminReports: () => fetchAdminReports(),
   actOnReport: () => actOnReport(UUID, { action: "dismiss" }),
   askAssistant: () =>
-    askAssistant(TRIP_ID, [{ id: "u1", role: "user", parts: [{ type: "text", text: "hi" }] }], { kind: "trip" }),
+    askAssistant({ tripId: TRIP_ID, scope: { kind: "trip" } }, [{ id: "u1", role: "user", parts: [{ type: "text", text: "hi" }] }]),
   applyAssistantProposal: () =>
     applyAssistantProposal(TRIP_ID, {
       proposalId: "p1",
@@ -348,7 +348,7 @@ const FETCHING_HELPERS: Record<string, () => Promise<ApiResult<unknown>>> = {
 // shares — they touch no network, so totality is not a claim about them.
 // Anything else exported as a function has to be in the table above.
 const NON_FETCHING_EXPORTS = new Set([
-  "apiUrl", "inviteLink", "shareLink", "askEventFromFrame", "networkError", "refusal",
+  "apiUrl", "inviteLink", "shareLink", "askEventsFromFrame", "withoutRetracted", "networkError", "refusal",
 ]);
 
 // **The screen→client seam was covered; the client→URL seam was not.**
@@ -840,14 +840,42 @@ describe("askAssistant", () => {
       { id: "a1", role: "assistant", parts: [{ type: "text", text: "Five stops." }] },
       { id: "u2", role: "user", parts: [{ type: "text", text: "what about the next day?" }] },
     ];
-    await askAssistant(TRIP_ID, thread, { kind: "day", dayIndex: 2 });
+    await askAssistant({ tripId: TRIP_ID, scope: { kind: "day", dayIndex: 2 } }, thread);
     expect(seen).toEqual({ messages: thread, scope: { kind: "day", dayIndex: 2 } });
+  });
+
+  // M45 D7: Home's rail is no trip's, so its turn goes to the account door.
+  it("posts an account turn to /api/ask, not to a trip's door", async () => {
+    let seen: unknown;
+    server.use(
+      http.post("*/api/ask", async ({ request }) => {
+        seen = await request.json();
+        return sseResponse(ANSWER_FRAMES);
+      }),
+    );
+    const thread: apiClientModule.AskWireMessage[] = [{ id: "u1", role: "user", parts: [{ type: "text", text: "which city have I been to most?" }] }];
+    const result = await askAssistant({ scope: { kind: "account" } }, thread);
+    expect(result.ok).toBe(true);
+    expect(seen).toEqual({ messages: thread, scope: { kind: "account" } });
+  });
+
+  // PR 426 review, finding 4: the door is chosen from a pair, so a trip scope
+  // cannot travel without its trip (the old `/api/trips/null/ask`), nor a
+  // scope about no one trip with one. Checked by the typecheck, not the run.
+  it("takes a trip scope only with its trip, and the account's only without one", () => {
+    const pairs: apiClientModule.AskWhere[] = [
+      // @ts-expect-error -- a trip scope needs its trip's id
+      { scope: { kind: "trip" } },
+      // @ts-expect-error -- the account's door is its own
+      { tripId: TRIP_ID, scope: { kind: "account" } },
+    ];
+    expect(pairs).toHaveLength(2);
   });
 
   it("streams text deltas in order and concatenates them into one answer", async () => {
     server.use(http.post("*/api/trips/:tripId/ask", () => sseResponse(ANSWER_FRAMES)));
     const events: apiClientModule.AskEvent[] = [];
-    const result = await askAssistant(TRIP_ID, [], { kind: "trip" }, (e) => events.push(e));
+    const result = await askAssistant({ tripId: TRIP_ID, scope: { kind: "trip" } }, [], (e) => events.push(e));
     if (!result.ok) throw new Error(`expected ok, got ${result.error.message}`);
     expect(result.value.text).toBe("Day 3 has 5 stops. The biggest open stretch is 17:30 to 19:30.");
     expect(events.filter((e) => e.type === "text").map((e) => e.delta)).toEqual([
@@ -859,7 +887,7 @@ describe("askAssistant", () => {
   it("surfaces tool calls, in order, before any answer text", async () => {
     server.use(http.post("*/api/trips/:tripId/ask", () => sseResponse(ANSWER_FRAMES)));
     const events: apiClientModule.AskEvent[] = [];
-    await askAssistant(TRIP_ID, [], { kind: "trip" }, (e) => events.push(e));
+    await askAssistant({ tripId: TRIP_ID, scope: { kind: "trip" } }, [], (e) => events.push(e));
     const kinds = events.map((e) => e.type);
     expect(kinds.indexOf("tool")).toBeLessThan(kinds.indexOf("text"));
     expect(events.filter((e) => e.type === "tool").map((e) => e.toolName)).toEqual(["read_trip", "read_day"]);
@@ -869,7 +897,7 @@ describe("askAssistant", () => {
   // and the answer comes back truncated.
   it("reassembles frames split across network reads", async () => {
     server.use(http.post("*/api/trips/:tripId/ask", () => sseResponse(ANSWER_FRAMES, { split: true })));
-    const result = await askAssistant(TRIP_ID, [], { kind: "trip" });
+    const result = await askAssistant({ tripId: TRIP_ID, scope: { kind: "trip" } }, []);
     if (!result.ok) throw new Error("expected ok");
     expect(result.value.text).toBe("Day 3 has 5 stops. The biggest open stretch is 17:30 to 19:30.");
   });
@@ -886,7 +914,7 @@ describe("askAssistant", () => {
       ),
     );
     const events: apiClientModule.AskEvent[] = [];
-    const result = await askAssistant(TRIP_ID, [], { kind: "trip" }, (e) => events.push(e));
+    const result = await askAssistant({ tripId: TRIP_ID, scope: { kind: "trip" } }, [], (e) => events.push(e));
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.error.status).toBe(200);
@@ -905,7 +933,7 @@ describe("askAssistant", () => {
         ),
       ),
     );
-    const result = await askAssistant(TRIP_ID, [], { kind: "trip" });
+    const result = await askAssistant({ tripId: TRIP_ID, scope: { kind: "trip" } }, []);
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.error.status).toBe(403);
@@ -917,14 +945,14 @@ describe("askAssistant", () => {
     server.use(http.post("*/api/trips/:tripId/ask", () => sseResponse(ANSWER_FRAMES)));
     const controller = new AbortController();
     controller.abort();
-    const result = await askAssistant(TRIP_ID, [], { kind: "trip" }, () => {}, controller.signal);
+    const result = await askAssistant({ tripId: TRIP_ID, scope: { kind: "trip" } }, [], () => {}, controller.signal);
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.error.code).toBe(apiClientModule.ASK_ABORTED_CODE);
   });
 });
 
-describe("askEventFromFrame", () => {
+describe("askEventsFromFrame", () => {
   // The frames it must IGNORE are the contract too: the stream is a superset
   // the server may grow, and an unknown part type must never break a
   // conversation (nor render as raw JSON in the transcript).
@@ -941,19 +969,18 @@ describe("askEventFromFrame", () => {
     "",
     "not json at all",
   ])("ignores %s", (payload) => {
-    expect(apiClientModule.askEventFromFrame(`data: ${payload}`)).toBeNull();
+    expect(apiClientModule.askEventsFromFrame(`data: ${payload}`)).toEqual([]);
   });
 
   it("reads a multi-line data frame as one payload, per the SSE spec", () => {
-    expect(apiClientModule.askEventFromFrame('data: {"type":"text-delta",\ndata: "delta":"hi"}')).toEqual({
-      type: "text",
-      delta: "hi",
-    });
+    expect(apiClientModule.askEventsFromFrame('data: {"type":"text-delta",\ndata: "delta":"hi"}')).toEqual([
+      { type: "text", delta: "hi" },
+    ]);
   });
 
   it("falls back to a readable message when an error frame carries no errorText", () => {
-    const event = apiClientModule.askEventFromFrame('data: {"type":"error"}');
-    expect(event).toEqual({ type: "error", message: "The assistant stopped mid-answer." });
+    const events = apiClientModule.askEventsFromFrame('data: {"type":"error"}');
+    expect(events).toEqual([{ type: "error", message: "The assistant stopped mid-answer." }]);
   });
 });
 
@@ -964,7 +991,7 @@ describe("the simulated verdict", () => {
   it("is read from the header, before the first delta", async () => {
     server.use(http.post("*/api/trips/:tripId/ask", () => sseResponse(ANSWER_FRAMES, { simulated: true })));
     const events: apiClientModule.AskEvent[] = [];
-    await askAssistant(TRIP_ID, [], { kind: "trip" }, (e) => events.push(e));
+    await askAssistant({ tripId: TRIP_ID, scope: { kind: "trip" } }, [], (e) => events.push(e));
     expect(events[0]).toEqual({ type: "meta", simulated: true });
   });
 
@@ -983,7 +1010,7 @@ describe("the simulated verdict", () => {
       ),
     );
     const events: apiClientModule.AskEvent[] = [];
-    await askAssistant(TRIP_ID, [], { kind: "trip" }, (e) => events.push(e));
+    await askAssistant({ tripId: TRIP_ID, scope: { kind: "trip" } }, [], (e) => events.push(e));
     expect(events.filter((e) => e.type === "meta")).toEqual([{ type: "meta", simulated: false }]);
   });
 
@@ -994,7 +1021,7 @@ describe("the simulated verdict", () => {
       ),
     );
     const events: apiClientModule.AskEvent[] = [];
-    const result = await askAssistant(TRIP_ID, [], { kind: "trip" }, (e) => events.push(e));
+    const result = await askAssistant({ tripId: TRIP_ID, scope: { kind: "trip" } }, [], (e) => events.push(e));
     expect(result.ok).toBe(false);
     expect(events.filter((e) => e.type === "meta")).toEqual([{ type: "meta", simulated: true }]);
   });
@@ -1002,7 +1029,7 @@ describe("the simulated verdict", () => {
   it("reads a missing header as not simulated", async () => {
     server.use(http.post("*/api/trips/:tripId/ask", () => sseResponse(ANSWER_FRAMES)));
     const events: apiClientModule.AskEvent[] = [];
-    await askAssistant(TRIP_ID, [], { kind: "trip" }, (e) => events.push(e));
+    await askAssistant({ tripId: TRIP_ID, scope: { kind: "trip" } }, [], (e) => events.push(e));
     expect(events[0]).toEqual({ type: "meta", simulated: false });
   });
 });
@@ -1038,7 +1065,7 @@ describe("a stored suggestion on the wire", () => {
       ),
     );
     const events: apiClientModule.AskEvent[] = [];
-    await askAssistant(TRIP_ID, [], { kind: "trip" }, (e) => events.push(e));
+    await askAssistant({ tripId: TRIP_ID, scope: { kind: "trip" } }, [], (e) => events.push(e));
     expect(events.at(-1)).toEqual({ type: "suggested", suggested });
     expect(events.some((e) => e.type === "proposal")).toBe(false);
   });
@@ -1054,8 +1081,50 @@ describe("a turn that changed nothing, on the wire", () => {
       ),
     );
     const events: apiClientModule.AskEvent[] = [];
-    await askAssistant(TRIP_ID, [], { kind: "trip" }, (e) => events.push(e));
+    await askAssistant({ tripId: TRIP_ID, scope: { kind: "trip" } }, [], (e) => events.push(e));
     expect(events.at(-1)).toEqual({ type: "not-applied", skipped });
+  });
+});
+
+// ADR-072 §1 and §3, and M45's gate box: "a URL in a reply does not
+// navigate". The reply names palette commands, and the reader keeps only the
+// ids the assistant may name, so a URL or a palette sibling never reaches the
+// page's runner, even beside a proposal it does keep.
+describe("the palette commands on the wire", () => {
+  const MAP = { id: "view:Map", needsApproval: false };
+
+  it("arrive as one `palette` event after the outcome, with every id it may not name dropped", async () => {
+    const paletteCommands = [
+      { id: "https://example.com/phish", needsApproval: false },
+      MAP,
+      { id: `/trips/${TRIP_ID}?view=Map`, needsApproval: false },
+      { id: "settings", needsApproval: false },
+      { id: `go:trip:${TRIP_ID}:view:Map`, needsApproval: false },
+    ];
+    server.use(
+      http.post("*/api/trips/:tripId/ask", () =>
+        sseResponse([
+          ...ANSWER_FRAMES,
+          `{"type":"finish","finishReason":"stop","messageMetadata":${JSON.stringify({ proposal: PROPOSAL, paletteCommands })}}`,
+        ]),
+      ),
+    );
+    const events: apiClientModule.AskEvent[] = [];
+    await askAssistant({ tripId: TRIP_ID, scope: { kind: "trip" } }, [], (e) => events.push(e));
+    expect(events.filter((e) => e.type === "proposal")).toHaveLength(1);
+    expect(events.at(-1)).toEqual({ type: "palette", commands: [MAP, { id: `go:trip:${TRIP_ID}:view:Map`, needsApproval: false }] });
+  });
+
+  it("sends no `palette` event when nothing it may name is left", async () => {
+    const paletteCommands = [{ id: "https://example.com/", needsApproval: false }];
+    server.use(
+      http.post("*/api/trips/:tripId/ask", () =>
+        sseResponse([...ANSWER_FRAMES, `{"type":"finish","finishReason":"stop","messageMetadata":${JSON.stringify({ paletteCommands })}}`]),
+      ),
+    );
+    const events: apiClientModule.AskEvent[] = [];
+    await askAssistant({ tripId: TRIP_ID, scope: { kind: "trip" } }, [], (e) => events.push(e));
+    expect(events.some((e) => e.type === "palette")).toBe(false);
   });
 });
 
@@ -1065,7 +1134,7 @@ describe("the proposal on the wire", () => {
       http.post("*/api/trips/:tripId/ask", () => sseResponse([...ANSWER_FRAMES, FINISH_WITH_PROPOSAL])),
     );
     const events: apiClientModule.AskEvent[] = [];
-    await askAssistant(TRIP_ID, [], { kind: "trip" }, (e) => events.push(e));
+    await askAssistant({ tripId: TRIP_ID, scope: { kind: "trip" } }, [], (e) => events.push(e));
     const proposals = events.filter((e) => e.type === "proposal");
     expect(proposals).toHaveLength(1);
     expect(proposals[0]!.proposal.proposalId).toBe("p1");
@@ -1098,7 +1167,7 @@ describe("the proposal on the wire", () => {
   ])("drops %s (%s)", async (frame) => {
     server.use(http.post("*/api/trips/:tripId/ask", () => sseResponse(['{"type":"start"}', frame])));
     const events: apiClientModule.AskEvent[] = [];
-    await askAssistant(TRIP_ID, [], { kind: "trip" }, (e) => events.push(e));
+    await askAssistant({ tripId: TRIP_ID, scope: { kind: "trip" } }, [], (e) => events.push(e));
     expect(events.filter((e) => e.type === "proposal")).toEqual([]);
   });
 
@@ -1113,7 +1182,7 @@ describe("the proposal on the wire", () => {
       '","name":"A day in Kyoto"}],"changes":[],"skipped":[]}}}';
     server.use(http.post("*/api/trips/:tripId/ask", () => sseResponse(['{"type":"start"}', frame])));
     const events: apiClientModule.AskEvent[] = [];
-    await askAssistant(TRIP_ID, [], { kind: "trip" }, (e) => events.push(e));
+    await askAssistant({ tripId: TRIP_ID, scope: { kind: "trip" } }, [], (e) => events.push(e));
     const proposals = events.filter((e) => e.type === "proposal");
     expect(proposals).toHaveLength(1);
     expect(proposals[0]!.proposal.inserts).toEqual([{ savedDayId: UUID, name: "A day in Kyoto" }]);
@@ -1133,7 +1202,7 @@ describe("the proposal on the wire", () => {
       ',"changes":[],"skipped":[]}}}';
     server.use(http.post("*/api/trips/:tripId/ask", () => sseResponse(['{"type":"start"}', frame])));
     const events: apiClientModule.AskEvent[] = [];
-    await askAssistant(TRIP_ID, [], { kind: "trip" }, (e) => events.push(e));
+    await askAssistant({ tripId: TRIP_ID, scope: { kind: "trip" } }, [], (e) => events.push(e));
     expect(events.filter((e) => e.type === "proposal")).toEqual([]);
   });
 
@@ -1156,7 +1225,7 @@ describe("the proposal on the wire", () => {
       '{"type":"AddDay","text":"Add “nameless” from the library"}],"skipped":[]}}}';
     server.use(http.post("*/api/trips/:tripId/ask", () => sseResponse(['{"type":"start"}', frame])));
     const events: apiClientModule.AskEvent[] = [];
-    await askAssistant(TRIP_ID, [], { kind: "trip" }, (e) => events.push(e));
+    await askAssistant({ tripId: TRIP_ID, scope: { kind: "trip" } }, [], (e) => events.push(e));
     expect(events.filter((e) => e.type === "proposal")).toEqual([]);
   });
 
@@ -1190,7 +1259,7 @@ describe("the proposal on the wire", () => {
       "}}}";
     server.use(http.post("*/api/trips/:tripId/ask", () => sseResponse(['{"type":"start"}', frame])));
     const events: apiClientModule.AskEvent[] = [];
-    await askAssistant(TRIP_ID, [], { kind: "trip" }, (e) => events.push(e));
+    await askAssistant({ tripId: TRIP_ID, scope: { kind: "trip" } }, [], (e) => events.push(e));
     expect(events.filter((e) => e.type === "proposal")).toEqual([]);
   });
 
@@ -1200,7 +1269,7 @@ describe("the proposal on the wire", () => {
       '"commands":[],"inserts":[],"changes":[],"skipped":[]}}}';
     server.use(http.post("*/api/trips/:tripId/ask", () => sseResponse(['{"type":"start"}', frame])));
     const events: apiClientModule.AskEvent[] = [];
-    await askAssistant(TRIP_ID, [], { kind: "trip" }, (e) => events.push(e));
+    await askAssistant({ tripId: TRIP_ID, scope: { kind: "trip" } }, [], (e) => events.push(e));
     expect(events.filter((e) => e.type === "proposal")).toEqual([]);
   });
 
@@ -1215,7 +1284,7 @@ describe("the proposal on the wire", () => {
       "}";
     server.use(http.post("*/api/trips/:tripId/ask", () => sseResponse(['{"type":"start"}', frame])));
     const events: apiClientModule.AskEvent[] = [];
-    await askAssistant(TRIP_ID, [], { kind: "trip" }, (e) => events.push(e));
+    await askAssistant({ tripId: TRIP_ID, scope: { kind: "trip" } }, [], (e) => events.push(e));
     expect(events.filter((e) => e.type === "proposal")).toHaveLength(1);
   });
 });
@@ -1235,7 +1304,7 @@ describe("a page turn's inserts on the wire", () => {
       ),
     );
     const events: apiClientModule.AskEvent[] = [];
-    await askAssistant(TRIP_ID, [], { kind: "page", pageId: UUID }, (e) => events.push(e));
+    await askAssistant({ tripId: TRIP_ID, scope: { kind: "page", pageId: UUID } }, [], (e) => events.push(e));
     const pages = events.filter((e) => e.type === "page-inserts");
     expect(pages).toHaveLength(1);
     // `PAGE.content` goes over the wire with no `v` — the shape every document
@@ -1265,7 +1334,7 @@ describe("a page turn's inserts on the wire", () => {
       ),
     );
     const events: apiClientModule.AskEvent[] = [];
-    await askAssistant(TRIP_ID, [], { kind: "page", pageId: UUID }, (e) => events.push(e));
+    await askAssistant({ tripId: TRIP_ID, scope: { kind: "page", pageId: UUID } }, [], (e) => events.push(e));
     expect(events.filter((e) => e.type === "page-inserts")).toEqual([
       { type: "page-inserts", content: { ...INSERTS.content, v: CURRENT_PAGE_DOC_VERSION }, dropped },
     ]);
@@ -1283,7 +1352,7 @@ describe("a page turn's inserts on the wire", () => {
       ),
     );
     const events: apiClientModule.AskEvent[] = [];
-    await askAssistant(TRIP_ID, [], { kind: "page", pageId: UUID }, (e) => events.push(e));
+    await askAssistant({ tripId: TRIP_ID, scope: { kind: "page", pageId: UUID } }, [], (e) => events.push(e));
     expect(events.filter((e) => e.type === "page-error")).toEqual([
       { type: "page-error", message: 'Macro "cost.day" params failed validation.' },
     ]);
@@ -1303,7 +1372,7 @@ describe("a page turn's inserts on the wire", () => {
   it.each(MALFORMED)("drops %j (%s)", async (metadata) => {
     server.use(http.post("*/api/trips/:tripId/ask", () => sseResponse(['{"type":"start"}', finishWith(metadata)])));
     const events: apiClientModule.AskEvent[] = [];
-    await askAssistant(TRIP_ID, [], { kind: "page", pageId: UUID }, (e) => events.push(e));
+    await askAssistant({ tripId: TRIP_ID, scope: { kind: "page", pageId: UUID } }, [], (e) => events.push(e));
     expect(events.filter((e) => e.type === "page-inserts" || e.type === "page-error")).toEqual([]);
   });
 });

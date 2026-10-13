@@ -4,6 +4,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation";
 import type { TripSummary } from "@tc/contracts";
 import { useSessionUser } from "@/components/account/useSessionUser";
+import { AI_ASK_ENTITLEMENT, useEntitled } from "@/lib/useAiEntitled";
 import { usePhoneAsk } from "@/components/nav/phoneAsk";
 import { Dialog } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -14,7 +15,7 @@ import { localTodayIso } from "@/lib/today";
 import { askCommand, placeCommands } from "./commands";
 import { type PaletteNode, paletteLevel } from "./grammar";
 import { type PaletteStep, searchPalette } from "./match";
-import { type PaletteCommand, usePaletteCommands } from "./paletteRegistry";
+import { type PaletteCommand, usePaletteCommands, usePaletteSource } from "./paletteRegistry";
 
 // **⌘K** (M41 D9, ADR-068): go anywhere or start anything without the mouse.
 // Mounted once by `(app)/layout.tsx`, so it opens from every app page. What it
@@ -22,6 +23,10 @@ import { type PaletteCommand, usePaletteCommands } from "./paletteRegistry";
 // assistant's opener where a screen offers one (the same entry the phone's
 // tab bar Ask uses), and the app's places and your trips. It runs nothing of
 // its own: every command is a page control's function.
+//
+// **The places and trips are registered like any screen's**, under "places",
+// so a command named by id (`runPaletteCommand`, the assistant's) finds them
+// too, and so they are read on mount as well as on each opening.
 //
 // **It speaks ADR-069's grammar.** Empty, it lists the actions; Enter or Tab
 // on one drills in, a chip shows the path, and Backspace in an empty box
@@ -35,8 +40,11 @@ import { type PaletteCommand, usePaletteCommands } from "./paletteRegistry";
 // it opens closes onto the control you were on rather than onto <body>
 // (KI-2026-10-09-b).
 //
-// **No match goes nowhere** (ADR-068 §5): unmatched text is not handed to the
-// assistant in v1.
+// **No match is offered to the assistant** (M45 D6, ADR-072 §7, amending
+// ADR-068 §5): where a screen has mounted one, the only row is *Ask: <text>*,
+// and choosing it opens the assistant and sends the text. Nothing reaches the
+// model before the row is chosen. Elsewhere, and for an account whose plan
+// has no assistant, no match goes nowhere.
 
 // On a Mac, Ctrl+K is a text field's kill-line, so ⌘K alone opens it there
 // (PR 398 review). `userAgentData` where the browser has it, else the
@@ -61,6 +69,13 @@ function isK(event: KeyboardEvent): boolean {
  */
 type Row = { id: string; heading?: string; spoken?: string; label: string; nested?: boolean; steps: readonly PaletteStep[]; node: PaletteNode };
 
+/** *Ask: <text>*, the row text that matches nothing becomes where an assistant is mounted. */
+function askRow(text: string, onAsk: (text: string) => void): Row {
+  const label = `Ask: ${text}`;
+  const command: PaletteCommand = { id: "ask:text", action: "Ask the assistant", run: () => onAsk(text) };
+  return { id: command.id, label, steps: [{ key: command.id, label }], node: { kind: "leaf", key: command.id, label, command } };
+}
+
 /** Opens on ⌘K (Ctrl+K off a Mac) from anywhere in the app. */
 export function CommandPalette() {
   const [open, setOpen] = useState(false);
@@ -74,7 +89,15 @@ export function CommandPalette() {
   const signedIn = useSessionUser() != null;
   const registered = usePaletteCommands();
   const ask = usePhoneAsk();
+  // Asked only where a screen offers an Ask:, and so never for a signed-out
+  // visitor's demo, which has no account to ask about.
+  const aiEntitled = useEntitled(AI_ASK_ENTITLEMENT, signedIn && ask?.onAsk !== undefined);
   const [trips, setTrips] = useState<readonly TripSummary[]>([]);
+  // Counts openings, so each one reads the trips afresh.
+  const [openings, setOpenings] = useState(0);
+  // The opening whose trip read has settled. Until it has, a trip's name
+  // matches nothing, and Enter on *Ask:* would send it to the model.
+  const [readOpening, setReadOpening] = useState<number | null>(null);
   const listId = useId();
 
   const show = useCallback(() => {
@@ -85,6 +108,7 @@ export function CommandPalette() {
     // Not the last opening's list, which may hold a trip deleted since and
     // would stay if this opening's read fails.
     setTrips([]);
+    setOpenings((n) => n + 1);
     setOpen(true);
   }, []);
 
@@ -100,26 +124,28 @@ export function CommandPalette() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [open, show]);
 
-  // Your trips, read each time it opens: a list kept from the last opening
-  // would offer a trip deleted since. In Home's order (ADR-069 §5).
+  // Your trips, read on mount and again each time it opens: a list kept from
+  // the last opening would offer a trip deleted since. In Home's order
+  // (ADR-069 §5).
   useEffect(() => {
-    if (!open || !signedIn) return;
+    if (!signedIn) return;
     let live = true;
     void fetchTrips().then((result) => {
-      if (live && result.ok) setTrips(orderHomeTrips(result.value.filter((trip) => trip.status === "active"), localTodayIso()));
+      if (!live) return;
+      if (result.ok) setTrips(orderHomeTrips(result.value.filter((trip) => trip.status === "active"), localTodayIso()));
+      setReadOpening(openings);
     });
     return () => {
       live = false;
     };
-  }, [open, signedIn]);
+  }, [openings, signedIn]);
+
+  const go = (href: string) => router.push(href);
+  usePaletteSource("places", signedIn ? placeCommands(go, trips) : placeCommands(go, []).filter((c) => c.id === "go:playbooks"));
 
   const commands = useMemo<PaletteCommand[]>(
-    () => [
-      ...registered,
-      ...(ask === null || ask.open ? [] : [askCommand(ask.onOpen)]),
-      ...(signedIn ? placeCommands((href) => router.push(href), trips) : placeCommands((href) => router.push(href), []).filter((c) => c.id === "go:playbooks")),
-    ],
-    [registered, ask, signedIn, trips, router],
+    () => [...registered.filter((c) => c.unlisted !== true), ...(ask === null || ask.open ? [] : [askCommand(ask.onOpen)])],
+    [registered, ask],
   );
   // As deep as the trail still leads: a branch can empty while it is open
   // (the focused day's commands go when focus does), and the palette then
@@ -133,7 +159,7 @@ export function CommandPalette() {
   const path = trail.slice(0, depth);
   const at = path.map((step) => step.key);
   const text = (steps: readonly PaletteStep[]) => steps.map((step) => step.label).join(" › ");
-  const rows: Row[] =
+  const searched: Row[] =
     query.trim() === ""
       ? level.map((node) => ({ id: node.key, label: node.label, steps: [...path, { key: node.key, label: node.label }], node }))
       : searchPalette(commands, query, at).flatMap((group) =>
@@ -155,6 +181,14 @@ export function CommandPalette() {
             };
           }),
         );
+  const askText = query.trim();
+  // **No Ask: for a plan without the assistant** (Mitchell, 2026-10-12): the
+  // rail's own gate, read the rail's way, so `null` (unknown) still offers it.
+  const onAsk = aiEntitled === false ? undefined : ask?.onAsk;
+  const rows: Row[] =
+    searched.length === 0 && askText !== "" && onAsk !== undefined && (!signedIn || readOpening === openings)
+      ? [askRow(askText, onAsk)]
+      : searched;
   // Held inside the list, which can shrink under it while it is open (a
   // screen's commands change, the trips arrive): past its end, Enter would
   // run nothing and the box would name an option that is not there.

@@ -16,6 +16,13 @@
 // lane, and the difference from `replay.int.test.ts`, which replays a
 // recording to test the code around a model. This tests the model on our code.
 //
+// A prompt with `"surface": "account"` (M45) is asked at the account door,
+// `handleBeyondTripAskRequest`, by a fresh account holding `ACCOUNT_TRIPS` — its
+// own, so the Japan trips every other prompt seeds are not counted among them.
+// One with `"surface": "playbook"` (M45 D9) is asked at the same door on a
+// playbook day's page: the Japan trip's first day, published by the eval
+// actor, asked about by a fresh account whose own copy of the trip is "Kyoto".
+//
 // It writes a JSON report to `eval-results/` (git-ignored) and prints one line
 // per check. A failed check fails the run, so a regression is a red exit code.
 import { randomUUID } from "node:crypto";
@@ -27,16 +34,20 @@ import type { TripDetail } from "@tc/contracts";
 import { executeTripCommand, executeTripCommandBatch } from "@/server/commands";
 import { db } from "@/server/db/client";
 import { rateLimitCounters } from "@/server/db/schema";
+import { writeTravelling } from "@/server/access/members";
 import type { AskAnalyticsRecord } from "@/server/assistant/askAnalytics";
 import type { TurnLedger } from "@/server/assistant/ledger";
-import { expectationFor } from "./cases";
-import { grade, reviewedChanges, type EvalCheck, type EvalTurn } from "./grade";
+import { accountExpectationFor, expectationFor, playbookExpectationFor, type SeededAccountTrip } from "./cases";
+import { saveDay, setSavedDayVisibility } from "@/server/savedDays";
+import { grade, retractedText, reviewedChanges, textBeforeToolCall, visibleText, type EvalCheck, type EvalTurn } from "./grade";
 import { capMicroUsdFrom, dollars, turnMicroUsd, unpricedModels } from "./spend";
-import { longTripCommands, type EvalTripName } from "./trips";
+import { ACCOUNT_TRIPS, accountTripCommands, longTripCommands, type EvalTripName } from "./trips";
 
 const ACTOR_ID = "eval-actor";
 
-vi.mock("@/server/auth", () => ({ auth: async () => ({ user: { id: ACTOR_ID } }) }));
+// Who the session says is asking: the eval actor, or an account prompt's own.
+const session = vi.hoisted(() => ({ userId: "eval-actor" }));
+vi.mock("@/server/auth", () => ({ auth: async () => ({ user: { id: session.userId } }) }));
 
 // Place search answers from a stub at its port, so a run needs no LocationIQ
 // key and spends no lookups. The stub must not lie about geography: the first
@@ -70,7 +81,7 @@ vi.mock("@/server/ai/assistantPorts", async (importOriginal) => {
   };
 });
 
-const { handleAskRequest } = await import("@/server/ai/handleAskRequest");
+const { handleBeyondTripAskRequest, handleAskRequest } = await import("@/server/ai/handleAskRequest");
 const { upsertUser } = await import("@/server/users");
 const { issueGrant } = await import("@/server/entitlements/grants");
 
@@ -80,6 +91,8 @@ interface LivePrompt {
   text: string;
   /** The trip it runs on (`trips.ts`); absent, the seeded Japan trip. */
   trip?: EvalTripName;
+  /** `account`: asked at the account door, across `ACCOUNT_TRIPS` (M45); `playbook`: on a published day's page (D9). */
+  surface?: "account" | "playbook";
 }
 
 const liveSet = JSON.parse(readFileSync(join(import.meta.dirname, "live-set.json"), "utf8")) as {
@@ -127,6 +140,56 @@ async function seedTripFor(prompt: LivePrompt): Promise<{ tripId: string; detail
   return { tripId, detail: seeded.detail };
 }
 
+/** The eval actor's grant, so every account is on the same plan and tiers. */
+async function enrol(userId: string): Promise<void> {
+  await upsertUser({ id: userId, email: null, name: null, image: null });
+  await issueGrant({ userId, planId: "premium", planVersion: 1, source: "admin", grantedBy: "eval", expiresAt: null });
+}
+
+/**
+ * A fresh account holding the account trips, through the real command path,
+ * with the one it is not travelling on marked so as the app marks it.
+ */
+async function seedAccount(): Promise<{ userId: string; seeded: SeededAccountTrip[] }> {
+  const userId = `eval-account-${randomUUID()}`;
+  await enrol(userId);
+  const seeded: SeededAccountTrip[] = [];
+  for (const trip of ACCOUNT_TRIPS) {
+    const tripId = randomUUID();
+    const created = await executeTripCommand({ type: "CreateTrip", tripId, name: trip.name }, userId);
+    if (!created.ok) throw new Error(`seed: ${created.error.message}`);
+    const built = await executeTripCommandBatch(accountTripCommands(tripId, trip), userId);
+    if (!built.ok) throw new Error(`seed: ${built.error.message}`);
+    if (!trip.travelling) {
+      await writeTravelling(db, { tripId, userId, travelling: false, updatedBy: userId, now: new Date().toISOString() });
+    }
+    seeded.push({ detail: built.detail, travelling: trip.travelling });
+  }
+  return { userId, seeded };
+}
+
+/**
+ * A published playbook day and an account to ask about it (M45 D9): the
+ * Japan trip's first day, kept and published by the eval actor, so the asker
+ * reads a stranger's day; and the asker's own copy of the trip, named "Kyoto",
+ * for the add-to-trip prompt to name.
+ */
+async function seedPlaybook(): Promise<{ userId: string; savedDayId: string; stopTitles: string[] }> {
+  const { detail } = await seedTripFor({ id: "playbook-source", intent: "question", text: "" });
+  const kept = await saveDay({ name: "A day in Kyoto", dayIds: [detail.days[0]!.dayId], dateAnchors: "strip" }, detail, ACTOR_ID);
+  if (!kept.ok) throw new Error(`seed: ${kept.error.message}`);
+  const published = await setSavedDayVisibility(kept.value.savedDayId, ACTOR_ID, "public");
+  if (published === null) throw new Error("seed: the playbook day did not publish");
+  const userId = `eval-playbook-${randomUUID()}`;
+  await enrol(userId);
+  const tripId = randomUUID();
+  const created = await executeTripCommand({ type: "CreateTrip", tripId, name: "Kyoto" }, userId);
+  if (!created.ok) throw new Error(`seed: ${created.error.message}`);
+  const built = await executeTripCommandBatch(japanTripCommands(tripId, { startDate: "2027-04-01" }), userId);
+  if (!built.ok) throw new Error(`seed: ${built.error.message}`);
+  return { userId, savedDayId: kept.value.savedDayId, stopTitles: kept.value.stops.map((stop) => stop.title) };
+}
+
 function chunksOf(body: string): Record<string, unknown>[] {
   return body
     .split("\n")
@@ -142,7 +205,10 @@ function chunksOf(body: string): Record<string, unknown>[] {
 
 async function runTurn(
   prompt: LivePrompt,
-  tripId: string,
+  /** The trip it is asked on, or null at the door about no one trip. */
+  tripId: string | null,
+  /** At that door, the scope: the account's unless a playbook page is named. */
+  beyondTrip: { kind: "account" } | { kind: "playbook"; page: { kind: "day"; savedDayId: string } } = { kind: "account" },
 ): Promise<EvalTurn & { stepDurationsMs: (number | null)[]; providers: (string | null)[]; generationIds: (string | null)[]; microUsd: number | null }> {
   // Keyed by actor, and every turn here is the same actor (see replay.int.test.ts).
   await db.delete(rateLimitCounters);
@@ -150,33 +216,33 @@ async function runTurn(
   // The ledger rides beside the record: where a slow turn's time went is its
   // per-step durations (M32), which the record does not carry.
   const ledgers: TurnLedger[] = [];
-  const request = new Request(`http://eval/api/trips/${tripId}/ask`, {
+  const request = new Request(tripId === null ? "http://eval/api/ask" : `http://eval/api/trips/${tripId}/ask`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       messages: [{ id: "m1", role: "user", parts: [{ type: "text", text: prompt.text }] }],
-      scope: { kind: "trip" },
+      scope: tripId === null ? beyondTrip : { kind: "trip" },
     }),
   });
-  const response = await handleAskRequest(request, tripId, undefined, (record, ledger) => {
+  const sink = (record: AskAnalyticsRecord, ledger?: TurnLedger) => {
     records.push(record);
     if (ledger) ledgers.push(ledger);
-  });
+  };
+  const response =
+    tripId === null ? await handleBeyondTripAskRequest(request, undefined, sink) : await handleAskRequest(request, tripId, undefined, sink);
   const body = await response.text();
   const record = records[0];
   if (record === undefined) {
     throw new Error(`no ai.ask record: HTTP ${response.status} ${body.slice(0, 300)}`);
   }
   const chunks = chunksOf(body);
-  const text = chunks
-    .filter((chunk) => chunk.type === "text-delta" && typeof chunk.delta === "string")
-    .map((chunk) => chunk.delta as string)
-    .join("");
   return {
     record,
-    text,
+    text: visibleText(chunks),
     // A card's commands or a stored suggestion's changes (ADR-067).
     proposalCommands: reviewedChanges(chunks),
+    textBeforeToolCall: textBeforeToolCall(chunks),
+    retracted: retractedText(chunks),
     stepDurationsMs: ledgers[0]?.stepSpend.map((step) => step.durationMs) ?? [],
     providers: ledgers[0]?.stepSpend.map((step) => step.provider) ?? [],
     generationIds: ledgers[0]?.stepSpend.map((step) => step.gatewayGenerationId) ?? [],
@@ -199,6 +265,8 @@ interface RunRow {
   inputTokens: number | null;
   outputTokens: number | null;
   answer: string;
+  /** Text that streamed and was taken back (KI-2026-10-12-h). Reported, never failed. */
+  retracted: { parts: number; chars: number };
   checks: EvalCheck[];
 }
 
@@ -215,15 +283,7 @@ beforeAll(async () => {
   if (unpriced.length > 0 && process.env.EVAL_ALLOW_UNPRICED !== "1") {
     throw new Error(`No rate in modelRates.ts for ${unpriced.join(", ")}, so this run's spend cannot be capped. Add the rate, or set EVAL_ALLOW_UNPRICED=1.`);
   }
-  await upsertUser({ id: ACTOR_ID, email: null, name: null, image: null });
-  await issueGrant({
-    userId: ACTOR_ID,
-    planId: "premium",
-    planVersion: 1,
-    source: "admin",
-    grantedBy: "eval",
-    expiresAt: null,
-  });
+  await enrol(ACTOR_ID);
 });
 
 afterAll(() => {
@@ -243,12 +303,14 @@ afterAll(() => {
       "",
       `eval: ${rows.length} turns, ${rows.reduce((n, row) => n + row.checks.length, 0)} checks, ${failed.length} failed`,
       `models: ${JSON.stringify(models)}`,
+      `retracted: ${rows.reduce((n, row) => n + row.retracted.parts, 0)} text parts, ${rows.reduce((n, row) => n + row.retracted.chars, 0)} chars, across ${rows.filter((row) => row.retracted.parts > 0).length} turns (KI-2026-10-12-h; not a failure)`,
       `spent: ${dollars(spentMicroUsd)} of a ${capMicroUsd === null ? "invalid" : dollars(capMicroUsd)} cap${unpricedTurns > 0 ? ` (+ ${unpricedTurns} unpriced turn(s))` : ""}`,
       ...rows.map(
         (row) =>
           `  ${row.checks.every((check) => check.pass) ? "PASS" : "FAIL"} ${row.id}#${row.run}  ${row.model}  ${row.steps} steps  ` +
           `${row.toolCalls.length} calls  ${(row.latencyMs / 1000).toFixed(1)}s ` +
-          `[${row.stepDurationsMs.map((ms) => (ms === null ? "?" : (ms / 1000).toFixed(1))).join(" + ")}]  ${row.inputTokens ?? "?"} in  via ${[...new Set(row.providers)].join(",") || "?"}`,
+          `[${row.stepDurationsMs.map((ms) => (ms === null ? "?" : (ms / 1000).toFixed(1))).join(" + ")}]  ${row.inputTokens ?? "?"} in  via ${[...new Set(row.providers)].join(",") || "?"}` +
+          `  retracted ${row.retracted.parts}/${row.retracted.chars}ch`,
       ),
       `report: ${file}`,
     ].join("\n"),
@@ -264,12 +326,35 @@ describe("the live set, on production's models", () => {
           context.skip();
           return;
         }
-        const { tripId, detail } = await seedTripFor(prompt);
-        const turn = await runTurn(prompt, tripId);
+        let turn: Awaited<ReturnType<typeof runTurn>>;
+        let expected;
+        if (prompt.surface === "account") {
+          const { userId, seeded } = await seedAccount();
+          session.userId = userId;
+          try {
+            turn = await runTurn(prompt, null);
+          } finally {
+            session.userId = ACTOR_ID;
+          }
+          expected = accountExpectationFor(prompt.id, seeded, userId);
+        } else if (prompt.surface === "playbook") {
+          const { userId, savedDayId, stopTitles } = await seedPlaybook();
+          session.userId = userId;
+          try {
+            turn = await runTurn(prompt, null, { kind: "playbook", page: { kind: "day", savedDayId } });
+          } finally {
+            session.userId = ACTOR_ID;
+          }
+          expected = playbookExpectationFor(prompt.id, stopTitles);
+        } else {
+          const { tripId, detail } = await seedTripFor(prompt);
+          turn = await runTurn(prompt, tripId);
+          expected = expectationFor(prompt.id, detail);
+        }
         if (turn.microUsd === null) unpricedTurns += 1;
         else spentMicroUsd += turn.microUsd;
         console.log(`    cost: ${turn.microUsd === null ? "unpriced" : dollars(turn.microUsd)} (run so far ${dollars(spentMicroUsd)})`);
-        const checks = grade(turn, expectationFor(prompt.id, detail)!);
+        const checks = grade(turn, expected!);
         rows.push({
           id: prompt.id,
           run,
@@ -283,6 +368,7 @@ describe("the live set, on production's models", () => {
           inputTokens: turn.record.usage.inputTokens,
           outputTokens: turn.record.usage.outputTokens,
           answer: turn.text,
+          retracted: turn.retracted,
           checks,
         });
         for (const check of checks) console.log(`    ${check.pass ? "✓" : "✗"} ${check.name}: ${check.detail}`);

@@ -47,6 +47,9 @@ import { PAGE_TOOLS } from "./tools/page";
 import { PLACE_TOOLS } from "./tools/places";
 import { ESCALATION_TOOLS } from "./tools/escalate";
 import { INTENT_TOOLS } from "./tools/intent";
+import { ACROSS_TRIP_TOOLS } from "./tools/acrossTrips";
+import { NAVIGATION_TOOLS } from "./tools/navigate";
+import { PLAYBOOK_TOOLS } from "./tools/playbook";
 
 /**
  * Every definition this build has. Derived families are spread, so a
@@ -55,6 +58,11 @@ import { INTENT_TOOLS } from "./tools/intent";
  */
 export const ASSISTANT_TOOLS: readonly AnyAssistantTool[] = [
   ...READ_TOOLS,
+  // The account surface's reads (M45). Offered nowhere else — no trip row
+  // grants `account` — so where they sit changes no other turn's order.
+  ...ACROSS_TRIP_TOOLS,
+  // The playbook pages' (M45 D9). Offered nowhere else, for the same reason.
+  ...PLAYBOOK_TOOLS,
   // Before the planning tools, and the order is the one thing about this array
   // that is not arbitrary: `Object.keys(aiToolsFor(...))` is the offered set in
   // registry order, which is the order the model reads them in. `search_places`
@@ -68,6 +76,9 @@ export const ASSISTANT_TOOLS: readonly AnyAssistantTool[] = [
   ...PAGE_TOOLS,
   // The page turn's pivot (ADR-058), after the tools it switches between.
   ...INTENT_TOOLS,
+  // Where to take the person (ADR-072): after everything that answers or
+  // changes the trip, because going somewhere is what a turn does last.
+  ...NAVIGATION_TOOLS,
   // Last, and it is the one position in this array that is a decision rather
   // than a grouping: `request_change_tools` is the tool a turn reaches for when
   // the others were not enough, and a model reads the list in order. It is also

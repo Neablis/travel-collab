@@ -5,11 +5,15 @@ import {
   askAssistant,
   type ApiError,
   type AskEvent,
-  type AskScope,
+  type AskWhere,
   type AskWireMessage,
+  withoutRetracted,
 } from "@/lib/apiClient";
 import { MAX_ASK_MESSAGES } from "@/lib/askLimits";
 import { clearAskThread, loadAskThread, saveAskThread } from "@/components/assistant/askThreadStore";
+import { SIGNED_OUT_OWNER, ownedAskName } from "@/lib/askOwnership";
+import { useKnownSessionUser } from "@/components/account/useSessionUser";
+import { offerPaletteCommand, runPaletteCommands } from "./runPaletteCommands";
 
 import { toolNoteLabel, type AssistantTurn } from "./Transcript";
 
@@ -17,6 +21,9 @@ import { toolNoteLabel, type AssistantTurn } from "./Transcript";
 export function notAppliedNote(skipped: readonly string[]): string {
   return `\n\nNothing was changed: ${skipped.join(" ")}`;
 }
+
+/** Why a reply's page-leaving command waits while a card above is undecided: the card would not come along. */
+const CARD_WAITING = "the change above is waiting for you to approve or turn it down";
 
 /** What a turn the server stopped at its deadline says when it produced nothing (KI-2026-09-26-s). */
 const STOPPED_EMPTY = "This took too long and was stopped before it finished. Nothing was changed — try asking for less at once.";
@@ -69,6 +76,8 @@ export interface AskThread {
   simulated: boolean;
   asksRemaining: number;
   restoredDraft: string | null;
+  /** Drops `restoredDraft` once the rail has it, so the next open does not restore it again. */
+  clearRestoredDraft: () => void;
   /** Posts a turn. Deliberately not awaited by callers — see the board's own note. */
   runAsk: (text: string) => Promise<void>;
   startNewConversation: () => void;
@@ -101,16 +110,35 @@ function highestTurnSeq(thread: readonly AssistantTurn[]): number {
   }, 0);
 }
 
+/**
+ * Whether `turn` carries a card still waiting on the person: neither approved
+ * nor turned down. A failed apply keeps its Approve, so it is still waiting.
+ */
+function awaitsDecision(turn: AssistantTurn): boolean {
+  return turn.role === "assistant" && turn.proposal != null && turn.proposal.status !== "applied" && turn.proposal.status !== "rejected";
+}
+
+/**
+ * Conversation `name` as the signed-in user keeps it (`ownedAskName`), or
+ * undefined (keep nothing) while who that is is not known yet, or with no
+ * session provider above to say. A signed-out visitor's has an owner of its
+ * own, so nothing they ask is read back by an account.
+ */
+export function useOwnedAskName(name: string | undefined): string | undefined {
+  const user = useKnownSessionUser();
+  if (name === undefined || user === undefined) return undefined;
+  if (user === null) return ownedAskName(SIGNED_OUT_OWNER, name);
+  return user.id ? ownedAskName(user.id, name) : undefined;
+}
+
 export function useAskThread({
-  tripId,
-  scope,
   onEvent,
   onTurnEnd,
   errorMessage,
-  persistAs,
-}: {
-  tripId: string;
-  scope: AskScope;
+  persistAs: conversation,
+  holdsLeaving,
+  ...where
+}: AskWhere & {
   onEvent?: AskEventHandler;
   /**
    * Called once a turn's request settles — answered, failed, stopped or
@@ -132,9 +160,23 @@ export function useAskThread({
    *
    * Opt-in rather than on-by-default so a surface that has not thought about
    * what a restored transcript means on it gets the behaviour it has today.
+   *
+   * Stored under the signed-in user as well (`useOwnedAskName`), which the
+   * caller does not spell: two accounts on one browser keep two threads.
    */
   persistAs?: string;
+  /**
+   * Why the person must not be taken off this page right now, as the end of
+   * "I didn't open that notebook, because …", or null. Asked when a reply
+   * names somewhere to go. The board answers while its stop editor is open:
+   * leaving unmounts the sheet and the fields typed into it. A notebook answers
+   * while a turn's inserts wait on its role read (ADR-072 §4).
+   */
+  holdsLeaving?: () => string | null;
 }): AskThread {
+  // Stored under the signed-in user, so another account on this browser never
+  // gets this conversation back. `persistAs` is the caller's half of the name.
+  const persistAs = useOwnedAskName(conversation);
   const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
   const [askError, setAskError] = useState<string | null>(null);
   const [askErrorCode, setAskErrorCode] = useState<string | null>(null);
@@ -173,6 +215,12 @@ export function useAskThread({
   onTurnEndRef.current = onTurnEnd;
   const errorMessageRef = useRef(errorMessage);
   errorMessageRef.current = errorMessage;
+  const holdsLeavingRef = useRef(holdsLeaving);
+  holdsLeavingRef.current = holdsLeaving;
+  // Read when a reply names somewhere to go, which is mid-stream: the thread
+  // as last rendered holds every earlier turn's card and where it stands.
+  const threadRef = useRef(thread);
+  threadRef.current = thread;
 
   // **Rehydrated in an effect, not in `useState`'s initialiser.** The
   // initialiser runs during the server render too, where `window` does not
@@ -187,6 +235,18 @@ export function useAskThread({
   // what makes that one rule instead of two.
   useEffect(() => {
     if (persistAs === undefined) return;
+    // **Learning who is signed in is not a switch of conversation.** The name
+    // is owned (`useOwnedAskName`), so it only exists once the session read
+    // answers, and a question can be asked before it does. That turn is this
+    // conversation's: it is kept, in flight or not, with the stored turns put
+    // before it under fresh ids (`patchAnswer` targets the live turn's).
+    if (savedKey.current === undefined && (threadRef.current.length > 0 || abort.current !== null)) {
+      const base = turnSeq.current;
+      const earlier = loadAskThread(persistAs).map((turn, i) => ({ ...turn, id: `${turn.role === "user" ? "u" : "a"}${base + i + 1}` }));
+      turnSeq.current = base + earlier.length;
+      setThread((current) => [...earlier, ...current]);
+      return;
+    }
     // **A request in flight belongs to the conversation being left.** Its
     // deltas would otherwise keep arriving after the new one is loaded, and
     // `patchAnswer` patches BY ID — a restored `a3` under the new key is a
@@ -307,10 +367,13 @@ export function useAskThread({
     // the chat accounts for, and asking again would insert it twice.
     let delivered = false;
     let stopped = false;
+    // This turn's proposal, which reaches the thread through the caller's
+    // `onEvent` and so is not in `threadRef` yet when the palette event that
+    // follows it in the same chunk arrives.
+    let proposed = false;
     const result = await askAssistant(
-      tripId,
+      where,
       posted,
-      scope,
       (event) => {
         // **An abandoned turn stops writing anywhere, including into its
         // caller.** The identity guard below covers the turn's own completion;
@@ -328,6 +391,11 @@ export function useAskThread({
         if (event.type === "text") {
           streamed += event.delta;
           patchAnswer((turn) => ({ ...turn, text: turn.text + event.delta }));
+        } else if (event.type === "retract") {
+          // The model's note beside a tool call (KI-2026-10-12-e). Gone from the
+          // turn, so it is neither saved nor posted back as history.
+          streamed = withoutRetracted(streamed, event.text);
+          patchAnswer((turn) => ({ ...turn, text: withoutRetracted(turn.text, event.text) }));
         } else if (event.type === "tool") {
           patchAnswer((turn) => ({
             ...turn,
@@ -344,12 +412,27 @@ export function useAskThread({
           delivered = true;
         } else if (event.type === "stopped") {
           stopped = true;
+        } else if (event.type === "proposal") {
+          proposed = true;
         } else if (event.type === "not-applied") {
           // Said in the answer itself, after the model's own words — which may
           // well claim the changes were made: the model is told its write calls
           // were collected, and only the final resolve finds the trip refusing
           // them. Text, not a card, because there is nothing to approve.
           patchAnswer((turn) => ({ ...turn, text: `${turn.text}${notAppliedNote(event.skipped)}` }));
+        } else if (event.type === "palette") {
+          // **Where the reply takes you, run by the page's own commands**
+          // (ADR-072). Navigation runs now; a change becomes a card that runs
+          // on Approve. What could not run is said under the answer, which may
+          // well have claimed it went.
+          const held = proposed || threadRef.current.some(awaitsDecision) ? CARD_WAITING : (holdsLeavingRef.current?.() ?? null);
+          const { notes, awaiting } = runPaletteCommands(event.commands, held);
+          const offers = awaiting.map((ref) => ({ id: ref.id, key: offerPaletteCommand(), ...(ref.on !== undefined && { on: ref.on }) }));
+          patchAnswer((turn) => ({
+            ...turn,
+            text: notes.reduce((text, note) => `${text}\n\n${note}`, turn.text),
+            ...(offers.length > 0 ? { offers } : {}),
+          }));
         }
         // Everything else belongs to whoever mounted this. The board attaches a
         // `proposal` to the answer; a page inserts `page-inserts` into its
@@ -478,6 +561,7 @@ export function useAskThread({
     simulated,
     asksRemaining,
     restoredDraft,
+    clearRestoredDraft: () => setRestoredDraft(null),
     runAsk,
     startNewConversation,
     cancel,

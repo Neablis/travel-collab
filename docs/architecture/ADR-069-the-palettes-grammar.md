@@ -29,7 +29,8 @@ from anywhere without walking it.
 
 1. **Every command is a path: Action › Type › Target [› Destination].**
    - Actions, a closed set: **Go to · Add · Edit · Move · Remove.**
-   - Types: **Trip · Day · Stop · View · Page.**
+   - Types: **Trip · Day · Stop · View · Notebook · Page.** (Notebook added 2026-10-12, M45 D4 and
+     ADR-072 §2.)
    - Target: the specific thing — a trip's name, "Day 5", a stop's title, "Calendar", "Playbooks".
    - Destination: only for Move — "Move › Stop › Ramen › Day 3", "… › Unscheduled", "… › New day
      after Day N" where a drag allows it.
@@ -68,6 +69,8 @@ from anywhere without walking it.
    | Anywhere signed in | Go to › Trip › *your trips*; Go to › Page › Home, Playbooks, Account; Add › Trip; Ask |
    | Signed out | Go to › Page › Playbooks |
    | Inside a trip | + this trip's Go to › View › Overview / Plan / Calendar / Map, Go to › Day › *its days*, Go to › Stop › *its stops*; Edit › Trip › Settings, People, Cover, Sharing (Sharing only when not read-only); Undo / Redo |
+   | Inside a trip (not the demo trip) | + Go to › Notebook › *its notebooks*, in the Notebooks menu's order |
+   | In a notebook, as someone who may edit it | Edit › Notebook › Turn editing on / Turn editing off (the toolbar's Edit page toggle) |
    | Inside a trip, as an editor, not previewing history | + Add › Stop, Add › Day; Edit › Stop › *stop* (opens the editor); Move › Stop › *stop* › *day or Unscheduled*; Move › Day › *day* › *day, or a new day after the last*; Remove › Stop › *stop*; Remove › Day › *day* |
    | Never | another trip's days or stops |
 
@@ -98,6 +101,9 @@ does not have to rediscover them.
   derived from the shared prefixes (`palette/grammar.ts`), so a branch with nothing under it cannot
   exist and no screen owns a level. A Target or Destination may carry a `key` beside its label, so
   two stops both called Ramen stay two branches.
+- **A command may be unlisted**: runnable by id (`runPaletteCommand`, which the assistant uses,
+  ADR-072) but never a row. Only *Go to › Trip* has any, `go:trip:<tripId>:view:<View>`, landing
+  on that view (ADR-072 §6) without a Destination on a Go to.
 - **Nearness and natural order are metadata on the leaf** (`nearness`, `order`), supplied by the
   screen that knows them. They only break ties left by match quality; a leaf without them counts
   as global and keeps its registration order.

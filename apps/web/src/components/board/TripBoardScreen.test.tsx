@@ -14,7 +14,7 @@ import { LensRouter } from "@/components/trip/context/LensRouter";
 import { PhoneAskTab } from "@/components/nav/PhoneTabBar";
 import { usePhoneAsk } from "@/components/nav/phoneAsk";
 import { type PaletteCommand, usePaletteCommands } from "@/components/palette/paletteRegistry";
-import { activityFactory, costedTripDetailFixture, historyFixture, locationFactory, tripCoverFactory, tripDetailFixture } from "@tc/factories";
+import { activityFactory, costedTripDetailFixture, historyFixture, locationFactory, pageFixture, tripCoverFactory, tripDetailFixture } from "@tc/factories";
 import { makeTripHandlers, makeAccountPlanHandler, makeNearbyStopsHandler, makePagesHandlers } from "@/mocks/handlers";
 import { setViewportMatches, triggerResize } from "../../../vitest.setup";
 
@@ -58,7 +58,7 @@ vi.mock("@/lib/apiClient", async (orig) => {
  */
 function answers(text: string, toolName = "read_trip", input: unknown = {}, simulated = false) {
   return async (...args: AskArgs) => {
-    const onEvent = args[3]!;
+    const onEvent = args[2]!;
     onEvent({ type: "meta", simulated });
     onEvent({ type: "tool", toolCallId: "t1", toolName, input });
     onEvent({ type: "text", delta: text });
@@ -69,7 +69,7 @@ function answers(text: string, toolName = "read_trip", input: unknown = {}, simu
 /** The same, plus the proposal the turn's final chunk carried. */
 function proposes(text: string, proposal: import("@tc/contracts").AssistantProposal) {
   return async (...args: AskArgs) => {
-    const onEvent = args[3]!;
+    const onEvent = args[2]!;
     onEvent({ type: "meta", simulated: true });
     onEvent({ type: "tool", toolCallId: "t1", toolName: "AddActivity", input: { title: "Coffee" } });
     onEvent({ type: "text", delta: text });
@@ -80,8 +80,8 @@ function proposes(text: string, proposal: import("@tc/contracts").AssistantPropo
 
 /** The scope of the nth (0-based) ask, and the thread it carried. */
 function askCall(n: number) {
-  const [, messages, scope] = askAssistantMock.mock.calls[n] as AskArgs;
-  return { messages, scope };
+  const [where, messages] = askAssistantMock.mock.calls[n] as AskArgs;
+  return { messages, scope: where.scope };
 }
 
 // The Map lens's own viewer gate — no double-click-to-create — is
@@ -112,6 +112,7 @@ const replaceSpy = vi.fn((url: string) => {
   search = new URLSearchParams(url.split("?")[1] ?? "");
   listeners.forEach((l) => l());
 });
+const pushSpy = vi.fn();
 vi.mock("next/navigation", () => ({
   useSearchParams: () =>
     useSyncExternalStore(
@@ -122,7 +123,7 @@ vi.mock("next/navigation", () => ({
       () => search,
     ),
   usePathname: () => "/trips/x",
-  useRouter: () => ({ replace: replaceSpy }),
+  useRouter: () => ({ replace: replaceSpy, push: pushSpy }),
 }));
 
 // Navigates by `?view=` the same way a real URL change would: mutate the
@@ -792,6 +793,36 @@ describe("TripBoardScreen", () => {
     expect(log.textContent).not.toContain("{");
   });
 
+  // KI-2026-10-12-e: the model's note beside a tool call streams, then the server
+  // takes it back. It must leave the rendered thread as the signal arrives.
+  it("drops text the server takes back from the transcript", async () => {
+    const fixture = tripDetailFixture();
+    server.use(...makeTripHandlers(fixture));
+    let takeBack = () => {};
+    askAssistantMock.mockImplementation(async (...args: AskArgs) => {
+      const onEvent = args[2]!;
+      onEvent({ type: "meta", simulated: false });
+      onEvent({ type: "text", delta: "Checking day 1 first.", id: "0" });
+      await new Promise<void>((resolve) => (takeBack = resolve));
+      onEvent({ type: "retract", text: "Checking day 1 first." });
+      onEvent({ type: "tool", toolCallId: "t1", toolName: "read_day", input: { days: 1 } });
+      onEvent({ type: "text", delta: "Day 1 is free.", id: "aitxt-1" });
+      return { ok: true as const, value: { text: "Day 1 is free." } };
+    });
+    renderScreen(fixture.tripId);
+    expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+
+    fireEvent.click(screen.getByTestId("ask-pill"));
+    fireEvent.change(screen.getByPlaceholderText(/ask about this (?:day|trip)/i), { target: { value: "When is day 1 free?" } });
+    fireEvent.click(askButton());
+
+    const log = await screen.findByRole("log", { name: "Conversation" });
+    await waitFor(() => expect(log.textContent).toContain("Checking day 1 first."));
+    act(() => takeBack());
+    await waitFor(() => expect(log.textContent).toContain("Day 1 is free."));
+    expect(log.textContent).not.toContain("Checking day 1 first.");
+  });
+
   // Ruling R1: conversation state is client-held, so turn 2 is the same POST
   // with a longer array. Without this the follow-up "what about the next day?"
   // has nothing to refine and the assistant answers a question nobody asked.
@@ -1120,6 +1151,32 @@ describe("TripBoardScreen", () => {
     expect(askCall(1).messages.map((m) => m.parts[0]!.text)).toEqual(["How many days?"]);
   });
 
+  // PR 426 review round 4, finding 2: the rail remounts on every open, and the
+  // refused question stayed set, so each open put it back over the box.
+  it("puts a rolled-back question back once, not again on a later open", async () => {
+    const fixture = tripDetailFixture();
+    server.use(...makeTripHandlers(fixture));
+    askAssistantMock.mockResolvedValueOnce({
+      ok: false,
+      error: { status: 400, message: "this trip has 2 days, so day 9 is out of range" },
+    });
+    renderScreen(fixture.tripId);
+    expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+    const composer = () => screen.getByPlaceholderText(/ask about this (?:day|trip)/i) as HTMLInputElement;
+
+    fireEvent.click(screen.getByTestId("ask-pill"));
+    fireEvent.change(composer(), { target: { value: "Day nine?" } });
+    fireEvent.click(askButton());
+    await waitFor(() => expect(composer().value).toBe("Day nine?"));
+
+    // No signed-in user here, so nothing is stored: the box opens empty.
+    fireEvent.change(composer(), { target: { value: "" } });
+    fireEvent.click(within(assistantPanel()).getByRole("button", { name: "Hide" }));
+    fireEvent.click(screen.getByTestId("ask-pill"));
+    expect(await screen.findByRole("complementary", { name: "Assistant" })).toBeTruthy();
+    expect(composer().value).toBe("");
+  });
+
   // A half-written answer stays: the words are on screen and deleting them
   // under the user is the worse lie. The failure arrived INSIDE a 200 stream,
   // which is the channel a `res.ok` check cannot see.
@@ -1127,8 +1184,8 @@ describe("TripBoardScreen", () => {
     const fixture = tripDetailFixture();
     server.use(...makeTripHandlers(fixture));
     askAssistantMock.mockImplementationOnce(async (...args: AskArgs) => {
-      args[3]!({ type: "text", delta: "Rome 2027 runs to " });
-      args[3]!({ type: "error", message: ASK_FAILED_MESSAGE });
+      args[2]!({ type: "text", delta: "Rome 2027 runs to " });
+      args[2]!({ type: "error", message: ASK_FAILED_MESSAGE });
       return { ok: false as const, error: { status: 200, message: ASK_FAILED_MESSAGE, code: "ask-stream-error" } };
     });
     renderScreen(fixture.tripId);
@@ -1175,9 +1232,9 @@ describe("TripBoardScreen", () => {
     askAssistantMock.mockImplementationOnce(async (...args: AskArgs) => {
       // The header arrives before the body, so the badge is decided before a
       // single word is — which is the whole reason it is a header.
-      args[3]!({ type: "meta", simulated: true });
-      args[3]!({ type: "text", delta: "Rome 2027 runs to 0 days. " });
-      args[3]!({ type: "error", message: ASK_FAILED_MESSAGE });
+      args[2]!({ type: "meta", simulated: true });
+      args[2]!({ type: "text", delta: "Rome 2027 runs to 0 days. " });
+      args[2]!({ type: "error", message: ASK_FAILED_MESSAGE });
       return {
         ok: false as const,
         error: { status: 200, message: ASK_FAILED_MESSAGE, code: "ask-stream-error" },
@@ -1228,7 +1285,7 @@ describe("TripBoardScreen", () => {
     askAssistantMock.mockImplementation(
       (...args: AskArgs) =>
         new Promise(() => {
-          signal = args[4];
+          signal = args[3];
         }),
     );
     const view = renderScreen(fixture.tripId);
@@ -1715,6 +1772,27 @@ describe("assistant rail visibility", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Hide" }));
     expect(screen.queryByRole("complementary", { name: "Assistant" })).toBeNull();
+  });
+
+  // PR 426 review round 4, finding 3: docked, Hide dropped focus to <body>
+  // with its own button, and opening left it on the launcher.
+  it("moves focus to the composer on open, and back to the launcher on Hide", async () => {
+    setViewportMatches({ "(min-width: 1180px)": true });
+    const fixture = tripDetailFixture();
+    server.use(...makeTripHandlers(fixture));
+    renderScreen(fixture.tripId);
+    expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+
+    await userEvent.click(screen.getByTestId("ask-pill"));
+    const open = await screen.findByRole("complementary", { name: "Assistant" });
+    // The keys go wherever focus is, as they do for a keyboard user.
+    await userEvent.keyboard("busiest day?");
+    expect((within(open).getByPlaceholderText(/ask about this (?:day|trip)/i) as HTMLInputElement).value).toBe("busiest day?");
+
+    await userEvent.click(within(open).getByRole("button", { name: "Hide" }));
+    expect(screen.queryByRole("complementary", { name: "Assistant" })).toBeNull();
+    await userEvent.keyboard("{Enter}");
+    expect(screen.getByRole("complementary", { name: "Assistant" })).toBeTruthy();
   });
 });
 
@@ -2676,9 +2754,38 @@ describe("⌘K runs the trip page's own actions", () => {
         act(() => command.run());
       },
       openAssistant: () => act(() => ask?.onOpen()),
+      askAssistant: (text: string) => act(() => ask?.onAsk?.(text)),
       ids: () => commands.map((c) => c.id),
     };
   }
+
+  // M45 D6: ⌘K's *Ask: <text>* works inside a trip, not only on Home (PR 426
+  // review, finding 6: nothing failed without the board's offer). And the
+  // board drops the hand-off once its rail takes it (finding 3): the rail
+  // remounts on Hide and Show, as it does when the header skeleton comes
+  // back, and must not ask the same words again. jsdom's `matchMedia` fires
+  // no change, so Hide and Show is the remount this can drive.
+  it("hands ⌘K's Ask: text to its rail, which asks it once", async () => {
+    const fixture = tripDetailFixture();
+    server.use(...makeTripHandlers(fixture));
+    askAssistantMock.mockImplementation(answers("Day 2 is the busiest."));
+    const page = renderWithPalette(fixture.tripId);
+    expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+
+    page.askAssistant("which day is busiest?");
+    await waitFor(() => expect(askAssistantMock).toHaveBeenCalledTimes(1));
+    expect(askCall(0).messages.at(-1)!.parts[0]!.text).toBe("which day is busiest?");
+    expect(await within(assistantPanel()).findByText("Day 2 is the busiest.")).toBeTruthy();
+
+    fireEvent.click(within(assistantPanel()).getByRole("button", { name: "Hide" }));
+    fireEvent.click(screen.getByTestId("ask-pill"));
+    expect(await screen.findByRole("complementary", { name: "Assistant" })).toBeTruthy();
+    expect(askAssistantMock).toHaveBeenCalledTimes(1);
+    fireEvent.change(screen.getByPlaceholderText(/ask about this (?:day|trip)/i), { target: { value: "and the quietest?" } });
+    fireEvent.click(askButton());
+    await waitFor(() => expect(askAssistantMock).toHaveBeenCalledTimes(2));
+    expect(askCall(1).messages.at(-1)!.parts[0]!.text).toBe("and the quietest?");
+  });
 
   // Every batch posted, as one list of commands each. Registered after the
   // trip's handlers, so it comes first (`server.use` prepends) and hands each
@@ -2892,6 +2999,86 @@ describe("⌘K runs the trip page's own actions", () => {
     await waitFor(() => expect(changes(ids())).toEqual([]));
   });
 
+  // M45 D4: *Go to › Notebook* goes where the Notebooks menu's row links.
+  it("goes to a notebook where the Notebooks menu's row goes", async () => {
+    const fixture = tripDetailFixture();
+    const notebook = pageFixture({ tripId: fixture.tripId, title: "Packing" });
+    server.use(...makePagesHandlers([notebook]), ...makeTripHandlers(fixture));
+    const { run, ids } = renderWithPalette(fixture.tripId);
+    await screen.findByRole("heading", { name: "Rome 2027" });
+
+    fireEvent.click(screen.getByRole("button", { name: "Notebooks" }));
+    const row = await screen.findByRole("link", { name: /^Packing/ });
+    await waitFor(() => expect(ids()).toContain(`go:notebook:${notebook.id}`));
+    run(`go:notebook:${notebook.id}`);
+    expect(pushSpy).toHaveBeenLastCalledWith(row.getAttribute("href"));
+  });
+
+  // PR 422 review: the board stays mounted while a co-traveller deletes one
+  // notebook and adds another, so ⌘K must re-read on the poll's news, as the
+  // Notebooks menu and Overview do, or it offers a page that no longer exists.
+  it("re-reads its notebooks when a co-traveller changes the trip", async () => {
+    const addListener = vi.spyOn(document, "addEventListener");
+    const fixture = tripDetailFixture({
+      members: [
+        { userId: "dev-alice", role: "owner" },
+        { userId: "dev-bob", role: "editor" },
+      ],
+    });
+    const deleted = pageFixture({ tripId: fixture.tripId, title: "Packing" });
+    const added = pageFixture({ id: "0b1c2d3e-4f5a-4b6c-8d7e-9f0a1b2c3d4e", tripId: fixture.tripId, title: "Food" });
+    server.use(...makePagesHandlers([deleted]), ...makeTripHandlers(fixture));
+    const { ids } = renderWithPalette(fixture.tripId);
+    await waitFor(() => expect(ids()).toContain(`go:notebook:${deleted.id}`));
+    // KI-2026-09-22-e: a rendered trip is not yet an armed poll.
+    await waitFor(() => expect(addListener).toHaveBeenCalledWith("visibilitychange", expect.any(Function)));
+    addListener.mockRestore();
+
+    server.use(
+      ...makePagesHandlers([added]),
+      http.get("/api/trips/:tripId/events", () => HttpResponse.json({ headSeq: 1, events: [], resync: false })),
+    );
+    Object.defineProperty(document, "visibilityState", { value: "visible", configurable: true });
+    document.dispatchEvent(new Event("visibilitychange"));
+
+    await waitFor(() => expect(ids()).toContain(`go:notebook:${added.id}`));
+    expect(ids()).not.toContain(`go:notebook:${deleted.id}`);
+  });
+
+  // PR 422 review: a re-read that fails keeps the list it had. Emptied, the
+  // assistant's run-by-id of a notebook that exists would do nothing.
+  it("keeps its notebooks when a co-traveller's change is followed by a failed re-read", async () => {
+    const addListener = vi.spyOn(document, "addEventListener");
+    const fixture = tripDetailFixture({
+      members: [
+        { userId: "dev-alice", role: "owner" },
+        { userId: "dev-bob", role: "editor" },
+      ],
+    });
+    const notebook = pageFixture({ tripId: fixture.tripId, title: "Packing" });
+    server.use(...makePagesHandlers([notebook]), ...makeTripHandlers(fixture));
+    const { ids } = renderWithPalette(fixture.tripId);
+    await waitFor(() => expect(ids()).toContain(`go:notebook:${notebook.id}`));
+    await waitFor(() => expect(addListener).toHaveBeenCalledWith("visibilitychange", expect.any(Function)));
+    addListener.mockRestore();
+
+    let reread = false;
+    server.use(
+      http.get("/api/trips/:tripId/pages", () => {
+        reread = true;
+        return HttpResponse.json({ error: { code: "internal", message: "down" } }, { status: 500 });
+      }),
+      http.get("/api/trips/:tripId/events", () => HttpResponse.json({ headSeq: 1, events: [], resync: false })),
+    );
+    Object.defineProperty(document, "visibilityState", { value: "visible", configurable: true });
+    document.dispatchEvent(new Event("visibilitychange"));
+
+    await waitFor(() => expect(reread).toBe(true));
+    // A macrotask settles the failed read and the registry write after it.
+    await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
+    expect(ids()).toContain(`go:notebook:${notebook.id}`);
+  });
+
   // PR 398 review: a create sheet keeps its draft, so New stop over an open
   // editor would drop its prefill (and focus would go back into the sheet);
   // an edit sheet holds a stop a move or removal would change under it.
@@ -2908,5 +3095,38 @@ describe("⌘K runs the trip page's own actions", () => {
     await waitFor(() => expect(screen.queryByRole("dialog", { name: "Add a stop" })).toBeNull());
     expect(ids()).toContain("new-stop");
     expect(ids()).toContain("add-day");
+  });
+
+  // PR 424 review: leaving the board unmounts the stop editor and its typed
+  // fields, so a reply that lands while it is open does not open a notebook.
+  it("does not leave for a notebook the assistant named while a stop is open for editing", async () => {
+    const fixture = tripDetailFixture();
+    const notebook = pageFixture({ tripId: fixture.tripId, title: "Packing" });
+    server.use(...makePagesHandlers([notebook]), ...makeTripHandlers(fixture));
+    let reply = () => {};
+    const replied = new Promise<void>((resolve) => (reply = resolve));
+    askAssistantMock.mockImplementation(async (...args: AskArgs) => {
+      await replied;
+      args[2]!({ type: "text", delta: "Opening Packing." });
+      args[2]!({ type: "palette", commands: [{ id: `go:notebook:${notebook.id}`, needsApproval: false }] });
+      return { ok: true as const, value: { text: "Opening Packing." } };
+    });
+    pushSpy.mockClear();
+    const { run, ids } = renderWithPalette(fixture.tripId);
+    await screen.findByRole("heading", { name: "Rome 2027" });
+    await waitFor(() => expect(ids()).toContain(`go:notebook:${notebook.id}`));
+
+    fireEvent.click(screen.getByTestId("ask-pill"));
+    fireEvent.change(screen.getByPlaceholderText(/ask about this (?:day|trip)/i), { target: { value: "open my packing notebook" } });
+    fireEvent.click(askButton());
+    run("new-stop");
+    await screen.findByRole("dialog", { name: "Add a stop" });
+    await act(async () => reply());
+
+    // The modal sheet hides the rail from the accessibility tree.
+    const log = screen.getByRole("log", { name: "Conversation", hidden: true });
+    await waitFor(() => expect(log.textContent).toContain("I didn't open that notebook, because you have a stop open for editing."));
+    expect(pushSpy).not.toHaveBeenCalled();
+    expect(screen.getByRole("dialog", { name: "Add a stop" })).toBeTruthy();
   });
 });

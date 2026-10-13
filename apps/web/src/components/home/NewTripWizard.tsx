@@ -23,7 +23,7 @@ import { Text } from "@/components/ui/text";
 import { ToggleChip } from "@/components/ui/toggle-chip";
 import { Transcript, type AssistantTurn } from "@/components/assistant/Transcript";
 import { usePinToBottom } from "@/components/assistant/usePinToBottom";
-import { useAiEntitled } from "@/components/assistant/useAiEntitled";
+import { useAiEntitled } from "@/lib/useAiEntitled";
 import { submitOnEnter } from "@/lib/submitOnEnter";
 // `…WithYear`, not `formatTripDate`: §32.3's own example of "the app's own
 // style" is `Apr 10, 2027`, and a trip being planned eleven months out is the

@@ -1103,3 +1103,197 @@ describe("simulatedModel — the page classification call", () => {
     expect(question).toMatchObject({ taskClass: "question", failedOpen: false });
   });
 });
+
+// M45: the account surface. Its four tools are the whole of what it holds —
+// calling `read_trip` there ends the turn with `NoSuchToolError` — so the
+// flag-off path has to reach for the aggregate a question needs, by phrase,
+// and answer from what came back.
+describe("simulatedModel — the account surface", () => {
+  const ACCOUNT_TOOLS = ["spend_by_category", "places_visited", "visit_counts", "suggest_next_country", "open_trip"];
+
+  function accountPrompt(question: string, results: { toolName: string; value: unknown }[] = []) {
+    const base = askPrompt({ kind: "account" }, results, { question });
+    return { ...base, tools: ACCOUNT_TOOLS.map((name) => ({ name })) };
+  }
+
+  it.each([
+    ["what was my most expensive meal?", "spend_by_category", { category: "meal" }],
+    ["how many countries have I been to?", "places_visited", {}],
+    ["which city have I been to most?", "visit_counts", { by: "city" }],
+    ["which country should I visit next?", "suggest_next_country", {}],
+  ])("asks %j with %s, and never read_trip", async (question, tool, input) => {
+    const calls = callsOf(await probe().doGenerate(accountPrompt(question)));
+    expect(calls.map((c) => [c.toolName, JSON.parse(c.input)])).toEqual([[tool, input]]);
+  });
+
+  // Minor units in two currencies are two scales: 12,000 is not more than
+  // 4,000 when one is dollars and the other euros, so each currency gets its own.
+  it("names the priciest meal in each currency, never comparing across them", async () => {
+    const spend = {
+      tripsCounted: 3,
+      categories: [
+        {
+          category: "meal",
+          currency: "EUR",
+          totalMinor: 4_500,
+          stops: 2,
+          mostExpensive: { title: "Seafood dinner", tripName: "Lisbon", perPersonMinor: 4_000, totalMinor: 4_000 },
+        },
+        {
+          category: "meal",
+          currency: "USD",
+          totalMinor: 27_000,
+          stops: 2,
+          mostExpensive: { title: "Kaiseki dinner", tripName: "Kyoto", perPersonMinor: 12_000, totalMinor: 24_000 },
+        },
+      ],
+    };
+    const text = textOf(
+      await probe().doGenerate(accountPrompt("what was my most expensive meal?", [{ toolName: "spend_by_category", value: spend }])),
+    );
+    expect(text).toContain("Kaiseki dinner");
+    expect(text).toContain("$120.00");
+    expect(text).toContain("Seafood dinner");
+    expect(text).toContain("€40.00");
+  });
+
+  it("counts the countries, names the most-visited city and suggests only an unvisited country", async () => {
+    const places = {
+      tripsCounted: 3,
+      countries: [{ code: "JP", name: "Japan" }, { code: "PT", name: "Portugal" }],
+      cities: [{ city: "Kyoto", countryCode: "JP" }],
+      unknownStops: 0,
+    };
+    const counts = { tripsCounted: 3, by: "city", places: [{ place: "Kyoto", countryCode: "JP", trips: 2, days: 3, stops: 4 }], unknownStops: 0 };
+    const next = {
+      tripsCounted: 3,
+      visited: [{ code: "JP", name: "Japan", region: "East Asia" }],
+      unvisited: [{ region: "East Asia", countries: ["South Korea", "Taiwan"] }],
+    };
+    const say = async (question: string, toolName: string, value: unknown) =>
+      textOf(await probe().doGenerate(accountPrompt(question, [{ toolName, value }])));
+
+    expect(await say("how many countries have I been to?", "places_visited", places)).toContain("2 countries");
+    expect(await say("which city have I been to most?", "visit_counts", counts)).toContain("Kyoto");
+    expect(await say("which country should I visit next?", "suggest_next_country", next)).toContain("South Korea");
+  });
+
+  // D6's walk from Home: the trip is named, never chosen by the stand-in.
+  it.each([
+    ["open my Kyoto trip on the map", { trip: "Kyoto", view: "Map" }],
+    ["take me to my Lisbon trip", { trip: "Lisbon" }],
+  ])("asks open_trip for %j, and says what came of it", async (question, input) => {
+    const calls = callsOf(await probe().doGenerate(accountPrompt(question)));
+    expect(calls.map((c) => [c.toolName, JSON.parse(c.input)])).toEqual([["open_trip", input]]);
+    const said = async (value: unknown) => textOf(await probe().doGenerate(accountPrompt(question, [{ toolName: "open_trip", value }])));
+    expect(await said({ queued: true, note: "queued" })).toContain("Taking you there now.");
+    expect(await said({ queued: false, refused: "You are not travelling on a trip called “Kyoto”." })).toContain("not travelling on");
+  });
+
+  it("classifies an account question as a question", async () => {
+    const verdict = await classifyAskIntent(simulatedModel(), "which city have I been to most?", [], undefined, undefined, "account");
+    expect(verdict).toMatchObject({ taskClass: "question", offTopic: false, failedOpen: false });
+  });
+});
+
+// M45 D9: a playbook page. The flag-off path reads the page, drafts one of a
+// shared day's two writes with the trip and day as the person named them, and
+// asks which when they named neither — never a trip it chose.
+describe("simulatedModel — the playbook pages", () => {
+  const SHARED_DAY = ["read_playbook", "add_playbook_to_trip", "start_trip_with_playbook"];
+  const onDay = { kind: "playbook", page: { kind: "day", savedDayId: "6f9619ff-8b86-4011-b42d-00c04fc964ff" } } as const;
+
+  function playbookPrompt(question: string, results: { toolName: string; value: unknown }[] = [], tools = SHARED_DAY) {
+    return { ...askPrompt(onDay, results, { question }), tools: tools.map((name) => ({ name })) };
+  }
+
+  it("reads the playbook, then names its stops", async () => {
+    const question = "what does this day cover?";
+    expect(callsOf(await probe().doGenerate(playbookPrompt(question))).map((c) => c.toolName)).toEqual(["read_playbook"]);
+    const day = {
+      name: "Kyoto, on foot",
+      summary: null,
+      cities: ["Kyoto"],
+      dayCount: 1,
+      days: [{ day: 1, stops: [{ title: "Nishiki Market", start: "10:00", end: null, place: null, city: "Kyoto", costPerPerson: null, notes: null }] }],
+    };
+    expect(textOf(await probe().doGenerate(playbookPrompt(question, [{ toolName: "read_playbook", value: day }])))).toContain(
+      "Nishiki Market",
+    );
+  });
+
+  it("drafts adding it to the trip and day as named, and asks which when either is missing", async () => {
+    const calls = callsOf(await probe().doGenerate(playbookPrompt("add this to my Kyoto trip on day 3")));
+    expect(calls.map((c) => [c.toolName, JSON.parse(c.input)])).toEqual([["add_playbook_to_trip", { trip: "Kyoto", day: 3 }]]);
+    for (const question of ["add this to a trip", "add this to my Kyoto trip"]) {
+      const step = await probe().doGenerate(playbookPrompt(question));
+      expect(callsOf(step), question).toEqual([]);
+      expect(textOf(step), question).toContain("Which of your trips");
+    }
+  });
+
+  it("drafts a new trip, and says why when a write was refused", async () => {
+    const question = "start a trip with this day";
+    expect(callsOf(await probe().doGenerate(playbookPrompt(question))).map((c) => c.toolName)).toEqual(["start_trip_with_playbook"]);
+    const refused = { queued: false, refused: "They can open Rome but not edit it." };
+    const said = textOf(
+      await probe().doGenerate(playbookPrompt("add this to my Rome trip on day 1", [{ toolName: "add_playbook_to_trip", value: refused }])),
+    );
+    expect(said).toContain("not edit it");
+  });
+
+  it("reads a list page's own list, the only tool it holds", async () => {
+    const calls = callsOf(await probe().doGenerate(playbookPrompt("which of these is cheapest?", [], ["search_this_page"])));
+    expect(calls.map((c) => c.toolName)).toEqual(["search_this_page"]);
+  });
+});
+
+// ADR-072: the switched-off deployment can take you places too, or e2e could
+// not reach a reply that does. One call, then a sentence.
+describe("simulatedModel — taking you somewhere", () => {
+  function goPrompt(scope: AskScope, question: string, results: { toolName: string; value: unknown }[] = [], extra: string[] = []) {
+    const base = askPrompt(scope, results, { question });
+    return { ...base, tools: [...base.tools, { name: "go_to" }, ...extra.map((name) => ({ name }))] };
+  }
+
+  it.each([
+    ["show this on the map", { view: "Map" }],
+    ["show me day 2 on the map", { view: "Map", day: 2 }],
+    ["open the packing notebook", { notebook: "packing" }],
+    ["switch to the calendar", { view: "Calendar" }],
+  ])("asks go_to for %j, before reading anything", async (question, input) => {
+    const calls = callsOf(await probe().doGenerate(goPrompt({ kind: "trip" }, question)));
+    expect(calls.map((c) => [c.toolName, JSON.parse(c.input)])).toEqual([["go_to", input]]);
+  });
+
+  it("answers as before when the request goes nowhere, or go_to was not handed over", async () => {
+    const reads = (result: Generated) => callsOf(result).map((c) => c.toolName);
+    expect(reads(await probe().doGenerate(goPrompt({ kind: "trip" }, "What's the plan for day 2?")))).toContain("read_trip");
+    expect(reads(await probe().doGenerate(goPrompt({ kind: "trip" }, "is there an open stretch on day 3?")))).toContain("read_trip");
+    expect(reads(await probe().doGenerate(askPrompt({ kind: "trip" }, [], { question: "show this on the map" })))).toContain("read_trip");
+  });
+
+  it("says it is going, or why not, from what go_to answered", async () => {
+    const said = async (value: unknown) =>
+      textOf(await probe().doGenerate(goPrompt({ kind: "trip" }, "show this on the map", [{ toolName: "go_to", value }])));
+    expect(await said({ queued: true, note: "queued" })).toContain("Taking you there now.");
+    expect(await said({ queued: false, refused: "There is no day 9: this trip has 2." })).toContain("There is no day 9");
+  });
+
+  it("asks to turn a notebook's editing on, and says the card is waiting", async () => {
+    const page = { kind: "page" as const, pageId: "p1" };
+    const calls = callsOf(await probe().doGenerate(goPrompt(page, "turn on editing", [], ["insert_text", "propose_notebook_editing"])));
+    expect(calls.map((c) => [c.toolName, JSON.parse(c.input)])).toEqual([["propose_notebook_editing", { on: true }]]);
+    const off = callsOf(await probe().doGenerate(goPrompt(page, "turn editing off", [], ["insert_text", "propose_notebook_editing"])));
+    expect(off.map((c) => [c.toolName, JSON.parse(c.input)])).toEqual([["propose_notebook_editing", { on: false }]]);
+    const text = textOf(
+      await probe().doGenerate(
+        goPrompt(page, "turn on editing", [{ toolName: "propose_notebook_editing", value: { queued: true, note: "card" } }], [
+          "insert_text",
+          "propose_notebook_editing",
+        ]),
+      ),
+    );
+    expect(text).toContain("Approve the card");
+  });
+});

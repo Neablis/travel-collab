@@ -131,7 +131,11 @@ test("passes against the checked-in config, and every rejection names the rule t
   // **58 → 61 on 2026-10-06**: M37 part 5 — a playbook day's cover search may
   // import the port; the shared-day read route and the server-rendered day
   // page may not.
-  assert.equal(stdout.trim().split("\n").length, 61,`the wall's assertion count changed:\n${stdout}`);
+  //
+  // **61 → 64 on 2026-10-13**: M45's decision 3 — `src/app/(app)/layout.tsx`
+  // may import `@/server/*` to send the plan with the page, still may not
+  // import `@tc/domain`, and a layout below it gets no exemption.
+  assert.equal(stdout.trim().split("\n").length, 64,`the wall's assertion count changed:\n${stdout}`);
 });
 
 // THE REGRESSION THIS ENTRY EXISTS FOR. Both fixtures below trip a second, unrelated rule

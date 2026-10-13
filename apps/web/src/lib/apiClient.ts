@@ -1,6 +1,8 @@
 import {
   ActivityTag,
   ActivityTagDescribed,
+  ASK_RETRACT_CHUNK,
+  AskRetractData,
   AskStreamMetadata,
   BatchableCommand,
   CoverCandidate,
@@ -39,6 +41,7 @@ import {
   UserPreferences,
   type AssistantProposal,
   type AssistantSuggested,
+  type PaletteCommandRef,
   type AdminReportAction,
   type ChangeRoleInput,
   type CreateInviteInput,
@@ -1110,12 +1113,20 @@ export async function deleteSavedDay(savedDayId: string): Promise<ApiResult<{ ok
 export async function insertSavedDay(
   tripId: string,
   savedDayId: string,
+  /**
+   * The trip's day the playbook's first day merges onto; absent appends. The
+   * playbook pages' assistant passes the day a person named (M45 D9).
+   */
+  options: { startingAt?: string } = {},
 ): Promise<ApiResult<CommandOutcome>> {
   const scope = tripKeys.all(tripId);
   beginWrite(scope);
   try {
     const res = await fetch(apiUrl(`/api/trips/${tripId}/saved-days/${savedDayId}`), {
       method: "POST",
+      ...(options.startingAt === undefined
+        ? {}
+        : { headers: { "Content-Type": "application/json" }, body: JSON.stringify({ startingAt: options.startingAt }) }),
     });
     return await readJson(res, (data) => parseOutcome(data as { detail: unknown; history: unknown }));
   } catch (err) {
@@ -1268,14 +1279,8 @@ export async function fetchNearbyStops(
   }
 }
 
-/**
- * Discover's day search (M11b link 5).
- *
- * `city` is repeated rather than comma-joined — a city name may contain a
- * comma, and splitting on one would invent a city called " Japan". The caller
- * debounces the text box that feeds it; this does not.
- */
-export async function searchPlaybooks(query: {
+/** Discover's search: what `searchPlaybooks` sends, and what a Discover page's assistant reads (M45 D9). */
+export type DiscoverSearch = {
   cities?: readonly string[];
   /** ISO alpha-2 codes, repeated as `?country=` like `city` (M12 link 7). */
   countries?: readonly string[];
@@ -1289,7 +1294,16 @@ export async function searchPlaybooks(query: {
   tag?: TagFilter;
   /** The last card of the page before, for the page after it; null or absent for page one. */
   after?: string | null;
-}): Promise<ApiResult<DiscoverResponse>> {
+};
+
+/**
+ * Discover's day search (M11b link 5).
+ *
+ * `city` is repeated rather than comma-joined — a city name may contain a
+ * comma, and splitting on one would invent a city called " Japan". The caller
+ * debounces the text box that feeds it; this does not.
+ */
+export async function searchPlaybooks(query: DiscoverSearch): Promise<ApiResult<DiscoverResponse>> {
   const params = new URLSearchParams();
   for (const city of query.cities ?? []) params.append("city", city);
   for (const country of query.countries ?? []) params.append("country", country);
@@ -1437,7 +1451,8 @@ export async function actOnReport(
 }
 
 // ---------------------------------------------------------------------------
-// The assistant conversation — POST /api/trips/:id/ask (M16, ADR-022).
+// The assistant conversation — POST /api/trips/:id/ask (M16, ADR-022), and
+// POST /api/ask for a turn about no one trip (M45).
 //
 // Deliberately NOT `applyAssistantProposal`'s shape. Applying a batch answers
 // with a derived receipt; this one answers with the model's own prose,
@@ -1471,10 +1486,57 @@ export async function actOnReport(
  * resolves it to a page on THIS trip that this actor may edit before it offers
  * a page tool, and refuses rather than widening if it cannot.
  */
-export type AskScope =
+export type AskScope = TripAskScope | BeyondTripAskScope;
+
+/** A turn about one trip, posted to that trip's door. */
+export type TripAskScope =
   | { kind: "trip" }
   | { kind: "day"; dayIndex: number }
   | { kind: "page"; pageId: string };
+
+/**
+ * A turn about no one trip (M45). The account's answers across every trip you
+ * travelled on; a playbook page's (D9) about what that page shows. A kind
+ * added here makes the compiler name every place that has to answer for it
+ * (`askPath`, the rail's copy, the thread's name).
+ */
+export type BeyondTripAskScope = { kind: "account" } | { kind: "playbook"; page: PlaybookAskPage };
+
+/**
+ * Which playbook page a turn is asked on, as the server's `AskScope` names it
+ * (`server/assistant/context.ts`): a shared day (one day or a playbook of
+ * several), Discover with its filters as set, a city's page by slug, or a
+ * tag's, in a city or across the library. A day's id is a claim the server
+ * resolves as the asker reads it. A list is named as far as the reader has
+ * paged it, so its assistant reads the list on screen: Discover by the search
+ * it sends, a city's or tag's page by its `?page=N`.
+ */
+export type PlaybookAskPage =
+  | { kind: "day"; savedDayId: string }
+  | { kind: "discover"; search: DiscoverSearch }
+  | { kind: "city"; slug: string; page: number }
+  | { kind: "tag"; tag: string; city: string | null; page: number };
+
+/**
+ * Which door a turn goes to: a trip's, with that trip's id, or one of its own
+ * for a scope about no one trip. A pair so a trip scope cannot travel without
+ * its trip, nor an account scope with one.
+ */
+export type AskWhere = { tripId: string; scope: TripAskScope } | { tripId?: undefined; scope: BeyondTripAskScope };
+
+function askPath(where: AskWhere): string {
+  if (where.tripId !== undefined) return `/api/trips/${where.tripId}/ask`;
+  switch (where.scope.kind) {
+    // One door for both: each is about no one trip, and the scope says which.
+    case "account":
+    case "playbook":
+      return "/api/ask";
+    default: {
+      const unhandled: never = where.scope;
+      return unhandled;
+    }
+  }
+}
 
 /** An AI SDK v7 UIMessage, narrowed to the one part type this client sends. */
 export type AskWireMessage = {
@@ -1494,7 +1556,15 @@ export type AskWireMessage = {
 export type AskEvent =
   /** A tool call, seen the moment it is issued — before any answer text. */
   | { type: "tool"; toolCallId: string; toolName: string; input: unknown }
-  | { type: "text"; delta: string }
+  /** `id` is the text part's: a later `retract` names parts by it. */
+  | { type: "text"; delta: string; id?: string }
+  /**
+   * Text the server took back because the step that wrote it went on to a
+   * tool call (KI-2026-10-12-e): the model's note to itself, not its answer.
+   * `text` is what those parts said, resolved by `askAssistant` from their
+   * ids; remove it with `withoutRetracted`.
+   */
+  | { type: "retract"; text: string }
   /**
    * Emitted once, from the response HEADER, before a byte of the body — so a
    * turn that dies mid-answer is still badged correctly. Replaces Task 5's
@@ -1536,6 +1606,12 @@ export type AskEvent =
     }
   /** A page turn whose nodes failed validation, with the server's own reason. */
   | { type: "page-error"; message: string }
+  /**
+   * The palette commands the turn named (ADR-072), on the same final chunk and
+   * after its outcome. Only ids the assistant may name reach here: the rest,
+   * URLs included, were dropped by the parse. Never empty.
+   */
+  | { type: "palette"; commands: PaletteCommandRef[] }
   | { type: "error"; message: string }
   /**
    * The SERVER stopped the turn before it finished — its deadline
@@ -1577,43 +1653,70 @@ export const AI_NOT_ENTITLED_STATUS = 402;
 // exports with no contract of their own, and widening P6 to cover them is a
 // change to the error surface rather than to this envelope.
 
-// One SSE frame -> zero or one AskEvent. Exported for its own unit test: the
+/**
+ * The server's `ASK_RETRACT_CHUNK`, as one frame sees it: part ids only.
+ * `askAssistant` turns it into a `retract` event, since only it has seen the
+ * text those ids carried.
+ */
+export type AskRetractFrame = { type: "retract-ids"; ids: string[] };
+
+/**
+ * `text` with `retracted` taken out. Retracted text is the newest text on the
+ * turn when the retraction arrives (it goes out just before the tool call),
+ * so the last occurrence is the one to remove.
+ */
+export function withoutRetracted(text: string, retracted: string): string {
+  const at = retracted === "" ? -1 : text.lastIndexOf(retracted);
+  return at === -1 ? text : text.slice(0, at) + text.slice(at + retracted.length);
+}
+
+// One SSE frame -> its events: none, one, or a final chunk's outcome and
+// then its palette commands. Exported for its own unit test: the
 // chunk vocabulary is a wire contract, and the frames this deliberately
 // IGNORES (start, start-step, tool-output-available, finish, [DONE]) matter as
 // much as the ones it reads — the stream is a superset the server may grow,
 // and an unknown part type must never break a conversation.
-export function askEventFromFrame(frame: string): AskEvent | null {
+/** The events one SSE frame of an `/ask` stream carries, in the order a reader acts on them; none for a frame it ignores. */
+export function askEventsFromFrame(frame: string): (AskEvent | AskRetractFrame)[] {
   const payload = frame
     .split("\n")
     .filter((line) => line.startsWith("data:"))
     .map((line) => line.slice("data:".length).trimStart())
     .join("\n");
-  if (payload === "" || payload === "[DONE]") return null;
+  if (payload === "" || payload === "[DONE]") return [];
   let chunk: unknown;
   try {
     chunk = JSON.parse(payload);
   } catch {
-    return null;
+    return [];
   }
-  if (typeof chunk !== "object" || chunk === null) return null;
+  if (typeof chunk !== "object" || chunk === null) return [];
   const part = chunk as Record<string, unknown>;
   if (part.type === "text-delta" && typeof part.delta === "string") {
-    return { type: "text", delta: part.delta };
+    return [typeof part.id === "string" ? { type: "text", delta: part.delta, id: part.id } : { type: "text", delta: part.delta }];
+  }
+  if (part.type === ASK_RETRACT_CHUNK) {
+    const data = AskRetractData.safeParse(part.data);
+    return data.success ? [{ type: "retract-ids", ids: data.data.ids }] : [];
   }
   if (part.type === "tool-input-available" && typeof part.toolName === "string") {
-    return {
-      type: "tool",
-      toolCallId: typeof part.toolCallId === "string" ? part.toolCallId : part.toolName,
-      toolName: part.toolName,
-      input: part.input,
-    };
+    return [
+      {
+        type: "tool",
+        toolCallId: typeof part.toolCallId === "string" ? part.toolCallId : part.toolName,
+        toolName: part.toolName,
+        input: part.input,
+      },
+    ];
   }
-  if (part.type === "abort") return { type: "stopped" };
+  if (part.type === "abort") return [{ type: "stopped" }];
   if (part.type === "error") {
-    return {
-      type: "error",
-      message: typeof part.errorText === "string" ? part.errorText : "The assistant stopped mid-answer.",
-    };
+    return [
+      {
+        type: "error",
+        message: typeof part.errorText === "string" ? part.errorText : "The assistant stopped mid-answer.",
+      },
+    ];
   }
   // The turn's outcome rides on the run's final chunk as message metadata — the
   // first moment the server knows every tool call the model made. A proposal OR
@@ -1640,18 +1743,27 @@ export function askEventFromFrame(frame: string): AskEvent | null {
   // at its deadline (or that fails mid-run) has no `finish` part; what a page
   // turn had inserted by then arrives on a `message-metadata` chunk instead,
   // and is exactly as much the turn's outcome.
+  //
+  // **The palette commands come after the outcome, filtered by the same parse**
+  // (ADR-072 §3): an id the assistant may not name, a URL included, never
+  // leaves this function, so it cannot reach the page's runner.
   if (part.type === "finish" || part.type === "message-metadata") {
     const metadata = AskStreamMetadata.safeParse(part.messageMetadata);
-    if (!metadata.success) return null;
-    if ("proposal" in metadata.data) return { type: "proposal", proposal: metadata.data.proposal };
-    if ("suggested" in metadata.data) return { type: "suggested", suggested: metadata.data.suggested };
-    if ("notApplied" in metadata.data) return { type: "not-applied", skipped: metadata.data.notApplied.skipped };
-    if ("pageInserts" in metadata.data) {
-      return pageInsertsEvent(metadata.data.pageInserts.content, metadata.data.pageInserts.dropped ?? []);
-    }
-    if ("composeError" in metadata.data) return { type: "page-error", message: metadata.data.composeError };
-    return null;
+    if (!metadata.success) return [];
+    const commands = metadata.data.paletteCommands ?? [];
+    const outcome = outcomeEvent(metadata.data);
+    return [...(outcome === null ? [] : [outcome]), ...(commands.length === 0 ? [] : [{ type: "palette" as const, commands }])];
   }
+  return [];
+}
+
+/** The final chunk's one outcome as an event, or null for silence. */
+function outcomeEvent(metadata: AskStreamMetadata): AskEvent | null {
+  if ("proposal" in metadata) return { type: "proposal", proposal: metadata.proposal };
+  if ("suggested" in metadata) return { type: "suggested", suggested: metadata.suggested };
+  if ("notApplied" in metadata) return { type: "not-applied", skipped: metadata.notApplied.skipped };
+  if ("pageInserts" in metadata) return pageInsertsEvent(metadata.pageInserts.content, metadata.pageInserts.dropped ?? []);
+  if ("composeError" in metadata) return { type: "page-error", message: metadata.composeError };
   return null;
 }
 
@@ -1690,17 +1802,16 @@ function pageInsertsEvent(content: PageDoc, dropped: DroppedInsert[]): AskEvent 
  * answer text for callers that only want the end.
  */
 export async function askAssistant(
-  tripId: string,
+  where: AskWhere,
   messages: AskWireMessage[],
-  scope: AskScope,
   onEvent: (event: AskEvent) => void = () => {},
   signal?: AbortSignal,
 ): Promise<ApiResult<{ text: string }>> {
   try {
-    const res = await fetch(apiUrl(`/api/trips/${tripId}/ask`), {
+    const res = await fetch(apiUrl(askPath(where)), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ messages, scope }),
+      body: JSON.stringify({ messages, scope: where.scope }),
       signal,
     });
     if (!res.ok) {
@@ -1725,6 +1836,26 @@ export async function askAssistant(
     let buffer = "";
     let text = "";
     let streamError: string | null = null;
+    // Each text part's text, so a retraction naming ids can say what it took.
+    // AI SDK 7 makes text ids unique per run; forgetting a retracted part is
+    // defensive, so a provider or a later SDK that reuses an id starts afresh.
+    const parts = new Map<string, string>();
+    const handle = (frameEvent: AskEvent | AskRetractFrame) => {
+      let event: AskEvent;
+      if (frameEvent.type === "retract-ids") {
+        event = { type: "retract", text: frameEvent.ids.map((id) => parts.get(id) ?? "").join("") };
+        for (const id of frameEvent.ids) parts.delete(id);
+        text = withoutRetracted(text, event.text);
+      } else {
+        event = frameEvent;
+        if (event.type === "text") {
+          text += event.delta;
+          if (event.id !== undefined) parts.set(event.id, (parts.get(event.id) ?? "") + event.delta);
+        }
+        if (event.type === "error") streamError = event.message;
+      }
+      onEvent(event);
+    };
 
     // Frames are separated by a blank line and a network read lands wherever
     // it lands — mid-JSON as often as not — so an incomplete frame stays in
@@ -1736,22 +1867,14 @@ export async function askAssistant(
         if (end === -1) break;
         const frame = buffer.slice(0, end);
         buffer = buffer.slice(end + 2);
-        const event = askEventFromFrame(frame);
-        if (event === null) continue;
-        if (event.type === "text") text += event.delta;
-        if (event.type === "error") streamError = event.message;
-        onEvent(event);
+        for (const event of askEventsFromFrame(frame)) handle(event);
       }
       // A stream that ends without a trailing blank line still owes us its
       // last frame.
       if (final && buffer.trim() !== "") {
-        const event = askEventFromFrame(buffer);
+        const events = askEventsFromFrame(buffer);
         buffer = "";
-        if (event !== null) {
-          if (event.type === "text") text += event.delta;
-          if (event.type === "error") streamError = event.message;
-          onEvent(event);
-        }
+        for (const event of events) handle(event);
       }
     };
 

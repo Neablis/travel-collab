@@ -1147,7 +1147,7 @@ export const aiUsage = pgTable(
     id: uuid("id").primaryKey(),
     // A `users.id`, on the same no-foreign-key terms as `events.actor_id`.
     userId: text("user_id").notNull(),
-    /** `ask` or `ask.apply` — `TurnCost.endpoint`. */
+    /** `ask`, `ask.apply` or `ask.account` — `TurnCost.endpoint`. */
     endpoint: text("endpoint").notNull(),
     /** `completed` | `error` | `abort`. A turn that failed partway still has a row. */
     outcome: text("outcome").notNull(),

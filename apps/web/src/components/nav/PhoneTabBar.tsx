@@ -405,20 +405,21 @@ function PhoneTabBarView({
           </Link>
         );
       })}
-      {scopeOf(pathname) !== "account" && <PhoneAskTab />}
+      <PhoneAskTab />
     </nav>
   );
 }
 
 /**
- * **Ask, as the bar's last item, inside a trip** (Mitchell, 2026-10-10: the
+ * **Ask, as the bar's last item, wherever a screen offers one** (Mitchell, 2026-10-10: the
  * phone trip header was "way too crowded"; "give the ai button a place on
  * bottom toolbar"). Not a tab: it navigates nowhere and holds no state. It
  * opens the assistant of whichever screen registered one (`usePhoneAskEntry`
  * — the board, the notebook index, an open notebook page), so it inherits that
  * screen's scope exactly as the header pill did, which was SPEC §23's reason
- * for not making Ask a destination. Absent where nothing registered: `/demo`,
- * whose trip the assistant refuses (KI-79), and a locked notebook page.
+ * for not making Ask a destination. Home registers its own (M45 D7). Absent
+ * where nothing registered: `/demo`, whose trip the assistant refuses
+ * (KI-79), a locked notebook page, and the account pages.
  *
  * Exported so a screen's own test can render it beside the screen: the bar
  * itself needs a route, and the item is what the screen talks to.
@@ -437,13 +438,15 @@ export function PhoneAskTab() {
       data-testid="ask-tab"
       className={cn(
         TAB_CLASS,
-        "h-auto rounded-none px-0 font-semibold text-brand-pressed hover:bg-transparent hover:text-brand-pressed",
+        "h-auto rounded-none px-0 hover:bg-transparent",
+        ask.open ? "font-semibold text-brand hover:text-brand" : "font-normal text-slate hover:text-slate",
       )}
     >
-      {/* The pill shape every tab's glyph sits in, filled with the brand tint
-          the header's Ask pill used — so it reads as the same control in its
-          new place, and as an action rather than the current tab. */}
-      <span className="phone-tab-pill grid place-items-center rounded-full bg-brand-tint">
+      {/* The tabs' own pill, and their two looks: filled only while the
+          assistant is up, as a tab's is while it is current. It was always
+          filled, which on a closed assistant read as the current tab
+          (Mitchell, walking PR 426 at 644px on 2026-10-12). */}
+      <span data-testid="phone-tab-pill" className={cn("phone-tab-pill grid place-items-center rounded-full", ask.open && "bg-brand-tint")}>
         <BrandMark size={16} tile={false} />
       </span>
       Ask

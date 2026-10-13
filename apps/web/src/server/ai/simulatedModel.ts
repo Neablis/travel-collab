@@ -36,6 +36,7 @@
 import { randomUUID } from "node:crypto";
 import type { LanguageModel } from "ai";
 import type { ActivityTag } from "@tc/contracts";
+import { formatMoney } from "@/lib/formatMoney";
 import { needsBooking } from "@/lib/needsBooking";
 import { parseAskScope, type AskScope } from "@/server/assistant/context";
 import { askIntentVerdictText, isAskIntentCall, isPageIntentCall } from "@/server/ai/askIntent";
@@ -46,9 +47,23 @@ import type {
   ReadToolProblem,
   TripReadout,
 } from "@/server/assistant/tools/read";
+import type {
+  PlacesVisitedReadout,
+  SpendByCategoryReadout,
+  SuggestNextCountryReadout,
+  VisitCountsReadout,
+} from "@/server/assistant/tools/acrossTrips";
 import { INSERT_PLAYBOOK_DAY } from "@/server/ai/writeTools";
 import { plain } from "@/server/assistant/prompt";
 import { ASSISTANT_TOOLS } from "@/server/assistant/registry";
+import { GO_TO_TOOL_NAME, OPEN_TRIP_TOOL_NAME, PROPOSE_NOTEBOOK_EDITING_TOOL_NAME } from "@/server/assistant/tools/navigate";
+import {
+  ADD_PLAYBOOK_TO_TRIP_TOOL_NAME,
+  READ_PLAYBOOK_TOOL_NAME,
+  SEARCH_THIS_PAGE_TOOL_NAME,
+  START_TRIP_WITH_PLAYBOOK_TOOL_NAME,
+  type PlaybookReadout,
+} from "@/server/assistant/tools/playbook";
 import { TAG_LABEL, type WidgetMatch } from "@tc/pages";
 
 export const SIMULATED_MODEL_ID = "simulated/no-op";
@@ -795,6 +810,8 @@ const SIMULATED_PAGE_NOTICE =
  * (KI-67).
  */
 function pageTurn(results: readonly ToolResultLike[], question: string, options: CallOptionsLike): SimulatedStep {
+  const going = navigationTurn(results, question, options, true);
+  if (going !== null) return going;
   // **A page question** (ADR-058): no insert tool was handed over, so this is
   // answered like any other question — read, then speak.
   if (!(options.tools ?? []).some((tool) => tool?.name === "insert_text")) {
@@ -964,6 +981,10 @@ function askTurn(options: CallOptionsLike): SimulatedStep {
   // composes, or — when no insert tool was handed over, the page's `question`
   // intent (ADR-058) — reads and answers.
   if (scope.kind === "page") return pageTurn(results, latestUserText(options), options);
+  if (scope.kind === "account") return accountTurn(results, latestUserText(options), options);
+  if (scope.kind === "playbook") return playbookTurn(results, latestUserText(options), options);
+  const going = navigationTurn(results, latestUserText(options), options, false);
+  if (going !== null) return going;
   if (results.length === 0) {
     return { content: askQuestions(scope, options), finishReason: { unified: "tool-calls", raw: undefined } };
   }
@@ -991,6 +1012,218 @@ function askTurn(options: CallOptionsLike): SimulatedStep {
     return { content: proposeCalls(scope, results, question), finishReason: { unified: "tool-calls", raw: undefined } };
   }
   return speak(proposed ? proposalAnswer(scope, results) : askAnswer(scope, results));
+}
+
+// ---------------------------------------------------------------------------
+// Taking you somewhere (ADR-072): one call, then a sentence
+// ---------------------------------------------------------------------------
+
+// A verb of going, and then where. "What's the plan for day 2?" names a day
+// and goes nowhere; "show me day 2 on the map" goes. `open` only as a verb
+// with its object, since "the biggest open stretch on day 3" is a question.
+// `plan` is a view only as "the plan view", for `ITINERARY_REQUEST`'s reason.
+const GO_VERBS = /\b(show|switch|go to|take me|open (?:the|my|day|people))\b/i;
+const VIEW_WORDS: readonly [RegExp, string][] = [
+  [/\bmap\b/i, "Map"],
+  [/\bcalendar\b/i, "Calendar"],
+  [/\boverview\b/i, "Overview"],
+  [/\bplan view\b/i, "Plan"],
+];
+const EDITING_REQUEST = /\bturn (?:on |off )?editing\b|\bediting (?:on|off)\b/i;
+
+/** Where a request asks to go, as `go_to`'s input, or null when it asks to go nowhere. */
+function destinationOf(text: string): Record<string, unknown> | null {
+  if (!GO_VERBS.test(text)) return null;
+  const input: Record<string, unknown> = {};
+  const view = VIEW_WORDS.find(([pattern]) => pattern.test(text))?.[1];
+  if (view !== undefined) input.view = view;
+  const day = /\bday\s+(\d+)\b/i.exec(text)?.[1];
+  if (day !== undefined) input.day = Number(day);
+  const notebook = /\bthe\s+(.+?)\s+notebook\b/i.exec(text)?.[1];
+  if (notebook !== undefined) input.notebook = notebook;
+  if (/\bpeople\b/i.test(text)) input.people = true;
+  return Object.keys(input).length === 0 ? null : input;
+}
+
+/**
+ * A request to go somewhere, or (on a notebook) to turn its editing on or off: the
+ * one call, then what came of it. Null for anything else, or when the tool
+ * was not handed over, so the turn is answered as it would have been.
+ */
+function navigationTurn(
+  results: readonly ToolResultLike[],
+  question: string,
+  options: CallOptionsLike,
+  onPage: boolean,
+): SimulatedStep | null {
+  const editing = onPage && EDITING_REQUEST.test(question) && offered(options, PROPOSE_NOTEBOOK_EDITING_TOOL_NAME);
+  const toolName = editing ? PROPOSE_NOTEBOOK_EDITING_TOOL_NAME : GO_TO_TOOL_NAME;
+  const input = editing ? { on: !/\boff\b/i.test(question) } : destinationOf(question);
+  if (input === null || !offered(options, toolName)) return null;
+  // Asked once: what came back decides the sentence, whatever its shape.
+  if (!results.some((result) => result.toolName === toolName)) {
+    return { content: [call(toolName, input)], finishReason: { unified: "tool-calls", raw: undefined } };
+  }
+  const done = resultFor<{ queued: boolean; refused?: string }>(results, toolName);
+  if (done?.queued !== true) return speak([`I couldn't take you there: ${done?.refused ?? "it isn't on this trip."}`, SIMULATED_ASK_NOTICE]);
+  return speak([editing ? "Approve the card below and I'll switch this notebook's editing." : "Taking you there now.", SIMULATED_ASK_NOTICE]);
+}
+
+// ---------------------------------------------------------------------------
+// The account half (M45): one aggregate, then an answer from it
+// ---------------------------------------------------------------------------
+
+/**
+ * Which cross-trip tool a question needs, by phrase — the four example
+ * questions' shapes, and `places_visited` for anything else. Never `read_trip`:
+ * an account turn is not handed it, and calling it would end the turn.
+ */
+function accountCall(question: string): ToolCall {
+  if (/\b(spen[dt]|cost|expensive|cheap|money|price)\b/i.test(question)) {
+    return call("spend_by_category", /\b(meal|food|eat|dinner|lunch|restaurant)\b/i.test(question) ? { category: "meal" } : {});
+  }
+  if (/\b(next|suggest|should i (go|visit))\b/i.test(question)) return call("suggest_next_country", {});
+  if (/\bmost\b/i.test(question)) return call("visit_counts", { by: /\bcountr(y|ies)\b/i.test(question) ? "country" : "city" });
+  return call("places_visited", {});
+}
+
+const SIMULATED_ACCOUNT_FALLBACK = "I couldn't read your trips just now.";
+
+// "open my Kyoto trip on the map": a verb of going, then a trip by its name.
+const OPEN_TRIP_REQUEST = /\b(?:open|show(?: me)?|take me to|go to)\s+(?:my\s+|the\s+)?(.+?)\s+trip\b/i;
+
+/** Which trip a request asks to open, and on which view, as `open_trip`'s input; null for anything else. */
+function openTripInput(question: string): Record<string, unknown> | null {
+  const trip = OPEN_TRIP_REQUEST.exec(question)?.[1];
+  if (trip === undefined) return null;
+  const view = VIEW_WORDS.find(([pattern]) => pattern.test(question))?.[1];
+  return view === undefined ? { trip } : { trip, view };
+}
+
+/**
+ * An account step: open the trip asked for (M45 D6), or else ask the one
+ * aggregate the question needs, then say what it returned.
+ */
+function accountTurn(results: readonly ToolResultLike[], question: string, options: CallOptionsLike): SimulatedStep {
+  const opening = openTripInput(question);
+  if (opening !== null && offered(options, OPEN_TRIP_TOOL_NAME)) {
+    if (!results.some((result) => result.toolName === OPEN_TRIP_TOOL_NAME)) {
+      return { content: [call(OPEN_TRIP_TOOL_NAME, opening)], finishReason: { unified: "tool-calls", raw: undefined } };
+    }
+    const done = resultFor<{ queued: boolean; refused?: string }>(results, OPEN_TRIP_TOOL_NAME);
+    if (done?.queued !== true) return speak([`I couldn't take you there: ${done?.refused ?? "that trip isn't one of yours."}`, SIMULATED_ASK_NOTICE]);
+    return speak(["Taking you there now.", SIMULATED_ASK_NOTICE]);
+  }
+  if (results.length === 0) {
+    const wanted = accountCall(question);
+    if (!offered(options, wanted.toolName)) return speak([SIMULATED_ACCOUNT_FALLBACK, SIMULATED_ASK_NOTICE]);
+    return { content: [wanted], finishReason: { unified: "tool-calls", raw: undefined } };
+  }
+  return speak([...accountAnswer(results), SIMULATED_ASK_NOTICE]);
+}
+
+function accountAnswer(results: readonly ToolResultLike[]): string[] {
+  const spend = resultFor<SpendByCategoryReadout>(results, "spend_by_category");
+  if (spend) {
+    // The priciest per currency: minor units of two currencies do not compare.
+    const tops = new Map<string, (typeof spend.categories)[number]>();
+    for (const row of spend.categories) {
+      const top = tops.get(row.currency);
+      if (top === undefined || row.mostExpensive.perPersonMinor > top.mostExpensive.perPersonMinor) tops.set(row.currency, row);
+    }
+    if (tops.size === 0) return [`Nothing with a price on it across your ${spend.tripsCounted} trips.`];
+    return [...tops.values()].map(({ category, currency, mostExpensive: { title, tripName, perPersonMinor } }) => {
+      const what = `${category === "meal" ? "meal" : "stop"}${tops.size > 1 ? ` paid in ${currency}` : ""}`;
+      return `The most expensive ${what} across your trips was ${plain(title)} on ${plain(tripName)}, at ${formatMoney(perPersonMinor, currency)} per person.`;
+    });
+  }
+  const places = resultFor<PlacesVisitedReadout>(results, "places_visited");
+  if (places) {
+    const names = places.countries.map((country) => country.name ?? country.code).join(", ");
+    return [
+      `You've been to ${places.countries.length} countr${places.countries.length === 1 ? "y" : "ies"} across ${places.tripsCounted} trip${places.tripsCounted === 1 ? "" : "s"}${names ? `: ${names}` : ""}.`,
+    ];
+  }
+  const counts = resultFor<VisitCountsReadout>(results, "visit_counts");
+  if (counts) {
+    const top = counts.places[0];
+    if (top === undefined) return ["None of your trips has a stop with a recorded place yet."];
+    const count = (n: number, noun: string) => `${n} ${noun}${n === 1 ? "" : "s"}`;
+    return [`The ${counts.by} you've been to most is ${plain(top.place)}: ${count(top.trips, "trip")}, ${count(top.days, "day")}.`];
+  }
+  const next = resultFor<SuggestNextCountryReadout>(results, "suggest_next_country");
+  const pick = next?.unvisited[0];
+  if (pick !== undefined && pick.countries[0] !== undefined) {
+    return [`You haven't been to ${pick.countries[0]} yet, in ${pick.region} — it could be next.`];
+  }
+  return [SIMULATED_ACCOUNT_FALLBACK];
+}
+
+// ---------------------------------------------------------------------------
+// The playbook pages (M45 D9): read the page, or draft one of its two writes
+// ---------------------------------------------------------------------------
+
+const SIMULATED_PLAYBOOK_NOTICE =
+  "AI is switched off on this deployment, so I answered from this page rather than from a model.";
+
+// "add this to my Kyoto trip on day 3": the trip as named, then its day. A
+// request naming neither is asked about rather than guessed (D9).
+const ADD_TO_TRIP_REQUEST = /\badd\b/i;
+const NAMED_TRIP = /\b(?:to|into)\s+(?:my\s+|the\s+)?(.+?)\s+trip\b/i;
+const START_TRIP_REQUEST = /\b(?:start|make|create|begin)\b.*\btrip\b/i;
+const ASK_WHICH_TRIP = "Which of your trips should I add it to, and on which day?";
+
+/**
+ * A playbook page's step: start a trip with the playbook, add it to the trip
+ * and day the person named, or ask which when they named neither; else read
+ * the page once and say what it shows. Each tool only when it was offered, so
+ * a list page, which holds no write, is read and answered.
+ */
+function playbookTurn(results: readonly ToolResultLike[], question: string, options: CallOptionsLike): SimulatedStep {
+  if (START_TRIP_REQUEST.test(question) && offered(options, START_TRIP_WITH_PLAYBOOK_TOOL_NAME)) {
+    return draftOnce(results, call(START_TRIP_WITH_PLAYBOOK_TOOL_NAME, {}), "I've drafted a new trip with it — approve the card below to start it.");
+  }
+  if (ADD_TO_TRIP_REQUEST.test(question) && offered(options, ADD_PLAYBOOK_TO_TRIP_TOOL_NAME)) {
+    const trip = NAMED_TRIP.exec(question)?.[1];
+    const day = /\bday\s+(\d+)\b/i.exec(question)?.[1];
+    if (trip === undefined || day === undefined) return speak([ASK_WHICH_TRIP, SIMULATED_PLAYBOOK_NOTICE]);
+    return draftOnce(
+      results,
+      call(ADD_PLAYBOOK_TO_TRIP_TOOL_NAME, { trip, day: Number(day) }),
+      `I've drafted adding it to your ${trip} trip on day ${day} — approve the card below to add it.`,
+    );
+  }
+  const read = offered(options, READ_PLAYBOOK_TOOL_NAME) ? READ_PLAYBOOK_TOOL_NAME : SEARCH_THIS_PAGE_TOOL_NAME;
+  if (!results.some((result) => result.toolName === read)) {
+    if (!offered(options, read)) return speak(["I couldn't read this page just now.", SIMULATED_PLAYBOOK_NOTICE]);
+    return { content: [call(read, {})], finishReason: { unified: "tool-calls", raw: undefined } };
+  }
+  return speak([...playbookAnswer(results), SIMULATED_PLAYBOOK_NOTICE]);
+}
+
+/** One write call, then what came of it: the drafted sentence, or the tool's refusal. */
+function draftOnce(results: readonly ToolResultLike[], wanted: ToolCall, drafted: string): SimulatedStep {
+  if (!results.some((result) => result.toolName === wanted.toolName)) {
+    return { content: [wanted], finishReason: { unified: "tool-calls", raw: undefined } };
+  }
+  const done = resultFor<{ queued: boolean; refused?: string }>(results, wanted.toolName);
+  if (done?.queued !== true) return speak([`I couldn't do that: ${done?.refused ?? "the page refused it."}`, SIMULATED_PLAYBOOK_NOTICE]);
+  return speak([drafted, SIMULATED_PLAYBOOK_NOTICE]);
+}
+
+function playbookAnswer(results: readonly ToolResultLike[]): string[] {
+  const day = resultFor<PlaybookReadout | { error: string }>(results, READ_PLAYBOOK_TOOL_NAME);
+  if (day !== undefined && !("error" in day)) {
+    const stops = day.days.flatMap((entry) => entry.stops.map((stop) => plain(stop.title)));
+    const span = day.dayCount === 1 ? "" : ` over ${day.dayCount} days`;
+    return [`${plain(day.name)} covers ${pluralStops(stops.length)}${span}${stops.length > 0 ? `: ${stops.join(", ")}` : ""}.`];
+  }
+  const listed = resultFor<{ days: { name: string }[] }>(results, SEARCH_THIS_PAGE_TOOL_NAME);
+  if (listed !== undefined) {
+    const names = listed.days.slice(0, MAX_NAMED_DAYS).map((entry) => plain(entry.name));
+    return [`This page lists ${listed.days.length} playbook${listed.days.length === 1 ? "" : "s"}${names.length > 0 ? `, starting with ${names.join(", ")}` : ""}.`];
+  }
+  return ["I couldn't read this page just now."];
 }
 
 // A text step from a list of sentences: one message part, streamed sentence by

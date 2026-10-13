@@ -17,15 +17,30 @@
 //
 // A reload is simulated by unmounting and mounting again under the same name,
 // which is what a reload is to a component.
+import { ASK_RETRACT_CHUNK } from "@tc/contracts";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
 import type { ApiError } from "@/lib/apiClient";
 import { useAskThread } from "./useAskThread";
-import { loadAskThread, saveAskThread } from "@/components/assistant/askThreadStore";
+import { beyondTripThreadName, loadAskThread, saveAskThread } from "@/components/assistant/askThreadStore";
+import { ownedAskName } from "@/lib/askOwnership";
 import type { AssistantTurn } from "./Transcript";
+import type { ProposalStatus } from "./ProposalCard";
+import { registerPaletteCommands } from "@/components/palette/paletteRegistry";
+
+// Who is signed in: every stored name is theirs (`ownedAskName`), so a
+// conversation is mounted under its own name and found in storage under
+// `NAME`, the owned one.
+const session = vi.hoisted(() => ({ user: { id: "user-a" } as { id: string } | null | undefined }));
+vi.mock("@/components/account/useSessionUser", async (orig) => ({
+  ...(await orig<typeof import("@/components/account/useSessionUser")>()),
+  useKnownSessionUser: () => session.user,
+}));
+const USER = "user-a";
 
 const TRIP = "11111111-2222-4333-8444-555566667777";
-const NAME = `trip:${TRIP}`;
+const CONVERSATION = `trip:${TRIP}`;
+const NAME = ownedAskName(USER, CONVERSATION);
 
 function mount(persistAs: string | undefined) {
   return renderHook(() =>
@@ -49,6 +64,12 @@ function answeringFetch(text: string) {
   );
 }
 
+/** A fetch that answers the ask endpoint with these UI-message-stream frames. */
+function framesFetch(frames: object[]) {
+  const body = `${frames.map((frame) => `data: ${JSON.stringify(frame)}\n\n`).join("")}data: [DONE]\n\n`;
+  return vi.fn(async () => new Response(body, { status: 200, headers: { "Content-Type": "text/event-stream" } }));
+}
+
 const stored: AssistantTurn[] = [
   { id: "u1", role: "user", text: "how does this trip look?" },
   { id: "a2", role: "assistant", text: "Kyoto 2027 runs to 3 days.", tools: [], pending: false },
@@ -56,15 +77,99 @@ const stored: AssistantTurn[] = [
 
 beforeEach(() => window.localStorage.clear());
 afterEach(() => {
+  session.user = { id: USER };
   cleanup();
   vi.unstubAllGlobals();
   window.localStorage.clear();
 });
 
 describe("useAskThread — durability", () => {
+  // M45 D7: Home's rail is no trip's. Its turn goes to the account door, and
+  // its conversation is kept under the scope's own name, apart from any trip's.
+  it("posts an account conversation to the account door, and keeps it under its own name", async () => {
+    const fetch = answeringFetch("Kyoto, on 2 trips.");
+    vi.stubGlobal("fetch", fetch);
+    const name = beyondTripThreadName({ kind: "account" });
+    const { result } = renderHook(() =>
+      useAskThread({ scope: { kind: "account" }, errorMessage: (error: ApiError) => error.message, persistAs: name }),
+    );
+    await act(async () => {
+      await result.current.runAsk("which city have I been to most?");
+    });
+
+    const [url] = fetch.mock.calls[0] as unknown as [string];
+    expect(new URL(url, "http://localhost").pathname).toBe("/api/ask");
+    expect(loadAskThread(ownedAskName(USER, name)).map((turn) => turn.text)).toEqual(["which city have I been to most?", "Kyoto, on 2 trips."]);
+    expect(loadAskThread(NAME)).toEqual([]);
+  });
+
+  // PR 426 review, finding 1: two accounts on one browser. Home's account
+  // conversation is wholly personal, and every account used to land on the
+  // same stored one: B saw A's spend and places, and posted them as history.
+  it("gives another account on this browser none of this one's conversation", async () => {
+    const account = beyondTripThreadName({ kind: "account" });
+    const mountAccount = () =>
+      renderHook(() =>
+        useAskThread({ scope: { kind: "account" }, errorMessage: (error: ApiError) => error.message, persistAs: account }),
+      );
+    vi.stubGlobal("fetch", answeringFetch("You spent most in Kyoto."));
+    const a = mountAccount();
+    await act(async () => {
+      await a.result.current.runAsk("what was my most expensive meal?");
+    });
+    a.unmount();
+
+    session.user = { id: "user-b" };
+    const fetch = answeringFetch("Lisbon, once.");
+    vi.stubGlobal("fetch", fetch);
+    const b = mountAccount();
+    await act(async () => {
+      await b.result.current.runAsk("where have I been?");
+    });
+    const [, init] = fetch.mock.calls[0] as unknown as [string, RequestInit];
+    expect((JSON.parse(String(init.body)) as { messages: unknown[] }).messages).toHaveLength(1);
+    expect(b.result.current.thread.map((turn) => turn.text)).toEqual(["where have I been?", "Lisbon, once."]);
+    b.unmount();
+
+    session.user = { id: USER };
+    const again = mountAccount();
+    await waitFor(() => expect(again.result.current.thread).toHaveLength(2));
+    expect(again.result.current.thread[0]!.text).toBe("what was my most expensive meal?");
+  });
+
+  // The owned name exists only once the session read answers, and a question
+  // can be asked before it does (the e2e lane types at once). Learning who is
+  // signed in must not abort that turn or wipe it with the stored thread.
+  it("keeps a turn asked before the session answered, after the stored conversation", async () => {
+    saveAskThread(NAME, stored);
+    session.user = undefined;
+    let answer: (response: Response) => void = () => {};
+    vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>((resolve) => (answer = resolve))));
+    const view = mount(CONVERSATION);
+    let turn: Promise<void> = Promise.resolve();
+    act(() => {
+      turn = view.result.current.runAsk("and the free time?");
+    });
+
+    session.user = { id: USER };
+    view.rerender();
+    await act(async () => {
+      answer(await answeringFetch("Two free afternoons.")());
+      await turn;
+    });
+    expect(view.result.current.thread.map((t) => t.text)).toEqual([
+      "how does this trip look?",
+      "Kyoto 2027 runs to 3 days.",
+      "and the free time?",
+      "Two free afternoons.",
+    ]);
+    const ids = view.result.current.thread.map((t) => t.id);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
   it("brings the conversation back on the next mount", async () => {
     saveAskThread(NAME, stored);
-    const { result } = mount(NAME);
+    const { result } = mount(CONVERSATION);
     await waitFor(() => expect(result.current.thread).toHaveLength(2));
     expect(result.current.thread.map((turn) => turn.text)).toEqual([
       "how does this trip look?",
@@ -91,7 +196,7 @@ describe("useAskThread — durability", () => {
   // land on the restored turn.
   it("mints ids past anything it restored", async () => {
     saveAskThread(NAME, stored);
-    const { result } = mount(NAME);
+    const { result } = mount(CONVERSATION);
     await waitFor(() => expect(result.current.thread).toHaveLength(2));
 
     // A turn that fails immediately still mints both ids before it posts.
@@ -129,7 +234,7 @@ describe("useAskThread — durability", () => {
           errorMessage: (error: ApiError) => error.message,
           persistAs: name,
         }),
-      { initialProps: { name: NAME } },
+      { initialProps: { name: CONVERSATION } },
     );
     await waitFor(() => expect(view.result.current.thread).toHaveLength(2));
 
@@ -138,7 +243,7 @@ describe("useAskThread — durability", () => {
 
     // The trip with no conversation still has none — in storage, not just on
     // screen, which is the half that outlived the switch.
-    expect(loadAskThread(OTHER)).toEqual([]);
+    expect(loadAskThread(ownedAskName(USER, OTHER))).toEqual([]);
     // And the trip that owns it kept it.
     expect(loadAskThread(NAME)).toHaveLength(2);
   });
@@ -172,7 +277,7 @@ describe("useAskThread — durability", () => {
           errorMessage: (error: ApiError) => error.message,
           persistAs: name,
         }),
-      { initialProps: { name: NAME } },
+      { initialProps: { name: CONVERSATION } },
     );
 
     await act(async () => {
@@ -187,7 +292,7 @@ describe("useAskThread — durability", () => {
 
   it("forgets the stored conversation when a new one is started", async () => {
     saveAskThread(NAME, stored);
-    const first = mount(NAME);
+    const first = mount(CONVERSATION);
     await waitFor(() => expect(first.result.current.thread).toHaveLength(2));
     act(() => first.result.current.startNewConversation());
     await waitFor(() => expect(first.result.current.thread).toHaveLength(0));
@@ -202,7 +307,7 @@ describe("useAskThread — durability", () => {
   // only way this asserts the thing the gate box is about.
   it("persists a turn this session produced, and restores it on the next mount", async () => {
     vi.stubGlobal("fetch", answeringFetch("Kyoto 2027 runs to 3 days."));
-    const first = mount(NAME);
+    const first = mount(CONVERSATION);
     await act(async () => {
       await first.result.current.runAsk("how does this trip look?");
     });
@@ -212,7 +317,7 @@ describe("useAskThread — durability", () => {
     ]);
     cleanup();
 
-    const second = mount(NAME);
+    const second = mount(CONVERSATION);
     await waitFor(() => expect(second.result.current.thread).toHaveLength(2));
     expect(second.result.current.thread.map((turn) => turn.text)).toEqual([
       "how does this trip look?",
@@ -220,12 +325,77 @@ describe("useAskThread — durability", () => {
     ]);
   });
 
+  // KI-2026-10-12-e: the server takes back a note written beside a tool call. A
+  // reload must not bring it back. Real frames, so the ids the server names go
+  // through `askAssistant`, unique per run as AI SDK 7 sends them.
+  it("restores none of the text the server took back", async () => {
+    const frames = [
+      { type: "text-start", id: "0" },
+      { type: "text-delta", id: "0", delta: "Checking day 1 first." },
+      { type: "text-end", id: "0" },
+      { type: ASK_RETRACT_CHUNK, data: { ids: ["0"] }, transient: true },
+      { type: "tool-input-available", toolCallId: "c1", toolName: "read_day", input: { days: 1 } },
+      { type: "text-start", id: "aitxt-1" },
+      { type: "text-delta", id: "aitxt-1", delta: "Now the evening." },
+      { type: "text-end", id: "aitxt-1" },
+      { type: ASK_RETRACT_CHUNK, data: { ids: ["aitxt-1"] }, transient: true },
+      { type: "tool-input-available", toolCallId: "c2", toolName: "read_day", input: { days: 1 } },
+      { type: "text-start", id: "aitxt-2" },
+      { type: "text-delta", id: "aitxt-2", delta: "Day 1 is free." },
+      { type: "text-end", id: "aitxt-2" },
+    ];
+    vi.stubGlobal("fetch", framesFetch(frames));
+    const first = mount(NAME);
+    await act(async () => {
+      await first.result.current.runAsk("when is day 1 free?");
+    });
+    cleanup();
+
+    const second = mount(NAME);
+    await waitFor(() => expect(second.result.current.thread).toHaveLength(2));
+    expect(second.result.current.thread.map((turn) => turn.text)).toEqual(["when is day 1 free?", "Day 1 is free."]);
+  });
+
+  // A turn whose only words were a blank group the server then took back said
+  // nothing, and must end the way a silent turn does. The answer bubble shows
+  // the deltas either way; what decides the ending is the hook's own `streamed`,
+  // so a retraction that updated only the bubble would leave an empty answer
+  // where the stopped line belongs.
+  const blankThenTakenBack = [
+    { type: "text-start", id: "a" },
+    { type: "text-delta", id: "a", delta: "\n\n" },
+    { type: "text-end", id: "a" },
+    { type: ASK_RETRACT_CHUNK, data: { ids: ["a"] }, transient: true },
+  ];
+
+  it("says a turn was stopped when the only text it wrote was taken back", async () => {
+    vi.stubGlobal("fetch", framesFetch([...blankThenTakenBack, { type: "abort" }]));
+    const { result } = mount(NAME);
+    await act(async () => {
+      await result.current.runAsk("plan every day in detail");
+    });
+    expect(result.current.thread.map((turn) => turn.text)).toEqual([
+      "plan every day in detail",
+      expect.stringContaining("took too long and was stopped"),
+    ]);
+  });
+
+  it("rolls back a failed turn when the only text it wrote was taken back", async () => {
+    vi.stubGlobal("fetch", framesFetch([...blankThenTakenBack, { type: "error", errorText: "the model failed" }]));
+    const { result } = mount(NAME);
+    await act(async () => {
+      await result.current.runAsk("plan every day in detail");
+    });
+    expect(result.current.thread).toEqual([]);
+    expect(result.current.restoredDraft).toBe("plan every day in detail");
+  });
+
   // A turn that produced no text at all is rolled back by design — the
   // question goes back in the composer — so there is nothing to persist. Pinned
   // rather than worked around: a stored orphan question is worse than none.
   it("stores nothing for a turn that failed before it said anything", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response("nope", { status: 500 })));
-    const { result } = mount(NAME);
+    const { result } = mount(CONVERSATION);
     await act(async () => {
       await result.current.runAsk("a question that fails");
     });
@@ -255,7 +425,7 @@ describe("useAskThread — durability", () => {
       clear: () => real.clear(),
     });
 
-    const { result } = mount(NAME);
+    const { result } = mount(CONVERSATION);
     await waitFor(() => expect(result.current.thread).toHaveLength(2));
     expect(removals).toEqual([]);
   });
@@ -292,14 +462,14 @@ describe("useAskThread — durability", () => {
       ),
     );
 
-    const { result } = mount(NAME);
+    const { result } = mount(CONVERSATION);
     await waitFor(() => expect(result.current.asking).toBe(false));
     await act(async () => {
       await result.current.runAsk("how does this trip look?");
     });
     cleanup();
 
-    const second = mount(NAME);
+    const second = mount(CONVERSATION);
     await waitFor(() => expect(second.result.current.thread).toHaveLength(2));
     // The text, which is the round trip. That a turn stored WHILE pending comes
     // back settled is `askThreadStore.test.ts`'s — by the time `runAsk`
@@ -329,7 +499,7 @@ describe("useAskThread — durability", () => {
         throw new Error("SecurityError");
       },
     });
-    const { result } = mount(NAME);
+    const { result } = mount(CONVERSATION);
     await act(async () => {
       await result.current.runAsk("Does this still work?");
     });
@@ -382,5 +552,164 @@ describe("useAskThread — onTurnEnd", () => {
     act(() => result.current.cancel());
     await act(() => asked);
     await waitFor(() => expect(onTurnEnd).toHaveBeenCalledTimes(2));
+  });
+});
+
+// ADR-072: a reply's palette commands reach the page's runner from here, so no
+// surface has to wire them. Navigation runs on arrival; a change waits on a card.
+describe("useAskThread — where a reply takes you", () => {
+  const DAY = "22222222-2222-4222-8222-222222222222";
+  const taken: Array<() => void> = [];
+  afterEach(() => taken.splice(0).forEach((takeBack) => takeBack()));
+
+  const NOTEBOOK = "33333333-3333-4333-8333-333333333333";
+  const PROPOSAL = {
+    proposalId: "p1",
+    changes: [{ type: "AddActivity", text: "Add “Coffee” to day 2" }],
+    commands: [{ type: "AddActivity", tripId: TRIP, activityId: DAY, dayId: DAY, title: "Coffee" }],
+    inserts: [],
+    skipped: [],
+  };
+
+  function replying(paletteCommands: unknown[], outcome: Record<string, unknown> = {}) {
+    const frames = [
+      { type: "text-delta", delta: "Taking you there." },
+      { type: "finish", finishReason: "stop", messageMetadata: { ...outcome, ...(paletteCommands.length > 0 && { paletteCommands }) } },
+    ];
+    return vi.fn(
+      async () =>
+        new Response(`${frames.map((frame) => `data: ${JSON.stringify(frame)}\n\n`).join("")}data: [DONE]\n\n`, {
+          status: 200,
+          headers: { "Content-Type": "text/event-stream" },
+        }),
+    );
+  }
+
+  // The board's own handler: a proposal is attached to its answer, pending.
+  function mountBoard(holdsLeaving?: () => string | null) {
+    return renderHook(() =>
+      useAskThread({
+        tripId: TRIP,
+        scope: { kind: "trip" },
+        errorMessage: (error: ApiError) => error.message,
+        ...(holdsLeaving !== undefined && { holdsLeaving }),
+        onEvent: (event, patchAnswer) => {
+          if (event.type === "proposal") patchAnswer((turn) => ({ ...turn, proposal: { proposal: event.proposal, status: "pending", note: null } }));
+        },
+      }),
+    );
+  }
+
+  function offerNotebookAndMap() {
+    const setView = vi.fn();
+    const openNotebook = vi.fn();
+    taken.push(
+      registerPaletteCommands("test", [
+        { id: "view:Map", action: "Go to", type: "View", target: { label: "Map" }, run: setView },
+        { id: `go:notebook:${NOTEBOOK}`, action: "Go to", type: "Notebook", target: { label: "Bookings" }, run: openNotebook },
+      ]),
+    );
+    return { setView, openNotebook };
+  }
+
+  it("runs the page's command, says what it could not do, and holds a change for Approve", async () => {
+    const setView = vi.fn();
+    const toggle = vi.fn();
+    taken.push(
+      registerPaletteCommands("test", [
+        { id: "view:Map", action: "Go to", type: "View", target: { label: "Map" }, run: setView },
+        { id: "notebook-editing", action: "Edit", type: "Notebook", target: { label: "Turn editing on" }, run: toggle },
+      ]),
+    );
+    vi.stubGlobal(
+      "fetch",
+      replying([
+        { id: "view:Map", needsApproval: false },
+        { id: `go:day:${DAY}`, needsApproval: false },
+        { id: "notebook-editing", needsApproval: true, on: true },
+      ]),
+    );
+    const { result } = mountBoard();
+    await act(() => result.current.runAsk("show day 2 on the map and turn on editing"));
+
+    expect(setView).toHaveBeenCalledTimes(1);
+    expect(toggle).not.toHaveBeenCalled();
+    const answer = result.current.thread.at(-1) as Extract<AssistantTurn, { role: "assistant" }>;
+    expect(answer.text).toBe("Taking you there.\n\nI couldn't go to that day from this page.");
+    // The direction travels with the offer: without `on` the card cannot tell
+    // the page is already there, and Approve would turn editing off.
+    expect(answer.offers).toEqual([{ id: "notebook-editing", key: expect.any(String), on: true }]);
+  });
+
+  // ADR-072 §4: a proposal is not kept across leaving the board
+  // (`askThreadStore` drops it), so a reply that both proposes and opens a
+  // notebook would lose the card before anyone could approve it. Moving on
+  // the board still runs; leaving it waits, and the reply says why.
+  it("leaves the board for nothing while this turn's change waits for Approve, and says so", async () => {
+    const { setView, openNotebook } = offerNotebookAndMap();
+    vi.stubGlobal(
+      "fetch",
+      replying(
+        [
+          { id: "view:Map", needsApproval: false },
+          { id: `go:notebook:${NOTEBOOK}`, needsApproval: false },
+        ],
+        { proposal: PROPOSAL },
+      ),
+    );
+    const { result } = mountBoard();
+    await act(() => result.current.runAsk("add coffee on day 2 and open my bookings notebook"));
+
+    expect(setView).toHaveBeenCalledTimes(1);
+    expect(openNotebook).not.toHaveBeenCalled();
+    expect(result.current.thread.at(-1)?.text).toContain(
+      "I didn't open that notebook, because the change above is waiting for you to approve or turn it down.",
+    );
+  });
+
+  // A card mid-apply, or one whose apply failed, still has an Approve to press.
+  it.each<ProposalStatus>(["pending", "applying", "failed"])("holds while an earlier turn's change is %s, and goes once it is decided", async (status) => {
+    const { openNotebook } = offerNotebookAndMap();
+    const { result } = mountBoard();
+    vi.stubGlobal("fetch", replying([], { proposal: PROPOSAL }));
+    await act(() => result.current.runAsk("add coffee on day 2"));
+    const card = result.current.thread.find((turn) => turn.role === "assistant" && turn.proposal != null)!;
+    act(() =>
+      result.current.patchTurn(card.id, (turn) =>
+        turn.role === "assistant" && turn.proposal != null ? { ...turn, proposal: { ...turn.proposal, status } } : turn,
+      ),
+    );
+
+    vi.stubGlobal("fetch", replying([{ id: `go:notebook:${NOTEBOOK}`, needsApproval: false }]));
+    await act(() => result.current.runAsk("open my bookings notebook"));
+    expect(openNotebook).not.toHaveBeenCalled();
+
+    const proposed = result.current.thread.find((turn) => turn.role === "assistant" && turn.proposal != null)!;
+    act(() =>
+      result.current.patchTurn(proposed.id, (turn) =>
+        turn.role === "assistant" && turn.proposal != null ? { ...turn, proposal: { ...turn.proposal, status: "rejected" } } : turn,
+      ),
+    );
+    await act(() => result.current.runAsk("open my bookings notebook"));
+    expect(openNotebook).toHaveBeenCalledTimes(1);
+  });
+
+  // ADR-072 §4: an open stop editor is unmounted by leaving the board, and its
+  // typed fields with it. The caller says so; moving on the board still runs.
+  it("leaves the page for nothing while the caller holds it, says why, and still moves on it", async () => {
+    const { setView, openNotebook } = offerNotebookAndMap();
+    const { result } = mountBoard(() => "you have a stop open for editing");
+    vi.stubGlobal(
+      "fetch",
+      replying([
+        { id: "view:Map", needsApproval: false },
+        { id: `go:notebook:${NOTEBOOK}`, needsApproval: false },
+      ]),
+    );
+    await act(() => result.current.runAsk("show the map and open my bookings notebook"));
+
+    expect(setView).toHaveBeenCalledTimes(1);
+    expect(openNotebook).not.toHaveBeenCalled();
+    expect(result.current.thread.at(-1)?.text).toContain("I didn't open that notebook, because you have a stop open for editing.");
   });
 });

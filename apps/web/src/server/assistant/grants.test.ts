@@ -32,6 +32,10 @@ const PAGE_TOOLS = ["insert_text", "insert_widget"];
 // The widget lookup (ADR-057): `pages` at `read`, so offered wherever the page
 // tools are and nowhere else, and before them in registry order.
 const WIDGET_TOOLS = ["search_widgets", "get_widget"];
+// ADR-072: where to take the person, after everything else in registry order.
+// `go_to` is an `itinerary` read, so it is wherever the trip is read; the
+// editing proposal is `pages`/`propose`, so a notebook turn's alone.
+const GO_TO = ["go_to"];
 
 function namesFor(caps: EffectCaps): string[] {
   return toolsFor(grantFor(caps)).map((tool) => tool.name);
@@ -44,7 +48,7 @@ describe("the three tool sets a turn can be offered", () => {
   // Today's `READ_TOOL_NAMES`. Every domain capped at `read`, whichever surface
   // asks — which is what makes a viewer's trip turn and an editor's withheld
   // turn the same set without either being a special case.
-  it("is the five read tools plus search_places when every cap is `read`", () => {
+  it("is the five read tools, search_places and go_to when every cap is `read`", () => {
     // **`search_places` survives every `read` cap, and that is correct rather
     // than an oversight.** It IS a read — it reads a public gazetteer and
     // writes nothing — so a viewer may search and an editor whose turn was read
@@ -54,6 +58,7 @@ describe("the three tool sets a turn can be offered", () => {
     expect(namesFor({ surface: "trip", role: "read", plan: "read", classifier: "read" })).toEqual([
       ...READ_TOOLS,
       ...PLACE_TOOLS,
+      ...GO_TO,
     ]);
   });
 
@@ -62,7 +67,7 @@ describe("the three tool sets a turn can be offered", () => {
   // joins the set — and `minimumRoleFor`'s editor answer — with no edit here
   // (ADR-015 invariant 5).
   it("is the read tools plus every command plus insert_playbook_day on a trip or day surface", () => {
-    const expected = [...READ_TOOLS, ...PLACE_TOOLS, ...COMMAND_TOOLS, "insert_playbook_day"];
+    const expected = [...READ_TOOLS, ...PLACE_TOOLS, ...COMMAND_TOOLS, "insert_playbook_day", ...GO_TO];
     expect(namesFor({ ...EDITOR, surface: "trip" })).toEqual(expected);
     expect(namesFor({ ...EDITOR, surface: "day" })).toEqual(expected);
   });
@@ -73,7 +78,14 @@ describe("the three tool sets a turn can be offered", () => {
   it("is the read tools, the widget lookup and the two page tools on a page surface", () => {
     // `switch_intent` last (ADR-058): the page turn's pivot, offered wherever
     // `pages` is — admission drops it again when there is nowhere to pivot.
-    expect(namesFor({ ...EDITOR, surface: "page" })).toEqual([...READ_TOOLS, ...WIDGET_TOOLS, ...PAGE_TOOLS, "switch_intent"]);
+    expect(namesFor({ ...EDITOR, surface: "page" })).toEqual([
+      ...READ_TOOLS,
+      ...WIDGET_TOOLS,
+      ...PAGE_TOOLS,
+      "switch_intent",
+      ...GO_TO,
+      "propose_notebook_editing",
+    ]);
   });
 
   it("keeps the page and planning halves disjoint in both directions", () => {
@@ -140,7 +152,7 @@ describe("a grant is a minimum over four independent caps", () => {
     ["plan", { plan: "read" }],
     ["classifier", { classifier: "read" }],
   ] as const)("narrows a trip turn to the read tools when %s says read", (_label, override) => {
-    expect(namesFor({ ...EDITOR, surface: "trip", ...override })).toEqual([...READ_TOOLS, ...PLACE_TOOLS]);
+    expect(namesFor({ ...EDITOR, surface: "trip", ...override })).toEqual([...READ_TOOLS, ...PLACE_TOOLS, ...GO_TO]);
   });
 
   // The fourth cap, and the one that is not a scalar: the page surface caps
@@ -432,6 +444,71 @@ describe("the escalation tool is reachable in exactly one posture", () => {
 // ---------------------------------------------------------------------------
 // ADR-058 decision 9: a viewer's assistant is read-only, and minimal
 // ---------------------------------------------------------------------------
+
+// M45 D1: the account surface answers across trips with the four aggregate
+// tools and nothing that reads one trip — there is no trip for `read_trip` to
+// read, and a planning tool would be a write across trips (out of scope).
+// `open_trip` is its one way to take you somewhere (D6's walk: "open my Kyoto
+// trip on the map"), and an account turn is read-only, so it must survive the
+// read-only filter.
+describe("the account surface", () => {
+  const ACCOUNT_TOOLS = ["spend_by_category", "places_visited", "visit_counts", "suggest_next_country", "open_trip"];
+
+  it("is offered exactly the four aggregate tools and open_trip, whatever the other caps say", () => {
+    for (const role of ["read", "propose"] as const) {
+      for (const classifier of ["read", "propose"] as const) {
+        const caps = { surface: "account" as const, role, plan: "propose" as const, classifier };
+        expect(toolsFor(grantFor(caps), "question", postureFor(caps)).map((tool) => tool.name)).toEqual(ACCOUNT_TOOLS);
+      }
+    }
+  });
+
+  it("never offers an aggregate tool on a trip, day or page", () => {
+    for (const surface of ["trip", "day", "page"] as const) {
+      const offered = namesFor({ surface, ...EDITOR });
+      expect(offered.filter((name) => ACCOUNT_TOOLS.includes(name))).toEqual([]);
+    }
+  });
+});
+
+// M45 D9: each playbook page sees exactly what is on it. A shared day — one
+// day or a playbook of several — reads that playbook and holds its two
+// buttons' writes; a list page reads its own list and writes nothing. Asked
+// over every class and both read-or-propose classifier caps, so no verdict can
+// hand a page a trip tool. Pinned by name: `find_free_time`, a stop edit or an
+// aggregate turning up on any of them fails here.
+describe("the playbook pages", () => {
+  const SHARED_DAY = ["read_playbook", "add_playbook_to_trip", "start_trip_with_playbook"];
+  const LIST = ["search_this_page"];
+  const EXPECTED = {
+    "playbook-day": SHARED_DAY,
+    playbook: SHARED_DAY,
+    discover: LIST,
+    city: LIST,
+    tag: LIST,
+  } as const;
+
+  it("offers each page its own tools and not one more, whatever the classifier or class", () => {
+    for (const [surface, names] of Object.entries(EXPECTED) as [keyof typeof EXPECTED, readonly string[]][]) {
+      for (const classifier of ["read", "propose"] as const) {
+        const caps = { surface, role: "propose" as const, plan: "propose" as const, classifier: "propose" as const };
+        for (const taskClass of [undefined, ...TASK_CLASSES]) {
+          const offered = toolsFor(grantFor({ ...caps, classifier }), taskClass, postureFor(caps)).map((tool) => tool.name);
+          expect(offered, `${surface}, classifier ${classifier}, class ${taskClass ?? "none"}`).toEqual(
+            classifier === "read" ? names.filter((name) => name === "read_playbook" || name === "search_this_page") : names,
+          );
+        }
+      }
+    }
+  });
+
+  it("offers no playbook tool on a trip, day, page or account turn", () => {
+    const playbookTools = [...SHARED_DAY, ...LIST];
+    for (const surface of ["trip", "day", "page", "account"] as const) {
+      expect(namesFor({ surface, ...EDITOR }).filter((name) => playbookTools.includes(name)), surface).toEqual([]);
+    }
+  });
+});
 
 describe("a read-only turn", () => {
   // Mitchell, 2026-09-27: *"minimize the tool call as small as possible"*.

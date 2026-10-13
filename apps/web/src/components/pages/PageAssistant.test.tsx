@@ -1,13 +1,15 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Mock } from "vitest";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { setupServer } from "msw/node";
 import { http, HttpResponse } from "msw";
 import { newPageDoc } from "@tc/contracts";
 import { pageFixture, tripDetailFixture } from "@tc/factories";
 import { makeAccountPlanHandler, makePagesHandlers } from "@/mocks/handlers";
-import type { AskEvent, AskScope, AskWireMessage } from "@/lib/apiClient";
+import type { AskEvent, AskWhere, AskWireMessage } from "@/lib/apiClient";
+import { registerPaletteCommands } from "@/components/palette/paletteRegistry";
+import { usePhoneAsk } from "@/components/nav/phoneAsk";
 
 // M14 link 8's second half: the notebook's AI surface is the assistant rail,
 // the same one the board runs — Mitchell, walking the preview (2026-09-04):
@@ -79,9 +81,8 @@ const DOC = newPageDoc([{ type: "paragraph", content: [{ type: "text", text: "Br
 /** The turn as `askAssistant` runs it: emit these events, then resolve `ok`. */
 function turnEmitting(...events: AskEvent[]) {
   return async (
-    _tripId: string,
+    _where: AskWhere,
     _messages: AskWireMessage[],
-    _scope: AskScope,
     onEvent: (e: AskEvent) => void,
   ) => {
     for (const event of events) onEvent(event);
@@ -141,7 +142,7 @@ afterEach(() => {
 });
 afterAll(() => server.close());
 
-async function openRail({ editing = true }: { editing?: boolean } = {}) {
+async function openRail({ editing = true, before }: { editing?: boolean; before?: () => void } = {}) {
   // Its own trip id each time: `cachedRead` keeps a trip's access answer, and
   // an owner's left behind would make a viewer case pass for the wrong reason.
   const trip = tripDetailFixture({ tripId: crypto.randomUUID(), days: [] });
@@ -154,6 +155,7 @@ async function openRail({ editing = true }: { editing?: boolean } = {}) {
     ...makePagesHandlers([page], { onUpdate }),
     http.get("/api/trips/:tripId", () => HttpResponse.json({ trip })),
   );
+  before?.();
   render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
   await screen.findByText("Notes");
   if (editing) await userEvent.click(screen.getByRole("button", { name: "Edit page" }));
@@ -191,12 +193,63 @@ describe("the assistant on a notebook page", () => {
   });
 
 
+  // M45 D6: ⌘K's *Ask: <text>* works "inside a trip", and the palette offers
+  // the row only where the screen's entry carries `onAsk` (pinned in
+  // `CommandPalette.test.tsx`). A button stands in for the row, reading the
+  // entry as the palette does, so the palette's session and trip reads stay
+  // out of this file. Choosing it opens the panel and asks with this page.
+  it("takes ⌘K's Ask: text into the panel and sends it with this page's scope", async () => {
+    function PaletteAskProbe({ text }: { text: string }) {
+      const entry = usePhoneAsk();
+      if (entry?.onAsk === undefined) return null;
+      const { onAsk, onOpen } = entry;
+      return (
+        <>
+          <button type="button" onClick={() => onAsk(text)}>
+            Ask: {text}
+          </button>
+          <button type="button" onClick={onOpen}>
+            Open the assistant
+          </button>
+        </>
+      );
+    }
+    const trip = tripDetailFixture({ tripId: crypto.randomUUID(), days: [] });
+    const page = pageFixture({
+      tripId: trip.tripId,
+      content: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Notes" }] }] },
+    });
+    server.use(...makePagesHandlers([page]), http.get("/api/trips/:tripId", () => HttpResponse.json({ trip })));
+    render(
+      <>
+        <PageScreen tripId={trip.tripId} pageId={page.id} />
+        <PaletteAskProbe text="Add a packing list" />
+      </>,
+    );
+    await screen.findByText("Notes");
+    await userEvent.click(await screen.findByRole("button", { name: "Ask: Add a packing list" }));
+
+    expect(await screen.findByRole("complementary", { name: "Assistant" })).toBeTruthy();
+    await waitFor(() => expect(askAssistantMock).toHaveBeenCalled());
+    const [{ scope }, messages] = askAssistantMock.mock.calls[0]! as [AskWhere, AskWireMessage[]];
+    expect(scope).toEqual({ kind: "page", pageId: page.id });
+    expect(JSON.stringify(messages.at(-1))).toContain("Add a packing list");
+
+    // Taken once: the panel mounts afresh on the next open, and must not find
+    // the words again (PR 426, the board's finding 3).
+    await turnSettled();
+    await userEvent.click(within(screen.getByRole("complementary", { name: "Assistant" })).getByRole("button", { name: "Hide" }));
+    await userEvent.click(screen.getByRole("button", { name: "Open the assistant" }));
+    expect(await screen.findByRole("complementary", { name: "Assistant" })).toBeTruthy();
+    expect(askAssistantMock).toHaveBeenCalledTimes(1);
+  });
+
   it("asks with a page scope carrying THIS page's id", async () => {
     const { page } = await openRail();
     await userEvent.type(screen.getByPlaceholderText(/add to this page/i), "Add a packing list{Enter}");
 
     await waitFor(() => expect(askAssistantMock).toHaveBeenCalled());
-    const [, , scope] = askAssistantMock.mock.calls[0]!;
+    const [{ scope }] = askAssistantMock.mock.calls[0]!;
     // Nothing else about the page goes on the wire: its title and its content
     // the server reads from the row it just verified (ADR-033 decision 4).
     expect(scope).toEqual({ kind: "page", pageId: page.id });
@@ -362,9 +415,8 @@ describe("the assistant on a notebook page", () => {
     let signal: AbortSignal | null = null;
     askAssistantMock.mockImplementation(
       async (
-        _t: string,
+        _w: AskWhere,
         _m: AskWireMessage[],
-        _s: AskScope,
         onEvent: (e: AskEvent) => void,
         abortSignal: AbortSignal,
       ) => {
@@ -409,6 +461,69 @@ describe("the assistant on a notebook page", () => {
     expect(screen.getByRole("button", { name: "Done editing" })).toBeTruthy();
     // Still open. Hiding it was the old fix and is now the bug.
     expect(screen.getByRole("complementary", { name: "Assistant" })).toBeTruthy();
+  });
+
+  // **A turn that inserts and then names a trip view must not leave first**
+  // (ADR-072 §4). In Reading the inserts wait on the role read before they are
+  // even queued, while the palette event runs in the same synchronous loop: a
+  // route that committed before that read answered took the page — and the
+  // inserts — with it, and nothing said so. Review round 3 on PR 424.
+  it("holds a move to the trip while a Reading turn's inserts wait on the role read, then lands them", async () => {
+    let answerAccess = () => {};
+    const accessAnswered = new Promise<void>((resolve) => {
+      answerAccess = resolve;
+    });
+    const openMap = vi.fn();
+    const { trip } = await openRail({
+      editing: false,
+      before: () =>
+        server.use(
+          http.get("/api/trips/:tripId/access", async ({ params }) => {
+            await accessAnswered;
+            return HttpResponse.json({
+              access: {
+                tripId: params.tripId,
+                myRole: "owner",
+                members: [{ userId: "u1", role: "owner", name: null, email: null, image: null }],
+                invites: [],
+                collaboratorsEntitled: true,
+              },
+            });
+          }),
+        ),
+    });
+    const takeBack = registerPaletteCommands("test", [
+      { id: `go:trip:${trip.tripId}:view:Map`, action: "Go to", type: "Trip", target: { label: "Map" }, run: openMap },
+    ]);
+    askAssistantMock.mockImplementation(
+      turnEmitting(
+        { type: "page-inserts", content: DOC, dropped: [] },
+        { type: "palette", commands: [{ id: `go:trip:${trip.tripId}:view:Map`, needsApproval: false }] },
+      ),
+    );
+    try {
+      await userEvent.type(screen.getByPlaceholderText(/add to this page/i), "Add a packing list, then show me the map{Enter}");
+      await turnSettled();
+      expect(openMap).not.toHaveBeenCalled();
+      expect(screen.getByRole("log", { name: "Conversation" }).textContent).toContain(
+        "I didn't open the trip on Map, because what I wrote is still going into this page.",
+      );
+
+      answerAccess();
+      expect(await screen.findByText("Bring a raincoat")).toBeTruthy();
+      expect(screen.getByRole("button", { name: "Done editing" })).toBeTruthy();
+
+      // The hold ends with the role read: a later reply that only moves to the
+      // trip is not refused as if the first turn's inserts were still pending.
+      askAssistantMock.mockImplementation(
+        turnEmitting({ type: "palette", commands: [{ id: `go:trip:${trip.tripId}:view:Map`, needsApproval: false }] }),
+      );
+      await userEvent.type(screen.getByPlaceholderText(/add to this page/i), "Now show me the map{Enter}");
+      await turnSettled();
+      expect(openMap).toHaveBeenCalledTimes(1);
+    } finally {
+      takeBack();
+    }
   });
 
   // **Only when the user could press the toggle.** A viewer cannot edit, so
@@ -498,7 +613,7 @@ describe("the assistant on a notebook page", () => {
   // a tool-only turn has no text — so the rollback used to remove the question
   // and the answer after the page had already changed.
   it("keeps a failed turn whose inserts landed, and says how much went in", async () => {
-    askAssistantMock.mockImplementation(async (_t: string, _m: AskWireMessage[], _s: AskScope, onEvent: (e: AskEvent) => void) => {
+    askAssistantMock.mockImplementation(async (_w: AskWhere, _m: AskWireMessage[], onEvent: (e: AskEvent) => void) => {
       onEvent({ type: "error", message: "The assistant hit a problem on our side, and it has been logged." });
       onEvent({ type: "page-inserts", content: DOC, dropped: [] });
       return { ok: false as const, error: { status: 200, message: "The assistant hit a problem on our side, and it has been logged." } };
@@ -551,6 +666,27 @@ describe("the assistant on a notebook page", () => {
     askAssistantMock.mockImplementation(turnEmitting({ type: "page-inserts", content: DOC, dropped: [] }));
     await userEvent.type(composer, "Something else{Enter}");
     await waitFor(() => expect(screen.queryByText(/params failed validation/)).toBeNull());
+  });
+
+  // PR 426 review round 4, finding 2, as the board has it: the panel mounts
+  // afresh on every open, and a refused question left set went back over the
+  // box each time.
+  it("puts a refused question back once, not again on a later open", async () => {
+    askAssistantMock.mockResolvedValueOnce({
+      ok: false,
+      error: { status: 400, message: "Your message must be 4000 characters or fewer." },
+    });
+    await openRail();
+    const composer = () => screen.getByPlaceholderText<HTMLTextAreaElement>(/add to this page/i);
+    await userEvent.type(composer(), "Add a packing list{Enter}");
+    await waitFor(() => expect(composer().value).toBe("Add a packing list"));
+
+    // No signed-in user here, so nothing is stored: the box opens empty.
+    await userEvent.clear(composer());
+    await userEvent.click(within(screen.getByRole("complementary", { name: "Assistant" })).getByRole("button", { name: "Hide" }));
+    await userEvent.click(screen.getByTestId("assistant-launcher"));
+    expect(await screen.findByRole("complementary", { name: "Assistant" })).toBeTruthy();
+    expect(composer().value).toBe("");
   });
 
   // The assistant is available in Reading, which it was not. A page opens in

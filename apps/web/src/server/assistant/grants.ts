@@ -18,18 +18,49 @@ import type { TripRole } from "@tc/contracts";
 import { roleAtLeast } from "@/server/accessPolicy";
 import { EFFECT_LEVEL, type AnyAssistantTool, type EffectLevel, type ToolDomain } from "./defineTool";
 import type { TaskClass } from "./taskClass";
+import type { AskScope } from "./context";
 import { ASSISTANT_TOOLS } from "./registry";
 
 /**
  * What the user is actually looking at, which is NOT the same axis as a tool
  * set.
  *
- * These are `AskScope`'s three kinds. The old sets were `read-only | planning |
- * page`, and conflating the two axes is the trap: a `trip`-scoped turn taken by
- * a viewer is read-only, and nothing about the surface says so. What the
- * surface contributes is one of the four caps below.
+ * These are `AskScope`'s kinds, with a playbook page told apart by which page
+ * it is (`surfaceOf`). The old sets were `read-only | planning | page`, and
+ * conflating the two axes is the trap: a `trip`-scoped turn taken by a viewer
+ * is read-only, and nothing about the surface says so. What the surface
+ * contributes is one of the four caps below.
  */
-export type SurfaceKind = "trip" | "day" | "page";
+export type SurfaceKind = "trip" | "day" | "page" | "account" | PlaybookSurface;
+
+/**
+ * The playbook pages (M45 D9): a playbook day, a playbook of several days,
+ * Discover, a city's page and a tag's. Five rows rather than two, though they
+ * hold two tool sets today, because D9 names each page as what it sees: a row
+ * per page is where one of them comes to differ.
+ */
+export type PlaybookSurface = "playbook-day" | "playbook" | "discover" | "city" | "tag";
+
+/**
+ * The surface a scope is, which is its kind everywhere but a playbook page.
+ * A shared day is a playbook day or a playbook by its own row's day count,
+ * read server-side, never by the client's say.
+ */
+export function surfaceOf(scope: AskScope, dayCount: number | null = null): SurfaceKind {
+  if (scope.kind !== "playbook") return scope.kind;
+  switch (scope.page.kind) {
+    case "day":
+      return dayCount !== null && dayCount > 1 ? "playbook" : "playbook-day";
+    case "discover":
+    case "city":
+    case "tag":
+      return scope.page.kind;
+    default: {
+      const unhandled: never = scope.page;
+      return unhandled;
+    }
+  }
+}
 
 /** One domain, and the most a surface will ever grant in it. */
 export interface DomainCap {
@@ -48,9 +79,9 @@ export type SurfaceGrant = readonly DomainCap[];
 /**
  * The whole of "which tools exist on which surface", as data.
  *
- * A missing domain means NOT GRANTED — `account` is absent from every row here
- * because no tool declares it yet, and a tool that did would
- * be offered nowhere until a row named its domain. That is the correct default
+ * A missing domain means NOT GRANTED — `account` is absent from every trip row
+ * here, so the cross-trip tools that declare it (M45) are offered on the
+ * `account` surface and nowhere else. That is the correct default
  * for a capability table: silence denies. **`places` stopped being one of those
  * three when M9's grounding landed**, and the fact that adding the tool was not
  * enough — that it was offered nowhere until these two rows named its domain —
@@ -121,6 +152,23 @@ export const SURFACES = {
     { domain: "library", max: "read" },
     { domain: "pages", max: "propose" },
   ],
+  // **The account surface reads across trips and writes nothing** (M45: *"this
+  // assistant reads across trips and writes within one"*). One domain, at
+  // `read`, and no trip domain at all: there is no one trip for `read_trip` to
+  // read, and every itinerary tool is about one. `go_to` (ADR-072) is an
+  // `itinerary` tool, so it is not offered here either; its account twin,
+  // `open_trip`, is in this domain and names the trip in its input.
+  account: [{ domain: "account", max: "read" }],
+  // **Each playbook page sees what is on it and nothing else** (M45 D9). A
+  // shared day reads the playbook on screen and may take it into a trip the
+  // person names, the two buttons it already has; a list page reads its own
+  // list and writes nothing, because it has no button that does. No trip
+  // domain on any of them: no `find_free_time`, no stop edits, no aggregates.
+  "playbook-day": [{ domain: "playbook", max: "propose" }],
+  playbook: [{ domain: "playbook", max: "propose" }],
+  discover: [{ domain: "playbookList", max: "read" }],
+  city: [{ domain: "playbookList", max: "read" }],
+  tag: [{ domain: "playbookList", max: "read" }],
 } as const satisfies Record<SurfaceKind, SurfaceGrant>;
 
 /**

@@ -46,7 +46,8 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ push: pushMock }) }));
 // the state in which the screen renders exactly as it did before ADR-061, so
 // every test written before it still describes the page it was written for.
 let session: { id: string } | null | undefined = undefined;
-vi.mock("@/components/account/useSessionUser", () => ({ useSessionUser: () => session }));
+// The page's assistant (M45 D9) keeps its conversation under the same reader.
+vi.mock("@/components/account/useSessionUser", () => ({ useSessionUser: () => session, useKnownSessionUser: () => session }));
 // jsdom has no WebGL, so the real MapLibre cannot run. This screen's tests only
 // ask whether the map is MOUNTED — what it draws is `SharedDayMap.test.tsx`'s —
 // so the fake's style never finishes loading and nothing is ever drawn.

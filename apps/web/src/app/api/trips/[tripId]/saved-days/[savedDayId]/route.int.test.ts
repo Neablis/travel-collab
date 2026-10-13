@@ -316,3 +316,50 @@ describe("the ledger and the insert are one fact", () => {
     expect(await expectCounterMatchesLedger(savedDayId)).toBe(0);
   });
 });
+
+// The optional body (M45 D9): the day the playbook's first day merges onto,
+// sent when a person approves the playbook assistant's card. A refused body
+// inserts nothing, and says which refusal it is.
+describe("a body naming where the day lands", () => {
+  const insertWith = (tripId: string, savedDayId: string, body: string) =>
+    INSERT(new Request("http://test/x", { method: "POST", body }), {
+      params: Promise.resolve({ tripId, savedDayId }),
+    });
+
+  it("refuses a body that is not JSON, rather than appending as if none were sent", async () => {
+    const savedDayId = await publishedDay();
+    currentUserId = TAKER;
+    const tripId = await datedTrip();
+
+    const res = await insertWith(tripId, savedDayId, "{not json");
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ code: "invalid-command", error: "The body must be JSON." });
+    expect(await ledgerRows(savedDayId)).toHaveLength(0);
+  });
+
+  it("refuses a startingAt that is not a day id before it reaches the insert", async () => {
+    const savedDayId = await publishedDay();
+    currentUserId = TAKER;
+    const tripId = await datedTrip();
+
+    const res = await insertWith(tripId, savedDayId, JSON.stringify({ startingAt: "day 2" }));
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ code: "invalid-command", error: "startingAt must be a day id." });
+    expect(await ledgerRows(savedDayId)).toHaveLength(0);
+  });
+
+  // A stale card: the day it named was deleted between the draft and Approve.
+  it("refuses a day no longer in the trip, rather than merging onto another", async () => {
+    const savedDayId = await publishedDay();
+    currentUserId = TAKER;
+    const tripId = await undatedTrip();
+    const [gone, kept] = [randomUUID(), randomUUID()];
+    for (const dayId of [gone, kept]) await executeTripCommand({ type: "AddDay", tripId, dayId }, TAKER);
+    expect((await executeTripCommand({ type: "RemoveDay", tripId, dayId: gone }, TAKER)).ok).toBe(true);
+
+    const res = await insertWith(tripId, savedDayId, JSON.stringify({ startingAt: gone }));
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ code: "unknown-day" });
+    expect(await ledgerRows(savedDayId)).toHaveLength(0);
+  });
+});

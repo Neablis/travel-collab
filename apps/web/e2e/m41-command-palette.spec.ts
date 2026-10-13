@@ -9,7 +9,8 @@ import { e2eTripName } from "./tripNames";
 // is ⌘ on a Mac and Ctrl elsewhere, the one the palette answers to on each.
 // What each command calls is the unit tests' subject (`commands.test.ts`,
 // `CommandPalette.test.tsx`, and the identity cases in
-// `TripBoardScreen.test.tsx`); this is the keyboard path end to end.
+// `TripBoardScreen.test.tsx` and `PageScreen.test.tsx`); this is the keyboard
+// path end to end.
 
 function palette(page: Page) {
   return page.getByRole("dialog", { name: "Go to or do" });
@@ -135,4 +136,26 @@ test("Move › Day › Day 1 › Day 2, drilled from the keyboard, is one change
   await expect.poll(async () => (await read()).days[1]!.activityIds.length).toBe(3);
   expect(await history()).toHaveLength(before + 1);
   expect((await history())[0]?.description).toMatch(/Moved/);
+});
+
+// M45 D4 (ADR-072 §2): the notebook's two actions are ⌘K's before the
+// assistant may name them. *Go to › Notebook* is where the Notebooks menu
+// links; *Edit › Notebook* is the toolbar's Edit page toggle, named for what
+// it will do.
+test("Go to › Notebook opens one, and Edit › Notebook turns its editing on and off", async ({ page }) => {
+  const tripId = await createMappedTrip(page, e2eTripName("PaletteNotebook"), 1);
+  await page.goto(`/trips/${tripId}?view=Plan`);
+  await expect(page.getByTestId("day-column")).toHaveCount(1);
+
+  // The trip's notebooks are read after the board paints, so the row is
+  // waited for before Enter.
+  await command(page, "go notebook bookings", /Bookings/);
+  await expect(page).toHaveURL(new RegExp(`/trips/${tripId}/pages/`));
+  await expect(page.getByRole("heading", { level: 1, name: "Bookings" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Edit page" })).toHaveAttribute("aria-pressed", "false");
+
+  await command(page, "editing on", /Turn editing on/);
+  await expect(page.getByRole("button", { name: "Done editing" })).toHaveAttribute("aria-pressed", "true");
+  await command(page, "editing off", /Turn editing off/);
+  await expect(page.getByRole("button", { name: "Edit page" })).toHaveAttribute("aria-pressed", "false");
 });
