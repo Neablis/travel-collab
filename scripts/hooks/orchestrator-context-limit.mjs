@@ -25,7 +25,7 @@ const CONTEXT_LIMIT_TOKENS = 250_000;
 function note(context) {
   if (context === null || context <= CONTEXT_LIMIT_TOKENS) return "";
   return (
-    `Context ${Math.round(context / 1000)}k, over ${CONTEXT_LIMIT_TOKENS / 1000}k. If about 100 calls ` +
+    `Context ${Math.round(context / 1000)}k, over ${CONTEXT_LIMIT_TOKENS / 1000}k. If 100 or more calls ` +
     "remain, hand off (building-a-milestone.md, Hand-off) once no subagent is running: `session-metrics`, " +
     "`/next-prompt` with its block, `create_session` with that text, delete your `send_later` check-ins, " +
     "tell Mitchell the new session's id, stop."

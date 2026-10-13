@@ -26,7 +26,7 @@ const prompt = (root, context, extra = {}) =>
   });
 
 const HANDOFF =
-  "Context 251k, over 250k. If about 100 calls remain, hand off (building-a-milestone.md, Hand-off) once " +
+  "Context 251k, over 250k. If 100 or more calls remain, hand off (building-a-milestone.md, Hand-off) once " +
   "no subagent is running: `session-metrics`, `/next-prompt` with its block, `create_session` with that " +
   "text, delete your `send_later` check-ins, tell Mitchell the new session's id, stop.";
 
