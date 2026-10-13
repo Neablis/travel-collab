@@ -225,6 +225,16 @@ describe("useTripBroadcast", () => {
     expect(onChanged).not.toHaveBeenCalled();
   });
 
+  // M46 D4: a message moves no `headSeq`, so the chat's revision is its own news.
+  it("reports the chat revision on every poll that carries one, with the head unmoved", async () => {
+    const onChatChanged = vi.fn();
+    fetchTripEventsMock.mockResolvedValue({ ok: true, value: { ...page({ headSeq: 3 }).value, chatRev: "7" } });
+    const { onChanged } = mount({ cursor: () => 3, onChatChanged });
+    await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS);
+    expect(onChatChanged.mock.calls).toEqual([["7"]]);
+    expect(onChanged).not.toHaveBeenCalled();
+  });
+
   it("calls nothing for a page with no suggestions revision", async () => {
     const onSuggestionsChanged = vi.fn();
     mount({ onSuggestionsChanged });

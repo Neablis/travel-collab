@@ -330,3 +330,23 @@ describe("TripCard — a cover", () => {
     expect(screen.queryByText(/Photo by/)).toBeNull();
   });
 });
+
+// M46 D5: a card says how many of its trip's chat messages the reader has not
+// read, and nothing at all once they have.
+describe("TripCard — unread chat", () => {
+  it("shows the count, singular for one", () => {
+    const trip = tripSummaryFixture();
+    const { rerender } = render(<TripCard trip={trip} unreadChat={2} />);
+    expect(screen.getByRole("img", { name: "2 unread messages" })).toBeTruthy();
+
+    rerender(<TripCard trip={trip} unreadChat={1} />);
+    expect(screen.getByRole("img", { name: "1 unread message" })).toBeTruthy();
+  });
+
+  it("shows nothing when there is nothing unread", () => {
+    render(<TripCard trip={tripSummaryFixture()} unreadChat={0} />);
+    // Witness: the card rendered.
+    expect(screen.getByRole("heading", { name: "Iceland Ring Road" })).toBeTruthy();
+    expect(screen.queryByRole("img", { name: /unread/ })).toBeNull();
+  });
+});

@@ -121,6 +121,18 @@ type BroadcastArgs = {
    */
   onAccessChanged?: (rev: string) => void;
   /**
+   * The page's `chatRev` (M46 D4), on every poll that carries one, on
+   * `onAccessChanged`'s terms: a message moves no `headSeq`.
+   */
+  onChatChanged?: (rev: string) => void;
+  /**
+   * The poll was refused with a 403: this reader is no longer on the trip
+   * (M46 D2). The one failure that is news rather than noise, because a
+   * removed member's page makes no other call that would tell it
+   * (KI-2026-10-05-h).
+   */
+  onRefused?: () => void;
+  /**
    * The page's `online` (M46 D7): who has the trip open, on every poll that
    * carries it. A poll without it (a failed presence read) calls nothing, so
    * the last answer stands.
@@ -143,6 +155,8 @@ type BroadcastArgs = {
  *   retries, the board still shows the user's own work, and an error banner for
  *   a background read the user never asked for would be noise. Nothing is lost
  *   by a missed poll, because the cursor only advances on a poll that succeeded.
+ *   A 403 is the exception, told to `onRefused` and no one else: it will not
+ *   come right on the next tick.
  * - **`resync` is treated exactly like news.** Both mean "your cursor is behind
  *   the head"; the caller's answer to either is to refetch the trip, which is
  *   the one cheap request that fixes an arbitrarily large gap.
@@ -155,6 +169,8 @@ export function useTripBroadcast({
   onChanged,
   onSuggestionsChanged,
   onAccessChanged,
+  onChatChanged,
+  onRefused,
   onPresence,
 }: BroadcastArgs): void {
   // Held in refs so the effect below depends only on `tripId` and the gates.
@@ -164,11 +180,15 @@ export function useTripBroadcast({
   const onChangedRef = useRef(onChanged);
   const onSuggestionsChangedRef = useRef(onSuggestionsChanged);
   const onAccessChangedRef = useRef(onAccessChanged);
+  const onChatChangedRef = useRef(onChatChanged);
+  const onRefusedRef = useRef(onRefused);
+  const onPresenceRef = useRef(onPresence);
   cursorRef.current = cursor;
   onChangedRef.current = onChanged;
   onSuggestionsChangedRef.current = onSuggestionsChanged;
   onAccessChangedRef.current = onAccessChanged;
-  const onPresenceRef = useRef(onPresence);
+  onChatChangedRef.current = onChatChanged;
+  onRefusedRef.current = onRefused;
   onPresenceRef.current = onPresence;
 
   useEffect(() => {
@@ -192,12 +212,18 @@ export function useTripBroadcast({
         // unmounted, or the trip changed, while this request was in flight, and
         // telling a dead caller its trip moved is how you get a setState on an
         // unmounted tree.
-        if (cancelled || !result.ok) return;
+        if (cancelled) return;
+        if (!result.ok) {
+          if (result.error.status === 403) onRefusedRef.current?.();
+          return;
+        }
         if (result.value.resync || result.value.headSeq > before) onChangedRef.current(result.value.headSeq);
         const rev = result.value.suggestionsRev;
         if (rev !== undefined) onSuggestionsChangedRef.current?.(rev);
         const accessRev = result.value.accessRev;
         if (accessRev !== undefined) onAccessChangedRef.current?.(accessRev);
+        const chatRev = result.value.chatRev;
+        if (chatRev !== undefined) onChatChangedRef.current?.(chatRev);
         const online = result.value.online;
         if (online !== undefined) onPresenceRef.current?.(online);
       } finally {

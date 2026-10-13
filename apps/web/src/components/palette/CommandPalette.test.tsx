@@ -152,6 +152,18 @@ describe("CommandPalette", () => {
     expect(screen.queryByRole("option", { name: /Ask the assistant/ })).toBeNull();
   });
 
+  // PR 436's preview walk: the tab bar reopens the tab last open, but ⌘K's
+  // Ask names its tab, so it never lands on Chat.
+  it("opens the assistant on Ask, not by the tab bar's reopen", async () => {
+    const onOpen = vi.fn();
+    const onResume = vi.fn();
+    taken.push(registerPhoneAsk({ open: false, onOpen, onResume }));
+    render(<CommandPalette />);
+    await userEvent.keyboard("{Meta>}k{/Meta}ask{Enter}");
+    await waitFor(() => expect(onOpen).toHaveBeenCalledTimes(1));
+    expect(onResume).not.toHaveBeenCalled();
+  });
+
   // M45 D6, ADR-072 §7: where an assistant is mounted, text that matches
   // nothing is offered to it, and choosing the row sends it.
   it("offers Ask: <text> when nothing matches, and choosing it sends the text", async () => {

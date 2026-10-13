@@ -429,6 +429,10 @@ export function makeTripHandlers(
         ? HttpResponse.json({ trip: at })
         : HttpResponse.json({ error: "not-found" }, { status: 404 });
     }),
+    // M46: the board reads the trip's chat for the header's 💬, so every board
+    // test would otherwise make an unhandled request. An empty conversation; a
+    // suite about the chat seeds one with `makeChatHandlers` and `server.use`.
+    ...makeChatHandlers({ viewerId: viewerId ?? "", role }).handlers,
     // M11 link 3: TripProvider reads the caller's role alongside detail and
     // history. Mocked as `owner` by default so every existing component test
     // keeps the full-edit board it was written against; pass

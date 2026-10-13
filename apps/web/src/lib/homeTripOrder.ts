@@ -29,7 +29,7 @@ import type { TripSummary } from "@tc/contracts";
  * the clock — treats every dated trip as upcoming; Home's trips cannot arrive
  * before that frame, so it does not show.
  */
-export function orderHomeTrips(trips: readonly TripSummary[], today: string | null): TripSummary[] {
+export function orderHomeTrips<T extends TripSummary>(trips: readonly T[], today: string | null): T[] {
   return [...trips].sort((a, b) => {
     const bandA = band(a, today);
     const bandB = band(b, today);

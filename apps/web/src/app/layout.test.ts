@@ -13,7 +13,7 @@ vi.mock("next/font/google", () => {
 
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
-import RootLayout from "./layout";
+import RootLayout, { viewport } from "./layout";
 
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -63,5 +63,14 @@ describe("root layout Vercel telemetry", () => {
     vi.stubEnv("VERCEL", "1");
     expect(mounts(Analytics)).toBe(true);
     expect(mounts(SpeedInsights)).toBe(true);
+  });
+});
+
+// Mitchell, on Android Chrome (PR 436's preview): the keyboard covered the
+// Chat and Ask composers. Since Chrome 108 the keyboard resizes only the
+// visual viewport, so the sheet's `bottom: 0` and `80dvh` stayed behind it.
+describe("root layout viewport", () => {
+  it("lets the on-screen keyboard resize the layout, so a bottom-anchored composer rides above it", () => {
+    expect(viewport.interactiveWidget).toBe("resizes-content");
   });
 });

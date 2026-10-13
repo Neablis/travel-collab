@@ -1088,10 +1088,11 @@ async function broadcastArmed() {
 }
 
 function RemoteProbe() {
-  const { activeTrip, dispatch, sync, remoteRevision } = useTrip();
+  const { activeTrip, dispatch, sync, remoteRevision, accessLost } = useTrip();
   return (
     <div>
       <span data-testid="dayCount">{activeTrip?.days.length ?? 0}</span>
+      <span data-testid="accessLost">{String(accessLost)}</span>
       <span data-testid="remoteRevision">{remoteRevision}</span>
       <span data-testid="unsent">{sync.unsent}</span>
       <button
@@ -1191,6 +1192,25 @@ describe("TripProvider broadcast (M13 link 2)", () => {
     // would go on reporting that it covers the poll's no-change path.
     await waitFor(() => expect(fetchTripEventsMock).toHaveBeenCalled());
     expect(screen.getByTestId("remoteRevision").textContent).toBe("0");
+  });
+
+  // M46 D2: a removed member's poll is refused, and it is the only call their
+  // open page still makes, so the refusal is the news that they were removed.
+  it("reports access lost when the poll is refused with a 403", async () => {
+    fetchTripDetailMock.mockResolvedValue({ ok: true, value: twoMemberDetail(1) });
+    fetchTripHistoryMock.mockResolvedValue({ ok: true, value: historyAtSeq(1) });
+    render(
+      <TripProvider tripId="x">
+        <RemoteProbe />
+      </TripProvider>,
+    );
+    await waitFor(() => expect(screen.getByTestId("dayCount").textContent).toBe("1"));
+    await broadcastArmed();
+    expect(screen.getByTestId("accessLost").textContent).toBe("false");
+
+    fetchTripEventsMock.mockResolvedValue({ ok: false, error: { status: 403, message: "Forbidden" } });
+    becomeVisible();
+    await waitFor(() => expect(screen.getByTestId("accessLost").textContent).toBe("true"));
   });
 
   // M46 D7. Polling stops under a history preview, and a poll whose presence

@@ -322,6 +322,36 @@ describe("Home trip actions", () => {
   });
 });
 
+// M46 D5: the unread chat count comes with the list, and Home hands each trip
+// its own, the hero's to the hero and a card's to its card.
+describe("Home's unread chat counts", () => {
+  it("gives the hero and each card their own trip's count", async () => {
+    const secondTripId = "9f8e7d6c-5b4a-3928-1716-0f1e2d3c4b5a";
+    fetchMock = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input);
+      if (url.includes("/api/auth/session")) return jsonResponse(await getSessionMock());
+      if (url.endsWith("/api/trips")) {
+        return jsonResponse({
+          trips: [
+            { ...tripSummaryFixture({ startDate: "2099-01-01" }), unreadChat: 2 },
+            { ...tripSummaryFixture({ tripId: secondTripId, name: "Peru", startDate: "2099-06-01" }), unreadChat: 5 },
+          ],
+        });
+      }
+      if (url.includes("/api/trips/")) return jsonResponse({ trip: tripDetailFixture({ budget: null }) });
+      return jsonResponse({ error: "unexpected" }, 404);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<Home />);
+
+    const hero = await screen.findByTestId("next-trip-hero");
+    expect(within(hero).getByRole("img", { name: "2 unread messages" })).toBeTruthy();
+    const card = screen.getByTestId("trip-card");
+    expect(within(card).getByRole("img", { name: "5 unread messages" })).toBeTruthy();
+  });
+});
+
 // Task 4.1 (M10 Phase 4): TripCard's plannedOfBudget prop already renders
 // correctly (TripCard.test.tsx) and NextTripHero already computes its own
 // line from a real TripDetail fetch — but page.tsx is the caller for every

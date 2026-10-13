@@ -68,6 +68,11 @@ export function askCommand(openAssistant: () => void): PaletteCommand {
   return { id: "ask", action: "Ask the assistant", nearness: "global", run: openAssistant };
 }
 
+/** *Open chat*, by the opener the header's 💬 calls (M46). */
+export function chatCommand(openChat: () => void): PaletteCommand {
+  return { id: "chat", action: "Open chat", nearness: "trip", run: openChat };
+}
+
 /** *Add › Trip*, by Home's own New trip button. */
 export function newTripCommand(startNewTrip: () => void): PaletteCommand {
   return { id: "new-trip", action: "Add", type: "Trip", nearness: "global", run: startNewTrip };

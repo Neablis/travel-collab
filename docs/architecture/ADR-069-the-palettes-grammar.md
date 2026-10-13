@@ -34,7 +34,11 @@ from anywhere without walking it.
    - Target: the specific thing — a trip's name, "Day 5", a stop's title, "Calendar", "Playbooks".
    - Destination: only for Move — "Move › Stop › Ramen › Day 3", "… › Unscheduled", "… › New day
      after Day N" where a drag allows it.
-   - The only commands with no Type or Target are the singletons **Undo, Redo, Ask the assistant**.
+   - The only commands with no Type or Target are the singletons **Undo, Redo, Ask the assistant,
+     Open chat**. (Open chat added 2026-10-13, M46's layout, Mitchell: it opens the panel on the
+     trip's Chat tab. Its aliases are message and conversation. "chat", until then an alias of Ask the
+     assistant, is dropped from it, so the word finds Open chat by its label alone: the people's
+     conversation and the assistant's are never one another's alias.)
    - The UI word is **Stop**; "activity" and "place" are its aliases.
    - **Copy / Duplicate are not in v1.**
    - **Nothing that destroys a whole trip is in the palette** (Remove › Trip and the like) until an
@@ -59,7 +63,8 @@ from anywhere without walking it.
      Edit › Trip, and any trip whose name matches; "tokyo" → only the Tokyo leaves; "go tokyo" →
      Go to › Trip › Tokyo; "move ramen 3" → Move › Stop › Ramen › Day 3.
    - Segments have aliases: Go to — open, view, switch; Add — new, create; Edit — change, rename;
-     Remove — delete; Stop — activity, place; View — lens.
+     Remove — delete; Stop — activity, place; View — lens; Ask the assistant — ai; Open chat —
+     message, conversation.
    - Each segment keeps v1's match tiers: the whole of it, its start, the start of any word in it,
      anywhere in it, its letters in order.
 4. **Scope.**
