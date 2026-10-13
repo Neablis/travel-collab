@@ -52,7 +52,7 @@ state architecture, and the boundary is ADR-003's.
    - a removed member is refused from their next request, because every request re-reads access.
 4. **A delete is soft.** An author edits or deletes their own message and the owner deletes any.
    A deleted message keeps its row and is served as *"message removed"*, with no text. A report of
-   a message joins `content_reports` (relaxed by migration `0050`), and the admin's hide and restore act on the row, not on
+   a message joins `content_reports` (relaxed by migration `0051`; `0050` is part 6's presence), and the admin's hide and restore act on the row, not on
    anything evented.
 5. **A deleted trip hides its chat.** `TripDeleted` is reversible (ADR-016), and ADR-016 defines
    no retention, so the chat is neither purged nor kept on its own clock: while the trip is

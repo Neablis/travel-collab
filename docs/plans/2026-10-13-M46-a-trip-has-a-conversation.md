@@ -27,8 +27,9 @@ second to merge takes `main` first. Parts 1 and 6 both edit the events route and
 
 Facts the parts share (the survey, 2026-10-13):
 - **Migrations.** Part 1 ships `0048_trip_messages` and `0049_trip_chat_reads_last_read_id` (the
-  read cursor's id; a separate file because previews had already run `0048`). Part 5's
-  `content_reports` relaxation is `0050`. Part 6 takes the next free number when it is built. Each migration
+  read cursor's id; a separate file because previews had already run `0048`). Part 6
+  took `0050_trip_presence` (built first; the journal wall refuses gaps), so part 5's `content_reports`
+  relaxation is `0051`, regenerated on main once `0050` has merged. Each migration
   adds its SQL, `drizzle/meta/_journal.json` and a `drizzle/meta/<n>_snapshot.json`;
   `scripts/check-migration-journal.mjs` checks them.
 - **The access seam serves a deleted trip.** `requireTripAccess` (`server/access/trip-access.ts:107`)
@@ -174,7 +175,7 @@ trip's Chat, go back Home, and the badge is gone.
 | File | Entry point | Change | Test |
 |---|---|---|---|
 | `server/db/schema.ts` | `contentReports` :1051 | `saved_day_id` nullable, `trip_message_id` (and `trip_id`), the target CHECK and unique over three kinds | `app/api/reports/route.int.test.ts` |
-| new `drizzle/<next>_content_reports_trip_messages.sql`, `_journal.json`, new snapshot | — | the migration (`0050`) | `check-migration-journal.mjs` |
+| new `drizzle/<next>_content_reports_trip_messages.sql`, `_journal.json`, new snapshot | — | the migration (`0051`, after part 6's `0050`) | `check-migration-journal.mjs` |
 | `packages/contracts/src/report.ts` | `ReportTarget` :21 | `{ kind: "trip_message", tripId, messageId }` | new `packages/contracts/test/report.test.ts` |
 | `docs/contracts/CHANGELOG.md` | — | entry | — |
 | `server/reports.ts` | `targetOf` :39, `createReport` :100, `listReports` :169, `actOnReport` :244 | a reporter must be able to read the trip; the queue shows the message; *hide* sets `hidden_at`, *restore* clears it | `app/api/reports/route.int.test.ts`, new `server/chat/moderation.int.test.ts` |
@@ -194,8 +195,8 @@ it, then restore it.
 **Theme.** D7. A per-member last-seen written by the events poll at most once every 5 minutes,
 the ids of current members seen in the last 6 minutes served on the same poll, and a dot on the
 avatars the trip already shows. No new route, so nothing in `server/public-api/exposure.ts`. Not
-chat: no `chatRev`, no event. The migration's number is picked at build time (`0048` and `0049`
-are part 1's, `0050` part 5's).
+chat: no `chatRev`, no event. Its migration is `0050_trip_presence` (`0048` and `0049` are part 1's;
+part 5 moved to `0051`).
 
 | File | Entry point | Change | Test |
 |---|---|---|---|
