@@ -23,7 +23,7 @@ Quick orientation:
   `docs/guidelines/billing-without-spending-money.md` (ADR-047)
 - Calling the public API, or adding an endpoint to it without writing auth,
   errors, pagination or docs again: `docs/guidelines/using-the-api.md` (M22)
-- What to do with PR feedback (four surfaces, only some self-resolving): `docs/guidelines/working-a-review.md`
+- What to do with PR feedback, and how short a GitHub comment is: `docs/guidelines/working-a-review.md`
 - A milestone's retro, its generated spend block and the targets: `docs/guidelines/writing-a-retro.md`
 - Working in a cloud session (what's different here): `docs/guidelines/cloud-agent-sessions.md`
 - Work too big for one PR — planning, merging and finishing a stack: `docs/guidelines/stacked-prs.md`
@@ -60,8 +60,7 @@ Five rules that are cheap to state and were expensive to relearn:
    still needs a PR: `main` takes no direct pushes). **Prose-only is a
    property of the branch.** `ci.yml`'s `changes` job judges the whole PR
    diff, so a docs commit pushed onto a
-   branch that already has code re-runs the full suite; CodeRabbit *does* filter
-   per commit, and that asymmetry is what makes this easy to get backwards.
+   branch that already has code re-runs the full suite.
    Measured on #103, then again on #141 — where this line was trusted as it used
    to be written, and was wrong. Scoped code runs the `minimal-check-subset`
    skill's output (for a milestone part, `build-a-part`'s recipe), not

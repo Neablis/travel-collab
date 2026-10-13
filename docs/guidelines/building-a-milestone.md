@@ -55,9 +55,9 @@ rule 1). When CI goes red, `ci-triage` finds the cause and the part gets a fix, 
 A new **`part-reviewer` subagent** reviews every push. It is read-only: it writes ranked findings
 with a failure scenario and a fix to a file, which the orchestrator posts on the PR and hands to a
 new implementer, who works them on the part's own branch.
-CodeRabbit is optional. It is asked once, on the riskiest or largest part, because this repo gets no
-automatic CodeRabbit reviews and about one an hour, and that limit must not pace the work. Every
-finding is fixed, or answered on its thread and resolved (`working-a-review.md`).
+The riskiest or largest part gets one extra, fresh `part-reviewer` pass on its whole diff before it
+is called ready. That pass replaced CodeRabbit, which Mitchell removed on 2026-10-13: we do our own
+reviews. Every finding is fixed, or answered on its thread and resolved (`working-a-review.md`).
 
 A part is **ready to merge** when CI is green on its head and its findings are fixed or answered.
 Mitchell merges it, and dispatches `migrate-production` after one that adds a migration.

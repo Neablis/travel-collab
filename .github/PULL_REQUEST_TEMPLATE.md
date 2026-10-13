@@ -30,8 +30,8 @@ Plan:
 
        Tier 1  prose only (docs/**, .claude/**, root *.md) — run NOTHING.
                Every box below stays unchecked and that is the complete,
-               correct answer. CI's real jobs skip and CodeRabbit filters
-               these paths; only `ci-ok` reports, in under a minute.
+               correct answer. CI's real jobs skip these paths; only
+               `ci-ok` reports, in under a minute.
        Tier 2  scoped code — the minimal-check-subset only. Name the exact
                commands on the "Subset run" line. Not `pnpm check`.
        Tier 3  final review: CI green on the head. The full suite runs in
@@ -128,25 +128,16 @@ Closes:
 
      And do not watch what cannot run. A draft PR runs nothing until
      `gh pr ready <n>`, so there is no terminating event and watching is an
-     open-ended loop. A Tier 1 PR skips every real job and is filtered out by
-     .coderabbit.yaml; its one check is `ci-ok`, required, done in under a
-     minute. -->
+     open-ended loop. A Tier 1 PR skips every real job; its one check is
+     `ci-ok`, required, done in under a minute. -->
 
-## CodeRabbit — Mitchell's step before merging
+## Review
 
-<!-- Decided 2026-09-01. CodeRabbit is NOT an automated check here and its
-     status is not evidence: auto-review is off for this repo and it posts a
-     GREEN status while skipping, so --fail-fast exits 0 on a PR it never
-     read. See AGENTS.md and KI-2026-09-01.
+<!-- Decided 2026-10-13: CodeRabbit is removed and reviews are ours
+     (AGENTS.md, "Review is ours"). A new part-reviewer subagent reviews every
+     push (review-a-part); the riskiest part of a milestone gets one extra,
+     fresh pass before it is called ready. What goes on the PR is short:
+     docs/guidelines/working-a-review.md. -->
 
-     Tick the first box when you have handed off. Do not tick the second
-     yourself unless you triggered the review AND were certain you were done
-     pushing — a push during the ~21-minute window aborts it. -->
-
-- [ ] CI is green on the real HEAD, and I have told Mitchell in chat: **"PR #N is green and ready — trigger CodeRabbit before merging."**
-- [ ] Review has run (`Review completed`, not `Review skipped`) and its findings are addressed or answered
-
-After addressing findings, say which this was, because it decides whether the review still counts:
-
-- [ ] The fix was small — merge on the existing review
-- [ ] The fix was substantive — worth a re-trigger before merging
+- [ ] A `part-reviewer` reviewed the current head, and every finding is fixed (its commit named) or answered on its thread
+- [ ] CI is green on the real HEAD, and Mitchell has been told in chat that the PR is ready to merge

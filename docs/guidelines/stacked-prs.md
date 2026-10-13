@@ -5,8 +5,8 @@ plan a stack, merge it, get it reviewed and finish it. It was written from the f
 did this: M14 on 2026-09-24, as #222 → #223 → #226 → #221. That session's retro,
 `docs/retros/2026-09-24-m14-stacked-prs-retro.md`, has the evidence for each rule below.
 
-`AGENTS.md` still owns the Definition of Done, the verification tiers and *CodeRabbit is Mitchell's
-step*. This file only adds what changes when there are several PRs instead of one.
+`AGENTS.md` still owns the Definition of Done, the verification tiers and the review step (*Review is
+ours*). This file only adds what changes when there are several PRs instead of one.
 
 **A milestone is not a stack any more.** Since M41 its parts each target `main` and merge on their
 own, and only the prose-only part 0 waits for the end; nothing is based on part 0 or on another
@@ -22,9 +22,10 @@ part. That process is `building-a-milestone.md`. This file is for other work too
   did the suggester role: it opened as one PR (#304) with no task list until Mitchell asked (*"no
   stacked PRs, not task list to follow along with"*), and only then became #308/#309/#311. See
   `docs/retros/2026-10-04-suggester-role-retro.md` (§8) and the M14 retro above.
-- **Budget ~80 files per part, not 100.** CodeRabbit **skips** a PR over 100 reviewable files; it
-  does not review part of it. Review fixes and preview feedback always add files. M14's first cut
-  had 5–14 files of headroom per part, and part 3 went over the same afternoon.
+- **Budget ~80 files per part.** The number began as CodeRabbit's limit (it skipped a PR over 100
+  reviewable files); CodeRabbit is gone since 2026-10-13, and the budget stays because a reviewer
+  reads the whole diff and review fixes and preview feedback always add files. M14's first cut had
+  5–14 files of headroom per part, and part 3 went over the same afternoon.
 - **Name each part's theme before writing code**, and build each part on its own branch from the
   start. Cutting parts backwards out of finished history works, but every fix afterwards is harder.
 - **Open code PRs fresh, in stack order.** Don't reuse a docs PR's number for code. When the
@@ -57,29 +58,19 @@ upward (see §3). Then, **before anything else, run `pnpm lint` on the merged tr
 
 - Put a fix on **the lowest part whose code it changes**, even if the feedback arrived on the top
   part's preview. Then merge that part into the next one up, and so on to the top.
-- **Never push to a part while its CodeRabbit review runs.** A push aborts it (see `AGENTS.md`).
-  Hold the forward merge at that part until the review finishes.
 - The top part's preview is where the whole milestone can be seen, so review happens there. Its
   fixes count against *its* file budget only when they belong to it. If it is heading over budget,
   open a new part instead of growing it.
 
-## 3a. Budget review time, and self-review first
+## 3a. Self-review first, then the reviewer
 
-CodeRabbit has three limits that matter for a stack:
-
-| Limit | Effect on a stack |
-|---|---|
-| ~1 review per hour (free plan) | A four-part stack needs **four hourly slots**, plus one for every re-review. Plan for the rest of a day. |
-| 100 reviewable files | It skips the review entirely. See §1. |
-| A push during a review aborts it | Fixes to lower parts must wait before being merged forward (§3). |
-
-- **Self-review each part before asking CodeRabbit**, not as the fallback when it fails to run. On
-  M14 the fallback self-review of the top part found five real bugs.
+- **Self-review each part before its `part-reviewer` runs** (`AGENTS.md`, *Review is ours*). On
+  M14 the self-review of the top part found five real bugs.
 - **The self-review names any second way to do a thing** (ADR-068). If the part adds a control,
   gesture or command for an action that already has one, or finds two that already exist, say so
   in the PR body. Then remove one, or record why both stay (a phone and a desktop door to the same
   function, for example). The milestone's gate PR keeps the running list.
-- Request reviews **in merge order**, one per slot, so the lowest part is always furthest along.
+- Review **in merge order**, so the lowest part is always furthest along.
 
 ## 4. Merge with "Create a merge commit", and know the squash recovery
 

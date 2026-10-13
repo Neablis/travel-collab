@@ -247,10 +247,10 @@ by your latest commit, is under `docs/**`, `.claude/**`, `.agents/**`, or is a
 root-level `*.md` (`README`, `AGENTS`, `CLAUDE`, `TODO`).
 
 > Run nothing. No `pnpm check`, no test lane, no typecheck, no e2e, no browser.
-> `.github/workflows/ci.yml`'s `changes` job (`scripts/ci-gate.mjs`) and
-> `.coderabbit.yaml`'s `path_filters` already exclude exactly these paths: every
-> real job skips, `ci-ok` passes in under a minute, and there is no review to
-> collect — see *Do not watch what cannot run* below.
+> `.github/workflows/ci.yml`'s `changes` job (`scripts/ci-gate.mjs`) already
+> excludes exactly these paths: every real job skips, `ci-ok` passes in under a
+> minute, and there is nothing to wait on — see *Do not watch what cannot run*
+> below.
 >
 > **The trap:** `.design-sync/**` is **not** prose. It is a real build input —
 > `packages/fixtures/src/japan/upstreamDrift.test.ts:30` and
@@ -355,34 +355,16 @@ the *previous* commit's checks, all green, because GitHub has not registered
 the new run. Confirm a run exists for your HEAD first
 (`gh run list --commit $(git rev-parse --short HEAD) --limit 1`), then watch.
 
-### CodeRabbit is Mitchell's step, not an automated one
+### Review is ours: a `part-reviewer` after every push
 
-**Decided 2026-09-01: do not wait on CodeRabbit, and never read its status as
-evidence.** Auto-review is **off** for this repo, it posts a **green status
-while skipping**, a review takes **~21 minutes**, and **any push during that
-window aborts it** (`KI-2026-09-01`).
-
-1. **Finish the work** — CI green on the real head, review threads answered,
-   nothing left to push.
-2. **Hand off to Mitchell in chat** (not as a PR comment): *"PR #N is green and
-   ready — trigger CodeRabbit before merging."* This replaces the automated
-   check, so it is not optional and not a footnote.
-3. **Mitchell triggers it** (`@coderabbitai review`, or `🔍 Trigger review`).
-4. **Nobody pushes for ~21 minutes.** An abort shows up only as an edit to an
-   existing comment.
-5. **Findings get addressed** — they are bug reports, not noise (a navigation
-   race in M10 Wave 2 Phase 7, a tautological assertion in #105). Verify each
-   against the code, fix it, and say whether the fix warrants a re-trigger.
-   Tune `.coderabbit.yaml` rather than ignoring comments in bulk.
-6. **Mitchell merges.**
-
-An agent may trigger it itself only when certain it is done pushing; if in
-doubt, hand off.
-
-**A milestone part is the exception** (Mitchell, after M41): the
-`part-reviewer` subagent reviews every push and replaces steps 2–4, and
-CodeRabbit is asked at most once, on the riskiest or largest part
-(`review-a-part`).
+**Decided 2026-10-13 (Mitchell): CodeRabbit is removed, and we do our own
+reviews.** A new `part-reviewer` subagent reviews every push to a milestone
+part (`review-a-part`); any other code PR gets one on its finished head before
+it is handed to Mitchell. Before the riskiest part of a milestone is called
+ready, one extra, fresh `part-reviewer` pass reads its whole diff. A finding is
+a bug report: check it against the code, then fix it or answer it on its
+thread. What goes on GitHub is short (`docs/guidelines/working-a-review.md`).
+Mitchell merges.
 
 ### Do not watch what cannot run
 

@@ -1,6 +1,6 @@
 ---
 name: review-a-part
-description: Review policy for one milestone part in travel-collab — a part-reviewer subagent after every push, CodeRabbit at most once on the riskiest part, every finding fixed or answered, and when the part is ready to merge. Use right after a push to a part's PR.
+description: Review policy for one milestone part in travel-collab — a part-reviewer subagent after every push, one extra fresh pass on the riskiest part, every finding fixed or answered, and when the part is ready to merge. Use right after a push to a part's PR.
 ---
 
 # Review a part
@@ -10,9 +10,10 @@ description: Review policy for one milestone part in travel-collab — a part-re
    the earlier reviewer (`closed-agent-guard.mjs`). A push of a part branch tells
    whoever pushed, usually the implementer, to report it (`push-review-nudge.mjs`); the hook does
    not reach you, so dispatch the reviewer when the implementer's report names the push.
-2. **CodeRabbit is optional.** Post `@coderabbitai review` once, on the riskiest or largest part
-   only, when nothing more will be pushed for a while. This repo gets no automatic CodeRabbit
-   reviews (fewer than 10 stars) and about one an hour, so it never paces the work.
+2. **The riskiest part gets one extra pass.** Before the riskiest or largest part is called ready,
+   run one more new `part-reviewer` on its whole diff against `main`, with no earlier review's
+   file, so it reads the part fresh instead of checking fixes. CodeRabbit was this step until
+   Mitchell removed it on 2026-10-13; nothing outside the repo reviews a part now.
 3. **Work every finding.** Fix it, or answer on its thread why not and resolve the thread
    (`working-a-review.md`). A finding is a claim to check against the code, not an order.
 4. **Every review goes on the PR as a comment** (Mitchell, 2026-10-11: "so I can see what was found
