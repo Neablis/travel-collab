@@ -1,7 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, readFileSync, rmSync } from "node:fs";
 import { makeOrchestratorRepo, runHook, runHookRaw } from "./fixture.mjs";
 
 const HOOK = "notification-unsubscribe-nudge.mjs";
@@ -16,15 +15,17 @@ const read = (cwd, tool_response, extra = {}) =>
   });
 const note = (res) => res.json?.hookSpecificOutput?.additionalContext ?? "";
 
-test("the orchestrator is told to unsubscribe from a part's PR, as PostToolUse context", () => {
+// Since 2026-10-13 the orchestrator watches no PR at all, part 0's included:
+// it reads every PR's state in one `pnpm pr-digest` at a scheduled check-in.
+test("the orchestrator is told to unsubscribe from every PR, part 0's too, as PostToolUse context", () => {
   const { root } = makeOrchestratorRepo();
   const res = read(root, "check_suite.completed");
   assert.equal(res.status, 0);
   assert.equal(res.json.hookSpecificOutput.hookEventName, "PostToolUse");
   assert.equal(
     note(res),
-    "The orchestrator watches only part 0's PR. If these events came from a part's PR, call " +
-      "`unsubscribe_pr_activity` for it now; CI state comes from implementer reports and review re-checks.",
+    "Call `unsubscribe_pr_activity` for every PR these events came from, part 0's included: PR state " +
+      "comes from `pnpm -s pr-digest` at a `send_later` check-in.",
   );
 });
 
@@ -41,27 +42,12 @@ test("PR numbers in the response are named once each, however they are spelled",
   assert.match(note(read(root, response)), / Seen here: PR 405, PR 407, PR 410, PR 412\.$/);
 });
 
-test("the note stays under 60 words even when many PRs are in the response", () => {
+test("the note stays under 60 words with the most PRs it names", () => {
   const { root } = makeOrchestratorRepo();
   const many = Array.from({ length: 30 }, (_, i) => `https://github.com/o/r/pull/${400 + i}`).join(" ");
-  const words = note(read(root, many)).split(/\s+/).length;
-  assert.ok(words > 20 && words < 60, `${words} words`);
-});
-
-// The orchestrator's own transcript: one assistant call carrying `context` tokens.
-function transcriptAt(root, context) {
-  const file = join(root, "session.jsonl");
-  const usage = { input_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: context };
-  writeFileSync(file, `${JSON.stringify({ type: "assistant", timestamp: new Date().toISOString(), message: { usage } })}\n`);
-  return file;
-}
-
-test("past 250k of its own context the orchestrator is told to hand off, with the figure", () => {
-  const { root } = makeOrchestratorRepo();
-  const over = note(read(root, "x", { transcript_path: transcriptAt(root, 251_000) }));
-  assert.match(over, / Your context is 251k \(limit 250k\): write the `\/next-prompt` handoff and ask Mitchell to start a fresh session\.$/);
-  const under = note(read(root, "x", { transcript_path: transcriptAt(root, 250_000) }));
-  assert.doesNotMatch(under, /Your context/);
+  const text = note(read(root, many));
+  const words = text.split(/\s+/).length;
+  assert.ok(words > 20 && words < 60, `${words} words: ${text}`);
 });
 
 test("a subagent's read adds nothing", () => {
@@ -85,7 +71,7 @@ test("garbage stdin fails open and a missing response still notes", () => {
   assert.equal(raw.stdout, "");
   assert.equal(raw.stderr, "");
   const { root } = makeOrchestratorRepo();
-  assert.match(note(read(root, undefined)), /^The orchestrator watches only part 0's PR\./);
+  assert.match(note(read(root, undefined)), /^Call `unsubscribe_pr_activity` for every PR/);
 });
 
 test("a note appends one guard-log line in the contract's shape; silence appends none", () => {

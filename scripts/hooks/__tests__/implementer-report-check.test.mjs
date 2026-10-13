@@ -39,7 +39,7 @@ test("a report with no Closed line blocks the stop and says what the line is for
     assert.equal(res.status, 2, text);
     assert.match(
       res.stderr,
-      /a `Closed:` line: this agent takes no follow-ups; the orchestrator unsubscribes from PR <n>\. Missing: a `Closed:` line\.$/m,
+      /a `Closed:` line: this agent takes no follow-ups; a new agent takes any fix\. Missing: a `Closed:` line\.$/m,
     );
   }
   assert.match(run({ last_assistant_message: "done" }).stderr, /Missing: the pushed sha, a Red first table, a `Closed:` line\./);

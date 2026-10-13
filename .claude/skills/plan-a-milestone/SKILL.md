@@ -25,8 +25,9 @@ do the code survey.
    without them), and a PR body that tracks the gate.
    Pick migration, ADR and KI numbers only after that merge. **Open it as a draft**; it is marked
    ready only at the gate (`close-a-milestone`). Its branch must not look like a part's
-   (`claude/m<N>-part<K>-…`), so the part-only hooks leave it alone. Subscribe to it. Part 0
-   merges last.
+   (`claude/m<N>-part<K>-…`), so the part-only hooks leave it alone. Do not subscribe to it:
+   unsubscribe if opening it subscribed you, and arm the first check-in (`build-a-milestone`).
+   Part 0 merges last.
 5. **Split the parts.** One theme each, under about 80 reviewable files. Each part's branch is
    `claude/m<N>-part<K>-<slug>`, K from 1 and N with an optional letter (`m48a`), e.g.
    `claude/m42-part2-drawer-is-cards`; the hooks

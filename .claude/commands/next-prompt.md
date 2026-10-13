@@ -1,12 +1,13 @@
 ---
-description: Generate a self-contained handoff prompt for the next session, capturing real state (branch, PR, checks, what's proven vs assumed) rather than a summary.
+description: Generate a self-contained handoff prompt for the next session, capturing real state (branch, PR, checks, what's proven vs assumed) rather than a summary, then start that session with create_session.
 argument-hint: "[optional: what the next session should focus on]"
 ---
 
 # Generate the next prompt
 
-Produce a **copy-pasteable prompt** that lets a fresh session pick this work up
-cold. The next session has none of this conversation — write for that reader.
+Produce a **self-contained prompt** that lets a fresh session pick this work up
+cold, and start that session yourself (Step 4). The next session has none of
+this conversation — write for that reader.
 
 Focus for the handoff (may be empty): **$ARGUMENTS**
 
@@ -14,6 +15,10 @@ Focus for the handoff (may be empty): **$ARGUMENTS**
 
 Run these. Do not write the handoff from memory of this conversation; memory is
 where "I think that passed" comes from.
+
+In a milestone session, run `pnpm -s session-metrics --milestone <this session's
+transcript> ...` here too: its output goes in the block (Step 3), because the
+transcript goes with the container.
 
 ```
 git status -sb
@@ -51,7 +56,13 @@ Specifically pin down:
 
 ## Step 3 — Write the prompt
 
-Output a single fenced block, ready to paste. Structure it:
+Output a single fenced block: it becomes the new session's first message.
+Structure it:
+
+**First instruction (milestone sessions)** — "Run `pnpm -s pr-digest`, then arm
+one `send_later` check-in (`build-a-milestone`)." The new session has no PR
+subscription and no subagents: without this, nothing wakes it after its first
+turn. Put the `session-metrics` block from Step 1 after it.
 
 **Where things stand** — branch, PR number and state, what has merged and what
 has not. Concrete, with SHAs where they matter.
@@ -89,9 +100,27 @@ them:
 - **Short enough to actually read.** If it runs past roughly 60 lines, you are
   restating docs the next session can open itself.
 
-## Step 4 — Offer to persist it
+## Step 4 — Start the continuation yourself
 
-After showing the block, ask whether to also update `docs/STATUS.md` — that is
-the repo's real handoff mechanism, and AGENTS.md requires it be updated
-"whenever in-flight work changes hands." A pasted prompt is for the next
-session; STATUS is for every session after that.
+Do not ask Mitchell to start it (2026-10-13; `docs/guidelines/building-a-milestone.md`,
+*Hand-off*, has the policy on when).
+
+In a milestone session, hand off only when no subagent is running: one still
+running reports to this session, which is about to stop acting. Wait for its
+hand-back first.
+
+1. Check the block carries the `session-metrics` output (Step 1) and the
+   first-instruction line (Step 3).
+2. Call `create_session` (claude-code-remote MCP) with `source_url`
+   `https://github.com/Neablis/travel-collab`, no `environment_id` (it inherits
+   this session's environment and model), a title such as
+   `M46 — continued (close)`, and the block as `prompt`.
+3. Delete this session's pending check-ins: `list_triggers`, then
+   `delete_trigger` for each one it armed.
+4. Tell Mitchell in one line, with the new session's id. Then stop acting.
+
+If `create_session` is not available or fails, say so and give Mitchell the
+block to start it by hand.
+
+If the handoff changes who holds in-flight work, update `docs/STATUS.md` too:
+a prompt is for the next session; STATUS is for every session after that.

@@ -36,7 +36,7 @@ if (!sha || !redFirst || !closed) {
   );
   console.error(
     "finish: report the pushed sha and the red-first table (edit → failure text), and " +
-      "a `Closed:` line: this agent takes no follow-ups; the orchestrator unsubscribes from PR <n>. " +
+      "a `Closed:` line: this agent takes no follow-ups; a new agent takes any fix. " +
       `Missing: ${missing.join(", ")}.`,
   );
   process.exit(2);

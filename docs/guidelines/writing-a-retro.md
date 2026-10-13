@@ -38,8 +38,9 @@ find the evidence.
 
 ## The spend block
 
-Run this **in the session that built the milestone, before handing off the gate close**. The
-transcripts it reads live only in that session's container:
+Run this **in every session that worked on the milestone, before its hand-off** (`building-a-milestone.md`,
+*Hand-off*), and carry the block in the handoff text. The transcripts it reads live only in that
+session's container, and M45's block covered one session in five because only the last ran it:
 
 ```bash
 pnpm -s session-metrics --milestone ~/.claude/projects/<dir>/<session-id>.jsonl \
@@ -65,6 +66,11 @@ Set after M42. Change one only in a retro, with the measurement that justifies i
 | A builder's average context | none over 250k | 315k (part 9) | not measured |
 | GitHub wakes per merged part | under 5 | 21 | not measured |
 | Cache re-writes after a coordinator message | 2 or fewer | 24 | not measured |
+
+**GitHub wakes** should now be near zero: since 2026-10-13 the orchestrator subscribes to no PR
+and wakes on one scheduled check-in (`AGENTS.md`, *Waiting on PR checks*). The row's label reads
+*GitHub / trigger notification*, so check-ins may be counted in it; one an hour is still well
+under 5 per part. A count above that is a subscription that was left in place.
 
 A missed target is a finding for *What could be better*, with its cause. The block also counts
 what each spend guard denied (`scripts/hooks/`, listed in `building-a-milestone.md`, *Spend*): a

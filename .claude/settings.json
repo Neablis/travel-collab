@@ -120,6 +120,10 @@
           {
             "type": "command",
             "command": "node scripts/hooks/push-review-nudge.mjs"
+          },
+          {
+            "type": "command",
+            "command": "node scripts/hooks/orchestrator-context-limit.mjs"
           }
         ]
       },
@@ -129,6 +133,16 @@
           {
             "type": "command",
             "command": "node scripts/hooks/notification-unsubscribe-nudge.mjs"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node scripts/hooks/orchestrator-context-limit.mjs"
           }
         ]
       }

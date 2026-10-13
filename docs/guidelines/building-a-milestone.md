@@ -6,13 +6,25 @@ end of `docs/milestones/M41-planning-without-friction.md`. M41 taught three thin
 hourly limit set the pace of a stack, full local suites wasted hours that CI was already spending,
 and a design settled only after Mitchell played with the preview cost a second build.
 
+**Changed 2026-10-13, after M45's cost retro.** Mitchell's verdict on M45: *"it was better but not
+great, still a lot of waste and less automatey"* (`docs/milestones/M45-the-assistant-beyond-one-trip.md`,
+*The whole milestone's cost*). He decided four things the same day:
+
+1. **CodeRabbit is removed; we do our own reviews.** A `part-reviewer` after every push, and one
+   extra fresh pass on the riskiest part (§3; `AGENTS.md`, *Review is ours*).
+2. **What we post to GitHub is short** (`working-a-review.md`, *What we post to GitHub is short*).
+3. **The orchestrator starts its own continuation session** (*Hand-off*, below).
+4. **Scheduled check-ins replace PR subscriptions** (`AGENTS.md`, *Waiting on PR checks*).
+
+These are process choices, so they are recorded here and in `AGENTS.md`, not in an ADR.
+
 So the process now has three properties:
 
 - **The orchestrating session stays lean.** It holds the decisions, the tasks, PR state and the
   conversation with Mitchell. It never writes or reads source code; subagents carry every build,
   fix, review and gate-close step, each with a written brief. A session costs about *calls ×
-  context*, so it is also woken as rarely as possible and hands follow-ups to new agents (see
-  *Spend*, below).
+  context*, so it is also woken as rarely as possible: by subagent reports and by its own scheduled
+  check-in, never by a GitHub event. It hands follow-ups to new agents (see *Spend*, below).
 - **Each part is its own PR on `main`**, merged when it is ready. Only part 0, the prose-only gate
   PR, waits for the end.
 - **CI on the PR is the verdict.** Locally a part runs the checks that touch its diff and nothing
@@ -53,11 +65,12 @@ rule 1). When CI goes red, `ci-triage` finds the cause and the part gets a fix, 
 ## 3. Review each part — `review-a-part`
 
 A new **`part-reviewer` subagent** reviews every push. It is read-only: it writes ranked findings
-with a failure scenario and a fix to a file, which the orchestrator posts on the PR and hands to a
-new implementer, who works them on the part's own branch.
-CodeRabbit is optional. It is asked once, on the riskiest or largest part, because this repo gets no
-automatic CodeRabbit reviews and about one an hour, and that limit must not pace the work. Every
-finding is fixed, or answered on its thread and resolved (`working-a-review.md`).
+with a failure scenario and a fix to a file, which goes to a new implementer, who works them on the
+part's own branch. The orchestrator never posts that file: it posts a short verdict built from the
+hand-back (`working-a-review.md`).
+The riskiest or largest part gets one extra, fresh `part-reviewer` pass on its whole diff before it
+is called ready. That pass replaced CodeRabbit, which Mitchell removed on 2026-10-13: we do our own
+reviews. Every finding is fixed, or answered on its thread and resolved (`working-a-review.md`).
 
 A part is **ready to merge** when CI is green on its head and its findings are fixed or answered.
 Mitchell merges it, and dispatches `migrate-production` after one that adds a migration.
@@ -67,11 +80,48 @@ Mitchell merges it, and dispatches `migrate-production` after one that adds a mi
 Part 0's tracker records every part, review, CI run, merge and migration as it happens. Mitchell
 walks each part's preview, with the mouse and keyboard-only, and his comments are fixed on that
 part's branch. Each gate box is ticked only with evidence; CI on the merged parts is the e2e
-evidence. The close runs in a fresh session, handed off with `/next-prompt` once the parts are
-merged. Part 0 gets the retro (`writing-a-retro.md`, with its spend block), `pnpm milestone close
+evidence. The close runs in a fresh session, which the orchestrator starts itself once the parts
+are merged (*Hand-off*, below). Part 0 gets the retro (`writing-a-retro.md`, with its spend block), `pnpm milestone close
 <M>` (dry run, then `--confirm`), the STATUS update, and the plan's deletion
 (`docs/plans/README.md`). Part 0 is marked ready before its
 CI is relied on, and Mitchell merges it.
+
+## Hand-off
+
+A session that has grown large hands the rest to a fresh one, and the orchestrator starts that
+session itself (Mitchell, 2026-10-13: M45's four hand-offs each waited on him to start them).
+
+**When.** Plan one hand-off, for the close. Make at most one more mid-build, and only when the
+orchestrator's context is past about 250k *and* roughly 100 or more of its calls are still to come.
+Below that, a new session's re-orientation costs more than the context it saves (M45's retro, *The
+whole milestone's cost*). Past 250k, `orchestrator-context-limit.mjs` says so on every prompt that
+wakes the orchestrator (a check-in, a subagent's report) and after each `pr-digest` run.
+
+**Only with no subagent running.** A `phase-implementer` or `part-reviewer` reports to the session
+that dispatched it; one still running at the hand-off would report to a session that has stopped
+acting, and its sha, red-first table and review file would reach no one. Wait for every hand-back,
+then hand off.
+
+**How**, in this order:
+
+1. **Run `session-metrics`** on this session's transcript and put its block in the handoff text.
+   The transcript goes with the container, and M45's spend block covered one session in five
+   because only the last one ran it (`writing-a-retro.md`).
+2. **Write the handoff** with `/next-prompt`. For a milestone its first instruction to the new
+   session is: run `pnpm -s pr-digest`, then arm one `send_later` check-in (`build-a-milestone`).
+   The new session has no subscription and no subagents, so without that nothing ever wakes it.
+3. **Start the continuation** with `create_session` (the claude-code-remote MCP tool): `source_url`
+   `https://github.com/Neablis/travel-collab`, no `environment_id` (it inherits this session's
+   environment and model), a title such as `M46 — continued (close)`, and the handoff text as
+   `prompt`.
+4. **Delete your own pending check-ins**: `list_triggers`, then `delete_trigger` for each one this
+   session armed, so the old session is not woken again.
+5. **Tell Mitchell in one line**, with the new session's id, and stop acting. A wake that still
+   reaches the old session gets that one line again, nothing more.
+
+Measured 2026-10-13: a child session started, cloned `main` and answered in about 40 seconds. It
+starts at about 94k context, a trivial first turn cost $0.43, and a chain of sessions started this
+way stops at a depth of 8.
 
 ## Spend
 
@@ -82,7 +132,7 @@ followed and still cost $34:
 
 | Habit | What stops it |
 |---|---|
-| The orchestrator woken 190 times by GitHub events on part PRs | It watches only part 0. `notification-unsubscribe-nudge.mjs` says so on any other wake; the implementer's `Closed:` line names the PR to drop. |
+| The orchestrator woken 190 times by GitHub events on part PRs | It subscribes to no PR (2026-10-13) and wakes on one scheduled check-in that runs `pnpm -s pr-digest`. `notification-unsubscribe-nudge.mjs` says to unsubscribe on any GitHub wake that still arrives. |
 | Follow-ups sent to builders 250k–480k deep, often after their cache expired | `closed-agent-guard.mjs` denies the message; `implementer-brief-check.mjs` makes the new agent's brief complete. |
 | Logs and full reviews read into the orchestrator | `orchestrator-lean-reads.mjs` denies job logs; `reviewer-report-check.mjs` keeps the review in a file. |
 
@@ -97,7 +147,8 @@ the gate close refuses without it. The targets are in `writing-a-retro.md`.
 - **Speak to Mitchell on a finding, a failure, a merge or a question.**
 - **Re-read the source before reporting state.** A PR, check or workflow run read earlier may be out
   of date by the time it is reported.
-- **Wait by ending the turn**, not by polling. Subagent reports, part 0's PR and scheduled
-  reminders wake the session; part PRs do not.
+- **Wait by ending the turn**, not by polling. Subagent reports and the orchestrator's one
+  `send_later` check-in wake the session (about 60 minutes while a part is in CI or review, about 4
+  hours while everything waits on Mitchell); no PR does. `AGENTS.md`, *Waiting on PR checks*.
 
 Work too big for one PR outside a milestone still uses `stacked-prs.md`.

@@ -117,28 +117,17 @@ It does not re-quote it.** That is what went wrong here.
 
 ## Waiting on PR checks
 
-Do not hand-poll `gh pr checks` in a loop. One command blocks on all of them:
+Do not hand-poll `gh pr checks` in a loop. In a cloud session, read every open
+PR once per scheduled check-in with `pnpm -s pr-digest` (`AGENTS.md`, *Waiting
+on PR checks*). Locally, one command blocks on all of them:
 
 ```
 gh pr checks <n> --watch --fail-fast
 ```
 
-**CodeRabbit is not in that set, by decision (2026-09-01).** Auto-review is
-off for this repo and it posts a **green status while skipping**, so
-`--fail-fast` exits 0 on a PR it never read; never treat that status as
-evidence of a review.
-
-It is now **Mitchell's step before merging**, not an automated one. The agent
-gets CI green and hands off in chat — *"PR #N is green and ready, trigger
-CodeRabbit before merging"* — Mitchell triggers it, **nobody pushes for ~21
-minutes** (a push aborts the review), findings are addressed, then Mitchell
-merges. An agent may trigger it itself only when certain it is done pushing.
-Full rationale and evidence: `AGENTS.md` and `KI-2026-09-01`.
-
-Treat its findings as bug reports to verify against the code — it caught a
-genuine navigation race in M10 Wave 2 Phase 7, and on #105 a tautological test
-assertion that `pnpm check` passed. Its verbosity and per-path focus live in
-`.coderabbit.yaml`.
+**No review bot is in that set.** CodeRabbit was removed on 2026-10-13, and
+review is ours: a `part-reviewer` subagent after every push (`AGENTS.md`,
+*Review is ours*). Treat its findings as bug reports to verify against the code.
 
 Run straight after a push, `--watch` may return in ~1s with the *previous*
 commit's checks — all green, indistinguishable from your push having passed.

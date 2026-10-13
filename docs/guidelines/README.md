@@ -21,7 +21,7 @@ practice. Read the one that matches your task:
 | `testing.md` | I need to write a test — which layer, what shape, and how do I know it can fail? |
 | `quality-enforcement.md` | What testing/CI/review bar must every change clear? |
 | `commenting.md` | JSDoc or `//`? Which goes where, what the docstring wall demands, and why the backlog is not mine to clear |
-| `working-a-review.md` | My PR has feedback on it — which of the four surfaces is it on, what resolves itself, and where do asks I am not building get recorded? |
+| `working-a-review.md` | My PR has feedback on it — which of the three surfaces is it on, what resolves itself, how short is what I post on GitHub, and where do asks I am not building get recorded? |
 | `ci-cost-and-capacity.md` | What does CI cost, what is the minute budget, and why is the workflow shaped the way it is? |
 | `design-system.md` | What tokens, colors, and shared components does UI code use — and when? |
 | `building-from-the-design.md` | I'm building a screen the design drew — where is the artboard, which spec section, and what is this milestone's half of it? |
@@ -30,7 +30,7 @@ practice. Read the one that matches your task:
 | `observability-and-telemetry.md` | What does the app report to Sentry and the logs, where do I look at it, and how do I turn any of it down? |
 | `billing-without-spending-money.md` | I need to walk checkout, a failed payment, the grace window or a lapse — how, in Stripe test mode, for $0.00, and what would cost real money? |
 | `building-a-milestone.md` | Mitchell said "next milestone" — what order does the session go in, from his decisions through a gate PR that merges last, to the close? |
-| `stacked-prs.md` | This work is too big for one PR — how do I plan the stack, merge it without conflicts, get it reviewed inside CodeRabbit's limits, and finish it? |
+| `stacked-prs.md` | This work is too big for one PR — how do I plan the stack, merge it without conflicts, get it reviewed, and finish it? |
 | `third-party-services-on-a-preview.md` | My feature depends on a third-party service — what do the automated tests stub instead, and what do I check by hand on a Vercel preview? |
 | `repo-automation.md` | What scripts, commands, subagents, skills and hooks already exist, and why each one does — before I hand-roll a workflow |
 | `retiring-a-rule.md` | A first-read file is near its surface budget — what may leave it, where it goes, and how to bring it back? |

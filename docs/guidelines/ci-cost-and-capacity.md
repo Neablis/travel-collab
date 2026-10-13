@@ -10,12 +10,10 @@
 >
 > 1. **The levers stay, for different reasons.** Draft-gating and
 >    `paths-ignore` were justified here by minutes. They are still justified by
->    **CodeRabbit review passes and Claude tokens**, neither of which went
->    unlimited — a full CI run on a prose edit still costs a session the time
->    spent waiting for it. *(**Half of that is stale as of 2026-09-01**:
->    CodeRabbit auto-review is off for this repo and reviews are triggered by
->    hand before merging, so draft-gating no longer saves review passes. Claude
->    tokens and session time still justify both levers — KI-2026-09-01.)* `AGENTS.md`'s tiered Definition of Done now carries
+>    **Claude tokens and session time**, which did not go unlimited — a full CI
+>    run on a prose edit still costs a session the time spent waiting for it.
+>    *(This once also said CodeRabbit review passes; CodeRabbit was removed on
+>    2026-10-13.)* `AGENTS.md`'s tiered Definition of Done now carries
 >    that argument directly, and does not depend on this document.
 > 2. **The required-status-check trap is now LIVE.** See the new section
 >    immediately below. This is the one thing to act on before anything else.

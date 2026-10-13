@@ -357,37 +357,42 @@ say which one you looked at.
 `LOCATIONIQ_API_KEY` and `AI_GATEWAY_API_KEY` belong in Vercel's env scopes.
 Only non-secret gates (`SEED_DEMO_DATA=true`) are appropriate there.
 
-## Waiting on a PR: subscribe, do not watch
+## Waiting on a PR: a scheduled check-in, not a subscription
 
 `AGENTS.md`'s *Waiting on PR checks* section owns the rule; this is the
 container-specific half of it.
 
-A cloud session can be **woken by external events**, which a laptop session
-cannot:
+A cloud session can be woken later, which a laptop session cannot. It can be
+woken two ways, and since 2026-10-13 it uses only one:
 
 ```
-subscribe_pr_activity(owner, repo, pullNumber)   # then end the turn
+send_later(delay_minutes: 60, message: "check-in: run pnpm -s pr-digest")   # then end the turn
 ```
 
-CI completions, review comments and merge-state changes arrive as
-`<wake reason="external-event">` envelopes. **Ending the turn is how you wait.**
-A blocking `gh pr checks --watch` here spends a median 6.6 minutes of session
-doing nothing, and still misses the review comment that lands afterwards.
+**Subscribe to no PR.** `subscribe_pr_activity` delivers every CI result,
+comment and merge-state change as its own `<wake reason="external-event">`, and
+each wake re-reads the session's whole context. In M42 the orchestrator was woken
+190 times that way, 141 of them for nothing, for $57
+(`docs/retros/2026-10-12-m42-token-spend-retro.md`, F1). M45 still paid per
+event on the PRs it watched. A check-in batches every change into one wake.
 
-**A wake is not free.** Each one re-reads the session's whole context, so a subscription suits a
-session with a small context and one PR. A milestone orchestrator is neither: in M42 it was woken
-190 times, 141 of them for nothing, for $57
-(`docs/retros/2026-10-12-m42-token-spend-retro.md`, F1). It watches only part 0 and unsubscribes
-from each part's PR, which the harness subscribes it to when a subagent opens one
-(`building-a-milestone.md`, *Spend*).
-
-Two things that follow:
-
-- **Never run a blocking watch in a subscribed session.** It spends exactly the
-  wait the subscription removes.
-- **Do not poll as a substitute.** If no event has arrived, nothing has
-  happened. Repeated `gh pr checks` was measured as a reliable time sink before
-  the wake mechanism was documented at all.
+- **The harness subscribes the session to every PR opened in it**, a subagent's
+  included. Call `unsubscribe_pr_activity` for it at once.
+  `notification-unsubscribe-nudge.mjs` says so on any GitHub wake that still
+  arrives, for any PR. Past 250k context, `orchestrator-context-limit.mjs`
+  says to hand off with `create_session` on each check-in's prompt
+  (`building-a-milestone.md`, *Hand-off*).
+- **One check-in at a time:** about 60 minutes while any PR is in CI or review,
+  about 4 hours while everything waits on Mitchell. Subagent reports still wake
+  the session as before.
+- **On each check-in, run `pnpm -s pr-digest` once.** It reads GitHub's REST API
+  (GraphQL is refused here) and prints only what changed on every open PR since
+  the last check-in, keeping its snapshot in the git common dir. Act on the whole
+  batch, then arm the next check-in. Stop when nothing is open.
+- **Never run a blocking `gh pr checks --watch` here.** It spends a median 6.6
+  minutes of session doing nothing, and misses what lands afterwards.
+- **Do not poll between check-ins.** Repeated `gh pr checks` was measured as a
+  reliable time sink.
 
 ## Node is pinned, and the hook switches to it
 

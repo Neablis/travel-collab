@@ -147,22 +147,13 @@ to a file that has been cleaned. It is the same mechanism
 (KI-2026-09-02-b) — a grandfathered list nobody is forced to prune is a
 backlog that only grows.
 
-## The pre-merge check this is reconciled with
+## The pre-merge check that used to sit beside it
 
-CodeRabbit's **Docstring Coverage** check is configured explicitly in
-`.coderabbit.yaml` rather than left on its default, so the 80% floor is a
-number this repo chose. It scores **the functions a PR changes**, not the
-repository — measured across three PRs: 9 functions across 7 files (#198),
-72 across 17 (#199), and #201's five links. That settles the one question
-KI-2026-09-22-a left open (*"repo-wide, where it stays red for months, or
-changed files, where it is meaningful from the first PR"*): it was already
-changed-files, so the floor is meaningful from the first PR and no ratchet is
-needed.
-
-The check and the wall are not redundant. The check is a **percentage on
-changed code**, so a PR can clear it while leaving one function bare. The wall
-is **absolute on new exports** but blind to everything grandfathered. Between
-them: nothing new lands undocumented, and the backlog cannot grow.
+Until 2026-10-13 CodeRabbit's **Docstring Coverage** check scored the
+functions a PR changed against an 80% floor set in `.coderabbit.yaml`.
+CodeRabbit was removed that day, and the check went with it
+(KI-2026-09-22-a). The wall is now the only enforcement: absolute on new
+exports, blind to the grandfathered backlog, and that backlog can only shrink.
 
 ## If the wall is wrong
 
