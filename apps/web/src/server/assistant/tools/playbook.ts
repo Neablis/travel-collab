@@ -11,8 +11,9 @@
 // are the button's.
 //
 // **The trip and the day are the person's to name** (D9: "The assistant
-// never goes looking for a trip with room"). A trip is matched by the name
-// they gave, among the trips they can open, and must be one they can edit
+// never goes looking for a trip with room"). A trip is matched by the words
+// they gave, as `tripsCalled` reads them ("my Kyoto trip" is the trip named
+// Kyoto), among the trips they can open, and must be one they can edit
 // (AGENTS.md invariant 7). With no name, or one that matches nothing or
 // several, the tool answers with the question to ask rather than a guess.
 import { randomUUID } from "node:crypto";

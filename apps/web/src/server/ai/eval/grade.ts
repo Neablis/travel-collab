@@ -12,7 +12,7 @@
 // model's prose is not reproducible; asserting it would make the eval fail on
 // a rephrase and teach everyone to ignore it.
 import type { AskAnalyticsRecord } from "@/server/assistant/askAnalytics";
-import { ASK_RETRACT_CHUNK, AskRetractData } from "@tc/contracts";
+import { ASK_RETRACT_CHUNK, AskRetractData, type AskStreamMetadata } from "@tc/contracts";
 
 /** One turn, as the runner observed it. */
 export interface EvalTurn {
@@ -33,6 +33,12 @@ export interface EvalTurn {
    * number a holistic fix moves (KI-2026-10-12-h).
    */
   retracted: { parts: number; chars: number };
+  /**
+   * The palette command ids the turn ended on, where it takes the person
+   * (`navigatedTo`, ADR-072). Absent where the runner did not read them, which
+   * fails a `navigatesTo` expectation rather than passing it.
+   */
+  navigations?: readonly string[];
 }
 
 /**
@@ -54,6 +60,15 @@ export function reviewedChanges(chunks: readonly Record<string, unknown>[]): num
     if (meta?.suggested !== undefined) return meta.suggested.changeCount ?? 0;
   }
   return 0;
+}
+
+/** The palette command ids a turn's final chunk carried: where it takes the person (ADR-072). */
+export function navigatedTo(chunks: readonly Record<string, unknown>[]): string[] {
+  for (const chunk of chunks) {
+    const carried = (chunk.messageMetadata as AskStreamMetadata | undefined)?.paletteCommands;
+    if (carried !== undefined) return carried.map((ref) => ref.id);
+  }
+  return [];
 }
 
 interface TextPart {
@@ -169,6 +184,8 @@ export interface EvalExpectation {
    * where a substring would let "romantic" name Oman and "scuba" Cuba.
    */
   namesOneOf?: readonly string[];
+  /** The turn takes the person to this palette command and nowhere else (`go:trip:<id>:view:Map`). Computed from the seeded trips. */
+  navigatesTo?: string;
 }
 
 export interface EvalCheck {
@@ -309,6 +326,14 @@ export function grade(turn: EvalTurn, expect: EvalExpectation): EvalCheck[] {
       name: `names ${expect.namesOneOf.length > 6 ? `one of ${expect.namesOneOf.length} places` : expect.namesOneOf.map((name) => `"${name}"`).join(" or ")}`,
       pass: expect.namesOneOf.some((name) => namesWholeWord(turn.text, name)),
       detail: turn.text.length > 160 ? `${turn.text.slice(0, 157)}…` : turn.text,
+    });
+  }
+  if (expect.navigatesTo !== undefined) {
+    const went = turn.navigations ?? [];
+    checks.push({
+      name: `navigates to ${expect.navigatesTo}`,
+      pass: went.length === 1 && went[0] === expect.navigatesTo,
+      detail: went.join(", ") || "nowhere",
     });
   }
   if (expect.namesOneOfAmounts !== undefined) {

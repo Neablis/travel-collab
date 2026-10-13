@@ -168,16 +168,75 @@ const OpenTripInput = z.object({
 });
 
 /**
- * The trips a person meant by `name`: those called exactly that, ignoring case
- * and spaces at the ends, or else those whose name holds it. Shared by every
+ * Lower case, "&" read as "and", and every run of punctuation and spaces one
+ * space: "Kyoto & Osaka, 2026!" is "kyoto and osaka 2026". Combining marks
+ * are kept, composed (NFC), because in many scripts they are what tells two
+ * words apart.
+ */
+function wordsOf(text: string): string {
+  return text
+    .normalize("NFC")
+    .toLowerCase()
+    .replace(/&/g, " and ")
+    .replace(/[^\p{L}\p{M}\p{N}]+/gu, " ")
+    .trim();
+}
+
+/** "my Kyoto trip" and "The Kyoto trip" are both "kyoto": words without a leading article or a trailing "trip". */
+function keyOf(words: string): string {
+  return words.replace(/^(?:my|the) /, "").replace(/(?:^| )trip$/, "").trim();
+}
+
+/**
+ * The trips a person meant by `name`, as they said it: "Kyoto", "my Kyoto
+ * trip" and "the Kyoto trip." all find a trip named "Kyoto". Shared by every
  * tool that takes a trip by the name a person gave (`open_trip`, and the
- * playbook pages' `add_playbook_to_trip`), so "my Kyoto trip" finds the same
- * trip from both.
+ * playbook pages' `add_playbook_to_trip`), whose descriptions tell the model
+ * to pass those words as said, so both read them the same way.
+ *
+ * The person names the trip, and when unsure it finds nothing, so the caller
+ * asks: it never picks one for them. Case, punctuation, spacing and "&" for
+ * "and" never count. First the trips called exactly what was typed, then what
+ * follows a leading "my" or "the" ("my Road trip" is "Road trip", not
+ * "Road"), then that without a trailing "trip", then every trip whose name
+ * starts with what is left, word for word ("Kyoto" finds "Kyoto 2026"). In
+ * that last step the name sheds its own "The", "My" and "trip" too, so
+ * "Bahamas" finds "The Bahamas": only there, because a second fit there asks
+ * rather than picks. Only the leading words: "York" is not "New York", and
+ * "Kyoto" does not find "Summer in Kyoto", because a later word of a name may
+ * be another place. A leading word may be another place too ("my Kansas trip"
+ * finds "Kansas City", "my Washington trip" "Washington DC"); that is
+ * accepted, because the person named no trip that fits better, and no rule
+ * over words tells such a name from "Kyoto 2026".
+ * Part of a word is never a match either: "India" is not short for "Indiana".
+ * Nor is a trip found because its name is one of the words typed: "Kyoto trip
+ * from Tokyo" names some other trip, not "Tokyo". More than one is for the
+ * caller to ask about, never to choose between. A script written without
+ * spaces is one word to this, so there only the whole name is found
+ * (KI-2026-10-13-b).
  */
 export function tripsCalled<T extends { name: string }>(trips: readonly T[], name: string): T[] {
-  const key = name.trim().toLowerCase();
-  const exact = trips.filter((trip) => trip.name.trim().toLowerCase() === key);
-  return exact.length > 0 ? exact : trips.filter((trip) => trip.name.toLowerCase().includes(key));
+  const typed = wordsOf(name);
+  if (typed === "") return [];
+  const bare = typed.replace(/^(?:my|the) /, "");
+  const key = keyOf(typed);
+  const named = trips.map((trip) => {
+    const words = wordsOf(trip.name);
+    return { trip, words, nameKey: keyOf(words) };
+  });
+  type Named = (typeof named)[number];
+  // "my trip" leaves no key, and every name holds the empty string.
+  const tiers = [
+    ({ words }: Named) => words === typed,
+    ({ words }: Named) => words === bare,
+    ({ words }: Named) => key !== "" && words === key,
+    ({ nameKey }: Named) => key !== "" && `${nameKey} `.startsWith(`${key} `),
+  ];
+  for (const fits of tiers) {
+    const found = named.filter(fits);
+    if (found.length > 0) return found.map(({ trip }) => trip);
+  }
+  return [];
 }
 
 /**
@@ -189,9 +248,9 @@ export function tripsCalled<T extends { name: string }>(trips: readonly T[], nam
  * invariant 7). The id it queues is Home's own ⌘K command for that trip
  * (`placeCommands`), which Home registers only for trips it lists.
  *
- * Matched as `go_to` matches a notebook: the trip whose name it is, or else
- * the only one whose name holds it. Never says the names back: they are typed
- * by people, often not by the asker.
+ * Matched by `tripsCalled`, as `add_playbook_to_trip` matches: the trip whose
+ * name it is, or else the only one the words fit. Never says the names back:
+ * they are typed by people, often not by the asker.
  */
 export const openTripTool = defineTool({
   name: OPEN_TRIP_TOOL_NAME,
@@ -208,12 +267,24 @@ export const openTripTool = defineTool({
   // no trip a role could be held on), so the tag would take it off the one
   // surface it is for. It changes nothing and spends nothing.
   run: async (input, deps): Promise<NavigateOutput> => {
-    const matches = tripsCalled(travelledTrips(await deps.trips.load(), deps.trips.userId), input.trip);
-    if (matches.length !== 1) {
-      const which = matches.length === 0 ? "no trip" : "more than one trip";
-      return { queued: false, refused: `You are travelling on ${which} called “${input.trip}”.` };
+    // Matched over every trip they can open, then checked: matched over only
+    // the travelled ones, a trip they named but are not going on would be
+    // invisible, and its neighbour ("Kyoto 2026" for "Kyoto") the only match.
+    const trips = await deps.trips.load();
+    const matches = tripsCalled(trips, input.trip);
+    const travelled = travelledTrips(trips, deps.trips.userId);
+    const going = matches.filter((trip) => travelled.includes(trip));
+    if (going.length === 0) return { queued: false, refused: `You are travelling on no trip called “${input.trip}”.` };
+    // Asked even when they go on only one: the person may mean the other. The
+    // reason must be true, or their answer is then refused as "no trip".
+    if (matches.length > 1) {
+      const refused =
+        going.length > 1
+          ? `You are travelling on more than one trip called “${input.trip}”.`
+          : `“${input.trip}” fits more than one of your trips, and you are travelling on only one of them.`;
+      return { queued: false, refused };
     }
-    const { tripId } = matches[0]!;
+    const { tripId } = going[0]!;
     const id = input.view === undefined ? `go:trip:${tripId}` : `go:trip:${tripId}:view:${input.view}`;
     if (!deps.paletteCommands.add({ id, needsApproval: false })) return { queued: false, refused: "That is not somewhere I can take them." };
     return { queued: true, note: QUEUED_NOTE };
