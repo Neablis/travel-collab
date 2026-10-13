@@ -6,11 +6,15 @@ description: Close a travel-collab milestone on its prose-only part 0 — keep t
 # Close a milestone
 
 `docs/guidelines/building-a-milestone.md` §4 is the source. A subagent does the edits; you answer
-Mitchell. **Steps 4 to 6 run in a fresh session**, started from the `/next-prompt` handoff once
-every part is merged, so the close does not re-read the whole build on every call.
+Mitchell. **Steps 4 to 6 run in a fresh session**, which the orchestrator starts itself with
+`create_session` from the `/next-prompt` handoff once every part is merged
+(`building-a-milestone.md`, *Hand-off*), so the close does not re-read the whole build on every
+call.
 
-1. **Keep part 0's tracker current**: every part with its PR, state, review result, CI run and merge,
-   plus the merge and migration order. Update it after every event.
+1. **Keep part 0's tracker current**: a table in its PR body, edited in place, with every part's PR,
+   state, review result, CI run and merge, plus the merge and migration order. Update a row after
+   every event; never post a comment per event (`working-a-review.md`, *What we post to GitHub is
+   short*).
 2. **Support Mitchell's walk** of each part's preview, mouse and keyboard-only. The link is in the
    PR body's "Ready to merge" section (`review-a-part` step 6), not a Vercel comment. Read his comments
    with `mcp__Vercel__list_toolbar_threads`. Each fix goes on that part's branch (`build-a-part`),
@@ -24,7 +28,8 @@ every part is merged, so the close does not re-read the whole build on every cal
    - append the retro to the milestone file, in the shape `docs/guidelines/writing-a-retro.md`
      gives. Its `## Spend` block comes from
      `pnpm -s session-metrics --milestone <the build session's transcript> --parts <n> --lines-added <n> --cost-usd <n>`,
-     run in the build session before the handoff, because the transcripts go with the container.
+     run in each build session before its hand-off, because the transcripts go with the container.
+     The handoff text carries each session's block; the retro sums them.
      `pnpm milestone close` refuses without that block;
    - run `pnpm milestone close <M>`, then again with `--confirm`;
    - write STATUS's *Where the work is right now* and *Next action*;

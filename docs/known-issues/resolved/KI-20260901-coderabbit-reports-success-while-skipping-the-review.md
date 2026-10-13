@@ -1,4 +1,16 @@
-### KI-2026-09-01 — CodeRabbit posts a GREEN status while skipping the review entirely, so `gh pr checks --watch` reports a review that never happened
+### KI-2026-09-01 — CodeRabbit posts a GREEN status while skipping the review entirely, so `gh pr checks --watch` reports a review that never happened — RESOLVED (moot)
+
+> **RESOLVED 2026-10-13, as moot: CodeRabbit is removed.** Mitchell decided it
+> after the M45 cost retro: we do our own reviews. The lying
+> status was never ours to fix, and nothing in the process reads it any more:
+> review is a `part-reviewer` subagent after every push, plus one extra fresh
+> pass on a milestone's riskiest part (`AGENTS.md`, *Review is ours*;
+> `.claude/skills/review-a-part/SKILL.md` step 2). **Proof:** `git grep -n -i
+> coderabbit -- AGENTS.md CLAUDE.md .claude .github docs/guidelines` finds no
+> binding step left, only history. `.coderabbit.yaml` is deleted in a code PR of
+> the same day, and uninstalling the GitHub App is Mitchell's step in GitHub's
+> settings. Until that uninstall, a CodeRabbit status on a PR still means
+> nothing.
 
 > **DECIDED 2026-09-01 (Mitchell): drop CodeRabbit as an automated step.** It
 > is now a human step before merging — the agent gets CI green and hands off

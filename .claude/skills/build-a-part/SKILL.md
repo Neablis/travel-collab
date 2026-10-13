@@ -35,7 +35,9 @@ PR opens ready and a push prints the review reminder.
    `pr-tool-guard.mjs` refuses `draft: true` through the MCP tools. A model id is refused in the PR
    title or body (`--title`, `--body`, `--body-file`, or the MCP fields) and in the commit message
    (`commit-message-guard.mjs`). A push while a PR is draft cancels its ready-for-review run. Fill `.github/PULL_REQUEST_TEMPLATE.md`, with each test's source edit and
-   real failure text. After that, do not push again until CI has started on the head.
+   real failure text. After that, do not push again until CI has started on the head. Anything
+   else you post on GitHub is short (`working-a-review.md`, *What we post to GitHub is short*): a
+   thread reply is one line naming the commit.
 6. **Report** in the `phase-implementer` format; a stop without the pushed sha, the red-first
    table and the `Closed:` line is sent back (`implementer-report-check.mjs`). Review is
    `review-a-part`. Once you have reported you are closed: you take no follow-up.

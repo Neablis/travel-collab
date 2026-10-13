@@ -23,12 +23,15 @@ one sub-skill per stage and hands every hands-on step to a subagent.
   to a subagent with a written brief: the part, its branch, its scope, what done means.
 - **You own** the decisions with Mitchell, the sidebar tasks, PR state, and answering Mitchell.
   Move a part's task the moment its state changes.
-- **A wake costs your whole context, read or not** (M42: 190 wakes, $57, 141 of them for nothing).
-  So you watch only part 0's PR. The harness subscribes you to every PR a subagent opens: when an
-  implementer's report arrives with its `Closed:` line, call `unsubscribe_pr_activity` for that
-  PR. `notification-unsubscribe-nudge.mjs` repeats this on any wake you still get. A part's CI
-  state comes from its implementer's report and the reviewer's re-check; read it yourself with one
-  `pull_request_read get_check_runs` call, when Mitchell asks or before saying a part is ready.
+- **A wake costs your whole context, read or not** (M42: 190 GitHub wakes, $57, 141 of them for
+  nothing). So you subscribe to no PR, part 0 included. The harness subscribes you to every PR
+  opened in this session, a subagent's too: call `unsubscribe_pr_activity` for it at once.
+  `notification-unsubscribe-nudge.mjs` repeats this on any GitHub wake you still get.
+- **You wait on a scheduled check-in.** Keep one `send_later` armed: about 60 minutes while any part
+  is in CI or review, about 4 hours while everything waits on Mitchell. On each, run
+  `pnpm -s pr-digest` once, act on everything it prints in that one batch (dispatch reviewers and
+  fixers, update the tracker, tell Mitchell), then re-arm. Stop re-arming when nothing is open.
+  Subagent reports still wake you as before.
 - **A subagent that has reported is closed.** Review fixes, CI fixes and Mitchell's walk changes go
   to a **new** `phase-implementer`; a re-review goes to a new `part-reviewer`.
   `closed-agent-guard.mjs` denies `SendMessage` to an agent idle over 270 seconds or over 150k
@@ -42,9 +45,12 @@ one sub-skill per stage and hands every hands-on step to a subagent.
   Mitchell only on a finding, a failure, a merge, or a question.
 - **Merges are Mitchell's** unless he says otherwise. `migrate-production` is always his.
 - Never run the live eval (`pnpm --filter web eval`) without asking him first.
-- Never poll with `sleep`. Wait by ending the turn: subagent reports, part 0's events and
-  reminders wake the session.
-- **The gate close starts in a fresh session.** Once every part is merged, write the handoff with
-  `/next-prompt` and tell Mitchell to start it there (M42's close ran at about 400k context; a
-  fresh session starts near 85k). Do the same earlier if your context passes about 250k.
+- Never poll with `sleep`. Wait by ending the turn: subagent reports and your check-ins wake the
+  session.
+- **You start the fresh session yourself.** Plan one hand-off, for the gate close once every part
+  is merged; make at most one more mid-build, only past about 250k context with roughly 100 or more
+  of your calls still to come. Each time: `session-metrics` first, then `/next-prompt`, then
+  `create_session` with that text, then delete your pending check-ins, tell Mitchell the new
+  session's id in one line, and stop acting (`building-a-milestone.md`, *Hand-off*). A fresh
+  session starts near 94k; M42's close ran at about 400k.
 - Re-read a PR, check or workflow run before reporting its state.

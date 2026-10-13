@@ -1,6 +1,6 @@
 ---
 name: review-a-part
-description: Review policy for one milestone part in travel-collab — a part-reviewer subagent after every push, CodeRabbit at most once on the riskiest part, every finding fixed or answered, and when the part is ready to merge. Use right after a push to a part's PR.
+description: Review policy for one milestone part in travel-collab — a part-reviewer subagent after every push, one extra fresh pass on the riskiest part, every finding fixed or answered, and when the part is ready to merge. Use right after a push to a part's PR.
 ---
 
 # Review a part
@@ -10,19 +10,19 @@ description: Review policy for one milestone part in travel-collab — a part-re
    the earlier reviewer (`closed-agent-guard.mjs`). A push of a part branch tells
    whoever pushed, usually the implementer, to report it (`push-review-nudge.mjs`); the hook does
    not reach you, so dispatch the reviewer when the implementer's report names the push.
-2. **CodeRabbit is optional.** Post `@coderabbitai review` once, on the riskiest or largest part
-   only, when nothing more will be pushed for a while. This repo gets no automatic CodeRabbit
-   reviews (fewer than 10 stars) and about one an hour, so it never paces the work.
+2. **The riskiest part gets one extra pass.** Before the riskiest or largest part is called ready,
+   run one more new `part-reviewer` on its whole diff against `main`, with no earlier review's
+   file, so it reads the part fresh instead of checking fixes. CodeRabbit was this step until
+   Mitchell removed it on 2026-10-13; nothing outside the repo reviews a part now.
 3. **Work every finding.** Fix it, or answer on its thread why not and resolve the thread
    (`working-a-review.md`). A finding is a claim to check against the code, not an order.
-4. **Every review goes on the PR as a comment** (Mitchell, 2026-10-11: "so I can see what was found
-   and fixed"). The orchestrator posts it, never the read-only reviewer. The reviewer writes the
-   full review to a file and hands back its path with one line per finding
-   (`reviewer-report-check.mjs`); post the file without reading it into your context:
-   `gh pr comment <n> --body-file <path>`. It holds the head reviewed, the verdict, each finding
-   (severity, file:line, what goes wrong, the fix asked for), and what came out clean. Once the fix push lands, post a short follow-up saying
-   what each finding became (fixed in `<sha>`, or answered and why), and include the re-review's
-   verdict. Give CI failures fixed in the same push one line each.
+4. **Every review goes on the PR as a short comment** (Mitchell, 2026-10-11: "so I can see what was
+   found and fixed"; 2026-10-13: shorter). The orchestrator posts it, never the read-only reviewer,
+   in the shape `working-a-review.md` (*What we post to GitHub is short*) gives: a verdict line
+   and one line per blocking finding, `file:line — the problem`, at most about 10 lines, built from
+   the reviewer's hand-back. **Never post the reviewer's file** (`--body-file`): it stays local and
+   goes to the fixer. After the fix push, each finding's thread or line gets one line naming its
+   commit, and a CI fix gets one line.
 5. **Fixes go on the part's own branch**, through `build-a-part`, by a **new**
    `phase-implementer` whose brief names the branch, the head sha, the review file's path, the
    files and what done means. Findings in different files can go to separate agents in parallel

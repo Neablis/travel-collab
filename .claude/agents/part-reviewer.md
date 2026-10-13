@@ -62,8 +62,11 @@ asked for on the current head, and say whether it holds, with file:line.
 
 Write the full review, with the sections below, to
 `$(git rev-parse --git-common-dir)/tc-reviews/pr-<n>-<short sha>.md` using a
-shell heredoc (`mkdir -p` the directory first). It is posted on the PR as it
-is, and handed to whoever fixes the findings, so it must stand alone.
+shell heredoc (`mkdir -p` the directory first). It is handed to whoever fixes
+the findings, so it must stand alone. It is **not** posted on the PR: the
+orchestrator posts a verdict and one line per blocking finding, built from your
+hand-back (`docs/guidelines/working-a-review.md`, *What we post to GitHub is
+short*), so write each finding line so it can be posted as it is.
 
 Then hand back **only** this, in under 4,000 characters
 (`reviewer-report-check.mjs`): the verdict, one line per finding (severity,
