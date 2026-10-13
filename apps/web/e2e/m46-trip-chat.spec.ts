@@ -138,7 +138,9 @@ test("the owner edits and deletes in place, the viewer reports a message, and th
 
     await page.goto(`/trips/${tripId}?view=Plan`);
     await expect(page.getByRole("heading", { name: tripName, level: 1 })).toBeVisible();
-    await page.getByTestId("chat-pill").click();
+    // The one button, then its Chat tab: Bea's message is unread here.
+    await page.getByTestId("ask-pill").click();
+    await panel.getByRole("tab", { name: /^Chat/ }).click();
 
     // Edit own, in place.
     await line(`Hotel is sorted ${run}`).getByRole("button", { name: /^Actions for / }).click();
@@ -158,9 +160,10 @@ test("the owner edits and deletes in place, the viewer reports a message, and th
 
     // The viewer reports the owner's edited message.
     await bea.reload();
-    await bea.getByTestId("chat-pill").click();
-    await bea
-      .getByRole("complementary", { name: "Assistant" })
+    await bea.getByTestId("ask-pill").click();
+    const beaPanel = bea.getByRole("complementary", { name: "Assistant" });
+    await beaPanel.getByRole("tab", { name: /^Chat/ }).click();
+    await beaPanel
       .getByRole("listitem")
       .filter({ hasText: `Hotel is booked ${run}` })
       .getByRole("button", { name: /^Report / })
