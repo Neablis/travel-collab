@@ -10,8 +10,10 @@ import { fileURLToPath } from "node:url";
 //
 // With no numbers it covers every open PR plus every PR the stored snapshot
 // still holds (so a PR that merged since the last check-in is reported once,
-// as merged, and then dropped). `--all` prints full state instead of changes;
-// `--no-save` leaves the snapshot as it was.
+// as merged, and then dropped), and saves the snapshot. With numbers it only
+// reads: it diffs against the snapshot and never writes it, as if `--no-save`
+// were given. `--all` prints full state instead of changes; `--no-save` leaves
+// the snapshot as it was.
 //
 // Why this exists (2026-10-13, after the M45 retro): the milestone
 // orchestrator stopped subscribing to GitHub PR activity. Every event woke it
@@ -24,7 +26,10 @@ import { fileURLToPath } from "node:url";
 // `pnpm state` prints "gh unavailable" there; nothing here may depend on it.
 //
 // The snapshot lives in the git common dir, so every worktree of this clone
-// shares it: the orchestrator's check-in and a subagent's run see one history.
+// finds it. It is a cursor, and only the orchestrator's form (no numbers)
+// moves it: an implementer that ran `pr-digest 437` twice and saved would
+// consume part 3's `success → failure`, and the next check-in would print
+// `unchanged: PR 437` (PR 431's review, finding 1).
 //
 // Shape: everything between the `gh api` calls and the printed lines is pure
 // (summarizePr, diffEntry, fullLines, digest) and unit-tested with fixture
@@ -128,8 +133,17 @@ export function stamp(iso, now = new Date()) {
     : `${d.toISOString().slice(5, 10)} ${hm}Z`;
 }
 
+// ci-ok `needs` every other job (ci.yml), so GitHub creates no check run for
+// it until they all finish. "none" with jobs running is therefore a normal
+// CI run, and must not read like "CI never started".
+const ciRunning = (ci) => ci.ciOk === "none" && ci.pending > 0;
+
 function ciLabel(ci) {
   if (!ci) return "ci-ok ?";
+  if (ciRunning(ci)) {
+    const failed = ci.failed.length ? ` (failed: ${ci.failed.join(", ")})` : "";
+    return `ci running (${ci.pending} pending)${failed}`;
+  }
   let s = `ci-ok ${ci.ciOk}`;
   if (ci.failed.length) s += ` (failed: ${ci.failed.join(", ")})`;
   if (ci.ciOk === "pending" && ci.pending) s += ` (${ci.pending} running)`;
@@ -176,10 +190,17 @@ export function diffEntry(prev, cur, now = new Date()) {
   const state = [];
   if (prev.head !== cur.head) state.push(`head ${short(prev.head)} → ${short(cur.head)}`);
   if (prev.draft !== cur.draft) state.push(cur.draft ? "ready → draft" : "draft → ready");
-  if (cur.mergeable !== "unknown" && prev.mergeable !== cur.mergeable) state.push(`merge ${prev.mergeable} → ${cur.mergeable}`);
-  const pc = prev.ci ?? { ciOk: "?", failed: [] };
-  if (pc.ciOk !== cur.ci.ciOk || pc.failed.join("\0") !== cur.ci.failed.join("\0")) {
-    state.push(`${ciLabel(pc)} → ${ciLabel(cur.ci).replace(/^ci-ok /, "")}`);
+  // "unknown" on either side is GitHub recomputing, not a change: a PR first
+  // seen just after its push is stored as "unknown".
+  const settled = cur.mergeable !== "unknown" && prev.mergeable !== "unknown";
+  if (settled && prev.mergeable !== cur.mergeable) state.push(`merge ${prev.mergeable} → ${cur.mergeable}`);
+  const pc = prev.ci ?? { ciOk: "?", failed: [], pending: 0 };
+  const ciChanged =
+    pc.ciOk !== cur.ci.ciOk || ciRunning(pc) !== ciRunning(cur.ci) || pc.failed.join("\0") !== cur.ci.failed.join("\0");
+  if (ciChanged) {
+    const from = ciLabel(pc);
+    const to = ciLabel(cur.ci);
+    state.push(`${from} → ${from.startsWith("ci-ok ") ? to.replace(/^ci-ok /, "") : to}`);
   }
   const talk = [];
   for (const [k, w] of KINDS) {
@@ -253,11 +274,12 @@ const firstLine = (e) => String(e?.stderr || e?.message || e).trim().split("\n")
 /** Parse argv, fetch, diff, print, save. Returns the exit code. */
 export function main(argv, { api = ghApi, cwd = process.cwd(), log = console.log, now = new Date() } = {}) {
   const all = argv.includes("--all");
-  const save = !argv.includes("--no-save");
   const asked = argv.filter((a) => /^\d+$/.test(a)).map(Number);
+  // Numbers mean a look at one PR, by anyone; only the full check-in saves.
+  const save = !asked.length && !argv.includes("--no-save");
   const bad = argv.filter((a) => !/^\d+$/.test(a) && a !== "--all" && a !== "--no-save");
   if (bad.length) {
-    log(`usage: pnpm -s pr-digest [<n> ...] [--all] [--no-save]  (unknown: ${bad.join(" ")})`);
+    log(`usage: pnpm -s pr-digest [<n> ...] [--all] [--no-save]  (numbers never save; unknown: ${bad.join(" ")})`);
     return 2;
   }
   let repo;

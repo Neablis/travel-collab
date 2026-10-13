@@ -1,10 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, realpathSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { diffEntry, digest, excerpt, main, parseRepo, summarizeChecks, summarizePr } from "../pr-digest.mjs";
+import { diffEntry, digest, excerpt, fullLines, main, parseRepo, summarizeChecks, summarizePr } from "../pr-digest.mjs";
 
 // The digest is read by an orchestrator whose every token is re-read on later
 // turns, so these pin what it prints, not only what it computes. No network:
@@ -120,6 +120,37 @@ test("mergeable 'unknown' while GitHub recomputes is neither reported nor stored
   assert.deepEqual(diffEntry(before, dirty, NOW), ["PR 431 merge clean → dirty"]);
 });
 
+// ci-ok `needs` every job, so while CI runs it has no check run at all. That
+// must read as "running", not like a PR on which CI never started.
+test("with no ci-ok run yet, the running count is shown and a failed job still named", () => {
+  const checkRuns = [
+    ...Array.from({ length: 6 }, (_, i) => run(10 + i, `job ${i}`, "in_progress")),
+    run(20, "test / integration", "completed", "failure"),
+  ];
+  const running = summarizePr(rawPr({ checkRuns }));
+  assert.equal(
+    fullLines(running, NOW)[0],
+    "PR 431 open head 1a2b3c4 merge clean; ci running (6 pending) (failed: test / integration); " +
+      "0 comments, 0 review comments, 0 reviews",
+  );
+  const done = summarizePr(rawPr({ checkRuns: [run(30, "ci-ok", "completed", "failure"), checkRuns[6]] }));
+  assert.deepEqual(diffEntry(running, done, NOW), [
+    "PR 431 ci running (6 pending) (failed: test / integration) → ci-ok failure (failed: test / integration)",
+  ]);
+  const never = summarizePr(rawPr({ checkRuns: [] }));
+  assert.deepEqual(diffEntry(running, never, NOW), [
+    "PR 431 ci running (6 pending) (failed: test / integration) → ci-ok none",
+  ]);
+});
+
+test("a PR first seen as mergeable 'unknown' reports no merge change when GitHub settles", () => {
+  const first = digest(null, [summarizePr(rawPr({ pr: { mergeable_state: "unknown" } }))], { now: NOW });
+  const settled = summarizePr(rawPr({ pr: { mergeable_state: "blocked" } }));
+  const next = digest(first.snapshot, [settled], { now: NOW });
+  assert.deepEqual(next.lines, ["unchanged: PR 431"]);
+  assert.equal(next.snapshot.prs[431].mergeable, "blocked");
+});
+
 test("a merged PR is printed once with its merge sha, then dropped from the snapshot", () => {
   const before = summarizePr(rawPr());
   const merged = summarizePr({ pr: { number: 431, state: "closed", merged_at: "x", merge_commit_sha: SHA_B, head: { sha: SHA_A } } });
@@ -141,10 +172,11 @@ test("--all prints full state even against a snapshot; a failed fetch keeps the 
 
 // main() end to end against a fake `api`, in a real git repo, so the
 // snapshot path and the listing of open PRs plus remembered ones are covered.
-function fakeApi(prs) {
+function fakeApi(prs, { issueCommentPages = [[]] } = {}) {
   const calls = [];
   const api = (path) => {
     calls.push(path);
+    if (/\/issues\/\d+\/comments/.test(path)) return issueCommentPages;
     if (/\/pulls\?state=open/.test(path)) return [Object.values(prs).filter((p) => p.state === "open")];
     let m = path.match(/\/pulls\/(\d+)$/);
     if (m) return prs[m[1]];
@@ -178,6 +210,51 @@ test("main stores the snapshot in the git common dir and reports a merge on the 
   assert.deepEqual(lines, ["PR 431 merged as 5d6e7f8"]);
   assert.ok(calls.every((c) => c.startsWith("repos/o/r/")));
   assert.deepEqual(JSON.parse(readFileSync(file, "utf8")).prs, {});
+});
+
+test("main from a linked worktree stores the snapshot in the main clone's .git, not the worktree's", () => {
+  const cwd = repo();
+  writeFileSync(join(cwd, "README.md"), "x\n");
+  execFileSync("git", ["add", "README.md"], { cwd });
+  execFileSync("git", ["-c", "user.email=t@e.st", "-c", "user.name=T", "commit", "-q", "-m", "init"], { cwd });
+  const linked = join(realpathSync(mkdtempSync(join(tmpdir(), "tc-pr-digest-wt-"))), "wt");
+  execFileSync("git", ["worktree", "add", "-q", linked], { cwd });
+  assert.equal(main([], { api: fakeApi({ 431: rawPr().pr }).api, cwd: linked, log: () => {}, now: NOW }), 0);
+  assert.ok(existsSync(join(cwd, ".git", "pr-digest.json")));
+  assert.equal(existsSync(join(cwd, ".git", "worktrees", "wt", "pr-digest.json")), false);
+});
+
+test("main counts comments on every page, not only the first", () => {
+  const cwd = repo();
+  const c = (at, body) => ({ user: user("Neablis"), created_at: at, body });
+  const issueCommentPages = [
+    Array.from({ length: 100 }, (_, i) => c("2026-10-13T05:00:00Z", `old ${i}`)),
+    [c("2026-10-13T07:00:00Z", "on page two")],
+  ];
+  const lines = [];
+  main(["431"], { api: fakeApi({ 431: rawPr().pr }, { issueCommentPages }).api, cwd, log: (l) => lines.push(l), now: NOW });
+  assert.match(lines[0], /; 101 comments, /);
+  assert.equal(lines[1], '  newest: Neablis 07:00Z "on page two"');
+});
+
+// The snapshot is a cursor. An implementer's `pr-digest 437` that saved
+// would consume a change the orchestrator's next check-in must see.
+test("a run naming PRs only reads: the next full check-in still sees the change", () => {
+  const cwd = repo();
+  const prs = { 431: rawPr().pr };
+  const lines = [];
+  const log = (l) => lines.push(l);
+  main([], { api: fakeApi(prs).api, cwd, log, now: NOW });
+  const file = join(cwd, ".git", "pr-digest.json");
+  const saved = readFileSync(file, "utf8");
+  prs[431] = { ...prs[431], head: { sha: SHA_B } };
+  lines.length = 0;
+  main(["431"], { api: fakeApi(prs).api, cwd, log, now: NOW });
+  assert.deepEqual(lines, ["PR 431 head 1a2b3c4 → 5d6e7f8"]);
+  assert.equal(readFileSync(file, "utf8"), saved);
+  lines.length = 0;
+  main([], { api: fakeApi(prs).api, cwd, log, now: NOW });
+  assert.deepEqual(lines, ["PR 431 head 1a2b3c4 → 5d6e7f8"]);
 });
 
 test("main --no-save leaves no snapshot; an unknown flag is a usage error", () => {
