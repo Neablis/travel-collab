@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { PageSummary, TimeWindow } from "@tc/contracts";
@@ -9,6 +9,7 @@ import { useEditor } from "@/components/trip/context/EditorHost";
 import { useDaySync, useFocus } from "@/components/trip/context/FocusProvider";
 import {
   addDayCommand,
+  chatCommand,
   editStopCommands,
   goToDayCommands,
   goToNotebookCommands,
@@ -64,7 +65,10 @@ import { cachedRead, DEDUPE } from "@/lib/queryCache";
 import { tripKeys } from "@/lib/queryKeys";
 import { useAssistantShape } from "@/components/assistant/useAssistantShape";
 import { useAssistantVisibility } from "@/components/assistant/useAssistantVisibility";
-import { AssistantRail } from "@/components/assistant/AssistantRail";
+import { AssistantRail, type RailTab } from "@/components/assistant/AssistantRail";
+import { ChatPanel } from "@/components/chat/ChatPanel";
+import { useTripChat } from "@/components/chat/useTripChat";
+import { personasOf } from "@/components/pages/people";
 import type { AssistantTurn } from "@/components/assistant/Transcript";
 import { proposalUndoFor, type ProposalState } from "@/components/assistant/ProposalCard";
 import { useAskThread } from "@/components/assistant/useAskThread";
@@ -101,7 +105,7 @@ function askErrorMessage(error: ApiError): string {
 }
 
 export function TripBoardScreen({ tripId }: { tripId: string }) {
-  const { trip, activeTrip, history, status, error, dispatch, dispatchBatch, applyOutcome, preview, pending, readOnly, myRole, canEditBoard, boardMode, draft, remoteRevision, confirmedSeq, suggestions: tripSuggestions } = useTrip();
+  const { trip, activeTrip, history, status, error, dispatch, dispatchBatch, applyOutcome, preview, pending, readOnly, myRole, canEditBoard, boardMode, draft, remoteRevision, confirmedSeq, suggestions: tripSuggestions, chatRev, access } = useTrip();
   // Read by the assistant's `onEvent` when a turn's changes were stored as
   // suggestions; a ref so the handler never holds a render-old list.
   const refreshSuggestions = useRef(tripSuggestions?.refresh);
@@ -124,6 +128,26 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // The rail's own "Hide"/re-show is real layout chrome now, not AI
   // behavior gated behind M9 — see AssistantRail.tsx's header comment.
   const assistant = useAssistantVisibility();
+  // Which of the panel's *Chat · Ask* tabs is open (M46). Each opener names
+  // its own, so Ask never opens on Chat and the 💬 never on Ask.
+  const [railTab, setRailTab] = useState<RailTab>("ask");
+  const openAsk = () => {
+    setRailTab("ask");
+    assistant.show();
+  };
+  const openChat = () => {
+    setRailTab("chat");
+    assistant.show();
+  };
+  // Held here, not in the panel, so the header's 💬 counts while it is closed.
+  const chat = useTripChat({
+    tripId,
+    enabled: status === "ready" && !isDemoTripId(tripId),
+    chatRev,
+    reading: assistant.open && railTab === "chat",
+  });
+  const members = access?.members;
+  const personas = useMemo(() => (members === undefined ? null : personasOf(members)), [members]);
   // The phone's way in is the tab bar's Ask item (Mitchell, 2026-10-10), which
   // lives in the layout, outside this tree: offer it the same opener the
   // header's desktop pill gets. Withheld on /demo for the pill's reason (KI-79).
@@ -154,8 +178,8 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // once the rail has taken it: the rail remounts on Hide and Show, and when
   // the header skeleton comes back, and must not find it again.
   const [handOff, setHandOff] = useState<{ text: string } | null>(null);
-  usePhoneAskEntry(boardRenders && !isDemoTripId(tripId) ? assistant.show : undefined, assistant.open, (text) => {
-    assistant.show();
+  usePhoneAskEntry(boardRenders && !isDemoTripId(tripId) ? openAsk : undefined, assistant.open && railTab === "ask", (text) => {
+    openAsk();
     setHandOff({ text });
   });
   // **⌘K's commands are this screen's own functions** (M41 D9, ADR-068 §1,
@@ -294,6 +318,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
     boardRenders && activeTrip !== null && targets !== null
       ? [
           ...lensCommands(setView),
+          ...(isDemoTripId(tripId) ? [] : [chatCommand(openChat)]),
           ...goToDayCommands(targets.days, focusDay),
           ...goToStopCommands(targets.stops, focusActivity),
           // Where the Notebooks menu's row links.
@@ -1213,8 +1238,9 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
               open. */}
           <TripHeader
             tripId={tripId}
-            assistantOpen={assistant.open}
-            onOpenAssistant={isDemo ? undefined : assistant.show}
+            assistantOpen={assistant.open && railTab === "ask"}
+            onOpenAssistant={isDemo ? undefined : openAsk}
+            chat={isDemo ? undefined : { unread: chat.unread, open: assistant.open && railTab === "chat", onOpen: openChat }}
             pinned={pinsDayRail ? dayChips : undefined}
             conflicts={conflictsChip}
           >
@@ -1515,6 +1541,11 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
             askUpgrade={ask.askErrorCode === AI_NOT_ENTITLED_CODE}
             simulated={ask.simulated}
             takeFocus={assistant.takeFocus}
+            chat={{
+              tab: railTab,
+              onTabChange: setRailTab,
+              panel: <ChatPanel chat={chat} personas={personas} touch={assistantPresentation === "sheet"} />,
+            }}
             onHide={assistant.hide}
           />
         )}

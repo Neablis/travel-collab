@@ -120,6 +120,11 @@ type BroadcastArgs = {
    * de-duplicated, because only the caller knows whether its re-read landed.
    */
   onAccessChanged?: (rev: string) => void;
+  /**
+   * The page's `chatRev` (M46 D4), on every poll that carries one, on
+   * `onAccessChanged`'s terms: a message moves no `headSeq`.
+   */
+  onChatChanged?: (rev: string) => void;
 };
 
 /**
@@ -149,6 +154,7 @@ export function useTripBroadcast({
   onChanged,
   onSuggestionsChanged,
   onAccessChanged,
+  onChatChanged,
 }: BroadcastArgs): void {
   // Held in refs so the effect below depends only on `tripId` and the gates.
   // Otherwise every render would tear down the interval and start a new one,
@@ -157,10 +163,12 @@ export function useTripBroadcast({
   const onChangedRef = useRef(onChanged);
   const onSuggestionsChangedRef = useRef(onSuggestionsChanged);
   const onAccessChangedRef = useRef(onAccessChanged);
+  const onChatChangedRef = useRef(onChatChanged);
   cursorRef.current = cursor;
   onChangedRef.current = onChanged;
   onSuggestionsChangedRef.current = onSuggestionsChanged;
   onAccessChangedRef.current = onAccessChanged;
+  onChatChangedRef.current = onChatChanged;
 
   useEffect(() => {
     if (!enabled || isDemoTripId(tripId)) return;
@@ -189,6 +197,8 @@ export function useTripBroadcast({
         if (rev !== undefined) onSuggestionsChangedRef.current?.(rev);
         const accessRev = result.value.accessRev;
         if (accessRev !== undefined) onAccessChangedRef.current?.(accessRev);
+        const chatRev = result.value.chatRev;
+        if (chatRev !== undefined) onChatChangedRef.current?.(chatRev);
       } finally {
         inFlight = false;
       }

@@ -4,7 +4,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testi
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
-import { ASK_FAILED_MESSAGE, TripCommand, type TripDetail } from "@tc/contracts";
+import { ASK_FAILED_MESSAGE, ChatMessage, TripCommand, type TripDetail } from "@tc/contracts";
 import { TripBoardScreen } from "@/components/board/TripBoardScreen";
 import { moveCommands } from "@/components/board/moveCommands";
 import { TripProvider } from "@/components/trip/context/TripProvider";
@@ -15,7 +15,7 @@ import { PhoneAskTab } from "@/components/nav/PhoneTabBar";
 import { usePhoneAsk } from "@/components/nav/phoneAsk";
 import { type PaletteCommand, usePaletteCommands } from "@/components/palette/paletteRegistry";
 import { activityFactory, costedTripDetailFixture, historyFixture, locationFactory, pageFixture, tripCoverFactory, tripDetailFixture } from "@tc/factories";
-import { makeTripHandlers, makeAccountPlanHandler, makeNearbyStopsHandler, makePagesHandlers } from "@/mocks/handlers";
+import { makeTripHandlers, makeAccountPlanHandler, makeChatHandlers, makeNearbyStopsHandler, makePagesHandlers } from "@/mocks/handlers";
 import { setViewportMatches, triggerResize } from "../../../vitest.setup";
 
 // Scoped to the panel rather than reached for by bare role+name, still —
@@ -1793,6 +1793,37 @@ describe("assistant rail visibility", () => {
     expect(screen.queryByRole("complementary", { name: "Assistant" })).toBeNull();
     await userEvent.keyboard("{Enter}");
     expect(screen.getByRole("complementary", { name: "Assistant" })).toBeTruthy();
+  });
+
+  // M46, the layout: one panel, two tabs, and each opener names its own. The
+  // 💬 opens it on Chat with the conversation, and its count clears once read.
+  it("the header's Chat opens the panel on Chat and its count clears; Ask opens it on Ask", async () => {
+    setViewportMatches({ "(min-width: 1180px)": true });
+    const fixture = tripDetailFixture();
+    const said = ChatMessage.parse({
+      messageId: "6e9a2c9e-0000-4b6e-9d3f-2b1a5c8d7e60",
+      authorId: "u-bea",
+      createdAt: "2026-10-13T10:00:00.000Z",
+      editedAt: null,
+      removed: false,
+      body: "Train at nine?",
+    });
+    server.use(...makeChatHandlers({ viewerId: fixture.members[0]!.userId, messages: [said] }).handlers, ...makeTripHandlers(fixture));
+    renderScreen(fixture.tripId);
+    expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+
+    await waitFor(() => expect(screen.getByTestId("chat-pill").getAttribute("aria-label")).toBe("Chat, 1 unread"));
+    await userEvent.click(screen.getByTestId("chat-pill"));
+    const panel = await screen.findByRole("complementary", { name: "Assistant" });
+    expect(within(panel).getByRole("tab", { name: "Chat" }).getAttribute("aria-selected")).toBe("true");
+    expect(within(within(panel).getByRole("list", { name: "Messages" })).getAllByRole("listitem")).toHaveLength(1);
+    expect(screen.getByTestId("chat-pill").getAttribute("aria-label")).toBe("Chat");
+
+    await userEvent.click(within(panel).getByRole("button", { name: "Hide" }));
+    await userEvent.click(screen.getByTestId("ask-pill"));
+    const asking = await screen.findByRole("complementary", { name: "Assistant" });
+    expect(within(asking).getByRole("tab", { name: "Ask" }).getAttribute("aria-selected")).toBe("true");
+    expect(within(asking).getByRole("button", { name: "Ask the assistant" })).toBeTruthy();
   });
 });
 

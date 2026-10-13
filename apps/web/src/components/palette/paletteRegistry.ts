@@ -22,7 +22,7 @@ import { useEffect, useRef, useSyncExternalStore } from "react";
 /** The palette's verbs (ADR-069 §1), a closed set: every path starts with one. */
 export type PaletteAction = "Go to" | "Add" | "Edit" | "Move" | "Remove";
 /** The only commands with no Type or Target (ADR-069 §1). */
-export type PaletteSingleton = "Undo" | "Redo" | "Ask the assistant";
+export type PaletteSingleton = "Undo" | "Redo" | "Ask the assistant" | "Open chat";
 /** What kind of thing a path's Target is (ADR-069 §1). */
 export type PaletteType = "Trip" | "Day" | "Stop" | "View" | "Notebook" | "Page";
 
