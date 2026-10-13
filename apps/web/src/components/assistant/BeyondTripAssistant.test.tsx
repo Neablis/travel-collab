@@ -6,11 +6,12 @@
 // The plan is the one the layout sends with the page
 // (`ServedEntitlementsProvider`, Mitchell's decision 3), not a mock of the
 // hook that reads it: the Ask has to be in the server's HTML.
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, waitForElementToBeRemoved } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderToString } from "react-dom/server";
 import type { Entitlement } from "@tc/contracts";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { clearQueryCache } from "@/lib/queryCache";
 import { ServedEntitlementsProvider } from "@/lib/useAiEntitled";
 import { PlaybookAskButton, PlaybookAssistant } from "./BeyondTripAssistant";
 
@@ -45,6 +46,7 @@ afterEach(() => {
   session.user = { id: "user-a" };
   vi.unstubAllGlobals();
   window.localStorage.clear();
+  clearQueryCache();
   cleanup();
 });
 
@@ -93,5 +95,20 @@ describe("a playbook page's assistant", () => {
     served.value = [...plan];
     expect(renderToString(tree()).includes('data-testid="ask-pill"')).toBe(drawn);
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  // The layout's read failed (it sends `null`), so the hook asks for itself.
+  // Unknown is entitled for a signed-in reader, as everywhere `useEntitled`
+  // is read: a paying reader keeps the Ask while that read is in flight, and
+  // loses it only once it says the plan has no assistant.
+  it("keeps the Ask for a signed-in reader while the plan is unknown, until a read says otherwise", async () => {
+    let answer: (response: Response) => void = () => {};
+    vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>((resolve) => (answer = resolve))));
+    served.value = null;
+    page();
+    expect(screen.getByRole("button", { name: "Ask" })).toBeTruthy();
+
+    answer(new Response(JSON.stringify({ plan: { entitlements: [] } }), { status: 200 }));
+    await waitForElementToBeRemoved(() => screen.queryByRole("button", { name: "Ask" }));
   });
 });
