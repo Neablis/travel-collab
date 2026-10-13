@@ -13,6 +13,7 @@ import { FocusProvider } from "@/components/trip/context/FocusProvider";
 import { LensRouter } from "@/components/trip/context/LensRouter";
 import { PhoneAskTab } from "@/components/nav/PhoneTabBar";
 import { usePhoneAsk } from "@/components/nav/phoneAsk";
+import { useBoardFocus } from "@/components/trip/context/boardFocus";
 import { type PaletteCommand, usePaletteCommands } from "@/components/palette/paletteRegistry";
 import { activityFactory, costedTripDetailFixture, historyFixture, locationFactory, pageFixture, tripCoverFactory, tripDetailFixture } from "@tc/factories";
 import { makeTripHandlers, makeAccountPlanHandler, makeChatHandlers, makeNearbyStopsHandler, makePagesHandlers } from "@/mocks/handlers";
@@ -3111,6 +3112,44 @@ describe("⌘K runs the trip page's own actions", () => {
     await waitFor(() => expect(replaceSpy.mock.calls.at(-1)?.[0]).toMatch(/view=Plan/));
     act(() => navigateToView("Plan"));
     // `:focus` asked of what a query found (no jest-dom here; SnapshotList.test.tsx).
+    await waitFor(() => expect(within(screen.getByTestId(`activity-card-${forum}`)).getByRole("button", { name: /^Edit / }).matches(":focus")).toBe(true));
+    const column = screen.getAllByTestId("day-column")[0]!;
+    expect(within(column).getByRole("button", { name: /^Day 1/ }).getAttribute("aria-pressed")).toBe("true");
+  });
+
+  // M46 D3: a chat chip goes where *Go to › Stop* goes, through what the
+  // board registers, and the board offers its own trip's days and stops.
+  it("offers chat this trip's days and stops, and a chip's focus goes to the stop", async () => {
+    const fixture = costedTripDetailFixture();
+    server.use(...makeTripHandlers(fixture));
+    // Cast, so `board` is not narrowed to the null it starts as.
+    let board = null as ReturnType<typeof useBoardFocus>;
+    function BoardSpy() {
+      board = useBoardFocus();
+      return null;
+    }
+    renderWithPalette(fixture.tripId);
+    render(<BoardSpy />);
+    await screen.findByRole("heading", { name: "Rome 2027" });
+    act(() => navigateToView("Calendar"));
+    const forum = fixture.days[0]!.activityIds[1]!;
+
+    expect(board?.days.map((d) => d.dayId)).toEqual(fixture.days.map((d) => d.dayId));
+    act(() => board!.focusActivity(forum));
+    await waitFor(() => expect(replaceSpy.mock.calls.at(-1)?.[0]).toMatch(/view=Plan/));
+    act(() => navigateToView("Plan"));
+    await waitFor(() => expect(within(screen.getByTestId(`activity-card-${forum}`)).getByRole("button", { name: /^Edit / }).matches(":focus")).toBe(true));
+  });
+
+  // M46 D3's preview walk: `/trips/<id>?view=Plan&stop=<id>` lands on the stop.
+  it("arrives on a stop named by ?stop=: its day selected, its block focused", async () => {
+    const fixture = costedTripDetailFixture();
+    const forum = fixture.days[0]!.activityIds[1]!;
+    search = new URLSearchParams(`view=Plan&stop=${forum}`);
+    server.use(...makeTripHandlers(fixture));
+    renderScreen(fixture.tripId);
+    await screen.findByRole("heading", { name: "Rome 2027" });
+
     await waitFor(() => expect(within(screen.getByTestId(`activity-card-${forum}`)).getByRole("button", { name: /^Edit / }).matches(":focus")).toBe(true));
     const column = screen.getAllByTestId("day-column")[0]!;
     expect(within(column).getByRole("button", { name: /^Day 1/ }).getAttribute("aria-pressed")).toBe("true");

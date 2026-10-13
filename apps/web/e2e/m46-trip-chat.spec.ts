@@ -89,3 +89,39 @@ test("a viewer's message reaches the owner's open page within one poll, and the 
   await expect(panel.getByRole("list", { name: "Messages" })).toContainText("Train at nine?");
   await expect(page.getByTestId("chat-pill")).toHaveAccessibleName("Chat");
 });
+
+// M46 D3: a message can carry one day or stop. Its chip goes to it on Plan,
+// and once the stop is deleted the words stay and the chip goes.
+test("a message's @stop is a chip that focuses the stop on Plan, and plain text once the stop is deleted", async ({ page }) => {
+  const tripName = e2eTripName("Chat chip");
+  const tripId = await createMappedTrip(page, tripName, 1);
+  const { trip } = (await (await page.request.get(`/api/trips/${tripId}`)).json()) as { trip: { days: { activityIds: string[] }[] } };
+  const stopId = trip.days[0]!.activityIds[0]!;
+
+  await page.goto(`/trips/${tripId}?view=Overview`);
+  await expect(page.getByRole("heading", { name: tripName, level: 1 })).toBeVisible();
+  await page.getByTestId("chat-pill").click();
+  const panel = page.getByRole("complementary", { name: "Assistant" });
+  const field = panel.getByRole("textbox", { name: "Message" });
+  await field.pressSequentially("Meet at @stop on day");
+  await expect(panel.getByRole("option", { name: /Stop on day 1/ })).toBeVisible();
+  await field.press("Enter");
+  await expect(field).toHaveValue("Meet at @Stop on day 1 ");
+  await Promise.all([
+    page.waitForResponse((r) => new URL(r.url()).pathname === `/api/trips/${tripId}/chat` && r.request().method() === "POST" && r.status() === 201),
+    field.press("Enter"),
+  ]);
+
+  const messages = panel.getByRole("list", { name: "Messages" });
+  await messages.getByRole("button", { name: "@Stop on day 1" }).click();
+  await expect(page).toHaveURL(/view=Plan/);
+  await expect(page.getByTestId(`activity-card-${stopId}`).getByRole("button", { name: /^Edit / })).toBeFocused();
+
+  const removed = await page.request.post(`/api/trips/${tripId}/commands`, { data: { type: "RemoveActivity", tripId, activityId: stopId } });
+  expect(removed.ok()).toBe(true);
+  await page.reload();
+  await expect(page.getByRole("heading", { name: tripName, level: 1 })).toBeVisible();
+  await page.getByTestId("chat-pill").click();
+  await expect(messages).toContainText("Meet at @Stop on day 1");
+  await expect(messages.getByRole("button", { name: "@Stop on day 1" })).toHaveCount(0);
+});
