@@ -136,7 +136,7 @@ describe("tripsCalled", () => {
   const named = (...names: string[]) => names.map((name) => ({ name }));
   const KYOTO = named("Kyoto", "Osaka 2026");
 
-  it.each(["Kyoto", "kyoto", "  KYOTO ", "Kyoto trip", "my Kyoto trip", "the Kyoto trip", "My kyoto trip.", "Kyoto and Nara"])(
+  it.each(["Kyoto", "kyoto", "  KYOTO ", "Kyoto trip", "my Kyoto trip", "the Kyoto trip", "My kyoto trip."])(
     "finds the trip named Kyoto from %j",
     (typed) => {
       expect(tripsCalled(KYOTO, typed)).toEqual([{ name: "Kyoto" }]);
@@ -151,12 +151,44 @@ describe("tripsCalled", () => {
     expect(tripsCalled(named("My trip", "Kyoto"), "my trip")).toEqual([{ name: "My trip" }]);
   });
 
+  // The model passes the name word for word, so the article usually comes with it.
+  it.each([
+    [["Road trip", "Road"], "my Road trip", "Road trip"],
+    [["Japan trip", "Japan"], "my Japan trip", "Japan trip"],
+  ])("from %j, prefers the trip named what follows the article in %j", (names, typed, meant) => {
+    expect(tripsCalled(named(...names), typed)).toEqual([{ name: meant }]);
+  });
+
+  it.each([
+    [["Kyoto & Osaka", "Osaka"], "my Kyoto and Osaka trip", "Kyoto & Osaka"],
+    [["Rome and Paris", "Paris"], "Rome & Paris", "Rome and Paris"],
+  ])("from %j, reads \"&\" and \"and\" in %j as the same word", (names, typed, meant) => {
+    expect(tripsCalled(named(...names), typed)).toEqual([{ name: meant }]);
+  });
+
+  it("keeps combining marks, so different words in other scripts stay different", () => {
+    expect(tripsCalled(named("दिल"), "देला")).toEqual([]);
+  });
+
+  it("finds a name typed decomposed, as the same name composed", () => {
+    expect(tripsCalled(named("Café"), "Cafe\u0301")).toEqual([{ name: "Café" }]);
+  });
+
   it.each(["Kyoto", "my Kyoto trip"])("returns every candidate %j fits when it fits more than one, so the tool asks", (typed) => {
     expect(tripsCalled(named("Kyoto spring", "Kyoto autumn"), typed)).toHaveLength(2);
   });
 
-  it.each(["Rome", "my trip", "the trip", ""])("finds nothing from %j", (typed) => {
+  it.each(["Rome", "my trip", "the trip", "", "Kyoto and Nara"])("finds nothing from %j", (typed) => {
     expect(tripsCalled(KYOTO, typed)).toEqual([]);
+  });
+
+  // A trip whose whole name is one word of what was typed is not the one
+  // meant: the person was naming a different trip the matcher cannot see.
+  it.each([
+    [["Tokyo", "Kyoto & Nara"], "Kyoto trip from Tokyo"],
+    [["Rome + Paris", "Paris"], "the Rome and Paris trip"],
+  ])("from %j, picks no trip because its name is one of the words in %j", (names, typed) => {
+    expect(tripsCalled(named(...names), typed)).toEqual([]);
   });
 });
 

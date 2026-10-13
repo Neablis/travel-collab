@@ -167,9 +167,19 @@ const OpenTripInput = z.object({
   view: z.enum(TRIP_VIEWS).optional(),
 });
 
-/** Lower case, with every run of punctuation and spaces one space: "Kyoto, 2026!" is "kyoto 2026". */
+/**
+ * Lower case, "&" read as "and", and every run of punctuation and spaces one
+ * space: "Kyoto & Osaka, 2026!" is "kyoto and osaka 2026". Combining marks
+ * are kept, composed (NFC), because in many scripts they are what tells two
+ * words apart.
+ */
 function wordsOf(text: string): string {
-  return text.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+  return text
+    .normalize("NFC")
+    .toLowerCase()
+    .replace(/&/g, " and ")
+    .replace(/[^\p{L}\p{M}\p{N}]+/gu, " ")
+    .trim();
 }
 
 /**
@@ -179,23 +189,26 @@ function wordsOf(text: string): string {
  * playbook pages' `add_playbook_to_trip`), whose descriptions tell the model
  * to pass those words as said, so both read them the same way.
  *
- * Case, punctuation and spacing never count. First the trips called exactly
- * what was typed ("Road trip" is not "Road"), then those called what is left
- * without a leading "my" or "the" and a trailing "trip", then every trip whose
- * name holds what is left or whose whole name is words of what was typed
- * ("Kyoto and Nara"). More than one is for the caller to ask about, never to
- * choose between.
+ * Case, punctuation, spacing and "&" for "and" never count. First the trips
+ * called exactly what was typed, then what follows a leading "my" or "the"
+ * ("my Road trip" is "Road trip", not "Road"), then that without a trailing
+ * "trip", then every trip whose name holds what is left. A trip is never
+ * found because its name is one of the words typed: "Kyoto trip from Tokyo"
+ * names some other trip, not "Tokyo". More than one is for the caller to ask
+ * about, never to choose between.
  */
 export function tripsCalled<T extends { name: string }>(trips: readonly T[], name: string): T[] {
   const typed = wordsOf(name);
   if (typed === "") return [];
-  const key = typed.replace(/^(?:my|the) /, "").replace(/(?:^| )trip$/, "").trim();
+  const bare = typed.replace(/^(?:my|the) /, "");
+  const key = bare.replace(/(?:^| )trip$/, "").trim();
   const named = trips.map((trip) => ({ trip, words: wordsOf(trip.name) }));
   // "my trip" leaves no key, and every name holds the empty string.
   const tiers = [
     (words: string) => words === typed,
+    (words: string) => words === bare,
     (words: string) => key !== "" && words === key,
-    (words: string) => (key !== "" && words.includes(key)) || ` ${typed} `.includes(` ${words} `),
+    (words: string) => key !== "" && words.includes(key),
   ];
   for (const fits of tiers) {
     const found = named.filter(({ words }) => fits(words));
