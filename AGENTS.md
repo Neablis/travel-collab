@@ -145,6 +145,12 @@ library's pages render on the server so a crawler receives the day and a
 missing one answers 404. Page files only, on the console's terms; the screens
 they render still call the API. Seven fixtures hold it there.
 
+And **`src/app/(app)/layout.tsx`** (M45, Mitchell's decision 3 of 2026-10-13):
+it resolves the reader's conferred entitlements per request through
+`server/entitlements/resolver.ts` and sends them with the page, so an Ask
+offered only to a plan with the assistant is in the first HTML. That one file,
+on the console's terms; never a JWT claim (ADR-045 rule 2). Three fixtures.
+
 The UI/server lint wall is CI-enforced and is our escape hatch: if serverless
 stops fitting (likely at Phase 2 realtime), `src/server` extracts into a
 standalone service without touching domain or contracts (ADR-002).

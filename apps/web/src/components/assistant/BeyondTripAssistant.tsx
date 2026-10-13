@@ -102,12 +102,13 @@ function playbookSuggestions(page: PlaybookAskPage): string[] {
  * calls those buttons make (`createTrip`, `insertSavedDay`).
  *
  * **Only for an account whose plan has the assistant** (D9: "Only signed-in
- * users on a plan with assistant access see it"). Nothing is drawn until both
- * are known: a reader who cannot use it never sees an Ask, here, in the tab
- * bar, or in ⌘K, which offer it only where a screen registered one. This
- * waits for a yes, where the trip rail treats an unknown plan as entitled,
- * because what it would show meanwhile is an Ask, not a paywall over a
- * subscriber's composer. The route refuses the rest regardless.
+ * users on a plan with assistant access see it"). The plan comes with the
+ * page (`ServedEntitlementsProvider`, Mitchell's decision 3), so the answer is
+ * there on the first paint and a reader who cannot use it never sees an Ask,
+ * here, in the tab bar, or in ⌘K, which offer it only where a screen
+ * registered one. Unknown (the server could not say) is entitled for a
+ * signed-in reader, as everywhere `useEntitled` is read; the route's 402 is
+ * the gate.
  *
  * Opened on demand like the trip board's rail (`useAssistantVisibility`),
  * and floating over the page, the notebook's shape, since a playbook page has
@@ -116,10 +117,17 @@ function playbookSuggestions(page: PlaybookAskPage): string[] {
  * `AssistantRail`'s `presentation` note states). One conversation per page.
  */
 export function PlaybookAssistant({ page, contextLine }: { page: PlaybookAskPage; contextLine: string }) {
-  const signedIn = Boolean(useSessionUser()?.id);
-  const entitled = useEntitled(AI_ASK_ENTITLEMENT, signedIn);
-  if (!signedIn || entitled !== true) return null;
+  if (!usePlaybookAssistantOffered()) return null;
   return <OpenablePlaybookAssistant page={page} contextLine={contextLine} />;
+}
+
+/** Whether this reader is offered a playbook page's assistant: one rule for the assistant and its head Ask. */
+function usePlaybookAssistantOffered(): boolean {
+  const signedIn = Boolean(useSessionUser()?.id);
+  // `true` from the served plan before the session read has landed: the
+  // server only sends one for a signed-in reader.
+  const entitled = useEntitled(AI_ASK_ENTITLEMENT, signedIn);
+  return entitled === true || (entitled === null && signedIn);
 }
 
 function OpenablePlaybookAssistant({ page, contextLine }: { page: PlaybookAskPage; contextLine: string }) {
@@ -225,4 +233,19 @@ export function AssistantAskButton() {
   const entry = usePhoneAsk();
   if (entry === null) return null;
   return <AskPill open={entry.open} onOpen={entry.onOpen} className="max-md:hidden" />;
+}
+
+/**
+ * A playbook page's head Ask: `AssistantAskButton`, drawn from the served plan
+ * rather than from the registration, which happens in an effect and so is
+ * never in the server HTML. That is what puts it in the first paint for a
+ * reader who has the assistant (Mitchell's decision 3) with no pop-in after
+ * hydration. It opens the same registered entry; before hydration nothing
+ * opens anything.
+ */
+export function PlaybookAskButton() {
+  const offered = usePlaybookAssistantOffered();
+  const entry = usePhoneAsk();
+  if (!offered) return null;
+  return <AskPill open={entry?.open ?? false} onOpen={() => entry?.onOpen()} className="max-md:hidden" />;
 }

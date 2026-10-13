@@ -39,6 +39,11 @@ const load = cache(async (kind: PlacePage["kind"], slug: string, page: number) =
   return days.length === 0 ? null : { place, days };
 });
 
+/** The days a city or country page lists at `page`, as it lists them; none where it is a 404. For its assistant (M45 D9). */
+export async function placePageDays(kind: PlacePage["kind"], slug: string, page: number) {
+  return (await load(kind, slug, page))?.days ?? [];
+}
+
 async function resolve(kind: PlacePage["kind"], { params, searchParams }: PlaceRouteProps) {
   const [{ slug }, { page: raw }] = await Promise.all([params, searchParams]);
   const page = pageOf(raw);

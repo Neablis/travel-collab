@@ -9,7 +9,7 @@ import { PLACE_PAGE_SIZE, placePagePath } from "@/lib/playbookUrls";
 import { cn } from "@/lib/cn";
 import { DiscoverCard } from "./DiscoverCard";
 import type { PlaybookAskPage } from "@/lib/apiClient";
-import { AssistantAskButton, PlaybookAssistant } from "@/components/assistant/BeyondTripAssistant";
+import { PlaybookAskButton, PlaybookAssistant } from "@/components/assistant/BeyondTripAssistant";
 
 // A client component fed the server's rows: `DiscoverCard` reads the reader's
 // clock preference through a hook.
@@ -50,7 +50,7 @@ export function PlaceDaysList({
             split by a comment, and the heading is what a crawler reads. */}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <Heading level={1}>{heading}</Heading>
-          {assistant !== undefined && <AssistantAskButton />}
+          {assistant !== undefined && <PlaybookAskButton />}
         </div>
         <Text variant="secondary">{summary}</Text>
       </div>

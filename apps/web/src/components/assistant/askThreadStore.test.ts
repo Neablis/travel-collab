@@ -296,17 +296,17 @@ describe("the playbook pages' conversation names", () => {
       beyondTripThreadName({ kind: "account" }),
       beyondTripThreadName({ kind: "playbook", page: { kind: "day", savedDayId: DAY } }),
       beyondTripThreadName({ kind: "playbook", page: { kind: "day", savedDayId: PLAYBOOK } }),
-      beyondTripThreadName({ kind: "playbook", page: { kind: "discover", cities: [], tag: null } }),
-      beyondTripThreadName({ kind: "playbook", page: { kind: "city", slug: "kyoto" } }),
-      beyondTripThreadName({ kind: "playbook", page: { kind: "tag", tag: "meal", city: "kyoto" } }),
-      beyondTripThreadName({ kind: "playbook", page: { kind: "tag", tag: "meal", city: null } }),
+      beyondTripThreadName({ kind: "playbook", page: { kind: "discover", search: {} } }),
+      beyondTripThreadName({ kind: "playbook", page: { kind: "city", slug: "kyoto", page: 1 } }),
+      beyondTripThreadName({ kind: "playbook", page: { kind: "tag", tag: "meal", city: "kyoto", page: 1 } }),
+      beyondTripThreadName({ kind: "playbook", page: { kind: "tag", tag: "meal", city: null, page: 1 } }),
     ];
     expect(new Set(names).size).toBe(names.length);
   });
 
-  it("keeps Discover's conversation as its filters change", () => {
-    expect(beyondTripThreadName({ kind: "playbook", page: { kind: "discover", cities: ["Kyoto"], tag: "meal" } })).toBe(
-      beyondTripThreadName({ kind: "playbook", page: { kind: "discover", cities: [], tag: null } }),
+  it("keeps Discover's conversation as its filters and page change", () => {
+    expect(beyondTripThreadName({ kind: "playbook", page: { kind: "discover", search: { cities: ["Kyoto"], tag: "meal", sort: "newest", after: "x" } } })).toBe(
+      beyondTripThreadName({ kind: "playbook", page: { kind: "discover", search: {} } }),
     );
   });
 });

@@ -211,8 +211,9 @@ export function beyondTripThreadName(scope: BeyondTripAskScope): string {
 
 /**
  * One playbook page's part of its thread's name (M45 D9): each shared day by
- * its id, a city or tag page by what it lists, and Discover as one page
- * whatever its filters are set to, so changing a filter keeps the conversation.
+ * its id, a city or tag page by what it lists at any `?page=N`, and Discover
+ * as one page whatever its filters are set to, so changing a filter or paging
+ * keeps the conversation.
  */
 function playbookPageName(page: PlaybookAskPage): string {
   switch (page.kind) {

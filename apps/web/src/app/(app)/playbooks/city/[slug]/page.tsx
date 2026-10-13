@@ -14,8 +14,8 @@ export default async function CityPage(props: PlaceRouteProps) {
   const [listing, { slug }] = await Promise.all([placeListing("city", props), props.params]);
   return (
     <main className="mx-auto max-w-6xl px-6 py-8">
-      {/* Its assistant reads this city's list (M45 D9). */}
-      <PlaceDaysList {...listing} assistant={{ kind: "city", slug }} />
+      {/* Its assistant reads this city's list, at this page (M45 D9). */}
+      <PlaceDaysList {...listing} assistant={{ kind: "city", slug, page: listing.page }} />
     </main>
   );
 }

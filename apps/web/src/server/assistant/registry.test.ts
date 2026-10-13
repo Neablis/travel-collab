@@ -74,7 +74,7 @@ const TURN_DEPS = {
   readBudget: newDayReadBudget(15),
   trips: newAccountTrips("registry-reader", async () => []),
   paletteCommands: newPaletteCommandBuffer(),
-  playbookPage: newPlaybookPageReads({ kind: "discover", cities: [], tag: null }, { day: async () => null, list: async () => [] }),
+  playbookPage: newPlaybookPageReads({ kind: "discover", search: { cities: [], countries: [], scope: "everyone", sort: "most-added", budget: "any", length: "any", rating: "any", tag: "any", after: null } }, { day: async () => null, list: async () => [] }),
   playbookProposal: newPlaybookProposalBuffer(),
 };
 

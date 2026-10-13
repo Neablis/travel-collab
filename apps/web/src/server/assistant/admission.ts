@@ -41,6 +41,15 @@ import { z } from "zod";
 import type { LanguageModel } from "ai";
 import { ASK_FAILED_MESSAGE, ActivityTagDescribed, type Page, type TripDetail, type TripRole } from "@tc/contracts";
 import { isDemoTripId } from "@/lib/demoTrip";
+import {
+  BudgetBand,
+  DiscoverScope,
+  DiscoverSort,
+  LengthBand,
+  RatingFloor,
+  TagFilter,
+  normalizeCities,
+} from "@/lib/playbooks";
 import { hasAtLeast } from "@/server/accessPolicy";
 import type { AskScope } from "@/server/assistant/context";
 import type { AskIntentRecord } from "@/server/assistant/askAnalytics";
@@ -113,6 +122,30 @@ const AskUiMessage = z.object({
   parts: z.array(z.object({ type: z.string() }).passthrough()),
 });
 
+/**
+ * **Discover's search as the screen sends it to `GET /api/playbooks`**
+ * (`searchPlaybooks`' query), so the list the assistant reads is the list on
+ * screen: the tab, the sort, every filter and the page (`after`). A field the
+ * screen leaves out is the route's own default. The route falls back on a
+ * value it does not know, for a shared URL's sake; this refuses one, since a
+ * scope is built by the screen and never typed.
+ */
+const DiscoverSearchSchema = z.object({
+  cities: z.array(z.string().min(1).max(200)).max(20).default([]).transform(normalizeCities),
+  countries: z.array(z.string().regex(/^[A-Z]{2}$/)).max(50).default([]),
+  scope: DiscoverScope.default("everyone"),
+  sort: DiscoverSort.default("most-added"),
+  budget: BudgetBand.default("any"),
+  length: LengthBand.default("any"),
+  rating: RatingFloor.default("any"),
+  tag: TagFilter.default("any"),
+  after: z.string().min(1).max(200).nullable().default(null),
+});
+export type PlaybookDiscoverSearch = z.infer<typeof DiscoverSearchSchema>;
+
+/** A city's or a tag's `?page=N`, from 1. */
+const ListPageNumber = z.number().int().min(1).max(100_000);
+
 const AskScopeSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("trip") }),
   z.object({ kind: z.literal("day"), dayIndex: z.number().int().min(0) }),
@@ -125,19 +158,21 @@ const AskScopeSchema = z.discriminatedUnion("kind", [
   // to the door it arrived at.
   z.object({ kind: z.literal("account") }),
   // M45 D9, at the same door. A day's id is a claim `resolveSurface`
-  // verifies; a city, slug or tag only filters the page's own list, so its
-  // shape is all that is checked here. A tag is one of the tags with a page.
+  // verifies; a search, slug, tag or page number only says which of the
+  // page's own lists it shows, so its shape is all that is checked here. A
+  // tag is one of the tags with a page.
   z.object({
     kind: z.literal("playbook"),
     page: z.discriminatedUnion("kind", [
       z.object({ kind: z.literal("day"), savedDayId: z.string().uuid() }),
+      z.object({ kind: z.literal("discover"), search: DiscoverSearchSchema }),
+      z.object({ kind: z.literal("city"), slug: z.string().min(1).max(200), page: ListPageNumber }),
       z.object({
-        kind: z.literal("discover"),
-        cities: z.array(z.string().min(1).max(200)).max(20),
-        tag: ActivityTagDescribed.nullable(),
+        kind: z.literal("tag"),
+        tag: ActivityTagDescribed,
+        city: z.string().min(1).max(200).nullable(),
+        page: ListPageNumber,
       }),
-      z.object({ kind: z.literal("city"), slug: z.string().min(1).max(200) }),
-      z.object({ kind: z.literal("tag"), tag: ActivityTagDescribed, city: z.string().min(1).max(200).nullable() }),
     ]),
   }),
 ]);

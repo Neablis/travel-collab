@@ -1279,14 +1279,8 @@ export async function fetchNearbyStops(
   }
 }
 
-/**
- * Discover's day search (M11b link 5).
- *
- * `city` is repeated rather than comma-joined — a city name may contain a
- * comma, and splitting on one would invent a city called " Japan". The caller
- * debounces the text box that feeds it; this does not.
- */
-export async function searchPlaybooks(query: {
+/** Discover's search: what `searchPlaybooks` sends, and what a Discover page's assistant reads (M45 D9). */
+export type DiscoverSearch = {
   cities?: readonly string[];
   /** ISO alpha-2 codes, repeated as `?country=` like `city` (M12 link 7). */
   countries?: readonly string[];
@@ -1300,7 +1294,16 @@ export async function searchPlaybooks(query: {
   tag?: TagFilter;
   /** The last card of the page before, for the page after it; null or absent for page one. */
   after?: string | null;
-}): Promise<ApiResult<DiscoverResponse>> {
+};
+
+/**
+ * Discover's day search (M11b link 5).
+ *
+ * `city` is repeated rather than comma-joined — a city name may contain a
+ * comma, and splitting on one would invent a city called " Japan". The caller
+ * debounces the text box that feeds it; this does not.
+ */
+export async function searchPlaybooks(query: DiscoverSearch): Promise<ApiResult<DiscoverResponse>> {
   const params = new URLSearchParams();
   for (const city of query.cities ?? []) params.append("city", city);
   for (const country of query.countries ?? []) params.append("country", country);
@@ -1504,13 +1507,15 @@ export type BeyondTripAskScope = { kind: "account" } | { kind: "playbook"; page:
  * (`server/assistant/context.ts`): a shared day (one day or a playbook of
  * several), Discover with its filters as set, a city's page by slug, or a
  * tag's, in a city or across the library. A day's id is a claim the server
- * resolves as the asker reads it.
+ * resolves as the asker reads it. A list is named as far as the reader has
+ * paged it, so its assistant reads the list on screen: Discover by the search
+ * it sends, a city's or tag's page by its `?page=N`.
  */
 export type PlaybookAskPage =
   | { kind: "day"; savedDayId: string }
-  | { kind: "discover"; cities: string[]; tag: string | null }
-  | { kind: "city"; slug: string }
-  | { kind: "tag"; tag: string; city: string | null };
+  | { kind: "discover"; search: DiscoverSearch }
+  | { kind: "city"; slug: string; page: number }
+  | { kind: "tag"; tag: string; city: string | null; page: number };
 
 /**
  * Which door a turn goes to: a trip's, with that trip's id, or one of its own

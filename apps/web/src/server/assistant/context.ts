@@ -14,6 +14,7 @@
 //     resolution read it, so the number the model is shown and the id the
 //     server resolves it back to cannot drift.
 import type { TimeFormat, TripDetail } from "@tc/contracts";
+import type { PlaybookDiscoverSearch } from "./admission";
 
 // Every surface a model is selected for, and there is one: `/ask` is the only
 // AI entry point (ADR-033 Decision 1). `AiCommandSurface` — the `page` /
@@ -54,15 +55,16 @@ export type AskScope =
 /**
  * Which playbook page a turn is asked on (M45 D9). `day` is the shared-day
  * page, which shows one playbook day or a playbook of several (its row says
- * which); the other three are lists: Discover with the cities and tag its
- * filters are set to, one city's page, and one tag's, in a city's page (`city`
- * is its slug) or across the library.
+ * which); the other three are lists, each as far as the reader has paged it:
+ * Discover with its whole search (tab, sort, filters, cursor), one city's
+ * page, and one tag's, in a city's page (`city` is its slug) or across the
+ * library, each at its `?page=N`.
  */
 export type PlaybookPage =
   | { kind: "day"; savedDayId: string }
-  | { kind: "discover"; cities: string[]; tag: string | null }
-  | { kind: "city"; slug: string }
-  | { kind: "tag"; tag: string; city: string | null };
+  | { kind: "discover"; search: PlaybookDiscoverSearch }
+  | { kind: "city"; slug: string; page: number }
+  | { kind: "tag"; tag: string; city: string | null; page: number };
 
 // How the scope is written into the /ask system instruction, and read back out
 // of it.

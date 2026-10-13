@@ -1,6 +1,8 @@
 import { renderHook, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { AI_ASK_ENTITLEMENT, useAiEntitled } from "./useAiEntitled";
+import type { ReactNode } from "react";
+import type { Entitlement } from "@tc/contracts";
+import { AI_ASK_ENTITLEMENT, ServedEntitlementsProvider, useAiEntitled, useEntitled } from "./useAiEntitled";
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -67,5 +69,26 @@ describe("useAiEntitled", () => {
     // rejection: an unhandled one fails the run through the exit code while
     // every assertion here still passes.
     expect(result.current).toBeNull();
+  });
+});
+
+// Mitchell's decision 3: under `(app)/layout.tsx` the plan comes with the page.
+describe("with the plan sent with the page", () => {
+  const servedAs = (entitlements: Entitlement[]) =>
+    function Served({ children }: { children: ReactNode }) {
+      return <ServedEntitlementsProvider entitlements={entitlements}>{children}</ServedEntitlementsProvider>;
+    };
+
+  it.each<[string, Entitlement[], boolean]>([
+    ["true when it is conferred", [AI_ASK_ENTITLEMENT], true],
+    ["false when it is not", ["trip.collaborators"], false],
+  ])("is %s, on the first render and with no read of its own", (_name, entitlements, expected) => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    // `active: false` too: a caller's session read has not landed on the
+    // first paint, and the server only sends a plan for a signed-in reader.
+    const { result } = renderHook(() => useEntitled(AI_ASK_ENTITLEMENT, false), { wrapper: servedAs(entitlements) });
+    expect(result.current).toBe(expected);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

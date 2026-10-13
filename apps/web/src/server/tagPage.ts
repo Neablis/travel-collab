@@ -38,6 +38,11 @@ const load = cache(async (tag: string, citySlug: string | null, page: number) =>
   return days.length === 0 ? null : { tagPage, days };
 });
 
+/** The days a tag page lists at `page`, as it lists them; none where it is a 404. For its assistant (M45 D9). */
+export async function tagPageDays(tag: string, citySlug: string | null, page: number) {
+  return (await load(tag, citySlug, page))?.days ?? [];
+}
+
 async function resolve({ params, searchParams }: TagRouteProps) {
   const [{ tag, slug }, { page: raw }] = await Promise.all([params, searchParams]);
   const page = pageOf(raw);

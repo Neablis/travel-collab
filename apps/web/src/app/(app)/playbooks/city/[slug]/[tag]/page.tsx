@@ -13,8 +13,8 @@ export default async function CityTagPage(props: TagRouteProps) {
   const [listing, { tag, slug }] = await Promise.all([tagListing(props), props.params]);
   return (
     <main className="mx-auto max-w-6xl px-6 py-8">
-      {/* Its assistant reads this tag's list (M45 D9). */}
-      <PlaceDaysList {...listing} assistant={{ kind: "tag", tag, city: slug ?? null }} />
+      {/* Its assistant reads this tag's list, at this page (M45 D9). */}
+      <PlaceDaysList {...listing} assistant={{ kind: "tag", tag, city: slug ?? null, page: listing.page }} />
     </main>
   );
 }

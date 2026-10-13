@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { Page } from "@playwright/test";
 import { expect, test } from "./fixtures/test";
-import { createMappedTrip, forget, publishedDay } from "./helpers";
+import { createMappedTrip, forget, publishedDay, signInAsDevUser, stranger } from "./helpers";
 import { e2eTripName } from "./tripNames";
 
 // M45 D9, against the simulated model: a playbook day has an assistant of its
@@ -90,4 +90,23 @@ test("asked to start a trip with this day, the assistant drafts it and Approve c
   const trip = await tripDetail(page, created);
   expect(trip.name).toBe(dayName);
   expect(trip.days[0]!.activityIds.map((id) => trip.activities[id]!.title)).toEqual([`Stop in ${city}`]);
+});
+
+// Mitchell's decision 3 (2026-10-13), "send the plan with the page": the Ask
+// is in the HTML the server sends for a reader whose plan has the assistant,
+// so it is there on the first paint rather than after a read, and it is never
+// in it for a reader whose plan has not. The raw response, before any script.
+test("the day's Ask is in the server's HTML for a plan with the assistant, and not for a free one", async ({ page, browser }) => {
+  const ASK_PILL = 'data-testid="ask-pill"';
+  const entitled = await page.request.get(`/playbooks/day/${savedDayId}`);
+  expect(await entitled.text()).toContain(ASK_PILL);
+
+  const free = await stranger(browser);
+  await signInAsDevUser(free, `m45free${randomUUID().replace(/-/g, "").slice(0, 12)}`);
+  const unentitled = await free.request.get(`/playbooks/day/${savedDayId}`);
+  const html = await unentitled.text();
+  // The day itself is there, so the absence is the Ask's and not the page's.
+  expect(html).toContain(dayName);
+  expect(html).not.toContain(ASK_PILL);
+  await free.context().close();
 });

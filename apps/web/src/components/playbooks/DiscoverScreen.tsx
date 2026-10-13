@@ -31,7 +31,7 @@ import { DISCOVER_URL_DEFAULTS, discoverQueryString, type DiscoverUrlState } fro
 import { DiscoverCard } from "./DiscoverCard";
 import { LibraryMoved, SyncFailure } from "./ReadStates";
 import { useLibraryRead } from "./useLibraryRead";
-import { AssistantAskButton, PlaybookAssistant } from "@/components/assistant/BeyondTripAssistant";
+import { PlaybookAskButton, PlaybookAssistant } from "@/components/assistant/BeyondTripAssistant";
 
 // Discover (M11b link 5) — the route that REPLACES the inert `/playbooks`
 // shell, not one that re-points it.
@@ -371,7 +371,7 @@ export function DiscoverScreen({
             whose plan has it. */}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <Heading level={1}>Discover</Heading>
-          <AssistantAskButton />
+          <PlaybookAskButton />
         </div>
         {/* One line (§35.5), with its second verb back: *"planned and rated"*
             waited for M12 to give anybody a way to rate (M27 D8) — a header
@@ -870,7 +870,12 @@ export function DiscoverScreen({
       )}
 
       {/* What it reads is this list as filtered by place and tag. */}
-      <PlaybookAssistant page={{ kind: "discover", cities, tag: tag === "any" ? null : tag }} contextLine="Discover" />
+      {/* The search this screen reads, so its assistant reads the same list:
+          the tab, the sort, every filter and the page. */}
+      <PlaybookAssistant
+        page={{ kind: "discover", search: { cities, countries, scope, sort, budget, length, rating, tag, after } }}
+        contextLine="Discover"
+      />
     </div>
   );
 }

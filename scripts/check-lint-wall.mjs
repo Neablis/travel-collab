@@ -307,6 +307,28 @@ expectRejectedBy(
   "a page outside playbooks gets no exemption",
 );
 
+// THE APP LAYOUT'S PLAN READ (M45 decision 3): `(app)/layout.tsx` alone may
+// read `src/server`, to send the reader's entitlements with the page. Open for
+// that file; shut for the domain and for any other layout.
+const APP_LAYOUT = "src/app/(app)/layout.tsx";
+
+expectClean(
+  lintFixture("app_layout_server", `import "@/server/entitlements/resolver";${PAGE_BODY}`, { file: APP_LAYOUT }),
+  "the (app) layout may import @/server/* (the exemption is open)",
+);
+expectRejectedBy(
+  lintFixture("app_layout_domain", `import "@tc/domain";${PAGE_BODY}`, { file: APP_LAYOUT }),
+  "no-restricted-imports",
+  "the (app) layout still may not import @tc/domain",
+);
+expectRejectedBy(
+  lintFixture("trips_layout_server", `import "@/server/entitlements/resolver";${PAGE_BODY}`, {
+    file: "src/app/(app)/trips/[tripId]/layout.tsx",
+  }),
+  "no-restricted-imports",
+  "a layout below (app) gets no exemption",
+);
+
 // THE GATEWAY CHOKEPOINT WALL (ADR-019's 2026-08-25 amendment): only
 // src/server/ai/modelSelection.ts may import @/server/ai/gateway. Fixtured
 // under src/server/ai/ itself — a NEW file there, not modelSelection.ts —
