@@ -30,24 +30,32 @@ Mitchell moved **M43 and M44 to the end** (*"Neither are impacting anything toda
 ⌘K palette, so the assistant moves you around by running palette commands, and ⌘K offers
 *Ask: …* for unmatched text.
 
-**M45 in flight (2026-10-12 ~21:45Z)** — plan `docs/plans/2026-10-12-M45-assistant-beyond-one-trip.md`:
-- Part 0, PR 420: draft tracker on `claude/stoic-dijkstra-01wxup`; merges last.
-- Part 1, PR 422: palette notebook commands, run-by-id. **Merged** by Mitchell as `bc2b587`.
-- Part 3, PR 421: `/api/ask`, cross-trip tools, ledger `ask.account`. **Merged** as `d34abe5`.
-  Not walked on a preview by Mitchell; it has no UI until part 4.
-- Part 2, PR 424: **merged** by Mitchell as `f2cf10c`.
-- Fix PR 425 (KI-2026-10-12-e): **merged** as `c0e0bf4`. The design is "stream it, then remove
-  it", Mitchell's call: text streams live, and text beside a tool call is taken back. The flicker
-  stays open on purpose as KI-2026-10-12-h. KI-e is moved to `resolved/` on part 0.
-- Part 4, PR 426 (`claude/m45-part4-home-rail`, head `373182c`): the Home rail, ⌘K *Ask:*,
-  per-user stored threads and drafts (KI-g's composer half), and `open_trip` for account
-  navigation. Mitchell's calls are in: the rail docks from 1100px with an Ask button below that,
-  and *Ask:* is hidden without assistant access. Under second-round review. It conflicts with
-  main in `app/api/ask/route.int.test.ts` only, after PR 425.
-- Part 5 (D9, the playbook-pages assistant) starts when PR 426 merges. Plan section on part 0.
-- Live eval at `d34abe5` (Mitchell's go-ahead): account cases 4/4 PASS, 36/36 checks, $0.0012;
-  trip run stopped at the $0.10 cap after 4 of 27 turns, all PASS. Numbers in the milestone file.
-- Builders must each work in their own git worktree (parts 1 and 3 once tangled the main checkout).
+**M45 in flight (2026-10-13 ~00:45Z)** — plan `docs/plans/2026-10-12-M45-assistant-beyond-one-trip.md`:
+- Part 0, PR 420: draft tracker on `claude/stoic-dijkstra-01wxup`. It merges last.
+- **Merged:**
+  - part 1, PR 422 (`bc2b587`);
+  - part 3, PR 421 (`d34abe5`);
+  - part 2, PR 424 (`f2cf10c`);
+  - fix PR 425 for KI-2026-10-12-e (`c0e0bf4`): text streams, then is taken back. The flicker is
+    open on purpose as KI-2026-10-12-h;
+  - part 4, PR 426 (`204c9dd`): the Home rail, ⌘K *Ask:*, per-user threads and drafts, and
+    `open_trip`.
+- Mitchell walked part 4's preview. His two comments changed D7: Home's rail starts closed at every
+  width and the head Ask opens it, and the phone Ask pill is tinted only while it is open. Both
+  shipped in PR 426, and D7 records it.
+- **Part 5, PR 427** (`claude/m45-part5-playbook-assistant`), the assistant on the playbook pages
+  (D9): opened by its builder 2026-10-13 00:41Z. **Not reviewed.** CI was running on `12bc9be`.
+  The builder's red-first evidence and deviations are in the PR body. It also amends
+  `.design-sync/handoff/SPEC.md` §35.2 (Home's head: New trip and Ask).
+- **Next:**
+  1. Dispatch a part-reviewer on PR 427, then work its findings to green.
+  2. Mitchell walks the preview.
+  3. Once he merges, close the gate in a fresh session (`close-a-milestone`).
+- **Live eval:** not re-run since `d34abe5`, where the account cases were 4/4 PASS. `open_trip` and
+  the playbook surface have no live result. The gate needs one. Ask Mitchell before running it
+  (about $0.19 a run).
+- No gate box is ticked.
+- Builders must each work in their own git worktree.
 
 Order:
 `… M42 ✓ → M45 → M46 → M47 → M48 → M49 → M43 → M44`; the reorder is recorded in
