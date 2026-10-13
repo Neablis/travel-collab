@@ -232,6 +232,18 @@ describe("tripsCalled", () => {
   ])("from %j, finds the trip whose name starts with %j", (names, typed, meant) => {
     expect(tripsCalled(named(...names), typed)).toEqual([{ name: meant }]);
   });
+
+  // A name's own leading "The" or "My", and its trailing "trip", are read off
+  // as the typed words' are, or "Bahamas" would need "The" typed to be found.
+  it.each([
+    [["The Bahamas", "Kyoto"], "Bahamas", "The Bahamas"],
+    [["The Bahamas", "Kyoto"], "the Bahamas trip", "The Bahamas"],
+    [["The Hague 2026", "Kyoto"], "the Hague trip", "The Hague 2026"],
+    [["My Kyoto trip", "Osaka"], "Kyoto", "My Kyoto trip"],
+    [["My Kyoto trip", "Osaka"], "the Kyoto trip", "My Kyoto trip"],
+  ])("from %j, finds the trip named with an article from %j", (names, typed, meant) => {
+    expect(tripsCalled(named(...names), typed)).toEqual([{ name: meant }]);
+  });
 });
 
 describe("a trip named by the person's own words", () => {
@@ -263,6 +275,27 @@ describe("a trip named by the person's own words", () => {
       { trips: newAccountTrips(ASKER, async () => [notGoing, kyoto2026]), paletteCommands },
     );
     expect(result).toEqual({ queued: false, refused: "You are travelling on no trip called “my Kyoto trip”." });
+    expect(paletteCommands.collected()).toEqual([]);
+  });
+
+  // Refused whenever the words fit more than one trip, and the reason given is
+  // true: the person is asked which, and their answer must not then be "no trip".
+  it.each([
+    [false, false, "You are travelling on no trip called “Kyoto”."],
+    [false, true, "“Kyoto” fits more than one of your trips, and you are travelling on only one of them."],
+    [true, true, "You are travelling on more than one trip called “Kyoto”."],
+  ])("open_trip, with two Kyoto trips travelled on %j and %j, refuses: %s", async (springGoing, autumnGoing, refused) => {
+    const kyotoTrip = (name: string, travelling: boolean): TripDetail =>
+      tripDetailFactory.build({ name, members: [{ userId: ASKER, role: "owner", travelling }] }, { transient: { dayCount: 1, activitiesPerDay: 1 } });
+    const paletteCommands = newPaletteCommandBuffer();
+    const result = await openTripTool.run(
+      { trip: "Kyoto" },
+      {
+        trips: newAccountTrips(ASKER, async () => [kyotoTrip("Kyoto spring", springGoing), kyotoTrip("Kyoto autumn", autumnGoing)]),
+        paletteCommands,
+      },
+    );
+    expect(result).toEqual({ queued: false, refused });
     expect(paletteCommands.collected()).toEqual([]);
   });
 

@@ -182,6 +182,11 @@ function wordsOf(text: string): string {
     .trim();
 }
 
+/** "my Kyoto trip" and "The Kyoto trip" are both "kyoto": words without a leading article or a trailing "trip". */
+function keyOf(words: string): string {
+  return words.replace(/^(?:my|the) /, "").replace(/(?:^| )trip$/, "").trim();
+}
+
 /**
  * The trips a person meant by `name`, as they said it: "Kyoto", "my Kyoto
  * trip" and "the Kyoto trip." all find a trip named "Kyoto". Shared by every
@@ -194,9 +199,15 @@ function wordsOf(text: string): string {
  * "and" never count. First the trips called exactly what was typed, then what
  * follows a leading "my" or "the" ("my Road trip" is "Road trip", not
  * "Road"), then that without a trailing "trip", then every trip whose name
- * starts with what is left, word for word ("Kyoto" finds "Kyoto 2026"). Only
- * the leading words: "York" is not "New York", and "Kyoto" does not find
- * "Summer in Kyoto", because a later word of a name may be another place.
+ * starts with what is left, word for word ("Kyoto" finds "Kyoto 2026"). In
+ * that last step the name sheds its own "The", "My" and "trip" too, so
+ * "Bahamas" finds "The Bahamas": only there, because a second fit there asks
+ * rather than picks. Only the leading words: "York" is not "New York", and
+ * "Kyoto" does not find "Summer in Kyoto", because a later word of a name may
+ * be another place. A leading word may be another place too ("my Kansas trip"
+ * finds "Kansas City", "my Washington trip" "Washington DC"); that is
+ * accepted, because the person named no trip that fits better, and no rule
+ * over words tells such a name from "Kyoto 2026".
  * Part of a word is never a match either: "India" is not short for "Indiana".
  * Nor is a trip found because its name is one of the words typed: "Kyoto trip
  * from Tokyo" names some other trip, not "Tokyo". More than one is for the
@@ -208,17 +219,21 @@ export function tripsCalled<T extends { name: string }>(trips: readonly T[], nam
   const typed = wordsOf(name);
   if (typed === "") return [];
   const bare = typed.replace(/^(?:my|the) /, "");
-  const key = bare.replace(/(?:^| )trip$/, "").trim();
-  const named = trips.map((trip) => ({ trip, words: wordsOf(trip.name) }));
+  const key = keyOf(typed);
+  const named = trips.map((trip) => {
+    const words = wordsOf(trip.name);
+    return { trip, words, nameKey: keyOf(words) };
+  });
+  type Named = (typeof named)[number];
   // "my trip" leaves no key, and every name holds the empty string.
   const tiers = [
-    (words: string) => words === typed,
-    (words: string) => words === bare,
-    (words: string) => key !== "" && words === key,
-    (words: string) => key !== "" && `${words} `.startsWith(`${key} `),
+    ({ words }: Named) => words === typed,
+    ({ words }: Named) => words === bare,
+    ({ words }: Named) => key !== "" && words === key,
+    ({ nameKey }: Named) => key !== "" && `${nameKey} `.startsWith(`${key} `),
   ];
   for (const fits of tiers) {
-    const found = named.filter(({ words }) => fits(words));
+    const found = named.filter(fits);
     if (found.length > 0) return found.map(({ trip }) => trip);
   }
   return [];
@@ -258,11 +273,18 @@ export const openTripTool = defineTool({
     const trips = await deps.trips.load();
     const matches = tripsCalled(trips, input.trip);
     const travelled = travelledTrips(trips, deps.trips.userId);
-    if (matches.length !== 1 || !travelled.includes(matches[0]!)) {
-      const which = matches.length > 1 ? "more than one trip" : "no trip";
-      return { queued: false, refused: `You are travelling on ${which} called “${input.trip}”.` };
+    const going = matches.filter((trip) => travelled.includes(trip));
+    if (going.length === 0) return { queued: false, refused: `You are travelling on no trip called “${input.trip}”.` };
+    // Asked even when they go on only one: the person may mean the other. The
+    // reason must be true, or their answer is then refused as "no trip".
+    if (matches.length > 1) {
+      const refused =
+        going.length > 1
+          ? `You are travelling on more than one trip called “${input.trip}”.`
+          : `“${input.trip}” fits more than one of your trips, and you are travelling on only one of them.`;
+      return { queued: false, refused };
     }
-    const { tripId } = matches[0]!;
+    const { tripId } = going[0]!;
     const id = input.view === undefined ? `go:trip:${tripId}` : `go:trip:${tripId}:view:${input.view}`;
     if (!deps.paletteCommands.add({ id, needsApproval: false })) return { queued: false, refused: "That is not somewhere I can take them." };
     return { queued: true, note: QUEUED_NOTE };
