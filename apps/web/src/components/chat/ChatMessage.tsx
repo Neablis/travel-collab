@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PersonChip } from "@/components/ui/person-chip";
 import { Skeleton } from "@/components/ui/skeleton";
+import { MessageBody } from "./MessageChip";
 
 /** Who wrote a message that a member no longer on the trip wrote. */
 export const FORMER_MEMBER = "Former member";
@@ -84,7 +85,9 @@ export function ChatMessage({
         ) : editing ? (
           <EditForm initial={message.body} onSave={onSave} onCancel={onCancelEdit} />
         ) : (
-          <p className="whitespace-pre-wrap break-words text-sm text-ink">{message.body}</p>
+          <p className="whitespace-pre-wrap break-words text-sm text-ink">
+            <MessageBody body={message.body} link={message.link} />
+          </p>
         )}
       </div>
       {/* Quiet until the line is pointed at or focused, where a mouse can do

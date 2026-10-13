@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Text } from "@/components/ui/text";
 import { cn } from "@/lib/cn";
 import { ChatMessage, type MessageViewer } from "./ChatMessage";
+import { useTargetPicker } from "./TargetPicker";
 import type { TripChat } from "./useTripChat";
 
 /** The read-only line after the owner's lapse (M46 D2): why, not just that. */
@@ -37,6 +38,7 @@ export function ChatPanel({
   const [draft, setDraft] = useState("");
   const [editing, setEditing] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const picker = useTargetPicker(draft, setDraft);
   const scrollport = useRef<HTMLDivElement>(null);
   usePinToBottom(scrollport, [chat.messages.length]);
   // Who is reading decides what each line offers (D6). Neither is a request of
@@ -62,7 +64,10 @@ export function ChatPanel({
   const send = async () => {
     const body = draft.trim();
     if (body === "" || chat.posting) return;
-    if (await chat.post(body)) setDraft("");
+    if (await chat.post(body, picker.linkFor(body))) {
+      setDraft("");
+      picker.clear();
+    }
   };
 
   return (
@@ -139,13 +144,15 @@ export function ChatPanel({
                 </p>
               )}
               <form
-                className="flex gap-1.5"
+                className="relative flex gap-1.5"
                 onSubmit={(event) => {
                   event.preventDefault();
                   void send();
                 }}
               >
+                {picker.list}
                 <Input
+                  {...picker.inputProps}
                   aria-label="Message"
                   placeholder="Message the people on this trip…"
                   className={cn(touch && "h-11")}
