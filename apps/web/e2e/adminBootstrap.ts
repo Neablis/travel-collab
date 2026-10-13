@@ -1,4 +1,4 @@
-import type { Browser } from "@playwright/test";
+import type { Browser, BrowserContext, Page } from "@playwright/test";
 import { E2E_SUPER_CODE } from "./admission";
 
 // The one account this suite drives the operator console as (M20 link 7).
@@ -36,17 +36,7 @@ export const E2E_ADMIN_USER_ID = `dev-${E2E_ADMIN_USERNAME}`;
 export async function grantCollaborators(browser: Browser, userId: string): Promise<void> {
   const context = await browser.newContext({ storageState: { cookies: [], origins: [] } });
   try {
-    const page = await context.newPage();
-    await page.goto("/signup");
-    await page.getByLabel("Invite code").fill(E2E_SUPER_CODE);
-    // eslint-disable-next-line playwright/prefer-locator -- matches signInAsDevUser's grandfathered selector
-    await page.fill('input[name="username"]', E2E_ADMIN_USERNAME);
-    await Promise.all([
-      page.waitForResponse(
-        (r) => r.url().includes("/api/trips") && r.request().method() === "GET" && r.ok(),
-      ),
-      page.getByRole("button", { name: /sign in with dev login/i }).click(),
-    ]);
+    const page = await signInAsOperator(context);
     const granted = await page.request.post("/api/admin/grants", {
       data: { userId, planId: "premium", expiresAt: null, reason: "e2e: this suite's owner invites." },
     });
@@ -56,4 +46,41 @@ export async function grantCollaborators(browser: Browser, userId: string): Prom
   } finally {
     await context.close();
   }
+}
+
+/**
+ * Take an account's signup trial away, so it is really on `free`: a new
+ * account holds a week of `plus`, assistant included. Through the console's
+ * own revoke path, as the operator, for the reason `grantCollaborators` gives.
+ */
+export async function revokeSignupTrial(browser: Browser, userId: string): Promise<void> {
+  const context = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+  try {
+    const page = await signInAsOperator(context);
+    const overview = await page.request.get("/api/admin/overview");
+    if (!overview.ok()) throw new Error(`could not read the console overview: ${overview.status()}`);
+    const { overview: data } = (await overview.json()) as {
+      overview: { accounts: { userId: string; grants: { id: string; source: string }[] }[] };
+    };
+    const trial = data.accounts.find((account) => account.userId === userId)?.grants.find((grant) => grant.source === "trial");
+    if (trial === undefined) throw new Error(`${userId} carries no signup trial`);
+    const revoked = await page.request.delete("/api/admin/grants", { data: { grantId: trial.id } });
+    if (!revoked.ok()) throw new Error(`could not revoke ${userId}'s trial: ${revoked.status()}`);
+  } finally {
+    await context.close();
+  }
+}
+
+/** The configured operator, signed in on `context`. */
+async function signInAsOperator(context: BrowserContext): Promise<Page> {
+  const page = await context.newPage();
+  await page.goto("/signup");
+  await page.getByLabel("Invite code").fill(E2E_SUPER_CODE);
+  // eslint-disable-next-line playwright/prefer-locator -- matches signInAsDevUser's grandfathered selector
+  await page.fill('input[name="username"]', E2E_ADMIN_USERNAME);
+  await Promise.all([
+    page.waitForResponse((r) => r.url().includes("/api/trips") && r.request().method() === "GET" && r.ok()),
+    page.getByRole("button", { name: /sign in with dev login/i }).click(),
+  ]);
+  return page;
 }

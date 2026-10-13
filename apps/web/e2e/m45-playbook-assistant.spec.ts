@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { Page } from "@playwright/test";
 import { expect, test } from "./fixtures/test";
+import { revokeSignupTrial } from "./adminBootstrap";
 import { createMappedTrip, forget, publishedDay, signInAsDevUser, stranger } from "./helpers";
 import { e2eTripName } from "./tripNames";
 
@@ -102,7 +103,9 @@ test("the day's Ask is in the server's HTML for a plan with the assistant, and n
   expect(await entitled.text()).toContain(ASK_PILL);
 
   const free = await stranger(browser);
-  await signInAsDevUser(free, `m45free${randomUUID().replace(/-/g, "").slice(0, 12)}`);
+  const username = `m45free${randomUUID().replace(/-/g, "").slice(0, 12)}`;
+  await signInAsDevUser(free, username);
+  await revokeSignupTrial(browser, `dev-${username}`);
   const unentitled = await free.request.get(`/playbooks/day/${savedDayId}`);
   const html = await unentitled.text();
   // The day itself is there, so the absence is the Ask's and not the page's.
