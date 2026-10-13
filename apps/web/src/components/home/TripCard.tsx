@@ -38,7 +38,29 @@ export type TripCardProps = {
   // so the card does not grow when the answer lands (`UnplannedTripSteps`).
   // `null` is a resolved nobody.
   viewerId?: string | null;
+  // How many of the trip's chat messages the reader has not read (M46 D5),
+  // as of Home's load: Home does not poll.
+  unreadChat?: number;
 };
+
+/**
+ * 💬 and how many chat messages the reader has not read, on a card and the
+ * hero (M46 D5). Nothing at zero: a read trip carries no mark.
+ *
+ * @param count - Unread messages on the trip
+ * @returns The badge, or nothing when the count is zero
+ */
+export function ChatUnreadBadge({ count }: { count: number }) {
+  if (count <= 0) return null;
+  return (
+    // One image to a screen reader, named in words, so it hears "2 unread
+    // messages" rather than "speech balloon 2".
+    <Badge variant="brand" role="img" aria-label={`${count} unread message${count === 1 ? "" : "s"}`}>
+      <span aria-hidden>💬</span>
+      {count}
+    </Badge>
+  );
+}
 
 // Same static-map pattern as Sparkline.tsx's BAR_BG / badge.tsx's variant
 // map: Tailwind's JIT scanner can't see a template-interpolated `bg-${x}`.
@@ -76,9 +98,10 @@ function statusLabel(status: TripStatus): string {
  * @param menuSlot - Optional actions menu content
  * @param plannedOfBudget - Optional preformatted planned-cost and budget text
  * @param viewerId - The reader's user id, which decides an unplanned trip's next steps
+ * @param unreadChat - The reader's unread chat messages on the trip
  * @returns The rendered trip summary card
  */
-export function TripCard({ trip, menuSlot, plannedOfBudget, viewerId }: TripCardProps) {
+export function TripCard({ trip, menuSlot, plannedOfBudget, viewerId, unreadChat = 0 }: TripCardProps) {
   const accent = dayAccents([trip.tripId])[0]!;
   // The stack is who is going (travellers spec §5): an adviser who joined to
   // help plan is not counted, and not drawn — so the label and the avatars it
@@ -244,11 +267,14 @@ export function TripCard({ trip, menuSlot, plannedOfBudget, viewerId }: TripCard
             />
           ))}
         </div>
-        {cover !== null ? (
-          <CoverCredit photo={cover} className="min-w-0 text-right" />
-        ) : (
-          !unplanned && <Badge variant={STATUS_BADGE_VARIANT[trip.status]}>{statusLabel(trip.status)}</Badge>
-        )}
+        <div className="flex min-w-0 items-center gap-2">
+          <ChatUnreadBadge count={unreadChat} />
+          {cover !== null ? (
+            <CoverCredit photo={cover} className="min-w-0 text-right" />
+          ) : (
+            !unplanned && <Badge variant={STATUS_BADGE_VARIANT[trip.status]}>{statusLabel(trip.status)}</Badge>
+          )}
+        </div>
       </div>
     </>
   );

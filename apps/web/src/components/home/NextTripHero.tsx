@@ -12,6 +12,7 @@ import { PHONE_TOUCH, buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Sparkline, type SparklineDay } from "@/components/trip/Sparkline";
 import { SparklineSkeleton } from "./HomeSkeletons";
+import { ChatUnreadBadge } from "./TripCard";
 import { CoverCredit } from "@/components/cover/CoverCredit";
 import { CoverImage } from "@/components/cover/CoverImage";
 import {
@@ -53,6 +54,8 @@ export type NextTripHeroProps = {
    * flight, and `null` for nobody signed in.
    */
   viewerId?: string | null;
+  /** The reader's unread chat messages on the trip (M46 D5), as `TripCard` takes it. */
+  unreadChat?: number;
 };
 
 // Sparkline needs each day's real stop count and real city, but TripSummary
@@ -80,9 +83,10 @@ type SparklineFetchState =
  * @param trip - Summary data for the trip and its travelers
  * @param menuSlot - The trip's lifecycle menu, the same one a trip card carries
  * @param viewerId - The reader's user id, which decides an unplanned trip's next steps
+ * @param unreadChat - The reader's unread chat messages on the trip
  * @returns The rendered trip overview hero
  */
-export function NextTripHero({ trip, menuSlot, viewerId }: NextTripHeroProps) {
+export function NextTripHero({ trip, menuSlot, viewerId, unreadChat = 0 }: NextTripHeroProps) {
   // Who is going, as TripCard counts and draws them (travellers spec §5).
   const going = new Set(travellerIds(trip.members));
   const travellers = trip.members.filter((m) => going.has(m.userId));
@@ -225,6 +229,7 @@ export function NextTripHero({ trip, menuSlot, viewerId }: NextTripHeroProps) {
   const badgeRow = (
     <div className={cn("flex items-center gap-2.5", cover !== null && "absolute top-3 right-3 left-6 sm:top-3.5")}>
       <Badge variant="brand">Next trip</Badge>
+      <ChatUnreadBadge count={unreadChat} />
       {/* **The countdown** (DRIFT D6, `dc.html:1540`, M26 link 9d). Home
           picks this hero by start date (`orderHomeTrips`, KI-034), and
           this counts to that date.

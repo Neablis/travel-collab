@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { and, count, desc, eq, isNull, ne, sql } from "drizzle-orm";
+import { and, count, desc, eq, inArray, isNull, ne, or, sql } from "drizzle-orm";
 import type { ChatMessage, PostChatMessage, TripRole } from "@tc/contracts";
 import { db } from "../db/client";
 import { tripChatReads, tripMessages } from "../db/schema";
@@ -53,26 +53,38 @@ export async function listMessages(
 }
 
 async function unreadCount(tripId: string, userId: string): Promise<number> {
-  const [cursor] = await db
-    .select({ lastReadAt: tripChatReads.lastReadAt, lastReadId: tripChatReads.lastReadId })
-    .from(tripChatReads)
-    .where(and(eq(tripChatReads.tripId, tripId), eq(tripChatReads.userId, userId)));
-  const [row] = await db
-    .select({ n: count() })
+  return (await unreadByTrip(userId, [tripId])).get(tripId) ?? 0;
+}
+
+/**
+ * How many messages the reader has not read on each of these trips, in one
+ * statement for the whole list (Home's cards, M46 D5). A trip with none is
+ * absent from the map. Which trips the reader may see is the caller's to
+ * decide; this only counts.
+ */
+export async function unreadByTrip(userId: string, tripIds: readonly string[]): Promise<Map<string, number>> {
+  if (tripIds.length === 0) return new Map();
+  const rows = await db
+    .select({ tripId: tripMessages.tripId, n: count() })
     .from(tripMessages)
+    .leftJoin(tripChatReads, and(eq(tripChatReads.tripId, tripMessages.tripId), eq(tripChatReads.userId, userId)))
     .where(
       and(
-        eq(tripMessages.tripId, tripId),
+        inArray(tripMessages.tripId, [...tripIds]),
         ne(tripMessages.authorId, userId),
         isNull(tripMessages.deletedAt),
         isNull(tripMessages.hiddenAt),
         // After the cursor in the order the list is read, `(created_at, id)`,
         // so a message stamped the same millisecond as the one marked read is
-        // still unread.
-        cursor ? sql`(${tripMessages.createdAt}, ${tripMessages.id}) > (${cursor.lastReadAt}, ${cursor.lastReadId})` : undefined,
+        // still unread. No cursor yet: everything is.
+        or(
+          isNull(tripChatReads.tripId),
+          sql`(${tripMessages.createdAt}, ${tripMessages.id}) > (${tripChatReads.lastReadAt}, ${tripChatReads.lastReadId})`,
+        ),
       ),
-    );
-  return row?.n ?? 0;
+    )
+    .groupBy(tripMessages.tripId);
+  return new Map(rows.map((r) => [r.tripId, r.n]));
 }
 
 /** Store a message and move the trip's `chatRev`, in one transaction. */

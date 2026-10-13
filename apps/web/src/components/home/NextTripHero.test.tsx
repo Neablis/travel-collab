@@ -473,6 +473,18 @@ describe("NextTripHero", () => {
     expect(screen.queryByText(/^Created /)).toBeNull();
   });
 
+  // M46 D5: the hero carries the same unread chat count a card does.
+  it("shows the unread chat count beside its badge, and nothing at zero", () => {
+    const trip = tripSummaryFixture();
+    fetchTripDetailMock.mockReturnValue(new Promise(() => {}));
+    const { rerender } = render(<NextTripHero trip={trip} unreadChat={3} />);
+    expect(screen.getByRole("img", { name: "3 unread messages" })).toBeTruthy();
+
+    rerender(<NextTripHero trip={trip} unreadChat={0} />);
+    expect(screen.getByRole("heading", { name: trip.name })).toBeTruthy();
+    expect(screen.queryByRole("img", { name: /unread/ })).toBeNull();
+  });
+
   // Task 8.5: the traveler count used to say "travelers" unconditionally,
   // even for a solo trip. It is the avatar stack's name now that the tile
   // that printed it is gone (§35.2).
