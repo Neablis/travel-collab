@@ -3,6 +3,7 @@ import type { ChatMessage as ChatMessageData } from "@tc/contracts";
 import type { Persona } from "@/components/pages/people";
 import { PersonChip } from "@/components/ui/person-chip";
 import { Skeleton } from "@/components/ui/skeleton";
+import { MessageBody } from "./MessageChip";
 
 /** Who wrote a message that a member no longer on the trip wrote. */
 export const FORMER_MEMBER = "Former member";
@@ -37,7 +38,9 @@ export function ChatMessage({ message, persona }: { message: ChatMessageData; pe
         {message.removed ? (
           <p className="text-sm italic text-slate">message removed</p>
         ) : (
-          <p className="whitespace-pre-wrap break-words text-sm text-ink">{message.body}</p>
+          <p className="whitespace-pre-wrap break-words text-sm text-ink">
+            <MessageBody body={message.body} link={message.link} />
+          </p>
         )}
       </div>
     </li>

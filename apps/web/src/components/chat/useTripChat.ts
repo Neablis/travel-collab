@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { ChatMessage, ChatPage } from "@tc/contracts";
+import type { ChatLink, ChatMessage, ChatPage } from "@tc/contracts";
 import { fetchChat, markChatRead, postChatMessage, type ApiError } from "@/lib/apiClient";
 
 /**
@@ -23,7 +23,7 @@ export type TripChat = {
   /** False after the owner's lapse: the chat is readable and the composer is not. */
   canPost: boolean;
   /** Resolves false when the message was not stored, so the composer keeps the text. */
-  post: (body: string) => Promise<boolean>;
+  post: (body: string, link?: ChatLink) => Promise<boolean>;
   posting: boolean;
   postError: string | null;
 };
@@ -105,10 +105,10 @@ export function useTripChat({
   }, [tripId, enabled, reading, newest, status, refused]);
 
   const post = useCallback(
-    async (body: string) => {
+    async (body: string, link?: ChatLink) => {
       setPosting(true);
       setPostError(null);
-      const result = await postChatMessage(tripId, { body });
+      const result = await postChatMessage(tripId, link === undefined ? { body } : { body, link });
       setPosting(false);
       if (result.ok) {
         // Shown at once; the next re-read brings the same message back.

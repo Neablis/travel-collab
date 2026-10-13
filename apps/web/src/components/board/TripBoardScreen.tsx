@@ -68,6 +68,7 @@ import { useAssistantVisibility } from "@/components/assistant/useAssistantVisib
 import { AssistantRail, type RailTab } from "@/components/assistant/AssistantRail";
 import { readLastRailTab, rememberRailTab } from "@/components/assistant/lastTab";
 import { ChatPanel } from "@/components/chat/ChatPanel";
+import { useBoardFocusEntry } from "@/components/chat/boardFocus";
 import { useTripChat } from "@/components/chat/useTripChat";
 import { personasOf } from "@/components/pages/people";
 import type { AssistantTurn } from "@/components/assistant/Transcript";
@@ -392,6 +393,29 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // Decided after the first paint by the same argument as `isPhone` above.
   const isTabletWidth = useIsTabletWidth();
   const assistantPresentation = isPhone || isTabletWidth ? "sheet" : assistantShape;
+  // Chat's day and stop chips and its *@day* / *@stop* picker (M46 D3) go
+  // where ⌘K's *Go to* goes, over this trip's days and stops and no other
+  // (`boardFocus.ts`). Where Chat is a sheet over the board, a chip puts it
+  // away, so what it focuses is what is in view.
+  const chatTargets = useMemo(() => (activeTrip === null ? null : tripTargets(activeTrip, { focusedActivityId: null, focusedDayId: null, selectedDayId: null })), [activeTrip]);
+  const afterSheet = useRef<(() => void) | null>(null);
+  const fromChat = (go: (id: string) => void) => (id: string) => {
+    if (assistantPresentation !== "sheet" || !assistant.open) return go(id);
+    afterSheet.current = () => go(id);
+    assistant.hide();
+  };
+  useBoardFocusEntry(chatTargets, fromChat(focusDay), fromChat(focusActivity));
+  // The sheet's close hands focus back to its opener on a zero timeout,
+  // scheduled as it unmounts (`AssistantRail`'s `onCloseAutoFocus`), and an
+  // unmount's cleanup runs before this effect: a timeout set here comes after
+  // it, so the chip's target is focused last and keeps it.
+  useEffect(() => {
+    if (assistant.open || afterSheet.current === null) return;
+    const go = afterSheet.current;
+    afterSheet.current = null;
+    const timer = setTimeout(go, 0);
+    return () => clearTimeout(timer);
+  }, [assistant.open]);
 
   /**
    * Arriving at the phone's plan with nothing selected picks the first day.
@@ -474,6 +498,22 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
     const index = activeTrip.days.findIndex((day) => day.dayId === linkedDay);
     if (index !== -1) setFocusedDay(index);
   }, [linkedDay, activeTrip, setFocusedDay]);
+  /**
+   * **A link to a stop** (M46 D3), `?view=Plan&stop=<activityId>`, read as
+   * `?day=` is: once per value, by id, and only among this trip's stops. Its
+   * day is selected and the stop focused, as *Go to › Stop* does.
+   */
+  const linkedStop = searchParams.get("stop");
+  const appliedStopLink = useRef<string | null>(null);
+  useEffect(() => {
+    if (linkedStop === null || activeTrip === null || appliedStopLink.current === linkedStop) return;
+    appliedStopLink.current = linkedStop;
+    const index = activeTrip.days.findIndex((day) => day.activityIds.includes(linkedStop));
+    if (index === -1) return;
+    setView("Plan");
+    setFocusedDay(index);
+    setReveal({ dayId: activeTrip.days[index]!.dayId, activityId: linkedStop });
+  }, [linkedStop, activeTrip, setFocusedDay, setView]);
 
   // A demo board (`/demo/<slug>`, ADR-031) runs everything on this screen except
   // the assistant. Not because it would look wrong — because it would not
