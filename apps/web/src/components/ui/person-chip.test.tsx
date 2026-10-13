@@ -73,4 +73,24 @@ describe("PersonChip", () => {
     expect(chipFor(member, { title: "away" }).className).not.toContain("after:bg-success");
     expect(chipFor(member, { online: true }).className).toContain("after:bg-success");
   });
+
+  // Mitchell's M46 preview walk: a 10px dot hanging off the corner read as a
+  // token of its own. 8px, centred on the circle's edge, parted by the ring.
+  // Without `relative` the offsets anchor to the sticky header's corner, and
+  // without `after:absolute` the dot becomes a grid item beside the initials.
+  it("draws the online dot small, on the chip's corner, in a surface ring", () => {
+    const classes = chipFor(tripMemberProfileFactory.build(), { online: true }).className.split(" ");
+    expect(classes).toEqual(
+      expect.arrayContaining([
+        "relative",
+        "after:absolute",
+        "after:right-0",
+        "after:bottom-0",
+        "after:size-2",
+        "after:rounded-full",
+        "after:ring-2",
+        "after:ring-surface",
+      ]),
+    );
+  });
 });
