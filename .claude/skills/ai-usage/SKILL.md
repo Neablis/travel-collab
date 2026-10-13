@@ -29,19 +29,23 @@ them.
 
 ## From the database
 
-`.claude/skills/ai-usage/ledger.sql` holds ten named, read-only queries:
+`.claude/skills/ai-usage/ledger.sql` holds eleven named, read-only queries:
 
 1. tool failure rate per tool (`failed` and `repaired` together; `refused-by-grant`
    on its own);
 2. p50 and p75 duration per tool;
 3. calls per turn per tool;
-4. tokens per turn at p50 and p75, with the cached-read share;
+4. tokens per turn at p50 and p75, with the cached-read share, per endpoint;
 5. proposal-reached rate;
 6. escalation rate, and the tokens spent after escalating;
-7. turn latency by outcome;
+7. turn latency by endpoint and outcome;
 8. model time per step, p50 and p95 per model (M32: step `duration_ms` less its tool calls).
 9. which AI Gateway provider served the steps, per model, with recent generation ids (0038).
 10. the classifier's verdicts per day: off-topic refusals (`task_class = 'off_topic'`) and its certainty (0047).
+11. cost per turn per surface (`endpoint`: `ask`, `ask.apply`, `ask.account` from M45): tokens per turn by model, steps and classifier apart, to price with `modelRates.ts`.
+
+Queries 4 and 7 are split by `endpoint` too; the per-tool and per-step
+queries mix surfaces, so filter `u.endpoint` to read one.
 
 Each starts with a `window_` CTE; change `since` there. Simulated turns are
 excluded.

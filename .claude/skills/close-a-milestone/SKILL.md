@@ -11,7 +11,8 @@ every part is merged, so the close does not re-read the whole build on every cal
 
 1. **Keep part 0's tracker current**: every part with its PR, state, review result, CI run and merge,
    plus the merge and migration order. Update it after every event.
-2. **Support Mitchell's walk** of each part's preview, mouse and keyboard-only. Read his comments
+2. **Support Mitchell's walk** of each part's preview, mouse and keyboard-only. The link is in the
+   PR body's "Ready to merge" section (`review-a-part` step 6), not a Vercel comment. Read his comments
    with `mcp__Vercel__list_toolbar_threads`. Each fix goes on that part's branch (`build-a-part`),
    with a reply on the thread naming the commit. He resolves the threads.
 3. **Merges.** Mitchell merges each part unless he says otherwise. After a part with a migration,
