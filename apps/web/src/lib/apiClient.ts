@@ -47,6 +47,7 @@ import {
   type AdminReportAction,
   type ChangeRoleInput,
   type CreateInviteInput,
+  type EditChatMessage,
   type MarkChatRead,
   type PostChatMessage,
   type CreateReportInput,
@@ -459,6 +460,26 @@ export async function postChatMessage(tripId: string, input: PostChatMessage): P
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(input),
     });
+    if (!res.ok) return await refusal(res);
+    return { ok: true, value: ChatMessage.parse(((await res.json()) as { message: unknown }).message) };
+  } catch (err) {
+    return networkError(err);
+  }
+}
+
+/** The author's new text for their message: the message as stored, or the refusal (409 once it was removed). */
+export async function editChatMessage(tripId: string, messageId: string, input: EditChatMessage): Promise<ApiResult<ChatMessage>> {
+  return writeChatMessage(tripId, messageId, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) });
+}
+
+/** Soft-delete a message, the author's own or, for the owner, anyone's: the message, now removed. */
+export async function deleteChatMessage(tripId: string, messageId: string): Promise<ApiResult<ChatMessage>> {
+  return writeChatMessage(tripId, messageId, { method: "DELETE" });
+}
+
+async function writeChatMessage(tripId: string, messageId: string, init: RequestInit): Promise<ApiResult<ChatMessage>> {
+  try {
+    const res = await fetch(apiUrl(`/api/trips/${tripId}/chat/${messageId}`), init);
     if (!res.ok) return await refusal(res);
     return { ok: true, value: ChatMessage.parse(((await res.json()) as { message: unknown }).message) };
   } catch (err) {

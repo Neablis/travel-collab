@@ -1,4 +1,4 @@
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
@@ -105,5 +105,31 @@ describe("useTripChat", () => {
     served = pageOf([message(1), message(2)]);
     rerender("2");
     await waitFor(() => expect(marked).toEqual([{ messageId: message(1).messageId }, { messageId: message(2).messageId }]));
+  });
+
+  // M46 D6: an edit or a delete shows on the author's own line at once, from
+  // the server's answer, not on the next poll; the other pages get it by
+  // `chatRev`.
+  it("puts the server's answer to an edit and a delete in place of the line", async () => {
+    const id = message(1).messageId;
+    server.use(
+      http.get(`/api/trips/${TRIP}/chat`, () => HttpResponse.json(pageOf([message(1), message(2)]))),
+      http.patch(`/api/trips/${TRIP}/chat/${id}`, async ({ request }) => {
+        const { body } = (await request.json()) as { body: string };
+        return HttpResponse.json({ message: { ...message(1), body, editedAt: "2026-10-13T11:00:00.000Z" } });
+      }),
+      http.delete(`/api/trips/${TRIP}/chat/${id}`, () => {
+        const { messageId, authorId, createdAt } = message(1);
+        return HttpResponse.json({ message: { messageId, authorId, createdAt, editedAt: null, removed: true } });
+      }),
+    );
+    const { result } = renderHook(() => useTripChat({ tripId: TRIP, enabled: true, chatRev: "1", reading: false, accessLost: false }));
+    await waitFor(() => expect(result.current.status).toBe("ready"));
+
+    await act(async () => expect(await result.current.edit(id, "Train at ten?")).toBe(true));
+    expect(result.current.messages[0]).toMatchObject({ body: "Train at ten?", editedAt: "2026-10-13T11:00:00.000Z" });
+
+    await act(async () => expect(await result.current.remove(id)).toBe(true));
+    expect(result.current.messages.map((m) => m.removed)).toEqual([true, false]);
   });
 });

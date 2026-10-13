@@ -1,12 +1,16 @@
 "use client";
 import { useRef, useState } from "react";
 import Link from "next/link";
+import { useKnownSessionUser } from "@/components/account/useSessionUser";
 import type { Persona } from "@/components/pages/people";
 import { usePinToBottom } from "@/components/assistant/usePinToBottom";
+import { useOptionalTrip } from "@/components/trip/context/TripProvider";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { Dialog, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Text } from "@/components/ui/text";
 import { cn } from "@/lib/cn";
-import { ChatMessage } from "./ChatMessage";
+import { ChatMessage, type MessageViewer } from "./ChatMessage";
 import type { TripChat } from "./useTripChat";
 
 /** The read-only line after the owner's lapse (M46 D2): why, not just that. */
@@ -31,8 +35,18 @@ export function ChatPanel({
   touch?: boolean;
 }) {
   const [draft, setDraft] = useState("");
+  const [editing, setEditing] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
   const scrollport = useRef<HTMLDivElement>(null);
   usePinToBottom(scrollport, [chat.messages.length]);
+  // Who is reading decides what each line offers (D6). Neither is a request of
+  // its own: the `(app)` layout's session, and the trip's own access read.
+  const me = useKnownSessionUser()?.id ?? null;
+  const isOwner = useOptionalTrip()?.myRole === "owner";
+  const viewerOf = (authorId: string): MessageViewer | null =>
+    me === null
+      ? null
+      : { mine: authorId === me, mayEdit: authorId === me && chat.canPost, mayDelete: authorId === me || isOwner };
 
   if (chat.status === "no-access") {
     return (
@@ -67,14 +81,52 @@ export function ChatPanel({
             {chat.hasEarlier && <p className="text-xs text-slate">Earlier messages aren&apos;t shown.</p>}
             <ol aria-label="Messages" className="flex flex-col gap-3">
               {chat.messages.map((message) => (
-                <ChatMessage key={message.messageId} message={message} persona={personas === null ? null : personas[message.authorId]} />
+                <ChatMessage
+                  key={message.messageId}
+                  message={message}
+                  persona={personas === null ? null : personas[message.authorId]}
+                  tripId={chat.tripId}
+                  viewer={viewerOf(message.authorId)}
+                  // Closed by a lapse mid-edit as well: the save would be refused.
+                  editing={editing === message.messageId && chat.canPost}
+                  onEdit={() => setEditing(message.messageId)}
+                  onDelete={() => setDeleting(message.messageId)}
+                  onSave={async (body) => {
+                    const saved = await chat.edit(message.messageId, body);
+                    if (saved) setEditing(null);
+                    return saved;
+                  }}
+                  onCancelEdit={() => setEditing(null)}
+                />
               ))}
             </ol>
           </>
         )}
       </div>
+      <Dialog open={deleting !== null} onOpenChange={(open) => !open && setDeleting(null)} title="Delete this message?">
+        <Text variant="secondary">Everyone on the trip will see “message removed” in its place.</Text>
+        <DialogFooter>
+          <Button variant="secondary" onClick={() => setDeleting(null)}>
+            Cancel
+          </Button>
+          <Button
+            variant="destructive"
+            onClick={() => {
+              if (deleting !== null) void chat.remove(deleting);
+              setDeleting(null);
+            }}
+          >
+            Delete
+          </Button>
+        </DialogFooter>
+      </Dialog>
       {chat.status === "ready" && (
         <div className="shrink-0 border-t border-hairline px-4 py-3">
+          {chat.changeError !== null && (
+            <p role="alert" className="mb-1.5 text-xs text-danger">
+              {chat.changeError}
+            </p>
+          )}
           {!chat.canPost ? (
             <p role="status" className="text-xs text-slate">
               {READ_ONLY_LINE}

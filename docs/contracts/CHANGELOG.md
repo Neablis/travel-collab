@@ -13,6 +13,21 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-10-13 — `ReportTarget` and `AdminReportAction`: a trip's chat message can be reported (M46 part 5, D6)
+
+- **Added** to `packages/contracts/src/report.ts`: a third `ReportTarget`,
+  `{ kind: "trip_message", tripId, messageId }`, and two `AdminReportAction`s, `hide-message` and
+  `restore-message`, which set and clear the message's `hidden_at`.
+- Why: a member reports a message on a trip they can read, and an operator hides or restores it
+  from the console's Reports. ADR-073 §4: the hide acts on the `trip_messages` row, never on
+  anything evented, and moves the trip's `chatRev`.
+- Consumers updated: `apps/web` (`server/reports.ts`, `server/db/schema.ts` and its migration,
+  `lib/reports.ts`'s `AdminReportQueueItem.message`, `components/admin/ReportRow.tsx`,
+  `components/chat/ChatMessage.tsx` through `ReportAction`, `mocks/handlers.ts`). Not on the
+  public API; `openapi.json`, `API_VERSION` and `API_FINGERPRINT` are unchanged.
+- Breaking? no for a reader of a day or review report. A consumer that read `target.savedDayId`
+  without narrowing on `kind` no longer compiles, which is the point: a message target has none.
+
 ## 2026-10-13 — `ListedTripSummary`: Home's list carries each trip's unread chat count (M46 part 4, D5)
 
 - **Added** to `packages/contracts/src/trip.ts`: `ListedTripSummary`, `TripSummary.extend({

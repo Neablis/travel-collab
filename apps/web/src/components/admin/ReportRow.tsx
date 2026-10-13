@@ -2,7 +2,7 @@
 
 import { useId, useState } from "react";
 import Link from "next/link";
-import { REPORT_NOTE_MAX, type AdminReportAction, type ReportReason } from "@tc/contracts";
+import { REPORT_NOTE_MAX, type AdminReportAction, type ReportReason, type ReportTargetKind } from "@tc/contracts";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
@@ -23,6 +23,12 @@ const REASON_LABEL: Record<ReportReason, string> = {
   other: "Other",
 };
 
+const KIND_LABEL: Record<ReportTargetKind, string> = {
+  saved_day: "Day",
+  review: "Review",
+  trip_message: "Chat message",
+};
+
 const nameOf = (userId: string) => displayNameFor({ userId });
 const when = (iso: string) => formatInstantLong(iso) ?? iso;
 
@@ -37,7 +43,7 @@ export function ReportRow({
   item: AdminReportQueueItem;
   onAct: (action: AdminReportAction) => Promise<string | null>;
 }) {
-  const { report, day, review, reportsOnTarget } = item;
+  const { report, day, review, message, reportsOnTarget } = item;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [composing, setComposing] = useState(false);
@@ -59,21 +65,42 @@ export function ReportRow({
     else setError(refusal);
   }
 
-  const isDay = report.target.kind === "saved_day";
+  const kind = report.target.kind;
+  const isDay = kind === "saved_day";
+  const isReview = kind === "review";
+  const isMessage = kind === "trip_message";
   const open = report.status === "open";
   // What each action needs to be true of the target NOW. A gone target offers
   // only Dismiss: the server refuses to action something that no longer
   // exists, since "actioned" would record a hide that hid nothing.
   const canHideDay = isDay && day !== null && day.moderatedAt === null;
   const canRestoreDay = isDay && day?.moderatedAt != null;
-  const canHideReview = !isDay && review !== null && review.hiddenAt === null;
-  const canRestoreReview = !isDay && review?.hiddenAt != null;
+  const canHideReview = isReview && review !== null && review.hiddenAt === null;
+  const canRestoreReview = isReview && review?.hiddenAt != null;
+  const canHideMessage = isMessage && message !== null && message.hiddenAt === null;
+  const canRestoreMessage = isMessage && message?.hiddenAt != null;
 
   return (
     <li data-testid={`report-${report.reportId}`} className="flex flex-col gap-2 py-3">
       <div className="flex flex-wrap items-center gap-2">
-        <Badge>{isDay ? "Day" : "Review"}</Badge>
-        {day === null ? (
+        <Badge>{KIND_LABEL[kind]}</Badge>
+        {isMessage ? (
+          message === null ? (
+            <Text as="span" className="text-sm text-danger-ink">
+              This message no longer exists.
+            </Text>
+          ) : (
+            // An operator is not a member of the trip, so there is nothing to
+            // link to: the words are here, and the author's account page.
+            <Text as="span" variant="secondary">
+              Said in a trip&apos;s chat by{" "}
+              <Link href={accountsViewHref(ACCOUNTS_DEFAULT_VIEW, message.authorId)} className="underline">
+                {message.authorDisplayName}
+              </Link>{" "}
+              on {when(message.createdAt)}
+            </Text>
+          )
+        ) : day === null ? (
           <Text as="span" className="text-sm text-danger-ink">
             This day no longer exists.
           </Text>
@@ -97,7 +124,19 @@ export function ReportRow({
         </Badge>
       </div>
 
-      {!isDay &&
+      {message !== null && (
+        <p className="whitespace-pre-wrap break-words text-sm text-ink">
+          “{message.body}”
+          {message.deletedAt !== null && (
+            <Text as="span" variant="muted">
+              {" "}
+              — since deleted in the chat
+            </Text>
+          )}
+        </p>
+      )}
+
+      {isReview &&
         (review === null ? (
           <Text as="span" className="text-sm text-danger-ink">
             This review no longer exists.
@@ -132,6 +171,11 @@ export function ReportRow({
       {review?.hiddenAt != null && (
         <Text as="span" variant="muted" className="text-warning-ink">
           Review hidden since {when(review.hiddenAt)}
+        </Text>
+      )}
+      {message?.hiddenAt != null && (
+        <Text as="span" variant="muted" className="text-warning-ink">
+          Message hidden since {when(message.hiddenAt)}
         </Text>
       )}
       {!open && report.resolvedAt !== null && (
@@ -192,6 +236,16 @@ export function ReportRow({
           {canRestoreReview && (
             <Button type="button" variant="secondary" size="sm" disabled={busy} onClick={() => void run({ action: "restore-review" })}>
               Restore review
+            </Button>
+          )}
+          {canHideMessage && (
+            <Button type="button" variant="secondary" size="sm" disabled={busy} onClick={() => void run({ action: "hide-message" })}>
+              Hide message
+            </Button>
+          )}
+          {canRestoreMessage && (
+            <Button type="button" variant="secondary" size="sm" disabled={busy} onClick={() => void run({ action: "restore-message" })}>
+              Restore message
             </Button>
           )}
           {/* Only while open: an actioned or dismissed report is decided, and

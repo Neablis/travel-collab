@@ -280,8 +280,7 @@ describe("hide-day", () => {
     // Both people's reports are settled by it, and the queue no longer holds either.
     const rows = await db.select().from(contentReports).where(eq(contentReports.savedDayId, day));
     expect(rows.map((r) => r.status)).toEqual(["actioned", "actioned"]);
-    expect((await as(ADMIN, () => queue())).reports.map((r) => r.report.target.savedDayId))
-      .not.toContain(day);
+    expect((await as(ADMIN, () => queue())).reports.map((r) => r.day?.savedDayId)).not.toContain(day);
 
     // After, for a stranger: gone from every surface.
     await as(READER, async () => {

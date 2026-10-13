@@ -4,7 +4,7 @@ import { boundedNote } from "./review.ts";
 // Reporting and moderation (M12 link 6) — the trust-and-safety scope
 // quarantined here since 2026-07-28, while M11a's invite gate bounded who could
 // publish. Ordinary CRUD (`content_reports`), not events: a report is about the
-// library, not about any trip's plan.
+// library or a trip's chat (M46), never about any trip's plan.
 
 export const ReportReason = z.enum(["spam", "offensive", "unsafe", "inaccurate", "other"]);
 export type ReportReason = z.infer<typeof ReportReason>;
@@ -16,11 +16,13 @@ export type ReportStatus = z.infer<typeof ReportStatus>;
 /**
  * What is being reported. A review has no id of its own — its key is (day,
  * reviewer), the same composite `saved_day_reviews` is keyed on — so a review
- * target names both.
+ * target names both. A trip's chat message (M46 D6) names its trip, which is
+ * what the reporter must be able to read.
  */
 export const ReportTarget = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("saved_day"), savedDayId: z.string().uuid() }),
   z.object({ kind: z.literal("review"), savedDayId: z.string().uuid(), reviewerId: z.string().min(1) }),
+  z.object({ kind: z.literal("trip_message"), tripId: z.string().uuid(), messageId: z.string().uuid() }),
 ]);
 export type ReportTarget = z.infer<typeof ReportTarget>;
 export type ReportTargetKind = ReportTarget["kind"];
@@ -61,5 +63,7 @@ export const AdminReportAction = z.discriminatedUnion("action", [
   z.object({ action: z.literal("dismiss") }),
   z.object({ action: z.literal("restore-day") }),
   z.object({ action: z.literal("restore-review") }),
+  z.object({ action: z.literal("hide-message") }),
+  z.object({ action: z.literal("restore-message") }),
 ]);
 export type AdminReportAction = z.infer<typeof AdminReportAction>;

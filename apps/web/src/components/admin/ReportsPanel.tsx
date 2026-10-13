@@ -31,7 +31,7 @@ import { ReportRow } from "./ReportRow";
 // local splice would have to guess.
 
 const STATUSES: readonly { id: ReportStatus; label: string; empty: string }[] = [
-  { id: "open", label: "Open", empty: "Nothing open. Reports people file on shared days and reviews land here." },
+  { id: "open", label: "Open", empty: "Nothing open. Reports people file on shared days, reviews and chat messages land here." },
   { id: "actioned", label: "Actioned", empty: "Nothing actioned yet." },
   { id: "dismissed", label: "Dismissed", empty: "Nothing dismissed yet." },
 ];

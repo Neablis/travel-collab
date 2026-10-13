@@ -1090,26 +1090,32 @@ export const savedNotebooks = pgTable(
   (t) => [index("saved_notebooks_owner").on(t.ownerId)],
 );
 
-// Reports against a published day or a review (M12 link 6), and the
-// operator's queue over them. Ordinary CRUD, like the reviews above.
+// Reports against a published day, a review (M12 link 6) or a trip's chat
+// message (M46 D6), and the operator's queue over them. Ordinary CRUD, like
+// the reviews above.
 //
 // A review has no id of its own, so a review target is (`saved_day_id`,
 // `review_author_id`) — the reviews table's own key — and a day target leaves
-// `review_author_id` null. The CHECK holds `target_kind` and that column to
-// the same story, so no row can claim to be about a review without naming one.
+// `review_author_id` null. A message target is (`trip_id`, `trip_message_id`)
+// and names no day. The CHECK holds `target_kind` and those columns to the
+// same story, so no row can claim to be about a review or a message without
+// naming one.
 //
 // **One report per reporter per target**, by a unique constraint with NULLS
 // NOT DISTINCT: without it, Postgres treats every day target's null
 // `review_author_id` as distinct, and the same person could file the same day
 // report twice. A re-report is therefore an idempotent no-op, and "how many
-// people reported this" is a count of rows.
+// people reported this" is a count of rows. A message id is unique on its
+// own, so `trip_id` is not in the key.
 export const contentReports = pgTable(
   "content_reports",
   {
     id: uuid("id").primaryKey(),
     targetKind: text("target_kind").$type<ReportTargetKind>().notNull(),
-    savedDayId: uuid("saved_day_id").notNull(),
+    savedDayId: uuid("saved_day_id"),
     reviewAuthorId: text("review_author_id"),
+    tripId: uuid("trip_id"),
+    tripMessageId: uuid("trip_message_id"),
     // `users.id`s, on the ADR-025 no-foreign-key terms.
     reporterId: text("reporter_id").notNull(),
     reason: text("reason").$type<ReportReason>().notNull(),
@@ -1123,11 +1129,15 @@ export const contentReports = pgTable(
   },
   (t) => [
     unique("content_reports_reporter_target")
-      .on(t.reporterId, t.targetKind, t.savedDayId, t.reviewAuthorId)
+      .on(t.reporterId, t.targetKind, t.savedDayId, t.reviewAuthorId, t.tripMessageId)
       .nullsNotDistinct(),
+    // Spelled out per kind rather than as a CASE: a CASE with no matching arm
+    // is null, and a CHECK that is null passes.
     check(
       "content_reports_target_shape",
-      sql`(${t.targetKind} = 'review') = (${t.reviewAuthorId} is not null)`,
+      sql`(${t.targetKind} = 'saved_day' and ${t.savedDayId} is not null and ${t.reviewAuthorId} is null and ${t.tripId} is null and ${t.tripMessageId} is null)
+        or (${t.targetKind} = 'review' and ${t.savedDayId} is not null and ${t.reviewAuthorId} is not null and ${t.tripId} is null and ${t.tripMessageId} is null)
+        or (${t.targetKind} = 'trip_message' and ${t.savedDayId} is null and ${t.reviewAuthorId} is null and ${t.tripId} is not null and ${t.tripMessageId} is not null)`,
     ),
     // The operator queue reads "open, oldest first" and nothing else yet.
     index("content_reports_status").on(t.status, t.createdAt),
