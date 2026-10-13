@@ -337,15 +337,17 @@ point: they describe the change, not the ceremony around it.
   step goes on the "Not run, and why" line — four consecutive M10 phases
   skipped one silently. "Tier 1, prose only, nothing run" is a complete answer.
 
-### Waiting on PR checks — subscribe in a cloud session, watch locally
+### Waiting on PR checks — a scheduled check-in in a cloud session, watch locally
 
-**In a cloud session, subscribe and end the turn:**
-`subscribe_pr_activity(owner, repo, pullNumber)`. CI results, review comments
-and merge-state changes arrive as `<wake reason="external-event">` envelopes —
-including the review forty minutes later that no `--watch` sees. Never combine
-it with a blocking `--watch`. `unsubscribe_pr_activity` on merge or close. A
-wake re-reads the whole context: a milestone orchestrator watches only part 0
-(`building-a-milestone.md`, *Spend*).
+**In a cloud session, subscribe to no PR** (Mitchell, 2026-10-13). Opening a
+PR subscribes the session, a subagent's PR included: call
+`unsubscribe_pr_activity` at once. Arm one `send_later` check-in instead,
+about 60 minutes ahead while any PR is in CI or review and about 4 hours while
+everything waits on Mitchell. On each, run `pnpm -s pr-digest` once (what
+changed on every open PR since the last check-in), act on the whole batch, and
+re-arm. Stop re-arming when nothing is open. A wake re-reads the whole context:
+M42's 190 GitHub wakes cost $57, 141 of them for nothing
+(`docs/retros/2026-10-12-m42-token-spend-retro.md`). A check-in batches them.
 
 **Locally**, one blocking command: `gh pr checks <n> --watch --fail-fast`.
 Hand-polling is a reliable time sink.

@@ -67,6 +67,11 @@ Set after M42. Change one only in a retro, with the measurement that justifies i
 | GitHub wakes per merged part | under 5 | 21 | not measured |
 | Cache re-writes after a coordinator message | 2 or fewer | 24 | not measured |
 
+**GitHub wakes** should now be near zero: since 2026-10-13 the orchestrator subscribes to no PR
+and wakes on one scheduled check-in (`AGENTS.md`, *Waiting on PR checks*). The row's label reads
+*GitHub / trigger notification*, so check-ins may be counted in it; one an hour is still well
+under 5 per part. A count above that is a subscription that was left in place.
+
 A missed target is a finding for *What could be better*, with its cause. The block also counts
 what each spend guard denied (`scripts/hooks/`, listed in `building-a-milestone.md`, *Spend*): a
 guard that denied something it should have allowed is recorded here, and one that misfires twice

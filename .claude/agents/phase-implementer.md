@@ -77,8 +77,8 @@ When the part is done, exactly these headings, nothing else:
 - **Judgement calls:** decisions the plan did not make for you.
 - **Left:** anything unfinished, or found and deliberately left alone, so it can
   go to `docs/known-issues/` rather than be lost. "None" if none.
-- **Closed:** one line: `Closed: this agent takes no follow-ups. Orchestrator:
-  unsubscribe from PR <n>.` Anything further on this part goes to a new agent,
+- **Closed:** one line: `Closed: this agent takes no follow-ups.` Anything
+  further on this part goes to a new agent,
   so put what it would need to know under Judgement calls and Left.
 
 If you stop BLOCKED or DESCOPED (`.claude/protocol/CONTRACT.md`), report

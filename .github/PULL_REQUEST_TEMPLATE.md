@@ -117,18 +117,21 @@ Closes:
 
 ## Waiting on checks
 
-<!-- Do not hand-poll. One blocking command covers the automated checks:
+<!-- Do not hand-poll, and do not subscribe. In a cloud session, read the
+     PR's state once per scheduled check-in (AGENTS.md, "Waiting on PR
+     checks"):
 
-       gh pr checks <n> --watch --fail-fast
+       pnpm -s pr-digest <n>
 
-     Straight after a push, --watch can return in ~1s with the PREVIOUS
-     commit's checks, all green. Confirm the run exists for your real HEAD:
+     It uses the REST API (GraphQL is refused in cloud sessions, so
+     `gh pr checks --watch` is not an option there) and prints only what
+     changed since the last check-in. Locally, `gh pr checks <n> --watch
+     --fail-fast` still works; confirm a run exists for your real HEAD first:
 
        gh run list --commit "$(git rev-parse HEAD)" --limit 1
 
-     And do not watch what cannot run. A draft PR runs nothing until
-     `gh pr ready <n>`, so there is no terminating event and watching is an
-     open-ended loop. A Tier 1 PR skips every real job; its one check is
+     And do not wait on what cannot run. A draft PR runs nothing until
+     `gh pr ready <n>`. A Tier 1 PR skips every real job; its one check is
      `ci-ok`, required, done in under a minute. -->
 
 ## Review

@@ -117,7 +117,9 @@ It does not re-quote it.** That is what went wrong here.
 
 ## Waiting on PR checks
 
-Do not hand-poll `gh pr checks` in a loop. One command blocks on all of them:
+Do not hand-poll `gh pr checks` in a loop. In a cloud session, read every open
+PR once per scheduled check-in with `pnpm -s pr-digest` (`AGENTS.md`, *Waiting
+on PR checks*). Locally, one command blocks on all of them:
 
 ```
 gh pr checks <n> --watch --fail-fast

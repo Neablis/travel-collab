@@ -11,8 +11,8 @@ So the process now has three properties:
 - **The orchestrating session stays lean.** It holds the decisions, the tasks, PR state and the
   conversation with Mitchell. It never writes or reads source code; subagents carry every build,
   fix, review and gate-close step, each with a written brief. A session costs about *calls ×
-  context*, so it is also woken as rarely as possible and hands follow-ups to new agents (see
-  *Spend*, below).
+  context*, so it is also woken as rarely as possible: by subagent reports and by its own scheduled
+  check-in, never by a GitHub event. It hands follow-ups to new agents (see *Spend*, below).
 - **Each part is its own PR on `main`**, merged when it is ready. Only part 0, the prose-only gate
   PR, waits for the end.
 - **CI on the PR is the verdict.** Locally a part runs the checks that touch its diff and nothing
@@ -111,7 +111,7 @@ followed and still cost $34:
 
 | Habit | What stops it |
 |---|---|
-| The orchestrator woken 190 times by GitHub events on part PRs | It watches only part 0. `notification-unsubscribe-nudge.mjs` says so on any other wake; the implementer's `Closed:` line names the PR to drop. |
+| The orchestrator woken 190 times by GitHub events on part PRs | It subscribes to no PR (2026-10-13) and wakes on one scheduled check-in that runs `pnpm -s pr-digest`. `notification-unsubscribe-nudge.mjs` says to unsubscribe on any GitHub wake that still arrives. |
 | Follow-ups sent to builders 250k–480k deep, often after their cache expired | `closed-agent-guard.mjs` denies the message; `implementer-brief-check.mjs` makes the new agent's brief complete. |
 | Logs and full reviews read into the orchestrator | `orchestrator-lean-reads.mjs` denies job logs; `reviewer-report-check.mjs` keeps the review in a file. |
 
@@ -126,7 +126,8 @@ the gate close refuses without it. The targets are in `writing-a-retro.md`.
 - **Speak to Mitchell on a finding, a failure, a merge or a question.**
 - **Re-read the source before reporting state.** A PR, check or workflow run read earlier may be out
   of date by the time it is reported.
-- **Wait by ending the turn**, not by polling. Subagent reports, part 0's PR and scheduled
-  reminders wake the session; part PRs do not.
+- **Wait by ending the turn**, not by polling. Subagent reports and the orchestrator's one
+  `send_later` check-in wake the session (about 60 minutes while a part is in CI or review, about 4
+  hours while everything waits on Mitchell); no PR does. `AGENTS.md`, *Waiting on PR checks*.
 
 Work too big for one PR outside a milestone still uses `stacked-prs.md`.
