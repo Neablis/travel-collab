@@ -6,6 +6,18 @@ end of `docs/milestones/M41-planning-without-friction.md`. M41 taught three thin
 hourly limit set the pace of a stack, full local suites wasted hours that CI was already spending,
 and a design settled only after Mitchell played with the preview cost a second build.
 
+**Changed 2026-10-13, after M45's cost retro.** Mitchell's verdict on M45: *"it was better but not
+great, still a lot of waste and less automatey"* (`docs/milestones/M45-the-assistant-beyond-one-trip.md`,
+*The whole milestone's cost*). He decided four things the same day:
+
+1. **CodeRabbit is removed; we do our own reviews.** A `part-reviewer` after every push, and one
+   extra fresh pass on the riskiest part (§3; `AGENTS.md`, *Review is ours*).
+2. **What we post to GitHub is short** (`working-a-review.md`, *What we post to GitHub is short*).
+3. **The orchestrator starts its own continuation session** (*Hand-off*, below).
+4. **Scheduled check-ins replace PR subscriptions** (`AGENTS.md`, *Waiting on PR checks*).
+
+These are process choices, so they are recorded here and in `AGENTS.md`, not in an ADR.
+
 So the process now has three properties:
 
 - **The orchestrating session stays lean.** It holds the decisions, the tasks, PR state and the
