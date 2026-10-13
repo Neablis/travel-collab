@@ -459,6 +459,19 @@ export const TripSummary = z.object({
 export type TripSummary = z.infer<typeof TripSummary>;
 
 /**
+ * A trip as Home's list serves it (`GET /api/trips`): a `TripSummary` and how
+ * many of the trip's chat messages the reader has not read (M46 D5).
+ *
+ * **Not on `TripSummary`**, which `/v1/trips` also serves: chat has no public
+ * endpoint yet (*Features ship before their endpoints*), so the count stays on
+ * the app's own list. `.default(0)` for the same version skew as `startDate`.
+ */
+export const ListedTripSummary = TripSummary.extend({
+  unreadChat: z.number().int().nonnegative().default(0),
+});
+export type ListedTripSummary = z.infer<typeof ListedTripSummary>;
+
+/**
  * What the `trip_summaries` projection itself holds, and what
  * `projectTripSummaries` folds from the log: a `TripSummary` without the
  * fields the list query reads from the trip's document instead of storing a

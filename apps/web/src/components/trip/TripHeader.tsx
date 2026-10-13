@@ -24,6 +24,7 @@ import { SuggestionsChip } from "@/components/board/SuggestionsChip";
 import { PeopleProvider } from "@/components/pages/people";
 import { UndoRedoControls, useUndoRedoShortcuts } from "@/components/board/UndoRedoControls";
 import { AskPill } from "@/components/assistant/AskPill";
+import { ChatPill } from "@/components/chat/ChatPill";
 import { tripSettingsCommands, undoRedoCommands } from "@/components/palette/commands";
 import { usePaletteSource } from "@/components/palette/paletteRegistry";
 import { SettingsSheet } from "./SettingsSheet";
@@ -48,6 +49,7 @@ export function TripHeader({
   tripId,
   assistantOpen = false,
   onOpenAssistant,
+  chat,
   children,
   pinned,
   conflicts,
@@ -69,6 +71,13 @@ export function TripHeader({
    * here for the same reason it renders no launcher.
    */
   onOpenAssistant?: () => void;
+  /**
+   * The trip's chat (M46): its unread count, whether the panel is open on
+   * it, and the opener. A 💬 pill beside Ask from 768px, and a 💬 icon on
+   * the phone's row, which has no Ask of its own. Absent on /demo, which has
+   * no chat.
+   */
+  chat?: { unread: number; open: boolean; onOpen: () => void };
   children?: React.ReactNode;
   /**
    * What pins under the phone's one row, below 768px only: Plan's day rail
@@ -108,6 +117,7 @@ export function TripHeader({
     draft,
     noteInvites,
     access,
+    online,
     refreshAccess,
   } = useTrip();
   // The phone menu's "Add stop" opens the portable activity editor with no
@@ -251,6 +261,7 @@ export function TripHeader({
     <>
       <TravellerStack
         access={access}
+        online={online}
         onOpen={() => openSettings("people")}
       />
       <Badge variant="neutral">{statusLabel}</Badge>
@@ -568,6 +579,7 @@ export function TripHeader({
                     draws it here: there it is the tab bar's. `undefined` on
                     /demo withholds it (KI-79). */}
                 {onOpenAssistant !== undefined && <AskPill open={assistantOpen} onOpen={onOpenAssistant} />}
+                {chat !== undefined && <ChatPill unread={chat.unread} open={chat.open} onOpen={chat.onOpen} />}
                 {/* **No "Add stop" here** (M41 D1). A stop is made where it
                     will live: double-click or drag across a day's river, or
                     double-click the Unscheduled drawer for a parked one, and
@@ -586,6 +598,9 @@ export function TripHeader({
                     and History moves into the overflow menu. */}
                 <div className="flex items-center gap-0.5 max-md:order-2">
                   <span className="contents md:hidden">{conflicts?.(tripActions)}</span>
+                  {chat !== undefined && (
+                    <ChatPill compact unread={chat.unread} open={chat.open} onOpen={chat.onOpen} className="md:hidden" />
+                  )}
                   <SuggestionsChip />
                   {/* The Popover stays mounted during preview (not gated on
                       preview.seq === null like undo/redo/settings) — HistoryPanel's
@@ -808,18 +823,35 @@ const STACK_AVATARS = 3;
  *
  * Nothing until the access read answers. The names live there, not on the
  * trip, and a stack of placeholder circles would say nothing.
+ *
+ * Who has the trip open (M46 D7) is a dot on their face. The button's label is
+ * all a screen reader hears of the stack, so it names them too, the ones past
+ * the third face included.
  */
-function TravellerStack({ access, onOpen }: { access: TripAccess | null; onOpen: () => void }) {
+function TravellerStack({
+  access,
+  online,
+  onOpen,
+}: {
+  access: TripAccess | null;
+  online: ReadonlySet<string>;
+  onOpen: () => void;
+}) {
   if (access === null) return null;
   const going = new Set(travellerIds(access.members));
   const travellers = access.members.filter((m) => going.has(m.userId));
   if (travellers.length === 0) return null;
   const more = travellers.length - STACK_AVATARS;
+  const onlineNames = travellers.filter((m) => online.has(m.userId)).map(displayNameFor);
   return (
     <Button
       variant="ghost"
       onClick={onOpen}
-      aria-label="Travellers on this trip"
+      aria-label={
+        onlineNames.length === 0
+          ? "Travellers on this trip"
+          : `Travellers on this trip, online: ${onlineNames.join(", ")}`
+      }
       title="Travellers on this trip"
       className="hidden h-8 px-1 sm:inline-flex"
     >
@@ -833,6 +865,7 @@ function TravellerStack({ access, onOpen }: { access: TripAccess | null; onOpen:
             color={member.color}
             size="md"
             ring
+            online={online.has(member.userId)}
             className={cn(index > 0 && "-ml-2")}
           />
         ))}

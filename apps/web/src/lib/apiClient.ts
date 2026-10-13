@@ -5,6 +5,8 @@ import {
   AskRetractData,
   AskStreamMetadata,
   BatchableCommand,
+  ChatMessage,
+  ChatPage,
   CoverCandidate,
   CoverSearchResponse,
   InviteLanding,
@@ -35,7 +37,7 @@ import {
   TripSnapshot,
   TripSnapshotsResponse,
   TripSuggestionsResponse,
-  TripSummary,
+  ListedTripSummary,
   PreferencesResponse,
   UpdateUserPreferences,
   UserPreferences,
@@ -45,6 +47,8 @@ import {
   type AdminReportAction,
   type ChangeRoleInput,
   type CreateInviteInput,
+  type MarkChatRead,
+  type PostChatMessage,
   type CreateReportInput,
   type CreateSavedDayInput,
   type CreateSnapshotInput,
@@ -181,11 +185,11 @@ export async function createTrip(input: {
  * has no TripProvider to ask. Parsed against the contract here so the second
  * caller cannot quietly disagree with the first about the shape.
  */
-export async function fetchTrips(): Promise<ApiResult<TripSummary[]>> {
+export async function fetchTrips(): Promise<ApiResult<ListedTripSummary[]>> {
   try {
     const res = await fetch(apiUrl("/api/trips"));
     return await readJson(res, (data) =>
-      ((data as { trips: unknown[] }).trips ?? []).map((t) => TripSummary.parse(t)),
+      ((data as { trips: unknown[] }).trips ?? []).map((t) => ListedTripSummary.parse(t)),
     );
   } catch (err) {
     return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
@@ -427,6 +431,53 @@ export async function resetDemoData(): Promise<ApiResult<{ tripId: string }>> {
   } finally {
     endWrite(scope);
     clearQueryCache();
+  }
+}
+
+// ── Trip chat (M46, ADR-073) ─────────────────────────────────────────────────
+// Not trip writes: a message is conversation in its own store, never an event,
+// so none of these touches the trip's cached reads. A refusal keeps its
+// status and `code`: the panel tells a 403 (no longer a member) from a 402
+// (the owner's plan lapsed, read-only) by them.
+
+/** The newest messages, the caller's unread count, and whether they may post. */
+export async function fetchChat(tripId: string): Promise<ApiResult<ChatPage>> {
+  try {
+    const res = await fetch(apiUrl(`/api/trips/${tripId}/chat`), { cache: "no-store" });
+    if (!res.ok) return await refusal(res);
+    return { ok: true, value: ChatPage.parse(await res.json()) };
+  } catch (err) {
+    return networkError(err);
+  }
+}
+
+/** Post a message: the stored message, or the refusal with its status (403 no longer a member, 402 read-only). */
+export async function postChatMessage(tripId: string, input: PostChatMessage): Promise<ApiResult<ChatMessage>> {
+  try {
+    const res = await fetch(apiUrl(`/api/trips/${tripId}/chat`), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    });
+    if (!res.ok) return await refusal(res);
+    return { ok: true, value: ChatMessage.parse(((await res.json()) as { message: unknown }).message) };
+  } catch (err) {
+    return networkError(err);
+  }
+}
+
+/** Move the caller's read cursor to `messageId`; the server only ever moves it forward. */
+export async function markChatRead(tripId: string, messageId: string): Promise<ApiResult<null>> {
+  try {
+    const res = await fetch(apiUrl(`/api/trips/${tripId}/chat/read`), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ messageId } satisfies MarkChatRead),
+    });
+    if (!res.ok) return await refusal(res);
+    return { ok: true, value: null };
+  } catch (err) {
+    return networkError(err);
   }
 }
 

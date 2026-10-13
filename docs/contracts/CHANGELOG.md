@@ -13,6 +13,55 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-10-13 — `TripEventsPage.online`: who has the trip open (M46 part 6, D7, ADR-073 §6)
+
+- **Added** to `packages/contracts/src/envelope.ts`: an optional `online` on `TripEventsPage`, the
+  user ids of the current members whose events poll was seen within the last 6 minutes, the
+  caller included. Each poll is also the caller's heartbeat, written at most once per 5 minutes.
+- **Added** `PRESENCE_WINDOW_MS` (6 minutes) beside it: the server's window, and how long a
+  client keeps showing an answer once polling stops (a history preview, failing presence reads).
+- Why: M46 decision 7, a dot on the avatars the trip already shows. It rides the existing poll,
+  so there is no new route and no event.
+- Consumers updated: `apps/web` (the events route, `server/presence/`, `broadcast.ts`,
+  `TripProvider.tsx`, `PersonChip`, the header's traveller stack and Trip settings → People).
+  Not on the public API: `openapi.json`, `API_VERSION` and `API_FINGERPRINT` are unchanged.
+- Breaking? no. An optional field; absent for the demo, after a failed presence read and from
+  older servers; a client keeps the last answer it had (nobody, before the first) until it is
+  `PRESENCE_WINDOW_MS` old.
+
+## 2026-10-13 — `ListedTripSummary`: Home's list carries each trip's unread chat count (M46 part 4, D5)
+
+- **Added** to `packages/contracts/src/trip.ts`: `ListedTripSummary`, `TripSummary.extend({
+  unreadChat })`, a non-negative integer defaulting to 0. It is what `GET /api/trips` serves and
+  `fetchTrips` parses.
+- Why: Home's cards and hero show 💬 with how many messages the reader has not read. Not on
+  `TripSummary`, because `/v1/trips` serves that and chat has no public endpoint yet (*Features
+  ship before their endpoints*).
+- Consumers updated: `apps/web` (`server/chat/messages.ts` `unreadByTrip`, `app/api/trips/route.ts`,
+  `lib/apiClient.ts` `fetchTrips`, `app/(app)/page.tsx`, `components/home/TripCard.tsx`,
+  `components/home/NextTripHero.tsx`). `openapi.json`, `API_VERSION` and `API_FINGERPRINT` are
+  unchanged.
+- Breaking? no. A new schema; `TripSummary` is untouched, and the default reads an older server's
+  list as nothing unread.
+
+## 2026-10-13 — `chat.ts` and `TripEventsPage.chatRev`: a trip has a conversation (M46 part 1, ADR-073)
+
+- **Added** `packages/contracts/src/chat.ts`: `ChatLink` (`{ kind: "day" | "stop", id }`),
+  `ChatMessage` (a union on `removed`: a live message carries `body` and an optional `link`, a
+  removed one carries neither), `PostChatMessage`, `EditChatMessage`, `MarkChatRead`,
+  `ChatReadOnlyReason` (`collaborators-not-entitled`), `ChatPage` (`messages`, `hasEarlier`,
+  `unread`, `canPost`, `readOnlyReason?`) and `CHAT_MESSAGE_MAX`. A message body is trimmed,
+  1 to `CHAT_MESSAGE_MAX` characters, and holds no NUL (Postgres cannot store one in `text`).
+- **Added** to `packages/contracts/src/envelope.ts`: an optional `chatRev` on `TripEventsPage`,
+  served to every reader beside `accessRev` and moved by every chat write.
+- Why: M46 decisions 1–6. Messages are their own store, never events; the link and the removed
+  variant are in the contract now so parts 3 and 5 change no schema.
+- Consumers updated: `apps/web` (`server/chat/`, the three `app/api/trips/[tripId]/chat` routes,
+  the events route, `mocks/handlers.ts`). No client reads them yet (part 2). Not on the public
+  API: each route has a `planned` line in `server/public-api/exposure.ts`; `openapi.json`,
+  `API_VERSION` and `API_FINGERPRINT` are unchanged.
+- Breaking? no. New schemas, and an optional field an older client ignores.
+
 ## 2026-10-13 — `AssistantProposal.target`: a proposal drafted on no trip's page names the trip it lands in (M45 part 5, D9)
 
 - **Added** to `packages/contracts/src/assistant.ts`: an optional `target` on `AssistantProposal`,

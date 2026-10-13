@@ -1,9 +1,12 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import fc from "fast-check";
 import type { TripMember } from "@tc/contracts";
 import { db } from "../db/client";
 import { tripSummaries } from "../db/schema";
-import { grantedMembersByTrip, hasMembershipRow, mergeMembers } from "./members";
+import { accountCan } from "../entitlements/resolver";
+import { collaboratorsEntitled, grantedMembersByTrip, hasMembershipRow, mergeMembers } from "./members";
+
+vi.mock("../entitlements/resolver", () => ({ accountCan: vi.fn(async () => false) }));
 
 // `mergeMembers` is the whole reason M11 link 3 needed no planning event: it
 // is where the log's owner and the Access module's accepted invites become one
@@ -147,5 +150,22 @@ describe("grantedMembersByTrip", () => {
       },
     } as never;
     expect(await grantedMembersByTrip(forbidden, [])).toEqual(new Map());
+  });
+});
+
+// The lapse's boolean, for a gate that is not about roles (the trip chat,
+// ADR-073 §3). It is the OWNER's entitlement: an entitled editor reading a
+// lapsed owner's trip must not make it collaborative again.
+describe("collaboratorsEntitled", () => {
+  it("asks Entitlements about the owner at the head of the list, not anyone after", async () => {
+    vi.mocked(accountCan).mockClear();
+    await collaboratorsEntitled([owner, { userId: "dev-bob", role: "editor" }]);
+    expect(vi.mocked(accountCan).mock.calls).toEqual([["dev-alice", "trip.collaborators"]]);
+  });
+
+  it("answers a trip with nobody on its list as entitled, asking nothing", async () => {
+    vi.mocked(accountCan).mockClear();
+    expect(await collaboratorsEntitled([])).toBe(true);
+    expect(accountCan).not.toHaveBeenCalled();
   });
 });

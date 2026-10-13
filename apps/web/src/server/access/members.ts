@@ -308,9 +308,22 @@ async function capGrantedOnLapse(
   // Entitlements about. A solo trip is the overwhelming majority of reads, and
   // this is what keeps the gate off that path entirely.
   if (granted.length === 0) return [...granted];
-  const owner = billingSubject(projected);
-  if (owner === null) return [...granted];
-  return capGranted(granted, await accountCan(owner, "trip.collaborators"));
+  return capGranted(granted, await collaboratorsEntitled(projected));
+}
+
+/**
+ * Whether this trip's owner may have collaborators right now — the boolean the
+ * lapse turns on, for a module that gates something other than roles on it
+ * (the trip chat: readable after a lapse, but nobody may post, ADR-073 §3).
+ *
+ * `members` is the planning log's list or the effective one; both start with
+ * the owner. A trip with no owner on its list is answered entitled, as
+ * `capGrantedOnLapse` has always answered it.
+ */
+export async function collaboratorsEntitled(members: readonly TripMember[]): Promise<boolean> {
+  const owner = billingSubject(members);
+  if (owner === null) return true;
+  return accountCan(owner, "trip.collaborators");
 }
 
 /** Trip ids this user reaches through an accepted invite (not the ones they own). */

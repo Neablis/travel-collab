@@ -4,6 +4,8 @@ import { requireTripAccess } from "@/server/access/trip-access";
 import { getTripEventsAfter } from "@/server/broadcast";
 import { suggestionsRevForRole } from "@/server/suggestions/rev";
 import { accessRevFor } from "@/server/access/members";
+import { chatRevFor } from "@/server/chat/rev";
+import { onlineMembers } from "@/server/presence/presence";
 import { isDemoTripId } from "@/lib/demoTrip";
 
 /**
@@ -56,7 +58,16 @@ export async function GET(request: Request, { params }: { params: Promise<{ trip
   // demo is served without touching the database, and nobody's access to it
   // ever changes, so it is given none. A failure costs one poll the revision,
   // as above.
-  const [page, suggestionsRev, accessRev] = await Promise.all([
+  //
+  // `chatRev` (ADR-073 §2) is the same construction for the trip's chat, and
+  // for every reader too: every member may read the whole conversation. The
+  // demo has no chat, so it is given none.
+  //
+  // `online` (M46 D7, ADR-073 §6): this poll is the caller's heartbeat, and the
+  // answer is the ids of the current members seen within the window, the caller
+  // included. The demo has no presence, and a failure costs one poll the field,
+  // as above.
+  const [page, suggestionsRev, accessRev, chatRev, online] = await Promise.all([
     getTripEventsAfter(tripId, after.data),
     suggestionsRevForRole(tripId, access.userId, access.role).catch((error: unknown) => {
       console.error("events poll: suggestionsRev query failed", { tripId, error });
@@ -68,6 +79,22 @@ export async function GET(request: Request, { params }: { params: Promise<{ trip
           console.error("events poll: accessRev query failed", { tripId, error });
           return undefined;
         }),
+    isDemoTripId(tripId)
+      ? undefined
+      : chatRevFor(tripId).catch((error: unknown) => {
+          console.error("events poll: chatRev query failed", { tripId, error });
+          return undefined;
+        }),
+    isDemoTripId(tripId)
+      ? undefined
+      : onlineMembers(
+          tripId,
+          access.userId,
+          access.detail.members.map((m) => m.userId),
+        ).catch((error: unknown) => {
+          console.error("events poll: presence query failed", { tripId, error });
+          return undefined;
+        }),
   ]);
-  return Response.json(TripEventsPage.parse({ ...page, suggestionsRev, accessRev }));
+  return Response.json(TripEventsPage.parse({ ...page, suggestionsRev, accessRev, chatRev, online }));
 }

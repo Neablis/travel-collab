@@ -2,6 +2,7 @@ import { useState } from "react";
 import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import { describe, expect, it, vi, beforeEach, afterEach, type MockInstance } from "vitest";
 import { tripDetailFixture, historyFixture } from "@tc/factories";
+import { PRESENCE_WINDOW_MS } from "@tc/contracts";
 
 const sendTripCommandMock = vi.fn();
 const sendTripCommandBatchMock = vi.fn();
@@ -1087,10 +1088,11 @@ async function broadcastArmed() {
 }
 
 function RemoteProbe() {
-  const { activeTrip, dispatch, sync, remoteRevision } = useTrip();
+  const { activeTrip, dispatch, sync, remoteRevision, accessLost } = useTrip();
   return (
     <div>
       <span data-testid="dayCount">{activeTrip?.days.length ?? 0}</span>
+      <span data-testid="accessLost">{String(accessLost)}</span>
       <span data-testid="remoteRevision">{remoteRevision}</span>
       <span data-testid="unsent">{sync.unsent}</span>
       <button
@@ -1190,6 +1192,66 @@ describe("TripProvider broadcast (M13 link 2)", () => {
     // would go on reporting that it covers the poll's no-change path.
     await waitFor(() => expect(fetchTripEventsMock).toHaveBeenCalled());
     expect(screen.getByTestId("remoteRevision").textContent).toBe("0");
+  });
+
+  // M46 D2: a removed member's poll is refused, and it is the only call their
+  // open page still makes, so the refusal is the news that they were removed.
+  it("reports access lost when the poll is refused with a 403", async () => {
+    fetchTripDetailMock.mockResolvedValue({ ok: true, value: twoMemberDetail(1) });
+    fetchTripHistoryMock.mockResolvedValue({ ok: true, value: historyAtSeq(1) });
+    render(
+      <TripProvider tripId="x">
+        <RemoteProbe />
+      </TripProvider>,
+    );
+    await waitFor(() => expect(screen.getByTestId("dayCount").textContent).toBe("1"));
+    await broadcastArmed();
+    expect(screen.getByTestId("accessLost").textContent).toBe("false");
+
+    fetchTripEventsMock.mockResolvedValue({ ok: false, error: { status: 403, message: "Forbidden" } });
+    becomeVisible();
+    await waitFor(() => expect(screen.getByTestId("accessLost").textContent).toBe("true"));
+  });
+
+  // M46 D7. Polling stops under a history preview, and a poll whose presence
+  // read failed carries no `online`, so the last answer is all the board has.
+  // It must not outlive the server's own window.
+  it("drops who was online once the last answer is older than the presence window", async () => {
+    fetchTripDetailMock.mockResolvedValue({ ok: true, value: oneDayTripDetailFixture() });
+    fetchTripHistoryMock.mockResolvedValue({ ok: true, value: historyAtSeq(1) });
+    function OnlineProbe() {
+      return <span data-testid="online">{[...useTrip().online].join(",")}</span>;
+    }
+    render(
+      <TripProvider tripId="x">
+        <RemoteProbe />
+        <OnlineProbe />
+      </TripProvider>,
+    );
+    await waitFor(() => expect(screen.getByTestId("dayCount").textContent).toBe("1"));
+    await broadcastArmed();
+
+    // A solo trip runs no interval, so the one regain poll is the last answer.
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      fetchTripEventsMock.mockResolvedValue({
+        ok: true,
+        value: { headSeq: 1, events: [], resync: false, online: ["dev-bob"] },
+      });
+      becomeVisible();
+      await waitFor(() => expect(screen.getByTestId("online").textContent).toBe("dev-bob"));
+
+      act(() => {
+        vi.advanceTimersByTime(PRESENCE_WINDOW_MS - 1000);
+      });
+      expect(screen.getByTestId("online").textContent).toBe("dev-bob");
+      act(() => {
+        vi.advanceTimersByTime(1000);
+      });
+      expect(screen.getByTestId("online").textContent).toBe("");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   // ADR-049 Decision 2: a solo trip runs no timer, and the visibility-regain

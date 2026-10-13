@@ -3,6 +3,7 @@ import { activityFactory, tripDetailFixture, uuidFrom } from "@tc/factories";
 import {
   addDayCommand,
   askCommand,
+  chatCommand,
   editStopCommands,
   goToDayCommands,
   goToNotebookCommands,
@@ -38,6 +39,16 @@ describe("palette commands hold the page's own actions", () => {
     expect(askCommand(openAssistant).run).toBe(openAssistant);
     expect(newTripCommand(startNewTrip).run).toBe(startNewTrip);
     expect([newStopCommand(openNewStop), addDayCommand(addDay), newTripCommand(startNewTrip)].map((c) => pathText(c))).toEqual(["Add › Stop", "Add › Day", "Add › Trip"]);
+  });
+
+  // M46: ⌘K's *Open chat* is the header's 💬 opener, and "chat" finds it
+  // rather than Ask, whose thread is not the trip's conversation.
+  it("Open chat is the opener it was given, and typing chat finds it, not Ask", () => {
+    const openChat = vi.fn();
+    const command = chatCommand(openChat);
+    expect(command.run).toBe(openChat);
+    expect(pathText(command)).toBe("Open chat");
+    expect(rankPalette([askCommand(vi.fn()), command], "chat").map((hit) => hit.id)).toEqual(["leaf:chat"]);
   });
 
   it("undo and redo are the History controls' handlers, offered only when each can run", () => {

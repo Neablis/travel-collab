@@ -195,7 +195,12 @@
       "mcp__Vercel__list_toolbar_threads",
       "mcp__Vercel__get_toolbar_thread",
       "mcp__Vercel__reply_to_toolbar_thread",
-      "mcp__Vercel__change_toolbar_thread_resolve_status"
+      "mcp__Vercel__change_toolbar_thread_resolve_status",
+      "mcp__claude-code-remote__list_triggers",
+      "mcp__claude-code-remote__create_trigger",
+      "mcp__claude-code-remote__update_trigger",
+      "mcp__claude-code-remote__delete_trigger",
+      "mcp__claude-code-remote__send_later"
     ]
   }
 }

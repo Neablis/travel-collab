@@ -14,6 +14,7 @@ import {
 } from "@tc/contracts";
 import { usePreferences } from "@/components/account/PreferencesProvider";
 import { useSessionUser } from "@/components/account/useSessionUser";
+import { useOptionalTrip } from "@/components/trip/context/TripProvider";
 import { Banner } from "@/components/ui/banner";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -165,6 +166,9 @@ export function PeopleSection({
   const router = useRouter();
   const me = useSessionUser();
   const chosenColor = usePreferences().color;
+  // Who has the trip open (M46 D7), from the board's own poll: this section
+  // runs none, and outside a trip there is nobody to mark.
+  const online = useOptionalTrip()?.online;
   const [access, setAccess] = useState<TripAccess | null>(provided ?? null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -338,6 +342,7 @@ export function PeopleSection({
         name={name}
         isYou={you}
         colorNote={you ? shiftedColorTitle(member, members, chosenColor) : undefined}
+        online={online?.has(member.userId)}
         menu={<PersonMenu label={name} actions={memberActions(member, name)} />}
       />
     );

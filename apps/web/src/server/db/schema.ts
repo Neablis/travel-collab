@@ -501,6 +501,75 @@ export const tripAccessRevs = pgTable("trip_access_revs", {
   rev: integer("rev").notNull(),
 });
 
+// A trip's chat (M46, ADR-073): ordinary CRUD beside the event log, never in
+// it. Keyed by trip id with no foreign key, on `trip_covers`' terms: a deleted
+// trip keeps its messages, so a restore brings the conversation back.
+//
+// The whole row is settled here so later parts change no column: `link_*` is
+// D3's optional day or stop (an id, never repaired when the target goes);
+// `deleted_*` is D6's soft delete by the author or the owner; `hidden_at` is an
+// admin's hide from a report. A row is never deleted.
+export const tripMessages = pgTable(
+  "trip_messages",
+  {
+    id: uuid("id").primaryKey(),
+    tripId: uuid("trip_id").notNull(),
+    // A `users.id`, on the same no-foreign-key terms as `trip_memberships`.
+    authorId: text("author_id").notNull(),
+    body: text("body").notNull(),
+    linkKind: text("link_kind").$type<"day" | "stop">(),
+    linkId: uuid("link_id"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
+    editedAt: timestamp("edited_at", { withTimezone: true, mode: "date" }),
+    deletedAt: timestamp("deleted_at", { withTimezone: true, mode: "date" }),
+    deletedBy: text("deleted_by"),
+    hiddenAt: timestamp("hidden_at", { withTimezone: true, mode: "date" }),
+  },
+  (t) => [
+    // The page read and the unread count both walk one trip's messages by time.
+    index("trip_messages_trip_created").on(t.tripId, t.createdAt),
+    check("trip_messages_link_kind", sql`${t.linkKind} in ('day', 'stop')`),
+    check("trip_messages_link_whole", sql`(${t.linkKind} is null) = (${t.linkId} is null)`),
+  ],
+);
+
+// Each person's read cursor on a trip's chat (M46 D5): the newest message they
+// have seen, as its `(created_at, id)`, the order the conversation is listed
+// in. The time alone would count a second message stamped the same
+// millisecond as read. Unread is computed from this at read time.
+export const tripChatReads = pgTable(
+  "trip_chat_reads",
+  {
+    tripId: uuid("trip_id").notNull(),
+    userId: text("user_id").notNull(),
+    lastReadAt: timestamp("last_read_at", { withTimezone: true, mode: "date" }).notNull(),
+    lastReadId: uuid("last_read_id").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.tripId, t.userId] })],
+);
+
+// The events poll's `chatRev` (ADR-073 §2), on `trip_access_revs`' model: a
+// counter bumped in the transaction of every chat write, because a soft delete
+// or an edit moves nothing a `max(created_at)` could see.
+export const tripChatRevs = pgTable("trip_chat_revs", {
+  tripId: uuid("trip_id").primaryKey(),
+  rev: integer("rev").notNull(),
+});
+
+// Who has a trip open (M46 D7, ADR-073 §6): each member's last poll of the
+// trip, written at most once per heartbeat by `server/presence/presence.ts`.
+// No foreign key, on `trip_travellers`' terms. A removed member's row is left
+// behind: the served ids are filtered to current members, so it is never read.
+export const tripPresence = pgTable(
+  "trip_presence",
+  {
+    tripId: uuid("trip_id").notNull(),
+    userId: text("user_id").notNull(),
+    seenAt: timestamp("seen_at", { withTimezone: true, mode: "date" }).notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.tripId, t.userId] })],
+);
+
 // A trip's cover photo (M37 D1): one row per trip, set and cleared by an
 // editor through `server/tripCovers.ts`. Ordinary CRUD, NOT a projection — a
 // cover is a decoration, not a plan fact, so it is never an event and

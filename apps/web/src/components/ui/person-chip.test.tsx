@@ -65,4 +65,12 @@ describe("PersonChip", () => {
     const chip = chipFor(tripMemberProfileFactory.build());
     expect(chip.getAttribute("aria-hidden")).toBe("true");
   });
+
+  // M46 D7. The dot is a token colour on the chip itself. The chip says
+  // nothing: it comes before the name, so its caller says "online" after it.
+  it("draws the online dot only when asked", () => {
+    const member = tripMemberProfileFactory.build();
+    expect(chipFor(member, { title: "away" }).className).not.toContain("after:bg-success");
+    expect(chipFor(member, { online: true }).className).toContain("after:bg-success");
+  });
 });

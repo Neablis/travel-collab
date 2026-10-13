@@ -12,6 +12,8 @@ import {
   tripInvites,
   tripMemberships,
   tripAccessRevs,
+  tripChatRevs,
+  tripMessages,
   tripShares,
   tripSummaries,
   tripTravellers,
@@ -22,6 +24,7 @@ import { upsertUser, writePreferences } from "@/server/users";
 import { acceptInvite, createInvite } from "@/server/access/invites";
 import { setTravelling } from "@/server/access/travellers";
 import { createShare } from "@/server/access/shares";
+import { postMessage } from "@/server/chat/messages";
 
 // Every id here is fresh per run, so the grid these tests read is only ever
 // this file's own rows — no truncation, same convention as the sibling route
@@ -37,10 +40,17 @@ vi.mock("@/server/auth", () => ({
   auth: vi.fn(async () => (currentUserId ? { user: { id: currentUserId } } : null)),
 }));
 
-// Import after the mock so the route picks up the mocked `auth`.
+// The real query, wrapped so one test can make it fail.
+vi.mock("@/server/chat/messages", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/server/chat/messages")>();
+  return { ...actual, unreadByTrip: vi.fn(actual.unreadByTrip) };
+});
+const { unreadByTrip } = await import("@/server/chat/messages");
+
+// Import after the mocks so the route picks up the mocked `auth`.
 const { GET } = await import("./route");
 
-type Summary = { tripId: string; name: string; members: TripSummaryMember[] };
+type Summary = { tripId: string; name: string; members: TripSummaryMember[]; unreadChat: number };
 
 // Members as a card carries them when they have no `users` row — every id this
 // file mints that the naming tests below do not sign in: no name, no persona,
@@ -82,6 +92,8 @@ afterAll(async () => {
   await db.delete(tripMemberships).where(inArray(tripMemberships.tripId, seeded));
   await db.delete(tripTravellers).where(inArray(tripTravellers.tripId, seeded));
   await db.delete(tripAccessRevs).where(inArray(tripAccessRevs.tripId, seeded));
+  await db.delete(tripMessages).where(inArray(tripMessages.tripId, seeded));
+  await db.delete(tripChatRevs).where(inArray(tripChatRevs.tripId, seeded));
   await db.delete(pages).where(inArray(pages.tripId, seeded));
   await db.delete(tripDetails).where(inArray(tripDetails.tripId, seeded));
   await db.delete(tripSummaries).where(inArray(tripSummaries.tripId, seeded));
@@ -277,6 +289,44 @@ describe("GET /api/trips visibility", () => {
   });
 });
 
+describe("GET /api/trips unread chat", () => {
+  // M46 D5: each card says how many of its trip's messages the reader has not
+  // read. Overlaid here, never on `TripSummary`, so `/v1/trips` is unchanged.
+  it("gives each trip the reader's own unread count", async () => {
+    const talking = await seedTrip("Talking");
+    const silent = await seedTrip("Silent");
+    await join(talking, "editor", GUEST);
+    await join(silent, "editor", GUEST);
+    await postMessage(talking, OWNER, { body: "Flights are booked" });
+    await postMessage(talking, OWNER, { body: "Hotel too" });
+
+    currentUserId = GUEST;
+    const theirs = await grid();
+    expect(theirs.find((t) => t.tripId === talking)!.unreadChat).toBe(2);
+    expect(theirs.find((t) => t.tripId === silent)!.unreadChat).toBe(0);
+
+    // The author's own messages are never unread to them.
+    currentUserId = OWNER;
+    expect((await grid()).find((t) => t.tripId === talking)!.unreadChat).toBe(0);
+  });
+
+  // An auxiliary badge must not take down the landing page: if the unread
+  // read fails, Home still lists every trip, each at zero (review of PR 435).
+  it("still lists every trip, at zero unread, when the unread query fails", async () => {
+    const talking = await seedTrip("Talking, unreadable");
+    await join(talking, "editor", GUEST);
+    await postMessage(talking, OWNER, { body: "Anyone there?" });
+    vi.mocked(unreadByTrip).mockRejectedValueOnce(new Error("statement timeout"));
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    currentUserId = GUEST;
+    const theirs = await grid();
+    expect(theirs.find((t) => t.tripId === talking)!.unreadChat).toBe(0);
+    expect(logged).toHaveBeenCalledOnce();
+    logged.mockRestore();
+  });
+});
+
 describe("GET /api/trips cost", () => {
   // PR #71 review §6: the route ran one `effectiveMembers` query per surviving
   // trip inside a Promise.all. Counting statements is the only way to pin that
@@ -311,9 +361,9 @@ describe("GET /api/trips cost", () => {
     expect(sixCards.length).toBe(6); // 1 owned + 5 joined as viewer
     expect(fiveCards.length).toBe(5);
     // The summaries query, then one batched read each of the granted members,
-    // who is travelling, and every member's persona (M38; M37 D5: in one read,
-    // never per card).
-    expect(forSixTrips).toBe(4);
+    // who is travelling, every member's persona (M38; M37 D5: in one read,
+    // never per card), and the unread chat counts (M46 D5).
+    expect(forSixTrips).toBe(5);
     expect(forFiveTrips).toBe(forSixTrips);
   });
 });

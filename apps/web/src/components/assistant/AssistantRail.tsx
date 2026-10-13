@@ -1,13 +1,14 @@
 "use client";
 
 import * as RadixDialog from "@radix-ui/react-dialog";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Heading } from "@/components/ui/heading";
 import { BrandMark } from "@/components/BrandMark";
 import { Input } from "@/components/ui/input";
+import { UnderlineTabs, tabId, tabPanelId } from "@/components/ui/underline-tabs";
 import { MAX_ASK_MESSAGES } from "@/lib/askLimits";
 import type { AskScope } from "@/lib/apiClient";
 import { clearAskDraft, loadAskDraft, saveAskDraft } from "./askThreadStore";
@@ -119,6 +120,15 @@ const PLACEHOLDER = {
 /** How long the composer waits after a keystroke before storing its draft. */
 const DRAFT_SAVE_MS = 300;
 
+/** The panel's two tabs on a trip (M46): the people's conversation, and the assistant's. */
+export type RailTab = "chat" | "ask";
+const RAIL_TABS_ID = "assistant-rail";
+// Chat first: it is the conversation a trip has, and Ask is one person's.
+const RAIL_TAB_OPTIONS: readonly { value: RailTab; label: string }[] = [
+  { value: "chat", label: "Chat" },
+  { value: "ask", label: "Ask" },
+];
+
 // M10 redesign-feedback follow-up (post-gate): the rail's header (mark,
 // title, Hide) and its ask box are the SAME real conversational feature the
 // board's old ComposePanel already shipped in M7 — just relocated into this
@@ -201,6 +211,7 @@ const DRAFT_SAVE_MS = 300;
  * @param incoming - Text handed in from outside (⌘K's *Ask:*), sent as if typed here.
  * @param onIncomingTaken - Called once `incoming` is sent or waiting in the box.
  * @param takeFocus - Whether this mount is a fresh open, whose composer takes focus; asked once per mount.
+ * @param chat - The trip's chat as a *Chat · Ask* tab pair, and which is open; absent, the panel is Ask alone.
  */
 export function AssistantRail({
   contextLine,
@@ -230,6 +241,7 @@ export function AssistantRail({
   incoming = null,
   onIncomingTaken,
   takeFocus,
+  chat,
   onHide,
 }: {
   contextLine: string;
@@ -451,6 +463,14 @@ export function AssistantRail({
    * answers `true` once per open, so a remount while open takes nothing.
    */
   takeFocus?: () => boolean;
+  /**
+   * **The trip's chat, as a tab beside Ask** (M46, the layout). The caller
+   * owns which tab is open, because its header's 💬 and ⌘K open this panel
+   * on Chat; and the conversation, so the 💬 counts while this is closed.
+   * The Ask tab stays mounted under Chat, so a draft or an answer streaming
+   * in is still there on the way back.
+   */
+  chat?: { tab: RailTab; onTabChange: (tab: RailTab) => void; panel: ReactNode };
 } & (
   | {
       presentation?: "docked" | "floating";
@@ -472,6 +492,7 @@ export function AssistantRail({
   const draftName = useOwnedAskName(rememberDraftAs);
   const isSheet = presentation === "sheet";
   const isFloating = presentation === "floating";
+  const onChat = chat?.tab === "chat";
 
   /**
    * **Where a dragged floating panel sits** — SPEC §9, M26 link 10b.
@@ -680,9 +701,15 @@ export function AssistantRail({
   }, [restoreDraft]);
 
   const composerRef = useRef<HTMLInputElement | null>(null);
+  const chatPanelRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
     // Asked whatever the presentation, so a sheet's open is spent too.
-    if (takeFocus?.() === true && !isSheet) composerRef.current?.focus();
+    if (takeFocus?.() !== true || isSheet) return;
+    // The open tab's composer: Ask's is hidden under Chat, and focusing it
+    // there does nothing. The chat's is the caller's markup, so it is found
+    // in the panel; with none (still reading, or read-only) the panel itself.
+    if (onChat) (chatPanelRef.current?.querySelector<HTMLElement>("input") ?? chatPanelRef.current)?.focus();
+    else composerRef.current?.focus();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once per mount: `takeFocus` answers for the open that mounted this rail
   }, []);
 
@@ -866,16 +893,20 @@ export function AssistantRail({
             {/* The same heading in all three presentations; in the sheet it
                 is additionally the dialog's accessible name, so the modal
                 announces itself with the words already on screen rather than
-                a second label invented for screen readers. */}
+                a second label invented for screen readers. It names the open
+                tab's conversation: on Chat it is the people's, "called Chat
+                everywhere" (M46's layout), so the sheet opened from 💬 is not
+                announced as the assistant. The <aside> keeps "Assistant", the
+                panel's one stable name that every opener's locators share. */}
             {isSheet ? (
               <RadixDialog.Title asChild>
                 <Heading level={4} className="font-semibold">
-                  Assistant
+                  {onChat ? "Chat" : "Assistant"}
                 </Heading>
               </RadixDialog.Title>
             ) : (
               <Heading level={4} className="font-semibold">
-                Assistant
+                {onChat ? "Chat" : "Assistant"}
               </Heading>
             )}
             <div className="flex-1" />
@@ -905,7 +936,7 @@ export function AssistantRail({
                 {isFloating ? "Dock" : "Float"}
               </Button>
             )}
-            {turns.length > 0 && (
+            {turns.length > 0 && !onChat && (
               <Button
                 variant="ghost"
                 size={isSheet ? "touch" : "sm"}
@@ -951,8 +982,31 @@ export function AssistantRail({
               </Button>
             )}
           </div>
-          <div className="mt-2 rounded-sm bg-paper px-2.5 py-1.5 text-xs text-slate">{contextLine}</div>
+          {chat !== undefined && (
+            <UnderlineTabs
+              aria-label="Chat or Ask"
+              idPrefix={RAIL_TABS_ID}
+              value={chat.tab}
+              onValueChange={chat.onTabChange}
+              options={RAIL_TAB_OPTIONS}
+              hasPanel
+              className="mt-2"
+            />
+          )}
+          {!onChat && <div className="mt-2 rounded-sm bg-paper px-2.5 py-1.5 text-xs text-slate">{contextLine}</div>}
         </div>
+        {onChat && (
+          <div
+            ref={chatPanelRef}
+            role="tabpanel"
+            id={tabPanelId(RAIL_TABS_ID, "chat")}
+            aria-labelledby={tabId(RAIL_TABS_ID, "chat")}
+            tabIndex={-1}
+            className="flex min-h-0 flex-1 flex-col outline-none"
+          >
+            {chat?.panel}
+          </div>
+        )}
 
         {/* The design's assistant panel is header -> context -> conversation
             -> ask box. There is no "What I noticed" block: Mitchell, preview
@@ -971,6 +1025,8 @@ export function AssistantRail({
             report: see the note by `isSheet` and KI-2026-09-06-e. */}
         <div
           ref={scrollportRef}
+          hidden={onChat}
+          {...(chat === undefined ? {} : { role: "tabpanel", id: tabPanelId(RAIL_TABS_ID, "ask"), "aria-labelledby": tabId(RAIL_TABS_ID, "ask") })}
           className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto overscroll-contain px-4 py-3.5"
         >
           {turns.length === 0 ? (
@@ -1018,7 +1074,7 @@ export function AssistantRail({
           )}
         </div>
 
-        <div className="shrink-0 border-t border-hairline px-4 py-3">
+        <div hidden={onChat} className="shrink-0 border-t border-hairline px-4 py-3">
           {simulated && (
             <Badge variant="info" className="mb-1.5 self-start" role="status">
               Simulated

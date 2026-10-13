@@ -8,7 +8,7 @@ import type { PaletteAction, PaletteCommand, PaletteNearness, PaletteSingleton, 
 
 /** The actions, in the order the empty palette lists them (ADR-069 §2). */
 export const ACTIONS: readonly PaletteAction[] = ["Go to", "Add", "Edit", "Move", "Remove"];
-const SINGLETONS: readonly PaletteSingleton[] = ["Undo", "Redo", "Ask the assistant"];
+const SINGLETONS: readonly PaletteSingleton[] = ["Undo", "Redo", "Ask the assistant", "Open chat"];
 const TYPES: readonly PaletteType[] = ["Trip", "Day", "Stop", "View", "Notebook", "Page"];
 
 // ADR-069 §3. The vocabulary's own words, so no screen can spell "delete"
@@ -21,7 +21,10 @@ const ALIASES: Record<PaletteAction | PaletteSingleton | PaletteType, readonly s
   Remove: ["delete"],
   Undo: ["revert"],
   Redo: [],
-  "Ask the assistant": ["ai", "chat"],
+  // Not "chat": that is the trip's conversation with its people (M46), and
+  // the two are never one another's alias.
+  "Ask the assistant": ["ai"],
+  "Open chat": ["message", "conversation"],
   Trip: [],
   Day: [],
   Stop: ["activity", "place"],
