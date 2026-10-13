@@ -167,17 +167,41 @@ const OpenTripInput = z.object({
   view: z.enum(TRIP_VIEWS).optional(),
 });
 
+/** Lower case, with every run of punctuation and spaces one space: "Kyoto, 2026!" is "kyoto 2026". */
+function wordsOf(text: string): string {
+  return text.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+}
+
 /**
- * The trips a person meant by `name`: those called exactly that, ignoring case
- * and spaces at the ends, or else those whose name holds it. Shared by every
+ * The trips a person meant by `name`, as they said it: "Kyoto", "my Kyoto
+ * trip" and "the Kyoto trip." all find a trip named "Kyoto". Shared by every
  * tool that takes a trip by the name a person gave (`open_trip`, and the
- * playbook pages' `add_playbook_to_trip`), so "my Kyoto trip" finds the same
- * trip from both.
+ * playbook pages' `add_playbook_to_trip`), whose descriptions tell the model
+ * to pass those words as said, so both read them the same way.
+ *
+ * Case, punctuation and spacing never count. First the trips called exactly
+ * what was typed ("Road trip" is not "Road"), then those called what is left
+ * without a leading "my" or "the" and a trailing "trip", then every trip whose
+ * name holds what is left or whose whole name is words of what was typed
+ * ("Kyoto and Nara"). More than one is for the caller to ask about, never to
+ * choose between.
  */
 export function tripsCalled<T extends { name: string }>(trips: readonly T[], name: string): T[] {
-  const key = name.trim().toLowerCase();
-  const exact = trips.filter((trip) => trip.name.trim().toLowerCase() === key);
-  return exact.length > 0 ? exact : trips.filter((trip) => trip.name.toLowerCase().includes(key));
+  const typed = wordsOf(name);
+  if (typed === "") return [];
+  const key = typed.replace(/^(?:my|the) /, "").replace(/(?:^| )trip$/, "").trim();
+  const named = trips.map((trip) => ({ trip, words: wordsOf(trip.name) }));
+  // "my trip" leaves no key, and every name holds the empty string.
+  const tiers = [
+    (words: string) => words === typed,
+    (words: string) => key !== "" && words === key,
+    (words: string) => (key !== "" && words.includes(key)) || ` ${typed} `.includes(` ${words} `),
+  ];
+  for (const fits of tiers) {
+    const found = named.filter(({ words }) => fits(words));
+    if (found.length > 0) return found.map(({ trip }) => trip);
+  }
+  return [];
 }
 
 /**
@@ -189,9 +213,9 @@ export function tripsCalled<T extends { name: string }>(trips: readonly T[], nam
  * invariant 7). The id it queues is Home's own ⌘K command for that trip
  * (`placeCommands`), which Home registers only for trips it lists.
  *
- * Matched as `go_to` matches a notebook: the trip whose name it is, or else
- * the only one whose name holds it. Never says the names back: they are typed
- * by people, often not by the asker.
+ * Matched by `tripsCalled`, as `add_playbook_to_trip` matches: the trip whose
+ * name it is, or else the only one the words fit. Never says the names back:
+ * they are typed by people, often not by the asker.
  */
 export const openTripTool = defineTool({
   name: OPEN_TRIP_TOOL_NAME,

@@ -31,7 +31,7 @@ import { writeTravelling } from "@/server/access/members";
 import { simulatedModel } from "@/server/ai/simulatedModel";
 import { replayTranscript, type AskTranscript } from "./transcript";
 import { accountExpectationFor, type SeededAccountTrip } from "./cases";
-import { grade, retractedText, textBeforeToolCall, visibleText, type EvalCheck } from "./grade";
+import { grade, navigatedTo, retractedText, textBeforeToolCall, visibleText, type EvalCheck } from "./grade";
 import { ACCOUNT_TRIPS, accountTripCommands } from "./trips";
 
 const ACTOR_ID = "replay-actor";
@@ -377,9 +377,10 @@ describe.each(everyTranscript())("replaying $name", (transcript) => {
 });
 
 // **The account questions (M45), on the flag-off path.** Not a recording: the
-// simulated model is what every Vercel environment runs, and the four prompts
+// simulated model is what every Vercel environment runs, and the five prompts
 // are the live set's own account cases, graded by the same expectations the
-// paid run uses. So a green run here says the fixture, the cases, the door and
+// paid run uses (a-open-trip is a move, not a question, and is graded the
+// same way). So a green run here says the fixture, the cases, the door and
 // the tools agree — including that the trip the asker is not travelling on,
 // which holds the priciest meal and the most days, is left out — before any of
 // it is spent on a real model.
@@ -441,12 +442,13 @@ describe("the live set's account questions, on the simulated model", () => {
     }
   });
 
-  it("asks all four", () => {
+  it("asks all five", () => {
     expect(prompts.map((prompt) => prompt.id)).toEqual([
       "a-most-expensive-meal",
       "a-countries-count",
       "a-city-most",
       "a-next-country",
+      "a-open-trip",
     ]);
   });
 
@@ -479,6 +481,7 @@ describe("the live set's account questions, on the simulated model", () => {
         proposalCommands: 0,
         textBeforeToolCall: textBeforeToolCall(chunks),
         retracted: retractedText(chunks),
+        navigations: navigatedTo(chunks),
       },
       accountExpectationFor(id, seeded, ACCOUNT_ASKER)!,
     );

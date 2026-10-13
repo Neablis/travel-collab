@@ -233,6 +233,19 @@ export function accountExpectationFor(
         namesOneOf: COUNTRIES.filter((country) => !been.has(country.code)).map((country) => country.name),
       };
     }
+    case "a-open-trip": {
+      // A move, not a question, held to the same limits: nothing proposed and
+      // no trip read, since `open_trip` finds the trip by name. The trip is
+      // found by the fixture's own name, not by `tripsCalled`, for the reason
+      // above: the expectation must not be computed with the matcher under test.
+      const kyoto = trips.find((trip) => trip.name === "Kyoto in spring");
+      return {
+        ...ACCOUNT_QUESTION,
+        mustCall: ["open_trip"],
+        maxCallsOf: { open_trip: 1 },
+        ...(kyoto === undefined ? {} : { navigatesTo: `go:trip:${kyoto.tripId}:view:Map` }),
+      };
+    }
     default:
       return undefined;
   }
@@ -241,7 +254,8 @@ export function accountExpectationFor(
 
 // The playbook pages' prompts (M45 D9), asked on a published day's page. A
 // question reads the day and drafts nothing; the add names its trip and day,
-// so one call drafts the card and no read or search is needed first.
+// and the start needs neither, so one call drafts the card and no read or
+// search is needed first.
 const PLAYBOOK_QUESTION: EvalExpectation = {
   proposes: false,
   maxToolCalls: 2,
@@ -263,6 +277,15 @@ export function playbookExpectationFor(id: string, stopTitles: readonly string[]
         mustCall: ["add_playbook_to_trip"],
         maxCallsOf: { add_playbook_to_trip: 1 },
         mustNotCall: ["start_trip_with_playbook"],
+      };
+    case "p-start-trip":
+      return {
+        proposes: true,
+        maxToolCalls: 3,
+        maxLatencyMs: 60_000,
+        mustCall: ["start_trip_with_playbook"],
+        maxCallsOf: { start_trip_with_playbook: 1 },
+        mustNotCall: ["add_playbook_to_trip"],
       };
     default:
       return undefined;

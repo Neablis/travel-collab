@@ -17,7 +17,7 @@ import type { AskAnalyticsRecord } from "@/server/assistant/askAnalytics";
 import { OVERVIEW_ABOVE_DAYS } from "@/server/assistant/tools/read";
 import { accountExpectationFor, expectationFor, mostFreeDays, playbookExpectationFor, type SeededAccountTrip } from "./cases";
 import { ACCOUNT_TRIPS, EVAL_TRIPS, LONG_TRIP_DAYS, accountTripCommands, longTripCommands } from "./trips";
-import { grade, namesAmount, namesDayNumber, retractedText, reviewedChanges, textBeforeToolCall, visibleText, type EvalTurn } from "./grade";
+import { grade, namesAmount, namesDayNumber, navigatedTo, retractedText, reviewedChanges, textBeforeToolCall, visibleText, type EvalTurn } from "./grade";
 
 // The fields `grade` reads, on an otherwise ordinary completed turn.
 function turn(over: Partial<AskAnalyticsRecord> = {}, text = "Day 3 is the most open.", proposalCommands = 0): EvalTurn {
@@ -204,9 +204,10 @@ describe("the cases", () => {
 
   // The trip the asker is not going on outranks the right answer to both: an
   // answer that ranks it too ("Barcelona, then Kyoto") counted it.
-  it("fails an account answer that also ranks the trip the asker is not going on", () => {
-    const asker = "eval-reader";
-    const seeded = ACCOUNT_TRIPS.map((trip, i): SeededAccountTrip => {
+  // The account trips as the runner seeds them, through the domain.
+  const asker = "eval-reader";
+  const seededAccount = () =>
+    ACCOUNT_TRIPS.map((trip, i): SeededAccountTrip => {
       const tripId = `00000000-0000-4000-8000-${String(i + 1).padStart(12, "0")}`;
       let state: TripState | null = null;
       for (const command of [TripCommand.parse({ type: "CreateTrip", tripId, name: trip.name }), ...accountTripCommands(tripId, trip)]) {
@@ -216,6 +217,9 @@ describe("the cases", () => {
       }
       return { detail: tripDetailFromState(state!, "2027-04-01T09:00:00.000Z"), travelling: trip.travelling };
     });
+
+  it("fails an account answer that also ranks the trip the asker is not going on", () => {
+    const seeded = seededAccount();
     const said = (id: string, tool: string, text: string) =>
       failing(grade(turn({ toolCalls: [{ name: tool, input: {} }] }, text), accountExpectationFor(id, seeded, asker)!));
     expect(said("a-city-most", "visit_counts", "Kyoto, 3 days.")).toEqual([]);
@@ -224,6 +228,20 @@ describe("the cases", () => {
     expect(said("a-most-expensive-meal", "spend_by_category", "Disfrutar at $300, ahead of the Kaiseki dinner ($180).")).toEqual([
       'does not say "Disfrutar"',
     ]);
+  });
+
+  // "open my Kyoto trip on the map" passes only by taking them to that trip's
+  // map: a turn that went to another trip, or nowhere, did not do what was asked.
+  it("holds a-open-trip to the Kyoto trip's map, and nowhere else", () => {
+    const seeded = seededAccount();
+    const expected = accountExpectationFor("a-open-trip", seeded, asker)!;
+    const [kyoto, lisbon] = seeded.map((trip) => trip.detail.tripId);
+    const went = (navigations?: string[]) =>
+      failing(grade({ ...turn({ toolCalls: [{ name: "open_trip", input: {} }] }, "Taking you there now."), navigations }, expected));
+    expect(went([`go:trip:${kyoto}:view:Map`])).toEqual([]);
+    expect(went([`go:trip:${lisbon}:view:Map`])).toEqual([`navigates to go:trip:${kyoto}:view:Map`]);
+    expect(went([])).toEqual([`navigates to go:trip:${kyoto}:view:Map`]);
+    expect(went(undefined)).toEqual([`navigates to go:trip:${kyoto}:view:Map`]);
   });
 
   it("has an expectation for every prompt in the live set", () => {
@@ -310,6 +328,15 @@ describe("reviewedChanges", () => {
 
   it("counts nothing for a turn that proposed nothing", () => {
     expect(reviewedChanges([{ type: "finish" }])).toBe(0);
+  });
+});
+
+// ADR-072: where a turn takes the person rides on its final chunk.
+describe("navigatedTo", () => {
+  it("reads the palette command ids the final chunk carried, and none when it carried none", () => {
+    const finish = { type: "finish", messageMetadata: { paletteCommands: [{ id: "go:trip:t:view:Map", needsApproval: false }] } };
+    expect(navigatedTo([{ type: "text-delta", delta: "Taking you there now." }, finish])).toEqual(["go:trip:t:view:Map"]);
+    expect(navigatedTo([{ type: "finish" }])).toEqual([]);
   });
 });
 

@@ -1,8 +1,16 @@
 import { describe, expect, it } from "vitest";
+import type { SavedDay, TripDetail } from "@tc/contracts";
 import { tripDetailFactory } from "@tc/factories";
-import { newNotebookRefs, newPaletteCommandBuffer } from "@/server/assistant/deps";
+import {
+  newAccountTrips,
+  newNotebookRefs,
+  newPaletteCommandBuffer,
+  newPlaybookProposalBuffer,
+  type PlaybookPageReads,
+} from "@/server/assistant/deps";
 import type { AskScope } from "@/server/assistant/context";
-import { goToTool, proposeNotebookEditingTool } from "./navigate";
+import { goToTool, openTripTool, proposeNotebookEditingTool, tripsCalled } from "./navigate";
+import { addPlaybookToTripTool } from "./playbook";
 
 // ADR-072: the assistant moves you around by naming palette commands. What is
 // tested here is what only the server can get wrong: which ids it will queue at
@@ -117,5 +125,64 @@ describe("propose_notebook_editing", () => {
     expect(proposeNotebookEditingTool.domain).toBe("pages");
     expect(proposeNotebookEditingTool.effect).toBe("propose");
     expect(proposeNotebookEditingTool.minimumRole).toBe("editor");
+  });
+});
+
+// Both tools that take a trip by name pass the person's words through
+// `tripsCalled`, and the model passes them as said: the live eval at 940df19
+// sent "Kyoto trip" for a trip named "Kyoto", and the old contains-only match
+// refused it.
+describe("tripsCalled", () => {
+  const named = (...names: string[]) => names.map((name) => ({ name }));
+  const KYOTO = named("Kyoto", "Osaka 2026");
+
+  it.each(["Kyoto", "kyoto", "  KYOTO ", "Kyoto trip", "my Kyoto trip", "the Kyoto trip", "My kyoto trip.", "Kyoto and Nara"])(
+    "finds the trip named Kyoto from %j",
+    (typed) => {
+      expect(tripsCalled(KYOTO, typed)).toEqual([{ name: "Kyoto" }]);
+    },
+  );
+
+  it("still finds a trip from part of its name, and prefers the exact name", () => {
+    expect(tripsCalled(named("Kyoto 2026", "Osaka"), "Kyo")).toEqual([{ name: "Kyoto 2026" }]);
+    expect(tripsCalled(named("Kyoto", "Kyoto 2026"), "my Kyoto trip")).toEqual([{ name: "Kyoto" }]);
+    // A trip whose name ends in "trip" is still found by its whole name.
+    expect(tripsCalled(named("Road trip", "Road"), "Road trip")).toEqual([{ name: "Road trip" }]);
+    expect(tripsCalled(named("My trip", "Kyoto"), "my trip")).toEqual([{ name: "My trip" }]);
+  });
+
+  it.each(["Kyoto", "my Kyoto trip"])("returns every candidate %j fits when it fits more than one, so the tool asks", (typed) => {
+    expect(tripsCalled(named("Kyoto spring", "Kyoto autumn"), typed)).toHaveLength(2);
+  });
+
+  it.each(["Rome", "my trip", "the trip", ""])("finds nothing from %j", (typed) => {
+    expect(tripsCalled(KYOTO, typed)).toEqual([]);
+  });
+});
+
+describe("a trip named by the person's own words", () => {
+  const ASKER = "kyoto-asker";
+  const kyoto: TripDetail = tripDetailFactory.build(
+    { name: "Kyoto", members: [{ userId: ASKER, role: "owner", travelling: true }] },
+    { transient: { dayCount: 3, activitiesPerDay: 1 } },
+  );
+  const trips = () => newAccountTrips(ASKER, async () => [kyoto]);
+
+  it("open_trip opens it from \"Kyoto trip\"", async () => {
+    const paletteCommands = newPaletteCommandBuffer();
+    const result = await openTripTool.run({ trip: "Kyoto trip", view: "Map" }, { trips: trips(), paletteCommands });
+    expect(result).toEqual({ queued: true, note: expect.any(String) });
+    expect(paletteCommands.collected().map((ref) => ref.id)).toEqual([`go:trip:${kyoto.tripId}:view:Map`]);
+  });
+
+  it("add_playbook_to_trip drafts it from \"Kyoto trip\"", async () => {
+    const playbookProposal = newPlaybookProposalBuffer();
+    const savedDayId = "e2d0f4a1-0000-4000-8000-000000000003";
+    const playbookPage = {
+      day: async () => ({ savedDayId, name: "Temples", stops: [{}, {}] }) as unknown as SavedDay,
+    } as unknown as PlaybookPageReads;
+    const result = await addPlaybookToTripTool.run({ trip: "Kyoto trip", day: 2 }, { playbookPage, trips: trips(), playbookProposal });
+    expect(result).toEqual({ queued: true, note: expect.any(String) });
+    expect(playbookProposal.collected()?.target).toEqual({ kind: "trip", tripId: kyoto.tripId, startingAt: kyoto.days[1]!.dayId });
   });
 });

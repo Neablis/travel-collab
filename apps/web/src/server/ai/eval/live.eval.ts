@@ -39,7 +39,7 @@ import type { AskAnalyticsRecord } from "@/server/assistant/askAnalytics";
 import type { TurnLedger } from "@/server/assistant/ledger";
 import { accountExpectationFor, expectationFor, playbookExpectationFor, type SeededAccountTrip } from "./cases";
 import { saveDay, setSavedDayVisibility } from "@/server/savedDays";
-import { grade, retractedText, reviewedChanges, textBeforeToolCall, visibleText, type EvalCheck, type EvalTurn } from "./grade";
+import { grade, navigatedTo, retractedText, reviewedChanges, textBeforeToolCall, visibleText, type EvalCheck, type EvalTurn } from "./grade";
 import { capMicroUsdFrom, dollars, turnMicroUsd, unpricedModels } from "./spend";
 import { ACCOUNT_TRIPS, accountTripCommands, longTripCommands, type EvalTripName } from "./trips";
 
@@ -243,6 +243,7 @@ async function runTurn(
     proposalCommands: reviewedChanges(chunks),
     textBeforeToolCall: textBeforeToolCall(chunks),
     retracted: retractedText(chunks),
+    navigations: navigatedTo(chunks),
     stepDurationsMs: ledgers[0]?.stepSpend.map((step) => step.durationMs) ?? [],
     providers: ledgers[0]?.stepSpend.map((step) => step.provider) ?? [],
     generationIds: ledgers[0]?.stepSpend.map((step) => step.gatewayGenerationId) ?? [],
