@@ -11,9 +11,11 @@ Committed in the repo, so every session and every worktree has them.
 
 **PR digest** (`pnpm -s pr-digest [<n> ...]`, `scripts/pr-digest.mjs`): every open
 PR's state (head, `ci-ok` and failed checks, mergeable, new comments and reviews)
-through `gh api` REST, printing only what changed since the last run. The snapshot
-lives in the git common dir, so worktrees share it; `--all` prints everything,
-`--no-save` leaves the snapshot alone. It is what the orchestrator's scheduled
+through `gh api` REST, printing only what changed since the last saved run. The
+snapshot lives in the git common dir, so worktrees share it, and only a run with no
+PR numbers (the orchestrator's check-in) saves it: `pr-digest <n>` reads and never
+writes, so a subagent's look cannot consume a change the check-in must see.
+`--all` prints everything, `--no-save` leaves the snapshot alone. It is what the orchestrator's scheduled
 check-in runs instead of listening to PR events (`building-a-milestone.md`).
 
 **State digest** (`pnpm state`, `scripts/state-digest.mjs`): the "where are we"

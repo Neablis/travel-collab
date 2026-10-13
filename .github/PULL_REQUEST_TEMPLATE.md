@@ -124,8 +124,9 @@ Closes:
        pnpm -s pr-digest <n>
 
      It uses the REST API (GraphQL is refused in cloud sessions, so
-     `gh pr checks --watch` is not an option there) and prints only what
-     changed since the last check-in. Locally, `gh pr checks <n> --watch
+     `gh pr checks --watch` is not an option there) and prints what changed
+     since the orchestrator's last check-in. Naming a PR only reads: it
+     never moves that shared snapshot. Locally, `gh pr checks <n> --watch
      --fail-fast` still works; confirm a run exists for your real HEAD first:
 
        gh run list --commit "$(git rev-parse HEAD)" --limit 1

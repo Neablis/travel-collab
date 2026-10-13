@@ -379,8 +379,9 @@ event on the PRs it watched. A check-in batches every change into one wake.
 - **The harness subscribes the session to every PR opened in it**, a subagent's
   included. Call `unsubscribe_pr_activity` for it at once.
   `notification-unsubscribe-nudge.mjs` says so on any GitHub wake that still
-  arrives, for any PR, and past 250k context it says to hand off with
-  `create_session` (`building-a-milestone.md`, *Hand-off*).
+  arrives, for any PR. Past 250k context, `orchestrator-context-limit.mjs`
+  says to hand off with `create_session` on each check-in's prompt
+  (`building-a-milestone.md`, *Hand-off*).
 - **One check-in at a time:** about 60 minutes while any PR is in CI or review,
   about 4 hours while everything waits on Mitchell. Subagent reports still wake
   the session as before.

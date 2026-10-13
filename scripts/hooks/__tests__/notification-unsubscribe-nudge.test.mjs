@@ -1,7 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, readFileSync, rmSync } from "node:fs";
 import { makeOrchestratorRepo, runHook, runHookRaw } from "./fixture.mjs";
 
 const HOOK = "notification-unsubscribe-nudge.mjs";
@@ -43,37 +42,10 @@ test("PR numbers in the response are named once each, however they are spelled",
   assert.match(note(read(root, response)), / Seen here: PR 405, PR 407, PR 410, PR 412\.$/);
 });
 
-
-
-// The orchestrator's own transcript: one assistant call carrying `context` tokens.
-function transcriptAt(root, context) {
-  const file = join(root, "session.jsonl");
-  const usage = { input_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: context };
-  writeFileSync(file, `${JSON.stringify({ type: "assistant", timestamp: new Date().toISOString(), message: { usage } })}\n`);
-  return file;
-}
-
-test("past 250k of its own context the orchestrator hands off itself with create_session, with the figure", () => {
-  const { root } = makeOrchestratorRepo();
-  const over = note(read(root, "x", { transcript_path: transcriptAt(root, 251_000) }));
-  assert.ok(
-    over.endsWith(
-      " Context 251k, over 250k: write the `/next-prompt` text, `create_session` with it (source_url " +
-        "https://github.com/Neablis/travel-collab, same environment), delete this session's pending " +
-        "`send_later` check-ins, re-arm them there.",
-    ),
-    over,
-  );
-  assert.doesNotMatch(over, /Mitchell/);
-  const under = note(read(root, "x", { transcript_path: transcriptAt(root, 250_000) }));
-  assert.doesNotMatch(under, /Your context/);
-});
-
-test("the note stays under 60 words with the most PRs it names and the handoff", () => {
+test("the note stays under 60 words with the most PRs it names", () => {
   const { root } = makeOrchestratorRepo();
   const many = Array.from({ length: 30 }, (_, i) => `https://github.com/o/r/pull/${400 + i}`).join(" ");
-  const text = note(read(root, many, { transcript_path: transcriptAt(root, 900_000) }));
-  assert.match(text, /create_session/);
+  const text = note(read(root, many));
   const words = text.split(/\s+/).length;
   assert.ok(words > 20 && words < 60, `${words} words: ${text}`);
 });

@@ -16,6 +16,10 @@ Focus for the handoff (may be empty): **$ARGUMENTS**
 Run these. Do not write the handoff from memory of this conversation; memory is
 where "I think that passed" comes from.
 
+In a milestone session, run `pnpm -s session-metrics --milestone <this session's
+transcript> ...` here too: its output goes in the block (Step 3), because the
+transcript goes with the container.
+
 ```
 git status -sb
 git log --oneline origin/main..HEAD
@@ -54,6 +58,11 @@ Specifically pin down:
 
 Output a single fenced block: it becomes the new session's first message.
 Structure it:
+
+**First instruction (milestone sessions)** — "Run `pnpm -s pr-digest`, then arm
+one `send_later` check-in (`build-a-milestone`)." The new session has no PR
+subscription and no subagents: without this, nothing wakes it after its first
+turn. Put the `session-metrics` block from Step 1 after it.
 
 **Where things stand** — branch, PR number and state, what has merged and what
 has not. Concrete, with SHAs where they matter.
@@ -96,9 +105,12 @@ them:
 Do not ask Mitchell to start it (2026-10-13; `docs/guidelines/building-a-milestone.md`,
 *Hand-off*, has the policy on when).
 
-1. **Before writing the block**, in a milestone session, run
-   `pnpm -s session-metrics --milestone <this session's transcript> ...` and put
-   its output in the block: the transcript goes with the container.
+In a milestone session, hand off only when no subagent is running: one still
+running reports to this session, which is about to stop acting. Wait for its
+hand-back first.
+
+1. Check the block carries the `session-metrics` output (Step 1) and the
+   first-instruction line (Step 3).
 2. Call `create_session` (claude-code-remote MCP) with `source_url`
    `https://github.com/Neablis/travel-collab`, no `environment_id` (it inherits
    this session's environment and model), a title such as

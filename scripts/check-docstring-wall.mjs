@@ -7,15 +7,17 @@ import { join, relative } from "node:path";
 //
 // ## Why this exists rather than a percentage
 //
-// CodeRabbit runs a **Docstring Coverage** pre-merge check against an 80%
-// floor, measured on the functions a PR changes. This repo failed it on three
-// consecutive PRs — 66.67% (#198, 9 functions), 51.39% (#199, 72), 41.18%
-// (#201) — not because those functions were unexplained but because their
-// explanations sit in `//` blocks above the symbol rather than in `/** */`
-// attached to it. KI-2026-09-20-i laid out three honest answers and Mitchell
+// CodeRabbit ran (until 2026-10-13, when Mitchell removed it) a **Docstring
+// Coverage** pre-merge check against an 80% floor, measured on the functions
+// a PR changes. This repo failed that check on three consecutive PRs —
+// 66.67% (#198, 9 functions), 51.39% (#199, 72), 41.18% (#201) — not
+// because those functions were unexplained but because their explanations
+// sit in `//` blocks above the symbol rather than in `/** */` attached to it.
+// KI-2026-09-20-i laid out three honest answers and Mitchell
 // picked one on 2026-09-22: **yes, JSDoc is the convention, and the 80% floor
 // is worth having.** KI-2026-09-22-a is the work; this is the half of it that
-// is a mechanism.
+// is a mechanism. With CodeRabbit gone, this wall is the only thing that
+// enforces it.
 //
 // The reason it is a wall and not left to the percentage is the line that
 // KI-2026-09-20-i itself used as the objection: *"the wall this repo actually

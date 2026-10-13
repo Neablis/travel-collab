@@ -65,8 +65,9 @@ rule 1). When CI goes red, `ci-triage` finds the cause and the part gets a fix, 
 ## 3. Review each part — `review-a-part`
 
 A new **`part-reviewer` subagent** reviews every push. It is read-only: it writes ranked findings
-with a failure scenario and a fix to a file, which the orchestrator posts on the PR and hands to a
-new implementer, who works them on the part's own branch.
+with a failure scenario and a fix to a file, which goes to a new implementer, who works them on the
+part's own branch. The orchestrator never posts that file: it posts a short verdict built from the
+hand-back (`working-a-review.md`).
 The riskiest or largest part gets one extra, fresh `part-reviewer` pass on its whole diff before it
 is called ready. That pass replaced CodeRabbit, which Mitchell removed on 2026-10-13: we do our own
 reviews. Every finding is fixed, or answered on its thread and resolved (`working-a-review.md`).
@@ -93,14 +94,22 @@ session itself (Mitchell, 2026-10-13: M45's four hand-offs each waited on him to
 **When.** Plan one hand-off, for the close. Make at most one more mid-build, and only when the
 orchestrator's context is past about 250k *and* roughly 100 or more of its calls are still to come.
 Below that, a new session's re-orientation costs more than the context it saves (M45's retro, *The
-whole milestone's cost*).
+whole milestone's cost*). Past 250k, `orchestrator-context-limit.mjs` says so on every prompt that
+wakes the orchestrator (a check-in, a subagent's report) and after each `pr-digest` run.
+
+**Only with no subagent running.** A `phase-implementer` or `part-reviewer` reports to the session
+that dispatched it; one still running at the hand-off would report to a session that has stopped
+acting, and its sha, red-first table and review file would reach no one. Wait for every hand-back,
+then hand off.
 
 **How**, in this order:
 
 1. **Run `session-metrics`** on this session's transcript and put its block in the handoff text.
    The transcript goes with the container, and M45's spend block covered one session in five
    because only the last one ran it (`writing-a-retro.md`).
-2. **Write the handoff** with `/next-prompt`.
+2. **Write the handoff** with `/next-prompt`. For a milestone its first instruction to the new
+   session is: run `pnpm -s pr-digest`, then arm one `send_later` check-in (`build-a-milestone`).
+   The new session has no subscription and no subagents, so without that nothing ever wakes it.
 3. **Start the continuation** with `create_session` (the claude-code-remote MCP tool): `source_url`
    `https://github.com/Neablis/travel-collab`, no `environment_id` (it inherits this session's
    environment and model), a title such as `M46 — continued (close)`, and the handoff text as

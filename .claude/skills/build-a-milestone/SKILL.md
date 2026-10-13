@@ -49,8 +49,9 @@ one sub-skill per stage and hands every hands-on step to a subagent.
   session.
 - **You start the fresh session yourself.** Plan one hand-off, for the gate close once every part
   is merged; make at most one more mid-build, only past about 250k context with roughly 100 or more
-  of your calls still to come. Each time: `session-metrics` first, then `/next-prompt`, then
-  `create_session` with that text, then delete your pending check-ins, tell Mitchell the new
+  of your calls still to come, and never while a subagent is running. Each time: `session-metrics`
+  first, then `/next-prompt` (its first line tells the new session to run `pr-digest` and arm a
+  check-in), then `create_session` with that text, then delete your pending check-ins, tell Mitchell the new
   session's id in one line, and stop acting (`building-a-milestone.md`, *Hand-off*). A fresh
   session starts near 94k; M42's close ran at about 400k.
 - Re-read a PR, check or workflow run before reporting its state.
