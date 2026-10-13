@@ -25,6 +25,7 @@ import {
 } from "./assistantPosition";
 import { useAssistantPosition } from "./useAssistantShape";
 import { usePinToBottom } from "./usePinToBottom";
+import { UnreadBadge, unreadWords } from "@/components/nav/askOrChat";
 import { useAiEntitled } from "@/lib/useAiEntitled";
 
 /**
@@ -123,11 +124,16 @@ const DRAFT_SAVE_MS = 300;
 /** The panel's two tabs on a trip (M46): the people's conversation, and the assistant's. */
 export type RailTab = "chat" | "ask";
 const RAIL_TABS_ID = "assistant-rail";
-// Chat first: it is the conversation a trip has, and Ask is one person's.
-const RAIL_TAB_OPTIONS: readonly { value: RailTab; label: string }[] = [
-  { value: "chat", label: "Chat" },
-  { value: "ask", label: "Ask" },
-];
+// Chat first: it is the conversation a trip has, and Ask is one person's. The
+// unread count rides on Chat as it does on the button that opened the panel.
+function railTabOptions(unread: number) {
+  return [
+    unread > 0
+      ? { value: "chat" as const, label: "Chat", badge: <UnreadBadge count={unread} />, name: `Chat, ${unreadWords(unread)}` }
+      : { value: "chat" as const, label: "Chat" },
+    { value: "ask" as const, label: "Ask" },
+  ];
+}
 
 // M10 redesign-feedback follow-up (post-gate): the rail's header (mark,
 // title, Hide) and its ask box are the SAME real conversational feature the
@@ -465,12 +471,13 @@ export function AssistantRail({
   takeFocus?: () => boolean;
   /**
    * **The trip's chat, as a tab beside Ask** (M46, the layout). The caller
-   * owns which tab is open, because its header's 💬 and ⌘K open this panel
-   * on Chat; and the conversation, so the 💬 counts while this is closed.
-   * The Ask tab stays mounted under Chat, so a draft or an answer streaming
-   * in is still there on the way back.
+   * owns which tab is open, because its one button reopens the tab last open
+   * and ⌘K opens this panel on Chat; and the conversation, so the button
+   * counts while this is closed. `unread` is that count, which the Chat tab
+   * carries too. The Ask tab stays mounted under Chat, so a draft or an answer
+   * streaming in is still there on the way back.
    */
-  chat?: { tab: RailTab; onTabChange: (tab: RailTab) => void; panel: ReactNode };
+  chat?: { tab: RailTab; onTabChange: (tab: RailTab) => void; panel: ReactNode; unread?: number };
 } & (
   | {
       presentation?: "docked" | "floating";
@@ -702,16 +709,30 @@ export function AssistantRail({
 
   const composerRef = useRef<HTMLInputElement | null>(null);
   const chatPanelRef = useRef<HTMLDivElement | null>(null);
+  // The open tab's composer: Ask's is hidden under Chat, and focusing it
+  // there does nothing. The chat's is the caller's markup, so it is found in
+  // the panel; with none (still reading, or read-only) the panel itself.
+  const focusOpenTab = () => {
+    if (onChat) (chatPanelRef.current?.querySelector<HTMLElement>("input") ?? chatPanelRef.current)?.focus();
+    else composerRef.current?.focus();
+  };
   useEffect(() => {
     // Asked whatever the presentation, so a sheet's open is spent too.
     if (takeFocus?.() !== true || isSheet) return;
-    // The open tab's composer: Ask's is hidden under Chat, and focusing it
-    // there does nothing. The chat's is the caller's markup, so it is found
-    // in the panel; with none (still reading, or read-only) the panel itself.
-    if (onChat) (chatPanelRef.current?.querySelector<HTMLElement>("input") ?? chatPanelRef.current)?.focus();
-    else composerRef.current?.focus();
+    focusOpenTab();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once per mount: `takeFocus` answers for the open that mounted this rail
   }, []);
+  // ⌘K's *Ask* or *Open chat* on a panel already open hides the tab focus was
+  // in, which left it on <body> (M46's preview walk): the tab it switched to
+  // takes it. A tab chosen in the strip keeps focus there, as tabs do.
+  const shownTab = useRef(chat?.tab);
+  useEffect(() => {
+    if (shownTab.current === chat?.tab) return;
+    shownTab.current = chat?.tab;
+    if (document.activeElement?.getAttribute("role") === "tab") return;
+    focusOpenTab();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- on a switch of tab only; `focusOpenTab` reads this render's
+  }, [chat?.tab]);
 
   // Stored a moment after the last keystroke, and at once on unmount: a reply
   // that leaves the page is an unmount, and it is the case this is for.
@@ -895,7 +916,7 @@ export function AssistantRail({
                 announces itself with the words already on screen rather than
                 a second label invented for screen readers. It names the open
                 tab's conversation: on Chat it is the people's, "called Chat
-                everywhere" (M46's layout), so the sheet opened from 💬 is not
+                everywhere" (M46's layout), so a sheet open on Chat is not
                 announced as the assistant. The <aside> keeps "Assistant", the
                 panel's one stable name that every opener's locators share. */}
             {isSheet ? (
@@ -988,7 +1009,7 @@ export function AssistantRail({
               idPrefix={RAIL_TABS_ID}
               value={chat.tab}
               onValueChange={chat.onTabChange}
-              options={RAIL_TAB_OPTIONS}
+              options={railTabOptions(chat.unread ?? 0)}
               hasPanel
               className="mt-2"
             />

@@ -46,7 +46,11 @@ export function UnderlineTabs<T extends string>({
    */
   value: T | null;
   onValueChange: (value: T) => void;
-  options: readonly { value: T; label: string }[];
+  /**
+   * `badge` is drawn after the label, hidden from assistive tech; `name` is
+   * then the tab's accessible name, and says what the badge shows.
+   */
+  options: readonly { value: T; label: string; badge?: React.ReactNode; name?: string }[];
   /** Namespaces the tab/panel ids so two strips on one page cannot collide. */
   idPrefix: string;
   className?: string;
@@ -119,6 +123,7 @@ export function UnderlineTabs<T extends string>({
             type="button"
             role="tab"
             aria-selected={selected}
+            aria-label={o.name}
             aria-controls={hasPanel && selected ? tabPanelId(idPrefix, o.value) : undefined}
             // Roving tabindex: the strip is one tab stop, and the arrow keys
             // move within it.
@@ -144,7 +149,16 @@ export function UnderlineTabs<T extends string>({
                 : "border-transparent font-medium text-slate hover:text-ink",
             )}
           >
-            {o.label}
+            {o.badge === undefined ? (
+              o.label
+            ) : (
+              <span className="inline-flex items-center gap-1.5">
+                {o.label}
+                <span aria-hidden className="contents">
+                  {o.badge}
+                </span>
+              </span>
+            )}
           </button>
         );
       })}

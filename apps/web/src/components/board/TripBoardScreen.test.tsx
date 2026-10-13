@@ -1796,11 +1796,14 @@ describe("assistant rail visibility", () => {
     expect(screen.getByRole("complementary", { name: "Assistant" })).toBeTruthy();
   });
 
-  // M46, the layout: one panel, two tabs, and each opener names its own. The
-  // 💬 opens it on Chat with the conversation, and its count clears once read.
-  it("the header's Chat opens the panel on Chat and its count clears; Ask opens it on Ask", async () => {
-    setViewportMatches({ "(min-width: 1180px)": true });
-    const fixture = tripDetailFixture();
+  // M46's preview walk (Mitchell: "I also don't think we need a ask and a chat
+  // button, combine everywhere and you use same interface in the modal to
+  // switch"): one button opens the panel on the tab last open, carries the
+  // chat's unread count, and the panel's own tabs are the only switch. A trip
+  // with two members, since a trip you are alone on has nobody to chat with.
+  describe("one button for Ask and Chat", () => {
+    const shared = () =>
+      tripDetailFixture({ members: [{ userId: "dev-alice", role: "owner" }, { userId: "u-bea", role: "viewer" }] });
     const said = ChatMessage.parse({
       messageId: "6e9a2c9e-0000-4b6e-9d3f-2b1a5c8d7e60",
       authorId: "u-bea",
@@ -1809,49 +1812,6 @@ describe("assistant rail visibility", () => {
       removed: false,
       body: "Train at nine?",
     });
-    server.use(...makeChatHandlers({ viewerId: fixture.members[0]!.userId, messages: [said] }).handlers, ...makeTripHandlers(fixture));
-    renderScreen(fixture.tripId);
-    expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
-
-    await waitFor(() => expect(screen.getByTestId("chat-pill").getAttribute("aria-label")).toBe("Chat, 1 unread"));
-    await userEvent.click(screen.getByTestId("chat-pill"));
-    const panel = await screen.findByRole("complementary", { name: "Assistant" });
-    expect(within(panel).getByRole("tab", { name: "Chat" }).getAttribute("aria-selected")).toBe("true");
-    expect(within(panel).getByRole("heading", { name: "Chat" })).toBeTruthy();
-    expect(within(within(panel).getByRole("list", { name: "Messages" })).getAllByRole("listitem")).toHaveLength(1);
-    // Into the panel, as Ask's opener takes its composer (PR 426): not left on
-    // the pill with the whole board to Tab through. `:focus` asked of the
-    // element, as SnapshotList.test.tsx does: no reading `activeElement`.
-    expect(within(panel).getByRole("combobox", { name: "Message" }).matches(":focus")).toBe(true);
-    expect(screen.getByTestId("chat-pill").getAttribute("aria-label")).toBe("Chat");
-
-    await userEvent.click(within(panel).getByRole("button", { name: "Hide" }));
-    await userEvent.click(screen.getByTestId("ask-pill"));
-    const asking = await screen.findByRole("complementary", { name: "Assistant" });
-    expect(within(asking).getByRole("tab", { name: "Ask" }).getAttribute("aria-selected")).toBe("true");
-    expect(within(asking).getByRole("heading", { name: "Assistant" })).toBeTruthy();
-    expect(within(asking).getByRole("button", { name: "Ask the assistant" })).toBeTruthy();
-  });
-
-  // The phone's way in to Chat is the row's own 💬 (the layout): its tab bar
-  // carries only Ask. The sheet is the dialog, and it is called Chat there.
-  it("the phone row's 💬 opens the sheet on Chat", async () => {
-    setViewportMatches({ "(max-width: 767px)": true });
-    const fixture = tripDetailFixture();
-    server.use(...makeChatHandlers({ viewerId: fixture.members[0]!.userId, messages: [] }).handlers, ...makeTripHandlers(fixture));
-    renderScreen(fixture.tripId);
-    expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
-
-    await userEvent.click(screen.getByTestId("chat-pill-phone"));
-    const sheet = await screen.findByRole("dialog", { name: "Chat" });
-    expect(screen.getByTestId("assistant-scrim")).toBeTruthy();
-    expect(within(sheet).getByRole("tab", { name: "Chat" }).getAttribute("aria-selected")).toBe("true");
-    expect(within(sheet).getByRole("tabpanel", { name: "Chat" })).toBeTruthy();
-  });
-
-  // Mitchell, preview walk 1 on PR 436: the tab bar's Ask reopens whichever
-  // tab was last open, across a reload, while every named opener keeps its own.
-  describe("the tab bar opens the tab last open", () => {
     function renderWithTabBar(tripId: string) {
       return render(
         <>
@@ -1883,40 +1843,82 @@ describe("assistant rail visibility", () => {
       expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
     }
 
-    it("reopens Chat after Chat was last open, and Ask after the rail's own tab went back to Ask", async () => {
-      const fixture = tripDetailFixture();
-      server.use(...makeChatHandlers({ viewerId: fixture.members[0]!.userId, messages: [] }).handlers, ...makeTripHandlers(fixture));
+    // jsdom applies no breakpoints, so the desktop title row and the phone's
+    // header row both render here: before, that was Ask, Chat and the 💬.
+    it("renders one button that opens the panel, where there were two", async () => {
+      const fixture = shared();
+      server.use(...makeTripHandlers(fixture));
+      renderScreen(fixture.tripId);
+      expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+      await screen.findByTestId("ask-pill");
+      expect(screen.getAllByRole("button", { name: /^(Ask|Chat)\b/ }).map((b) => b.getAttribute("data-testid"))).toEqual(["ask-pill"]);
+    });
+
+    it("opens on the tab last open, Chat with its composer focused, and Ask once Ask was chosen", async () => {
+      setViewportMatches({ "(min-width: 1180px)": true });
+      window.localStorage.setItem("assistant:tab", "chat");
+      const fixture = shared();
+      server.use(...makeTripHandlers(fixture));
       renderWithTabBar(fixture.tripId);
       expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
-      expect(selected(await openFromTabBar())).toEqual(["Ask"]);
 
-      await reload(fixture.tripId);
-      await userEvent.click(screen.getByTestId("chat-pill"));
-      expect(selected(await screen.findByRole("complementary", { name: "Assistant" }))).toEqual(["Chat"]);
-
-      await reload(fixture.tripId);
-      const panel = await openFromTabBar();
+      await userEvent.click(screen.getByTestId("ask-pill"));
+      const panel = await screen.findByRole("complementary", { name: "Assistant" });
       expect(selected(panel)).toEqual(["Chat"]);
+      // Into the panel, as Ask's opener takes its composer (PR 426).
+      expect(within(panel).getByRole("combobox", { name: "Message" }).matches(":focus")).toBe(true);
       await userEvent.click(within(panel).getByRole("tab", { name: "Ask" }));
 
       await reload(fixture.tripId);
-      expect(selected(await openFromTabBar())).toEqual(["Ask"]);
-    });
-
-    it("keeps the Ask pill on Ask over a remembered Chat, and remembers Ask", async () => {
-      window.localStorage.setItem("assistant:tab", "chat");
-      const fixture = tripDetailFixture();
-      server.use(...makeChatHandlers({ viewerId: fixture.members[0]!.userId, messages: [] }).handlers, ...makeTripHandlers(fixture));
-      renderWithTabBar(fixture.tripId);
-      expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
       await userEvent.click(screen.getByTestId("ask-pill"));
       expect(selected(await screen.findByRole("complementary", { name: "Assistant" }))).toEqual(["Ask"]);
-
-      await reload(fixture.tripId);
-      expect(selected(await openFromTabBar())).toEqual(["Ask"]);
     });
 
-    it("opens on Ask when storage throws, and the 💬 still opens Chat", async () => {
+    it("carries the unread count on the button, the tab bar's Ask and the Chat tab, and clears it once read", async () => {
+      setViewportMatches({ "(min-width: 1180px)": true });
+      const fixture = shared();
+      server.use(...makeChatHandlers({ viewerId: "dev-alice", messages: [said] }).handlers, ...makeTripHandlers(fixture));
+      renderWithTabBar(fixture.tripId);
+      expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+
+      const name = "Ask or chat, 1 unread message";
+      await waitFor(() => expect(screen.getByTestId("ask-pill").getAttribute("aria-label")).toBe(name));
+      expect(screen.getByTestId("ask-tab").getAttribute("aria-label")).toBe(name);
+      await userEvent.click(screen.getByTestId("ask-pill"));
+      const panel = await screen.findByRole("complementary", { name: "Assistant" });
+      expect(selected(panel)).toEqual(["Ask"]);
+      await userEvent.click(within(panel).getByRole("tab", { name: "Chat, 1 unread message" }));
+      expect(within(within(panel).getByRole("list", { name: "Messages" })).getAllByRole("listitem")).toHaveLength(1);
+      await waitFor(() => expect(screen.getByTestId("ask-pill").getAttribute("aria-label")).toBe("Ask or chat"));
+      expect(within(panel).getByRole("tab", { name: "Chat" })).toBeTruthy();
+    });
+
+    // A trip you are alone on has nobody to chat with, so a remembered Chat
+    // does not reopen there, and the button is plain Ask.
+    it("opens on Ask over a remembered Chat on a trip you are alone on, and is called Ask", async () => {
+      window.localStorage.setItem("assistant:tab", "chat");
+      const fixture = tripDetailFixture();
+      server.use(...makeTripHandlers(fixture));
+      renderWithTabBar(fixture.tripId);
+      expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+      expect(selected(await openFromTabBar())).toEqual(["Ask"]);
+      expect(screen.getAllByRole("button", { name: "Ask" }).map((b) => b.getAttribute("data-testid"))).toEqual(["ask-pill", "ask-tab"]);
+    });
+
+    it("opens the phone's sheet on a remembered Chat from the tab bar", async () => {
+      setViewportMatches({ "(max-width: 767px)": true });
+      window.localStorage.setItem("assistant:tab", "chat");
+      const fixture = shared();
+      server.use(...makeTripHandlers(fixture));
+      renderWithTabBar(fixture.tripId);
+      expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+
+      await userEvent.click(await screen.findByTestId("ask-tab"));
+      const sheet = await screen.findByRole("dialog", { name: "Chat" });
+      expect(within(sheet).getByRole("tabpanel", { name: "Chat" })).toBeTruthy();
+    });
+
+    it("opens on Ask when storage throws, and the panel's tab still switches to Chat", async () => {
       const reads = vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
         throw new Error("SecurityError");
       });
@@ -1924,12 +1926,14 @@ describe("assistant rail visibility", () => {
         throw new Error("QuotaExceededError");
       });
       try {
-        const fixture = tripDetailFixture();
-        server.use(...makeChatHandlers({ viewerId: fixture.members[0]!.userId, messages: [] }).handlers, ...makeTripHandlers(fixture));
+        const fixture = shared();
+        server.use(...makeTripHandlers(fixture));
         renderWithTabBar(fixture.tripId);
         expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
-        await userEvent.click(screen.getByTestId("chat-pill"));
-        expect(selected(await screen.findByRole("complementary", { name: "Assistant" }))).toEqual(["Chat"]);
+        const panel = await openFromTabBar();
+        expect(selected(panel)).toEqual(["Ask"]);
+        await userEvent.click(within(panel).getByRole("tab", { name: "Chat" }));
+        expect(selected(panel)).toEqual(["Chat"]);
 
         await reload(fixture.tripId);
         expect(selected(await openFromTabBar())).toEqual(["Ask"]);

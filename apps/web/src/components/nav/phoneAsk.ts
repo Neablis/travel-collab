@@ -22,9 +22,19 @@ import { useEffect, useRef, useSyncExternalStore } from "react";
  * bring it up. `onAsk` brings it up and sends `text`, for ⌘K's *Ask: <text>*
  * (M45 D6); a screen that offers none gets no such row. `onResume` is the bar's
  * own, where the screen's panel has more than one tab: it reopens the tab last
- * open (PR 436), while ⌘K's *Ask* keeps `onOpen`, which names Ask.
+ * open (PR 436), while ⌘K's *Ask* keeps `onOpen`, which names Ask. `unread` is
+ * the trip's unread chat count where that panel has a Chat tab, for the item's
+ * badge and name (M46: one button for Ask and Chat), and `chatShown` says the
+ * panel is up on Chat, where ⌘K's *Ask* still has somewhere to go.
  */
-export type PhoneAskEntry = { open: boolean; onOpen: () => void; onAsk?: (text: string) => void; onResume?: () => void };
+export type PhoneAskEntry = {
+  open: boolean;
+  onOpen: () => void;
+  onAsk?: (text: string) => void;
+  onResume?: () => void;
+  unread?: number;
+  chatShown?: boolean;
+};
 
 let entry: PhoneAskEntry | null = null;
 const listeners = new Set<() => void>();
@@ -68,15 +78,18 @@ export function usePhoneAsk(): PhoneAskEntry | null {
 /**
  * Offers this screen's assistant as the tab bar's Ask while mounted. `onOpen`
  * `undefined` offers none; `onAsk`, sending a question as it opens, and
- * `onResume`, the bar's reopen, are optional beside it. Any may be a fresh
- * function each render: the entry calls whichever is latest, so only `open`,
- * or whether each is offered, changing re-registers.
+ * `onResume`, the bar's reopen, are optional beside it, as are `unread` and
+ * `chatShown`. Any function may be a fresh one each render: the entry calls
+ * whichever is latest, so only a value, or whether each is offered, changing
+ * re-registers.
  */
 export function usePhoneAskEntry(
   onOpen: (() => void) | undefined,
   open: boolean,
   onAsk?: (text: string) => void,
   onResume?: () => void,
+  unread?: number,
+  chatShown = false,
 ): void {
   const latest = useRef({ onOpen, onAsk, onResume });
   useEffect(() => {
@@ -92,6 +105,8 @@ export function usePhoneAskEntry(
       onOpen: () => latest.current.onOpen?.(),
       ...(asks ? { onAsk: (text: string) => latest.current.onAsk?.(text) } : {}),
       ...(resumes ? { onResume: () => latest.current.onResume?.() } : {}),
+      ...(unread === undefined ? {} : { unread }),
+      ...(chatShown ? { chatShown } : {}),
     });
-  }, [offered, asks, resumes, open]);
+  }, [offered, asks, resumes, open, unread, chatShown]);
 }

@@ -152,6 +152,16 @@ describe("CommandPalette", () => {
     expect(screen.queryByRole("option", { name: /Ask the assistant/ })).toBeNull();
   });
 
+  // M46: `open` is the whole panel now, Chat included, and from Chat *Ask*
+  // still has a tab to switch to.
+  it("offers the assistant while the panel is up on Chat", async () => {
+    const onOpen = vi.fn();
+    taken.push(registerPhoneAsk({ open: true, chatShown: true, onOpen }));
+    render(<CommandPalette />);
+    await userEvent.keyboard("{Meta>}k{/Meta}ask{Enter}");
+    await waitFor(() => expect(onOpen).toHaveBeenCalledTimes(1));
+  });
+
   // PR 436's preview walk: the tab bar reopens the tab last open, but ⌘K's
   // Ask names its tab, so it never lands on Chat.
   it("opens the assistant on Ask, not by the tab bar's reopen", async () => {

@@ -2,6 +2,7 @@
 import { Button } from "@/components/ui/button";
 import { BrandMark } from "@/components/BrandMark";
 import { cn } from "@/lib/cn";
+import { askOrChatName, UnreadBadge } from "@/components/nav/askOrChat";
 
 // **The trip header's Ask, above 768px only, since Mitchell's 2026-10-10
 // preview pass.** On a phone the one-row header was "way too crowded", and Ask
@@ -54,7 +55,23 @@ import { cn } from "@/lib/cn";
 // break WCAG 2.5.3 (label in name) and leave voice-control users saying "click
 // Ask" at a control not called Ask. `aria-expanded` is what says which of the
 // two states it is in, exactly as on the bubble.
-export function AskPill({ open, onOpen, className }: { open: boolean; onOpen: () => void; className?: string }) {
+//
+// **On a trip with a chat it is the one way into both** (M46's preview walk,
+// Mitchell: "I also don't think we need a ask and a chat button, combine
+// everywhere"). Same look, with the chat's unread count as a badge; the name
+// then says both, and still starts with the "Ask" it shows (`askOrChat.tsx`).
+export function AskPill({
+  open,
+  onOpen,
+  unread,
+  className,
+}: {
+  open: boolean;
+  onOpen: () => void;
+  /** The trip's unread chat messages, where it has a chat; absent, the pill is Ask alone. */
+  unread?: number;
+  className?: string;
+}) {
   return (
     <Button
       variant="ghost"
@@ -75,6 +92,7 @@ export function AskPill({ open, onOpen, className }: { open: boolean; onOpen: ()
         "shrink-0 gap-1.5 rounded-full bg-brand-tint font-semibold text-brand-pressed hover:bg-brand-tint hover:text-brand-pressed",
         className,
       )}
+      aria-label={askOrChatName(unread)}
       aria-expanded={open}
       // See `AssistantBubble`'s note: same name, two breakpoints, and jsdom
       // applies neither.
@@ -87,6 +105,7 @@ export function AskPill({ open, onOpen, className }: { open: boolean; onOpen: ()
           11px tall (`dc.html:257`). */}
       <BrandMark size={20} tile={false} />
       Ask
+      <UnreadBadge count={unread} />
     </Button>
   );
 }

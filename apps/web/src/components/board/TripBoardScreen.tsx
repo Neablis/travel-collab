@@ -130,10 +130,11 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // The rail's own "Hide"/re-show is real layout chrome now, not AI
   // behavior gated behind M9 — see AssistantRail.tsx's header comment.
   const assistant = useAssistantVisibility();
-  // Which of the panel's *Chat · Ask* tabs is open (M46). Each opener names
-  // its own, so Ask never opens on Chat and the 💬 never on Ask, and saves it:
-  // the phone tab bar's Ask is the one opener that names none, and reopens the
-  // tab last open (`lastTab.ts`).
+  // Which of the panel's *Chat · Ask* tabs is open (M46). One button opens the
+  // panel, on the header and the phone's tab bar alike, on the tab last open
+  // (`lastTab.ts`); inside it the tabs are the only switch (Mitchell, M46's
+  // preview walk: "I also don't think we need a ask and a chat button, combine
+  // everywhere"). ⌘K's *Ask* and *Open chat* still name their own, and save it.
   const [railTab, setRailTab] = useState<RailTab>("ask");
   const chooseTab = (tab: RailTab) => {
     setRailTab(tab);
@@ -147,11 +148,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
     chooseTab("chat");
     assistant.show();
   };
-  const openLastTab = () => {
-    setRailTab(readLastRailTab());
-    assistant.show();
-  };
-  // Held here, not in the panel, so the header's 💬 counts while it is closed.
+  // Held here, not in the panel, so the button counts while it is closed.
   const chat = useTripChat({
     tripId,
     enabled: status === "ready" && !isDemoTripId(tripId),
@@ -160,11 +157,20 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
     accessLost,
   });
   const members = access?.members;
+  // Whether there is anyone to chat with: not on /demo, not once access is
+  // gone, and not on a trip you are alone on. Without, the button is Ask
+  // alone and a remembered Chat does not reopen; the tab stays, as before.
+  const hasChat = !isDemoTripId(tripId) && chat.status !== "no-access" && (members?.length ?? 0) > 1;
+  const openLastTab = () => {
+    setRailTab(hasChat ? readLastRailTab() : "ask");
+    assistant.show();
+  };
   const personas = useMemo(() => (members === undefined ? null : personasOf(members)), [members]);
   // The phone's way in is the tab bar's Ask item (Mitchell, 2026-10-10), which
-  // lives in the layout, outside this tree: offer it the header's desktop
-  // pill's opener, for ⌘K's Ask, and its own reopen of the tab last open
-  // (PR 436). Withheld on /demo for the pill's reason (KI-79).
+  // lives in the layout, outside this tree: offer it Ask's opener, for ⌘K's
+  // Ask, and the reopen of the tab last open that the header's pill also
+  // calls, with the chat's count (PR 436, M46). Withheld on /demo for the
+  // pill's reason (KI-79).
   //
   // **Only once the board itself renders** (PR #384 review). This hook has to
   // sit above the loading, signed-out and error returns below, but the
@@ -194,12 +200,14 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   const [handOff, setHandOff] = useState<{ text: string } | null>(null);
   usePhoneAskEntry(
     boardRenders && !isDemoTripId(tripId) ? openAsk : undefined,
-    assistant.open && railTab === "ask",
+    assistant.open,
     (text) => {
       openAsk();
       setHandOff({ text });
     },
     openLastTab,
+    hasChat ? chat.unread : undefined,
+    assistant.open && railTab === "chat",
   );
   // **⌘K's commands are this screen's own functions** (M41 D9, ADR-068 §1,
   // ADR-069 §4). Each is named here, above the early returns because the
@@ -1295,9 +1303,9 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
               open. */}
           <TripHeader
             tripId={tripId}
-            assistantOpen={assistant.open && railTab === "ask"}
-            onOpenAssistant={isDemo ? undefined : openAsk}
-            chat={isDemo ? undefined : { unread: chat.unread, open: assistant.open && railTab === "chat", onOpen: openChat }}
+            assistantOpen={assistant.open}
+            onOpenAssistant={isDemo ? undefined : openLastTab}
+            unread={hasChat ? chat.unread : undefined}
             pinned={pinsDayRail ? dayChips : undefined}
             conflicts={conflictsChip}
           >
@@ -1602,6 +1610,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
               tab: railTab,
               onTabChange: chooseTab,
               panel: <ChatPanel chat={chat} personas={personas} touch={assistantPresentation === "sheet"} />,
+              unread: chat.unread,
             }}
             onHide={assistant.hide}
           />

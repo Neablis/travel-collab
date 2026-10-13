@@ -41,7 +41,7 @@ test.beforeAll(async ({ browser }) => {
   await grantCollaborators(browser, "dev-alice");
 });
 
-test("a viewer's message reaches the owner's open page within one poll, and the owner's 💬 counts it", async ({ page, browser }) => {
+test("a viewer's message reaches the owner's open page within one poll, and the owner's Ask counts it", async ({ page, browser }) => {
   // Two contexts, two sign-ins, two page loads: the budget suggester.spec.ts gives.
   test.slow();
   const tripName = e2eTripName("Chat");
@@ -59,7 +59,7 @@ test("a viewer's message reaches the owner's open page within one poll, and the 
     // timer, and never reloaded after this.
     await page.goto(`/trips/${tripId}?view=Plan`);
     await expect(page.getByRole("heading", { name: tripName, level: 1 })).toBeVisible();
-    await expect(page.getByTestId("chat-pill")).toHaveAccessibleName("Chat");
+    await expect(page.getByTestId("ask-pill")).toHaveAccessibleName("Ask or chat");
 
     // ⌘K's *Open chat* opens the panel on Chat.
     await bea.keyboard.press("ControlOrMeta+KeyK");
@@ -83,11 +83,14 @@ test("a viewer's message reaches the owner's open page within one poll, and the 
 
   // One 2s poll and the read it triggers; a reload would be ~0, so the bound
   // is generous but still far short of anything but the poll delivering it.
-  await expect(page.getByTestId("chat-pill")).toHaveAccessibleName("Chat, 1 unread", { timeout: 10_000 });
-  await page.getByTestId("chat-pill").click();
+  await expect(page.getByTestId("ask-pill")).toHaveAccessibleName("Ask or chat, 1 unread message", { timeout: 10_000 });
+  // One button for both (M46's preview walk): it opens on the tab last open,
+  // Ask on this fresh browser, and the panel's tabs switch.
+  await page.getByTestId("ask-pill").click();
   const panel = page.getByRole("complementary", { name: "Assistant" });
+  await panel.getByRole("tab", { name: "Chat, 1 unread message" }).click();
   await expect(panel.getByRole("list", { name: "Messages" })).toContainText("Train at nine?");
-  await expect(page.getByTestId("chat-pill")).toHaveAccessibleName("Chat");
+  await expect(page.getByTestId("ask-pill")).toHaveAccessibleName("Ask or chat");
 });
 
 // M46 D3: a message can carry one day or stop. Its chip goes to it on Plan,
@@ -100,8 +103,10 @@ test("a message's @stop is a chip that focuses the stop on Plan, and plain text 
 
   await page.goto(`/trips/${tripId}?view=Overview`);
   await expect(page.getByRole("heading", { name: tripName, level: 1 })).toBeVisible();
-  await page.getByTestId("chat-pill").click();
+  // A trip with one member: the one button opens on Ask, and Chat is its tab.
+  await page.getByTestId("ask-pill").click();
   const panel = page.getByRole("complementary", { name: "Assistant" });
+  await panel.getByRole("tab", { name: "Chat" }).click();
   const field = panel.getByRole("combobox", { name: "Message" });
   await field.pressSequentially("Meet at @stop on day");
   await expect(panel.getByRole("option", { name: /Stop on day 1/ })).toBeVisible();
@@ -121,7 +126,8 @@ test("a message's @stop is a chip that focuses the stop on Plan, and plain text 
   expect(removed.ok()).toBe(true);
   await page.reload();
   await expect(page.getByRole("heading", { name: tripName, level: 1 })).toBeVisible();
-  await page.getByTestId("chat-pill").click();
+  await page.getByTestId("ask-pill").click();
+  await panel.getByRole("tab", { name: "Chat" }).click();
   await expect(messages).toContainText("Meet at @Stop on day 1");
   await expect(messages.getByRole("button", { name: "@Stop on day 1" })).toHaveCount(0);
 });

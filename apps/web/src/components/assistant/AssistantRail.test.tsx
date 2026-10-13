@@ -1161,4 +1161,21 @@ describe("AssistantRail — focus on open, from useAssistantVisibility", () => {
     expect((screen.getByRole("textbox", { name: "Elsewhere" }) as HTMLInputElement).value).toBe("b");
     expect(composer().value).toBe("");
   });
+
+  // M46's preview walk: ⌘K's *Open chat* or *Ask* on a panel already open
+  // hid the tab focus was in and left it on <body>. The new tab takes it; a
+  // tab chosen in the strip keeps it, as tabs do.
+  it("moves focus into the tab ⌘K switches to, and leaves it on a tab clicked", async () => {
+    const chatOn = (tab: "ask" | "chat") => ({ tab, onTabChange: vi.fn(), panel: <input aria-label="Message" /> });
+    const { rerender } = render(<AssistantRail {...baseProps} chat={chatOn("ask")} />);
+    const composer = screen.getByPlaceholderText<HTMLInputElement>(/ask about this day/i);
+    composer.focus();
+
+    rerender(<AssistantRail {...baseProps} chat={chatOn("chat")} />);
+    expect(screen.getByRole("textbox", { name: "Message" }).matches(":focus")).toBe(true);
+
+    screen.getByRole("tab", { name: "Ask" }).focus();
+    rerender(<AssistantRail {...baseProps} chat={chatOn("ask")} />);
+    expect(screen.getByRole("tab", { name: "Ask" }).matches(":focus")).toBe(true);
+  });
 });
