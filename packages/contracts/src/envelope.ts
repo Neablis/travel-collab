@@ -47,6 +47,11 @@ export type EventEnvelope = z.infer<typeof EventEnvelope>;
  * `chatRev` is the trip chat's counter (ADR-073 §2): it moves on every post,
  * edit and delete, and a client refetches the conversation when it does. For
  * every reader, as `accessRev` is, because every member may read the chat.
+ *
+ * `online` is who has the trip open (M46 D7, ADR-073 §6): the user ids of the
+ * current members whose poll was seen within the last few minutes, the caller
+ * included. Coarse by design, and absent for the demo, after a failed read and
+ * from older servers.
  */
 export const TripEventsPage = z.object({
   headSeq: z.number().int().nonnegative(),
@@ -55,5 +60,6 @@ export const TripEventsPage = z.object({
   suggestionsRev: z.string().min(1).optional(),
   accessRev: z.string().min(1).optional(),
   chatRev: z.string().min(1).optional(),
+  online: z.array(z.string()).optional(),
 });
 export type TripEventsPage = z.infer<typeof TripEventsPage>;

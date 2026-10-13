@@ -37,6 +37,11 @@ vi.mock("@/server/chat/rev", async (importOriginal) => {
   return { ...real, chatRevFor: vi.fn(real.chatRevFor) };
 });
 const { chatRevFor } = await import("@/server/chat/rev");
+vi.mock("@/server/presence/presence", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@/server/presence/presence")>();
+  return { ...real, onlineMembers: vi.fn(real.onlineMembers) };
+});
+const { onlineMembers } = await import("@/server/presence/presence");
 
 // Import after the mock so the route picks up the mocked `auth`.
 const { GET } = await import("./route");
@@ -146,6 +151,7 @@ describe("GET /api/trips/:id/events — the cursor", () => {
       suggestionsRev: expect.any(String),
       accessRev: expect.any(String),
       chatRev: "0",
+      online: [OWNER],
     });
   });
 
@@ -190,6 +196,7 @@ describe("GET /api/trips/:id/events — the cursor", () => {
       suggestionsRev: expect.any(String),
       accessRev: expect.any(String),
       chatRev: "0",
+      online: [OWNER],
     });
   });
 
@@ -342,6 +349,32 @@ describe("GET /api/trips/:id/events — chatRev", () => {
     expect(page).not.toHaveProperty("chatRev");
     expect(page.accessRev).toEqual(expect.any(String));
     expect(errors).toHaveBeenCalledWith(expect.stringContaining("chatRev"), expect.objectContaining({ tripId }));
+    errors.mockRestore();
+  });
+});
+
+// M46 D7. Who is online, and when it is and is not served, is
+// `server/presence/presence.int.test.ts`; this is the poll's half: it is on a
+// viewer's page, and a failed presence read costs one poll the field, never the events.
+describe("GET /api/trips/:id/events — online", () => {
+  it("serves a viewer the members who polled, themselves included", async () => {
+    const tripId = await seedTrip();
+    await join(tripId, "viewer");
+    await pollBody(tripId, 0);
+    currentUserId = GUEST;
+    expect(new Set((await pollBody(tripId, 0)).online)).toEqual(new Set([OWNER, GUEST]));
+  });
+
+  it("still serves the page, without the field, when the presence read fails", async () => {
+    const tripId = await seedTrip();
+    vi.mocked(onlineMembers).mockRejectedValueOnce(new Error("connection terminated"));
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const page = await pollBody(tripId, 0);
+    expect(page.headSeq).toBe(1);
+    expect(page).not.toHaveProperty("online");
+    expect(page.chatRev).toBe("0");
+    expect(errors).toHaveBeenCalledWith(expect.stringContaining("presence"), expect.objectContaining({ tripId }));
     errors.mockRestore();
   });
 });

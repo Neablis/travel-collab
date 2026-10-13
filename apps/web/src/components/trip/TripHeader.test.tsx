@@ -24,6 +24,8 @@ let myRole: "viewer" | "suggester" | "editor" | "owner" | null = "owner";
 let accessReadFails = false;
 // Who the access read lists. Empty by default, which draws no avatar stack.
 let accessMembers: TripMemberProfile[] = [];
+// The poll's `online` (M46 D7). Undefined serves a page without it.
+let onlineIds: string[] | undefined;
 const setTravellingMock = vi.fn();
 
 vi.mock("@/lib/apiClient", async (orig) => {
@@ -43,6 +45,11 @@ vi.mock("@/lib/apiClient", async (orig) => {
         ? { ok: false as const, error: { status: 500, message: "boom" } }
         : { ok: true as const, value: { tripId: "x", myRole, members: accessMembers, invites: [] } },
     ),
+    // Head 0, so a poll is never news and only `online` reaches the provider.
+    fetchTripEvents: vi.fn(async () => ({
+      ok: true as const,
+      value: { headSeq: 0, events: [], resync: false, ...(onlineIds === undefined ? {} : { online: onlineIds }) },
+    })),
     setTravelling: (...args: unknown[]) => setTravellingMock(...args),
     // The command only. The unit's key (ADR-066) is the sender's business,
     // asserted in TripProvider.test.tsx.
@@ -87,6 +94,7 @@ beforeEach(() => {
   myRole = "owner";
   accessReadFails = false;
   accessMembers = [];
+  onlineIds = undefined;
   setTravellingMock.mockReset();
   sendTripCommandMock.mockResolvedValue({
     ok: true,
@@ -716,6 +724,29 @@ describe("TripHeader — the avatar stack (D10)", () => {
     accessMembers = [person("dev-alice", "Alice Ames")];
     await renderHeader();
     expect(await screen.findByRole("button", { name: "Travellers on this trip" })).toBeTruthy();
+  });
+
+  // M46 D7. The stack's own label is all a screen reader hears of it, so who
+  // is online is said there; the faces carry the dot.
+  it("marks who has the trip open, from the poll, and names them in the stack's label", async () => {
+    accessMembers = [person("dev-alice", "Alice Ames"), person("dev-bob", "Bob Burns")];
+    onlineIds = ["dev-bob"];
+    const listening = vi.spyOn(document, "addEventListener");
+    await renderHeader();
+    await screen.findByRole("button", { name: "Travellers on this trip" });
+    // The poll's listener is attached in a later task than the render
+    // (KI-2026-09-22-e); a tab coming back is then what makes it poll.
+    await waitFor(() => expect(listening).toHaveBeenCalledWith("visibilitychange", expect.any(Function)));
+    Object.defineProperty(document, "visibilityState", { value: "visible", configurable: true });
+    try {
+      document.dispatchEvent(new Event("visibilitychange"));
+      const stack = await screen.findByRole("button", { name: "Travellers on this trip, online: Bob Burns" });
+      // Bob's face, and only his, says it: the chip's words follow his initials.
+      expect(stack.textContent).toBe("AABBonline");
+    } finally {
+      delete (document as { visibilityState?: unknown }).visibilityState;
+      listening.mockRestore();
+    }
   });
 });
 

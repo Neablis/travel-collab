@@ -43,18 +43,26 @@ export type PersonChipProps = {
   ring?: boolean;
   /** Passed through for the "colour shifted on this trip" tooltip. */
   title?: string;
+  /** Has the trip open (M46 D7): a dot at the corner, and "online" said aloud. */
+  online?: boolean;
   className?: string;
 };
+
+// A pseudo-element, so the chip stays one box and a stack's overlap is
+// untouched. Its ring parts it from the face under it, as `ring` does.
+const ONLINE_DOT =
+  "relative after:absolute after:-right-0.5 after:-bottom-0.5 after:size-2.5 after:rounded-full after:bg-success after:ring-2 after:ring-surface";
 
 /**
  * A person's chip: their chosen glyph, or their initials, on their colour.
  * Decorative like `Avatar`, which it draws — the name is always printed
- * beside it. At `xs` the initials drop to one letter.
+ * beside it. At `xs` the initials drop to one letter. Being online is printed
+ * nowhere else, so that alone is said beside it.
  */
-export function PersonChip({ name, avatar, color, size = "sm", ring, title, className }: PersonChipProps) {
+export function PersonChip({ name, avatar, color, size = "sm", ring, title, online, className }: PersonChipProps) {
   const Glyph = avatar ? AVATAR_GLYPHS[avatar] : null;
   const initials = initialsFor(name);
-  return (
+  const chip = (
     <Avatar
       name={name}
       size={size}
@@ -62,7 +70,20 @@ export function PersonChip({ name, avatar, color, size = "sm", ring, title, clas
       title={title}
       initials={size === "xs" ? initials.slice(0, 1) : initials}
       icon={Glyph ? <Glyph aria-hidden {...GLYPH[size]} /> : undefined}
-      className={cn(PERSON_BG[color ?? "slate"], "text-person-on", ring && "ring-2 ring-surface", className)}
+      className={cn(
+        PERSON_BG[color ?? "slate"],
+        "text-person-on",
+        ring && "ring-2 ring-surface",
+        online && ONLINE_DOT,
+        className,
+      )}
     />
+  );
+  if (!online) return chip;
+  return (
+    <>
+      {chip}
+      <span className="sr-only">online</span>
+    </>
   );
 }

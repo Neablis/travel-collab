@@ -120,6 +120,12 @@ type BroadcastArgs = {
    * de-duplicated, because only the caller knows whether its re-read landed.
    */
   onAccessChanged?: (rev: string) => void;
+  /**
+   * The page's `online` (M46 D7): who has the trip open, on every poll that
+   * carries it. A poll without it (a failed presence read) calls nothing, so
+   * the last answer stands.
+   */
+  onPresence?: (ids: readonly string[]) => void;
 };
 
 /**
@@ -149,6 +155,7 @@ export function useTripBroadcast({
   onChanged,
   onSuggestionsChanged,
   onAccessChanged,
+  onPresence,
 }: BroadcastArgs): void {
   // Held in refs so the effect below depends only on `tripId` and the gates.
   // Otherwise every render would tear down the interval and start a new one,
@@ -161,6 +168,8 @@ export function useTripBroadcast({
   onChangedRef.current = onChanged;
   onSuggestionsChangedRef.current = onSuggestionsChanged;
   onAccessChangedRef.current = onAccessChanged;
+  const onPresenceRef = useRef(onPresence);
+  onPresenceRef.current = onPresence;
 
   useEffect(() => {
     if (!enabled || isDemoTripId(tripId)) return;
@@ -189,6 +198,8 @@ export function useTripBroadcast({
         if (rev !== undefined) onSuggestionsChangedRef.current?.(rev);
         const accessRev = result.value.accessRev;
         if (accessRev !== undefined) onAccessChangedRef.current?.(accessRev);
+        const online = result.value.online;
+        if (online !== undefined) onPresenceRef.current?.(online);
       } finally {
         inFlight = false;
       }

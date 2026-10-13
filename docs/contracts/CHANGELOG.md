@@ -13,6 +13,19 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-10-13 — `TripEventsPage.online`: who has the trip open (M46 part 6, D7, ADR-073 §6)
+
+- **Added** to `packages/contracts/src/envelope.ts`: an optional `online` on `TripEventsPage`, the
+  user ids of the current members whose events poll was seen within the last 6 minutes, the
+  caller included. Each poll is also the caller's heartbeat, written at most once per 5 minutes.
+- Why: M46 decision 7, a dot on the avatars the trip already shows. It rides the existing poll,
+  so there is no new route and no event.
+- Consumers updated: `apps/web` (the events route, `server/presence/`, `broadcast.ts`,
+  `TripProvider.tsx`, `PersonChip`, the header's traveller stack and Trip settings → People).
+  Not on the public API: `openapi.json`, `API_VERSION` and `API_FINGERPRINT` are unchanged.
+- Breaking? no. An optional field; absent for the demo, after a failed presence read and from
+  older servers; a client keeps the last answer it had (nobody, before the first).
+
 ## 2026-10-13 — `chat.ts` and `TripEventsPage.chatRev`: a trip has a conversation (M46 part 1, ADR-073)
 
 - **Added** `packages/contracts/src/chat.ts`: `ChatLink` (`{ kind: "day" | "stop", id }`),

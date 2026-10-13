@@ -108,6 +108,7 @@ export function TripHeader({
     draft,
     noteInvites,
     access,
+    online,
     refreshAccess,
   } = useTrip();
   // The phone menu's "Add stop" opens the portable activity editor with no
@@ -251,6 +252,7 @@ export function TripHeader({
     <>
       <TravellerStack
         access={access}
+        online={online}
         onOpen={() => openSettings("people")}
       />
       <Badge variant="neutral">{statusLabel}</Badge>
@@ -808,18 +810,35 @@ const STACK_AVATARS = 3;
  *
  * Nothing until the access read answers. The names live there, not on the
  * trip, and a stack of placeholder circles would say nothing.
+ *
+ * Who has the trip open (M46 D7) is a dot on their face. The button's label is
+ * all a screen reader hears of the stack, so it names them too, the ones past
+ * the third face included.
  */
-function TravellerStack({ access, onOpen }: { access: TripAccess | null; onOpen: () => void }) {
+function TravellerStack({
+  access,
+  online,
+  onOpen,
+}: {
+  access: TripAccess | null;
+  online: ReadonlySet<string>;
+  onOpen: () => void;
+}) {
   if (access === null) return null;
   const going = new Set(travellerIds(access.members));
   const travellers = access.members.filter((m) => going.has(m.userId));
   if (travellers.length === 0) return null;
   const more = travellers.length - STACK_AVATARS;
+  const onlineNames = travellers.filter((m) => online.has(m.userId)).map(displayNameFor);
   return (
     <Button
       variant="ghost"
       onClick={onOpen}
-      aria-label="Travellers on this trip"
+      aria-label={
+        onlineNames.length === 0
+          ? "Travellers on this trip"
+          : `Travellers on this trip, online: ${onlineNames.join(", ")}`
+      }
       title="Travellers on this trip"
       className="hidden h-8 px-1 sm:inline-flex"
     >
@@ -833,6 +852,7 @@ function TravellerStack({ access, onOpen }: { access: TripAccess | null; onOpen:
             color={member.color}
             size="md"
             ring
+            online={online.has(member.userId)}
             className={cn(index > 0 && "-ml-2")}
           />
         ))}

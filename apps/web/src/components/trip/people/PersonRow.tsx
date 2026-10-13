@@ -33,19 +33,29 @@ export function PersonRow({
   name,
   isYou,
   colorNote,
+  online,
   menu,
 }: {
   member: TripMemberProfile;
   name: string;
   isYou: boolean;
   colorNote?: string;
+  /** Has the trip open (M46 D7): the chip's dot. */
+  online?: boolean;
   menu: React.ReactNode;
 }) {
   return (
     // `data-user-id` lets a test assert identity AND role together; the role
     // words alone are on invite rows too (CodeRabbit, PR #70).
     <li data-testid="person-row" data-user-id={member.userId} className="flex min-h-11 items-center gap-2.5 py-1">
-      <PersonChip name={name} avatar={member.avatar} color={member.color} size="sm" title={colorNote} />
+      <PersonChip
+        name={name}
+        avatar={member.avatar}
+        color={member.color}
+        size="sm"
+        title={colorNote}
+        online={online}
+      />
       <div className="flex min-w-0 flex-1 flex-col">
         <span className="flex min-w-0 items-center gap-1.5">
           <Text as="span" className="truncate text-sm text-ink">

@@ -65,4 +65,15 @@ describe("PersonChip", () => {
     const chip = chipFor(tripMemberProfileFactory.build());
     expect(chip.getAttribute("aria-hidden")).toBe("true");
   });
+
+  // M46 D7. The dot is a token colour on the chip itself, and since the chip
+  // is hidden from a screen reader, "online" is said beside it.
+  it("draws the online dot and says online only when asked", () => {
+    const member = tripMemberProfileFactory.build();
+    expect(chipFor(member, { title: "away" }).className).not.toContain("after:bg-success");
+    expect(screen.queryByText("online")).toBeNull();
+
+    expect(chipFor(member, { online: true }).className).toContain("after:bg-success");
+    expect(screen.getByText("online")).toBeTruthy();
+  });
 });
