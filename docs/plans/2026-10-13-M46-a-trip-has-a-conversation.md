@@ -1,6 +1,6 @@
 # M46 plan — a trip has a conversation, with the people taking it
 
-Milestone: `docs/milestones/M46-a-trip-has-a-conversation.md` (decisions D1–D6 and the layout,
+Milestone: `docs/milestones/M46-a-trip-has-a-conversation.md` (decisions D1–D7 and the layout,
 answered 2026-10-13). ADR: `docs/architecture/ADR-073-trip-chat-is-its-own-store.md`.
 Part 0 is the prose-only tracking PR on `claude/m46-a-trip-has-a-conversation`; it merges last.
 Deleted at gate close (`docs/plans/README.md`).
@@ -17,15 +17,18 @@ Line numbers are from `main` at `decfad8`, so treat them as a starting point, no
 | 2 The Chat tab | `claude/m46-part2-chat-tab` | 1 merged | 4 |
 | 4 Unread on Home | `claude/m46-part4-unread-on-home` | 1 merged | 2, 3, 5 |
 | 3 Day and stop chips | `claude/m46-part3-day-and-stop-chips` | 2 merged | 4, 5 |
-| 5 Edit, delete, report | `claude/m46-part5-edit-delete-report` | 2 merged | 3, 4 |
+| 5 Edit, delete, report | `claude/m46-part5-edit-delete-report` | 2 merged | 3, 4, 6 |
+| 6 Who's online | `claude/m46-part6-whos-online` | 1 merged | 2, 3, 4, 5 |
 
 Every part targets `main`. A part that depends on another branches from `main` after that part
 has merged. Parts 3 and 5 both edit `components/chat/ChatPanel.tsx` and `ChatMessage.tsx`; the
-second to merge takes `main` first.
+second to merge takes `main` first. Parts 1 and 6 both edit the events route and
+`envelope.ts`'s `TripEventsPage`, and part 6 starts after part 1 merges, so it builds on `chatRev`.
 
 Facts the parts share (the survey, 2026-10-13):
-- **The next migration is `0048`** (`apps/web/drizzle/0047_ai_usage_classifier_certainty.sql` is
-  the last). Part 5 takes the next free one when it is built (expected `0049`). Each migration
+- **Migrations.** Part 1 ships `0048_trip_messages` and `0049_trip_chat_reads_last_read_id` (the
+  read cursor's id; a separate file because previews had already run `0048`). Part 5's
+  `content_reports` relaxation is `0050`. Part 6 takes the next free number when it is built. Each migration
   adds its SQL, `drizzle/meta/_journal.json` and a `drizzle/meta/<n>_snapshot.json`;
   `scripts/check-migration-journal.mjs` checks them.
 - **The access seam serves a deleted trip.** `requireTripAccess` (`server/access/trip-access.ts:107`)
@@ -69,19 +72,19 @@ day/stop link (D3) and the soft-delete fields now, so later parts change no sche
 
 | File | Entry point | Change | Test |
 |---|---|---|---|
-| `server/db/schema.ts` | beside `tripAccessRevs` :499 | `tripMessages` (id, trip_id, author_id, body, link_kind/link_id nullable, created_at, edited_at, deleted_at, deleted_by, hidden_at), `tripChatReads` (trip_id, user_id, last_read_at), `tripChatRevs` (trip_id PK, rev) | `server/chat/chat.int.test.ts` |
-| new `drizzle/0048_trip_messages.sql`, `drizzle/meta/_journal.json`, new `drizzle/meta/0048_snapshot.json` | — | the migration | `scripts/check-migration-journal.mjs` |
+| `server/db/schema.ts` | beside `tripAccessRevs` :499 | `tripMessages` (id, trip_id, author_id, body, link_kind/link_id nullable, created_at, edited_at, deleted_at, deleted_by, hidden_at), `tripChatReads` (trip_id, user_id, last_read_at, last_read_id; the cursor is the pair `(created_at, id)`), `tripChatRevs` (trip_id PK, rev) | `server/chat/chat.int.test.ts` |
+| new `drizzle/0048_trip_messages.sql`, new `drizzle/0049_trip_chat_reads_last_read_id.sql`, `drizzle/meta/_journal.json`, new `drizzle/meta/0048_snapshot.json` and `0049_snapshot.json` | — | the two migrations | `scripts/check-migration-journal.mjs` |
 | new `packages/contracts/src/chat.ts` | — | `ChatMessage` (author id, body, `link?: { kind: "day" \| "stop"; id }`, `removed` boolean with no body when removed), `PostChatMessage`, `EditChatMessage`, `ChatPage` (messages, `unread`, `canPost`, `readOnlyReason?`) | new `packages/contracts/test/chat.test.ts` |
 | `packages/contracts/src/index.ts` | — | export | — |
 | `packages/contracts/src/envelope.ts` | `TripEventsPage` :47 | `chatRev: z.string().min(1).optional()` | `packages/contracts/test/` (existing envelope cases in `access.test.ts`) |
 | `docs/contracts/CHANGELOG.md` | — | entry | — |
-| new `server/chat/messages.ts` | — | `listMessages`, `postMessage`, `editMessage`, `deleteMessage` (author or owner; soft), `markRead`; each write bumps `chatRev` in its transaction | `server/chat/chat.int.test.ts` |
+| new `server/chat/messages.ts` | — | `listMessages`, `postMessage`, `editMessage`, `deleteMessage` (author or owner; soft), `markRead` (moves the cursor forward only, comparing `(created_at, id)`); each write bumps `chatRev` in its transaction | `server/chat/chat.int.test.ts` |
 | new `server/chat/rev.ts` | — | `bumpChatRev(tx, tripId)`, `chatRevFor(tripId)` on `bumpAccessRev`'s model | `server/chat/chat.int.test.ts` |
-| new `server/chat/access.ts` | — | `chatAccess(tripId, minimum)`: demo refused, `requireTripAccess`, deleted trip answered as gone, `canPost` from the lapse helper | new `server/chat/access.test.ts` |
-| `server/access/members.ts` | `billingSubject` :270, `capGrantedOnLapse` :306 | export `collaboratorsEntitled(tripId)` (the owner's `trip.collaborators` boolean), reused by `capGrantedOnLapse` | `server/access/members.test.ts` |
-| new `app/api/trips/[tripId]/chat/route.ts` | `GET`, `POST` | list (any member) and post (member, entitled) | new `app/api/trips/[tripId]/chat/route.int.test.ts` |
-| new `app/api/trips/[tripId]/chat/[messageId]/route.ts` | `PATCH`, `DELETE` | edit own; delete own or owner any | new `app/api/trips/[tripId]/chat/[messageId]/route.int.test.ts` |
-| new `app/api/trips/[tripId]/chat/read/route.ts` | `POST` | move the caller's read cursor | covered in `chat/route.int.test.ts` |
+| new `server/chat/access.ts` | — | `chatAccess(tripId)`: demo refused, `requireTripAccess`, deleted trip answered as gone, `canPost` from the lapse helper; `chatReadOnly()` is the 402 `collaborators-not-entitled` | new `server/chat/access.test.ts` |
+| `server/access/members.ts` | `billingSubject` :270, `capGrantedOnLapse` :306 | export `collaboratorsEntitled(members)` (the owner's `trip.collaborators` boolean), reused by `capGrantedOnLapse` | `server/access/members.test.ts` |
+| new `app/api/trips/[tripId]/chat/route.ts` | `GET`, `POST` | list (any member) and post (member, entitled; else 402) | new `app/api/trips/[tripId]/chat/route.int.test.ts` |
+| new `app/api/trips/[tripId]/chat/[messageId]/route.ts` | `PATCH`, `DELETE` | edit own (entitled; else 402); delete own or owner any, **also after a lapse** | new `app/api/trips/[tripId]/chat/[messageId]/route.int.test.ts` |
+| new `app/api/trips/[tripId]/chat/read/route.ts` | `POST` | move the caller's read cursor, **also after a lapse** | covered in `chat/route.int.test.ts` |
 | `app/api/trips/[tripId]/events/route.ts` | `Promise.all` :59 | `chatRev` beside `accessRev`, every reader, none for the demo, a failure costs one poll | `app/api/trips/[tripId]/events/route.int.test.ts` |
 | `server/public-api/exposure.ts` | route table :48-84 | three `planned` lines | `server/public-api/exposure.test.ts` |
 | `mocks/handlers.ts` | — | MSW handlers for the chat routes | — |
@@ -89,7 +92,8 @@ day/stop link (D3) and the soft-delete fields now, so later parts change no sche
 `server/chat/chat.int.test.ts` carries the gate's three server boxes, each seen red:
 **the event log is identical** before and after a conversation (`server/eventStore.ts`'s read of
 the stream); **a removed member** (`removeMember`, `members.ts:441`) is refused GET and POST on
-their next request; **after a lapse** a member reads and is refused a post with a named code; the
+their next request; **after a lapse** a member reads, is refused a post and an edit with 402
+`collaborators-not-entitled`, and may still delete and mark read; the
 demo and a deleted trip are refused; a restored trip's chat comes back.
 
 **Preview walk:** nothing on screen. With a session cookie, `POST /api/trips/<id>/chat` and see it
@@ -124,6 +128,10 @@ longer have access.
 ## Part 3 — day and stop chips (~12 files)
 
 **Theme.** D3. UI only: the link field is already in part 1's contract and stored.
+
+**Note for the build.** Resolve a message's link id **only against the current trip**: look the
+day or stop up in this trip's state, never by id alone, so a pasted or crafted id from another
+trip renders as plain text and the chip never focuses (or reveals) something outside this trip.
 
 | File | Entry point | Change | Test |
 |---|---|---|---|
@@ -166,7 +174,7 @@ trip's Chat, go back Home, and the badge is gone.
 | File | Entry point | Change | Test |
 |---|---|---|---|
 | `server/db/schema.ts` | `contentReports` :1051 | `saved_day_id` nullable, `trip_message_id` (and `trip_id`), the target CHECK and unique over three kinds | `app/api/reports/route.int.test.ts` |
-| new `drizzle/<next>_content_reports_trip_messages.sql`, `_journal.json`, new snapshot | — | the migration (number picked at build time, expected `0049`) | `check-migration-journal.mjs` |
+| new `drizzle/<next>_content_reports_trip_messages.sql`, `_journal.json`, new snapshot | — | the migration (`0050`) | `check-migration-journal.mjs` |
 | `packages/contracts/src/report.ts` | `ReportTarget` :21 | `{ kind: "trip_message", tripId, messageId }` | new `packages/contracts/test/report.test.ts` |
 | `docs/contracts/CHANGELOG.md` | — | entry | — |
 | `server/reports.ts` | `targetOf` :39, `createReport` :100, `listReports` :169, `actOnReport` :244 | a reporter must be able to read the trip; the queue shows the message; *hide* sets `hidden_at`, *restore* clears it | `app/api/reports/route.int.test.ts`, new `server/chat/moderation.int.test.ts` |
@@ -181,8 +189,42 @@ trip's Chat, go back Home, and the badge is gone.
 windows. As the second person, report a message; as an admin, open the console's Reports and hide
 it, then restore it.
 
+## Part 6 — who's online (~16 files)
+
+**Theme.** D7. A per-member last-seen written by the events poll at most once every 5 minutes,
+the ids of current members seen in the last 6 minutes served on the same poll, and a dot on the
+avatars the trip already shows. No new route, so nothing in `server/public-api/exposure.ts`. Not
+chat: no `chatRev`, no event. The migration's number is picked at build time (`0048` and `0049`
+are part 1's, `0050` part 5's).
+
+| File | Entry point | Change | Test |
+|---|---|---|---|
+| `server/db/schema.ts` | beside `tripAccessRevs` :499 | `tripPresence` (trip_id, user_id, seen_at; PK trip_id + user_id) | new `server/presence/presence.int.test.ts` |
+| new `drizzle/<next>_trip_presence.sql`, `drizzle/meta/_journal.json`, new `drizzle/meta/<next>_snapshot.json` | — | the migration | `scripts/check-migration-journal.mjs` |
+| new `server/presence/presence.ts` | — | `PRESENCE_HEARTBEAT_MS` (5 min), `PRESENCE_WINDOW_MS` (6 min); `touchPresence(tripId, userId)`, one upsert whose `setWhere` is `seen_at <= now() - 5 min`; `onlineMembers(tripId, memberIds)`, the ids seen within the window, filtered to the current members | new `server/presence/presence.int.test.ts` |
+| `app/api/trips/[tripId]/events/route.ts` | `Promise.all` :59 (with part 1's `chatRev`) | touch the caller's presence and serve `online` from `access.detail.members`; none for the demo; a failure costs one poll the field | `app/api/trips/[tripId]/events/route.int.test.ts` |
+| `packages/contracts/src/envelope.ts` | `TripEventsPage` :47 | `online: z.array(z.string()).optional()` | `packages/contracts/test/access.test.ts` (the `TripEventsPage` cases, :137) |
+| `docs/contracts/CHANGELOG.md` | — | entry | — |
+| `components/trip/context/broadcast.ts` | `onAccessChanged` :122, :188-191 | `onPresence(ids)`, on every poll that carries `online` | `components/trip/context/broadcast.test.tsx` |
+| `components/trip/context/TripProvider.tsx` | `access` :131, `useTripBroadcast` :958 | expose `online: ReadonlySet<string>` from the latest poll (empty until one answers) | `components/trip/context/TripProvider.test.tsx` |
+| `components/ui/person-chip.tsx` | `PersonChip` :54 | `online?: boolean`: a dot at the avatar's corner, a colour token (`check-color-wall.mjs`), and *online* in its accessible name | `components/ui/person-chip.test.tsx` |
+| `components/trip/TripHeader.tsx` | `TravellerStack` :812 | pass `online` to each face in the stack | `components/trip/TripHeader.test.tsx` |
+| `components/trip/people/PersonRow.tsx`, `PeopleSection.tsx` | `PersonRow` :31, `renderMember` :331 | the dot on each member row in Trip settings → People | `components/trip/people/PeopleSection.test.tsx` |
+| `mocks/handlers.ts` | `events` :197 | `online` on the default page | — |
+| new `apps/web/e2e/m46-whos-online.spec.ts` | two contexts, on `travellers.spec.ts`'s | B opens the trip; A's header stack and People show B's dot within a poll | itself (ci-like) |
+
+`server/presence/presence.int.test.ts` carries the gate's box, seen red: a member who polled is in
+`online`; a member whose `seen_at` is older than the window (set back in the test) is not; a
+second poll inside 5 minutes leaves `seen_at` unchanged (one write per window); a removed member
+is not served even with a fresh row; the demo writes and serves nothing.
+
+**Preview walk:** open a shared trip as A, and as B in a second window. On A, B's face in the
+header's traveller stack (640px and up) gains the dot within a couple of seconds, and Trip
+settings → People shows it on B's row. Close B's window: B's dot stays for up to about 6 minutes,
+then goes. On the demo trip no dot appears.
+
 ## Gate
 
 The milestone's exit gate. The e2e boxes read CI on each part's head and
 `pnpm --filter web test:e2e:ci-like apps/web/e2e/m46-trip-chat.spec.ts`. The **[walk]** is two
-people on a preview after part 5 merges, one on a phone.
+people on a preview after parts 5 and 6 merge, one on a phone.

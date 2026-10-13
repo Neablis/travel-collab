@@ -22,7 +22,8 @@ Candidate absorbed (deleted by this gate):
 
 ## Decisions (answered by Mitchell, 2026-10-13)
 
-1. **Messages are their own store, not trip events.** A table `trip_messages` (migration `0048`),
+1. **Messages are their own store, not trip events.** A table `trip_messages` (migration `0048`;
+   `0049` adds the read cursor's `trip_chat_reads.last_read_id`),
    off the event log, History, replay and undo. They are conversation, not plan state: the event
    log records what the trip *is* (ADR-001, ADR-003; the proposal cited ADR-012, which is client
    state, in error). The ADR-064 boundary (a suggestion is not planning state until accepted) is
@@ -32,7 +33,10 @@ Candidate absorbed (deleted by this gate):
 2. **Every member may read and post**, viewers and suggesters included, **while the owner is
    entitled** to collaborators (`trip.collaborators`; the same lapse `capGranted` applies,
    `server/access/members.ts:298`). **After a lapse the chat stays readable and becomes
-   read-only** for everyone; the composer says why. The demo trip refuses every chat route
+   read-only** for everyone; the composer says why. Read-only means **posting and editing are
+   refused** (402, `collaborators-not-entitled`, the collaboration gate's own code); **deleting**
+   (an author their own, the owner any) **and marking read stay allowed**, because neither is new
+   content. The demo trip refuses every chat route
    explicitly (`requireTripAccess` answers the demo as a viewer, `trip-access.ts:123-128`, which
    would otherwise read as "may post"). A removed member is refused from their next request, by
    the same fresh per-request check every trip read makes. KI-2026-10-05-h (a removed member's
@@ -50,7 +54,9 @@ Candidate absorbed (deleted by this gate):
    `components/trip/context/broadcast.ts`). It is bumped in the same transaction as every chat
    write and served to every reader, on `accessRev`'s pattern (`trip_access_revs`, ADR-065), not
    `suggestionsRev`'s role-scoped hash (ADR-064). There is no new transport. *As recommended.*
-5. **Notifications start in-app**: a per-person read cursor, and an unread count on the trip's
+5. **Notifications start in-app**: a per-person read cursor (the last message read, compared as
+   `(created_at, id)`, the order the list is read in, so a message stamped the same millisecond is
+   not lost), and an unread count on the trip's
    chat pill in the header and on Home's trip card. Home does not poll; its count is as fresh as
    Home's own load (`app/(app)/page.tsx:239`, `fetchTrips`). Email and push are out of scope (the
    service worker has no push handler). *As recommended.*
@@ -59,10 +65,24 @@ Candidate absorbed (deleted by this gate):
    (M12): `content_reports` (`server/db/schema.ts:1051`) is relaxed by a migration (its
    `saved_day_id` is NOT NULL and its target CHECK knows two kinds), the report contract gains a
    `trip_message` target (`packages/contracts/src/report.ts:21`), and `server/reports.ts` and
-   `components/admin/ReportsPanel.tsx` gain hide and restore for it. **A deleted trip hides its
+   `components/admin/ReportsPanel.tsx` gain hide and restore for it (migration `0050`). **A deleted trip hides its
    chat, and restoring the trip restores it.** ADR-016 defines no retention to follow: `TripDeleted`
    is reversible, so the chat is hidden with the trip, never purged. *Replaces "follows ADR-016's
    retention", which named a rule that does not exist.*
+7. **Members see who has the trip open right now** (answered by Mitchell, 2026-10-13). A dot on
+   a member's avatar where the trip already shows its members: the header's traveller stack
+   (`TravellerStack`, `components/trip/TripHeader.tsx:812`, from 640px) and every row of Trip
+   settings → People (`PersonRow`, `components/trip/people/PersonRow.tsx:31`, every width).
+   *Online* means the trip page is open and visible. It **rides the existing events poll** (2 s,
+   visible tab only; `app/api/trips/[tripId]/events/route.ts`, client
+   `components/trip/context/broadcast.ts`), with no new transport. The server keeps a per-member
+   last-seen for the trip, **written at most once every 5 minutes per member** (Mitchell: *"a 5m
+   heartbeat, so kinda live"*), and the poll serves the ids of the members seen within the last
+   **6 minutes** (a little over one heartbeat). Presence is therefore coarse, about 5 minutes, on
+   purpose: it keeps writes to one per member per 5 minutes. It is not chat: it touches neither
+   `chatRev` nor the event log. The demo trip has no presence. A removed member stops appearing
+   once their membership row is gone, because the served ids are only ever current members.
+   ADR-073 §6 records it.
 
 **Layout (answered 2026-10-13).** Chat is a **tab in the existing assistant rail and sheet**,
 tabs *Chat · Ask*: docked from 1100px, a sheet below (`TripBoardScreen.tsx:345-352`,
@@ -78,19 +98,22 @@ message. It is called **Chat** everywhere, so it is never confused with Ask's th
 - A chat store, routes, a trip-level chat panel, links to days and stops, unread counts, and
   report and delete actions.
 - Personas from M38 on every message.
+- Who is online (decision 7): a last-seen heartbeat on the events poll and a dot on the avatars
+  the trip already shows.
 - No public API endpoint: the API guideline's *Features ship before their endpoints* applies, so
   each new internal route gets a `planned` line in `server/public-api/exposure.ts` and nothing
   more.
 
-Five parts, each its own PR on `main` (plan: `docs/plans/2026-10-13-M46-a-trip-has-a-conversation.md`):
+Six parts, each its own PR on `main` (plan: `docs/plans/2026-10-13-M46-a-trip-has-a-conversation.md`):
 
 | Part | Branch | Theme | Depends on |
 |---|---|---|---|
-| 1 | `claude/m46-part1-store-and-routes` | migration `0048`, contracts, `server/chat/`, the routes, the access rules (lapse, demo, removed, deleted trip), `chatRev` on the poll | — |
+| 1 | `claude/m46-part1-store-and-routes` | migrations `0048` and `0049`, contracts, `server/chat/`, the routes, the access rules (lapse, demo, removed, deleted trip), `chatRev` on the poll | — |
 | 2 | `claude/m46-part2-chat-tab` | *Chat · Ask* tabs, messages with personas, the composer, the 💬 pill and phone icon, ⌘K *Open chat*, live by `chatRev`, the 403 state | 1 |
 | 3 | `claude/m46-part3-day-and-stop-chips` | shared focus, `?stop=`, *@day* / *@stop* pickers, chips | 2 |
 | 4 | `claude/m46-part4-unread-on-home` | the unread count on Home's trip cards | 1 |
-| 5 | `claude/m46-part5-edit-delete-report` | edit and delete in the panel, *"message removed"*, reports of a message, the admin panel's hide and restore | 2 |
+| 5 | `claude/m46-part5-edit-delete-report` | edit and delete in the panel, *"message removed"*, reports of a message (migration `0050`), the admin panel's hide and restore | 2 |
+| 6 | `claude/m46-part6-whos-online` | the last-seen heartbeat on the events poll, the online ids it serves, the dot on the header's stack and in People | 1 |
 
 ## Out of scope
 
@@ -100,16 +123,20 @@ Five parts, each its own PR on `main` (plan: `docs/plans/2026-10-13-M46-a-trip-h
 
 ## Exit gate
 
-- [ ] **Decisions 1–6 are answered and recorded here**, with an ADR for the store (ADR-073).
+- [ ] **Decisions 1–7 are answered and recorded here**, with an ADR for the store (ADR-073).
 - [ ] **No chat write touches the trip's event log**: an integration test compares the log before
       and after a conversation.
 - [ ] **A removed member can neither read nor post from their next request on**, which an
       integration test shows. Their open chat panel shows that they no longer have access.
-- [ ] **After the owner's entitlement lapses, the chat is readable and refuses a post**, which an
+- [ ] **After the owner's entitlement lapses, the chat is readable and refuses a post and an
+      edit** (402 `collaborators-not-entitled`) **while delete and mark-read still work**, which an
       integration test shows; the demo trip refuses every chat route.
 - [ ] **A second member's open page shows a new message within one poll, without a refresh**, in
       an e2e with two contexts.
 - [ ] **A reported message reaches the admin reports panel.**
+- [ ] **Presence is a coarse heartbeat**: an integration test shows a member who polled is served
+      as online and one who has not polled within the window is not, and that the heartbeat writes
+      a member's last-seen at most once per window however often they poll.
 - [ ] **The e2e spec passes on `pnpm --filter web test:e2e:ci-like`.**
 - [ ] **[walk]** Two people on the PR preview, one on a phone.
 - [ ] A retro is appended at gate close.
