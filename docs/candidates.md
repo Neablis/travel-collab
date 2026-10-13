@@ -508,3 +508,10 @@ here two days later.
     account assistant, it has a tool to start a new trip from scratch. M45's
     start-a-trip-from-a-day proposal and Approve flow is the natural shape.
   **Not placed.**
+
+- **Trip chat follow-ups from M46's preview walk (asked 2026-10-13).** Mitchell, testing PR 439:
+  - **Link a notebook from a chat message.** Part 3's chips link only a day or a stop of the
+    current trip. A notebook chip would follow the same rule: resolve the id only against this trip's
+    notebooks, and render plain text otherwise.
+  - **Group a run of messages.** When one person sends several messages in a row within 30 minutes,
+    show the author once and draw the run as one visual block.
