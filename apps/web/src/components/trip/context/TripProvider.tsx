@@ -1,6 +1,7 @@
 "use client";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import {
+  PRESENCE_WINDOW_MS,
   SUGGESTION_UNIT_COMMANDS_MAX,
   SUGGESTION_UNITS_MAX,
   type BatchableCommand,
@@ -219,10 +220,16 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
   const [accessUnknown, setAccessUnknown] = useState(false);
   const [online, setOnline] = useState<ReadonlySet<string>>(NOBODY_ONLINE);
   // Every 2s poll reports it; an unchanged answer keeps the same set, so the
-  // avatars do not re-render on every tick.
+  // avatars do not re-render on every tick. An answer is dropped once it is as
+  // old as the server's window: polling stops under a history preview, and a
+  // poll whose presence read failed carries none, so nothing else would.
+  const onlineExpiry = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const onPresence = useCallback((ids: readonly string[]) => {
     setOnline((prev) => (ids.length === prev.size && ids.every((id) => prev.has(id)) ? prev : new Set(ids)));
+    clearTimeout(onlineExpiry.current);
+    onlineExpiry.current = setTimeout(() => setOnline(NOBODY_ONLINE), PRESENCE_WINDOW_MS);
   }, []);
+  useEffect(() => () => clearTimeout(onlineExpiry.current), []);
   // An invite still out, as of the access read or one made here since (W73).
   const [inviteOut, setInviteOut] = useState(false);
   // See `remoteRevision` on the context type for why this is a counter.

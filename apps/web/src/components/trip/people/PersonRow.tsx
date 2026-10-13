@@ -40,7 +40,7 @@ export function PersonRow({
   name: string;
   isYou: boolean;
   colorNote?: string;
-  /** Has the trip open (M46 D7): the chip's dot. */
+  /** Has the trip open (M46 D7): the chip's dot, and "online" said after the name. */
   online?: boolean;
   menu: React.ReactNode;
 }) {
@@ -61,6 +61,7 @@ export function PersonRow({
           <Text as="span" className="truncate text-sm text-ink">
             {name}
           </Text>
+          {online ? <span className="sr-only">online</span> : null}
           {isYou ? (
             // `Badge`, so it sits on the 12px floor (KI-2026-10-05-i). Tighter
             // than the default pill: it rides inside a name line.

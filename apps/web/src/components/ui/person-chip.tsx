@@ -43,7 +43,7 @@ export type PersonChipProps = {
   ring?: boolean;
   /** Passed through for the "colour shifted on this trip" tooltip. */
   title?: string;
-  /** Has the trip open (M46 D7): a dot at the corner, and "online" said aloud. */
+  /** Has the trip open (M46 D7): a dot at the corner. The caller says it, after the name. */
   online?: boolean;
   className?: string;
 };
@@ -56,13 +56,14 @@ const ONLINE_DOT =
 /**
  * A person's chip: their chosen glyph, or their initials, on their colour.
  * Decorative like `Avatar`, which it draws — the name is always printed
- * beside it. At `xs` the initials drop to one letter. Being online is printed
- * nowhere else, so that alone is said beside it.
+ * beside it. At `xs` the initials drop to one letter. Its online dot is not
+ * said here: the chip comes before the name, and "online" read before whose
+ * row it is says nothing, so each caller says it after the name.
  */
 export function PersonChip({ name, avatar, color, size = "sm", ring, title, online, className }: PersonChipProps) {
   const Glyph = avatar ? AVATAR_GLYPHS[avatar] : null;
   const initials = initialsFor(name);
-  const chip = (
+  return (
     <Avatar
       name={name}
       size={size}
@@ -78,12 +79,5 @@ export function PersonChip({ name, avatar, color, size = "sm", ring, title, onli
         className,
       )}
     />
-  );
-  if (!online) return chip;
-  return (
-    <>
-      {chip}
-      <span className="sr-only">online</span>
-    </>
   );
 }

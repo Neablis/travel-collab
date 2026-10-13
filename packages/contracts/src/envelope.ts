@@ -49,7 +49,7 @@ export type EventEnvelope = z.infer<typeof EventEnvelope>;
  * every reader, as `accessRev` is, because every member may read the chat.
  *
  * `online` is who has the trip open (M46 D7, ADR-073 §6): the user ids of the
- * current members whose poll was seen within the last few minutes, the caller
+ * current members whose poll was seen within `PRESENCE_WINDOW_MS`, the caller
  * included. Coarse by design, and absent for the demo, after a failed read and
  * from older servers.
  */
@@ -63,3 +63,10 @@ export const TripEventsPage = z.object({
   online: z.array(z.string()).optional(),
 });
 export type TripEventsPage = z.infer<typeof TripEventsPage>;
+
+/**
+ * How long a poll keeps its caller in `online` (M46 D7). The server serves no
+ * one older, and a client stops showing an answer this old, so a dot never
+ * outlives the window when polling stops.
+ */
+export const PRESENCE_WINDOW_MS = 6 * 60_000;

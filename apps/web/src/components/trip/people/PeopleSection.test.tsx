@@ -178,6 +178,9 @@ describe("PeopleSection", () => {
     await screen.findByText("Alice");
     expect(within(personRow("dev-bob")).getByText("online")).toBeTruthy();
     expect(within(personRow("dev-alice")).queryByText("online")).toBeNull();
+    // Whose row it is comes first: a screen reader reads the row in order, and
+    // "online" before a name says nothing.
+    expect(personRow("dev-bob").textContent).toMatch(/bob@example\.com.*online/);
   });
 
   it("marks the reader's own row, and crowns the owner's", async () => {

@@ -54,6 +54,19 @@ async function seenAt(tripId: string, userId: string): Promise<string | undefine
   return rows[0]?.at;
 }
 
+/**
+ * The row's `xmax`: the last transaction to update or lock it. A poll that
+ * neither writes nor locks the row leaves it alone; `seen_at` alone cannot
+ * tell a skipped write from a row lock taken and released.
+ */
+async function rowXmax(tripId: string, userId: string): Promise<string | undefined> {
+  const rows = await db
+    .select({ xmax: sql<string>`xmax::text` })
+    .from(tripPresence)
+    .where(and(eq(tripPresence.tripId, tripId), eq(tripPresence.userId, userId)));
+  return rows[0]?.xmax;
+}
+
 async function setSeenAgo(tripId: string, userId: string, minutes: number): Promise<void> {
   await db
     .update(tripPresence)
@@ -96,6 +109,18 @@ describe("who is online, on the events poll", () => {
     const stale = await seenAt(tripId, guest);
     await poll(tripId, guest);
     expect(await seenAt(tripId, guest)).not.toBe(stale);
+  });
+
+  // ADR-073 §6: one read per poll. An upsert that skips its update still locks
+  // the row, which costs a transaction id and a WAL record every 2s per reader.
+  it("neither writes nor locks the row on a poll inside the heartbeat", async () => {
+    const { tripId, guest } = await sharedTrip();
+    await poll(tripId, guest);
+    const before = await rowXmax(tripId, guest);
+    expect(before).toBeDefined();
+
+    await poll(tripId, guest);
+    expect(await rowXmax(tripId, guest)).toBe(before);
   });
 
   // D7: the served ids are only ever current members, so the row a removed
