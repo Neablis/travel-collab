@@ -79,4 +79,23 @@ describe("the composer's @day / @stop picker (M46 D3)", () => {
     await user.keyboard("{Escape}{Backspace}@");
     expect(screen.getByRole("listbox", { name: "Days and stops" })).toBeTruthy();
   });
+
+  // PR 439 re-review: taking back the space a pick adds reopened the picker,
+  // so the next Enter picked again instead of sending.
+  it("stays closed when the space after a pick is deleted, so Enter sends", async () => {
+    const user = userEvent.setup();
+    const { post, field } = composer();
+    await user.type(field, "Meet at @col{Enter}{Backspace}");
+    expect(screen.queryByRole("listbox")).toBeNull();
+    await user.keyboard("{Enter}");
+    expect(post).toHaveBeenCalledWith("Meet at @Colosseum", { kind: "stop", id: colosseum.activityId });
+  });
+
+  // PR 439 re-review: `@Day 1` is a prefix of `@Day 10`, which names another day.
+  it("sends no link once more is typed onto the picked name", async () => {
+    const user = userEvent.setup();
+    const { post, field } = composer();
+    await user.type(field, "Swap @day{Enter}{Backspace}0{Enter}");
+    expect(post).toHaveBeenCalledWith("Swap @Day 10", undefined);
+  });
 });

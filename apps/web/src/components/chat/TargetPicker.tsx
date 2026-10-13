@@ -2,6 +2,7 @@
 import { useId, useState, type KeyboardEvent, type ReactNode } from "react";
 import type { ChatLink } from "@tc/contracts";
 import { useBoardFocus, type BoardFocus } from "./boardFocus";
+import { wholeMention } from "./MessageChip";
 import { cn } from "@/lib/cn";
 
 /** A day or stop the composer can link, as the board names it. */
@@ -58,10 +59,11 @@ export function useTargetPicker(draft: string, setDraft: (next: string) => void)
 
   const pick = (target: PickerTarget) => {
     if (at === null) return;
-    const next = `${draft.slice(0, at)}@${target.label} `;
-    setDraft(next);
+    const mention = `${draft.slice(0, at)}@${target.label}`;
+    setDraft(`${mention} `);
     setPicked(target);
-    setClosed({ at, draft: next });
+    // Remembered without the space after it, so taking that space back keeps the picker closed.
+    setClosed({ at, draft: mention });
   };
 
   const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
@@ -120,7 +122,7 @@ export function useTargetPicker(draft: string, setDraft: (next: string) => void)
     },
     list,
     /** The link to send with `body`: the last pick, while its mention is still there. */
-    linkFor: (body: string): ChatLink | undefined => (picked !== null && body.includes(`@${picked.label}`) ?{ kind: picked.kind, id: picked.id } : undefined),
+    linkFor: (body: string): ChatLink | undefined => (picked !== null && wholeMention(body, `@${picked.label}`) !== -1 ? { kind: picked.kind, id: picked.id } : undefined),
     /** After a send: a new message starts with no link. */
     clear: () => {
       setPicked(null);

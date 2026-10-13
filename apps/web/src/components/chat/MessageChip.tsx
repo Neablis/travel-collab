@@ -21,7 +21,7 @@ export function MessageChip({ target }: { target: ResolvedLink }) {
 }
 
 /** Where `mention` stands whole in `body`, or -1: `@Day 1` is not the start of `@Day 10`. */
-function wholeMention(body: string, mention: string): number {
+export function wholeMention(body: string, mention: string): number {
   for (let at = body.indexOf(mention); at !== -1; at = body.indexOf(mention, at + 1)) {
     const after = body[at + mention.length];
     if (after === undefined || !/[\p{L}\p{N}_]/u.test(after)) return at;
