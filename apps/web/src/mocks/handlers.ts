@@ -1052,10 +1052,10 @@ export function makeCoverHandlers(
   ];
 }
 
-// Refused as the routes refuse: a stranger is not modelled (a suite reads as a
-// member), a lapse is `canPost: false` and a post or an edit then answers 402,
-// while mark-read and delete still work, and a delete is the author's or the
-// owner's.
+// The mock refuses as the routes refuse: a stranger is not modelled (a suite
+// reads as a member), a lapse is `canPost: false` and a post or an edit then
+// answers 402, while mark-read and delete still work, and a delete is the
+// author's or the owner's.
 /**
  * MSW handlers for a trip's chat (M46), backed by an in-memory conversation
  * seeded from `options.messages` and read as `options.viewerId`.

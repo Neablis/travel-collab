@@ -2,7 +2,6 @@ CREATE TABLE "trip_chat_reads" (
 	"trip_id" uuid NOT NULL,
 	"user_id" text NOT NULL,
 	"last_read_at" timestamp with time zone NOT NULL,
-	"last_read_id" uuid NOT NULL,
 	CONSTRAINT "trip_chat_reads_trip_id_user_id_pk" PRIMARY KEY("trip_id","user_id")
 );
 --> statement-breakpoint
