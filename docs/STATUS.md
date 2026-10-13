@@ -21,47 +21,35 @@ general setup.
 
 ## Where the work is right now
 
-**M45 — THE ASSISTANT ANSWERS ABOUT ALL YOUR TRIPS, AND CAN TAKE YOU PLACES — IS THE CURRENT
-MILESTONE AS OF 2026-10-12.** M42's gate closed at 14 of 14 and made M43 current; the same day
-Mitchell moved **M43 and M44 to the end** (*"Neither are impacting anything today"*) and minted
-**M49**, covers from any image URL on the public API, plus repositioning
-(`docs/milestones/M49-covers-from-anywhere.md`). **M45 was scoped the same day**
-(`docs/milestones/M45-the-assistant-beyond-one-trip.md`, D1–D9; ADR-072): it is re-based on M41's
-⌘K palette, so the assistant moves you around by running palette commands, and ⌘K offers
-*Ask: …* for unmatched text.
-
-**M45's gate close is prepared (2026-10-13 ~04:30Z), 9 of 12 boxes ticked**, on part 0, PR 420
-(draft, `claude/stoic-dijkstra-01wxup`, `main` at `940df19` merged in). The gate, its evidence and
-the retro are in `docs/milestones/M45-the-assistant-beyond-one-trip.md`. The plan is deleted.
-- **Merged:** part 1 PR 422 (`bc2b587`), part 3 PR 421 (`d34abe5`), part 2 PR 424 (`f2cf10c`),
-  the KI-2026-10-12-e fix PR 425 (`c0e0bf4`), part 4 PR 426 (`204c9dd`), part 5 PR 427
-  (`940df19`). Each part's last head was green on every CI job, both e2e shards included. No
-  migrations.
-- **Open: PR 429** (`claude/m45-part6-trip-name-match`, head `1290dce`, under re-review): the
-  trip-name matcher the live eval found broken ("my Kyoto trip" found no trip called "Kyoto"),
-  plus two new live cases, `a-open-trip` and `p-start-trip`, not yet run live.
-- **Live eval at `940df19`** (with Mitchell's go-ahead): 28 of 29 PASS, 183 checks, 1 failed
-  (`p-add-to-trip`, the defect PR 429 fixes). The four account questions all PASS.
-- **Accepted known gap:** decision 3 of Mitchell's part 5 answers (Ask in the first paint, no
-  flash) holds from the `md` width up, **not on a phone** (KI-2026-10-13-a).
-- **Unticked:** the two **[walk]** boxes (Home's assistant; a playbook day), and the ledger box:
-  production has no `ask.account` or `ask.playbook` turn yet, so query 11 has nothing to show.
-- `pnpm milestone close M45` (dry run) refuses on the 3 unticked boxes, as it should. It has not
-  been confirmed.
+**M46 — A TRIP HAS A CONVERSATION, WITH THE PEOPLE TAKING IT — IS THE CURRENT MILESTONE AS OF
+2026-10-13**, when M45's gate closed (`docs/milestones/M46-a-trip-has-a-conversation.md`). It is
+**proposed, not scoped**: its decisions are recommendations, none answered, and the file predates
+M41's ⌘K palette and M45's assistant surfaces, so scoping checks each against today's UI first.
 
 **Next action (Mitchell):**
-1. Merge PR 429 once its re-review and CI are green, and put its merge sha in the gate's table.
-2. Walk on prod, after PR 429 is deployed: Home's assistant ("which city have I been to most",
-   "open my Kyoto trip on the map"), then a playbook day (the steps are in PR 427's body). Tick
-   both [walk] boxes on your word.
-3. Re-run `.claude/skills/ai-usage/ledger.sql` query 11 on production, paste the `ask.account`
-   and `ask.playbook` rows into the ledger box, and tick it.
-4. Then `pnpm milestone close M45 --confirm`, mark PR 420 ready, and merge it once its `ci-ok`
-   passes. Optionally run `a-open-trip`, `p-add-to-trip` and `p-start-trip` live (`EVAL_ONLY=…`,
-   a few cents) to see PR 429's fix with a real model.
+1. Merge PR 420 (M45's part 0, prose only) once its `ci-ok` passes.
+2. Start M46 with "next milestone" (`build-a-milestone`): scope its decisions with Mitchell
+   before any code.
+3. Optional, from M45: when the first production playbook turn lands, read it with
+   `.claude/skills/ai-usage/ledger.sql` query 11 (no `ask.playbook` row exists yet).
+
+**M45 closed 2026-10-13, gate 12 of 12**, on part 0, PR 420 (`claude/stoic-dijkstra-01wxup`).
+The assistant answers across all your trips and takes you places:
+- An account-scoped ask with four deterministic cross-trip tools (PR 421).
+- The palette learns notebooks and runs a command by id (PR 422); the assistant names palette
+  commands, and edit mode turns on only after Approve (PR 424, ADR-072).
+- Home's rail and ⌘K's *Ask:* row (PR 426); the assistant on the playbook pages (PR 427).
+- Fixes the live eval found: KI-2026-10-12-e (PR 425), and the trip-name matcher (PR 429,
+  `8143772`, now on production).
+
+No migrations. Both [walk] boxes are ticked on Mitchell's word ("Tested and worked"). The Home
+walk shows in production's `ai_usage` as two `ask.account` turns. The playbook walk left no
+production trace, so the ledger box closed without an `ask.playbook` row, on his call. Accepted
+known gap: KI-2026-10-13-a (Ask at hydration on a phone). Gate evidence and retro:
+`docs/milestones/M45-the-assistant-beyond-one-trip.md`. The plan is deleted.
 
 Order:
-`… M42 ✓ → M45 → M46 → M47 → M48 → M49 → M43 → M44`; the reorder is recorded in
+`… M42 ✓ → M45 ✓ → M46 → M47 → M48 → M49 → M43 → M44`; the reorder is recorded in
 `docs/milestones/README.md`, *2026-10-12 — reordered and minted*.
 
 **M48 was proposed 2026-10-11** from a PM brief: example playbook days retrieved into `plan` turns

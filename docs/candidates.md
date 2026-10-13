@@ -51,24 +51,6 @@ here two days later.
     question 2; M36 decision 4 is why it is here rather than there.
   *Placed 2026-10-06 → `docs/milestones/M47-the-business-over-time.md` (proposed, not yet scoped). M47's gate deletes this entry at close.*
 
-- **An account-wide assistant that answers about every trip you have taken (asked 2026-10-04).**
-  Mitchell: *"Account wide AI assistant, be able to ask about what kind of trips they have taken
-  overall"*, with examples: *what was the most expensive meal I've eaten, how many countries have
-  I travelled to, what city have I been to the most, suggest the next country I should visit that
-  I haven't been to*.
-  - **What exists.** The assistant is scoped to one trip (ADR-022, ADR-033) and reads through
-    tools derived from the gateway (ADR-015).
-  - **The idea.** An assistant opened from the home page whose tools read across all of the
-    user's trips: costs by category, countries and cities from stop coordinates and places, visit
-    counts. The first three examples are aggregation over data we hold; the fourth also needs a
-    "countries visited" set to subtract from.
-  - **Decisions it needs.** Which trips count (own only, or shared ones the user merely
-    advises on; see "who is actually travelling" above). Whether aggregates are computed by
-    deterministic tools or the model reads trip dumps (cost and accuracy). Country/city
-    derivation where a stop has no geocoded place. Invariant 7 still holds: it reads only what
-    the user could open. Pairs with "User memory", which is deferred with the eve port.
-  *Placed 2026-10-06 → `docs/milestones/M45-the-assistant-beyond-one-trip.md` (proposed, not yet scoped). M45's gate deletes this entry at close.*
-
 - **A chat for a trip, with the people taking it (asked 2026-10-04).** Mitchell: *"a chat for a
   trip with the others taking the trip"*. Nothing like it exists; collaborators coordinate
   outside the app.
@@ -80,19 +62,6 @@ here two days later.
     nothing generates today. Moderation, report and delete, given the admin reports panel.
     Retention when a trip is soft-deleted (ADR-016).
   *Placed 2026-10-06 → `docs/milestones/M46-a-trip-has-a-conversation.md` (proposed, not yet scoped). M46's gate deletes this entry at close.*
-
-- **The assistant can move around the site (asked 2026-10-04).** Mitchell: *"give the AI agent
-  the ability to move around the website, go to notebooks, change to map view, etc"*.
-  - **The idea.** Navigation tools the assistant calls: open a notebook, switch the trip lens
-    (Plan, Map, Calendar), jump to a day or a stop, open the Travelers panel. The reply carries a
-    navigation instruction the client performs.
-  - **Decisions it needs.** The assistant is read-only (ADR-022) and takes only paths its user
-    could take (invariant 7); navigation changes no trip state, but it should still be a
-    client-side action the user sees, never a silent redirect. Whether it asks before leaving a
-    page with unsaved input. How it learns the available destinations (a typed route list, not
-    free URLs). Cheap to build once the account-wide assistant exists, since that assistant has
-    no page of its own to start on.
-  *Placed 2026-10-06 → `docs/milestones/M45-the-assistant-beyond-one-trip.md` (proposed, not yet scoped). M45's gate deletes this entry at close.*
 
 - **The assistant on eve: the port, deferred until there are users (asked 2026-10-02,
   deferred 2026-10-03).** ADR-062 records the decision and the Phase 0 spike's evidence.
@@ -371,30 +340,6 @@ here two days later.
   Either way it is a contracts change with a changelog entry, and it belongs
   with the widget work rather than bolted onto a design-sync PR that is green.
   *Placed 2026-10-06 → `docs/milestones/M43-notebooks-keep-up.md` (proposed, not yet scoped). M43's gate deletes this entry at close.*
-
-- **The assistant asks to change the app's own state, and you approve it
-  (raised by Mitchell on the PR 141 preview, 2026-09-04).** His words: *"The AI
-  assistant needs a tool to toggle the trip overview page to editing, it would
-  be really cool if the AI assistant had to access for sensitive access (Like
-  turning on edit mode) and we had a approve/deny button in the assistant to
-  take that action."* **The approve/deny half already exists** — a planning
-  turn's write tools do not execute, they collect, and the turn ends with a
-  resolved proposal that only commits when a human clicks Approve
-  (`buildProposal` / `commitProposal` in `server/ai/writeTools.ts`, ADR-022 §4,
-  ADR-033 decision 5). So this is not new machinery; it is the machinery the
-  trip board's assistant already runs on.
-
-  **What is genuinely new is the proposal's contents.** Today a proposal is a
-  list of domain commands, and "turn on edit mode" is not one — it changes
-  client state, not the trip. A UI-action proposal is a different class: it
-  cannot be replayed from the event log, it has no `actor_id`, and it is not
-  undoable. That is an ADR before it is a feature, and it is the reason this is
-  parked rather than built. It is also where *"sensitive access"* wants
-  defining: today the guard is role-based (`minimumRoleFor`), and a per-action
-  approval tier is a different axis from a role. Generalises well past edit
-  mode, which is the argument for doing it properly once. Vercel toolbar thread
-  `ULm7F9Ys7Cyx`.
-  *Placed 2026-10-06 → `docs/milestones/M45-the-assistant-beyond-one-trip.md` (proposed, not yet scoped). M45's gate deletes this entry at close.*
 
 - **Save light: move Retry out of the mark and into a popover on it
   (2026-08-26, Mitchell, PR #55 — "nice to have, to do later").** SPEC's "The

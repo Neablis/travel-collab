@@ -5,10 +5,11 @@
 `docs/candidates.md` (see `docs/milestones/README.md`, *2026-10-06 — proposed: M37 to M47*). It
 was placed late because Mitchell wanted users before more AI cost (2026-10-03).
 
-**Gate close prepared 2026-10-13 on part 0 (PR 420): 9 of 12 boxes ticked.** Every planned part
-is merged (`main` at `940df19`); PR 429, the trip-name fix the live eval found, is open. The two
-**[walk]** boxes wait for Mitchell's walk on prod, and the ledger box waits for the first
-production turns on the new surfaces, which that walk makes.
+**Gate closed 2026-10-13 on part 0 (PR 420): 12 of 12 boxes ticked.** Every part is merged,
+PR 429 (the trip-name fix the live eval found) included, as `8143772`; production runs it.
+Mitchell decided to close that morning (~06:00Z): both **[walk]** boxes are ticked on his word,
+and the ledger box on production's `ask.account` rows, with no `ask.playbook` row yet, which he
+accepted.
 
 **It was written before M41 built the ⌘K palette** (ADR-068, ADR-069), and scoping re-based it
 on that work at Mitchell's ask: *"it predates our command-k command pallet, so lets make sure this
@@ -193,16 +194,27 @@ job in it passed, both e2e shards included:*
       (a command that needs Approve is handed back unrun), `:69` (runs once on Approve), `:83`
       (nothing on Not now); `ProposalCard.test.tsx:246` and `:258`, seen red with `decideOffer`'s
       condition inverted. CI run 38281860701.*
-- [ ] **The ledger shows the new surface's cost per turn** (`ai-usage` skill output pasted here).
-      *Not ticked 2026-10-13. The ledger is reachable from this container (Neon MCP, project
-      `sweet-firefly-79114130`, branch `production`), and the surface is recorded: `ask.account`
-      and `ask.playbook` are values of `endpoint` (`apps/web/src/server/assistant/ledger.ts:96`).
-      But production has **no turn on either yet**. `.claude/skills/ai-usage/ledger.sql` query 11
-      over 7 days returns only `ask` (3 turns), and over all time the table holds 10 real `ask`
-      turns (2026-09-19 to 2026-10-10) and nothing else. The eval's numbers above come from its
-      own private database, which is dropped at teardown. Mitchell's two walks below are the
-      first production turns on the new surfaces; re-run query 11 after them and paste its rows
-      here.*
+- [x] **The ledger shows the new surface's cost per turn** (`ai-usage` skill output pasted here).
+      *Ticked 2026-10-13 on `.claude/skills/ai-usage/ledger.sql` query 11, run on production
+      at ~05:53Z (Neon MCP, project `sweet-firefly-79114130`, branch `production`, 7-day
+      window). The surface is recorded as a value of `endpoint`
+      (`apps/web/src/server/assistant/ledger.ts:96`). Per-turn means:*
+
+      | endpoint | turns | part | model | uncached in/turn | cached in/turn | out/turn |
+      |---|---|---|---|---|---|---|
+      | `ask` | 3 | steps | `anthropic/claude-haiku-5.5` | 1471.0 | 0.0 | 72.7 |
+      | `ask` | 3 | steps | `zai/glm-5.3-flash` | 2469.7 | 0.0 | 57.3 |
+      | `ask` | 3 | classifier | `anthropic/claude-haiku-5.5` | 452.7 | 0.0 | 13.7 |
+      | `ask` | 3 | classifier | `zai/glm-4.7-flash` | 156.7 | 0.0 | 9.3 |
+      | `ask.account` | 2 | steps | `anthropic/claude-haiku-5.5` | 3719.0 | 3130.0 | 426.0 |
+      | `ask.account` | 2 | classifier | `anthropic/claude-haiku-5.5` | 547.0 | 0.0 | 19.0 |
+
+      *The two `ask.account` turns are Mitchell's Home walk (2026-10-13T05:50:55Z and
+      05:51:38Z). **There is no `ask.playbook` row**: production has no playbook turn yet (see
+      the playbook walk box). That surface's per-turn cost evidence is the live eval in the eval
+      box above (`p-day-covers` $0.0084; `p-add-to-trip` and `p-start-trip` in the re-run at
+      `87c01b0`). Mitchell accepted closing the box without a production `ask.playbook` row
+      (2026-10-13).*
 - [x] **The e2e spec passes on `pnpm --filter web test:e2e:ci-like`** against the simulated
       provider. *Ticked 2026-10-13 on CI, every part's head green on both e2e shards (the table
       above). The milestone's specs: `apps/web/e2e/m41-command-palette.spec.ts` (part 1),
@@ -210,11 +222,12 @@ job in it passed, both e2e shards included:*
       (part 4) and `apps/web/e2e/m45-playbook-assistant.spec.ts` (part 5), last run together on
       PR 427's head `408f7e0`, run 38337996066. ci-like locally per the PR bodies: m41 5 passed
       (PR 422); m45-playbook-assistant, m45-home-assistant and m16-assistant 12 passed (PR 427).*
-- [ ] **[walk]** On the PR preview, open the home assistant (Ask) and ask it *"which city have I been to most"* and
-      *"open my Kyoto trip on the map"*. *Not ticked: awaiting Mitchell's walk on prod. He
-      walked part 4's preview (2026-10-12), and his two comments changed D7, but he has not yet
-      asked these two questions. "Open my Kyoto trip" depends on PR 429's matcher when the
-      model passes the words as typed, so walk it after PR 429 merges.*
+- [x] **[walk]** On the PR preview, open the home assistant (Ask) and ask it *"which city have I been to most"* and
+      *"open my Kyoto trip on the map"*. *Ticked 2026-10-13 on Mitchell's word ("Tested and
+      worked"), walked on production after PR 429 deployed. Production backs it: two
+      `ask.account` turns in `ai_usage` at 2026-10-13T05:50:55Z and 05:51:38Z, on Vercel
+      production deployment `dpl_5E5pAnFssHta75jDxkbgUX7hK7Ho` at `8143772` (the ledger box's
+      rows).*
 - [x] **Each playbook surface grants only its own tools.** A grants test lists every playbook
       surface's tools and is seen red with a trip tool (`find_free_time`) added. A signed-out or
       non-assistant user gets no rail and a refused request. *Ticked 2026-10-13: PR 427
@@ -226,11 +239,17 @@ job in it passed, both e2e shards included:*
       `apps/web/src/components/assistant/BeyondTripAssistant.test.tsx:78` and
       `apps/web/e2e/m45-playbook-assistant.spec.ts:100` (the Ask is in the server HTML on a plan
       with the assistant, not on a free one). CI run 38337996066.*
-- [ ] **[walk]** On a playbook day in the preview, open the assistant, ask what the day covers,
+- [x] **[walk]** On a playbook day in the preview, open the assistant, ask what the day covers,
       then *"add this to my Kyoto trip on day 3"*. Approve, and the stop lands there. *"Start a
-      trip with this day"* creates the trip. *Not ticked: awaiting Mitchell's walk on prod. The
-      steps are in PR 427's body, *Walk steps for the preview*. "My Kyoto trip" is the phrase the
-      live eval failed on, so walk it after PR 429 merges.*
+      trip with this day"* creates the trip. *Ticked 2026-10-13 on Mitchell's word ("Tested and
+      worked"). **Production does not show this walk**: its logs from 05:45Z on and `ai_usage`
+      hold no `ask.playbook` turn, and `saved_day_adds` has no new row, so the walk was not on
+      production (most likely a preview, a local server or a stale tab). Production runs
+      `8143772`, whose `handleAskRequest.ts:1105` records `ask.playbook` for every playbook turn,
+      so a production walk would have left one. Mitchell accepted closing on his word. The
+      deterministic evidence is the playbook e2e (`apps/web/e2e/m45-playbook-assistant.spec.ts`,
+      CI run 38337996066) and the live eval's `p-day-covers`, `p-add-to-trip` and
+      `p-start-trip`, all PASS at `87c01b0`.*
 - [x] A retro is appended at gate close. *Ticked 2026-10-13: below.*
 
 **A known gap, accepted at close: decision 3 of Mitchell's part 5 answers** (the plan is sent
@@ -241,7 +260,11 @@ that Ask is hidden, and the tab bar's Ask is registered in an effect, so it appe
 on every surface that offers one, not only the playbook pages. The fix is a contract between the
 layout and every page, so it is open as KI-2026-10-13-a and not built in M45.
 
-## Retro — written 2026-10-13, before the walks (9 of 12 boxes ticked; open: the two [walk] boxes and the ledger box)
+## Retro — written 2026-10-13 (12 of 12 boxes ticked)
+
+*Drafted before the walks at 9 of 12; the last three boxes were ticked at ~06:00Z the same day,
+when Mitchell decided to close. The two [walk] boxes are ticked on his word, and the ledger box on
+production's `ask.account` rows with no `ask.playbook` row, which he accepted.*
 
 **What shipped.** Part 0 (PR 420) and seven PRs on `main`: part 1, the palette learns notebooks
 and runs a command by id (PR 422, `bc2b587`); part 3, the account-scoped ask with four
@@ -288,8 +311,14 @@ Home's rail and ⌘K's *Ask:* row (PR 426, `204c9dd`); part 5, the assistant on 
   and not on the name already extracted. PR 429's tests now do that.
 - **Navigation had no live case until the close.** No case in the 29-case live set asked to open
   or go anywhere, so `open_trip` and `go_to` were never run against a real model before the gate.
-  PR 429 adds `a-open-trip` and `p-start-trip`; neither has run live. A part that adds a model
-  tool should add its live case in the same PR.
+  PR 429 adds `a-open-trip` and `p-start-trip`; both passed live at `87c01b0`, only at the close.
+  A part that adds a model tool should add its live case in the same PR.
+- **The playbook walk left no trace on production.** Mitchell reported it worked, but
+  production's logs from 05:45Z and `ai_usage` hold no `ask.playbook` turn, and `saved_day_adds`
+  has no new row, though `handleAskRequest.ts:1105` at `8143772` records one for every playbook
+  turn. The walk most likely ran on a preview, a local server or a stale tab. The box is ticked on
+  his word, and the ledger box closed without an `ask.playbook` row. Naming the URL in the walk
+  steps, and reading the ledger straight after a walk, would have caught it while he was there.
 - **PR 427 took four review rounds, and its first fix round was the costliest agent of the final
   session** (3.03M units, 133 calls, peak context 245k, close to the 250k ceiling). Mitchell's
   part 5 answers, the third of which ("send the plan with the page") is a cross-cutting change to
@@ -317,11 +346,10 @@ Home's rail and ⌘K's *Ask:* row (PR 426, `204c9dd`); part 5, the assistant on 
 
 ### Leftovers
 
-- **PR 429** (the trip-name matcher, two new live cases): open and under re-review at the close.
-  Mitchell's to merge; its sha goes in the gate's table.
-- **The two [walk] boxes**: Mitchell's walk on prod, after PR 429 is deployed.
-- **The ledger box**: production has no `ask.account` or `ask.playbook` turn yet. Mitchell's walk
-  makes the first ones; then `.claude/skills/ai-usage/ledger.sql` query 11 is pasted in.
+- **No production `ask.playbook` turn yet.** The ledger box was ticked without one, on
+  Mitchell's call. The first production playbook turn should be read with
+  `.claude/skills/ai-usage/ledger.sql` query 11 and compared with the live eval's `p-day-covers`
+  ($0.0084). Not filed as a known issue: nothing is broken that we know of.
 - **KI-2026-10-13-a**, the phone tab bar's Ask at hydration (decision 3 on a phone): open.
 - **KI-2026-10-12-h**, the planning text that streams and is then taken back: open on purpose.
 - **KI-2026-10-12-g**: the composer half is fixed (PR 426); the date-pill and trip-name losses, and
