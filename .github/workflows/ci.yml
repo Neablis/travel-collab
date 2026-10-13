@@ -185,7 +185,12 @@ jobs:
           git rev-parse --verify refs/remotes/origin/main >/dev/null
           echo "baseline ref present: $(git rev-parse --short refs/remotes/origin/main)"
       - uses: ./.github/actions/setup-workspace
+      # eslint on `apps/web` needs about 2.3-2.5 GB of heap, measured on main
+      # and on PR 433 (both abort at 2 GB, both pass at 2.5 GB). The runner's
+      # default sits at that edge, so a run died with exit 134 (heap OOM).
       - run: pnpm lint
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
 
   # Every workspace package's vitest suite (`pnpm -r test`): ~2 minutes.
   unit:
