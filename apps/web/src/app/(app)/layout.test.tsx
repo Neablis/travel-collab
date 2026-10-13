@@ -20,8 +20,15 @@ vi.mock("@sentry/nextjs", () => ({ captureException }));
 import AppLayout from "./layout";
 
 describe("the app layout's plan read", () => {
-  it("reports a failed read and still renders the page", async () => {
-    await expect(AppLayout({ children: null })).resolves.toBeTruthy();
+  it("reports a failed read and serves no plan", async () => {
+    // The layout's root is `SessionUserProvider`, and its child the provider
+    // the plan goes down through.
+    const tree = (await AppLayout({ children: null })) as React.ReactElement<{
+      children: React.ReactElement<{ entitlements: unknown }>;
+    }>;
     expect(captureException).toHaveBeenCalledWith(fault);
+    // `null`, not `[]`: an empty list is a served answer, and would withhold
+    // the Ask from every paying reader whenever the read fails.
+    expect(tree.props.children.props.entitlements).toBeNull();
   });
 });
