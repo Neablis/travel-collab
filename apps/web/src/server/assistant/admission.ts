@@ -128,11 +128,14 @@ const AskUiMessage = z.object({
  * screen: the tab, the sort, every filter and the page (`after`). A field the
  * screen leaves out is the route's own default. The route falls back on a
  * value it does not know, for a shared URL's sake; this refuses one, since a
- * scope is built by the screen and never typed.
+ * scope is built by the screen and never typed. The lists have no count cap
+ * of their own because the screen and its URL have none, and one lower than
+ * theirs refused every question on a search the reader could see; the body
+ * cap (`MAX_ASK_BODY_BYTES`) is what bounds them.
  */
 const DiscoverSearchSchema = z.object({
-  cities: z.array(z.string().min(1).max(200)).max(20).default([]).transform(normalizeCities),
-  countries: z.array(z.string().regex(/^[A-Z]{2}$/)).max(50).default([]),
+  cities: z.array(z.string().min(1).max(200)).default([]).transform(normalizeCities),
+  countries: z.array(z.string().regex(/^[A-Z]{2}$/)).default([]),
   scope: DiscoverScope.default("everyone"),
   sort: DiscoverSort.default("most-added"),
   budget: BudgetBand.default("any"),

@@ -31,6 +31,7 @@ import { DEMO_TRIP_ID } from "@/lib/demoTrip";
 import type { AskIntentRecord } from "@/server/assistant/askAnalytics";
 import {
   ADMISSION,
+  AskRequest,
   taskClassFor,
   DEMO_TRIP_UNSUPPORTED_CODE,
   PAGE_NOT_ON_TRIP_CODE,
@@ -758,5 +759,20 @@ describe("an account turn", () => {
     if (accountAtTrip.ok) return;
     expect(accountAtTrip.refusal).toMatchObject({ stage: "resolveSurface" });
     expect(atTrip.calls).toEqual(["identifyActor"]);
+  });
+});
+
+// PR 427 review round 2, m7: Discover's screen and URL take any number of
+// cities and countries, so a scope capped below that turned every question
+// on a long search into a 400 while the list was on screen.
+describe("a Discover scope", () => {
+  it("takes as many cities and countries as the screen can hold", () => {
+    const cities = Array.from({ length: 30 }, (_, i) => `City ${i}`);
+    const countries = Array.from({ length: 26 * 26 }, (_, i) => String.fromCharCode(65 + Math.floor(i / 26), 65 + (i % 26)));
+    const parsed = AskRequest.safeParse({
+      messages: [{ id: "m1", role: "user", parts: [{ type: "text", text: "which is the cheapest?" }] }],
+      scope: { kind: "playbook", page: { kind: "discover", search: { cities, countries } } },
+    });
+    expect(parsed.error?.issues[0]?.message).toBeUndefined();
   });
 });
