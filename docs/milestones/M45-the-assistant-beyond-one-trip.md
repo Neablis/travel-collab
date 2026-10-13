@@ -327,11 +327,14 @@ at the close, merge sha `<PR 429 merge sha>`). No migrations, as the plan expect
 - **KI-2026-10-12-c**, the eval's country-name check misgrades both ways: open.
 - **KI-2026-10-12-a, -b, -d and -f** (the costs and weather properties, the CI postgres image
   pull, a preview's `git_info_fail`): open, none caused by M45.
-- **The eval's unpriced turn**: `c-remove` on Opus came back `unpriced` at `940df19`, because
-  `turnMicroUsd` returns null when any step reports a null token count. No known-issue entry yet;
-  Mitchell's call whether to file one.
-- **The classifier called `p-add-to-trip` a `question`** (cheap tier) although it asks for a
-  change. It did not cause the failure. Not filed; Mitchell's call.
+- **KI-2026-10-13-c**, an unpriced eval turn counts as $0 against the run's cap: `c-remove` on
+  Opus at `940df19` and `a-open-trip` on Sonnet at PR 429's `87c01b0` came back `unpriced`, because
+  `turnMicroUsd` returns null when any step reports no token usage. Open; filed on Mitchell's call
+  (2026-10-13).
+- **KI-2026-10-13-d**, the playbook classifier calls a change request a `question` (cheap tier):
+  `p-add-to-trip` at `940df19`, and both playbook change prompts at `87c01b0`. It caused no
+  failure; the playbook variant has no change class to choose. Open; filed on Mitchell's call
+  (2026-10-13).
 - **The unexplained unit red on `5dff1cb`**: recorded above; nothing to file without a cause.
 - **From the deleted plan, kept here:** every behaviour e2e reaches needs a phrase branch in
   `apps/web/src/server/ai/simulatedModel.ts` and a case in `simulatedModel.test.ts`, and that is
