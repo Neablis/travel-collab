@@ -740,7 +740,13 @@ describe("TripHeader — the avatar stack (D10)", () => {
     Object.defineProperty(document, "visibilityState", { value: "visible", configurable: true });
     try {
       document.dispatchEvent(new Event("visibilitychange"));
-      expect(await screen.findByRole("button", { name: "Travellers on this trip, online: Bob Burns" })).toBeTruthy();
+      const stack = await screen.findByRole("button", { name: "Travellers on this trip, online: Bob Burns" });
+      // The label is built from its own list, so the faces' dots are checked
+      // apart from it; the dot is a pseudo-element, drawn by a class alone.
+      // eslint-disable-next-line no-restricted-syntax -- the dot exists only as a class, as in person-chip.test.tsx
+      expect(within(stack).getByText("BB").className).toContain("after:bg-success");
+      // eslint-disable-next-line no-restricted-syntax -- the dot exists only as a class, as in person-chip.test.tsx
+      expect(within(stack).getByText("AA").className).not.toContain("after:bg-success");
     } finally {
       delete (document as { visibilityState?: unknown }).visibilityState;
       listening.mockRestore();

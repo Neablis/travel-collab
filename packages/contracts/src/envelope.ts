@@ -66,7 +66,8 @@ export type TripEventsPage = z.infer<typeof TripEventsPage>;
 
 /**
  * How long a poll keeps its caller in `online` (M46 D7). The server serves no
- * one older, and a client stops showing an answer this old, so a dot never
- * outlives the window when polling stops.
+ * one older, and a client drops an answer once it is this old, so a dot is
+ * bounded when polling stops: the answer can already be a window old when it
+ * arrives, so up to about two windows after the last heartbeat.
  */
 export const PRESENCE_WINDOW_MS = 6 * 60_000;
