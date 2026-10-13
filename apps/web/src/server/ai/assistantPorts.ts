@@ -28,6 +28,11 @@ import { db } from "@/server/db/client";
 import { getTripDetail, listTripSummariesVisibleTo } from "@/server/projections";
 import { withEffectiveMembersByTrip } from "@/server/access/members";
 import { discoverDays } from "@/server/playbooks";
+import { discoverFor, placeFor, publishedDaysPage, tagPageFor } from "@/server/publicLibrary";
+import { PLACE_PAGE_SIZE } from "@/lib/playbookUrls";
+import { ActivityTagDescribed } from "@tc/contracts";
+import type { DiscoverDay } from "@/lib/playbooks";
+import type { PlaybookPage } from "@/server/assistant/context";
 import { readableSavedDay } from "@/server/savedDays";
 import { listPageEntries } from "@/server/pages";
 import { getGeocoder } from "@/server/geocoding";
@@ -267,4 +272,39 @@ export async function readAccountTrips(userId: string): Promise<TripDetail[]> {
     db,
     details.filter((detail): detail is TripDetail => detail !== null),
   );
+}
+
+/**
+ * **A playbook list page's own list** (M45 D9), read as the page reads it: the
+ * first page of Discover's search with its filters as set, or of a city's or a
+ * tag's page through the same cached reads those pages render from
+ * (`placePage.ts`, `tagPage.ts`). Nothing is widened: a city or tag with no
+ * page lists nothing, as its page is a 404.
+ */
+export async function readPlaybookList(page: PlaybookPage, readerId: string): Promise<readonly DiscoverDay[]> {
+  const first = { limit: PLACE_PAGE_SIZE, offset: 0 };
+  switch (page.kind) {
+    case "day":
+      return [];
+    case "discover": {
+      const tag = ActivityTagDescribed.safeParse(page.tag);
+      const search = { cities: page.cities, scope: "everyone", sort: "most-added", budget: "any", length: "any" } as const;
+      return (await discoverFor({ ...search, tag: tag.success ? tag.data : "any" }, readerId)).days;
+    }
+    case "city": {
+      const place = await placeFor("city", page.slug);
+      return place === null ? [] : (await publishedDaysPage({ cities: place.cities }, first)).days;
+    }
+    case "tag": {
+      const tag = ActivityTagDescribed.safeParse(page.tag);
+      const tagPage = tag.success ? await tagPageFor(tag.data, page.city) : null;
+      if (tagPage === null) return [];
+      const filter = tagPage.city === null ? { tag: tagPage.tag } : { tag: tagPage.tag, cities: tagPage.city.cities };
+      return (await publishedDaysPage(filter, first)).days;
+    }
+    default: {
+      const unhandled: never = page;
+      return unhandled;
+    }
+  }
 }

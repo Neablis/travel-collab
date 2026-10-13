@@ -42,7 +42,7 @@ const ACTOR_ID = "replay-actor";
 const session = vi.hoisted(() => ({ userId: "replay-actor" }));
 vi.mock("@/server/auth", () => ({ auth: async () => ({ user: { id: session.userId } }) }));
 
-const { handleAccountAskRequest, handleAskRequest } = await import("@/server/ai/handleAskRequest");
+const { handleBeyondTripAskRequest, handleAskRequest } = await import("@/server/ai/handleAskRequest");
 
 const TRANSCRIPT_DIR = join(import.meta.dirname, "transcripts");
 
@@ -455,7 +455,7 @@ describe("the live set's account questions, on the simulated model", () => {
     const records: AskAnalyticsRecord[] = [];
     let body: string;
     try {
-      const res = await handleAccountAskRequest(
+      const res = await handleBeyondTripAskRequest(
         new Request("http://test/api/ask", {
           method: "POST",
           headers: { "Content-Type": "application/json" },

@@ -105,6 +105,7 @@ function spyPorts(overrides: Partial<AdmissionPorts> = {}): {
       calls.push("identifyActor");
       return { userId: EDITOR, detail: detailFor("editor", EDITOR) };
     },
+    playbookDayCount: async () => null,
     loadPage: async () => {
       calls.push("loadPage");
       return pageOn(TRIP_ID);

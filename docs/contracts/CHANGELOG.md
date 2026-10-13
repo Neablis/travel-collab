@@ -13,6 +13,22 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-10-13 — `AssistantProposal.target`: a proposal drafted on no trip's page names the trip it lands in (M45 part 5, D9)
+
+- **Added** to `packages/contracts/src/assistant.ts`: an optional `target` on `AssistantProposal`,
+  `{ kind: "trip", tripId, startingAt? }` or `{ kind: "new-trip", name }`. The playbook pages'
+  assistant drafts one card, taking the playbook on screen into a trip the person named (merging
+  onto the day they named, `startingAt`) or into a new trip named after it. Absent on every
+  proposal drafted inside a trip, which lands in that trip as before.
+- Why: a proposal carried no trip because it always landed in the trip the turn was asked on. A
+  playbook page has no trip, so the card must say which, and the client approves it through the
+  page's own *Add to trip* calls (`createTrip`, `insertSavedDay`), which need the id and the day.
+- Consumers updated: `apps/web` (`server/assistant/tools/playbook.ts` writes it;
+  `components/assistant/BeyondTripAssistant.tsx` reads it on Approve; `server/ai/eval/grade.ts`
+  counts a card's playbook days). Not on the public API: `openapi.json`, `API_VERSION` and
+  `API_FINGERPRINT` are unchanged.
+- Breaking? no. Optional field; an older client ignores it, and the trip door never sends it.
+
 ## 2026-10-12 — `ASK_RETRACT_CHUNK` / `AskRetractData`: `/ask` takes back text written beside a tool call (M45 part 5, KI-2026-10-12-e)
 
 - **Added** to `packages/contracts/src/assistant.ts`: `ASK_RETRACT_CHUNK` (`"data-retract"`) and

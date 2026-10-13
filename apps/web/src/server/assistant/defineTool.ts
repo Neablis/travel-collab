@@ -42,13 +42,15 @@ import type { TaskClass } from "./taskClass";
 import type { AskToolPosture } from "./grants";
 
 /**
- * What a tool is ABOUT. Six values, fixed by ADR-043 decision 2.
+ * What a tool is ABOUT. Six values fixed by ADR-043 decision 2, and two the
+ * playbook pages added (M45 D9): `playbook` is the one playbook on screen and
+ * taking it into a trip, `playbookList` a list page's own list.
  *
  * A set membership rather than a predicate per tool, deliberately: the
  * requirement is auditability, and a set is readable at a glance where a
  * predicate is not.
  */
-export type ToolDomain = "itinerary" | "library" | "pages" | "places" | "account" | "system";
+export type ToolDomain = "itinerary" | "library" | "pages" | "places" | "account" | "system" | "playbook" | "playbookList";
 
 /**
  * What a tool DOES — five kinds, and there is still no `commit`: the only thing

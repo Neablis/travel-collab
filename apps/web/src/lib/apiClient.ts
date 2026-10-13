@@ -1113,12 +1113,20 @@ export async function deleteSavedDay(savedDayId: string): Promise<ApiResult<{ ok
 export async function insertSavedDay(
   tripId: string,
   savedDayId: string,
+  /**
+   * The trip's day the playbook's first day merges onto; absent appends. The
+   * playbook pages' assistant passes the day a person named (M45 D9).
+   */
+  options: { startingAt?: string } = {},
 ): Promise<ApiResult<CommandOutcome>> {
   const scope = tripKeys.all(tripId);
   beginWrite(scope);
   try {
     const res = await fetch(apiUrl(`/api/trips/${tripId}/saved-days/${savedDayId}`), {
       method: "POST",
+      ...(options.startingAt === undefined
+        ? {}
+        : { headers: { "Content-Type": "application/json" }, body: JSON.stringify({ startingAt: options.startingAt }) }),
     });
     return await readJson(res, (data) => parseOutcome(data as { detail: unknown; history: unknown }));
   } catch (err) {
@@ -1484,12 +1492,25 @@ export type TripAskScope =
   | { kind: "page"; pageId: string };
 
 /**
- * A turn about no one trip, each kind with its own door (M45). The account's
- * answers across every trip you travelled on; another surface (the playbook
- * pages) joins as another kind here, and the compiler then names every place
- * that has to answer for it (`askPath`, the rail's copy, the thread's name).
+ * A turn about no one trip (M45). The account's answers across every trip you
+ * travelled on; a playbook page's (D9) about what that page shows. A kind
+ * added here makes the compiler name every place that has to answer for it
+ * (`askPath`, the rail's copy, the thread's name).
  */
-export type BeyondTripAskScope = { kind: "account" };
+export type BeyondTripAskScope = { kind: "account" } | { kind: "playbook"; page: PlaybookAskPage };
+
+/**
+ * Which playbook page a turn is asked on, as the server's `AskScope` names it
+ * (`server/assistant/context.ts`): a shared day (one day or a playbook of
+ * several), Discover with its filters as set, a city's page by slug, or a
+ * tag's, in a city or across the library. A day's id is a claim the server
+ * resolves as the asker reads it.
+ */
+export type PlaybookAskPage =
+  | { kind: "day"; savedDayId: string }
+  | { kind: "discover"; cities: string[]; tag: string | null }
+  | { kind: "city"; slug: string }
+  | { kind: "tag"; tag: string; city: string | null };
 
 /**
  * Which door a turn goes to: a trip's, with that trip's id, or one of its own
@@ -1501,10 +1522,12 @@ export type AskWhere = { tripId: string; scope: TripAskScope } | { tripId?: unde
 function askPath(where: AskWhere): string {
   if (where.tripId !== undefined) return `/api/trips/${where.tripId}/ask`;
   switch (where.scope.kind) {
+    // One door for both: each is about no one trip, and the scope says which.
     case "account":
+    case "playbook":
       return "/api/ask";
     default: {
-      const unhandled: never = where.scope.kind;
+      const unhandled: never = where.scope;
       return unhandled;
     }
   }

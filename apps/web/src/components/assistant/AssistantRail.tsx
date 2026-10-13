@@ -97,6 +97,7 @@ const EMPTY_HINT = {
   day: TRIP_EMPTY_HINT,
   page: TRIP_EMPTY_HINT,
   account: "Ask about all your trips: where you've been most, what you spent, where to go next.",
+  playbook: "Ask about what this page shows. A playbook can go into one of your trips from here.",
 } as const satisfies Record<AskScope["kind"], string>;
 
 /**
@@ -112,6 +113,7 @@ const PLACEHOLDER = {
   day: "Ask about this day…",
   page: "Ask AI to add to this page…",
   account: "Ask about your trips…",
+  playbook: "Ask about this page…",
 } as const satisfies Record<AskScope["kind"], string>;
 
 /** How long the composer waits after a keystroke before storing its draft. */

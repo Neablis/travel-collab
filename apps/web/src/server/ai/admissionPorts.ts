@@ -15,6 +15,7 @@ import * as Sentry from "@sentry/nextjs";
 import { auth } from "@/server/auth";
 import { guard } from "@/server/pages-guard";
 import { getPage } from "@/server/pages";
+import { readableSavedDay } from "@/server/savedDays";
 import { AI_NOT_ENTITLED_CODE, deniedResponse, selectAiModel } from "@/server/ai/modelSelection";
 import { aiQuotas, aiStepQuotas, consumeQuota, quotaRefusal, reserveAiSteps } from "@/server/quota";
 import { classifyAskIntent } from "@/server/ai/askIntent";
@@ -64,6 +65,9 @@ export const admissionPorts: AdmissionPorts = {
     return userId ? { userId, detail: null } : { error: Response.json({ error: "unauthenticated" }, { status: 401 }) };
   },
   loadPage: (pageId) => getPage(pageId),
+  // The day page's own read rule (M45 D9): your own days, and anybody's
+  // published one.
+  playbookDayCount: async (savedDayId, readerId) => (await readableSavedDay(savedDayId, readerId))?.dayCount ?? null,
   // `surface: "ask"` is fixed here rather than passed in: there is one door
   // (ADR-033), and a second surface reaching this pipeline would be a new
   // adapter rather than a parameter on an existing one.

@@ -11,9 +11,11 @@ export async function generateMetadata(props: PlaceRouteProps) {
 // the other kind, in `server/placePage.ts`.
 /** `/playbooks/city/<slug>`: that city's published days, paged by `?page=N`, or a 404. */
 export default async function CityPage(props: PlaceRouteProps) {
+  const [listing, { slug }] = await Promise.all([placeListing("city", props), props.params]);
   return (
     <main className="mx-auto max-w-6xl px-6 py-8">
-      <PlaceDaysList {...await placeListing("city", props)} />
+      {/* Its assistant reads this city's list (M45 D9). */}
+      <PlaceDaysList {...listing} assistant={{ kind: "city", slug }} />
     </main>
   );
 }

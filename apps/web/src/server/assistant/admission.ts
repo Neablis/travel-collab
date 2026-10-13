@@ -39,7 +39,7 @@
 // is the point of the array.
 import { z } from "zod";
 import type { LanguageModel } from "ai";
-import { ASK_FAILED_MESSAGE, type Page, type TripDetail, type TripRole } from "@tc/contracts";
+import { ASK_FAILED_MESSAGE, ActivityTagDescribed, type Page, type TripDetail, type TripRole } from "@tc/contracts";
 import { isDemoTripId } from "@/lib/demoTrip";
 import { hasAtLeast } from "@/server/accessPolicy";
 import type { AskScope } from "@/server/assistant/context";
@@ -55,6 +55,7 @@ import {
   minimumRoleFor,
   permitsPropose,
   postureFor,
+  surfaceOf,
   toolsFor,
   type AskToolPosture,
   type GrantedEffects,
@@ -65,6 +66,11 @@ import {
 // matching `ai-not-entitled` (modelSelection.ts) — a client can branch on it
 // without matching prose.
 export const DEMO_TRIP_UNSUPPORTED_CODE = "demo-trip-unsupported";
+
+// The refusal code for a playbook day the asker cannot open (M45 D9): never
+// existed, private to somebody else, or withdrawn — one answer for all three,
+// as the day's page gives.
+export const PLAYBOOK_NOT_FOUND_CODE = "playbook-not-found";
 
 // The refusal code for a page scope the server could not resolve to a page on
 // THIS trip. Same reasoning as above, and it exists because "that page is not
@@ -118,6 +124,22 @@ const AskScopeSchema = z.discriminatedUnion("kind", [
   // M45. Accepted only at the account door — `resolveSurface` holds each scope
   // to the door it arrived at.
   z.object({ kind: z.literal("account") }),
+  // M45 D9, at the same door. A day's id is a claim `resolveSurface`
+  // verifies; a city, slug or tag only filters the page's own list, so its
+  // shape is all that is checked here. A tag is one of the tags with a page.
+  z.object({
+    kind: z.literal("playbook"),
+    page: z.discriminatedUnion("kind", [
+      z.object({ kind: z.literal("day"), savedDayId: z.string().uuid() }),
+      z.object({
+        kind: z.literal("discover"),
+        cities: z.array(z.string().min(1).max(200)).max(20),
+        tag: ActivityTagDescribed.nullable(),
+      }),
+      z.object({ kind: z.literal("city"), slug: z.string().min(1).max(200) }),
+      z.object({ kind: z.literal("tag"), tag: ActivityTagDescribed, city: z.string().min(1).max(200).nullable() }),
+    ]),
+  }),
 ]);
 
 export const AskRequest = z.object({
@@ -272,7 +294,7 @@ export interface AiGrant {
   userId: string;
   /** The guard's trip, or null on an account turn. */
   detail: TripDetail | null;
-  /** What the user is looking at — `scope.kind`, VERIFIED, never claimed. */
+  /** What the user is looking at — `scope.kind`, or which playbook page (`surfaceOf`), VERIFIED, never claimed. */
   surface: SurfaceKind;
   scope: AskScope;
   /** The page row `resolveSurface` verified, or null on any other surface. */
@@ -426,6 +448,11 @@ export interface AdmissionPorts {
   ): Promise<{ error: Response } | { userId: string; detail: TripDetail | null }>;
   /** The page store, keyed by id ALONE — see `resolveSurface`. */
   loadPage(pageId: string): Promise<Page | null>;
+  /**
+   * A playbook day's day count as `readerId` may read it, or null for a day
+   * they cannot open — `readableSavedDay`'s rule, the day page's own.
+   */
+  playbookDayCount(savedDayId: string, readerId: string): Promise<number | null>;
   /** `selectAiModel()` — the entitlement check and the `ai-live` kill switch. */
   selectModel(userId: string): Promise<ModelChoice>;
   /**
@@ -474,7 +501,7 @@ export interface AdmissionPorts {
     context: readonly { role: "user" | "assistant"; text: string }[],
     signal?: AbortSignal,
     /** Which intents to choose between — the board's three, a page's two (ADR-058), or the account's one (M45). */
-    surface?: "board" | "page" | "account",
+    surface?: "board" | "page" | "account" | "playbook",
   ): Promise<AskIntentRecord>;
   /** Where the one `ai.grant` record goes. */
   audit(record: AiGrantRecord): void;
@@ -604,8 +631,11 @@ interface AdmissionDraft {
     question: string;
     turn: "opening" | "follow-up";
   };
-  /** Present once `resolveSurface` has run: null on every non-page surface. */
-  surface?: { page: Page | null };
+  /**
+   * Present once `resolveSurface` has run: the page row (null on every
+   * non-page surface), and which surface the verified scope is.
+   */
+  surface?: { page: Page | null; kind: SurfaceKind };
   selected?: {
     /** Every tier's model. Which one answers is not known until `grantTools`. */
     models: TierModels;
@@ -813,15 +843,33 @@ const resolveSurface: AdmissionStage = {
     // would answer across trips from a URL that names one; a trip scope at the
     // account door names no trip the guard read. Both are a client bug, and
     // both cost nothing: this runs before model selection.
-    if ((scope.kind === "account") !== (draft.input.tripId === null)) {
-      const reason =
-        scope.kind === "account"
-          ? "an account question is asked at /api/ask, not at a trip's"
-          : "a question about one trip is asked at that trip's /ask";
+    const beyondTrip = scope.kind === "account" || scope.kind === "playbook";
+    if (beyondTrip !== (draft.input.tripId === null)) {
+      const reason = beyondTrip
+        ? `${scope.kind === "account" ? "an account" : "a playbook page's"} question is asked at /api/ask, not at a trip's`
+        : "a question about one trip is asked at that trip's /ask";
       return refuse("resolveSurface", reason, badRequest(reason));
     }
+    // A playbook day's id is resolved as the asker reads it, before anything
+    // is spent: a day they cannot open is the day page's own 404, and it says
+    // whether the page shows one day or a playbook of several.
+    if (scope.kind === "playbook" && scope.page.kind === "day") {
+      const { userId } = required(draft.actor, "identifyActor");
+      const dayCount = await draft.input.ports.playbookDayCount(scope.page.savedDayId, userId);
+      if (dayCount === null) {
+        const reason = "That playbook isn't one you can open.";
+        return refuse(
+          "resolveSurface",
+          reason,
+          Response.json({ error: reason, code: PLAYBOOK_NOT_FOUND_CODE }, { status: 404 }),
+          PLAYBOOK_NOT_FOUND_CODE,
+        );
+      }
+      draft.surface = { page: null, kind: surfaceOf(scope, dayCount) };
+      return null;
+    }
     if (detail === null) {
-      draft.surface = { page: null };
+      draft.surface = { page: null, kind: surfaceOf(scope) };
       return null;
     }
 
@@ -834,7 +882,7 @@ const resolveSurface: AdmissionStage = {
     }
 
     if (scope.kind !== "page") {
-      draft.surface = { page: null };
+      draft.surface = { page: null, kind: surfaceOf(scope) };
       return null;
     }
 
@@ -855,7 +903,7 @@ const resolveSurface: AdmissionStage = {
         Response.json({ error: "forbidden" }, { status: 403 }),
       );
     }
-    draft.surface = { page: found };
+    draft.surface = { page: found, kind: "page" };
     return null;
   },
 };
@@ -1021,6 +1069,8 @@ const classifyTask: AdmissionStage = {
     // with no gate is a free chatbot on the operator's key. A viewer's trip
     // turn stays unclassified, as it always was.
     const account = scope.kind === "account";
+    // A playbook page's likewise (M45 D9): no trip, and the gate is the point.
+    const playbook = scope.kind === "playbook";
     const { classifierModel } = required(draft.selected, "selectModel");
     // **A page turn is classified too, since ADR-058** — between the two
     // intents its surface allows. It used to be `compose` by construction, and
@@ -1029,13 +1079,13 @@ const classifyTask: AdmissionStage = {
     // prompt telling it to read before writing.
     draft.classified = {
       classification:
-        canWrite || account
+        canWrite || account || playbook
           ? await draft.input.ports.classify(
               classifierModel,
               question,
               recentContext(messages),
               draft.input.request.signal,
-              account ? "account" : page === null ? "board" : "page",
+              account ? "account" : playbook ? "playbook" : page === null ? "board" : "page",
             )
           : null,
     };
@@ -1078,13 +1128,19 @@ const grantTools: AdmissionStage = {
   run: async (draft) => {
     const { userId, detail, canWrite } = required(draft.actor, "identifyActor");
     const { messages, scope, question, turn } = required(draft.parsed, "parseRequest");
-    const { page } = required(draft.surface, "resolveSurface");
+    const { page, kind: surface } = required(draft.surface, "resolveSurface");
     const selected = required(draft.selected, "selectModel");
     const { classification } = required(draft.classified, "classifyTask");
+    // **A playbook page holds no trip a role or a verdict could narrow** (M45
+    // D9). Its one write takes the playbook into a trip the person names, and
+    // the role that decides it is theirs on THAT trip: the tool asks for
+    // editor there (invariant 7), and so does the route Approve calls. Its
+    // classifier is the off-topic gate alone, as the account's is.
+    const playbook = scope.kind === "playbook";
 
     const caps = {
-      surface: scope.kind,
-      role: canWrite ? ("propose" as const) : ("read" as const),
+      surface,
+      role: canWrite || playbook ? ("propose" as const) : ("read" as const),
       plan: permitsPropose({ userId }),
       // **A page classifier picks a PROFILE, never an effect** (ADR-058). The
       // page surface's intents both live inside what the page grant already
@@ -1092,7 +1148,7 @@ const grantTools: AdmissionStage = {
       // a pivot back to `compose` an escalation. So the page's verdict narrows
       // by class below, and the effect cap stays what it always was here.
       classifier:
-        page === null && classification?.intent === "question" ? ("read" as const) : ("propose" as const),
+        page === null && !playbook && classification?.intent === "question" ? ("read" as const) : ("propose" as const),
     };
     const grants = grantFor(caps);
 
@@ -1103,7 +1159,7 @@ const grantTools: AdmissionStage = {
     // `selected.models` is where the far side of the port already put one.
     // A page's reachable intents first, so the starting intent can never be one
     // the grant cannot hold (#252's review, N3).
-    const pageReachable = page === null ? undefined : reachableIntents(scope.kind, grants);
+    const pageReachable = page === null ? undefined : reachableIntents(surface, grants);
     const taskClass = taskClassFor(page !== null, classification, pageReachable);
     // **`certainty` is the second input to the tier, and it only ever raises
     // it** (M9 design §1a). A page turn has no classification and is `sure` by
@@ -1273,7 +1329,7 @@ const grantTools: AdmissionStage = {
       tripId: draft.input.tripId,
       userId,
       detail,
-      surface: scope.kind,
+      surface,
       scope,
       page,
       grants,
@@ -1475,7 +1531,7 @@ function refusedRecord(draft: AdmissionDraft, refusal: AiRefusal): AiGrantRecord
     tripId: draft.input.tripId,
     userId: draft.actor?.userId ?? null,
     outcome: "refused",
-    surface: draft.parsed?.scope.kind ?? null,
+    surface: draft.surface?.kind ?? (draft.parsed === undefined ? null : surfaceOf(draft.parsed.scope)),
     grants: null,
     tools: null,
     // The tier a refused turn would have run on is not knowable — the class is

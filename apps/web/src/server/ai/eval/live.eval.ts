@@ -17,8 +17,11 @@
 // recording to test the code around a model. This tests the model on our code.
 //
 // A prompt with `"surface": "account"` (M45) is asked at the account door,
-// `handleAccountAskRequest`, by a fresh account holding `ACCOUNT_TRIPS` — its
+// `handleBeyondTripAskRequest`, by a fresh account holding `ACCOUNT_TRIPS` — its
 // own, so the Japan trips every other prompt seeds are not counted among them.
+// One with `"surface": "playbook"` (M45 D9) is asked at the same door on a
+// playbook day's page: the Japan trip's first day, published by the eval
+// actor, asked about by a fresh account whose own copy of the trip is "Kyoto".
 //
 // It writes a JSON report to `eval-results/` (git-ignored) and prints one line
 // per check. A failed check fails the run, so a regression is a red exit code.
@@ -34,7 +37,8 @@ import { rateLimitCounters } from "@/server/db/schema";
 import { writeTravelling } from "@/server/access/members";
 import type { AskAnalyticsRecord } from "@/server/assistant/askAnalytics";
 import type { TurnLedger } from "@/server/assistant/ledger";
-import { accountExpectationFor, expectationFor, type SeededAccountTrip } from "./cases";
+import { accountExpectationFor, expectationFor, playbookExpectationFor, type SeededAccountTrip } from "./cases";
+import { saveDay, setSavedDayVisibility } from "@/server/savedDays";
 import { grade, retractedText, reviewedChanges, textBeforeToolCall, visibleText, type EvalCheck, type EvalTurn } from "./grade";
 import { capMicroUsdFrom, dollars, turnMicroUsd, unpricedModels } from "./spend";
 import { ACCOUNT_TRIPS, accountTripCommands, longTripCommands, type EvalTripName } from "./trips";
@@ -77,7 +81,7 @@ vi.mock("@/server/ai/assistantPorts", async (importOriginal) => {
   };
 });
 
-const { handleAccountAskRequest, handleAskRequest } = await import("@/server/ai/handleAskRequest");
+const { handleBeyondTripAskRequest, handleAskRequest } = await import("@/server/ai/handleAskRequest");
 const { upsertUser } = await import("@/server/users");
 const { issueGrant } = await import("@/server/entitlements/grants");
 
@@ -87,8 +91,8 @@ interface LivePrompt {
   text: string;
   /** The trip it runs on (`trips.ts`); absent, the seeded Japan trip. */
   trip?: EvalTripName;
-  /** `account`: asked at the account door, across `ACCOUNT_TRIPS` (M45). */
-  surface?: "account";
+  /** `account`: asked at the account door, across `ACCOUNT_TRIPS` (M45); `playbook`: on a published day's page (D9). */
+  surface?: "account" | "playbook";
 }
 
 const liveSet = JSON.parse(readFileSync(join(import.meta.dirname, "live-set.json"), "utf8")) as {
@@ -164,6 +168,28 @@ async function seedAccount(): Promise<{ userId: string; seeded: SeededAccountTri
   return { userId, seeded };
 }
 
+/**
+ * A published playbook day and an account to ask about it (M45 D9): the
+ * Japan trip's first day, kept and published by the eval actor, so the asker
+ * reads a stranger's day; and the asker's own copy of the trip, named "Kyoto",
+ * for the add-to-trip prompt to name.
+ */
+async function seedPlaybook(): Promise<{ userId: string; savedDayId: string; stopTitles: string[] }> {
+  const { detail } = await seedTripFor({ id: "playbook-source", intent: "question", text: "" });
+  const kept = await saveDay({ name: "A day in Kyoto", dayIds: [detail.days[0]!.dayId], dateAnchors: "strip" }, detail, ACTOR_ID);
+  if (!kept.ok) throw new Error(`seed: ${kept.error.message}`);
+  const published = await setSavedDayVisibility(kept.value.savedDayId, ACTOR_ID, "public");
+  if (published === null) throw new Error("seed: the playbook day did not publish");
+  const userId = `eval-playbook-${randomUUID()}`;
+  await enrol(userId);
+  const tripId = randomUUID();
+  const created = await executeTripCommand({ type: "CreateTrip", tripId, name: "Kyoto" }, userId);
+  if (!created.ok) throw new Error(`seed: ${created.error.message}`);
+  const built = await executeTripCommandBatch(japanTripCommands(tripId, { startDate: "2027-04-01" }), userId);
+  if (!built.ok) throw new Error(`seed: ${built.error.message}`);
+  return { userId, savedDayId: kept.value.savedDayId, stopTitles: kept.value.stops.map((stop) => stop.title) };
+}
+
 function chunksOf(body: string): Record<string, unknown>[] {
   return body
     .split("\n")
@@ -179,8 +205,10 @@ function chunksOf(body: string): Record<string, unknown>[] {
 
 async function runTurn(
   prompt: LivePrompt,
-  /** The trip it is asked on, or null at the account door. */
+  /** The trip it is asked on, or null at the door about no one trip. */
   tripId: string | null,
+  /** At that door, the scope: the account's unless a playbook page is named. */
+  beyondTrip: { kind: "account" } | { kind: "playbook"; page: { kind: "day"; savedDayId: string } } = { kind: "account" },
 ): Promise<EvalTurn & { stepDurationsMs: (number | null)[]; providers: (string | null)[]; generationIds: (string | null)[]; microUsd: number | null }> {
   // Keyed by actor, and every turn here is the same actor (see replay.int.test.ts).
   await db.delete(rateLimitCounters);
@@ -193,7 +221,7 @@ async function runTurn(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       messages: [{ id: "m1", role: "user", parts: [{ type: "text", text: prompt.text }] }],
-      scope: { kind: tripId === null ? "account" : "trip" },
+      scope: tripId === null ? beyondTrip : { kind: "trip" },
     }),
   });
   const sink = (record: AskAnalyticsRecord, ledger?: TurnLedger) => {
@@ -201,7 +229,7 @@ async function runTurn(
     if (ledger) ledgers.push(ledger);
   };
   const response =
-    tripId === null ? await handleAccountAskRequest(request, undefined, sink) : await handleAskRequest(request, tripId, undefined, sink);
+    tripId === null ? await handleBeyondTripAskRequest(request, undefined, sink) : await handleAskRequest(request, tripId, undefined, sink);
   const body = await response.text();
   const record = records[0];
   if (record === undefined) {
@@ -309,6 +337,15 @@ describe("the live set, on production's models", () => {
             session.userId = ACTOR_ID;
           }
           expected = accountExpectationFor(prompt.id, seeded, userId);
+        } else if (prompt.surface === "playbook") {
+          const { userId, savedDayId, stopTitles } = await seedPlaybook();
+          session.userId = userId;
+          try {
+            turn = await runTurn(prompt, null, { kind: "playbook", page: { kind: "day", savedDayId } });
+          } finally {
+            session.userId = ACTOR_ID;
+          }
+          expected = playbookExpectationFor(prompt.id, stopTitles);
         } else {
           const { tripId, detail } = await seedTripFor(prompt);
           turn = await runTurn(prompt, tripId);

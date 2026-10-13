@@ -57,6 +57,13 @@ import { INSERT_PLAYBOOK_DAY } from "@/server/ai/writeTools";
 import { plain } from "@/server/assistant/prompt";
 import { ASSISTANT_TOOLS } from "@/server/assistant/registry";
 import { GO_TO_TOOL_NAME, OPEN_TRIP_TOOL_NAME, PROPOSE_NOTEBOOK_EDITING_TOOL_NAME } from "@/server/assistant/tools/navigate";
+import {
+  ADD_PLAYBOOK_TO_TRIP_TOOL_NAME,
+  READ_PLAYBOOK_TOOL_NAME,
+  SEARCH_THIS_PAGE_TOOL_NAME,
+  START_TRIP_WITH_PLAYBOOK_TOOL_NAME,
+  type PlaybookReadout,
+} from "@/server/assistant/tools/playbook";
 import { TAG_LABEL, type WidgetMatch } from "@tc/pages";
 
 export const SIMULATED_MODEL_ID = "simulated/no-op";
@@ -975,6 +982,7 @@ function askTurn(options: CallOptionsLike): SimulatedStep {
   // intent (ADR-058) — reads and answers.
   if (scope.kind === "page") return pageTurn(results, latestUserText(options), options);
   if (scope.kind === "account") return accountTurn(results, latestUserText(options), options);
+  if (scope.kind === "playbook") return playbookTurn(results, latestUserText(options), options);
   const going = navigationTurn(results, latestUserText(options), options, false);
   if (going !== null) return going;
   if (results.length === 0) {
@@ -1149,6 +1157,73 @@ function accountAnswer(results: readonly ToolResultLike[]): string[] {
     return [`You haven't been to ${pick.countries[0]} yet, in ${pick.region} — it could be next.`];
   }
   return [SIMULATED_ACCOUNT_FALLBACK];
+}
+
+// ---------------------------------------------------------------------------
+// The playbook pages (M45 D9): read the page, or draft one of its two writes
+// ---------------------------------------------------------------------------
+
+const SIMULATED_PLAYBOOK_NOTICE =
+  "AI is switched off on this deployment, so I answered from this page rather than from a model.";
+
+// "add this to my Kyoto trip on day 3": the trip as named, then its day. A
+// request naming neither is asked about rather than guessed (D9).
+const ADD_TO_TRIP_REQUEST = /\badd\b/i;
+const NAMED_TRIP = /\b(?:to|into)\s+(?:my\s+|the\s+)?(.+?)\s+trip\b/i;
+const START_TRIP_REQUEST = /\b(?:start|make|create|begin)\b.*\btrip\b/i;
+const ASK_WHICH_TRIP = "Which of your trips should I add it to, and on which day?";
+
+/**
+ * A playbook page's step: start a trip with the playbook, add it to the trip
+ * and day the person named, or ask which when they named neither; else read
+ * the page once and say what it shows. Each tool only when it was offered, so
+ * a list page, which holds no write, is read and answered.
+ */
+function playbookTurn(results: readonly ToolResultLike[], question: string, options: CallOptionsLike): SimulatedStep {
+  if (START_TRIP_REQUEST.test(question) && offered(options, START_TRIP_WITH_PLAYBOOK_TOOL_NAME)) {
+    return draftOnce(results, call(START_TRIP_WITH_PLAYBOOK_TOOL_NAME, {}), "I've drafted a new trip with it — approve the card below to start it.");
+  }
+  if (ADD_TO_TRIP_REQUEST.test(question) && offered(options, ADD_PLAYBOOK_TO_TRIP_TOOL_NAME)) {
+    const trip = NAMED_TRIP.exec(question)?.[1];
+    const day = /\bday\s+(\d+)\b/i.exec(question)?.[1];
+    if (trip === undefined || day === undefined) return speak([ASK_WHICH_TRIP, SIMULATED_PLAYBOOK_NOTICE]);
+    return draftOnce(
+      results,
+      call(ADD_PLAYBOOK_TO_TRIP_TOOL_NAME, { trip, day: Number(day) }),
+      `I've drafted adding it to your ${trip} trip on day ${day} — approve the card below to add it.`,
+    );
+  }
+  const read = offered(options, READ_PLAYBOOK_TOOL_NAME) ? READ_PLAYBOOK_TOOL_NAME : SEARCH_THIS_PAGE_TOOL_NAME;
+  if (!results.some((result) => result.toolName === read)) {
+    if (!offered(options, read)) return speak(["I couldn't read this page just now.", SIMULATED_PLAYBOOK_NOTICE]);
+    return { content: [call(read, {})], finishReason: { unified: "tool-calls", raw: undefined } };
+  }
+  return speak([...playbookAnswer(results), SIMULATED_PLAYBOOK_NOTICE]);
+}
+
+/** One write call, then what came of it: the drafted sentence, or the tool's refusal. */
+function draftOnce(results: readonly ToolResultLike[], wanted: ToolCall, drafted: string): SimulatedStep {
+  if (!results.some((result) => result.toolName === wanted.toolName)) {
+    return { content: [wanted], finishReason: { unified: "tool-calls", raw: undefined } };
+  }
+  const done = resultFor<{ queued: boolean; refused?: string }>(results, wanted.toolName);
+  if (done?.queued !== true) return speak([`I couldn't do that: ${done?.refused ?? "the page refused it."}`, SIMULATED_PLAYBOOK_NOTICE]);
+  return speak([drafted, SIMULATED_PLAYBOOK_NOTICE]);
+}
+
+function playbookAnswer(results: readonly ToolResultLike[]): string[] {
+  const day = resultFor<PlaybookReadout | { error: string }>(results, READ_PLAYBOOK_TOOL_NAME);
+  if (day !== undefined && !("error" in day)) {
+    const stops = day.days.flatMap((entry) => entry.stops.map((stop) => plain(stop.title)));
+    const span = day.dayCount === 1 ? "" : ` over ${day.dayCount} days`;
+    return [`${plain(day.name)} covers ${pluralStops(stops.length)}${span}${stops.length > 0 ? `: ${stops.join(", ")}` : ""}.`];
+  }
+  const listed = resultFor<{ days: { name: string }[] }>(results, SEARCH_THIS_PAGE_TOOL_NAME);
+  if (listed !== undefined) {
+    const names = listed.days.slice(0, MAX_NAMED_DAYS).map((entry) => plain(entry.name));
+    return [`This page lists ${listed.days.length} playbook${listed.days.length === 1 ? "" : "s"}${names.length > 0 ? `, starting with ${names.join(", ")}` : ""}.`];
+  }
+  return ["I couldn't read this page just now."];
 }
 
 // A text step from a list of sentences: one message part, streamed sentence by

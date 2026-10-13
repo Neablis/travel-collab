@@ -15,7 +15,7 @@ import {
 } from "@tc/domain";
 import type { AskAnalyticsRecord } from "@/server/assistant/askAnalytics";
 import { OVERVIEW_ABOVE_DAYS } from "@/server/assistant/tools/read";
-import { accountExpectationFor, expectationFor, mostFreeDays, type SeededAccountTrip } from "./cases";
+import { accountExpectationFor, expectationFor, mostFreeDays, playbookExpectationFor, type SeededAccountTrip } from "./cases";
 import { ACCOUNT_TRIPS, EVAL_TRIPS, LONG_TRIP_DAYS, accountTripCommands, longTripCommands } from "./trips";
 import { grade, namesAmount, namesDayNumber, retractedText, reviewedChanges, textBeforeToolCall, visibleText, type EvalTurn } from "./grade";
 
@@ -232,7 +232,11 @@ describe("the cases", () => {
     };
     for (const prompt of set.prompts) {
       const expected =
-        prompt.surface === "account" ? accountExpectationFor(prompt.id, [], "eval-reader") : expectationFor(prompt.id, japan);
+        prompt.surface === "account"
+          ? accountExpectationFor(prompt.id, [], "eval-reader")
+          : prompt.surface === "playbook"
+            ? playbookExpectationFor(prompt.id, [])
+            : expectationFor(prompt.id, japan);
       expect(expected, prompt.id).toBeDefined();
     }
   });
@@ -290,6 +294,12 @@ describe("reviewedChanges", () => {
 
   it("counts a card's commands", () => {
     expect(reviewedChanges(finish({ proposal: { commands: [{}, {}] } }))).toBe(2);
+  });
+
+  // M45 D9: a playbook page's card takes one day in by reference and holds no
+  // command, and the add-to-trip case must still pass as proposing.
+  it("counts a card's playbook days beside its commands", () => {
+    expect(reviewedChanges(finish({ proposal: { commands: [], inserts: [{ savedDayId: "d", name: "A day" }] } }))).toBe(1);
   });
 
   it("counts a stored suggestion's changes, so a multi-change case passes on it", () => {

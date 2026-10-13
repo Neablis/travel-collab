@@ -238,3 +238,33 @@ export function accountExpectationFor(
   }
 }
 
+
+// The playbook pages' prompts (M45 D9), asked on a published day's page. A
+// question reads the day and drafts nothing; the add names its trip and day,
+// so one call drafts the card and no read or search is needed first.
+const PLAYBOOK_QUESTION: EvalExpectation = {
+  proposes: false,
+  maxToolCalls: 2,
+  maxLatencyMs: 60_000,
+  mustCall: ["read_playbook"],
+  mustNotCall: ["add_playbook_to_trip", "start_trip_with_playbook"],
+};
+
+/** Expectations for the playbook prompts, from the stop titles of the day the runner published. */
+export function playbookExpectationFor(id: string, stopTitles: readonly string[]): EvalExpectation | undefined {
+  switch (id) {
+    case "p-day-covers":
+      return { ...PLAYBOOK_QUESTION, ...(stopTitles.length === 0 ? {} : { mentionsOneOf: stopTitles }) };
+    case "p-add-to-trip":
+      return {
+        proposes: true,
+        maxToolCalls: 3,
+        maxLatencyMs: 60_000,
+        mustCall: ["add_playbook_to_trip"],
+        maxCallsOf: { add_playbook_to_trip: 1 },
+        mustNotCall: ["start_trip_with_playbook"],
+      };
+    default:
+      return undefined;
+  }
+}

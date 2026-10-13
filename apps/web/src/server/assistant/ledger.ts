@@ -89,11 +89,11 @@ export interface TurnCost {
   turnId: string | null;
   userId: string;
   /**
-   * Which door: a trip's ask, its approval, or the account's ask across trips
-   * (M45). Unchecked text in `ai_usage`, so a new door is a new value here and
+   * Which door: a trip's ask, its approval, the account's ask across trips
+   * (M45), or a playbook page's (M45 D9). Unchecked text in `ai_usage`, so a new door is a new value here and
    * no migration.
    */
-  endpoint: "ask" | "ask.apply" | "ask.account";
+  endpoint: "ask" | "ask.apply" | "ask.account" | "ask.playbook";
   outcome: TurnOutcome;
   /** What this turn was for, and therefore which tier answered it. */
   taskClass: LedgerTaskClass;
