@@ -71,7 +71,7 @@ test("a viewer's message reaches the owner's open page within one poll, and the 
     await expect(beaPanel.getByRole("tab", { name: "Chat" })).toHaveAttribute("aria-selected", "true");
 
     const words = `Train at nine? ${randomUUID().slice(0, 8)}`;
-    await beaPanel.getByRole("textbox", { name: "Message" }).fill(words);
+    await beaPanel.getByRole("combobox", { name: "Message" }).fill(words);
     await Promise.all([
       bea.waitForResponse((r) => new URL(r.url()).pathname === `/api/trips/${tripId}/chat` && r.request().method() === "POST" && r.status() === 201),
       beaPanel.getByRole("button", { name: "Send" }).click(),
@@ -102,7 +102,7 @@ test("a message's @stop is a chip that focuses the stop on Plan, and plain text 
   await expect(page.getByRole("heading", { name: tripName, level: 1 })).toBeVisible();
   await page.getByTestId("chat-pill").click();
   const panel = page.getByRole("complementary", { name: "Assistant" });
-  const field = panel.getByRole("textbox", { name: "Message" });
+  const field = panel.getByRole("combobox", { name: "Message" });
   await field.pressSequentially("Meet at @stop on day");
   await expect(panel.getByRole("option", { name: /Stop on day 1/ })).toBeVisible();
   await field.press("Enter");

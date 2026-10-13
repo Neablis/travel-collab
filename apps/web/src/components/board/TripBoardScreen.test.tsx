@@ -13,7 +13,7 @@ import { FocusProvider } from "@/components/trip/context/FocusProvider";
 import { LensRouter } from "@/components/trip/context/LensRouter";
 import { PhoneAskTab } from "@/components/nav/PhoneTabBar";
 import { usePhoneAsk } from "@/components/nav/phoneAsk";
-import { useBoardFocus } from "@/components/trip/context/boardFocus";
+import { useBoardFocus } from "@/components/chat/boardFocus";
 import { type PaletteCommand, usePaletteCommands } from "@/components/palette/paletteRegistry";
 import { activityFactory, costedTripDetailFixture, historyFixture, locationFactory, pageFixture, tripCoverFactory, tripDetailFixture } from "@tc/factories";
 import { makeTripHandlers, makeAccountPlanHandler, makeChatHandlers, makeNearbyStopsHandler, makePagesHandlers } from "@/mocks/handlers";
@@ -1822,7 +1822,7 @@ describe("assistant rail visibility", () => {
     // Into the panel, as Ask's opener takes its composer (PR 426): not left on
     // the pill with the whole board to Tab through. `:focus` asked of the
     // element, as SnapshotList.test.tsx does: no reading `activeElement`.
-    expect(within(panel).getByRole("textbox", { name: "Message" }).matches(":focus")).toBe(true);
+    expect(within(panel).getByRole("combobox", { name: "Message" }).matches(":focus")).toBe(true);
     expect(screen.getByTestId("chat-pill").getAttribute("aria-label")).toBe("Chat");
 
     await userEvent.click(within(panel).getByRole("button", { name: "Hide" }));
@@ -3139,6 +3139,31 @@ describe("⌘K runs the trip page's own actions", () => {
     await waitFor(() => expect(replaceSpy.mock.calls.at(-1)?.[0]).toMatch(/view=Plan/));
     act(() => navigateToView("Plan"));
     await waitFor(() => expect(within(screen.getByTestId(`activity-card-${forum}`)).getByRole("button", { name: /^Edit / }).matches(":focus")).toBe(true));
+  });
+
+  // PR 439 review: where Chat is a sheet, a chip puts it away, and the sheet's
+  // close hands focus back to its opener a tick later. The stop must keep it.
+  it("leaves a chip's stop focused once the sheet it was in has closed", async () => {
+    setViewportMatches({ "(min-width: 768px) and (max-width: 1099px)": true });
+    const fixture = costedTripDetailFixture();
+    server.use(...makeTripHandlers(fixture));
+    let board = null as ReturnType<typeof useBoardFocus>;
+    function BoardSpy() {
+      board = useBoardFocus();
+      return null;
+    }
+    renderWithPalette(fixture.tripId);
+    render(<BoardSpy />);
+    await screen.findByRole("heading", { name: "Rome 2027" });
+    await userEvent.click(screen.getByTestId("ask-pill"));
+    expect(await screen.findByRole("dialog")).toBeTruthy();
+    const forum = fixture.days[0]!.activityIds[1]!;
+
+    act(() => board!.focusActivity(forum));
+    // Past the sheet's own restore, which Radix runs on a zero timeout.
+    await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(within(screen.getByTestId(`activity-card-${forum}`)).getByRole("button", { name: /^Edit / }).matches(":focus")).toBe(true);
   });
 
   // M46 D3's preview walk: `/trips/<id>?view=Plan&stop=<id>` lands on the stop.

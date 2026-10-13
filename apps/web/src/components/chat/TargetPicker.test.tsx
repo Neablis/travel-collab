@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { activityFactory, tripDetailFixture, uuidFrom } from "@tc/factories";
 import { tripTargets } from "@/components/palette/commands";
-import { registerBoardFocus } from "@/components/trip/context/boardFocus";
+import { registerBoardFocus } from "./boardFocus";
 import { ChatPanel } from "./ChatPanel";
 import type { TripChat } from "./useTripChat";
 
@@ -24,7 +24,7 @@ function composer() {
   const post = vi.fn(async () => true);
   const chat: TripChat = { status: "ready", messages: [], hasEarlier: false, unread: 0, canPost: true, post, posting: false, postError: null };
   render(<ChatPanel chat={chat} personas={null} />);
-  return { post, field: screen.getByRole("textbox", { name: "Message" }) as HTMLInputElement };
+  return { post, field: screen.getByRole("combobox", { name: "Message" }) as HTMLInputElement };
 }
 
 describe("the composer's @day / @stop picker (M46 D3)", () => {
@@ -34,6 +34,7 @@ describe("the composer's @day / @stop picker (M46 D3)", () => {
     await user.type(field, "Meet at @stop col");
     const list = screen.getByRole("listbox", { name: "Days and stops" });
     expect(within(list).getAllByRole("option").map((o) => o.textContent)).toEqual(["StopColosseum"]);
+    expect(field.getAttribute("aria-expanded")).toBe("true");
 
     // Enter picks; it does not send the half-typed mention.
     await user.keyboard("{Enter}");
@@ -63,5 +64,19 @@ describe("the composer's @day / @stop picker (M46 D3)", () => {
     await user.keyboard("{Escape}");
     expect(screen.queryByRole("listbox")).toBeNull();
     expect(field.value).toBe("@");
+  });
+
+  // PR 439 review: closing remembered only where the `@` was, so a new `@` at
+  // the same place, after the words were replaced or deleted, never opened it.
+  it("opens again for a new @ where a picked or dismissed one was", async () => {
+    const user = userEvent.setup();
+    const { field } = composer();
+    await user.type(field, "@day{Enter}");
+    await user.clear(field);
+    await user.type(field, "@");
+    expect(screen.getByRole("listbox", { name: "Days and stops" })).toBeTruthy();
+
+    await user.keyboard("{Escape}{Backspace}@");
+    expect(screen.getByRole("listbox", { name: "Days and stops" })).toBeTruthy();
   });
 });

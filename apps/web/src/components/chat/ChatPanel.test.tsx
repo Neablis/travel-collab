@@ -31,7 +31,7 @@ const chat = (over: Partial<TripChat> = {}): TripChat => ({
 describe("ChatPanel", () => {
   it("offers a composer to a member who may post", () => {
     render(<ChatPanel chat={chat()} personas={null} />);
-    expect(screen.getByRole("textbox", { name: "Message" })).toBeTruthy();
+    expect(screen.getByRole("combobox", { name: "Message" })).toBeTruthy();
     expect(screen.queryByRole("status")).toBeNull();
   });
 
@@ -40,7 +40,7 @@ describe("ChatPanel", () => {
   it("is read-only after a lapse: the messages stay, the composer is a line saying why", () => {
     render(<ChatPanel chat={chat({ canPost: false })} personas={null} />);
     expect(within(screen.getByRole("list", { name: "Messages" })).getAllByRole("listitem")).toHaveLength(1);
-    expect(screen.queryByRole("textbox", { name: "Message" })).toBeNull();
+    expect(screen.queryByRole("combobox", { name: "Message" })).toBeNull();
     expect(screen.getByRole("status").textContent).toBe(READ_ONLY_LINE);
   });
 
@@ -50,7 +50,7 @@ describe("ChatPanel", () => {
     expect(screen.getByRole("status").textContent).toContain(NO_ACCESS_LINE);
     expect(screen.getByRole("link", { name: "Back to your trips" }).getAttribute("href")).toBe("/");
     expect(screen.queryByRole("list", { name: "Messages" })).toBeNull();
-    expect(screen.queryByRole("textbox", { name: "Message" })).toBeNull();
+    expect(screen.queryByRole("combobox", { name: "Message" })).toBeNull();
   });
 
   // An author is named from the members; one no longer among them keeps

@@ -1,6 +1,6 @@
 "use client";
 import type { ChatLink } from "@tc/contracts";
-import { resolveLink, useBoardFocus, type ResolvedLink } from "@/components/trip/context/boardFocus";
+import { resolveLink, useBoardFocus, type ResolvedLink } from "./boardFocus";
 import { Button } from "@/components/ui/button";
 
 /**
@@ -20,6 +20,15 @@ export function MessageChip({ target }: { target: ResolvedLink }) {
   );
 }
 
+/** Where `mention` stands whole in `body`, or -1: `@Day 1` is not the start of `@Day 10`. */
+function wholeMention(body: string, mention: string): number {
+  for (let at = body.indexOf(mention); at !== -1; at = body.indexOf(mention, at + 1)) {
+    const after = body[at + mention.length];
+    if (after === undefined || !/[\p{L}\p{N}_]/u.test(after)) return at;
+  }
+  return -1;
+}
+
 /**
  * A message's words with its link drawn as a chip: in place of the mention
  * the composer wrote (`@<label>`), or after the words where the target has
@@ -32,7 +41,7 @@ export function MessageBody({ body, link }: { body: string; link?: ChatLink | un
   const target = link === undefined ? null : resolveLink(board, link);
   if (target === null) return <>{body}</>;
   const mention = `@${target.label}`;
-  const at = body.indexOf(mention);
+  const at = wholeMention(body, mention);
   if (at === -1) {
     return (
       <>

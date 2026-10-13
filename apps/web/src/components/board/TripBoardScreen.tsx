@@ -68,7 +68,7 @@ import { useAssistantVisibility } from "@/components/assistant/useAssistantVisib
 import { AssistantRail, type RailTab } from "@/components/assistant/AssistantRail";
 import { readLastRailTab, rememberRailTab } from "@/components/assistant/lastTab";
 import { ChatPanel } from "@/components/chat/ChatPanel";
-import { useBoardFocusEntry } from "@/components/trip/context/boardFocus";
+import { useBoardFocusEntry } from "@/components/chat/boardFocus";
 import { useTripChat } from "@/components/chat/useTripChat";
 import { personasOf } from "@/components/pages/people";
 import type { AssistantTurn } from "@/components/assistant/Transcript";
@@ -398,11 +398,24 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // (`boardFocus.ts`). Where Chat is a sheet over the board, a chip puts it
   // away, so what it focuses is what is in view.
   const chatTargets = useMemo(() => (activeTrip === null ? null : tripTargets(activeTrip, { focusedActivityId: null, focusedDayId: null, selectedDayId: null })), [activeTrip]);
+  const afterSheet = useRef<(() => void) | null>(null);
   const fromChat = (go: (id: string) => void) => (id: string) => {
-    if (assistantPresentation === "sheet") assistant.hide();
-    go(id);
+    if (assistantPresentation !== "sheet" || !assistant.open) return go(id);
+    afterSheet.current = () => go(id);
+    assistant.hide();
   };
   useBoardFocusEntry(chatTargets, fromChat(focusDay), fromChat(focusActivity));
+  // The sheet's close hands focus back to its opener on a zero timeout,
+  // scheduled as it unmounts (`AssistantRail`'s `onCloseAutoFocus`), and an
+  // unmount's cleanup runs before this effect: a timeout set here comes after
+  // it, so the chip's target is focused last and keeps it.
+  useEffect(() => {
+    if (assistant.open || afterSheet.current === null) return;
+    const go = afterSheet.current;
+    afterSheet.current = null;
+    const timer = setTimeout(go, 0);
+    return () => clearTimeout(timer);
+  }, [assistant.open]);
 
   /**
    * Arriving at the phone's plan with nothing selected picks the first day.
