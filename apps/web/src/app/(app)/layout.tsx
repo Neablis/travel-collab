@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/nextjs";
 import { cookies } from "next/headers";
 import { Suspense } from "react";
 import { AppHeader } from "@/components/AppHeader";
@@ -105,13 +106,16 @@ export default async function AppLayout({ children }: { children: React.ReactNod
  * surface to ask for itself: a cookie with no live session behind it, or a
  * read that failed. A failure must not take the whole app down with it, and
  * `null` is the answer every caller already treats as entitled; the route's
- * 402 is the gate either way.
+ * 402 is the gate either way. It is still reported: a version reference that
+ * no longer resolves must fail loudly (ADR-045 rule 3), and the fallback alone
+ * would hide it.
  */
 async function servedEntitlements(): Promise<Entitlement[] | null> {
   try {
     const userId = (await auth())?.user?.id;
     return userId === undefined ? null : [...(await entitlementsFor(userId)).entitlements];
-  } catch {
+  } catch (error) {
+    Sentry.captureException(error);
     return null;
   }
 }
