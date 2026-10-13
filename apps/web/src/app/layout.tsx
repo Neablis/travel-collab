@@ -58,10 +58,19 @@ export const metadata: Metadata = {
 // `width` and `initialScale` are Next's defaults, written out so this export
 // reads as the whole tag. `themeColor` colours the browser's bar, the
 // manifest's `theme_color` the installed app's — the same token.
+//
+// `interactiveWidget`: since Chrome 108 Android's keyboard resizes only the
+// visual viewport, so `dvh` and a fixed `bottom: 0` stay where they were and
+// the phone sheet's composer, Chat's and Ask's alike, sat under the keyboard
+// (Mitchell, PR 436's preview). `resizes-content` shrinks the layout instead,
+// which is what the sheet's and the rail's `dvh` were written expecting. The
+// cost is app-wide on Android: anything fixed to the bottom, the tab bar
+// included, rides up above the keyboard too. iOS Safari ignores the key.
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
+  interactiveWidget: "resizes-content",
   themeColor: appColors.surface,
 };
 
