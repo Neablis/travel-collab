@@ -47,6 +47,15 @@ Mitchell moved **M43 and M44 to the end** (*"Neither are impacting anything toda
   (D9): opened by its builder 2026-10-13 00:41Z. **Not reviewed.** CI was running on `12bc9be`.
   The builder's red-first evidence and deviations are in the PR body. It also amends
   `.design-sync/handoff/SPEC.md` §35.2 (Home's head: New trip and Ask).
+- PR 427's CI at `12bc9be`: **`test / unit` failed**, cause not read. Every other job passed,
+  including both e2e shards. The builder's report is a comment on PR 427.
+- **Mitchell's answers on part 5 (2026-10-13):**
+  - no assistant on country pages, which are SEO pages;
+  - the floating rail on desktop is approved;
+  - **send the plan with the page.** Resolve entitlements on the server in the `(app)` layout
+    and pass them down, so Ask renders on first paint with no fetch and no flash. Use one
+    source for the trip board and the playbook pages. This is not a JWT claim: ADR-045 rule 2
+    stands. It goes into PR 427's fix round.
 - **Next:**
   1. Dispatch a part-reviewer on PR 427, then work its findings to green.
   2. Mitchell walks the preview.
