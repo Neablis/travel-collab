@@ -548,3 +548,18 @@ here two days later.
     preview. Whether choosing a new photo resets the position. Keyboard and phone handling for
     the drag. Whether the stored position also applies to the card on Home.
   *Placed 2026-10-12 → `docs/milestones/M49-covers-from-anywhere.md` (proposed, not yet scoped). M49's gate deletes this entry at close.*
+
+- **The assistant knows which surface started the conversation, and can start a trip from scratch
+  (asked 2026-10-13).** Mitchell, walking M45 on production: *"it should be conscious of what tab
+  started the conversation and outside a specific trip should be a place to have the tool to start
+  a new trip"*, and *"we want to do [that] from the assistant … file that as a future improvement
+  to build"*.
+  - **What exists.** M45 (`docs/milestones/M45-the-assistant-beyond-one-trip.md`, the assistant
+    beyond one trip) put an assistant on Home and on the playbook pages. A playbook day's assistant
+    can **start a trip with this day**, as a proposal that runs after Approve (M45 decision 9).
+    Nothing starts a brand-new trip from scratch: asked to do that on Home, the assistant refused.
+  - **The idea.** The assistant is aware of the surface or tab that opened it (Home, a playbook
+    day, a trip, and so on) and acts accordingly. Outside a specific trip, for example Home's
+    account assistant, it has a tool to start a new trip from scratch. M45's
+    start-a-trip-from-a-day proposal and Approve flow is the natural shape.
+  **Not placed.**

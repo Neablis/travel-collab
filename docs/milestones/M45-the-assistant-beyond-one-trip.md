@@ -337,6 +337,8 @@ Home's rail and ⌘K's *Ask:* row (PR 426, `204c9dd`); part 5, the assistant on 
   `p-add-to-trip` at `940df19`, and both playbook change prompts at `87c01b0`. It caused no
   failure; the playbook variant has no change class to choose. Open; filed on Mitchell's call
   (2026-10-13).
+- **Candidate filed 2026-10-13 from Mitchell's walk**: the assistant knows which surface started the
+  conversation, and can start a trip from scratch outside a trip (`docs/candidates.md`). Not M45 work.
 - **The unexplained unit red on `5dff1cb`**: recorded above; nothing to file without a cause.
 - **From the deleted plan, kept here:** every behaviour e2e reaches needs a phrase branch in
   `apps/web/src/server/ai/simulatedModel.ts` and a case in `simulatedModel.test.ts`, and that is
