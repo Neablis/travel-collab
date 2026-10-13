@@ -82,6 +82,10 @@ export const EXPOSURE: Readonly<Record<string, Exposure>> = {
   "trips/[tripId]/suggestions/changes/[changeId]": PLANNED("Suggestions — not on the public API in v1"),
   // M40 D1: accept several as one batch.
   "trips/[tripId]/suggestions/changes/accept": PLANNED("Suggestions — not on the public API in v1"),
+  // M46 (ADR-073): a trip's chat, on the internal API first.
+  "trips/[tripId]/chat": PLANNED("Undecided — a trip's chat, reading and posting (M46)"),
+  "trips/[tripId]/chat/[messageId]": PLANNED("Undecided — editing and deleting a chat message (M46)"),
+  "trips/[tripId]/chat/read": PLANNED("Undecided — a member's chat read cursor (M46)"),
   // Undecided (Mitchell, 2026-09-30): these start as planned, not never.
   places: PLANNED("Undecided — place search over the published library"),
   "trips/[tripId]/events": PLANNED("Undecided — the live event stream"),

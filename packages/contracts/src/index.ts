@@ -31,3 +31,4 @@ export * from "./publicApi.ts";
 export * from "./linkPreview.ts";
 export * from "./cover.ts";
 export * from "./snapshot.ts";
+export * from "./chat.ts";

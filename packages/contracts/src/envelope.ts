@@ -43,6 +43,10 @@ export type EventEnvelope = z.infer<typeof EventEnvelope>;
  * Accepting, revoking, removing and toggling travelling write no event, so
  * without it nobody but the actor would see totals recost. Optional for the
  * same version skew.
+ *
+ * `chatRev` is the trip chat's counter (ADR-073 §2): it moves on every post,
+ * edit and delete, and a client refetches the conversation when it does. For
+ * every reader, as `accessRev` is, because every member may read the chat.
  */
 export const TripEventsPage = z.object({
   headSeq: z.number().int().nonnegative(),
@@ -50,5 +54,6 @@ export const TripEventsPage = z.object({
   resync: z.boolean(),
   suggestionsRev: z.string().min(1).optional(),
   accessRev: z.string().min(1).optional(),
+  chatRev: z.string().min(1).optional(),
 });
 export type TripEventsPage = z.infer<typeof TripEventsPage>;

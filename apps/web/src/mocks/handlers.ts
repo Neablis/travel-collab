@@ -9,11 +9,14 @@ import {
   BatchableCommand,
   ChangeRoleInput,
   CoverCandidate,
+  PostChatMessage,
   CreatePageInput,
   CreateReportInput,
   CreateSavedNotebookInput,
   CreateSnapshotInput,
   CreateSuggestionInput,
+  EditChatMessage,
+  MarkChatRead,
   NearbyStopsResponse,
   PAGE_CHANGED_CODE,
   PutReviewInput,
@@ -29,6 +32,7 @@ import {
   TripCommand,
   TripWeatherResponse,
   UpdatePageInput,
+  type ChatMessage,
   type ContentReport,
   type Page,
   type Review,
@@ -1046,4 +1050,94 @@ export function makeCoverHandlers(
       return HttpResponse.json({ cover: null });
     }),
   ];
+}
+
+// The mock refuses as the routes refuse: a stranger is not modelled (a suite
+// reads as a member), a lapse is `canPost: false` and a post or an edit then
+// answers 402, while mark-read and delete still work, and a delete is the
+// author's or the owner's.
+/**
+ * MSW handlers for a trip's chat (M46), backed by an in-memory conversation
+ * seeded from `options.messages` and read as `options.viewerId`.
+ *
+ * Returns `{ handlers, chatRev }`: the five chat routes, and the counter each
+ * post, edit and delete moves, for a suite that serves it on its own events
+ * handler.
+ */
+export function makeChatHandlers(options: {
+  viewerId: string;
+  role?: TripRole;
+  messages?: ChatMessage[];
+  canPost?: boolean;
+}) {
+  const messages: ChatMessage[] = structuredClone(options.messages ?? []);
+  const role = options.role ?? "owner";
+  const canPost = options.canPost ?? true;
+  let rev = 0;
+  let lastRead = -1;
+  const readOnly = () =>
+    HttpResponse.json({ error: "read-only", code: "collaborators-not-entitled" }, { status: 402 });
+  const handlers = [
+    http.get("/api/trips/:tripId/chat", () =>
+      HttpResponse.json({
+        messages,
+        hasEarlier: false,
+        unread: messages.filter((m, i) => i > lastRead && !m.removed && m.authorId !== options.viewerId).length,
+        canPost,
+        ...(canPost ? {} : { readOnlyReason: "collaborators-not-entitled" }),
+      }),
+    ),
+    http.post("/api/trips/:tripId/chat", async ({ request }) => {
+      if (!canPost) return readOnly();
+      const input = PostChatMessage.safeParse(await request.json().catch(() => null));
+      if (!input.success) return HttpResponse.json({ error: "invalid-chat-message" }, { status: 400 });
+      const message: ChatMessage = {
+        messageId: crypto.randomUUID(),
+        authorId: options.viewerId,
+        createdAt: new Date().toISOString(),
+        editedAt: null,
+        removed: false,
+        body: input.data.body,
+        ...(input.data.link ? { link: input.data.link } : {}),
+      };
+      messages.push(message);
+      rev += 1;
+      return HttpResponse.json({ message }, { status: 201 });
+    }),
+    http.patch("/api/trips/:tripId/chat/:messageId", async ({ params, request }) => {
+      if (!canPost) return readOnly();
+      const index = messages.findIndex((m) => m.messageId === params.messageId);
+      const target = messages[index];
+      if (target === undefined) return HttpResponse.json({ error: "not-found" }, { status: 404 });
+      if (target.authorId !== options.viewerId) return HttpResponse.json({ error: "forbidden" }, { status: 403 });
+      if (target.removed) return HttpResponse.json({ error: "This message has been removed." }, { status: 409 });
+      const input = EditChatMessage.safeParse(await request.json().catch(() => null));
+      if (!input.success) return HttpResponse.json({ error: "invalid-chat-message" }, { status: 400 });
+      const edited: ChatMessage = { ...target, body: input.data.body, editedAt: new Date().toISOString() };
+      messages[index] = edited;
+      rev += 1;
+      return HttpResponse.json({ message: edited });
+    }),
+    http.delete("/api/trips/:tripId/chat/:messageId", ({ params }) => {
+      const index = messages.findIndex((m) => m.messageId === params.messageId);
+      const target = messages[index];
+      if (target === undefined) return HttpResponse.json({ error: "not-found" }, { status: 404 });
+      if (target.authorId !== options.viewerId && role !== "owner") {
+        return HttpResponse.json({ error: "forbidden" }, { status: 403 });
+      }
+      const { messageId, authorId, createdAt, editedAt } = target;
+      const removed: ChatMessage = { messageId, authorId, createdAt, editedAt, removed: true };
+      if (!target.removed) rev += 1;
+      messages[index] = removed;
+      return HttpResponse.json({ message: removed });
+    }),
+    http.post("/api/trips/:tripId/chat/read", async ({ request }) => {
+      const input = MarkChatRead.safeParse(await request.json().catch(() => null));
+      const index = input.success ? messages.findIndex((m) => m.messageId === input.data.messageId) : -1;
+      if (index === -1) return HttpResponse.json({ error: "not-found" }, { status: 404 });
+      lastRead = Math.max(lastRead, index);
+      return new HttpResponse(null, { status: 204 });
+    }),
+  ];
+  return { handlers, chatRev: () => String(rev) };
 }
