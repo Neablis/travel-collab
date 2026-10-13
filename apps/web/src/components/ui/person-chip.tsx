@@ -49,9 +49,11 @@ export type PersonChipProps = {
 };
 
 // A pseudo-element, so the chip stays one box and a stack's overlap is
-// untouched. Its ring parts it from the face under it, as `ring` does.
+// untouched. Its ring parts it from the face under it, as `ring` does. 8px
+// flush in the box's corner centres it on the circle's edge, so it reads as
+// part of the face rather than a token beside it (M46 preview walk).
 const ONLINE_DOT =
-  "relative after:absolute after:-right-0.5 after:-bottom-0.5 after:size-2.5 after:rounded-full after:bg-success after:ring-2 after:ring-surface";
+  "relative after:absolute after:right-0 after:bottom-0 after:size-2 after:rounded-full after:bg-success after:ring-2 after:ring-surface";
 
 /**
  * A person's chip: their chosen glyph, or their initials, on their colour.
