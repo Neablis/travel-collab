@@ -701,9 +701,15 @@ export function AssistantRail({
   }, [restoreDraft]);
 
   const composerRef = useRef<HTMLInputElement | null>(null);
+  const chatPanelRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
     // Asked whatever the presentation, so a sheet's open is spent too.
-    if (takeFocus?.() === true && !isSheet) composerRef.current?.focus();
+    if (takeFocus?.() !== true || isSheet) return;
+    // The open tab's composer: Ask's is hidden under Chat, and focusing it
+    // there does nothing. The chat's is the caller's markup, so it is found
+    // in the panel; with none (still reading, or read-only) the panel itself.
+    if (onChat) (chatPanelRef.current?.querySelector<HTMLElement>("input") ?? chatPanelRef.current)?.focus();
+    else composerRef.current?.focus();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once per mount: `takeFocus` answers for the open that mounted this rail
   }, []);
 
@@ -887,16 +893,20 @@ export function AssistantRail({
             {/* The same heading in all three presentations; in the sheet it
                 is additionally the dialog's accessible name, so the modal
                 announces itself with the words already on screen rather than
-                a second label invented for screen readers. */}
+                a second label invented for screen readers. It names the open
+                tab's conversation: on Chat it is the people's, "called Chat
+                everywhere" (M46's layout), so the sheet opened from 💬 is not
+                announced as the assistant. The <aside> keeps "Assistant", the
+                panel's one stable name that every opener's locators share. */}
             {isSheet ? (
               <RadixDialog.Title asChild>
                 <Heading level={4} className="font-semibold">
-                  Assistant
+                  {onChat ? "Chat" : "Assistant"}
                 </Heading>
               </RadixDialog.Title>
             ) : (
               <Heading level={4} className="font-semibold">
-                Assistant
+                {onChat ? "Chat" : "Assistant"}
               </Heading>
             )}
             <div className="flex-1" />
@@ -986,7 +996,14 @@ export function AssistantRail({
           {!onChat && <div className="mt-2 rounded-sm bg-paper px-2.5 py-1.5 text-xs text-slate">{contextLine}</div>}
         </div>
         {onChat && (
-          <div role="tabpanel" id={tabPanelId(RAIL_TABS_ID, "chat")} aria-labelledby={tabId(RAIL_TABS_ID, "chat")} className="flex min-h-0 flex-1 flex-col">
+          <div
+            ref={chatPanelRef}
+            role="tabpanel"
+            id={tabPanelId(RAIL_TABS_ID, "chat")}
+            aria-labelledby={tabId(RAIL_TABS_ID, "chat")}
+            tabIndex={-1}
+            className="flex min-h-0 flex-1 flex-col outline-none"
+          >
             {chat?.panel}
           </div>
         )}

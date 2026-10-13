@@ -7,9 +7,9 @@ import { fetchChat, markChatRead, postChatMessage, type ApiError } from "@/lib/a
 /**
  * - `loading`: the first read has not answered.
  * - `ready`: a page is held; later failed re-reads keep it.
- * - `no-access`: the server answered 403. A removed member's page does not
- *   learn it was removed (KI-2026-10-05-h), so the chat says so rather than
- *   looking live (M46 D2).
+ * - `no-access`: the server answered 403, to a chat call or to the trip's
+ *   poll. A removed member's page does not otherwise learn it was removed
+ *   (KI-2026-10-05-h), so the chat says so rather than looking live (M46 D2).
  * - `failed`: the first read failed for another reason.
  */
 export type TripChatStatus = "loading" | "ready" | "no-access" | "failed";
@@ -49,15 +49,23 @@ export function useTripChat({
   enabled,
   chatRev,
   reading,
+  accessLost,
 }: {
   tripId: string;
   /** False on the demo, which refuses every chat route (ADR-073 §5). */
   enabled: boolean;
   chatRev: string | null;
   reading: boolean;
+  /**
+   * The trip's events poll was refused (`useTrip().accessLost`). Once removed,
+   * nothing moves `chatRev` for this reader again, so without this the panel
+   * would look live until they pressed Send.
+   */
+  accessLost: boolean;
 }): TripChat {
   const [page, setPage] = useState<ChatPage | null>(null);
-  const [status, setStatus] = useState<TripChatStatus>("loading");
+  const [readStatus, setStatus] = useState<TripChatStatus>("loading");
+  const status = accessLost ? "no-access" : readStatus;
   const [posting, setPosting] = useState(false);
   const [postError, setPostError] = useState<string | null>(null);
 

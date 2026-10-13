@@ -451,6 +451,7 @@ export async function fetchChat(tripId: string): Promise<ApiResult<ChatPage>> {
   }
 }
 
+/** Post a message: the stored message, or the refusal with its status (403 no longer a member, 402 read-only). */
 export async function postChatMessage(tripId: string, input: PostChatMessage): Promise<ApiResult<ChatMessage>> {
   try {
     const res = await fetch(apiUrl(`/api/trips/${tripId}/chat`), {

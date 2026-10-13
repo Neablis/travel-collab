@@ -105,7 +105,7 @@ function askErrorMessage(error: ApiError): string {
 }
 
 export function TripBoardScreen({ tripId }: { tripId: string }) {
-  const { trip, activeTrip, history, status, error, dispatch, dispatchBatch, applyOutcome, preview, pending, readOnly, myRole, canEditBoard, boardMode, draft, remoteRevision, confirmedSeq, suggestions: tripSuggestions, chatRev, access } = useTrip();
+  const { trip, activeTrip, history, status, error, dispatch, dispatchBatch, applyOutcome, preview, pending, readOnly, myRole, canEditBoard, boardMode, draft, remoteRevision, confirmedSeq, suggestions: tripSuggestions, chatRev, accessLost, access } = useTrip();
   // Read by the assistant's `onEvent` when a turn's changes were stored as
   // suggestions; a ref so the handler never holds a render-old list.
   const refreshSuggestions = useRef(tripSuggestions?.refresh);
@@ -145,6 +145,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
     enabled: status === "ready" && !isDemoTripId(tripId),
     chatRev,
     reading: assistant.open && railTab === "chat",
+    accessLost,
   });
   const members = access?.members;
   const personas = useMemo(() => (members === undefined ? null : personasOf(members)), [members]);

@@ -54,11 +54,9 @@ export function ChatPanel({
   return (
     <>
       <div ref={scrollport} className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto overscroll-contain px-4 py-3.5">
-        {chat.status === "loading" ? (
-          <p role="status" className="text-sm text-slate">
-            Loading the chat…
-          </p>
-        ) : chat.status === "failed" ? (
+        {/* Nothing until the first read answers (KI-2026-09-20-e): the
+            conversation arrives whole, and is usually here before it opens. */}
+        {chat.status === "loading" ? null : chat.status === "failed" ? (
           <p role="alert" className="text-sm text-danger">
             The chat couldn&apos;t be loaded. It will try again when someone posts.
           </p>
@@ -69,7 +67,7 @@ export function ChatPanel({
             {chat.hasEarlier && <p className="text-xs text-slate">Earlier messages aren&apos;t shown.</p>}
             <ol aria-label="Messages" className="flex flex-col gap-3">
               {chat.messages.map((message) => (
-                <ChatMessage key={message.messageId} message={message} persona={personas?.[message.authorId]} />
+                <ChatMessage key={message.messageId} message={message} persona={personas === null ? null : personas[message.authorId]} />
               ))}
             </ol>
           </>

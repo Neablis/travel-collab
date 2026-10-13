@@ -1816,14 +1816,36 @@ describe("assistant rail visibility", () => {
     await userEvent.click(screen.getByTestId("chat-pill"));
     const panel = await screen.findByRole("complementary", { name: "Assistant" });
     expect(within(panel).getByRole("tab", { name: "Chat" }).getAttribute("aria-selected")).toBe("true");
+    expect(within(panel).getByRole("heading", { name: "Chat" })).toBeTruthy();
     expect(within(within(panel).getByRole("list", { name: "Messages" })).getAllByRole("listitem")).toHaveLength(1);
+    // Into the panel, as Ask's opener takes its composer (PR 426): not left on
+    // the pill with the whole board to Tab through. `:focus` asked of the
+    // element, as SnapshotList.test.tsx does: no reading `activeElement`.
+    expect(within(panel).getByRole("textbox", { name: "Message" }).matches(":focus")).toBe(true);
     expect(screen.getByTestId("chat-pill").getAttribute("aria-label")).toBe("Chat");
 
     await userEvent.click(within(panel).getByRole("button", { name: "Hide" }));
     await userEvent.click(screen.getByTestId("ask-pill"));
     const asking = await screen.findByRole("complementary", { name: "Assistant" });
     expect(within(asking).getByRole("tab", { name: "Ask" }).getAttribute("aria-selected")).toBe("true");
+    expect(within(asking).getByRole("heading", { name: "Assistant" })).toBeTruthy();
     expect(within(asking).getByRole("button", { name: "Ask the assistant" })).toBeTruthy();
+  });
+
+  // The phone's way in to Chat is the row's own 💬 (the layout): its tab bar
+  // carries only Ask. The sheet is the dialog, and it is called Chat there.
+  it("the phone row's 💬 opens the sheet on Chat", async () => {
+    setViewportMatches({ "(max-width: 767px)": true });
+    const fixture = tripDetailFixture();
+    server.use(...makeChatHandlers({ viewerId: fixture.members[0]!.userId, messages: [] }).handlers, ...makeTripHandlers(fixture));
+    renderScreen(fixture.tripId);
+    expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+
+    await userEvent.click(screen.getByTestId("chat-pill-phone"));
+    const sheet = await screen.findByRole("dialog", { name: "Chat" });
+    expect(screen.getByTestId("assistant-scrim")).toBeTruthy();
+    expect(within(sheet).getByRole("tab", { name: "Chat" }).getAttribute("aria-selected")).toBe("true");
+    expect(within(sheet).getByRole("tabpanel", { name: "Chat" })).toBeTruthy();
   });
 });
 

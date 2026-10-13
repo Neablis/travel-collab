@@ -191,6 +191,11 @@ type TripCtx = {
    * until one has. The chat keys its re-read on it; its value means nothing.
    */
   chatRev: string | null;
+  /**
+   * The events poll was refused with a 403 (M46 D2): this reader was removed
+   * while the page was open. Never cleared: being let back in is a new visit.
+   */
+  accessLost: boolean;
 };
 
 const Ctx = createContext<TripCtx | null>(null);
@@ -221,6 +226,7 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
   const [remoteRevision, setRemoteRevision] = useState(0);
   // The same value twice is no re-render, so every poll may set it.
   const [chatRev, setChatRev] = useState<string | null>(null);
+  const [accessLost, setAccessLost] = useState(false);
   const [previewSeq, setPreviewSeq] = useState<number | null>(null);
   const [previewTrip, setPreviewTrip] = useState<TripDetail | null>(null);
   const [draftSending, setDraftSending] = useState(false);
@@ -987,6 +993,7 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
     onSuggestionsChanged,
     onAccessChanged: onAccessRevision,
     onChatChanged: setChatRev,
+    onRefused: () => setAccessLost(true),
   });
 
   // Kept in step with the state on every render, so a change made anywhere
@@ -1058,6 +1065,7 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
         remoteRevision,
         confirmedSeq: optimistic ? headSeqOf(optimistic.confirmed.history) : 0,
         chatRev,
+        accessLost,
       }}
     >
       {/* The header logo is the save light (SPEC "The logo is the save

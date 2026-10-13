@@ -1,7 +1,9 @@
 import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { ChatMessage } from "@tc/contracts";
-import { uuidFrom } from "@tc/factories";
+import { tripMemberProfileFactory, uuidFrom } from "@tc/factories";
+import { personasOf } from "@/components/pages/people";
+import { FORMER_MEMBER } from "./ChatMessage";
 import { ChatPanel, NO_ACCESS_LINE, READ_ONLY_LINE } from "./ChatPanel";
 import type { TripChat } from "./useTripChat";
 
@@ -49,5 +51,21 @@ describe("ChatPanel", () => {
     expect(screen.getByRole("link", { name: "Back to your trips" }).getAttribute("href")).toBe("/");
     expect(screen.queryByRole("list", { name: "Messages" })).toBeNull();
     expect(screen.queryByRole("textbox", { name: "Message" })).toBeNull();
+  });
+
+  // An author is named from the members; one no longer among them keeps
+  // their words under a neutral name, and before the members are known
+  // nobody is called a former member.
+  it("names authors from the members, a missing one as a former member, and nobody before the members load", () => {
+    const bea = tripMemberProfileFactory.build({ userId: "u-bea", displayName: "Bea" });
+    const removed = { ...chat().messages[0]!, messageId: uuidFrom(2, 46), authorId: "u-gone", removed: true, body: "" };
+    const { rerender } = render(<ChatPanel chat={chat({ messages: [...chat().messages, removed] })} personas={null} />);
+    const lines = () => within(screen.getByRole("list", { name: "Messages" })).getAllByRole("listitem");
+    expect(lines().map((line) => line.textContent)).not.toContainEqual(expect.stringContaining(FORMER_MEMBER));
+
+    rerender(<ChatPanel chat={chat({ messages: [...chat().messages, removed] })} personas={personasOf([bea])} />);
+    expect(lines()[0]!.textContent).toContain("Bea");
+    expect(lines()[1]!.textContent).toContain(FORMER_MEMBER);
+    expect(lines()[1]!.textContent).toContain("message removed");
   });
 });
