@@ -38,6 +38,11 @@ export function ChatPanel({
   const [draft, setDraft] = useState("");
   const [editing, setEditing] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
+  // Save, Cancel and a confirmed Delete each unmount the control focus was on
+  // (the edit form, the `⋯` trigger); the line keeps focus instead of <body>.
+  const lines = useRef(new Map<string, HTMLLIElement>());
+  const focusLine = (messageId: string | null) => (messageId === null ? undefined : lines.current.get(messageId)?.focus());
+  const deletingFrom = useRef<string | null>(null);
   const picker = useTargetPicker(draft, setDraft);
   const scrollport = useRef<HTMLDivElement>(null);
   usePinToBottom(scrollport, [chat.messages.length]);
@@ -88,6 +93,10 @@ export function ChatPanel({
               {chat.messages.map((message) => (
                 <ChatMessage
                   key={message.messageId}
+                  ref={(line) => {
+                    if (line !== null) lines.current.set(message.messageId, line);
+                    return () => void lines.current.delete(message.messageId);
+                  }}
                   message={message}
                   persona={personas === null ? null : personas[message.authorId]}
                   tripId={chat.tripId}
@@ -95,20 +104,38 @@ export function ChatPanel({
                   // Closed by a lapse mid-edit as well: the save would be refused.
                   editing={editing === message.messageId && chat.canPost}
                   onEdit={() => setEditing(message.messageId)}
-                  onDelete={() => setDeleting(message.messageId)}
+                  onDelete={() => {
+                    deletingFrom.current = message.messageId;
+                    setDeleting(message.messageId);
+                  }}
                   onSave={async (body) => {
                     const saved = await chat.edit(message.messageId, body);
-                    if (saved) setEditing(null);
+                    if (saved) {
+                      focusLine(message.messageId);
+                      setEditing(null);
+                    }
                     return saved;
                   }}
-                  onCancelEdit={() => setEditing(null)}
+                  onCancelEdit={() => {
+                    focusLine(message.messageId);
+                    setEditing(null);
+                  }}
                 />
               ))}
             </ol>
           </>
         )}
       </div>
-      <Dialog open={deleting !== null} onOpenChange={(open) => !open && setDeleting(null)} title="Delete this message?">
+      <Dialog
+        open={deleting !== null}
+        onOpenChange={(open) => !open && setDeleting(null)}
+        title="Delete this message?"
+        // Opened from a menu, so there is no trigger to go back to.
+        onCloseAutoFocus={(event) => {
+          event.preventDefault();
+          focusLine(deletingFrom.current);
+        }}
+      >
         <Text variant="secondary">Everyone on the trip will see “message removed” in its place.</Text>
         <DialogFooter>
           <Button variant="secondary" onClick={() => setDeleting(null)}>

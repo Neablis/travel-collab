@@ -85,6 +85,9 @@ export function useTripChat({
   const status = accessLost ? "no-access" : readStatus;
   const [posting, setPosting] = useState(false);
   const [postError, setPostError] = useState<string | null>(null);
+  // Why the last edit or delete failed. Cleared by a fresh read or a post as
+  // well as by the next change: by then it describes a page that has moved on.
+  const [changeError, setChangeError] = useState<string | null>(null);
 
   // A 403 from any of the three calls is the same news.
   const refused = useCallback((error: ApiError) => {
@@ -101,6 +104,7 @@ export function useTripChat({
       if (result.ok) {
         setPage(result.value);
         setStatus("ready");
+        setChangeError(null);
       } else if (!refused(result.error)) {
         setStatus((current) => (current === "loading" ? "failed" : current));
       }
@@ -125,6 +129,7 @@ export function useTripChat({
     async (body: string, link?: ChatLink) => {
       setPosting(true);
       setPostError(null);
+      setChangeError(null);
       const result = await postChatMessage(tripId, link === undefined ? { body } : { body, link });
       setPosting(false);
       if (result.ok) {
@@ -149,7 +154,6 @@ export function useTripChat({
     [tripId, refused],
   );
 
-  const [changeError, setChangeError] = useState<string | null>(null);
   // An edit or a delete answers with the message as stored, so the author's
   // own line changes now; everyone else's page re-reads on `chatRev`.
   const change = useCallback(

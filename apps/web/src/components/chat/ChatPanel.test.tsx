@@ -117,6 +117,40 @@ describe("ChatPanel", () => {
     expect(remove).toHaveBeenCalledWith(uuidFrom(1, 46));
   });
 
+  // PR 440 review, finding 4. Save, Cancel and a confirmed Delete each unmount
+  // the control focus was on; the line keeps it, so the next Tab starts there
+  // and not at the top of the page. `:focus` asked of the element a query
+  // found, as SnapshotList.test.tsx does: the wall bans `activeElement`.
+  describe("focus", () => {
+    const line = () => within(screen.getByRole("list", { name: "Messages" })).getAllByRole("listitem")[0]!;
+    const hasFocus = (element: HTMLElement) => element.matches(":focus");
+    const openEdit = async () => {
+      await userEvent.click(screen.getByRole("button", { name: "Actions for Bea's message" }));
+      await userEvent.click(await screen.findByRole("menuitem", { name: "Edit" }));
+    };
+
+    it("stays on the line after an edit is saved or cancelled", async () => {
+      me = { id: "u-bea" };
+      render(<ChatPanel chat={chat()} personas={bea} />);
+      await openEdit();
+      await userEvent.type(screen.getByRole("textbox", { name: "Edit message" }), "!{Enter}");
+      await vi.waitFor(() => expect(hasFocus(line())).toBe(true));
+
+      await openEdit();
+      await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+      expect(hasFocus(line())).toBe(true);
+    });
+
+    it("stays on the line once a delete is confirmed", async () => {
+      me = { id: "u-bea" };
+      render(<ChatPanel chat={chat()} personas={bea} />);
+      await userEvent.click(screen.getByRole("button", { name: "Actions for Bea's message" }));
+      await userEvent.click(await screen.findByRole("menuitem", { name: "Delete" }));
+      await userEvent.click(within(screen.getByRole("dialog", { name: "Delete this message?" })).getByRole("button", { name: "Delete" }));
+      await vi.waitFor(() => expect(hasFocus(line())).toBe(true));
+    });
+  });
+
   it("gives an editor no way to change someone else's line", () => {
     me = { id: "u-cal" };
     myRole = "editor";

@@ -132,4 +132,29 @@ describe("useTripChat", () => {
     await act(async () => expect(await result.current.remove(id)).toBe(true));
     expect(result.current.messages.map((m) => m.removed)).toEqual([true, false]);
   });
+
+  // PR 440 review, finding 3: a failed delete's alert sat above the composer
+  // until the next edit or delete, however much happened after it.
+  it("drops a failed change's error once the conversation is read again, or the reader posts", async () => {
+    const id = message(1).messageId;
+    server.use(
+      http.get(`/api/trips/${TRIP}/chat`, () => HttpResponse.json(pageOf([message(1)]))),
+      http.delete(`/api/trips/${TRIP}/chat/${id}`, () => HttpResponse.error()),
+      http.post(`/api/trips/${TRIP}/chat`, () => HttpResponse.json({ message: message(2) }, { status: 201 })),
+    );
+    const { result, rerender } = renderHook((chatRev: string) => useTripChat({ tripId: TRIP, enabled: true, chatRev, reading: false, accessLost: false }), {
+      initialProps: "1",
+    });
+    await waitFor(() => expect(result.current.status).toBe("ready"));
+
+    await act(async () => expect(await result.current.remove(id)).toBe(false));
+    expect(result.current.changeError).not.toBeNull();
+    rerender("2");
+    await waitFor(() => expect(result.current.changeError).toBeNull());
+
+    await act(async () => expect(await result.current.remove(id)).toBe(false));
+    expect(result.current.changeError).not.toBeNull();
+    await act(async () => expect(await result.current.post("Back online")).toBe(true));
+    expect(result.current.changeError).toBeNull();
+  });
 });

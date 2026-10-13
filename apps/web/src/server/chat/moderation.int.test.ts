@@ -118,6 +118,10 @@ describe("reporting a trip message", () => {
     const { tripId, owner, viewer, owners, viewers } = await conversation();
     const other = await conversation();
     expect((await report(newUser(), tripId, viewers.messageId)).status).toBe(404);
+    // A member of both trips, so the 404 is the message's trip filter and not
+    // the access check: filed under `other`, this trip's words would reach the
+    // queue, and a hide would bump the wrong trip's chatRev.
+    await grantMembership(db, { tripId: other.tripId, userId: owner, role: "viewer", invitedBy: other.owner, now: new Date().toISOString() });
     expect((await report(owner, other.tripId, viewers.messageId)).status).toBe(404);
     expect((await report(viewer, tripId, viewers.messageId)).status).toBe(403);
 
@@ -153,7 +157,9 @@ describe("an operator's decision on a message", () => {
     expect(await chatRev(tripId, viewer)).not.toBe(afterHide);
   });
 
-  it("refuses a day's action on a message report, and a message's on a day's", async () => {
+  // The other direction, a message's action on a day report, is in
+  // `app/api/reports/route.int.test.ts`, which has the day to report.
+  it("refuses a day's or a review's action on a message report", async () => {
     const { tripId, owner, viewers } = await conversation();
     const stored = await filed(owner, tripId, viewers.messageId);
     expect((await decide(stored.reportId, { action: "hide-day" })).status).toBe(400);

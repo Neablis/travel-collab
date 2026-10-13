@@ -10,7 +10,6 @@ import type {
 import type { AdminReportQueueItem } from "@/lib/reports";
 import { displayNameFor } from "@/lib/displayName";
 import { isDemoTripId } from "@/lib/demoTrip";
-import { tripAccessFor } from "./access/trip-access";
 import { bumpChatRev } from "./chat/rev";
 import { forgetCitySearches } from "./cities";
 import { db, type Queryable } from "./db/client";
@@ -185,6 +184,10 @@ async function libraryRefusal(
  */
 async function messageRefusal(reporterId: string, tripId: string, messageId: string): Promise<ReportRefusal | null> {
   if (isDemoTripId(tripId)) return NOT_FOUND;
+  // Loaded here, not at the top: `trip-access` reaches `auth` and so
+  // `next/headers`, which plain node cannot resolve, and the production content
+  // import loads this module for `carryModeration` (strip-only-entry-points test).
+  const { tripAccessFor } = await import("./access/trip-access");
   const access = await tripAccessFor(reporterId, tripId, "viewer");
   if (!access.ok || access.detail.status === "deleted") return NOT_FOUND;
   const [message] = await db

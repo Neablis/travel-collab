@@ -207,12 +207,15 @@ describe("the operator's queue", () => {
     }
   });
 
-  it("refuses a review action on a day report", async () => {
+  // A message report's half of this is in `server/chat/moderation.int.test.ts`.
+  it("refuses a review's or a message's action on a day report", async () => {
     const day = await sharedDay(AUTHOR, city("repmis"));
     const { report: filed } = await as(READER, () => reportDay(day));
-    const res = await as(ADMIN, () => act(filed.reportId, { action: "hide-review" }));
-    expect(res.status).toBe(400);
-    expect(await res.json()).toMatchObject({ error: "action-mismatch" });
+    for (const action of ["hide-review", "hide-message", "restore-message"] as const) {
+      const res = await as(ADMIN, () => act(filed.reportId, { action }));
+      expect(res.status, action).toBe(400);
+      expect(await res.json()).toMatchObject({ error: "action-mismatch" });
+    }
   });
 
   it("dismisses every open report on the target and hides nothing", async () => {

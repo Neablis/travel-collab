@@ -1,8 +1,8 @@
 "use client";
-import { useState } from "react";
+import { useState, type Ref } from "react";
 import type { ChatMessage as ChatMessageData } from "@tc/contracts";
 import type { Persona } from "@/components/pages/people";
-import { ReportAction } from "@/components/playbooks/ReportDialog";
+import { ReportAction } from "@/components/report/ReportDialog";
 import { PersonMenu, type PersonAction } from "@/components/trip/people/PersonMenu";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,6 +36,7 @@ const time = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: "nume
  * control (`ReportAction`), on other people's messages only.
  */
 export function ChatMessage({
+  ref,
   message,
   persona,
   tripId,
@@ -46,6 +47,8 @@ export function ChatMessage({
   onSave,
   onCancelEdit,
 }: {
+  /** The line, which takes focus when the control the reader used is gone. */
+  ref?: Ref<HTMLLIElement>;
   message: ChatMessageData;
   persona: Persona | undefined | null;
   tripId: string;
@@ -66,7 +69,8 @@ export function ChatMessage({
   if (live && viewer.mayDelete) actions.push({ label: "Delete", onSelect: onDelete, destructive: true });
 
   return (
-    <li className="group flex gap-2">
+    // `tabIndex={-1}`: focusable by the panel, not a Tab stop.
+    <li ref={ref} tabIndex={-1} className="group flex gap-2 rounded-md focus-visible:outline-2 focus-visible:outline-brand">
       {name === null ? (
         <Skeleton circle className="mt-0.5 size-7 shrink-0" />
       ) : (
@@ -91,7 +95,10 @@ export function ChatMessage({
         )}
       </div>
       {/* Quiet until the line is pointed at or focused, where a mouse can do
-          that; always there on touch, which cannot hover. */}
+          that; always there on touch, which cannot hover. A Report dialog open
+          here closes if the message is removed under it, deliberately: the
+          server would refuse that report as not found, and the line now says
+          "message removed", which is the explanation. */}
       {live && !editing && (
         <div className="flex shrink-0 items-start fine:opacity-0 fine:group-focus-within:opacity-100 fine:group-hover:opacity-100">
           {!viewer.mine && <ReportAction target={{ kind: "trip_message", tripId, messageId: message.messageId }} name={whose} />}
