@@ -67,11 +67,40 @@ Mitchell merges it, and dispatches `migrate-production` after one that adds a mi
 Part 0's tracker records every part, review, CI run, merge and migration as it happens. Mitchell
 walks each part's preview, with the mouse and keyboard-only, and his comments are fixed on that
 part's branch. Each gate box is ticked only with evidence; CI on the merged parts is the e2e
-evidence. The close runs in a fresh session, handed off with `/next-prompt` once the parts are
-merged. Part 0 gets the retro (`writing-a-retro.md`, with its spend block), `pnpm milestone close
+evidence. The close runs in a fresh session, which the orchestrator starts itself once the parts
+are merged (*Hand-off*, below). Part 0 gets the retro (`writing-a-retro.md`, with its spend block), `pnpm milestone close
 <M>` (dry run, then `--confirm`), the STATUS update, and the plan's deletion
 (`docs/plans/README.md`). Part 0 is marked ready before its
 CI is relied on, and Mitchell merges it.
+
+## Hand-off
+
+A session that has grown large hands the rest to a fresh one, and the orchestrator starts that
+session itself (Mitchell, 2026-10-13: M45's four hand-offs each waited on him to start them).
+
+**When.** Plan one hand-off, for the close. Make at most one more mid-build, and only when the
+orchestrator's context is past about 250k *and* roughly 100 or more of its calls are still to come.
+Below that, a new session's re-orientation costs more than the context it saves (M45's retro, *The
+whole milestone's cost*).
+
+**How**, in this order:
+
+1. **Run `session-metrics`** on this session's transcript and put its block in the handoff text.
+   The transcript goes with the container, and M45's spend block covered one session in five
+   because only the last one ran it (`writing-a-retro.md`).
+2. **Write the handoff** with `/next-prompt`.
+3. **Start the continuation** with `create_session` (the claude-code-remote MCP tool): `source_url`
+   `https://github.com/Neablis/travel-collab`, no `environment_id` (it inherits this session's
+   environment and model), a title such as `M46 — continued (close)`, and the handoff text as
+   `prompt`.
+4. **Delete your own pending check-ins**: `list_triggers`, then `delete_trigger` for each one this
+   session armed, so the old session is not woken again.
+5. **Tell Mitchell in one line**, with the new session's id, and stop acting. A wake that still
+   reaches the old session gets that one line again, nothing more.
+
+Measured 2026-10-13: a child session started, cloned `main` and answered in about 40 seconds. It
+starts at about 94k context, a trivial first turn cost $0.43, and a chain of sessions started this
+way stops at a depth of 8.
 
 ## Spend
 

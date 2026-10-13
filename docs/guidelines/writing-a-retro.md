@@ -38,8 +38,9 @@ find the evidence.
 
 ## The spend block
 
-Run this **in the session that built the milestone, before handing off the gate close**. The
-transcripts it reads live only in that session's container:
+Run this **in every session that worked on the milestone, before its hand-off** (`building-a-milestone.md`,
+*Hand-off*), and carry the block in the handoff text. The transcripts it reads live only in that
+session's container, and M45's block covered one session in five because only the last ran it:
 
 ```bash
 pnpm -s session-metrics --milestone ~/.claude/projects/<dir>/<session-id>.jsonl \

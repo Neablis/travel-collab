@@ -44,7 +44,10 @@ one sub-skill per stage and hands every hands-on step to a subagent.
 - Never run the live eval (`pnpm --filter web eval`) without asking him first.
 - Never poll with `sleep`. Wait by ending the turn: subagent reports, part 0's events and
   reminders wake the session.
-- **The gate close starts in a fresh session.** Once every part is merged, write the handoff with
-  `/next-prompt` and tell Mitchell to start it there (M42's close ran at about 400k context; a
-  fresh session starts near 85k). Do the same earlier if your context passes about 250k.
+- **You start the fresh session yourself.** Plan one hand-off, for the gate close once every part
+  is merged; make at most one more mid-build, only past about 250k context with roughly 100 or more
+  of your calls still to come. Each time: `session-metrics` first, then `/next-prompt`, then
+  `create_session` with that text, then delete your pending check-ins, tell Mitchell the new
+  session's id in one line, and stop acting (`building-a-milestone.md`, *Hand-off*). A fresh
+  session starts near 94k; M42's close ran at about 400k.
 - Re-read a PR, check or workflow run before reporting its state.
