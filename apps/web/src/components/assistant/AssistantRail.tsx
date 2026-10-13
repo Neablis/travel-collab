@@ -724,12 +724,22 @@ export function AssistantRail({
   }, []);
   // ⌘K's *Ask* or *Open chat* on a panel already open hides the tab focus was
   // in, which left it on <body> (M46's preview walk): the tab it switched to
-  // takes it. A tab chosen in the strip keeps focus there, as tabs do.
+  // takes it. A tab chosen in the strip leaves focus alone, as tabs do. Known
+  // by where the switch came from, not by where focus is: Safari does not
+  // focus a tapped button, and a sheet's composer taking focus raises the
+  // phone's keyboard over it (PR 442 review).
   const shownTab = useRef(chat?.tab);
+  const stripChose = useRef(false);
+  const chooseFromStrip = (tab: RailTab) => {
+    if (tab !== chat?.tab) stripChose.current = true;
+    chat?.onTabChange(tab);
+  };
   useEffect(() => {
     if (shownTab.current === chat?.tab) return;
     shownTab.current = chat?.tab;
-    if (document.activeElement?.getAttribute("role") === "tab") return;
+    const fromStrip = stripChose.current;
+    stripChose.current = false;
+    if (fromStrip) return;
     focusOpenTab();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- on a switch of tab only; `focusOpenTab` reads this render's
   }, [chat?.tab]);
@@ -1008,7 +1018,7 @@ export function AssistantRail({
               aria-label="Chat or Ask"
               idPrefix={RAIL_TABS_ID}
               value={chat.tab}
-              onValueChange={chat.onTabChange}
+              onValueChange={chooseFromStrip}
               options={railTabOptions(chat.unread ?? 0)}
               hasPanel
               className="mt-2"

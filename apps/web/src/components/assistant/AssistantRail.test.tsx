@@ -1175,7 +1175,30 @@ describe("AssistantRail — focus on open, from useAssistantVisibility", () => {
     expect(screen.getByRole("textbox", { name: "Message" }).matches(":focus")).toBe(true);
 
     screen.getByRole("tab", { name: "Ask" }).focus();
+    fireEvent.click(screen.getByRole("tab", { name: "Ask" }));
     rerender(<AssistantRail {...baseProps} chat={chatOn("ask")} />);
     expect(screen.getByRole("tab", { name: "Ask" }).matches(":focus")).toBe(true);
+  });
+
+  // PR 442 review, finding 2: Safari does not focus a button it taps, so a
+  // tap on a tab left focus off the strip and the switch focused the composer,
+  // raising the phone's keyboard over the sheet. `fireEvent` clicks as Safari
+  // does, without moving focus.
+  it("leaves focus alone when a tab in the sheet is tapped", () => {
+    function Sheet() {
+      const [tab, setTab] = useState<"ask" | "chat">("ask");
+      return (
+        <AssistantRail
+          {...baseProps}
+          presentation="sheet"
+          onHide={vi.fn()}
+          chat={{ tab, onTabChange: setTab, panel: <input aria-label="Message" /> }}
+        />
+      );
+    }
+    render(<Sheet />);
+    fireEvent.click(screen.getByRole("tab", { name: "Chat" }));
+    expect(screen.getByRole("tab", { name: "Chat" }).getAttribute("aria-selected")).toBe("true");
+    expect(screen.getByRole("textbox", { name: "Message" }).matches(":focus")).toBe(false);
   });
 });

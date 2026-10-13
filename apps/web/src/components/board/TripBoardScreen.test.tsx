@@ -1893,6 +1893,33 @@ describe("assistant rail visibility", () => {
       expect(within(panel).getByRole("tab", { name: "Chat" })).toBeTruthy();
     });
 
+    // PR 442 review, finding 3: a removed member's Chat tab kept its count
+    // while the button beside it said plain Ask.
+    it("clears the count on the button and the Chat tab once access is lost", async () => {
+      setViewportMatches({ "(min-width: 1180px)": true });
+      const addListener = vi.spyOn(document, "addEventListener");
+      const fixture = shared();
+      server.use(...makeChatHandlers({ viewerId: "dev-alice", messages: [said] }).handlers, ...makeTripHandlers(fixture));
+      renderWithTabBar(fixture.tripId);
+      expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+      await waitFor(() => expect(screen.getByTestId("ask-pill").getAttribute("aria-label")).toBe("Ask or chat, 1 unread message"));
+      await userEvent.click(screen.getByTestId("ask-pill"));
+      const panel = await screen.findByRole("complementary", { name: "Assistant" });
+      expect(within(panel).getByRole("tab", { name: "Chat, 1 unread message" })).toBeTruthy();
+      // KI-2026-09-22-e: a rendered trip is not yet an armed poll.
+      await waitFor(() => expect(addListener).toHaveBeenCalledWith("visibilitychange", expect.any(Function)));
+      addListener.mockRestore();
+
+      server.use(http.get("/api/trips/:tripId/events", () => HttpResponse.json({ error: "forbidden" }, { status: 403 })));
+      Object.defineProperty(document, "visibilityState", { value: "visible", configurable: true });
+      document.dispatchEvent(new Event("visibilitychange"));
+
+      // Plain Ask is named by its text, so the button's label goes.
+      await waitFor(() => expect(screen.getByTestId("ask-pill").hasAttribute("aria-label")).toBe(false));
+      expect(within(panel).queryByRole("tab", { name: /unread/ })).toBeNull();
+      expect(within(panel).getByRole("tab", { name: "Chat" })).toBeTruthy();
+    });
+
     // A trip you are alone on has nobody to chat with, so a remembered Chat
     // does not reopen there, and the button is plain Ask.
     it("opens on Ask over a remembered Chat on a trip you are alone on, and is called Ask", async () => {

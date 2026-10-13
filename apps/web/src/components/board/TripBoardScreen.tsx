@@ -1610,7 +1610,8 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
               tab: railTab,
               onTabChange: chooseTab,
               panel: <ChatPanel chat={chat} personas={personas} touch={assistantPresentation === "sheet"} />,
-              unread: chat.unread,
+              // Gated as the button's is, so a removed member's tab drops its count too.
+              unread: hasChat ? chat.unread : 0,
             }}
             onHide={assistant.hide}
           />
