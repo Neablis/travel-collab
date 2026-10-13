@@ -168,6 +168,19 @@ const OpenTripInput = z.object({
 });
 
 /**
+ * The trips a person meant by `name`: those called exactly that, ignoring case
+ * and spaces at the ends, or else those whose name holds it. Shared by every
+ * tool that takes a trip by the name a person gave (`open_trip`, and the
+ * playbook pages' `add_playbook_to_trip`), so "my Kyoto trip" finds the same
+ * trip from both.
+ */
+export function tripsCalled<T extends { name: string }>(trips: readonly T[], name: string): T[] {
+  const key = name.trim().toLowerCase();
+  const exact = trips.filter((trip) => trip.name.trim().toLowerCase() === key);
+  return exact.length > 0 ? exact : trips.filter((trip) => trip.name.toLowerCase().includes(key));
+}
+
+/**
  * **`go_to` for the account surface** (M45 D6, ADR-072 §6): from Home there is
  * no one trip, so the person names one. Only a trip they are travelling on,
  * the same set every account tool reads (`travelledTrips`, D2): a trip they can
@@ -195,10 +208,7 @@ export const openTripTool = defineTool({
   // no trip a role could be held on), so the tag would take it off the one
   // surface it is for. It changes nothing and spends nothing.
   run: async (input, deps): Promise<NavigateOutput> => {
-    const key = input.trip.trim().toLowerCase();
-    const trips = travelledTrips(await deps.trips.load(), deps.trips.userId);
-    const exact = trips.filter((trip) => trip.name.trim().toLowerCase() === key);
-    const matches = exact.length > 0 ? exact : trips.filter((trip) => trip.name.toLowerCase().includes(key));
+    const matches = tripsCalled(travelledTrips(await deps.trips.load(), deps.trips.userId), input.trip);
     if (matches.length !== 1) {
       const which = matches.length === 0 ? "no trip" : "more than one trip";
       return { queued: false, refused: `You are travelling on ${which} called “${input.trip}”.` };

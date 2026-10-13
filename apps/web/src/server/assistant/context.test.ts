@@ -87,6 +87,10 @@ describe("the ask scope encoding", () => {
     // M45: no trip at all. Degrading to `trip` here would send the simulated
     // model to `read_trip`, which an account turn is not handed.
     { kind: "account" },
+    // M45 D9: a playbook page, which the simulated model reads to choose its
+    // tools — a list page's or a shared day's.
+    { kind: "playbook", page: { kind: "day", savedDayId: "6e9a2c9e-3f7a-4b6e-9d3f-2b1a5c8d7e6f" } },
+    { kind: "playbook", page: { kind: "tag", tag: "meal", city: "kyoto", page: 2 } },
   ];
 
   it("round-trips every scope through an instruction", () => {

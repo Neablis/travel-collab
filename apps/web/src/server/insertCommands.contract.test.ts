@@ -45,8 +45,10 @@ describe("materialising saved stops into trip days has exactly one implementatio
   //
   //   * `type: "AddDay"` on its own is the ordinary "add a day to this trip"
   //     button (`TripBoardScreen.tsx`) and a `ProposedChange` label in the
-  //     assistant (`ai/writeTools.ts`). Neither is a second implementation of
-  //     anything, and a test that flagged them would be deleted within a month.
+  //     assistant (`ai/writeTools.ts`, and the playbook pages' cards in
+  //     `assistant/tools/playbook.ts`, whose Approve goes through
+  //     `insertSavedDay`). None is a second implementation of anything, and a
+  //     test that flagged them would be deleted within a month.
   //   * `\bSavedDay\b` rather than a substring, so `AddSavedDayButton` and
   //     `addSavedDay={...}` — a component and a prop — do not count as knowing
   //     about the shape.

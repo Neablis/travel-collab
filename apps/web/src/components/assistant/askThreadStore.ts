@@ -33,7 +33,7 @@
  */
 
 import type { AssistantTurn } from "@/components/assistant/Transcript";
-import type { BeyondTripAskScope } from "@/lib/apiClient";
+import type { BeyondTripAskScope, PlaybookAskPage } from "@/lib/apiClient";
 import { ASK_DRAFT_PREFIX as DRAFT_PREFIX, ASK_THREAD_PREFIX as KEY_PREFIX } from "@/lib/askOwnership";
 
 /**
@@ -200,8 +200,33 @@ export function beyondTripThreadName(scope: BeyondTripAskScope): string {
   switch (scope.kind) {
     case "account":
       return "account";
+    case "playbook":
+      return `playbook:${playbookPageName(scope.page)}`;
     default: {
-      const unhandled: never = scope.kind;
+      const unhandled: never = scope;
+      return unhandled;
+    }
+  }
+}
+
+/**
+ * One playbook page's part of its thread's name (M45 D9): each shared day by
+ * its id, a city or tag page by what it lists at any `?page=N`, and Discover
+ * as one page whatever its filters are set to, so changing a filter or paging
+ * keeps the conversation.
+ */
+function playbookPageName(page: PlaybookAskPage): string {
+  switch (page.kind) {
+    case "day":
+      return `day:${page.savedDayId}`;
+    case "discover":
+      return "discover";
+    case "city":
+      return `city:${page.slug}`;
+    case "tag":
+      return `tag:${page.tag}:${page.city ?? "everywhere"}`;
+    default: {
+      const unhandled: never = page;
       return unhandled;
     }
   }

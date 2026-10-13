@@ -56,6 +56,14 @@ export const SURFACE_INTENTS: Readonly<Record<SurfaceKind, SurfaceIntents>> = {
   // Questions only, so nowhere to pivot to: its grant holds no `system` or
   // `pages` domain, so neither pivot tool can ever be offered on it.
   account: { default: "question", allowed: ["question"], pivot: "request_change_tools" },
+  // The playbook pages likewise (M45 D9): their classifier is only the
+  // off-topic gate, and a shared day's two writes are offered on every turn,
+  // because the page's buttons are, so no intent has to be reached for them.
+  "playbook-day": { default: "question", allowed: ["question"], pivot: "request_change_tools" },
+  playbook: { default: "question", allowed: ["question"], pivot: "request_change_tools" },
+  discover: { default: "question", allowed: ["question"], pivot: "request_change_tools" },
+  city: { default: "question", allowed: ["question"], pivot: "request_change_tools" },
+  tag: { default: "question", allowed: ["question"], pivot: "request_change_tools" },
 };
 
 /**

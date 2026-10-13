@@ -8,6 +8,8 @@ import type { DiscoverDay } from "@/lib/playbooks";
 import { PLACE_PAGE_SIZE, placePagePath } from "@/lib/playbookUrls";
 import { cn } from "@/lib/cn";
 import { DiscoverCard } from "./DiscoverCard";
+import type { PlaybookAskPage } from "@/lib/apiClient";
+import { PlaybookAskButton, PlaybookAssistant } from "@/components/assistant/BeyondTripAssistant";
 
 // A client component fed the server's rows: `DiscoverCard` reads the reader's
 // clock preference through a hook.
@@ -23,6 +25,7 @@ export function PlaceDaysList({
   days,
   total,
   page,
+  assistant,
 }: {
   /** "Kyoto playbooks": one string, for the reason at the heading. */
   heading: string;
@@ -33,6 +36,8 @@ export function PlaceDaysList({
   days: DiscoverDay[];
   total: number;
   page: number;
+  /** The page an assistant is about (M45 D9): a city's or a tag's. A country page offers none. */
+  assistant?: PlaybookAskPage;
 }) {
   const lastPage = Math.max(1, Math.ceil(total / PLACE_PAGE_SIZE));
   return (
@@ -43,7 +48,10 @@ export function PlaceDaysList({
       <div>
         {/* One string, not `{name} playbooks`: two text nodes reach the HTML
             split by a comment, and the heading is what a crawler reads. */}
-        <Heading level={1}>{heading}</Heading>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <Heading level={1}>{heading}</Heading>
+          {assistant !== undefined && <PlaybookAskButton />}
+        </div>
         <Text variant="secondary">{summary}</Text>
       </div>
       <ul className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-3" data-testid="place-days">
@@ -66,6 +74,7 @@ export function PlaceDaysList({
           )}
         </nav>
       )}
+      {assistant !== undefined && <PlaybookAssistant page={assistant} contextLine={heading} />}
     </div>
   );
 }

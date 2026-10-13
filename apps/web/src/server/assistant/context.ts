@@ -14,6 +14,7 @@
 //     resolution read it, so the number the model is shown and the id the
 //     server resolves it back to cannot drift.
 import type { TimeFormat, TripDetail } from "@tc/contracts";
+import type { PlaybookDiscoverSearch } from "./admission";
 
 // Every surface a model is selected for, and there is one: `/ask` is the only
 // AI entry point (ADR-033 Decision 1). `AiCommandSurface` — the `page` /
@@ -46,7 +47,24 @@ export type AskScope =
   | { kind: "page"; pageId: string }
   // M45: every trip the asker travelled on, and no one trip. It names no row,
   // so there is nothing to verify; the route it arrives on is what decides it.
-  | { kind: "account" };
+  | { kind: "account" }
+  // M45 D9: one of the playbook pages, and what is on it. A day's id is a
+  // claim, resolved like `pageId` (admission's `resolveSurface`).
+  | { kind: "playbook"; page: PlaybookPage };
+
+/**
+ * Which playbook page a turn is asked on (M45 D9). `day` is the shared-day
+ * page, which shows one playbook day or a playbook of several (its row says
+ * which); the other three are lists, each as far as the reader has paged it:
+ * Discover with its whole search (tab, sort, filters, cursor), one city's
+ * page, and one tag's, in a city's page (`city` is its slug) or across the
+ * library, each at its `?page=N`.
+ */
+export type PlaybookPage =
+  | { kind: "day"; savedDayId: string }
+  | { kind: "discover"; search: PlaybookDiscoverSearch }
+  | { kind: "city"; slug: string; page: number }
+  | { kind: "tag"; tag: string; city: string | null; page: number };
 
 // How the scope is written into the /ask system instruction, and read back out
 // of it.
@@ -80,6 +98,7 @@ export function parseAskScope(instructions: string): AskScope {
         kind?: unknown;
         dayIndex?: unknown;
         pageId?: unknown;
+        page?: unknown;
       };
       if (parsed?.kind === "day" && Number.isInteger(parsed.dayIndex)) {
         return { kind: "day", dayIndex: parsed.dayIndex as number };
@@ -94,6 +113,11 @@ export function parseAskScope(instructions: string): AskScope {
       // An account turn has no trip to fall back to, and the simulated model
       // must not answer it with `read_trip`, which it is not handed.
       if (parsed?.kind === "account") return { kind: "account" };
+      // Nor has a playbook turn. Its page was verified before the line was
+      // written, so it is echoed back as it stands.
+      if (parsed?.kind === "playbook" && typeof parsed.page === "object" && parsed.page !== null) {
+        return { kind: "playbook", page: parsed.page as PlaybookPage };
+      }
     } catch {
       // Malformed line — fall through to the trip-wide reading.
     }

@@ -10,9 +10,11 @@ export async function generateMetadata(props: TagRouteProps) {
 // description names it, so one bar on a day of meals is not a nightlife day.
 /** `/playbooks/tag/<tag>`: the days that tag describes, paged by `?page=N`, or a 404. */
 export default async function TagPage(props: TagRouteProps) {
+  const [listing, { tag, slug }] = await Promise.all([tagListing(props), props.params]);
   return (
     <main className="mx-auto max-w-6xl px-6 py-8">
-      <PlaceDaysList {...await tagListing(props)} />
+      {/* Its assistant reads this tag's list, at this page (M45 D9). */}
+      <PlaceDaysList {...listing} assistant={{ kind: "tag", tag, city: slug ?? null, page: listing.page }} />
     </main>
   );
 }

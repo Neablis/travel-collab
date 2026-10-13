@@ -28,6 +28,11 @@ import { db } from "@/server/db/client";
 import { getTripDetail, listTripSummariesVisibleTo } from "@/server/projections";
 import { withEffectiveMembersByTrip } from "@/server/access/members";
 import { discoverDays } from "@/server/playbooks";
+import { discoverFor } from "@/server/publicLibrary";
+import { placePageDays } from "@/server/placePage";
+import { tagPageDays } from "@/server/tagPage";
+import type { DiscoverDay } from "@/lib/playbooks";
+import type { PlaybookPage } from "@/server/assistant/context";
 import { readableSavedDay } from "@/server/savedDays";
 import { listPageEntries } from "@/server/pages";
 import { getGeocoder } from "@/server/geocoding";
@@ -267,4 +272,28 @@ export async function readAccountTrips(userId: string): Promise<TripDetail[]> {
     db,
     details.filter((detail): detail is TripDetail => detail !== null),
   );
+}
+
+/**
+ * **A playbook list page's own list** (M45 D9), read as the page reads it:
+ * Discover's search as the screen sent it, tab, sort, filters and cursor
+ * included, or a city's or a tag's page at its `?page=N`, through the same
+ * cached reads those pages render from (`placePage.ts`, `tagPage.ts`). Nothing
+ * is widened: a page that would be a 404 lists nothing.
+ */
+export async function readPlaybookList(page: PlaybookPage, readerId: string): Promise<readonly DiscoverDay[]> {
+  switch (page.kind) {
+    case "day":
+      return [];
+    case "discover":
+      return (await discoverFor(page.search, readerId)).days;
+    case "city":
+      return placePageDays("city", page.slug, page.page);
+    case "tag":
+      return tagPageDays(page.tag, page.city, page.page);
+    default: {
+      const unhandled: never = page;
+      return unhandled;
+    }
+  }
 }

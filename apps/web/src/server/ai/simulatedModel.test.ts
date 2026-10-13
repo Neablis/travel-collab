@@ -1196,6 +1196,58 @@ describe("simulatedModel — the account surface", () => {
   });
 });
 
+// M45 D9: a playbook page. The flag-off path reads the page, drafts one of a
+// shared day's two writes with the trip and day as the person named them, and
+// asks which when they named neither — never a trip it chose.
+describe("simulatedModel — the playbook pages", () => {
+  const SHARED_DAY = ["read_playbook", "add_playbook_to_trip", "start_trip_with_playbook"];
+  const onDay = { kind: "playbook", page: { kind: "day", savedDayId: "6f9619ff-8b86-4011-b42d-00c04fc964ff" } } as const;
+
+  function playbookPrompt(question: string, results: { toolName: string; value: unknown }[] = [], tools = SHARED_DAY) {
+    return { ...askPrompt(onDay, results, { question }), tools: tools.map((name) => ({ name })) };
+  }
+
+  it("reads the playbook, then names its stops", async () => {
+    const question = "what does this day cover?";
+    expect(callsOf(await probe().doGenerate(playbookPrompt(question))).map((c) => c.toolName)).toEqual(["read_playbook"]);
+    const day = {
+      name: "Kyoto, on foot",
+      summary: null,
+      cities: ["Kyoto"],
+      dayCount: 1,
+      days: [{ day: 1, stops: [{ title: "Nishiki Market", start: "10:00", end: null, place: null, city: "Kyoto", costPerPerson: null, notes: null }] }],
+    };
+    expect(textOf(await probe().doGenerate(playbookPrompt(question, [{ toolName: "read_playbook", value: day }])))).toContain(
+      "Nishiki Market",
+    );
+  });
+
+  it("drafts adding it to the trip and day as named, and asks which when either is missing", async () => {
+    const calls = callsOf(await probe().doGenerate(playbookPrompt("add this to my Kyoto trip on day 3")));
+    expect(calls.map((c) => [c.toolName, JSON.parse(c.input)])).toEqual([["add_playbook_to_trip", { trip: "Kyoto", day: 3 }]]);
+    for (const question of ["add this to a trip", "add this to my Kyoto trip"]) {
+      const step = await probe().doGenerate(playbookPrompt(question));
+      expect(callsOf(step), question).toEqual([]);
+      expect(textOf(step), question).toContain("Which of your trips");
+    }
+  });
+
+  it("drafts a new trip, and says why when a write was refused", async () => {
+    const question = "start a trip with this day";
+    expect(callsOf(await probe().doGenerate(playbookPrompt(question))).map((c) => c.toolName)).toEqual(["start_trip_with_playbook"]);
+    const refused = { queued: false, refused: "They can open Rome but not edit it." };
+    const said = textOf(
+      await probe().doGenerate(playbookPrompt("add this to my Rome trip on day 1", [{ toolName: "add_playbook_to_trip", value: refused }])),
+    );
+    expect(said).toContain("not edit it");
+  });
+
+  it("reads a list page's own list, the only tool it holds", async () => {
+    const calls = callsOf(await probe().doGenerate(playbookPrompt("which of these is cheapest?", [], ["search_this_page"])));
+    expect(calls.map((c) => c.toolName)).toEqual(["search_this_page"]);
+  });
+});
+
 // ADR-072: the switched-off deployment can take you places too, or e2e could
 // not reach a reply that does. One call, then a sentence.
 describe("simulatedModel — taking you somewhere", () => {

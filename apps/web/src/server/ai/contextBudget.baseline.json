@@ -182,6 +182,10 @@
       "chars": 877,
       "approxTokens": 265
     },
+    "add_playbook_to_trip": {
+      "chars": 854,
+      "approxTokens": 258
+    },
     "read_trip": {
       "chars": 853,
       "approxTokens": 258
@@ -222,6 +226,10 @@
       "chars": 470,
       "approxTokens": 142
     },
+    "search_this_page": {
+      "chars": 418,
+      "approxTokens": 126
+    },
     "RemoveDay": {
       "chars": 412,
       "approxTokens": 124
@@ -233,6 +241,10 @@
     "SetTripDates": {
       "chars": 395,
       "approxTokens": 119
+    },
+    "start_trip_with_playbook": {
+      "chars": 385,
+      "approxTokens": 116
     },
     "insert_text": {
       "chars": 385,
@@ -249,6 +261,10 @@
     "propose_notebook_editing": {
       "chars": 364,
       "approxTokens": 110
+    },
+    "read_playbook": {
+      "chars": 338,
+      "approxTokens": 102
     },
     "RemoveActivity": {
       "chars": 319,

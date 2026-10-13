@@ -191,6 +191,25 @@ export const AssistantProposal = z
      * every proposal that was never meant to be stored.
      */
     notSuggested: z.string().min(1).optional(),
+    /**
+     * Which trip the proposal lands in when it was drafted on no trip's page
+     * (M45 D9): the playbook pages' assistant, whose one write is taking the
+     * playbook on screen into a trip the person named, on a day, or into a new
+     * trip. Absent on every proposal drafted inside a trip, which lands in
+     * that trip as before.
+     *
+     * `startingAt` is the id of the trip's day the playbook's first day merges
+     * onto, the day the person named; absent appends, as the page's own *Add
+     * to trip* does. A new trip takes the playbook's name, as that button's
+     * *Start a new trip* does. Both are approved through the button's own
+     * calls, so this names a target and nothing else.
+     */
+    target: z
+      .discriminatedUnion("kind", [
+        z.object({ kind: z.literal("trip"), tripId: z.string().uuid(), startingAt: z.string().uuid().optional() }),
+        z.object({ kind: z.literal("new-trip"), name: z.string().min(1).max(200) }),
+      ])
+      .optional(),
   })
   // A proposal with nothing in it is not a proposal: there is nothing to
   // review, so the client renders no card and the answer stands on its own

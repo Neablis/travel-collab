@@ -99,7 +99,7 @@ export type AskTaskClass = Exclude<TaskClass, "compose">;
  * *"how much are we spending on food?"* asked beside a notebook got a turn
  * holding insert tools and no way to read a day.
  */
-export type ClassifierSurface = "board" | "page" | "account";
+export type ClassifierSurface = "board" | "page" | "account" | "playbook";
 
 /**
  * **How sure the classifier is — the widened band** (M9 design §1a).
@@ -228,6 +228,21 @@ export const ACCOUNT_INTENT_INSTRUCTION = [
   "You classify the LAST message sent to an assistant that answers questions about all of a person's trips. You do not answer it.",
   "Earlier messages are context only.",
   'Use "question" if it asks about their trips, where they have been, what they spent, or where to travel next.',
+  OFF_TOPIC_LINE,
+  'Still pick the closest one when it is ambiguous, and set certainty to "unsure" — otherwise "sure".',
+  ACCOUNT_INTENT_MARKER,
+].join("\n");
+
+/**
+ * The playbook pages' classification instruction (M45 D9): the account's
+ * gate, told what these pages are, so a question about a day of Kyoto temples
+ * or a request to take it into a trip is not read as off the subject. Its
+ * marker and verdict are the account's, since its choices are.
+ */
+export const PLAYBOOK_INTENT_INSTRUCTION = [
+  "You classify the LAST message sent to an assistant on a page of a library of travel playbooks: days, and runs of days, that travelers planned and published. You do not answer it.",
+  'Earlier messages are context only. A short reply like "yes" means whatever was just offered, so classify what it agrees to.',
+  'Use "question" if it asks about the playbooks on the page, about travelling where they go, or asks to add one to a trip or start a trip with it.',
   OFF_TOPIC_LINE,
   'Still pick the closest one when it is ambiguous, and set certainty to "unsure" — otherwise "sure".',
   ACCOUNT_INTENT_MARKER,
@@ -508,6 +523,8 @@ const VARIANTS = {
   page: { instruction: PAGE_INTENT_INSTRUCTION, output: PAGE_INTENT_OUTPUT, failOpen: "compose" as TaskClass },
   // Questions only (M45), so a doubt is a question too.
   account: { instruction: ACCOUNT_INTENT_INSTRUCTION, output: ACCOUNT_INTENT_OUTPUT, failOpen: "question" as TaskClass },
+  // The account's gate over the playbook pages (M45 D9), with their own words.
+  playbook: { instruction: PLAYBOOK_INTENT_INSTRUCTION, output: ACCOUNT_INTENT_OUTPUT, failOpen: "question" as TaskClass },
 } as const;
 
 /**

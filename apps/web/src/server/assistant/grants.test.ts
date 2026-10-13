@@ -471,6 +471,45 @@ describe("the account surface", () => {
   });
 });
 
+// M45 D9: each playbook page sees exactly what is on it. A shared day — one
+// day or a playbook of several — reads that playbook and holds its two
+// buttons' writes; a list page reads its own list and writes nothing. Asked
+// over every class and both read-or-propose classifier caps, so no verdict can
+// hand a page a trip tool. Pinned by name: `find_free_time`, a stop edit or an
+// aggregate turning up on any of them fails here.
+describe("the playbook pages", () => {
+  const SHARED_DAY = ["read_playbook", "add_playbook_to_trip", "start_trip_with_playbook"];
+  const LIST = ["search_this_page"];
+  const EXPECTED = {
+    "playbook-day": SHARED_DAY,
+    playbook: SHARED_DAY,
+    discover: LIST,
+    city: LIST,
+    tag: LIST,
+  } as const;
+
+  it("offers each page its own tools and not one more, whatever the classifier or class", () => {
+    for (const [surface, names] of Object.entries(EXPECTED) as [keyof typeof EXPECTED, readonly string[]][]) {
+      for (const classifier of ["read", "propose"] as const) {
+        const caps = { surface, role: "propose" as const, plan: "propose" as const, classifier: "propose" as const };
+        for (const taskClass of [undefined, ...TASK_CLASSES]) {
+          const offered = toolsFor(grantFor({ ...caps, classifier }), taskClass, postureFor(caps)).map((tool) => tool.name);
+          expect(offered, `${surface}, classifier ${classifier}, class ${taskClass ?? "none"}`).toEqual(
+            classifier === "read" ? names.filter((name) => name === "read_playbook" || name === "search_this_page") : names,
+          );
+        }
+      }
+    }
+  });
+
+  it("offers no playbook tool on a trip, day, page or account turn", () => {
+    const playbookTools = [...SHARED_DAY, ...LIST];
+    for (const surface of ["trip", "day", "page", "account"] as const) {
+      expect(namesFor({ surface, ...EDITOR }).filter((name) => playbookTools.includes(name)), surface).toEqual([]);
+    }
+  });
+});
+
 describe("a read-only turn", () => {
   // Mitchell, 2026-09-27: *"minimize the tool call as small as possible"*.
   it("is offered exactly read_trip and read_day on the trip and day surfaces", () => {

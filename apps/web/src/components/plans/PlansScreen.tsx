@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Banner } from "@/components/ui/banner";
 import { Button, PHONE_TOUCH } from "@/components/ui/button";
@@ -133,6 +133,7 @@ function readCheckoutBaseline(session: string | null): CheckoutBaseline | null {
 
 export function PlansScreen() {
   const params = useSearchParams();
+  const router = useRouter();
   const checkout = params.get("checkout");
   const [plan, setPlan] = useState<AccountPlanView | null>(null);
   const [failed, setFailed] = useState(false);
@@ -265,6 +266,10 @@ export function PlansScreen() {
           (loaded.billing.state === "active" || loaded.billing.state === "cancelling");
         if (moved || firstPurchase) {
           clearInterval(timer);
+          // The layout sends the plan with the page (M45 decision 3), and a
+          // layout does not render again on client navigation: without this,
+          // every page after this one would still draw the old plan's Ask.
+          router.refresh();
           setStep({
             name: "result",
             message: "Your plan is active. Everything is live — no need to sign out.",
@@ -290,7 +295,7 @@ export function PlansScreen() {
     // Both values this effect reads are now write-once (`heldOnArrival`,
     // `subscribedOnArrival`), so the dependency list is stable and there is no
     // stale closure traded for the fix.
-  }, [step.name, load, heldOnArrival, subscribedOnArrival, returnedSession]);
+  }, [step.name, load, heldOnArrival, subscribedOnArrival, returnedSession, router]);
 
   async function openConfirm(planId: string) {
     setStep({ name: "confirm", planId });

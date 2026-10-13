@@ -1113,12 +1113,20 @@ export async function deleteSavedDay(savedDayId: string): Promise<ApiResult<{ ok
 export async function insertSavedDay(
   tripId: string,
   savedDayId: string,
+  /**
+   * The trip's day the playbook's first day merges onto; absent appends. The
+   * playbook pages' assistant passes the day a person named (M45 D9).
+   */
+  options: { startingAt?: string } = {},
 ): Promise<ApiResult<CommandOutcome>> {
   const scope = tripKeys.all(tripId);
   beginWrite(scope);
   try {
     const res = await fetch(apiUrl(`/api/trips/${tripId}/saved-days/${savedDayId}`), {
       method: "POST",
+      ...(options.startingAt === undefined
+        ? {}
+        : { headers: { "Content-Type": "application/json" }, body: JSON.stringify({ startingAt: options.startingAt }) }),
     });
     return await readJson(res, (data) => parseOutcome(data as { detail: unknown; history: unknown }));
   } catch (err) {
@@ -1271,14 +1279,8 @@ export async function fetchNearbyStops(
   }
 }
 
-/**
- * Discover's day search (M11b link 5).
- *
- * `city` is repeated rather than comma-joined — a city name may contain a
- * comma, and splitting on one would invent a city called " Japan". The caller
- * debounces the text box that feeds it; this does not.
- */
-export async function searchPlaybooks(query: {
+/** Discover's search: what `searchPlaybooks` sends, and what a Discover page's assistant reads (M45 D9). */
+export type DiscoverSearch = {
   cities?: readonly string[];
   /** ISO alpha-2 codes, repeated as `?country=` like `city` (M12 link 7). */
   countries?: readonly string[];
@@ -1292,7 +1294,16 @@ export async function searchPlaybooks(query: {
   tag?: TagFilter;
   /** The last card of the page before, for the page after it; null or absent for page one. */
   after?: string | null;
-}): Promise<ApiResult<DiscoverResponse>> {
+};
+
+/**
+ * Discover's day search (M11b link 5).
+ *
+ * `city` is repeated rather than comma-joined — a city name may contain a
+ * comma, and splitting on one would invent a city called " Japan". The caller
+ * debounces the text box that feeds it; this does not.
+ */
+export async function searchPlaybooks(query: DiscoverSearch): Promise<ApiResult<DiscoverResponse>> {
   const params = new URLSearchParams();
   for (const city of query.cities ?? []) params.append("city", city);
   for (const country of query.countries ?? []) params.append("country", country);
@@ -1484,12 +1495,27 @@ export type TripAskScope =
   | { kind: "page"; pageId: string };
 
 /**
- * A turn about no one trip, each kind with its own door (M45). The account's
- * answers across every trip you travelled on; another surface (the playbook
- * pages) joins as another kind here, and the compiler then names every place
- * that has to answer for it (`askPath`, the rail's copy, the thread's name).
+ * A turn about no one trip (M45). The account's answers across every trip you
+ * travelled on; a playbook page's (D9) about what that page shows. A kind
+ * added here makes the compiler name every place that has to answer for it
+ * (`askPath`, the rail's copy, the thread's name).
  */
-export type BeyondTripAskScope = { kind: "account" };
+export type BeyondTripAskScope = { kind: "account" } | { kind: "playbook"; page: PlaybookAskPage };
+
+/**
+ * Which playbook page a turn is asked on, as the server's `AskScope` names it
+ * (`server/assistant/context.ts`): a shared day (one day or a playbook of
+ * several), Discover with its filters as set, a city's page by slug, or a
+ * tag's, in a city or across the library. A day's id is a claim the server
+ * resolves as the asker reads it. A list is named as far as the reader has
+ * paged it, so its assistant reads the list on screen: Discover by the search
+ * it sends, a city's or tag's page by its `?page=N`.
+ */
+export type PlaybookAskPage =
+  | { kind: "day"; savedDayId: string }
+  | { kind: "discover"; search: DiscoverSearch }
+  | { kind: "city"; slug: string; page: number }
+  | { kind: "tag"; tag: string; city: string | null; page: number };
 
 /**
  * Which door a turn goes to: a trip's, with that trip's id, or one of its own
@@ -1501,10 +1527,12 @@ export type AskWhere = { tripId: string; scope: TripAskScope } | { tripId?: unde
 function askPath(where: AskWhere): string {
   if (where.tripId !== undefined) return `/api/trips/${where.tripId}/ask`;
   switch (where.scope.kind) {
+    // One door for both: each is about no one trip, and the scope says which.
     case "account":
+    case "playbook":
       return "/api/ask";
     default: {
-      const unhandled: never = where.scope.kind;
+      const unhandled: never = where.scope;
       return unhandled;
     }
   }

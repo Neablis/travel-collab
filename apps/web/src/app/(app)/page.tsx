@@ -34,7 +34,7 @@ import { tripSpend, plannedOfBudgetLine } from "@/lib/cost";
 import { orderHomeTrips } from "@/lib/homeTripOrder";
 import { newTripCommand } from "@/components/palette/commands";
 import { usePaletteSource } from "@/components/palette/paletteRegistry";
-import { BeyondTripAssistant, HomeAskButton } from "@/components/assistant/BeyondTripAssistant";
+import { AssistantAskButton, BeyondTripAssistant } from "@/components/assistant/BeyondTripAssistant";
 
 /** Home's assistant answers across every trip you travelled on (M45 D7). */
 const ACCOUNT_SCOPE = { kind: "account" } as const;
@@ -572,7 +572,7 @@ export default function Home() {
           </DataText>
           <div className="mt-1.5 flex flex-wrap items-center justify-between gap-3">
             <Heading level={1}>Your trips</Heading>
-            {/* **"New trip", and nothing else** (SPEC §35.2). The head carried
+            {/* **"New trip" and Ask** (SPEC §35.2, amended for M45 D7). The head carried
                 *Import a file* and *Start from a Playbook* beside it. Import is
                 rare, so it is a quiet link now — in the new-trip sheet, under
                 the grid on a phone, and in the empty state. Starting from a
@@ -581,7 +581,7 @@ export default function Home() {
             <div className="flex items-center gap-2">
               {/* And Ask, which opens Home's assistant: closed until asked
                   for (Mitchell, 2026-10-12). A phone's is the tab bar's. */}
-              <HomeAskButton />
+              <AssistantAskButton />
               <Button type="button" variant="primary" disabled={cloningDemo} onClick={startNewTrip}>
                 New trip
               </Button>

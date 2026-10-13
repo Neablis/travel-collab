@@ -1926,7 +1926,7 @@ A build carries no theme switch and no theme tokens beyond Ledger's (§28).
 
 | Was | Now | Why |
 |---|---|---|
-| Header: *Import a file* · *Start from a Playbook* · **New trip** | **New trip** only | Import is rare; Playbook start already lives in the new-trip sheet and the Playbooks row below |
+| Header: *Import a file* · *Start from a Playbook* · **New trip** | **New trip** and **Ask** | Import is rare; Playbook start already lives in the new-trip sheet and the Playbooks row below. *Ask* opens Home's assistant, which is closed by default; on a phone it is the tab bar's Ask (M45 D7, amended by Mitchell on PR 426) |
 | Next-trip card: three stat tiles (68 stops · 7 not booked · 2 need a decision) + Share | **Open plan** + one line: `● 2 need a decision` (danger-ink, 600, opens the trip) · `7 not booked yet` (slate) | The stop count was data, not a task; Share lives in the trip header |
 | "All trips" grid includes the hero trip | **"Other trips"**, hero trip filtered out | It was shown twice |
 | Playbooks row description line | removed | |

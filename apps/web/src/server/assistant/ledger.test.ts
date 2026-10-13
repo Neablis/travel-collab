@@ -130,7 +130,7 @@ const arbCost: fc.Arbitrary<TurnCost> = fc.record({
   turnId: fc.option(fc.uuid(), { nil: null }),
   latencyMs: fc.option(fc.integer({ min: 0, max: 300_000 }), { nil: null }),
   userId: fc.constantFrom("alice", "bob"),
-  endpoint: fc.constantFrom("ask" as const, "ask.apply" as const, "ask.account" as const),
+  endpoint: fc.constantFrom("ask" as const, "ask.apply" as const, "ask.account" as const, "ask.playbook" as const),
   outcome: fc.constantFrom("completed" as const, "error" as const, "abort" as const),
   taskClass: fc.constantFrom("question" as const, "edit" as const, "plan" as const, "compose" as const, "off_topic" as const),
   classifierCertainty: fc.constantFrom("sure" as const, "unsure" as const, "failed" as const, null),

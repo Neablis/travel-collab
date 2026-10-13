@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/nextjs";
 import { cookies } from "next/headers";
 import { Suspense } from "react";
 import { AppHeader } from "@/components/AppHeader";
@@ -5,7 +6,11 @@ import { CommandPalette } from "@/components/palette/CommandPalette";
 import { PhoneTabBar, PhoneTabBarFallback } from "@/components/nav/PhoneTabBar";
 import { PreferencesProvider } from "@/components/account/PreferencesProvider";
 import { SessionUserProvider } from "@/components/account/useSessionUser";
+import type { Entitlement } from "@tc/contracts";
 import { hasSessionCookie } from "@/lib/sessionHint";
+import { ServedEntitlementsProvider } from "@/lib/useAiEntitled";
+import { auth } from "@/server/auth";
+import { entitlementsFor } from "@/server/entitlements/resolver";
 
 // The app chrome belongs to the app's surfaces, not to every route. The
 // front door — /welcome, /signin, /signup — draws its own header
@@ -35,53 +40,82 @@ import { hasSessionCookie } from "@/lib/sessionHint";
 // request, so the four shells that were prerendered (`/`, `/account`, `/plans`,
 // `/playbooks/board`) no longer are. They fetch their data on the client either
 // way; what moved is one server render of a shell.
+//
+// **And the plan goes with the page** (Mitchell, 2026-10-13, M45 decision 3).
+// What the reader's account is conferred is resolved here, per request, and
+// sent down, so a surface that offers the assistant only to a plan with it
+// (the playbook pages' Ask, ⌘K's *Ask:*) draws it in the server HTML rather
+// than after a read. Through the entitlements module, never a JWT claim
+// (ADR-045 rule 2); this file's lint-wall exemption says the same.
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const noSessionCookie = !hasSessionCookie((await cookies()).getAll().map((cookie) => cookie.name));
+  const entitlements = noSessionCookie ? null : await servedEntitlements();
   return (
     <SessionUserProvider noSessionCookie={noSessionCookie}>
-      <PreferencesProvider noSessionCookie={noSessionCookie}>
-        <AppHeader />
-        {/* ⌘K, from every app page (M41 D9). The page below registers what it offers. */}
-        <CommandPalette />
-        {/* `.phone-tab-bar-inset` (globals.css) keeps the page's last row clear
-            of the fixed tab bar below, and is 0px at >=768px where the bar is
-            not rendered. The wrapper exists only to own that padding: the bar
-            and `children` are siblings, so there is nowhere else to hang a
-            reservation that applies to the content and not to the bar itself. */}
-        <div className="phone-tab-bar-inset">{children}</div>
-        {/* The bar spans exactly the app's routes, which is what this
-            layout wraps — so this is the mount point, and mounting it here rather
-            than per-page is also what stops it remounting (and losing nothing,
-            since it holds no state) as you move between them. Below 768px only;
-            it hides itself with `md:hidden`.
+      <ServedEntitlementsProvider entitlements={entitlements}>
+        <PreferencesProvider noSessionCookie={noSessionCookie}>
+          <AppHeader />
+          {/* ⌘K, from every app page (M41 D9). The page below registers what it offers. */}
+          <CommandPalette />
+          {/* `.phone-tab-bar-inset` (globals.css) keeps the page's last row clear
+              of the fixed tab bar below, and is 0px at >=768px where the bar is
+              not rendered. The wrapper exists only to own that padding: the bar
+              and `children` are siblings, so there is nowhere else to hang a
+              reservation that applies to the content and not to the bar itself. */}
+          <div className="phone-tab-bar-inset">{children}</div>
+          {/* The bar spans exactly the app's routes, which is what this
+              layout wraps — so this is the mount point, and mounting it here rather
+              than per-page is also what stops it remounting (and losing nothing,
+              since it holds no state) as you move between them. Below 768px only;
+              it hides itself with `md:hidden`.
 
-            What it RENDERS is scoped, not fixed: SPEC §22 gives the trip's three
-            views inside a trip and the account pair everywhere else. See
-            `tabsForScope`. Do not assume a stable five-slot bar here — that was
-            the earlier §16 shape and it is gone. A reader with no account gets
-            no account pair at all (ADR-061): it hides itself once the session
-            says signed out, so the fallback below, which cannot know, still
-            draws it for the first paint.
+              What it RENDERS is scoped, not fixed: SPEC §22 gives the trip's three
+              views inside a trip and the account pair everywhere else. See
+              `tabsForScope`. Do not assume a stable five-slot bar here — that was
+              the earlier §16 shape and it is gone. A reader with no account gets
+              no account pair at all (ADR-061): it hides itself once the session
+              says signed out, so the fallback below, which cannot know, still
+              draws it for the first paint.
 
-            The Suspense boundary is Next's requirement, not a loading state:
-            the bar reads `useSearchParams()` (the `?lens=` half of "which tab
-            is this"), and an unwrapped `useSearchParams` in a *layout* opts
-            every route under it out of static rendering — including the two
-            that have no dynamic API of their own (`/playbooks`,
-            `/playbooks/board`). The boundary keeps that cost on the bar.
+              The Suspense boundary is Next's requirement, not a loading state:
+              the bar reads `useSearchParams()` (the `?lens=` half of "which tab
+              is this"), and an unwrapped `useSearchParams` in a *layout* opts
+              every route under it out of static rendering — including the two
+              that have no dynamic API of their own (`/playbooks`,
+              `/playbooks/board`). The boundary keeps that cost on the bar.
 
-            The fallback is a REAL bar, not `null`. Next satisfies the bailout by
-            rendering this fallback on the server and the component on the
-            client, so `null` left the bar out of first-paint HTML entirely while
-            `.phone-tab-bar-inset` above was already reserving its height — an
-            83px gap with no navigation in it, on exactly the surface that has
-            nowhere else to navigate from. `PhoneTabBarFallback` renders the same
-            five tabs from `usePathname()` alone, which triggers no bailout.
-            Copilot caught this on PR #143. */}
-        <Suspense fallback={<PhoneTabBarFallback />}>
-          <PhoneTabBar />
-        </Suspense>
-      </PreferencesProvider>
+              The fallback is a REAL bar, not `null`. Next satisfies the bailout by
+              rendering this fallback on the server and the component on the
+              client, so `null` left the bar out of first-paint HTML entirely while
+              `.phone-tab-bar-inset` above was already reserving its height — an
+              83px gap with no navigation in it, on exactly the surface that has
+              nowhere else to navigate from. `PhoneTabBarFallback` renders the same
+              five tabs from `usePathname()` alone, which triggers no bailout.
+              Copilot caught this on PR #143. */}
+          <Suspense fallback={<PhoneTabBarFallback />}>
+            <PhoneTabBar />
+          </Suspense>
+        </PreferencesProvider>
+      </ServedEntitlementsProvider>
     </SessionUserProvider>
   );
+}
+
+/**
+ * The signed-in reader's conferred entitlements, or `null` to leave each
+ * surface to ask for itself: a cookie with no live session behind it, or a
+ * read that failed. A failure must not take the whole app down with it, and
+ * `null` is the answer every caller already treats as entitled; the route's
+ * 402 is the gate either way. It is still reported: a version reference that
+ * no longer resolves must fail loudly (ADR-045 rule 3), and the fallback alone
+ * would hide it.
+ */
+async function servedEntitlements(): Promise<Entitlement[] | null> {
+  try {
+    const userId = (await auth())?.user?.id;
+    return userId === undefined ? null : [...(await entitlementsFor(userId)).entitlements];
+  } catch (error) {
+    Sentry.captureException(error);
+    return null;
+  }
 }

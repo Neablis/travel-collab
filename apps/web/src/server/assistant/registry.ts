@@ -49,6 +49,7 @@ import { ESCALATION_TOOLS } from "./tools/escalate";
 import { INTENT_TOOLS } from "./tools/intent";
 import { ACROSS_TRIP_TOOLS } from "./tools/acrossTrips";
 import { NAVIGATION_TOOLS } from "./tools/navigate";
+import { PLAYBOOK_TOOLS } from "./tools/playbook";
 
 /**
  * Every definition this build has. Derived families are spread, so a
@@ -60,6 +61,8 @@ export const ASSISTANT_TOOLS: readonly AnyAssistantTool[] = [
   // The account surface's reads (M45). Offered nowhere else — no trip row
   // grants `account` — so where they sit changes no other turn's order.
   ...ACROSS_TRIP_TOOLS,
+  // The playbook pages' (M45 D9). Offered nowhere else, for the same reason.
+  ...PLAYBOOK_TOOLS,
   // Before the planning tools, and the order is the one thing about this array
   // that is not arbitrary: `Object.keys(aiToolsFor(...))` is the offered set in
   // registry order, which is the order the model reads them in. `search_places`

@@ -8,7 +8,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AssistantTurn } from "@/components/assistant/Transcript";
 import { forgetAskConversationsOf, ownedAskName } from "@/lib/askOwnership";
-import { clearAskDraft, clearAskThread, loadAskDraft, loadAskThread, saveAskDraft, saveAskThread } from "./askThreadStore";
+import {
+  beyondTripThreadName,
+  clearAskDraft,
+  clearAskThread,
+  loadAskDraft,
+  loadAskThread,
+  saveAskDraft,
+  saveAskThread,
+} from "./askThreadStore";
 
 // Owned, as every caller stores it: an unowned name is a legacy key, swept.
 const NAME = ownedAskName("user-a", "trip:11111111-2222-4333-8444-555566667777");
@@ -273,5 +281,32 @@ describe("the keys stored before conversations had owners", () => {
     const store = await import("./askThreadStore");
     expect(store.loadAskDraft(NAME)).toBeNull();
     expect(store.loadAskThread(NAME)).toEqual([]);
+  });
+});
+
+// M45 D9: one conversation per playbook page. A day's is not a playbook's,
+// neither is Discover's, and a city's is not that city's tag page — or a turn
+// about one would read back as the other's on the next open.
+describe("the playbook pages' conversation names", () => {
+  const DAY = "6e9a2c9e-3f7a-4b6e-9d3f-2b1a5c8d7e6f";
+  const PLAYBOOK = "0b8e1f52-7a3c-4d1e-9f6a-2c5b8d0e1a3f";
+
+  it("names each page apart, and none like the account's", () => {
+    const names = [
+      beyondTripThreadName({ kind: "account" }),
+      beyondTripThreadName({ kind: "playbook", page: { kind: "day", savedDayId: DAY } }),
+      beyondTripThreadName({ kind: "playbook", page: { kind: "day", savedDayId: PLAYBOOK } }),
+      beyondTripThreadName({ kind: "playbook", page: { kind: "discover", search: {} } }),
+      beyondTripThreadName({ kind: "playbook", page: { kind: "city", slug: "kyoto", page: 1 } }),
+      beyondTripThreadName({ kind: "playbook", page: { kind: "tag", tag: "meal", city: "kyoto", page: 1 } }),
+      beyondTripThreadName({ kind: "playbook", page: { kind: "tag", tag: "meal", city: null, page: 1 } }),
+    ];
+    expect(new Set(names).size).toBe(names.length);
+  });
+
+  it("keeps Discover's conversation as its filters and page change", () => {
+    expect(beyondTripThreadName({ kind: "playbook", page: { kind: "discover", search: { cities: ["Kyoto"], tag: "meal", sort: "newest", after: "x" } } })).toBe(
+      beyondTripThreadName({ kind: "playbook", page: { kind: "discover", search: {} } }),
+    );
   });
 });
