@@ -454,3 +454,55 @@ loosely. That session's recorded cost was $38.81 at 04:01Z on 2026-10-13 (`get_s
 - **GitHub wakes per merged part (under 5):** met in this session, 0 of 7 (M42: 21).
 - **Cache re-writes after a coordinator message (2 or fewer):** met, 0 (M42: 24). The orchestrator
   sent no `SendMessage`; each fix round was a new agent.
+
+### The whole milestone's cost (added 2026-10-13, after the merge)
+
+The block above is one session in five. Each session's own recorded cost
+(`list_sessions` → `external_metadata.usage.cost_usd`, the source M42's spend retro used) gives
+the whole milestone: `01Xgjrb6` $35.81, `01Qa9AWD` $65.53, `01RsGDSJ` $85.54, `015sxT4L`
+$47.00, and the close, `01Qtoqez`, $5.33 when read (it ran on after that read).
+
+| Milestone | Parts | Lines added | Cost | Per part | Per 1k lines | Sessions | Orchestrator's peak context |
+|---|---|---|---|---|---|---|---|
+| M45 | 6 + PR 425 | 10,065 | about $239 | $34 | $24 | 5 | 243k |
+| M42 | 9 | 9,739 | $334 | $37 | $34 | 1 | 784k |
+| M41 | 7 | 10,479 | $159 | $23 | $15 | 1 | not recorded |
+
+M42 and M41 are from `docs/retros/2026-10-12-m42-token-spend-retro.md`. M45's lines leave out
+`docs/`, as the guideline counts them.
+
+**Mitchell's verdict (2026-10-13):** *"it was better but not great, still a lot of waste and less
+automatey."* That matches the numbers. M45 cost $95 less than M42 (28% less) for 3% more code, but
+$24 per 1k lines still misses the target of under $20 and is 1.6× M41. And it took more of
+Mitchell's hands: he started each of the four handoff sessions himself.
+
+- **What saved money:** the hooks from 2026-10-12 (`ffb83c3`, `c3a418a`), none of which needed
+  Mitchell.
+  - **GitHub wakes:** 0 in the measured session, against M42's 190, about $57 of which was waste.
+  - **A new agent for every fix:** cache re-writes after a coordinator message fell from 24 to 0.
+  - **Builder context:** the worst average fell from 315k to 148k.
+  - **Total cache reads:** fell from 951M to 556M.
+- **Where the waste still is:**
+  - **Every new session and every new agent writes its context again.** Cache writes were 13.65M,
+    2.3× M41's 6.0M.
+  - **Review churn on a part whose questions were open when its PR opened.** PR 427's four rounds
+    were about 5.6M of the measured session's 9.19M units, roughly $23.
+  - **The orchestrator's share:** 19.8%, against a target under 15%. 76% of it went on turns that
+    subagent reports and finishes started.
+  - **Only one of five sessions ran `session-metrics`,** so the spend block cannot say where the
+    other four sessions' $234 went.
+- **Did the hand-offs pay?** A little. They kept the orchestrator at about 243k rather than
+  M42's 416k average and 784k peak. Each restart costs a re-orientation of perhaps $2–4, which is
+  not measured. That puts a mid-build hand-off at roughly $5–10 saved: positive, but small next to
+  the wake fix, and paid for in Mitchell's time.
+
+**For M46:**
+1. **Make the hand-off automatic.** The orchestrator starts its own continuation session from the
+   `/next-prompt` text (`create_session`), rather than asking Mitchell to. Check first that the
+   environment allows it.
+2. **Fewer hand-offs, by a rule.** Plan one, for the close, and at most one mid-build. Make the
+   mid-build one only when context is past about 250k and roughly 100 or more orchestrator calls
+   are still to come. Below that, re-orienting a new session costs more than the context it saves.
+3. **Measure every session, and settle a part's questions in planning.** Run `session-metrics` at
+   every hand-off, so the spend block covers the whole milestone. Answer a part's open questions
+   before its PR opens: PR 427's rounds came from questions answered after it.
