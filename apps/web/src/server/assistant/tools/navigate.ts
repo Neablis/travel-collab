@@ -168,19 +168,6 @@ const OpenTripInput = z.object({
 });
 
 /**
- * **`go_to` for the account surface** (M45 D6, ADR-072 §6): from Home there is
- * no one trip, so the person names one. Only a trip they are travelling on,
- * the same set every account tool reads (`travelledTrips`, D2): a trip they can
- * open but are not going on is refused like one they cannot open, so the
- * assistant never takes anyone further than its answers reach (AGENTS.md
- * invariant 7). The id it queues is Home's own ⌘K command for that trip
- * (`placeCommands`), which Home registers only for trips it lists.
- *
- * Matched as `go_to` matches a notebook: the trip whose name it is, or else
- * the only one whose name holds it. Never says the names back: they are typed
- * by people, often not by the asker.
- */
-/**
  * The trips a person meant by `name`: those called exactly that, ignoring case
  * and spaces at the ends, or else those whose name holds it. Shared by every
  * tool that takes a trip by the name a person gave (`open_trip`, and the
@@ -193,6 +180,19 @@ export function tripsCalled<T extends { name: string }>(trips: readonly T[], nam
   return exact.length > 0 ? exact : trips.filter((trip) => trip.name.toLowerCase().includes(key));
 }
 
+/**
+ * **`go_to` for the account surface** (M45 D6, ADR-072 §6): from Home there is
+ * no one trip, so the person names one. Only a trip they are travelling on,
+ * the same set every account tool reads (`travelledTrips`, D2): a trip they can
+ * open but are not going on is refused like one they cannot open, so the
+ * assistant never takes anyone further than its answers reach (AGENTS.md
+ * invariant 7). The id it queues is Home's own ⌘K command for that trip
+ * (`placeCommands`), which Home registers only for trips it lists.
+ *
+ * Matched as `go_to` matches a notebook: the trip whose name it is, or else
+ * the only one whose name holds it. Never says the names back: they are typed
+ * by people, often not by the asker.
+ */
 export const openTripTool = defineTool({
   name: OPEN_TRIP_TOOL_NAME,
   description:

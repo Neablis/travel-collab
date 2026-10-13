@@ -17,10 +17,11 @@
 // several, the tool answers with the question to ask rather than a guess.
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
-import { Money, type AssistantProposal, type SavedDay } from "@tc/contracts";
+import { Money, type AssistantProposal } from "@tc/contracts";
 import { hasAtLeast } from "@/server/accessPolicy";
 import { defineTool } from "@/server/assistant/defineTool";
 import { untrusted, untrustedAll } from "@/server/assistant/prompt";
+import type { PlaybookPageReads } from "@/server/assistant/deps";
 import { tripsCalled } from "./navigate";
 
 export const READ_PLAYBOOK_TOOL_NAME = "read_playbook";
@@ -47,8 +48,11 @@ const PlaybookReadoutSchema = z.object({
 });
 export type PlaybookReadout = z.infer<typeof PlaybookReadoutSchema>;
 
+/** The shared day `PlaybookPageReads` reads. */
+type PageDay = NonNullable<Awaited<ReturnType<PlaybookPageReads["day"]>>>;
+
 /** The playbook as the model reads it: each of its days, numbered from 1, with its stops in order. */
-function readoutOf(saved: SavedDay): PlaybookReadout {
+function readoutOf(saved: PageDay): PlaybookReadout {
   return {
     name: saved.name,
     summary: saved.summary,
