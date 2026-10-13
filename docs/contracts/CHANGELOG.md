@@ -13,6 +13,23 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-10-13 — `chat.ts` and `TripEventsPage.chatRev`: a trip has a conversation (M46 part 1, ADR-073)
+
+- **Added** `packages/contracts/src/chat.ts`: `ChatLink` (`{ kind: "day" | "stop", id }`),
+  `ChatMessage` (a union on `removed`: a live message carries `body` and an optional `link`, a
+  removed one carries neither), `PostChatMessage`, `EditChatMessage`, `MarkChatRead`,
+  `ChatReadOnlyReason` (`collaborators-not-entitled`), `ChatPage` (`messages`, `hasEarlier`,
+  `unread`, `canPost`, `readOnlyReason?`) and `CHAT_MESSAGE_MAX`.
+- **Added** to `packages/contracts/src/envelope.ts`: an optional `chatRev` on `TripEventsPage`,
+  served to every reader beside `accessRev` and moved by every chat write.
+- Why: M46 decisions 1–6. Messages are their own store, never events; the link and the removed
+  variant are in the contract now so parts 3 and 5 change no schema.
+- Consumers updated: `apps/web` (`server/chat/`, the three `app/api/trips/[tripId]/chat` routes,
+  the events route, `mocks/handlers.ts`). No client reads them yet (part 2). Not on the public
+  API: each route has a `planned` line in `server/public-api/exposure.ts`; `openapi.json`,
+  `API_VERSION` and `API_FINGERPRINT` are unchanged.
+- Breaking? no. New schemas, and an optional field an older client ignores.
+
 ## 2026-10-13 — `AssistantProposal.target`: a proposal drafted on no trip's page names the trip it lands in (M45 part 5, D9)
 
 - **Added** to `packages/contracts/src/assistant.ts`: an optional `target` on `AssistantProposal`,

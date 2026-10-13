@@ -32,6 +32,11 @@ vi.mock("@/server/access/members", async (importOriginal) => {
   return { ...real, accessRevFor: vi.fn(real.accessRevFor) };
 });
 const { accessRevFor } = await import("@/server/access/members");
+vi.mock("@/server/chat/rev", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@/server/chat/rev")>();
+  return { ...real, chatRevFor: vi.fn(real.chatRevFor) };
+});
+const { chatRevFor } = await import("@/server/chat/rev");
 
 // Import after the mock so the route picks up the mocked `auth`.
 const { GET } = await import("./route");
@@ -140,6 +145,7 @@ describe("GET /api/trips/:id/events — the cursor", () => {
       resync: false,
       suggestionsRev: expect.any(String),
       accessRev: expect.any(String),
+      chatRev: "0",
     });
   });
 
@@ -183,6 +189,7 @@ describe("GET /api/trips/:id/events — the cursor", () => {
       resync: false,
       suggestionsRev: expect.any(String),
       accessRev: expect.any(String),
+      chatRev: "0",
     });
   });
 
@@ -318,6 +325,23 @@ describe("GET /api/trips/:id/events — accessRev", () => {
     expect(page.headSeq).toBe(1);
     expect(page).not.toHaveProperty("accessRev");
     expect(errors).toHaveBeenCalledWith(expect.stringContaining("accessRev"), expect.objectContaining({ tripId }));
+    errors.mockRestore();
+  });
+});
+
+// ADR-073 §2. That every chat write moves it is `server/chat/chat.int.test.ts`;
+// this is the poll's half: it costs one poll the revision, never the events.
+describe("GET /api/trips/:id/events — chatRev", () => {
+  it("still serves the page, without a revision, when the revision query fails", async () => {
+    const tripId = await seedTrip();
+    vi.mocked(chatRevFor).mockRejectedValueOnce(new Error("connection terminated"));
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const page = await pollBody(tripId, 0);
+    expect(page.headSeq).toBe(1);
+    expect(page).not.toHaveProperty("chatRev");
+    expect(page.accessRev).toEqual(expect.any(String));
+    expect(errors).toHaveBeenCalledWith(expect.stringContaining("chatRev"), expect.objectContaining({ tripId }));
     errors.mockRestore();
   });
 });
