@@ -30,7 +30,15 @@ export async function GET() {
   // untouched (invariant 2): this is a read overlay and nothing writes back.
   const [trips, unread] = await Promise.all([
     withListedMembers(db, rows),
-    unreadByTrip(userId, rows.map((r) => r.tripId)),
+    // A badge must not take the trip list down with it: on failure every card
+    // reads zero, as `chatRevFor` costs the events poll one poll.
+    unreadByTrip(
+      userId,
+      rows.map((r) => r.tripId),
+    ).catch((error: unknown) => {
+      console.error("trips list: unread chat query failed", { error });
+      return new Map<string, number>();
+    }),
   ]);
   // Home's own list, so a `ListedTripSummary`: the unread chat count (M46 D5)
   // stays off `TripSummary`, which `/v1/trips` serves too.

@@ -420,9 +420,6 @@ export default function Home() {
   // was "All trips" and drew the hero's trip a second time directly under it.
   // In the same order, so the grid reads on from the hero.
   const otherTrips = orderedTrips.slice(1);
-  // Each trip's unread chat count (M46 D5), by id: `orderHomeTrips` hands back
-  // bare summaries. As fresh as this page's load; Home does not poll.
-  const unreadChatById = new Map(visibleTrips.map((t) => [t.tripId, t.unreadChat]));
 
   // One TripDetail fetch per grid trip (keyed by a joined id string so this
   // only refires when the actual set of ids changes, not on every render):
@@ -687,7 +684,7 @@ export default function Home() {
               trip={nextTrip}
               menuSlot={tripMenu(nextTrip)}
               viewerId={viewerId}
-              unreadChat={unreadChatById.get(nextTrip.tripId)}
+              unreadChat={nextTrip.unreadChat}
             />
           )
         )}
@@ -777,7 +774,7 @@ export default function Home() {
                         plannedOfBudget={plannedOfBudgetById[t.tripId]}
                         menuSlot={tripMenu(t)}
                         viewerId={viewerId}
-                        unreadChat={unreadChatById.get(t.tripId)}
+                        unreadChat={t.unreadChat}
                       />
                     ))}
                   </div>

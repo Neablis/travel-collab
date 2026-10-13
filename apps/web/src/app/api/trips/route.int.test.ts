@@ -40,7 +40,14 @@ vi.mock("@/server/auth", () => ({
   auth: vi.fn(async () => (currentUserId ? { user: { id: currentUserId } } : null)),
 }));
 
-// Import after the mock so the route picks up the mocked `auth`.
+// The real query, wrapped so one test can make it fail.
+vi.mock("@/server/chat/messages", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/server/chat/messages")>();
+  return { ...actual, unreadByTrip: vi.fn(actual.unreadByTrip) };
+});
+const { unreadByTrip } = await import("@/server/chat/messages");
+
+// Import after the mocks so the route picks up the mocked `auth`.
 const { GET } = await import("./route");
 
 type Summary = { tripId: string; name: string; members: TripSummaryMember[]; unreadChat: number };
@@ -301,6 +308,22 @@ describe("GET /api/trips unread chat", () => {
     // The author's own messages are never unread to them.
     currentUserId = OWNER;
     expect((await grid()).find((t) => t.tripId === talking)!.unreadChat).toBe(0);
+  });
+
+  // An auxiliary badge must not take down the landing page: if the unread
+  // read fails, Home still lists every trip, each at zero (review of PR 435).
+  it("still lists every trip, at zero unread, when the unread query fails", async () => {
+    const talking = await seedTrip("Talking, unreadable");
+    await join(talking, "editor", GUEST);
+    await postMessage(talking, OWNER, { body: "Anyone there?" });
+    vi.mocked(unreadByTrip).mockRejectedValueOnce(new Error("statement timeout"));
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    currentUserId = GUEST;
+    const theirs = await grid();
+    expect(theirs.find((t) => t.tripId === talking)!.unreadChat).toBe(0);
+    expect(logged).toHaveBeenCalledOnce();
+    logged.mockRestore();
   });
 });
 

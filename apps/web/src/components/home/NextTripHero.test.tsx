@@ -473,9 +473,6 @@ describe("NextTripHero", () => {
     expect(screen.queryByText(/^Created /)).toBeNull();
   });
 
-  // Task 8.5: the traveler count used to say "travelers" unconditionally,
-  // even for a solo trip. It is the avatar stack's name now that the tile
-  // that printed it is gone (§35.2).
   // M46 D5: the hero carries the same unread chat count a card does.
   it("shows the unread chat count beside its badge, and nothing at zero", () => {
     const trip = tripSummaryFixture();
@@ -488,6 +485,9 @@ describe("NextTripHero", () => {
     expect(screen.queryByRole("img", { name: /unread/ })).toBeNull();
   });
 
+  // Task 8.5: the traveler count used to say "travelers" unconditionally,
+  // even for a solo trip. It is the avatar stack's name now that the tile
+  // that printed it is gone (§35.2).
   it("says one traveler, not one travelers", async () => {
     const trip = tripSummaryFixture({ members: [tripSummaryMemberFactory.build({ userId: "dev-alice", role: "owner" })] });
     fetchTripDetailMock.mockResolvedValue({ ok: true, value: tripDetailWithDays(trip.tripId) });
