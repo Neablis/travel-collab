@@ -204,6 +204,34 @@ describe("tripsCalled", () => {
   ])("from %j, picks no trip because its name is one of the words in %j", (names, typed) => {
     expect(tripsCalled(named(...names), typed)).toEqual([]);
   });
+
+  // A later word of a name is not the name: "York" is not "New York", and a
+  // match there acts on a different place. Only the leading words fit, so
+  // "Kyoto" still finds "Kyoto 2026", and "Summer in Kyoto" costs a question.
+  it.each([
+    [["New York"], "my York trip"],
+    [["West Virginia"], "the Virginia trip"],
+    [["New Jersey"], "my Jersey trip"],
+    [["Winston-Salem"], "my Salem trip"],
+    [["Papua New Guinea"], "the Guinea trip"],
+    [["South Sudan"], "the Sudan trip"],
+    [["New South Wales"], "my Wales trip"],
+    [["New Orleans"], "the Orleans trip"],
+    [["Stratford-upon-Avon"], "the Avon trip"],
+    [["Summer in Kyoto"], "Kyoto"],
+    [["Dad's 60th in Rome"], "Rome"],
+  ])("from %j, picks no trip whose name holds %j only after its first word", (names, typed) => {
+    expect(tripsCalled(named(...names), typed)).toEqual([]);
+  });
+
+  it.each([
+    [["Kyoto 2026", "Summer in Kyoto"], "Kyoto", "Kyoto 2026"],
+    [["Kyoto in spring", "Osaka"], "my Kyoto trip", "Kyoto in spring"],
+    // "Washington" leads the name, so this is the trip meant, not a refusal.
+    [["Washington DC"], "my Washington trip", "Washington DC"],
+  ])("from %j, finds the trip whose name starts with %j", (names, typed, meant) => {
+    expect(tripsCalled(named(...names), typed)).toEqual([{ name: meant }]);
+  });
 });
 
 describe("a trip named by the person's own words", () => {
@@ -219,6 +247,23 @@ describe("a trip named by the person's own words", () => {
     const result = await openTripTool.run({ trip: "Kyoto trip", view: "Map" }, { trips: trips(), paletteCommands });
     expect(result).toEqual({ queued: true, note: expect.any(String) });
     expect(paletteCommands.collected().map((ref) => ref.id)).toEqual([`go:trip:${kyoto.tripId}:view:Map`]);
+  });
+
+  // They named "Kyoto", which they can open but are not travelling on. It is
+  // refused as theirs is, not swapped for the "Kyoto 2026" they are going on.
+  it("open_trip refuses a named trip they are not travelling on, rather than open its neighbour", async () => {
+    const notGoing = { ...kyoto, members: [{ userId: ASKER, role: "owner" as const, travelling: false }] };
+    const kyoto2026: TripDetail = tripDetailFactory.build(
+      { name: "Kyoto 2026", members: [{ userId: ASKER, role: "owner", travelling: true }] },
+      { transient: { dayCount: 1, activitiesPerDay: 1 } },
+    );
+    const paletteCommands = newPaletteCommandBuffer();
+    const result = await openTripTool.run(
+      { trip: "my Kyoto trip" },
+      { trips: newAccountTrips(ASKER, async () => [notGoing, kyoto2026]), paletteCommands },
+    );
+    expect(result).toEqual({ queued: false, refused: "You are travelling on no trip called “my Kyoto trip”." });
+    expect(paletteCommands.collected()).toEqual([]);
   });
 
   it("add_playbook_to_trip drafts it from \"Kyoto trip\"", async () => {

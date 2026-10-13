@@ -189,16 +189,20 @@ function wordsOf(text: string): string {
  * playbook pages' `add_playbook_to_trip`), whose descriptions tell the model
  * to pass those words as said, so both read them the same way.
  *
- * Case, punctuation, spacing and "&" for "and" never count. First the trips
- * called exactly what was typed, then what follows a leading "my" or "the"
- * ("my Road trip" is "Road trip", not "Road"), then that without a trailing
- * "trip", then every trip whose name holds what is left as whole words
- * ("Kyoto" finds "Kyoto 2026"). Part of a word is never a match: "India" is
- * not short for "Indiana", and "my Nice trip" is not "Venice". Nor is a trip
- * found because its name is one of the words typed: "Kyoto trip from Tokyo"
- * names some other trip, not "Tokyo". When unsure it finds nothing, so the
- * caller asks; more than one is for the caller to ask about, never to choose
- * between.
+ * The person names the trip, and when unsure it finds nothing, so the caller
+ * asks: it never picks one for them. Case, punctuation, spacing and "&" for
+ * "and" never count. First the trips called exactly what was typed, then what
+ * follows a leading "my" or "the" ("my Road trip" is "Road trip", not
+ * "Road"), then that without a trailing "trip", then every trip whose name
+ * starts with what is left, word for word ("Kyoto" finds "Kyoto 2026"). Only
+ * the leading words: "York" is not "New York", and "Kyoto" does not find
+ * "Summer in Kyoto", because a later word of a name may be another place.
+ * Part of a word is never a match either: "India" is not short for "Indiana".
+ * Nor is a trip found because its name is one of the words typed: "Kyoto trip
+ * from Tokyo" names some other trip, not "Tokyo". More than one is for the
+ * caller to ask about, never to choose between. A script written without
+ * spaces is one word to this, so there only the whole name is found
+ * (KI-2026-10-13-b).
  */
 export function tripsCalled<T extends { name: string }>(trips: readonly T[], name: string): T[] {
   const typed = wordsOf(name);
@@ -211,7 +215,7 @@ export function tripsCalled<T extends { name: string }>(trips: readonly T[], nam
     (words: string) => words === typed,
     (words: string) => words === bare,
     (words: string) => key !== "" && words === key,
-    (words: string) => key !== "" && ` ${words} `.includes(` ${key} `),
+    (words: string) => key !== "" && `${words} `.startsWith(`${key} `),
   ];
   for (const fits of tiers) {
     const found = named.filter(({ words }) => fits(words));
@@ -248,9 +252,14 @@ export const openTripTool = defineTool({
   // no trip a role could be held on), so the tag would take it off the one
   // surface it is for. It changes nothing and spends nothing.
   run: async (input, deps): Promise<NavigateOutput> => {
-    const matches = tripsCalled(travelledTrips(await deps.trips.load(), deps.trips.userId), input.trip);
-    if (matches.length !== 1) {
-      const which = matches.length === 0 ? "no trip" : "more than one trip";
+    // Matched over every trip they can open, then checked: matched over only
+    // the travelled ones, a trip they named but are not going on would be
+    // invisible, and its neighbour ("Kyoto 2026" for "Kyoto") the only match.
+    const trips = await deps.trips.load();
+    const matches = tripsCalled(trips, input.trip);
+    const travelled = travelledTrips(trips, deps.trips.userId);
+    if (matches.length !== 1 || !travelled.includes(matches[0]!)) {
+      const which = matches.length > 1 ? "more than one trip" : "no trip";
       return { queued: false, refused: `You are travelling on ${which} called “${input.trip}”.` };
     }
     const { tripId } = matches[0]!;
