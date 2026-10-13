@@ -122,7 +122,7 @@ job in it passed, both e2e shards included:*
 | PR 425 | fix for KI-2026-10-12-e | `cfa44b8` | 38310183185 | `c0e0bf4` |
 | PR 426 | 4, Home's rail and ⌘K *Ask:* | `7544a9a` | 38322422098 | `204c9dd` |
 | PR 427 | 5, the playbook assistant | `408f7e0` | 38337996066 | `940df19` |
-| PR 429 | 6, the trip-name matcher (from the live eval) | `1290dce` | 38343092607 (running at the read) | **pending: `<PR 429 merge sha>`** |
+| PR 429 | 6, the trip-name matcher (from the live eval) | `87c01b0` | 38345410945 (all 14 checks green) | `8143772` |
 
 - [x] **Decisions 1–9 are answered and recorded here**, and ADR-072 is written, amending
       ADR-068 §5. *Ticked 2026-10-13: D1–D8 above (2026-10-12), D9 added `f72043db`, D7's
@@ -159,6 +159,8 @@ job in it passed, both e2e shards included:*
         at `940df19`) matched only a name containing the typed text. PR 429 fixes the matcher and
         adds two live cases, `a-open-trip` and `p-start-trip`. **Neither has been run live**, and
         `p-add-to-trip` has not been re-run since the fix.
+      - **Re-run at `87c01b0` (PR 429's final head):** `p-add-to-trip`, `a-open-trip` and
+        `p-start-trip`, 3/3 PASS, 26/26 checks, about $0.01.
       - Trip surface: 23 turns, all PASS, about $0.0168 a priced turn.
       - The earlier runs at `d34abe5` (2026-10-12): run 1 stopped at the $0.10 cap after 4 of 27
         trip turns, all PASS, $0.1874, and surfaced KI-2026-10-12-e (fixed in PR 425); run 2, the
@@ -246,8 +248,8 @@ and runs a command by id (PR 422, `bc2b587`); part 3, the account-scoped ask wit
 deterministic cross-trip tools (PR 421, `d34abe5`); part 2, the assistant names palette commands
 (PR 424, `f2cf10c`); a fix the first live eval found, KI-2026-10-12-e (PR 425, `c0e0bf4`); part 4,
 Home's rail and ⌘K's *Ask:* row (PR 426, `204c9dd`); part 5, the assistant on the playbook pages
-(PR 427, `940df19`); and part 6, the trip-name matcher the second live eval found (PR 429, open
-at the close, merge sha `<PR 429 merge sha>`). No migrations, as the plan expected:
+(PR 427, `940df19`); and part 6, the trip-name matcher the second live eval found (PR 429,
+`8143772`). No migrations, as the plan expected:
 `ai_usage.endpoint` is unchecked text, so the new surfaces are the values `ask.account` and
 `ask.playbook`. 10,180 lines added across the seven PRs by GitHub's count (10,065 without
 `docs/`, the guideline's count).
