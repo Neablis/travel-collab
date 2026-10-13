@@ -19,7 +19,8 @@ Format:
   `ChatMessage` (a union on `removed`: a live message carries `body` and an optional `link`, a
   removed one carries neither), `PostChatMessage`, `EditChatMessage`, `MarkChatRead`,
   `ChatReadOnlyReason` (`collaborators-not-entitled`), `ChatPage` (`messages`, `hasEarlier`,
-  `unread`, `canPost`, `readOnlyReason?`) and `CHAT_MESSAGE_MAX`.
+  `unread`, `canPost`, `readOnlyReason?`) and `CHAT_MESSAGE_MAX`. A message body is trimmed,
+  1 to `CHAT_MESSAGE_MAX` characters, and holds no NUL (Postgres cannot store one in `text`).
 - **Added** to `packages/contracts/src/envelope.ts`: an optional `chatRev` on `TripEventsPage`,
   served to every reader beside `accessRev` and moved by every chat write.
 - Why: M46 decisions 1–6. Messages are their own store, never events; the link and the removed

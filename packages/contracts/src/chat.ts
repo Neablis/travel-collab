@@ -23,7 +23,10 @@ const ChatMessageBody = z
   .string()
   .trim()
   .min(1, "A message cannot be empty.")
-  .max(CHAT_MESSAGE_MAX, `A message is at most ${CHAT_MESSAGE_MAX} characters.`);
+  .max(CHAT_MESSAGE_MAX, `A message is at most ${CHAT_MESSAGE_MAX} characters.`)
+  // Postgres cannot store U+0000 in `text`; refused here it is a 400, not a
+  // failed insert answered 500.
+  .refine((body) => !body.includes("\u0000"), "A message cannot contain a NUL character.");
 
 const MessageMeta = {
   messageId: z.string().uuid(),

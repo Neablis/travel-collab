@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { and, count, desc, eq, gt, isNull, ne, sql } from "drizzle-orm";
+import { and, count, desc, eq, isNull, ne, sql } from "drizzle-orm";
 import type { ChatMessage, PostChatMessage, TripRole } from "@tc/contracts";
 import { db } from "../db/client";
 import { tripChatReads, tripMessages } from "../db/schema";
@@ -54,7 +54,7 @@ export async function listMessages(
 
 async function unreadCount(tripId: string, userId: string): Promise<number> {
   const [cursor] = await db
-    .select({ lastReadAt: tripChatReads.lastReadAt })
+    .select({ lastReadAt: tripChatReads.lastReadAt, lastReadId: tripChatReads.lastReadId })
     .from(tripChatReads)
     .where(and(eq(tripChatReads.tripId, tripId), eq(tripChatReads.userId, userId)));
   const [row] = await db
@@ -66,7 +66,10 @@ async function unreadCount(tripId: string, userId: string): Promise<number> {
         ne(tripMessages.authorId, userId),
         isNull(tripMessages.deletedAt),
         isNull(tripMessages.hiddenAt),
-        cursor ? gt(tripMessages.createdAt, cursor.lastReadAt) : undefined,
+        // After the cursor in the order the list is read, `(created_at, id)`,
+        // so a message stamped the same millisecond as the one marked read is
+        // still unread.
+        cursor ? sql`(${tripMessages.createdAt}, ${tripMessages.id}) > (${cursor.lastReadAt}, ${cursor.lastReadId})` : undefined,
       ),
     );
   return row?.n ?? 0;
@@ -173,10 +176,12 @@ export async function markRead(tripId: string, userId: string, messageId: string
   if (row === null) return { ok: false, error: "not-found" };
   await db
     .insert(tripChatReads)
-    .values({ tripId, userId, lastReadAt: row.createdAt })
+    .values({ tripId, userId, lastReadAt: row.createdAt, lastReadId: row.id })
     .onConflictDoUpdate({
       target: [tripChatReads.tripId, tripChatReads.userId],
-      set: { lastReadAt: sql`greatest(${tripChatReads.lastReadAt}, excluded.last_read_at)` },
+      set: { lastReadAt: sql`excluded.last_read_at`, lastReadId: sql`excluded.last_read_id` },
+      // Forward only, by the same pair the list is ordered by.
+      setWhere: sql`(excluded.last_read_at, excluded.last_read_id) > (${tripChatReads.lastReadAt}, ${tripChatReads.lastReadId})`,
     });
   return { ok: true, value: null };
 }

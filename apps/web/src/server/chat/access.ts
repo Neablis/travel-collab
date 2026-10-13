@@ -1,4 +1,5 @@
 import type { ChatReadOnlyReason, TripDetail, TripRole } from "@tc/contracts";
+import { COLLABORATORS_NOT_ENTITLED_CODE } from "../access/collaborationGate";
 import { collaboratorsEntitled } from "../access/members";
 import { requireTripAccess } from "../access/trip-access";
 import { isDemoTripId } from "@/lib/demoTrip";
@@ -7,9 +8,10 @@ import { isDemoTripId } from "@/lib/demoTrip";
 // admission.ts`) so a client branches on one string for both.
 export const CHAT_DEMO_REFUSED_CODE = "demo-trip-unsupported";
 
-// A post, edit or delete after the owner's lapse: the collaboration gate's own
-// code (`access/collaborationGate.ts`) and status, because it is the same gate.
-export const CHAT_NOT_ENTITLED_CODE: ChatReadOnlyReason = "collaborators-not-entitled";
+// A post or an edit after the owner's lapse: the collaboration gate's own code
+// and status, because it is the same gate. `satisfies` keeps it one of the
+// contract's read-only reasons.
+export const CHAT_NOT_ENTITLED_CODE = COLLABORATORS_NOT_ENTITLED_CODE satisfies ChatReadOnlyReason;
 
 export type ChatAccess =
   | { error: Response }
@@ -28,7 +30,8 @@ export type ChatAccess =
  *   `status: "deleted"` (the trip page shows a restore banner), so this checks.
  *   Nothing is purged: restoring the trip brings the conversation back.
  * - **`canPost` is the owner's `trip.collaborators`**, for everyone, the owner
- *   included: after a lapse the chat stays readable and nobody writes to it.
+ *   included: after a lapse the chat stays readable and nobody posts or edits.
+ *   Marking read and deleting are not new content, and stay allowed.
  */
 export async function chatAccess(tripId: string): Promise<ChatAccess> {
   if (isDemoTripId(tripId)) {

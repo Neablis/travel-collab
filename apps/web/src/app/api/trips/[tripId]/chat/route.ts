@@ -1,6 +1,6 @@
 import { ChatMessage, ChatPage, PostChatMessage } from "@tc/contracts";
 import { readBody } from "@/server/readBody";
-import { chatAccess, chatReadOnly } from "@/server/chat/access";
+import { CHAT_NOT_ENTITLED_CODE, chatAccess, chatReadOnly } from "@/server/chat/access";
 import { listMessages, postMessage } from "@/server/chat/messages";
 
 // A trip's chat (M46, ADR-073). Not a planning command: a message is written
@@ -17,7 +17,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ tri
     ChatPage.parse({
       ...page,
       canPost: access.canPost,
-      ...(access.canPost ? {} : { readOnlyReason: "collaborators-not-entitled" }),
+      ...(access.canPost ? {} : { readOnlyReason: CHAT_NOT_ENTITLED_CODE }),
     }),
   );
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CHAT_MESSAGE_MAX, ChatMessage, ChatPage, PostChatMessage, TripEventsPage } from "../src/index.ts";
+import { CHAT_MESSAGE_MAX, ChatMessage, ChatPage, EditChatMessage, PostChatMessage, TripEventsPage } from "../src/index.ts";
 
 const meta = {
   messageId: "6e9a2c9e-3f7a-4b6e-9d3f-2b1a5c8d7e6f",
@@ -32,6 +32,13 @@ describe("PostChatMessage", () => {
     expect(PostChatMessage.parse({ body: "  hi  " }).body).toBe("hi");
     expect(PostChatMessage.safeParse({ body: "   " }).success).toBe(false);
     expect(PostChatMessage.safeParse({ body: "x".repeat(CHAT_MESSAGE_MAX + 1) }).success).toBe(false);
+  });
+
+  // Postgres refuses U+0000 in a text column, so a NUL that passed here would
+  // reach the insert and answer 500; it is a 400 at the contract instead.
+  it("refuses a body containing a NUL character, posted or edited", () => {
+    expect(PostChatMessage.safeParse({ body: "hi\u0000there" }).success).toBe(false);
+    expect(EditChatMessage.safeParse({ body: "hi\u0000there" }).success).toBe(false);
   });
 
   it("links only a day or a stop", () => {

@@ -1052,11 +1052,18 @@ export function makeCoverHandlers(
   ];
 }
 
-// A trip's chat (M46), in memory, refused as the routes refuse: a stranger is
-// not modelled (a suite reads as a member), a lapse is `canPost: false` and
-// every write then answers 402, and a delete is the author's or the owner's.
-// `chatRev()` is the counter each write moves, for a suite that serves it on
-// its own events handler.
+// Refused as the routes refuse: a stranger is not modelled (a suite reads as a
+// member), a lapse is `canPost: false` and a post or an edit then answers 402,
+// while mark-read and delete still work, and a delete is the author's or the
+// owner's.
+/**
+ * MSW handlers for a trip's chat (M46), backed by an in-memory conversation
+ * seeded from `options.messages` and read as `options.viewerId`.
+ *
+ * Returns `{ handlers, chatRev }`: the five chat routes, and the counter each
+ * post, edit and delete moves, for a suite that serves it on its own events
+ * handler.
+ */
 export function makeChatHandlers(options: {
   viewerId: string;
   role?: TripRole;
@@ -1112,7 +1119,6 @@ export function makeChatHandlers(options: {
       return HttpResponse.json({ message: edited });
     }),
     http.delete("/api/trips/:tripId/chat/:messageId", ({ params }) => {
-      if (!canPost) return readOnly();
       const index = messages.findIndex((m) => m.messageId === params.messageId);
       const target = messages[index];
       if (target === undefined) return HttpResponse.json({ error: "not-found" }, { status: 404 });

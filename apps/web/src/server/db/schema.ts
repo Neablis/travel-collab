@@ -534,13 +534,16 @@ export const tripMessages = pgTable(
 );
 
 // Each person's read cursor on a trip's chat (M46 D5): the newest message they
-// have seen, by its time. Unread is computed from this at read time.
+// have seen, as its `(created_at, id)`, the order the conversation is listed
+// in. The time alone would count a second message stamped the same
+// millisecond as read. Unread is computed from this at read time.
 export const tripChatReads = pgTable(
   "trip_chat_reads",
   {
     tripId: uuid("trip_id").notNull(),
     userId: text("user_id").notNull(),
     lastReadAt: timestamp("last_read_at", { withTimezone: true, mode: "date" }).notNull(),
+    lastReadId: uuid("last_read_id").notNull(),
   },
   (t) => [primaryKey({ columns: [t.tripId, t.userId] })],
 );

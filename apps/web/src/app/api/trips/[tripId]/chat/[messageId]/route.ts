@@ -31,11 +31,15 @@ export async function PATCH(request: Request, { params }: Params) {
   return answer(await editMessage(tripId, messageId, access.userId, body.data.body));
 }
 
-/** Soft-delete: the author their own, the owner any. Answers the message as removed. */
+/**
+ * Soft-delete: the author their own, the owner any. Answers the message as removed.
+ *
+ * Allowed after a lapse: read-only stops new content, not its removal, so an
+ * owner can still take down a message in a chat nobody can post to.
+ */
 export async function DELETE(_request: Request, { params }: Params) {
   const { tripId, messageId } = await params;
   const access = await chatAccess(tripId);
   if ("error" in access) return access.error;
-  if (!access.canPost) return chatReadOnly();
   return answer(await deleteMessage(tripId, messageId, access.userId, access.role));
 }

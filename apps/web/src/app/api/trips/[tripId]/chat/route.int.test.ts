@@ -7,6 +7,7 @@ import { db } from "@/server/db/client";
 import { executeTripCommand } from "@/server/commands";
 import { grantMembership } from "@/server/access/members";
 import { entitleAccounts } from "@/server/test-support/entitledAccount";
+import { postMessage } from "@/server/chat/messages";
 
 let currentUserId = "";
 vi.mock("@/server/auth", () => ({
@@ -83,9 +84,11 @@ describe("GET and POST /api/trips/:tripId/chat", () => {
     expect(messages[0]).not.toHaveProperty("link");
   });
 
-  it("refuses an empty body with a 400 and stores nothing", async () => {
+  // A NUL is refused by the contract: Postgres would refuse it in the insert, as a 500.
+  it("refuses an empty body or one with a NUL with a 400 and stores nothing", async () => {
     const { tripId, owner } = await sharedTrip();
     expect((await post(tripId, owner, { body: "   " })).status).toBe(400);
+    expect((await post(tripId, owner, { body: "hi\u0000there" })).status).toBe(400);
     expect((await page(tripId, owner)).messages).toEqual([]);
   });
 });
@@ -111,6 +114,25 @@ describe("unread and the read cursor", () => {
     const second = await posted(tripId, owner, { body: "Two" });
     await markRead(tripId, viewer, second.messageId);
     await markRead(tripId, viewer, first.messageId);
+    expect((await page(tripId, viewer)).unread).toBe(0);
+  });
+
+  // Two messages stamped the same millisecond: the cursor is the message, not
+  // its time, so marking the first read leaves the second unread.
+  it("orders a tie by id, and marking the first of two read leaves the second unread", async () => {
+    const { tripId, owner, viewer } = await sharedTrip();
+    const now = new Date();
+    const a = await postMessage(tripId, owner, { body: "One" }, now);
+    const b = await postMessage(tripId, owner, { body: "Two" }, now);
+    const [first, second] = [a, b].sort((x, y) => (x.messageId < y.messageId ? -1 : 1));
+
+    expect((await page(tripId, viewer)).messages.map((m) => m.messageId)).toEqual([first!.messageId, second!.messageId]);
+    expect((await markRead(tripId, viewer, first!.messageId)).status).toBe(204);
+    expect((await page(tripId, viewer)).unread).toBe(1);
+    expect((await markRead(tripId, viewer, second!.messageId)).status).toBe(204);
+    expect((await page(tripId, viewer)).unread).toBe(0);
+    // And never backwards across the tie either.
+    expect((await markRead(tripId, viewer, first!.messageId)).status).toBe(204);
     expect((await page(tripId, viewer)).unread).toBe(0);
   });
 

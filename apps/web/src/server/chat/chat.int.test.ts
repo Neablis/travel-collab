@@ -2,7 +2,8 @@
 //
 //   * a conversation leaves the trip's event log exactly as it was;
 //   * a removed member can neither read nor post from their next request;
-//   * after the owner's lapse the chat reads and refuses a post, by name;
+//   * after the owner's lapse the chat reads, marks read and deletes, and
+//     refuses a post or an edit, by name;
 //   * the demo and a deleted trip are refused, and a restore brings it back;
 //   * every chat write moves `chatRev` on the events poll, for every reader.
 import { randomUUID } from "node:crypto";
@@ -153,17 +154,66 @@ describe("after the owner's lapse", () => {
       expect(await refused.json()).toMatchObject({ code: "collaborators-not-entitled" });
     }
   });
+
+  // Read-only is for new content: an edit is refused like a post, but marking
+  // read is reading, and a delete is moderation, which a lapse must not stop.
+  it("refuses an edit, and still marks read and lets the author and the owner delete", async () => {
+    const { tripId, owner, editor, viewer } = await sharedTrip();
+    const editors = await posted(tripId, editor, "Booked the flights");
+    const viewers = await posted(tripId, viewer, "Something regrettable");
+    const owners = await posted(tripId, owner, "Hotel is sorted");
+
+    await db.update(users).set({ planId: "free" }).where(eq(users.id, owner));
+
+    currentUserId = editor;
+    const edited = await oneMessage.PATCH(
+      new Request("http://test/x", { method: "PATCH", body: JSON.stringify({ body: "Booked the trains" }) }),
+      { params: Promise.resolve({ tripId, messageId: editors.messageId }) },
+    );
+    expect(edited.status).toBe(402);
+    expect(await edited.json()).toMatchObject({ code: "collaborators-not-entitled" });
+
+    const marked = await read.POST(
+      new Request("http://test/x", { method: "POST", body: JSON.stringify({ messageId: owners.messageId }) }),
+      tripParams(tripId),
+    );
+    expect(marked.status).toBe(204);
+    expect(((await (await list(tripId, editor)).json()) as ChatPage).unread).toBe(0);
+
+    const remove = (messageId: string, as: string) => {
+      currentUserId = as;
+      return oneMessage.DELETE(new Request("http://test/x", { method: "DELETE" }), {
+        params: Promise.resolve({ tripId, messageId }),
+      });
+    };
+    // Still nobody else's to delete but the owner's.
+    expect((await remove(owners.messageId, viewer)).status).toBe(403);
+    expect((await remove(editors.messageId, editor)).status).toBe(200);
+    expect((await remove(viewers.messageId, owner)).status).toBe(200);
+
+    const page = (await (await list(tripId, owner)).json()) as ChatPage;
+    expect(page.messages.map((m) => (m.removed ? null : m.body))).toEqual([null, null, "Hotel is sorted"]);
+  });
 });
 
 describe("a trip the chat does not serve", () => {
   it("refuses the demo trip on every route, by name", async () => {
-    const someone = newUser();
-    const listed = await list(DEMO_TRIP_ID, someone);
-    expect(listed.status).toBe(403);
-    expect(await listed.json()).toMatchObject({ code: "demo-trip-unsupported" });
-    const tried = await post(DEMO_TRIP_ID, someone, { body: "hi" });
-    expect(tried.status).toBe(403);
-    expect(await tried.json()).toMatchObject({ code: "demo-trip-unsupported" });
+    currentUserId = newUser();
+    const messageId = randomUUID();
+    const at = { params: Promise.resolve({ tripId: DEMO_TRIP_ID, messageId }) };
+    const json = (method: string, body: unknown) =>
+      new Request("http://test/x", { method, body: JSON.stringify(body) });
+    const answers = [
+      await chat.GET(new Request("http://test/x"), tripParams(DEMO_TRIP_ID)),
+      await chat.POST(json("POST", { body: "hi" }), tripParams(DEMO_TRIP_ID)),
+      await oneMessage.PATCH(json("PATCH", { body: "hi" }), at),
+      await oneMessage.DELETE(new Request("http://test/x", { method: "DELETE" }), at),
+      await read.POST(json("POST", { messageId }), tripParams(DEMO_TRIP_ID)),
+    ];
+    for (const res of answers) {
+      expect(res.status).toBe(403);
+      expect(await res.json()).toMatchObject({ code: "demo-trip-unsupported" });
+    }
   });
 
   // ADR-073 §5: hidden while the trip is deleted, never purged.
