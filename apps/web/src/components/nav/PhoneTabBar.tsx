@@ -433,7 +433,7 @@ export function PhoneAskTab() {
     // they do (same height, same gap, same label size).
     <Button
       variant="ghost"
-      onClick={ask.onOpen}
+      onClick={ask.onResume ?? ask.onOpen}
       aria-expanded={ask.open}
       data-testid="ask-tab"
       className={cn(

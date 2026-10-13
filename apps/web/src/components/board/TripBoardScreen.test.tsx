@@ -1847,6 +1847,97 @@ describe("assistant rail visibility", () => {
     expect(within(sheet).getByRole("tab", { name: "Chat" }).getAttribute("aria-selected")).toBe("true");
     expect(within(sheet).getByRole("tabpanel", { name: "Chat" })).toBeTruthy();
   });
+
+  // Mitchell, preview walk 1 on PR 436: the tab bar's Ask reopens whichever
+  // tab was last open, across a reload, while every named opener keeps its own.
+  describe("the tab bar opens the tab last open", () => {
+    function renderWithTabBar(tripId: string) {
+      return render(
+        <>
+          <TripProvider tripId={tripId}>
+            <FocusProvider>
+              <EditorHost>
+                <LensRouter>
+                  <TripBoardScreen tripId={tripId} />
+                </LensRouter>
+              </EditorHost>
+            </FocusProvider>
+          </TripProvider>
+          <PhoneAskTab />
+        </>,
+      );
+    }
+    const selected = (panel: HTMLElement) =>
+      within(panel)
+        .getAllByRole("tab")
+        .filter((tab) => tab.getAttribute("aria-selected") === "true")
+        .map((tab) => tab.textContent);
+    async function openFromTabBar() {
+      await userEvent.click(await screen.findByTestId("ask-tab"));
+      return screen.findByRole("complementary", { name: "Assistant" });
+    }
+    async function reload(tripId: string) {
+      cleanup();
+      renderWithTabBar(tripId);
+      expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+    }
+
+    it("reopens Chat after Chat was last open, and Ask after the rail's own tab went back to Ask", async () => {
+      const fixture = tripDetailFixture();
+      server.use(...makeChatHandlers({ viewerId: fixture.members[0]!.userId, messages: [] }).handlers, ...makeTripHandlers(fixture));
+      renderWithTabBar(fixture.tripId);
+      expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+      expect(selected(await openFromTabBar())).toEqual(["Ask"]);
+
+      await reload(fixture.tripId);
+      await userEvent.click(screen.getByTestId("chat-pill"));
+      expect(selected(await screen.findByRole("complementary", { name: "Assistant" }))).toEqual(["Chat"]);
+
+      await reload(fixture.tripId);
+      const panel = await openFromTabBar();
+      expect(selected(panel)).toEqual(["Chat"]);
+      await userEvent.click(within(panel).getByRole("tab", { name: "Ask" }));
+
+      await reload(fixture.tripId);
+      expect(selected(await openFromTabBar())).toEqual(["Ask"]);
+    });
+
+    it("keeps the Ask pill on Ask over a remembered Chat, and remembers Ask", async () => {
+      window.localStorage.setItem("assistant:tab", "chat");
+      const fixture = tripDetailFixture();
+      server.use(...makeChatHandlers({ viewerId: fixture.members[0]!.userId, messages: [] }).handlers, ...makeTripHandlers(fixture));
+      renderWithTabBar(fixture.tripId);
+      expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+      await userEvent.click(screen.getByTestId("ask-pill"));
+      expect(selected(await screen.findByRole("complementary", { name: "Assistant" }))).toEqual(["Ask"]);
+
+      await reload(fixture.tripId);
+      expect(selected(await openFromTabBar())).toEqual(["Ask"]);
+    });
+
+    it("opens on Ask when storage throws, and the 💬 still opens Chat", async () => {
+      const reads = vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+        throw new Error("SecurityError");
+      });
+      const writes = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+        throw new Error("QuotaExceededError");
+      });
+      try {
+        const fixture = tripDetailFixture();
+        server.use(...makeChatHandlers({ viewerId: fixture.members[0]!.userId, messages: [] }).handlers, ...makeTripHandlers(fixture));
+        renderWithTabBar(fixture.tripId);
+        expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+        await userEvent.click(screen.getByTestId("chat-pill"));
+        expect(selected(await screen.findByRole("complementary", { name: "Assistant" }))).toEqual(["Chat"]);
+
+        await reload(fixture.tripId);
+        expect(selected(await openFromTabBar())).toEqual(["Ask"]);
+      } finally {
+        reads.mockRestore();
+        writes.mockRestore();
+      }
+    });
+  });
 });
 
 // docs/reviews/2026-08-28-project-review.md §1.4. The AI batch is decided

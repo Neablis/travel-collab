@@ -66,6 +66,7 @@ import { tripKeys } from "@/lib/queryKeys";
 import { useAssistantShape } from "@/components/assistant/useAssistantShape";
 import { useAssistantVisibility } from "@/components/assistant/useAssistantVisibility";
 import { AssistantRail, type RailTab } from "@/components/assistant/AssistantRail";
+import { readLastRailTab, rememberRailTab } from "@/components/assistant/lastTab";
 import { ChatPanel } from "@/components/chat/ChatPanel";
 import { useTripChat } from "@/components/chat/useTripChat";
 import { personasOf } from "@/components/pages/people";
@@ -129,14 +130,24 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // behavior gated behind M9 — see AssistantRail.tsx's header comment.
   const assistant = useAssistantVisibility();
   // Which of the panel's *Chat · Ask* tabs is open (M46). Each opener names
-  // its own, so Ask never opens on Chat and the 💬 never on Ask.
+  // its own, so Ask never opens on Chat and the 💬 never on Ask, and saves it:
+  // the phone tab bar's Ask is the one opener that names none, and reopens the
+  // tab last open (`lastTab.ts`).
   const [railTab, setRailTab] = useState<RailTab>("ask");
+  const chooseTab = (tab: RailTab) => {
+    setRailTab(tab);
+    rememberRailTab(tab);
+  };
   const openAsk = () => {
-    setRailTab("ask");
+    chooseTab("ask");
     assistant.show();
   };
   const openChat = () => {
-    setRailTab("chat");
+    chooseTab("chat");
+    assistant.show();
+  };
+  const openLastTab = () => {
+    setRailTab(readLastRailTab());
     assistant.show();
   };
   // Held here, not in the panel, so the header's 💬 counts while it is closed.
@@ -150,8 +161,9 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   const members = access?.members;
   const personas = useMemo(() => (members === undefined ? null : personasOf(members)), [members]);
   // The phone's way in is the tab bar's Ask item (Mitchell, 2026-10-10), which
-  // lives in the layout, outside this tree: offer it the same opener the
-  // header's desktop pill gets. Withheld on /demo for the pill's reason (KI-79).
+  // lives in the layout, outside this tree: offer it the header's desktop
+  // pill's opener, for ⌘K's Ask, and its own reopen of the tab last open
+  // (PR 436). Withheld on /demo for the pill's reason (KI-79).
   //
   // **Only once the board itself renders** (PR #384 review). This hook has to
   // sit above the loading, signed-out and error returns below, but the
@@ -179,17 +191,21 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // once the rail has taken it: the rail remounts on Hide and Show, and when
   // the header skeleton comes back, and must not find it again.
   const [handOff, setHandOff] = useState<{ text: string } | null>(null);
-  usePhoneAskEntry(boardRenders && !isDemoTripId(tripId) ? openAsk : undefined, assistant.open && railTab === "ask", (text) => {
-    openAsk();
-    setHandOff({ text });
-  });
+  usePhoneAskEntry(
+    boardRenders && !isDemoTripId(tripId) ? openAsk : undefined,
+    assistant.open && railTab === "ask",
+    (text) => {
+      openAsk();
+      setHandOff({ text });
+    },
+    openLastTab,
+  );
   // **⌘K's commands are this screen's own functions** (M41 D9, ADR-068 §1,
   // ADR-069 §4). Each is named here, above the early returns because the
   // registration below must run on every render, and the board's controls
   // call the same names: the day header's ✕ and *Move*, the stop's ✕, *One
   // more day*, a drop on a column. The assistant needs nothing here: the
-  // palette offers the opener registered just above, the one the phone's tab
-  // bar uses.
+  // palette offers the Ask opener registered just above.
   const focusedDayId = focusedDay === null ? undefined : activeTrip?.days[focusedDay]?.dayId;
   const addDay = () => void dispatch({ type: "AddDay", tripId, dayId: crypto.randomUUID() });
   const removeDay = (dayId: string) => void dispatch({ type: "RemoveDay", tripId, dayId });
@@ -1544,7 +1560,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
             takeFocus={assistant.takeFocus}
             chat={{
               tab: railTab,
-              onTabChange: setRailTab,
+              onTabChange: chooseTab,
               panel: <ChatPanel chat={chat} personas={personas} touch={assistantPresentation === "sheet"} />,
             }}
             onHide={assistant.hide}

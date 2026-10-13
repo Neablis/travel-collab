@@ -20,9 +20,11 @@ import { useEffect, useRef, useSyncExternalStore } from "react";
 /**
  * What the tab bar's Ask item needs: whether the assistant is up, and how to
  * bring it up. `onAsk` brings it up and sends `text`, for ⌘K's *Ask: <text>*
- * (M45 D6); a screen that offers none gets no such row.
+ * (M45 D6); a screen that offers none gets no such row. `onResume` is the bar's
+ * own, where the screen's panel has more than one tab: it reopens the tab last
+ * open (PR 436), while ⌘K's *Ask* keeps `onOpen`, which names Ask.
  */
-export type PhoneAskEntry = { open: boolean; onOpen: () => void; onAsk?: (text: string) => void };
+export type PhoneAskEntry = { open: boolean; onOpen: () => void; onAsk?: (text: string) => void; onResume?: () => void };
 
 let entry: PhoneAskEntry | null = null;
 const listeners = new Set<() => void>();
@@ -65,24 +67,31 @@ export function usePhoneAsk(): PhoneAskEntry | null {
 
 /**
  * Offers this screen's assistant as the tab bar's Ask while mounted. `onOpen`
- * `undefined` offers none; `onAsk`, sending a question as it opens, is
- * optional beside it. Either may be a fresh function each render: the entry
- * calls whichever is latest, so only `open`, or whether each is offered,
- * changing re-registers.
+ * `undefined` offers none; `onAsk`, sending a question as it opens, and
+ * `onResume`, the bar's reopen, are optional beside it. Any may be a fresh
+ * function each render: the entry calls whichever is latest, so only `open`,
+ * or whether each is offered, changing re-registers.
  */
-export function usePhoneAskEntry(onOpen: (() => void) | undefined, open: boolean, onAsk?: (text: string) => void): void {
-  const latest = useRef({ onOpen, onAsk });
+export function usePhoneAskEntry(
+  onOpen: (() => void) | undefined,
+  open: boolean,
+  onAsk?: (text: string) => void,
+  onResume?: () => void,
+): void {
+  const latest = useRef({ onOpen, onAsk, onResume });
   useEffect(() => {
-    latest.current = { onOpen, onAsk };
+    latest.current = { onOpen, onAsk, onResume };
   });
   const offered = onOpen !== undefined;
   const asks = onAsk !== undefined;
+  const resumes = onResume !== undefined;
   useEffect(() => {
     if (!offered) return;
     return registerPhoneAsk({
       open,
       onOpen: () => latest.current.onOpen?.(),
       ...(asks ? { onAsk: (text: string) => latest.current.onAsk?.(text) } : {}),
+      ...(resumes ? { onResume: () => latest.current.onResume?.() } : {}),
     });
-  }, [offered, asks, open]);
+  }, [offered, asks, resumes, open]);
 }
