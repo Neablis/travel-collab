@@ -556,6 +556,20 @@ export const tripChatRevs = pgTable("trip_chat_revs", {
   rev: integer("rev").notNull(),
 });
 
+// Who has a trip open (M46 D7, ADR-073 §6): each member's last poll of the
+// trip, written at most once per heartbeat by `server/presence/presence.ts`.
+// No foreign key, on `trip_travellers`' terms. A removed member's row is left
+// behind: the served ids are filtered to current members, so it is never read.
+export const tripPresence = pgTable(
+  "trip_presence",
+  {
+    tripId: uuid("trip_id").notNull(),
+    userId: text("user_id").notNull(),
+    seenAt: timestamp("seen_at", { withTimezone: true, mode: "date" }).notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.tripId, t.userId] })],
+);
+
 // A trip's cover photo (M37 D1): one row per trip, set and cleared by an
 // editor through `server/tripCovers.ts`. Ordinary CRUD, NOT a projection — a
 // cover is a decoration, not a plan fact, so it is never an event and

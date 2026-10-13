@@ -1,6 +1,7 @@
 "use client";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import {
+  PRESENCE_WINDOW_MS,
   SUGGESTION_UNIT_COMMANDS_MAX,
   SUGGESTION_UNITS_MAX,
   type BatchableCommand,
@@ -135,6 +136,12 @@ type TripCtx = {
    */
   access: TripAccess | null;
   /**
+   * Who has this trip open (M46 D7), as the latest poll that said so: user ids
+   * of current members, this reader included. Empty until a poll answers, and
+   * always on the demo, which is never polled.
+   */
+  online: ReadonlySet<string>;
+  /**
    * Re-read who is on the trip, and the trip itself, whose per-person totals
    * count travellers (travellers spec W15). For a member write made on this
    * page: the poll would see it as an `accessRev` change too, but only within
@@ -199,6 +206,7 @@ type TripCtx = {
 };
 
 const Ctx = createContext<TripCtx | null>(null);
+const NOBODY_ONLINE: ReadonlySet<string> = new Set();
 export const useTrip = () => {
   const v = useContext(Ctx);
   if (!v) throw new Error("useTrip outside TripProvider");
@@ -220,6 +228,18 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
   const [myRole, setMyRole] = useState<TripRole | null>(null);
   const [access, setAccess] = useState<TripAccess | null>(null);
   const [accessUnknown, setAccessUnknown] = useState(false);
+  const [online, setOnline] = useState<ReadonlySet<string>>(NOBODY_ONLINE);
+  // Every 2s poll reports it; an unchanged answer keeps the same set, so the
+  // avatars do not re-render on every tick. An answer is dropped once it is as
+  // old as the server's window: polling stops under a history preview, and a
+  // poll whose presence read failed carries none, so nothing else would.
+  const onlineExpiry = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const onPresence = useCallback((ids: readonly string[]) => {
+    setOnline((prev) => (ids.length === prev.size && ids.every((id) => prev.has(id)) ? prev : new Set(ids)));
+    clearTimeout(onlineExpiry.current);
+    onlineExpiry.current = setTimeout(() => setOnline(NOBODY_ONLINE), PRESENCE_WINDOW_MS);
+  }, []);
+  useEffect(() => () => clearTimeout(onlineExpiry.current), []);
   // An invite still out, as of the access read or one made here since (W73).
   const [inviteOut, setInviteOut] = useState(false);
   // See `remoteRevision` on the context type for why this is a counter.
@@ -994,6 +1014,7 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
     onAccessChanged: onAccessRevision,
     onChatChanged: setChatRev,
     onRefused: () => setAccessLost(true),
+    onPresence,
   });
 
   // Kept in step with the state on every render, so a change made anywhere
@@ -1056,6 +1077,7 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
         draft,
         noteInvites,
         access,
+        online,
         refreshAccess,
         suggestions,
         suggestionGhosts,

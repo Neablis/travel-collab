@@ -2,6 +2,7 @@ import { useState } from "react";
 import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import { describe, expect, it, vi, beforeEach, afterEach, type MockInstance } from "vitest";
 import { tripDetailFixture, historyFixture } from "@tc/factories";
+import { PRESENCE_WINDOW_MS } from "@tc/contracts";
 
 const sendTripCommandMock = vi.fn();
 const sendTripCommandBatchMock = vi.fn();
@@ -1210,6 +1211,47 @@ describe("TripProvider broadcast (M13 link 2)", () => {
     fetchTripEventsMock.mockResolvedValue({ ok: false, error: { status: 403, message: "Forbidden" } });
     becomeVisible();
     await waitFor(() => expect(screen.getByTestId("accessLost").textContent).toBe("true"));
+  });
+
+  // M46 D7. Polling stops under a history preview, and a poll whose presence
+  // read failed carries no `online`, so the last answer is all the board has.
+  // It must not outlive the server's own window.
+  it("drops who was online once the last answer is older than the presence window", async () => {
+    fetchTripDetailMock.mockResolvedValue({ ok: true, value: oneDayTripDetailFixture() });
+    fetchTripHistoryMock.mockResolvedValue({ ok: true, value: historyAtSeq(1) });
+    function OnlineProbe() {
+      return <span data-testid="online">{[...useTrip().online].join(",")}</span>;
+    }
+    render(
+      <TripProvider tripId="x">
+        <RemoteProbe />
+        <OnlineProbe />
+      </TripProvider>,
+    );
+    await waitFor(() => expect(screen.getByTestId("dayCount").textContent).toBe("1"));
+    await broadcastArmed();
+
+    // A solo trip runs no interval, so the one regain poll is the last answer.
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      fetchTripEventsMock.mockResolvedValue({
+        ok: true,
+        value: { headSeq: 1, events: [], resync: false, online: ["dev-bob"] },
+      });
+      becomeVisible();
+      await waitFor(() => expect(screen.getByTestId("online").textContent).toBe("dev-bob"));
+
+      act(() => {
+        vi.advanceTimersByTime(PRESENCE_WINDOW_MS - 1000);
+      });
+      expect(screen.getByTestId("online").textContent).toBe("dev-bob");
+      act(() => {
+        vi.advanceTimersByTime(1000);
+      });
+      expect(screen.getByTestId("online").textContent).toBe("");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   // ADR-049 Decision 2: a solo trip runs no timer, and the visibility-regain

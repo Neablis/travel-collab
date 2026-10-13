@@ -1,6 +1,6 @@
 {
-  "id": "f131904c-856c-496f-8973-541d895e6471",
-  "prevId": "7665be15-d30b-41d5-8e1e-b2a309061b6f",
+  "id": "1cee254a-93e0-4992-b372-4ce3c5b06285",
+  "prevId": "e307487b-03d5-4661-a784-e4875b42b368",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -2423,6 +2423,45 @@
           "value": "(\"trip_messages\".\"link_kind\" is null) = (\"trip_messages\".\"link_id\" is null)"
         }
       },
+      "isRLSEnabled": false
+    },
+    "public.trip_presence": {
+      "name": "trip_presence",
+      "schema": "",
+      "columns": {
+        "trip_id": {
+          "name": "trip_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "seen_at": {
+          "name": "seen_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "trip_presence_trip_id_user_id_pk": {
+          "name": "trip_presence_trip_id_user_id_pk",
+          "columns": [
+            "trip_id",
+            "user_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
       "isRLSEnabled": false
     },
     "public.trip_shares": {
