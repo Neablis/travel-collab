@@ -2,7 +2,15 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ChatLink, ChatMessage, ChatPage } from "@tc/contracts";
-import { fetchChat, markChatRead, postChatMessage, type ApiError } from "@/lib/apiClient";
+import {
+  deleteChatMessage,
+  editChatMessage,
+  fetchChat,
+  markChatRead,
+  postChatMessage,
+  type ApiError,
+  type ApiResult,
+} from "@/lib/apiClient";
 
 /**
  * - `loading`: the first read has not answered.
@@ -15,6 +23,7 @@ import { fetchChat, markChatRead, postChatMessage, type ApiError } from "@/lib/a
 export type TripChatStatus = "loading" | "ready" | "no-access" | "failed";
 
 export type TripChat = {
+  tripId: string;
   status: TripChatStatus;
   messages: readonly ChatMessage[];
   hasEarlier: boolean;
@@ -26,10 +35,18 @@ export type TripChat = {
   post: (body: string, link?: ChatLink) => Promise<boolean>;
   posting: boolean;
   postError: string | null;
+  /** The author's new text; resolves false when it was not stored. */
+  edit: (messageId: string, body: string) => Promise<boolean>;
+  /** Soft-delete (D6); resolves false when the server refused. */
+  remove: (messageId: string) => Promise<boolean>;
+  /** Why the last edit or delete did not land, for the panel to say. */
+  changeError: string | null;
 };
 
 const READ_ONLY = 402;
 const NO_ACCESS = 403;
+// An edit of a message deleted or hidden since this page last read it.
+const REMOVED = 409;
 
 /**
  * A trip's chat, held by the board so the header's pill can count it while the
@@ -68,6 +85,9 @@ export function useTripChat({
   const status = accessLost ? "no-access" : readStatus;
   const [posting, setPosting] = useState(false);
   const [postError, setPostError] = useState<string | null>(null);
+  // Why the last edit or delete failed. Cleared by a fresh read or a post as
+  // well as by the next change: by then it describes a page that has moved on.
+  const [changeError, setChangeError] = useState<string | null>(null);
 
   // A 403 from any of the three calls is the same news.
   const refused = useCallback((error: ApiError) => {
@@ -84,6 +104,7 @@ export function useTripChat({
       if (result.ok) {
         setPage(result.value);
         setStatus("ready");
+        setChangeError(null);
       } else if (!refused(result.error)) {
         setStatus((current) => (current === "loading" ? "failed" : current));
       }
@@ -108,6 +129,7 @@ export function useTripChat({
     async (body: string, link?: ChatLink) => {
       setPosting(true);
       setPostError(null);
+      setChangeError(null);
       const result = await postChatMessage(tripId, link === undefined ? { body } : { body, link });
       setPosting(false);
       if (result.ok) {
@@ -132,7 +154,43 @@ export function useTripChat({
     [tripId, refused],
   );
 
+  // An edit or a delete answers with the message as stored, so the author's
+  // own line changes now; everyone else's page re-reads on `chatRev`.
+  const change = useCallback(
+    async (result: ApiResult<ChatMessage>) => {
+      if (result.ok) {
+        setChangeError(null);
+        setPage((current) =>
+          current === null
+            ? current
+            : { ...current, messages: current.messages.map((m) => (m.messageId === result.value.messageId ? result.value : m)) },
+        );
+        return true;
+      }
+      if (refused(result.error)) return false;
+      if (result.error.status === READ_ONLY) {
+        setPage((current) => (current === null ? current : { ...current, canPost: false }));
+        return false;
+      }
+      setChangeError(
+        result.error.status === 0
+          ? "Couldn't reach the server. Check your connection and try again."
+          : result.error.status === REMOVED
+            ? "That message has been removed."
+            : result.error.message,
+      );
+      return false;
+    },
+    [refused],
+  );
+  const edit = useCallback(
+    async (messageId: string, body: string) => change(await editChatMessage(tripId, messageId, { body })),
+    [tripId, change],
+  );
+  const remove = useCallback(async (messageId: string) => change(await deleteChatMessage(tripId, messageId)), [tripId, change]);
+
   return {
+    tripId,
     status,
     messages: page?.messages ?? [],
     hasEarlier: page?.hasEarlier ?? false,
@@ -141,5 +199,8 @@ export function useTripChat({
     post,
     posting,
     postError,
+    edit,
+    remove,
+    changeError,
   };
 }

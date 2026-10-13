@@ -1,12 +1,16 @@
 "use client";
 import { useRef, useState } from "react";
 import Link from "next/link";
+import { useKnownSessionUser } from "@/components/account/useSessionUser";
 import type { Persona } from "@/components/pages/people";
 import { usePinToBottom } from "@/components/assistant/usePinToBottom";
+import { useOptionalTrip } from "@/components/trip/context/TripProvider";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { Dialog, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Text } from "@/components/ui/text";
 import { cn } from "@/lib/cn";
-import { ChatMessage } from "./ChatMessage";
+import { ChatMessage, type MessageViewer } from "./ChatMessage";
 import { useTargetPicker } from "./TargetPicker";
 import type { TripChat } from "./useTripChat";
 
@@ -32,9 +36,24 @@ export function ChatPanel({
   touch?: boolean;
 }) {
   const [draft, setDraft] = useState("");
+  const [editing, setEditing] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
+  // Save, Cancel and a confirmed Delete each unmount the control focus was on
+  // (the edit form, the `⋯` trigger); the line keeps focus instead of <body>.
+  const lines = useRef(new Map<string, HTMLLIElement>());
+  const focusLine = (messageId: string | null) => (messageId === null ? undefined : lines.current.get(messageId)?.focus());
+  const deletingFrom = useRef<string | null>(null);
   const picker = useTargetPicker(draft, setDraft);
   const scrollport = useRef<HTMLDivElement>(null);
   usePinToBottom(scrollport, [chat.messages.length]);
+  // Who is reading decides what each line offers (D6). Neither is a request of
+  // its own: the `(app)` layout's session, and the trip's own access read.
+  const me = useKnownSessionUser()?.id ?? null;
+  const isOwner = useOptionalTrip()?.myRole === "owner";
+  const viewerOf = (authorId: string): MessageViewer | null =>
+    me === null
+      ? null
+      : { mine: authorId === me, mayEdit: authorId === me && chat.canPost, mayDelete: authorId === me || isOwner };
 
   if (chat.status === "no-access") {
     return (
@@ -72,14 +91,74 @@ export function ChatPanel({
             {chat.hasEarlier && <p className="text-xs text-slate">Earlier messages aren&apos;t shown.</p>}
             <ol aria-label="Messages" className="flex flex-col gap-3">
               {chat.messages.map((message) => (
-                <ChatMessage key={message.messageId} message={message} persona={personas === null ? null : personas[message.authorId]} />
+                <ChatMessage
+                  key={message.messageId}
+                  ref={(line) => {
+                    if (line !== null) lines.current.set(message.messageId, line);
+                    return () => void lines.current.delete(message.messageId);
+                  }}
+                  message={message}
+                  persona={personas === null ? null : personas[message.authorId]}
+                  tripId={chat.tripId}
+                  viewer={viewerOf(message.authorId)}
+                  // Closed by a lapse mid-edit as well: the save would be refused.
+                  editing={editing === message.messageId && chat.canPost}
+                  onEdit={() => setEditing(message.messageId)}
+                  onDelete={() => {
+                    deletingFrom.current = message.messageId;
+                    setDeleting(message.messageId);
+                  }}
+                  onSave={async (body) => {
+                    const saved = await chat.edit(message.messageId, body);
+                    if (saved) {
+                      focusLine(message.messageId);
+                      setEditing(null);
+                    }
+                    return saved;
+                  }}
+                  onCancelEdit={() => {
+                    focusLine(message.messageId);
+                    setEditing(null);
+                  }}
+                />
               ))}
             </ol>
           </>
         )}
       </div>
+      <Dialog
+        open={deleting !== null}
+        onOpenChange={(open) => !open && setDeleting(null)}
+        title="Delete this message?"
+        // Opened from a menu, so there is no trigger to go back to.
+        onCloseAutoFocus={(event) => {
+          event.preventDefault();
+          focusLine(deletingFrom.current);
+        }}
+      >
+        <Text variant="secondary">Everyone on the trip will see “message removed” in its place.</Text>
+        <DialogFooter>
+          <Button variant="secondary" onClick={() => setDeleting(null)}>
+            Cancel
+          </Button>
+          <Button
+            variant="destructive"
+            onClick={() => {
+              if (deleting !== null) void chat.remove(deleting);
+              setDeleting(null);
+            }}
+          >
+            Delete
+          </Button>
+        </DialogFooter>
+      </Dialog>
       {chat.status === "ready" && (
         <div className="shrink-0 border-t border-hairline px-4 py-3">
+          {chat.changeError !== null && (
+            <p role="alert" className="mb-1.5 text-xs text-danger">
+              {chat.changeError}
+            </p>
+          )}
           {!chat.canPost ? (
             <p role="status" className="text-xs text-slate">
               {READ_ONLY_LINE}

@@ -14,7 +14,7 @@ export type CreateReportResponse = z.infer<typeof CreateReportResponse>;
  * One row of the operator's queue: the report, and enough of what it is about
  * to decide without opening the day.
  *
- * `day` is null only when the row it names is gone — `content_reports` has no
+ * `day` is null for a chat message report, and otherwise only when the row it names is gone — `content_reports` has no
  * foreign key (ADR-025's terms), so that is reachable, and the queue shows it
  * rather than dropping a report nobody resolved.
  */
@@ -37,6 +37,22 @@ export const AdminReportQueueItem = z.object({
       reviewerId: z.string().min(1),
       stars: z.number().int(),
       note: z.string().nullable(),
+      hiddenAt: z.string().nullable(),
+    })
+    .nullable(),
+  /**
+   * Present for a trip chat message whose row still exists (M46 D6), with its
+   * words even after its author deleted it: what was said is what was reported.
+   */
+  message: z
+    .object({
+      tripId: z.string().uuid(),
+      messageId: z.string().uuid(),
+      authorId: z.string().min(1),
+      authorDisplayName: z.string(),
+      body: z.string(),
+      createdAt: z.string(),
+      deletedAt: z.string().nullable(),
       hiddenAt: z.string().nullable(),
     })
     .nullable(),

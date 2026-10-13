@@ -22,7 +22,20 @@ function composer() {
     unregister = registerBoardFocus({ ...tripTargets(trip, { focusedActivityId: null, focusedDayId: null, selectedDayId: null }), focusDay: vi.fn(), focusActivity: vi.fn() });
   });
   const post = vi.fn(async () => true);
-  const chat: TripChat = { status: "ready", messages: [], hasEarlier: false, unread: 0, canPost: true, post, posting: false, postError: null };
+  const chat: TripChat = {
+    tripId: trip.tripId,
+    status: "ready",
+    messages: [],
+    hasEarlier: false,
+    unread: 0,
+    canPost: true,
+    post,
+    posting: false,
+    postError: null,
+    edit: async () => true,
+    remove: async () => true,
+    changeError: null,
+  };
   render(<ChatPanel chat={chat} personas={null} />);
   return { post, field: screen.getByRole("combobox", { name: "Message" }) as HTMLInputElement };
 }

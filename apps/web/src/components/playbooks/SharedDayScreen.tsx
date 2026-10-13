@@ -51,7 +51,7 @@ import { LibraryMoved, SyncFailure } from "./ReadStates";
 import { useLibraryRead } from "./useLibraryRead";
 import { AddToTripDialog } from "./AddToTripDialog";
 import { PlaybookAskButton, PlaybookAssistant } from "@/components/assistant/BeyondTripAssistant";
-import { ReportAction } from "./ReportDialog";
+import { ReportAction } from "@/components/report/ReportDialog";
 import { ReviewRail } from "./ReviewRail";
 import { ReviewConflictBanner, ReviewsSection } from "./ReviewsSection";
 import { SignInToAddDialog } from "./SignInToAddDialog";

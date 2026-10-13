@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
 import type { Browser, Page } from "@playwright/test";
 import { expect, test } from "./fixtures/test";
-import { grantCollaborators } from "./adminBootstrap";
+import { E2E_SUPER_CODE } from "./admission";
+import { E2E_ADMIN_USERNAME, grantCollaborators } from "./adminBootstrap";
 import { createMappedTrip } from "./helpers";
 import { e2eTripName } from "./tripNames";
 
@@ -25,6 +26,19 @@ async function signedInAs(browser: Browser, username: string, link: string): Pro
   await page.getByRole("link", { name: "Sign in", exact: true }).click();
   await expect(page).toHaveURL(/\/signin\?callbackUrl=%2Finvite%2F/);
   await page.getByLabel("Username").fill(username);
+  await Promise.all([
+    page.waitForURL((url) => !/^\/sign(in|up)$/.test(url.pathname)),
+    page.getByRole("button", { name: /sign in with dev login/i }).click(),
+  ]);
+  return page;
+}
+
+// The configured operator, admitted on the super code (m12-moderation's `signedInAs`).
+async function operator(browser: Browser): Promise<Page> {
+  const page = await (await browser.newContext({ storageState: undefined })).newPage();
+  await page.goto("/signup");
+  await page.getByLabel("Invite code").fill(E2E_SUPER_CODE);
+  await page.getByLabel("Username").fill(E2E_ADMIN_USERNAME);
   await Promise.all([
     page.waitForURL((url) => !/^\/sign(in|up)$/.test(url.pathname)),
     page.getByRole("button", { name: /sign in with dev login/i }).click(),
@@ -88,6 +102,92 @@ test("a viewer's message reaches the owner's open page within one poll, and the 
   const panel = page.getByRole("complementary", { name: "Assistant" });
   await expect(panel.getByRole("list", { name: "Messages" })).toContainText("Train at nine?");
   await expect(page.getByTestId("chat-pill")).toHaveAccessibleName("Chat");
+});
+
+// M46 D6, walked: the owner edits and deletes their own message and deletes
+// the viewer's; the viewer reports one of the owner's; the operator finds it
+// in the console's Reports and hides it, and the owner's open page loses it.
+// Messages are seeded through the route the composer calls: posting is the
+// first test's to prove.
+test("the owner edits and deletes in place, the viewer reports a message, and the console's Reports hides it", async ({ page, browser }) => {
+  // Three contexts: the first test's budget and an operator's sign-in.
+  test.slow();
+  const tripName = e2eTripName("Chat moderation");
+  const tripId = await createMappedTrip(page, tripName, 1);
+  const invite = await page.request.post(`/api/trips/${tripId}/invites`, { data: { email: null, role: "viewer" } });
+  expect(invite.ok()).toBe(true);
+  const { token } = ((await invite.json()) as { invite: { token: string } }).invite;
+  const run = randomUUID().slice(0, 8);
+  const say = async (who: Page, body: string) => {
+    const res = await who.request.post(`/api/trips/${tripId}/chat`, { data: { body } });
+    expect(res.status(), await res.text()).toBe(201);
+  };
+  const panel = page.getByRole("complementary", { name: "Assistant" });
+  const line = (text: string) => panel.getByRole("listitem").filter({ hasText: text });
+
+  const bea = await signedInAs(browser, newcomer("bea"), `/invite/${token}`);
+  try {
+    await bea.getByRole("button", { name: "Join the trip" }).click();
+    await expect(bea.getByRole("heading", { name: tripName, level: 1 })).toBeVisible();
+    await say(page, `Hotel is sorted ${run}`);
+    await say(page, `Wrong chat ${run}`);
+    await say(bea, `Train at nine? ${run}`);
+
+    await page.goto(`/trips/${tripId}?view=Plan`);
+    await expect(page.getByRole("heading", { name: tripName, level: 1 })).toBeVisible();
+    await page.getByTestId("chat-pill").click();
+
+    // Edit own, in place.
+    await line(`Hotel is sorted ${run}`).getByRole("button", { name: /^Actions for / }).click();
+    await page.getByRole("menuitem", { name: "Edit" }).click();
+    await panel.getByRole("textbox", { name: "Edit message" }).fill(`Hotel is booked ${run}`);
+    await panel.getByRole("button", { name: "Save" }).click();
+    await expect(line(`Hotel is booked ${run}`)).toContainText("edited");
+
+    // Delete own, then the viewer's, each after a confirm.
+    for (const words of [`Wrong chat ${run}`, `Train at nine? ${run}`]) {
+      await line(words).getByRole("button", { name: /^Actions for / }).click();
+      await page.getByRole("menuitem", { name: "Delete" }).click();
+      await page.getByRole("dialog", { name: "Delete this message?" }).getByRole("button", { name: "Delete" }).click();
+      await expect(line(words)).toHaveCount(0);
+    }
+    await expect(line("message removed")).toHaveCount(2);
+
+    // The viewer reports the owner's edited message.
+    await bea.reload();
+    await bea.getByTestId("chat-pill").click();
+    await bea
+      .getByRole("complementary", { name: "Assistant" })
+      .getByRole("listitem")
+      .filter({ hasText: `Hotel is booked ${run}` })
+      .getByRole("button", { name: /^Report / })
+      .click();
+    const dialog = bea.getByRole("dialog", { name: /^Report / });
+    await dialog.getByRole("radio", { name: "Offensive or hateful" }).click();
+    await dialog.getByRole("button", { name: "Send" }).click();
+    await expect(dialog.getByTestId("report-sent")).toBeVisible();
+  } finally {
+    await bea.context().close();
+  }
+
+  const admin = await operator(browser);
+  try {
+    // The report queue is the console's Library tab (m12-moderation.spec.ts).
+    await admin.goto("/admin?tab=library");
+    const row = admin.getByTestId(/^report-/).filter({ hasText: `Hotel is booked ${run}` });
+    await expect(row.getByText("Chat message", { exact: true })).toBeVisible();
+    await Promise.all([
+      admin.waitForResponse((r) => r.url().includes("/api/admin/reports/") && r.request().method() === "POST" && r.ok()),
+      row.getByRole("button", { name: "Hide message" }).click(),
+    ]);
+    await expect(row).toHaveCount(0);
+  } finally {
+    await admin.context().close();
+  }
+
+  // The hide moved `chatRev`, so the owner's open page re-reads within a poll.
+  await expect(line(`Hotel is booked ${run}`)).toHaveCount(0, { timeout: 10_000 });
+  await expect(line("message removed")).toHaveCount(3);
 });
 
 // M46 D3: a message can carry one day or stop. Its chip goes to it on Plan,

@@ -895,7 +895,11 @@ export function makeReportHandlers(
   const filed = new Map<string, ContentReport>();
   const queue = structuredClone(options.queue ?? []);
   const keyOf = (target: ContentReport["target"]) =>
-    target.kind === "review" ? `review:${target.savedDayId}:${target.reviewerId}` : `day:${target.savedDayId}`;
+    target.kind === "review"
+      ? `review:${target.savedDayId}:${target.reviewerId}`
+      : target.kind === "trip_message"
+        ? `message:${target.messageId}`
+        : `day:${target.savedDayId}`;
   return [
     http.post("/api/reports", async ({ request }) => {
       const body = CreateReportInput.safeParse(await request.json().catch(() => null));
