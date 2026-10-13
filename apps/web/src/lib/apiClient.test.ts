@@ -14,6 +14,8 @@ import {
   fetchTripSuggestions,
   fetchChat,
   postChatMessage,
+  editChatMessage,
+  deleteChatMessage,
   markChatRead,
   resolveSuggestionChange,
   fetchTripSnapshots,
@@ -274,6 +276,8 @@ const FETCHING_HELPERS: Record<string, () => Promise<ApiResult<unknown>>> = {
   fetchTripSuggestions: () => fetchTripSuggestions(TRIP_ID),
   fetchChat: () => fetchChat(TRIP_ID),
   postChatMessage: () => postChatMessage(TRIP_ID, { body: "hi" }),
+  editChatMessage: () => editChatMessage(TRIP_ID, UUID, { body: "hi" }),
+  deleteChatMessage: () => deleteChatMessage(TRIP_ID, UUID),
   markChatRead: () => markChatRead(TRIP_ID, UUID),
   resolveSuggestionChange: () => resolveSuggestionChange(TRIP_ID, UUID, "accept"),
   fetchTripSnapshots: () => fetchTripSnapshots(TRIP_ID),
@@ -540,6 +544,42 @@ describe("fetchTrips keeps the unread chat count", () => {
     answer({});
     const older = await fetchTrips();
     expect(older.ok && older.value[0]!.unreadChat).toBe(0);
+  });
+});
+
+// M46 part 5. Edit and delete share one route and differ only by method; the
+// hook reads a 409 as "that message has been removed".
+describe("chat message edit and delete on the wire", () => {
+  const meta = { messageId: UUID, authorId: "u-1", createdAt: "2026-10-13T09:00:00.000Z" };
+
+  it("edit PATCHes the new text, delete DELETEs, and each reads back the stored message", async () => {
+    const seen: string[] = [];
+    server.use(
+      http.patch("*/api/trips/:tripId/chat/:messageId", async ({ request, params }) => {
+        seen.push(`PATCH ${params.messageId} ${JSON.stringify(await request.json())}`);
+        return HttpResponse.json({ message: { ...meta, editedAt: meta.createdAt, removed: false, body: "later" } });
+      }),
+      http.delete("*/api/trips/:tripId/chat/:messageId", ({ params }) => {
+        seen.push(`DELETE ${params.messageId}`);
+        return HttpResponse.json({ message: { ...meta, editedAt: null, removed: true } });
+      }),
+    );
+
+    const edited = await editChatMessage(TRIP_ID, UUID, { body: "later" });
+    expect(edited.ok && edited.value).toMatchObject({ removed: false, body: "later" });
+    const deleted = await deleteChatMessage(TRIP_ID, UUID);
+    expect(deleted.ok && deleted.value.removed).toBe(true);
+    expect(seen).toEqual([`PATCH ${UUID} {"body":"later"}`, `DELETE ${UUID}`]);
+  });
+
+  it("reads a 409 as a refusal carrying its status", async () => {
+    server.use(
+      http.patch("*/api/trips/:tripId/chat/:messageId", () =>
+        HttpResponse.json({ error: "That message has been removed." }, { status: 409 }),
+      ),
+    );
+    const result = await editChatMessage(TRIP_ID, UUID, { body: "later" });
+    expect(!result.ok && result.error.status).toBe(409);
   });
 });
 

@@ -56,6 +56,7 @@ function dayReport(over: {
           }
         : over.day,
     review: null,
+    message: null,
     reportsOnTarget: over.reportsOnTarget ?? 1,
   };
 }
@@ -84,6 +85,40 @@ function reviewReport(over: { reportId: string; hiddenAt?: string | null; status
       moderationNote: null,
     },
     review: { reviewerId: "dev-mallory", stars: 2, note: "Rubbish, all of it.", hiddenAt: over.hiddenAt ?? null },
+    message: null,
+    reportsOnTarget: 1,
+  };
+}
+
+const TRIP_ID = "cc000000-0000-4000-8000-000000000001";
+const MESSAGE_ID = "cc000000-0000-4000-8000-000000000002";
+
+function messageReport(over: { reportId: string; hiddenAt?: string | null; status?: ReportStatus }): AdminReportQueueItem {
+  return {
+    report: {
+      reportId: over.reportId,
+      target: { kind: "trip_message", tripId: TRIP_ID, messageId: MESSAGE_ID },
+      reporterId: "dev-reporter",
+      reason: "offensive",
+      note: null,
+      status: over.status ?? "open",
+      createdAt: "2026-10-13T10:00:00.000Z",
+      resolvedAt: null,
+      resolvedBy: null,
+      resolutionNote: null,
+    },
+    day: null,
+    review: null,
+    message: {
+      tripId: TRIP_ID,
+      messageId: MESSAGE_ID,
+      authorId: "dev-mallory",
+      authorDisplayName: "Mallory",
+      body: "Something regrettable",
+      createdAt: "2026-10-13T09:00:00.000Z",
+      deletedAt: null,
+      hiddenAt: over.hiddenAt ?? null,
+    },
     reportsOnTarget: 1,
   };
 }
@@ -232,6 +267,35 @@ describe("ReportsPanel", () => {
     await waitFor(() => expect(sent).toEqual([{ action: "restore-review" }]));
   });
 
+  // M46 D6: a chat message is decided on its words and its author, and the
+  // hide and restore are the message's own, never the day's.
+  it("shows a chat message report with its words and author, and hides the message", async () => {
+    const user = userEvent.setup();
+    const sent = mount([messageReport({ reportId: REPORT_A })]);
+    const r = within(row(REPORT_A));
+
+    expect(r.getByText(/^Chat message$/)).toBeTruthy();
+    expect(r.getByText(/Something regrettable/)).toBeTruthy();
+    expect(r.getByText(/Mallory/)).toBeTruthy();
+    expect(r.queryByText("This day no longer exists.")).toBeNull();
+    expect(r.queryByRole("button", { name: "Hide from the library" })).toBeNull();
+
+    await user.click(r.getByRole("button", { name: "Hide message" }));
+    await waitFor(() => expect(sent).toEqual([{ action: "hide-message" }]));
+  });
+
+  it("offers Restore message for a hidden message", async () => {
+    const user = userEvent.setup();
+    const sent = mount([messageReport({ reportId: REPORT_A, status: "actioned", hiddenAt: "2026-10-13T11:00:00.000Z" })]);
+    await user.click(screen.getByRole("button", { name: /^Actioned/ }));
+    const r = within(row(REPORT_A));
+
+    expect(r.getByText(/Message hidden since/)).toBeTruthy();
+    expect(r.queryByRole("button", { name: "Hide message" })).toBeNull();
+    await user.click(r.getByRole("button", { name: "Restore message" }));
+    await waitFor(() => expect(sent).toEqual([{ action: "restore-message" }]));
+  });
+
   it("shows a report whose day is gone, and offers only Dismiss", () => {
     mount([dayReport({ reportId: REPORT_A, day: null })]);
     const r = within(row(REPORT_A));
@@ -246,7 +310,7 @@ describe("ReportsPanel", () => {
     const user = userEvent.setup();
     mount([]);
 
-    expect(screen.getByText("Nothing open. Reports people file on shared days and reviews land here.")).toBeTruthy();
+    expect(screen.getByText("Nothing open. Reports people file on shared days, reviews and chat messages land here.")).toBeTruthy();
     await user.click(screen.getByRole("button", { name: /^Dismissed/ }));
     expect(screen.getByText("Nothing dismissed yet.")).toBeTruthy();
   });

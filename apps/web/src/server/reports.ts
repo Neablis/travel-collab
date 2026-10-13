@@ -9,9 +9,11 @@ import type {
 } from "@tc/contracts";
 import type { AdminReportQueueItem } from "@/lib/reports";
 import { displayNameFor } from "@/lib/displayName";
+import { isDemoTripId } from "@/lib/demoTrip";
+import { bumpChatRev } from "./chat/rev";
 import { forgetCitySearches } from "./cities";
 import { db, type Queryable } from "./db/client";
-import { contentReports, savedDayReviews, savedDays } from "./db/schema";
+import { contentReports, savedDayReviews, savedDays, tripMessages } from "./db/schema";
 import { isUuid } from "./ids";
 import { invalidatePublicDay } from "./libraryCache";
 import { lockSavedDayForReviewWrite, recomputeReviewCounters } from "./reviews";
@@ -21,8 +23,8 @@ import { readableSavedDay } from "./savedDays";
 // CRUD, like the reviews: nothing here is trip state, and nothing here enters
 // the event log.
 //
-// **This module is the only writer of `saved_days.moderated_at` and
-// `saved_day_reviews.hidden_at`.** What a moderated day disappears FROM is not
+// **This module is the only writer of `saved_days.moderated_at`,
+// `saved_day_reviews.hidden_at` and `trip_messages.hidden_at`.** What a moderated day disappears FROM is not
 // decided here — that is the `notModerated` filter in `playbooks.ts`,
 // `cities.ts` and `readableSavedDay`, listed in the schema's `moderatedAt`
 // note. This module only moves the columns — including putting them back after
@@ -36,10 +38,17 @@ export type ReportRefusal = {
 };
 export type ReportResult<T> = { ok: true; value: T } | { ok: false; error: ReportRefusal };
 
+// The non-null assertions are the `content_reports_target_shape` CHECK's: a
+// kind's columns are set, or the row could not have been written.
 function targetOf(row: ReportRow): ReportTarget {
-  return row.targetKind === "review"
-    ? { kind: "review", savedDayId: row.savedDayId, reviewerId: row.reviewAuthorId! }
-    : { kind: "saved_day", savedDayId: row.savedDayId };
+  switch (row.targetKind) {
+    case "review":
+      return { kind: "review", savedDayId: row.savedDayId!, reviewerId: row.reviewAuthorId! };
+    case "trip_message":
+      return { kind: "trip_message", tripId: row.tripId!, messageId: row.tripMessageId! };
+    case "saved_day":
+      return { kind: "saved_day", savedDayId: row.savedDayId! };
+  }
 }
 
 function toDto(row: ReportRow): ContentReport {
@@ -66,6 +75,9 @@ function toDto(row: ReportRow): ContentReport {
  * DISTINCT.
  */
 function sameTarget(target: ReportTarget) {
+  if (target.kind === "trip_message") {
+    return and(eq(contentReports.targetKind, target.kind), eq(contentReports.tripMessageId, target.messageId));
+  }
   return and(
     eq(contentReports.targetKind, target.kind),
     eq(contentReports.savedDayId, target.savedDayId),
@@ -85,7 +97,8 @@ const NOT_FOUND: ReportRefusal = { code: "not-found", message: "There is nothing
  * deleted one and a moderated one all answer `not-found`: the same answer
  * `requireSavedDayRead` gives, for the reason `saved-day-access.ts` records. A
  * review target additionally needs a visible review row; a hidden review is
- * already out of the library, and is `not-found` on the same terms.
+ * already out of the library, and is `not-found` on the same terms. A chat
+ * message needs the trip's chat (`messageRefusal`).
  *
  * **Your own content is refused** (`own-content`): reporting yourself is not a
  * moderation signal, and a report the author filed would sit in the queue
@@ -103,37 +116,21 @@ export async function createReport(
   now: string = new Date().toISOString(),
 ): Promise<ReportResult<{ report: ContentReport; created: boolean }>> {
   const { target } = input;
-  const day = await readableSavedDay(target.savedDayId, reporterId);
-  if (day === null) return { ok: false, error: NOT_FOUND };
-
-  if (target.kind === "saved_day") {
-    if (day.ownerId === reporterId) {
-      return { ok: false, error: { code: "own-content", message: "You cannot report your own day." } };
-    }
-  } else {
-    const review = await db
-      .select({ hiddenAt: savedDayReviews.hiddenAt })
-      .from(savedDayReviews)
-      .where(
-        and(
-          eq(savedDayReviews.savedDayId, target.savedDayId),
-          eq(savedDayReviews.reviewerId, target.reviewerId),
-        ),
-      );
-    if (review[0] === undefined) return { ok: false, error: NOT_FOUND };
-    if (target.reviewerId === reporterId) {
-      return { ok: false, error: { code: "own-content", message: "You cannot report your own review." } };
-    }
-    if (review[0].hiddenAt !== null) return { ok: false, error: NOT_FOUND };
-  }
+  const refusal =
+    target.kind === "trip_message"
+      ? await messageRefusal(reporterId, target.tripId, target.messageId)
+      : await libraryRefusal(reporterId, target);
+  if (refusal !== null) return { ok: false, error: refusal };
 
   const written = await db
     .insert(contentReports)
     .values({
       id: randomUUID(),
       targetKind: target.kind,
-      savedDayId: target.savedDayId,
+      savedDayId: target.kind === "trip_message" ? null : target.savedDayId,
       reviewAuthorId: target.kind === "review" ? target.reviewerId : null,
+      tripId: target.kind === "trip_message" ? target.tripId : null,
+      tripMessageId: target.kind === "trip_message" ? target.messageId : null,
       reporterId,
       reason: input.reason,
       note: input.note,
@@ -152,6 +149,56 @@ export async function createReport(
   return { ok: true, value: { report: toDto(existing[0]!), created: false } };
 }
 
+/** {@link createReport}'s read of a day or a review: null when the reporter may report it. */
+async function libraryRefusal(
+  reporterId: string,
+  target: Exclude<ReportTarget, { kind: "trip_message" }>,
+): Promise<ReportRefusal | null> {
+  const day = await readableSavedDay(target.savedDayId, reporterId);
+  if (day === null) return NOT_FOUND;
+
+  if (target.kind === "saved_day") {
+    if (day.ownerId === reporterId) return { code: "own-content", message: "You cannot report your own day." };
+  } else {
+    const review = await db
+      .select({ hiddenAt: savedDayReviews.hiddenAt })
+      .from(savedDayReviews)
+      .where(
+        and(
+          eq(savedDayReviews.savedDayId, target.savedDayId),
+          eq(savedDayReviews.reviewerId, target.reviewerId),
+        ),
+      );
+    if (review[0] === undefined) return NOT_FOUND;
+    if (target.reviewerId === reporterId) return { code: "own-content", message: "You cannot report your own review." };
+    if (review[0].hiddenAt !== null) return NOT_FOUND;
+  }
+  return null;
+}
+
+/**
+ * {@link createReport}'s read of a chat message (M46 D6), on the same terms:
+ * only a member of a trip the chat serves may report one — not on the demo,
+ * not on a deleted trip (ADR-073 §3, §5) — and only a message on that trip
+ * that is still in the conversation. Your own is refused after the read.
+ */
+async function messageRefusal(reporterId: string, tripId: string, messageId: string): Promise<ReportRefusal | null> {
+  if (isDemoTripId(tripId)) return NOT_FOUND;
+  // Loaded here, not at the top: `trip-access` reaches `auth` and so
+  // `next/headers`, which plain node cannot resolve, and the production content
+  // import loads this module for `carryModeration` (strip-only-entry-points test).
+  const { tripAccessFor } = await import("./access/trip-access");
+  const access = await tripAccessFor(reporterId, tripId, "viewer");
+  if (!access.ok || access.detail.status === "deleted") return NOT_FOUND;
+  const [message] = await db
+    .select({ authorId: tripMessages.authorId, deletedAt: tripMessages.deletedAt, hiddenAt: tripMessages.hiddenAt })
+    .from(tripMessages)
+    .where(and(eq(tripMessages.tripId, tripId), eq(tripMessages.id, messageId)));
+  if (message === undefined || message.deletedAt !== null || message.hiddenAt !== null) return NOT_FOUND;
+  if (message.authorId === reporterId) return { code: "own-content", message: "You cannot report your own message." };
+  return null;
+}
+
 /**
  * How many rows the queue returns. The population is invited and small; this
  * bounds a response, it is not a page size anyone navigates.
@@ -163,18 +210,21 @@ const QUEUE_LIMIT = 200;
  * `content_reports_status` index serves.
  *
  * Each row carries what the target IS (the day's name and owner, the review's
- * stars and note) and how many people reported it, because an operator
- * deciding from a reason code alone is deciding blind.
+ * stars and note, the message's words and author) and how many people
+ * reported it, because an operator deciding from a reason code alone is
+ * deciding blind. A message's words are shown even after its author deleted
+ * it: what was said is what the report is about.
  */
 export async function listReports(query: { status: ReportStatus }): Promise<AdminReportQueueItem[]> {
   const peers = sql<number>`(
     select count(*)::int from content_reports r2
     where r2.target_kind = ${contentReports.targetKind}
-      and r2.saved_day_id = ${contentReports.savedDayId}
+      and r2.saved_day_id is not distinct from ${contentReports.savedDayId}
       and r2.review_author_id is not distinct from ${contentReports.reviewAuthorId}
+      and r2.trip_message_id is not distinct from ${contentReports.tripMessageId}
   )`;
   const rows = await db
-    .select({ report: contentReports, day: savedDays, review: savedDayReviews, peers })
+    .select({ report: contentReports, day: savedDays, review: savedDayReviews, message: tripMessages, peers })
     .from(contentReports)
     .leftJoin(savedDays, eq(savedDays.id, contentReports.savedDayId))
     .leftJoin(
@@ -184,11 +234,12 @@ export async function listReports(query: { status: ReportStatus }): Promise<Admi
         eq(savedDayReviews.reviewerId, contentReports.reviewAuthorId),
       ),
     )
+    .leftJoin(tripMessages, eq(tripMessages.id, contentReports.tripMessageId))
     .where(eq(contentReports.status, query.status))
     .orderBy(asc(contentReports.createdAt), asc(contentReports.id))
     .limit(QUEUE_LIMIT);
 
-  return rows.map(({ report, day, review, peers: count }) => ({
+  return rows.map(({ report, day, review, message, peers: count }) => ({
     report: toDto(report),
     day:
       day === null
@@ -211,14 +262,47 @@ export async function listReports(query: { status: ReportStatus }): Promise<Admi
             note: review.note,
             hiddenAt: review.hiddenAt?.toISOString() ?? null,
           },
+    message:
+      message === null
+        ? null
+        : {
+            tripId: message.tripId,
+            messageId: message.id,
+            authorId: message.authorId,
+            authorDisplayName: displayNameFor({ userId: message.authorId }),
+            body: message.body,
+            createdAt: message.createdAt.toISOString(),
+            deletedAt: message.deletedAt?.toISOString() ?? null,
+            hiddenAt: message.hiddenAt?.toISOString() ?? null,
+          },
     reportsOnTarget: Number(count),
   }));
 }
 
 /** Which reports an action settles, and what it settles them as. */
 function resolutionOf(action: AdminReportAction["action"]): ReportStatus {
-  return action === "hide-day" || action === "hide-review" ? "actioned" : "dismissed";
+  return action === "hide-day" || action === "hide-review" || action === "hide-message" ? "actioned" : "dismissed";
 }
+
+/**
+ * The target kinds each action fits. A day's actions fit a review report too:
+ * the operator may decide the day itself is the problem.
+ */
+const FITS: Record<AdminReportAction["action"], readonly ReportTarget["kind"][]> = {
+  "hide-day": ["saved_day", "review"],
+  "restore-day": ["saved_day", "review"],
+  "hide-review": ["review"],
+  "restore-review": ["review"],
+  "hide-message": ["trip_message"],
+  "restore-message": ["trip_message"],
+  dismiss: ["saved_day", "review", "trip_message"],
+};
+
+const KIND_NAME: Record<ReportTarget["kind"], string> = {
+  saved_day: "a day",
+  review: "a review",
+  trip_message: "a chat message",
+};
 
 /**
  * An operator acts on a report. One decision per TARGET, not per report: the
@@ -232,8 +316,10 @@ function resolutionOf(action: AdminReportAction["action"]): ReportStatus {
  *     the day's.
  *   * `hide-review` sets `hidden_at` and recomputes the day's counters; review
  *     targets only.
+ *   * `hide-message` sets the chat message's `hidden_at` and moves the trip's
+ *     `chatRev`; message targets only.
  *   * `dismiss` resolves every open report on the target as `dismissed`.
- *   * `restore-day` / `restore-review` clear the flag. Reports already actioned
+ *   * `restore-day` / `restore-review` / `restore-message` clear the flag. Reports already actioned
  *     keep their record of what happened; any still open on the target are
  *     dismissed, since the operator has just decided it stays.
  *
@@ -249,8 +335,8 @@ export async function actOnReport(
 ): Promise<ReportResult<ContentReport>> {
   if (!isUuid(reportId)) return { ok: false, error: { code: "not-found", message: "No such report." } };
   const at = new Date(now);
-  // Whose day a hide or a restore moved, for the cache it clears after commit.
-  let dayOwner: string | undefined;
+  // The day a hide or a restore moved, and whose it is, for the cache it clears after commit.
+  let dayOwner: { savedDayId: string; ownerId: string } | undefined;
 
   const result = await db.transaction(async (tx): Promise<ReportResult<ContentReport>> => {
     const found = await tx.select().from(contentReports).where(eq(contentReports.id, reportId)).for("update");
@@ -258,13 +344,16 @@ export async function actOnReport(
     if (row === undefined) return { ok: false, error: { code: "not-found", message: "No such report." } };
     const target = targetOf(row);
 
-    if ((action.action === "hide-review" || action.action === "restore-review") && target.kind !== "review") {
+    if (!FITS[action.action].includes(target.kind)) {
       return {
         ok: false,
-        error: { code: "action-mismatch", message: "That report is about a day, not a review." },
+        error: { code: "action-mismatch", message: `That report is about ${KIND_NAME[target.kind]}.` },
       };
     }
 
+    // A day or review report names a day; `FITS` keeps the day's and the
+    // review's actions to those, so this is set wherever it is read.
+    const savedDayId = row.savedDayId!;
     // How many rows the action moved: zero means the target is gone.
     let touched: number;
     switch (action.action) {
@@ -277,31 +366,44 @@ export async function actOnReport(
               ? { moderatedAt: sql`coalesce(${savedDays.moderatedAt}, ${at})`, moderationNote: action.note ?? null }
               : { moderatedAt: null, moderationNote: null },
           )
-          .where(eq(savedDays.id, row.savedDayId))
+          .where(eq(savedDays.id, savedDayId))
           .returning({ ownerId: savedDays.ownerId });
         touched = moved.length;
-        dayOwner = moved[0]?.ownerId;
+        dayOwner = moved[0] && { savedDayId, ownerId: moved[0].ownerId };
         break;
       }
+      case "hide-message":
+      case "restore-message":
+        // The message reads as removed for every member while hidden (ADR-073
+        // §4); `chatRev` moves in the same transaction, so every open page
+        // re-reads, as it does for an author's delete.
+        touched = await tx
+          .update(tripMessages)
+          .set({ hiddenAt: action.action === "hide-message" ? sql`coalesce(${tripMessages.hiddenAt}, ${at})` : null })
+          .where(eq(tripMessages.id, row.tripMessageId!))
+          .returning({ id: tripMessages.id })
+          .then((r) => r.length);
+        if (touched > 0) await bumpChatRev(tx, row.tripId!);
+        break;
       case "hide-review":
       case "restore-review":
         // Lock BEFORE the flag write, not just before the recompute: under READ
         // COMMITTED a waiting UPDATE does not re-run its subquery, so a review
         // posted concurrently would be missing from the stored count
         // (`reviews.ts`, `lockSavedDayForReviewWrite`).
-        await lockSavedDayForReviewWrite(tx, row.savedDayId);
+        await lockSavedDayForReviewWrite(tx, savedDayId);
         touched = await tx
           .update(savedDayReviews)
           .set({ hiddenAt: action.action === "hide-review" ? sql`coalesce(${savedDayReviews.hiddenAt}, ${at})` : null })
           .where(
             and(
-              eq(savedDayReviews.savedDayId, row.savedDayId),
+              eq(savedDayReviews.savedDayId, savedDayId),
               eq(savedDayReviews.reviewerId, row.reviewAuthorId!),
             ),
           )
           .returning({ savedDayId: savedDayReviews.savedDayId })
           .then((r) => r.length);
-        if (touched > 0) await recomputeReviewCounters(tx, row.savedDayId);
+        if (touched > 0) await recomputeReviewCounters(tx, savedDayId);
         break;
       case "dismiss":
         touched = 1;
@@ -318,7 +420,7 @@ export async function actOnReport(
     // so a day hidden from a review report does not leave that report open.
     const settles =
       action.action === "hide-day" || action.action === "restore-day"
-        ? sameTarget({ kind: "saved_day", savedDayId: row.savedDayId })
+        ? sameTarget({ kind: "saved_day", savedDayId })
         : sameTarget(target);
     const openOnTarget = await tx
       .select({ id: contentReports.id })
@@ -340,7 +442,7 @@ export async function actOnReport(
   // read in between would re-cache the library the same way (ADR-063).
   if (result.ok && dayOwner !== undefined) {
     forgetCitySearches();
-    await invalidatePublicDay(result.value.target.savedDayId, dayOwner);
+    await invalidatePublicDay(dayOwner.savedDayId, dayOwner.ownerId);
   }
   return result;
 }

@@ -84,6 +84,17 @@ describe("ReportTarget", () => {
       reviewerId: "dev-bob",
     });
   });
+
+  // M46 D6. Both ids are uuids, and both are required: the server reads the
+  // message by (trip, id), so a target missing either names nothing.
+  it("names a chat message by its trip and its id", () => {
+    const tripId = "4d6e8fa0-3333-4444-8555-666677778888";
+    const messageId = "5e7f9a01-4444-4555-8666-777788889999";
+    expect(ReportTarget.parse({ kind: "trip_message", tripId, messageId })).toEqual({ kind: "trip_message", tripId, messageId });
+    expect(ReportTarget.safeParse({ kind: "trip_message", tripId }).success).toBe(false);
+    expect(ReportTarget.safeParse({ kind: "trip_message", messageId }).success).toBe(false);
+    expect(ReportTarget.safeParse({ kind: "trip_message", tripId: "porto", messageId }).success).toBe(false);
+  });
 });
 
 describe("CreateReportInput", () => {
@@ -102,7 +113,7 @@ describe("CreateReportInput", () => {
 });
 
 describe("AdminReportAction", () => {
-  it.each(["hide-day", "hide-review", "dismiss", "restore-day", "restore-review"])("accepts %s", (action) => {
+  it.each(["hide-day", "hide-review", "dismiss", "restore-day", "restore-review", "hide-message", "restore-message"])("accepts %s", (action) => {
     expect(AdminReportAction.parse({ action }).action).toBe(action);
   });
 

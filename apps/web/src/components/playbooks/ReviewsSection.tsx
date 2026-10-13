@@ -12,7 +12,7 @@ import { Text } from "@/components/ui/text";
 import { cn } from "@/lib/cn";
 import { formatRelativeInstant } from "@/lib/formatDate";
 import { initialsFor } from "@/lib/initials";
-import { ReportAction } from "./ReportDialog";
+import { ReportAction } from "@/components/report/ReportDialog";
 import { Stars } from "./Stars";
 import { noteCharsLeft, noteCountLabel, reviewMeta, starWord, starsPhrase } from "./reviewDisplay";
 import type { DayReviews } from "./useDayReviews";
