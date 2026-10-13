@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
+import { readFileSync, realpathSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -293,9 +293,9 @@ export function main(argv, { api = ghApi, cwd = process.cwd(), log = console.log
   }
   let snapshot = null;
   try {
-    if (existsSync(file)) snapshot = JSON.parse(readFileSync(file, "utf8"));
+    snapshot = JSON.parse(readFileSync(file, "utf8"));
   } catch {
-    snapshot = null; // A corrupt snapshot is a first run, not a failure.
+    snapshot = null; // A missing or corrupt snapshot is a first run, not a failure.
   }
   let numbers = asked;
   if (!numbers.length) {
@@ -316,7 +316,12 @@ export function main(argv, { api = ghApi, cwd = process.cwd(), log = console.log
   });
   const out = digest(snapshot, entries, { all, now });
   for (const l of out.lines) log(l);
-  if (save) writeFileSync(file, `${JSON.stringify(out.snapshot)}\n`);
+  if (save) {
+    // Write then rename, so a concurrent reader sees the old snapshot or the new one, never half.
+    const tmp = `${file}.${process.pid}.tmp`;
+    writeFileSync(tmp, `${JSON.stringify(out.snapshot)}\n`);
+    renameSync(tmp, file);
+  }
   return 0;
 }
 
