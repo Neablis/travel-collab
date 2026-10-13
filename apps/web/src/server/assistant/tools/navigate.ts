@@ -192,10 +192,13 @@ function wordsOf(text: string): string {
  * Case, punctuation, spacing and "&" for "and" never count. First the trips
  * called exactly what was typed, then what follows a leading "my" or "the"
  * ("my Road trip" is "Road trip", not "Road"), then that without a trailing
- * "trip", then every trip whose name holds what is left. A trip is never
+ * "trip", then every trip whose name holds what is left as whole words
+ * ("Kyoto" finds "Kyoto 2026"). Part of a word is never a match: "India" is
+ * not short for "Indiana", and "my Nice trip" is not "Venice". Nor is a trip
  * found because its name is one of the words typed: "Kyoto trip from Tokyo"
- * names some other trip, not "Tokyo". More than one is for the caller to ask
- * about, never to choose between.
+ * names some other trip, not "Tokyo". When unsure it finds nothing, so the
+ * caller asks; more than one is for the caller to ask about, never to choose
+ * between.
  */
 export function tripsCalled<T extends { name: string }>(trips: readonly T[], name: string): T[] {
   const typed = wordsOf(name);
@@ -208,7 +211,7 @@ export function tripsCalled<T extends { name: string }>(trips: readonly T[], nam
     (words: string) => words === typed,
     (words: string) => words === bare,
     (words: string) => key !== "" && words === key,
-    (words: string) => key !== "" && words.includes(key),
+    (words: string) => key !== "" && ` ${words} `.includes(` ${key} `),
   ];
   for (const fits of tiers) {
     const found = named.filter(({ words }) => fits(words));

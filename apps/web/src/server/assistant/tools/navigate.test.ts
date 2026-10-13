@@ -143,8 +143,8 @@ describe("tripsCalled", () => {
     },
   );
 
-  it("still finds a trip from part of its name, and prefers the exact name", () => {
-    expect(tripsCalled(named("Kyoto 2026", "Osaka"), "Kyo")).toEqual([{ name: "Kyoto 2026" }]);
+  it("still finds a trip from whole words of its name, and prefers the exact name", () => {
+    expect(tripsCalled(named("Kyoto 2026", "Osaka"), "my Kyoto trip")).toEqual([{ name: "Kyoto 2026" }]);
     expect(tripsCalled(named("Kyoto", "Kyoto 2026"), "my Kyoto trip")).toEqual([{ name: "Kyoto" }]);
     // A trip whose name ends in "trip" is still found by its whole name.
     expect(tripsCalled(named("Road trip", "Road"), "Road trip")).toEqual([{ name: "Road trip" }]);
@@ -180,6 +180,20 @@ describe("tripsCalled", () => {
 
   it.each(["Rome", "my trip", "the trip", "", "Kyoto and Nara"])("finds nothing from %j", (typed) => {
     expect(tripsCalled(KYOTO, typed)).toEqual([]);
+  });
+
+  // Part of a word is not a name: "India" is not short for "Indiana". Once
+  // "my" and "trip" are stripped, a match inside a word would act on a trip
+  // the person never named, so it refuses and the assistant asks.
+  it.each([
+    [["Indiana"], "the India trip"],
+    [["Venice"], "my Nice trip"],
+    [["Venice"], "Nice"],
+    [["Romeo's wedding", "Kyoto"], "my Rome trip"],
+    [["Oman"], "the Oma trip"],
+    [["Kyoto 2026", "Osaka"], "Kyo"],
+  ])("from %j, picks no trip whose name only holds %j inside a word", (names, typed) => {
+    expect(tripsCalled(named(...names), typed)).toEqual([]);
   });
 
   // A trip whose whole name is one word of what was typed is not the one
