@@ -76,7 +76,7 @@ import {
 import { cachedRead, clearQueryCache } from "@/lib/queryCache";
 import { tripKeys } from "@/lib/queryKeys";
 import { ASK_FAILED_MESSAGE, CURRENT_PAGE_DOC_VERSION } from "@tc/contracts";
-import { historyFixture, tripDetailFixture } from "@tc/factories";
+import { historyFixture, tripDetailFixture, tripSummaryFactory } from "@tc/factories";
 import { makeTripHandlers } from "@/mocks/handlers";
 
 const server = setupServer();
@@ -515,6 +515,25 @@ describe("fetchSavedDay carries publishedAt without inventing one", () => {
     answer({});
     const older = await fetchSavedDay(UUID);
     expect(older.ok && older.value.moderation).toBeNull();
+  });
+});
+
+// M46 D5. Parsed as a bare `TripSummary`, Zod would strip the count and every
+// card would read as read.
+describe("fetchTrips keeps the unread chat count", () => {
+  const answer = (extra: Record<string, unknown>) =>
+    server.use(
+      http.get("*/api/trips", () => HttpResponse.json({ trips: [{ ...tripSummaryFactory.build(), ...extra }] })),
+    );
+
+  it("reads the count, and its absence from an older server as none", async () => {
+    answer({ unreadChat: 3 });
+    const counted = await fetchTrips();
+    expect(counted.ok && counted.value[0]!.unreadChat).toBe(3);
+
+    answer({});
+    const older = await fetchTrips();
+    expect(older.ok && older.value[0]!.unreadChat).toBe(0);
   });
 });
 

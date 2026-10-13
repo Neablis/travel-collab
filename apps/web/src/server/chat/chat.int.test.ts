@@ -11,7 +11,8 @@ import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ChatMessage, ChatPage, TripEventsPage } from "@tc/contracts";
 import { db } from "@/server/db/client";
-import { users } from "@/server/db/schema";
+import { tripMessages, users } from "@/server/db/schema";
+import { unreadByTrip } from "@/server/chat/messages";
 import { executeTripCommand } from "@/server/commands";
 import { readStream } from "@/server/eventStore";
 import { grantMembership } from "@/server/access/members";
@@ -264,5 +265,60 @@ describe("chatRev on the events poll", () => {
     await db.update(users).set({ planId: "free" }).where(eq(users.id, owner));
     expect((await post(tripId, viewer, { body: "Two" })).status).toBe(402);
     expect(await chatRev(tripId, viewer)).toBe(before);
+  });
+});
+
+describe("unreadByTrip", () => {
+  // D5's Home half: the panel's own rule, for a whole grid at once. Which
+  // trips the reader may see is the caller's to decide; this only counts.
+  it("counts other people's live messages after the reader's cursor, trip by trip", async () => {
+    const lisbon = await sharedTrip();
+    const porto = await sharedTrip();
+    const quiet = await sharedTrip();
+    const first = await posted(lisbon.tripId, lisbon.editor, "Flights booked");
+    await posted(lisbon.tripId, lisbon.viewer, "Hotel too");
+    await posted(lisbon.tripId, lisbon.owner, "My own, never unread to me");
+    const deleted = await posted(lisbon.tripId, lisbon.editor, "Deleted before I saw it");
+    const hidden = await posted(lisbon.tripId, lisbon.viewer, "Hidden by an admin");
+    await posted(porto.tripId, porto.editor, "Porto next?");
+
+    currentUserId = lisbon.editor;
+    const removed = await oneMessage.DELETE(new Request("http://test/x", { method: "DELETE" }), {
+      params: Promise.resolve({ tripId: lisbon.tripId, messageId: deleted.messageId }),
+    });
+    expect(removed.status).toBe(200);
+    // No route hides a message yet (part 5's admin panel); the column is what it reads.
+    await db.update(tripMessages).set({ hiddenAt: new Date() }).where(eq(tripMessages.id, hidden.messageId));
+
+    const counts = await unreadByTrip(lisbon.owner, [lisbon.tripId, porto.tripId, quiet.tripId]);
+    expect(counts.get(lisbon.tripId)).toBe(2);
+    expect(counts.get(porto.tripId)).toBe(1);
+    expect(counts.get(quiet.tripId) ?? 0).toBe(0);
+
+    currentUserId = lisbon.owner;
+    const marked = await read.POST(
+      new Request("http://test/x", { method: "POST", body: JSON.stringify({ messageId: first.messageId }) }),
+      tripParams(lisbon.tripId),
+    );
+    expect(marked.status).toBe(204);
+    expect((await unreadByTrip(lisbon.owner, [lisbon.tripId])).get(lisbon.tripId)).toBe(1);
+  });
+
+  it("is one statement for the whole list, and none for an empty one", async () => {
+    const trips = [await sharedTrip(), await sharedTrip(), await sharedTrip()];
+    for (const t of trips) await posted(t.tripId, t.editor, "Hello");
+    const spy = vi.spyOn(db.$client, "query");
+    try {
+      spy.mockClear();
+      const counts = await unreadByTrip(trips[0]!.owner, trips.map((t) => t.tripId));
+      expect(spy.mock.calls.length).toBe(1);
+      expect(counts.get(trips[0]!.tripId)).toBe(1);
+
+      spy.mockClear();
+      expect((await unreadByTrip(trips[0]!.owner, [])).size).toBe(0);
+      expect(spy.mock.calls.length).toBe(0);
+    } finally {
+      spy.mockRestore();
+    }
   });
 });

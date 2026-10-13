@@ -35,7 +35,7 @@ import {
   TripSnapshot,
   TripSnapshotsResponse,
   TripSuggestionsResponse,
-  TripSummary,
+  ListedTripSummary,
   PreferencesResponse,
   UpdateUserPreferences,
   UserPreferences,
@@ -181,11 +181,11 @@ export async function createTrip(input: {
  * has no TripProvider to ask. Parsed against the contract here so the second
  * caller cannot quietly disagree with the first about the shape.
  */
-export async function fetchTrips(): Promise<ApiResult<TripSummary[]>> {
+export async function fetchTrips(): Promise<ApiResult<ListedTripSummary[]>> {
   try {
     const res = await fetch(apiUrl("/api/trips"));
     return await readJson(res, (data) =>
-      ((data as { trips: unknown[] }).trips ?? []).map((t) => TripSummary.parse(t)),
+      ((data as { trips: unknown[] }).trips ?? []).map((t) => ListedTripSummary.parse(t)),
     );
   } catch (err) {
     return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };

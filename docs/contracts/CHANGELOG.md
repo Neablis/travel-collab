@@ -13,6 +13,21 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-10-13 — `ListedTripSummary`: Home's list carries each trip's unread chat count (M46 part 4, D5)
+
+- **Added** to `packages/contracts/src/trip.ts`: `ListedTripSummary`, `TripSummary.extend({
+  unreadChat })`, a non-negative integer defaulting to 0. It is what `GET /api/trips` serves and
+  `fetchTrips` parses.
+- Why: Home's cards and hero show 💬 with how many messages the reader has not read. Not on
+  `TripSummary`, because `/v1/trips` serves that and chat has no public endpoint yet (*Features
+  ship before their endpoints*).
+- Consumers updated: `apps/web` (`server/chat/messages.ts` `unreadByTrip`, `app/api/trips/route.ts`,
+  `lib/apiClient.ts` `fetchTrips`, `app/(app)/page.tsx`, `components/home/TripCard.tsx`,
+  `components/home/NextTripHero.tsx`). `openapi.json`, `API_VERSION` and `API_FINGERPRINT` are
+  unchanged.
+- Breaking? no. A new schema; `TripSummary` is untouched, and the default reads an older server's
+  list as nothing unread.
+
 ## 2026-10-13 — `chat.ts` and `TripEventsPage.chatRev`: a trip has a conversation (M46 part 1, ADR-073)
 
 - **Added** `packages/contracts/src/chat.ts`: `ChatLink` (`{ kind: "day" | "stop", id }`),

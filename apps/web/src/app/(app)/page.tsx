@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { MoreVertical } from "lucide-react";
-import type { TripSummary } from "@tc/contracts";
+import type { ListedTripSummary, TripSummary } from "@tc/contracts";
 import { Heading } from "@/components/ui/heading";
 import { useIsPhone } from "@/lib/useIsPhone";
 import { Text } from "@/components/ui/text";
@@ -87,7 +87,7 @@ export default function Home() {
   useEffect(() => {
     setDateIso(todayIso());
   }, []);
-  const [trips, setTrips] = useState<TripSummary[] | null>(null);
+  const [trips, setTrips] = useState<ListedTripSummary[] | null>(null);
   const [unauthenticated, setUnauthenticated] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Why this is separate from `error` above: `error` is delete/duplicate
@@ -420,6 +420,9 @@ export default function Home() {
   // was "All trips" and drew the hero's trip a second time directly under it.
   // In the same order, so the grid reads on from the hero.
   const otherTrips = orderedTrips.slice(1);
+  // Each trip's unread chat count (M46 D5), by id: `orderHomeTrips` hands back
+  // bare summaries. As fresh as this page's load; Home does not poll.
+  const unreadChatById = new Map(visibleTrips.map((t) => [t.tripId, t.unreadChat]));
 
   // One TripDetail fetch per grid trip (keyed by a joined id string so this
   // only refires when the actual set of ids changes, not on every render):
@@ -679,7 +682,14 @@ export default function Home() {
         {loading ? (
           <NextTripHeroSkeleton />
         ) : (
-          nextTrip && <NextTripHero trip={nextTrip} menuSlot={tripMenu(nextTrip)} viewerId={viewerId} />
+          nextTrip && (
+            <NextTripHero
+              trip={nextTrip}
+              menuSlot={tripMenu(nextTrip)}
+              viewerId={viewerId}
+              unreadChat={unreadChatById.get(nextTrip.tripId)}
+            />
+          )
         )}
 
         <div className="flex flex-col gap-3.5">
@@ -767,6 +777,7 @@ export default function Home() {
                         plannedOfBudget={plannedOfBudgetById[t.tripId]}
                         menuSlot={tripMenu(t)}
                         viewerId={viewerId}
+                        unreadChat={unreadChatById.get(t.tripId)}
                       />
                     ))}
                   </div>

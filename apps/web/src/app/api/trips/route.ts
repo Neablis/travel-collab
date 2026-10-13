@@ -5,6 +5,7 @@ import { readBody } from "@/server/readBody";
 import { executeTripCommand } from "@/server/commands";
 import { withListedMembers } from "@/server/access/members";
 import { db } from "@/server/db/client";
+import { unreadByTrip } from "@/server/chat/messages";
 import { listTripSummariesVisibleTo } from "@/server/projections";
 
 export async function GET() {
@@ -27,7 +28,13 @@ export async function GET() {
   // person's persona (M38) on it. One batched read of each for all of them —
   // this was an `effectiveMembers` per trip. The stored projection is
   // untouched (invariant 2): this is a read overlay and nothing writes back.
-  return Response.json({ trips: await withListedMembers(db, rows) });
+  const [trips, unread] = await Promise.all([
+    withListedMembers(db, rows),
+    unreadByTrip(userId, rows.map((r) => r.tripId)),
+  ]);
+  // Home's own list, so a `ListedTripSummary`: the unread chat count (M46 D5)
+  // stays off `TripSummary`, which `/v1/trips` serves too.
+  return Response.json({ trips: trips.map((t) => ({ ...t, unreadChat: unread.get(t.tripId) ?? 0 })) });
 }
 
 // **The client may mint the id** (KI-2026-09-12-e). `CreateTrip` in
