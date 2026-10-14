@@ -140,6 +140,7 @@ import { admissionPorts } from "@/server/ai/admissionPorts";
 import {
   ASK_FAILED_MESSAGE,
   ASK_INTERNAL_ERROR_MESSAGE,
+  ASK_PROPOSAL_FAILED_MESSAGE,
   SIMULATED_HEADER,
   type AskStreamMetadata,
   type AssistantProposal,
@@ -933,12 +934,28 @@ export async function handleAskRequest(
     const finalOutcome = (): AskStreamMetadata | undefined => {
       if (proposesPage) return pageInsertsMetadata(pageBuffer.inserted());
       if (!proposesPlan()) return undefined;
-      const proposal = buildProposal(
-        proposalBuffer.collected(),
-        detail,
-        { tripId, actorId: userId, placeCache },
-        proposalBuffer.inserts(),
-      );
+      let proposal: AssistantProposal | null;
+      try {
+        proposal = buildProposal(
+          proposalBuffer.collected(),
+          detail,
+          { tripId, actorId: userId, placeCache },
+          proposalBuffer.inserts(),
+        );
+      } catch (error) {
+        // KI-2026-09-24-w: a throw here used to error the response body — the
+        // answer had already streamed, so the person got neither it nor a
+        // proposal. The turn keeps its answer and carries this note instead.
+        // The `ai.ask` record already finished in `onEnd` (first writer wins),
+        // so the failure is re-emitted on the `ai.ask.outcome` line, which is
+        // written after it and joined by `turnId` — and the cause goes to the
+        // server's logs, the same channel `suggestProposal`'s own catch uses.
+        console.error("ask: building the proposal failed", { tripId, turnId, error });
+        recordAskOutcome(
+          askOutcomeRecord({ turnId, tripId, userId }, proposalBuffer.collected().length, { kind: "buildFailed" }),
+        );
+        return { proposalFailed: { message: ASK_PROPOSAL_FAILED_MESSAGE } };
+      }
       if (proposal === null) return notAppliedMetadata(proposalBuffer.collected(), detail, { tripId, actorId: userId, placeCache });
       finalProposal = proposal;
       return { proposal };

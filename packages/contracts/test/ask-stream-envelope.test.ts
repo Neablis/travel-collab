@@ -1,6 +1,6 @@
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
-import { ASK_RETRACT_CHUNK, AskRetractData, AskStreamMetadata, AssistantProposal, SIMULATED_HEADER, isAssistantCommandId } from "../src";
+import { ASK_PROPOSAL_FAILED_MESSAGE, ASK_RETRACT_CHUNK, AskRetractData, AskStreamMetadata, AssistantProposal, SIMULATED_HEADER, isAssistantCommandId } from "../src";
 
 const TRIP_ID = "11111111-1111-4111-8111-111111111111";
 const DAY_ID = "22222222-2222-4222-8222-222222222222";
@@ -33,7 +33,7 @@ const SUGGESTED = {
   snapshotName: "Before: add a day in Kyoto",
 };
 
-describe("the /ask stream envelope — the five shapes the final chunk may take", () => {
+describe("the /ask stream envelope — the seven shapes the final chunk may take", () => {
   const ACCEPTED: [unknown, string][] = [
     [{ proposal: PROPOSAL }, "a proposal"],
     [{ suggested: SUGGESTED }, "a multi-change turn stored as a suggestion"],
@@ -44,6 +44,7 @@ describe("the /ask stream envelope — the five shapes the final chunk may take"
     [{ proposal: { ...PROPOSAL, notSuggested: "This trip already has 200 suggested changes waiting." } }, "a card that could not be stored"],
     [{ pageInserts: { content: PAGE_DOC } }, "a page turn's inserts"],
     [{ composeError: 'Macro "cost.day" params failed validation.' }, "a compose refusal"],
+    [{ proposalFailed: { message: ASK_PROPOSAL_FAILED_MESSAGE } }, "a proposal that could not be built (KI-2026-09-24-w)"],
     [{}, "a page turn that inserted nothing"],
   ];
 
@@ -85,6 +86,7 @@ describe("the /ask stream envelope — the five shapes the final chunk may take"
     [{ proposal: PROPOSAL, pageInserts: { content: PAGE_DOC } }, "a proposal and page inserts"],
     [{ pageInserts: { content: PAGE_DOC }, composeError: "boom" }, "page inserts and a refusal"],
     [{ proposal: PROPOSAL, suggested: SUGGESTED }, "a card and a stored suggestion"],
+    [{ proposal: PROPOSAL, proposalFailed: { message: ASK_PROPOSAL_FAILED_MESSAGE } }, "a proposal and a failed proposal"],
   ];
 
   it.each(AMBIGUOUS)("rejects %j (%s)", (metadata) => {
@@ -114,6 +116,12 @@ describe("the /ask stream envelope — the five shapes the final chunk may take"
   it("rejects a compose refusal with no reason in it", () => {
     expect(AskStreamMetadata.safeParse({ composeError: "" }).success).toBe(false);
   });
+
+  // A failed proposal with no note is neither silence nor a refusal: the note
+  // is the whole point of the shape.
+  it("rejects a failed proposal with no note in it", () => {
+    expect(AskStreamMetadata.safeParse({ proposalFailed: { message: "" } }).success).toBe(false);
+  });
 });
 
 // **A type-level test, and it covers the half of the envelope no parse can
@@ -122,7 +130,7 @@ describe("the /ask stream envelope — the five shapes the final chunk may take"
 // half of why KI-22 moved this shape into contracts at all. The trap is that
 // `{}` is assignable FROM any object, so one `{}` member would make the whole
 // union accept every object and a typo would compile at the producer.
-describe("the envelope's TYPE pins the producer to the same five shapes", () => {
+describe("the envelope's TYPE pins the producer to the same seven shapes", () => {
   it("refuses a misspelled key where `handleAskRequest` builds the chunk", () => {
     // Shaped exactly like `messageMetadata` in `apps/web/src/server/ai`.
     const messageMetadata = (): AskStreamMetadata | undefined =>
