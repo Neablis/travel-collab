@@ -24,8 +24,8 @@ import { useEffect, useRef, useSyncExternalStore } from "react";
  * own, where the screen's panel has more than one tab: it reopens the tab last
  * open (PR 436), while ⌘K's *Ask* keeps `onOpen`, which names Ask. `unread` is
  * the trip's unread chat count where that panel has a Chat tab, for the item's
- * badge and name (M46: one button for Ask and Chat), and `chatShown` says the
- * panel is up on Chat, where ⌘K's *Ask* still has somewhere to go.
+ * unread dot and its name (M46: one button for Ask and Chat), and `chatShown`
+ * says the panel is up on Chat, where ⌘K's *Ask* still has somewhere to go.
  */
 export type PhoneAskEntry = {
   open: boolean;

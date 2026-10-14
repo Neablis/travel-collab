@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 // The failure mode this file exists for: PhoneTabBar's selected tab is derived
@@ -417,7 +417,7 @@ describe("PhoneTabBar", () => {
       );
       const item = screen.getByTestId("ask-tab");
       expect(item.textContent).toBe("Ask");
-      expect(screen.getByTestId("unread-dot").getAttribute("aria-hidden")).toBe("true");
+      expect(within(item).getByTestId("unread-dot").getAttribute("aria-hidden")).toBe("true");
       expect(item.getAttribute("aria-label")).toBe(name);
     });
 
