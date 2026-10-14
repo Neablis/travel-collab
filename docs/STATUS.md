@@ -23,13 +23,15 @@ general setup.
 
 **M46 — A TRIP HAS A CONVERSATION, WITH THE PEOPLE TAKING IT — IS THE CURRENT MILESTONE AS OF
 2026-10-13**, when M45's gate closed (`docs/milestones/M46-a-trip-has-a-conversation.md`). It is
-**proposed, not scoped**: its decisions are recommendations, none answered, and the file predates
-M41's ⌘K palette and M45's assistant surfaces, so scoping checks each against today's UI first.
+**scoped 2026-10-13**: Mitchell answered all six decisions and the layout. Chat is its own store
+(ADR-073), live on the events poll by `chatRev`, a *Chat · Ask* tab in the assistant rail.
+Plan: `docs/plans/2026-10-13-M46-a-trip-has-a-conversation.md`, five parts, each its own PR on
+`main`. Part 0 (prose only, a draft that merges last) is on `claude/m46-a-trip-has-a-conversation`.
 
-**Next action (Mitchell):**
-1. Merge PR 420 (M45's part 0, prose only) once its `ci-ok` passes.
-2. Start M46 with "next milestone" (`build-a-milestone`): scope its decisions with Mitchell
-   before any code.
+**Next action:**
+1. Build part 1, `claude/m46-part1-store-and-routes` (migration `0048`, the chat routes, the
+   access rules, `chatRev` on the poll), with `build-a-part`.
+2. Then parts 2 and 4 from `main` once part 1 merges; parts 3 and 5 after part 2.
 3. Optional, from M45: when the first production playbook turn lands, read it with
    `.claude/skills/ai-usage/ledger.sql` query 11 (no `ask.playbook` row exists yet).
 
