@@ -15,11 +15,16 @@ const pill = (unread: number | undefined) => {
 };
 
 describe("AskPill's unread mark", () => {
-  it.each([1, 12, 120])("draws a dot and no count for %i unread, and still names them", (unread) => {
+  // The names are literals, not built from `unreadWords`, so a wrong count fails here.
+  it.each([
+    [1, "Ask or chat, 1 unread message"],
+    [12, "Ask or chat, 12 unread messages"],
+    [120, "Ask or chat, 120 unread messages"],
+  ])("draws a dot and no count for %i unread, and still names them", (unread, name) => {
     const button = pill(unread);
     expect(button.textContent).toBe("Ask");
     expect(screen.getByTestId("ask-pill-unread").getAttribute("aria-hidden")).toBe("true");
-    expect(button.getAttribute("aria-label")).toMatch(/^Ask or chat, \d+ unread messages?$/);
+    expect(button.getAttribute("aria-label")).toBe(name);
   });
 
   it.each([0, undefined])("draws no dot for %s unread", (unread) => {
