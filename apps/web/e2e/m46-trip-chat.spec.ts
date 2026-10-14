@@ -167,7 +167,7 @@ test("the owner edits and deletes in place, the viewer reports a message, and th
     // The fade is on the controls' wrapper, so this multiplies the opacity the
     // browser computed up the line, which is what the reader sees.
     const booked = beaPanel.getByRole("listitem").filter({ hasText: `Hotel is booked ${run}` });
-    const flag = booked.getByRole("button", { name: "Report message" });
+    const flag = booked.getByRole("button", { name: /^Report .+'s message$/ });
     const seen = () =>
       flag.evaluate((el) => {
         let opacity = 1;

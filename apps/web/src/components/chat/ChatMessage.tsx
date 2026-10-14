@@ -101,7 +101,7 @@ export function ChatMessage({
           "message removed", which is the explanation. */}
       {live && !editing && (
         <div className="flex shrink-0 items-start fine:opacity-0 fine:group-focus-within:opacity-100 fine:group-hover:opacity-100">
-          {!viewer.mine && <ReportAction target={{ kind: "trip_message", tripId, messageId: message.messageId }} name="message" flag />}
+          {!viewer.mine && <ReportAction target={{ kind: "trip_message", tripId, messageId: message.messageId }} name={whose} flag />}
           <PersonMenu label={whose} actions={actions} />
         </div>
       )}

@@ -50,22 +50,24 @@ describe("ChatMessage's actions", () => {
   it("offers another member's message for report, and no way to change it", () => {
     line({ mine: false, mayEdit: false, mayDelete: false });
     expect(actions()).toBeNull();
-    expect(screen.getByRole("button", { name: "Report message" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Report Bea's message" })).toBeTruthy();
   });
 
   // Mitchell's M46 walk: Report was a word-sized button on every line. It is
-  // a flag now, named for screen readers since it has no words of its own.
+  // a flag now, named for screen readers since it has no words of its own,
+  // and the name says whose: a chat is a list of these.
   it("reports another member's message from a flag with no words, which opens the report dialog", async () => {
     line({ mine: false, mayEdit: false, mayDelete: false });
-    const flag = screen.getByRole("button", { name: "Report message" });
+    const flag = screen.getByRole("button", { name: "Report Bea's message" });
     expect(flag.textContent).toBe("");
+    expect(flag.innerHTML).toContain("<svg");
     await userEvent.click(flag);
-    expect(await screen.findByRole("dialog", { name: "Report message" })).toBeTruthy();
+    expect(await screen.findByRole("dialog", { name: "Report Bea's message" })).toBeTruthy();
   });
 
   it("offers the author Edit and Delete on their own, and no Report", async () => {
     const { onEdit } = line({ mine: true, mayEdit: true, mayDelete: true });
-    expect(screen.queryByRole("button", { name: "Report message" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Report Bea's message" })).toBeNull();
     expect(await items()).toEqual(["Edit", "Delete"]);
     await userEvent.click(screen.getByRole("menuitem", { name: "Edit" }));
     expect(onEdit).toHaveBeenCalledOnce();
@@ -73,7 +75,7 @@ describe("ChatMessage's actions", () => {
 
   it("offers the owner Delete on someone else's, beside Report", async () => {
     const { onDelete } = line({ mine: false, mayEdit: false, mayDelete: true });
-    expect(screen.getByRole("button", { name: "Report message" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Report Bea's message" })).toBeTruthy();
     expect(await items()).toEqual(["Delete"]);
     await userEvent.click(screen.getByRole("menuitem", { name: "Delete" }));
     expect(onDelete).toHaveBeenCalledOnce();
@@ -89,7 +91,7 @@ describe("ChatMessage's actions", () => {
   it("offers nothing before the reader is known, and says a message was edited", () => {
     line(null, { ...beas, editedAt: "2026-10-13T10:05:00.000Z" });
     expect(actions()).toBeNull();
-    expect(screen.queryByRole("button", { name: "Report message" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Report Bea's message" })).toBeNull();
     expect(screen.getByRole("listitem").textContent).toContain("edited");
   });
 });
