@@ -1,5 +1,5 @@
 import { cleanup } from "@testing-library/react";
-import { afterEach } from "vitest";
+import { afterEach, vi } from "vitest";
 import { clearQueryCache } from "./src/lib/queryCache";
 // **No automated test may reach a third party** (Mitchell, 2026-09-24): the
 // fetch guard, and Sentry's DSN forced empty. Shared with the integration lane
@@ -63,6 +63,24 @@ if (typeof window !== "undefined") {
   window.scrollBy = () => {};
   window.scrollTo = () => {};
 }
+
+// **jsdom implements no scrolling, and a second dependency warns about it.**
+// `@atlaskit/pragmatic-drag-and-drop-auto-scroll` checks at registration
+// whether its element can scroll, and jsdom's answer is always no: no
+// stylesheet is loaded under Vitest, so `overflow-x-auto` computes to
+// `visible` and every `Board` / `CalendarLens` mount logs "Auto scrolling has
+// been attached to an element that appears not to be scrollable" — 184 times
+// in one unit run, all from suites that never start a drag.
+//
+// A no-op module is the honest stub, for the same reason `window.scrollBy`
+// is one above: jsdom has no layout, so auto-scroll cannot move anything and
+// nothing in the unit lane asserts that it did. The behaviour that matters
+// is a real-browser concern, covered by the e2e drag specs. What the stub
+// removes is a library's unmet expectation, not a signal.
+vi.mock("@atlaskit/pragmatic-drag-and-drop-auto-scroll/element", () => ({
+  autoScrollForElements: () => () => {},
+  autoScrollWindowForElements: () => () => {},
+}));
 
 // @testing-library/react's automatic cleanup-after-each only self-registers
 // when it detects `globals: true`-style test framework globals. This repo's

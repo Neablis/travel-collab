@@ -51,6 +51,10 @@ function token(over: Partial<ApiToken> = {}): ApiToken {
 /** Serve the two reads this section makes, and record what it posts. */
 function serve(options: { tokens?: ApiToken[]; entitlements?: string[]; billingState?: string } = {}) {
   const posted: { url: string; method: string; body: unknown }[] = [];
+  // The real route mints a fresh id per token; the stub used to return the
+  // same fixture id for every POST, so a test that minted twice rendered two
+  // rows with one key and React warned about it on every run.
+  let minted = 0;
   const fetchMock = vi.fn(async (url: string | URL, init?: RequestInit) => {
     const href = String(url);
     const method = init?.method ?? "GET";
@@ -85,8 +89,9 @@ function serve(options: { tokens?: ApiToken[]; entitlements?: string[]; billingS
       );
     }
     if (href === "/api/account/tokens" && method === "POST") {
+      minted += 1;
       return new Response(
-        JSON.stringify({ token: token({ name: "New one" }), secret: "tc_theonlycopy" }),
+        JSON.stringify({ token: token({ tokenId: `minted-token-${minted}`, name: "New one" }), secret: "tc_theonlycopy" }),
         { status: 201 },
       );
     }
