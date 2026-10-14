@@ -83,6 +83,18 @@ export const ASK_FAILED_MESSAGE = "The assistant couldn't answer just now. Try a
  */
 export const ASK_INTERNAL_ERROR_MESSAGE = "The assistant hit a problem on our side, and it has been logged.";
 
+/**
+ * What `/ask` tells the person when the answer streamed but the proposal could
+ * not be built (KI-2026-09-24-w): the answer stands, and the turn's final
+ * chunk carries this where the proposal would have. Same rule as the two
+ * above: a fixed string, never the error's own text; the cause goes to the
+ * server's logs and the turn's `ai.ask.outcome` record. Deliberately does not
+ * suggest retrying — a bug in our own proposal code fails the same way on
+ * every retry.
+ */
+export const ASK_PROPOSAL_FAILED_MESSAGE =
+  "The assistant couldn't prepare that change for approval, and it has been logged.";
+
 // M45 part 5 (KI-2026-10-12-e): `finalStepText.ts` sends it, `apiClient.ts`
 // applies it and the eval's `grade.ts` replays it. Here because the UI may not
 // import `@/server/*`, the reason `SIMULATED_HEADER` above moved: three hand
@@ -319,7 +331,7 @@ const PaletteCommands = z.array(z.unknown()).transform((entries): PaletteCommand
 const WITH_COMMANDS = { paletteCommands: PaletteCommands.optional() };
 
 /**
- * What the stream's final chunk carries, and the only five shapes it may take.
+ * What the stream's final chunk carries, and the only seven shapes it may take.
  *
  * A proposal OR a page, never both: the two tool sets are disjoint server-side
  * — the page surface caps the `itinerary` domain at `read` and no other surface
@@ -328,17 +340,17 @@ const WITH_COMMANDS = { paletteCommands: PaletteCommands.optional() };
  * convention two files hold. A planning turn ends in `proposal` or
  * `suggested`, never both, by its command count (ADR-067 decisions 4 and 5).
  *
- * `{}` is the fifth shape and is a real one: a page-scoped turn that inserted
+ * `{}` is the seventh shape and is a real one: a page-scoped turn that inserted
  * nothing is silence, not a failure — a turn can legitimately answer a question
  * about the page without editing it, which is most of what a conversation does.
  * A turn that only takes you somewhere is this shape with `paletteCommands`.
  * A turn with no outcome at all sends no `messageMetadata` key instead.
  *
- * **The empty branch is strict and the other four are not, and the asymmetry
+ * **The empty branch is strict and the other six are not, and the asymmetry
  * is load-bearing both ways.** A permissive `z.object({})` matches ANY object,
  * so `{ proposal: <garbage> }` would parse as "nothing" and the union would
  * accept every malformed payload rather than rejecting it — it would assert
- * nothing at all. The four payload branches are deliberately NOT strict for
+ * nothing at all. The six payload branches are deliberately NOT strict for
  * the opposite reason: the stream is a superset the server may grow, and a key
  * added beside a valid `proposal` by a newer deployment must not cost an older
  * client the proposal. It strips the key and renders the card.
@@ -405,6 +417,14 @@ const AskStreamShape = z.union([
    * renders — the nodes themselves still never reach it.
    */
   z.object({ composeError: z.string().min(1), ...WITH_COMMANDS }),
+  /**
+   * A planning turn whose answer streamed but whose proposal could not be
+   * built (KI-2026-09-24-w): the answer stands, and the final chunk carries
+   * the server's fixed note where the proposal would have — the throw's own
+   * text never reaches the client. The one-outcome rule covers it like the
+   * others, so it never rides beside a `proposal`.
+   */
+  z.object({ proposalFailed: z.object({ message: z.string().min(1) }), ...WITH_COMMANDS }),
   /**
    * Silence, or only somewhere to go (ADR-072). Strict at runtime for the
    * reason above: it still parses `{}` and still rejects `{ anything: 1 }`.

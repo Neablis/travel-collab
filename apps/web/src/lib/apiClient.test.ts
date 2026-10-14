@@ -80,7 +80,7 @@ import {
 } from "@/lib/apiClient";
 import { cachedRead, clearQueryCache } from "@/lib/queryCache";
 import { tripKeys } from "@/lib/queryKeys";
-import { ASK_FAILED_MESSAGE, CURRENT_PAGE_DOC_VERSION } from "@tc/contracts";
+import { ASK_FAILED_MESSAGE, ASK_PROPOSAL_FAILED_MESSAGE, CURRENT_PAGE_DOC_VERSION } from "@tc/contracts";
 import { historyFixture, tripDetailFixture, tripSummaryFactory } from "@tc/factories";
 import { makeTripHandlers } from "@/mocks/handlers";
 
@@ -1148,6 +1148,22 @@ describe("a turn that changed nothing, on the wire", () => {
     const events: apiClientModule.AskEvent[] = [];
     await askAssistant({ tripId: TRIP_ID, scope: { kind: "trip" } }, [], (e) => events.push(e));
     expect(events.at(-1)).toEqual({ type: "not-applied", skipped });
+  });
+});
+
+describe("a turn whose proposal could not be built, on the wire (KI-2026-09-24-w)", () => {
+  it("arrives as one `proposal-failed` event carrying the server's note", async () => {
+    server.use(
+      http.post("*/api/trips/:tripId/ask", () =>
+        sseResponse([
+          ...ANSWER_FRAMES,
+          `{"type":"finish","finishReason":"stop","messageMetadata":${JSON.stringify({ proposalFailed: { message: ASK_PROPOSAL_FAILED_MESSAGE } })}}`,
+        ]),
+      ),
+    );
+    const events: apiClientModule.AskEvent[] = [];
+    await askAssistant({ tripId: TRIP_ID, scope: { kind: "trip" } }, [], (e) => events.push(e));
+    expect(events.at(-1)).toEqual({ type: "proposal-failed", message: ASK_PROPOSAL_FAILED_MESSAGE });
   });
 });
 

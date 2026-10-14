@@ -1,4 +1,4 @@
-import { ASK_FAILED_MESSAGE, ASK_INTERNAL_ERROR_MESSAGE, ASK_RETRACT_CHUNK, WidgetShape, newPageDoc, type AskStreamMetadata } from "@tc/contracts";
+import { ASK_FAILED_MESSAGE, ASK_INTERNAL_ERROR_MESSAGE, ASK_PROPOSAL_FAILED_MESSAGE, ASK_RETRACT_CHUNK, WidgetShape, newPageDoc, type AskStreamMetadata } from "@tc/contracts";
 import { MACRO_NAMES, getMacro } from "@tc/pages";
 import { APICallError, ToolLoopAgent } from "ai";
 import { randomUUID } from "node:crypto";
@@ -97,6 +97,24 @@ vi.mock("@/server/assistant/deps", async (importOriginal) => {
           return buffer.escalated();
         },
       };
+    },
+  };
+});
+
+// KI-2026-09-24-w: a throw inside `buildProposal` (called from `messageMetadata`
+// on the stream's `finish` part) must not break the stream. Armed per-test;
+// every other call is the real implementation.
+let failNextProposalBuild = false;
+vi.mock("@/server/ai/writeTools", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/server/ai/writeTools")>();
+  return {
+    ...actual,
+    buildProposal: (...args: Parameters<typeof actual.buildProposal>) => {
+      if (failNextProposalBuild) {
+        failNextProposalBuild = false;
+        throw new TypeError("Cannot read properties of undefined (reading 'type')");
+      }
+      return actual.buildProposal(...args);
     },
   };
 });
@@ -2027,6 +2045,29 @@ describe("POST /api/trips/:id/ask", () => {
       expect(listed.ok && listed.value.changes).toEqual([]);
       const snapshots = await listSnapshots(tripId, SECOND_EDITOR);
       expect(snapshots.ok && snapshots.value).toEqual([]);
+    });
+
+    it("keeps the streamed answer and notes the change was not prepared when building the proposal throws (KI-2026-09-24-w)", async () => {
+      const tripId = await seedTrip();
+      await editorsOn(tripId);
+      failNextProposalBuild = false;
+      failNextProposalBuild = true;
+      // RED without the fix: `buildProposal` throws out of `messageMetadata`,
+      // the response body errors, and `res.text()` rejects with the TypeError.
+      const chunks = await turn(tripId, "add a coffee stop to day 1");
+      // The stream completed: the answer streamed and the final chunk arrived.
+      expect(textOf(chunks).length).toBeGreaterThan(0);
+      const outcome = outcomeOf(chunks);
+      expect(outcome).not.toHaveProperty("proposal");
+      expect(outcome?.proposalFailed).toMatchObject({ message: ASK_PROPOSAL_FAILED_MESSAGE });
+      // The turn's own `ai.ask` record already finished in `onEnd`; the
+      // failure is re-emitted on the `ai.ask.outcome` line, joined by turnId.
+      expect(logged).toEqual([
+        expect.objectContaining({ outcome: "buildFailed", commandCount: 1, changeCount: null, turnId: expect.any(String) }),
+      ]);
+      // Nothing stored: there was no proposal to suggest.
+      const listed = await listSuggestionChanges(tripId, SECOND_EDITOR);
+      expect(listed.ok && listed.value.changes).toEqual([]);
     });
 
     it("falls back to the card, saying why, when the trip's suggestions are at their cap — and stores nothing", async () => {
