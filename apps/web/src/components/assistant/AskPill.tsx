@@ -2,7 +2,7 @@
 import { Button } from "@/components/ui/button";
 import { BrandMark } from "@/components/BrandMark";
 import { cn } from "@/lib/cn";
-import { askOrChatName } from "@/components/nav/askOrChat";
+import { askOrChatName, UnreadDot } from "@/components/nav/askOrChat";
 
 // **The trip header's Ask, above 768px only, since Mitchell's 2026-10-10
 // preview pass.** On a phone the one-row header was "way too crowded", and Ask
@@ -110,13 +110,7 @@ export function AskPill({
           widened the pill as it grew and the header reflowed when one
           arrived (Mitchell, M46 walk: "We should always avoid changing sizes
           when possible so page doesnt reflow"). The count is in the name. */}
-      {unread ? (
-        <span
-          aria-hidden
-          data-testid="ask-pill-unread"
-          className="pointer-events-none absolute top-0.5 right-1 size-2.5 rounded-full bg-brand ring-2 ring-surface"
-        />
-      ) : null}
+      {unread ? <UnreadDot testId="ask-pill-unread" className="top-0.5 right-1" /> : null}
     </Button>
   );
 }

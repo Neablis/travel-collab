@@ -25,7 +25,7 @@ import {
 } from "./assistantPosition";
 import { useAssistantPosition } from "./useAssistantShape";
 import { usePinToBottom } from "./usePinToBottom";
-import { UnreadBadge, unreadWords } from "@/components/nav/askOrChat";
+import { UnreadDot, unreadWords } from "@/components/nav/askOrChat";
 import { useAiEntitled } from "@/lib/useAiEntitled";
 
 /**
@@ -125,11 +125,12 @@ const DRAFT_SAVE_MS = 300;
 export type RailTab = "chat" | "ask";
 const RAIL_TABS_ID = "assistant-rail";
 // Chat first: it is the conversation a trip has, and Ask is one person's. The
-// unread count rides on Chat as it does on the button that opened the panel.
+// unread dot rides on Chat as it does on the button that opened the panel, past
+// the label in the 22px between tabs, so the strip does not move when it lands.
 function railTabOptions(unread: number) {
   return [
     unread > 0
-      ? { value: "chat" as const, label: "Chat", badge: <UnreadBadge count={unread} />, name: `Chat, ${unreadWords(unread)}` }
+      ? { value: "chat" as const, label: "Chat", badge: <UnreadDot className="top-0 -right-3" />, name: `Chat, ${unreadWords(unread)}` }
       : { value: "chat" as const, label: "Chat" },
     { value: "ask" as const, label: "Ask" },
   ];

@@ -47,7 +47,8 @@ export function UnderlineTabs<T extends string>({
   value: T | null;
   onValueChange: (value: T) => void;
   /**
-   * `badge` is drawn after the label, hidden from assistive tech; `name` is
+   * `badge` is drawn after the label, in a `relative` box an absolute badge
+   * can sit on the corner of, hidden from assistive tech; `name` is
    * then the tab's accessible name, and says what the badge shows.
    */
   options: readonly { value: T; label: string; badge?: React.ReactNode; name?: string }[];
@@ -152,7 +153,7 @@ export function UnderlineTabs<T extends string>({
             {o.badge === undefined ? (
               o.label
             ) : (
-              <span className="inline-flex items-center gap-1.5">
+              <span className="relative inline-flex items-center gap-1.5">
                 {o.label}
                 <span aria-hidden className="contents">
                   {o.badge}

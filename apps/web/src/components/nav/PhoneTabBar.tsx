@@ -10,7 +10,7 @@ import { cn } from "@/lib/cn";
 import { isDemoBoardPath } from "@/lib/demoTrip";
 import { Button } from "@/components/ui/button";
 import { BrandMark } from "@/components/BrandMark";
-import { askOrChatName, UnreadBadge } from "./askOrChat";
+import { askOrChatName, UnreadDot } from "./askOrChat";
 import { usePhoneAsk } from "./phoneAsk";
 
 // Handoff `Trip Planner Redesign.dc.html:863-871` (markup) and `:7211-7229`
@@ -452,12 +452,9 @@ export function PhoneAskTab() {
           (Mitchell, walking PR 426 at 644px on 2026-10-12). */}
       <span data-testid="phone-tab-pill" className={cn("phone-tab-pill relative grid place-items-center rounded-full", ask.open && "bg-brand-tint")}>
         <BrandMark size={16} tile={false} />
-        {/* On the pill's corner, as an app icon's count sits: the bar's
-            items are a fixed width, and a count beside the label would
-            crowd it. */}
-        <span className="absolute -top-1.5 -right-2.5">
-          <UnreadBadge count={ask.unread} />
-        </span>
+        {/* The header pill's dot, on this pill's corner and out of flow, so
+            neither the glyph nor the item moves when it appears. */}
+        {ask.unread ? <UnreadDot className="-top-0.5 -right-0.5" /> : null}
       </span>
       Ask
     </Button>

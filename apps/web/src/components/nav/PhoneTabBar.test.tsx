@@ -347,8 +347,8 @@ describe("PhoneTabBar", () => {
   // — so what is under test is the hand-off: a screen offers its opener, the
   // bar draws an item that calls it, and nothing is drawn with nothing behind it.
   describe("the Ask item", () => {
-    function Screen({ onOpen, open = false }: { onOpen?: () => void; open?: boolean }) {
-      usePhoneAskEntry(onOpen, open);
+    function Screen({ onOpen, open = false, unread }: { onOpen?: () => void; open?: boolean; unread?: number }) {
+      usePhoneAskEntry(onOpen, open, undefined, undefined, unread);
       return null;
     }
     const ask = () => screen.queryByRole("button", { name: "Ask" });
@@ -399,6 +399,22 @@ describe("PhoneTabBar", () => {
       expect(ask()).not.toBeNull();
       rerender(<PhoneTabBar />);
       expect(ask()).toBeNull();
+    });
+
+    // Mitchell's M46 walk: "Lets keep home card with the full count, the rest
+    // as just the unread dot". The dot is the Ask pill's; the name keeps the count.
+    it.each([1, 12, 120])("marks %i unread with a dot and no count, and still names them", (unread) => {
+      url = "/trips/t1";
+      render(
+        <>
+          <Screen onOpen={() => {}} unread={unread} />
+          <PhoneTabBar />
+        </>,
+      );
+      const item = screen.getByTestId("ask-tab");
+      expect(item.textContent).toBe("Ask");
+      expect(screen.getByTestId("unread-dot").getAttribute("aria-hidden")).toBe("true");
+      expect(item.getAttribute("aria-label")).toMatch(/^Ask or chat, \d+ unread messages?$/);
     });
 
     // M45 D7: Home has an assistant of its own now, so the bar follows the
