@@ -214,6 +214,30 @@ describe("openapi.json is derived from the declarations", () => {
     ).not.toEqual([]);
   });
 
+  // The override above only lifts the ONE recursive schema it knows
+  // (PageNode's z.lazy knot). A second recursive schema in the contracts
+  // would silently degrade to the library's `any` fallback — and the only
+  // signal would be this warning coming back. Pin it: generation must log
+  // no recursive-reference fallback, on either console channel the library
+  // could use.
+  it("emits no recursive-reference fallback for any schema", async () => {
+    const logged: unknown[][] = [];
+    const warn = vi.spyOn(console, "warn").mockImplementation((...args: unknown[]) => void logged.push(args));
+    const error = vi.spyOn(console, "error").mockImplementation((...args: unknown[]) => void logged.push(args));
+    try {
+      await generate();
+    } finally {
+      warn.mockRestore();
+      error.mockRestore();
+    }
+    expect(
+      logged.filter(
+        (args) => typeof args[0] === "string" && args[0].startsWith("Recursive reference detected"),
+      ),
+      "a recursive schema fell back to `any`; it needs a $ref override like PageNode's",
+    ).toEqual([]);
+  });
+
   it("names the scope and the role on every operation", async () => {
     const doc = JSON.parse(await generate()) as {
       paths: Record<string, Record<string, { description: string; security: unknown[] }>>;
