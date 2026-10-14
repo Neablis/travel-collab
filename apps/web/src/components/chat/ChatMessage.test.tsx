@@ -54,6 +54,18 @@ describe("ChatMessage's actions", () => {
     expect(screen.getByRole("button", { name: "Report Bea's message" })).toBeTruthy();
   });
 
+  // Mitchell's M46 walk: Report was a word-sized button on every line. It is
+  // a flag now, named for screen readers since it has no words of its own,
+  // and the name says whose: a chat is a list of these.
+  it("reports another member's message from a flag with no words, which opens the report dialog", async () => {
+    line({ mine: false, mayEdit: false, mayDelete: false });
+    const flag = screen.getByRole("button", { name: "Report Bea's message" });
+    expect(flag.textContent).toBe("");
+    expect(flag.innerHTML).toContain("<svg");
+    await userEvent.click(flag);
+    expect(await screen.findByRole("dialog", { name: "Report Bea's message" })).toBeTruthy();
+  });
+
   it("offers the author Edit and Delete on their own, and no Report", async () => {
     const { onEdit } = line({ mine: true, mayEdit: true, mayDelete: true });
     expect(screen.queryByRole("button", { name: "Report Bea's message" })).toBeNull();

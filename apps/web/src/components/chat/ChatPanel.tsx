@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useKnownSessionUser } from "@/components/account/useSessionUser";
 import type { Persona } from "@/components/pages/people";
@@ -10,7 +10,11 @@ import { Dialog, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Text } from "@/components/ui/text";
 import { cn } from "@/lib/cn";
+import { fetchPages } from "@/lib/pagesClient";
+import { cachedRead, DEDUPE } from "@/lib/queryCache";
+import { tripKeys } from "@/lib/queryKeys";
 import { ChatMessage, type MessageViewer } from "./ChatMessage";
+import { ChatMentionsProvider, type ChatMentions } from "./MessageChip";
 import { useTargetPicker } from "./TargetPicker";
 import type { TripChat } from "./useTripChat";
 
@@ -43,7 +47,23 @@ export function ChatPanel({
   const lines = useRef(new Map<string, HTMLLIElement>());
   const focusLine = (messageId: string | null) => (messageId === null ? undefined : lines.current.get(messageId)?.focus());
   const deletingFrom = useRef<string | null>(null);
-  const picker = useTargetPicker(draft, setDraft);
+  // The trip's notebooks, for the picker and a message's notebook chip: the
+  // board's own read of them, shared through the cache rather than asked again,
+  // and read again on `remoteRevision`, as the board's is, so a notebook added
+  // since is offered and resolves without the panel remounting.
+  const remoteRevision = useOptionalTrip()?.remoteRevision;
+  const [notebooks, setNotebooks] = useState<ChatMentions["notebooks"]>([]);
+  useEffect(() => {
+    let live = true;
+    void cachedRead(tripKeys.pages(chat.tripId), () => fetchPages(chat.tripId), { dedupeMs: DEDUPE.DOCUMENT }).then((result) => {
+      if (live && result.ok) setNotebooks(result.value.pages.map(({ id, title }) => ({ id, title })));
+    });
+    return () => {
+      live = false;
+    };
+  }, [chat.tripId, remoteRevision]);
+  const mentions = useMemo<ChatMentions>(() => ({ tripId: chat.tripId, personas, notebooks }), [chat.tripId, personas, notebooks]);
+  const picker = useTargetPicker(draft, setDraft, mentions);
   // Whether the composer holds anything as last rendered: `send` asks after
   // its await, when the draft it closed over is stale.
   const composing = useRef(false);
@@ -74,7 +94,7 @@ export function ChatPanel({
   }
 
   // The line shows at once (`useTripChat`), so the composer empties at once.
-  // A send that was not stored gives its text back, with its @day/@stop link,
+  // A send that was not stored gives its text back, with its @ link (any kind),
   // unless the reader has started another message by then: that one is not
   // overwritten, and the failed text is dropped, with the hook's "Couldn't
   // send" alert still up to say so. Only the first unsent line's link comes
@@ -95,7 +115,7 @@ export function ChatPanel({
   };
 
   return (
-    <>
+    <ChatMentionsProvider value={mentions}>
       <div ref={scrollport} className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto overscroll-contain px-4 py-3.5">
         {/* Nothing until the first read answers (KI-2026-09-20-e): the
             conversation arrives whole, and is usually here before it opens. */}
@@ -216,6 +236,6 @@ export function ChatPanel({
           )}
         </div>
       )}
-    </>
+    </ChatMentionsProvider>
   );
 }

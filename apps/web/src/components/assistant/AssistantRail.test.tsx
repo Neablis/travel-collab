@@ -1180,6 +1180,19 @@ describe("AssistantRail — focus on open, from useAssistantVisibility", () => {
     expect(screen.getByRole("tab", { name: "Ask" }).matches(":focus")).toBe(true);
   });
 
+  // Mitchell's M46 walk: "Lets keep home card with the full count, the rest
+  // as just the unread dot". The tab's name keeps the count.
+  it.each([
+    [1, "Chat, 1 unread message"],
+    [12, "Chat, 12 unread messages"],
+    [120, "Chat, 120 unread messages"],
+  ])("marks %i unread on the Chat tab with a dot and no count, and still names them", (unread, name) => {
+    render(<AssistantRail {...baseProps} chat={{ tab: "ask", onTabChange: vi.fn(), panel: null, unread }} />);
+    const tab = screen.getByRole("tab", { name });
+    expect(tab.textContent).toBe("Chat");
+    expect(within(tab).getByTestId("unread-dot").getAttribute("aria-hidden")).toBe("true");
+  });
+
   // PR 442 review, finding 2: Safari does not focus a button it taps, so a
   // tap on a tab left focus off the strip and the switch focused the composer,
   // raising the phone's keyboard over the sheet. `fireEvent` clicks as Safari

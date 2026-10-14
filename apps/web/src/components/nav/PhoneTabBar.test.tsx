@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 // The failure mode this file exists for: PhoneTabBar's selected tab is derived
@@ -347,8 +347,8 @@ describe("PhoneTabBar", () => {
   // — so what is under test is the hand-off: a screen offers its opener, the
   // bar draws an item that calls it, and nothing is drawn with nothing behind it.
   describe("the Ask item", () => {
-    function Screen({ onOpen, open = false }: { onOpen?: () => void; open?: boolean }) {
-      usePhoneAskEntry(onOpen, open);
+    function Screen({ onOpen, open = false, unread }: { onOpen?: () => void; open?: boolean; unread?: number }) {
+      usePhoneAskEntry(onOpen, open, undefined, undefined, unread);
       return null;
     }
     const ask = () => screen.queryByRole("button", { name: "Ask" });
@@ -399,6 +399,26 @@ describe("PhoneTabBar", () => {
       expect(ask()).not.toBeNull();
       rerender(<PhoneTabBar />);
       expect(ask()).toBeNull();
+    });
+
+    // Mitchell's M46 walk: "Lets keep home card with the full count, the rest
+    // as just the unread dot". The dot is the Ask pill's; the name keeps the count.
+    it.each([
+      [1, "Ask or chat, 1 unread message"],
+      [12, "Ask or chat, 12 unread messages"],
+      [120, "Ask or chat, 120 unread messages"],
+    ])("marks %i unread with a dot and no count, and still names them", (unread, name) => {
+      url = "/trips/t1";
+      render(
+        <>
+          <Screen onOpen={() => {}} unread={unread} />
+          <PhoneTabBar />
+        </>,
+      );
+      const item = screen.getByTestId("ask-tab");
+      expect(item.textContent).toBe("Ask");
+      expect(within(item).getByTestId("unread-dot").getAttribute("aria-hidden")).toBe("true");
+      expect(item.getAttribute("aria-label")).toBe(name);
     });
 
     // M45 D7: Home has an assistant of its own now, so the bar follows the

@@ -25,6 +25,14 @@ describe("ChatMessage", () => {
     const live = { ...meta, removed: false, body: "Dinner at 8?", link: { kind: "stop", id: meta.messageId } };
     expect(ChatMessage.parse(live)).toEqual(live);
   });
+
+  // A reader on an older build (a stale tab, a rolled-back deploy) must not
+  // fail the whole page on a link kind added after it shipped: PR 446 added
+  // two, and the next one will too. The message is kept, without its link.
+  it("keeps a message whose link kind it does not know, without the link", () => {
+    const parsed = ChatMessage.parse({ ...meta, removed: false, body: "@Later", link: { kind: "unknown_future", id: "x" } });
+    expect(parsed).toEqual({ ...meta, removed: false, body: "@Later" });
+  });
 });
 
 describe("PostChatMessage", () => {
@@ -41,9 +49,15 @@ describe("PostChatMessage", () => {
     expect(EditChatMessage.safeParse({ body: "hi\u0000there" }).success).toBe(false);
   });
 
-  it("links only a day or a stop", () => {
+  it("links only a day, a stop, a notebook or a person", () => {
     const link = { kind: "page", id: meta.messageId };
     expect(PostChatMessage.safeParse({ body: "hi", link }).success).toBe(false);
+  });
+
+  // A person is a `users.id`, which is not a uuid; a notebook's id is.
+  it("takes a person by user id, and a notebook only by uuid", () => {
+    expect(PostChatMessage.safeParse({ body: "hi", link: { kind: "person", id: "dev-bea" } }).success).toBe(true);
+    expect(PostChatMessage.safeParse({ body: "hi", link: { kind: "notebook", id: "dev-bea" } }).success).toBe(false);
   });
 });
 

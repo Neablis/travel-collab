@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { Browser, Page } from "@playwright/test";
+import type { Browser, Locator, Page } from "@playwright/test";
 import { expect, test } from "./fixtures/test";
 import { E2E_SUPER_CODE } from "./admission";
 import { E2E_ADMIN_USERNAME, grantCollaborators } from "./adminBootstrap";
@@ -65,6 +65,7 @@ test("a viewer's message reaches the owner's open page within one poll, and the 
   const { token } = ((await invite.json()) as { invite: { token: string } }).invite;
 
   const bea = await signedInAs(browser, newcomer("bea"), `/invite/${token}`);
+  let read: Awaited<ReturnType<Locator["boundingBox"]>> = null;
   try {
     await bea.getByRole("button", { name: "Join the trip" }).click();
     await expect(bea.getByRole("heading", { name: tripName, level: 1 })).toBeVisible();
@@ -74,6 +75,7 @@ test("a viewer's message reaches the owner's open page within one poll, and the 
     await page.goto(`/trips/${tripId}?view=Plan`);
     await expect(page.getByRole("heading", { name: tripName, level: 1 })).toBeVisible();
     await expect(page.getByTestId("ask-pill")).toHaveAccessibleName("Ask or chat");
+    read = await page.getByTestId("ask-pill").boundingBox();
 
     // ⌘K's *Open chat* opens the panel on Chat.
     await bea.keyboard.press("ControlOrMeta+KeyK");
@@ -98,6 +100,11 @@ test("a viewer's message reaches the owner's open page within one poll, and the 
   // One 2s poll and the read it triggers; a reload would be ~0, so the bound
   // is generous but still far short of anything but the poll delivering it.
   await expect(page.getByTestId("ask-pill")).toHaveAccessibleName("Ask or chat, 1 unread message", { timeout: 10_000 });
+  // A dot on the corner, out of flow: the pill's box is the one it had with
+  // nothing unread, so the header does not reflow (Mitchell, M46 walk).
+  await expect(page.getByTestId("ask-pill-unread")).toBeVisible();
+  expect(read).not.toBeNull();
+  expect(await page.getByTestId("ask-pill").boundingBox()).toEqual(read);
   // One button for both (M46's preview walk): it opens on the tab last open,
   // Ask on this fresh browser, and the panel's tabs switch.
   await page.getByTestId("ask-pill").click();
@@ -163,11 +170,23 @@ test("the owner edits and deletes in place, the viewer reports a message, and th
     await bea.getByTestId("ask-pill").click();
     const beaPanel = bea.getByRole("complementary", { name: "Assistant" });
     await beaPanel.getByRole("tab", { name: /^Chat/ }).click();
-    await beaPanel
-      .getByRole("listitem")
-      .filter({ hasText: `Hotel is booked ${run}` })
-      .getByRole("button", { name: /^Report / })
-      .click();
+    // A flag that shows only while the line is pointed at (Mitchell's walk).
+    // The fade is on the controls' wrapper, so this multiplies the opacity the
+    // browser computed up the line, which is what the reader sees.
+    const booked = beaPanel.getByRole("listitem").filter({ hasText: `Hotel is booked ${run}` });
+    const flag = booked.getByRole("button", { name: /^Report .+'s message$/ });
+    const seen = () =>
+      flag.evaluate((el) => {
+        let opacity = 1;
+        for (let node: Element | null = el; node !== null && node.tagName !== "LI"; node = node.parentElement) {
+          opacity *= Number(getComputedStyle(node).opacity);
+        }
+        return opacity;
+      });
+    expect(await seen()).toBe(0);
+    await booked.hover();
+    await expect.poll(seen).toBe(1);
+    await flag.click();
     const dialog = bea.getByRole("dialog", { name: /^Report / });
     await dialog.getByRole("radio", { name: "Offensive or hateful" }).click();
     await dialog.getByRole("button", { name: "Send" }).click();
@@ -221,7 +240,9 @@ test("a message's @stop is a chip that focuses the stop on Plan, and plain text 
   ]);
 
   const messages = panel.getByRole("list", { name: "Messages" });
-  await messages.getByRole("button", { name: "@Stop on day 1" }).click();
+  // Sent, the chip is the stop's name alone: no `@` (Mitchell's M46 walk).
+  await expect(messages).toContainText("Meet at Stop on day 1");
+  await messages.getByRole("button", { name: "Stop on day 1", exact: true }).click();
   await expect(page).toHaveURL(/view=Plan/);
   await expect(page.getByTestId(`activity-card-${stopId}`).getByRole("button", { name: /^Edit / })).toBeFocused();
 
@@ -232,5 +253,5 @@ test("a message's @stop is a chip that focuses the stop on Plan, and plain text 
   await page.getByTestId("ask-pill").click();
   await panel.getByRole("tab", { name: "Chat" }).click();
   await expect(messages).toContainText("Meet at @Stop on day 1");
-  await expect(messages.getByRole("button", { name: "@Stop on day 1" })).toHaveCount(0);
+  await expect(messages.getByRole("button", { name: "Stop on day 1", exact: true })).toHaveCount(0);
 });

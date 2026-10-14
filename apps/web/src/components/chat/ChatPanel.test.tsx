@@ -6,6 +6,8 @@ import { ChatMessage } from "@tc/contracts";
 import { tripDetailFixture, tripMemberProfileFactory, uuidFrom } from "@tc/factories";
 import { personasOf } from "@/components/pages/people";
 import { tripTargets } from "@/components/palette/commands";
+import { clearQueryCache, invalidate } from "@/lib/queryCache";
+import { tripKeys } from "@/lib/queryKeys";
 import { registerBoardFocus } from "./boardFocus";
 import { FORMER_MEMBER } from "./ChatMessage";
 import { ChatPanel, NO_ACCESS_LINE, READ_ONLY_LINE } from "./ChatPanel";
@@ -15,11 +17,19 @@ import type { TripChat } from "./useTripChat";
 // decided from (M46 D6).
 let me: { id: string } | undefined;
 let myRole: TripRole | null = null;
+// Moves when a co-traveller changes the trip; the trip's notebooks are what
+// the server would answer now.
+let remoteRevision = 0;
+let notebooks: { id: string; title: string }[] = [];
 vi.mock("@/components/account/useSessionUser", () => ({ useKnownSessionUser: () => me }));
-vi.mock("@/components/trip/context/TripProvider", () => ({ useOptionalTrip: () => ({ myRole }) }));
+vi.mock("@/components/trip/context/TripProvider", () => ({ useOptionalTrip: () => ({ myRole, remoteRevision }) }));
+vi.mock("@/lib/pagesClient", () => ({ fetchPages: async () => ({ ok: true, value: { pages: notebooks, viewerId: null } }) }));
 beforeEach(() => {
   me = undefined;
   myRole = null;
+  remoteRevision = 0;
+  notebooks = [];
+  clearQueryCache();
 });
 
 const chat = (over: Partial<TripChat> = {}): TripChat => ({
@@ -150,6 +160,24 @@ describe("ChatPanel", () => {
       await userEvent.click(within(screen.getByRole("dialog", { name: "Delete this message?" })).getByRole("button", { name: "Delete" }));
       await vi.waitFor(() => expect(hasFocus(line())).toBe(true));
     });
+  });
+
+  // PR 446 review: a notebook a co-traveller adds while the panel is open is
+  // offered without the panel remounting. The trip's remote change drops the
+  // cached list (`onRemoteChange`) and moves `remoteRevision`, which re-reads it.
+  it("offers a notebook added since it opened once the trip changes remotely", async () => {
+    const user = userEvent.setup();
+    notebooks = [{ id: uuidFrom(3, 46), title: "Packing list" }];
+    const { rerender } = render(<ChatPanel chat={chat()} personas={null} />);
+    await user.type(screen.getByRole("combobox", { name: "Message" }), "@");
+    const list = screen.getByRole("listbox", { name: "Mentions" });
+    expect(await within(list).findByRole("option", { name: /Packing list/ })).toBeTruthy();
+
+    notebooks = [...notebooks, { id: uuidFrom(4, 46), title: "Restaurants" }];
+    invalidate(tripKeys.all(uuidFrom(46)));
+    remoteRevision += 1;
+    rerender(<ChatPanel chat={chat()} personas={null} />);
+    expect(await within(list).findByRole("option", { name: /Restaurants/ })).toBeTruthy();
   });
 
   // Mitchell's M46 walk: the message shows the moment Send is pressed, so the
