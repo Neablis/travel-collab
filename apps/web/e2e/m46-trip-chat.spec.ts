@@ -228,7 +228,9 @@ test("a message's @stop is a chip that focuses the stop on Plan, and plain text 
   ]);
 
   const messages = panel.getByRole("list", { name: "Messages" });
-  await messages.getByRole("button", { name: "@Stop on day 1" }).click();
+  // Sent, the chip is the stop's name alone: no `@` (Mitchell's M46 walk).
+  await expect(messages).toContainText("Meet at Stop on day 1");
+  await messages.getByRole("button", { name: "Stop on day 1", exact: true }).click();
   await expect(page).toHaveURL(/view=Plan/);
   await expect(page.getByTestId(`activity-card-${stopId}`).getByRole("button", { name: /^Edit / })).toBeFocused();
 
@@ -239,5 +241,5 @@ test("a message's @stop is a chip that focuses the stop on Plan, and plain text 
   await page.getByTestId("ask-pill").click();
   await panel.getByRole("tab", { name: "Chat" }).click();
   await expect(messages).toContainText("Meet at @Stop on day 1");
-  await expect(messages.getByRole("button", { name: "@Stop on day 1" })).toHaveCount(0);
+  await expect(messages.getByRole("button", { name: "Stop on day 1", exact: true })).toHaveCount(0);
 });

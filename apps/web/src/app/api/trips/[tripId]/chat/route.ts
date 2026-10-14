@@ -1,7 +1,7 @@
 import { ChatMessage, ChatPage, PostChatMessage } from "@tc/contracts";
 import { readBody } from "@/server/readBody";
 import { CHAT_NOT_ENTITLED_CODE, chatAccess, chatReadOnly } from "@/server/chat/access";
-import { listMessages, postMessage } from "@/server/chat/messages";
+import { linkOnTrip, listMessages, postMessage } from "@/server/chat/messages";
 
 // A trip's chat (M46, ADR-073). Not a planning command: a message is written
 // to its own table, never to the event log. Who may read and post is
@@ -30,6 +30,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ tri
   if (!access.canPost) return chatReadOnly();
   const body = await readBody(request, PostChatMessage, "invalid-chat-message", { maxBytes: 64 * 1024 });
   if ("error" in body) return body.error;
+  if (body.data.link !== undefined && !(await linkOnTrip(access.detail, body.data.link))) {
+    return Response.json({ error: "That notebook or person isn't on this trip." }, { status: 400 });
+  }
   const message = await postMessage(tripId, access.userId, body.data);
   return Response.json({ message: ChatMessage.parse(message) }, { status: 201 });
 }

@@ -13,6 +13,28 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-10-14 — `ChatLink`: a message can name a notebook or a person (M46 walk)
+
+- **Changed** in `packages/contracts/src/chat.ts`: `ChatLink` is now a discriminated union on
+  `kind`: `day`, `stop` and the new `notebook` keep a uuid `id`; the new `person` carries a
+  `users.id`, which is text, not a uuid.
+- Why: Mitchell's walk, *"We should also be able to @ reference people, along with days and
+  notebooks"*. The server refuses a notebook that is not on the trip, or a person who is not a
+  member, with a 400.
+- Consumers updated: `apps/web` (`server/chat/messages.ts` and the chat `POST` route,
+  `server/db/schema.ts` with migration `0052`, which makes `trip_messages.link_id` text and widens
+  the `link_kind` check, `components/chat/MessageChip.tsx`, `TargetPicker.tsx`, `ChatPanel.tsx`).
+  Not on the public API; `openapi.json` is unchanged.
+- **Changed** `ChatMessage.link` to drop a link this build cannot parse (`.catch(undefined)`), so
+  the message reads as plain text instead of failing the page. Permanent: the next new kind is
+  safe for readers from this build on.
+- Breaking? **yes, for readers older than this change.** Their `ChatLink` knows only `day` and
+  `stop`, so one `person` or `notebook` message fails their whole `ChatPage` parse: a tab opened
+  before the deploy stops showing new messages until it is reloaded, as does any other open
+  preview on the same database; a server rolled back past PR 446 answers 500 on that trip's chat.
+  No code rollback past PR 446 once such a message exists: roll forward. A consumer that assumed
+  `link.id` is a uuid without narrowing on `kind` is now wrong for a person.
+
 ## 2026-10-13 — `ReportTarget` and `AdminReportAction`: a trip's chat message can be reported (M46 part 5, D6)
 
 - **Added** to `packages/contracts/src/report.ts`: a third `ReportTarget`,

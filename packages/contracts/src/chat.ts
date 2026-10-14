@@ -9,14 +9,17 @@ import { z } from "zod";
 export const CHAT_MESSAGE_MAX = 4000;
 
 /**
- * A message's link to one day or one stop on the trip (M46 D3), by id. The
- * target may later be deleted; the link is kept and the client renders it as
- * plain text, so nothing here promises the id still resolves.
+ * A message's link to one day, stop, notebook or person on the trip (M46 D3,
+ * and the M46 walk for the last two), by id. The target may later be deleted
+ * or the person removed; the link is kept and the client renders it as plain
+ * text, so nothing here promises the id still resolves.
+ *
+ * A person is a `users.id`, which is not a uuid; the rest are.
  */
-export const ChatLink = z.object({
-  kind: z.enum(["day", "stop"]),
-  id: z.string().uuid(),
-});
+export const ChatLink = z.discriminatedUnion("kind", [
+  z.object({ kind: z.enum(["day", "stop", "notebook"]), id: z.string().uuid() }),
+  z.object({ kind: z.literal("person"), id: z.string().min(1).max(255) }),
+]);
 export type ChatLink = z.infer<typeof ChatLink>;
 
 const ChatMessageBody = z
@@ -40,9 +43,13 @@ const MessageMeta = {
  * One message as a member reads it. A removed message (deleted by its author
  * or the owner, or hidden by an admin) keeps its place in the conversation and
  * carries **no text and no link**: the variant has no field to leak them in.
+ *
+ * A link this build cannot parse is dropped, not an error: a reader older than
+ * a new link kind (a stale tab, a rolled-back deploy) shows the message as
+ * plain text instead of failing the whole page. Keep it so for every new kind.
  */
 export const ChatMessage = z.discriminatedUnion("removed", [
-  z.object({ ...MessageMeta, removed: z.literal(false), body: z.string(), link: ChatLink.optional() }),
+  z.object({ ...MessageMeta, removed: z.literal(false), body: z.string(), link: ChatLink.optional().catch(undefined) }),
   z.object({ ...MessageMeta, removed: z.literal(true) }),
 ]);
 export type ChatMessage = z.infer<typeof ChatMessage>;

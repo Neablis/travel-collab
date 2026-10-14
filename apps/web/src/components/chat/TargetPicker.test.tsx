@@ -1,11 +1,19 @@
 import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { activityFactory, tripDetailFixture, uuidFrom } from "@tc/factories";
+import { activityFactory, tripDetailFixture, tripMemberProfileFactory, uuidFrom } from "@tc/factories";
 import { tripTargets } from "@/components/palette/commands";
+import { personasOf } from "@/components/pages/people";
 import { registerBoardFocus } from "./boardFocus";
 import { ChatPanel } from "./ChatPanel";
 import type { TripChat } from "./useTripChat";
+
+// The trip's notebooks, as the composer reads them: only `id` and `title` matter here.
+const packing = { id: uuidFrom(3, 46), title: "Packing list" };
+vi.mock("@/lib/pagesClient", () => ({
+  fetchPages: vi.fn(async () => ({ ok: true, value: { pages: [packing], viewerId: null } })),
+}));
+const bea = tripMemberProfileFactory.build({ userId: "dev-bea", name: "Bea" });
 
 const DAY = uuidFrom(1, 46);
 const colosseum = activityFactory.build({ activityId: uuidFrom(2, 46), title: "Colosseum", timeWindow: { start: "09:00", end: "11:00" } });
@@ -17,9 +25,9 @@ const trip = tripDetailFixture({
 let unregister = () => {};
 afterEach(() => act(() => unregister()));
 
-function composer() {
+function composer(detail = trip) {
   act(() => {
-    unregister = registerBoardFocus({ ...tripTargets(trip, { focusedActivityId: null, focusedDayId: null, selectedDayId: null }), focusDay: vi.fn(), focusActivity: vi.fn() });
+    unregister = registerBoardFocus({ ...tripTargets(detail, { focusedActivityId: null, focusedDayId: null, selectedDayId: null }), focusDay: vi.fn(), focusActivity: vi.fn() });
   });
   const post = vi.fn(async () => true);
   const chat: TripChat = {
@@ -36,7 +44,7 @@ function composer() {
     remove: async () => true,
     changeError: null,
   };
-  render(<ChatPanel chat={chat} personas={null} />);
+  render(<ChatPanel chat={chat} personas={personasOf([bea])} />);
   return { post, field: screen.getByRole("combobox", { name: "Message" }) as HTMLInputElement };
 }
 
@@ -45,7 +53,7 @@ describe("the composer's @day / @stop picker (M46 D3)", () => {
     const user = userEvent.setup();
     const { post, field } = composer();
     await user.type(field, "Meet at @stop col");
-    const list = screen.getByRole("listbox", { name: "Days and stops" });
+    const list = screen.getByRole("listbox", { name: "Mentions" });
     expect(within(list).getAllByRole("option").map((o) => o.textContent)).toEqual(["StopColosseum"]);
     expect(field.getAttribute("aria-expanded")).toBe("true");
 
@@ -73,7 +81,7 @@ describe("the composer's @day / @stop picker (M46 D3)", () => {
     const user = userEvent.setup();
     const { field } = composer();
     await user.type(field, "@");
-    expect(screen.getByRole("listbox", { name: "Days and stops" })).toBeTruthy();
+    expect(screen.getByRole("listbox", { name: "Mentions" })).toBeTruthy();
     await user.keyboard("{Escape}");
     expect(screen.queryByRole("listbox")).toBeNull();
     expect(field.value).toBe("@");
@@ -87,10 +95,10 @@ describe("the composer's @day / @stop picker (M46 D3)", () => {
     await user.type(field, "@day{Enter}");
     await user.clear(field);
     await user.type(field, "@");
-    expect(screen.getByRole("listbox", { name: "Days and stops" })).toBeTruthy();
+    expect(screen.getByRole("listbox", { name: "Mentions" })).toBeTruthy();
 
     await user.keyboard("{Escape}{Backspace}@");
-    expect(screen.getByRole("listbox", { name: "Days and stops" })).toBeTruthy();
+    expect(screen.getByRole("listbox", { name: "Mentions" })).toBeTruthy();
   });
 
   // PR 439 re-review: taking back the space a pick adds reopened the picker,
@@ -110,5 +118,37 @@ describe("the composer's @day / @stop picker (M46 D3)", () => {
     const { post, field } = composer();
     await user.type(field, "Swap @day{Enter}{Backspace}0{Enter}");
     expect(post).toHaveBeenCalledWith("Swap @Day 10", undefined);
+  });
+});
+
+// Mitchell's M46 walk: "@ reference people, along with days and notebooks".
+describe("the composer's @ picker for people and notebooks", () => {
+  it("offers the trip's members and notebooks after the days and stops, and sends the one picked", async () => {
+    const user = userEvent.setup();
+    const { post, field } = composer();
+    await user.type(field, "@");
+    const list = screen.getByRole("listbox", { name: "Mentions" });
+    // The notebooks arrive after the panel opens.
+    expect(await within(list).findByRole("option", { name: /Packing list/ })).toBeTruthy();
+    expect(within(list).getAllByRole("option").map((o) => o.textContent)).toEqual(["DayDay 1", "StopColosseum", "PersonBea", "NotebookPacking list"]);
+
+    await user.type(field, "bea{Enter}");
+    expect(field.value).toBe("@Bea ");
+    await user.type(field, "and @pack{Enter}{Enter}");
+    // One reference a message, the last one picked.
+    expect(post).toHaveBeenCalledWith("@Bea and @Packing list", { kind: "notebook", id: packing.id });
+  });
+
+  // PR 446 review: the first 8 matches overall were all days on a long trip,
+  // so a bare "@" never offered a person or a notebook.
+  it("offers a person and a notebook on a bare @, however many days the trip has", async () => {
+    const user = userEvent.setup();
+    const days = Array.from({ length: 10 }, (_, i) => ({ dayId: uuidFrom(10 + i, 46), activityIds: [], date: null, costSubtotal: 0 }));
+    const { field } = composer(tripDetailFixture({ days, activities: {} }));
+    await user.type(field, "@");
+    const list = screen.getByRole("listbox", { name: "Mentions" });
+    expect(await within(list).findByRole("option", { name: /Packing list/ })).toBeTruthy();
+    expect(within(list).getByRole("option", { name: /Bea/ })).toBeTruthy();
+    expect(within(list).getAllByRole("option")).toHaveLength(8);
   });
 });
