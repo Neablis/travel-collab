@@ -316,6 +316,34 @@ describe("useTripChat", () => {
         expect(ids(result.current.messages)).toEqual([message(1).messageId]);
         expect(arrived).toEqual(["Train at nine?"]);
       });
+
+      // A stored send leaves the queue. Were it still there, the later failure
+      // would give its text back too, and Send would store it a second time
+      // (PR 444 review).
+      it("give back only the second when the first was stored", async () => {
+        const stored = { ...message(2, "u-me"), body: "Train at nine?" };
+        const { arrived, answer } = twoSends();
+        const { result } = renderHook(() => useTripChat({ tripId: TRIP, enabled: true, chatRev: "1", reading: false, accessLost: false }));
+        await waitFor(() => expect(result.current.status).toBe("ready"));
+
+        let first = Promise.resolve<string | null>("not answered");
+        let second = Promise.resolve<string | null>(null);
+        act(() => {
+          first = result.current.post("Train at nine?");
+          second = result.current.post("or ten?");
+        });
+        await waitFor(() => expect(arrived).toHaveLength(1));
+        await act(async () => {
+          answer(0, HttpResponse.json({ message: stored }, { status: 201 }));
+          expect(await first).toBeNull();
+        });
+        await waitFor(() => expect(arrived).toHaveLength(2));
+        await act(async () => {
+          answer(1, HttpResponse.error());
+          expect(await second).toBe("or ten?");
+        });
+        expect(ids(result.current.messages)).toEqual([message(1).messageId, stored.messageId]);
+      });
     });
   });
 

@@ -79,7 +79,8 @@ export function ChatPanel({
   // overwritten, and the failed text is dropped, with the hook's "Couldn't
   // send" alert still up to say so. Only the first unsent line's link comes
   // back: a second send queued behind a failing one returns with it as words
-  // only, its link lost (PR 444 review).
+  // only, its link lost (KI-2026-10-14-b). A send that never answers holds
+  // every later one at "Sending…" (KI-2026-10-14-a).
   const send = async () => {
     const body = draft.trim();
     if (body === "") return;
