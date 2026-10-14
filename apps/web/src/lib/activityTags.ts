@@ -15,7 +15,7 @@ export const TAG_GROUPS: readonly { label: string; tags: readonly ActivityTag[] 
     label: "What it is",
     tags: [
       "meal", "drinks", "nightlife", "museum", "sight", "outdoors",
-      "beach", "shopping", "show", "tour", "wellness", "lodging",
+      "beach", "shopping", "show", "tour", "wellness", "sports", "lodging",
     ] satisfies ActivityTagCategory[],
   },
   { label: "Needs", tags: ActivityTagModifier.options },
@@ -49,6 +49,7 @@ export const TAG_CHIP_CLASS: Record<ActivityTag, string> = {
   show: "bg-tag-show-tint text-tag-show-ink",
   tour: "bg-tag-tour-tint text-tag-tour-ink",
   wellness: "bg-tag-wellness-tint text-tag-wellness-ink",
+  sports: "bg-tag-sports-tint text-tag-sports-ink",
 };
 
 /**

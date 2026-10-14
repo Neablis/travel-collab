@@ -59,7 +59,7 @@ export type ChartToken =
   | "--color-danger-ink" | "--color-moss"
   // ADR-070's category tags, each a spend series of its own (`spendColors.ts`).
   | "--color-tag-drinks" | "--color-tag-nightlife" | "--color-tag-museum" | "--color-tag-sight"
-  | "--color-tag-beach" | "--color-tag-shopping" | "--color-tag-show" | "--color-tag-tour" | "--color-tag-wellness";
+  | "--color-tag-beach" | "--color-tag-shopping" | "--color-tag-show" | "--color-tag-tour" | "--color-tag-wellness" | "--color-tag-sports";
 
 /** Each series: its legend label and the token it paints with. */
 export type ChartConfig = Record<string, { label: string; color: ChartToken }>;

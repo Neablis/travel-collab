@@ -186,7 +186,7 @@ export function ActivityEditorSheet() {
   const [refusal, setRefusal] = useState<string | null>(null);
   if (!open && refusal !== null) setRefusal(null);
 
-  async function handleSave(value: ActivityFormValue) {
+  async function handleSave(value: ActivityFormValue, options?: { stay?: boolean }) {
     if (activeTrip === null) return;
     // Unreachable while the form is not rendered for a viewer; kept so the
     // gate does not depend on the render branch above staying correct.
@@ -210,7 +210,8 @@ export function ActivityEditorSheet() {
       setRefusal(result.message);
       return;
     }
-    close();
+    setRefusal(null);
+    if (options?.stay !== true) close();
   }
 
   // M41 D4: the editor is where a stop is removed from, now that the rack's

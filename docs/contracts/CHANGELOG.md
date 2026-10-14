@@ -13,6 +13,11 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-10-14 — `ActivityTag`: `sports` (public API 1.16.0)
+- `ActivityTag` gains `sports`, appended after `wellness` so no stored stop moves.
+- Why: Sports is an activity type the stop editor should offer.
+- Consumers updated: web (tag picker, chip and chart colours, labels), domain `tagDescription`, fixtures expectations, `openapi.json`.
+
 ## 2026-10-14 — `ChatLink`: a message can name a notebook or a person (M46 walk)
 
 - **Changed** in `packages/contracts/src/chat.ts`: `ChatLink` is now a discriminated union on

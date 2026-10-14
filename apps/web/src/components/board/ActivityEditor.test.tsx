@@ -287,7 +287,7 @@ describe("ActivityEditor tag picker", () => {
     renderEditor(null, "create");
     expect(accessibleNames(screen.getByRole("group", { name: "What it is" }), "button")).toEqual([
       "Food", "Drinks", "Nightlife", "Museum", "Sight", "Outdoors",
-      "Beach", "Shopping", "Show", "Tour", "Wellness", "Lodging",
+      "Beach", "Shopping", "Show", "Tour", "Wellness", "Sports", "Lodging",
     ]);
     expect(accessibleNames(screen.getByRole("group", { name: "Needs" }), "button")).toEqual(["Ticketed"]);
     expect(screen.queryByRole("button", { name: /considering/i })).toBeNull();

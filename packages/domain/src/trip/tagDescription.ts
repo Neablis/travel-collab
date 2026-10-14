@@ -52,6 +52,7 @@ export const TAG_DESCRIPTION_COPY: Record<DescribedTag, { adjective: string; nou
   show: { adjective: "Show-going", noun: "shows" },
   tour: { adjective: "Guided", noun: "tours" },
   wellness: { adjective: "Restful", noun: "wellness" },
+  sports: { adjective: "Active", noun: "sports" },
 };
 
 // Contract order, which is also the tie-break everywhere below: two shares that
