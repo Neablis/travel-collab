@@ -1,8 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { and, count, desc, eq, inArray, isNull, ne, or, sql } from "drizzle-orm";
-import type { ChatMessage, PostChatMessage, TripRole } from "@tc/contracts";
+import type { ChatLink, ChatMessage, PostChatMessage, TripDetail, TripRole } from "@tc/contracts";
 import { db } from "../db/client";
-import { tripChatReads, tripMessages } from "../db/schema";
+import { pages, tripChatReads, tripMessages } from "../db/schema";
 import { isUuid } from "../ids";
 import { bumpChatRev } from "./rev";
 
@@ -85,6 +85,21 @@ export async function unreadByTrip(userId: string, tripIds: readonly string[]): 
     )
     .groupBy(tripMessages.tripId);
   return new Map(rows.map((r) => [r.tripId, r.n]));
+}
+
+/**
+ * Whether a new message's notebook or person is this trip's (the M46 walk): a
+ * notebook on the trip, a person among its members. A day or stop is not
+ * checked, as D3 left it: the client resolves one only on this trip's board.
+ */
+export async function linkOnTrip(detail: TripDetail, link: ChatLink): Promise<boolean> {
+  if (link.kind === "person") return detail.members.some((m) => m.userId === link.id);
+  if (link.kind !== "notebook") return true;
+  const [page] = await db
+    .select({ id: pages.id })
+    .from(pages)
+    .where(and(eq(pages.tripId, detail.tripId), eq(pages.id, link.id)));
+  return page !== undefined;
 }
 
 /** Store a message and move the trip's `chatRev`, in one transaction. */

@@ -8,6 +8,7 @@ import { executeTripCommand } from "@/server/commands";
 import { grantMembership } from "@/server/access/members";
 import { entitleAccounts } from "@/server/test-support/entitledAccount";
 import { postMessage } from "@/server/chat/messages";
+import { listPages } from "@/server/pages";
 
 let currentUserId = "";
 vi.mock("@/server/auth", () => ({
@@ -90,6 +91,24 @@ describe("GET and POST /api/trips/:tripId/chat", () => {
     expect((await post(tripId, owner, { body: "   " })).status).toBe(400);
     expect((await post(tripId, owner, { body: "hi\u0000there" })).status).toBe(400);
     expect((await page(tripId, owner)).messages).toEqual([]);
+  });
+
+  // M46 walk: a person or a notebook is checked against this trip when posted,
+  // so a message never carries another trip's notebook or a stranger's id.
+  it("keeps a reference to this trip's member or notebook, and refuses another trip's notebook or a non-member", async () => {
+    const { tripId, owner, viewer } = await sharedTrip();
+    const other = await sharedTrip();
+    const [ours] = await listPages(tripId);
+    const [theirs] = await listPages(other.tripId);
+
+    await posted(tripId, viewer, { body: "@Owner", link: { kind: "person", id: owner } });
+    await posted(tripId, viewer, { body: "@Ours", link: { kind: "notebook", id: ours!.id } });
+    expect((await post(tripId, viewer, { body: "@Theirs", link: { kind: "notebook", id: theirs!.id } })).status).toBe(400);
+    expect((await post(tripId, viewer, { body: "@Stranger", link: { kind: "person", id: other.viewer } })).status).toBe(400);
+    expect((await page(tripId, owner)).messages.map((m) => !m.removed && m.link)).toEqual([
+      { kind: "person", id: owner },
+      { kind: "notebook", id: ours!.id },
+    ]);
   });
 });
 

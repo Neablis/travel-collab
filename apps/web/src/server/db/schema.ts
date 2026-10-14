@@ -38,6 +38,7 @@ import type {
   TripMember,
   PageContent,
   PageContext,
+  ChatLink,
 } from "@tc/contracts";
 
 // M11 link 1 (ADR-025). Identity is an ordinary CRUD module (AGENTS.md module
@@ -506,7 +507,8 @@ export const tripAccessRevs = pgTable("trip_access_revs", {
 // trip keeps its messages, so a restore brings the conversation back.
 //
 // The whole row is settled here so later parts change no column: `link_*` is
-// D3's optional day or stop (an id, never repaired when the target goes);
+// D3's optional day or stop, or since the M46 walk a notebook or a person (an
+// id, never repaired when the target goes; text, because a person's is);
 // `deleted_*` is D6's soft delete by the author or the owner; `hidden_at` is an
 // admin's hide from a report. A row is never deleted.
 export const tripMessages = pgTable(
@@ -517,8 +519,8 @@ export const tripMessages = pgTable(
     // A `users.id`, on the same no-foreign-key terms as `trip_memberships`.
     authorId: text("author_id").notNull(),
     body: text("body").notNull(),
-    linkKind: text("link_kind").$type<"day" | "stop">(),
-    linkId: uuid("link_id"),
+    linkKind: text("link_kind").$type<ChatLink["kind"]>(),
+    linkId: text("link_id"),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
     editedAt: timestamp("edited_at", { withTimezone: true, mode: "date" }),
     deletedAt: timestamp("deleted_at", { withTimezone: true, mode: "date" }),
@@ -528,7 +530,7 @@ export const tripMessages = pgTable(
   (t) => [
     // The page read and the unread count both walk one trip's messages by time.
     index("trip_messages_trip_created").on(t.tripId, t.createdAt),
-    check("trip_messages_link_kind", sql`${t.linkKind} in ('day', 'stop')`),
+    check("trip_messages_link_kind", sql`${t.linkKind} in ('day', 'stop', 'notebook', 'person')`),
     check("trip_messages_link_whole", sql`(${t.linkKind} is null) = (${t.linkId} is null)`),
   ],
 );

@@ -13,6 +13,21 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-10-14 — `ChatLink`: a message can name a notebook or a person (M46 walk)
+
+- **Changed** in `packages/contracts/src/chat.ts`: `ChatLink` is now a discriminated union on
+  `kind`: `day`, `stop` and the new `notebook` keep a uuid `id`; the new `person` carries a
+  `users.id`, which is text, not a uuid.
+- Why: Mitchell's walk, *"We should also be able to @ reference people, along with days and
+  notebooks"*. The server refuses a notebook that is not on the trip, or a person who is not a
+  member, with a 400.
+- Consumers updated: `apps/web` (`server/chat/messages.ts` and the chat `POST` route,
+  `server/db/schema.ts` with migration `0052`, which makes `trip_messages.link_id` text and widens
+  the `link_kind` check, `components/chat/MessageChip.tsx`, `TargetPicker.tsx`, `ChatPanel.tsx`).
+  Not on the public API; `openapi.json` is unchanged.
+- Breaking? no for a reader: every link that parsed before still parses. A consumer that assumed
+  `link.id` is a uuid without narrowing on `kind` is now wrong for a person.
+
 ## 2026-10-13 — `ReportTarget` and `AdminReportAction`: a trip's chat message can be reported (M46 part 5, D6)
 
 - **Added** to `packages/contracts/src/report.ts`: a third `ReportTarget`,

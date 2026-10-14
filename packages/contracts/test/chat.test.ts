@@ -41,9 +41,15 @@ describe("PostChatMessage", () => {
     expect(EditChatMessage.safeParse({ body: "hi\u0000there" }).success).toBe(false);
   });
 
-  it("links only a day or a stop", () => {
+  it("links only a day, a stop, a notebook or a person", () => {
     const link = { kind: "page", id: meta.messageId };
     expect(PostChatMessage.safeParse({ body: "hi", link }).success).toBe(false);
+  });
+
+  // A person is a `users.id`, which is not a uuid; a notebook's id is.
+  it("takes a person by user id, and a notebook only by uuid", () => {
+    expect(PostChatMessage.safeParse({ body: "hi", link: { kind: "person", id: "dev-bea" } }).success).toBe(true);
+    expect(PostChatMessage.safeParse({ body: "hi", link: { kind: "notebook", id: "dev-bea" } }).success).toBe(false);
   });
 });
 

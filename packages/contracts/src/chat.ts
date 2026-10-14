@@ -9,14 +9,17 @@ import { z } from "zod";
 export const CHAT_MESSAGE_MAX = 4000;
 
 /**
- * A message's link to one day or one stop on the trip (M46 D3), by id. The
- * target may later be deleted; the link is kept and the client renders it as
- * plain text, so nothing here promises the id still resolves.
+ * A message's link to one day, stop, notebook or person on the trip (M46 D3,
+ * and the M46 walk for the last two), by id. The target may later be deleted
+ * or the person removed; the link is kept and the client renders it as plain
+ * text, so nothing here promises the id still resolves.
+ *
+ * A person is a `users.id`, which is not a uuid; the rest are.
  */
-export const ChatLink = z.object({
-  kind: z.enum(["day", "stop"]),
-  id: z.string().uuid(),
-});
+export const ChatLink = z.discriminatedUnion("kind", [
+  z.object({ kind: z.enum(["day", "stop", "notebook"]), id: z.string().uuid() }),
+  z.object({ kind: z.literal("person"), id: z.string().min(1).max(255) }),
+]);
 export type ChatLink = z.infer<typeof ChatLink>;
 
 const ChatMessageBody = z

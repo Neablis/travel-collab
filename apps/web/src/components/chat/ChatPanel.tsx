@@ -1,5 +1,5 @@
 "use client";
-import { useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useKnownSessionUser } from "@/components/account/useSessionUser";
 import type { Persona } from "@/components/pages/people";
@@ -10,7 +10,11 @@ import { Dialog, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Text } from "@/components/ui/text";
 import { cn } from "@/lib/cn";
+import { fetchPages } from "@/lib/pagesClient";
+import { cachedRead, DEDUPE } from "@/lib/queryCache";
+import { tripKeys } from "@/lib/queryKeys";
 import { ChatMessage, type MessageViewer } from "./ChatMessage";
+import { ChatMentionsProvider, type ChatMentions } from "./MessageChip";
 import { useTargetPicker } from "./TargetPicker";
 import type { TripChat } from "./useTripChat";
 
@@ -43,7 +47,20 @@ export function ChatPanel({
   const lines = useRef(new Map<string, HTMLLIElement>());
   const focusLine = (messageId: string | null) => (messageId === null ? undefined : lines.current.get(messageId)?.focus());
   const deletingFrom = useRef<string | null>(null);
-  const picker = useTargetPicker(draft, setDraft);
+  // The trip's notebooks, for the picker and a message's notebook chip: the
+  // board's own read of them, shared through the cache rather than asked again.
+  const [notebooks, setNotebooks] = useState<ChatMentions["notebooks"]>([]);
+  useEffect(() => {
+    let live = true;
+    void cachedRead(tripKeys.pages(chat.tripId), () => fetchPages(chat.tripId), { dedupeMs: DEDUPE.DOCUMENT }).then((result) => {
+      if (live && result.ok) setNotebooks(result.value.pages.map(({ id, title }) => ({ id, title })));
+    });
+    return () => {
+      live = false;
+    };
+  }, [chat.tripId]);
+  const mentions = useMemo<ChatMentions>(() => ({ tripId: chat.tripId, personas, notebooks }), [chat.tripId, personas, notebooks]);
+  const picker = useTargetPicker(draft, setDraft, mentions);
   const scrollport = useRef<HTMLDivElement>(null);
   usePinToBottom(scrollport, [chat.messages.length]);
   // Who is reading decides what each line offers (D6). Neither is a request of
@@ -89,40 +106,42 @@ export function ChatPanel({
         ) : (
           <>
             {chat.hasEarlier && <p className="text-xs text-slate">Earlier messages aren&apos;t shown.</p>}
-            <ol aria-label="Messages" className="flex flex-col gap-3">
-              {chat.messages.map((message) => (
-                <ChatMessage
-                  key={message.messageId}
-                  ref={(line) => {
-                    if (line !== null) lines.current.set(message.messageId, line);
-                    return () => void lines.current.delete(message.messageId);
-                  }}
-                  message={message}
-                  persona={personas === null ? null : personas[message.authorId]}
-                  tripId={chat.tripId}
-                  viewer={viewerOf(message.authorId)}
-                  // Closed by a lapse mid-edit as well: the save would be refused.
-                  editing={editing === message.messageId && chat.canPost}
-                  onEdit={() => setEditing(message.messageId)}
-                  onDelete={() => {
-                    deletingFrom.current = message.messageId;
-                    setDeleting(message.messageId);
-                  }}
-                  onSave={async (body) => {
-                    const saved = await chat.edit(message.messageId, body);
-                    if (saved) {
+            <ChatMentionsProvider value={mentions}>
+              <ol aria-label="Messages" className="flex flex-col gap-3">
+                {chat.messages.map((message) => (
+                  <ChatMessage
+                    key={message.messageId}
+                    ref={(line) => {
+                      if (line !== null) lines.current.set(message.messageId, line);
+                      return () => void lines.current.delete(message.messageId);
+                    }}
+                    message={message}
+                    persona={personas === null ? null : personas[message.authorId]}
+                    tripId={chat.tripId}
+                    viewer={viewerOf(message.authorId)}
+                    // Closed by a lapse mid-edit as well: the save would be refused.
+                    editing={editing === message.messageId && chat.canPost}
+                    onEdit={() => setEditing(message.messageId)}
+                    onDelete={() => {
+                      deletingFrom.current = message.messageId;
+                      setDeleting(message.messageId);
+                    }}
+                    onSave={async (body) => {
+                      const saved = await chat.edit(message.messageId, body);
+                      if (saved) {
+                        focusLine(message.messageId);
+                        setEditing(null);
+                      }
+                      return saved;
+                    }}
+                    onCancelEdit={() => {
                       focusLine(message.messageId);
                       setEditing(null);
-                    }
-                    return saved;
-                  }}
-                  onCancelEdit={() => {
-                    focusLine(message.messageId);
-                    setEditing(null);
-                  }}
-                />
-              ))}
-            </ol>
+                    }}
+                  />
+                ))}
+              </ol>
+            </ChatMentionsProvider>
           </>
         )}
       </div>
