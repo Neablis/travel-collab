@@ -103,8 +103,13 @@ vi.mock("@/server/assistant/deps", async (importOriginal) => {
 
 // KI-2026-09-24-w: a throw inside `buildProposal` (called from `messageMetadata`
 // on the stream's `finish` part) must not break the stream. Armed per-test;
-// every other call is the real implementation.
+// every other call is the real implementation. Reset between tests: a test
+// that fails before the mock fires would otherwise arm the throw for the
+// next one.
 let failNextProposalBuild = false;
+beforeEach(() => {
+  failNextProposalBuild = false;
+});
 vi.mock("@/server/ai/writeTools", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/server/ai/writeTools")>();
   return {
