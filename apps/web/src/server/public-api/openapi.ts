@@ -94,7 +94,40 @@ function schemaOf(zod: z.ZodTypeAny): JsonSchema {
   // `target: "openApi3"` because zod-to-json-schema's default emits JSON Schema
   // draft-07, whose `nullable` and `exclusiveMinimum` spellings OpenAPI 3.0 does
   // not accept. zod is v3 here, which is why this library and not a v4-only one.
-  return withoutTupleItems(zodToJsonSchema(zod, { target: "openApi3", $refStrategy: "none" })) as JsonSchema;
+  return withoutTupleItems(
+    withoutRecursiveReferenceWarning(() => zodToJsonSchema(zod, { target: "openApi3", $refStrategy: "none" })),
+  ) as JsonSchema;
+}
+
+// **zod-to-json-schema warns about the recursion it is designed to absorb.**
+// The ask-stream envelope's `content` is genuinely recursive (content parts
+// containing content parts), so every generation logs "Recursive reference
+// detected at #/properties/content/…! Defaulting to any" — 42 lines per unit
+// run — for a fallback the committed `openapi.json` already encodes and a
+// reviewer already accepted. The warning fires inside the one library call,
+// so it is filtered at exactly that boundary and restored immediately after;
+// anything else the call logs still reaches the console.
+/**
+ * Runs `generate` with zod-to-json-schema's recursive-reference warning
+ * dropped, and the console restored afterwards even if it throws.
+ */
+export function withoutRecursiveReferenceWarning<T>(generate: () => T): T {
+  const warn = console.warn;
+  const error = console.error;
+  const drop =
+    (next: typeof console.warn): typeof console.warn =>
+    (message?: unknown, ...rest: unknown[]) => {
+      if (typeof message === "string" && message.startsWith("Recursive reference detected")) return;
+      next.call(console, message, ...rest);
+    };
+  console.warn = drop(warn);
+  console.error = drop(error);
+  try {
+    return generate();
+  } finally {
+    console.warn = warn;
+    console.error = error;
+  }
 }
 
 // **OpenAPI 3.0 has no tuples, and `openApi3` still emits one.** A `z.tuple`

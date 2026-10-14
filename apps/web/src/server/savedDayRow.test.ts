@@ -52,6 +52,9 @@ describe("a row written before M23", () => {
   // `day_count` did not exist before the migration. A row read through a path
   // that never selected it must not come back as a zero-day Playbook.
   it("reads as one day when day_count is missing entirely", () => {
+    // The repair below logs, as it should in production; the log is not what
+    // this case asserts.
+    vi.spyOn(console, "error").mockImplementation(() => {});
     const parsed = row({ dayCount: undefined });
     expect(parsed!.dayCount).toBe(1);
   });
@@ -62,6 +65,9 @@ describe("dayIndex order is tolerated, never enforced", () => {
   // individually valid — the hazard KI-20260905-l was opened about, re-created
   // on purpose. The write path is where monotonicity is refused.
   it("sorts a scrambled row instead of dropping it", () => {
+    // The repair below logs, as it should in production; the log is not what
+    // this case asserts.
+    vi.spyOn(console, "error").mockImplementation(() => {});
     const parsed = row({
       stops: [stop("day two", 1), stop("day one", 0), stop("day two later", 1)],
       dayCount: 2,
@@ -74,6 +80,9 @@ describe("dayIndex order is tolerated, never enforced", () => {
   // sort has to be stable or it silently reorders a day while appearing to fix
   // its days.
   it("is stable, so a day's own stop order survives the sort", () => {
+    // The repair below logs, as it should in production; the log is not what
+    // this case asserts.
+    vi.spyOn(console, "error").mockImplementation(() => {});
     const parsed = row({
       stops: [stop("b", 1), stop("c", 1), stop("a", 0)],
       dayCount: 2,
@@ -102,6 +111,9 @@ describe("dayCount is floored by its stops", () => {
   // count says does not exist, and refusing the row would empty a library over
   // arithmetic.
   it("grows to fit stops that reach past it", () => {
+    // The repair below logs, as it should in production; the log is not what
+    // this case asserts.
+    vi.spyOn(console, "error").mockImplementation(() => {});
     const parsed = row({ stops: [stop("a", 0), stop("c", 2)], dayCount: 1 });
     expect(parsed!.dayCount).toBe(3);
   });

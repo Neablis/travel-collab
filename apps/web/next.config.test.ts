@@ -222,8 +222,8 @@ describe("the Sentry build plugin", () => {
   it("is configured with its own telemetry off", async () => {
     vi.resetModules();
     const seen: Array<Record<string, unknown> | undefined> = [];
-    vi.doMock("@sentry/nextjs", async (importOriginal) => {
-      const real = await importOriginal<typeof import("@sentry/nextjs")>();
+    vi.doMock("@sentry/nextjs/config", async (importOriginal) => {
+      const real = await importOriginal<typeof import("@sentry/nextjs/config")>();
       return {
         ...real,
         withSentryConfig: ((config, options) => {
@@ -235,7 +235,7 @@ describe("the Sentry build plugin", () => {
     try {
       await import("./next.config");
     } finally {
-      vi.doUnmock("@sentry/nextjs");
+      vi.doUnmock("@sentry/nextjs/config");
     }
     expect(seen).toHaveLength(1);
     expect(seen[0]?.telemetry).toBe(false);

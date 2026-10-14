@@ -282,6 +282,10 @@ describe("TripBoardScreen", () => {
       // run — and stubbing it makes the fixture the shape a real signed-out
       // visitor meets instead of one endpoint short of it.
       http.get("/api/trips/:tripId/access", () => HttpResponse.json({ error: "unauthenticated" }, { status: 401 })),
+      // `/pages` 401s for a signed-out visitor too. Same story as `/access`
+      // above: missing rather than deliberately omitted, unhandled on every
+      // run until now.
+      http.get("/api/trips/:tripId/pages", () => HttpResponse.json({ error: "unauthenticated" }, { status: 401 })),
     );
     renderScreen(fixture.tripId);
 
@@ -411,7 +415,11 @@ describe("TripBoardScreen", () => {
     // stays covered directly in TripDateControl.test.tsx; the sheet's
     // onCommand pass-through is covered in SettingsSheet.test.tsx.
     const fixture = tripDetailFixture({ startDate: "2027-06-01" });
-    server.use(...makeTripHandlers(fixture));
+    // The sheet asks who is reading (`useSessionUser`).
+    server.use(
+      ...makeTripHandlers(fixture),
+      http.get("/api/auth/session", () => HttpResponse.json({ user: { id: "dev-alice" } })),
+    );
     renderScreen(fixture.tripId);
 
     expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
@@ -533,7 +541,11 @@ describe("TripBoardScreen", () => {
   it("posts a SetTripBudget command from TripMoneySettings", async () => {
     const fixture = tripDetailFixture();
     const onCommand = vi.fn<(command: TripCommand) => void>();
-    server.use(...makeTripHandlers(fixture, { onCommand }));
+    // The sheet asks who is reading (`useSessionUser`).
+    server.use(
+      ...makeTripHandlers(fixture, { onCommand }),
+      http.get("/api/auth/session", () => HttpResponse.json({ user: { id: "dev-alice" } })),
+    );
     renderScreen(fixture.tripId);
 
     expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();

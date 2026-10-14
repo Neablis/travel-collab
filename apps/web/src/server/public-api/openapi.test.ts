@@ -20,6 +20,7 @@ import {
   fingerprintOf,
   routeModulePaths,
   urlOf,
+  withoutRecursiveReferenceWarning,
   withoutTupleItems,
 } from "./openapi";
 import { DECLARED, type DeclaredHandler } from "./route";
@@ -145,6 +146,47 @@ describe("openapi.json is derived from the declarations", () => {
       /non-empty tuple at #\/properties\/pair\/items \(2 positions\)/,
     );
     expect(withoutTupleItems({ items: [], maxItems: 0 })).toEqual({ items: {}, maxItems: 0 });
+  });
+
+  // The filter in `schemaOf` must be exactly as wide as the library's one
+  // known-benign warning: a broader match would swallow a real signal from a
+  // future zod-to-json-schema, and a leak would put the 42 lines back.
+  describe("withoutRecursiveReferenceWarning", () => {
+    it("returns the callback's value", () => {
+      expect(withoutRecursiveReferenceWarning(() => 42)).toBe(42);
+    });
+
+    it("drops the recursive-reference warning on warn and error, and nothing else", () => {
+      const warned: unknown[][] = [];
+      const errored: unknown[][] = [];
+      const warn = vi.spyOn(console, "warn").mockImplementation((...args: unknown[]) => void warned.push(args));
+      const error = vi.spyOn(console, "error").mockImplementation((...args: unknown[]) => void errored.push(args));
+      try {
+        withoutRecursiveReferenceWarning(() => {
+          console.warn("Recursive reference detected at #/x! Defaulting to any");
+          console.error("Recursive reference detected at #/y! Defaulting to any");
+          console.warn("some other warning");
+          console.error("some other error");
+        });
+      } finally {
+        warn.mockRestore();
+        error.mockRestore();
+      }
+      expect(warned).toEqual([["some other warning"]]);
+      expect(errored).toEqual([["some other error"]]);
+    });
+
+    it("restores the console even when the callback throws", () => {
+      const warn = console.warn;
+      const error = console.error;
+      expect(() =>
+        withoutRecursiveReferenceWarning(() => {
+          throw new Error("boom");
+        }),
+      ).toThrow("boom");
+      expect(console.warn).toBe(warn);
+      expect(console.error).toBe(error);
+    });
   });
 
   it("names the scope and the role on every operation", async () => {
