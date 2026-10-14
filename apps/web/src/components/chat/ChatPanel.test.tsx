@@ -1,6 +1,6 @@
 import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import type { TripRole } from "@tc/contracts";
 import { ChatMessage } from "@tc/contracts";
 import { tripDetailFixture, tripMemberProfileFactory, uuidFrom } from "@tc/factories";
@@ -173,9 +173,9 @@ describe("ChatPanel", () => {
   it("gives a failed send's @day link back with its text, so the retry carries it", async () => {
     const day = uuidFrom(3, 46);
     const trip = tripDetailFixture({ days: [{ dayId: day, activityIds: [], date: null, costSubtotal: 0 }] });
-    let unregister = () => {};
     act(() => {
-      unregister = registerBoardFocus({ ...tripTargets(trip, { focusedActivityId: null, focusedDayId: null, selectedDayId: null }), focusDay: vi.fn(), focusActivity: vi.fn() });
+      const unregister = registerBoardFocus({ ...tripTargets(trip, { focusedActivityId: null, focusedDayId: null, selectedDayId: null }), focusDay: vi.fn(), focusActivity: vi.fn() });
+      onTestFinished(() => act(() => unregister()));
     });
     const post = vi.fn(async (body: string): Promise<string | null> => (post.mock.calls.length === 1 ? body : null));
     render(<ChatPanel chat={chat({ post })} personas={null} />);
@@ -186,7 +186,6 @@ describe("ChatPanel", () => {
 
     await userEvent.type(field, "{Enter}");
     expect(post).toHaveBeenLastCalledWith("@Day 1 dinner here?", { kind: "day", id: day });
-    act(() => unregister());
   });
 
   it("offers nothing on the reader's own line until it is stored", () => {
