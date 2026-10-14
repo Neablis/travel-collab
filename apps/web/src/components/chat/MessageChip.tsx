@@ -46,19 +46,25 @@ function resolve(board: BoardFocus | null, mentions: ChatMentions | null, link: 
  * inline chip a line taller than the message.
  */
 const CHIP = "mx-0.5 inline h-auto min-h-0 min-w-0 rounded-sm bg-brand-tint px-1 py-0 align-baseline font-medium text-brand-pressed";
+/**
+ * A pressable chip's hit area on a phone: an invisible overlay 12px past each
+ * edge, so the small chip still takes a 44px finger (SPEC §13.1) without
+ * growing the line it sits in. A mouse gets the chip as drawn.
+ */
+const HIT = "relative after:absolute after:-inset-3 fine:after:hidden";
 
 /** A message's reference as a chip: a day or stop focuses the board, a notebook opens, a person is their name. */
 export function MessageChip({ target }: { target: Resolved }) {
   if (target.focus !== undefined) {
     return (
-      <Button variant="ghost" size="sm" onClick={target.focus} className={`${CHIP} hover:bg-brand-tint hover:text-brand-pressed hover:underline`}>
+      <Button variant="ghost" size="sm" onClick={target.focus} className={`${CHIP} ${HIT} hover:bg-brand-tint hover:text-brand-pressed hover:underline`}>
         {target.name}
       </Button>
     );
   }
   if (target.href !== undefined) {
     return (
-      <Link href={target.href} className={`${CHIP} hover:underline`}>
+      <Link href={target.href} className={`${CHIP} ${HIT} hover:underline`}>
         {target.name}
       </Link>
     );

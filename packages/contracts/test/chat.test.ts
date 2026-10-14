@@ -25,6 +25,14 @@ describe("ChatMessage", () => {
     const live = { ...meta, removed: false, body: "Dinner at 8?", link: { kind: "stop", id: meta.messageId } };
     expect(ChatMessage.parse(live)).toEqual(live);
   });
+
+  // A reader on an older build (a stale tab, a rolled-back deploy) must not
+  // fail the whole page on a link kind added after it shipped: PR 446 added
+  // two, and the next one will too. The message is kept, without its link.
+  it("keeps a message whose link kind it does not know, without the link", () => {
+    const parsed = ChatMessage.parse({ ...meta, removed: false, body: "@Later", link: { kind: "unknown_future", id: "x" } });
+    expect(parsed).toEqual({ ...meta, removed: false, body: "@Later" });
+  });
 });
 
 describe("PostChatMessage", () => {

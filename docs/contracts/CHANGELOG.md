@@ -25,7 +25,14 @@ Format:
   `server/db/schema.ts` with migration `0052`, which makes `trip_messages.link_id` text and widens
   the `link_kind` check, `components/chat/MessageChip.tsx`, `TargetPicker.tsx`, `ChatPanel.tsx`).
   Not on the public API; `openapi.json` is unchanged.
-- Breaking? no for a reader: every link that parsed before still parses. A consumer that assumed
+- **Changed** `ChatMessage.link` to drop a link this build cannot parse (`.catch(undefined)`), so
+  the message reads as plain text instead of failing the page. Permanent: the next new kind is
+  safe for readers from this build on.
+- Breaking? **yes, for readers older than this change.** Their `ChatLink` knows only `day` and
+  `stop`, so one `person` or `notebook` message fails their whole `ChatPage` parse: a tab opened
+  before the deploy stops showing new messages until it is reloaded, as does any other open
+  preview on the same database; a server rolled back past PR 446 answers 500 on that trip's chat.
+  No code rollback past PR 446 once such a message exists: roll forward. A consumer that assumed
   `link.id` is a uuid without narrowing on `kind` is now wrong for a person.
 
 ## 2026-10-13 — `ReportTarget` and `AdminReportAction`: a trip's chat message can be reported (M46 part 5, D6)

@@ -25,9 +25,9 @@ const trip = tripDetailFixture({
 let unregister = () => {};
 afterEach(() => act(() => unregister()));
 
-function composer() {
+function composer(detail = trip) {
   act(() => {
-    unregister = registerBoardFocus({ ...tripTargets(trip, { focusedActivityId: null, focusedDayId: null, selectedDayId: null }), focusDay: vi.fn(), focusActivity: vi.fn() });
+    unregister = registerBoardFocus({ ...tripTargets(detail, { focusedActivityId: null, focusedDayId: null, selectedDayId: null }), focusDay: vi.fn(), focusActivity: vi.fn() });
   });
   const post = vi.fn(async () => true);
   const chat: TripChat = {
@@ -137,5 +137,18 @@ describe("the composer's @ picker for people and notebooks", () => {
     await user.type(field, "and @pack{Enter}{Enter}");
     // One reference a message, the last one picked.
     expect(post).toHaveBeenCalledWith("@Bea and @Packing list", { kind: "notebook", id: packing.id });
+  });
+
+  // PR 446 review: the first 8 matches overall were all days on a long trip,
+  // so a bare "@" never offered a person or a notebook.
+  it("offers a person and a notebook on a bare @, however many days the trip has", async () => {
+    const user = userEvent.setup();
+    const days = Array.from({ length: 10 }, (_, i) => ({ dayId: uuidFrom(10 + i, 46), activityIds: [], date: null, costSubtotal: 0 }));
+    const { field } = composer(tripDetailFixture({ days, activities: {} }));
+    await user.type(field, "@");
+    const list = screen.getByRole("listbox", { name: "Mentions" });
+    expect(await within(list).findByRole("option", { name: /Packing list/ })).toBeTruthy();
+    expect(within(list).getByRole("option", { name: /Bea/ })).toBeTruthy();
+    expect(within(list).getAllByRole("option")).toHaveLength(8);
   });
 });

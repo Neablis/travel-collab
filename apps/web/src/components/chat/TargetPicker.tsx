@@ -14,6 +14,9 @@ export type PickerTarget = ChatLink & { label: string; name: string };
 
 /** How many rows the picker shows: a completion, not a browser. */
 const ROWS = 8;
+/** The rows each kind with matches is sure of, so a long trip's days cannot hide its people and notebooks. */
+const ROWS_PER_KIND = 2;
+const KINDS = ["day", "stop", "person", "notebook"] as const;
 /** The mention being typed: an `@` at the start or after a space, and what follows it to the end. */
 const MENTION = /(^|\s)@([^@\n]*)$/;
 const KIND_WORD = { day: "Day", stop: "Stop", person: "Person", notebook: "Notebook" } as const;
@@ -23,7 +26,8 @@ const KIND_WORD = { day: "Day", stop: "Stop", person: "Person", notebook: "Noteb
  * order, each in the order its source lists it. A row matches on its kind and
  * its name together, so *@day* lists the days and *@person* the people, and
  * *@col* finds the Colosseum. A parked stop is left out, as its chip would be
- * (`resolveLink`).
+ * (`resolveLink`). Each kind with matches keeps `ROWS_PER_KIND` of the rows,
+ * and the rest go to the earlier kinds first.
  */
 export function pickerTargets(
   board: Pick<BoardFocus, "days" | "stops"> | null,
@@ -37,7 +41,15 @@ export function pickerTargets(
     ...(mentions?.notebooks ?? []).map((notebook) => ({ kind: "notebook" as const, id: notebook.id, label: notebook.title, name: notebook.title })),
   ];
   const wanted = query.trim().toLowerCase();
-  return all.filter((target) => `${target.kind} ${target.label}`.toLowerCase().includes(wanted)).slice(0, ROWS);
+  const groups = KINDS.map((kind) => all.filter((target) => target.kind === kind && `${target.kind} ${target.label}`.toLowerCase().includes(wanted)));
+  const take = groups.map((group) => Math.min(group.length, ROWS_PER_KIND));
+  let left = ROWS - take.reduce((sum, n) => sum + n, 0);
+  groups.forEach((group, i) => {
+    const more = Math.min(left, group.length - take[i]!);
+    take[i] = take[i]! + more;
+    left -= more;
+  });
+  return groups.flatMap((group, i) => group.slice(0, take[i]));
 }
 
 /**

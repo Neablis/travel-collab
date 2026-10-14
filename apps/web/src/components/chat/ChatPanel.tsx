@@ -48,7 +48,10 @@ export function ChatPanel({
   const focusLine = (messageId: string | null) => (messageId === null ? undefined : lines.current.get(messageId)?.focus());
   const deletingFrom = useRef<string | null>(null);
   // The trip's notebooks, for the picker and a message's notebook chip: the
-  // board's own read of them, shared through the cache rather than asked again.
+  // board's own read of them, shared through the cache rather than asked again,
+  // and read again on `remoteRevision`, as the board's is, so a notebook added
+  // since is offered and resolves without the panel remounting.
+  const remoteRevision = useOptionalTrip()?.remoteRevision;
   const [notebooks, setNotebooks] = useState<ChatMentions["notebooks"]>([]);
   useEffect(() => {
     let live = true;
@@ -58,7 +61,7 @@ export function ChatPanel({
     return () => {
       live = false;
     };
-  }, [chat.tripId]);
+  }, [chat.tripId, remoteRevision]);
   const mentions = useMemo<ChatMentions>(() => ({ tripId: chat.tripId, personas, notebooks }), [chat.tripId, personas, notebooks]);
   const picker = useTargetPicker(draft, setDraft, mentions);
   const scrollport = useRef<HTMLDivElement>(null);
@@ -93,7 +96,7 @@ export function ChatPanel({
   };
 
   return (
-    <>
+    <ChatMentionsProvider value={mentions}>
       <div ref={scrollport} className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto overscroll-contain px-4 py-3.5">
         {/* Nothing until the first read answers (KI-2026-09-20-e): the
             conversation arrives whole, and is usually here before it opens. */}
@@ -106,42 +109,40 @@ export function ChatPanel({
         ) : (
           <>
             {chat.hasEarlier && <p className="text-xs text-slate">Earlier messages aren&apos;t shown.</p>}
-            <ChatMentionsProvider value={mentions}>
-              <ol aria-label="Messages" className="flex flex-col gap-3">
-                {chat.messages.map((message) => (
-                  <ChatMessage
-                    key={message.messageId}
-                    ref={(line) => {
-                      if (line !== null) lines.current.set(message.messageId, line);
-                      return () => void lines.current.delete(message.messageId);
-                    }}
-                    message={message}
-                    persona={personas === null ? null : personas[message.authorId]}
-                    tripId={chat.tripId}
-                    viewer={viewerOf(message.authorId)}
-                    // Closed by a lapse mid-edit as well: the save would be refused.
-                    editing={editing === message.messageId && chat.canPost}
-                    onEdit={() => setEditing(message.messageId)}
-                    onDelete={() => {
-                      deletingFrom.current = message.messageId;
-                      setDeleting(message.messageId);
-                    }}
-                    onSave={async (body) => {
-                      const saved = await chat.edit(message.messageId, body);
-                      if (saved) {
-                        focusLine(message.messageId);
-                        setEditing(null);
-                      }
-                      return saved;
-                    }}
-                    onCancelEdit={() => {
+            <ol aria-label="Messages" className="flex flex-col gap-3">
+              {chat.messages.map((message) => (
+                <ChatMessage
+                  key={message.messageId}
+                  ref={(line) => {
+                    if (line !== null) lines.current.set(message.messageId, line);
+                    return () => void lines.current.delete(message.messageId);
+                  }}
+                  message={message}
+                  persona={personas === null ? null : personas[message.authorId]}
+                  tripId={chat.tripId}
+                  viewer={viewerOf(message.authorId)}
+                  // Closed by a lapse mid-edit as well: the save would be refused.
+                  editing={editing === message.messageId && chat.canPost}
+                  onEdit={() => setEditing(message.messageId)}
+                  onDelete={() => {
+                    deletingFrom.current = message.messageId;
+                    setDeleting(message.messageId);
+                  }}
+                  onSave={async (body) => {
+                    const saved = await chat.edit(message.messageId, body);
+                    if (saved) {
                       focusLine(message.messageId);
                       setEditing(null);
-                    }}
-                  />
-                ))}
-              </ol>
-            </ChatMentionsProvider>
+                    }
+                    return saved;
+                  }}
+                  onCancelEdit={() => {
+                    focusLine(message.messageId);
+                    setEditing(null);
+                  }}
+                />
+              ))}
+            </ol>
           </>
         )}
       </div>
@@ -213,6 +214,6 @@ export function ChatPanel({
           )}
         </div>
       )}
-    </>
+    </ChatMentionsProvider>
   );
 }
