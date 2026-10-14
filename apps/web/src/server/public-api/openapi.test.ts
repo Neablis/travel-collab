@@ -20,7 +20,6 @@ import {
   fingerprintOf,
   routeModulePaths,
   urlOf,
-  withoutRecursiveReferenceWarning,
   withoutTupleItems,
 } from "./openapi";
 import { DECLARED, type DeclaredHandler } from "./route";
@@ -148,45 +147,71 @@ describe("openapi.json is derived from the declarations", () => {
     expect(withoutTupleItems({ items: [], maxItems: 0 })).toEqual({ items: {}, maxItems: 0 });
   });
 
-  // The filter in `schemaOf` must be exactly as wide as the library's one
-  // known-benign warning: a broader match would swallow a real signal from a
-  // future zod-to-json-schema, and a leak would put the 42 lines back.
-  describe("withoutRecursiveReferenceWarning", () => {
-    it("returns the callback's value", () => {
-      expect(withoutRecursiveReferenceWarning(() => 42)).toBe(42);
-    });
+  // The page tree is the document's one recursive schema. It is generated
+  // once as `components.schemas.PageNode`, and every route that carries page
+  // content references it — so the recursion is a real `$ref`, nested content
+  // is the node union rather than `any`, and no `$ref` points anywhere the
+  // document does not define (an inline-path `$ref` would break once the
+  // per-route schema is embedded under `paths`).
+  it("publishes the recursive page tree as one shared $ref component", async () => {
+    const doc = JSON.parse(await generate()) as {
+      paths: Record<string, unknown>;
+      components: { schemas: Record<string, unknown> };
+    };
+    const pageNode = doc.components.schemas["PageNode"];
+    expect(pageNode, "components.schemas.PageNode exists").toBeDefined();
 
-    it("drops the recursive-reference warning on warn and error, and nothing else", () => {
-      const warned: unknown[][] = [];
-      const errored: unknown[][] = [];
-      const warn = vi.spyOn(console, "warn").mockImplementation((...args: unknown[]) => void warned.push(args));
-      const error = vi.spyOn(console, "error").mockImplementation((...args: unknown[]) => void errored.push(args));
-      try {
-        withoutRecursiveReferenceWarning(() => {
-          console.warn("Recursive reference detected at #/x! Defaulting to any");
-          console.error("Recursive reference detected at #/y! Defaulting to any");
-          console.warn("some other warning");
-          console.error("some other error");
-        });
-      } finally {
-        warn.mockRestore();
-        error.mockRestore();
+    // Every `$ref` under `node`, collected with a single walk.
+    const refsUnder = (node: unknown): string[] => {
+      const refs: string[] = [];
+      const walk = (n: unknown): void => {
+        if (Array.isArray(n)) return n.forEach(walk);
+        if (n === null || typeof n !== "object") return;
+        for (const [key, value] of Object.entries(n)) {
+          if (key === "$ref" && typeof value === "string") refs.push(value);
+          else walk(value);
+        }
+      };
+      walk(node);
+      return refs;
+    };
+
+    // Resolve an internal `$ref` against the document root, per RFC 6901.
+    // Returns undefined when any segment is missing — a dangling ref.
+    const resolveRef = (root: unknown, ref: string): unknown => {
+      if (!ref.startsWith("#/")) return undefined;
+      let node: unknown = root;
+      for (const raw of ref.slice(2).split("/")) {
+        const key = raw.replaceAll("~1", "/").replaceAll("~0", "~");
+        if (node === null || typeof node !== "object" || !(key in node)) return undefined;
+        node = (node as Record<string, unknown>)[key];
       }
-      expect(warned).toEqual([["some other warning"]]);
-      expect(errored).toEqual([["some other error"]]);
-    });
+      return node;
+    };
 
-    it("restores the console even when the callback throws", () => {
-      const warn = console.warn;
-      const error = console.error;
-      expect(() =>
-        withoutRecursiveReferenceWarning(() => {
-          throw new Error("boom");
-        }),
-      ).toThrow("boom");
-      expect(console.warn).toBe(warn);
-      expect(console.error).toBe(error);
-    });
+    // Every $ref in the document names a component schema — none dangles at
+    // an inline path or a `#/definitions/` the rewrite missed.
+    const allRefs = refsUnder(doc);
+    expect(allRefs.length).toBeGreaterThan(0);
+    for (const ref of allRefs) {
+      expect(ref, `ref ${ref} names a component schema`).toMatch(/^#\/components\/schemas\//);
+      expect(resolveRef(doc, ref), `ref ${ref} resolves`).toBeDefined();
+    }
+
+    // The component refers to ITSELF: that self-reference is the recursion,
+    // expressed instead of the old `any` fallback.
+    const componentRefs = refsUnder(pageNode);
+    expect(
+      componentRefs.filter((r) => r === "#/components/schemas/PageNode"),
+      "PageNode references itself",
+    ).not.toEqual([]);
+
+    // And routes that carry page content point at it rather than inlining it.
+    const pathRefs = refsUnder(doc.paths);
+    expect(
+      pathRefs.filter((r) => r === "#/components/schemas/PageNode"),
+      "at least one route references the PageNode component",
+    ).not.toEqual([]);
   });
 
   it("names the scope and the role on every operation", async () => {

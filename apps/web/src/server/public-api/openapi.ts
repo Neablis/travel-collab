@@ -1,9 +1,9 @@
 import { createHash } from "node:crypto";
 import { readdirSync } from "node:fs";
 import path from "node:path";
-import { zodToJsonSchema } from "zod-to-json-schema";
+import { ignoreOverride, zodToJsonSchema } from "zod-to-json-schema";
 import type { z } from "zod";
-import { API_SCOPES, SCOPE_CATALOGUE } from "@tc/contracts";
+import { API_SCOPES, PageNode, SCOPE_CATALOGUE } from "@tc/contracts";
 import { DECLARED, MAX_PAGE_LIMIT, type DeclaredHandler, type MethodDef } from "./route";
 import { IDEMPOTENCY_KEY_MAX_LENGTH, REPLAYED_HEADER } from "./idempotency";
 
@@ -40,8 +40,8 @@ import { IDEMPOTENCY_KEY_MAX_LENGTH, REPLAYED_HEADER } from "./idempotency";
  * fingerprint the failure printed into `API_FINGERPRINT`, and add a line to
  * `docs/contracts/CHANGELOG.md`. Change both constants in the same diff.
  */
-export const API_VERSION = "1.16.0";
-export const API_FINGERPRINT = "a73bccbbf91c2b6af12ad288c5f8ce20c0c0859d9f5271e2779f9073ae65b520";
+export const API_VERSION = "1.17.0";
+export const API_FINGERPRINT = "c6588bcb013ab46badc434dfd8273ac8f980ba2c0efecd0fd215a2c890ef8140";
 
 /**
  * sha256 of the document with `info.version` left out, keys sorted at every
@@ -90,44 +90,79 @@ export function urlOf(v1Dir: string, file: string): string {
 
 type JsonSchema = ReturnType<typeof zodToJsonSchema>;
 
+// **The document's one named component.** `PageNode` (`@tc/contracts`
+// `pageDoc.ts`) is the tree's knot: list items, blockquotes and the like hold
+// `content: PageNode[]`, tied with `z.lazy`. It is the only recursive schema
+// in the contracts, so it is the only one that cannot be inlined — and the
+// only one lifted to a shared `$ref`.
+const PAGE_NODE_COMPONENT = "PageNode";
+const PAGE_NODE_REF = `#/components/schemas/${PAGE_NODE_COMPONENT}`;
+
 function schemaOf(zod: z.ZodTypeAny): JsonSchema {
   // `target: "openApi3"` because zod-to-json-schema's default emits JSON Schema
   // draft-07, whose `nullable` and `exclusiveMinimum` spellings OpenAPI 3.0 does
   // not accept. zod is v3 here, which is why this library and not a v4-only one.
+  //
+  // `$refStrategy: "none"`: every schema inlines where it is used, so each
+  // call's output is self-contained — EXCEPT the recursive `PageNode`, which
+  // `pageNodeRefOverride` lifts to the shared component below. "root" and
+  // "relative" were considered and rejected: they `$ref` a repeated schema to
+  // its first-seen INLINE path, and that path breaks once this output is
+  // embedded under `paths` — only a `$ref` to a named component survives the
+  // embedding, so only the recursion gets one.
   return withoutTupleItems(
-    withoutRecursiveReferenceWarning(() => zodToJsonSchema(zod, { target: "openApi3", $refStrategy: "none" })),
+    zodToJsonSchema(zod, { target: "openApi3", $refStrategy: "none", override: pageNodeRefOverride }),
   ) as JsonSchema;
 }
 
-// **zod-to-json-schema warns about the recursion it is designed to absorb.**
-// The ask-stream envelope's `content` is genuinely recursive (content parts
-// containing content parts), so every generation logs "Recursive reference
-// detected at #/properties/content/…! Defaulting to any" — 42 lines per unit
-// run — for a fallback the committed `openapi.json` already encodes and a
-// reviewer already accepted. The warning fires inside the one library call,
-// so it is filtered at exactly that boundary and restored immediately after;
-// anything else the call logs still reaches the console.
-/**
- * Runs `generate` with zod-to-json-schema's recursive-reference warning
- * dropped, and the console restored afterwards even if it throws.
- */
-export function withoutRecursiveReferenceWarning<T>(generate: () => T): T {
-  const warn = console.warn;
-  const error = console.error;
-  const drop =
-    (next: typeof console.warn): typeof console.warn =>
-    (message?: unknown, ...rest: unknown[]) => {
-      if (typeof message === "string" && message.startsWith("Recursive reference detected")) return;
-      next.call(console, message, ...rest);
-    };
-  console.warn = drop(warn);
-  console.error = drop(error);
-  try {
-    return generate();
-  } finally {
-    console.warn = warn;
-    console.error = error;
+// zod-to-json-schema's `override` hook: the recursive `PageNode` def becomes
+// a `$ref` to the shared component instead of being inlined (inlining is what
+// used to log "Recursive reference detected … Defaulting to any" and publish
+// `any` for nested page content). Identity-matched on the def object, so the
+// `z.lazy` knot — whose getter returns this same def — resolves to the same
+// `$ref`. Everything else returns `ignoreOverride` and generates exactly as
+// before.
+function pageNodeRefOverride(def: z.ZodTypeDef): { $ref: string } | typeof ignoreOverride {
+  return def === PageNode._def ? { $ref: PAGE_NODE_REF } : ignoreOverride;
+}
+
+// The library's `#/definitions/X` `$ref`s, rewritten to the
+// `#/components/schemas/X` home the document actually gives them. Only `$ref`
+// values are rewritten, never descriptions or examples that might mention
+// the string.
+function rewriteDefinitionRefs(node: unknown): unknown {
+  if (Array.isArray(node)) return node.map(rewriteDefinitionRefs);
+  if (node === null || typeof node !== "object") return node;
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(node)) {
+    out[key] =
+      key === "$ref" && typeof value === "string" && value.startsWith("#/definitions/")
+        ? `#/components/schemas/${value.slice("#/definitions/".length)}`
+        : rewriteDefinitionRefs(value);
   }
+  return out;
+}
+
+/**
+ * The shared `PageNode` component schema: the full page-tree shape, generated
+ * once, its own recursion expressed as a `$ref` to itself.
+ *
+ * Generated in a dedicated call with `definitions` plus `$refStrategy:
+ * "root"` — the combination that makes the library NAME the recursion
+ * (`#/definitions/PageNode`) instead of warning-and-`any`ing it the way
+ * `"none"` does. The per-route `schemaOf` calls cannot do this themselves:
+ * each is independent, so their `$ref`s would point at definitions that do
+ * not exist in their own output.
+ */
+function pageNodeComponentSchema(): Record<string, unknown> {
+  const generated = zodToJsonSchema(PageNode, {
+    target: "openApi3",
+    $refStrategy: "root",
+    definitions: { [PAGE_NODE_COMPONENT]: PageNode },
+  }) as { definitions?: Record<string, unknown> };
+  const component = generated.definitions?.[PAGE_NODE_COMPONENT];
+  if (component === undefined) throw new Error("openapi: PageNode component did not generate");
+  return rewriteDefinitionRefs(withoutTupleItems(component)) as Record<string, unknown>;
 }
 
 // **OpenAPI 3.0 has no tuples, and `openApi3` still emits one.** A `z.tuple`
@@ -178,7 +213,7 @@ export interface OpenApiDocument {
   openapi: string;
   info: { title: string; version: string; description: string };
   paths: Record<string, Record<string, unknown>>;
-  components: { securitySchemes: Record<string, unknown> };
+  components: { securitySchemes: Record<string, unknown>; schemas: Record<string, unknown> };
   security: { bearerAuth: string[] }[];
 }
 
@@ -341,6 +376,10 @@ export function buildOpenApi(
       securitySchemes: {
         bearerAuth: { type: "http", scheme: "bearer", bearerFormat: "tc_<base64url>" },
       },
+      // The document's named schemas. Today this is one entry — the recursive
+      // page tree — generated once by `pageNodeComponentSchema` and referenced
+      // from every route that carries page content.
+      schemas: { [PAGE_NODE_COMPONENT]: pageNodeComponentSchema() },
     },
     security: [{ bearerAuth: [] }],
   };

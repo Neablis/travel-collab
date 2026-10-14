@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Caesura API",
-    "version": "1.16.0",
+    "version": "1.17.0",
     "description": "The public REST API. Every endpoint takes an account API token as\n`Authorization: Bearer tc_...`, minted in Account settings.\n\nScopes:\n- `trips:read` — See your trips, their days and stops, costs, history, and existing share links.\n- `trips:write` — Create, change and delete trips, days and stops; undo, redo and revert.\n- `notebook:read` — Read the Notebook pages on a trip.\n- `notebook:write` — Create, change and delete the Notebook pages on a trip.\n- `library:read` — Read your saved-days library and your Playbooks (a Playbook is a view over saved days), and browse published Playbooks.\n- `library:write` — Create, edit, import and delete saved days and Playbooks, and publish or unpublish them to Discover.\n- `sharing:write` — Invite people to a trip and revoke invites, and create or revoke share links.\n- `account:read` — See who you are and what plan you hold.\n- `places:read` — Look up real places by name, outside any trip. Every search counts against your daily geocoding allowance (the one the app's own place search uses) and a daily budget shared by every account; one token may make at most 100 a day."
   },
   "paths": {
@@ -19935,756 +19935,7 @@
                       "content": {
                         "type": "array",
                         "items": {
-                          "anyOf": [
-                            {
-                              "type": "object",
-                              "properties": {
-                                "type": {
-                                  "type": "string",
-                                  "enum": [
-                                    "paragraph"
-                                  ]
-                                },
-                                "content": {
-                                  "type": "array",
-                                  "items": {
-                                    "anyOf": [
-                                      {
-                                        "type": "object",
-                                        "properties": {
-                                          "type": {
-                                            "type": "string",
-                                            "enum": [
-                                              "text"
-                                            ]
-                                          },
-                                          "text": {
-                                            "type": "string"
-                                          },
-                                          "marks": {
-                                            "type": "array",
-                                            "items": {
-                                              "type": "object",
-                                              "properties": {
-                                                "type": {
-                                                  "type": "string",
-                                                  "minLength": 1
-                                                },
-                                                "attrs": {
-                                                  "type": "object",
-                                                  "additionalProperties": {}
-                                                }
-                                              },
-                                              "required": [
-                                                "type"
-                                              ],
-                                              "additionalProperties": false
-                                            }
-                                          }
-                                        },
-                                        "required": [
-                                          "type",
-                                          "text"
-                                        ],
-                                        "additionalProperties": false
-                                      },
-                                      {
-                                        "type": "object",
-                                        "properties": {
-                                          "type": {
-                                            "type": "string",
-                                            "enum": [
-                                              "macro"
-                                            ]
-                                          },
-                                          "attrs": {
-                                            "type": "object",
-                                            "properties": {
-                                              "name": {
-                                                "type": "string",
-                                                "minLength": 1
-                                              },
-                                              "params": {
-                                                "type": "object",
-                                                "additionalProperties": {},
-                                                "default": {}
-                                              }
-                                            },
-                                            "required": [
-                                              "name"
-                                            ],
-                                            "additionalProperties": false
-                                          }
-                                        },
-                                        "required": [
-                                          "type",
-                                          "attrs"
-                                        ],
-                                        "additionalProperties": false
-                                      },
-                                      {
-                                        "type": "object",
-                                        "properties": {
-                                          "type": {
-                                            "type": "string",
-                                            "enum": [
-                                              "hardBreak"
-                                            ]
-                                          }
-                                        },
-                                        "required": [
-                                          "type"
-                                        ],
-                                        "additionalProperties": false
-                                      },
-                                      {
-                                        "type": "object",
-                                        "properties": {
-                                          "type": {
-                                            "type": "string",
-                                            "enum": [
-                                              "unknown"
-                                            ]
-                                          },
-                                          "raw": {}
-                                        },
-                                        "required": [
-                                          "type"
-                                        ],
-                                        "additionalProperties": false
-                                      }
-                                    ]
-                                  },
-                                  "default": []
-                                }
-                              },
-                              "required": [
-                                "type"
-                              ],
-                              "additionalProperties": false
-                            },
-                            {
-                              "type": "object",
-                              "properties": {
-                                "type": {
-                                  "type": "string",
-                                  "enum": [
-                                    "heading"
-                                  ]
-                                },
-                                "attrs": {
-                                  "type": "object",
-                                  "properties": {
-                                    "level": {
-                                      "anyOf": [
-                                        {
-                                          "type": "number",
-                                          "enum": [
-                                            1
-                                          ]
-                                        },
-                                        {
-                                          "type": "number",
-                                          "enum": [
-                                            2
-                                          ]
-                                        },
-                                        {
-                                          "type": "number",
-                                          "enum": [
-                                            3
-                                          ]
-                                        },
-                                        {
-                                          "type": "number",
-                                          "enum": [
-                                            4
-                                          ]
-                                        },
-                                        {
-                                          "type": "number",
-                                          "enum": [
-                                            5
-                                          ]
-                                        },
-                                        {
-                                          "type": "number",
-                                          "enum": [
-                                            6
-                                          ]
-                                        }
-                                      ]
-                                    }
-                                  },
-                                  "required": [
-                                    "level"
-                                  ],
-                                  "additionalProperties": false
-                                },
-                                "content": {
-                                  "type": "array",
-                                  "items": {
-                                    "anyOf": [
-                                      {
-                                        "type": "object",
-                                        "properties": {
-                                          "type": {
-                                            "type": "string",
-                                            "enum": [
-                                              "text"
-                                            ]
-                                          },
-                                          "text": {
-                                            "type": "string"
-                                          },
-                                          "marks": {
-                                            "type": "array",
-                                            "items": {
-                                              "type": "object",
-                                              "properties": {
-                                                "type": {
-                                                  "type": "string",
-                                                  "minLength": 1
-                                                },
-                                                "attrs": {
-                                                  "type": "object",
-                                                  "additionalProperties": {}
-                                                }
-                                              },
-                                              "required": [
-                                                "type"
-                                              ],
-                                              "additionalProperties": false
-                                            }
-                                          }
-                                        },
-                                        "required": [
-                                          "type",
-                                          "text"
-                                        ],
-                                        "additionalProperties": false
-                                      },
-                                      {
-                                        "type": "object",
-                                        "properties": {
-                                          "type": {
-                                            "type": "string",
-                                            "enum": [
-                                              "macro"
-                                            ]
-                                          },
-                                          "attrs": {
-                                            "type": "object",
-                                            "properties": {
-                                              "name": {
-                                                "type": "string",
-                                                "minLength": 1
-                                              },
-                                              "params": {
-                                                "type": "object",
-                                                "additionalProperties": {},
-                                                "default": {}
-                                              }
-                                            },
-                                            "required": [
-                                              "name"
-                                            ],
-                                            "additionalProperties": false
-                                          }
-                                        },
-                                        "required": [
-                                          "type",
-                                          "attrs"
-                                        ],
-                                        "additionalProperties": false
-                                      },
-                                      {
-                                        "type": "object",
-                                        "properties": {
-                                          "type": {
-                                            "type": "string",
-                                            "enum": [
-                                              "hardBreak"
-                                            ]
-                                          }
-                                        },
-                                        "required": [
-                                          "type"
-                                        ],
-                                        "additionalProperties": false
-                                      },
-                                      {
-                                        "type": "object",
-                                        "properties": {
-                                          "type": {
-                                            "type": "string",
-                                            "enum": [
-                                              "unknown"
-                                            ]
-                                          },
-                                          "raw": {}
-                                        },
-                                        "required": [
-                                          "type"
-                                        ],
-                                        "additionalProperties": false
-                                      }
-                                    ]
-                                  },
-                                  "default": []
-                                }
-                              },
-                              "required": [
-                                "type",
-                                "attrs"
-                              ],
-                              "additionalProperties": false
-                            },
-                            {
-                              "type": "object",
-                              "properties": {
-                                "type": {
-                                  "type": "string",
-                                  "enum": [
-                                    "macro"
-                                  ]
-                                },
-                                "attrs": {
-                                  "type": "object",
-                                  "properties": {
-                                    "name": {
-                                      "type": "string",
-                                      "minLength": 1
-                                    },
-                                    "params": {
-                                      "type": "object",
-                                      "additionalProperties": {},
-                                      "default": {}
-                                    }
-                                  },
-                                  "required": [
-                                    "name"
-                                  ],
-                                  "additionalProperties": false
-                                }
-                              },
-                              "required": [
-                                "type",
-                                "attrs"
-                              ],
-                              "additionalProperties": false
-                            },
-                            {
-                              "type": "object",
-                              "properties": {
-                                "type": {
-                                  "type": "string",
-                                  "enum": [
-                                    "repeat"
-                                  ]
-                                },
-                                "attrs": {
-                                  "type": "object",
-                                  "properties": {
-                                    "name": {
-                                      "type": "string",
-                                      "minLength": 1
-                                    },
-                                    "params": {
-                                      "type": "object",
-                                      "additionalProperties": {},
-                                      "default": {}
-                                    }
-                                  },
-                                  "required": [
-                                    "name"
-                                  ],
-                                  "additionalProperties": false
-                                },
-                                "content": {
-                                  "type": "array",
-                                  "items": {
-                                    "anyOf": [
-                                      {
-                                        "type": "object",
-                                        "properties": {
-                                          "type": {
-                                            "type": "string",
-                                            "enum": [
-                                              "text"
-                                            ]
-                                          },
-                                          "text": {
-                                            "type": "string"
-                                          },
-                                          "marks": {
-                                            "type": "array",
-                                            "items": {
-                                              "type": "object",
-                                              "properties": {
-                                                "type": {
-                                                  "type": "string",
-                                                  "minLength": 1
-                                                },
-                                                "attrs": {
-                                                  "type": "object",
-                                                  "additionalProperties": {}
-                                                }
-                                              },
-                                              "required": [
-                                                "type"
-                                              ],
-                                              "additionalProperties": false
-                                            }
-                                          }
-                                        },
-                                        "required": [
-                                          "type",
-                                          "text"
-                                        ],
-                                        "additionalProperties": false
-                                      },
-                                      {
-                                        "type": "object",
-                                        "properties": {
-                                          "type": {
-                                            "type": "string",
-                                            "enum": [
-                                              "macro"
-                                            ]
-                                          },
-                                          "attrs": {
-                                            "type": "object",
-                                            "properties": {
-                                              "name": {
-                                                "type": "string",
-                                                "minLength": 1
-                                              },
-                                              "params": {
-                                                "type": "object",
-                                                "additionalProperties": {},
-                                                "default": {}
-                                              }
-                                            },
-                                            "required": [
-                                              "name"
-                                            ],
-                                            "additionalProperties": false
-                                          }
-                                        },
-                                        "required": [
-                                          "type",
-                                          "attrs"
-                                        ],
-                                        "additionalProperties": false
-                                      },
-                                      {
-                                        "type": "object",
-                                        "properties": {
-                                          "type": {
-                                            "type": "string",
-                                            "enum": [
-                                              "hardBreak"
-                                            ]
-                                          }
-                                        },
-                                        "required": [
-                                          "type"
-                                        ],
-                                        "additionalProperties": false
-                                      },
-                                      {
-                                        "type": "object",
-                                        "properties": {
-                                          "type": {
-                                            "type": "string",
-                                            "enum": [
-                                              "unknown"
-                                            ]
-                                          },
-                                          "raw": {}
-                                        },
-                                        "required": [
-                                          "type"
-                                        ],
-                                        "additionalProperties": false
-                                      }
-                                    ]
-                                  },
-                                  "default": []
-                                }
-                              },
-                              "required": [
-                                "type",
-                                "attrs"
-                              ],
-                              "additionalProperties": false
-                            },
-                            {
-                              "type": "object",
-                              "properties": {
-                                "type": {
-                                  "type": "string",
-                                  "enum": [
-                                    "codeBlock"
-                                  ]
-                                },
-                                "attrs": {
-                                  "type": "object",
-                                  "properties": {
-                                    "language": {
-                                      "type": "string",
-                                      "nullable": true
-                                    }
-                                  },
-                                  "required": [
-                                    "language"
-                                  ],
-                                  "additionalProperties": false,
-                                  "default": {
-                                    "language": null
-                                  }
-                                },
-                                "content": {
-                                  "type": "array",
-                                  "items": {
-                                    "anyOf": [
-                                      {
-                                        "type": "object",
-                                        "properties": {
-                                          "type": {
-                                            "type": "string",
-                                            "enum": [
-                                              "text"
-                                            ]
-                                          },
-                                          "text": {
-                                            "type": "string"
-                                          }
-                                        },
-                                        "required": [
-                                          "type",
-                                          "text"
-                                        ],
-                                        "additionalProperties": false
-                                      },
-                                      {
-                                        "type": "object",
-                                        "properties": {
-                                          "type": {
-                                            "type": "string",
-                                            "enum": [
-                                              "unknown"
-                                            ]
-                                          },
-                                          "raw": {}
-                                        },
-                                        "required": [
-                                          "type"
-                                        ],
-                                        "additionalProperties": false
-                                      }
-                                    ]
-                                  },
-                                  "default": []
-                                }
-                              },
-                              "required": [
-                                "type"
-                              ],
-                              "additionalProperties": false
-                            },
-                            {
-                              "type": "object",
-                              "properties": {
-                                "type": {
-                                  "type": "string",
-                                  "enum": [
-                                    "horizontalRule"
-                                  ]
-                                }
-                              },
-                              "required": [
-                                "type"
-                              ],
-                              "additionalProperties": false
-                            },
-                            {
-                              "type": "object",
-                              "properties": {
-                                "type": {
-                                  "type": "string",
-                                  "enum": [
-                                    "blockquote"
-                                  ]
-                                },
-                                "content": {
-                                  "type": "array",
-                                  "items": {},
-                                  "default": []
-                                }
-                              },
-                              "required": [
-                                "type"
-                              ],
-                              "additionalProperties": false
-                            },
-                            {
-                              "type": "object",
-                              "properties": {
-                                "type": {
-                                  "type": "string",
-                                  "enum": [
-                                    "bulletList"
-                                  ]
-                                },
-                                "content": {
-                                  "type": "array",
-                                  "items": {
-                                    "anyOf": [
-                                      {
-                                        "type": "object",
-                                        "properties": {
-                                          "type": {
-                                            "type": "string",
-                                            "enum": [
-                                              "listItem"
-                                            ]
-                                          },
-                                          "content": {
-                                            "type": "array",
-                                            "items": {},
-                                            "default": []
-                                          }
-                                        },
-                                        "required": [
-                                          "type"
-                                        ],
-                                        "additionalProperties": false
-                                      },
-                                      {
-                                        "type": "object",
-                                        "properties": {
-                                          "type": {
-                                            "type": "string",
-                                            "enum": [
-                                              "unknown"
-                                            ]
-                                          },
-                                          "raw": {}
-                                        },
-                                        "required": [
-                                          "type"
-                                        ],
-                                        "additionalProperties": false
-                                      }
-                                    ]
-                                  },
-                                  "default": []
-                                }
-                              },
-                              "required": [
-                                "type"
-                              ],
-                              "additionalProperties": false
-                            },
-                            {
-                              "type": "object",
-                              "properties": {
-                                "type": {
-                                  "type": "string",
-                                  "enum": [
-                                    "orderedList"
-                                  ]
-                                },
-                                "attrs": {
-                                  "type": "object",
-                                  "properties": {
-                                    "start": {
-                                      "type": "integer"
-                                    },
-                                    "type": {
-                                      "type": "string",
-                                      "nullable": true
-                                    }
-                                  },
-                                  "required": [
-                                    "start",
-                                    "type"
-                                  ],
-                                  "additionalProperties": false,
-                                  "default": {
-                                    "start": 1,
-                                    "type": null
-                                  }
-                                },
-                                "content": {
-                                  "type": "array",
-                                  "items": {
-                                    "anyOf": [
-                                      {
-                                        "type": "object",
-                                        "properties": {
-                                          "type": {
-                                            "type": "string",
-                                            "enum": [
-                                              "listItem"
-                                            ]
-                                          },
-                                          "content": {
-                                            "type": "array",
-                                            "items": {},
-                                            "default": []
-                                          }
-                                        },
-                                        "required": [
-                                          "type"
-                                        ],
-                                        "additionalProperties": false
-                                      },
-                                      {
-                                        "type": "object",
-                                        "properties": {
-                                          "type": {
-                                            "type": "string",
-                                            "enum": [
-                                              "unknown"
-                                            ]
-                                          },
-                                          "raw": {}
-                                        },
-                                        "required": [
-                                          "type"
-                                        ],
-                                        "additionalProperties": false
-                                      }
-                                    ]
-                                  },
-                                  "default": []
-                                }
-                              },
-                              "required": [
-                                "type"
-                              ],
-                              "additionalProperties": false
-                            },
-                            {
-                              "type": "object",
-                              "properties": {
-                                "type": {
-                                  "type": "string",
-                                  "enum": [
-                                    "unknown"
-                                  ]
-                                },
-                                "raw": {}
-                              },
-                              "required": [
-                                "type"
-                              ],
-                              "additionalProperties": false
-                            }
-                          ]
+                          "$ref": "#/components/schemas/PageNode"
                         },
                         "default": []
                       }
@@ -21056,756 +20307,7 @@
                       "content": {
                         "type": "array",
                         "items": {
-                          "anyOf": [
-                            {
-                              "type": "object",
-                              "properties": {
-                                "type": {
-                                  "type": "string",
-                                  "enum": [
-                                    "paragraph"
-                                  ]
-                                },
-                                "content": {
-                                  "type": "array",
-                                  "items": {
-                                    "anyOf": [
-                                      {
-                                        "type": "object",
-                                        "properties": {
-                                          "type": {
-                                            "type": "string",
-                                            "enum": [
-                                              "text"
-                                            ]
-                                          },
-                                          "text": {
-                                            "type": "string"
-                                          },
-                                          "marks": {
-                                            "type": "array",
-                                            "items": {
-                                              "type": "object",
-                                              "properties": {
-                                                "type": {
-                                                  "type": "string",
-                                                  "minLength": 1
-                                                },
-                                                "attrs": {
-                                                  "type": "object",
-                                                  "additionalProperties": {}
-                                                }
-                                              },
-                                              "required": [
-                                                "type"
-                                              ],
-                                              "additionalProperties": false
-                                            }
-                                          }
-                                        },
-                                        "required": [
-                                          "type",
-                                          "text"
-                                        ],
-                                        "additionalProperties": false
-                                      },
-                                      {
-                                        "type": "object",
-                                        "properties": {
-                                          "type": {
-                                            "type": "string",
-                                            "enum": [
-                                              "macro"
-                                            ]
-                                          },
-                                          "attrs": {
-                                            "type": "object",
-                                            "properties": {
-                                              "name": {
-                                                "type": "string",
-                                                "minLength": 1
-                                              },
-                                              "params": {
-                                                "type": "object",
-                                                "additionalProperties": {},
-                                                "default": {}
-                                              }
-                                            },
-                                            "required": [
-                                              "name"
-                                            ],
-                                            "additionalProperties": false
-                                          }
-                                        },
-                                        "required": [
-                                          "type",
-                                          "attrs"
-                                        ],
-                                        "additionalProperties": false
-                                      },
-                                      {
-                                        "type": "object",
-                                        "properties": {
-                                          "type": {
-                                            "type": "string",
-                                            "enum": [
-                                              "hardBreak"
-                                            ]
-                                          }
-                                        },
-                                        "required": [
-                                          "type"
-                                        ],
-                                        "additionalProperties": false
-                                      },
-                                      {
-                                        "type": "object",
-                                        "properties": {
-                                          "type": {
-                                            "type": "string",
-                                            "enum": [
-                                              "unknown"
-                                            ]
-                                          },
-                                          "raw": {}
-                                        },
-                                        "required": [
-                                          "type"
-                                        ],
-                                        "additionalProperties": false
-                                      }
-                                    ]
-                                  },
-                                  "default": []
-                                }
-                              },
-                              "required": [
-                                "type"
-                              ],
-                              "additionalProperties": false
-                            },
-                            {
-                              "type": "object",
-                              "properties": {
-                                "type": {
-                                  "type": "string",
-                                  "enum": [
-                                    "heading"
-                                  ]
-                                },
-                                "attrs": {
-                                  "type": "object",
-                                  "properties": {
-                                    "level": {
-                                      "anyOf": [
-                                        {
-                                          "type": "number",
-                                          "enum": [
-                                            1
-                                          ]
-                                        },
-                                        {
-                                          "type": "number",
-                                          "enum": [
-                                            2
-                                          ]
-                                        },
-                                        {
-                                          "type": "number",
-                                          "enum": [
-                                            3
-                                          ]
-                                        },
-                                        {
-                                          "type": "number",
-                                          "enum": [
-                                            4
-                                          ]
-                                        },
-                                        {
-                                          "type": "number",
-                                          "enum": [
-                                            5
-                                          ]
-                                        },
-                                        {
-                                          "type": "number",
-                                          "enum": [
-                                            6
-                                          ]
-                                        }
-                                      ]
-                                    }
-                                  },
-                                  "required": [
-                                    "level"
-                                  ],
-                                  "additionalProperties": false
-                                },
-                                "content": {
-                                  "type": "array",
-                                  "items": {
-                                    "anyOf": [
-                                      {
-                                        "type": "object",
-                                        "properties": {
-                                          "type": {
-                                            "type": "string",
-                                            "enum": [
-                                              "text"
-                                            ]
-                                          },
-                                          "text": {
-                                            "type": "string"
-                                          },
-                                          "marks": {
-                                            "type": "array",
-                                            "items": {
-                                              "type": "object",
-                                              "properties": {
-                                                "type": {
-                                                  "type": "string",
-                                                  "minLength": 1
-                                                },
-                                                "attrs": {
-                                                  "type": "object",
-                                                  "additionalProperties": {}
-                                                }
-                                              },
-                                              "required": [
-                                                "type"
-                                              ],
-                                              "additionalProperties": false
-                                            }
-                                          }
-                                        },
-                                        "required": [
-                                          "type",
-                                          "text"
-                                        ],
-                                        "additionalProperties": false
-                                      },
-                                      {
-                                        "type": "object",
-                                        "properties": {
-                                          "type": {
-                                            "type": "string",
-                                            "enum": [
-                                              "macro"
-                                            ]
-                                          },
-                                          "attrs": {
-                                            "type": "object",
-                                            "properties": {
-                                              "name": {
-                                                "type": "string",
-                                                "minLength": 1
-                                              },
-                                              "params": {
-                                                "type": "object",
-                                                "additionalProperties": {},
-                                                "default": {}
-                                              }
-                                            },
-                                            "required": [
-                                              "name"
-                                            ],
-                                            "additionalProperties": false
-                                          }
-                                        },
-                                        "required": [
-                                          "type",
-                                          "attrs"
-                                        ],
-                                        "additionalProperties": false
-                                      },
-                                      {
-                                        "type": "object",
-                                        "properties": {
-                                          "type": {
-                                            "type": "string",
-                                            "enum": [
-                                              "hardBreak"
-                                            ]
-                                          }
-                                        },
-                                        "required": [
-                                          "type"
-                                        ],
-                                        "additionalProperties": false
-                                      },
-                                      {
-                                        "type": "object",
-                                        "properties": {
-                                          "type": {
-                                            "type": "string",
-                                            "enum": [
-                                              "unknown"
-                                            ]
-                                          },
-                                          "raw": {}
-                                        },
-                                        "required": [
-                                          "type"
-                                        ],
-                                        "additionalProperties": false
-                                      }
-                                    ]
-                                  },
-                                  "default": []
-                                }
-                              },
-                              "required": [
-                                "type",
-                                "attrs"
-                              ],
-                              "additionalProperties": false
-                            },
-                            {
-                              "type": "object",
-                              "properties": {
-                                "type": {
-                                  "type": "string",
-                                  "enum": [
-                                    "macro"
-                                  ]
-                                },
-                                "attrs": {
-                                  "type": "object",
-                                  "properties": {
-                                    "name": {
-                                      "type": "string",
-                                      "minLength": 1
-                                    },
-                                    "params": {
-                                      "type": "object",
-                                      "additionalProperties": {},
-                                      "default": {}
-                                    }
-                                  },
-                                  "required": [
-                                    "name"
-                                  ],
-                                  "additionalProperties": false
-                                }
-                              },
-                              "required": [
-                                "type",
-                                "attrs"
-                              ],
-                              "additionalProperties": false
-                            },
-                            {
-                              "type": "object",
-                              "properties": {
-                                "type": {
-                                  "type": "string",
-                                  "enum": [
-                                    "repeat"
-                                  ]
-                                },
-                                "attrs": {
-                                  "type": "object",
-                                  "properties": {
-                                    "name": {
-                                      "type": "string",
-                                      "minLength": 1
-                                    },
-                                    "params": {
-                                      "type": "object",
-                                      "additionalProperties": {},
-                                      "default": {}
-                                    }
-                                  },
-                                  "required": [
-                                    "name"
-                                  ],
-                                  "additionalProperties": false
-                                },
-                                "content": {
-                                  "type": "array",
-                                  "items": {
-                                    "anyOf": [
-                                      {
-                                        "type": "object",
-                                        "properties": {
-                                          "type": {
-                                            "type": "string",
-                                            "enum": [
-                                              "text"
-                                            ]
-                                          },
-                                          "text": {
-                                            "type": "string"
-                                          },
-                                          "marks": {
-                                            "type": "array",
-                                            "items": {
-                                              "type": "object",
-                                              "properties": {
-                                                "type": {
-                                                  "type": "string",
-                                                  "minLength": 1
-                                                },
-                                                "attrs": {
-                                                  "type": "object",
-                                                  "additionalProperties": {}
-                                                }
-                                              },
-                                              "required": [
-                                                "type"
-                                              ],
-                                              "additionalProperties": false
-                                            }
-                                          }
-                                        },
-                                        "required": [
-                                          "type",
-                                          "text"
-                                        ],
-                                        "additionalProperties": false
-                                      },
-                                      {
-                                        "type": "object",
-                                        "properties": {
-                                          "type": {
-                                            "type": "string",
-                                            "enum": [
-                                              "macro"
-                                            ]
-                                          },
-                                          "attrs": {
-                                            "type": "object",
-                                            "properties": {
-                                              "name": {
-                                                "type": "string",
-                                                "minLength": 1
-                                              },
-                                              "params": {
-                                                "type": "object",
-                                                "additionalProperties": {},
-                                                "default": {}
-                                              }
-                                            },
-                                            "required": [
-                                              "name"
-                                            ],
-                                            "additionalProperties": false
-                                          }
-                                        },
-                                        "required": [
-                                          "type",
-                                          "attrs"
-                                        ],
-                                        "additionalProperties": false
-                                      },
-                                      {
-                                        "type": "object",
-                                        "properties": {
-                                          "type": {
-                                            "type": "string",
-                                            "enum": [
-                                              "hardBreak"
-                                            ]
-                                          }
-                                        },
-                                        "required": [
-                                          "type"
-                                        ],
-                                        "additionalProperties": false
-                                      },
-                                      {
-                                        "type": "object",
-                                        "properties": {
-                                          "type": {
-                                            "type": "string",
-                                            "enum": [
-                                              "unknown"
-                                            ]
-                                          },
-                                          "raw": {}
-                                        },
-                                        "required": [
-                                          "type"
-                                        ],
-                                        "additionalProperties": false
-                                      }
-                                    ]
-                                  },
-                                  "default": []
-                                }
-                              },
-                              "required": [
-                                "type",
-                                "attrs"
-                              ],
-                              "additionalProperties": false
-                            },
-                            {
-                              "type": "object",
-                              "properties": {
-                                "type": {
-                                  "type": "string",
-                                  "enum": [
-                                    "codeBlock"
-                                  ]
-                                },
-                                "attrs": {
-                                  "type": "object",
-                                  "properties": {
-                                    "language": {
-                                      "type": "string",
-                                      "nullable": true
-                                    }
-                                  },
-                                  "required": [
-                                    "language"
-                                  ],
-                                  "additionalProperties": false,
-                                  "default": {
-                                    "language": null
-                                  }
-                                },
-                                "content": {
-                                  "type": "array",
-                                  "items": {
-                                    "anyOf": [
-                                      {
-                                        "type": "object",
-                                        "properties": {
-                                          "type": {
-                                            "type": "string",
-                                            "enum": [
-                                              "text"
-                                            ]
-                                          },
-                                          "text": {
-                                            "type": "string"
-                                          }
-                                        },
-                                        "required": [
-                                          "type",
-                                          "text"
-                                        ],
-                                        "additionalProperties": false
-                                      },
-                                      {
-                                        "type": "object",
-                                        "properties": {
-                                          "type": {
-                                            "type": "string",
-                                            "enum": [
-                                              "unknown"
-                                            ]
-                                          },
-                                          "raw": {}
-                                        },
-                                        "required": [
-                                          "type"
-                                        ],
-                                        "additionalProperties": false
-                                      }
-                                    ]
-                                  },
-                                  "default": []
-                                }
-                              },
-                              "required": [
-                                "type"
-                              ],
-                              "additionalProperties": false
-                            },
-                            {
-                              "type": "object",
-                              "properties": {
-                                "type": {
-                                  "type": "string",
-                                  "enum": [
-                                    "horizontalRule"
-                                  ]
-                                }
-                              },
-                              "required": [
-                                "type"
-                              ],
-                              "additionalProperties": false
-                            },
-                            {
-                              "type": "object",
-                              "properties": {
-                                "type": {
-                                  "type": "string",
-                                  "enum": [
-                                    "blockquote"
-                                  ]
-                                },
-                                "content": {
-                                  "type": "array",
-                                  "items": {},
-                                  "default": []
-                                }
-                              },
-                              "required": [
-                                "type"
-                              ],
-                              "additionalProperties": false
-                            },
-                            {
-                              "type": "object",
-                              "properties": {
-                                "type": {
-                                  "type": "string",
-                                  "enum": [
-                                    "bulletList"
-                                  ]
-                                },
-                                "content": {
-                                  "type": "array",
-                                  "items": {
-                                    "anyOf": [
-                                      {
-                                        "type": "object",
-                                        "properties": {
-                                          "type": {
-                                            "type": "string",
-                                            "enum": [
-                                              "listItem"
-                                            ]
-                                          },
-                                          "content": {
-                                            "type": "array",
-                                            "items": {},
-                                            "default": []
-                                          }
-                                        },
-                                        "required": [
-                                          "type"
-                                        ],
-                                        "additionalProperties": false
-                                      },
-                                      {
-                                        "type": "object",
-                                        "properties": {
-                                          "type": {
-                                            "type": "string",
-                                            "enum": [
-                                              "unknown"
-                                            ]
-                                          },
-                                          "raw": {}
-                                        },
-                                        "required": [
-                                          "type"
-                                        ],
-                                        "additionalProperties": false
-                                      }
-                                    ]
-                                  },
-                                  "default": []
-                                }
-                              },
-                              "required": [
-                                "type"
-                              ],
-                              "additionalProperties": false
-                            },
-                            {
-                              "type": "object",
-                              "properties": {
-                                "type": {
-                                  "type": "string",
-                                  "enum": [
-                                    "orderedList"
-                                  ]
-                                },
-                                "attrs": {
-                                  "type": "object",
-                                  "properties": {
-                                    "start": {
-                                      "type": "integer"
-                                    },
-                                    "type": {
-                                      "type": "string",
-                                      "nullable": true
-                                    }
-                                  },
-                                  "required": [
-                                    "start",
-                                    "type"
-                                  ],
-                                  "additionalProperties": false,
-                                  "default": {
-                                    "start": 1,
-                                    "type": null
-                                  }
-                                },
-                                "content": {
-                                  "type": "array",
-                                  "items": {
-                                    "anyOf": [
-                                      {
-                                        "type": "object",
-                                        "properties": {
-                                          "type": {
-                                            "type": "string",
-                                            "enum": [
-                                              "listItem"
-                                            ]
-                                          },
-                                          "content": {
-                                            "type": "array",
-                                            "items": {},
-                                            "default": []
-                                          }
-                                        },
-                                        "required": [
-                                          "type"
-                                        ],
-                                        "additionalProperties": false
-                                      },
-                                      {
-                                        "type": "object",
-                                        "properties": {
-                                          "type": {
-                                            "type": "string",
-                                            "enum": [
-                                              "unknown"
-                                            ]
-                                          },
-                                          "raw": {}
-                                        },
-                                        "required": [
-                                          "type"
-                                        ],
-                                        "additionalProperties": false
-                                      }
-                                    ]
-                                  },
-                                  "default": []
-                                }
-                              },
-                              "required": [
-                                "type"
-                              ],
-                              "additionalProperties": false
-                            },
-                            {
-                              "type": "object",
-                              "properties": {
-                                "type": {
-                                  "type": "string",
-                                  "enum": [
-                                    "unknown"
-                                  ]
-                                },
-                                "raw": {}
-                              },
-                              "required": [
-                                "type"
-                              ],
-                              "additionalProperties": false
-                            }
-                          ]
+                          "$ref": "#/components/schemas/PageNode"
                         },
                         "default": []
                       }
@@ -28034,6 +26536,432 @@
         "type": "http",
         "scheme": "bearer",
         "bearerFormat": "tc_<base64url>"
+      }
+    },
+    "schemas": {
+      "PageNode": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "paragraph"
+                ]
+              },
+              "content": {
+                "type": "array",
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "enum": [
+                            "text"
+                          ]
+                        },
+                        "text": {
+                          "type": "string"
+                        },
+                        "marks": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "type": {
+                                "type": "string",
+                                "minLength": 1
+                              },
+                              "attrs": {
+                                "type": "object",
+                                "additionalProperties": {}
+                              }
+                            },
+                            "required": [
+                              "type"
+                            ],
+                            "additionalProperties": false
+                          }
+                        }
+                      },
+                      "required": [
+                        "type",
+                        "text"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "enum": [
+                            "macro"
+                          ]
+                        },
+                        "attrs": {
+                          "type": "object",
+                          "properties": {
+                            "name": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "params": {
+                              "type": "object",
+                              "additionalProperties": {},
+                              "default": {}
+                            }
+                          },
+                          "required": [
+                            "name"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "type",
+                        "attrs"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "enum": [
+                            "hardBreak"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "type"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "enum": [
+                            "unknown"
+                          ]
+                        },
+                        "raw": {}
+                      },
+                      "required": [
+                        "type"
+                      ],
+                      "additionalProperties": false
+                    }
+                  ]
+                },
+                "default": []
+              }
+            },
+            "required": [
+              "type"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "heading"
+                ]
+              },
+              "attrs": {
+                "type": "object",
+                "properties": {
+                  "level": {
+                    "anyOf": [
+                      {
+                        "type": "number",
+                        "enum": [
+                          1
+                        ]
+                      },
+                      {
+                        "type": "number",
+                        "enum": [
+                          2
+                        ]
+                      },
+                      {
+                        "type": "number",
+                        "enum": [
+                          3
+                        ]
+                      },
+                      {
+                        "type": "number",
+                        "enum": [
+                          4
+                        ]
+                      },
+                      {
+                        "type": "number",
+                        "enum": [
+                          5
+                        ]
+                      },
+                      {
+                        "type": "number",
+                        "enum": [
+                          6
+                        ]
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "level"
+                ],
+                "additionalProperties": false
+              },
+              "content": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/PageNode/anyOf/0/properties/content/items"
+                },
+                "default": []
+              }
+            },
+            "required": [
+              "type",
+              "attrs"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "$ref": "#/components/schemas/PageNode/anyOf/0/properties/content/items/anyOf/1"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "repeat"
+                ]
+              },
+              "attrs": {
+                "$ref": "#/components/schemas/PageNode/anyOf/0/properties/content/items/anyOf/1/properties/attrs"
+              },
+              "content": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/PageNode/anyOf/0/properties/content/items"
+                },
+                "default": []
+              }
+            },
+            "required": [
+              "type",
+              "attrs"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "codeBlock"
+                ]
+              },
+              "attrs": {
+                "type": "object",
+                "properties": {
+                  "language": {
+                    "type": "string",
+                    "nullable": true
+                  }
+                },
+                "required": [
+                  "language"
+                ],
+                "additionalProperties": false,
+                "default": {
+                  "language": null
+                }
+              },
+              "content": {
+                "type": "array",
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "enum": [
+                            "text"
+                          ]
+                        },
+                        "text": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "type",
+                        "text"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "$ref": "#/components/schemas/PageNode/anyOf/0/properties/content/items/anyOf/3"
+                    }
+                  ]
+                },
+                "default": []
+              }
+            },
+            "required": [
+              "type"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "horizontalRule"
+                ]
+              }
+            },
+            "required": [
+              "type"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "blockquote"
+                ]
+              },
+              "content": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/PageNode"
+                },
+                "default": []
+              }
+            },
+            "required": [
+              "type"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "bulletList"
+                ]
+              },
+              "content": {
+                "type": "array",
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "enum": [
+                            "listItem"
+                          ]
+                        },
+                        "content": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/PageNode/anyOf/6/properties/content/items"
+                          },
+                          "default": []
+                        }
+                      },
+                      "required": [
+                        "type"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "$ref": "#/components/schemas/PageNode/anyOf/0/properties/content/items/anyOf/3"
+                    }
+                  ]
+                },
+                "default": []
+              }
+            },
+            "required": [
+              "type"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "orderedList"
+                ]
+              },
+              "attrs": {
+                "type": "object",
+                "properties": {
+                  "start": {
+                    "type": "integer"
+                  },
+                  "type": {
+                    "type": "string",
+                    "nullable": true
+                  }
+                },
+                "required": [
+                  "start",
+                  "type"
+                ],
+                "additionalProperties": false,
+                "default": {
+                  "start": 1,
+                  "type": null
+                }
+              },
+              "content": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/PageNode/anyOf/7/properties/content/items"
+                },
+                "default": []
+              }
+            },
+            "required": [
+              "type"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "$ref": "#/components/schemas/PageNode/anyOf/0/properties/content/items/anyOf/3"
+          }
+        ]
       }
     }
   },

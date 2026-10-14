@@ -13,6 +13,22 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-10-14 — OpenAPI doc: page tree as a recursive `$ref` component (public API 1.17.0)
+- **Changed** `apps/web/src/server/public-api/openapi.ts`: the generator now emits the recursive
+  `PageNode` page tree once as `components.schemas.PageNode` and references it via `$ref` from every
+  route carrying page content — instead of inlining it, which degraded nested nodes to `any` (with a
+  "Recursive reference detected" warning). `$refStrategy` stays `"none"` for everything else:
+  `"root"`/`"relative"` would `$ref` a repeated schema to its first-seen inline path, which breaks
+  once the per-route output is embedded under `paths`; only the recursion is lifted, via the
+  library's `override` hook. `openapi.json` regenerated (net ~1,900 fewer lines of duplicated trees).
+- Why: accurate published doc — nested page content is now the real node union, and generated
+  clients get typed models instead of `any`.
+- Consumers updated: `openapi.json`; `openapi.test.ts` gains a `$ref`-hygiene test (every `$ref`
+  names `components/schemas/*` and resolves; `PageNode` is self-referential; routes reference it).
+  The `withoutRecursiveReferenceWarning` helper is removed — the warning is now structurally
+  impossible. No `packages/contracts` change; server validation and accepted payloads are unchanged.
+- Breaking? **no.**
+
 ## 2026-10-14 — `ActivityTag`: `sports` (public API 1.16.0)
 - `ActivityTag` gains `sports`, appended after `wellness` so no stored stop moves.
 - Why: Sports is an activity type the stop editor should offer.
