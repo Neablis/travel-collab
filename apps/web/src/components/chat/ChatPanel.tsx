@@ -64,6 +64,13 @@ export function ChatPanel({
   }, [chat.tripId, remoteRevision]);
   const mentions = useMemo<ChatMentions>(() => ({ tripId: chat.tripId, personas, notebooks }), [chat.tripId, personas, notebooks]);
   const picker = useTargetPicker(draft, setDraft, mentions);
+  // Whether the composer holds anything as last rendered: `send` asks after
+  // its await, when the draft it closed over is stale.
+  const composing = useRef(false);
+  const picked = picker.held.picked !== null;
+  useEffect(() => {
+    composing.current = draft !== "" || picked;
+  }, [draft, picked]);
   const scrollport = useRef<HTMLDivElement>(null);
   usePinToBottom(scrollport, [chat.messages.length]);
   // Who is reading decides what each line offers (D6). Neither is a request of
@@ -86,13 +93,25 @@ export function ChatPanel({
     );
   }
 
+  // The line shows at once (`useTripChat`), so the composer empties at once.
+  // A send that was not stored gives its text back, with its @ link (any kind),
+  // unless the reader has started another message by then: that one is not
+  // overwritten, and the failed text is dropped, with the hook's "Couldn't
+  // send" alert still up to say so. Only the first unsent line's link comes
+  // back: a second send queued behind a failing one returns with it as words
+  // only, its link lost (KI-2026-10-14-b). A send that never answers holds
+  // every later one at "Sending…" (KI-2026-10-14-a).
   const send = async () => {
     const body = draft.trim();
-    if (body === "" || chat.posting) return;
-    if (await chat.post(body, picker.linkFor(body))) {
-      setDraft("");
-      picker.clear();
-    }
+    if (body === "") return;
+    const link = picker.linkFor(body);
+    const held = picker.held;
+    setDraft("");
+    picker.clear();
+    const unsent = await chat.post(body, link);
+    if (unsent === null || composing.current) return;
+    setDraft(unsent);
+    picker.restore(held);
   };
 
   return (
@@ -120,7 +139,10 @@ export function ChatPanel({
                   message={message}
                   persona={personas === null ? null : personas[message.authorId]}
                   tripId={chat.tripId}
-                  viewer={viewerOf(message.authorId)}
+                  // A pending line's id is this page's own: nothing on it
+                  // would reach a stored message.
+                  viewer={message.pending ? null : viewerOf(message.authorId)}
+                  pending={message.pending}
                   // Closed by a lapse mid-edit as well: the save would be refused.
                   editing={editing === message.messageId && chat.canPost}
                   onEdit={() => setEditing(message.messageId)}
@@ -206,8 +228,8 @@ export function ChatPanel({
                   value={draft}
                   onChange={(event) => setDraft(event.target.value)}
                 />
-                <Button type="submit" variant="primary" size={touch ? "touch" : "md"} disabled={chat.posting || draft.trim() === ""}>
-                  {chat.posting ? "Sending…" : "Send"}
+                <Button type="submit" variant="primary" size={touch ? "touch" : "md"} disabled={draft.trim() === ""}>
+                  Send
                 </Button>
               </form>
             </>

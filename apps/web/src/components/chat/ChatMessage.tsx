@@ -46,10 +46,17 @@ export function ChatMessage({
   onDelete,
   onSave,
   onCancelEdit,
+  pending = false,
 }: {
   /** The line, which takes focus when the control the reader used is gone. */
   ref?: Ref<HTMLLIElement>;
   message: ChatMessageData;
+  /**
+   * Sent and not yet stored: "Sending…" where its time will be, and busy to a
+   * screen reader, until it is or it goes. Said in words, not dimmed: a faded
+   * line falls below AA contrast (PR 444 review).
+   */
+  pending?: boolean;
   persona: Persona | undefined | null;
   tripId: string;
   viewer: MessageViewer | null;
@@ -70,7 +77,12 @@ export function ChatMessage({
 
   return (
     // `tabIndex={-1}`: focusable by the panel, not a Tab stop.
-    <li ref={ref} tabIndex={-1} className="group flex gap-2 rounded-md focus-visible:outline-2 focus-visible:outline-brand">
+    <li
+      ref={ref}
+      tabIndex={-1}
+      aria-busy={pending || undefined}
+      className="group flex gap-2 rounded-md focus-visible:outline-2 focus-visible:outline-brand"
+    >
       {name === null ? (
         <Skeleton circle className="mt-0.5 size-7 shrink-0" />
       ) : (
@@ -79,9 +91,13 @@ export function ChatMessage({
       <div className="min-w-0 flex-1">
         <p className="flex items-baseline gap-1.5 text-xs">
           {name !== null && <span className="font-semibold text-ink">{name}</span>}
-          <time dateTime={message.createdAt} className="text-slate">
-            {time(message.createdAt)}
-          </time>
+          {pending ? (
+            <span className="text-slate">Sending…</span>
+          ) : (
+            <time dateTime={message.createdAt} className="text-slate">
+              {time(message.createdAt)}
+            </time>
+          )}
           {!message.removed && message.editedAt !== null && <span className="text-slate">edited</span>}
         </p>
         {message.removed ? (

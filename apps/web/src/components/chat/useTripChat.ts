@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ChatLink, ChatMessage, ChatPage } from "@tc/contracts";
+import { useKnownSessionUser } from "@/components/account/useSessionUser";
 import {
   deleteChatMessage,
   editChatMessage,
@@ -22,18 +23,33 @@ import {
  */
 export type TripChatStatus = "loading" | "ready" | "no-access" | "failed";
 
+/**
+ * A line of the conversation. `pending` is the reader's own message, shown
+ * from the moment they sent it and not yet stored: its id is this page's own,
+ * so nothing may be done to it until the server's message takes its place.
+ */
+export type ChatLine = ChatMessage & { pending?: true };
+
+/** A pending line, and the messages already on the page when it was sent. */
+type Sending = { line: Extract<ChatLine, { removed: false }>; before: ReadonlySet<string> };
+
 export type TripChat = {
   tripId: string;
   status: TripChatStatus;
-  messages: readonly ChatMessage[];
+  messages: readonly ChatLine[];
   hasEarlier: boolean;
   /** Messages by others since the caller's read cursor; 0 while the chat is being read. */
   unread: number;
   /** False after the owner's lapse: the chat is readable and the composer is not. */
   canPost: boolean;
-  /** Resolves false when the message was not stored, so the composer keeps the text. */
-  post: (body: string, link?: ChatLink) => Promise<boolean>;
-  posting: boolean;
+  /**
+   * Shows the message at once, as `pending`, and sends it after any still
+   * sending, so they are stored in the order they were sent. Resolves `null`
+   * once stored. One not stored is taken back with every send queued behind
+   * it, and resolves to all their text, joined, for the composer to give back;
+   * those queued sends resolve `null`.
+   */
+  post: (body: string, link?: ChatLink) => Promise<string | null>;
   postError: string | null;
   /** The author's new text; resolves false when it was not stored. */
   edit: (messageId: string, body: string) => Promise<boolean>;
@@ -83,7 +99,26 @@ export function useTripChat({
   const [page, setPage] = useState<ChatPage | null>(null);
   const [readStatus, setStatus] = useState<TripChatStatus>("loading");
   const status = accessLost ? "no-access" : readStatus;
-  const [posting, setPosting] = useState(false);
+  // Sent and not yet stored, in the order sent. Kept apart from the page, so a
+  // re-read neither drops them nor counts them, and the read cursor never
+  // sees an id the server did not make. The ref is the queue's own copy: a
+  // send reads it after an await, when the state it closed over is stale.
+  const [pending, setPending] = useState<readonly Sending[]>([]);
+  const queued = useRef<readonly Sending[]>([]);
+  const setQueued = useCallback((next: readonly Sending[]) => {
+    queued.current = next;
+    setPending(next);
+  }, []);
+  // The tail of the queue: each POST starts once the one before it answers.
+  // Two at once could be stored, and shown to everyone, in either order.
+  const queue = useRef<Promise<unknown>>(Promise.resolve());
+  const sent = useRef(0);
+  // The page as last rendered, for a send to note which messages it predates.
+  const latestPage = useRef(page);
+  useEffect(() => {
+    latestPage.current = page;
+  }, [page]);
+  const me = useKnownSessionUser()?.id ?? "";
   const [postError, setPostError] = useState<string | null>(null);
   // Why the last edit or delete failed. Cleared by a fresh read or a post as
   // well as by the next change: by then it describes a page that has moved on.
@@ -126,32 +161,54 @@ export function useTripChat({
   }, [tripId, enabled, reading, newest, status, refused]);
 
   const post = useCallback(
-    async (body: string, link?: ChatLink) => {
-      setPosting(true);
+    (body: string, link?: ChatLink) => {
+      sent.current += 1;
+      const line: Sending["line"] = {
+        messageId: `pending-${sent.current}`,
+        authorId: me,
+        createdAt: new Date().toISOString(),
+        editedAt: null,
+        removed: false,
+        body,
+        ...(link === undefined ? {} : { link }),
+        pending: true,
+      };
+      setQueued([...queued.current, { line, before: new Set(latestPage.current?.messages.map((m) => m.messageId)) }]);
       setPostError(null);
       setChangeError(null);
-      const result = await postChatMessage(tripId, link === undefined ? { body } : { body, link });
-      setPosting(false);
-      if (result.ok) {
-        // Shown at once; the next re-read brings the same message back.
-        setPage((current) =>
-          current === null || current.messages.some((m) => m.messageId === result.value.messageId)
-            ? current
-            : { ...current, messages: [...current.messages, result.value] },
-        );
-        return true;
-      }
-      if (refused(result.error)) return false;
-      if (result.error.status === READ_ONLY) {
-        // The owner lapsed since the last read: the panel turns read-only now
-        // rather than on the next one.
-        setPage((current) => (current === null ? current : { ...current, canPost: false }));
-        return false;
-      }
-      setPostError(result.error.status === 0 ? "Couldn't send. Check your connection and try again." : result.error.message);
-      return false;
+      const turn = queue.current.then(async (): Promise<string | null> => {
+        // Taken back with an earlier send that was not stored.
+        if (!queued.current.some((s) => s.line === line)) return null;
+        const result = await postChatMessage(tripId, link === undefined ? { body } : { body, link });
+        if (result.ok) {
+          setQueued(queued.current.filter((s) => s.line !== line));
+          // In the pending line's place, in the same render. A re-read may have
+          // brought it already, and the next one brings it again.
+          setPage((current) =>
+            current === null || current.messages.some((m) => m.messageId === result.value.messageId)
+              ? current
+              : { ...current, messages: [...current.messages, result.value] },
+          );
+          return null;
+        }
+        // This send is the queue's head, so every line still pending was sent
+        // after it. They go back with it rather than be stored without it.
+        const unsent = queued.current.map((s) => s.line.body).join(" ");
+        setQueued([]);
+        if (refused(result.error)) return unsent;
+        if (result.error.status === READ_ONLY) {
+          // The owner lapsed since the last read: the panel turns read-only now
+          // rather than on the next one.
+          setPage((current) => (current === null ? current : { ...current, canPost: false }));
+          return unsent;
+        }
+        setPostError(result.error.status === 0 ? "Couldn't send. Check your connection and try again." : result.error.message);
+        return unsent;
+      });
+      queue.current = turn;
+      return turn;
     },
-    [tripId, refused],
+    [tripId, me, refused, setQueued],
   );
 
   // An edit or a delete answers with the message as stored, so the author's
@@ -189,15 +246,37 @@ export function useTripChat({
   );
   const remove = useCallback(async (messageId: string) => change(await deleteChatMessage(tripId, messageId)), [tripId, change]);
 
+  // A re-read can bring a sent message before its POST answers. The pending
+  // line gives way to it: the reader's own, the same words and link, and new
+  // since the send. Each stored message stands in for one pending line.
+  const messages = useMemo(() => {
+    const stored = page?.messages ?? [];
+    const matched = new Set<string>();
+    const waiting = pending.filter(({ line, before }) => {
+      const match = stored.find(
+        (m) =>
+          !m.removed &&
+          !before.has(m.messageId) &&
+          !matched.has(m.messageId) &&
+          m.authorId === line.authorId &&
+          m.body === line.body &&
+          m.link?.kind === line.link?.kind &&
+          m.link?.id === line.link?.id,
+      );
+      if (match !== undefined) matched.add(match.messageId);
+      return match === undefined;
+    });
+    return [...stored, ...waiting.map((s) => s.line)];
+  }, [page, pending]);
+
   return {
     tripId,
     status,
-    messages: page?.messages ?? [],
+    messages,
     hasEarlier: page?.hasEarlier ?? false,
     unread: reading ? 0 : (page?.unread ?? 0),
     canPost: page?.canPost ?? false,
     post,
-    posting,
     postError,
     edit,
     remove,

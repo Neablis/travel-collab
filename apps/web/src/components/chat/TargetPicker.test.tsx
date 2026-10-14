@@ -29,7 +29,7 @@ function composer(detail = trip) {
   act(() => {
     unregister = registerBoardFocus({ ...tripTargets(detail, { focusedActivityId: null, focusedDayId: null, selectedDayId: null }), focusDay: vi.fn(), focusActivity: vi.fn() });
   });
-  const post = vi.fn(async () => true);
+  const post = vi.fn(async () => null);
   const chat: TripChat = {
     tripId: trip.tripId,
     status: "ready",
@@ -38,7 +38,6 @@ function composer(detail = trip) {
     unread: 0,
     canPost: true,
     post,
-    posting: false,
     postError: null,
     edit: async () => true,
     remove: async () => true,

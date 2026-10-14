@@ -153,5 +153,11 @@ export function useTargetPicker(draft: string, setDraft: (next: string) => void,
       setPicked(null);
       setClosed(null);
     },
+    /** What `clear` forgets, for `restore` to give back with a send's text when it was not stored. */
+    held: { picked, closed },
+    restore: (held: { picked: PickerTarget | null; closed: { at: number; draft: string } | null }) => {
+      setPicked(held.picked);
+      setClosed(held.closed);
+    },
   };
 }

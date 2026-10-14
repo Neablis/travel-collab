@@ -16,7 +16,7 @@ const beas = ChatMessageData.parse({
 });
 const bea = { name: "Bea", avatar: null, color: null, colorShifted: false, travelling: true };
 
-function line(viewer: MessageViewer | null, message: ChatMessageData = beas) {
+function line(viewer: MessageViewer | null, message: ChatMessageData = beas, pending = false) {
   const onEdit = vi.fn();
   const onDelete = vi.fn();
   render(
@@ -31,6 +31,7 @@ function line(viewer: MessageViewer | null, message: ChatMessageData = beas) {
         onDelete={onDelete}
         onSave={async () => true}
         onCancelEdit={() => {}}
+        pending={pending}
       />
     </ol>,
   );
@@ -93,5 +94,18 @@ describe("ChatMessage's actions", () => {
     expect(actions()).toBeNull();
     expect(screen.queryByRole("button", { name: "Report Bea's message" })).toBeNull();
     expect(screen.getByRole("listitem").textContent).toContain("edited");
+  });
+});
+
+// PR 444 review: a pending line was only dimmed, which fell below AA contrast
+// and said nothing to a screen reader. It says "Sending…" where its time goes.
+describe("ChatMessage, sent and not yet stored", () => {
+  it("says Sending… in place of its time, and is busy", () => {
+    const sentAt = new Date(beas.createdAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+    line(null, beas, true);
+    const item = screen.getByRole("listitem");
+    expect(item.textContent).toContain("Sending…");
+    expect(item.textContent).not.toContain(sentAt);
+    expect(item.getAttribute("aria-busy")).toBe("true");
   });
 });
