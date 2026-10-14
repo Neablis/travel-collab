@@ -16,12 +16,12 @@ describe("M18 kind & tags contracts", () => {
     for (const k of ["booked", "hold", "idea"]) expect(() => ActivityKind.parse(k)).toThrow();
   });
 
-  // ADR-070 appended nine to M18's four. The order is part of the contract:
+  // ADR-070 appended nine to M18's four; `sports` came after. The order is part of the contract:
   // spend charts file a stop under its first tag in it, so the four come first.
-  it("ActivityTag is the closed thirteen-value vocabulary — considering/travel are kinds, not tags", () => {
+  it("ActivityTag is the closed fourteen-value vocabulary — considering/travel are kinds, not tags", () => {
     expect(ActivityTag.options).toEqual([
       "meal", "lodging", "ticketed", "outdoors",
-      "drinks", "nightlife", "museum", "sight", "beach", "shopping", "show", "tour", "wellness",
+      "drinks", "nightlife", "museum", "sight", "beach", "shopping", "show", "tour", "wellness", "sports",
     ]);
     for (const t of ActivityTag.options) {
       expect(ActivityTag.parse(t)).toBe(t);
