@@ -24,7 +24,6 @@ import { SuggestionsChip } from "@/components/board/SuggestionsChip";
 import { PeopleProvider } from "@/components/pages/people";
 import { UndoRedoControls, useUndoRedoShortcuts } from "@/components/board/UndoRedoControls";
 import { AskPill } from "@/components/assistant/AskPill";
-import { ChatPill } from "@/components/chat/ChatPill";
 import { tripSettingsCommands, undoRedoCommands } from "@/components/palette/commands";
 import { usePaletteSource } from "@/components/palette/paletteRegistry";
 import { SettingsSheet } from "./SettingsSheet";
@@ -49,7 +48,7 @@ export function TripHeader({
   tripId,
   assistantOpen = false,
   onOpenAssistant,
-  chat,
+  unread,
   children,
   pinned,
   conflicts,
@@ -72,12 +71,11 @@ export function TripHeader({
    */
   onOpenAssistant?: () => void;
   /**
-   * The trip's chat (M46): its unread count, whether the panel is open on
-   * it, and the opener. A 💬 pill beside Ask from 768px, and a 💬 icon on
-   * the phone's row, which has no Ask of its own. Absent on /demo, which has
-   * no chat.
+   * The trip's unread chat messages, where it has a chat (M46): a badge on
+   * Ask, which opens the panel on whichever of its tabs was last open. Absent
+   * on /demo and on a trip you are alone on, where Ask is Ask alone.
    */
-  chat?: { unread: number; open: boolean; onOpen: () => void };
+  unread?: number;
   children?: React.ReactNode;
   /**
    * What pins under the phone's one row, below 768px only: Plan's day rail
@@ -578,8 +576,7 @@ export function TripHeader({
                     Inside this wrapper's `max-md:hidden`, so a phone never
                     draws it here: there it is the tab bar's. `undefined` on
                     /demo withholds it (KI-79). */}
-                {onOpenAssistant !== undefined && <AskPill open={assistantOpen} onOpen={onOpenAssistant} />}
-                {chat !== undefined && <ChatPill unread={chat.unread} open={chat.open} onOpen={chat.onOpen} />}
+                {onOpenAssistant !== undefined && <AskPill open={assistantOpen} onOpen={onOpenAssistant} unread={unread} />}
                 {/* **No "Add stop" here** (M41 D1). A stop is made where it
                     will live: double-click or drag across a day's river, or
                     double-click the Unscheduled drawer for a parked one, and
@@ -598,9 +595,6 @@ export function TripHeader({
                     and History moves into the overflow menu. */}
                 <div className="flex items-center gap-0.5 max-md:order-2">
                   <span className="contents md:hidden">{conflicts?.(tripActions)}</span>
-                  {chat !== undefined && (
-                    <ChatPill compact unread={chat.unread} open={chat.open} onOpen={chat.onOpen} className="md:hidden" />
-                  )}
                   <SuggestionsChip />
                   {/* The Popover stays mounted during preview (not gated on
                       preview.seq === null like undo/redo/settings) — HistoryPanel's

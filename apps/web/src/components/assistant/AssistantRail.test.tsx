@@ -1161,4 +1161,51 @@ describe("AssistantRail — focus on open, from useAssistantVisibility", () => {
     expect((screen.getByRole("textbox", { name: "Elsewhere" }) as HTMLInputElement).value).toBe("b");
     expect(composer().value).toBe("");
   });
+
+  // M46's preview walk: ⌘K's *Open chat* or *Ask* on a panel already open
+  // hid the tab focus was in and left it on <body>. The new tab takes it; a
+  // tab chosen in the strip keeps it, as tabs do.
+  it("moves focus into the tab ⌘K switches to, and leaves it on a tab clicked", async () => {
+    const chatOn = (tab: "ask" | "chat") => ({ tab, onTabChange: vi.fn(), panel: <input aria-label="Message" /> });
+    const { rerender } = render(<AssistantRail {...baseProps} chat={chatOn("ask")} />);
+    const composer = screen.getByPlaceholderText<HTMLInputElement>(/ask about this day/i);
+    composer.focus();
+
+    rerender(<AssistantRail {...baseProps} chat={chatOn("chat")} />);
+    expect(screen.getByRole("textbox", { name: "Message" }).matches(":focus")).toBe(true);
+
+    screen.getByRole("tab", { name: "Ask" }).focus();
+    fireEvent.click(screen.getByRole("tab", { name: "Ask" }));
+    rerender(<AssistantRail {...baseProps} chat={chatOn("ask")} />);
+    expect(screen.getByRole("tab", { name: "Ask" }).matches(":focus")).toBe(true);
+  });
+
+  // PR 442 review, finding 2: Safari does not focus a button it taps, so a
+  // tap on a tab left focus off the strip and the switch focused the composer,
+  // raising the phone's keyboard over the sheet. `fireEvent` clicks as Safari
+  // does, without moving focus. The tap is spent on its own switch: a later
+  // one from outside the strip, as ⌘K's *Ask* makes, still moves focus.
+  it("leaves focus alone when a tab in the sheet is tapped, and not on the next switch", () => {
+    function Sheet() {
+      const [tab, setTab] = useState<"ask" | "chat">("ask");
+      // The palette sits behind the sheet's modal; a control in the panel
+      // stands in for it, a switch that does not come through the strip.
+      const panel = (
+        <>
+          <input aria-label="Message" />
+          <button type="button" onClick={() => setTab("ask")}>
+            Palette Ask
+          </button>
+        </>
+      );
+      return <AssistantRail {...baseProps} presentation="sheet" onHide={vi.fn()} chat={{ tab, onTabChange: setTab, panel }} />;
+    }
+    render(<Sheet />);
+    fireEvent.click(screen.getByRole("tab", { name: "Chat" }));
+    expect(screen.getByRole("tab", { name: "Chat" }).getAttribute("aria-selected")).toBe("true");
+    expect(screen.getByRole("textbox", { name: "Message" }).matches(":focus")).toBe(false);
+
+    fireEvent.click(screen.getByRole("button", { name: "Palette Ask" }));
+    expect(screen.getByPlaceholderText(/ask about this day/i).matches(":focus")).toBe(true);
+  });
 });

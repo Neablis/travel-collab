@@ -68,7 +68,7 @@ export function askCommand(openAssistant: () => void): PaletteCommand {
   return { id: "ask", action: "Ask the assistant", nearness: "global", run: openAssistant };
 }
 
-/** *Open chat*, by the opener the header's 💬 calls (M46). */
+/** *Open chat*: opens the panel on Chat, and remembers it (M46). */
 export function chatCommand(openChat: () => void): PaletteCommand {
   return { id: "chat", action: "Open chat", nearness: "trip", run: openChat };
 }

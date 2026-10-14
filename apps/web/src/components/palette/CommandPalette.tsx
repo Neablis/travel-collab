@@ -144,7 +144,8 @@ export function CommandPalette() {
   usePaletteSource("places", signedIn ? placeCommands(go, trips) : placeCommands(go, []).filter((c) => c.id === "go:playbooks"));
 
   const commands = useMemo<PaletteCommand[]>(
-    () => [...registered.filter((c) => c.unlisted !== true), ...(ask === null || ask.open ? [] : [askCommand(ask.onOpen)])],
+    // Up on Chat, *Ask* still switches the panel to Ask.
+    () => [...registered.filter((c) => c.unlisted !== true), ...(ask === null || (ask.open && ask.chatShown !== true) ? [] : [askCommand(ask.onOpen)])],
     [registered, ask],
   );
   // As deep as the trail still leads: a branch can empty while it is open

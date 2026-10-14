@@ -1,9 +1,10 @@
 import type { RailTab } from "./AssistantRail";
 
-// **Which of the panel's tabs was open last, for the phone tab bar's Ask**
-// (Mitchell, preview walk 1 on PR 436: "remember if ask or chat was last open
-// and make it sticky"). Only that bar reads it: every other opener names its
-// own tab, and saves it here as it opens.
+// **Which of the panel's tabs was open last, for the one button that opens
+// it** (Mitchell, preview walk 1 on PR 436: "remember if ask or chat was last
+// open and make it sticky"): the header's Ask and the phone tab bar's, one
+// button for both tabs since M46's walk. ⌘K's openers name their own tab,
+// and save it here as they open.
 //
 // Per device, in `localStorage`, for `useAssistantShape`'s reasons, and every
 // access wrapped for the same ones: Safari's private mode throws, and a full
