@@ -133,6 +133,86 @@ describe("useTripChat", () => {
     expect(result.current.messages.map((m) => m.removed)).toEqual([true, false]);
   });
 
+  // Mitchell's M46 walk: a sent message waited on the POST before it showed.
+  // It shows at once now, and goes again if the server does not store it.
+  describe("a sent message", () => {
+    // The POST answers only when the test says so, once it has arrived.
+    const sending = () => {
+      let arrived: (answer: (response: Response) => void) => void = () => {};
+      const request = new Promise<(response: Response) => void>((resolve) => (arrived = resolve));
+      server.use(http.post(`/api/trips/${TRIP}/chat`, () => new Promise<Response>((resolve) => arrived(resolve))));
+      return async (response: Response) => (await request)(response);
+    };
+    const ids = (messages: readonly { messageId: string }[]) => messages.map((m) => m.messageId);
+
+    // The read cursor takes only ids the server made: the pending line's is
+    // this page's own, and the stored message is marked once it is in.
+    it("is in the conversation before the server answers, and is marked read only once stored", async () => {
+      const mine = message(2, "u-me");
+      const marked: unknown[] = [];
+      server.use(
+        http.get(`/api/trips/${TRIP}/chat`, () => HttpResponse.json(pageOf([message(1)]))),
+        http.post(`/api/trips/${TRIP}/chat/read`, async ({ request }) => {
+          marked.push(await request.json());
+          return new HttpResponse(null, { status: 204 });
+        }),
+      );
+      const answer = sending();
+      const { result } = renderHook(() => useTripChat({ tripId: TRIP, enabled: true, chatRev: "1", reading: true, accessLost: false }));
+      await waitFor(() => expect(marked).toHaveLength(1));
+
+      act(() => void result.current.post("Train at nine?"));
+      expect(result.current.messages.at(-1)).toMatchObject({ body: "Train at nine?", pending: true });
+
+      await act(() => answer(HttpResponse.json({ message: mine }, { status: 201 })));
+      await waitFor(() => expect(marked).toEqual([{ messageId: message(1).messageId }, { messageId: mine.messageId }]));
+    });
+
+    it("is taken back when the server does not store it", async () => {
+      server.use(http.get(`/api/trips/${TRIP}/chat`, () => HttpResponse.json(pageOf([message(1)]))));
+      const answer = sending();
+      const { result } = renderHook(() => useTripChat({ tripId: TRIP, enabled: true, chatRev: "1", reading: false, accessLost: false }));
+      await waitFor(() => expect(result.current.status).toBe("ready"));
+
+      let stored = Promise.resolve(true);
+      act(() => void (stored = result.current.post("Train at nine?")));
+      expect(result.current.messages).toHaveLength(2);
+      await act(async () => {
+        await answer(HttpResponse.json({ error: "Something went wrong." }, { status: 500 }));
+        expect(await stored).toBe(false);
+      });
+      expect(ids(result.current.messages)).toEqual([message(1).messageId]);
+      expect(result.current.postError).toBe("Something went wrong.");
+    });
+
+    // The poll can bring the stored message back before the POST answers, and
+    // does again after: either way it is one line, where the pending one was.
+    it("becomes the server's message once, however the re-reads land", async () => {
+      const mine = message(2, "u-me");
+      let served = pageOf([message(1)]);
+      server.use(http.get(`/api/trips/${TRIP}/chat`, () => HttpResponse.json(served)));
+      const answer = sending();
+      const { result, rerender } = renderHook((chatRev: string) => useTripChat({ tripId: TRIP, enabled: true, chatRev, reading: false, accessLost: false }), {
+        initialProps: "1",
+      });
+      await waitFor(() => expect(result.current.status).toBe("ready"));
+
+      let stored = Promise.resolve(true);
+      act(() => void (stored = result.current.post("message 2")));
+      served = pageOf([message(1), mine]);
+      rerender("2");
+      await waitFor(() => expect(result.current.messages).toHaveLength(3));
+      await act(async () => {
+        await answer(HttpResponse.json({ message: mine }, { status: 201 }));
+        expect(await stored).toBe(true);
+      });
+      expect(ids(result.current.messages)).toEqual([message(1).messageId, mine.messageId]);
+
+      rerender("3");
+      await waitFor(() => expect(ids(result.current.messages)).toEqual([message(1).messageId, mine.messageId]));
+    });
+  });
+
   // PR 440 review, finding 3: a failed delete's alert sat above the composer
   // until the next edit or delete, however much happened after it.
   it("drops a failed change's error once the conversation is read again, or the reader posts", async () => {

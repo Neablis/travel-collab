@@ -66,13 +66,16 @@ export function ChatPanel({
     );
   }
 
+  // The line shows at once (`useTripChat`), so the composer empties at once.
+  // A send that was not stored gives its text back, unless the reader has
+  // started another: nothing they typed is lost either way.
   const send = async () => {
     const body = draft.trim();
-    if (body === "" || chat.posting) return;
-    if (await chat.post(body, picker.linkFor(body))) {
-      setDraft("");
-      picker.clear();
-    }
+    if (body === "") return;
+    const link = picker.linkFor(body);
+    setDraft("");
+    picker.clear();
+    if (!(await chat.post(body, link))) setDraft((current) => (current === "" ? body : current));
   };
 
   return (
@@ -100,7 +103,9 @@ export function ChatPanel({
                   message={message}
                   persona={personas === null ? null : personas[message.authorId]}
                   tripId={chat.tripId}
-                  viewer={viewerOf(message.authorId)}
+                  // A pending line's id is this page's own: nothing on it
+                  // would reach a stored message.
+                  viewer={message.pending ? null : viewerOf(message.authorId)}
                   // Closed by a lapse mid-edit as well: the save would be refused.
                   editing={editing === message.messageId && chat.canPost}
                   onEdit={() => setEditing(message.messageId)}
@@ -186,8 +191,8 @@ export function ChatPanel({
                   value={draft}
                   onChange={(event) => setDraft(event.target.value)}
                 />
-                <Button type="submit" variant="primary" size={touch ? "touch" : "md"} disabled={chat.posting || draft.trim() === ""}>
-                  {chat.posting ? "Sending…" : "Send"}
+                <Button type="submit" variant="primary" size={touch ? "touch" : "md"} disabled={draft.trim() === ""}>
+                  Send
                 </Button>
               </form>
             </>

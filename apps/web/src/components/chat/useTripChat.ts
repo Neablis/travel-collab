@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ChatLink, ChatMessage, ChatPage } from "@tc/contracts";
+import { useKnownSessionUser } from "@/components/account/useSessionUser";
 import {
   deleteChatMessage,
   editChatMessage,
@@ -22,16 +23,26 @@ import {
  */
 export type TripChatStatus = "loading" | "ready" | "no-access" | "failed";
 
+/**
+ * A line of the conversation. `pending` is the reader's own message, shown
+ * from the moment they sent it and not yet stored: its id is this page's own,
+ * so nothing may be done to it until the server's message takes its place.
+ */
+export type ChatLine = ChatMessage & { pending?: true };
+
 export type TripChat = {
   tripId: string;
   status: TripChatStatus;
-  messages: readonly ChatMessage[];
+  messages: readonly ChatLine[];
   hasEarlier: boolean;
   /** Messages by others since the caller's read cursor; 0 while the chat is being read. */
   unread: number;
   /** False after the owner's lapse: the chat is readable and the composer is not. */
   canPost: boolean;
-  /** Resolves false when the message was not stored, so the composer keeps the text. */
+  /**
+   * Shows the message at once, as `pending`, and takes it back if it was not
+   * stored: resolves false then, so the composer can give the text back.
+   */
   post: (body: string, link?: ChatLink) => Promise<boolean>;
   posting: boolean;
   postError: string | null;
@@ -84,6 +95,13 @@ export function useTripChat({
   const [readStatus, setStatus] = useState<TripChatStatus>("loading");
   const status = accessLost ? "no-access" : readStatus;
   const [posting, setPosting] = useState(false);
+  // Sent and not yet answered, oldest first. Kept apart from the page, so a
+  // re-read neither drops them nor counts them, and the read cursor never
+  // sees an id the server did not make.
+  const [pending, setPending] = useState<readonly ChatLine[]>([]);
+  const sent = useRef(0);
+  const inFlight = useRef(0);
+  const me = useKnownSessionUser()?.id ?? "";
   const [postError, setPostError] = useState<string | null>(null);
   // Why the last edit or delete failed. Cleared by a fresh read or a post as
   // well as by the next change: by then it describes a page that has moved on.
@@ -127,13 +145,29 @@ export function useTripChat({
 
   const post = useCallback(
     async (body: string, link?: ChatLink) => {
+      sent.current += 1;
+      inFlight.current += 1;
+      const line: ChatLine = {
+        messageId: `pending-${sent.current}`,
+        authorId: me,
+        createdAt: new Date().toISOString(),
+        editedAt: null,
+        removed: false,
+        body,
+        ...(link === undefined ? {} : { link }),
+        pending: true,
+      };
+      setPending((current) => [...current, line]);
       setPosting(true);
       setPostError(null);
       setChangeError(null);
       const result = await postChatMessage(tripId, link === undefined ? { body } : { body, link });
-      setPosting(false);
+      inFlight.current -= 1;
+      setPosting(inFlight.current > 0);
+      setPending((current) => current.filter((m) => m.messageId !== line.messageId));
       if (result.ok) {
-        // Shown at once; the next re-read brings the same message back.
+        // In the pending line's place, in the same render. A re-read may have
+        // brought it already, and the next one brings it again.
         setPage((current) =>
           current === null || current.messages.some((m) => m.messageId === result.value.messageId)
             ? current
@@ -151,7 +185,7 @@ export function useTripChat({
       setPostError(result.error.status === 0 ? "Couldn't send. Check your connection and try again." : result.error.message);
       return false;
     },
-    [tripId, refused],
+    [tripId, me, refused],
   );
 
   // An edit or a delete answers with the message as stored, so the author's
@@ -189,10 +223,12 @@ export function useTripChat({
   );
   const remove = useCallback(async (messageId: string) => change(await deleteChatMessage(tripId, messageId)), [tripId, change]);
 
+  const messages = useMemo(() => [...(page?.messages ?? []), ...pending], [page, pending]);
+
   return {
     tripId,
     status,
-    messages: page?.messages ?? [],
+    messages,
     hasEarlier: page?.hasEarlier ?? false,
     unread: reading ? 0 : (page?.unread ?? 0),
     canPost: page?.canPost ?? false,

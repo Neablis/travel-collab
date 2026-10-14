@@ -151,6 +151,30 @@ describe("ChatPanel", () => {
     });
   });
 
+  // Mitchell's M46 walk: the message shows the moment Send is pressed, so the
+  // composer empties then, not when the server answers; a send that was not
+  // stored gives the words back.
+  it("empties the composer at once, and gives the text back when the send was not stored", async () => {
+    let stored: (ok: boolean) => void = () => {};
+    const post = vi.fn(() => new Promise<boolean>((resolve) => (stored = resolve)));
+    render(<ChatPanel chat={chat({ post })} personas={null} />);
+    const field = screen.getByRole("combobox", { name: "Message" }) as HTMLInputElement;
+    await userEvent.type(field, "Train at nine?{Enter}");
+    expect(post).toHaveBeenCalledWith("Train at nine?", undefined);
+    expect(field.value).toBe("");
+
+    stored(false);
+    await vi.waitFor(() => expect(field.value).toBe("Train at nine?"));
+  });
+
+  it("offers nothing on the reader's own line until it is stored", () => {
+    me = { id: "u-bea" };
+    myRole = "owner";
+    render(<ChatPanel chat={chat({ messages: [{ ...chat().messages[0]!, pending: true }] })} personas={bea} />);
+    expect(screen.getByRole("listitem").textContent).toContain("Train at nine?");
+    expect(screen.queryByRole("button", { name: "Actions for Bea's message" })).toBeNull();
+  });
+
   it("gives an editor no way to change someone else's line", () => {
     me = { id: "u-cal" };
     myRole = "editor";
