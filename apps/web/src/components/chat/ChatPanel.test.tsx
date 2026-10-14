@@ -188,6 +188,21 @@ describe("ChatPanel", () => {
     expect(post).toHaveBeenLastCalledWith("@Day 1 dinner here?", { kind: "day", id: day });
   });
 
+  // PR 444 review, finding 3: what the reader has started since is theirs;
+  // the failed text does not overwrite it, and the alert says it was not sent.
+  it("keeps what the reader has typed since when the send fails", async () => {
+    let answered: (unsent: string | null) => void = () => {};
+    const post = vi.fn(() => new Promise<string | null>((resolve) => (answered = resolve)));
+    const { rerender } = render(<ChatPanel chat={chat({ post })} personas={null} />);
+    const field = screen.getByRole("combobox", { name: "Message" }) as HTMLInputElement;
+    await userEvent.type(field, "Train at nine?{Enter}x");
+
+    await act(async () => answered("Train at nine?"));
+    rerender(<ChatPanel chat={chat({ post, postError: "Couldn't send. Check your connection and try again." })} personas={null} />);
+    expect(field.value).toBe("x");
+    expect(screen.getByRole("alert").textContent).toContain("Couldn't send");
+  });
+
   it("offers nothing on the reader's own line until it is stored", () => {
     me = { id: "u-bea" };
     myRole = "owner";

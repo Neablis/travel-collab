@@ -76,7 +76,10 @@ export function ChatPanel({
   // The line shows at once (`useTripChat`), so the composer empties at once.
   // A send that was not stored gives its text back, with its @day/@stop link,
   // unless the reader has started another message by then: that one is not
-  // overwritten.
+  // overwritten, and the failed text is dropped, with the hook's "Couldn't
+  // send" alert still up to say so. Only the first unsent line's link comes
+  // back: a second send queued behind a failing one returns with it as words
+  // only, its link lost (PR 444 review).
   const send = async () => {
     const body = draft.trim();
     if (body === "") return;

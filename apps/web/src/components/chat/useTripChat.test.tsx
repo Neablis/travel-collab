@@ -218,9 +218,34 @@ describe("useTripChat", () => {
       });
       expect(ids(result.current.messages)).toEqual([message(1).messageId, mine.messageId]);
 
+      // Waits on read 3's answer, which brings a third message, not on the
+      // request: the line it checks held before that answer landed.
+      served = pageOf([message(1), mine, message(3)]);
       rerender("3");
-      await waitFor(() => expect(reads).toBe(3));
-      expect(ids(result.current.messages)).toEqual([message(1).messageId, mine.messageId]);
+      await waitFor(() => expect(ids(result.current.messages)).toContain(message(3).messageId));
+      expect(ids(result.current.messages)).toEqual([message(1).messageId, mine.messageId, message(3).messageId]);
+    });
+
+    // Two sends with the same words: the first stored stands in for one of
+    // them, and the other stays pending until its own arrives.
+    it("gives one pending line way for each stored message with its words", async () => {
+      const stored = { ...message(2, "u-me"), body: "ok" };
+      let served = pageOf([message(1)]);
+      server.use(http.get(`/api/trips/${TRIP}/chat`, () => HttpResponse.json(served)));
+      sending();
+      const { result, rerender } = renderHook((chatRev: string) => useTripChat({ tripId: TRIP, enabled: true, chatRev, reading: false, accessLost: false }), {
+        initialProps: "1",
+      });
+      await waitFor(() => expect(result.current.status).toBe("ready"));
+
+      act(() => {
+        void result.current.post("ok");
+        void result.current.post("ok");
+      });
+      served = pageOf([message(1), stored]);
+      rerender("2");
+      await waitFor(() => expect(ids(result.current.messages)).toContain(stored.messageId));
+      expect(ids(result.current.messages)).toEqual([message(1).messageId, stored.messageId, "pending-2"]);
     });
 
     // A same-worded message of the reader's from before the send is not this
