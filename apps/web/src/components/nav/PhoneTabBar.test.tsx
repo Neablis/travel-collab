@@ -403,7 +403,11 @@ describe("PhoneTabBar", () => {
 
     // Mitchell's M46 walk: "Lets keep home card with the full count, the rest
     // as just the unread dot". The dot is the Ask pill's; the name keeps the count.
-    it.each([1, 12, 120])("marks %i unread with a dot and no count, and still names them", (unread) => {
+    it.each([
+      [1, "Ask or chat, 1 unread message"],
+      [12, "Ask or chat, 12 unread messages"],
+      [120, "Ask or chat, 120 unread messages"],
+    ])("marks %i unread with a dot and no count, and still names them", (unread, name) => {
       url = "/trips/t1";
       render(
         <>
@@ -414,7 +418,7 @@ describe("PhoneTabBar", () => {
       const item = screen.getByTestId("ask-tab");
       expect(item.textContent).toBe("Ask");
       expect(screen.getByTestId("unread-dot").getAttribute("aria-hidden")).toBe("true");
-      expect(item.getAttribute("aria-label")).toMatch(/^Ask or chat, \d+ unread messages?$/);
+      expect(item.getAttribute("aria-label")).toBe(name);
     });
 
     // M45 D7: Home has an assistant of its own now, so the bar follows the

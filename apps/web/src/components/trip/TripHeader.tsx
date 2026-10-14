@@ -71,7 +71,7 @@ export function TripHeader({
    */
   onOpenAssistant?: () => void;
   /**
-   * The trip's unread chat messages, where it has a chat (M46): a badge on
+   * The trip's unread chat messages, where it has a chat (M46): a dot on
    * Ask, which opens the panel on whichever of its tabs was last open. Absent
    * on /demo and on a trip you are alone on, where Ask is Ask alone.
    */

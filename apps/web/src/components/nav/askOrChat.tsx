@@ -26,14 +26,15 @@ export function unreadWords(unread: number): string {
  * the count, and out of flow, so its control never changes size when one
  * arrives (Mitchell, M46 walk: "the rest as just the unread dot"; Home's cards
  * keep the count). `className` places it on a `relative` box; the count is in
- * the control's name.
+ * the control's name. The transparent border is what forced-colors mode keeps:
+ * it drops the fill and the ring, and paints the border, so the dot stays seen.
  */
 export function UnreadDot({ className, testId = "unread-dot" }: { className: string; testId?: string }) {
   return (
     <span
       aria-hidden
       data-testid={testId}
-      className={cn("pointer-events-none absolute size-2.5 rounded-full bg-brand ring-2 ring-surface", className)}
+      className={cn("pointer-events-none absolute size-2.5 rounded-full border border-transparent bg-brand ring-2 ring-surface", className)}
     />
   );
 }

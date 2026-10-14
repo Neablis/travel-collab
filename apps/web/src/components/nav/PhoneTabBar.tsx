@@ -436,7 +436,7 @@ export function PhoneAskTab() {
       variant="ghost"
       onClick={ask.onResume ?? ask.onOpen}
       // On a trip with a chat this is the one way into both, as the header's
-      // pill is from 768px (M46), and named and badged as that pill is.
+      // pill is from 768px (M46), and named and dotted as that pill is.
       aria-label={askOrChatName(ask.unread)}
       aria-expanded={ask.open}
       data-testid="ask-tab"
