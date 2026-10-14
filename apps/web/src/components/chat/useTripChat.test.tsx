@@ -6,6 +6,9 @@ import { ChatMessage, type ChatPage } from "@tc/contracts";
 import { uuidFrom } from "@tc/factories";
 import { useTripChat } from "./useTripChat";
 
+// The reader, whose own sent lines these are.
+vi.mock("@/components/account/useSessionUser", () => ({ useKnownSessionUser: () => ({ id: "u-me" }) }));
+
 const server = setupServer();
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
 afterEach(() => {
@@ -174,12 +177,12 @@ describe("useTripChat", () => {
       const { result } = renderHook(() => useTripChat({ tripId: TRIP, enabled: true, chatRev: "1", reading: false, accessLost: false }));
       await waitFor(() => expect(result.current.status).toBe("ready"));
 
-      let stored = Promise.resolve(true);
-      act(() => void (stored = result.current.post("Train at nine?")));
+      let unsent = Promise.resolve<string | null>(null);
+      act(() => void (unsent = result.current.post("Train at nine?")));
       expect(result.current.messages).toHaveLength(2);
       await act(async () => {
         await answer(HttpResponse.json({ error: "Something went wrong." }, { status: 500 }));
-        expect(await stored).toBe(false);
+        expect(await unsent).toBe("Train at nine?");
       });
       expect(ids(result.current.messages)).toEqual([message(1).messageId]);
       expect(result.current.postError).toBe("Something went wrong.");
@@ -190,26 +193,104 @@ describe("useTripChat", () => {
     it("becomes the server's message once, however the re-reads land", async () => {
       const mine = message(2, "u-me");
       let served = pageOf([message(1)]);
-      server.use(http.get(`/api/trips/${TRIP}/chat`, () => HttpResponse.json(served)));
+      let reads = 0;
+      server.use(
+        http.get(`/api/trips/${TRIP}/chat`, () => {
+          reads += 1;
+          return HttpResponse.json(served);
+        }),
+      );
       const answer = sending();
       const { result, rerender } = renderHook((chatRev: string) => useTripChat({ tripId: TRIP, enabled: true, chatRev, reading: false, accessLost: false }), {
         initialProps: "1",
       });
       await waitFor(() => expect(result.current.status).toBe("ready"));
 
-      let stored = Promise.resolve(true);
-      act(() => void (stored = result.current.post("message 2")));
+      let unsent = Promise.resolve<string | null>("not answered");
+      act(() => void (unsent = result.current.post("message 2")));
       served = pageOf([message(1), mine]);
       rerender("2");
-      await waitFor(() => expect(result.current.messages).toHaveLength(3));
+      await waitFor(() => expect(reads).toBe(2));
+      expect(ids(result.current.messages)).toEqual([message(1).messageId, mine.messageId]);
       await act(async () => {
         await answer(HttpResponse.json({ message: mine }, { status: 201 }));
-        expect(await stored).toBe(true);
+        expect(await unsent).toBeNull();
       });
       expect(ids(result.current.messages)).toEqual([message(1).messageId, mine.messageId]);
 
       rerender("3");
-      await waitFor(() => expect(ids(result.current.messages)).toEqual([message(1).messageId, mine.messageId]));
+      await waitFor(() => expect(reads).toBe(3));
+      expect(ids(result.current.messages)).toEqual([message(1).messageId, mine.messageId]);
+    });
+
+    // A same-worded message of the reader's from before the send is not this
+    // one: the pending line stays until its own arrives.
+    it("keeps the pending line beside an earlier message with the same words", async () => {
+      const earlier = { ...message(1, "u-me"), body: "ok" };
+      server.use(http.get(`/api/trips/${TRIP}/chat`, () => HttpResponse.json(pageOf([earlier]))));
+      sending();
+      const { result } = renderHook(() => useTripChat({ tripId: TRIP, enabled: true, chatRev: "1", reading: false, accessLost: false }));
+      await waitFor(() => expect(result.current.status).toBe("ready"));
+
+      act(() => void result.current.post("ok"));
+      expect(result.current.messages.map((m) => m.messageId)).toEqual([earlier.messageId, "pending-1"]);
+    });
+
+    // Two sends in one POST's latency: each shows at once, and the second is
+    // not sent until the first is stored, so the server stamps them in order.
+    describe("two in quick succession", () => {
+      const twoSends = () => {
+        const arrived: string[] = [];
+        const answers: ((response: Response) => void)[] = [];
+        server.use(
+          http.get(`/api/trips/${TRIP}/chat`, () => HttpResponse.json(pageOf([message(1)]))),
+          http.post(`/api/trips/${TRIP}/chat`, async ({ request }) => {
+            arrived.push(((await request.json()) as { body: string }).body);
+            return new Promise<Response>((resolve) => answers.push(resolve));
+          }),
+        );
+        return { arrived, answer: (n: number, response: Response) => answers[n]!(response) };
+      };
+
+      it("are sent one after the other, in the order sent", async () => {
+        const { arrived, answer } = twoSends();
+        const { result } = renderHook(() => useTripChat({ tripId: TRIP, enabled: true, chatRev: "1", reading: false, accessLost: false }));
+        await waitFor(() => expect(result.current.status).toBe("ready"));
+
+        act(() => {
+          void result.current.post("Train at nine?");
+          void result.current.post("or ten?");
+        });
+        expect(result.current.messages.map((m) => !m.removed && m.body)).toEqual(["message 1", "Train at nine?", "or ten?"]);
+        await waitFor(() => expect(arrived).toEqual(["Train at nine?"]));
+        // Long enough for a second POST to arrive, were it already sent.
+        await act(() => new Promise((resolve) => setTimeout(resolve, 50)));
+        expect(arrived).toEqual(["Train at nine?"]);
+
+        await act(async () => answer(0, HttpResponse.json({ message: { ...message(2, "u-me"), body: "Train at nine?" } }, { status: 201 })));
+        await waitFor(() => expect(arrived).toEqual(["Train at nine?", "or ten?"]));
+      });
+
+      it("go back together when the first is not stored, and the second is never sent", async () => {
+        const { arrived, answer } = twoSends();
+        const { result } = renderHook(() => useTripChat({ tripId: TRIP, enabled: true, chatRev: "1", reading: false, accessLost: false }));
+        await waitFor(() => expect(result.current.status).toBe("ready"));
+
+        let first = Promise.resolve<string | null>(null);
+        let second = Promise.resolve<string | null>("not answered");
+        act(() => {
+          first = result.current.post("Train at nine?");
+          second = result.current.post("or ten?");
+        });
+        await waitFor(() => expect(arrived).toHaveLength(1));
+        await act(async () => {
+          answer(0, HttpResponse.error());
+          expect(await first).toBe("Train at nine? or ten?");
+          expect(await second).toBeNull();
+        });
+        expect(ids(result.current.messages)).toEqual([message(1).messageId]);
+        expect(arrived).toEqual(["Train at nine?"]);
+      });
     });
   });
 
@@ -234,7 +315,7 @@ describe("useTripChat", () => {
 
     await act(async () => expect(await result.current.remove(id)).toBe(false));
     expect(result.current.changeError).not.toBeNull();
-    await act(async () => expect(await result.current.post("Back online")).toBe(true));
+    await act(async () => expect(await result.current.post("Back online")).toBeNull());
     expect(result.current.changeError).toBeNull();
   });
 });

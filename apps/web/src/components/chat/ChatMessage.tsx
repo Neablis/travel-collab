@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PersonChip } from "@/components/ui/person-chip";
 import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/cn";
 import { MessageBody } from "./MessageChip";
 
 /** Who wrote a message that a member no longer on the trip wrote. */
@@ -46,10 +47,13 @@ export function ChatMessage({
   onDelete,
   onSave,
   onCancelEdit,
+  pending = false,
 }: {
   /** The line, which takes focus when the control the reader used is gone. */
   ref?: Ref<HTMLLIElement>;
   message: ChatMessageData;
+  /** Sent and not yet stored: muted, and busy to a screen reader, until it is or it goes. */
+  pending?: boolean;
   persona: Persona | undefined | null;
   tripId: string;
   viewer: MessageViewer | null;
@@ -70,7 +74,12 @@ export function ChatMessage({
 
   return (
     // `tabIndex={-1}`: focusable by the panel, not a Tab stop.
-    <li ref={ref} tabIndex={-1} className="group flex gap-2 rounded-md focus-visible:outline-2 focus-visible:outline-brand">
+    <li
+      ref={ref}
+      tabIndex={-1}
+      aria-busy={pending || undefined}
+      className={cn("group flex gap-2 rounded-md focus-visible:outline-2 focus-visible:outline-brand", pending && "opacity-60")}
+    >
       {name === null ? (
         <Skeleton circle className="mt-0.5 size-7 shrink-0" />
       ) : (

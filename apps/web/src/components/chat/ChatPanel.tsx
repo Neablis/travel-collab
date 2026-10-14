@@ -1,5 +1,5 @@
 "use client";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useKnownSessionUser } from "@/components/account/useSessionUser";
 import type { Persona } from "@/components/pages/people";
@@ -44,6 +44,13 @@ export function ChatPanel({
   const focusLine = (messageId: string | null) => (messageId === null ? undefined : lines.current.get(messageId)?.focus());
   const deletingFrom = useRef<string | null>(null);
   const picker = useTargetPicker(draft, setDraft);
+  // Whether the composer holds anything as last rendered: `send` asks after
+  // its await, when the draft it closed over is stale.
+  const composing = useRef(false);
+  const picked = picker.held.picked !== null;
+  useEffect(() => {
+    composing.current = draft !== "" || picked;
+  }, [draft, picked]);
   const scrollport = useRef<HTMLDivElement>(null);
   usePinToBottom(scrollport, [chat.messages.length]);
   // Who is reading decides what each line offers (D6). Neither is a request of
@@ -67,15 +74,20 @@ export function ChatPanel({
   }
 
   // The line shows at once (`useTripChat`), so the composer empties at once.
-  // A send that was not stored gives its text back, unless the reader has
-  // started another: nothing they typed is lost either way.
+  // A send that was not stored gives its text back, with its @day/@stop link,
+  // unless the reader has started another message by then: that one is not
+  // overwritten.
   const send = async () => {
     const body = draft.trim();
     if (body === "") return;
     const link = picker.linkFor(body);
+    const held = picker.held;
     setDraft("");
     picker.clear();
-    if (!(await chat.post(body, link))) setDraft((current) => (current === "" ? body : current));
+    const unsent = await chat.post(body, link);
+    if (unsent === null || composing.current) return;
+    setDraft(unsent);
+    picker.restore(held);
   };
 
   return (
@@ -106,6 +118,7 @@ export function ChatPanel({
                   // A pending line's id is this page's own: nothing on it
                   // would reach a stored message.
                   viewer={message.pending ? null : viewerOf(message.authorId)}
+                  pending={message.pending}
                   // Closed by a lapse mid-edit as well: the save would be refused.
                   editing={editing === message.messageId && chat.canPost}
                   onEdit={() => setEditing(message.messageId)}

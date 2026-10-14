@@ -1,10 +1,12 @@
-import { render, screen, within } from "@testing-library/react";
+import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { TripRole } from "@tc/contracts";
 import { ChatMessage } from "@tc/contracts";
-import { tripMemberProfileFactory, uuidFrom } from "@tc/factories";
+import { tripDetailFixture, tripMemberProfileFactory, uuidFrom } from "@tc/factories";
 import { personasOf } from "@/components/pages/people";
+import { tripTargets } from "@/components/palette/commands";
+import { registerBoardFocus } from "./boardFocus";
 import { FORMER_MEMBER } from "./ChatMessage";
 import { ChatPanel, NO_ACCESS_LINE, READ_ONLY_LINE } from "./ChatPanel";
 import type { TripChat } from "./useTripChat";
@@ -36,8 +38,7 @@ const chat = (over: Partial<TripChat> = {}): TripChat => ({
   hasEarlier: false,
   unread: 0,
   canPost: true,
-  post: async () => true,
-  posting: false,
+  post: async () => null,
   postError: null,
   edit: async () => true,
   remove: async () => true,
@@ -155,16 +156,37 @@ describe("ChatPanel", () => {
   // composer empties then, not when the server answers; a send that was not
   // stored gives the words back.
   it("empties the composer at once, and gives the text back when the send was not stored", async () => {
-    let stored: (ok: boolean) => void = () => {};
-    const post = vi.fn(() => new Promise<boolean>((resolve) => (stored = resolve)));
+    let answered: (unsent: string | null) => void = () => {};
+    const post = vi.fn(() => new Promise<string | null>((resolve) => (answered = resolve)));
     render(<ChatPanel chat={chat({ post })} personas={null} />);
     const field = screen.getByRole("combobox", { name: "Message" }) as HTMLInputElement;
     await userEvent.type(field, "Train at nine?{Enter}");
     expect(post).toHaveBeenCalledWith("Train at nine?", undefined);
     expect(field.value).toBe("");
 
-    stored(false);
+    answered("Train at nine?");
     await vi.waitFor(() => expect(field.value).toBe("Train at nine?"));
+  });
+
+  // PR 444 review, finding 1: the text came back without its @day link, so
+  // the retry was stored as plain words, with no chip and no jump.
+  it("gives a failed send's @day link back with its text, so the retry carries it", async () => {
+    const day = uuidFrom(3, 46);
+    const trip = tripDetailFixture({ days: [{ dayId: day, activityIds: [], date: null, costSubtotal: 0 }] });
+    let unregister = () => {};
+    act(() => {
+      unregister = registerBoardFocus({ ...tripTargets(trip, { focusedActivityId: null, focusedDayId: null, selectedDayId: null }), focusDay: vi.fn(), focusActivity: vi.fn() });
+    });
+    const post = vi.fn(async (body: string): Promise<string | null> => (post.mock.calls.length === 1 ? body : null));
+    render(<ChatPanel chat={chat({ post })} personas={null} />);
+    const field = screen.getByRole("combobox", { name: "Message" }) as HTMLInputElement;
+    await userEvent.type(field, "@day 1{Enter}dinner here?{Enter}");
+    expect(post).toHaveBeenLastCalledWith("@Day 1 dinner here?", { kind: "day", id: day });
+    await vi.waitFor(() => expect(field.value).toBe("@Day 1 dinner here?"));
+
+    await userEvent.type(field, "{Enter}");
+    expect(post).toHaveBeenLastCalledWith("@Day 1 dinner here?", { kind: "day", id: day });
+    act(() => unregister());
   });
 
   it("offers nothing on the reader's own line until it is stored", () => {
@@ -172,6 +194,7 @@ describe("ChatPanel", () => {
     myRole = "owner";
     render(<ChatPanel chat={chat({ messages: [{ ...chat().messages[0]!, pending: true }] })} personas={bea} />);
     expect(screen.getByRole("listitem").textContent).toContain("Train at nine?");
+    expect(screen.getByRole("listitem").getAttribute("aria-busy")).toBe("true");
     expect(screen.queryByRole("button", { name: "Actions for Bea's message" })).toBeNull();
   });
 
