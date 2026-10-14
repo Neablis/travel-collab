@@ -171,7 +171,7 @@ describe("cost.breakdown by tag — spend by tag", () => {
     expect(pie.title).toBe("Spend by tag");
     expect(pie.slices.map((s) => s.key)).toEqual([
       "meal", "lodging", "outdoors", "drinks", "nightlife", "museum", "sight",
-      "beach", "shopping", "show", "tour", "wellness", "untagged",
+      "beach", "shopping", "show", "tour", "wellness", "sports", "untagged",
     ]);
     expect(pie.slices.filter((s) => s.amount !== null).map(({ key, label, amount, share }) => [key, label, amount, share])).toEqual([
       ["meal", "Food", "$70.00", "70%"],
@@ -201,7 +201,7 @@ describe("cost.breakdown by tag — spend by tag", () => {
     price(trip, 0, 1, usd(2000), "pending", ["meal"]);
     price(trip, 1, 0, usd(1000), "pending");
     const pie = pieOf(trip, { by: "tag", kind: "pending" });
-    expect(pie.slices.map((s) => s.amountMinor)).toEqual([2000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1000]);
+    expect(pie.slices.map((s) => s.amountMinor)).toEqual([2000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1000]);
     expect(pie.title).toBe("Spend by tag · Pending");
     expect(pie.total).toBe("$30.00");
   });
@@ -213,7 +213,7 @@ describe("cost.breakdown by tag — spend by tag", () => {
     price(trip, 1, 0, usd(1000), "planned");
     const stored = pieOf(trip, { by: "tag", tag: "meal" });
     expect(stored).toEqual(pieOf(trip, { by: "tag" }));
-    expect(stored.slices.map((s) => s.amountMinor)).toEqual([6000, 2000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1000]);
+    expect(stored.slices.map((s) => s.amountMinor)).toEqual([6000, 2000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1000]);
     expect(stored.title).toBe("Spend by tag");
   });
 

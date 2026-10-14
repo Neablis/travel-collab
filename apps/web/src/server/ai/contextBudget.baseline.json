@@ -22,10 +22,10 @@
         "go_to",
         "request_change_tools"
       ],
-      "toolChars": 7440,
+      "toolChars": 7449,
       "instructionChars": 2624,
-      "totalChars": 10064,
-      "approxTokens": 3040
+      "totalChars": 10073,
+      "approxTokens": 3043
     },
     "trip · edit": {
       "tools": [
@@ -50,10 +50,10 @@
         "insert_playbook_day",
         "go_to"
       ],
-      "toolChars": 22576,
+      "toolChars": 22603,
       "instructionChars": 4138,
-      "totalChars": 26714,
-      "approxTokens": 8071
+      "totalChars": 26741,
+      "approxTokens": 8079
     },
     "trip · plan": {
       "tools": [
@@ -75,10 +75,10 @@
         "insert_playbook_day",
         "go_to"
       ],
-      "toolChars": 21517,
+      "toolChars": 21544,
       "instructionChars": 4445,
-      "totalChars": 25962,
-      "approxTokens": 7844
+      "totalChars": 25989,
+      "approxTokens": 7852
     },
     "trip · unsure": {
       "tools": [
@@ -103,10 +103,10 @@
         "insert_playbook_day",
         "go_to"
       ],
-      "toolChars": 22576,
+      "toolChars": 22603,
       "instructionChars": 4138,
-      "totalChars": 26714,
-      "approxTokens": 8071
+      "totalChars": 26741,
+      "approxTokens": 8079
     },
     "page · compose": {
       "tools": [
@@ -135,20 +135,20 @@
         "go_to",
         "propose_notebook_editing"
       ],
-      "toolChars": 6798,
+      "toolChars": 6807,
       "instructionChars": 1712,
-      "totalChars": 8510,
-      "approxTokens": 2571
+      "totalChars": 8519,
+      "approxTokens": 2574
     }
   },
   "tools": {
     "UpdateActivity": {
-      "chars": 6274,
-      "approxTokens": 1895
+      "chars": 6283,
+      "approxTokens": 1898
     },
     "AddActivity": {
-      "chars": 5617,
-      "approxTokens": 1697
+      "chars": 5626,
+      "approxTokens": 1700
     },
     "search_widgets": {
       "chars": 1288,
@@ -167,16 +167,16 @@
       "approxTokens": 353
     },
     "find_days": {
-      "chars": 1063,
-      "approxTokens": 321
+      "chars": 1072,
+      "approxTokens": 324
     },
     "search_places": {
       "chars": 950,
       "approxTokens": 287
     },
     "spend_by_category": {
-      "chars": 933,
-      "approxTokens": 282
+      "chars": 942,
+      "approxTokens": 285
     },
     "search_playbooks": {
       "chars": 877,

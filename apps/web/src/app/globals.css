@@ -117,6 +117,9 @@
   --color-tag-wellness: #18a177;
   --color-tag-wellness-tint: #def7eb;
   --color-tag-wellness-ink: #005f44;
+  --color-tag-sports: #3d6fd1;
+  --color-tag-sports-tint: #e3ecfc;
+  --color-tag-sports-ink: #1f3f85;
 
   /* Two notches below `text-xs` exist for the front door only: the landing
      page's dense illustrations (crew initials, ledger column heads, playbook

@@ -128,7 +128,7 @@ describe("what a filter can honestly offer", () => {
     const tags = def("tag").options(USD)!;
     expect(tags.map((o) => o.value)).toEqual([
       "any", "meal", "drinks", "nightlife", "museum", "sight", "outdoors",
-      "beach", "shopping", "show", "tour", "wellness",
+      "beach", "shopping", "show", "tour", "wellness", "sports",
     ]);
     expect(chipLabel(def("tag"), { ...NONE, tag: "meal" }, tags)).toBe("Food");
   });

@@ -53,7 +53,7 @@ export const JAPAN_TRIP_EXPECTATIONS: JapanTripExpectations = {
   kinds: { planned: 55, pending: 8, transit: 9 },
   tags: {
     meal: 27, lodging: 4, ticketed: 8, outdoors: 10, drinks: 6, nightlife: 2, museum: 6,
-    sight: 9, beach: 1, shopping: 3, show: 1, tour: 1, wellness: 1,
+    sight: 9, beach: 1, shopping: 3, show: 1, tour: 1, wellness: 1, sports: 1,
   },
   untaggedCount: 14,
 

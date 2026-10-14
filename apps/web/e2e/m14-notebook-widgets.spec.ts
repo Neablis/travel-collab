@@ -1678,7 +1678,7 @@ test("spend by kind and spend by tag split the trip's costs, and a filter on the
   const byTag = breakdown(/^Spend by tag/);
   await expect(byTag.getByRole("table", { name: "Spend by tag" }).getByRole("row")).toHaveText([
     /Tag/, /Food\s*\$50\.00\s*10%/, /Lodging\s*\$300\.00\s*60%/,
-    ...["Outdoors", "Drinks", "Nightlife", "Museum", "Sight", "Beach", "Shopping", "Show", "Tour", "Wellness"]
+    ...["Outdoors", "Drinks", "Nightlife", "Museum", "Sight", "Beach", "Shopping", "Show", "Tour", "Wellness", "Sports"]
       .map((label) => new RegExp(`${label}\\s*nothing priced`)),
     /Untagged\s*\$150\.00\s*30%/, /Total\s*\$500\.00/,
   ]);
@@ -1687,7 +1687,7 @@ test("spend by kind and spend by tag split the trip's costs, and a filter on the
   const tagRows = byTag.getByRole("table", { name: "Spend by tag · Pending" }).getByRole("row");
   const tagExpected = [
     /Tag/, /Food\s*\$50\.00\s*100%/, /Lodging\s*nothing priced/,
-    ...["Outdoors", "Drinks", "Nightlife", "Museum", "Sight", "Beach", "Shopping", "Show", "Tour", "Wellness"]
+    ...["Outdoors", "Drinks", "Nightlife", "Museum", "Sight", "Beach", "Shopping", "Show", "Tour", "Wellness", "Sports"]
       .map((label) => new RegExp(`${label}\\s*nothing priced`)),
     /Untagged\s*nothing priced/, /Total\s*\$50\.00/,
   ];

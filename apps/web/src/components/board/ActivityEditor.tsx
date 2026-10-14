@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { travellerIds, type ActivityKind, type ActivityMode, type ActivityTag, type ActivityView, type Anchor, type AvatarKey, type DistanceUnit, type Location, type Money, type NearbyStop, type PendingReason, type PersonColor, type TimeWindow } from "@tc/contracts";
 import { Button } from "@/components/ui/button";
 import { PersonChip } from "@/components/ui/person-chip";
@@ -158,7 +158,8 @@ export function ActivityEditor({
    * so a caller that fetches none sees the form exactly as it was.
    */
   nearbyStops?: readonly NearbyStop[];
-  onSave: (value: ActivityFormValue) => void | Promise<void>;
+  /** `stay` is an autosave: persist, but leave the sheet open. */
+  onSave: (value: ActivityFormValue, options?: { stay?: boolean }) => void | Promise<void>;
   onCancel: () => void;
   /** Edit mode's *Remove*; absent, the footer offers none (create mode). */
   onRemove?: () => void;
@@ -343,22 +344,22 @@ export function ActivityEditor({
     actualEnd !== "" &&
     selectedDay.existing.some((w) => toMinutes(start) < toMinutes(w.end) && toMinutes(w.start) < toMinutes(actualEnd));
 
-  function submit(e: React.FormEvent) {
-    e.preventDefault();
+  // The form as it would be saved, or the reason it cannot be yet.
+  function build(): ActivityFormValue | string {
     const trimmedTitle = title.trim();
-    if (trimmedTitle === "") return setError("Title is required");
+    if (trimmedTitle === "") return "Title is required";
 
     let timeWindow: TimeWindow | null = null;
     if (mode === "edit") {
-      if ((start === "") !== (end === "")) return setError("Provide both start and end times");
-      if (start !== "" && start >= end) return setError("End time must be after start time");
+      if ((start === "") !== (end === "")) return "Provide both start and end times";
+      if (start !== "" && start >= end) return "End time must be after start time";
       timeWindow = start !== "" ? { start, end } : null;
     } else if (start !== "") {
       const computedEnd = toTimeString(toMinutes(start) + lengthMinutes);
       timeWindow = { start, end: computedEnd };
     }
 
-    void onSave({
+    return {
       title: trimmedTitle,
       dayId: selectedDayId !== "" ? selectedDayId : null,
       timeWindow,
@@ -377,8 +378,33 @@ export function ActivityEditor({
       mode: kind === "transit" ? travelMode : null,
       endLocation: kind === "transit" ? endLocation : null,
       pendingReason: kind === "pending" ? pendingReason : null,
-    });
+    };
   }
+
+  function submit(e: React.FormEvent) {
+    e.preventDefault();
+    const built = build();
+    if (typeof built === "string") return setError(built);
+    void onSave(built);
+  }
+
+  // Edit mode saves itself: a change is sent after a short pause, so there is
+  // no Save to forget. An invalid form (empty title, half a time window) is
+  // simply not sent until it is valid. The first render's value is the baseline.
+  const built = build();
+  const builtKey = typeof built === "string" ? null : JSON.stringify(built);
+  const savedKey = useRef(builtKey);
+  const latest = useRef({ built, onSave });
+  latest.current = { built, onSave };
+  useEffect(() => {
+    if (mode !== "edit" || builtKey === null || builtKey === savedKey.current) return;
+    const timer = setTimeout(() => {
+      savedKey.current = builtKey;
+      const { built: value, onSave: save } = latest.current;
+      if (typeof value !== "string") void save(value, { stay: true });
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [mode, builtKey]);
 
   return (
     <form onSubmit={submit} className="grid grid-cols-1 gap-3">
@@ -545,7 +571,7 @@ export function ActivityEditor({
         </div>
         {TAG_GROUPS.map((group) => (
           <div key={group.label} className="flex flex-col gap-1">
-            <Text variant="muted">{group.label}</Text>
+            {group.label !== "What it is" && <Text variant="muted">{group.label}</Text>}
             <div role="group" aria-label={group.label} className="flex flex-wrap gap-1.5">
               {group.tags.map((tag) => {
                 const on = tags.includes(tag);

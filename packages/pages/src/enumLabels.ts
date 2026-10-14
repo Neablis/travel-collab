@@ -31,6 +31,7 @@ export const TAG_LABEL: Record<ActivityTag, string> = {
   show: "Show",
   tour: "Tour",
   wellness: "Wellness",
+  sports: "Sports",
 };
 
 // One lookup by value, because a manifest `enum` value reaches `kinds.ts`

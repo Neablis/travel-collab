@@ -27,5 +27,6 @@ export const SPEND_SERIES_COLOR: Record<SpendSeriesKey, ChartToken> = {
   show: "--color-tag-show",
   tour: "--color-tag-tour",
   wellness: "--color-tag-wellness",
+  sports: "--color-tag-sports",
   untagged: "--color-border-input",
 };

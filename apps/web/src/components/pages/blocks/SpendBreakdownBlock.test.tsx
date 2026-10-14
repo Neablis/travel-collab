@@ -85,7 +85,7 @@ describe("SpendBreakdownBlock", () => {
     expect(within(table).getByRole("columnheader", { name: "Tag" })).toBeDefined();
     expect(within(table).getAllByRole("row").slice(1).map((row) => row.textContent)).toEqual([
       "Food$300.0075%",
-      ...["Lodging", "Outdoors", "Drinks", "Nightlife", "Museum", "Sight", "Beach", "Shopping", "Show", "Tour", "Wellness"]
+      ...["Lodging", "Outdoors", "Drinks", "Nightlife", "Museum", "Sight", "Beach", "Shopping", "Show", "Tour", "Wellness", "Sports"]
         .map((label) => `${label}nothing priced—`),
       "Untagged$100.0025%",
       "Total$400.00",

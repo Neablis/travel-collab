@@ -243,6 +243,7 @@ export const StoredActivityKind = z.preprocess(readActivityKind, ActivityKind);
 export const ActivityTag = z.enum([
   "meal", "lodging", "ticketed", "outdoors",
   "drinks", "nightlife", "museum", "sight", "beach", "shopping", "show", "tour", "wellness",
+  "sports",
 ]);
 export type ActivityTag = z.infer<typeof ActivityTag>;
 
