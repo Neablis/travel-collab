@@ -163,11 +163,23 @@ test("the owner edits and deletes in place, the viewer reports a message, and th
     await bea.getByTestId("ask-pill").click();
     const beaPanel = bea.getByRole("complementary", { name: "Assistant" });
     await beaPanel.getByRole("tab", { name: /^Chat/ }).click();
-    await beaPanel
-      .getByRole("listitem")
-      .filter({ hasText: `Hotel is booked ${run}` })
-      .getByRole("button", { name: /^Report / })
-      .click();
+    // A flag that shows only while the line is pointed at (Mitchell's walk).
+    // The fade is on the controls' wrapper, so this multiplies the opacity the
+    // browser computed up the line, which is what the reader sees.
+    const booked = beaPanel.getByRole("listitem").filter({ hasText: `Hotel is booked ${run}` });
+    const flag = booked.getByRole("button", { name: "Report message" });
+    const seen = () =>
+      flag.evaluate((el) => {
+        let opacity = 1;
+        for (let node: Element | null = el; node !== null && node.tagName !== "LI"; node = node.parentElement) {
+          opacity *= Number(getComputedStyle(node).opacity);
+        }
+        return opacity;
+      });
+    expect(await seen()).toBe(0);
+    await booked.hover();
+    await expect.poll(seen).toBe(1);
+    await flag.click();
     const dialog = bea.getByRole("dialog", { name: /^Report / });
     await dialog.getByRole("radio", { name: "Offensive or hateful" }).click();
     await dialog.getByRole("button", { name: "Send" }).click();

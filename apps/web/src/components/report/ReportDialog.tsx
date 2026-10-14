@@ -1,5 +1,6 @@
 "use client";
 
+import { Flag } from "lucide-react";
 import { useRef, useState } from "react";
 import { REPORT_NOTE_MAX, type ReportReason, type ReportTarget } from "@tc/contracts";
 import { Button } from "@/components/ui/button";
@@ -29,14 +30,15 @@ type Outcome = { kind: "idle" } | { kind: "sent" } | { kind: "own" } | { kind: "
  * A ghost "Report" button that opens the report dialog for `target`. `name` is
  * what the button's accessible name says it reports ("this day", "Mei's
  * review"), because a page with a Report under every review needs each one to
- * say which.
+ * say which. `flag` draws a flag icon instead of the word, for a line too
+ * small to carry one (a chat message, M46's walk).
  */
-export function ReportAction({ target, name }: { target: ReportTarget; name: string }) {
+export function ReportAction({ target, name, flag = false }: { target: ReportTarget; name: string; flag?: boolean }) {
   const [open, setOpen] = useState(false);
   return (
     <>
-      <Button variant="ghost" size="sm" aria-label={`Report ${name}`} onClick={() => setOpen(true)}>
-        Report
+      <Button variant="ghost" size={flag ? "icon" : "sm"} aria-label={`Report ${name}`} onClick={() => setOpen(true)}>
+        {flag ? <Flag className="size-3.5" aria-hidden /> : "Report"}
       </Button>
       {/* Mounted only while open, so every opening starts from a blank form. */}
       {open && <ReportDialog target={target} name={name} onClose={() => setOpen(false)} />}
