@@ -47,11 +47,13 @@ function resolve(board: BoardFocus | null, mentions: ChatMentions | null, link: 
  */
 const CHIP = "mx-0.5 inline h-auto min-h-0 min-w-0 rounded-sm bg-brand-tint px-1 py-0 align-baseline font-medium text-brand-pressed";
 /**
- * A pressable chip's hit area on a phone: an invisible overlay 12px past each
- * edge, so the small chip still takes a 44px finger (SPEC §13.1) without
- * growing the line it sits in. A mouse gets the chip as drawn.
+ * A pressable chip's hit area on a phone: an invisible overlay 12px above and
+ * below, so the small chip still takes a 44px finger (SPEC §13.1) without
+ * growing the line it sits in. Only 4px sideways: the message's Report and ⋯
+ * sit 8px past the body (PR 446 review), and a tap there is theirs. A mouse
+ * gets the chip as drawn.
  */
-const HIT = "relative after:absolute after:-inset-3 fine:after:hidden";
+const HIT = "relative after:absolute after:-inset-x-1 after:-inset-y-3 fine:after:hidden";
 
 /** A message's reference as a chip: a day or stop focuses the board, a notebook opens, a person is their name. */
 export function MessageChip({ target }: { target: Resolved }) {
