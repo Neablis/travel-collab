@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Caesura API",
-    "version": "1.17.0",
+    "version": "1.18.0",
     "description": "The public REST API. Every endpoint takes an account API token as\n`Authorization: Bearer tc_...`, minted in Account settings.\n\nScopes:\n- `trips:read` — See your trips, their days and stops, costs, history, and existing share links.\n- `trips:write` — Create, change and delete trips, days and stops; undo, redo and revert.\n- `notebook:read` — Read the Notebook pages on a trip.\n- `notebook:write` — Create, change and delete the Notebook pages on a trip.\n- `library:read` — Read your saved-days library and your Playbooks (a Playbook is a view over saved days), and browse published Playbooks.\n- `library:write` — Create, edit, import and delete saved days and Playbooks, and publish or unpublish them to Discover.\n- `sharing:write` — Invite people to a trip and revoke invites, and create or revoke share links.\n- `account:read` — See who you are and what plan you hold.\n- `places:read` — Look up real places by name, outside any trip. Every search counts against your daily geocoding allowance (the one the app's own place search uses) and a daily budget shared by every account; one token may make at most 100 a day."
   },
   "paths": {
@@ -16027,6 +16027,600 @@
                     "days",
                     "cities",
                     "tags"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "One envelope for every failure: `{ error: { code, message, details? } }`. 401 carries `WWW-Authenticate: Bearer`; 429 carries `Retry-After`."
+          }
+        }
+      }
+    },
+    "/v1/trips/{tripId}/guests/{guestId}/link": {
+      "post": {
+        "summary": "Claim a guest record for a trip member",
+        "description": "Requires the `sharing:write` scope. Requires at least the `viewer` role on the trip.",
+        "security": [
+          {
+            "bearerAuth": [
+              "sharing:write"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tripId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "guestId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "userId": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "userId"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "guestId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "tripId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "name": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 120
+                    },
+                    "travelling": {
+                      "type": "boolean"
+                    },
+                    "linkedUserId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "nullable": true
+                    },
+                    "createdBy": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "guestId",
+                    "tripId",
+                    "name",
+                    "travelling",
+                    "linkedUserId",
+                    "createdBy",
+                    "createdAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "One envelope for every failure: `{ error: { code, message, details? } }`. 401 carries `WWW-Authenticate: Bearer`; 429 carries `Retry-After`."
+          }
+        }
+      }
+    },
+    "/v1/trips/{tripId}/guests/{guestId}": {
+      "patch": {
+        "summary": "Rename a guest, or change whether they are travelling",
+        "description": "Requires the `sharing:write` scope. Requires at least the `editor` role on the trip.",
+        "security": [
+          {
+            "bearerAuth": [
+              "sharing:write"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tripId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "guestId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "travelling": {
+                    "type": "boolean"
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "guestId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "tripId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "name": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 120
+                    },
+                    "travelling": {
+                      "type": "boolean"
+                    },
+                    "linkedUserId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "nullable": true
+                    },
+                    "createdBy": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "guestId",
+                    "tripId",
+                    "name",
+                    "travelling",
+                    "linkedUserId",
+                    "createdBy",
+                    "createdAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "One envelope for every failure: `{ error: { code, message, details? } }`. 401 carries `WWW-Authenticate: Bearer`; 429 carries `Retry-After`."
+          }
+        }
+      },
+      "delete": {
+        "summary": "Remove a guest from a trip",
+        "description": "Requires the `sharing:write` scope. Requires at least the `editor` role on the trip.",
+        "security": [
+          {
+            "bearerAuth": [
+              "sharing:write"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tripId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "guestId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "guestId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "tripId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "name": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 120
+                    },
+                    "travelling": {
+                      "type": "boolean"
+                    },
+                    "linkedUserId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "nullable": true
+                    },
+                    "createdBy": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "guestId",
+                    "tripId",
+                    "name",
+                    "travelling",
+                    "linkedUserId",
+                    "createdBy",
+                    "createdAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "One envelope for every failure: `{ error: { code, message, details? } }`. 401 carries `WWW-Authenticate: Bearer`; 429 carries `Retry-After`."
+          }
+        }
+      }
+    },
+    "/v1/trips/{tripId}/guests/{guestId}/unlink": {
+      "post": {
+        "summary": "Unclaim a guest record",
+        "description": "Requires the `sharing:write` scope. Requires at least the `owner` role on the trip.",
+        "security": [
+          {
+            "bearerAuth": [
+              "sharing:write"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tripId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "guestId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "guestId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "tripId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "name": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 120
+                    },
+                    "travelling": {
+                      "type": "boolean"
+                    },
+                    "linkedUserId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "nullable": true
+                    },
+                    "createdBy": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "guestId",
+                    "tripId",
+                    "name",
+                    "travelling",
+                    "linkedUserId",
+                    "createdBy",
+                    "createdAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "One envelope for every failure: `{ error: { code, message, details? } }`. 401 carries `WWW-Authenticate: Bearer`; 429 carries `Retry-After`."
+          }
+        }
+      }
+    },
+    "/v1/trips/{tripId}/guests": {
+      "get": {
+        "summary": "List the trip's named guests (travellers with no account)",
+        "description": "Requires the `trips:read` scope. Requires at least the `viewer` role on the trip.",
+        "security": [
+          {
+            "bearerAuth": [
+              "trips:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tripId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "1 to 200. A value outside that range is refused, never clamped.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "Opaque. Pass back the `nextCursor` of the previous page.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "items",
+                    "nextCursor"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "guestId": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "tripId": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "name": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 120
+                          },
+                          "travelling": {
+                            "type": "boolean"
+                          },
+                          "linkedUserId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "nullable": true
+                          },
+                          "createdBy": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "createdAt": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "guestId",
+                          "tripId",
+                          "name",
+                          "travelling",
+                          "linkedUserId",
+                          "createdBy",
+                          "createdAt"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "nextCursor": {
+                      "type": "string",
+                      "nullable": true
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "One envelope for every failure: `{ error: { code, message, details? } }`. 401 carries `WWW-Authenticate: Bearer`; 429 carries `Retry-After`."
+          }
+        }
+      },
+      "post": {
+        "summary": "Name a guest on a trip",
+        "description": "Requires the `sharing:write` scope. Requires at least the `editor` role on the trip.",
+        "security": [
+          {
+            "bearerAuth": [
+              "sharing:write"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tripId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  }
+                },
+                "required": [
+                  "name"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "guestId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "tripId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "name": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 120
+                    },
+                    "travelling": {
+                      "type": "boolean"
+                    },
+                    "linkedUserId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "nullable": true
+                    },
+                    "createdBy": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "guestId",
+                    "tripId",
+                    "name",
+                    "travelling",
+                    "linkedUserId",
+                    "createdBy",
+                    "createdAt"
                   ],
                   "additionalProperties": false
                 }

@@ -491,6 +491,33 @@ export const tripTravellers = pgTable(
   (t) => [primaryKey({ columns: [t.tripId, t.userId] })],
 );
 
+// Named travellers with no account ("Baby", "Grandma") — trip guests. Access
+// CRUD, counted as heads at read time (extends ADR-065's model: D1's
+// `trip_travellers` is per-user; a guest has no user id to key by, so it gets
+// its own table). A MISSING row is not a state: guests are opt-in, so there
+// is no D2 default to preserve the way members have. `guestId` is generated
+// in code (`addGuest`), never client-chosen, on this repo's terms for uuids.
+// `linkedUserId` claims the record when the person signs up — link/unlink is an
+// owner-or-self-claim operation, not a membership. `removeGuest` deletes the
+// row only: historical `participants` picks referencing the guest id stay,
+// like a departed member's.
+export const tripGuests = pgTable(
+  "trip_guests",
+  {
+    tripId: uuid("trip_id").notNull(),
+    guestId: uuid("guest_id").notNull(),
+    name: text("name").notNull(),
+    travelling: boolean("travelling").notNull().default(true),
+    linkedUserId: text("linked_user_id"),
+    createdBy: text("created_by").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }),
+  },
+  (t) => [primaryKey({ columns: [t.tripId, t.guestId] }), index("trip_guests_trip_idx").on(t.tripId)],
+);
+
 // The events poll's `accessRev` (travellers spec D11, W5): one counter per
 // trip, bumped inside every transaction that changes who is on the trip, their
 // role, whether they travel, or the pending invites. A counter rather than

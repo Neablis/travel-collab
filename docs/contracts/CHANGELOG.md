@@ -13,6 +13,25 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-10-15 — Trip guests, part 1: server + API (public API 1.18.0)
+- **Added** (`packages/contracts/src/access.ts`): `Guest` (`guestId`, `tripId`, `name`, `travelling`,
+  `linkedUserId`, `createdBy`, `createdAt`), plus `CreateGuestInput`, `UpdateGuestInput`
+  (at least one of `name`/`travelling`, else 400) and `LinkGuestInput`. New Access table
+  `trip_guests` (migration `0053`), served by `server/access/guests.ts` and the public API:
+  `GET`/`POST /v1/trips/:tripId/guests`, `PATCH`/`DELETE /v1/trips/:tripId/guests/:guestId`,
+  `POST .../:guestId/link`, `POST .../:guestId/unlink`.
+- Why: Mitchell's trip-guests feature — named travellers with no account ("Baby") who count toward
+  per-person cost. Part 1 is the server + public API foundation; cost math (part 2), UI (part 3)
+  and notebooks (part 4) follow on stacked branches.
+- Consumers updated: `apps/web` — `server/db/schema.ts` (`tripGuests`), `server/accessPolicy.ts`
+  (`mayManageGuests`, `mayLinkGuest`, `mayUnlinkGuest`), the six route files above,
+  `openapi.json` regenerated. `exposure.ts` unchanged: its lines are keyed by internal
+  (non-`v1`) route dirs, and guests ship as `v1`-only endpoints — there is no internal route
+  to decide about. Scopes: guests read under `trips:read`, writes under `sharing:write`
+  (guests are Access data — who is coming — not planning data, so `trips:write` stays out).
+- Breaking? no — additive schemas and endpoints. `DELETE` answers 200 with the removed guest
+  (the wrapper cannot carry a 204), matching the trip delete and the share/invite revokes.
+
 ## 2026-10-14 — `proposalFailed` on the /ask stream: a turn whose proposal could not be built keeps its answer
 - **Added** (`assistant.ts`): a seventh `AskStreamShape` member, `{ proposalFailed: { message: string (non-empty) } }`,
   plus `ASK_PROPOSAL_FAILED_MESSAGE`, the fixed note it carries. A planning turn whose answer streamed but whose

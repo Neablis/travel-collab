@@ -75,6 +75,50 @@ export type SetTravellingInput = z.infer<typeof SetTravellingInput>;
 export const ChangeRoleInput = z.object({ role: InviteRole }).strict();
 export type ChangeRoleInput = z.infer<typeof ChangeRoleInput>;
 
+// A named traveller with no account — a guest (guests spec P1). Lives in the
+// Access module beside `TripMember` (it is Access CRUD, counted as a head at
+// read time, extending ADR-065's model), but is NOT a member: it has no role,
+// no invite, and no `users` row until somebody claims it.
+//
+// `guestId` is the id every later reference uses — participants picks, the
+// cost overlay, the UI. A guest named only in `name`; `travelling` defaults to
+// true because adding a guest who is not coming is a contradiction. There is
+// no D2 "missing means travelling" backfill here the way members have: guests
+// are opt-in, so the table's rows are the whole list.
+export const Guest = z.object({
+  guestId: z.string().uuid(),
+  tripId: z.string().uuid(),
+  name: z.string().min(1).max(120),
+  travelling: z.boolean(),
+  // The member who claimed this record (`linkGuest`), or null while nobody
+  // has. Guests never carry a profile — the name IS the record.
+  linkedUserId: z.string().min(1).nullable(),
+  createdBy: z.string().min(1),
+  createdAt: z.string(),
+});
+export type Guest = z.infer<typeof Guest>;
+
+// `POST /v1/trips/:tripId/guests`. Trimmed server-side; a name that is only
+// whitespace is an empty name and refused there, not here — this shape only
+// bounds length.
+export const CreateGuestInput = z.object({ name: z.string().min(1).max(120) }).strict();
+export type CreateGuestInput = z.infer<typeof CreateGuestInput>;
+
+// `PATCH /v1/trips/:tripId/guests/:guestId`. At least one field must move: an
+// empty patch is a 400, not a silent no-op.
+export const UpdateGuestInput = z
+  .object({ name: z.string().min(1).max(120).optional(), travelling: z.boolean().optional() })
+  .strict()
+  .refine((b) => b.name !== undefined || b.travelling !== undefined, {
+    message: "Nothing to update.",
+  });
+export type UpdateGuestInput = z.infer<typeof UpdateGuestInput>;
+
+// `POST /v1/trips/:tripId/guests/:guestId/link`. The member the guest record
+// is claimed for; `mayLinkGuest` decides whether the actor may claim for them.
+export const LinkGuestInput = z.object({ userId: z.string().min(1) }).strict();
+export type LinkGuestInput = z.infer<typeof LinkGuestInput>;
+
 // A member with the profile fields the People list needs. `TripMember`
 // (planning) carries no profile — this is the Identity join, done in the
 // Access module where it belongs, so no planning read model grows a name.

@@ -75,6 +75,44 @@ export function maySetTravelling(
   return role !== null && (role === "owner" || actorId === targetId);
 }
 
+/**
+ * Whether `actorId` may manage the trip's guests (add, rename, toggle
+ * travelling, remove) — guests spec P1. Owner or editor: "anyone with edit"
+ * (Mitchell), because a guest is trip planning content — who is coming on the
+ * trip — not a membership grant. A viewer is read-only here, and a suggester
+ * suggests rather than decides.
+ */
+export function mayManageGuests(actorId: string, members: TripMember[] | null): boolean {
+  return hasAtLeast(actorId, members, "editor");
+}
+
+/**
+ * Whether `actorId` may claim a guest record for `targetId` (guests spec P1):
+ * the owner for anyone, and every other member for themselves only — the "X
+ * signs up and claims their guest record" flow. A guest claiming their own
+ * record needs no write permission on the trip: this is identity, not content,
+ * which is why a viewer may link for themselves but not manage guests.
+ *
+ * Whether `targetId` is on the trip at all is the caller's to check — this
+ * answers only "may you".
+ */
+export function mayLinkGuest(actorId: string, targetId: string, members: TripMember[] | null): boolean {
+  const role = memberRole(actorId, members);
+  return role !== null && (role === "owner" || actorId === targetId);
+}
+
+/**
+ * Whether `actorId` may unclaim a guest record (guests spec P1): owner only.
+ * Unlinking someone else's claim is taking an identity away — a membership
+ * operation, not content — and the self-claim side is symmetric with
+ * `mayLinkGuest`'s owner-or-self rule only in that claiming FOR yourself is
+ * harmless; unclaiming is not, because the linked person may have been
+ * counting on the record (cost splits, participants picks).
+ */
+export function mayUnlinkGuest(actorId: string, members: TripMember[] | null): boolean {
+  return hasAtLeast(actorId, members, "owner");
+}
+
 // The role a member must hold, at minimum, to run each command. Typed as an
 // exhaustive Record so a new TripCommand fails to compile until someone
 // decides who may run it — before roles existed every command was reachable by
