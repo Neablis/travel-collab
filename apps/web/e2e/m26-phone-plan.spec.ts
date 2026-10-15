@@ -375,6 +375,10 @@ test.describe("M29 — the river on a phone", () => {
     await finger.up();
     await expect(pressed(1)).toBeVisible();
 
+    // The slide keeps both days mounted for ~180ms; re-aim once it settles,
+    // so the river locator below resolves to exactly one day.
+    await expect(page.getByTestId("day-river")).toHaveCount(1);
+
     // Right, back to the first day. Re-aim: the river below is a new day's.
     const back = await pointAt(page, river, 13);
     await finger.down(back.x - 80, back.y);
