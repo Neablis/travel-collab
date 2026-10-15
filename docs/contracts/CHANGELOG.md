@@ -13,6 +13,23 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-10-15 — Trip guests bundled into `TripAccess` (Fix 1)
+- **Added** (`packages/contracts/src/access.ts`): `TripAccess.guests`, a required `Guest[]`.
+  Both internal `TripAccess` producers populate it via `listGuests`: `GET
+  /api/trips/:tripId/access` (empty for the demo trip) and the member-write route
+  (`members/[userId]/route.ts`'s `accessView`, which answers every PATCH/DELETE).
+- Why: the People section was about to chase a second read (`GET
+  /v1/trips/:id/guests`) after every access load — an N+1 on the trip's
+  primary read. Bundling removes it.
+- Consumers updated: `packages/factories` (`tripAccessFixture` gains `guests:
+  []`), `apps/web/src/mocks/handlers.ts` (both access mocks serve `guests:
+  []`). The standalone `GET /v1/trips/:id/guests` is unchanged — public-API
+  consumers keep their own read.
+- Not in the public API: `TripAccess` is a BFF type, so `openapi.json`, `API_VERSION`
+  and the public scopes are untouched.
+- Breaking? no — the field is required but additive, and both real producers
+  populate it.
+
 ## 2026-10-15 — Trip guests, part 1: server + API (public API 1.18.0)
 - **Added** (`packages/contracts/src/access.ts`): `Guest` (`guestId`, `tripId`, `name`, `travelling`,
   `linkedUserId`, `createdBy`, `createdAt`), plus `CreateGuestInput`, `UpdateGuestInput`
