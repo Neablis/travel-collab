@@ -29,7 +29,7 @@ Format:
   do. Server read path (`overlayMembers` + `trip-access`, `shares`, history
   routes, `commands`, `invitePreview`) recosts for members' and guests'
   travellers together via `listGuests`.
-- Consumers updated: `apps/web` (overlay + six call sites, `commands.ts`
+- Consumers updated: `apps/web` (overlay + seven call sites, `commands.ts`
   decider context), `packages/pages` (notebook `cost.balances` / `person.share`
   thread `ctx.guests` into `personNames`). UI `travellerIds` callers unchanged:
   the client cannot reach `listGuests` until part 3 wires the guest read.
