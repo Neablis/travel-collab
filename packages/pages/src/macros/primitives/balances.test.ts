@@ -155,6 +155,21 @@ describe("cost.balances — Who owes what", () => {
       ["Not paid yet", "$300.00", "", "nobody booked it"],
     ]);
   });
+
+  // Guests spec P3: a linked guest IS their member — one headcount, never two.
+  // Picking the linked guest in Who-is-in lands on the member's row; the
+  // guest id itself gets no row.
+  it("merges a picked linked guest into the member's row, never a second row", () => {
+    const trip = tripOf();
+    trip.members = trip.members.slice(0, 2);
+    const baby = { ...guestOf("guest_1", "Baby"), linkedUserId: "u-ben" };
+    // Baby picked in a $60 stop booked by Ana: one headcount, Ben's share.
+    price(trip, 0, 0, usd(60_00), ["guest_1"], "u-ana");
+    expect(tableOf(trip, {}, undefined, [baby])).toEqual([
+      ["Ana", "", "$60.00", "is owed $60.00"],
+      ["Ben", "$60.00", "", "owes $60.00"],
+    ]);
+  });
 });
 
 describe("person.share — What one person is in for", () => {
@@ -211,6 +226,17 @@ describe("person.share — What one person is in for", () => {
     const baby = guestOf("guest_1", "Baby");
     price(trip, 0, 0, usd(100_00), [], null);
     expect(sentenceOf(trip, "guest_1", {}, [baby])).toBe("Baby is in for $100.00 across 1 stop and owes $100.00");
+  });
+
+  // Guests spec P3: a linked guest IS their member, so the sentence reads off
+  // the member's row — Baby's name, Ben's money — and cannot disagree with
+  // the table.
+  it("reads a linked guest's share off the member's row", () => {
+    const trip = tripOf();
+    trip.members = trip.members.slice(0, 2);
+    const baby = { ...guestOf("guest_1", "Baby"), linkedUserId: "u-ben" };
+    price(trip, 0, 0, usd(60_00), ["guest_1"], "u-ana");
+    expect(sentenceOf(trip, "guest_1", {}, [baby])).toBe("Baby is in for $60.00 across 1 stop and owes $60.00");
   });
 });
 

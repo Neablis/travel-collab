@@ -95,6 +95,28 @@ export function personNames(
   return names;
 }
 
+/**
+ * Guests spec P3: a linked guest IS their member. Who-is-in writes the
+ * `guest_<uuid>` into `participants` even for a linked guest, so the picked
+ * ids are resolved through the linked-guest map before the money math —
+ * one headcount, never two rows for one person.
+ */
+const linkedGuestTo = (guests: readonly Guest[] | null | undefined): Map<string, string> =>
+  new Map((guests ?? []).flatMap((g) => (g.linkedUserId ? [[g.guestId, g.linkedUserId] as const] : [])));
+
+/**
+ * The activities with every picked id resolved to who the pick actually is:
+ * a picked linked guest is their member, everything else is itself. `balances`
+ * then sees the same headcount `balanceMemberIds` rows, and `stopPeople`
+ * never invents a phantom row for the guest id.
+ */
+function normalizePickedIds<T extends { participants: readonly string[] }>(
+  activities: readonly T[],
+  linked: Map<string, string>,
+): T[] {
+  return activities.map((a) => ({ ...a, participants: a.participants.map((id) => linked.get(id) ?? id) }));
+}
+
 /** Where a balance leaves someone: "is owed" $30.00, "owes" $30.00, or "even". */
 export interface Standing {
   verb: "is owed" | "owes" | "even";
@@ -146,7 +168,14 @@ export const costBalances: MacroDef<BalancesParams, RepeatPayload> = {
     // guests)` — the same divisor the board's overlay uses — and every guest
     // gets a balance row (Mitchell: guests are cost centers, split equally).
     const travelling = travellerIds(trip.members, guests ?? []);
-    const result = balances(counted.map((s) => s.activity), balanceMemberIds(trip, guests), travelling);
+    // A linked guest picked in Who-is-in is their member: the picked ids are
+    // resolved through the linked-guest map so the guest id never gets its
+    // own row — one headcount, never two.
+    const result = balances(
+      normalizePickedIds(counted.map((s) => s.activity), linkedGuestTo(guests)),
+      balanceMemberIds(trip, guests),
+      travelling,
+    );
     if (nothingPriced(result)) return others === null ? empty() : empty(`only priced in other currencies: ${others}`);
 
     const names = personNames(trip, people, result.perMember.map((m) => m.userId), guests);
@@ -224,10 +253,13 @@ export const personShare: MacroDef<ShareParams, PersonSharePayload> = {
     // A stop nobody picked is the travellers' (travellers spec D1); `who` may
     // still be any member or any guest — a non-traveller is in what they were
     // picked for and owed what they booked (D6, D7). A linked guest IS their
-    // member (guests spec P3), so their share reads off the member's row.
+    // member (guests spec P3): the picked ids are resolved to the member's id
+    // before the money math, so their share reads off the member's row while
+    // the sentence still says the guest's name.
     const travelling = travellerIds(trip.members, guests ?? []);
-    const result = balances(counted.map((s) => s.activity), balanceMemberIds(trip, guests), travelling);
     const whoId = (guests ?? []).find((g) => g.guestId === who)?.linkedUserId ?? who;
+    const stops = normalizePickedIds(counted.map((s) => s.activity), linkedGuestTo(guests));
+    const result = balances(stops, balanceMemberIds(trip, guests), travelling);
     const mine = result.perMember.find((m) => m.userId === whoId);
     // Not a member, not a guest, and in nothing: an id from a page written before they left.
     if (!mine) return empty("not on this trip");
@@ -235,9 +267,8 @@ export const personShare: MacroDef<ShareParams, PersonSharePayload> = {
       return others === null ? empty() : empty(`only priced in other currencies: ${others}`);
     }
 
-    const priced = counted.filter((s) => s.activity.cost!.amountMinor > 0);
-    const whoIds = new Set([who, whoId]);
-    const inStops = priced.filter((s) => stopPeople(s.activity, travelling).some((id) => whoIds.has(id))).length;
+    const priced = stops.filter((s) => s.cost!.amountMinor > 0);
+    const inStops = priced.filter((s) => stopPeople(s, travelling).includes(whoId)).length;
     return ok({
       name: personNames(trip, people, [who], guests).get(who)!,
       stops: `${inStops} ${inStops === 1 ? "stop" : "stops"}`,
