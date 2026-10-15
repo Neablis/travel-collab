@@ -1,11 +1,11 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
-import type { TripAccess } from "@tc/contracts";
+import type { Guest, TripAccess } from "@tc/contracts";
 import { setupServer } from "msw/node";
 import { http, HttpResponse } from "msw";
 import { tripAccessFixture, tripDetailFactory, tripMemberProfileFactory } from "@tc/factories";
 import { MacroView } from "./MacroView";
-import { PeopleProvider, peopleNamesOf, usePersonas } from "./people";
+import { PeopleProvider, peopleNamesOf, useGuests, usePersonas } from "./people";
 
 // The names "Who owes what" and "What one person is in for" print (M19 part 2)
 // come from the People section's access read, through `PeopleProvider`, into the
@@ -33,6 +33,9 @@ const server = setupServer(
       },
     }),
   ),
+  // The provider reads the trip's guests beside the members (guests spec P4);
+  // tests that name guests override this per test with `server.use`.
+  http.get("/api/v1/trips/:tripId/guests", () => HttpResponse.json({ items: [] })),
 );
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
 afterEach(() => {
@@ -148,5 +151,36 @@ describe("PeopleProvider", () => {
       </PeopleProvider>,
     );
     expect(await screen.findByText("Nana")).toBeTruthy();
+  });
+
+  // Guests spec P4: the provider hands the trip's guest records down beside
+  // the members, through the v1 list the People panel and the board's pickers
+  // read — `null` until the read lands, never an error state.
+  it("hands a notebook widget the trip's guest records", async () => {
+    const tripId = crypto.randomUUID();
+    const guestList: Guest[] = [
+      {
+        guestId: "guest_baby",
+        tripId,
+        name: "Baby",
+        travelling: true,
+        linkedUserId: null,
+        createdBy: "u-ana",
+        createdAt: "2026-10-15T00:00:00.000Z",
+      },
+    ];
+    server.use(http.get("/api/v1/trips/:tripId/guests", () => HttpResponse.json({ items: guestList })));
+    let seen: readonly Guest[] | null = null;
+    function Probe() {
+      seen = useGuests();
+      return <p>{seen === null ? "loading" : "ready"}</p>;
+    }
+    render(
+      <PeopleProvider tripId={tripId}>
+        <Probe />
+      </PeopleProvider>,
+    );
+    await screen.findByText("ready");
+    expect(seen).toEqual(guestList);
   });
 });

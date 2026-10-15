@@ -252,7 +252,11 @@ describe("UnscheduledRack — a viewer's drawer", () => {
 // M38 part 3: "Parked by" printed the parker's raw user id. It names them the
 // way every person surface does, from the trip's members (`PeopleProvider`).
 describe("UnscheduledRack — who parked a stop", () => {
-  const server = setupServer();
+  // `PeopleProvider` reads the trip's guests beside the members (guests spec
+  // P4); this surface names none, so the list is empty here.
+  const server = setupServer(
+    http.get("/api/v1/trips/:tripId/guests", () => HttpResponse.json({ items: [] })),
+  );
   beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
   afterEach(() => server.resetHandlers());
   afterAll(() => server.close());

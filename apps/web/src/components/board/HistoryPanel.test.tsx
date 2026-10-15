@@ -98,6 +98,9 @@ describe("HistoryPanel — accepted suggestions", () => {
         },
       }),
     ),
+    // `PeopleProvider` reads the trip's guests beside the members (guests spec
+    // P4); this panel names none, so the list is empty here.
+    http.get("/api/v1/trips/:tripId/guests", () => HttpResponse.json({ items: [] })),
   );
   beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
   afterEach(() => {

@@ -2,7 +2,7 @@ import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { afterEach, describe, expect, it } from "vitest";
-import type { TripGlobals } from "@tc/contracts";
+import type { Guest, TripGlobals } from "@tc/contracts";
 import { tripDetailFixture } from "@tc/factories";
 import { fieldChoices, getMacro, type WidgetInput } from "@tc/pages";
 import { WidgetBindControls, bindSummary, optionsFor } from "./widgetBind";
@@ -105,6 +105,51 @@ describe("optionsFor a person input", () => {
 
   it("summarises a person input nobody has chosen as a choice still owed, not everything", () => {
     expect(bindSummary("person.share", {}, pair, null, [PERSON], { "u-ben": "Ben" })).toBe("choose a person");
+  });
+
+  // Guests spec P4: the person picker offers the trip's named guests beside
+  // the members — going guests with the members, the idle ones after the
+  // non-travellers (the Who-is-in picker's D6 pattern) — named by
+  // `personNames`, never by id.
+  const guest = (guestId: string, name: string, travelling: boolean): Guest => ({
+    guestId,
+    tripId: "11111111-1111-4111-8111-111111111111",
+    name,
+    travelling,
+    linkedUserId: null,
+    createdBy: "u-ana",
+    createdAt: "2026-10-15T00:00:00.000Z",
+  });
+
+  it("offers guests beside the members, the going ones with them", () => {
+    const guests = [guest("guest_baby", "Baby", true), guest("guest_grandma", "Grandma", false)];
+    expect(optionsFor(PERSON, {}, pair, null, { "u-ana": "Ana", "u-ben": "Ben" }, guests)).toEqual([
+      { value: "", label: "Choose a person" },
+      { value: "u-ana", label: "Ana" },
+      { value: "u-ben", label: "Ben" },
+      { value: "guest_baby", label: "Baby" },
+      { value: "guest_grandma", label: "Grandma" },
+    ]);
+  });
+
+  it("orders idle guests after non-travelling members", () => {
+    const members = [{ ...pair.members[0]!, travelling: false }, pair.members[1]!];
+    const guests = [guest("guest_baby", "Baby", true), guest("guest_grandma", "Grandma", false)];
+    const labels = optionsFor(PERSON, {}, { ...pair, members }, null, { "u-ana": "Ana", "u-ben": "Ben" }, guests).map(
+      (o) => o.label,
+    );
+    expect(labels).toEqual(["Choose a person", "Ben", "Baby", "Ana", "Grandma"]);
+  });
+
+  it("keeps a chosen guest visible by name, and says it in the summary line", () => {
+    const guests = [guest("guest_baby", "Baby", true)];
+    expect(optionsFor(PERSON, { who: "guest_baby" }, pair, null, null, guests).map((o) => o.label)).toEqual([
+      "Choose a person",
+      "Traveler 1",
+      "Traveler 2",
+      "Baby",
+    ]);
+    expect(bindSummary("person.share", { who: "guest_baby" }, pair, null, [PERSON], null, guests)).toBe("Baby");
   });
 });
 

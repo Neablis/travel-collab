@@ -4,7 +4,7 @@ import type { TripDetail, PageContext, TripGlobals, UserPreferences } from "@tc/
 import { renderMacro, getMacro, UNBOUND_GHOSTS, type ExternalInputs, type ExternalNeed } from "@tc/pages";
 import { cn } from "@/lib/cn";
 import { useToday } from "@/lib/today";
-import { usePeople, usePersonas } from "./people";
+import { usePeople, usePersonas, useGuests } from "./people";
 import { cityAccents } from "./cityAccents";
 import { Segs } from "./WidgetSegs";
 import { EmptyChip } from "./EmptyChip";
@@ -60,7 +60,12 @@ export function MacroView({ detail, context, user = null, globals = null, extern
   const people = usePeople();
   // How each looks and whether they are going, for `trip.people` (M38).
   const personas = usePersonas();
-  const outcome = renderMacro({ trip: detail, page: context, user, globals, today, external, people, personas }, name, params);
+  // The trip's named guests (`WidgetContext.guests`, guests spec P4), for
+  // the widgets that name a `guest_<id>` — `cost.balances`, `person.share`.
+  // `null` until the provider's read lands; absent is fine, the widget then
+  // falls back the way it does for an unnamed non-member.
+  const guests = useGuests();
+  const outcome = renderMacro({ trip: detail, page: context, user, globals, today, external, people, personas, guests }, name, params);
   // Never the stored name: that is raw syntax on the screen (M14 gate box, `noRawSyntax.test.tsx`).
   if (outcome.status === "unknown") return <EmptyChip tone="error" label="this widget isn't available in this version" />;
   if (outcome.status === "bad-params") return <EmptyChip tone="error" label="this widget's settings no longer fit it" />;

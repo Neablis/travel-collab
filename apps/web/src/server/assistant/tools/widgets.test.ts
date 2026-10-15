@@ -20,7 +20,7 @@ function deps(): AssistantDeps {
     ],
     "7b2f5c1d-3a4e-4f6b-9c0d-1e2f3a4b5c6d",
   );
-  return { trip: TRIP, notebooks } as unknown as AssistantDeps;
+  return { trip: TRIP, notebooks, guests: [] } as unknown as AssistantDeps;
 }
 
 describe("search_widgets", () => {
@@ -87,6 +87,23 @@ describe("get_widget", () => {
     expect(result.people).toEqual([
       { who: TRIP.members[0]!.userId, role: TRIP.members[0]!.role, travelling: true },
       { who: "u-adviser", role: "suggester", travelling: false },
+    ]);
+  });
+
+  // Guests spec P4: the person input takes guest ids too — the picker offers
+  // each `guestId` (the Who-is-in picker's D6 pattern) — so the model learns
+  // them beside the members, each with the record's own travelling flag.
+  it("lists the trip's guests beside its members, with their own travelling flags", async () => {
+    const guests = [
+      { guestId: "guest_baby", tripId: TRIP.tripId, name: "Baby", travelling: true, linkedUserId: null, createdBy: "u-a", createdAt: "2026-10-15T00:00:00Z" },
+      { guestId: "guest_grandma", tripId: TRIP.tripId, name: "Grandma", travelling: false, linkedUserId: null, createdBy: "u-a", createdAt: "2026-10-15T00:00:00Z" },
+    ];
+    const result = await getWidgetTool.invoke({ id: "person-share" }, { ...deps(), guests });
+    if ("error" in result) throw new Error(result.error);
+    expect(result.people).toEqual([
+      ...TRIP.members.map((m) => ({ who: m.userId, role: m.role, travelling: true })),
+      { who: "guest_baby", role: "guest", travelling: true },
+      { who: "guest_grandma", role: "guest", travelling: false },
     ]);
   });
 
