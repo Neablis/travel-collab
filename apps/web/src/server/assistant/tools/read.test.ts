@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { TripDetail } from "@tc/contracts";
+import type { Guest, TripDetail } from "@tc/contracts";
 import { rollupCosts } from "@tc/domain";
 import { tripDetailFactory } from "@tc/factories";
 import { newDayReadBudget, type AssistantDeps } from "@/server/assistant/deps";
@@ -12,11 +12,13 @@ import {
   readDayTool,
   readTrip,
   readTripForModel,
+  readTripOverview,
   readTripTool,
   searchPlaybooksTool,
   type DayReadout,
   type ReadToolProblem,
   type TripOverviewReadout,
+  type TripReadout,
 } from "./read";
 
 // ADR-060: a price is for one person. The read tools hand the model money, so
@@ -59,7 +61,80 @@ describe("read_trip says who the totals are for", () => {
   });
 });
 
-// The headcount rides on the stop so the model reads the multiplier the totals
+// Guests spec P2: the totals the read recosts (overlayMembers) price members
+// AND guests, so the headcounts the readouts report must count both — a
+// `travellers: 2` beside a `tripCostTotal` priced for 3 would make the model
+// divide by the wrong headcount (part-2 review M1).
+describe("read tools count guests among the travellers", () => {
+  const guest = (name: string): Guest => ({
+    guestId: `guest_${name.toLowerCase()}`,
+    tripId: "00000000-0000-4000-8000-000000000000",
+    name,
+    travelling: true,
+    linkedUserId: null,
+    createdBy: "u1",
+    createdAt: "2026-10-15T00:00:00.000Z",
+  });
+
+  const trip = tripDetailFactory.build({
+    members: [
+      { userId: "u1", role: "owner" },
+      { userId: "u2", role: "editor" },
+    ],
+  });
+
+  const oneDay = tripDetailFactory.build(
+    {
+      members: [
+        { userId: "u1", role: "owner" },
+        { userId: "u2", role: "editor" },
+      ],
+    },
+    { transient: { dayCount: 1, activitiesPerDay: 1, costed: true } },
+  );
+
+  it("read_trip counts a guest toward travellers", () => {
+    expect(readTrip(trip, [guest("Baby")])).toMatchObject({ members: 2, travellers: 3 });
+  });
+
+  it("read_trip's overview counts a guest toward travellers", () => {
+    const long = tripThrough(repeat(OVERVIEW_ABOVE_DAYS + 1, ["Tokyo"]));
+    const without = readTripOverview(long) as TripOverviewReadout;
+    const withGuest = readTripOverview(long, [guest("Baby")]) as TripOverviewReadout;
+    expect(withGuest.travellers).toBe(without.travellers + 1);
+  });
+
+  it("read_day prices a stop nobody picked for travellers including the guest", () => {
+    const day = readDay(oneDay, 1, [guest("Baby")]);
+    if ("error" in day) throw new Error(day.error);
+    expect(day.stops).toHaveLength(1);
+    expect(day.stops[0]!.headcount).toBe(3);
+  });
+
+  // The turn's path: the guests ride on the deps the turn loads, and the tool
+  // reads them there — this is the assistant's answer, not just the readout.
+  it("the read_trip tool counts the turn's guests", async () => {
+    const readout = (await readTripTool.invoke(
+      {},
+      { trip, guests: [guest("Baby")] } as unknown as AssistantDeps,
+    )) as TripReadout;
+    expect(readout).toMatchObject({ members: 2, travellers: 3 });
+  });
+
+  it("the read_day tool counts the turn's guests in a stop's headcount", async () => {
+    const readout = (await readDayTool.invoke(
+      { days: 1 },
+      {
+        trip: oneDay,
+        guests: [guest("Baby")],
+        scope: { kind: "trip" },
+        readBudget: newDayReadBudget(15),
+      } as unknown as AssistantDeps,
+    )) as DayReadout;
+    expect(readout.stops).toHaveLength(1);
+    expect(readout.stops[0]!.headcount).toBe(3);
+  });
+});
 // used rather than rebuilding it as `cost × travellers` — wrong for any stop
 // with picks, and wrong twice when a pick is not travelling (D6: it counts).
 describe("read_day reports the headcount each stop is priced for", () => {

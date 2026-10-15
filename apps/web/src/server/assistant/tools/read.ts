@@ -44,7 +44,7 @@
 // conversion happens here and only here. Handing a model both an `index` and a
 // `day` for the same row is how off-by-one answers get written.
 import { z } from "zod";
-import { ActivityKind, ActivityMode, ActivityTag, LocationPrecision, Money, PendingReason, TimeWindow, stopHeadcount, travellerIds, type Location, type TripDetail } from "@tc/contracts";
+import { ActivityKind, ActivityMode, ActivityTag, LocationPrecision, Money, PendingReason, TimeWindow, stopHeadcount, travellerIds, type Guest, type Location, type TripDetail } from "@tc/contracts";
 import { DAYTIME_END_MINUTES, DAYTIME_START_MINUTES, citiesOfDay, citiesOfStops, findFreeGaps, minutesOf, stopsInTimeOrder, summarizeFreeDays } from "@tc/domain";
 import { needsBooking } from "@/lib/needsBooking";
 import { activeConflicts, conflictsOnDay, type AiConflictSummary, type AskScope } from "@/server/assistant/context";
@@ -119,9 +119,10 @@ export interface TripReadout {
   dayCount: number;
   /**
    * How many people are on the trip, and how many of them are travelling
-   * (travellers spec D1). Counts, not people: the readout names nobody. The
-   * totals price a stop nobody picked for `travellers`, so a model dividing a
-   * total by `members` would hand an adviser a share of the hotel.
+   * (travellers spec D1) — guests included (guests spec P2). Counts, not
+   * people: the readout names nobody. The totals price a stop nobody picked
+   * for `travellers`, so a model dividing a total by `members` would hand an
+   * adviser a share of the hotel.
    */
   members: number;
   travellers: number;
@@ -163,14 +164,14 @@ export const TripReadoutSchema: z.ZodType<TripReadout> = z.object({
  * This is the per-day readout at every length; what the TOOL returns past
  * `OVERVIEW_ABOVE_DAYS` is `readTripForModel`'s choice, not this function's.
  */
-export function readTrip(detail: TripDetail): TripReadout {
+export function readTrip(detail: TripDetail, guests: readonly Guest[] = []): TripReadout {
   return {
     name: detail.name,
     currency: detail.currency,
     startDate: detail.startDate,
     dayCount: detail.days.length,
     members: detail.members.length,
-    travellers: travellerIds(detail.members).length,
+    travellers: travellerIds(detail.members, guests).length,
     tripCostTotal: detail.tripCostTotal,
     days: detail.days.map((day, index) => ({
       day: index + 1,
@@ -377,8 +378,8 @@ function countInto(counts: Record<string, number>, key: string): void {
  * and pure, like `readTrip`: every count is read off the projection, and the
  * per-day numbers it sums are the ones `readTrip` would have printed.
  */
-export function readTripOverview(detail: TripDetail): TripOverviewReadout {
-  const rows = readTrip(detail).days;
+export function readTripOverview(detail: TripDetail, guests: readonly Guest[] = []): TripOverviewReadout {
+  const rows = readTrip(detail, guests).days;
   const segments: TripSegmentReadout[] = [];
   let open: { from: number; to: number; city: string | null; touched: string[] } | null = null;
   const totals = { stops: 0, toBook: 0, costSubtotal: 0 };
@@ -438,7 +439,7 @@ export function readTripOverview(detail: TripDetail): TripOverviewReadout {
     endDate: detail.days.at(-1)?.date ?? null,
     dayCount: rows.length,
     members: detail.members.length,
-    travellers: travellerIds(detail.members).length,
+    travellers: travellerIds(detail.members, guests).length,
     tripCostTotal: detail.tripCostTotal,
     stopCount: rows.reduce((sum, row) => sum + row.stopCount, 0),
     toBook: rows.reduce((sum, row) => sum + row.toBook, 0),
@@ -459,8 +460,8 @@ export function readTripOverview(detail: TripDetail): TripOverviewReadout {
  * the pure readout, and everything that reads it as one (the simulated model,
  * the overview's own sums), keeps a single shape.
  */
-export function readTripForModel(detail: TripDetail): TripReadout | TripOverviewReadout {
-  return detail.days.length > OVERVIEW_ABOVE_DAYS ? readTripOverview(detail) : readTrip(detail);
+export function readTripForModel(detail: TripDetail, guests: readonly Guest[] = []): TripReadout | TripOverviewReadout {
+  return detail.days.length > OVERVIEW_ABOVE_DAYS ? readTripOverview(detail, guests) : readTrip(detail, guests);
 }
 
 // `LocationPrecision` is imported from the contract rather than respelled here.
@@ -614,8 +615,8 @@ export const DayReadoutSchema: z.ZodType<DayReadout, z.ZodTypeDef, unknown> = z.
  * title, exactly as the planning tools' `activityRef` does, and a UUID the
  * model has seen is a UUID it can later invent a near-miss of (KI-15's shape).
  */
-export function readDay(detail: TripDetail, day: number): DayReadout | ReadToolProblem {
-  const travellers = travellerIds(detail.members).length;
+export function readDay(detail: TripDetail, day: number, guests: readonly Guest[] = []): DayReadout | ReadToolProblem {
+  const travellers = travellerIds(detail.members, guests).length;
   const index = day - 1;
   const record = detail.days[index];
   if (!record) {
@@ -693,7 +694,12 @@ export const DayBatchReadoutSchema: z.ZodType<DayBatchReadout, z.ZodTypeDef, unk
  * "one bad entry does not fail the batch" rule. An out-of-range day returns no
  * stops, so it is checked first and costs the budget nothing.
  */
-export function readDays(detail: TripDetail, days: readonly number[], budget?: DayReadBudget): DayBatchReadout {
+export function readDays(
+  detail: TripDetail,
+  days: readonly number[],
+  budget?: DayReadBudget,
+  guests: readonly Guest[] = [],
+): DayBatchReadout {
   const seen = new Set<number>();
   const unique: number[] = [];
   for (const day of days) {
@@ -703,7 +709,7 @@ export function readDays(detail: TripDetail, days: readonly number[], budget?: D
   }
   return {
     days: unique.map((day) => {
-      const readout = readDay(detail, day);
+      const readout = readDay(detail, day, guests);
       if ("error" in readout || budget === undefined || budget.admit(day)) return readout;
       return {
         error: `Day ${day} was not read: this turn has already read ${budget.cap} days in full, the most one turn may. Answer from read_trip (and find_days, if this turn has it), or ask the user to narrow the question to fewer days.`,
@@ -1264,7 +1270,7 @@ const STOP_LEVEL_CLASSES = ["question", "edit", "plan"] as const satisfies reado
 export const readTripTool = defineTool({
   name: "read_trip",
   description:
-    `Read this trip's shape: name, currency, start date, how many days, how many members and how many of them are travelling (a member can be on the trip and not travelling; a stop nobody is picked for is priced for the travellers, and for at least one person when nobody is travelling), each day's date, which city (or cities, on a travel day) it touches, stop count, how many of its stops still need booking and cost subtotal, the trip cost total, and any active conflicts. Start here — the \`cities\` field is how you find which days are near a place without reading every day. Past ${OVERVIEW_ABOVE_DAYS} days it returns an overview instead (city segments with their days, and counts): find the days you need there (or with find_days, if you have it), then read only those.`,
+    `Read this trip's shape: name, currency, start date, how many days, how many members and how many people are travelling (members and their guests; a member can be on the trip and not travelling; a stop nobody is picked for is priced for the travellers, and for at least one person when nobody is travelling), each day's date, which city (or cities, on a travel day) it touches, stop count, how many of its stops still need booking and cost subtotal, the trip cost total, and any active conflicts. Start here — the \`cities\` field is how you find which days are near a place without reading every day. Past ${OVERVIEW_ABOVE_DAYS} days it returns an overview instead (city segments with their days, and counts): find the days you need there (or with find_days, if you have it), then read only those.`,
   domain: "itinerary",
   effect: "read",
   spend: "none",
@@ -1272,10 +1278,10 @@ export const readTripTool = defineTool({
   // The overview second: `z.union` keeps the first schema that parses, and an
   // overview has no `days` array, so a per-day readout is never read as one.
   output: z.union([TripReadoutSchema, TripOverviewReadoutSchema]),
-  needs: ["trip"] as const,
+  needs: ["trip", "guests"] as const,
   minimumRole: "viewer",
   taint: fencedTrip,
-  run: (_input, deps) => readTripForModel(deps.trip),
+  run: (_input, deps) => readTripForModel(deps.trip, deps.guests),
 });
 
 export const readDayTool = defineTool({
@@ -1288,7 +1294,7 @@ export const readDayTool = defineTool({
   output: z.union([DayReadoutSchema, ReadToolProblemSchema, DayBatchReadoutSchema]),
   // `readBudget`: the turn's `MAX_DAYS_READ_PER_TURN` ledger, minted per turn
   // like the collectors and shared by every `read_day` call in it.
-  needs: ["trip", "scope", "readBudget"] as const,
+  needs: ["trip", "scope", "readBudget", "guests"] as const,
   minimumRole: "viewer",
   taskClasses: STOP_LEVEL_CLASSES,
   taint: fencedDayResult,
@@ -1311,7 +1317,7 @@ export const readDayTool = defineTool({
     // common case. Only a genuine batch takes the wrapped `{ days: [...] }`
     // shape `readDays` returns. Both go through the turn's read budget: one
     // day past the cap is a bare refusal, exactly as one day out of range is.
-    const read = readDays(deps.trip, days, deps.readBudget);
+    const read = readDays(deps.trip, days, deps.readBudget, deps.guests);
     return days.length === 1 ? read.days[0]! : read;
   },
 });

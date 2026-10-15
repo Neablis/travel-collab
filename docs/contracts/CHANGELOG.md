@@ -35,6 +35,8 @@ Format:
   the client cannot reach `listGuests` until part 3 wires the guest read.
 - Breaking? no — both new parameters are optional; single-arg calls keep the
   old answer.
+
+## 2026-10-15 — Trip guests, part 1: server + API (public API 1.18.0)
 - **Added** (`packages/contracts/src/access.ts`): `Guest` (`guestId`, `tripId`, `name`, `travelling`,
   `linkedUserId`, `createdBy`, `createdAt`), plus `CreateGuestInput`, `UpdateGuestInput`
   (at least one of `name`/`travelling`, else 400) and `LinkGuestInput`. New Access table

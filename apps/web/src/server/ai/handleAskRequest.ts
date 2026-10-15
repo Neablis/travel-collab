@@ -126,6 +126,7 @@ import {
   type PromptBlock,
 } from "@/server/assistant/prompt";
 import { ASSISTANT_TOOLS, aiToolsFor, ambientContextFor, type AssistantToolSet } from "@/server/assistant/registry";
+import { listGuests } from "@/server/access/guests";
 import type { AskToolPosture } from "@/server/assistant/grants";
 import {
   APPLY_MINIMUM_ROLE,
@@ -315,6 +316,12 @@ export async function handleAskRequest(
   if (!admission.ok) return admission.refusal.response;
   const { grant } = admission;
   const { userId, detail, scope, page, messages, question, turn, classification } = grant;
+  // The trip's guests, read beside the turn's detail — `commands.ts`' pattern
+  // from guests spec P2: a committed read, not in the admission transaction,
+  // with the same freshness story `accessRev` gives every other reader. The
+  // read tools count travellers over members AND guests, while the overlaid
+  // detail carries the members alone.
+  const guests = await listGuests(tripId);
   // Refused before anything below is built for it (see `OFF_TOPIC_REPLY`).
   const offTopic = classification?.offTopic === true;
   // The asker's clock, for `clockTimesLine`. Read AFTER admission, so the step
@@ -755,7 +762,7 @@ export async function handleAskRequest(
     // Over the BUILT set, not the active one: a tool activated mid-turn by
     // `prepareStep` needs its context channel already attached, and attaching
     // one to a tool that is never called costs nothing.
-    toolsContext: ambientContextFor(buildable, { tripId, userId, detail, scope }),
+    toolsContext: ambientContextFor(buildable, { tripId, userId, detail, scope, guests }),
     /**
      * **The escalation, applied** (M9 design §1b).
      *

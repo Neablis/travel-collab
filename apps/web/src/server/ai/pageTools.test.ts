@@ -27,6 +27,7 @@ function buildPageTools(said = "") {
     userId: "page-author",
     detail: TRIP,
     scope: { kind: "page", pageId: OVERVIEW.id },
+    guests: [],
   });
   const call = (name: "insert_text" | "insert_widget", input: unknown) =>
     tools[name]!.execute!(input, { toolCallId: "call-1", messages: [], context: context[name] as never });

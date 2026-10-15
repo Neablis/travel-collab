@@ -169,7 +169,7 @@ describe("the AI SDK adapter", () => {
   it("attaches the context channel to exactly the tools that need it", () => {
     const built = aiToolsFor(ASSISTANT_TOOLS, TURN_DEPS);
     for (const definition of ASSISTANT_TOOLS) {
-      const wantsContext = definition.needs.some((key) => key === "trip" || key === "actor" || key === "scope");
+      const wantsContext = definition.needs.some((key) => (AMBIENT_DEP_KEYS as readonly string[]).includes(key));
       const attached = (built[definition.name] as { contextSchema?: unknown }).contextSchema !== undefined;
       expect(attached, `${definition.name} contextSchema`).toBe(wantsContext);
     }
