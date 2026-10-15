@@ -13,7 +13,28 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
-## 2026-10-15 — Trip guests, part 1: server + API (public API 1.18.0)
+## 2026-10-15 — Trip guests, part 2: guests count in cost + read path
+- **Changed** (`packages/contracts/src/costs.ts`): `travellerIds(members, guests = [])`
+  takes an optional guests list. A travelling guest emits its `guestId`, unless
+  `linkedUserId` is set — then the guest IS that user and the linked id is
+  emitted, deduped against the members. `stopHeadcount`, `stopPeople` and
+  `balances` needed no change: they are string-based and already handle guest
+  ids in `participants`.
+- **Changed** (`packages/pages/src/macros/primitives/balances.ts`): `personNames`
+  takes an optional guests list and resolves `guest_<uuid>` ids to the name on
+  the guest record; a guest on the trip is never "Former member". New optional
+  `WidgetContext.guests` carries the records to the notebook macros.
+- Why: Mitchell's trip-guests feature — named travellers with no account
+  ("Baby") count toward per-person cost and resolve by name everywhere members
+  do. Server read path (`overlayMembers` + `trip-access`, `shares`, history
+  routes, `commands`, `invitePreview`) recosts for members' and guests'
+  travellers together via `listGuests`.
+- Consumers updated: `apps/web` (overlay + six call sites, `commands.ts`
+  decider context), `packages/pages` (notebook `cost.balances` / `person.share`
+  thread `ctx.guests` into `personNames`). UI `travellerIds` callers unchanged:
+  the client cannot reach `listGuests` until part 3 wires the guest read.
+- Breaking? no — both new parameters are optional; single-arg calls keep the
+  old answer.
 - **Added** (`packages/contracts/src/access.ts`): `Guest` (`guestId`, `tripId`, `name`, `travelling`,
   `linkedUserId`, `createdBy`, `createdAt`), plus `CreateGuestInput`, `UpdateGuestInput`
   (at least one of `name`/`travelling`, else 400) and `LinkGuestInput`. New Access table

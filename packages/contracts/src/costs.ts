@@ -9,15 +9,37 @@ import type { Money } from "./money.ts";
 // (invariant 5).
 
 /**
- * Who on a trip is travelling, in member order (travellers spec D1). A member
- * with no `travelling` reads as travelling — `TripMember`'s default (D2) — so a
- * caller holding an unparsed row counts the same people the schema would.
+ * Who on a trip is travelling, in member order (travellers spec D1), then the
+ * trip's guests in the order they were added (guests spec P2). A member with
+ * no `travelling` reads as travelling — `TripMember`'s default (D2) — so a
+ * caller holding an unparsed row counts the same people the schema would; a
+ * guest likewise defaults to travelling (guests spec P1: adding a guest who
+ * is not coming is a contradiction).
+ *
+ * A guest with `linkedUserId` set IS that user — one headcount, not two — so
+ * the linked id is emitted instead of the `guest_<uuid>`. **Distinct ids.**
+ * A linked guest resolving to a userId already emitted from the members is
+ * not emitted twice, and neither are two guests linked to the same user.
  *
  * This is "everyone" wherever nobody is picked. Who may be *picked*, and who
- * may be Booked by, is still every member (D6, D7).
+ * may be Booked by, is still every member (D6, D7) — plus any guest id, which
+ * `participants` holds as a plain string.
  */
-export function travellerIds(members: readonly { userId: string; travelling?: boolean }[]): string[] {
-  return members.filter((m) => m.travelling !== false).map((m) => m.userId);
+export function travellerIds(
+  members: readonly { userId: string; travelling?: boolean }[],
+  guests: readonly { guestId: string; travelling?: boolean; linkedUserId?: string | null }[] = [],
+): string[] {
+  const ids = members.filter((m) => m.travelling !== false).map((m) => m.userId);
+  const seen = new Set(ids);
+  for (const guest of guests) {
+    if (guest.travelling === false) continue;
+    const id = guest.linkedUserId ?? guest.guestId;
+    if (!seen.has(id)) {
+      seen.add(id);
+      ids.push(id);
+    }
+  }
+  return ids;
 }
 
 /**

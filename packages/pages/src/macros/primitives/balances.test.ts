@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { Money, TripDetail } from "@tc/contracts";
+import type { Guest, Money, TripDetail } from "@tc/contracts";
 import { tripDetailFactory } from "@tc/factories";
 import { renderMacro } from "../../registry";
 import type { Rendered, WidgetContext } from "../../registry-types";
@@ -34,6 +34,19 @@ function price(trip: TripDetail, day: number, slot: number, cost: Money | null, 
 function notTravelling(trip: TripDetail, userId: string): TripDetail {
   trip.members = trip.members.map((m) => (m.userId === userId ? { ...m, travelling: false } : m));
   return trip;
+}
+
+/** A guest record, as `listGuests` would hand it to `personNames`. */
+function guestOf(guestId: string, name: string): Guest {
+  return {
+    guestId,
+    tripId: "t",
+    name,
+    travelling: true,
+    linkedUserId: null,
+    createdBy: "u-ana",
+    createdAt: new Date().toISOString(),
+  };
 }
 
 const ctx = (trip: TripDetail | undefined, people: WidgetContext["people"] = PEOPLE): WidgetContext => ({
@@ -185,5 +198,23 @@ describe("personNames", () => {
     const trip = tripOf();
     expect([...personNames(trip, PEOPLE, ["u-x"]).values()]).toEqual(["Former member"]);
     expect([...personNames(trip, PEOPLE, ["u-ana", "u-x", "u-y"]).values()]).toEqual(["Ana", "Former member 1", "Former member 2"]);
+  });
+
+  // Guests spec P2: a guest id resolves to the name on its record — the name
+  // IS the record — and a guest on the trip is never "Former member".
+  it("resolves a guest id to the guest's name", () => {
+    const trip = tripOf();
+    const guests: Guest[] = [guestOf("guest_1", "Baby")];
+    expect([...personNames(trip, PEOPLE, ["guest_1"], guests).values()]).toEqual(["Baby"]);
+    // An explicit handed-in name still wins over the record, as for members.
+    expect([...personNames(trip, { "guest_1": "Little One" }, ["guest_1"], guests).values()]).toEqual(["Little One"]);
+    // A guest id with no record is unknown, not former — the record is the source.
+    expect([...personNames(trip, PEOPLE, ["guest_9"], guests).values()]).toEqual(["Former member"]);
+    // Guests do not disturb the former-member numbering.
+    expect([...personNames(trip, PEOPLE, ["u-x", "guest_1", "u-y"], guests).values()]).toEqual([
+      "Former member 1",
+      "Baby",
+      "Former member 2",
+    ]);
   });
 });

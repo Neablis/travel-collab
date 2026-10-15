@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { PersonRef, balances, stopPeople, travellerIds, type Balances, type FilterDimension, type TripDetail } from "@tc/contracts";
+import { PersonRef, balances, stopPeople, travellerIds, type Balances, type FilterDimension, type Guest, type TripDetail } from "@tc/contracts";
 import type { MacroDef, RepeatPayload, RepeatRow, Seg, WidgetContext, WidgetInput } from "../../registry-types";
 import { chip, ghost, inlineOf, rowLabel, rowValue, text } from "../../registry-types";
 import { ok, empty, needsTrip, unbound, type MacroResult } from "../../result";
@@ -46,21 +46,29 @@ const memberIdsOf = (trip: TripDetail): string[] => trip.members.map((m) => m.us
  * names have not arrived — never the raw id, which is a UUID or a 21-digit
  * number and reads as the page failing (`displayNameFor`'s own rule).
  *
+ * A guest (`guest_<uuid>`, guests spec P1) is the name on its record — the
+ * name IS the record — handed in as `guests` the way members arrive on `trip`.
+ * An explicit `people` name still wins over the record, the way it wins over
+ * "Traveler N" for a member.
+ *
  * Someone who has left the trip but is still a stop's payer or participant is
  * "Former member", numbered when there is more than one so two rows never read
- * as one person.
+ * as one person. A guest on the trip is not former, even when `people` has no
+ * name for it.
  */
 export function personNames(
   trip: TripDetail,
   people: Readonly<Record<string, string>> | null | undefined,
   ids: readonly string[],
+  guests?: readonly Guest[] | null,
 ): Map<string, string> {
   const members = memberIdsOf(trip);
-  const former = ids.filter((id) => !members.includes(id) && !people?.[id]);
+  const guestNames = new Map((guests ?? []).map((g) => [g.guestId, g.name] as const));
+  const former = ids.filter((id) => !members.includes(id) && !guestNames.has(id) && !people?.[id]);
   const names = new Map<string, string>();
   for (const id of ids) {
     const index = members.indexOf(id);
-    const named = people?.[id];
+    const named = people?.[id] ?? guestNames.get(id);
     if (named) names.set(id, named);
     else if (index >= 0) names.set(id, `Traveler ${index + 1}`);
     else names.set(id, former.length > 1 ? `Former member ${former.indexOf(id) + 1}` : "Former member");
@@ -109,7 +117,7 @@ export const costBalances: MacroDef<BalancesParams, RepeatPayload> = {
   emptyText: "nothing priced yet",
   // Fixed, never computed (ADR-037 decision 5).
   preview: "each person's share, what they paid, and who owes what",
-  resolve: ({ trip, globals, people }: WidgetContext, params, item): MacroResult<RepeatPayload> => {
+  resolve: ({ trip, globals, people, guests }: WidgetContext, params, item): MacroResult<RepeatPayload> => {
     if (!trip) return needsTrip();
     const selection = narrow(trip, globals, params, item);
     if (selection.status !== "ok") return selection;
@@ -118,7 +126,7 @@ export const costBalances: MacroDef<BalancesParams, RepeatPayload> = {
     const result = balances(counted.map((s) => s.activity), memberIdsOf(trip), travellerIds(trip.members));
     if (nothingPriced(result)) return others === null ? empty() : empty(`only priced in other currencies: ${others}`);
 
-    const names = personNames(trip, people, result.perMember.map((m) => m.userId));
+    const names = personNames(trip, people, result.perMember.map((m) => m.userId), guests);
     const money = (amount: number) => (amount === 0 ? [] : [rowValue(formatMoney(amount, trip.currency))]);
     const rows: RepeatRow[] = result.perMember.map((m) => ({
       lead: { name: "value", text: names.get(m.userId)! },
@@ -182,7 +190,7 @@ export const personShare: MacroDef<ShareParams, PersonSharePayload> = {
   emptyText: "in nothing priced yet",
   // The design's own preview, phrased generically on purpose (§18).
   preview: "whoever you point it at — their stops, and their share so far",
-  resolve: ({ trip, globals, people }: WidgetContext, params, item): MacroResult<PersonSharePayload> => {
+  resolve: ({ trip, globals, people, guests }: WidgetContext, params, item): MacroResult<PersonSharePayload> => {
     if (!trip) return needsTrip(SHARE_GHOST);
     if (params.who === undefined) return unbound("person", SHARE_GHOST);
     const who = params.who;
@@ -205,7 +213,7 @@ export const personShare: MacroDef<ShareParams, PersonSharePayload> = {
     const priced = counted.filter((s) => s.activity.cost!.amountMinor > 0);
     const inStops = priced.filter((s) => stopPeople(s.activity, travelling).includes(who)).length;
     return ok({
-      name: personNames(trip, people, [who]).get(who)!,
+      name: personNames(trip, people, [who], guests).get(who)!,
       stops: `${inStops} ${inStops === 1 ? "stop" : "stops"}`,
       share: mine.share === 0 ? null : formatMoney(mine.share, trip.currency),
       paid: mine.paid === 0 ? null : formatMoney(mine.paid, trip.currency),

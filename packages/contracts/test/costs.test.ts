@@ -30,6 +30,13 @@ describe("stopHeadcount", () => {
     expect(stopHeadcount({ participants: [] }, 0)).toBe(1);
   });
 
+  // Guests spec P2: a guest id is a plain string in `participants`, and a
+  // picked guest is a head like any picked person (no schema change needed).
+  it("counts a picked guest id as a head", () => {
+    expect(stopHeadcount({ participants: ["guest_1"] }, 2)).toBe(1);
+    expect(stopHeadcount({ participants: ["u1", "guest_1"] }, 2)).toBe(2);
+  });
+
   // Travellers spec D5: the owner may be planning a trip they are not on, so
   // a trip can have no traveller at all. Its prices must not vanish.
   it("floors at one person when nobody on the trip is travelling", () => {
@@ -57,6 +64,44 @@ describe("travellerIds", () => {
   // same people the schema would.
   it("counts a member with no travelling field as travelling", () => {
     expect(travellerIds([{ userId: "ana" }, { userId: "ben", travelling: false }])).toEqual(["ana"]);
+  });
+
+  // Guests spec P2: named travellers with no account count toward per-person
+  // cost, after the members, in the order they were added.
+  it("counts travelling guests after the members, by guest id", () => {
+    const members = [{ userId: "ana" }];
+    const guests = [{ guestId: "guest_1" }, { guestId: "guest_2", travelling: false }];
+    expect(travellerIds(members, guests)).toEqual(["ana", "guest_1"]);
+  });
+
+  it("counts a guest with no travelling field as travelling", () => {
+    expect(travellerIds([], [{ guestId: "guest_1" }])).toEqual(["guest_1"]);
+  });
+
+  // A linked guest IS that user: one headcount, so the linked id is emitted
+  // instead of the `guest_<uuid>`.
+  it("emits a linked guest as the linked user, not the guest id", () => {
+    const guests = [{ guestId: "guest_1", linkedUserId: "u-ana" }];
+    expect(travellerIds([{ userId: "u-ben" }], guests)).toEqual(["u-ben", "u-ana"]);
+  });
+
+  it("does not count a linked guest twice when the user is already a member", () => {
+    const members = [{ userId: "u-ana" }];
+    const guests = [{ guestId: "guest_1", linkedUserId: "u-ana" }];
+    expect(travellerIds(members, guests)).toEqual(["u-ana"]);
+  });
+
+  it("does not count two guests linked to the same user twice", () => {
+    const guests = [
+      { guestId: "guest_1", linkedUserId: "u-ana" },
+      { guestId: "guest_2", linkedUserId: "u-ana" },
+    ];
+    expect(travellerIds([], guests)).toEqual(["u-ana"]);
+  });
+
+  it("keeps the single-arg call working: no guests means the old answer", () => {
+    const members = [{ userId: "ana" }, { userId: "ben", travelling: false }];
+    expect(travellerIds(members)).toEqual(["ana"]);
   });
 });
 
@@ -104,6 +149,13 @@ describe("stopPeople", () => {
   it("names a repeated participant once, as stopHeadcount counts them", () => {
     expect(stopPeople({ participants: ["u2", "u2"] }, ["u1", "u2"])).toEqual(["u2"]);
   });
+
+  // Guests spec P2: string-based, so a guest id needs no special case — a
+  // stop nobody picked falls back to the travellers with the guests in them.
+  it("falls back to the travellers, guests included, when nobody is picked", () => {
+    expect(stopPeople({ participants: [] }, ["u1", "guest_1"])).toEqual(["u1", "guest_1"]);
+    expect(stopPeople({ participants: ["guest_1"] }, ["u1", "guest_1"])).toEqual(["guest_1"]);
+  });
 });
 
 describe("balances", () => {
@@ -149,6 +201,21 @@ describe("balances", () => {
     const result = balances([stop(null, ["ana"], "ben"), stop(0, [], "cy")], MEMBERS, MEMBERS);
     expect(result.perMember.map((m) => m.userId)).toEqual(MEMBERS);
     expect(result.perMember.every((m) => m.share === 0 && m.paid === 0)).toBe(true);
+  });
+
+  // Guests spec P2: a travelling guest in the travellers list owes their
+  // share of every priced stop they are in. The app does not settle bills
+  // (Mitchell: "split equally, app doesn't pay bills"), so a guest's `paid`
+  // is 0 — a guest is never a stop's `bookedBy` (guests spec P1).
+  it("emits a balance line for a guest: share owed, paid 0", () => {
+    const result = balances([stop(3000, [], "ana")], MEMBERS, [...MEMBERS, "guest_1"]);
+    expect(byId(result)["guest_1"]).toEqual({ share: 3000, paid: 0, net: -3000, former: true });
+    expect(result.unpaid).toBe(0);
+  });
+
+  it("charges a picked guest their share even when they are not a traveller", () => {
+    const result = balances([stop(5000, ["guest_1"], "ben")], MEMBERS, MEMBERS);
+    expect(byId(result)["guest_1"]).toEqual({ share: 5000, paid: 0, net: -5000, former: true });
   });
 
   it("still counts someone who has left the trip, after the members and marked as former", () => {

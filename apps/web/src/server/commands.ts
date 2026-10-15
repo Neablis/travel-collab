@@ -5,6 +5,7 @@ import {
   TripCommand,
   travellerIds,
   type EventEnvelope,
+  type Guest,
   type Origin,
   type TripDetail,
   type TripEvent,
@@ -30,6 +31,7 @@ import { applyTripEvents, upsertTripDetail } from "./projections";
 import { memberRolePolicy } from "./accessPolicy";
 import { effectiveMembers } from "./access/members";
 import { overlayMembers } from "./access/overlay";
+import { listGuests } from "./access/guests";
 
 export type CommandResult =
   | { ok: true; tripId: string; detail: TripDetail; history: TripHistory }
@@ -79,9 +81,14 @@ function outcomeOf(allEnvelopes: EventEnvelope[], tripId: string): { detail: Tri
 // The answer to a unit that is already applied: success, with the trip as it
 // stands. Not `no-op`. The unit did have an effect, once, and the sender
 // confirms it the same way it confirms any applied unit.
-function alreadyApplied(tripId: string, history: EventEnvelope[], members: TripMember[] | null): CommandResult {
+function alreadyApplied(
+  tripId: string,
+  history: EventEnvelope[],
+  members: TripMember[] | null,
+  guests: readonly Guest[] = [],
+): CommandResult {
   const { detail, history: historyDto } = outcomeOf(history, tripId);
-  return { ok: true, tripId, detail: withMembers(detail, members), history: historyDto };
+  return { ok: true, tripId, detail: withMembers(detail, members, guests), history: historyDto };
 }
 
 const CONFLICT: CommandFailure = {
@@ -133,7 +140,12 @@ export async function executeTripCommand(
     const loaded = await loadAndAuthorize(tx, command.tripId, actorId, [command.type]);
     if (!loaded.ok) return loaded;
     const { history, state, members } = loaded;
-    if (applied && history.length > 0) return alreadyApplied(command.tripId, history, members);
+    // Guests are Access data read beside the members: the decider's traveller
+    // count and the receipt's recost both count them (guests spec P2). Read
+    // beside the transaction, not in it — a committed read, the same
+    // freshness story `accessRev` gives every other reader.
+    const guests = members === null ? [] : await listGuests(command.tripId);
+    if (applied && history.length > 0) return alreadyApplied(command.tripId, history, members, guests);
 
     // 4. decide — history commands need the envelope history (already loaded;
     //    zero extra I/O), everything else the folded state.
@@ -149,7 +161,7 @@ export async function executeTripCommand(
       events = decision.events;
       origin = decision.origin;
     } else {
-      const decision = decideTripCommand(state, command, decideContext(actorId, members));
+      const decision = decideTripCommand(state, command, decideContext(actorId, members, guests));
       if (!decision.ok) {
         // A keyed no-op is recorded like an applied unit: a resend is answered
         // from the receipt, not decided against whatever the trip is by then.
@@ -171,7 +183,7 @@ export async function executeTripCommand(
     return {
       ok: true,
       tripId: command.tripId,
-      detail: withMembers(projected.detail, members),
+      detail: withMembers(projected.detail, members, guests),
       history: projected.history,
     };
   }).catch((error: unknown) => {
@@ -276,17 +288,27 @@ async function appendAndProject(
 //
 // `members` is null only for CreateTrip, whose stream did not exist when the
 // merge was attempted; the created trip's own projection already carries its
-// owner and there are no grants to merge yet.
-function withMembers(detail: TripDetail, members: TripMember[] | null): TripDetail {
-  return members === null ? detail : overlayMembers(detail, members);
+// owner and there are no grants to merge yet. Guests ride along the same way:
+// a trip being created has none.
+function withMembers(
+  detail: TripDetail,
+  members: TripMember[] | null,
+  guests: readonly Guest[] = [],
+): TripDetail {
+  return members === null ? detail : overlayMembers(detail, members, guests);
 }
 
 // The decider judges conflicts for the traveller count the reader is shown, so
 // a dismissal is decided against the same over-budget conflict `withMembers`
 // hands back (ADR-060, PR #289 review). `members` is null only before the
-// stream exists, where there is nothing to recost.
-function decideContext(actorId: string, members: TripMember[] | null): DecideContext {
-  return members === null ? { actorId } : { actorId, travellerCount: travellerIds(members).length };
+// stream exists, where there is nothing to recost. Guests count as travellers
+// (guests spec P2), so the count includes them.
+function decideContext(
+  actorId: string,
+  members: TripMember[] | null,
+  guests: readonly Guest[] = [],
+): DecideContext {
+  return members === null ? { actorId } : { actorId, travellerCount: travellerIds(members, guests).length };
 }
 
 const BatchBody = z.array(BatchableCommand).min(1);
@@ -403,6 +425,9 @@ export async function executeTripCommandBatch(
       const loaded = await loadAndAuthorize(tx, tripId, actorId, commands.map((c) => c.type));
       if (!loaded.ok) return loaded;
       const { history, members } = loaded;
+      // As in `executeTripCommand`: the decider's count and the receipt's
+      // recost count the trip's guests (guests spec P2).
+      const guests = members === null ? [] : await listGuests(tripId);
 
       // 3b. the caller's precondition, after authorization so a non-member learns
       //     nothing about the trip's revision.
@@ -422,13 +447,13 @@ export async function executeTripCommandBatch(
       let events: TripEvent[];
       let keysToRecord: string[] = [];
       if (units !== undefined) {
-        const keyed = decideUnits(loaded.state, commands, units, applied, decideContext(actorId, members));
+        const keyed = decideUnits(loaded.state, commands, units, applied, decideContext(actorId, members, guests));
         if (!keyed.ok) return keyed;
-        if (keyed.decidedKeys.length === 0) return alreadyApplied(tripId, history, members);
+        if (keyed.decidedKeys.length === 0) return alreadyApplied(tripId, history, members, guests);
         events = keyed.events;
         keysToRecord = keyed.decidedKeys;
       } else {
-        const decided = decideInOrder(loaded.state, commands, decideContext(actorId, members));
+        const decided = decideInOrder(loaded.state, commands, decideContext(actorId, members, guests));
         if (!decided.ok) return decided;
         events = decided.events;
       }
@@ -445,7 +470,7 @@ export async function executeTripCommandBatch(
         if (alsoInSameTransaction && options.runOnNoOp) {
           // Authorized and decided, so the stream exists: nothing is null here.
           const unchanged = tripDetailFromState(loaded.state!, history[0]!.occurredAt, serverConflictContext());
-          await alsoInSameTransaction(tx, { tripId, detail: withMembers(unchanged, members) });
+          await alsoInSameTransaction(tx, { tripId, detail: withMembers(unchanged, members, guests) });
           if ((await readStreamHeadSeq(tx, tripId)) !== history.length) {
             lostAppendRace = true;
             throw new RolledBack({
@@ -474,7 +499,7 @@ export async function executeTripCommandBatch(
 
       // 8. the non-planning write that has to commit with this batch, if any.
       //    Last, so it sees the trip exactly as this batch left it.
-      const answer = withMembers(projected.detail, members);
+      const answer = withMembers(projected.detail, members, guests);
       if (alsoInSameTransaction) await alsoInSameTransaction(tx, { tripId, detail: answer });
 
       return { ok: true, tripId, detail: answer, history: projected.history };

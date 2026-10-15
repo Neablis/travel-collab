@@ -1,5 +1,5 @@
 import type { z } from "zod";
-import type { AvatarKey, FilterDimension, ManifestObject, PersonColor, TripDetail, PageContext, TripGlobals, UserPreferences, ValueKind, WidgetShape } from "@tc/contracts";
+import type { AvatarKey, FilterDimension, Guest, ManifestObject, PersonColor, TripDetail, PageContext, TripGlobals, UserPreferences, ValueKind, WidgetShape } from "@tc/contracts";
 import type { WidgetEntity } from "./filters";
 import type { MacroResult, UnboundNeeds } from "./result";
 import type { ExternalInputs, ExternalNeed } from "./external";
@@ -524,6 +524,17 @@ export interface WidgetContext {
    * for, and a second copy from the access fetch could disagree with it.
    */
   people?: Readonly<Record<string, string>> | null;
+  /**
+   * The trip's guests, as records (guests spec P1) — what `personNames` calls
+   * a `guest_<uuid>` id. Guests are Access data, so a context built where
+   * they are not fetched simply has none.
+   *
+   * **Optional, and absent means no guest names are known**: a widget then
+   * falls back the way it does for an unnamed non-member ("Former member").
+   * A guest's name is the record itself, so unlike `people` this needs no
+   * join — the builder hands the records straight through.
+   */
+  guests?: readonly Guest[] | null;
   /**
    * How each member looks and whether they are going, by `userId` (M38) — the
    * same members as `people`, for the one widget that draws them, `trip.people`.

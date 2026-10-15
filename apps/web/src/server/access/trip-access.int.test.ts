@@ -9,6 +9,7 @@ import { getTripDetail } from "../projections";
 import { readStreamHeadSeq } from "../eventStore";
 import { saveDay } from "../savedDays";
 import { grantMembership } from "./members";
+import { addGuest, updateGuest } from "./guests";
 import { acceptInvite, createInvite } from "./invites";
 import { entitleAccounts } from "@/server/test-support/entitledAccount";
 
@@ -330,6 +331,46 @@ describe("a trip's totals follow its members at read time", () => {
     );
     expect(write.status).toBe(200);
     expect(TripDetail.parse(((await write.json()) as { detail: unknown }).detail).tripCostTotal).toBe(60_00);
+  });
+
+  // Guests spec P2: a named traveller with no account counts toward
+  // per-person cost. Adding the guest changes the read's totals with no
+  // event — the same read-time overlay the members take — and marking the
+  // guest not travelling moves them back.
+  it("counts a travelling guest in a nobody-picked stop's total, with no event", async () => {
+    const tripId = randomUUID();
+    const dayId = randomUUID();
+    const usd = (amountMinor: number) => ({ amountMinor, currency: "USD" });
+    await executeTripCommand({ type: "CreateTrip", tripId, name: "Per person" }, OWNER);
+    await executeTripCommand({ type: "AddDay", tripId, dayId }, OWNER);
+    await executeTripCommand(
+      { type: "AddActivity", tripId, activityId: randomUUID(), dayId, title: "Ramen", cost: usd(30_00) },
+      OWNER,
+    );
+    const params = { params: Promise.resolve({ tripId }) };
+    const read = async () => {
+      const res = await GET_TRIP(new Request("http://test/x"), params);
+      expect(res.status).toBe(200);
+      return TripDetail.parse(((await res.json()) as { trip: unknown }).trip);
+    };
+
+    expect((await read()).tripCostTotal).toBe(30_00);
+
+    const added = await addGuest(tripId, "Baby", OWNER);
+    expect(added.ok).toBe(true);
+    const guestId = added.ok ? added.value.guestId : "";
+    const head = await readStreamHeadSeq(db, tripId);
+
+    const withGuest = await read();
+    expect(withGuest.tripCostTotal).toBe(60_00);
+    expect(withGuest.days[0]!.costSubtotal).toBe(60_00);
+    expect(await readStreamHeadSeq(db, tripId), "adding a guest is not a planning event").toBe(head);
+    // The stored projection is the log's answer and is left alone.
+    expect((await getTripDetail(tripId))!.tripCostTotal).toBe(30_00);
+
+    const toggled = await updateGuest(tripId, guestId, { travelling: false }, OWNER);
+    expect(toggled.ok).toBe(true);
+    expect((await read()).tripCostTotal).toBe(30_00);
   });
 
   // #314: a suggester who joined to advise doubled the per-person total. A
