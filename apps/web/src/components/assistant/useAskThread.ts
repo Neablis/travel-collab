@@ -22,6 +22,15 @@ export function notAppliedNote(skipped: readonly string[]): string {
   return `\n\nNothing was changed: ${skipped.join(" ")}`;
 }
 
+/**
+ * The line a turn whose proposal could not be built ends on (KI-2026-09-24-w):
+ * the answer stands, and the server's note says the change was never prepared
+ * for approval. Text, not a card, because there is nothing to approve.
+ */
+export function proposalFailedNote(message: string): string {
+  return `\n\n${message}`;
+}
+
 /** Why a reply's page-leaving command waits while a card above is undecided: the card would not come along. */
 const CARD_WAITING = "the change above is waiting for you to approve or turn it down";
 
@@ -420,6 +429,12 @@ export function useAskThread({
           // were collected, and only the final resolve finds the trip refusing
           // them. Text, not a card, because there is nothing to approve.
           patchAnswer((turn) => ({ ...turn, text: `${turn.text}${notAppliedNote(event.skipped)}` }));
+        } else if (event.type === "proposal-failed") {
+          // KI-2026-09-24-w: the answer streamed, then building the proposal
+          // threw. The turn keeps its answer and says the change was never
+          // prepared for approval — text, not a card, because there is nothing
+          // to approve.
+          patchAnswer((turn) => ({ ...turn, text: `${turn.text}${proposalFailedNote(event.message)}` }));
         } else if (event.type === "palette") {
           // **Where the reply takes you, run by the page's own commands**
           // (ADR-072). Navigation runs now; a change becomes a card that runs

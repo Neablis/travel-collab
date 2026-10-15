@@ -45,13 +45,15 @@ export function snapshotNameFor(question: string): string {
 
 /**
  * How a planning turn that proposed something ended, for the `ai.ask.outcome`
- * line (`recordAskOutcome`): its card, a stored suggestion, or a card because
- * storing was refused — with the refusal's code, a bounded set.
+ * line (`recordAskOutcome`): its card, a stored suggestion, a card because
+ * storing was refused — with the refusal's code, a bounded set — or no
+ * proposal at all, because building it threw (KI-2026-09-24-w).
  */
 export type ProposalOutcome =
   | { kind: "card" }
   | { kind: "suggested"; changeCount: number; snapshot: "saved" | "skipped" }
-  | { kind: "notSuggested"; code: NotSuggestedCode };
+  | { kind: "notSuggested"; code: NotSuggestedCode }
+  | { kind: "buildFailed" };
 
 /**
  * Why a multi-change proposal stayed a card: one of `createSuggestion`'s
@@ -163,7 +165,7 @@ export interface AskOutcomeRecord {
   turnId: string;
   tripId: string;
   userId: string;
-  /** `card`, `suggested`, or `notSuggested:<code>`. */
+  /** `card`, `suggested`, `buildFailed`, or `notSuggested:<code>`. */
   outcome: string;
   commandCount: number;
   /** Changes stored, for `suggested`; null otherwise. */

@@ -641,6 +641,20 @@ describe("useAskThread — where a reply takes you", () => {
     expect(answer.offers).toEqual([{ id: "notebook-editing", key: expect.any(String), on: true }]);
   });
 
+  // KI-2026-09-24-w: the answer streamed, then building the proposal threw.
+  // The turn keeps its answer and says the change was never prepared for
+  // approval — text, not a card, because there is nothing to approve.
+  it("says the change was never prepared when the proposal could not be built, as text rather than a card", async () => {
+    const message = "The assistant couldn't prepare that change for approval, and it has been logged.";
+    vi.stubGlobal("fetch", replying([], { proposalFailed: { message } }));
+    const { result } = mount(undefined);
+    await act(() => result.current.runAsk("add coffee on day 2"));
+
+    const answer = result.current.thread.at(-1) as Extract<AssistantTurn, { role: "assistant" }>;
+    expect(answer.text).toBe(`Taking you there.\n\n${message}`);
+    expect(answer.proposal).toBeUndefined();
+  });
+
   // ADR-072 §4: a proposal is not kept across leaving the board
   // (`askThreadStore` drops it), so a reply that both proposes and opens a
   // notebook would lose the card before anyone could approve it. Moving on

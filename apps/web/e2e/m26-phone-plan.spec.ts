@@ -353,4 +353,39 @@ test.describe("M29 — the river on a phone", () => {
     await expect(page.getByLabel("Start", { exact: true })).toHaveValue("11:00");
     await context.close();
   });
+
+  // The rail is a reach away in the top bar; the instinct on a phone is to
+  // swipe the day itself. A quick horizontal swipe steps the focused day —
+  // left for the next day, right for the previous — through the same
+  // `stepDay` + `onSelectDay` path the arrow keys use. A vertical swipe is
+  // still a scroll (the test above), and a hold is still the river's.
+  test("a horizontal swipe steps the day — left for next, right for previous", async ({ browser }) => {
+    const { context, page, river } = await phone(browser, "PhoneDaySwipe");
+    const finger = await fingerOn(page);
+
+    const pressed = (index: number) => page.locator(`[data-day-index="${index}"][aria-pressed="true"]`);
+    await expect(pressed(0)).toBeVisible();
+
+    // 1 pm: empty river time, below the header, clear of every block.
+    const at = await pointAt(page, river, 13);
+    // Left, quickly: under the 300ms a day-step allows and the 450ms a
+    // river hold needs.
+    await finger.down(at.x + 80, at.y);
+    await finger.move(at.x - 80, at.y, 5);
+    await finger.up();
+    await expect(pressed(1)).toBeVisible();
+
+    // The slide keeps both days mounted for ~180ms; re-aim once it settles,
+    // so the river locator below resolves to exactly one day.
+    await expect(page.getByTestId("day-river")).toHaveCount(1);
+
+    // Right, back to the first day. Re-aim: the river below is a new day's.
+    const back = await pointAt(page, river, 13);
+    await finger.down(back.x - 80, back.y);
+    await finger.move(back.x + 80, back.y, 5);
+    await finger.up();
+    await expect(pressed(0)).toBeVisible();
+
+    await context.close();
+  });
 });

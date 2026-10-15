@@ -280,8 +280,10 @@ export function Column({
         // **`shrink-0` only while there is a row to shrink in** (M26 link 13).
         // A phone renders ONE column and it takes the width; keeping
         // `shrink-0` there would be harmless and keeping the 268px would not,
-        // so the two move together.
-        fullWidth ? "w-full" : "shrink-0",
+        // so the two move together. It is also what the day-change slide
+        // track needs: its children are `w-full` in a flex row, and without
+        // `shrink-0` they would squeeze instead of sitting viewport-wide.
+        fullWidth ? "w-full shrink-0" : "shrink-0",
         TINT_BG[accent],
         // Same ring the focused chip wears (DayChips), so "this day" reads the
         // same whichever of the two you picked it from. A link or text dragged

@@ -31,16 +31,37 @@ describe("LandingHeroArt when the real panels fail to load", () => {
     render(<LandingScreen />);
     const desktop = within(screen.getByTestId("desktop-landing"));
 
-    // The static art is also what `Suspense` shows while loading, so it is
-    // asserted only once the rejection has landed — the boundary's catch is
-    // what React logs.
+    // The static art is also what `Suspense` shows while loading —
+    // the hero hands the same art to `Suspense` and to the boundary — so the
+    // art cannot tell "rejection landed" from "still loading", and waiting on
+    // it gates nothing. The log is the only signal, but it must be narrowed to
+    // our error: the spy sees every console.error, and under load React logs
+    // warnings for unrelated reasons (act warnings), so a bare
+    // toHaveBeenCalled() can pass before the boundary caught the rejection.
+    // Vitest wraps the mock factory's rejection in its own error ("There was
+    // an error when mocking a module"); our original error rides along as its
+    // `cause`. Nothing else logged here is an Error with that cause.
+    const landedRejection = async () => {
+      await waitFor(() => {
+        expect(
+          logged.mock.calls.some((args) =>
+            args.some(
+              (a) =>
+                a instanceof Error &&
+                a.cause instanceof Error &&
+                a.cause.message.includes("Failed to fetch dynamically imported module"),
+            ),
+          ),
+        ).toBe(true);
+      });
+    };
     // The feature blocks' real panels are a module of their own and still
     // load; they are waited for so the Together drawing they replace, which
     // draws a suggestion's Accept, is not on the page for the checks below.
     await desktop.findByRole("list", { name: "Day 7 timeline" });
 
     fireEvent.click(desktop.getByRole("button", { name: "Day 7" }));
-    await waitFor(() => expect(logged).toHaveBeenCalled());
+    await landedRejection();
     expect(desktop.getByText("Day 7 · Kyoto → Osaka")).toBeDefined();
     // The static art pictures only what trips have: suggestions, not comment
     // threads with replies (Mitchell, 2026-10-11).
@@ -48,7 +69,7 @@ describe("LandingHeroArt when the real panels fail to load", () => {
 
     logged.mockClear();
     fireEvent.click(desktop.getByRole("button", { name: "Day 5" }));
-    await waitFor(() => expect(logged).toHaveBeenCalled());
+    await landedRejection();
     expect(desktop.getByText("Getting to Kurama — Day 5")).toBeDefined();
     expect(desktop.queryAllByText(UNBUILT_SOCIAL).map((el) => el.textContent)).toEqual([]);
     // A notebook offers no Accept, so its drawing draws none (review of PR 405);

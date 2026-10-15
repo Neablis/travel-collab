@@ -13,6 +13,18 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-10-14 — `proposalFailed` on the /ask stream: a turn whose proposal could not be built keeps its answer
+- **Added** (`assistant.ts`): a seventh `AskStreamShape` member, `{ proposalFailed: { message: string (non-empty) } }`,
+  plus `ASK_PROPOSAL_FAILED_MESSAGE`, the fixed note it carries. A planning turn whose answer streamed but whose
+  proposal threw during `buildProposal` (KI-2026-09-24-w) used to break the stream; its final chunk now carries the
+  note where the proposal would have. The one-outcome rule covers it like the others.
+- Why: Mitchell, 2026-10-14, the product call on KI-2026-09-24-w — keep the streamed answer and carry a note,
+  not the error-chunk path. The throw's own text never reaches the client; the cause goes to the server's logs and
+  the turn's `ai.ask.outcome` record, which gains a `buildFailed` outcome.
+- Consumers updated: `apps/web` — `askAssistant` (`apiClient.ts`) maps it to a `proposal-failed` event, and
+  `useAskThread` appends the note to the answer. No public API surface: the stream is internal, not `/api/v1`.
+- Breaking? no — an older client drops the unrecognised chunk, as it would before. No public API version bump.
+
 ## 2026-10-14 — OpenAPI doc: page tree as a recursive `$ref` component (public API 1.17.0)
 - **Changed** `apps/web/src/server/public-api/openapi.ts`: the generator now emits the recursive
   `PageNode` page tree once as `components.schemas.PageNode` and references it via `$ref` from every

@@ -1679,6 +1679,12 @@ export type AskEvent =
   /** A page turn whose nodes failed validation, with the server's own reason. */
   | { type: "page-error"; message: string }
   /**
+   * A planning turn whose answer streamed but whose proposal could not be
+   * built (KI-2026-09-24-w): the answer stands, with the server's note where
+   * the proposal would have been.
+   */
+  | { type: "proposal-failed"; message: string }
+  /**
    * The palette commands the turn named (ADR-072), on the same final chunk and
    * after its outcome. Only ids the assistant may name reach here: the rest,
    * URLs included, were dropped by the parse. Never empty.
@@ -1836,6 +1842,7 @@ function outcomeEvent(metadata: AskStreamMetadata): AskEvent | null {
   if ("notApplied" in metadata) return { type: "not-applied", skipped: metadata.notApplied.skipped };
   if ("pageInserts" in metadata) return pageInsertsEvent(metadata.pageInserts.content, metadata.pageInserts.dropped ?? []);
   if ("composeError" in metadata) return { type: "page-error", message: metadata.composeError };
+  if ("proposalFailed" in metadata) return { type: "proposal-failed", message: metadata.proposalFailed.message };
   return null;
 }
 
