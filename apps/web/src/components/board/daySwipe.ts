@@ -51,3 +51,25 @@ export function classifyDaySwipe(start: SwipePoint, end: SwipePoint): DaySwipeSt
   if (Math.abs(dx) <= DAY_SWIPE_DIRECTION_RATIO * Math.abs(dy)) return 0;
   return dx < 0 ? 1 : -1;
 }
+
+/**
+ * Elements a day swipe must never start on, as a selector. The river's
+ * resize grips are the one river control that acts on a quick press with no
+ * hold: `pressGrip` fires on pointerdown, and a horizontal-only drag commits
+ * as a tap, opening the editor — so a swipe starting on a grip would both
+ * open the editor and change the day. Every other river gesture needs the
+ * 450ms hold, which the 300ms swipe cap already excludes. Matched on the
+ * grips' testids, which e2e tests pin: renaming one breaks loudly instead of
+ * silently re-arming the double action.
+ */
+const SWIPE_EXEMPT_SELECTOR = '[data-testid="river-resize"], [data-testid="river-resize-start"]';
+
+/**
+ * Whether a touch starting on `target` must not become a day swipe: it began
+ * on a control that consumes the gesture itself. Duck-typed rather than
+ * `instanceof HTMLElement` so the module stays loadable outside a DOM.
+ */
+export function isDaySwipeExempt(target: EventTarget | null): boolean {
+  if (target === null || typeof (target as Element).closest !== "function") return false;
+  return (target as Element).closest(SWIPE_EXEMPT_SELECTOR) !== null;
+}

@@ -15,7 +15,7 @@ import { toClockLabel } from "@/lib/time";
 import { useEditor } from "@/components/trip/context/EditorHost";
 import { chipModel, cityFor } from "@/lib/dayChips";
 import { centralDayIndex, READING_LINE, stepDay } from "@/components/trip/centralDay";
-import { classifyDaySwipe, type SwipePoint } from "./daySwipe";
+import { classifyDaySwipe, isDaySwipeExempt, type SwipePoint } from "./daySwipe";
 import {
   useDayScrollSpy,
   useFollowFocusedDay,
@@ -547,6 +547,10 @@ export function Board({
       // is the strip's — the same exclusion the arrow handler above makes.
       const target = event.target as HTMLElement | null;
       if (target !== null && endOfDayRef.current?.contains(target)) return;
+      // The river's resize grips consume a quick press themselves (a
+      // horizontal-only drag reads as a tap and opens the editor), so a
+      // swipe starting on one must not also change the day.
+      if (isDaySwipeExempt(target)) return;
       // One finger for the whole sequence: a second finger (pinch, or a
       // finger arriving mid-swipe) voids it.
       if (event.touches.length !== 1) {

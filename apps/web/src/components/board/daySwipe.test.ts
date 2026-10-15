@@ -27,6 +27,8 @@ describe("classifyDaySwipe", () => {
     ],
     ["a backwards clock is a broken reading, not a fast finger", at(200, 400, 150), at(100, 400, 0), 0],
     ["no movement is not a swipe", at(200, 400, 0), at(200, 400, 150), 0],
+    // |dx| == 2*|dy| is exactly the cone's edge: strictly greater is required.
+    ["exactly twice the vertical travel is still not horizontal enough", at(200, 400, 0), at(100, 450, 150), 0],
   ] as const)("%s", (_name, start, end, expected) => {
     expect(classifyDaySwipe(start, end)).toBe(expected);
   });
