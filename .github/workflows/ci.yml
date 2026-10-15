@@ -226,12 +226,15 @@ jobs:
     timeout-minutes: 15
     services:
       postgres:
-        # Docker's official image from Amazon ECR Public, not Docker Hub:
-        # anonymous pulls from shared GitHub runners hit Docker Hub's rate
-        # limit (`toomanyrequests`) and fail the job before any test runs
-        # (#378, 2026-10-09). ECR Public holds a durable copy (`docker/library`);
-        # mirror.gcr.io is only a cache, with no fallback when it misses.
-        image: public.ecr.aws/docker/library/postgres:17
+        # From Docker Hub, authenticated: anonymous ECR Public pulls are
+        # data-capped per source IP (500GB/mo) and GitHub's shared runner IPs
+        # exhaust it (`toomanyrequests: Data limit exceeded`). Authenticated
+        # Docker Hub pulls are metered per account (200/6h on the free tier),
+        # so the shared IP stops mattering.
+        image: postgres:17
+        credentials:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
         env:
           POSTGRES_PASSWORD: postgres
           POSTGRES_DB: travel
@@ -274,12 +277,15 @@ jobs:
     timeout-minutes: 20
     services:
       postgres:
-        # Docker's official image from Amazon ECR Public, not Docker Hub:
-        # anonymous pulls from shared GitHub runners hit Docker Hub's rate
-        # limit (`toomanyrequests`) and fail the job before any test runs
-        # (#378, 2026-10-09). ECR Public holds a durable copy (`docker/library`);
-        # mirror.gcr.io is only a cache, with no fallback when it misses.
-        image: public.ecr.aws/docker/library/postgres:17
+        # From Docker Hub, authenticated: anonymous ECR Public pulls are
+        # data-capped per source IP (500GB/mo) and GitHub's shared runner IPs
+        # exhaust it (`toomanyrequests: Data limit exceeded`). Authenticated
+        # Docker Hub pulls are metered per account (200/6h on the free tier),
+        # so the shared IP stops mattering.
+        image: postgres:17
+        credentials:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
         env:
           POSTGRES_PASSWORD: postgres
           POSTGRES_DB: travel
