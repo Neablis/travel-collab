@@ -141,6 +141,7 @@ export function ActivityEditor({
   members = [],
   guests = [],
   guestNames,
+  guestsLoaded = true,
   nearbyStops = [],
   onSave,
   onCancel,
@@ -183,6 +184,14 @@ export function ActivityEditor({
    * its guest reads ever saw, because a removed guest's record is gone.
    */
   guestNames?: ReadonlyMap<string, string>;
+  /**
+   * Whether the `guests` list has answered yet. The sheet fetches guests
+   * after it opens, so a picked guest is briefly absent from `guests` without
+   * having left: until this is true, a `guest_*` id is never labelled
+   * departed. Defaults to true — a caller that hands the list over directly
+   * has answered by construction.
+   */
+  guestsLoaded?: boolean;
   /**
    * Stops from other people's published days, ranked for this day (M34).
    * Create mode only (D12); defaulted to `[]`, which renders nothing at all,
@@ -332,10 +341,17 @@ export function ActivityEditor({
   // removed is never offered back. With no member list there is no telling a
   // departed id from an unknown one, so nothing is called departed.
   const knownIds = new Set([...members.map((member) => member.userId), ...guests.map((guest) => guest.guestId)]);
+  // A picked guest is not in `knownIds` while the guest list has not answered
+  // yet (`guestsLoaded`); calling it departed then mislabels it "Former member
+  // (removed)" until the read lands, so `guest_*` ids are held out of the
+  // departed set meanwhile. A non-guest id is still judged on the members
+  // list, which the sheet always has by the time the form renders.
   const departedIds =
     members.length === 0 && guests.length === 0
       ? []
-      : [...new Set(initial?.participants ?? [])].filter((id) => !knownIds.has(id));
+      : [...new Set(initial?.participants ?? [])].filter(
+          (id) => !knownIds.has(id) && (guestsLoaded || !id.startsWith("guest_")),
+        );
   // A picked guest since removed: their name if the picker ever saw it
   // (`guestNames`), else the same "Former member" fallback a departed member
   // gets. A removed guest did not leave the trip, so the parenthetical says so.

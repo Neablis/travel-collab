@@ -258,13 +258,21 @@ export function PeopleSection({
   const [guestNameError, setGuestNameError] = useState<string | null>(null);
   const [linkingGuest, setLinkingGuest] = useState<Guest | null>(null);
   const guestRev = useRef<string | undefined>(undefined);
+  // A guest write's list is newer than any guest fetch that started before
+  // the write landed: `loadGuests` drops a landing whose fetch predates the
+  // latest local write. The rev guard below cannot see the write — the new
+  // `accessRev` only arrives with the trip provider's next read — so without
+  // this a toggle visibly reverts until the poll refetches.
+  const guestWriteEpoch = useRef(0);
   const loadGuests = useCallback(
     async (rev: string | undefined) => {
+      const startedAt = guestWriteEpoch.current;
       const result = await fetchGuests(tripId);
       if (!result.ok) {
         setGuestError(result.error.message);
         return;
       }
+      if (guestWriteEpoch.current !== startedAt) return;
       if (guestRev.current !== undefined && (rev === undefined || Number(rev) < Number(guestRev.current))) return;
       guestRev.current = rev;
       setGuests(result.value);
@@ -295,6 +303,10 @@ export function PeopleSection({
         return false;
       }
       setGuests((current) => apply(current ?? [], result.value));
+      // This write's list is fresher than any fetch already in flight; the
+      // epoch in `loadGuests` drops those landings so the write is not
+      // clobbered.
+      guestWriteEpoch.current += 1;
       setGuestError(null);
       onAccessChanged?.();
       return true;
@@ -420,7 +432,12 @@ export function PeopleSection({
   const members = access?.members ?? [];
   const grantedCount = members.filter((m) => m.role !== "owner").length;
   const lapsed = gated && grantedCount > 0;
-  const travelling = new Set(travellerIds(members));
+  // The split line below counts what the Part 2 overlay divides by — members
+  // and travelling guests both, through `travellerIds`'s second argument
+  // (`server/access/overlay.ts`). Guest ids are `guest_<uuid>`, so they never
+  // collide with a member `userId`: the groups and toggle labels above read
+  // the set exactly as before.
+  const travelling = new Set(travellerIds(members, guests ?? []));
   // The owner sorts first in whichever group they are in (spec §4).
   const ordered = [...members].sort((a, b) => Number(b.role === "owner") - Number(a.role === "owner"));
   const pending = isOwner ? (access?.invites ?? []).filter((i) => i.status === "pending") : [];

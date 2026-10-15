@@ -169,28 +169,39 @@ export function ActivityEditorSheet() {
   // (server/access/guests.ts), which the board's poll turns into a fresh
   // access read; re-reading the guests on the rev keeps the picker's chips
   // with whoever the People panel just added, without this sheet polling.
-  // Only while the sheet is open: a viewer never sees this form.
+  // Only while the sheet is open. Read for a viewer too, even though they
+  // never see the form: the read-only cost line below divides by travellers,
+  // guests included, so it needs the same list.
   const accessRev = access?.accessRev;
   const [guests, setGuests] = useState<Guest[] | null>(null);
   // A guest removed while this sheet is open is gone from the fetched list,
   // but a stop may still name them: every name the reads ever saw is kept so
   // the departed fallback can print it rather than "Former member".
   const guestNames = useRef(new Map<string, string>());
+  // The rev the latest requested read asked for: a landing whose rev is not
+  // it was requested before a newer read started, so it is dropped — the same
+  // key-against-request shape the nearby-stops read above uses. Two reads can
+  // be in flight across an `accessRev` bump, and before this only the
+  // `current` flag guarded unmount.
+  const requestedGuestRev = useRef<string | undefined>(undefined);
   useEffect(() => {
-    if (!open || readOnly || tripId === undefined) {
+    if (!open || tripId === undefined) {
       setGuests(null);
       return;
     }
+    const wantedRev = accessRev;
+    requestedGuestRev.current = wantedRev;
     let current = true;
     void fetchGuests(tripId).then((result) => {
       if (!current || !result.ok) return;
+      if (requestedGuestRev.current !== wantedRev) return;
       for (const guest of result.value) guestNames.current.set(guest.guestId, guest.name);
       setGuests(result.value);
     });
     return () => {
       current = false;
     };
-  }, [open, readOnly, tripId, accessRev]);
+  }, [open, tripId, accessRev]);
   const namedGuests: NamedGuest[] = (guests ?? []).map((guest) => ({
     guestId: guest.guestId,
     name: guest.name,
@@ -286,7 +297,9 @@ export function ActivityEditorSheet() {
         <ReadOnlyActivity
           activity={editingActivity}
           currency={activeTrip?.currency ?? "USD"}
-          travellerCount={travellerIds(activeTrip?.members ?? []).length}
+          // Guests answer after the sheet opens; the line re-renders when
+          // they land, from the members-only count meanwhile.
+          travellerCount={travellerIds(activeTrip?.members ?? [], guests ?? []).length}
           onClose={close}
         />
       )}
@@ -323,8 +336,11 @@ export function ActivityEditorSheet() {
           members={namedMembers}
           // Guests, fetched above on the trip's access revision; the editor
           // counts a claimed guest as their member and writes `guestId` picks.
+          // `null` until that first read lands, so the editor holds off on
+          // calling a picked guest departed meanwhile.
           guests={namedGuests}
           guestNames={guestNames.current}
+          guestsLoaded={guests !== null}
           nearbyStops={nearbyStops}
           onSave={handleSave}
           onCancel={close}

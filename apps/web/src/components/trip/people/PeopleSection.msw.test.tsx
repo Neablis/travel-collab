@@ -193,6 +193,20 @@ describe("the Guests section", () => {
     await within(row).findByText("Not travelling");
   });
 
+  // The line says what the Part 2 overlay divides by: members and travelling
+  // guests both (`server/access/overlay.ts`), through `travellerIds`.
+  it("counts travelling guests in the cost split line", async () => {
+    server.use(...makeTripHandlers(guestDetail, { guests: [guestFixture("Grandma")] }));
+    render(<PeopleSection tripId={guestDetail.tripId} />);
+    expect(await screen.findByText("Costs are split across 4 travellers.")).toBeTruthy();
+  });
+
+  it("leaves a not-travelling guest out of the cost split line", async () => {
+    server.use(...makeTripHandlers(guestDetail, { guests: [guestFixture("Grandma", { travelling: false })] }));
+    render(<PeopleSection tripId={guestDetail.tripId} />);
+    expect(await screen.findByText("Costs are split across 3 travellers.")).toBeTruthy();
+  });
+
   it("the owner links a guest to a member, then unlinks them", async () => {
     server.use(...makeTripHandlers(guestDetail, { guests: [guestFixture("Grandma")] }));
     render(<PeopleSection tripId={guestDetail.tripId} />);
