@@ -15,6 +15,8 @@ import { toClockLabel } from "@/lib/time";
 import { useEditor } from "@/components/trip/context/EditorHost";
 import { chipModel, cityFor } from "@/lib/dayChips";
 import { centralDayIndex, READING_LINE, stepDay } from "@/components/trip/centralDay";
+import { classifyDaySwipe, isDaySwipeExempt, type SwipePoint } from "./daySwipe";
+import { DAY_CHANGE_TRANSITION_MS, dayChangeTransition } from "./dayTransition";
 import {
   useDayScrollSpy,
   useFollowFocusedDay,
@@ -525,6 +527,142 @@ export function Board({
     [callbacks, focusedDay, trip.days.length],
   );
 
+  // **A swipe steps the day on a phone** (Mitchell, 2026-10-14: on the
+  // one-day board the day chips are a reach away in the top bar, and the
+  // instinct is to swipe). The same `stepDay` + `onSelectDay` path as the
+  // arrow keys above — including the clamped ends — so this is a second
+  // input on one behavior, not a second behavior.
+  //
+  // Only ever observed, never prevented: the handlers below do not call
+  // `preventDefault`, so taps, scrolls and the river's own gestures are
+  // untouched. What makes a swipe a swipe is `classifyDaySwipe` — quick
+  // (under 300ms, so the river's 450ms hold-to-drag can never qualify),
+  // mostly horizontal, at least 24px. Touch only: React's touch events never
+  // fire for a mouse or pen, so desktop dragging is unaffected by construction.
+  const swipeStart = useRef<(SwipePoint & { id: number }) | null>(null);
+  const onTouchStartSwipe = useCallback(
+    (event: React.TouchEvent) => {
+      if (!oneDay) return;
+      // The phone's end-of-day row (the Unscheduled rack, M39 Part 2) lives
+      // in this subtree, and its card strip scrolls sideways: a swipe there
+      // is the strip's — the same exclusion the arrow handler above makes.
+      const target = event.target as HTMLElement | null;
+      if (target !== null && endOfDayRef.current?.contains(target)) return;
+      // The river's resize grips consume a quick press themselves (a
+      // horizontal-only drag reads as a tap and opens the editor), so a
+      // swipe starting on one must not also change the day.
+      if (isDaySwipeExempt(target)) return;
+      // One finger for the whole sequence: a second finger (pinch, or a
+      // finger arriving mid-swipe) voids it.
+      if (event.touches.length !== 1) {
+        swipeStart.current = null;
+        return;
+      }
+      const touch = event.touches[0];
+      if (touch === undefined) {
+        swipeStart.current = null;
+        return;
+      }
+      swipeStart.current = { x: touch.clientX, y: touch.clientY, t: performance.now(), id: touch.identifier };
+    },
+    [oneDay],
+  );
+  const onTouchEndSwipe = useCallback(
+    (event: React.TouchEvent) => {
+      if (!oneDay) return;
+      const start = swipeStart.current;
+      swipeStart.current = null;
+      if (start === null) return;
+      // The finger that lifted must be the one that landed: with two fingers
+      // down and one lifting, `changedTouches` names the leaver.
+      const touch = Array.from(event.changedTouches).find((t) => t.identifier === start.id);
+      if (touch === undefined) return;
+      const delta = classifyDaySwipe(start, { x: touch.clientX, y: touch.clientY, t: performance.now() });
+      if (delta === 0) return;
+      const next = stepDay(focusedDay, delta, trip.days.length);
+      // Clamped like the arrows: swiping past either end is a no-op, not a wrap.
+      if (next === null || next === focusedDay) return;
+      callbacks.onSelectDay(next);
+    },
+    [oneDay, focusedDay, trip.days.length, callbacks],
+  );
+  const onTouchCancelSwipe = useCallback(() => {
+    swipeStart.current = null;
+  }, []);
+
+  // **The day-change slide** (phone one-day board only). A day change swaps
+  // the mounted column instantly, which reads as abrupt; the slide keeps the
+  // outgoing day mounted for 180ms while a track carries it out and the new
+  // day in. Animated at the `focusedDay` level — swipes, chip taps and arrow
+  // keys all move the same way — and the state still commits immediately
+  // (chips update at once); only the content swap is visual, never delayed.
+  const [dayTransition, setDayTransition] = useState<{ from: number; to: number } | null>(null);
+  const [slidePhase, setSlidePhase] = useState<"rest" | "sliding">("rest");
+  const prevFocusedDayRef = useRef<number | null>(null);
+  // Decided in a layout effect — synchronously after the DOM updates but
+  // before the browser paints — so the first painted frame already holds the
+  // track with both days, never a flash of the new day alone.
+  useLayoutEffect(() => {
+    const prev = prevFocusedDayRef.current;
+    prevFocusedDayRef.current = focusedDay;
+    if (!oneDay) {
+      setDayTransition(null);
+      return;
+    }
+    setDayTransition(
+      dayChangeTransition(prev, focusedDay, {
+        oneDay,
+        dayCount: trip.days.length,
+        // Read live: the preference can change mid-session (LandingHeroArt
+        // reads it the same way). Guarded for pre-render, where there is no
+        // window — and no transition anyway, since prev starts null.
+        reducedMotion:
+          typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+      }),
+    );
+    setSlidePhase("rest");
+  }, [focusedDay, oneDay, trip.days.length]);
+  useEffect(() => {
+    if (dayTransition === null) return;
+    // Two frames: the first lets the browser paint the resting track, the
+    // second starts the slide — without the gap the transform change lands
+    // in the same frame and the track jumps instead of sliding.
+    let raf2 = 0;
+    const raf1 = requestAnimationFrame(() => {
+      raf2 = requestAnimationFrame(() => setSlidePhase("sliding"));
+    });
+    // `transitionend` is the settle signal; the timeout is its backstop — a
+    // backgrounded tab never fires transitionend, and a rapid re-swipe can
+    // unmount the track mid-flight. Whichever fires first wins; settling
+    // twice is a harmless no-op.
+    const settle = () => {
+      setDayTransition(null);
+      setSlidePhase("rest");
+    };
+    const fallback = setTimeout(settle, DAY_CHANGE_TRANSITION_MS + 100);
+    return () => {
+      cancelAnimationFrame(raf1);
+      cancelAnimationFrame(raf2);
+      clearTimeout(fallback);
+    };
+  }, [dayTransition]);
+  const onTrackTransitionEnd = (event: React.TransitionEvent<HTMLDivElement>) => {
+    if (event.target !== event.currentTarget || event.propertyName !== "transform") return;
+    setDayTransition(null);
+    setSlidePhase("rest");
+  };
+  // During a transition the track holds both days in trip order; the offset
+  // picks which one shows. Forward DOM is [from, to]: rest at 0, slide to
+  // -100. Backward DOM is [to, from]: rest at -100 (showing `from`, the
+  // second child), slide to 0.
+  const inDayTransition = oneDay && dayTransition !== null;
+  const transitionForward = dayTransition !== null && dayTransition.to > dayTransition.from;
+  const trackOffset = !inDayTransition
+    ? 0
+    : slidePhase === "sliding"
+      ? (transitionForward ? -100 : 0)
+      : (transitionForward ? 0 : -100);
+
   // Every day's live time-overlaps, flattened to one lookup keyed by the stop
   // the warning attaches to — the later one, the stop that would move to fix
   // it — which is where a block's dismiss sits. A stop can be the later half
@@ -845,9 +983,20 @@ export function Board({
           aria-label="Day columns"
           onScroll={onRowScroll}
           onKeyDown={onKeyDown}
+          // The swipe that steps the day on a phone (see the handlers above).
+          // Passive observation only — nothing here preventDefaults, so the
+          // river's taps, holds and scrolls are untouched.
+          onTouchStart={onTouchStartSwipe}
+          onTouchEnd={onTouchEndSwipe}
+          onTouchCancel={onTouchCancelSwipe}
           // **A column on a phone, a scrolling row on a desktop** (link 13).
           // With one full-width day there is nothing to scroll sideways, and the
           // trailing "One more day?" belongs below the day rather than beside it.
+          //
+          // `touch-pan-y` on the phone's column: the browser keeps owning
+          // vertical scrolls while the swipe handlers above watch the
+          // horizontal axis. Nested elements keep their own `touch-action`
+          // (the river grip's `touch-none`, the river's `touch-manipulation`).
           //
           // **A grid on the desktop, not a flex row** (M29 part 2): each day
           // column is a two-row subgrid of it (`.day-columns-row` in
@@ -858,7 +1007,7 @@ export function Board({
           // scrollers").
           className={cn(
             "-mx-1 gap-3 px-1 pt-1 pb-1",
-            oneDay ? "flex flex-col" : "day-columns-row grid auto-cols-max grid-flow-col gap-y-2 overflow-x-auto",
+            oneDay ? "flex flex-col touch-pan-y" : "day-columns-row grid auto-cols-max grid-flow-col gap-y-2 overflow-x-auto",
           )}
         >
           {/* **One day on a phone, every day on a desktop** (M26 link 13). The
@@ -869,13 +1018,22 @@ export function Board({
 
               `focusedDay ?? 0` matches the phone's own default — `TripBoardScreen`
               already focuses day 1 on a phone, so this only ever falls back on a
-              frame before that landed. */}
-          {(oneDay
-            ? trip.days
-                .map((day, index) => [day, index] as const)
-                .filter(([, index]) => index === (focusedDay ?? 0))
-            : trip.days.map((day, index) => [day, index] as const)
-          ).map(([day, index]) => (
+              frame before that landed.
+
+              During a day-change transition the filter keeps both days; the
+              track below slides between them. */}
+          {(() => {
+            const columns = (
+              oneDay
+                ? trip.days
+                    .map((day, index) => [day, index] as const)
+                    .filter(([, index]) =>
+                      dayTransition !== null
+                        ? index === dayTransition.from || index === dayTransition.to
+                        : index === (focusedDay ?? 0),
+                    )
+                : trip.days.map((day, index) => [day, index] as const)
+            ).map(([day, index]) => (
             <Column
               key={day.dayId}
               fullWidth={oneDay}
@@ -944,7 +1102,40 @@ export function Board({
                 )
               }
             />
-          ))}
+          ));
+            // On a phone the columns ride a sliding track; on a desktop they
+            // render as they always have. The track only ever holds real days
+            // (the transition helper refuses ghost indices), and the viewport
+            // is `overflow: clip` — deliberately not `hidden`: `hidden` makes
+            // the track a scroll container, and `useFollowFocusedDay`'s
+            // scrollIntoView would scroll it to centre the incoming header,
+            // fighting the transform. `clip` clips without becoming
+            // scrollable, so the follow only ever moves the page.
+            return oneDay ? (
+              // The ring-2 on the focused column extends 2px past its box; the
+              // clip margin keeps it painting instead of slicing it off. Only
+              // when settled: during the slide it would also let the off-screen
+              // day peek through.
+              <div className={cn("overflow-clip", !inDayTransition && "[overflow-clip-margin:4px]")}>
+                <div
+                  className="flex"
+                  // eslint-disable-next-line no-restricted-syntax -- the slide's offset and duration are computed geometry driven by the shared DAY_CHANGE_TRANSITION_MS constant (also used for the settle timeout); no token can express a JS-driven translateX
+                  style={{
+                    transform: `translateX(${trackOffset}%)`,
+                    transition:
+                      inDayTransition && slidePhase === "sliding"
+                        ? `transform ${DAY_CHANGE_TRANSITION_MS}ms ease-out`
+                        : undefined,
+                  }}
+                  onTransitionEnd={onTrackTransitionEnd}
+                >
+                  {columns}
+                </div>
+              </div>
+            ) : (
+              columns
+            );
+          })()}
           {/* **The days a pending change would add**, after the trip's own, in
               the order they would be appended — so a ghost day is numbered as
               it would be once accepted. On a phone each is one more stop on

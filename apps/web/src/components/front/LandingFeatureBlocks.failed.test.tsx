@@ -21,9 +21,29 @@ describe("LandingFeatureBlocks when the real panels fail to load", () => {
     const logged = vi.spyOn(console, "error").mockImplementation(() => {});
     render(<LandingFeatureBlocks />);
 
-    // The drawings are also what shows while loading, so they are asserted
-    // only once the rejection has landed.
-    await waitFor(() => expect(logged).toHaveBeenCalled());
+    // The drawings are also what shows while loading — `LandingFeaturePanel`
+    // hands the same children to `Suspense` and to the boundary — so the art
+    // cannot tell "rejection landed" from "still loading", and waiting on the
+    // art gates nothing. The log is the only signal, but it must be narrowed
+    // to our error: the spy sees every console.error, and under load React
+    // logs warnings for unrelated reasons (act warnings), so a bare
+    // toHaveBeenCalled() can pass before the boundary caught the rejection and
+    // the assertions run too early. Vitest wraps the mock factory's rejection
+    // in its own error ("There was an error when mocking a module"); our
+    // original error rides along as its `cause`. Nothing else logged here is
+    // an Error with that cause.
+    await waitFor(() => {
+      expect(
+        logged.mock.calls.some((args) =>
+          args.some(
+            (a) =>
+              a instanceof Error &&
+              a.cause instanceof Error &&
+              a.cause.message.includes("Failed to fetch dynamically imported module"),
+          ),
+        ),
+      ).toBe(true);
+    });
     expect(within(screen.getByRole("region", { name: "Relive someone’s perfect day." })).getByText("A perfect Phuket beach day")).toBeDefined();
     expect(within(screen.getByRole("region", { name: "The trip starts before the trip." })).getByText("Pontocho, maybe")).toBeDefined();
     expect(within(screen.getByRole("region", { name: "How you’ll remember it." })).getByText(/best night of the trip/)).toBeDefined();
