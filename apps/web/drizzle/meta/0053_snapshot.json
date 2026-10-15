@@ -2142,7 +2142,7 @@
         },
         "guest_id": {
           "name": "guest_id",
-          "type": "uuid",
+          "type": "text",
           "primaryKey": false,
           "notNull": true
         },
@@ -2185,23 +2185,7 @@
           "notNull": false
         }
       },
-      "indexes": {
-        "trip_guests_trip_idx": {
-          "name": "trip_guests_trip_idx",
-          "columns": [
-            {
-              "expression": "trip_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
+      "indexes": {},
       "foreignKeys": {},
       "compositePrimaryKeys": {
         "trip_guests_trip_id_guest_id_pk": {

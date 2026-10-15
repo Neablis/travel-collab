@@ -16098,7 +16098,7 @@
                   "properties": {
                     "guestId": {
                       "type": "string",
-                      "format": "uuid"
+                      "pattern": "^guest_"
                     },
                     "tripId": {
                       "type": "string",
@@ -16205,7 +16205,7 @@
                   "properties": {
                     "guestId": {
                       "type": "string",
-                      "format": "uuid"
+                      "pattern": "^guest_"
                     },
                     "tripId": {
                       "type": "string",
@@ -16289,7 +16289,7 @@
                   "properties": {
                     "guestId": {
                       "type": "string",
-                      "format": "uuid"
+                      "pattern": "^guest_"
                     },
                     "tripId": {
                       "type": "string",
@@ -16375,7 +16375,7 @@
                   "properties": {
                     "guestId": {
                       "type": "string",
-                      "format": "uuid"
+                      "pattern": "^guest_"
                     },
                     "tripId": {
                       "type": "string",
@@ -16482,7 +16482,7 @@
                         "properties": {
                           "guestId": {
                             "type": "string",
-                            "format": "uuid"
+                            "pattern": "^guest_"
                           },
                           "tripId": {
                             "type": "string",
@@ -16586,7 +16586,7 @@
                   "properties": {
                     "guestId": {
                       "type": "string",
-                      "format": "uuid"
+                      "pattern": "^guest_"
                     },
                     "tripId": {
                       "type": "string",

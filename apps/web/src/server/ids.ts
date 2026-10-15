@@ -33,3 +33,17 @@ const CANONICAL_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f
 export function isUuid(value: string): boolean {
   return CANONICAL_UUID.test(value);
 }
+
+const GUEST_ID = /^guest_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * A guest id (`guest_<uuid>`). Guest ids live in a `text` column — unlike a
+ * `uuid` column Postgres never throws on a malformed one, so this guard is
+ * purely an early-out — but the shape rule is the same as every other id: a
+ * malformed id and an id that names nothing are the same fact to the holder
+ * (not-found), and the `guest_` prefix is what keeps the guest namespace
+ * disjoint from `users.id` by construction.
+ */
+export function isGuestId(value: string): boolean {
+  return GUEST_ID.test(value);
+}

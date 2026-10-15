@@ -5,7 +5,7 @@ import { mayLinkGuest, mayManageGuests, mayUnlinkGuest } from "../accessPolicy";
 import { db, type Queryable } from "../db/client";
 import { tripGuests } from "../db/schema";
 import { getTripDetail } from "../projections";
-import { isUuid } from "../ids";
+import { isGuestId, isUuid } from "../ids";
 import type { AccessResult } from "./invites";
 import { bumpAccessRev, effectiveMembers } from "./members";
 
@@ -30,7 +30,8 @@ function toGuest(row: GuestRow): Guest {
     travelling: row.travelling,
     linkedUserId: row.linkedUserId,
     createdBy: row.createdBy,
-    createdAt: row.createdAt,
+    // One shape on the wire (KI-53): `mode: "date"` above, ISO here.
+    createdAt: row.createdAt.toISOString(),
   };
 }
 
@@ -52,7 +53,7 @@ export async function listGuests(tripId: string): Promise<Guest[]> {
 }
 
 async function readGuest(tx: Queryable, tripId: string, guestId: string): Promise<GuestRow | undefined> {
-  if (!isUuid(guestId)) return undefined;
+  if (!isGuestId(guestId)) return undefined;
   const rows = await tx
     .select()
     .from(tripGuests)
@@ -64,7 +65,10 @@ async function readGuest(tx: Queryable, tripId: string, guestId: string): Promis
  * Name a guest on a trip (guests spec P1). The name is trimmed; empty or over
  * 120 chars is `invalid`, not a silent store. Owner or editor — "anyone with
  * edit" (Mitchell), so the policy is `mayManageGuests` rather than the route's
- * role gate, which a later internal caller would not pass through.
+ * role gate, which a later internal caller would not pass through. The id is
+ * minted as `guest_<uuid>` (Mitchell): the prefix keeps the guest namespace
+ * disjoint from `users.id` wherever the id drops into person-keyed fields
+ * later (participants picks, the cost overlay).
  */
 export async function addGuest(
   tripId: string,
@@ -81,10 +85,9 @@ export async function addGuest(
     if (!mayManageGuests(actorId, members)) {
       return { ok: false, error: { code: "forbidden", message: "Only the trip's owner or an editor can manage guests." } };
     }
-    const now = new Date().toISOString();
     const [row] = await tx
       .insert(tripGuests)
-      .values({ tripId, guestId: randomUUID(), name: name.trim(), createdBy: actorId, createdAt: now })
+      .values({ tripId, guestId: `guest_${randomUUID()}`, name: name.trim(), createdBy: actorId, createdAt: new Date() })
       .returning();
     await bumpAccessRev(tx, tripId);
     return { ok: true, value: toGuest(row!) };
@@ -105,6 +108,12 @@ export async function updateGuest(
   if (patch.name !== undefined && !validName(patch.name)) {
     return { ok: false, error: { code: "invalid", message: "A guest needs a name (1-120 characters)." } };
   }
+  // An empty patch moves nothing: refuse before the transaction, the way the
+  // route's `UpdateGuestInput` refine does, so a save handler that does not
+  // diff cannot bump `accessRev` for a no-op.
+  if (patch.name === undefined && patch.travelling === undefined) {
+    return { ok: false, error: { code: "invalid", message: "Nothing to update." } };
+  }
   const detail = await getTripDetail(tripId);
   if (detail === null || detail.status === "deleted") return NO_TRIP;
   return db.transaction(async (tx): Promise<AccessResult<Guest>> => {
@@ -119,7 +128,7 @@ export async function updateGuest(
       .set({
         ...(patch.name === undefined ? {} : { name: patch.name.trim() }),
         ...(patch.travelling === undefined ? {} : { travelling: patch.travelling }),
-        updatedAt: new Date().toISOString(),
+        updatedAt: new Date(),
       })
       .where(and(eq(tripGuests.tripId, tripId), eq(tripGuests.guestId, row.guestId)))
       .returning();
@@ -195,7 +204,7 @@ export async function linkGuest(
     if (row.linkedUserId === userId) return { ok: true, value: toGuest(row) };
     const [updated] = await tx
       .update(tripGuests)
-      .set({ linkedUserId: userId, updatedAt: new Date().toISOString() })
+      .set({ linkedUserId: userId, updatedAt: new Date() })
       .where(and(eq(tripGuests.tripId, tripId), eq(tripGuests.guestId, row.guestId)))
       .returning();
     await bumpAccessRev(tx, tripId);
@@ -226,7 +235,7 @@ export async function unlinkGuest(
     if (row.linkedUserId === null) return { ok: true, value: toGuest(row) };
     const [updated] = await tx
       .update(tripGuests)
-      .set({ linkedUserId: null, updatedAt: new Date().toISOString() })
+      .set({ linkedUserId: null, updatedAt: new Date() })
       .where(and(eq(tripGuests.tripId, tripId), eq(tripGuests.guestId, row.guestId)))
       .returning();
     await bumpAccessRev(tx, tripId);

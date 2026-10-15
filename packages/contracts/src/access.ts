@@ -86,7 +86,10 @@ export type ChangeRoleInput = z.infer<typeof ChangeRoleInput>;
 // no D2 "missing means travelling" backfill here the way members have: guests
 // are opt-in, so the table's rows are the whole list.
 export const Guest = z.object({
-  guestId: z.string().uuid(),
+  // `guest_` pins the namespace: `users.id` is opaque text (often a UUID),
+  // and guest ids drop into person-keyed fields (`participants`, cost
+  // overlays), so the prefix makes the two disjoint by construction.
+  guestId: z.string().regex(/^guest_/),
   tripId: z.string().uuid(),
   name: z.string().min(1).max(120),
   travelling: z.boolean(),

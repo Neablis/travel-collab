@@ -505,17 +505,18 @@ export const tripGuests = pgTable(
   "trip_guests",
   {
     tripId: uuid("trip_id").notNull(),
-    guestId: uuid("guest_id").notNull(),
+    guestId: text("guest_id").notNull(),
     name: text("name").notNull(),
     travelling: boolean("travelling").notNull().default(true),
     linkedUserId: text("linked_user_id"),
     createdBy: text("created_by").notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+    // `mode: "date"`, not `"string"` — the newer-table convention (KI-53).
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
       .notNull()
       .defaultNow(),
-    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }),
   },
-  (t) => [primaryKey({ columns: [t.tripId, t.guestId] }), index("trip_guests_trip_idx").on(t.tripId)],
+  (t) => [primaryKey({ columns: [t.tripId, t.guestId] })],
 );
 
 // The events poll's `accessRev` (travellers spec D11, W5): one counter per

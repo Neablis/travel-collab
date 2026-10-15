@@ -254,7 +254,7 @@ describe("InviteLanding", () => {
 
 describe("Guest", () => {
   const guest = {
-    guestId: "2c4e6a80-1111-4222-8333-444455556666",
+    guestId: "guest_2c4e6a80-1111-4222-8333-444455556666",
     tripId,
     name: "Baby",
     travelling: true,

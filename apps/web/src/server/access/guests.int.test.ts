@@ -61,7 +61,7 @@ describe("addGuest", () => {
       createdBy: OWNER,
     });
     expect(added.ok && added.value.guestId).toMatch(
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
+      /^guest_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
     );
   });
 
@@ -152,6 +152,21 @@ describe("updateGuest", () => {
       ok: false,
       error: { code: "not-found" },
     });
+  });
+
+  it("refuses an empty patch without moving the revision", async () => {
+    const tripId = await seedTrip();
+    const added = await addGuest(tripId, "Baby", OWNER);
+    const guestId = added.ok ? added.value.guestId : "";
+    const before = await accessRevFor(tripId);
+    // A save handler that does not diff would land here; the route's
+    // `UpdateGuestInput` refine 400s it, and this hardens the server
+    // function the same way for future internal callers.
+    expect(await updateGuest(tripId, guestId, {}, OWNER)).toMatchObject({
+      ok: false,
+      error: { code: "invalid" },
+    });
+    expect(await accessRevFor(tripId)).toBe(before);
   });
 });
 
@@ -351,5 +366,23 @@ describe("accessRevFor (D11)", () => {
     const detail = (await getTripDetail(tripId))!;
     expect(await removeMember(tripId, VIEW, detail.members)).toBe("removed");
     expect((await listGuests(tripId))[0]).toMatchObject({ linkedUserId: VIEW });
+  });
+});
+
+// KI-53: `Guest.createdAt` must come back in one shape from every call —
+// Postgres's rendering (`2026-10-15 18:55:00.123456+00`) and ISO-8601
+// (`2026-10-15T18:55:00.123Z`) are different answers. `mode: "date"` plus
+// one `.toISOString()` in `toGuest` is what makes these equal; asserting
+// the ISO literal is what stops it silently coming back.
+describe("guest timestamps have one shape", () => {
+  const ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
+
+  it("returns the same createdAt from the write path and the read path", async () => {
+    const tripId = await seedTrip();
+    const added = await addGuest(tripId, "Baby", OWNER);
+    expect(added.ok).toBe(true);
+    const createdAt = added.ok ? added.value.createdAt : "";
+    expect(createdAt).toMatch(ISO);
+    expect((await listGuests(tripId))[0]!.createdAt).toBe(createdAt);
   });
 });
