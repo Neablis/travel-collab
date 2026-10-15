@@ -15,6 +15,7 @@ import { toClockLabel } from "@/lib/time";
 import { useEditor } from "@/components/trip/context/EditorHost";
 import { chipModel, cityFor } from "@/lib/dayChips";
 import { centralDayIndex, READING_LINE, stepDay } from "@/components/trip/centralDay";
+import { classifyDaySwipe, type SwipePoint } from "./daySwipe";
 import {
   useDayScrollSpy,
   useFollowFocusedDay,
@@ -525,6 +526,65 @@ export function Board({
     [callbacks, focusedDay, trip.days.length],
   );
 
+  // **A swipe steps the day on a phone** (Mitchell, 2026-10-14: on the
+  // one-day board the day chips are a reach away in the top bar, and the
+  // instinct is to swipe). The same `stepDay` + `onSelectDay` path as the
+  // arrow keys above — including the clamped ends — so this is a second
+  // input on one behavior, not a second behavior.
+  //
+  // Only ever observed, never prevented: the handlers below do not call
+  // `preventDefault`, so taps, scrolls and the river's own gestures are
+  // untouched. What makes a swipe a swipe is `classifyDaySwipe` — quick
+  // (under 300ms, so the river's 450ms hold-to-drag can never qualify),
+  // mostly horizontal, at least 24px. Touch only: React's touch events never
+  // fire for a mouse or pen, so desktop dragging is unaffected by construction.
+  const swipeStart = useRef<(SwipePoint & { id: number }) | null>(null);
+  const onTouchStartSwipe = useCallback(
+    (event: React.TouchEvent) => {
+      if (!oneDay) return;
+      // The phone's end-of-day row (the Unscheduled rack, M39 Part 2) lives
+      // in this subtree, and its card strip scrolls sideways: a swipe there
+      // is the strip's — the same exclusion the arrow handler above makes.
+      const target = event.target as HTMLElement | null;
+      if (target !== null && endOfDayRef.current?.contains(target)) return;
+      // One finger for the whole sequence: a second finger (pinch, or a
+      // finger arriving mid-swipe) voids it.
+      if (event.touches.length !== 1) {
+        swipeStart.current = null;
+        return;
+      }
+      const touch = event.touches[0];
+      if (touch === undefined) {
+        swipeStart.current = null;
+        return;
+      }
+      swipeStart.current = { x: touch.clientX, y: touch.clientY, t: performance.now(), id: touch.identifier };
+    },
+    [oneDay],
+  );
+  const onTouchEndSwipe = useCallback(
+    (event: React.TouchEvent) => {
+      if (!oneDay) return;
+      const start = swipeStart.current;
+      swipeStart.current = null;
+      if (start === null) return;
+      // The finger that lifted must be the one that landed: with two fingers
+      // down and one lifting, `changedTouches` names the leaver.
+      const touch = Array.from(event.changedTouches).find((t) => t.identifier === start.id);
+      if (touch === undefined) return;
+      const delta = classifyDaySwipe(start, { x: touch.clientX, y: touch.clientY, t: performance.now() });
+      if (delta === 0) return;
+      const next = stepDay(focusedDay, delta, trip.days.length);
+      // Clamped like the arrows: swiping past either end is a no-op, not a wrap.
+      if (next === null || next === focusedDay) return;
+      callbacks.onSelectDay(next);
+    },
+    [oneDay, focusedDay, trip.days.length, callbacks],
+  );
+  const onTouchCancelSwipe = useCallback(() => {
+    swipeStart.current = null;
+  }, []);
+
   // Every day's live time-overlaps, flattened to one lookup keyed by the stop
   // the warning attaches to — the later one, the stop that would move to fix
   // it — which is where a block's dismiss sits. A stop can be the later half
@@ -845,9 +905,20 @@ export function Board({
           aria-label="Day columns"
           onScroll={onRowScroll}
           onKeyDown={onKeyDown}
+          // The swipe that steps the day on a phone (see the handlers above).
+          // Passive observation only — nothing here preventDefaults, so the
+          // river's taps, holds and scrolls are untouched.
+          onTouchStart={onTouchStartSwipe}
+          onTouchEnd={onTouchEndSwipe}
+          onTouchCancel={onTouchCancelSwipe}
           // **A column on a phone, a scrolling row on a desktop** (link 13).
           // With one full-width day there is nothing to scroll sideways, and the
           // trailing "One more day?" belongs below the day rather than beside it.
+          //
+          // `touch-pan-y` on the phone's column: the browser keeps owning
+          // vertical scrolls while the swipe handlers above watch the
+          // horizontal axis. Nested elements keep their own `touch-action`
+          // (the river grip's `touch-none`, the river's `touch-manipulation`).
           //
           // **A grid on the desktop, not a flex row** (M29 part 2): each day
           // column is a two-row subgrid of it (`.day-columns-row` in
@@ -858,7 +929,7 @@ export function Board({
           // scrollers").
           className={cn(
             "-mx-1 gap-3 px-1 pt-1 pb-1",
-            oneDay ? "flex flex-col" : "day-columns-row grid auto-cols-max grid-flow-col gap-y-2 overflow-x-auto",
+            oneDay ? "flex flex-col touch-pan-y" : "day-columns-row grid auto-cols-max grid-flow-col gap-y-2 overflow-x-auto",
           )}
         >
           {/* **One day on a phone, every day on a desktop** (M26 link 13). The
