@@ -31,9 +31,11 @@ import {
   travellerIds,
   TripCommand,
   TripWeatherResponse,
+  UpdateGuestInput,
   UpdatePageInput,
   type ChatMessage,
   type ContentReport,
+  type Guest,
   type Page,
   type Review,
   type ReviewSummary,
@@ -217,6 +219,8 @@ export function makeTripHandlers(
     suggestions?: SuggestionChange[];
     /** Named snapshots already saved when the suite starts, newest first (M40). */
     snapshots?: TripSnapshot[];
+    /** Guests already on the trip when the suite starts, oldest first. */
+    guests?: Guest[];
   },
 ) {
   let detail = structuredClone(initial);
@@ -240,6 +244,17 @@ export function makeTripHandlers(
   const viewerId = options?.viewerId ?? (role === "owner" ? detail.members[0]?.userId : undefined);
   // The trip's access counter (W5): "0" until a member write here moves it.
   let accessRev = 0;
+  // The trip's guests (guests spec P1), stateful across the v1 reads and
+  // writes below — the People section updates from each write's answer, and
+  // the editor's sheet re-reads on the access revision the writes move.
+  let guests: Guest[] = structuredClone(options?.guests ?? []);
+  let guestSeq = guests.length;
+  const v1Fail = (status: number, message: string) =>
+    HttpResponse.json({ error: { code: status === 404 ? "not-found" : status === 403 ? "forbidden" : "invalid-request", message } }, { status });
+  // mayManageGuests, client-side of the server's accessPolicy: the owner or
+  // an editor. The v1 routes refuse the same way; the mock meets the refusal
+  // so a UI built against it never sees a 200 where the route says 403.
+  const mayManageGuests = role === "owner" || role === "editor";
   return [
     http.get("/api/trips/:tripId", ({ params }) =>
       params.tripId === detail.tripId
@@ -505,6 +520,86 @@ export function makeTripHandlers(
         });
       }),
     ),
+    // The People section's guest reads and writes: the v1 endpoints part 1
+    // added (`/api/v1/trips/:tripId/guests…`). The mock keeps the list
+    // stateful across them, and refuses as the routes refuse — in the v1
+    // envelope `{ error: { code, message } }`, which is what the client's
+    // `readV1Json` parses. Each real change moves `accessRev`, as the
+    // server's writes do (a no-op link or unlink moves nothing).
+    http.get("/api/v1/trips/:tripId/guests", () =>
+      HttpResponse.json({ items: guests, nextCursor: null }),
+    ),
+    http.post("/api/v1/trips/:tripId/guests", async ({ request }) => {
+      if (!mayManageGuests) return v1Fail(403, "Only the trip's owner or an editor can manage guests.");
+      const body = (await request.json().catch(() => null)) as { name?: unknown } | null;
+      const name = typeof body?.name === "string" ? body.name.trim() : "";
+      if (name.length === 0 || name.length > 120) return v1Fail(400, "A guest needs a name (1-120 characters).");
+      accessRev += 1;
+      const guest: Guest = {
+        guestId: `guest_mock_${(guestSeq += 1)}`,
+        tripId: detail.tripId,
+        name,
+        travelling: true,
+        linkedUserId: null,
+        createdBy: viewerId ?? "mock",
+        createdAt: new Date().toISOString(),
+      };
+      guests = [...guests, guest];
+      return HttpResponse.json(guest);
+    }),
+    ...(["patch", "delete"] as const).map((method) =>
+      http[method]("/api/v1/trips/:tripId/guests/:guestId", async ({ params, request }) => {
+        if (!mayManageGuests) return v1Fail(403, "Only the trip's owner or an editor can manage guests.");
+        const guestId = String(params.guestId);
+        const guest = guests.find((g) => g.guestId === guestId);
+        if (guest === undefined) return v1Fail(404, "That guest is not on this trip.");
+        if (method === "delete") {
+          accessRev += 1;
+          guests = guests.filter((g) => g.guestId !== guestId);
+          return HttpResponse.json(guest);
+        }
+        const patch = UpdateGuestInput.safeParse(await request.json().catch(() => null));
+        if (!patch.success) return v1Fail(400, "Nothing to update.");
+        accessRev += 1;
+        const updated: Guest = {
+          ...guest,
+          name: patch.data.name ?? guest.name,
+          travelling: patch.data.travelling ?? guest.travelling,
+        };
+        guests = guests.map((g) => (g.guestId === guestId ? updated : g));
+        return HttpResponse.json(updated);
+      }),
+    ),
+    http.post("/api/v1/trips/:tripId/guests/:guestId/link", async ({ params, request }) => {
+      const guestId = String(params.guestId);
+      const guest = guests.find((g) => g.guestId === guestId);
+      if (guest === undefined) return v1Fail(404, "That guest is not on this trip.");
+      const body = (await request.json().catch(() => null)) as { userId?: unknown } | null;
+      const userId = typeof body?.userId === "string" ? body.userId : "";
+      // mayLinkGuest: the owner for anyone, any other member for themselves.
+      if (role !== "owner" && userId !== viewerId) return v1Fail(403, "Only the trip's owner can link a guest for someone else.");
+      if (!detail.members.some((m) => m.userId === userId)) return v1Fail(404, "That person is not on this trip.");
+      if (guest.linkedUserId !== null && guest.linkedUserId !== userId) {
+        return v1Fail(400, "That guest is already linked to someone else. Unlink it first.");
+      }
+      if (guest.linkedUserId === userId) return HttpResponse.json(guest);
+      accessRev += 1;
+      const updated: Guest = { ...guest, linkedUserId: userId };
+      guests = guests.map((g) => (g.guestId === guestId ? updated : g));
+      return HttpResponse.json(updated);
+    }),
+    http.post("/api/v1/trips/:tripId/guests/:guestId/unlink", ({ params }) => {
+      // mayUnlinkGuest: owner only.
+      if (role !== "owner") return v1Fail(403, "Only the trip's owner can unlink a guest.");
+      const guestId = String(params.guestId);
+      const guest = guests.find((g) => g.guestId === guestId);
+      if (guest === undefined) return v1Fail(404, "That guest is not on this trip.");
+      if (guest.linkedUserId === null) return HttpResponse.json(guest);
+      accessRev += 1;
+      const updated: Guest = { ...guest, linkedUserId: null };
+      guests = guests.map((g) => (g.guestId === guestId ? updated : g));
+      return HttpResponse.json(updated);
+    }),
     // Overview also lists the trip's notebooks. Empty by default and NOT a
     // duplicate of `makePagesHandlers`, which is the stateful one a notebook
     // suite drives; no suite spreads both, checked before adding this.

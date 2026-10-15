@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { travellerIds, type ActivityKind, type ActivityMode, type ActivityTag, type ActivityView, type Anchor, type AvatarKey, type DistanceUnit, type Location, type Money, type NearbyStop, type PendingReason, type PersonColor, type TimeWindow } from "@tc/contracts";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PersonChip } from "@/components/ui/person-chip";
 import { FormField } from "@/components/ui/form-field";
@@ -79,6 +80,19 @@ export type NamedMember = {
   color?: PersonColor | null;
 };
 
+/**
+ * A trip guest as the attribution controls show them (guests spec P1): the
+ * `guest_<uuid>` id is the value, `name` the label. A guest has no account,
+ * so there is no avatar or colour — the chip draws their initials, and the
+ * badge says what they are. `linkedUserId` is who claimed the record, or
+ * null; a claimed guest counts as their member wherever heads are counted
+ * (`travellerIds`'s dedup), while picks always name the `guestId`.
+ */
+export type NamedGuest = Pick<NamedMember, "name" | "travelling"> & {
+  guestId: string;
+  linkedUserId: string | null;
+};
+
 export type ActivityDayOption = { dayId: string; label: string; existing: Slot[] };
 
 /** The "How long" value for a length drawn on the river that is none of the five. */
@@ -125,6 +139,8 @@ export function ActivityEditor({
   defaultDayId,
   tripCurrency = "USD",
   members = [],
+  guests = [],
+  guestNames,
   nearbyStops = [],
   onSave,
   onCancel,
@@ -152,6 +168,21 @@ export function ActivityEditor({
    * the rule the notebook's balances use, so the two never disagree.
    */
   members?: NamedMember[];
+  /**
+   * The trip's guests (guests spec P1), offered beside the members above.
+   * Defaulted to `[]` like `members`, for the same reason: a caller that
+   * fetches none sees the form exactly as it was. A claimed guest counts as
+   * their member in the headcount (`travellerIds`'s dedup), but picks always
+   * name the `guestId` — the id the cost path prices.
+   */
+  guests?: NamedGuest[];
+  /**
+   * Names the picker has seen for guests, including ones since removed. A
+   * picked guest who was removed shows under their name when it is known,
+   * and under "Former member" when it is not — the sheet keeps every name
+   * its guest reads ever saw, because a removed guest's record is gone.
+   */
+  guestNames?: ReadonlyMap<string, string>;
   /**
    * Stops from other people's published days, ranked for this day (M34).
    * Create mode only (D12); defaulted to `[]`, which renders nothing at all,
@@ -218,14 +249,19 @@ export function ActivityEditor({
   const [cost, setCost] = useState<Money | null>(initial?.cost ?? null);
   // Nobody picked is every traveller (travellers spec D1); with no member list
   // to hand (a caller that passes none) `stopHeadcount` reads it as the one
-  // person who is here.
-  const travelling = new Set(travellerIds(members));
+  // person who is here. Guests ride the same set through `travellerIds`'s
+  // second argument: a claimed guest counts as their member, so the picker
+  // and the line below price exactly what the server's overlay does.
+  const travelling = new Set(travellerIds(members, guests));
   const stopLine = stopTotalLine({ cost, participants }, travelling.size, tripCurrency);
   // Who is in offers the travellers first and everyone else after them, under
   // "Not travelling" (D6): a non-traveller may still join one dinner, and once
   // picked they count, so the chip says so — the line above just went up.
   // Booked by offers every member as they come (D7): a non-traveller can pay.
+  // Guests are never Booked by (guests spec P1).
   const notTravelling = members.filter((member) => !travelling.has(member.userId));
+  const idleGuests = guests.filter((guest) => guest.travelling === false);
+  const goingGuests = guests.filter((guest) => guest.travelling !== false);
   const personChip = (member: NamedMember) => {
     const on = participants.includes(member.userId);
     return (
@@ -254,6 +290,39 @@ export function ActivityEditor({
       </Button>
     );
   };
+  // A guest's chip: the `guestId` is the value (participants is `string[]`,
+  // so no schema change), the name the label. No avatar — a guest has no
+  // account, so there is nothing to draw but their initials — and the badge
+  // says what they are, the way the People panel does.
+  const guestChip = (guest: NamedGuest) => {
+    const on = participants.includes(guest.guestId);
+    return (
+      <Button
+        key={guest.guestId}
+        variant={on ? "primary" : "secondary"}
+        size="sm"
+        aria-pressed={on}
+        className="rounded-full pr-3 pl-1"
+        onClick={() =>
+          setParticipants((current) =>
+            current.includes(guest.guestId)
+              ? current.filter((id) => id !== guest.guestId)
+              : [...current, guest.guestId],
+          )
+        }
+      >
+        <PersonChip name={guest.name} avatar={null} color={null} size="xs" ring />
+        {guest.name}{" "}
+        <Badge className="shrink-0 px-1.5 py-0 font-medium">Guest</Badge>
+        {on && guest.travelling === false && (
+          <>
+            {" "}
+            <span className="opacity-80">(not travelling)</span>
+          </>
+        )}
+      </Button>
+    );
+  };
   // Ids this stop names for people who have since LEFT the trip. The read path
   // keeps them (contracts' detail.ts) and `stopHeadcount` still prices them, so
   // a picker that listed members only hid a person the line was charging for,
@@ -262,9 +331,21 @@ export function ActivityEditor({
   // stop arrived with, and each is rendered while it is still picked, so one
   // removed is never offered back. With no member list there is no telling a
   // departed id from an unknown one, so nothing is called departed.
-  const memberIds = new Set(members.map((member) => member.userId));
+  const knownIds = new Set([...members.map((member) => member.userId), ...guests.map((guest) => guest.guestId)]);
   const departedIds =
-    members.length === 0 ? [] : [...new Set(initial?.participants ?? [])].filter((id) => !memberIds.has(id));
+    members.length === 0 && guests.length === 0
+      ? []
+      : [...new Set(initial?.participants ?? [])].filter((id) => !knownIds.has(id));
+  // A picked guest since removed: their name if the picker ever saw it
+  // (`guestNames`), else the same "Former member" fallback a departed member
+  // gets. A removed guest did not leave the trip, so the parenthetical says so.
+  const departedLabel = (id: string, index: number) => ({
+    name:
+      (id.startsWith("guest_") ? guestNames?.get(id) : undefined) ??
+      (departedIds.length > 1 ? `Former member ${index + 1}` : "Former member"),
+    note: id.startsWith("guest_") ? "(removed)" : "(left the trip)",
+  });
+  const memberIds = new Set(members.map((member) => member.userId));
   const departedBookedBy = members.length > 0 && bookedBy !== null && !memberIds.has(bookedBy) ? bookedBy : null;
   const booker = members.find((member) => member.userId === bookedBy);
   // Kept while the kind is switched away, so switching back does not lose
@@ -601,14 +682,16 @@ export function ActivityEditor({
         <div className="flex items-baseline justify-between gap-2.5">
           <Text variant="muted">Who is in</Text>
         </div>
-        {members.length === 0 ? (
+        {members.length === 0 && guests.length === 0 ? (
           <Text variant="muted">Invite someone to the trip to say who a stop is for.</Text>
         ) : (
           <>
             <div role="group" aria-label="Who is going" className="flex flex-wrap gap-1.5">
               {members.filter((member) => travelling.has(member.userId)).map(personChip)}
-              {departedIds.map((id, index) =>
-                participants.includes(id) ? (
+              {goingGuests.map(guestChip)}
+              {departedIds.map((id, index) => {
+                const label = departedLabel(id, index);
+                return participants.includes(id) ? (
                   <Button
                     key={id}
                     variant="primary"
@@ -617,16 +700,16 @@ export function ActivityEditor({
                     className="rounded-full px-3"
                     onClick={() => setParticipants((current) => current.filter((p) => p !== id))}
                   >
-                    {departedIds.length > 1 ? `Former member ${index + 1}` : "Former member"}{" "}
-                    <span className="opacity-80">(left the trip)</span>
+                    {label.name} <span className="opacity-80">{label.note}</span>
                   </Button>
-                ) : null,
-              )}
-              {notTravelling.length > 0 && (
+                ) : null;
+              })}
+              {(notTravelling.length > 0 || idleGuests.length > 0) && (
                 <div className="flex basis-full flex-col gap-1.5 pt-1">
                   <Text variant="muted">Not travelling</Text>
                   <div role="group" aria-label="Not travelling" className="flex flex-wrap gap-1.5">
                     {notTravelling.map(personChip)}
+                    {idleGuests.map(guestChip)}
                   </div>
                 </div>
               )}

@@ -9,6 +9,7 @@ import {
   ChatPage,
   CoverCandidate,
   CoverSearchResponse,
+  Guest,
   InviteLanding,
   NearbyStopsResponse,
   PageDoc,
@@ -39,6 +40,7 @@ import {
   TripSuggestionsResponse,
   ListedTripSummary,
   PreferencesResponse,
+  UpdateGuestInput,
   UpdateUserPreferences,
   UserPreferences,
   type AssistantProposal,
@@ -608,6 +610,100 @@ export function changeMemberRole(
 /** KI-65's owner-only removal. Leaving a trip yourself is `leaveTrip`. */
 export function removeMember(tripId: string, userId: string): Promise<ApiResult<TripAccess>> {
   return writeMember(tripId, userId, { method: "DELETE" });
+}
+
+// ── Trip guests (guests spec P1) ─────────────────────────────────────────────
+// The public v1 endpoints, reached with the session — a session holds every
+// scope (`server/public-api/route.ts`). Two envelope differences from the
+// internal routes above: a refusal is `{ error: { code, message } }`, and the
+// list is a collection page `{ items, nextCursor }`.
+
+/**
+ * The v1 failure envelope. `readJson` would print `[object Object]` for these,
+ * so the guest helpers read their own.
+ */
+async function readV1Json<T>(res: Response, parse: (data: unknown) => T): Promise<ApiResult<T>> {
+  if (!res.ok) {
+    const data = (await res.json().catch(() => null)) as { error?: { code?: string; message?: string } } | null;
+    return {
+      ok: false,
+      error: { status: res.status, message: data?.error?.message ?? res.statusText, code: data?.error?.code },
+    };
+  }
+  return { ok: true, value: parse(await res.json()) };
+}
+
+/**
+ * The trip's named guests, oldest first. One page: a trip's guest list is a
+ * handful of names, never more than a page carries.
+ */
+export async function fetchGuests(tripId: string): Promise<ApiResult<Guest[]>> {
+  try {
+    const res = await fetch(apiUrl(`/api/v1/trips/${tripId}/guests`));
+    return await readV1Json(res, (data) => Guest.array().parse((data as { items: unknown }).items));
+  } catch (err) {
+    return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
+  }
+}
+
+/**
+ * The guest writes, each answered with the guest it changed. A guest moves
+ * the trip's costed detail — part 2 counts them toward per-person totals —
+ * so like the member writes they clear the trip's cached reads in a `finally`.
+ */
+async function writeGuest(tripId: string, path: string, init: RequestInit): Promise<ApiResult<Guest>> {
+  const scope = tripKeys.all(tripId);
+  beginWrite(scope);
+  try {
+    const res = await fetch(apiUrl(path), init);
+    return await readV1Json(res, (data) => Guest.parse(data));
+  } catch (err) {
+    return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
+  } finally {
+    endWrite(scope);
+  }
+}
+
+function guestPath(tripId: string, guestId?: string): string {
+  const base = `/api/v1/trips/${tripId}/guests`;
+  return guestId === undefined ? base : `${base}/${encodeURIComponent(guestId)}`;
+}
+
+const jsonBody = (body: unknown): RequestInit => ({
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify(body),
+});
+
+/** Name a guest on the trip. The name is trimmed server-side; 1-120 chars. */
+export function createGuest(tripId: string, name: string): Promise<ApiResult<Guest>> {
+  return writeGuest(tripId, guestPath(tripId), jsonBody({ name }));
+}
+
+/** Rename a guest, or change whether they are travelling. */
+export function updateGuest(tripId: string, guestId: string, patch: UpdateGuestInput): Promise<ApiResult<Guest>> {
+  return writeGuest(tripId, guestPath(tripId, guestId), { ...jsonBody(patch), method: "PATCH" });
+}
+
+/**
+ * Remove a guest from the trip. Stops that picked them keep the pick, the
+ * way a departed member's picks stay (ADR-065 D6).
+ */
+export function removeGuest(tripId: string, guestId: string): Promise<ApiResult<Guest>> {
+  return writeGuest(tripId, guestPath(tripId, guestId), { method: "DELETE" });
+}
+
+/**
+ * Claim a guest record for a member. The owner may claim for anyone; any
+ * other member may claim for themselves only (the self-claim flow).
+ */
+export function linkGuest(tripId: string, guestId: string, userId: string): Promise<ApiResult<Guest>> {
+  return writeGuest(tripId, `${guestPath(tripId, guestId)}/link`, jsonBody({ userId }));
+}
+
+/** Unclaim a guest record. Owner only. */
+export function unlinkGuest(tripId: string, guestId: string): Promise<ApiResult<Guest>> {
+  return writeGuest(tripId, `${guestPath(tripId, guestId)}/unlink`, { method: "POST" });
 }
 
 /**

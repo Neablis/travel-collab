@@ -1,14 +1,14 @@
 "use client";
 
-import { travellerIds, type ActivityView, type NearbyStop } from "@tc/contracts";
-import { useEffect, useState } from "react";
+import { travellerIds, type ActivityView, type Guest, type NearbyStop } from "@tc/contracts";
+import { useEffect, useRef, useState } from "react";
 import { personNames } from "@tc/pages";
 import { Banner } from "@/components/ui/banner";
 import { Sheet } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { DataText } from "@/components/ui/data-text";
 import { Text } from "@/components/ui/text";
-import { ActivityEditor, type ActivityDayOption, type ActivityFormValue } from "@/components/board/ActivityEditor";
+import { ActivityEditor, type ActivityDayOption, type ActivityFormValue, type NamedGuest } from "@/components/board/ActivityEditor";
 import { addActivityCommand } from "@/components/board/activityCommands";
 import { editActivityCommands } from "@/components/board/editActivityCommands";
 import { ActivityConflicts } from "@/components/trip/editor/ActivityConflicts";
@@ -18,7 +18,7 @@ import { peopleNamesOf, personasOf } from "@/components/pages/people";
 import { dayLabel } from "@/lib/dates";
 import { toClockRange } from "@/lib/time";
 import { useTimeFormat } from "@/components/account/PreferencesProvider";
-import { fetchNearbyStops } from "@/lib/apiClient";
+import { fetchGuests, fetchNearbyStops } from "@/lib/apiClient";
 import { formatMoney } from "@/lib/formatMoney";
 import { stopTotalLine } from "@/lib/cost";
 import { displayPlace, legEnd } from "@/lib/place";
@@ -163,6 +163,41 @@ export function ActivityEditorSheet() {
     color: personas?.[userId]?.color,
   }));
 
+  // Guests are Access data read beside the members (guests spec P1), through
+  // the same v1 endpoints the public API publishes — a session holds every
+  // scope, so no token is involved. Every guest write bumps `accessRev`
+  // (server/access/guests.ts), which the board's poll turns into a fresh
+  // access read; re-reading the guests on the rev keeps the picker's chips
+  // with whoever the People panel just added, without this sheet polling.
+  // Only while the sheet is open: a viewer never sees this form.
+  const accessRev = access?.accessRev;
+  const [guests, setGuests] = useState<Guest[] | null>(null);
+  // A guest removed while this sheet is open is gone from the fetched list,
+  // but a stop may still name them: every name the reads ever saw is kept so
+  // the departed fallback can print it rather than "Former member".
+  const guestNames = useRef(new Map<string, string>());
+  useEffect(() => {
+    if (!open || readOnly || tripId === undefined) {
+      setGuests(null);
+      return;
+    }
+    let current = true;
+    void fetchGuests(tripId).then((result) => {
+      if (!current || !result.ok) return;
+      for (const guest of result.value) guestNames.current.set(guest.guestId, guest.name);
+      setGuests(result.value);
+    });
+    return () => {
+      current = false;
+    };
+  }, [open, readOnly, tripId, accessRev]);
+  const namedGuests: NamedGuest[] = (guests ?? []).map((guest) => ({
+    guestId: guest.guestId,
+    name: guest.name,
+    travelling: guest.travelling,
+    linkedUserId: guest.linkedUserId,
+  }));
+
   const dayOptions: ActivityDayOption[] =
     activeTrip?.days.map((day, index) => ({
       dayId: day.dayId,
@@ -286,6 +321,10 @@ export function ActivityEditorSheet() {
           // Named by `personNames` over `PeopleProvider`'s names (mounted by
           // TripBoardScreen): "Traveler 2" until they land, never the id.
           members={namedMembers}
+          // Guests, fetched above on the trip's access revision; the editor
+          // counts a claimed guest as their member and writes `guestId` picks.
+          guests={namedGuests}
+          guestNames={guestNames.current}
           nearbyStops={nearbyStops}
           onSave={handleSave}
           onCancel={close}
