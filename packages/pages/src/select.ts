@@ -8,6 +8,7 @@ import {
   type DatesRef,
   type DayRef,
   type FILTER_VALUE_SCHEMAS,
+  type Guest,
   type TripDetail,
   type TripGlobals,
   type TripGlobalsCity,
@@ -362,14 +363,18 @@ function scoped(filters: WidgetFilterValues, item: ItemScope | undefined): Widge
  *
  * A price is per person (ADR-060), so each stop counts `stopTotal`: its price
  * times who is in it, or times every traveller when nobody is picked
- * (travellers spec D1). Callers pass `trip.members` — the detail's own list,
- * which the server has already overlaid with the effective members and recosted
- * for their travellers — so the widget and the board multiply by the same
- * people. The list rather than a count, so the traveller rule is read here once
- * and no widget can hand over the member count instead.
+ * (travellers spec D1). Callers pass `trip.members` and the context's guests —
+ * the same lists the server's overlay was recosted for (guests spec P2) — so
+ * the widget and the board multiply by the same people. The lists rather than
+ * a count, so the traveller rule is read here once and no widget can hand over
+ * the member count instead.
  */
-export const costOfStops = (stops: readonly SelectedStop[], members: TripDetail["members"]): number => {
-  const travellerCount = travellerIds(members).length;
+export const costOfStops = (
+  stops: readonly SelectedStop[],
+  members: TripDetail["members"],
+  guests: readonly Guest[] = [],
+): number => {
+  const travellerCount = travellerIds(members, guests).length;
   return stops.reduce((sum, stop) => sum + stopTotal(stop.activity, travellerCount), 0);
 };
 

@@ -41,6 +41,25 @@ function inTripCurrency(trip: TripDetail, stops: readonly SelectedStop[]): { cou
 const memberIdsOf = (trip: TripDetail): string[] => trip.members.map((m) => m.userId);
 
 /**
+ * Who gets a row in "Who owes what": every member, then every guest —
+ * Mitchell: guests are cost centers, split equally. A guest linked to a member
+ * IS that member (guests spec P3), so their line is the member's row: one
+ * headcount, never two, the same dedup `travellerIds` does.
+ */
+const balanceMemberIds = (trip: TripDetail, guests: readonly Guest[] | null | undefined): string[] => {
+  const ids = memberIdsOf(trip);
+  const seen = new Set(ids);
+  for (const g of guests ?? []) {
+    const id = g.linkedUserId ?? g.guestId;
+    if (!seen.has(id)) {
+      seen.add(id);
+      ids.push(id);
+    }
+  }
+  return ids;
+};
+
+/**
  * What to call each person `ids` names. A member is the name the web handed in
  * (`WidgetContext.people`), or "Traveler N" by their place in the trip while
  * names have not arrived — never the raw id, which is a UUID or a 21-digit
@@ -113,7 +132,7 @@ export const costBalances: MacroDef<BalancesParams, RepeatPayload> = {
   params: BalancesParams, inputs: filterInputs(BALANCE_FILTERS),
   selection: { entity: "stop", filters: BALANCE_FILTERS },
   description:
-    "Who owes what: each member's share of the selected stops (a stop's price per person, for everyone in it — every traveller when nobody is picked), what they paid as the stop's Booked by, and their balance, plus a 'not paid yet' line for stops nobody booked. Trip currency only.",
+    "Who owes what: each person's share of the selected stops (a stop's price per person, for everyone in it — every traveller when nobody is picked), what they paid as the stop's Booked by, and their balance, plus a 'not paid yet' line for stops nobody booked. Trip currency only.",
   emptyText: "nothing priced yet",
   // Fixed, never computed (ADR-037 decision 5).
   preview: "each person's share, what they paid, and who owes what",
@@ -123,7 +142,11 @@ export const costBalances: MacroDef<BalancesParams, RepeatPayload> = {
     if (selection.status !== "ok") return selection;
     const { counted, others } = inTripCurrency(trip, selection.value.stops);
 
-    const result = balances(counted.map((s) => s.activity), memberIdsOf(trip), travellerIds(trip.members));
+    // Guests spec P2: the nobody-picked headcount is `travellerIds(members,
+    // guests)` — the same divisor the board's overlay uses — and every guest
+    // gets a balance row (Mitchell: guests are cost centers, split equally).
+    const travelling = travellerIds(trip.members, guests ?? []);
+    const result = balances(counted.map((s) => s.activity), balanceMemberIds(trip, guests), travelling);
     if (nothingPriced(result)) return others === null ? empty() : empty(`only priced in other currencies: ${others}`);
 
     const names = personNames(trip, people, result.perMember.map((m) => m.userId), guests);
@@ -186,7 +209,7 @@ export const personShare: MacroDef<ShareParams, PersonSharePayload> = {
   params: ShareParams, inputs: [PERSON_INPUT, ...filterInputs(BALANCE_FILTERS)],
   selection: { entity: "stop", filters: BALANCE_FILTERS },
   description:
-    "One person's money as a sentence: what they are in for across the selected stops, what they paid as Booked by, and whether they owe or are owed. `who` is a member's userId. Trip currency only.",
+    "One person's money as a sentence: what they are in for across the selected stops, what they paid as Booked by, and whether they owe or are owed. `who` is a member's userId or a guest's `guest_<uuid>` id. Trip currency only.",
   emptyText: "in nothing priced yet",
   // The design's own preview, phrased generically on purpose (§18).
   preview: "whoever you point it at — their stops, and their share so far",
@@ -199,19 +222,22 @@ export const personShare: MacroDef<ShareParams, PersonSharePayload> = {
     const { counted, others } = inTripCurrency(trip, selection.value.stops);
 
     // A stop nobody picked is the travellers' (travellers spec D1); `who` may
-    // still be any member — a non-traveller is in what they were picked for
-    // and owed what they booked (D6, D7).
-    const travelling = travellerIds(trip.members);
-    const result = balances(counted.map((s) => s.activity), memberIdsOf(trip), travelling);
-    const mine = result.perMember.find((m) => m.userId === who);
-    // Not a member and in nothing: an id from a page written before they left.
+    // still be any member or any guest — a non-traveller is in what they were
+    // picked for and owed what they booked (D6, D7). A linked guest IS their
+    // member (guests spec P3), so their share reads off the member's row.
+    const travelling = travellerIds(trip.members, guests ?? []);
+    const result = balances(counted.map((s) => s.activity), balanceMemberIds(trip, guests), travelling);
+    const whoId = (guests ?? []).find((g) => g.guestId === who)?.linkedUserId ?? who;
+    const mine = result.perMember.find((m) => m.userId === whoId);
+    // Not a member, not a guest, and in nothing: an id from a page written before they left.
     if (!mine) return empty("not on this trip");
     if (mine.share === 0 && mine.paid === 0) {
       return others === null ? empty() : empty(`only priced in other currencies: ${others}`);
     }
 
     const priced = counted.filter((s) => s.activity.cost!.amountMinor > 0);
-    const inStops = priced.filter((s) => stopPeople(s.activity, travelling).includes(who)).length;
+    const whoIds = new Set([who, whoId]);
+    const inStops = priced.filter((s) => stopPeople(s.activity, travelling).some((id) => whoIds.has(id))).length;
     return ok({
       name: personNames(trip, people, [who], guests).get(who)!,
       stops: `${inStops} ${inStops === 1 ? "stop" : "stops"}`,

@@ -336,12 +336,12 @@ export const costRows: MacroDef<CostRowsParams, RepeatPayload> = {
   // other, reads as a rendering fault rather than as two widgets agreeing.
   emptyText: "nothing priced yet",
   preview: "each day's spend, and the total",
-  resolve: ({ trip, globals }: WidgetContext, params, item): MacroResult<RepeatPayload> => {
+  resolve: ({ trip, globals, guests }: WidgetContext, params, item): MacroResult<RepeatPayload> => {
     if (!trip) return needsTrip();
     const selection = narrow(trip, globals, params, item);
     if (selection.status !== "ok") return selection;
     const { days, stops } = selection.value;
-    const total = costOfStops(stops, trip.members);
+    const total = costOfStops(stops, trip.members, guests ?? []);
     if (total === 0) return empty();
 
     const byDay = new Map<number | null, SelectedStop[]>();
@@ -353,7 +353,7 @@ export const costRows: MacroDef<CostRowsParams, RepeatPayload> = {
 
     const rows: RepeatRow[] = [];
     for (const index of days) {
-      const subtotal = costOfStops(byDay.get(index) ?? [], trip.members);
+      const subtotal = costOfStops(byDay.get(index) ?? [], trip.members, guests ?? []);
       if (subtotal === 0) continue;
       const date = trip.days[index]!.date;
       rows.push({
@@ -373,7 +373,7 @@ export const costRows: MacroDef<CostRowsParams, RepeatPayload> = {
         cells: [date ? [rowValue(formatDate(date))] : [], [rowValue(formatMoney(subtotal, trip.currency))]],
       });
     }
-    const unscheduled = costOfStops(byDay.get(null) ?? [], trip.members);
+    const unscheduled = costOfStops(byDay.get(null) ?? [], trip.members, guests ?? []);
     if (unscheduled !== 0) {
       rows.push({ lead: rowLabel("Unscheduled"), cells: [[], [rowValue(formatMoney(unscheduled, trip.currency))]] });
     }

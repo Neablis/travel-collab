@@ -30,12 +30,16 @@ vi.mock("@/lib/pagesClient", async (orig) => {
 const fetchTripGlobalsMock = vi.fn();
 // The reader's preferences, for the one suite that mounts `PreferencesProvider`.
 const fetchPreferencesMock = vi.fn();
+// `PeopleProvider` reads the trip's guests beside the members (guests spec
+// P4); this lens names none, so the list is empty here.
+const fetchGuestsMock = vi.fn();
 vi.mock("@/lib/apiClient", async (orig) => {
   const actual = await orig<typeof import("@/lib/apiClient")>();
   return {
     ...actual,
     fetchTripGlobals: (...args: unknown[]) => fetchTripGlobalsMock(...args),
     fetchPreferences: (...args: unknown[]) => fetchPreferencesMock(...args),
+    fetchGuests: (...args: unknown[]) => fetchGuestsMock(...args),
   };
 });
 
@@ -50,6 +54,8 @@ beforeEach(() => {
   fetchPageMock.mockReset();
   fetchTripGlobalsMock.mockReset();
   fetchTripGlobalsMock.mockResolvedValue({ ok: false, error: { status: 0, message: "no" } });
+  fetchGuestsMock.mockReset();
+  fetchGuestsMock.mockResolvedValue({ ok: true, value: [] });
 });
 
 const failed = { ok: false as const, error: { status: 500, message: "boom" } };

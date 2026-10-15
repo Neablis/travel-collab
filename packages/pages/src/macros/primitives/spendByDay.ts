@@ -133,7 +133,7 @@ export const costChart: MacroDef<CostChartParams, SpendByDayPayload> = {
   emptyText: "no costs yet",
   // Fixed, never computed (ADR-037 decision 5): no amount, no day.
   preview: "a bar per day of what it costs, against the budget",
-  resolve: ({ trip, globals }: WidgetContext, params, item): MacroResult<SpendByDayPayload> => {
+  resolve: ({ trip, globals, guests }: WidgetContext, params, item): MacroResult<SpendByDayPayload> => {
     if (!trip) return needsTrip();
     const selection = narrow(trip, globals, params, item);
     if (selection.status !== "ok") return selection;
@@ -146,16 +146,16 @@ export const costChart: MacroDef<CostChartParams, SpendByDayPayload> = {
     const otherCurrencies = stops.flatMap((s) =>
       s.activity.cost && s.activity.cost.currency !== trip.currency ? [s.activity.cost] : [],
     );
-    const unscheduled = costOfStops(stops.filter((s) => s.dayIndex === null && s.activity.cost?.currency === trip.currency), trip.members);
+    const unscheduled = costOfStops(stops.filter((s) => s.dayIndex === null && s.activity.cost?.currency === trip.currency), trip.members, guests ?? []);
 
     const bars: SpendByDayBar[] = days.map((index) => {
       const amounts = zeroes();
       for (const stop of charted) {
         if (stop.dayIndex !== index) continue;
         const key = stackOf(stop, params.tag);
-        amounts[key] += costOfStops([stop], trip.members);
+        amounts[key] += costOfStops([stop], trip.members, guests ?? []);
       }
-      const total = costOfStops(charted.filter((s) => s.dayIndex === index), trip.members);
+      const total = costOfStops(charted.filter((s) => s.dayIndex === index), trip.members, guests ?? []);
       const date = trip.days[index]!.date;
       const parts = SERIES.filter((key) => amounts[key] > 0).map((key) => ({
         key, label: SERIES_LABEL[key], text: formatMoney(amounts[key], trip.currency),
@@ -180,7 +180,7 @@ export const costChart: MacroDef<CostChartParams, SpendByDayPayload> = {
     // Nothing to draw is only "no costs yet" when nothing is priced at all:
     // trip-currency money on no day is still money, and saying otherwise would
     // contradict the `notCharted` line the same stops earn beside a chart.
-    const chartedTotal = costOfStops(charted, trip.members);
+    const chartedTotal = costOfStops(charted, trip.members, guests ?? []);
     if (chartedTotal === 0) {
       if (left.length === 0) return empty();
       if (unscheduled === 0) return empty(`only priced in other currencies: ${others}`);
@@ -208,7 +208,7 @@ export const costChart: MacroDef<CostChartParams, SpendByDayPayload> = {
       const onDays = whole.status === "ok"
         ? whole.value.stops.filter((s) => s.dayIndex !== null && s.activity.cost?.currency === trip.currency)
         : [];
-      const tripSpentThrough = (dayIndex: number) => costOfStops(onDays.filter((s) => s.dayIndex! <= dayIndex), trip.members);
+      const tripSpentThrough = (dayIndex: number) => costOfStops(onDays.filter((s) => s.dayIndex! <= dayIndex), trip.members, guests ?? []);
       const burnDown = burnDownOf(
         bars, days, budget === null ? null : { amountMinor: budget, text: formatMoney(budget, trip.currency) },
         trip.days.length, tripSpentThrough, trip.currency,

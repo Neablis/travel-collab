@@ -69,7 +69,7 @@ people who had been invited and accepted. A named person with no account had now
 - **A removed guest is gone from the lists but not from the log.** A stop that named them keeps
   the id (the read path keeps departed ids, and `stopHeadcount` still prices them); pickers
   label them by the last name they saw, else "Former member".
-- **One known exception.** `cost.balances` and `person.share` resolve guest *names* (Part 2)
-  but still compute their nobody-picked headcount over `travellerIds(trip.members)`, members
-  only, so a notebook's balances can divide by fewer people than the board does. Left
-  member-only in Part 2; a follow-up, not this decision.
+- **Notebook cost widgets multiply by the same people as the board.** `cost.balances`,
+  `person.share`, and every `costOfStops` reader thread the notebook's guests through
+  `travellerIds(members, guests)`; `cost.balances` gives each guest a balance line (share
+  owed, paid 0 — D4). There is no members-only headcount left on the notebook's surface.

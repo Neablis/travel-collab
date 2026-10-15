@@ -78,6 +78,9 @@ const server = setupServer(
   http.get("/api/trips/:tripId/history", ({ params }) =>
     HttpResponse.json({ history: { tripId: params.tripId, entries: [], canUndo: false, canRedo: false } }),
   ),
+  // `PeopleProvider` reads the trip's guests beside the members (guests spec
+  // P4); no notebook page names guests on its own, so the list is empty here.
+  http.get("/api/v1/trips/:tripId/guests", () => HttpResponse.json({ items: [] })),
 );
 
 // **Each test gets its own page id, and a request for any other page is

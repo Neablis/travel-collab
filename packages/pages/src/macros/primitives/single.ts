@@ -51,12 +51,12 @@ export const cost: MacroDef<CostParams, string> = {
     "What a selection of stops costs. Unfiltered it is the whole trip's total, including unscheduled stops; filter it to a day, a city, a tag or a kind for the sum of what matches.",
   emptyText: "no costs yet",
   preview: "the running total of what you selected",
-  resolve: ({ trip, globals }: WidgetContext, params, item): MacroResult<string> => {
+  resolve: ({ trip, globals, guests }: WidgetContext, params, item): MacroResult<string> => {
     if (!trip) return needsTrip([ghost("money", "cost")]);
     const selection = narrow(trip, globals, params, item);
     if (selection.status !== "ok") return selection;
     const { stops } = selection.value;
-    const total = costOfStops(stops, trip.members);
+    const total = costOfStops(stops, trip.members, guests ?? []);
     // Zero is `empty()` rather than "$0.00", which is what `cost.trip` and
     // `cost.day` both already answer: a trip nobody has priced yet has no
     // total, and printing a currency-formatted zero into a sentence reads as a
@@ -66,7 +66,7 @@ export const cost: MacroDef<CostParams, string> = {
     // selection with nothing pending reads as one number, as it always did;
     // only a guess in the sum earns the split, so the reader can tell the two
     // apart where it matters.
-    const estimated = costOfStops(stops.filter((s) => !isCommittedCost(s.activity.kind)), trip.members);
+    const estimated = costOfStops(stops.filter((s) => !isCommittedCost(s.activity.kind)), trip.members, guests ?? []);
     if (estimated === 0) return ok(formatMoney(total, trip.currency));
     const estimate = `${formatMoney(estimated, trip.currency)} estimated`;
     return ok(estimated === total ? estimate : `${formatMoney(total - estimated, trip.currency)} committed · ${estimate}`);

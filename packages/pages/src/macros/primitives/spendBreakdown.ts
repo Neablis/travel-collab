@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { FilterDimension, TripDetail } from "@tc/contracts";
+import type { FilterDimension, Guest, TripDetail } from "@tc/contracts";
 import { ActivityKind } from "@tc/contracts";
 import type { MacroDef, WidgetContext, WidgetInput, WidgetSelection } from "../../registry-types";
 import { blockOf } from "../../registry-types";
@@ -111,8 +111,9 @@ function slicesOf<K extends string>(
   charted: readonly SelectedStop[],
   currency: string,
   members: TripDetail["members"],
+  guests: readonly Guest[],
 ): SpendBreakdownSlice<K>[] {
-  const amounts = keys.map((key) => costOfStops(charted.filter((s) => belongs(s, key)), members));
+  const amounts = keys.map((key) => costOfStops(charted.filter((s) => belongs(s, key)), members, guests));
   // The caller returns `empty()` before a zero total reaches here.
   const percents = apportionPercents(amounts)!;
   return keys.map((key, i) => {
@@ -158,7 +159,7 @@ export const costBreakdown: MacroDef<CostBreakdownParams, SpendBreakdownPayload>
   // Fixed, never computed (ADR-037 decision 5): no amount, no kind. The two
   // presets carry their own.
   preview: "a pie of what the trip costs, by kind or by tag",
-  resolve: ({ trip, globals }: WidgetContext, params, item): MacroResult<SpendBreakdownPayload> => {
+  resolve: ({ trip, globals, guests }: WidgetContext, params, item): MacroResult<SpendBreakdownPayload> => {
     if (!trip) return needsTrip();
     const by: SpendBreakdownBy = params.by ?? DEFAULT_BY;
     const selection = narrow(trip, globals, withoutWithheld(BREAKDOWN_SELECTION, params), item);
@@ -171,7 +172,7 @@ export const costBreakdown: MacroDef<CostBreakdownParams, SpendBreakdownPayload>
     );
     const others = collapseKind("money", otherCurrencies, { currency: trip.currency });
 
-    const total = costOfStops(charted, trip.members);
+    const total = costOfStops(charted, trip.members, guests ?? []);
     if (total === 0) return others === null ? empty() : empty(`only priced in other currencies: ${others}`);
 
     const title = titleOf(by, selection.value);
@@ -188,10 +189,10 @@ export const costBreakdown: MacroDef<CostBreakdownParams, SpendBreakdownPayload>
       slices.filter((s) => s.amount !== null).map((s) => `${s.label} ${s.amount} (${s.share})`).join(", ") + ".";
 
     if (by === "tag") {
-      const slices = slicesOf(SPEND_SERIES, (key) => SPEND_SERIES_LABEL[key], (s, key) => seriesOf(s) === key, charted, trip.currency, trip.members);
+      const slices = slicesOf(SPEND_SERIES, (key) => SPEND_SERIES_LABEL[key], (s, key) => seriesOf(s) === key, charted, trip.currency, trip.members, guests ?? []);
       return ok({ ...common, by, slices, summary: sentence(slices) });
     }
-    const slices = slicesOf(ActivityKind.options, (key) => KIND_LABEL[key], (s, key) => s.activity.kind === key, charted, trip.currency, trip.members);
+    const slices = slicesOf(ActivityKind.options, (key) => KIND_LABEL[key], (s, key) => s.activity.kind === key, charted, trip.currency, trip.members, guests ?? []);
     return ok({ ...common, by, slices, summary: sentence(slices) });
   },
   render: blockOf,

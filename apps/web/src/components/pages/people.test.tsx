@@ -1,5 +1,5 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, render, screen } from "@testing-library/react";
 import type { Guest, TripAccess } from "@tc/contracts";
 import { setupServer } from "msw/node";
 import { http, HttpResponse } from "msw";
@@ -182,5 +182,66 @@ describe("PeopleProvider", () => {
     );
     await screen.findByText("ready");
     expect(seen).toEqual(guestList);
+  });
+
+  // Guests spec P4: the guest read is keyed on the access revision, so a fetch
+  // started before a rev bump that lands after the newer read must not clobber
+  // the newer list.
+  it("drops a guest fetch that lands after a newer rev's read started", async () => {
+    const tripId = crypto.randomUUID();
+    const read = (accessRev: string) =>
+      tripAccessFixture({ tripId, accessRev, members: [tripMemberProfileFactory.build({ userId: "u-ana", role: "owner", name: "Ana Lima" })] });
+    const baby: Guest = {
+      guestId: "guest_baby",
+      tripId,
+      name: "Baby",
+      travelling: true,
+      linkedUserId: null,
+      createdBy: "u-ana",
+      createdAt: "2026-10-15T00:00:00.000Z",
+    };
+    // Each read hangs until the test releases it, in the order the reads start.
+    const releases: ((items: Guest[]) => void)[] = [];
+    server.use(
+      http.get(
+        "/api/v1/trips/:tripId/guests",
+        () =>
+          new Promise<Response>((resolve) => {
+            releases.push((items: Guest[]) => resolve(HttpResponse.json({ items })));
+          }),
+      ),
+    );
+    let seen: readonly Guest[] | null = null;
+    function Probe() {
+      seen = useGuests();
+      return <p>{seen === null ? "loading" : "ready"}</p>;
+    }
+    liveTrip = { tripId, access: read("1") };
+    const view = render(
+      <PeopleProvider tripId={tripId}>
+        <Probe />
+      </PeopleProvider>,
+    );
+    await vi.waitFor(() => expect(releases.length).toBe(1));
+
+    // A rev bump while the rev-1 fetch is still in flight starts a second read.
+    liveTrip = { tripId, access: read("2") };
+    view.rerender(
+      <PeopleProvider tripId={tripId}>
+        <Probe />
+      </PeopleProvider>,
+    );
+    await vi.waitFor(() => expect(releases.length).toBe(2));
+
+    // The newer read lands with Baby…
+    releases[1]!([baby]);
+    expect(await screen.findByText("ready")).toBeTruthy();
+    expect(seen).toEqual([baby]);
+
+    // …then the stale rev-1 read lands empty: it must not clobber the newer list.
+    await act(async () => {
+      releases[0]!([]);
+    });
+    expect(seen).toEqual([baby]);
   });
 });

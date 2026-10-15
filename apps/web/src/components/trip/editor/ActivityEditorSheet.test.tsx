@@ -40,13 +40,16 @@ vi.mock("@/lib/apiClient", async (orig) => {
     // D3) goes out this way.
     sendTripUnits: (...args: unknown[]) => sendTripUnitsMock(...args),
     fetchNearbyStops: (...args: unknown[]) => fetchNearbyStopsMock(...args),
+    // `PeopleProvider` reads the trip's guests beside the members (guests
+    // spec P4); the editor names none on its own, so the list is empty here.
+    fetchGuests: vi.fn(),
   };
 });
 const fetchTripAccessMock = vi.fn();
 const sendTripUnitsMock = vi.fn();
 const fetchNearbyStopsMock = vi.fn();
 
-import { fetchTripDetail, fetchTripHistory } from "@/lib/apiClient";
+import { fetchGuests, fetchTripDetail, fetchTripHistory } from "@/lib/apiClient";
 import { TripProvider, useTrip } from "@/components/trip/context/TripProvider";
 import { EditorHost, useEditor, type ActivityPrefill } from "@/components/trip/context/EditorHost";
 import { PeopleProvider } from "@/components/pages/people";
@@ -160,6 +163,7 @@ beforeEach(() => {
   fetchNearbyStopsMock.mockReset().mockResolvedValue({ ok: true, value: { stops: [] } });
   vi.mocked(fetchTripDetail).mockResolvedValue({ ok: true, value: fixture() });
   vi.mocked(fetchTripHistory).mockResolvedValue({ ok: true, value: historyFixture(TRIP_ID) });
+  vi.mocked(fetchGuests).mockResolvedValue({ ok: true, value: [] });
   sendTripCommandMock.mockResolvedValue({
     ok: true,
     value: { detail: fixture(), history: historyFixture(TRIP_ID) },

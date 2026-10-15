@@ -49,21 +49,21 @@ function guestOf(guestId: string, name: string): Guest {
   };
 }
 
-const ctx = (trip: TripDetail | undefined, people: WidgetContext["people"] = PEOPLE): WidgetContext => ({
-  trip, page: { tripId: trip?.tripId ?? "t" }, user: null, globals: null, today: null, people,
+const ctx = (trip: TripDetail | undefined, people: WidgetContext["people"] = PEOPLE, guests?: Guest[]): WidgetContext => ({
+  trip, page: { tripId: trip?.tripId ?? "t" }, user: null, globals: null, today: null, people, guests: guests ?? null,
 });
 
 /** The table as plain strings, row by row: lead, then each cell's text. */
-function tableOf(trip: TripDetail, params: Record<string, unknown> = {}, people?: WidgetContext["people"]): string[][] {
-  const outcome = renderMacro(ctx(trip, people), "cost.balances", params);
+function tableOf(trip: TripDetail, params: Record<string, unknown> = {}, people?: WidgetContext["people"], guests?: Guest[]): string[][] {
+  const outcome = renderMacro(ctx(trip, people, guests), "cost.balances", params);
   if (outcome.status !== "ok" || outcome.rendered.kind !== "rows") throw new Error(`expected rows, got ${JSON.stringify(outcome)}`);
   return outcome.rendered.rows.map((row) => [row.lead.map((s) => s.text).join(""), ...row.cells.map((c) => c.map((s) => s.text).join(""))]);
 }
 
 const said = (rendered: Rendered) => (rendered.kind === "inline" ? rendered.segs.map((s) => s.text).join("") : "");
 
-function sentenceOf(trip: TripDetail, who: string, params: Record<string, unknown> = {}): string {
-  const outcome = renderMacro(ctx(trip), "person.share", { who, ...params });
+function sentenceOf(trip: TripDetail, who: string, params: Record<string, unknown> = {}, guests?: Guest[]): string {
+  const outcome = renderMacro(ctx(trip, undefined, guests), "person.share", { who, ...params });
   if (outcome.status !== "ok") throw new Error(`expected a sentence, got ${JSON.stringify(outcome)}`);
   return said(outcome.rendered);
 }
@@ -138,6 +138,23 @@ describe("cost.balances — Who owes what", () => {
       ["Cy", "", "$60.00", "is owed $60.00"],
     ]);
   });
+
+  // Guests spec P2: a travelling guest is in a stop nobody picked the same as
+  // a travelling member, with their own balance line (Mitchell: guests are
+  // cost centers, split equally) — the same divisor the board's overlay uses.
+  it("splits a stop nobody picked across members plus travelling guests, with a row for each guest", () => {
+    const trip = tripOf();
+    trip.members = trip.members.slice(0, 2);
+    const baby = guestOf("guest_1", "Baby");
+    // $100 a head (ADR-060: a price is per person), three travellers.
+    price(trip, 0, 0, usd(100_00), [], null);
+    expect(tableOf(trip, {}, undefined, [baby])).toEqual([
+      ["Ana", "$100.00", "", "owes $100.00"],
+      ["Ben", "$100.00", "", "owes $100.00"],
+      ["Baby", "$100.00", "", "owes $100.00"],
+      ["Not paid yet", "$300.00", "", "nobody booked it"],
+    ]);
+  });
 });
 
 describe("person.share — What one person is in for", () => {
@@ -184,6 +201,16 @@ describe("person.share — What one person is in for", () => {
     price(trip, 0, 1, usd(50_00), ["u-cy"], "u-ben");
     expect(sentenceOf(trip, "u-cy")).toBe("Cy is in for $50.00 across 1 stop and owes $50.00");
     expect(sentenceOf(trip, "u-ana")).toBe("Ana is in for $30.00 across 1 stop, has paid $60.00 and is owed $30.00");
+  });
+
+  // Guests spec P2: a guest is a cost center, split equally — the sentence is
+  // theirs to have, not "not on this trip".
+  it("answers for a guest, with their share of the stops they are in", () => {
+    const trip = tripOf();
+    trip.members = trip.members.slice(0, 2);
+    const baby = guestOf("guest_1", "Baby");
+    price(trip, 0, 0, usd(100_00), [], null);
+    expect(sentenceOf(trip, "guest_1", {}, [baby])).toBe("Baby is in for $100.00 across 1 stop and owes $100.00");
   });
 });
 
