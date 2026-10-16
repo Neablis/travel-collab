@@ -40,13 +40,16 @@ vi.mock("@/lib/apiClient", async (orig) => {
     // D3) goes out this way.
     sendTripUnits: (...args: unknown[]) => sendTripUnitsMock(...args),
     fetchNearbyStops: (...args: unknown[]) => fetchNearbyStopsMock(...args),
+    // `PeopleProvider` reads the trip's guests beside the members (guests
+    // spec P4); the editor names none on its own, so the list is empty here.
+    fetchGuests: vi.fn(),
   };
 });
 const fetchTripAccessMock = vi.fn();
 const sendTripUnitsMock = vi.fn();
 const fetchNearbyStopsMock = vi.fn();
 
-import { fetchTripDetail, fetchTripHistory } from "@/lib/apiClient";
+import { fetchGuests, fetchTripDetail, fetchTripHistory } from "@/lib/apiClient";
 import { TripProvider, useTrip } from "@/components/trip/context/TripProvider";
 import { EditorHost, useEditor, type ActivityPrefill } from "@/components/trip/context/EditorHost";
 import { PeopleProvider } from "@/components/pages/people";
@@ -154,12 +157,13 @@ beforeEach(() => {
   sendTripUnitsMock.mockReset().mockReturnValue(new Promise(() => {}));
   fetchTripAccessMock.mockReset().mockResolvedValue({
     ok: true,
-    value: { tripId: TRIP_ID, myRole: "owner", members: [], invites: [] },
+    value: { tripId: TRIP_ID, myRole: "owner", members: [], invites: [], guests: [] },
   });
   // An empty library unless a test says otherwise (M34).
   fetchNearbyStopsMock.mockReset().mockResolvedValue({ ok: true, value: { stops: [] } });
   vi.mocked(fetchTripDetail).mockResolvedValue({ ok: true, value: fixture() });
   vi.mocked(fetchTripHistory).mockResolvedValue({ ok: true, value: historyFixture(TRIP_ID) });
+  vi.mocked(fetchGuests).mockResolvedValue({ ok: true, value: [] });
   sendTripCommandMock.mockResolvedValue({
     ok: true,
     value: { detail: fixture(), history: historyFixture(TRIP_ID) },
@@ -616,7 +620,7 @@ describe("ActivityEditorSheet — a viewer gets no form", () => {
   const asViewer = () =>
     fetchTripAccessMock.mockResolvedValue({
       ok: true,
-      value: { tripId: TRIP_ID, myRole: "viewer", members: [], invites: [] },
+      value: { tripId: TRIP_ID, myRole: "viewer", members: [], invites: [], guests: [] },
     });
 
   it("shows the stop read-only instead of the editor, and dispatches nothing", async () => {
@@ -755,6 +759,7 @@ describe("ActivityEditorSheet — who a stop is for, by name", () => {
           { userId: U2, role: "editor", name: null, email: "sam@example.com", image: null },
         ],
         invites: [],
+        guests: [],
       },
     });
     renderEditorSheet({ mode: "edit", activityId: SCHEDULED_ACTIVITY_ID });
@@ -780,6 +785,7 @@ describe("ActivityEditorSheet — who a stop is for, by name", () => {
           tripMemberProfileFactory.build({ userId: U2, displayName: "Sam Lee", avatar: "bike", color: "moss" }),
         ],
         invites: [],
+        guests: [],
       },
     });
     renderEditorSheet({ mode: "edit", activityId: SCHEDULED_ACTIVITY_ID });
@@ -796,7 +802,7 @@ describe("ActivityEditorSheet — who a stop is for, by name", () => {
     const dana = { userId: U1, role: "owner" as const, name: "Dana Reyes", email: null, image: null };
     fetchTripAccessMock.mockResolvedValue({
       ok: true,
-      value: { tripId: TRIP_ID, myRole: "owner", members: [dana], invites: [] },
+      value: { tripId: TRIP_ID, myRole: "owner", members: [dana], invites: [], guests: [] },
     });
     function Refresh() {
       const { refreshAccess } = useTrip();
@@ -826,6 +832,7 @@ describe("ActivityEditorSheet — who a stop is for, by name", () => {
         myRole: "owner",
         members: [dana, { userId: U2, role: "editor", name: "Sam Lee", email: null, image: null }],
         invites: [],
+        guests: [],
       },
     });
     // Outside the sheet, so the open dialog hides it: found with `hidden`.
@@ -844,6 +851,36 @@ describe("ActivityEditorSheet — who a stop is for, by name", () => {
     const { toggles, bookedBy } = labels();
     expect(toggles).toEqual(["Traveler 1", "Traveler 2"]);
     expect(bookedBy).toEqual(toggles);
+  });
+
+  // Guests ride on the access read (Fix 2): the sheet never calls the
+  // standalone guest endpoint, so the picker's chips come from the same read
+  // that named the members — one the People panel just added arrives with
+  // the provider's next access re-read.
+  it("offers the access read's guests beside the members", async () => {
+    fetchTripAccessMock.mockResolvedValue({
+      ok: true,
+      value: {
+        tripId: TRIP_ID,
+        myRole: "owner",
+        members: [],
+        invites: [],
+        guests: [
+          {
+            guestId: "guest_mock_grandma",
+            tripId: TRIP_ID,
+            name: "Grandma",
+            travelling: true,
+            linkedUserId: null,
+            createdBy: "dev-alice",
+            createdAt: "2026-10-15T00:00:00.000Z",
+          },
+        ],
+      },
+    });
+    renderEditorSheet({ mode: "create" });
+
+    expect(await screen.findByRole("button", { name: "Grandma Guest" })).toBeTruthy();
   });
 
   // Travellers spec D6: the sheet hands the editor who is travelling, so a

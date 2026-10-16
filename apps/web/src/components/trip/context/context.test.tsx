@@ -42,7 +42,7 @@ vi.mock("@/lib/apiClient", () => ({
   // every assertion below was written against.
   fetchTripAccess: vi.fn().mockResolvedValue({
     ok: true,
-    value: { tripId: "italy-trip", myRole: "owner", members: [], invites: [] },
+    value: { tripId: "italy-trip", myRole: "owner", members: [], invites: [], guests: [] },
   }),
   // The command only; the unit's key (ADR-066) is asserted in TripProvider.test.tsx.
   sendTripCommand: (command: unknown) => dispatchSpy(command),

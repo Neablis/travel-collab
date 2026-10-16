@@ -163,7 +163,13 @@ function renderScreen(tripId: string) {
 // is in. A test about the refusal overrides it with `server.use`.
 // The add-stop sheet asks the library for nearby stops (M34); this suite is
 // not about them, so the library is empty.
-const server = setupServer(makeAccountPlanHandler(), makeNearbyStopsHandler([]));
+const server = setupServer(
+  makeAccountPlanHandler(),
+  makeNearbyStopsHandler([]),
+  // `PeopleProvider` reads the trip's guests beside the members (guests spec
+  // P4); the board names none on its own, so the list is empty here.
+  http.get("/api/v1/trips/:tripId/guests", () => HttpResponse.json({ items: [] })),
+);
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
 beforeEach(() => {
   // **`view=Plan`, not "" — and this is the single change SPEC §24 makes to

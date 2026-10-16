@@ -1,11 +1,11 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
-import type { TripAccess } from "@tc/contracts";
+import type { Guest, TripAccess } from "@tc/contracts";
 import { setupServer } from "msw/node";
 import { http, HttpResponse } from "msw";
 import { tripAccessFixture, tripDetailFactory, tripMemberProfileFactory } from "@tc/factories";
 import { MacroView } from "./MacroView";
-import { PeopleProvider, peopleNamesOf, usePersonas } from "./people";
+import { PeopleProvider, peopleNamesOf, useGuests, usePersonas } from "./people";
 
 // The names "Who owes what" and "What one person is in for" print (M19 part 2)
 // come from the People section's access read, through `PeopleProvider`, into the
@@ -29,6 +29,7 @@ const server = setupServer(
           { userId: "u-ben-4f2a91", role: "editor", name: null, email: "ben@example.com", image: null, displayName: null, avatar: null, color: null },
         ],
         invites: [],
+        guests: [],
         collaboratorsEntitled: true,
       },
     }),
@@ -148,5 +149,79 @@ describe("PeopleProvider", () => {
       </PeopleProvider>,
     );
     expect(await screen.findByText("Nana")).toBeTruthy();
+  });
+
+  // Guests spec P4: the provider hands the trip's guest records down beside
+  // the members, from the same `TripAccess` read — `null` until the read
+  // lands, never an error state.
+  it("hands a notebook widget the trip's guest records", async () => {
+    const tripId = crypto.randomUUID();
+    const guestList: Guest[] = [
+      {
+        guestId: "guest_baby",
+        tripId,
+        name: "Baby",
+        travelling: true,
+        linkedUserId: null,
+        createdBy: "u-ana",
+        createdAt: "2026-10-15T00:00:00.000Z",
+      },
+    ];
+    server.use(
+      http.get("/api/trips/:tripId/access", () =>
+        HttpResponse.json({ access: tripAccessFixture({ tripId, guests: guestList }) }),
+      ),
+    );
+    let seen: readonly Guest[] | null = null;
+    function Probe() {
+      seen = useGuests();
+      return <p>{seen === null ? "loading" : "ready"}</p>;
+    }
+    render(
+      <PeopleProvider tripId={tripId}>
+        <Probe />
+      </PeopleProvider>,
+    );
+    await screen.findByText("ready");
+    expect(seen).toEqual(guestList);
+  });
+
+  // Guests ride on `TripAccess` (guests spec P1): when the trip's live access
+  // moves to a newer rev, the guest list follows it — no separate read, and
+  // nothing to race.
+  it("follows the trip's live access for guests when a newer rev lands", async () => {
+    const tripId = crypto.randomUUID();
+    const baby: Guest = {
+      guestId: "guest_baby",
+      tripId,
+      name: "Baby",
+      travelling: true,
+      linkedUserId: null,
+      createdBy: "u-ana",
+      createdAt: "2026-10-15T00:00:00.000Z",
+    };
+    const read = (accessRev: string, guests: Guest[]) => tripAccessFixture({ tripId, accessRev, guests });
+    server.use(http.get("/api/trips/:tripId/access", () => HttpResponse.json({ access: read("1", []) })));
+    let seen: readonly Guest[] | null = null;
+    function Probe() {
+      seen = useGuests();
+      return <p>{seen === null ? "loading" : "ready"}</p>;
+    }
+    liveTrip = { tripId, access: null };
+    const view = render(
+      <PeopleProvider tripId={tripId}>
+        <Probe />
+      </PeopleProvider>,
+    );
+    await screen.findByText("ready");
+    expect(seen).toEqual([]);
+
+    liveTrip = { tripId, access: read("2", [baby]) };
+    view.rerender(
+      <PeopleProvider tripId={tripId}>
+        <Probe />
+      </PeopleProvider>,
+    );
+    await vi.waitFor(() => expect(seen).toEqual([baby]));
   });
 });

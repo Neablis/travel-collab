@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { useLateFocus } from "./useLateFocus";
-import { ActivityKind, travellerIds, type TripDetail, type TripGlobals } from "@tc/contracts";
+import { ActivityKind, travellerIds, type Guest, type TripDetail, type TripGlobals } from "@tc/contracts";
 import { LinkTarget, WebAddress, distinctApplies, enumLabel, fieldChoices, getMacro, getPreset, inputsFor, personNames, presetParams, withoutWithheld } from "@tc/pages";
 import type { WidgetInput } from "@tc/pages";
 import { CheckboxField } from "@/components/ui/checkbox";
@@ -12,7 +12,7 @@ import { FieldPicker } from "./FieldPicker";
 import { FieldColumns } from "./FieldColumns";
 import { LinkTargetPicker } from "./LinkTargetPicker";
 import { Input } from "@/components/ui/input";
-import { usePeople } from "../people";
+import { usePeople, useGuests } from "../people";
 
 // Pointing a widget at its filters, in ONE place — because as of SPEC §19 there
 // are three surfaces that do it and they must not disagree:
@@ -154,6 +154,9 @@ export function optionsFor(
   globals: TripGlobals | null,
   // Member names (`usePeople`); only the `person` input reads them.
   people: Readonly<Record<string, string>> | null = null,
+  // The trip's guest records (`useGuests`); only the `person` input reads
+  // them — their ids join the picker's options (guests spec P4).
+  guests: readonly Guest[] | null = null,
 ): readonly { value: string; label: string; group?: string }[] {
   const bound = params[input.name];
   switch (input.type) {
@@ -213,19 +216,24 @@ export function optionsFor(
     // its `default` when nothing is stored.
     case "choice":
       return input.options;
-    // The trip's members, by name. **No "All" row**: there is no "everybody"
-    // for a sentence about one person, so unset is `unbound("person")` and the
-    // empty option asks rather than offering a widest answer. A stored id
-    // that is no longer a member stays visible, labelled as the widget labels
-    // it ("Former member") — `personNames` is both labels' one rule. Every
-    // member, travellers first: someone not travelling can still be picked for
-    // a stop or have booked one (travellers spec D6, D7), so their share is a
-    // real question.
+    // The trip's members and guests, by name. **No "All" row**: there is no
+    // "everybody" for a sentence about one person, so unset is
+    // `unbound("person")` and the empty option asks rather than offering a
+    // widest answer. A stored id that is no longer a member stays visible,
+    // labelled as the widget labels it ("Former member") — `personNames` is
+    // both labels' one rule. Every member, travellers first: someone not
+    // travelling can still be picked for a stop or have booked one (travellers
+    // spec D6, D7), so their share is a real question. Guests ride the same
+    // ordering (guests spec P4, the Who-is-in picker's D6 pattern): going
+    // guests with the members, the idle ones after the non-travellers.
     case "person": {
-      const travelling = travellerIds(detail.members);
-      const others = detail.members.map((m) => m.userId).filter((id) => !travelling.includes(id));
-      const ids = withBound([...travelling, ...others], bound);
-      const names = personNames(detail, people, ids);
+      const going = new Set(travellerIds(detail.members, guests ?? []));
+      const goingMembers = detail.members.map((m) => m.userId).filter((id) => going.has(id));
+      const idleMembers = detail.members.map((m) => m.userId).filter((id) => !going.has(id));
+      const goingGuests = (guests ?? []).filter((g) => g.travelling !== false).map((g) => g.guestId);
+      const idleGuests = (guests ?? []).filter((g) => g.travelling === false).map((g) => g.guestId);
+      const ids = withBound([...goingMembers, ...goingGuests, ...idleMembers, ...idleGuests], bound);
+      const names = personNames(detail, people, ids, guests);
       return [{ value: "", label: "Choose a person" }, ...ids.map((id) => ({ value: id, label: names.get(id)! }))];
     }
     // No select, so no options: `dates` is `DaysFilter`'s whole control and a
@@ -323,6 +331,9 @@ export function bindSummary(
   globals: TripGlobals | null,
   allInputs: readonly WidgetInput[] = bindableInputs(name, params),
   people: Readonly<Record<string, string>> | null = null,
+  // Guest records for a `person` input's label (`useGuests`); only the
+  // `person` input reads them (guests spec P4).
+  guests: readonly Guest[] | null = null,
 ): string | null {
   // What the widget is POINTED at: a toggle or a choice changes how it looks,
   // not what it reads, so neither belongs in "Pointed at …". (Nor does a
@@ -353,7 +364,7 @@ export function bindSummary(
       }
       const value = valueOf(input, params, detail);
       if (value === "") return null;
-      return optionsFor(input, params, detail, globals, people).find((o) => o.value === value)?.label ?? value;
+      return optionsFor(input, params, detail, globals, people, guests).find((o) => o.value === value)?.label ?? value;
     })
     .filter((label): label is string => label !== null);
   // "everything" rather than "nothing": ADR-039 decision 2, and the difference
@@ -502,6 +513,7 @@ export function WidgetBindControls({
 }) {
   const title = titleOverride ?? getMacro(name)?.title ?? name;
   const people = usePeople();
+  const guests = useGuests();
   // **Every commit drops the filters the NEW params withhold** (Mitchell,
   // 2026-09-26, on #246): switching "Split by" to Tag deletes a stored tag
   // filter rather than keeping it hidden. In the same params object, so the
@@ -594,7 +606,7 @@ export function WidgetBindControls({
               value={valueOf(input, params, detail)}
               onChange={(e) => onChange(withBinding(params, input, e.target.value))}
             >
-              {optionsFor(input, params, detail, globals, people).map((o) => (
+              {optionsFor(input, params, detail, globals, people, guests).map((o) => (
                 <option key={o.value} value={o.value}>
                   {o.label}
                 </option>

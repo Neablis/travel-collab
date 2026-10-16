@@ -1,6 +1,6 @@
 "use client";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { travellerIds, type TripAccess, type TripMemberProfile } from "@tc/contracts";
+import { travellerIds, type Guest, type TripAccess, type TripMemberProfile } from "@tc/contracts";
 import { useOptionalTrip } from "@/components/trip/context/TripProvider";
 import { fetchTripAccess } from "@/lib/apiClient";
 import { cachedRead, invalidate } from "@/lib/queryCache";
@@ -62,6 +62,13 @@ type People = {
   names: Readonly<Record<string, string>> | null;
   /** The same members as `names`, with what a chip draws for each (M38). */
   personas: Readonly<Record<string, Persona>> | null;
+  /**
+   * The trip's named guests (guests spec P4), oldest first — what
+   * `personNames` calls a `guest_<uuid>` id (`WidgetContext.guests`). `null`
+   * until the read lands; absent is fine, and a widget then falls back the
+   * way it does for an unnamed non-member.
+   */
+  guests: readonly Guest[] | null;
   /** Ids a fresh read was made for, and answered: one still missing has left. */
   rechecked: ReadonlySet<string>;
   /** Read the members again, once per id, for one the names do not hold. */
@@ -69,7 +76,7 @@ type People = {
 };
 
 const NO_ONE: ReadonlySet<string> = new Set();
-const PeopleContext = createContext<People>({ names: null, personas: null, rechecked: NO_ONE, recheck: () => {} });
+const PeopleContext = createContext<People>({ names: null, personas: null, guests: null, rechecked: NO_ONE, recheck: () => {} });
 
 /**
  * The newer of two access reads, by `accessRev`; `held` on a tie or when
@@ -139,7 +146,15 @@ export function PeopleProvider({ tripId, children }: { tripId: string; children:
   const access = newerAccess(live, read);
   const personas = useMemo(() => (access === null ? null : personasOf(access.members)), [access]);
   const names = useMemo(() => (personas === null ? null : namesOf(personas)), [personas]);
-  const value = useMemo(() => ({ names, personas, rechecked, recheck }), [names, personas, rechecked, recheck]);
+  // The trip's guests ride on `TripAccess` itself (guests spec P1): no
+  // separate read. `access` above is the newer of the live and cached reads,
+  // and the trip provider re-reads access when the poll's `accessRev` moves
+  // (every guest write bumps it — server/access/guests.ts), so a guest added
+  // while the notebook is open reaches the widgets on the next read, without
+  // this provider polling. `null` until the access read lands, the way the
+  // members' names are.
+  const guests = access === null ? null : access.guests;
+  const value = useMemo(() => ({ names, personas, guests, rechecked, recheck }), [names, personas, guests, rechecked, recheck]);
   return <PeopleContext.Provider value={value}>{children}</PeopleContext.Provider>;
 }
 
@@ -148,13 +163,24 @@ export function PeopleProvider({ tripId, children }: { tripId: string; children:
  * (M38), whose holder may not read `TripAccess` — rather than reading them.
  */
 export function FixedPeopleProvider({ personas, children }: { personas: Readonly<Record<string, Persona>>; children: ReactNode }) {
-  const value = useMemo(() => ({ names: namesOf(personas), personas, rechecked: NO_ONE, recheck: () => {} }), [personas]);
+  const value = useMemo(
+    () => ({ names: namesOf(personas), personas, guests: null, rechecked: NO_ONE, recheck: () => {} }),
+    [personas],
+  );
   return <PeopleContext.Provider value={value}>{children}</PeopleContext.Provider>;
 }
 
 /** The member names `PeopleProvider` handed down; `null` outside one or before they land. */
 export function usePeople(): Readonly<Record<string, string>> | null {
   return useContext(PeopleContext).names;
+}
+
+/**
+ * The trip's guest records `PeopleProvider` handed down (guests spec P4);
+ * `null` outside one, or before the read lands.
+ */
+export function useGuests(): readonly Guest[] | null {
+  return useContext(PeopleContext).guests;
 }
 
 /** Each member's persona by userId (M38); `null` outside a `PeopleProvider` or before it lands. */

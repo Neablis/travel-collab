@@ -1,10 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
   ChangeRoleInput,
+  CreateGuestInput,
   CreateInviteInput,
+  Guest,
+  LinkGuestInput,
   InviteLanding,
   InviteRole,
   SetTravellingInput,
+  UpdateGuestInput,
   TripAccess,
   TripEventsPage,
   TripInvite,
@@ -164,6 +168,7 @@ describe("TripAccess", () => {
       myRole: "owner",
       members: [member],
       invites: [invite],
+      guests: [],
       collaboratorsEntitled: true,
     };
     expect(TripAccess.parse(access)).toEqual(access);
@@ -176,6 +181,7 @@ describe("TripAccess", () => {
         myRole: "owner",
         members: [],
         invites: [],
+        guests: [],
         collaboratorsEntitled: true,
       }).success,
     ).toBe(false);
@@ -188,7 +194,7 @@ describe("TripAccess", () => {
   // leave it out.
   it("requires collaboratorsEntitled", () => {
     expect(
-      TripAccess.safeParse({ tripId, myRole: "owner", members: [member], invites: [] }).success,
+      TripAccess.safeParse({ tripId, myRole: "owner", members: [member], invites: [], guests: [] }).success,
     ).toBe(false);
   });
 
@@ -197,7 +203,7 @@ describe("TripAccess", () => {
   // Optional: absent for a reader who is not on the trip (the demo visitor,
   // an invite-link look), and from a server that predates it.
   it("carries the reader's own id when served, and parses without it", () => {
-    const access = { tripId, myRole: "owner", members: [member], invites: [], collaboratorsEntitled: true };
+    const access = { tripId, myRole: "owner", members: [member], invites: [], guests: [], collaboratorsEntitled: true };
     expect(TripAccess.parse({ ...access, viewerId: "dev-alice" }).viewerId).toBe("dev-alice");
     expect(TripAccess.parse(access).viewerId).toBeUndefined();
   });
@@ -209,6 +215,7 @@ describe("TripAccess", () => {
         myRole: "editor",
         members: [member],
         invites: [],
+        guests: [],
         collaboratorsEntitled: true,
       }).invites,
     ).toEqual([]);
@@ -245,5 +252,46 @@ describe("InviteLanding", () => {
     const member = { state: "member", tripId, tripName: "Kyoto" };
     expect(InviteLanding.safeParse({ ...member, signedIn: true }).success).toBe(true);
     expect(InviteLanding.safeParse({ ...member, signedIn: false }).success).toBe(false);
+  });
+});
+
+describe("Guest", () => {
+  const guest = {
+    guestId: "guest_2c4e6a80-1111-4222-8333-444455556666",
+    tripId,
+    name: "Baby",
+    travelling: true,
+    linkedUserId: null,
+    createdBy: "dev-alice",
+    createdAt: "2026-10-15T00:00:00.000Z",
+  };
+
+  it("parses a guest nobody claimed", () => {
+    expect(Guest.parse(guest)).toEqual(guest);
+  });
+
+  it("parses a guest claimed for a member", () => {
+    expect(Guest.parse({ ...guest, linkedUserId: "dev-bob" }).linkedUserId).toBe("dev-bob");
+  });
+
+  it("rejects an empty name and a name over 120 chars", () => {
+    expect(Guest.safeParse({ ...guest, name: "" }).success).toBe(false);
+    expect(Guest.safeParse({ ...guest, name: "x".repeat(121) }).success).toBe(false);
+  });
+
+  it("CreateGuestInput takes a name and nothing else", () => {
+    expect(CreateGuestInput.parse({ name: "Baby" })).toEqual({ name: "Baby" });
+    expect(CreateGuestInput.safeParse({ name: "Baby", travelling: false }).success).toBe(false);
+  });
+
+  it("UpdateGuestInput takes either or both fields, but not an empty patch", () => {
+    expect(UpdateGuestInput.parse({ name: "Grandma" })).toEqual({ name: "Grandma" });
+    expect(UpdateGuestInput.parse({ travelling: false })).toEqual({ travelling: false });
+    expect(UpdateGuestInput.safeParse({}).success).toBe(false);
+  });
+
+  it("LinkGuestInput takes a user id", () => {
+    expect(LinkGuestInput.parse({ userId: "dev-bob" })).toEqual({ userId: "dev-bob" });
+    expect(LinkGuestInput.safeParse({ userId: "" }).success).toBe(false);
   });
 });

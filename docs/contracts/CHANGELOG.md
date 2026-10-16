@@ -13,6 +13,76 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-10-15 — Trip guests, part 2: guests count in cost + read path
+- **Changed** (`packages/contracts/src/costs.ts`): `travellerIds(members, guests = [])`
+  takes an optional guests list. A travelling guest emits its `guestId`, unless
+  `linkedUserId` is set — then the guest IS that user and the linked id is
+  emitted, deduped against the members. `stopHeadcount`, `stopPeople` and
+  `balances` needed no change: they are string-based and already handle guest
+  ids in `participants`.
+- **Changed** (`packages/pages/src/macros/primitives/balances.ts`): `personNames`
+  takes an optional guests list and resolves `guest_<uuid>` ids to the name on
+  the guest record; a guest on the trip is never "Former member". New optional
+  `WidgetContext.guests` carries the records to the notebook macros.
+- Why: Mitchell's trip-guests feature — named travellers with no account
+  ("Baby") count toward per-person cost and resolve by name everywhere members
+  do. Server read path (`overlayMembers` + `trip-access`, `shares`, history
+  routes, `commands`, `invitePreview`) recosts for members' and guests'
+  travellers together via `listGuests`.
+- Consumers updated: `apps/web` (overlay + seven call sites, `commands.ts`
+  decider context), `packages/pages` (notebook `cost.balances` / `person.share`
+  thread `ctx.guests` into `personNames`). UI `travellerIds` callers unchanged:
+  the client cannot reach `listGuests` until part 3 wires the guest read.
+- Breaking? no — both new parameters are optional; single-arg calls keep the
+  old answer.
+
+## 2026-10-15 — Trip guests bundled into `TripAccess` (Fix 1)
+- **Added** (`packages/contracts/src/access.ts`): `TripAccess.guests`, a required `Guest[]`.
+  Both internal `TripAccess` producers populate it via `listGuests`: `GET
+  /api/trips/:tripId/access` (empty for the demo trip) and the member-write route
+  (`members/[userId]/route.ts`'s `accessView`, which answers every PATCH/DELETE).
+- Why: the People section was about to chase a second read (`GET
+  /v1/trips/:id/guests`) after every access load — an N+1 on the trip's
+  primary read. Bundling removes it.
+- Consumers updated: `packages/factories` (`tripAccessFixture` gains `guests:
+  []`), `apps/web/src/mocks/handlers.ts` (both access mocks serve `guests:
+  []`), `packages/contracts/test/access.test.ts` (fixtures gain `guests:
+  []`), and the hand-written MSW access mocks in `HistoryPanel.test.tsx`,
+  `ResetToDefault.test.tsx`, `LinkCardBlock.test.tsx`, `people.test.tsx`,
+  `NotebookScreen.test.tsx`, `PageAssistant.test.tsx`, and `PageScreen.test.tsx`,
+  plus the hand-written `fetchTripAccess`/`setTravelling` mocks in
+  `apiClient.test.ts`, `TripHeader.test.tsx`, `TripHeader.cover.test.tsx`,
+  `context/TripProvider.test.tsx`, `context/TripProvider.lateWrite.test.tsx`,
+  `context/context.test.tsx`, and `editor/ActivityEditorSheet.test.tsx`.
+  The standalone `GET /v1/trips/:id/guests` is unchanged — public-API
+  consumers keep their own read.
+- Not in the public API: `TripAccess` is a BFF type, so `openapi.json`, `API_VERSION`
+  and the public scopes are untouched.
+- Breaking? no — the field is required but additive, and both real producers
+  populate it.
+
+## 2026-10-15 — Trip guests, part 1: server + API (public API 1.18.0)
+- **Added** (`packages/contracts/src/access.ts`): `Guest` (`guestId`, `tripId`, `name`, `travelling`,
+  `linkedUserId`, `createdBy`, `createdAt`), plus `CreateGuestInput`, `UpdateGuestInput`
+  (at least one of `name`/`travelling`, else 400) and `LinkGuestInput`. New Access table
+  `trip_guests` (migration `0053`), served by `server/access/guests.ts` and the public API:
+  `GET`/`POST /v1/trips/:tripId/guests`, `PATCH`/`DELETE /v1/trips/:tripId/guests/:guestId`,
+  `POST .../:guestId/link`, `POST .../:guestId/unlink`.
+- Id shape: guest ids are `guest_<uuid>` strings — the prefix pins the guest
+  namespace, keeping it disjoint from `users.id` (opaque text) wherever a guest
+  id drops into person-keyed fields (`participants` picks, the cost overlay).
+- Why: Mitchell's trip-guests feature — named travellers with no account ("Baby") who count toward
+  per-person cost. Part 1 is the server + public API foundation; cost math (part 2), UI (part 3)
+  and notebooks (part 4) follow on stacked branches.
+- Consumers updated: `apps/web` — `server/db/schema.ts` (`tripGuests`), `server/accessPolicy.ts`
+  (`mayManageGuests`, `mayLinkGuest`, `mayUnlinkGuest`), the six route files above,
+  `openapi.json` regenerated. `exposure.ts` unchanged: its lines are keyed by internal
+  (non-`v1`) route dirs, and guests ship as `v1`-only endpoints — there is no internal route
+  to decide about. Scopes: guests read under `trips:read`, writes under `sharing:write`
+  (guests are Access data — who is coming — not planning data, so `trips:write` stays out).
+- Breaking? no — additive schemas and endpoints. `DELETE` answers 200 with the removed guest
+  (the wrapper cannot carry a 204), matching the trip delete and the share/invite revokes.
+
 ## 2026-10-14 — `proposalFailed` on the /ask stream: a turn whose proposal could not be built keeps its answer
 - **Added** (`assistant.ts`): a seventh `AskStreamShape` member, `{ proposalFailed: { message: string (non-empty) } }`,
   plus `ASK_PROPOSAL_FAILED_MESSAGE`, the fixed note it carries. A planning turn whose answer streamed but whose

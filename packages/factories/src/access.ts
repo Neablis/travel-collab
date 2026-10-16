@@ -55,6 +55,8 @@ export function tripAccessFixture(overrides: Partial<TripAccess> = {}): TripAcce
     ],
     invites: [tripInviteFactory.build({ tripId, email: "cara@example.com", role: "viewer" })],
     collaboratorsEntitled: true,
+    // No guests by default; a suite about the guests reads uses `overrides`.
+    guests: [],
     ...overrides,
   };
 }

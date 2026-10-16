@@ -9,6 +9,7 @@ import { getTripDetail } from "../projections";
 import { readStream } from "../eventStore";
 import { overlayMembers } from "./overlay";
 import { effectiveMembers } from "./members";
+import { listGuests } from "./guests";
 import { toSharedView } from "./sharedView";
 import type { AccessResult } from "./invites";
 
@@ -162,6 +163,9 @@ export async function readShare(token: string): Promise<AccessResult<SharedTripV
   if (!resolved.ok) return resolved;
   const { share, current, replayed } = resolved.value;
   const members = await effectiveMembers(db, share.tripId, current.members);
+  // Guests count toward per-person cost (guests spec P2), here too: the page
+  // says how many are travelling, and its totals are for that many.
+  const guests = await listGuests(share.tripId);
   return {
     ok: true,
     // `toDto(share)`, not the row: `sharedAt` crosses the API boundary, so it
@@ -170,9 +174,9 @@ export async function readShare(token: string): Promise<AccessResult<SharedTripV
     // and a price is per person (ADR-060), so its totals are for that many —
     // the same count `overlayMembers` recosts for.
     value: toSharedView(
-      overlayMembers(replayed.detail, members),
+      overlayMembers(replayed.detail, members, guests),
       toDto(share),
-      travellerIds(members).length,
+      travellerIds(members, guests).length,
       replayed.headSeq,
     ),
   };

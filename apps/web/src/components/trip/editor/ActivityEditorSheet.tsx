@@ -1,14 +1,14 @@
 "use client";
 
 import { travellerIds, type ActivityView, type NearbyStop } from "@tc/contracts";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { personNames } from "@tc/pages";
 import { Banner } from "@/components/ui/banner";
 import { Sheet } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { DataText } from "@/components/ui/data-text";
 import { Text } from "@/components/ui/text";
-import { ActivityEditor, type ActivityDayOption, type ActivityFormValue } from "@/components/board/ActivityEditor";
+import { ActivityEditor, type ActivityDayOption, type ActivityFormValue, type NamedGuest } from "@/components/board/ActivityEditor";
 import { addActivityCommand } from "@/components/board/activityCommands";
 import { editActivityCommands } from "@/components/board/editActivityCommands";
 import { ActivityConflicts } from "@/components/trip/editor/ActivityConflicts";
@@ -163,6 +163,29 @@ export function ActivityEditorSheet() {
     color: personas?.[userId]?.color,
   }));
 
+  // Guests ride on the provider's live access (guests spec P1): no separate
+  // read — the board's poll re-reads access when `accessRev` moves, so the
+  // picker's chips keep up with whoever the People panel just added, without
+  // this sheet polling. Read for a viewer too, even though they never see
+  // the form: the read-only cost line below divides by travellers, guests
+  // included, so it needs the same list. `null` while the sheet is closed or
+  // the access read is still out, so the editor holds off on calling a
+  // picked guest departed meanwhile.
+  const guests = open && access !== null ? access.guests : null;
+  // A guest removed while this sheet is open is gone from the access read,
+  // but a stop may still name them: every name the reads ever saw is kept so
+  // the departed fallback can print it rather than "Former member".
+  const guestNames = useRef(new Map<string, string>());
+  useEffect(() => {
+    for (const guest of guests ?? []) guestNames.current.set(guest.guestId, guest.name);
+  }, [guests]);
+  const namedGuests: NamedGuest[] = (guests ?? []).map((guest) => ({
+    guestId: guest.guestId,
+    name: guest.name,
+    travelling: guest.travelling,
+    linkedUserId: guest.linkedUserId,
+  }));
+
   const dayOptions: ActivityDayOption[] =
     activeTrip?.days.map((day, index) => ({
       dayId: day.dayId,
@@ -251,7 +274,9 @@ export function ActivityEditorSheet() {
         <ReadOnlyActivity
           activity={editingActivity}
           currency={activeTrip?.currency ?? "USD"}
-          travellerCount={travellerIds(activeTrip?.members ?? []).length}
+          // The access read carries the guests; the line re-renders when it
+          // lands, from the members-only count meanwhile.
+          travellerCount={travellerIds(activeTrip?.members ?? [], guests ?? []).length}
           onClose={close}
         />
       )}
@@ -286,6 +311,13 @@ export function ActivityEditorSheet() {
           // Named by `personNames` over `PeopleProvider`'s names (mounted by
           // TripBoardScreen): "Traveler 2" until they land, never the id.
           members={namedMembers}
+          // Guests, from the trip's access read above; the editor
+          // counts a claimed guest as their member and writes `guestId` picks.
+          // `null` until that read lands, so the editor holds off on
+          // calling a picked guest departed meanwhile.
+          guests={namedGuests}
+          guestNames={guestNames.current}
+          guestsLoaded={guests !== null}
           nearbyStops={nearbyStops}
           onSave={handleSave}
           onCancel={close}

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { ActivityView, FilterDimension, TimeFormat, TripDetail } from "@tc/contracts";
+import type { ActivityView, FilterDimension, Guest, TimeFormat, TripDetail } from "@tc/contracts";
 import type { ItineraryPayload, ItineraryScheduleDay, ItineraryStop } from "../../itineraryPayload";
 import { needsBooking } from "../../needsBooking";
 import type {
@@ -59,6 +59,7 @@ function dayCard(
   index: number,
   stops: readonly SelectedStop[],
   format: TimeFormat,
+  guests: readonly Guest[],
 ): ItineraryDayPayload {
   const day = trip.days[index]!;
   // Summed from the stops on the card rather than read off `day.costSubtotal`
@@ -67,7 +68,7 @@ function dayCard(
   // disagreement between two surfaces this repo keeps finding. Each stop line
   // below stays its per-person price; the card's total is what the day costs
   // the people in it (ADR-060), which is what `costOfStops` sums.
-  const costMinor = costOfStops(stops, trip.members);
+  const costMinor = costOfStops(stops, trip.members, guests);
   return {
     kind: "itinerary-day",
     dayId: day.dayId,
@@ -205,7 +206,7 @@ export const dayDetail: MacroDef<DayDetailParams, ItineraryDayPayload | Itinerar
   emptyText: "no days yet",
   preview: "every stop on the days you selected",
   resolve: (
-    { trip, globals, user }: WidgetContext,
+    { trip, globals, user, guests }: WidgetContext,
     params,
     item,
   ): MacroResult<ItineraryDayPayload | ItineraryTripPayload | ItineraryPayload> => {
@@ -234,7 +235,7 @@ export const dayDetail: MacroDef<DayDetailParams, ItineraryDayPayload | Itinerar
         days: kept.map((index) => scheduleDay(trip, globals, index, byDay.get(index) ?? [], format)),
       });
     }
-    const cards = kept.map((index) => dayCard(trip, globals, index, byDay.get(index) ?? [], readerClock(user)));
+    const cards = kept.map((index) => dayCard(trip, globals, index, byDay.get(index) ?? [], readerClock(user), guests ?? []));
     if (cards.length === 1) {
       const only = cards[0]!;
       return only.activities.length === 0 ? empty() : ok(only);

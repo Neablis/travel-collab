@@ -7,6 +7,7 @@ import { db } from "./db/client";
 import { inviteByToken, MAX_TOKEN_LENGTH } from "./access/invites";
 import { effectiveMembers, withProfiles } from "./access/members";
 import { overlayMembers } from "./access/overlay";
+import { listGuests } from "./access/guests";
 import { getTripDetail } from "./projections";
 
 /**
@@ -47,12 +48,14 @@ export async function readInvitePreview(
 
   // The effective members, travelling flags included, and the totals they
   // imply: the same two steps the board's own read takes (`readTrip`), so the
-  // total here is the total the trip's people see.
+  // total here is the total the trip's people see. Guests count too
+  // (guests spec P2).
   const members = await effectiveMembers(db, detail.tripId, detail.members);
-  const costed = overlayMembers(detail, members);
+  const guests = await listGuests(detail.tripId);
+  const costed = overlayMembers(detail, members, guests);
   // No viewer: nobody here may read an address, and `name` below never takes one.
   const profiles = await withProfiles(members, "");
-  const travellers = new Set(travellerIds(members));
+  const travellers = new Set(travellerIds(members, guests));
 
   return {
     ok: true,

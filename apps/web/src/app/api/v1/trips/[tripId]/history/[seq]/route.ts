@@ -1,4 +1,5 @@
 import { TripDetail } from "@tc/contracts";
+import { listGuests } from "@/server/access/guests";
 import { overlayMembers } from "@/server/access/overlay";
 import { getTripDetailAt } from "@/server/history";
 import { PublicApiError } from "@/server/public-api/commands";
@@ -23,8 +24,11 @@ export const { GET } = route({
       // The replay is of the PLAN, not of who is on the trip — membership has no
       // seq to replay to (ADR-026) — so it gets today's members, and the totals
       // they imply (ADR-060), exactly as the app's own history route does.
+      // Guests are today's too: a guest is who is coming, not a fact about
+      // the plan (guests spec P2).
       // `trip` is the overlaid detail `trip: "path"` already loaded.
-      return overlayMembers(at, trip!.members);
+      const guests = await listGuests(params["tripId"]!);
+      return overlayMembers(at, trip!.members, guests);
     },
   },
 });

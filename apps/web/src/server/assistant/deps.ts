@@ -10,8 +10,8 @@
 //
 // The keys are what the tools that exist TODAY actually need, read off them
 // rather than guessed at: `trip` (four read tools now — `search_places`
-// region-biases on it), `actor` (the two that reach the library as somebody),
-// `scope` (the day-scope fallback that a model must not be able to omit its way
+// region-biases on it), `guests` (the read tools' traveller counts),
+// `actor` (the two that reach the library as somebody), `scope` (the day-scope fallback that a model must not be able to omit its way
 // out of), the three per-turn collectors, and the three library ports. A key
 // nothing needs is a key nothing can audit.
 import { currentCallId } from "./callScope";
@@ -19,6 +19,7 @@ import { z } from "zod";
 import {
   isAssistantCommandId,
   type AssistantProposal,
+  type Guest,
   type PageNode,
   type PaletteCommandRef,
   type SavedDay,
@@ -660,6 +661,12 @@ export interface AssistantDeps {
    * own copy could answer about a trip the guard never checked.
    */
   trip: TripDetail;
+  /**
+   * The trip's guests (`listGuests`), as the turn loaded them — the read tools
+   * count travellers over members AND guests (guests spec P2), and the
+   * overlaid `trip` carries the members alone.
+   */
+  guests: readonly Guest[];
   /** Who is asking. The only way a tool learns an identity. */
   actor: AssistantActor;
   /**
@@ -715,7 +722,7 @@ export type DepKey = keyof AssistantDeps;
  * supply. Their lifetimes differ (a buffer is per-turn, a port is per-process)
  * and that is not what this split is about.
  */
-export const AMBIENT_DEP_KEYS = ["trip", "actor", "scope"] as const;
+export const AMBIENT_DEP_KEYS = ["trip", "guests", "actor", "scope"] as const;
 export type AmbientDepKey = (typeof AMBIENT_DEP_KEYS)[number];
 export type TurnDepKey = Exclude<DepKey, AmbientDepKey>;
 export type TurnDeps = Pick<AssistantDeps, TurnDepKey>;
@@ -772,6 +779,13 @@ export interface AssistantContext {
   userId: string;
   detail: TripDetail;
   scope: AskScope;
+  /**
+   * The trip's guests, read when the turn loaded its detail — the same
+   * committed read `commands.ts` makes beside its transaction (guests spec
+   * P2). Pass-through like `detail`, for the same reason: the guard's answer
+   * is what the turn trusts.
+   */
+  guests: readonly Guest[];
 }
 
 export const AssistantContextSchema = z.object({
@@ -779,12 +793,14 @@ export const AssistantContextSchema = z.object({
   userId: z.string().min(1),
   detail: z.custom<TripDetail>((v) => typeof v === "object" && v !== null),
   scope: z.custom<AskScope>((v) => typeof v === "object" && v !== null),
+  guests: z.custom<readonly Guest[]>((v) => Array.isArray(v)),
 });
 
 /** The context channel's flat shape, keyed the way `needs` names it. */
 export function ambientDepsFrom(context: AssistantContext): Pick<AssistantDeps, AmbientDepKey> {
   return {
     trip: context.detail,
+    guests: context.guests,
     actor: { tripId: context.tripId, userId: context.userId },
     scope: context.scope,
   };

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { Money, TripDetail } from "@tc/contracts";
+import type { Guest, Money, TripDetail } from "@tc/contracts";
 import { tripDetailFactory } from "@tc/factories";
 import { renderMacro } from "../../registry";
 import type { Rendered, WidgetContext } from "../../registry-types";
@@ -36,21 +36,34 @@ function notTravelling(trip: TripDetail, userId: string): TripDetail {
   return trip;
 }
 
-const ctx = (trip: TripDetail | undefined, people: WidgetContext["people"] = PEOPLE): WidgetContext => ({
-  trip, page: { tripId: trip?.tripId ?? "t" }, user: null, globals: null, today: null, people,
+/** A guest record, as `listGuests` would hand it to `personNames`. */
+function guestOf(guestId: string, name: string): Guest {
+  return {
+    guestId,
+    tripId: "t",
+    name,
+    travelling: true,
+    linkedUserId: null,
+    createdBy: "u-ana",
+    createdAt: new Date().toISOString(),
+  };
+}
+
+const ctx = (trip: TripDetail | undefined, people: WidgetContext["people"] = PEOPLE, guests?: Guest[]): WidgetContext => ({
+  trip, page: { tripId: trip?.tripId ?? "t" }, user: null, globals: null, today: null, people, guests: guests ?? null,
 });
 
 /** The table as plain strings, row by row: lead, then each cell's text. */
-function tableOf(trip: TripDetail, params: Record<string, unknown> = {}, people?: WidgetContext["people"]): string[][] {
-  const outcome = renderMacro(ctx(trip, people), "cost.balances", params);
+function tableOf(trip: TripDetail, params: Record<string, unknown> = {}, people?: WidgetContext["people"], guests?: Guest[]): string[][] {
+  const outcome = renderMacro(ctx(trip, people, guests), "cost.balances", params);
   if (outcome.status !== "ok" || outcome.rendered.kind !== "rows") throw new Error(`expected rows, got ${JSON.stringify(outcome)}`);
   return outcome.rendered.rows.map((row) => [row.lead.map((s) => s.text).join(""), ...row.cells.map((c) => c.map((s) => s.text).join(""))]);
 }
 
 const said = (rendered: Rendered) => (rendered.kind === "inline" ? rendered.segs.map((s) => s.text).join("") : "");
 
-function sentenceOf(trip: TripDetail, who: string, params: Record<string, unknown> = {}): string {
-  const outcome = renderMacro(ctx(trip), "person.share", { who, ...params });
+function sentenceOf(trip: TripDetail, who: string, params: Record<string, unknown> = {}, guests?: Guest[]): string {
+  const outcome = renderMacro(ctx(trip, undefined, guests), "person.share", { who, ...params });
   if (outcome.status !== "ok") throw new Error(`expected a sentence, got ${JSON.stringify(outcome)}`);
   return said(outcome.rendered);
 }
@@ -125,6 +138,38 @@ describe("cost.balances — Who owes what", () => {
       ["Cy", "", "$60.00", "is owed $60.00"],
     ]);
   });
+
+  // Guests spec P2: a travelling guest is in a stop nobody picked the same as
+  // a travelling member, with their own balance line (Mitchell: guests are
+  // cost centers, split equally) — the same divisor the board's overlay uses.
+  it("splits a stop nobody picked across members plus travelling guests, with a row for each guest", () => {
+    const trip = tripOf();
+    trip.members = trip.members.slice(0, 2);
+    const baby = guestOf("guest_1", "Baby");
+    // $100 a head (ADR-060: a price is per person), three travellers.
+    price(trip, 0, 0, usd(100_00), [], null);
+    expect(tableOf(trip, {}, undefined, [baby])).toEqual([
+      ["Ana", "$100.00", "", "owes $100.00"],
+      ["Ben", "$100.00", "", "owes $100.00"],
+      ["Baby", "$100.00", "", "owes $100.00"],
+      ["Not paid yet", "$300.00", "", "nobody booked it"],
+    ]);
+  });
+
+  // Guests spec P3: a linked guest IS their member — one headcount, never two.
+  // Picking the linked guest in Who-is-in lands on the member's row; the
+  // guest id itself gets no row.
+  it("merges a picked linked guest into the member's row, never a second row", () => {
+    const trip = tripOf();
+    trip.members = trip.members.slice(0, 2);
+    const baby = { ...guestOf("guest_1", "Baby"), linkedUserId: "u-ben" };
+    // Baby picked in a $60 stop booked by Ana: one headcount, Ben's share.
+    price(trip, 0, 0, usd(60_00), ["guest_1"], "u-ana");
+    expect(tableOf(trip, {}, undefined, [baby])).toEqual([
+      ["Ana", "", "$60.00", "is owed $60.00"],
+      ["Ben", "$60.00", "", "owes $60.00"],
+    ]);
+  });
 });
 
 describe("person.share — What one person is in for", () => {
@@ -172,6 +217,27 @@ describe("person.share — What one person is in for", () => {
     expect(sentenceOf(trip, "u-cy")).toBe("Cy is in for $50.00 across 1 stop and owes $50.00");
     expect(sentenceOf(trip, "u-ana")).toBe("Ana is in for $30.00 across 1 stop, has paid $60.00 and is owed $30.00");
   });
+
+  // Guests spec P2: a guest is a cost center, split equally — the sentence is
+  // theirs to have, not "not on this trip".
+  it("answers for a guest, with their share of the stops they are in", () => {
+    const trip = tripOf();
+    trip.members = trip.members.slice(0, 2);
+    const baby = guestOf("guest_1", "Baby");
+    price(trip, 0, 0, usd(100_00), [], null);
+    expect(sentenceOf(trip, "guest_1", {}, [baby])).toBe("Baby is in for $100.00 across 1 stop and owes $100.00");
+  });
+
+  // Guests spec P3: a linked guest IS their member, so the sentence reads off
+  // the member's row — Baby's name, Ben's money — and cannot disagree with
+  // the table.
+  it("reads a linked guest's share off the member's row", () => {
+    const trip = tripOf();
+    trip.members = trip.members.slice(0, 2);
+    const baby = { ...guestOf("guest_1", "Baby"), linkedUserId: "u-ben" };
+    price(trip, 0, 0, usd(60_00), ["guest_1"], "u-ana");
+    expect(sentenceOf(trip, "guest_1", {}, [baby])).toBe("Baby is in for $60.00 across 1 stop and owes $60.00");
+  });
 });
 
 describe("personNames", () => {
@@ -185,5 +251,23 @@ describe("personNames", () => {
     const trip = tripOf();
     expect([...personNames(trip, PEOPLE, ["u-x"]).values()]).toEqual(["Former member"]);
     expect([...personNames(trip, PEOPLE, ["u-ana", "u-x", "u-y"]).values()]).toEqual(["Ana", "Former member 1", "Former member 2"]);
+  });
+
+  // Guests spec P2: a guest id resolves to the name on its record — the name
+  // IS the record — and a guest on the trip is never "Former member".
+  it("resolves a guest id to the guest's name", () => {
+    const trip = tripOf();
+    const guests: Guest[] = [guestOf("guest_1", "Baby")];
+    expect([...personNames(trip, PEOPLE, ["guest_1"], guests).values()]).toEqual(["Baby"]);
+    // An explicit handed-in name still wins over the record, as for members.
+    expect([...personNames(trip, { "guest_1": "Little One" }, ["guest_1"], guests).values()]).toEqual(["Little One"]);
+    // A guest id with no record is unknown, not former — the record is the source.
+    expect([...personNames(trip, PEOPLE, ["guest_9"], guests).values()]).toEqual(["Former member"]);
+    // Guests do not disturb the former-member numbering.
+    expect([...personNames(trip, PEOPLE, ["u-x", "guest_1", "u-y"], guests).values()]).toEqual([
+      "Former member 1",
+      "Baby",
+      "Former member 2",
+    ]);
   });
 });

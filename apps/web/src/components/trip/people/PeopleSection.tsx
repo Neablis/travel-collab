@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { Plus } from "lucide-react";
 import {
   travellerIds,
+  type Guest,
   type InviteRole,
   type PersonColor,
   type TripAccess,
@@ -15,23 +16,32 @@ import {
 import { usePreferences } from "@/components/account/PreferencesProvider";
 import { useSessionUser } from "@/components/account/useSessionUser";
 import { useOptionalTrip } from "@/components/trip/context/TripProvider";
+import { Badge } from "@/components/ui/badge";
 import { Banner } from "@/components/ui/banner";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { PersonChip } from "@/components/ui/person-chip";
 import { Skeleton, SkeletonRegion } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/text";
 import {
   changeMemberRole,
+  createGuest,
   fetchTripAccess,
   inviteLink,
   leaveTrip,
+  linkGuest,
+  removeGuest,
   removeMember,
   revokeTripInvite,
   setTravelling,
+  unlinkGuest,
+  updateGuest,
   type ApiResult,
 } from "@/lib/apiClient";
 import { displayNameFor } from "@/lib/displayName";
 import { ConfirmDialog } from "./ConfirmDialog";
+import { GuestLinkDialog } from "./GuestLinkDialog";
 import { InviteDialog } from "./InviteDialog";
 import { InviteRow, inviteMenuLabel } from "./InviteRow";
 import { PersonMenu, type PersonAction } from "./PersonMenu";
@@ -45,7 +55,9 @@ import { RoleDialog } from "./RoleDialog";
 type Confirming =
   | { kind: "revoke"; invite: TripInvite }
   | { kind: "remove"; member: TripMemberProfile; name: string }
-  | { kind: "leave" };
+  | { kind: "leave" }
+  | { kind: "removeGuest"; guest: Guest }
+  | { kind: "unlinkGuest"; guest: Guest; memberName: string };
 
 const CONFIRM_COPY = {
   revoke: () => ({
@@ -62,6 +74,16 @@ const CONFIRM_COPY = {
     title: "Leave this trip?",
     body: "You lose access to this trip. Stops you were picked for keep the pick, and only the owner can invite you back.",
     confirmLabel: "Leave trip",
+  }),
+  removeGuest: (name: string) => ({
+    title: `Remove ${name} from the trip?`,
+    body: `${name} no longer counts as a traveller. Stops they were picked for keep the pick.`,
+    confirmLabel: "Remove",
+  }),
+  unlinkGuest: (guestName: string, memberName: string) => ({
+    title: `Unlink ${guestName}?`,
+    body: `${guestName} stays a guest on the trip, but is no longer claimed by ${memberName}.`,
+    confirmLabel: "Unlink",
   }),
 };
 
@@ -192,6 +214,27 @@ export function PeopleSection({
   const [revealed, setRevealed] = useState<{ inviteId: string; link: string } | null>(null);
   const ids = useId();
 
+  // Guests: named travellers with no account (guests spec P1). They ride on
+  // `TripAccess` itself — no separate read — so the list below is adopted
+  // from the latest access, in `adopt` below, under the same `isOlder` guard
+  // as the members. Every guest write bumps `accessRev`
+  // (server/access/guests.ts): the trip provider re-reads access when the
+  // poll sees it move, so a guest added in another browser arrives here
+  // through `provided` without this section polling, and `onAccessChanged`
+  // (the provider's `refreshAccess`) re-reads it after this section's own
+  // writes. `null` while the access read is still out, the way the members'
+  // list is.
+  //
+  // A write's own answer folds in on top (see `runGuestWrite`) until the
+  // re-read that write triggered lands and replaces the list wholesale —
+  // the folded answer is provisional by construction.
+  const [guests, setGuests] = useState<Guest[] | null>(provided?.guests ?? null);
+  const [guestError, setGuestError] = useState<string | null>(null);
+  const [addingGuest, setAddingGuest] = useState(false);
+  const [guestName, setGuestName] = useState("");
+  const [guestNameError, setGuestNameError] = useState<string | null>(null);
+  const [linkingGuest, setLinkingGuest] = useState<Guest | null>(null);
+
   // The value on screen, read synchronously: two reads in flight can land in
   // either order, and the one to compare against is the last one adopted.
   const held = useRef<TripAccess | null>(provided ?? null);
@@ -199,6 +242,20 @@ export function PeopleSection({
     if (isOlder(value, held.current)) return;
     held.current = value;
     setAccess(value);
+    // Adopted with the access read, in the same render — no second read, and
+    // no extra render cycle of its own. A provisional `guest_temp-…` row
+    // rides along: its POST is still in flight, and the POST's answer (or
+    // failure) reconciles it — the swap looks for the temp id, the rollback
+    // removes it. Without this the wholesale replace drops the optimistic
+    // row, the in-flight swap has nothing to swap into, and a quick re-add
+    // can land twice (the server has no name uniqueness). Temp ids are
+    // client-minted, so they can never collide with the server's list.
+    setGuests((current) => {
+      const pending = (current ?? []).filter(
+        (g) => g.guestId.startsWith("guest_temp-") && !value.guests.some((n) => n.guestId === g.guestId),
+      );
+      return [...value.guests, ...pending];
+    });
     reportInvites.current?.(value.invites.some((i) => i.status === "pending"));
     // Cleared on success: a retry that worked must not leave the previous
     // failure sitting next to fresh, correct data.
@@ -221,6 +278,97 @@ export function PeopleSection({
     atMount.current = provided;
     adopt(provided);
   }, [provided, adopt]);
+
+  /**
+   * Runs a guest write and folds the guest it answers into the list. The v1
+   * guest endpoints answer the guest, not `TripAccess` (the member writes'
+   * shape), so the list is updated from the response rather than re-read —
+   * and `onAccessChanged` fires, because a guest moves the trip's per-person
+   * totals the way a member write does. The re-read that follows replaces
+   * the list wholesale, so a folded answer is only ever provisional.
+   */
+  async function runGuestWrite(
+    write: () => Promise<ApiResult<Guest>>,
+    apply: (list: Guest[], answered: Guest) => Guest[],
+  ): Promise<boolean> {
+    setBusy(true);
+    try {
+      const result = await write();
+      if (!result.ok) {
+        setGuestError(result.error.message);
+        return false;
+      }
+      setGuests((current) => apply(current ?? [], result.value));
+      setGuestError(null);
+      onAccessChanged?.();
+      return true;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function submitGuest() {
+    const name = guestName.trim();
+    // The server's rule (guests.ts): something remains after trimming,
+    // 1-120 chars. Said here before the round trip, in the server's words.
+    if (name.length === 0 || name.length > 120) {
+      setGuestNameError("A guest needs a name (1-120 characters).");
+      return;
+    }
+    // Optimistic: the row appears at once, under a client-minted id no
+    // server read will ever carry — `guest_temp-…`, still inside the `guest_`
+    // namespace the contract pins, so the row renders through the same path
+    // as a real one. The POST's answer swaps it for the real guest; a failure
+    // takes the row back out and says so. Either way the re-read
+    // `onAccessChanged` triggers reconciles the list with the server.
+    const tempId = `guest_temp-${crypto.randomUUID()}`;
+    const provisional: Guest = {
+      guestId: tempId,
+      tripId,
+      name,
+      // The server's rule (access.ts): a named guest is coming.
+      travelling: true,
+      linkedUserId: null,
+      // Never read: the POST's answer replaces this row before anything
+      // could, and the row keeps the contract's shape rather than growing a
+      // second, provisional type.
+      createdBy: "",
+      createdAt: "",
+    };
+    setGuests((current) => [...(current ?? []), provisional]);
+    setGuestError(null);
+    const ok = await runGuestWrite(
+      () => createGuest(tripId, name),
+      (list, answered) => list.map((g) => (g.guestId === tempId ? answered : g)),
+    );
+    if (ok) {
+      setGuestName("");
+      setGuestNameError(null);
+      setAddingGuest(false);
+    } else {
+      // The write failed: the provisional row goes, and the error below says
+      // what the server answered.
+      setGuests((current) => (current ?? []).filter((g) => g.guestId !== tempId));
+    }
+  }
+
+  async function toggleGuest(guest: Guest) {
+    await runGuestWrite(
+      () => updateGuest(tripId, guest.guestId, { travelling: !guest.travelling }),
+      (list, answered) => list.map((g) => (g.guestId === answered.guestId ? answered : g)),
+    );
+  }
+
+  async function linkGuestToMember(guest: Guest, userId: string) {
+    if (
+      await runGuestWrite(
+        () => linkGuest(tripId, guest.guestId, userId),
+        (list, answered) => list.map((g) => (g.guestId === answered.guestId ? answered : g)),
+      )
+    ) {
+      setLinkingGuest(null);
+    }
+  }
 
   /** Runs a member write and applies the `TripAccess` it answers with. */
   async function writeMember(write: () => Promise<ApiResult<TripAccess>>): Promise<boolean> {
@@ -263,6 +411,17 @@ export function PeopleSection({
         if (!result.ok) setError(result.error.message);
       } else if (action.kind === "remove") {
         await writeMember(() => removeMember(tripId, action.member.userId));
+      } else if (action.kind === "removeGuest") {
+        // `removeGuest` answers the removed guest, so it leaves the list.
+        await runGuestWrite(
+          () => removeGuest(tripId, action.guest.guestId),
+          (list, answered) => list.filter((g) => g.guestId !== answered.guestId),
+        );
+      } else if (action.kind === "unlinkGuest") {
+        await runGuestWrite(
+          () => unlinkGuest(tripId, action.guest.guestId),
+          (list, answered) => list.map((g) => (g.guestId === answered.guestId ? answered : g)),
+        );
       } else {
         // Leaving answers `{ ok: true }`, not the list: whoever left may no
         // longer read it. Home is where Home's own *Leave this trip* leaves
@@ -282,6 +441,10 @@ export function PeopleSection({
   }
 
   const isOwner = access?.myRole === "owner";
+  // mayManageGuests, client-side (guests spec P1): the owner or an editor.
+  // Advisory — the v1 routes refuse regardless — the way `isOwner` gates the
+  // invite button above while `POST /invites` refuses server-side.
+  const canManageGuests = access?.myRole === "owner" || access?.myRole === "editor";
   // **Two conditions, and the second is M20 link 6.** Advisory only —
   // `POST /invites` refuses with 402 server-side whatever this decides.
   const collaboratorsEntitled = access?.collaboratorsEntitled ?? true;
@@ -291,7 +454,12 @@ export function PeopleSection({
   const members = access?.members ?? [];
   const grantedCount = members.filter((m) => m.role !== "owner").length;
   const lapsed = gated && grantedCount > 0;
-  const travelling = new Set(travellerIds(members));
+  // The split line below counts what the Part 2 overlay divides by — members
+  // and travelling guests both, through `travellerIds`'s second argument
+  // (`server/access/overlay.ts`). Guest ids are `guest_<uuid>`, so they never
+  // collide with a member `userId`: the groups and toggle labels above read
+  // the set exactly as before.
+  const travelling = new Set(travellerIds(members, guests ?? []));
   // The owner sorts first in whichever group they are in (spec §4).
   const ordered = [...members].sort((a, b) => Number(b.role === "owner") - Number(a.role === "owner"));
   const pending = isOwner ? (access?.invites ?? []).filter((i) => i.status === "pending") : [];
@@ -348,6 +516,89 @@ export function PeopleSection({
     );
   }
 
+  function guestActions(guest: Guest): PersonAction[] {
+    // A provisional row (its POST still in flight) has no server identity
+    // yet: a toggle, link, or remove would send the client-minted id to the
+    // server and 404. `PersonMenu` renders no trigger for an empty action
+    // list, so the row shows the guest with no menu until the POST's answer
+    // swaps in the real id.
+    if (guest.guestId.startsWith("guest_temp-")) return [];
+    const actions: PersonAction[] = [];
+    if (canManageGuests) {
+      actions.push({
+        label: guest.travelling ? "Mark as not travelling" : "Mark as travelling",
+        onSelect: () => void toggleGuest(guest),
+      });
+    }
+    // mayLinkGuest: the owner for anyone, any other member for themselves.
+    // The self-claim is identity, not content, so it is offered even where
+    // the list is otherwise read-only — a viewer may claim their own record.
+    if (isOwner) {
+      if (guest.linkedUserId === null) {
+        actions.push({ label: "Link to a member…", onSelect: () => setLinkingGuest(guest) });
+      } else {
+        const linked = members.find((m) => m.userId === guest.linkedUserId);
+        actions.push({
+          label: "Unlink…",
+          destructive: true,
+          onSelect: () =>
+            setConfirming({
+              kind: "unlinkGuest",
+              guest,
+              memberName: linked === undefined ? "that member" : displayNameFor(linked),
+            }),
+        });
+      }
+    } else if (
+      viewerId !== null &&
+      guest.linkedUserId === null &&
+      members.some((m) => m.userId === viewerId)
+    ) {
+      actions.push({ label: "Claim as me", onSelect: () => void linkGuestToMember(guest, viewerId) });
+    }
+    // mayUnlinkGuest is owner-only, so a non-owner never sees Unlink: the
+    // branch above is the whole of it.
+    if (canManageGuests) {
+      actions.push({
+        label: "Remove guest…",
+        destructive: true,
+        onSelect: () => setConfirming({ kind: "removeGuest", guest }),
+      });
+    }
+    return actions;
+  }
+
+  function renderGuest(guest: Guest) {
+    const linked = guest.linkedUserId === null ? undefined : members.find((m) => m.userId === guest.linkedUserId);
+    return (
+      // `data-guest-id` lets a test assert identity alongside the name, the
+      // way `data-user-id` does on a member row.
+      <li
+        key={guest.guestId}
+        data-testid="guest-row"
+        data-guest-id={guest.guestId}
+        className="flex min-h-11 items-center gap-2.5 py-1"
+      >
+        {/* No avatar and no colour: a guest has no account, so the chip draws
+            their initials on the default slate, and the badge says the rest. */}
+        <PersonChip name={guest.name} avatar={null} color={null} size="sm" />
+        <div className="flex min-w-0 flex-1 flex-col">
+          <span className="flex min-w-0 items-center gap-1.5">
+            <Text as="span" className="truncate text-sm text-ink">
+              {guest.name}
+            </Text>
+            <Badge className="shrink-0 px-1.5 py-0 font-medium">Guest</Badge>
+          </span>
+          <Text as="span" variant="muted">
+            {guest.travelling ? "Travelling" : "Not travelling"}
+            {linked === undefined ? null : ` · linked to ${displayNameFor(linked)}`}
+          </Text>
+        </div>
+        <PersonMenu label={guest.name} actions={guestActions(guest)} />
+      </li>
+    );
+  }
+
   const groups = [
     { key: "travelling", label: "Travelling", rows: ordered.filter((m) => travelling.has(m.userId)).map(renderMember) },
     { key: "not", label: "Not travelling", rows: ordered.filter((m) => !travelling.has(m.userId)).map(renderMember) },
@@ -378,7 +629,11 @@ export function PeopleSection({
       ? null
       : confirming.kind === "remove"
         ? CONFIRM_COPY.remove(confirming.name)
-        : CONFIRM_COPY[confirming.kind]();
+        : confirming.kind === "removeGuest"
+          ? CONFIRM_COPY.removeGuest(confirming.guest.name)
+          : confirming.kind === "unlinkGuest"
+            ? CONFIRM_COPY.unlinkGuest(confirming.guest.name, confirming.memberName)
+            : CONFIRM_COPY[confirming.kind]();
 
   return (
     <div className="flex flex-col gap-3" data-testid="people-section">
@@ -516,6 +771,93 @@ export function PeopleSection({
         ),
       )}
 
+      {/* Guests: named travellers with no account (guests spec P1). The list
+          rides on the access read above; add, remove and the
+          travelling toggle are `mayManageGuests` (owner or editor) — a viewer
+          reads the list, and may only claim a record for themselves. */}
+      <div className="flex flex-col gap-0.5">
+        <div className="flex min-h-7 items-center justify-between gap-3">
+          <Text
+            as="span"
+            id={`${ids}-guests`}
+            className="text-xs font-semibold uppercase tracking-wider text-slate"
+          >
+            {guests === null ? "Guests" : `Guests · ${guests.length}`}
+          </Text>
+          {canManageGuests && !addingGuest ? (
+            <Button variant="secondary" size="sm" onClick={() => setAddingGuest(true)}>
+              <Plus className="size-3.5" aria-hidden />
+              Add guest
+            </Button>
+          ) : null}
+        </div>
+        {addingGuest ? (
+          <form
+            className="flex flex-col gap-1.5 py-1"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void submitGuest();
+            }}
+          >
+            <Label htmlFor={`${ids}-guest-name`} className="text-xs font-medium text-ink">
+              Guest name
+            </Label>
+            <div className="flex items-center gap-2">
+              <Input
+                id={`${ids}-guest-name`}
+                className="min-w-0 flex-1"
+                value={guestName}
+                maxLength={120}
+                placeholder="e.g. Grandma"
+                autoComplete="off"
+                onChange={(e) => setGuestName(e.target.value)}
+              />
+              <Button type="submit" variant="primary" size="sm" disabled={busy} className="shrink-0">
+                Add
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="shrink-0"
+                onClick={() => {
+                  setAddingGuest(false);
+                  setGuestName("");
+                  setGuestNameError(null);
+                }}
+              >
+                Cancel
+              </Button>
+            </div>
+            {guestNameError !== null ? (
+              <Text as="span" role="alert" className="text-xs text-danger-ink">
+                {guestNameError}
+              </Text>
+            ) : null}
+          </form>
+        ) : null}
+        {guests === null && guestError === null ? (
+          // The section's own loading line, held like the members' above.
+          <span className="block text-xs">
+            <Skeleton className="inline-block h-3 w-32 align-middle" />
+          </span>
+        ) : (
+          <ul aria-labelledby={`${ids}-guests`} className="flex flex-col">
+            {(guests ?? []).map(renderGuest)}
+          </ul>
+        )}
+        {guests !== null && guests.length === 0 ? (
+          <Text as="span" variant="muted">
+            No guests yet.
+          </Text>
+        ) : null}
+        {guestError !== null ? (
+          <Text as="span" role="alert" className="text-xs text-danger-ink">
+            {guestError}
+          </Text>
+        ) : null}
+      </div>
+
       {revealed !== null && pending.some((i) => i.inviteId === revealed.inviteId) ? (
         <div className="flex flex-col gap-1">
           <Text as="span" variant="muted">
@@ -563,6 +905,17 @@ export function PeopleSection({
             if (!open) setChangingRole(null);
           }}
           onChange={(role) => void changeRole(changingRole.member, role)}
+        />
+      ) : null}
+      {linkingGuest !== null ? (
+        <GuestLinkDialog
+          guestName={linkingGuest.name}
+          members={members.map((m) => ({ userId: m.userId, name: displayNameFor(m) }))}
+          busy={busy}
+          onOpenChange={(open) => {
+            if (!open) setLinkingGuest(null);
+          }}
+          onLink={(userId) => void linkGuestToMember(linkingGuest, userId)}
         />
       ) : null}
     </div>

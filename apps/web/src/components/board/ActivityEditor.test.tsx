@@ -520,6 +520,42 @@ describe("ActivityEditor attribution (M13 link 5)", () => {
       expect(screen.getByRole("button", { name: "Former member 2 (left the trip)" })).toBeTruthy();
     });
 
+    // A guest removed after the list answered still reads as departed, under
+    // their name when the picker saw it and "Former member" when it did not.
+    it("calls a picked guest removed once the guest list has answered", () => {
+      render(
+        <ActivityEditor
+          initial={stop({ participants: ["guest_mock_baby"] })}
+          mode="edit"
+          days={[]}
+          members={MEMBERS}
+          guests={[]}
+          onSave={vi.fn()}
+          onCancel={vi.fn()}
+        />,
+      );
+      expect(screen.getByRole("button", { name: "Former member (removed)" })).toBeTruthy();
+    });
+
+    // While the guest list has not answered yet (the sheet fetches it after
+    // opening), a picked guest is absent from `guests` without having left —
+    // and must not read as departed until the list lands.
+    it("does not call a picked guest departed while the guest list is still loading", () => {
+      render(
+        <ActivityEditor
+          initial={stop({ participants: ["guest_mock_baby"] })}
+          mode="edit"
+          days={[]}
+          members={MEMBERS}
+          guests={[]}
+          guestsLoaded={false}
+          onSave={vi.fn()}
+          onCancel={vi.fn()}
+        />,
+      );
+      expect(screen.queryByRole("button", { name: /former member/i })).toBeNull();
+    });
+
     it("shows who booked it as a former member, and lets it be replaced", () => {
       const onSave = mount(stop({ bookedBy: DEPARTED }));
       const select = screen.getByLabelText("Booked by") as HTMLSelectElement;

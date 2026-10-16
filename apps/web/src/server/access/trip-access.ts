@@ -6,6 +6,7 @@ import { db } from "../db/client";
 import { getTripDetail } from "../projections";
 import { effectiveMembers } from "./members";
 import { overlayMembers } from "./overlay";
+import { listGuests } from "./guests";
 import { demoTripDetail } from "../demoTrip";
 import { isDemoTripId } from "@/lib/demoTrip";
 
@@ -233,7 +234,10 @@ async function readTrip(
   if (projected === null) return { ok: false, denial: "not-found" };
   const members = await effectiveMembers(db, tripId, projected.members);
   if (!mayRead(members)) return { ok: false, denial: "forbidden" };
-  const parsed = TripDetail.safeParse(overlayMembers(projected, members));
+  // Guests count toward per-person cost (guests spec P2): the read recosts
+  // for the members' and the guests' travellers together.
+  const guests = await listGuests(tripId);
+  const parsed = TripDetail.safeParse(overlayMembers(projected, members, guests));
   if (!parsed.success) {
     // The issues are logged because the response deliberately does not carry
     // them: the shape of a stored document is not something an API client gets
@@ -270,5 +274,6 @@ async function readTrip(
  */
 export async function withEffectiveMembers(detail: TripDetail): Promise<TripDetail> {
   const members = await effectiveMembers(db, detail.tripId, detail.members);
-  return TripDetail.parse(overlayMembers(detail, members));
+  const guests = await listGuests(detail.tripId);
+  return TripDetail.parse(overlayMembers(detail, members, guests));
 }
