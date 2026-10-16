@@ -42,7 +42,7 @@ import { POLL_INTERVAL_MS } from "./broadcast";
 
 const accessAs = (myRole: "owner" | "editor" | "viewer") => ({
   ok: true as const,
-  value: { tripId: "x", myRole, members: [], invites: [] },
+  value: { tripId: "x", myRole, members: [], invites: [], guests: [] },
 });
 
 beforeEach(() => {

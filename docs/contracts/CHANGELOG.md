@@ -26,7 +26,11 @@ Format:
   []`), `packages/contracts/test/access.test.ts` (fixtures gain `guests:
   []`), and the hand-written MSW access mocks in `HistoryPanel.test.tsx`,
   `ResetToDefault.test.tsx`, `LinkCardBlock.test.tsx`, `people.test.tsx`,
-  `NotebookScreen.test.tsx`, `PageAssistant.test.tsx`, and `PageScreen.test.tsx`.
+  `NotebookScreen.test.tsx`, `PageAssistant.test.tsx`, and `PageScreen.test.tsx`,
+  plus the hand-written `fetchTripAccess`/`setTravelling` mocks in
+  `apiClient.test.ts`, `TripHeader.test.tsx`, `TripHeader.cover.test.tsx`,
+  `context/TripProvider.test.tsx`, `context/TripProvider.lateWrite.test.tsx`,
+  `context/context.test.tsx`, and `editor/ActivityEditorSheet.test.tsx`.
   The standalone `GET /v1/trips/:id/guests` is unchanged — public-API
   consumers keep their own read.
 - Not in the public API: `TripAccess` is a BFF type, so `openapi.json`, `API_VERSION`
