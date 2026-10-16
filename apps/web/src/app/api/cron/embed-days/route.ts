@@ -1,7 +1,9 @@
 // The Vercel Cron entry point for the plan-retrieval embed queue (Part 2 of
-// 5). Every 5 minutes (see `apps/web/vercel.json`) Vercel GETs this route
-// with `Authorization: Bearer ${CRON_SECRET}`; the handler verifies the
+// 5). Once daily at 04:00 UTC (see `apps/web/vercel.json`) Vercel GETs this
+// route with `Authorization: Bearer ${CRON_SECRET}`; the handler verifies the
 // secret FIRST — before any database work — and runs the sweep.
+// NOTE: daily cadence is the Vercel Hobby plan limit. Bump to sub-daily (e.g.
+// */15 * * * *) when traffic grows — requires Vercel Pro.
 import { isCronRequestAuthorized } from "@/server/cronAuth";
 import { runEmbedSweep } from "@/server/ai/sweep";
 

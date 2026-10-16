@@ -12,7 +12,6 @@
   "crons": [
     {
       "path": "/api/cron/embed-days",
-      "_comment": "Daily: Vercel Hobby allows daily crons only. Bump to sub-daily (e.g. */15 * * * *) when traffic grows — requires Vercel Pro.",
       "schedule": "0 4 * * *"
     }
   ]
