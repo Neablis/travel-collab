@@ -119,10 +119,10 @@
         "go_to",
         "propose_notebook_editing"
       ],
-      "toolChars": 5823,
+      "toolChars": 5840,
       "instructionChars": 3564,
-      "totalChars": 9387,
-      "approxTokens": 2836
+      "totalChars": 9404,
+      "approxTokens": 2841
     },
     "page · question": {
       "tools": [
@@ -206,13 +206,13 @@
       "chars": 605,
       "approxTokens": 183
     },
+    "get_widget": {
+      "chars": 601,
+      "approxTokens": 182
+    },
     "insert_playbook_day": {
       "chars": 586,
       "approxTokens": 177
-    },
-    "get_widget": {
-      "chars": 584,
-      "approxTokens": 176
     },
     "go_to": {
       "chars": 488,
