@@ -318,7 +318,7 @@ afterAll(() => {
   );
 });
 
-describe("the live set, on production's models", () => {
+describe.skipIf(!confirmed)("the live set, on production's models", () => {
   for (const prompt of prompts) {
     for (let run = 1; run <= repeat; run += 1) {
       it(`${prompt.id}#${run}: ${prompt.text}`, async (context) => {

@@ -68,6 +68,9 @@ if (!ACTOR_ID) {
 const CONFIRMED = process.env.GATE2_CONFIRM === "1";
 // The bar: 25% fewer output tokens.
 const TOKEN_REDUCTION_BAR = 0.25;
+// 50 model calls at ~20-30s each needs ~25 min; default 30 min, overridable
+// for slower/faster environments.
+const TEST_TIMEOUT_MS = Number(process.env.GATE2_TIMEOUT_MS ?? "1800000") || 1800000;
 
 // Model ids come from serverConfig.aiModelTiers (ADR-019: no literals in
 // kernel code). The eval reads the tier models the same way production does.
@@ -106,7 +109,11 @@ describe("gate 2: quality parity at lower cost", () => {
         totalTokenReduction: number;
       }> = [];
 
-      for (const { id, query } of GATE2_DATASET) {
+      for (let qi = 0; qi < GATE2_DATASET.length; qi++) {
+        const entry = GATE2_DATASET[qi];
+        if (!entry) continue;
+        const { id, query } = entry;
+        console.info(`gate 2: query ${qi + 1}/${GATE2_DATASET.length} (${id}) — starting`);
         // Retrieval: the real path (flag must be on in this env — getPlanExamples
         // is flag-gated, and the runbook's command sets RAG_PLAN_RETRIEVAL=1).
         // Fail the run on zero examples: an empty retrieval makes arm B
@@ -203,6 +210,7 @@ describe("gate 2: quality parity at lower cost", () => {
           outTokenReduction,
           totalTokenReduction,
         });
+        console.info(`gate 2: query ${qi + 1}/${GATE2_DATASET.length} (${id}) — done`);
       }
 
       // Aggregate. The bar is on OUTPUT tokens (the agreed Gate 2 definition),
@@ -252,7 +260,7 @@ describe("gate 2: quality parity at lower cost", () => {
 
       expect(pass).toBe(true);
     },
-    600_000, // 10 min timeout: 50 model calls
+    TEST_TIMEOUT_MS,
   );
 });
 
