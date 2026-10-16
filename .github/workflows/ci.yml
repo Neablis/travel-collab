@@ -231,7 +231,10 @@ jobs:
         # exhaust it (`toomanyrequests: Data limit exceeded`). Authenticated
         # Docker Hub pulls are metered per account (200/6h on the free tier),
         # so the shared IP stops mattering.
-        image: postgres:17
+        # pgvector/pgvector:pg17 is stock postgres 17 with the pgvector
+        # extension preinstalled: the same image, one extra extension, for
+        # the plan-retrieval RAG migration (0054). Same Docker Hub auth.
+        image: pgvector/pgvector:pg17
         credentials:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
@@ -282,7 +285,10 @@ jobs:
         # exhaust it (`toomanyrequests: Data limit exceeded`). Authenticated
         # Docker Hub pulls are metered per account (200/6h on the free tier),
         # so the shared IP stops mattering.
-        image: postgres:17
+        # pgvector/pgvector:pg17 is stock postgres 17 with the pgvector
+        # extension preinstalled: the same image, one extra extension, for
+        # the plan-retrieval RAG migration (0054). Same Docker Hub auth.
+        image: pgvector/pgvector:pg17
         credentials:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}

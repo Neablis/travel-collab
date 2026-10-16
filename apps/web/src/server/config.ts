@@ -45,6 +45,20 @@ export const serverConfig = {
   // the small one is a tuning call to make against live records, not a default
   // to guess at.
   aiClassifierModel: process.env.AI_CLASSIFIER_MODEL ?? process.env.AI_MODEL ?? DEFAULT_AI_MODEL,
+  // The embedding model for plan-retrieval RAG (`server/ai/embeddings.ts`),
+  // reached through the Vercel AI Gateway like every other model call. One
+  // named slot with a built-in default — ADR-019's rule, same as the
+  // classifier above: no model id as a literal in kernel code, overrideable
+  // with an env var. `text-embedding-3-small` (1536 dims) is the size the
+  // `day_embeddings` column is built for; changing the model means changing
+  // the column AND re-embedding the corpus, so this is not a dial to turn
+  // casually — that pairing is the point of stating the default here.
+  embeddingModel: process.env.AI_EMBEDDING_MODEL ?? "openai/text-embedding-3-small",
+  // The ceiling for one embedding call before it counts as a failure (Part 1
+  // of the RAG stack). The turn-level budget belongs to the caller (Part 4),
+  // but a single embed must never hang a request: past this it is fail-open,
+  // same as every other provider call on the retrieval path.
+  embeddingTimeoutMs: Number(process.env.AI_EMBEDDING_TIMEOUT_MS ?? 30_000),
   // **The tier map: three named slots, each an INPUT** (ADR-043 decision 4,
   // spec §5b). Mitchell, 2026-09-10: *"that cost is not forever, and the model
   // we use might change, so that needs to be a variable input in the system."*
