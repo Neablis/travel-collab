@@ -1,31 +1,46 @@
 // **Gate 1: offline recall@5 ≥ 0.7 for plan retrieval** (RAG stack, Part 3).
 //
-//   RECALL_EVAL_CONFIRM=1 pnpm --filter web eval -- planRetrieval.recall
+// Two modes:
 //
-// What it does: seeds the eval corpus (the 19 content bundles under
-// `content/playbooks/` plus the 14-day Japan fixture trip) into the lane's
-// throwaway Postgres, embeds every day-chunk through the REAL sweep
+// **Fixture mode (default):** seeds the eval corpus (the 19 content bundles
+// under `content/playbooks/` plus the 14-day Japan fixture trip) into the
+// lane's throwaway Postgres, embeds every day-chunk through the REAL sweep
 // (`runEmbedSweep`, the same function the cron route calls), then runs the 25
 // labeled queries in `planRetrieval.recall.dataset.ts` through
 // `embedText` → `retrieveDayChunks` and reports macro-averaged recall@5.
 //
-// **The userId decision.** The eval reads as a fixed actor (`eval-actor`, the
-// same convention as `live.eval.ts`), NOT as logged-out null. Logged-out sees
-// only public playbooks; the actor additionally sees the Japan trip it owns —
-// and the trip's 14 food/museum/temple days are the corpus's richest multi-day
-// content, the reason the dataset can label Tokyo/Kyoto/Osaka queries at all.
-// All bundle playbooks are public, so the actor's corpus is the union: 148
-// playbook days + 14 trip days = 162 chunks.
+//   RECALL_EVAL_CONFIRM=1 pnpm --filter web eval -- planRetrieval.recall
 //
-// **The money.** A run embeds the corpus once and the 25 queries once:
-// 162 chunk embeds + 25 query embeds = 187 `embedText` calls on
+// **Production mode (`RECALL_EVAL_PRODUCTION=1`):** skips all seeding and
+// runs the same 25 queries against an already-backfilled database (Mitchell's
+// Neon). Labels are resolved by NAME against the live `saved_days` /
+// `trip_details` tables and FAIL LOUD if a name is missing or ambiguous —
+// the dataset is portable, the database is not assumed.
+//
+//   RECALL_EVAL_PRODUCTION=1 RECALL_EVAL_USER_ID=<your-user-id> \
+//     RECALL_EVAL_CONFIRM=1 DATABASE_URL=<neon-url> \
+//     pnpm --filter web eval -- planRetrieval.recall
+//
+// **The userId decision.** The eval reads as a fixed actor (`eval-actor`, the
+// same convention as `live.eval.ts`), NOT as logged-out null — override with
+// `RECALL_EVAL_USER_ID`. Logged-out sees only public playbooks; the actor
+// additionally sees the Japan trip it owns — and the trip's 14 food/museum/
+// temple days are the corpus's richest multi-day content, the reason the
+// dataset can label Tokyo/Kyoto/Osaka queries at all. All bundle playbooks
+// are public, so the fixture actor's corpus is the union: 148 playbook days
+// + 14 trip days = 162 chunks. In production mode the actor MUST be a real
+// user id (Mitchell's) or trip-day labels will be invisible to the privacy
+// filter and recall will silently cap.
+//
+// **The money.** A fixture run embeds the corpus once and the 25 queries
+// once: 162 chunk embeds + 25 query embeds = 187 `embedText` calls on
 // `openai/text-embedding-3-small` (short texts — a day's stops — so a few
-// hundred thousand tokens total, cents at the published rate). Like the live
-// lane, the run refuses to start without its key (`TRAVEL_COLLAB_EVAL_KEY`,
-// required by `vitest.eval.config.ts` for the whole lane) and without
-// `RECALL_EVAL_CONFIRM=1`, and it prints the plan first. A second run against
-// a fresh throwaway database pays the full 187 again; nothing is cached
-// between runs by design (each run measures the same cold-corpus path).
+// hundred thousand tokens total, cents at the published rate). A production
+// run pays only the 25 query embeds (the corpus is already backfilled).
+// Like the live lane, the run refuses to start without its key
+// (`TRAVEL_COLLAB_EVAL_KEY`, required by `vitest.eval.config.ts` for the
+// whole lane) and without `RECALL_EVAL_CONFIRM=1`, and it prints the plan
+// first.
 //
 // **The verdict.** Macro-averaged recall@5 across the 25 queries. PASS ≥ 0.7
 // (the stack resumes); FAIL < 0.7 (the stack STOPS — a failing expect exits
@@ -49,9 +64,11 @@ import { enqueueDayChunksForEmbedding } from "@/server/ai/queue";
 import { runEmbedSweep } from "@/server/ai/sweep";
 import { embedText } from "@/server/ai/embeddings";
 import { retrieveDayChunks, type DayChunk } from "@/server/ai/retrieval";
-import { JAPAN_TRIP_ID, RECALL_DATASET, type RecallLabel } from "./planRetrieval.recall.dataset";
+import { JAPAN_TRIP_ID, JAPAN_TRIP_NAME, RECALL_DATASET } from "./planRetrieval.recall.dataset";
+import { resolveLabelIds } from "./planRetrieval.recall.resolve";
 
-const ACTOR_ID = "eval-actor";
+const ACTOR_ID = process.env.RECALL_EVAL_USER_ID ?? "eval-actor";
+const PRODUCTION = process.env.RECALL_EVAL_PRODUCTION === "1";
 // The bar. Below it the RAG stack stops; see the header.
 const GATE = 0.7;
 const K = 5;
@@ -63,9 +80,11 @@ const only = (process.env.RECALL_EVAL_ONLY ?? "").split(",").map((id) => id.trim
 const confirmed = process.env.RECALL_EVAL_CONFIRM === "1";
 const queries = RECALL_DATASET.filter((q) => only.length === 0 || only.includes(q.id));
 const plan =
-  `recall eval plan: ${queries.length} querie(s) x embed+retrieve@${K}, ` +
-  `corpus ~162 day-chunks (148 bundle playbooks + 14 Japan trip days), ` +
-  `≈187 paid embedding calls on openai/text-embedding-3-small`;
+  `recall eval plan (${PRODUCTION ? "production" : "fixture"} mode): ${queries.length} querie(s) x embed+retrieve@${K}, ` +
+  (PRODUCTION
+    ? `corpus = live database, ≈25 paid embedding calls on openai/text-embedding-3-small`
+    : `corpus ~162 day-chunks (148 bundle playbooks + 14 Japan trip days), ` +
+      `≈187 paid embedding calls on openai/text-embedding-3-small`);
 
 interface QueryRow {
   id: string;
@@ -74,7 +93,7 @@ interface QueryRow {
   hits: number;
   labeled: number;
   retrieved: { sourceType: string; sourceId: string; dayIndex: number; score: number }[];
-  missed: RecallLabel[];
+  missed: { sourceType: string; sourceId: string; dayIndex: number }[];
 }
 
 const rows: QueryRow[] = [];
@@ -148,7 +167,7 @@ async function seedBundlePlaybooks(): Promise<number> {
 /** The Japan fixture trip under the dataset's fixed id; its write hooks enqueue its 14 days. */
 async function seedJapanTrip(): Promise<number> {
   const created = await executeTripCommand(
-    { type: "CreateTrip", tripId: JAPAN_TRIP_ID, name: "Japan (recall eval)" },
+    { type: "CreateTrip", tripId: JAPAN_TRIP_ID, name: JAPAN_TRIP_NAME },
     ACTOR_ID,
   );
   if (!created.ok) throw new Error(`seed: ${created.error.message}`);
@@ -196,10 +215,35 @@ async function embedCorpus(): Promise<void> {
   }
 }
 
+/**
+ * Production-mode sanity: the corpus must already be embedded (Mitchell runs
+ * the Part 2 backfill first). An empty `day_embeddings` means recall would be
+ * measured on nothing — fail before spending on query embeds.
+ */
+async function assertProductionCorpus(): Promise<void> {
+  const count = await db.execute<{ n: string }>(sql`SELECT count(*) AS n FROM day_embeddings`);
+  corpusChunks = Number(count.rows[0]?.n ?? 0);
+  if (corpusChunks === 0) {
+    throw new Error(
+      "production mode: day_embeddings is empty — run the Part 2 backfill against this " +
+        "database first, then re-run the eval. Measuring recall on an empty corpus " +
+        "would be the optimistic lie Gate 1 exists to prevent.",
+    );
+  }
+  console.log(`    production corpus: ${corpusChunks} embedded day-chunk(s)`);
+}
+
 beforeAll(async () => {
   console.log(plan);
   if (!confirmed) {
     throw new Error(`${plan}\nNothing was sent. Set RECALL_EVAL_CONFIRM=1 to spend it.`);
+  }
+  if (PRODUCTION && ACTOR_ID === "eval-actor") {
+    console.log(
+      "    WARNING: RECALL_EVAL_USER_ID is not set — running as the fixture actor " +
+        `"eval-actor", which owns no production trips. Trip-day labels will be ` +
+        `invisible to the privacy filter. Set RECALL_EVAL_USER_ID to your user id.`,
+    );
   }
   await enrol(ACTOR_ID);
 });
@@ -216,7 +260,7 @@ afterAll(() => {
   const verdict = macroRecall >= GATE ? "PASS" : "FAIL";
   writeFileSync(
     file,
-    `${JSON.stringify({ gate: GATE, k: K, corpusChunks, macroRecall, verdict, rows }, null, 2)}\n`,
+    `${JSON.stringify({ gate: GATE, k: K, corpusChunks, macroRecall, verdict, mode: PRODUCTION ? "production" : "fixture", rows }, null, 2)}\n`,
   );
   console.log(
     [
@@ -243,38 +287,47 @@ describe("gate 1: offline recall@5", () => {
       if (queries.length === 0) {
         throw new Error(`RECALL_EVAL_ONLY=${process.env.RECALL_EVAL_ONLY} matched no queries — refusing before spending.`);
       }
-      const playbookDays = await seedBundlePlaybooks();
-      const tripDays = await seedJapanTrip();
-      corpusChunks = playbookDays + tripDays;
-      console.log(
-        `    seeded ${playbookDays} bundle playbook day(s) + ${tripDays} Japan trip day(s) = ${corpusChunks} chunks`,
-      );
-      await embedCorpus();
+      if (PRODUCTION) {
+        await assertProductionCorpus();
+      } else {
+        const playbookDays = await seedBundlePlaybooks();
+        const tripDays = await seedJapanTrip();
+        corpusChunks = playbookDays + tripDays;
+        console.log(
+          `    seeded ${playbookDays} bundle playbook day(s) + ${tripDays} Japan trip day(s) = ${corpusChunks} chunks`,
+        );
+        await embedCorpus();
+      }
+
+      // Labels name their chunks; resolve to ids against THIS database
+      // (fixture-seeded or production) before any query is embedded.
+      const resolvedLabels = await resolveLabelIds(queries);
 
       for (const q of queries) {
+        const labels = resolvedLabels.get(q.id) ?? [];
         const queryEmbedding = await embedText(q.query);
         if (queryEmbedding === null) {
           throw new Error(`${q.id}: the query would not embed — scoring it 0 would be the optimistic lie; re-run.`);
         }
         const retrieved = await retrieveDayChunks({ queryEmbedding, queryText: q.query, userId: ACTOR_ID, k: K });
         const retrievedKeys = new Set(retrieved.map(labelKey));
-        const hits = q.labels.filter((label) => retrievedKeys.has(labelKey(label)));
-        const recall = q.labels.length === 0 ? 0 : hits.length / q.labels.length;
+        const hits = labels.filter((label) => retrievedKeys.has(labelKey(label)));
+        const recall = labels.length === 0 ? 0 : hits.length / labels.length;
         rows.push({
           id: q.id,
           query: q.query,
           recall,
           hits: hits.length,
-          labeled: q.labels.length,
+          labeled: labels.length,
           retrieved: retrieved.map((r) => ({
             sourceType: r.sourceType,
             sourceId: r.sourceId,
             dayIndex: r.dayIndex,
             score: r.score,
           })),
-          missed: q.labels.filter((label) => !retrievedKeys.has(labelKey(label))),
+          missed: hits.length === labels.length ? [] : labels.filter((label) => !retrievedKeys.has(labelKey(label))),
         });
-        console.log(`    ${q.id} recall@${K} ${recall.toFixed(2)} (${hits.length}/${q.labels.length}): ${q.query}`);
+        console.log(`    ${q.id} recall@${K} ${recall.toFixed(2)} (${hits.length}/${labels.length}): ${q.query}`);
       }
       const macroRecall = rows.reduce((n, row) => n + row.recall, 0) / rows.length;
       // The gate: below 0.7 the stack STOPS. A failed expect exits non-zero, and

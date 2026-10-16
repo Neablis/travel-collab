@@ -1,32 +1,30 @@
 // The Gate 1 dataset's free guard (CI): the paid recall eval runs against a
-// throwaway database, but its LABELS are authored against checked-in content,
-// so this file re-derives every label from `content/playbooks/` and the Japan
-// fixture and asserts it resolves to a real corpus row with a valid dayIndex.
-// A renamed bundle key or a drifted fixture fails here, not as a mysterious
-// recall drop in the paid run.
+// database (fixture-seeded throwaway, or production in `RECALL_EVAL_PRODUCTION=1`
+// mode), but its LABELS are authored against checked-in content, so this file
+// re-derives every label name from `content/playbooks/` and the Japan fixture
+// and asserts it names a real corpus row. A renamed playbook fails here, not
+// as a mysterious recall drop in the paid run.
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { playbookIdFor } from "@tc/fixtures";
-import { JAPAN_TRIP_ID, RECALL_DATASET } from "./planRetrieval.recall.dataset";
+import { JAPAN_TRIP_NAME, RECALL_DATASET } from "./planRetrieval.recall.dataset";
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-/** Every (bundleKey, playbookKey) in the checked-in corpus, with its authored day count. */
-function corpusPlaybooks(): { sourceId: string; dayCount: number; bundleKey: string; playbookKey: string }[] {
+/** Every playbook name in the checked-in corpus, with its bundle key and visibility. */
+function corpusPlaybooks(): { name: string; bundleKey: string; playbookKey: string; visibility: string; dayCount: number }[] {
   const dir = join(import.meta.dirname, "../../../../../../content/playbooks");
   return readdirSync(dir)
     .filter((name) => name.endsWith(".json") && !name.startsWith("."))
     .flatMap((name) => {
       const doc = JSON.parse(readFileSync(join(dir, name), "utf8")) as {
         bundle: { id: string };
-        playbooks: { key: string; days?: { stops: unknown[] }[] }[];
+        playbooks: { key: string; name: string; visibility: string; days?: { stops: unknown[] }[] }[];
       };
       return doc.playbooks.map((p) => ({
-        sourceId: playbookIdFor(doc.bundle.id, p.key),
-        dayCount: p.days?.length ?? 1,
+        name: p.name,
         bundleKey: doc.bundle.id,
         playbookKey: p.key,
+        visibility: p.visibility,
+        dayCount: p.days?.length ?? 1,
       }));
     });
 }
@@ -50,32 +48,37 @@ describe("the Gate 1 recall dataset", () => {
       expect(q.labels.length).toBeLessThanOrEqual(3);
       for (const label of q.labels) {
         expect(["playbook", "trip"]).toContain(label.sourceType);
-        expect(label.sourceId).toMatch(UUID);
+        expect(typeof label.sourceName).toBe("string");
+        expect(label.sourceName.trim().length).toBeGreaterThan(0);
         expect(Number.isInteger(label.dayIndex)).toBe(true);
         expect(label.dayIndex).toBeGreaterThanOrEqual(0);
       }
-      const keys = q.labels.map((l) => `${l.sourceType}:${l.sourceId}:${l.dayIndex}`);
+      const keys = q.labels.map((l) => `${l.sourceType}:${l.sourceName}:${l.dayIndex}`);
       expect(new Set(keys).size).toBe(keys.length);
     }
   });
 
-  it("resolves every playbook label to a real corpus day", () => {
-    const byId = new Map(corpus.map((p) => [p.sourceId, p]));
+  it("resolves every playbook label to a real corpus playbook name", () => {
+    const byName = new Map(corpus.map((p) => [p.name, p]));
+    // Names must be unique in the corpus or the eval's runtime resolution
+    // would be ambiguous.
+    expect(byName.size).toBe(corpus.length);
     for (const q of RECALL_DATASET) {
       for (const label of q.labels.filter((l) => l.sourceType === "playbook")) {
-        const row = byId.get(label.sourceId);
-        expect(row, `${q.id}: no corpus playbook with id ${label.sourceId}`).toBeDefined();
+        const row = byName.get(label.sourceName);
+        expect(row, `${q.id}: no corpus playbook named "${label.sourceName}"`).toBeDefined();
         expect(label.dayIndex).toBeLessThan(row!.dayCount);
       }
     }
   });
 
-  it("resolves every trip label to a day of the seeded Japan trip", () => {
+  it("resolves every trip label to the Japan fixture trip's name", () => {
     // The eval seeds the Japan fixture trip (`japanTripCommands`, 14 days)
-    // under JAPAN_TRIP_ID; labels name it with 0-based dayIndex.
+    // under JAPAN_TRIP_NAME in fixture mode; production mode resolves the
+    // same name against the live database (fail loud if absent).
     for (const q of RECALL_DATASET) {
       for (const label of q.labels.filter((l) => l.sourceType === "trip")) {
-        expect(label.sourceId).toBe(JAPAN_TRIP_ID);
+        expect(label.sourceName).toBe(JAPAN_TRIP_NAME);
         expect(label.dayIndex).toBeLessThan(14);
       }
     }
@@ -85,18 +88,12 @@ describe("the Gate 1 recall dataset", () => {
     // Recall runs as the eval actor, who sees public playbooks and their own
     // trip. A private playbook label would be invisible at k=5 and silently
     // cap that query's recall.
-    const dir = join(import.meta.dirname, "../../../../../../content/playbooks");
-    const visibilityById = new Map<string, string>();
-    for (const name of readdirSync(dir).filter((n) => n.endsWith(".json") && !n.startsWith("."))) {
-      const doc = JSON.parse(readFileSync(join(dir, name), "utf8")) as {
-        bundle: { id: string };
-        playbooks: { key: string; visibility: string }[];
-      };
-      for (const p of doc.playbooks) visibilityById.set(playbookIdFor(doc.bundle.id, p.key), p.visibility);
-    }
+    const visibilityByName = new Map(corpus.map((p) => [p.name, p.visibility]));
     for (const q of RECALL_DATASET) {
       for (const label of q.labels.filter((l) => l.sourceType === "playbook")) {
-        expect(visibilityById.get(label.sourceId), `${q.id}: labeled playbook is not public`).toBe("public");
+        expect(visibilityByName.get(label.sourceName), `${q.id}: labeled playbook "${label.sourceName}" is not public`).toBe(
+          "public",
+        );
       }
     }
   });
