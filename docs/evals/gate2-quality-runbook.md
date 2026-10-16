@@ -42,11 +42,24 @@ the ONLY variable between A and B is the example block:
 | C | mid | yes | Does a cheaper tier + examples match A? |
 
 An LLM judge (cheap tier) compares B vs A and C vs A on completeness,
-specificity, coherence, and relevance. Verdict per pair: `A_BETTER`,
-`B_BETTER`, or `TIE`.
+specificity, coherence, and relevance. Judge position is randomized per query
+(deterministic by query id) to counter position bias. Verdict per pair:
+`A_BETTER`, `B_BETTER`, or `TIE`. An unparseable judge output FAILS the run —
+for a ship-gate, silence must not count as parity.
+
+**Prompt proxy (known limitation).** The arms use a representative plan prompt
+(the query + instruction + example blocks rendered exactly as the serving path
+renders them), NOT the full production turn prompt (which carries trip scope,
+posture, standing, clock, etc.). A PASS licenses the example mechanism, not the
+exact production token numbers. The eval fails loudly if any query retrieves
+zero examples (an empty retrieval would make B byte-identical to A and the gate
+vacuous).
 
 **PASS** = judge never rates A strictly better than B (parity holds) AND
-(mean token reduction ≥25% OR judge never rates A strictly better than C).
+(mean output-token reduction ≥25% OR judge never rates A strictly better than C).
+Input and total tokens are reported alongside so the cost thesis stays honest:
+examples add ~625 input tokens per query, and M48 warns that output savings
+alone don't prove a cheaper turn.
 
 The JSON report lands in `apps/web/eval-results/gate2-*.json` (git-ignored).
 

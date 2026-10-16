@@ -1,11 +1,13 @@
 // Gate 2's query set: 10 diverse plan queries for the plan-retrieval RAG
 // stack's quality-and-cost eval (Part 5).
 //
-// **Why 10, and why these.** M48's brief says "over 10 prompts". These are a
-// diverse subset of Gate 1's 25 labeled queries (`planRetrieval.recall.dataset.ts`),
+// **Why 10, and why these.** M48's brief says "over 10 prompts" — 10 is the
+// agreed reading (the brief's intent was "about ten", not "eleven or more").
+// These are a diverse subset of Gate 1's 25 labeled queries (PR #461,
+// `planRetrieval.recall.dataset.ts` on the `sunny/rag-part3-gate1` branch),
 // chosen to cover: food-focused, culture/museum, outdoors/hiking, beach,
-// city-classics, and multi-destination. Each has known-good retrieval (Gate 1
-// recall@5 ≥ 0.5), so a quality failure can't be blamed on "no examples found".
+// city-classics, and multi-destination. Each had strong Gate 1 recall, so a
+// quality failure can't be blamed on "no examples found".
 //
 // The queries are the eval's ONLY input. Labels are not needed — Gate 2
 // measures output tokens and judged quality, not recall.

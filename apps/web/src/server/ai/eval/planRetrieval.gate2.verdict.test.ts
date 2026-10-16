@@ -16,10 +16,14 @@ describe("extractVerdict", () => {
     expect(extractVerdict("VERDICT: TIE")).toBe("TIE");
   });
 
-  it("fails open to TIE on unparseable output (never claims baseline won)", () => {
-    expect(extractVerdict("no verdict here")).toBe("TIE");
-    expect(extractVerdict("")).toBe("TIE");
-    expect(extractVerdict("VERDICT: SOMETHING_ELSE")).toBe("TIE");
+  it("fails LOUD on unparseable output (never counts silence as parity)", () => {
+    expect(extractVerdict("no verdict here")).toBe("UNPARSEABLE");
+    expect(extractVerdict("")).toBe("UNPARSEABLE");
+    expect(extractVerdict("VERDICT: SOMETHING_ELSE")).toBe("UNPARSEABLE");
+  });
+
+  it("anchored: a hypothetical mention in the explanation does not misparse", () => {
+    expect(extractVerdict("this is not VERDICT: A_BETTER because the plans tie\nVERDICT: TIE")).toBe("TIE");
   });
 });
 
@@ -30,13 +34,13 @@ describe("buildPlanPrompt", () => {
     expect(prompt).not.toContain("Example days");
   });
 
-  it("with examples, the ONLY difference is the example block", () => {
+  it("with examples, the ONLY difference is the spliced example block", () => {
     const without = buildPlanPrompt("plan a trip", null);
+    const exampleBlock =
+      "\n\nHere are example days from similar trips. Adapt them to the request — do not copy them verbatim, and the user's request wins if there's a conflict:\n\nEXAMPLE_TEXT\n";
     const withExamples = buildPlanPrompt("plan a trip", "EXAMPLE_TEXT");
-    expect(withExamples).toContain("EXAMPLE_TEXT");
-    expect(withExamples).toContain("plan a trip");
-    // The query text appears in both; examples are additive.
-    expect(withExamples.length).toBeGreaterThan(without.length);
+    // Exact splice: removing the example block must yield the baseline.
+    expect(withExamples.replace(exampleBlock, "")).toBe(without);
   });
 });
 

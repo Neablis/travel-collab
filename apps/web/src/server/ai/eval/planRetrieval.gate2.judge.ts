@@ -16,8 +16,15 @@ export function buildPlanPrompt(query: string, exampleText: string | null): stri
 
 /**
  * The judge prompt: compare two plans for the same query.
+ *
+ * The caller randomizes which plan is "A" vs "B" (position bias): pass the
+ * labels explicitly so the verdict can be mapped back.
  */
-export function buildJudgePrompt(query: string, planA: string, planB: string): string {
+export function buildJudgePrompt(
+  query: string,
+  planA: string,
+  planB: string,
+): string {
   return `You are judging two trip plans for the same request. Be strict but fair.
 
 Request: "${query}"
@@ -40,15 +47,17 @@ Explain your ratings briefly before the verdict line.`;
 }
 
 /** The judge's verdict for one comparison. */
-export type JudgeVerdict = "A_BETTER" | "B_BETTER" | "TIE";
+export type JudgeVerdict = "A_BETTER" | "B_BETTER" | "TIE" | "UNPARSEABLE";
 
 /**
  * Extract the verdict line from judge output.
- * Fail-open to TIE (not A_BETTER) — an unparseable judge must not silently
- * claim the baseline won.
+ * Returns UNPARSEABLE (not TIE) when no verdict line is found — for a
+ * ship-gate, an unparseable judge must fail the run, not silently count as
+ * parity. Anchored to line start so a hypothetical mention in the explanation
+ * ("this is not VERDICT: A_BETTER because…") can't misparse.
  */
 export function extractVerdict(judgeText: string): JudgeVerdict {
-  const match = judgeText.match(/VERDICT:\s*(A_BETTER|B_BETTER|TIE)/);
-  if (!match) return "TIE";
+  const match = judgeText.match(/^VERDICT:\s*(A_BETTER|B_BETTER|TIE)/m);
+  if (!match) return "UNPARSEABLE";
   return match[1] as JudgeVerdict;
 }

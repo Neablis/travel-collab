@@ -6,11 +6,22 @@
 // - **Arm C (tier drop):** mid tier, WITH examples.
 //
 // Quality is judged by an LLM judge (cheap tier) comparing B vs A and C vs A
-// on completeness, specificity, coherence, and relevance. Output tokens are
-// counted from each generation.
+// on completeness, specificity, coherence, and relevance. Input AND output
+// tokens are counted per arm (examples add input tokens; M48 warns that output
+// savings alone don't prove a cheaper turn).
 //
-// **Verdict:** PASS if quality(B) ≥ quality(A) AND (tokens(B) ≤ 0.75 × tokens(A)
-// OR quality(C) ≥ quality(A)). The stack ships only on PASS.
+// **Prompt proxy (known limitation).** The arms use a representative plan
+// prompt — the same query, the same instruction, the example blocks rendered
+// exactly as the serving path renders them (`renderPrompt(formatExampleBlocks(...))`)
+// — but NOT the full production turn prompt (which carries trip scope, posture,
+// standing, clock, etc. via `instructionBlocks`). The ONLY variable between A
+// and B is the example block, so the eval honestly measures the example effect;
+// but a PASS licenses the mechanism, not the exact production token numbers.
+// The runbook records this.
+//
+// **Verdict:** PASS if quality(B) ≥ quality(A) AND (output tokens(B) ≤ 0.75 ×
+// output tokens(A) OR quality(C) ≥ quality(A)). The stack ships only on PASS.
+// Total tokens are reported alongside so the cost thesis stays honest.
 //
 // **Modes:**
 // - **Production (`GATE2_PRODUCTION=1`):** uses the already-backfilled database
@@ -44,7 +55,13 @@ import { buildJudgePrompt, buildPlanPrompt, extractVerdict } from "./planRetriev
 // ---------------------------------------------------------------------------
 
 const PRODUCTION = process.env.GATE2_PRODUCTION === "1";
-const ACTOR_ID = process.env.GATE2_USER_ID ?? "eval-actor";
+// The actor must be explicit: a default "eval-actor" matches no owner_id or
+// trip_memberships rows, silently measuring public-only examples instead of
+// the real corpus. Fail loud.
+const ACTOR_ID = process.env.GATE2_USER_ID;
+if (!ACTOR_ID) {
+  throw new Error("GATE2_USER_ID is not set. The eval's retrieval is privacy-filtered; without a real user id it would silently measure the wrong corpus.");
+}
 const CONFIRMED = process.env.GATE2_CONFIRM === "1";
 // The bar: 25% fewer output tokens.
 const TOKEN_REDUCTION_BAR = 0.25;
@@ -77,21 +94,29 @@ describe("gate 2: quality parity at lower cost", () => {
       const rows: Array<{
         id: string;
         query: string;
-        armA: { tokens: number; text: string };
-        armB: { tokens: number; text: string; examples: number };
-        armC: { tokens: number; text: string };
+        armA: { inTokens: number; outTokens: number; text: string };
+        armB: { inTokens: number; outTokens: number; text: string; examples: number };
+        armC: { inTokens: number; outTokens: number; text: string };
         judgeAB: string;
         judgeAC: string;
-        tokenReduction: number;
+        outTokenReduction: number;
+        totalTokenReduction: number;
       }> = [];
 
       for (const { id, query } of GATE2_DATASET) {
-        // Retrieval: the real path (flag must be on in this env, or call
-        // retrieveDayChunks directly — getPlanExamples is flag-gated).
+        // Retrieval: the real path (flag must be on in this env — getPlanExamples
+        // is flag-gated, and the runbook's command sets RAG_PLAN_RETRIEVAL=1).
+        // Fail the run on zero examples: an empty retrieval makes arm B
+        // byte-identical to arm A, and the gate would measure nothing.
         const examples = await getPlanExamples({ question: query, userId: ACTOR_ID });
+        if (examples.length === 0) {
+          throw new Error(
+            `gate 2: query ${id} retrieved zero examples — the gate would measure nothing. ` +
+              `Check RAG_PLAN_RETRIEVAL=1, GATE2_USER_ID, and that the corpus is embedded.`,
+          );
+        }
         // Render the example blocks exactly as the serving path does.
-        const exampleText =
-          examples.length > 0 ? renderPrompt(formatExampleBlocks(examples)) : null;
+        const exampleText = renderPrompt(formatExampleBlocks(examples));
 
         // Arm A: baseline — no examples.
         const resultA = await generateText({
@@ -109,66 +134,108 @@ describe("gate 2: quality parity at lower cost", () => {
           prompt: buildPlanPrompt(query, exampleText),
         });
 
-        const tokensA = resultA.usage?.outputTokens ?? 0;
-        const tokensB = resultB.usage?.outputTokens ?? 0;
-        const tokensC = resultC.usage?.outputTokens ?? 0;
+        const aIn = resultA.usage?.inputTokens ?? 0;
+        const aOut = resultA.usage?.outputTokens ?? 0;
+        const bIn = resultB.usage?.inputTokens ?? 0;
+        const bOut = resultB.usage?.outputTokens ?? 0;
+        const cIn = resultC.usage?.inputTokens ?? 0;
+        const cOut = resultC.usage?.outputTokens ?? 0;
 
-        // Judge B vs A.
+        // Judge B vs A, randomizing position (cheap-tier judges show position
+        // bias). Deterministic per query id so reruns are comparable.
+        const swapAB = hashForOrder(id) % 2 === 1;
         const judgeAB = await generateText({
           model: gateway(CHEAP_MODEL),
-          prompt: buildJudgePrompt(query, resultA.text, resultB.text),
+          prompt: swapAB
+            ? buildJudgePrompt(query, resultB.text, resultA.text)
+            : buildJudgePrompt(query, resultA.text, resultB.text),
         });
-        // Judge C vs A (tier drop).
+        const rawAB = extractVerdict(judgeAB.text);
+        // Map back: if swapped, the judge's "A" was our B.
+        const verdictAB = swapAB
+          ? rawAB === "A_BETTER" ? "B_BETTER" : rawAB === "B_BETTER" ? "A_BETTER" : rawAB
+          : rawAB;
+
+        // Judge C vs A (tier drop), same position randomization.
+        const swapAC = hashForOrder(id + ":c") % 2 === 1;
         const judgeAC = await generateText({
           model: gateway(CHEAP_MODEL),
-          prompt: buildJudgePrompt(query, resultA.text, resultC.text),
+          prompt: swapAC
+            ? buildJudgePrompt(query, resultC.text, resultA.text)
+            : buildJudgePrompt(query, resultA.text, resultC.text),
         });
+        const rawAC = extractVerdict(judgeAC.text);
+        const verdictAC = swapAC
+          ? rawAC === "A_BETTER" ? "B_BETTER" : rawAC === "B_BETTER" ? "A_BETTER" : rawAC
+          : rawAC;
 
-        const verdictAB = extractVerdict(judgeAB.text);
-        const verdictAC = extractVerdict(judgeAC.text);
-        const tokenReduction = tokensA > 0 ? (tokensA - tokensB) / tokensA : 0;
+        // An unparseable judge fails the run — for a ship-gate, silence must
+        // not count as parity.
+        if (verdictAB === "UNPARSEABLE" || verdictAC === "UNPARSEABLE") {
+          throw new Error(
+            `gate 2: query ${id} judge output unparseable (AB=${rawAB}, AC=${rawAC}) — failing rather than counting silence as parity.`,
+          );
+        }
+
+        const outTokenReduction = aOut > 0 ? (aOut - bOut) / aOut : 0;
+        const totalA = aIn + aOut;
+        const totalB = bIn + bOut;
+        const totalTokenReduction = totalA > 0 ? (totalA - totalB) / totalA : 0;
 
         console.log(
-          `  ${id} tokens A=${tokensA} B=${tokensB} C=${tokensC} ` +
-            `reduction=${(tokenReduction * 100).toFixed(1)}% judge(B/A)=${verdictAB} judge(C/A)=${verdictAC}`,
+          `  ${id} out A=${aOut} B=${bOut} C=${cOut} ` +
+            `in A=${aIn} B=${bIn} ` +
+            `outReduction=${(outTokenReduction * 100).toFixed(1)}% totalReduction=${(totalTokenReduction * 100).toFixed(1)}% ` +
+            `judge(B/A)=${verdictAB} judge(C/A)=${verdictAC}`,
         );
 
         rows.push({
           id,
           query,
-          armA: { tokens: tokensA, text: resultA.text },
-          armB: { tokens: tokensB, text: resultB.text, examples: examples.length },
-          armC: { tokens: tokensC, text: resultC.text },
+          armA: { inTokens: aIn, outTokens: aOut, text: resultA.text },
+          armB: { inTokens: bIn, outTokens: bOut, text: resultB.text, examples: examples.length },
+          armC: { inTokens: cIn, outTokens: cOut, text: resultC.text },
           judgeAB: verdictAB,
           judgeAC: verdictAC,
-          tokenReduction,
+          outTokenReduction,
+          totalTokenReduction,
         });
       }
 
-      // Aggregate.
-      const avgReduction = rows.reduce((s, r) => s + r.tokenReduction, 0) / rows.length;
+      // Aggregate. The bar is on OUTPUT tokens (the agreed Gate 2 definition),
+      // but total tokens are reported so the cost thesis is honest: examples
+      // add input tokens, and a PASS on output alone with a total-token
+      // increase would be a false cost claim.
+      const avgOutReduction = rows.reduce((s, r) => s + r.outTokenReduction, 0) / rows.length;
+      const avgTotalReduction = rows.reduce((s, r) => s + r.totalTokenReduction, 0) / rows.length;
       // Quality parity: B is at parity if the judge never rates A strictly better.
       const parityB = rows.every((r) => r.judgeAB !== "A_BETTER");
       // Tier drop: C matches A if the judge never rates A strictly better than C.
       const tierDrop = rows.every((r) => r.judgeAC !== "A_BETTER");
 
-      const pass = parityB && (avgReduction >= TOKEN_REDUCTION_BAR || tierDrop);
+      const pass = parityB && (avgOutReduction >= TOKEN_REDUCTION_BAR || tierDrop);
 
       const report = {
         gate: 2,
         queries: rows.length,
-        avgTokenReduction: avgReduction,
+        avgOutTokenReduction: avgOutReduction,
+        avgTotalTokenReduction: avgTotalReduction,
         tokenBar: TOKEN_REDUCTION_BAR,
         qualityParityB: parityB,
         tierDropC: tierDrop,
         verdict: pass ? "PASS" : "FAIL",
+        note: "Prompt proxy: arms use a representative plan prompt, not the full production turn prompt (see runbook). Output-token bar is the agreed Gate 2 definition; total tokens reported for cost honesty.",
         rows: rows.map((r) => ({
           id: r.id,
           query: r.query,
-          tokensA: r.armA.tokens,
-          tokensB: r.armB.tokens,
-          tokensC: r.armC.tokens,
-          tokenReduction: r.tokenReduction,
+          inTokensA: r.armA.inTokens,
+          outTokensA: r.armA.outTokens,
+          inTokensB: r.armB.inTokens,
+          outTokensB: r.armB.outTokens,
+          inTokensC: r.armC.inTokens,
+          outTokensC: r.armC.outTokens,
+          outTokenReduction: r.outTokenReduction,
+          totalTokenReduction: r.totalTokenReduction,
           examples: r.armB.examples,
           judgeAB: r.judgeAB,
           judgeAC: r.judgeAC,
@@ -176,7 +243,7 @@ describe("gate 2: quality parity at lower cost", () => {
       };
       const reportPath = join(reportDir, `gate2-${new Date().toISOString().replace(/[:.]/g, "-")}.json`);
       writeFileSync(reportPath, JSON.stringify(report, null, 2));
-      console.log(`\ngate 2: ${rows.length} queries, avg token reduction ${(avgReduction * 100).toFixed(1)}% — ${pass ? "PASS" : "FAIL"} (bar ${TOKEN_REDUCTION_BAR * 100}%)`);
+      console.log(`\ngate 2: ${rows.length} queries, avg output-token reduction ${(avgOutReduction * 100).toFixed(1)}% (total ${(avgTotalReduction * 100).toFixed(1)}%) — ${pass ? "PASS" : "FAIL"} (bar ${TOKEN_REDUCTION_BAR * 100}%)`);
       console.log(`quality parity (B vs A): ${parityB}, tier drop (C vs A): ${tierDrop}`);
       console.log(`report: ${reportPath}`);
 
@@ -185,3 +252,15 @@ describe("gate 2: quality parity at lower cost", () => {
     600_000, // 10 min timeout: 50 model calls
   );
 });
+
+/**
+ * Deterministic small hash for judge position randomization. Not cryptographic;
+ * only needs to vary per query id so reruns are comparable.
+ */
+function hashForOrder(s: string): number {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) {
+    h = (h * 31 + s.charCodeAt(i)) | 0;
+  }
+  return Math.abs(h);
+}
