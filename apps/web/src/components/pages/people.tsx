@@ -2,7 +2,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { travellerIds, type Guest, type TripAccess, type TripMemberProfile } from "@tc/contracts";
 import { useOptionalTrip } from "@/components/trip/context/TripProvider";
-import { fetchGuests, fetchTripAccess } from "@/lib/apiClient";
+import { fetchTripAccess } from "@/lib/apiClient";
 import { cachedRead, invalidate } from "@/lib/queryCache";
 import { tripKeys } from "@/lib/queryKeys";
 import { displayNameFor } from "@/lib/displayName";
@@ -146,32 +146,14 @@ export function PeopleProvider({ tripId, children }: { tripId: string; children:
   const access = newerAccess(live, read);
   const personas = useMemo(() => (access === null ? null : personasOf(access.members)), [access]);
   const names = useMemo(() => (personas === null ? null : namesOf(personas)), [personas]);
-  // The trip's guests, through the same v1 endpoint the People panel and the
-  // board's pickers read (guests spec P3: a session holds every scope, so no
-  // token is involved). Keyed on `accessRev`: every guest write bumps it
-  // (server/access/guests.ts), so a guest added while the notebook is open
-  // reaches the widgets on the next read, without this provider polling.
-  // `accessRev` is `undefined` until the first read lands, and that first
-  // read is the one that fetches them.
-  const guestRev = access?.accessRev;
-  const [guests, setGuests] = useState<readonly Guest[] | null>(null);
-  const wantedGuestRev = useRef<string | undefined>(undefined);
-  useEffect(() => {
-    wantedGuestRev.current = guestRev;
-    let cancelled = false;
-    void fetchGuests(tripId).then((result) => {
-      if (cancelled || !result.ok) return;
-      // Two reads can be in flight across a rev bump; a landing whose rev is
-      // not the one it asked for was requested before a newer read started,
-      // so it is dropped — the same key-against-request shape the sheet's
-      // guest read uses (guests spec P3).
-      if (wantedGuestRev.current !== guestRev) return;
-      setGuests(result.value);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [tripId, guestRev]);
+  // The trip's guests ride on `TripAccess` itself (guests spec P1): no
+  // separate read. `access` above is the newer of the live and cached reads,
+  // and the trip provider re-reads access when the poll's `accessRev` moves
+  // (every guest write bumps it — server/access/guests.ts), so a guest added
+  // while the notebook is open reaches the widgets on the next read, without
+  // this provider polling. `null` until the access read lands, the way the
+  // members' names are.
+  const guests = access === null ? null : access.guests;
   const value = useMemo(() => ({ names, personas, guests, rechecked, recheck }), [names, personas, guests, rechecked, recheck]);
   return <PeopleContext.Provider value={value}>{children}</PeopleContext.Provider>;
 }
