@@ -56,9 +56,25 @@ non-local hosts); `eval:run` reads the exported `DATABASE_URL` directly.
 ```sh
 RECALL_EVAL_PRODUCTION=1 RECALL_EVAL_USER_ID=<your-user-id> \
   RECALL_EVAL_CONFIRM=1 TRAVEL_COLLAB_EVAL_KEY=<your-key> \
+  RECALL_EVAL_JAPAN_TRIP_ID=<your-japan-trip-id> \
   DATABASE_URL=<your-neon-url> \
   pnpm --filter web eval:run -- planRetrieval.recall
 ```
+
+`RECALL_EVAL_JAPAN_TRIP_ID` pins the Japan trip by id instead of by name.
+Trip titles are **not** unique — two real users can name trips the same, and
+production already has two trips titled `"Japan: Tokyo → Kyoto → Osaka"`.
+Name lookup fails loud on ambiguity; the id pin skips the lookup entirely.
+Find the id in Neon's SQL editor:
+
+```sql
+SELECT trip_id, doc->>'name' AS name FROM trip_details
+WHERE doc->>'name' = 'Japan: Tokyo → Kyoto → Osaka';
+```
+
+Pick the trip_id of the trip whose days the labels describe (the 14-day
+one). The variable is optional — without it the resolver falls back to the
+name lookup, which works as long as the title is unique.
 
 What happens: the eval verifies `day_embeddings` is non-empty (fails loud
 otherwise — an empty corpus would score a lying 0), resolves all 25 labels
@@ -80,7 +96,10 @@ report: apps/web/eval-results/recall-gate1-<timestamp>.json
 **Label resolution failures.** Five queries (q-01, q-09, q-18, q-19, q-20)
 are labeled against the Japan trip (`"Japan: Tokyo → Kyoto → Osaka"`). If that
 trip isn't in production, those labels fail to resolve and the run throws
-before spending. Options: exclude those queries with `RECALL_EVAL_ONLY`.
+before spending. If the title matches more than one trip, the error suggests
+pinning `RECALL_EVAL_JAPAN_TRIP_ID` (see Step 2) — titles are never unique,
+so the id pin is the reliable path. Options: pin the id, or exclude those
+queries with `RECALL_EVAL_ONLY`.
 
 **Test-trip exclusion.** Trips and playbooks whose names match `%TEST%`,
 `%delete me%`, or `%throwaway%` (case-insensitive) are excluded from retrieval
@@ -188,7 +207,8 @@ misses from the report either way.
   (Step 0 above). The eval refuses to measure recall on an empty corpus.
 - **Production: `label resolution failed`.** A named playbook/trip isn't in
   the database (or the name is ambiguous). The error lists every miss. For
-  the Japan trip labels, see the note above.
+  the Japan trip labels, pin `RECALL_EVAL_JAPAN_TRIP_ID` (see Step 2) rather
+  than relying on the title — titles are not unique.
 - **Production: trip-day labels resolve but recall is 0.** The eval actor
   (`RECALL_EVAL_USER_ID`) is not the trip's owner/member — the privacy
   filter hides those days. Set it to your user id.

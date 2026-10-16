@@ -454,7 +454,12 @@ already uses.
 trips belong to a service account the importer creates — **"Travel Collab AI"**
 (`service-ai-library`). That account **cannot be signed in as**: a user id is
 minted from the OAuth provider's subject (PR #150) and no provider will return
-that string, so the row is addressable by the importer and reachable by nobody.
+that string, so the row is addressable by the importer and reachable by nobody
+*as a signed-in user*. Its content is nevertheless public in one place: the
+RAG plan-retrieval privacy filter (`retrieval.ts`, `PUBLIC_LIBRARY_OWNER_ID`)
+treats everything owned by this account as visible to every reader, including
+logged-out (Mitchell's decision 2026-10-16: "anything owned by that id is owned
+by everyone").
 It carries no email, because there is no inbox behind it. Set the secret only to
 hand the trips to a real account instead.
 

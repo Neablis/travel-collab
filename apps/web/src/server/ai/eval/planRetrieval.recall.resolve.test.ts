@@ -35,6 +35,7 @@ function sqlText(query: unknown): string {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.unstubAllEnvs();
 });
 
 describe("resolveLabelIds", () => {
@@ -80,6 +81,63 @@ describe("resolveLabelIds", () => {
         { id: "q-04", labels: [{ sourceType: "trip", sourceName: "Dupe Trip", dayIndex: 0 }] },
       ]),
     ).rejects.toThrow('ambiguous trip name "Dupe Trip" (2 rows: id-a, id-b)');
+  });
+
+  it("ambiguity on the Japan trip suggests RECALL_EVAL_JAPAN_TRIP_ID", async () => {
+    // Mitchell, 2026-10-16: trip titles are not unique — production has two
+    // "Japan: Tokyo → Kyoto → Osaka" rows. The error must point at the id
+    // pin, not just list the duplicate ids.
+    mockRows([{ id: "id-a" }, { id: "id-b" }]);
+    await expect(
+      resolveLabelIds([
+        { id: "q-04b", labels: [{ sourceType: "trip", sourceName: JAPAN_TRIP_NAME, dayIndex: 0 }] },
+      ]),
+    ).rejects.toThrow("RECALL_EVAL_JAPAN_TRIP_ID");
+  });
+
+  it("RECALL_EVAL_JAPAN_TRIP_ID pins the id and skips the name lookup", async () => {
+    // With the pin set, the resolver verifies the id exists (one cheap
+    // SELECT 1) but never queries by name — duplicate titles cannot
+    // misresolve, because there is no name lookup to be ambiguous.
+    vi.stubEnv("RECALL_EVAL_JAPAN_TRIP_ID", "pinned-japan-id");
+    mockRows([{ id: "pinned-japan-id" }]); // existence check finds the trip
+    const result = await resolveLabelIds([
+      { id: "q-04c", labels: [{ sourceType: "trip", sourceName: JAPAN_TRIP_NAME, dayIndex: 2 }] },
+    ]);
+    expect(result.get("q-04c")).toEqual([
+      { sourceType: "trip", sourceId: "pinned-japan-id", dayIndex: 2 },
+    ]);
+    expect(mockExecute).toHaveBeenCalledTimes(1);
+    const queried = sqlText(mockExecute.mock.calls[0]?.[0]);
+    expect(queried).toContain("SELECT 1");
+    expect(queried).not.toContain("doc->>'name'");
+  });
+
+  it("a pinned id that matches nothing fails loud", async () => {
+    // A typo'd pin must not silently zero the 5 Japan queries — the
+    // resolver's fail-loud contract covers the pin too.
+    vi.stubEnv("RECALL_EVAL_JAPAN_TRIP_ID", "typo-id");
+    mockRows([]); // existence check finds nothing
+    await expect(
+      resolveLabelIds([
+        { id: "q-04e", labels: [{ sourceType: "trip", sourceName: JAPAN_TRIP_NAME, dayIndex: 0 }] },
+      ]),
+    ).rejects.toThrow('RECALL_EVAL_JAPAN_TRIP_ID="typo-id" matches no trip');
+  });
+
+  it("the pin does not apply to non-Japan trip labels", async () => {
+    // The env var is scoped to the Japan trip name; any other trip label
+    // still resolves by name lookup.
+    vi.stubEnv("RECALL_EVAL_JAPAN_TRIP_ID", "pinned-japan-id");
+    mockRows([{ id: "other-trip-id" }]);
+    const result = await resolveLabelIds([
+      { id: "q-04d", labels: [{ sourceType: "trip", sourceName: "Some Other Trip", dayIndex: 0 }] },
+    ]);
+    expect(result.get("q-04d")).toEqual([
+      { sourceType: "trip", sourceId: "other-trip-id", dayIndex: 0 },
+    ]);
+    expect(mockExecute).toHaveBeenCalledTimes(1);
+    expect(sqlText(mockExecute.mock.calls[0]?.[0])).toContain("trip_details");
   });
 
   it("resolves multiple queries independently and fails loud on any miss", async () => {

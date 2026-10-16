@@ -8,6 +8,7 @@
 // would measure the dataset, not the retrieval.
 import { sql } from "drizzle-orm";
 import { db } from "@/server/db/client";
+import { JAPAN_TRIP_NAME } from "./planRetrieval.recall.dataset";
 import type { RecallLabel } from "./planRetrieval.recall.dataset";
 
 /** A label with its name resolved to the database id it names. */
@@ -55,10 +56,19 @@ export async function resolveTestSourceIds(): Promise<TestSource[]> {
  * Resolve every label's `sourceName` to the id it names. Returns the labels
  * grouped by query id. Throws listing every unresolvable name — never a
  * partial map.
+ *
+ * Trip titles are NOT unique (Mitchell, 2026-10-16: two real users can name
+ * trips the same, and production already has two "Japan: Tokyo → Kyoto →
+ * Osaka" rows), so in production mode the Japan trip id can be pinned with
+ * `RECALL_EVAL_JAPAN_TRIP_ID` — when set, the name lookup is skipped and the
+ * id is used directly. Without it, the resolver falls back to the name
+ * lookup (fine in fixture mode, where names are controlled) and fails loud
+ * on ambiguity.
  */
 export async function resolveLabelIds(
   queries: { id: string; labels: RecallLabel[] }[],
 ): Promise<Map<string, ResolvedLabel[]>> {
+  const japanTripIdOverride = process.env.RECALL_EVAL_JAPAN_TRIP_ID;
   const byQuery = new Map<string, ResolvedLabel[]>();
   const unresolvable: string[] = [];
   for (const q of queries) {
@@ -70,6 +80,25 @@ export async function resolveLabelIds(
           sql`SELECT id FROM saved_days WHERE name = ${label.sourceName}`,
         );
         ids = result.rows.map((r) => r.id);
+      } else if (
+        label.sourceType === "trip" &&
+        label.sourceName === JAPAN_TRIP_NAME &&
+        japanTripIdOverride
+      ) {
+        // Pinned by id: no name lookup, so duplicate titles can't misresolve.
+        // Still fail loud if the id doesn't exist — a typo'd id would
+        // silently zero the 5 Japan queries and the gate would measure the
+        // typo, not the retrieval.
+        const check = await db.execute(
+          sql`SELECT 1 FROM trip_details WHERE trip_id = ${japanTripIdOverride}`,
+        );
+        if (check.rows.length === 0) {
+          unresolvable.push(
+            `${q.id}: RECALL_EVAL_JAPAN_TRIP_ID="${japanTripIdOverride}" matches no trip in trip_details — check the id.`,
+          );
+          continue;
+        }
+        ids = [japanTripIdOverride];
       } else {
         const result = await db.execute<{ id: string }>(
           sql`SELECT trip_id AS id FROM trip_details WHERE doc->>'name' = ${label.sourceName}`,
@@ -79,9 +108,13 @@ export async function resolveLabelIds(
       if (ids.length === 0) {
         unresolvable.push(`${q.id}: no ${label.sourceType} named "${label.sourceName}"`);
       } else if (ids.length > 1) {
+        const hint =
+          label.sourceType === "trip" && label.sourceName === JAPAN_TRIP_NAME
+            ? ` Set RECALL_EVAL_JAPAN_TRIP_ID to the trip's id to pin it (titles are not unique).`
+            : "";
         unresolvable.push(
           `${q.id}: ambiguous ${label.sourceType} name "${label.sourceName}" ` +
-            `(${ids.length} rows: ${ids.join(", ")})`,
+            `(${ids.length} rows: ${ids.join(", ")}).${hint}`,
         );
       } else {
         resolved.push({ sourceType: label.sourceType, sourceId: ids[0]!, dayIndex: label.dayIndex });
@@ -94,7 +127,8 @@ export async function resolveLabelIds(
       `label resolution failed for ${unresolvable.length} label(s):\n` +
         unresolvable.map((u) => `  - ${u}`).join("\n") +
         `\nIn production mode this usually means the corpus doesn't contain the named ` +
-        `playbook/trip (did the backfill cover it?), or the name differs. ` +
+        `playbook/trip (did the backfill cover it?), or the name differs — or, for ` +
+        `the Japan trip, that the title isn't unique (set RECALL_EVAL_JAPAN_TRIP_ID). ` +
         `Resolve the names or drop the queries with RECALL_EVAL_ONLY.`,
     );
   }

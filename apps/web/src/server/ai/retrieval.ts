@@ -22,15 +22,28 @@ export interface DayChunk {
 /** The RRF smoothing constant (the standard k=60): one shared leg can never dominate the fusion. */
 const RRF_K = 60;
 
+/**
+ * The system account that owns seeded sample content (Mitchell's decision,
+ * 2026-10-16: "anything owned by that id is owned by everyone"). Chunks with
+ * this owner are treated as public: visible to every reader, including
+ * logged-out, in both the playbook and trip legs of the privacy filter.
+ */
+export const PUBLIC_LIBRARY_OWNER_ID = "service-ai-library";
+
 // The privacy predicate, written ONCE and interpolated into both legs.
 // Duplicating it per leg would let a later edit change one leg's idea of
 // who may see a chunk and not the other's — the privacy invariant is the
 // one thing in this query that must never drift between legs.
 const privacyFilter = (userId: string | null) => sql`
   (
-    (source_type = 'playbook' AND (visibility = 'public' OR owner_id = ${userId}))
+    (source_type = 'playbook' AND (
+      visibility = 'public'
+      OR owner_id = ${userId}
+      OR owner_id = ${PUBLIC_LIBRARY_OWNER_ID}
+    ))
     OR (source_type = 'trip' AND (
       owner_id = ${userId}
+      OR owner_id = ${PUBLIC_LIBRARY_OWNER_ID}
       OR EXISTS (
         SELECT 1 FROM trip_memberships
         WHERE trip_memberships.trip_id = day_embeddings.source_id
@@ -60,9 +73,13 @@ const privacyFilter = (userId: string | null) => sql`
  * - it is a playbook day that is public, or the reader owns it; or
  * - it is a trip day and the reader is the trip's owner (Part 2 records
  *   `owner_id` at write time — the owner has no `trip_memberships` row, so
- *   membership alone would hide their own trip from them) or a member.
- * Logged out (`userId: null`) sees public playbook days only: the
- * `owner_id = NULL` and `user_id = NULL` comparisons can never match.
+ *   membership alone would hide their own trip from them) or a member; or
+ * - it is owned by `PUBLIC_LIBRARY_OWNER_ID` (the system account holding
+ *   seeded sample content) — treated as public for every reader, including
+ *   logged-out.
+ * Logged out (`userId: null`) sees public playbook days and public-library
+ * days only: the `owner_id = NULL` and `user_id = NULL` comparisons can
+ * never match.
  *
  * **This function is total: it never throws.** A database error returns
  * `[]` (logged) — the caller treats "no examples" as a normal case and

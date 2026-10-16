@@ -15,10 +15,14 @@
 // runs the same 25 queries against an already-backfilled database (Mitchell's
 // Neon). Labels are resolved by NAME against the live `saved_days` /
 // `trip_details` tables and FAIL LOUD if a name is missing or ambiguous —
-// the dataset is portable, the database is not assumed.
+// the dataset is portable, the database is not assumed. The Japan trip can
+// instead be pinned by id with `RECALL_EVAL_JAPAN_TRIP_ID` (recommended:
+// trip titles are not unique, and production already has two trips with the
+// Japan title).
 //
 //   RECALL_EVAL_PRODUCTION=1 RECALL_EVAL_USER_ID=<your-user-id> \
 //     RECALL_EVAL_CONFIRM=1 TRAVEL_COLLAB_EVAL_KEY=<your-key> \
+//     RECALL_EVAL_JAPAN_TRIP_ID=<your-japan-trip-id> \
 //     DATABASE_URL=<neon-url> \
 //     pnpm --filter web eval:run -- planRetrieval.recall
 //

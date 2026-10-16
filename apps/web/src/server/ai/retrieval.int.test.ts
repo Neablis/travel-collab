@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { dayEmbeddings, tripMemberships } from "@/server/db/schema";
-import { retrieveDayChunks } from "./retrieval";
+import { retrieveDayChunks, PUBLIC_LIBRARY_OWNER_ID } from "./retrieval";
 
 // Hybrid retrieval against REAL pgvector (integration lane): the HNSW index,
 // the `<=>` operator, the FTS dictionary and the RRF fusion are all database
@@ -70,6 +70,8 @@ let privOther: string;
 let tripOwned: string;
 let tripMember: string;
 let tripStranger: string;
+let libPlaybook: string;
+let libTrip: string;
 
 beforeAll(async () => {
   const playbook = randomUUID();
@@ -176,6 +178,23 @@ beforeAll(async () => {
     chunkText: probe("strangertrip"),
     ownerId: STRANGER,
   });
+  // Seeded sample content: owned by the public-library system account, so it
+  // is visible to everyone (including logged-out), like a public playbook.
+  // The playbook is deliberately private: visibility must not be doing the
+  // work here, the owner rule must.
+  libPlaybook = await chunk({
+    sourceType: "playbook",
+    sourceId: randomUUID(),
+    chunkText: probe("libraryplaybook"),
+    visibility: "private",
+    ownerId: PUBLIC_LIBRARY_OWNER_ID,
+  });
+  libTrip = await chunk({
+    sourceType: "trip",
+    sourceId: randomUUID(),
+    chunkText: probe("librarytrip"),
+    ownerId: PUBLIC_LIBRARY_OWNER_ID,
+  });
 
   // fts the Part 2 way: built in SQL with the same dictionary the query uses.
   await db.execute(sql`UPDATE day_embeddings SET fts = to_tsvector('english', chunk_text)`);
@@ -246,7 +265,7 @@ describe("retrieveDayChunks", () => {
 
     it("shows the reader their own private playbook, public playbooks, and trips they own or belong to", async () => {
       const found = await probe(READER);
-      for (const id of [pubPlaybook, privMine, tripOwned, tripMember]) {
+      for (const id of [pubPlaybook, privMine, tripOwned, tripMember, libPlaybook, libTrip]) {
         expect(found).toContain(id);
       }
       expect(found).not.toContain(privOther);
@@ -257,6 +276,8 @@ describe("retrieveDayChunks", () => {
       const found = await probe(OTHER);
       expect(found).toContain(pubPlaybook);
       expect(found).toContain(privOther);
+      expect(found).toContain(libPlaybook);
+      expect(found).toContain(libTrip);
       for (const id of [privMine, tripOwned, tripMember, tripStranger]) {
         expect(found).not.toContain(id);
       }
@@ -265,9 +286,25 @@ describe("retrieveDayChunks", () => {
     it("shows a logged-out reader public playbooks only", async () => {
       const found = await probe(null);
       expect(found).toContain(pubPlaybook);
+      expect(found).toContain(libPlaybook);
+      expect(found).toContain(libTrip);
       for (const id of [privMine, privOther, tripOwned, tripMember, tripStranger]) {
         expect(found).not.toContain(id);
       }
+    });
+
+    it("treats service-ai-library content as public for a stranger with no relationship to it", async () => {
+      // The literal is pinned: the privacy filter interpolates this exact
+      // string, so a rename must be a deliberate, reviewed change — not a
+      // silent constant edit that keeps the tests green while production
+      // behavior changes.
+      expect(PUBLIC_LIBRARY_OWNER_ID).toBe("service-ai-library");
+      const found = await probe(STRANGER);
+      expect(found).toContain(libPlaybook);
+      expect(found).toContain(libTrip);
+      // And the stranger's own trip stays theirs alone.
+      expect(found).toContain(tripStranger);
+      expect(found).not.toContain(privMine);
     });
   });
 });
