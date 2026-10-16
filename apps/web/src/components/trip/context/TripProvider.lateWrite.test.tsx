@@ -46,7 +46,7 @@ beforeEach(() => {
   // A solo trip: no interval poll, and nothing makes the document regain
   // visibility or focus — which is exactly the case nothing re-read in.
   fetchTripEventsMock.mockReset().mockResolvedValue({ ok: true, value: { headSeq: 0, events: [], resync: false } });
-  fetchTripAccessMock.mockReset().mockResolvedValue({ ok: true, value: { tripId: "x", myRole: "owner", members: [], invites: [] } });
+  fetchTripAccessMock.mockReset().mockResolvedValue({ ok: true, value: { tripId: "x", myRole: "owner", members: [], invites: [], guests: [] } });
   vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
     const url = String(input);
     return new Promise<Response>((resolve) => {
