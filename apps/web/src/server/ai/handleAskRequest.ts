@@ -86,6 +86,12 @@ import {
 import { pageInsertsMetadata, pageOutcomeOf } from "@/server/ai/pageTools";
 import { retractTextBesideTools } from "@/server/ai/finalStepText";
 import {
+  detectUsedExamples,
+  formatExampleBlocks,
+  getPlanExamples,
+  type DayChunk,
+} from "@/server/ai/planExamples";
+import {
   askOutcomeRecord,
   recordAskOutcome,
   storesAsSuggestion,
@@ -691,6 +697,23 @@ export async function handleAskRequest(
   // A timer must never be what keeps a process alive; every end path clears it anyway.
   hardDeadline.unref?.();
 
+  // **RAG stack Part 4: example days for plan turns** (M48), behind the
+  // RAG_PLAN_RETRIEVAL flag. Runs on turns already classified `plan`
+  // (commitment 7: not a classifier change) and nowhere else.
+  //
+  // `getPlanExamples` is fail-open and never throws, so this line can only
+  // ADD optional context: with the flag off it returns [] without an
+  // embedding call or a database query, and the instruction below is
+  // byte-identical to today's.
+  const planExamples = grant.taskClass === "plan" ? await getPlanExamples({ question, userId }) : [];
+  if (planExamples.length > 0) {
+    console.info("rag: plan examples", {
+      turnId,
+      retrieved: planExamples.map((example) => example.id),
+      count: planExamples.length,
+    });
+  }
+
   const agent = new ToolLoopAgent({
     model: grant.model,
     // **Prompt caching, and it is the one saving that trades nothing.**
@@ -751,6 +774,7 @@ export async function handleAskRequest(
       grant.classWithheld,
       standingOf(detail),
       clock,
+      planExamples,
     ),
     tools,
     // The narrow set is what step 1 sends. `prepareStep` below is the only
@@ -809,6 +833,7 @@ export async function handleAskRequest(
             grant.classWithheld,
             standingOf(detail),
             clock,
+            planExamples,
           ),
         };
       }
@@ -857,6 +882,20 @@ export async function handleAskRequest(
         : [];
       droppedIndices = new Set(dropped.map((entry) => entry.index));
       recorder.finish(end, diagnosticDrops(dropped));
+      // **RAG stack Part 4 bookkeeping, best-effort.** Which retrieved
+      // examples the turn's final text appears to lean on, for the serving
+      // logs. `detectUsedExamples` is a heuristic and never throws, but the
+      // try/catch is the belt: this runs after the answer is recorded and
+      // must never break a turn's stream. Only logged when examples were
+      // retrieved, so a flag-off turn emits nothing new here.
+      if (planExamples.length > 0) {
+        try {
+          const finalText = typeof end.text === "string" ? end.text : "";
+          console.info("rag: plan examples used", { turnId, used: detectUsedExamples(planExamples, finalText) });
+        } catch (error) {
+          console.error("rag: plan example usage logging failed", { turnId, error });
+        }
+      }
       // `finish` ran the sink, which started the settlement. See `settled`.
       await settled;
     },
@@ -1754,8 +1793,12 @@ export function instructionsFor(
   classWithheld = false,
   standing: TripStanding = FULLY_PLANNED,
   clock: TimeFormat = "12h",
+  // RAG stack Part 4 (M48): retrieved example days for a plan turn. Default
+  // [] — and `formatExampleBlocks([])` is [] — so every existing caller,
+  // which passes nothing, gets byte-identically today's instruction.
+  examples: DayChunk[] = [],
 ): string {
-  return renderPrompt(instructionBlocks(scope, dayCount, posture, page, classWithheld, standing, clock));
+  return renderPrompt(instructionBlocks(scope, dayCount, posture, page, classWithheld, standing, clock, examples));
 }
 
 /**
@@ -1842,6 +1885,14 @@ export function instructionBlocks(
   classWithheld = false,
   standing: TripStanding = FULLY_PLANNED,
   clock: TimeFormat = "12h",
+  // RAG stack Part 4 (M48): retrieved example days for a plan turn. Defaulted
+  // so the parameter is additive, like `standing` above: a caller that passes
+  // nothing gets byte-identically the blocks it got before. The blocks are
+  // appended after the scope line; the appended `rule` is server-authored
+  // (the claim above — no `rule` carries user-authored text — still holds),
+  // and the example text itself arrives as a `data` block, as ADR-043
+  // requires for text other users wrote.
+  examples: DayChunk[] = [],
 ): PromptBlock[] {
   // A page turn is a different job, not a variant of this one: it composes a
   // document rather than answering, and every planning rule below (activityRef,
@@ -1996,7 +2047,9 @@ export function instructionBlocks(
       : "This question is about the trip as a whole.",
     "Answer in prose, briefly — a sentence or three. No headings, no bullet lists unless the user asks for a list.",
   ];
-  return [...rules.map(rule), scopeBlock(scope)];
+  // `formatExampleBlocks([])` is `[]`: with no examples this is the same
+  // array of blocks as before Part 4, which is the flag-off guarantee.
+  return [...rules.map(rule), scopeBlock(scope), ...formatExampleBlocks(examples)];
 }
 
 /**

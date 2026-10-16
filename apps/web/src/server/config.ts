@@ -92,4 +92,11 @@ export const serverConfig = {
     mid: process.env.AI_MODEL_MID ?? process.env.AI_MODEL ?? DEFAULT_AI_MODEL,
     strong: process.env.AI_MODEL_STRONG ?? process.env.AI_MODEL ?? DEFAULT_AI_MODEL,
   },
+  // Plan-turn RAG examples (Part 4 of the RAG stack, `server/ai/planExamples.ts`).
+  // Off unless RAG_PLAN_RETRIEVAL=1: with it off a plan turn looks up no
+  // examples and sends the model the same prompt as today — that is the flag's
+  // whole point (M48 exit gate), so the default is the safe one. The whole
+  // path is fail-open, so turning it on only ever ADDS optional context: a
+  // lookup that throws, times out or returns nothing leaves the turn working.
+  ragPlanRetrieval: process.env.RAG_PLAN_RETRIEVAL === "1",
 };
