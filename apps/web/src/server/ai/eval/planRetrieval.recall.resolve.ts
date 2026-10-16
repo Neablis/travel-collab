@@ -21,7 +21,10 @@ export interface ResolvedLabel {
  * Test-named sources: playbooks and trips whose names look like test data.
  * Production-mode only: Mitchell keeps test trips in the live database and
  * does not want them deleted, but they must not pollute the eval corpus.
- * Matches case-insensitively on `%TEST%`, `%delete me%`, `%throwaway%`.
+ * Matches case-insensitively on `%delete me%`, `%throwaway%`. (No bare
+ * `%TEST%`: it false-positives on real names like "Testaccio" in the Rome
+ * trip. Both actual test trips are covered: "TEST DELETE ME" matches
+ * `%delete me%`, "TEST throwaway trip - delete me" matches both.)
  * FAILS LOUD if the lookup itself errors; an empty list (no test sources) is
  * fine and means no exclusion. Names are returned alongside ids so the eval
  * can log WHAT was excluded, not just opaque ids.
@@ -33,7 +36,7 @@ export interface TestSource {
 }
 
 export async function resolveTestSourceIds(): Promise<TestSource[]> {
-  const patterns = ["%TEST%", "%delete me%", "%throwaway%"];
+  const patterns = ["%delete me%", "%throwaway%"];
   const playbookClauses = patterns.map((p) => sql`name ILIKE ${p}`);
   const tripClauses = patterns.map((p) => sql`doc->>'name' ILIKE ${p}`);
   const playbooks = await db.execute<{ id: string; name: string }>(

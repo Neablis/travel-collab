@@ -19,11 +19,12 @@ function mockRows(rows: { id: string; name?: string }[]) {
   mockExecute.mockResolvedValueOnce({ rows } as never);
 }
 
-/** Extract the raw SQL text from a drizzle `sql` template for assertion, recursing into nested `sql.join` fragments. */
+/** Extract the raw SQL text from a drizzle `sql` template for assertion, recursing into nested `sql.join` fragments. Bound parameters appear as plain strings in the chunks and are included. */
 function sqlText(query: unknown): string {
   const chunks = (query as { queryChunks: unknown[] }).queryChunks;
   return chunks
     .map((c) => {
+      if (typeof c === "string") return c;
       if (typeof c !== "object" || c === null) return "";
       if ("value" in c) return (c.value as string[]).join("");
       if ("queryChunks" in c) return sqlText(c);
@@ -144,6 +145,24 @@ describe("resolveTestSourceIds", () => {
     expect(sqls).toHaveLength(2);
     for (const s of sqls) {
       expect(s).toContain("ILIKE");
+    }
+  });
+
+  it("red-first: must not use a bare %TEST% pattern (false-positives on Testaccio)", async () => {
+    // Mitchell's real Rome trip is "Rome: the Forum at opening, Testaccio at
+    // lunch, Trastevere after dark" — "Testaccio" contains "test". A %TEST%
+    // pattern would wrongly exclude it from the eval corpus. Both actual test
+    // trips are still covered: "TEST DELETE ME" via %delete me%,
+    // "TEST throwaway trip - delete me" via %throwaway% (and %delete me%).
+    mockRows([]);
+    mockRows([]);
+    await resolveTestSourceIds();
+    const sqls = mockExecute.mock.calls.map((c) => sqlText(c[0]));
+    expect(sqls).toHaveLength(2);
+    for (const s of sqls) {
+      expect(s).not.toContain("%TEST%");
+      expect(s).toContain("%delete me%");
+      expect(s).toContain("%throwaway%");
     }
   });
 });
