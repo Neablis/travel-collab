@@ -29,6 +29,9 @@ Notes:
   seeds and embeds first — slower, for development.
 - 10 queries × 3 arms (strong, strong+examples, mid+examples) + 20 judge calls
   (cheap tier). Expect dollars, not cents. The run prints the plan first.
+- 50 model calls take ~20-30 min. The vitest timeout defaults to 30 min;
+  override with `GATE2_TIMEOUT_MS` (milliseconds) if your environment is
+  slower. Progress is logged per query (`gate 2: query 3/10 (q-03) — done`).
 
 ## What it measures
 
