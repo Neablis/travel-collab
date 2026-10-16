@@ -261,6 +261,10 @@ const notAClassName = new Set([
   // integration tests (`type: "text-delta"`). Its siblings `text-start` and
   // `text-end` need no entry — they are real text-align utilities and pass.
   "text-delta",
+  // OpenAI's embedding model id, the default for `serverConfig.embeddingModel`
+  // (`apps/web/src/server/config.ts`). The `text-` prefix collides with the
+  // text-utility namespace, but this is a model id, never a class name.
+  "text-embedding-3-small",
 ]);
 
 // A comment is where this repo records the defect it is warning the next reader
