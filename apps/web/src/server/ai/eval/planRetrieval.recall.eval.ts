@@ -18,8 +18,12 @@
 // the dataset is portable, the database is not assumed.
 //
 //   RECALL_EVAL_PRODUCTION=1 RECALL_EVAL_USER_ID=<your-user-id> \
-//     RECALL_EVAL_CONFIRM=1 DATABASE_URL=<neon-url> \
-//     pnpm --filter web eval -- planRetrieval.recall
+//     RECALL_EVAL_CONFIRM=1 TRAVEL_COLLAB_EVAL_KEY=<your-key> \
+//     DATABASE_URL=<neon-url> \
+//     pnpm --filter web eval:run -- planRetrieval.recall
+//
+// (`eval:run` bypasses the `with-test-db` wrapper, which refuses non-local
+// hosts; an exported DATABASE_URL wins over `.env.local`.)
 //
 // **The userId decision.** The eval reads as a fixed actor (`eval-actor`, the
 // same convention as `live.eval.ts`), NOT as logged-out null — override with
@@ -238,14 +242,27 @@ beforeAll(async () => {
   if (!confirmed) {
     throw new Error(`${plan}\nNothing was sent. Set RECALL_EVAL_CONFIRM=1 to spend it.`);
   }
-  if (PRODUCTION && ACTOR_ID === "eval-actor") {
-    console.log(
-      "    WARNING: RECALL_EVAL_USER_ID is not set — running as the fixture actor " +
-        `"eval-actor", which owns no production trips. Trip-day labels will be ` +
-        `invisible to the privacy filter. Set RECALL_EVAL_USER_ID to your user id.`,
-    );
+  if (PRODUCTION) {
+    if (ACTOR_ID === "eval-actor") {
+      throw new Error(
+        "production mode: RECALL_EVAL_USER_ID is not set. The fixture actor owns no " +
+          "production trips, so trip-day labels would be invisible to the privacy filter " +
+          "and the gate would measure the filter, not the retrieval. Set RECALL_EVAL_USER_ID " +
+          "to your user id (see the runbook).",
+      );
+    }
+    // Read-only existence check: the actor must already exist. We do NOT call
+    // enrol() here — upsertUser would null the profile row and issueGrant
+    // would write a bogus premium grant into the live database.
+    const found = await db.execute<{ id: string }>(sql`SELECT id FROM users WHERE id = ${ACTOR_ID}`);
+    if (found.rows.length === 0) {
+      throw new Error(
+        `production mode: no user with id "${ACTOR_ID}" — check RECALL_EVAL_USER_ID.`,
+      );
+    }
+  } else {
+    await enrol(ACTOR_ID);
   }
-  await enrol(ACTOR_ID);
 });
 
 afterAll(() => {

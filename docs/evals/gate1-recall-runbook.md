@@ -20,15 +20,27 @@ Prerequisites: branch `sunny/rag-part3-gate1`, Node 22, pnpm, and
 `TRAVEL_COLLAB_EVAL_KEY` (a Vercel AI Gateway key).
 
 **Step 0 — backfill the corpus.** The eval measures against `day_embeddings`;
-production mode does not embed anything itself. Run the Part 2 backfill
-against Neon first (this is the same backfill that runs before launch):
+production mode does not embed anything itself. Two steps, because the
+backfill script only *queues* rows — the sweep does the paid embedding:
 
 ```sh
+# 1. Queue every playbook/trip day for embedding:
 DATABASE_URL=<your-neon-url> pnpm --filter web db:backfill-embeddings
+
+# 2. Drain the queue through the production sweep. Either wait for the
+#    5-minute Vercel cron, or trigger it manually (repeat until the queue
+#    is empty):
+curl -H "Authorization: Bearer $CRON_SECRET" https://<your-prod-url>/api/cron/embed-days
 ```
 
-It prints the chunk count before embedding. This makes paid embedding calls
-(once per day-chunk); the sweep is idempotent, so re-running is safe.
+Verify the queue drained before running the eval:
+
+```sql
+SELECT status, count(*) FROM pending_embeddings GROUP BY status;
+-- expect: no rows with status 'pending' or 'processing'
+```
+
+The sweep is idempotent, so re-running either step is safe.
 
 **Step 1 — find your user id.** The eval reads as `RECALL_EVAL_USER_ID` so
 trip-day labels pass the privacy filter (the fixture default `eval-actor`
@@ -38,13 +50,14 @@ owns no production trips). In Neon's SQL editor:
 SELECT id, email FROM users WHERE email = '<your-email>';
 ```
 
-**Step 2 — run the eval.**
+**Step 2 — run the eval.** Bypass the `pnpm eval` wrapper (it refuses
+non-local hosts); `eval:run` reads the exported `DATABASE_URL` directly.
 
 ```sh
 RECALL_EVAL_PRODUCTION=1 RECALL_EVAL_USER_ID=<your-user-id> \
   RECALL_EVAL_CONFIRM=1 TRAVEL_COLLAB_EVAL_KEY=<your-key> \
   DATABASE_URL=<your-neon-url> \
-  pnpm --filter web eval -- planRetrieval.recall
+  pnpm --filter web eval:run -- planRetrieval.recall
 ```
 
 What happens: the eval verifies `day_embeddings` is non-empty (fails loud

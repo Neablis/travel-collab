@@ -18,6 +18,14 @@ function mockRows(rows: { id: string }[]) {
   mockExecute.mockResolvedValueOnce({ rows } as never);
 }
 
+/** Extract the raw SQL text from a drizzle `sql` template for assertion. */
+function sqlText(query: unknown): string {
+  const chunks = (query as { queryChunks: ({ value: string[] } | unknown)[] }).queryChunks;
+  return chunks
+    .map((c) => (typeof c === "object" && c !== null && "value" in c ? (c.value as string[]).join("") : ""))
+    .join("");
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
 });
@@ -32,6 +40,8 @@ describe("resolveLabelIds", () => {
       { sourceType: "playbook", sourceId: "playbook-uuid-1", dayIndex: 0 },
     ]);
     expect(mockExecute).toHaveBeenCalledTimes(1);
+    // The playbook branch must query saved_days, not trip_details.
+    expect(sqlText(mockExecute.mock.calls[0]?.[0])).toContain("saved_days");
   });
 
   it("resolves a trip name to its trip_details id", async () => {
@@ -43,6 +53,8 @@ describe("resolveLabelIds", () => {
       { sourceType: "trip", sourceId: "trip-uuid-1", dayIndex: 3 },
     ]);
     expect(mockExecute).toHaveBeenCalledTimes(1);
+    // The trip branch must query trip_details, not saved_days.
+    expect(sqlText(mockExecute.mock.calls[0]?.[0])).toContain("trip_details");
   });
 
   it("throws listing the name when nothing matches", async () => {
