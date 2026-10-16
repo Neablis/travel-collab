@@ -78,11 +78,15 @@ report: apps/web/eval-results/recall-gate1-<timestamp>.json
 ```
 
 **Label resolution failures.** Five queries (q-01, q-09, q-18, q-19, q-20)
-are labeled against a Japan trip (`"Japan (recall eval)"`). If you don't
-have a Japan trip in production, those labels fail to resolve and the run
-throws before spending. Options: seed the Japan fixture trip (it's the same
-14-day trip the fixture mode uses — clearly named, delete it after), or
-exclude those queries with `RECALL_EVAL_ONLY`.
+are labeled against the Japan trip (`"Japan: Tokyo → Kyoto → Osaka"`). If that
+trip isn't in production, those labels fail to resolve and the run throws
+before spending. Options: exclude those queries with `RECALL_EVAL_ONLY`.
+
+**Test-trip exclusion.** Trips and playbooks whose names match `%TEST%`,
+`%delete me%`, or `%throwaway%` (case-insensitive) are excluded from retrieval
+in production mode. They stay in the database — nothing is deleted — but their
+day-chunks never consume rank positions. The eval prints how many sources were
+excluded at startup; an empty list is normal.
 
 ## Fixture mode (default)
 

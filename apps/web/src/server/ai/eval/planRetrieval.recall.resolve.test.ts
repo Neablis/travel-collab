@@ -2,7 +2,8 @@
 // The database is mocked: these tests prove the resolution logic (exact-name
 // match, missing → throw, ambiguous → throw), not the SQL itself.
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { resolveLabelIds } from "./planRetrieval.recall.resolve";
+import { resolveLabelIds, resolveTestSourceIds } from "./planRetrieval.recall.resolve";
+import { JAPAN_TRIP_NAME } from "./planRetrieval.recall.dataset";
 
 vi.mock("@/server/db/client", () => ({
   db: {
@@ -14,15 +15,20 @@ import { db } from "@/server/db/client";
 
 const mockExecute = vi.mocked(db.execute);
 
-function mockRows(rows: { id: string }[]) {
+function mockRows(rows: { id: string; name?: string }[]) {
   mockExecute.mockResolvedValueOnce({ rows } as never);
 }
 
-/** Extract the raw SQL text from a drizzle `sql` template for assertion. */
+/** Extract the raw SQL text from a drizzle `sql` template for assertion, recursing into nested `sql.join` fragments. */
 function sqlText(query: unknown): string {
-  const chunks = (query as { queryChunks: ({ value: string[] } | unknown)[] }).queryChunks;
+  const chunks = (query as { queryChunks: unknown[] }).queryChunks;
   return chunks
-    .map((c) => (typeof c === "object" && c !== null && "value" in c ? (c.value as string[]).join("") : ""))
+    .map((c) => {
+      if (typeof c !== "object" || c === null) return "";
+      if ("value" in c) return (c.value as string[]).join("");
+      if ("queryChunks" in c) return sqlText(c);
+      return "";
+    })
     .join("");
 }
 
@@ -47,7 +53,7 @@ describe("resolveLabelIds", () => {
   it("resolves a trip name to its trip_details id", async () => {
     mockRows([{ id: "trip-uuid-1" }]);
     const result = await resolveLabelIds([
-      { id: "q-02", labels: [{ sourceType: "trip", sourceName: "Japan (recall eval)", dayIndex: 3 }] },
+      { id: "q-02", labels: [{ sourceType: "trip", sourceName: JAPAN_TRIP_NAME, dayIndex: 3 }] },
     ]);
     expect(result.get("q-02")).toEqual([
       { sourceType: "trip", sourceId: "trip-uuid-1", dayIndex: 3 },
@@ -95,5 +101,49 @@ describe("resolveLabelIds", () => {
     ]);
     expect(result.get("q-07")?.[0]?.sourceId).not.toBe("Some Playbook");
     expect(result.get("q-07")?.[0]?.sourceId).toBe("real-uuid");
+  });
+});
+
+describe("resolveTestSourceIds", () => {
+  it("returns playbook and trip ids whose names match test patterns", async () => {
+    mockRows([{ id: "playbook-test-1", name: "TEST DELETE ME" }]);
+    mockRows([
+      { id: "trip-test-1", name: "TEST throwaway trip" },
+      { id: "trip-test-2", name: "My delete me draft" },
+    ]);
+    const result = await resolveTestSourceIds();
+    expect(result).toEqual([
+      { id: "playbook-test-1", name: "TEST DELETE ME", sourceType: "playbook" },
+      { id: "trip-test-1", name: "TEST throwaway trip", sourceType: "trip" },
+      { id: "trip-test-2", name: "My delete me draft", sourceType: "trip" },
+    ]);
+    expect(mockExecute).toHaveBeenCalledTimes(2);
+    const [playbookSql, tripSql] = mockExecute.mock.calls.map((c) => sqlText(c[0]));
+    expect(playbookSql).toContain("saved_days");
+    expect(playbookSql).toContain("ILIKE");
+    expect(tripSql).toContain("trip_details");
+    expect(tripSql).toContain("ILIKE");
+  });
+
+  it("returns an empty list when nothing matches (no exclusion)", async () => {
+    mockRows([]);
+    mockRows([]);
+    const result = await resolveTestSourceIds();
+    expect(result).toEqual([]);
+  });
+
+  it("red-first: would fail if the patterns were matched case-sensitively", async () => {
+    // The ILIKE assertions above pin case-insensitive matching: a LIKE-only
+    // implementation would miss "test delete me" and silently keep test trips
+    // in the eval corpus. toContain("ILIKE") is the whole check — a bare LIKE
+    // cannot satisfy it.
+    mockRows([{ id: "x" }]);
+    mockRows([{ id: "y" }]);
+    await resolveTestSourceIds();
+    const sqls = mockExecute.mock.calls.map((c) => sqlText(c[0]));
+    expect(sqls).toHaveLength(2);
+    for (const s of sqls) {
+      expect(s).toContain("ILIKE");
+    }
   });
 });

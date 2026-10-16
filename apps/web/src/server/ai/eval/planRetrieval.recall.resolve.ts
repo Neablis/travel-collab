@@ -18,6 +18,37 @@ export interface ResolvedLabel {
 }
 
 /**
+ * Test-named sources: playbooks and trips whose names look like test data.
+ * Production-mode only: Mitchell keeps test trips in the live database and
+ * does not want them deleted, but they must not pollute the eval corpus.
+ * Matches case-insensitively on `%TEST%`, `%delete me%`, `%throwaway%`.
+ * FAILS LOUD if the lookup itself errors; an empty list (no test sources) is
+ * fine and means no exclusion. Names are returned alongside ids so the eval
+ * can log WHAT was excluded, not just opaque ids.
+ */
+export interface TestSource {
+  id: string;
+  name: string;
+  sourceType: "playbook" | "trip";
+}
+
+export async function resolveTestSourceIds(): Promise<TestSource[]> {
+  const patterns = ["%TEST%", "%delete me%", "%throwaway%"];
+  const playbookClauses = patterns.map((p) => sql`name ILIKE ${p}`);
+  const tripClauses = patterns.map((p) => sql`doc->>'name' ILIKE ${p}`);
+  const playbooks = await db.execute<{ id: string; name: string }>(
+    sql`SELECT id, name FROM saved_days WHERE ${sql.join(playbookClauses, sql` OR `)}`,
+  );
+  const trips = await db.execute<{ id: string; name: string }>(
+    sql`SELECT trip_id AS id, doc->>'name' AS name FROM trip_details WHERE ${sql.join(tripClauses, sql` OR `)}`,
+  );
+  return [
+    ...playbooks.rows.map((r) => ({ id: r.id, name: r.name, sourceType: "playbook" as const })),
+    ...trips.rows.map((r) => ({ id: r.id, name: r.name, sourceType: "trip" as const })),
+  ];
+}
+
+/**
  * Resolve every label's `sourceName` to the id it names. Returns the labels
  * grouped by query id. Throws listing every unresolvable name — never a
  * partial map.

@@ -75,17 +75,34 @@ export async function retrieveDayChunks({
   queryText,
   userId,
   k = 8,
+  excludeSourceIds = [],
 }: {
   queryEmbedding: number[];
   queryText: string;
   userId: string | null;
   k?: number;
+  /**
+   * `day_embeddings.source_id` values to exclude from retrieval. Used by the
+   * Gate 1 eval to keep test trips out of the production corpus; the serving
+   * path does not pass it. Excluded chunks never consume rank positions.
+   */
+  excludeSourceIds?: string[];
 }): Promise<DayChunk[]> {
   // node-postgres serializes a JS array as a Postgres array literal
   // (`{1,2,3}`), which does NOT cast to `vector` — pgvector only accepts its
   // own text form (`[1,2,3]`). Build that form here and cast at the bind.
   const queryVector = `[${queryEmbedding.join(",")}]`;
   const legLimit = 2 * k;
+  // Test-source exclusion for the eval: omitted entirely when the list is
+  // empty (`NOT IN ()` is invalid SQL), applied in both legs otherwise so
+  // excluded chunks never consume RRF rank positions.
+  const exclusion =
+    excludeSourceIds.length > 0
+      ? sql`AND source_id NOT IN (${sql.join(
+          excludeSourceIds.map((id) => sql`${id}`),
+          sql`, `,
+        )})`
+      : sql``;
   try {
     const { rows } = await db.execute<{
       id: string;
@@ -104,6 +121,7 @@ export async function retrieveDayChunks({
         FROM day_embeddings
         WHERE embedding IS NOT NULL
           AND ${privacyFilter(userId)}
+          ${exclusion}
         ORDER BY embedding <=> (${queryVector}::vector), id
         LIMIT ${legLimit}
       ),
@@ -112,6 +130,7 @@ export async function retrieveDayChunks({
         FROM day_embeddings, plainto_tsquery('english', ${queryText}) AS q
         WHERE fts @@ q
           AND ${privacyFilter(userId)}
+          ${exclusion}
         ORDER BY ts_rank(fts, q) DESC, id
         LIMIT ${legLimit}
       ),

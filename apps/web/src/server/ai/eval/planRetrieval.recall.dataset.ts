@@ -53,8 +53,9 @@ export interface RecallQuery {
   labels: RecallLabel[];
 }
 
-/** The Japan fixture trip's display name, as seeded by the eval. */
-export const JAPAN_TRIP_NAME = "Japan (recall eval)";
+/** The Japan trip's display name. In fixture mode the eval seeds a trip under
+ * this name; in production mode it resolves Mitchell's real Japan trip. */
+export const JAPAN_TRIP_NAME = "Japan: Tokyo → Kyoto → Osaka";
 
 /**
  * The Japan fixture trip's id in the eval database. Fixed (not random) so the

@@ -69,7 +69,7 @@ import { runEmbedSweep } from "@/server/ai/sweep";
 import { embedText } from "@/server/ai/embeddings";
 import { retrieveDayChunks, type DayChunk } from "@/server/ai/retrieval";
 import { JAPAN_TRIP_ID, JAPAN_TRIP_NAME, RECALL_DATASET } from "./planRetrieval.recall.dataset";
-import { resolveLabelIds } from "./planRetrieval.recall.resolve";
+import { resolveLabelIds, resolveTestSourceIds } from "./planRetrieval.recall.resolve";
 
 const ACTOR_ID = process.env.RECALL_EVAL_USER_ID ?? "eval-actor";
 const PRODUCTION = process.env.RECALL_EVAL_PRODUCTION === "1";
@@ -304,8 +304,23 @@ describe("gate 1: offline recall@5", () => {
       if (queries.length === 0) {
         throw new Error(`RECALL_EVAL_ONLY=${process.env.RECALL_EVAL_ONLY} matched no queries — refusing before spending.`);
       }
+      // Production-mode test-trip exclusion (empty in fixture mode, whose
+      // corpus is curated and contains no test sources).
+      let testSourceIds: string[] = [];
       if (PRODUCTION) {
         await assertProductionCorpus();
+        // Mitchell keeps test trips in the live DB (not deleted); keep them
+        // out of the eval corpus without touching the data. Log names, not
+        // just ids — a substring pattern like %TEST% can match real names
+        // ("Testaccio"), and the log is the audit trail.
+        const testSources = await resolveTestSourceIds();
+        testSourceIds = testSources.map((s) => s.id);
+        console.log(
+          `    excluding ${testSources.length} test source(s) from retrieval` +
+            (testSources.length > 0
+              ? `: ${testSources.map((s) => `${s.sourceType} "${s.name}"`).join(", ")}`
+              : ""),
+        );
       } else {
         const playbookDays = await seedBundlePlaybooks();
         const tripDays = await seedJapanTrip();
@@ -326,7 +341,13 @@ describe("gate 1: offline recall@5", () => {
         if (queryEmbedding === null) {
           throw new Error(`${q.id}: the query would not embed — scoring it 0 would be the optimistic lie; re-run.`);
         }
-        const retrieved = await retrieveDayChunks({ queryEmbedding, queryText: q.query, userId: ACTOR_ID, k: K });
+        const retrieved = await retrieveDayChunks({
+          queryEmbedding,
+          queryText: q.query,
+          userId: ACTOR_ID,
+          k: K,
+          excludeSourceIds: testSourceIds,
+        });
         const retrievedKeys = new Set(retrieved.map(labelKey));
         const hits = labels.filter((label) => retrievedKeys.has(labelKey(label)));
         const recall = labels.length === 0 ? 0 : hits.length / labels.length;
