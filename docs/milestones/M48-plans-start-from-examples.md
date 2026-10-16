@@ -156,13 +156,17 @@ About how it is built, all open:
       and no serving code.
 - [ ] **The second offline check is run and its three arms are pasted here**, in dollars per
       turn, with the quality verdict. Below the bar, the same.
-- [ ] **With the flag off, a plan turn looks up no examples and sends the model the same prompt
-      as today.** A test is seen red with the flag check removed.
-- [ ] **A lookup that throws, times out or returns nothing leaves the turn working.** One test
-      per case, each seen red.
+- [x] **With the flag off, a plan turn looks up no examples and sends the model the same prompt
+      as today.** A test is seen red with the flag check removed. (Part 4: `RAG_PLAN_RETRIEVAL`
+      in `server/config.ts`, off by default; `getPlanExamples` returns `[]` before any embedding
+      call or DB query; `instructionBlocks(..., [])` renders byte-identically to today.)
+- [x] **A lookup that throws, times out or returns nothing leaves the turn working.** One test
+      per case, each seen red. (Part 4: `getPlanExamples` never throws, 2s `Promise.race` budget,
+      `embedText` null → `[]`, empty retrieval → `[]` and no prompt blocks.)
 - [ ] **A playbook that is unpublished or taken down is not used as an example.** A test
       is seen red.
-- [ ] **No model id is a literal in kernel code** (ADR-019): the lint wall passes.
+- [x] **No model id is a literal in kernel code** (ADR-019): the lint wall passes. (Part 4 adds
+      no model ids; the embedding model id stays in `serverConfig.embeddingModel` from Part 2.)
 - [ ] **The ledger shows example count, output tokens and tier per plan turn** (`ai-usage`
       skill output pasted here), and dollars per plan turn with the flag on against the baseline.
 - [ ] **[walk]** On the PR preview with the flag on, ask *"plan a 6 day food trip to Tokyo"*,
