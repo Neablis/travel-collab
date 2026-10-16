@@ -25,10 +25,13 @@
 //
 // **Modes:**
 // - **Production (`GATE2_PRODUCTION=1`):** uses the already-backfilled database
-//   (Mitchell's Neon). Retrieval runs against real data. This is how Mitchell
-//   runs it.
-// - **Fixture (default):** seeds the 19 content bundles + Japan fixture trip,
-//   embeds via the real sweep, then runs. Slower, for development.
+//   (Mitchell's Neon). Retrieval runs against real data. This is the supported
+//   path — Mitchell runs it.
+// - **Fixture (default, not yet implemented):** would seed the 19 content
+//   bundles + Japan fixture trip and embed via the real sweep, like Gate 1's
+//   fixture mode. Currently the eval expects a pre-seeded database; without
+//   one, the zero-examples guard fails the run loudly rather than measuring
+//   nothing.
 //
 // **The money.** 10 queries × 3 arms = 30 plan generations (strong/mid tiers,
 // plan-length outputs), plus 20 judge calls (cheap tier). This is DOLLARS, not
