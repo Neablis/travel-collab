@@ -243,8 +243,19 @@ export function PeopleSection({
     held.current = value;
     setAccess(value);
     // Adopted with the access read, in the same render — no second read, and
-    // no extra render cycle of its own.
-    setGuests(value.guests);
+    // no extra render cycle of its own. A provisional `guest_temp-…` row
+    // rides along: its POST is still in flight, and the POST's answer (or
+    // failure) reconciles it — the swap looks for the temp id, the rollback
+    // removes it. Without this the wholesale replace drops the optimistic
+    // row, the in-flight swap has nothing to swap into, and a quick re-add
+    // can land twice (the server has no name uniqueness). Temp ids are
+    // client-minted, so they can never collide with the server's list.
+    setGuests((current) => {
+      const pending = (current ?? []).filter(
+        (g) => g.guestId.startsWith("guest_temp-") && !value.guests.some((n) => n.guestId === g.guestId),
+      );
+      return [...value.guests, ...pending];
+    });
     reportInvites.current?.(value.invites.some((i) => i.status === "pending"));
     // Cleared on success: a retry that worked must not leave the previous
     // failure sitting next to fresh, correct data.
@@ -506,6 +517,12 @@ export function PeopleSection({
   }
 
   function guestActions(guest: Guest): PersonAction[] {
+    // A provisional row (its POST still in flight) has no server identity
+    // yet: a toggle, link, or remove would send the client-minted id to the
+    // server and 404. `PersonMenu` renders no trigger for an empty action
+    // list, so the row shows the guest with no menu until the POST's answer
+    // swaps in the real id.
+    if (guest.guestId.startsWith("guest_temp-")) return [];
     const actions: PersonAction[] = [];
     if (canManageGuests) {
       actions.push({

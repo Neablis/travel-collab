@@ -962,6 +962,64 @@ describe("PeopleSection — guests from the access read", () => {
     expect(screen.queryByTestId("guest-row")).toBeNull();
     expect(screen.getByText("Guests · 0")).toBeTruthy();
   });
+
+  // While the POST is in flight the provisional row shows no `⋯` menu: its
+  // actions would send the client-minted id to the server and 404.
+  it("renders no menu trigger on a provisional row", async () => {
+    let answer!: (result: { ok: true; value: Guest }) => void;
+    createGuestMock.mockReturnValue(new Promise((resolve) => (answer = resolve)));
+    render(<PeopleSection tripId={tripId} access={access()} />);
+    await screen.findByText("Guests · 0");
+
+    addGuestNamed("Grandma");
+
+    const provisional = await screen.findByTestId("guest-row");
+    expect(provisional.getAttribute("data-guest-id")).toMatch(/^guest_temp-/);
+    expect(within(provisional).queryByRole("button", { name: "Actions for Grandma" })).toBeNull();
+
+    await act(async () => {
+      answer({ ok: true, value: { ...grandma, guestId: "guest_mock_1" } });
+    });
+
+    // The real row carries the menu again once the server answers.
+    const confirmed = screen.getByTestId("guest-row");
+    expect(within(confirmed).getByRole("button", { name: "Actions for Grandma" })).toBeTruthy();
+  });
+
+  // A newer-rev adopt landing while the POST is still in flight must not drop
+  // the provisional row: it rides along, and the POST's answer still swaps it
+  // for the server's guest. (Without the carry, a quick re-add can land
+  // twice — the server has no name uniqueness.)
+  it("keeps the provisional row across a newer-rev adopt, then swaps it when the POST answers", async () => {
+    let answer!: (result: { ok: true; value: Guest }) => void;
+    createGuestMock.mockReturnValue(new Promise((resolve) => (answer = resolve)));
+    const { rerender } = render(<PeopleSection tripId={tripId} access={access({ accessRev: "5" })} />);
+    await screen.findByText("Guests · 0");
+
+    addGuestNamed("Grandma");
+
+    const provisional = await screen.findByTestId("guest-row");
+    expect(provisional.getAttribute("data-guest-id")).toMatch(/^guest_temp-/);
+
+    // The trip's rev moved elsewhere (another browser) while the POST is in flight.
+    rerender(<PeopleSection tripId={tripId} access={access({ guests: [grandma], accessRev: "6" })} />);
+
+    // The adopt carried the provisional row alongside the server's list.
+    const tempId = provisional.getAttribute("data-guest-id");
+    const carried = screen
+      .getAllByTestId("guest-row")
+      .find((r) => r.getAttribute("data-guest-id") === tempId);
+    expect(carried).toBeTruthy();
+    expect(screen.getByText("Guests · 2")).toBeTruthy();
+
+    await act(async () => {
+      answer({ ok: true, value: { ...grandma, guestId: "guest_mock_1" } });
+    });
+
+    const ids = screen.getAllByTestId("guest-row").map((r) => r.getAttribute("data-guest-id"));
+    expect(ids).toEqual(expect.arrayContaining(["guest_mock_1", "guest_mock_grandma"]));
+    expect(screen.getByText("Guests · 2")).toBeTruthy();
+  });
 });
 
 // M38 open question 4 (artboard 4): Sam and Priya both chose plum, and Sam
