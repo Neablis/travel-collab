@@ -125,7 +125,11 @@ async function setPendingStatus(
  * was asserted before they were drained.
  */
 async function drainQueue(): Promise<void> {
-  await runEmbedSweep({ embed: fakeEmbed });
+  // Delete directly: earlier test files share this database and can leave an
+  // unbounded backlog of pending rows (a sweep claims at most 50 per run, so
+  // draining via the sweep is not guaranteed to terminate). This is test
+  // setup, not the sweep under test — the sweep's behavior is asserted below.
+  await db.delete(pendingEmbeddings);
 }
 
 describe("embed-on-write hooks", () => {

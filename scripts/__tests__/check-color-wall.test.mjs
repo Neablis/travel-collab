@@ -257,7 +257,10 @@ test("every notAClassName exemption is still used by the tree it was added for",
   const entries = [...match[1].matchAll(/^\s*"([^"]+)",/gm)].map((m) => m[1]);
   assert.ok(entries.length > 0, "expected at least one exemption to check");
   for (const entry of entries) {
-    const hits = spawnSync("git", ["grep", "-l", "--fixed-strings", `"${entry}"`, "--", "apps/web/src"], {
+    // Match `${entry}"` (not `"${entry}"`): the entry may be the tail of a
+    // longer quoted string, e.g. `"openai/text-embedding-3-small"`. What
+    // matters is that the tree still spells the exempted token.
+    const hits = spawnSync("git", ["grep", "-l", "--fixed-strings", `${entry}"`, "--", "apps/web/src"], {
       cwd: REPO_ROOT,
       encoding: "utf8",
     });
