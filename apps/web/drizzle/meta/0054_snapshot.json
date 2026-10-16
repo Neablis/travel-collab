@@ -1,5 +1,5 @@
 {
-  "id": "2d328b0a-bf76-45d0-bb04-b179ae5e61f2",
+  "id": "32274092-8e0a-4165-95a5-2a2f83e475f4",
   "prevId": "b022fe51-3eb7-42db-b6bb-e2a7a3098b6d",
   "version": "7",
   "dialect": "postgresql",
@@ -1412,7 +1412,23 @@
           "notNull": true
         }
       },
-      "indexes": {},
+      "indexes": {
+        "pending_embeddings_status": {
+          "name": "pending_embeddings_status",
+          "columns": [
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {

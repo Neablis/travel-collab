@@ -1697,5 +1697,9 @@ export const pendingEmbeddings = pgTable(
   (t) => [
     check("pending_embeddings_status", sql`${t.status} in ('pending','processing','done','dead')`),
     unique("pending_embeddings_source_day").on(t.sourceType, t.sourceId, t.dayIndex),
+    // The sweep's claim query (`WHERE status = 'pending'`) is the table's
+    // reason to exist; the index ships with the column rather than in a
+    // second migration once the sweep lands.
+    index("pending_embeddings_status").on(t.status),
   ],
 );

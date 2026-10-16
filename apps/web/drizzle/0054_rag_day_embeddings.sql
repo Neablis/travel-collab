@@ -36,4 +36,5 @@ CREATE TABLE "pending_embeddings" (
 );
 --> statement-breakpoint
 CREATE INDEX "day_embeddings_embedding" ON "day_embeddings" USING hnsw ("embedding" vector_cosine_ops);--> statement-breakpoint
-CREATE INDEX "day_embeddings_fts" ON "day_embeddings" USING gin ("fts");
+CREATE INDEX "day_embeddings_fts" ON "day_embeddings" USING gin ("fts");--> statement-breakpoint
+CREATE INDEX "pending_embeddings_status" ON "pending_embeddings" USING btree ("status");

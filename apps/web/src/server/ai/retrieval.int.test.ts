@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { inArray, sql } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { dayEmbeddings, tripMemberships } from "@/server/db/schema";
 import { retrieveDayChunks } from "./retrieval";
@@ -183,6 +183,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await db.delete(dayEmbeddings).where(inArray(dayEmbeddings.id, ids));
+  await db.delete(tripMemberships).where(eq(tripMemberships.userId, READER));
 });
 
 describe("retrieveDayChunks", () => {

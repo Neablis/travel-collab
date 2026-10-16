@@ -22,6 +22,24 @@ export interface DayChunk {
 /** The RRF smoothing constant (the standard k=60): one shared leg can never dominate the fusion. */
 const RRF_K = 60;
 
+// The privacy predicate, written ONCE and interpolated into both legs.
+// Duplicating it per leg would let a later edit change one leg's idea of
+// who may see a chunk and not the other's — the privacy invariant is the
+// one thing in this query that must never drift between legs.
+const privacyFilter = (userId: string | null) => sql`
+  (
+    (source_type = 'playbook' AND (visibility = 'public' OR owner_id = ${userId}))
+    OR (source_type = 'trip' AND (
+      owner_id = ${userId}
+      OR EXISTS (
+        SELECT 1 FROM trip_memberships
+        WHERE trip_memberships.trip_id = day_embeddings.source_id
+          AND trip_memberships.user_id = ${userId}
+      )
+    ))
+  )
+`;
+
 /**
  * The top-k day-chunks for a plan query, fused from two ranked legs:
  *
@@ -85,17 +103,7 @@ export async function retrieveDayChunks({
         SELECT id, ROW_NUMBER() OVER (ORDER BY embedding <=> (${queryVector}::vector), id) AS rnk
         FROM day_embeddings
         WHERE embedding IS NOT NULL
-          AND (
-            (source_type = 'playbook' AND (visibility = 'public' OR owner_id = ${userId}))
-            OR (source_type = 'trip' AND (
-              owner_id = ${userId}
-              OR EXISTS (
-                SELECT 1 FROM trip_memberships
-                WHERE trip_memberships.trip_id = day_embeddings.source_id
-                  AND trip_memberships.user_id = ${userId}
-              )
-            ))
-          )
+          AND ${privacyFilter(userId)}
         ORDER BY embedding <=> (${queryVector}::vector), id
         LIMIT ${legLimit}
       ),
@@ -103,17 +111,7 @@ export async function retrieveDayChunks({
         SELECT id, ROW_NUMBER() OVER (ORDER BY ts_rank(fts, q) DESC, id) AS rnk
         FROM day_embeddings, plainto_tsquery('english', ${queryText}) AS q
         WHERE fts @@ q
-          AND (
-            (source_type = 'playbook' AND (visibility = 'public' OR owner_id = ${userId}))
-            OR (source_type = 'trip' AND (
-              owner_id = ${userId}
-              OR EXISTS (
-                SELECT 1 FROM trip_memberships
-                WHERE trip_memberships.trip_id = day_embeddings.source_id
-                  AND trip_memberships.user_id = ${userId}
-              )
-            ))
-          )
+          AND ${privacyFilter(userId)}
         ORDER BY ts_rank(fts, q) DESC, id
         LIMIT ${legLimit}
       ),
