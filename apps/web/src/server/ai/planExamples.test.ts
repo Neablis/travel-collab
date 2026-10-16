@@ -224,11 +224,15 @@ describe("selectPromptExamples", () => {
     expect(selectPromptExamples(chunks).map((c) => c.id)).toEqual(["a"]);
   });
 
-  it("falls back to the default on a nonsense RAG_PLAN_EXAMPLE_PROMPT_COUNT", async () => {
-    const { selectPromptExamples } = await planExamplesWithFlag("1", { RAG_PLAN_EXAMPLE_PROMPT_COUNT: "banana" });
-    const chunks = ["a", "b", "c", "d", "e"].map((id) => dayChunk({ id }));
+  it("falls back to the default on nonsense RAG_PLAN_EXAMPLE_PROMPT_COUNT values", async () => {
+    // Unparsable, zero, negative, and fractional all fall back — a dropped
+    // `> 0` check would silently send zero examples and no test would catch it.
+    for (const bad of ["banana", "0", "-2", "2.5"]) {
+      const { selectPromptExamples } = await planExamplesWithFlag("1", { RAG_PLAN_EXAMPLE_PROMPT_COUNT: bad });
+      const chunks = ["a", "b", "c", "d", "e"].map((id) => dayChunk({ id }));
 
-    expect(selectPromptExamples(chunks)).toHaveLength(3);
+      expect(selectPromptExamples(chunks)).toHaveLength(3);
+    }
   });
 });
 
@@ -289,5 +293,16 @@ describe("detectUsedExamples", () => {
     expect(detectUsedExamples([], "some output")).toEqual([]);
     expect(detectUsedExamples([chunk()], "")).toEqual([]);
     expect(detectUsedExamples([chunk()], "   ")).toEqual([]);
+  });
+
+  it("ignores verbatim runs from the truncated-away tail the model never saw", async () => {
+    const { detectUsedExamples } = await planExamplesWithFlag("1");
+    // 250 x's fill the prompt's share; the distinctive 8-word run sits past
+    // the truncation boundary, where the model cannot have read it.
+    const tailRun = "alpha beta gamma delta epsilon zeta eta theta";
+    const chunkText = `${"x".repeat(250)} ${tailRun} ${"y".repeat(100)}`;
+    const output = `My plan: ${tailRun}, then dinner.`;
+
+    expect(detectUsedExamples([dayChunk({ id: "chunk-9", chunkText })], output)).toEqual([]);
   });
 });

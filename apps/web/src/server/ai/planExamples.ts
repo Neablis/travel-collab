@@ -101,6 +101,16 @@ export async function getPlanExamples({
 }
 
 /**
+ * One example's share of prompt text, in characters. Code points, not UTF-16
+ * units: a plain slice(0, n) can split a surrogate pair when an emoji lands
+ * exactly on the boundary, leaving a lone surrogate in the prompt.
+ * Token-efficient, not lossless.
+ */
+function truncateExampleText(text: string): string {
+  return [...text].slice(0, serverConfig.ragPlanExampleChars).join("");
+}
+
+/**
  * The retrieved examples narrowed to what the prompt may carry: the top
  * `serverConfig.ragPlanExamplePromptCount` by retrieval rank. Retrieval
  * fetches the wider set (recall for the logs, candidates for tuning); the
@@ -143,10 +153,7 @@ export function formatExampleBlocks(examples: DayChunk[]): PromptBlock[] {
     city: example.city,
     country: example.countryCode,
     tags: example.tags,
-    // Code points, not UTF-16 units: a plain slice(0, n) can split a
-    // surrogate pair when an emoji lands exactly on the boundary, leaving a
-    // lone surrogate in the prompt.
-    text: [...example.chunkText].slice(0, serverConfig.ragPlanExampleChars).join(""),
+    text: truncateExampleText(example.chunkText),
   }));
   return [
     rule(
@@ -163,7 +170,8 @@ const USED_EXAMPLE_WORDS = 8;
  * Best-effort answer to "which of the retrieved examples did the turn's
  * final text lean on": the ids of examples where the output contains a
  * distinctive {@link USED_EXAMPLE_WORDS}-word verbatim run from the chunk's
- * text.
+ * text, as the model saw it (truncated to the prompt's share — a run from
+ * the unseen tail cannot count as used).
  *
  * **A heuristic, not a citation.** Matching is case- and
  * punctuation-insensitive (both sides are normalized before comparing), and
@@ -172,7 +180,8 @@ const USED_EXAMPLE_WORDS = 8;
  * the model actually draw on what we gave it?"), never an authorization or a
  * billing input, and it must never throw.
  *
- * @param examples The days the turn retrieved.
+ * @param examples The days the turn showed the model — normally the output
+ * of {@link selectPromptExamples}, not the raw retrieval set.
  * @param outputText The turn's final text.
  * @returns The ids of the examples the output appears to use, in retrieval order.
  */
@@ -180,7 +189,7 @@ export function detectUsedExamples(examples: DayChunk[], outputText: string): st
   const normalizedOutput = normalize(outputText);
   if (normalizedOutput === "") return [];
   return examples
-    .filter((example) => containsVerbatimRun(normalizedOutput, example.chunkText, USED_EXAMPLE_WORDS))
+    .filter((example) => containsVerbatimRun(normalizedOutput, truncateExampleText(example.chunkText), USED_EXAMPLE_WORDS))
     .map((example) => example.id);
 }
 
