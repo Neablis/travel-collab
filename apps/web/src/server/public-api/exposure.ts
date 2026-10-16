@@ -131,6 +131,11 @@ export const EXPOSURE: Readonly<Record<string, Exposure>> = {
     why: "Operator diagnostics for the assistant",
     reaches: [{ module: "@/server/ai/modelSelection" }],
   },
+  "cron/embed-days": {
+    status: "never",
+    why: "The embed-queue sweep — runs on Vercel Cron's secret, never on an API token",
+    reaches: [{ module: "@/server/ai/sweep" }, { module: "@/server/cronAuth" }],
+  },
   "account/referrals": {
     status: "never",
     why: "Referrals grant plan time; scripted, they can be gamed (Mitchell, 2026-09-30)",

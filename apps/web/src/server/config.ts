@@ -59,6 +59,11 @@ export const serverConfig = {
   // but a single embed must never hang a request: past this it is fail-open,
   // same as every other provider call on the retrieval path.
   embeddingTimeoutMs: Number(process.env.AI_EMBEDDING_TIMEOUT_MS ?? 30_000),
+  // The shared secret Vercel Cron sends as `Authorization: Bearer` on every
+  // scheduled invocation (`server/cronAuth.ts`). Set it on the Vercel project
+  // (Production AND Preview if the sweep should run there); unset, every cron
+  // route answers 401 — fail closed, never open.
+  cronSecret: process.env.CRON_SECRET ?? "",
   // **The tier map: three named slots, each an INPUT** (ADR-043 decision 4,
   // spec §5b). Mitchell, 2026-09-10: *"that cost is not forever, and the model
   // we use might change, so that needs to be a variable input in the system."*
