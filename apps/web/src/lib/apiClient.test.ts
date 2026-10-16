@@ -617,6 +617,7 @@ describe("member writes on the wire", () => {
       },
     ],
     invites: [],
+    guests: [],
     collaboratorsEntitled: true,
   };
 

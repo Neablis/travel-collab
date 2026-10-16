@@ -113,6 +113,7 @@ const server = setupServer(
         myRole: accessRole,
         members: [{ userId: "dev-alice", role: accessRole, name: null, email: null, image: null }],
         invites: [],
+        guests: [],
         collaboratorsEntitled: true,
       },
     });

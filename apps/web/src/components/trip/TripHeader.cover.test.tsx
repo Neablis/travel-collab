@@ -19,7 +19,7 @@ vi.mock("@/lib/apiClient", async (orig) => {
     ...actual,
     fetchTripDetail: vi.fn().mockResolvedValue({ ok: true, value: tripDetailFixture({ tripId: TRIP, name: "Japan" }) }),
     fetchTripHistory: vi.fn().mockResolvedValue({ ok: true, value: historyFixture(TRIP) }),
-    fetchTripAccess: vi.fn(async () => ({ ok: true as const, value: { tripId: TRIP, myRole, members: [], invites: [] } })),
+    fetchTripAccess: vi.fn(async () => ({ ok: true as const, value: { tripId: TRIP, myRole, members: [], invites: [], guests: [] } })),
   };
 });
 

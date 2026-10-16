@@ -168,6 +168,7 @@ describe("TripAccess", () => {
       myRole: "owner",
       members: [member],
       invites: [invite],
+      guests: [],
       collaboratorsEntitled: true,
     };
     expect(TripAccess.parse(access)).toEqual(access);
@@ -180,6 +181,7 @@ describe("TripAccess", () => {
         myRole: "owner",
         members: [],
         invites: [],
+        guests: [],
         collaboratorsEntitled: true,
       }).success,
     ).toBe(false);
@@ -192,7 +194,7 @@ describe("TripAccess", () => {
   // leave it out.
   it("requires collaboratorsEntitled", () => {
     expect(
-      TripAccess.safeParse({ tripId, myRole: "owner", members: [member], invites: [] }).success,
+      TripAccess.safeParse({ tripId, myRole: "owner", members: [member], invites: [], guests: [] }).success,
     ).toBe(false);
   });
 
@@ -201,7 +203,7 @@ describe("TripAccess", () => {
   // Optional: absent for a reader who is not on the trip (the demo visitor,
   // an invite-link look), and from a server that predates it.
   it("carries the reader's own id when served, and parses without it", () => {
-    const access = { tripId, myRole: "owner", members: [member], invites: [], collaboratorsEntitled: true };
+    const access = { tripId, myRole: "owner", members: [member], invites: [], guests: [], collaboratorsEntitled: true };
     expect(TripAccess.parse({ ...access, viewerId: "dev-alice" }).viewerId).toBe("dev-alice");
     expect(TripAccess.parse(access).viewerId).toBeUndefined();
   });
@@ -213,6 +215,7 @@ describe("TripAccess", () => {
         myRole: "editor",
         members: [member],
         invites: [],
+        guests: [],
         collaboratorsEntitled: true,
       }).invites,
     ).toEqual([]);

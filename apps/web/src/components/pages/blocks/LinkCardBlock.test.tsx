@@ -11,7 +11,7 @@ import { linkHref } from "./linkHref";
 
 type Role = "owner" | "editor" | "viewer";
 const accessBody = (tripId: unknown, myRole: Role) => ({
-  access: { tripId, myRole, members: [{ userId: "dev-alice", role: myRole, name: null, email: null, image: null }], invites: [], collaboratorsEntitled: true },
+  access: { tripId, myRole, members: [{ userId: "dev-alice", role: myRole, name: null, email: null, image: null }], invites: [], guests: [], collaboratorsEntitled: true },
 });
 const accessAs = (myRole: Role) =>
   http.get("/api/trips/:tripId/access", ({ params }) => HttpResponse.json(accessBody(params.tripId, myRole)));

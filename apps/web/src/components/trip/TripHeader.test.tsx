@@ -43,7 +43,7 @@ vi.mock("@/lib/apiClient", async (orig) => {
     fetchTripAccess: vi.fn(async () =>
       accessReadFails
         ? { ok: false as const, error: { status: 500, message: "boom" } }
-        : { ok: true as const, value: { tripId: "x", myRole, members: accessMembers, invites: [] } },
+        : { ok: true as const, value: { tripId: "x", myRole, members: accessMembers, invites: [], guests: [] } },
     ),
     // Head 0, so a poll is never news and only `online` reaches the provider.
     fetchTripEvents: vi.fn(async () => ({
@@ -808,7 +808,7 @@ describe("TripHeader — a change in People re-reads the trip", () => {
     accessMembers = [alice, bob];
     setTravellingMock.mockResolvedValue({
       ok: true,
-      value: { tripId: "x", myRole: "owner", members: [alice, { ...bob, travelling: false }], invites: [] },
+      value: { tripId: "x", myRole: "owner", members: [alice, { ...bob, travelling: false }], invites: [], guests: [] },
     });
     await renderHeader();
     await userEvent.click(screen.getByRole("button", { name: /trip settings/i }));

@@ -2,6 +2,7 @@ import { z } from "zod";
 import { ChangeRoleInput, SetTravellingInput, TripAccess, type TripMember, type TripRole } from "@tc/contracts";
 import { requireTripAccess } from "@/server/access/trip-access";
 import { accessRevForRead, effectiveMembers, removeMember, withProfiles } from "@/server/access/members";
+import { listGuests } from "@/server/access/guests";
 import { listInvites, type AccessError } from "@/server/access/invites";
 import { changeRole, setTravelling } from "@/server/access/travellers";
 import { getTripDetail } from "@/server/projections";
@@ -143,5 +144,9 @@ async function accessView(
     invites: access.role === "owner" ? await listInvites(tripId) : [],
     collaboratorsEntitled: owner === null ? true : await accountCan(owner, "trip.collaborators"),
     accessRev,
+    // The same guests `GET /access` serves, from the same source, re-read
+    // after the write: a PATCH may have changed nothing about the guests, but
+    // the panel re-renders from this response, so it must carry them.
+    guests: await listGuests(tripId),
   });
 }
