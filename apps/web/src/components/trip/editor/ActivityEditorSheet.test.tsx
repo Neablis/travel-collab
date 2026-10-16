@@ -849,6 +849,36 @@ describe("ActivityEditorSheet — who a stop is for, by name", () => {
     expect(bookedBy).toEqual(toggles);
   });
 
+  // Guests ride on the access read (Fix 2): the sheet never calls the
+  // standalone guest endpoint, so the picker's chips come from the same read
+  // that named the members — one the People panel just added arrives with
+  // the provider's next access re-read.
+  it("offers the access read's guests beside the members", async () => {
+    fetchTripAccessMock.mockResolvedValue({
+      ok: true,
+      value: {
+        tripId: TRIP_ID,
+        myRole: "owner",
+        members: [],
+        invites: [],
+        guests: [
+          {
+            guestId: "guest_mock_grandma",
+            tripId: TRIP_ID,
+            name: "Grandma",
+            travelling: true,
+            linkedUserId: null,
+            createdBy: "dev-alice",
+            createdAt: "2026-10-15T00:00:00.000Z",
+          },
+        ],
+      },
+    });
+    renderEditorSheet({ mode: "create" });
+
+    expect(await screen.findByRole("button", { name: "Grandma Guest" })).toBeTruthy();
+  });
+
   // Travellers spec D6: the sheet hands the editor who is travelling, so a
   // non-traveller is offered apart and the line prices nobody picked for one.
   it("passes who is travelling to the editor", async () => {

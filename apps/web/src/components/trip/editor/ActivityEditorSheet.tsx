@@ -1,6 +1,6 @@
 "use client";
 
-import { travellerIds, type ActivityView, type Guest, type NearbyStop } from "@tc/contracts";
+import { travellerIds, type ActivityView, type NearbyStop } from "@tc/contracts";
 import { useEffect, useRef, useState } from "react";
 import { personNames } from "@tc/pages";
 import { Banner } from "@/components/ui/banner";
@@ -18,7 +18,7 @@ import { peopleNamesOf, personasOf } from "@/components/pages/people";
 import { dayLabel } from "@/lib/dates";
 import { toClockRange } from "@/lib/time";
 import { useTimeFormat } from "@/components/account/PreferencesProvider";
-import { fetchGuests, fetchNearbyStops } from "@/lib/apiClient";
+import { fetchNearbyStops } from "@/lib/apiClient";
 import { formatMoney } from "@/lib/formatMoney";
 import { stopTotalLine } from "@/lib/cost";
 import { displayPlace, legEnd } from "@/lib/place";
@@ -163,45 +163,22 @@ export function ActivityEditorSheet() {
     color: personas?.[userId]?.color,
   }));
 
-  // Guests are Access data read beside the members (guests spec P1), through
-  // the same v1 endpoints the public API publishes — a session holds every
-  // scope, so no token is involved. Every guest write bumps `accessRev`
-  // (server/access/guests.ts), which the board's poll turns into a fresh
-  // access read; re-reading the guests on the rev keeps the picker's chips
-  // with whoever the People panel just added, without this sheet polling.
-  // Only while the sheet is open. Read for a viewer too, even though they
-  // never see the form: the read-only cost line below divides by travellers,
-  // guests included, so it needs the same list.
-  const accessRev = access?.accessRev;
-  const [guests, setGuests] = useState<Guest[] | null>(null);
-  // A guest removed while this sheet is open is gone from the fetched list,
+  // Guests ride on the provider's live access (guests spec P1): no separate
+  // read — the board's poll re-reads access when `accessRev` moves, so the
+  // picker's chips keep up with whoever the People panel just added, without
+  // this sheet polling. Read for a viewer too, even though they never see
+  // the form: the read-only cost line below divides by travellers, guests
+  // included, so it needs the same list. `null` while the sheet is closed or
+  // the access read is still out, so the editor holds off on calling a
+  // picked guest departed meanwhile.
+  const guests = open && access !== null ? access.guests : null;
+  // A guest removed while this sheet is open is gone from the access read,
   // but a stop may still name them: every name the reads ever saw is kept so
   // the departed fallback can print it rather than "Former member".
   const guestNames = useRef(new Map<string, string>());
-  // The rev the latest requested read asked for: a landing whose rev is not
-  // it was requested before a newer read started, so it is dropped — the same
-  // key-against-request shape the nearby-stops read above uses. Two reads can
-  // be in flight across an `accessRev` bump, and before this only the
-  // `current` flag guarded unmount.
-  const requestedGuestRev = useRef<string | undefined>(undefined);
   useEffect(() => {
-    if (!open || tripId === undefined) {
-      setGuests(null);
-      return;
-    }
-    const wantedRev = accessRev;
-    requestedGuestRev.current = wantedRev;
-    let current = true;
-    void fetchGuests(tripId).then((result) => {
-      if (!current || !result.ok) return;
-      if (requestedGuestRev.current !== wantedRev) return;
-      for (const guest of result.value) guestNames.current.set(guest.guestId, guest.name);
-      setGuests(result.value);
-    });
-    return () => {
-      current = false;
-    };
-  }, [open, tripId, accessRev]);
+    for (const guest of guests ?? []) guestNames.current.set(guest.guestId, guest.name);
+  }, [guests]);
   const namedGuests: NamedGuest[] = (guests ?? []).map((guest) => ({
     guestId: guest.guestId,
     name: guest.name,
@@ -297,8 +274,8 @@ export function ActivityEditorSheet() {
         <ReadOnlyActivity
           activity={editingActivity}
           currency={activeTrip?.currency ?? "USD"}
-          // Guests answer after the sheet opens; the line re-renders when
-          // they land, from the members-only count meanwhile.
+          // The access read carries the guests; the line re-renders when it
+          // lands, from the members-only count meanwhile.
           travellerCount={travellerIds(activeTrip?.members ?? [], guests ?? []).length}
           onClose={close}
         />
@@ -334,9 +311,9 @@ export function ActivityEditorSheet() {
           // Named by `personNames` over `PeopleProvider`'s names (mounted by
           // TripBoardScreen): "Traveler 2" until they land, never the id.
           members={namedMembers}
-          // Guests, fetched above on the trip's access revision; the editor
+          // Guests, from the trip's access read above; the editor
           // counts a claimed guest as their member and writes `guestId` picks.
-          // `null` until that first read lands, so the editor holds off on
+          // `null` until that read lands, so the editor holds off on
           // calling a picked guest departed meanwhile.
           guests={namedGuests}
           guestNames={guestNames.current}

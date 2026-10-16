@@ -244,9 +244,10 @@ export function makeTripHandlers(
   const viewerId = options?.viewerId ?? (role === "owner" ? detail.members[0]?.userId : undefined);
   // The trip's access counter (W5): "0" until a member write here moves it.
   let accessRev = 0;
-  // The trip's guests (guests spec P1), stateful across the v1 reads and
-  // writes below — the People section updates from each write's answer, and
-  // the editor's sheet re-reads on the access revision the writes move.
+  // The trip's guests (guests spec P1), stateful across the access read and
+  // the v1 reads and writes below — the People section updates from each
+  // write's answer, and the editor's sheet re-reads on the access revision
+  // the writes move.
   let guests: Guest[] = structuredClone(options?.guests ?? []);
   let guestSeq = guests.length;
   const v1Fail = (status: number, message: string) =>
@@ -466,8 +467,9 @@ export function makeTripHandlers(
           collaboratorsEntitled: options?.collaboratorsEntitled ?? true,
           accessRev: String(accessRev),
           viewerId,
-          // The access read now carries the guests; the mock's trips have none.
-          guests: [],
+          // The access read carries the guests (guests spec P1): the same
+          // stateful list the v1 endpoints below read and write.
+          guests,
         },
       }),
     ),
@@ -518,8 +520,9 @@ export function makeTripHandlers(
             collaboratorsEntitled: options?.collaboratorsEntitled ?? true,
             accessRev: String(accessRev),
             viewerId,
-            // The access read now carries the guests; the mock's trips have none.
-            guests: [],
+            // The access answer carries the guests (guests spec P1): the same
+            // stateful list the v1 endpoints below read and write.
+            guests,
           },
         });
       }),
