@@ -3,6 +3,7 @@ import {
   bigserial,
   boolean,
   check,
+  customType,
   doublePrecision,
   index,
   integer,
@@ -1594,3 +1595,107 @@ export const billingEvents = pgTable("billing_events", {
   // CodeRabbit, PR #177.
   appliedAt: timestamp("applied_at", { withTimezone: true, mode: "date" }),
 });
+
+// Retrieval-augmented plan generation, part 1 (Neon pgvector).
+//
+// The corpus: one row per EMBEDDABLE DAY — a playbook day (`saved_days` row)
+// or a trip day. Day-level, not trip- and not stop-level: a 6-day Tokyo plan
+// wants Tokyo *days*, and a whole 14-day trip as one vector would bury the
+// relevant part. Vector operations (`<=>`, the HNSW index) run through raw
+// SQL in `server/ai/retrieval.ts` — drizzle has no first-class vector type —
+// so these columns exist to make the shape honest, and to carry Part 2's
+// writes; the retrieval query never reads through them.
+//
+// `embedding` is nullable because Part 2 embeds asynchronously: the row (or
+// `pending_embeddings` below) exists before the provider answers. `fts` is
+// built in SQL (`to_tsvector`), never in TypeScript, for the same reason the
+// index lives in Postgres: the text search dictionary must be the database's,
+// not a JS port's.
+//
+// Privacy lives in the QUERY, not in rows (app-layer filter in
+// `retrieveDayChunks`, not Postgres RLS — this codebase has no RLS
+// precedent). The columns it needs are denormalized here: `visibility` +
+// `ownerId` for playbooks, `ownerId` for trips too (Part 2 fills it from the
+// trip's `TripCreated.createdBy` at write time, because the owner has no
+// `trip_memberships` row — without it the owner could never see their own
+// trip's days back).
+const vector1536 = customType<{ data: number[] | null; driverData: string | null }>({
+  dataType: () => "vector(1536)",
+  // node-postgres has no idea what a vector is: hand it the text form
+  // pgvector accepts (`[0.1,0.2,...]`).
+  toDriver: (value) => (value === null ? null : `[${value.join(",")}]`),
+  // Without the pgvector client-side type parser registered, the driver
+  // hands back the same text form; parse it so reads see numbers.
+  fromDriver: (value) =>
+    value === null ? null : value.slice(1, -1).split(",").map((n) => Number(n)),
+});
+
+const tsvector = customType<{ data: string | null; driverData: string | null }>({
+  dataType: () => "tsvector",
+});
+
+export const dayEmbeddings = pgTable(
+  "day_embeddings",
+  {
+    id: uuid("id").primaryKey(),
+    // Which corpus the day belongs to: a playbook (`saved_days` id) or a
+    // trip (planning id). Deliberately no foreign keys — `saved_days` rows
+    // are soft-deleted, not removed, and a trip id's lifecycle belongs to
+    // the event store; the CHECK is the whole integrity story here.
+    sourceType: text("source_type").notNull(),
+    sourceId: uuid("source_id").notNull(),
+    dayIndex: integer("day_index").notNull(),
+    // Day title + stop titles + stop notes + tags + city/country, built at
+    // embed time (Part 2). What the model sees when this day is retrieved.
+    chunkText: text("chunk_text").notNull(),
+    embedding: vector1536("embedding"),
+    fts: tsvector("fts"),
+    city: text("city"),
+    countryCode: text("country_code"),
+    // The day's stop tags, mirroring the 13-tag enum (meal/lodging/ticketed/
+    // outdoors/drinks/nightlife/museum/sight/beach/shopping/show/tour/
+    // wellness): retrieval can pre-filter or boost by the request's theme.
+    tags: text("tags").array().notNull().default([]),
+    visibility: text("visibility").notNull().default("private"),
+    // A `users.id` on the same no-foreign-key terms as `trip_memberships`.
+    ownerId: text("owner_id"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
+  },
+  (t) => [
+    check("day_embeddings_source_type", sql`${t.sourceType} in ('playbook', 'trip')`),
+    // One chunk per day, idempotent re-embeds: the Part 2 writer upserts on
+    // this key, so a retried embed job never duplicates a day.
+    unique("day_embeddings_source_day").on(t.sourceType, t.sourceId, t.dayIndex),
+    // HNSW with cosine, not IVFFlat: approximate recall without the
+    // training step IVFFlat needs before it answers (lists must be built
+    // from data), which fits a corpus that grows one day at a time. Cosine,
+    // because OpenAI's embeddings are compared by angle in the corpus we
+    // evaluated against. The opclass is explicit: pgvector has no default
+    // opclass for HNSW, so omitting it is a migration-time error, not a
+    // slower index.
+    index("day_embeddings_embedding").using("hnsw", t.embedding.op("vector_cosine_ops")),
+    // The sparse leg of the hybrid query (`fts @@ plainto_tsquery`).
+    index("day_embeddings_fts").using("gin", t.fts),
+  ],
+);
+
+// The async embed queue for `day_embeddings` (Part 2's embed-on-write and
+// backfill feed it; a Vercel Cron sweep drains it). A row per pending chunk,
+// claimed by the sweep — one row per (source, day), so a double-enqueued
+// write is a no-op and a crashed claim is re-claimable on `attempts`.
+export const pendingEmbeddings = pgTable(
+  "pending_embeddings",
+  {
+    id: uuid("id").primaryKey(),
+    sourceType: text("source_type").notNull(),
+    sourceId: uuid("source_id").notNull(),
+    dayIndex: integer("day_index").notNull(),
+    status: text("status").notNull().default("pending"),
+    attempts: integer("attempts").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
+  },
+  (t) => [
+    check("pending_embeddings_status", sql`${t.status} in ('pending','processing','done','dead')`),
+    unique("pending_embeddings_source_day").on(t.sourceType, t.sourceId, t.dayIndex),
+  ],
+);
