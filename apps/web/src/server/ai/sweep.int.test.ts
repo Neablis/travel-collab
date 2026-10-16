@@ -125,13 +125,11 @@ async function setPendingStatus(
  * was asserted before they were drained.
  */
 async function drainQueue(): Promise<void> {
-  // Loop: one sweep claims at most SWEEP_BATCH_SIZE (50) rows, and earlier
-  // test files share this database, so a single pass may leave rows behind.
-  for (let i = 0; i < 10; i += 1) {
-    const summary = await runEmbedSweep({ embed: fakeEmbed });
-    if (summary.claimed === 0) return;
-  }
-  throw new Error("drainQueue: queue still non-empty after 10 sweeps");
+  // Delete directly: earlier test files share this database and can leave an
+  // unbounded backlog of pending rows (a sweep claims at most 50 per run, so
+  // draining via the sweep is not guaranteed to terminate). This is test
+  // setup, not the sweep under test — the sweep's behavior is asserted below.
+  await db.delete(pendingEmbeddings);
 }
 
 describe("embed-on-write hooks", () => {
