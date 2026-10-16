@@ -28,6 +28,7 @@ import { db } from "./db/client";
 import { appendToStream, readStream, readStreamHeadSeq } from "./eventStore";
 import { appliedKeys, recordReceipts } from "./commandReceipts";
 import { applyTripEvents, upsertTripDetail } from "./projections";
+import { enqueueDayChunksInTransaction } from "./ai/queue";
 import { memberRolePolicy } from "./accessPolicy";
 import { effectiveMembers } from "./access/members";
 import { overlayMembers } from "./access/overlay";
@@ -277,6 +278,16 @@ async function appendAndProject(
   }
   await applyTripEvents(tx, appended.envelopes);
   const { detail, history: historyDto } = await projectAndHistory(tx, [...history, ...appended.envelopes], tripId);
+  // Embed-on-write (RAG Part 2): queue every day of the new detail for
+  // (re-)embedding. Unconditional — there is no cheap "did the days change"
+  // check (a note edit keeps the same day count), the queue upsert is
+  // idempotent, and the sweep dedupes. Inside the command's transaction, under
+  // a savepoint (see `enqueueDayChunksInTransaction`): a rolled-back command
+  // leaves no phantom queue rows, and a queue failure never breaks the trip
+  // write. Every trip write funnels through here — single commands, batches,
+  // creation, undo/redo/revert.
+  const dayIndexes = detail.days.map((_, dayIndex) => dayIndex);
+  await enqueueDayChunksInTransaction(tx, "trip", tripId, dayIndexes);
   return { ok: true, detail, history: historyDto };
 }
 

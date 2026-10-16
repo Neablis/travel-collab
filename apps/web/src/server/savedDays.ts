@@ -16,6 +16,7 @@ import { citiesOfSequence, countriesOfStops, foldEnvelopes } from "@tc/domain";
 import { forgetCitySearches } from "./cities";
 import { db } from "./db/client";
 import { savedDays } from "./db/schema";
+import { enqueueDayChunksForEmbedding } from "./ai/queue";
 import { isUuid } from "./ids";
 import { invalidateDayRead, invalidatePublicDay } from "./libraryCache";
 import { parseSavedDayColumns } from "./savedDayRow";
@@ -282,6 +283,13 @@ export async function storeSavedDay(input: {
     createdAt: new Date(input.now),
   });
   await db.insert(savedDays).values(row);
+  // Embed-on-write (RAG Part 2): every day of the new Playbook joins the
+  // embed queue. Fail-open — `enqueueDayChunksForEmbedding` catches its own
+  // failures, so a queue outage never fails a save. One hook site covers all
+  // creators: the public API, the library route, the app's keep, and the
+  // content importer all write through `storeSavedDay`.
+  const dayIndexes = Array.from({ length: row.dayCount }, (_, dayIndex) => dayIndex);
+  await enqueueDayChunksForEmbedding("playbook", row.id, dayIndexes);
   return { ok: true, value: toDto(row, validated.data) };
 }
 
@@ -838,6 +846,16 @@ export async function updatePlaybookContent(
     // `setSavedDayVisibility`'s reason: the UPDATE has committed, so "not
     // found" would be a lie about a row that is there.
     if (day === null) throw new Error(`saved day ${savedDayId} is unreadable after a committed edit`);
+    // Embed-on-write (RAG Part 2): re-queue every day when the content moved
+    // (`content` is exactly what bumps `version`: name, summary, or the days —
+    // all three reach the chunk text) or when visibility flipped (the sweep
+    // reads `visibility` fresh at embed time, so the re-embed is what stores
+    // the flip). A visibility-only edit moves no version but still changes
+    // who may retrieve the chunk — hence the second disjunct.
+    if (content || edit.visibility !== undefined) {
+      const dayIndexes = Array.from({ length: day.dayCount }, (_, dayIndex) => dayIndex);
+      await enqueueDayChunksForEmbedding("playbook", savedDayId, dayIndexes);
+    }
     return { ok: true, value: day };
   }
 
