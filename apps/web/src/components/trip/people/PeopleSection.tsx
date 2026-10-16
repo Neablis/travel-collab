@@ -27,7 +27,6 @@ import { Text } from "@/components/ui/text";
 import {
   changeMemberRole,
   createGuest,
-  fetchGuests,
   fetchTripAccess,
   inviteLink,
   leaveTrip,
@@ -215,6 +214,27 @@ export function PeopleSection({
   const [revealed, setRevealed] = useState<{ inviteId: string; link: string } | null>(null);
   const ids = useId();
 
+  // Guests: named travellers with no account (guests spec P1). They ride on
+  // `TripAccess` itself — no separate read — so the list below is adopted
+  // from the latest access, in `adopt` below, under the same `isOlder` guard
+  // as the members. Every guest write bumps `accessRev`
+  // (server/access/guests.ts): the trip provider re-reads access when the
+  // poll sees it move, so a guest added in another browser arrives here
+  // through `provided` without this section polling, and `onAccessChanged`
+  // (the provider's `refreshAccess`) re-reads it after this section's own
+  // writes. `null` while the access read is still out, the way the members'
+  // list is.
+  //
+  // A write's own answer folds in on top (see `runGuestWrite`) until the
+  // re-read that write triggered lands and replaces the list wholesale —
+  // the folded answer is provisional by construction.
+  const [guests, setGuests] = useState<Guest[] | null>(provided?.guests ?? null);
+  const [guestError, setGuestError] = useState<string | null>(null);
+  const [addingGuest, setAddingGuest] = useState(false);
+  const [guestName, setGuestName] = useState("");
+  const [guestNameError, setGuestNameError] = useState<string | null>(null);
+  const [linkingGuest, setLinkingGuest] = useState<Guest | null>(null);
+
   // The value on screen, read synchronously: two reads in flight can land in
   // either order, and the one to compare against is the last one adopted.
   const held = useRef<TripAccess | null>(provided ?? null);
@@ -222,6 +242,20 @@ export function PeopleSection({
     if (isOlder(value, held.current)) return;
     held.current = value;
     setAccess(value);
+    // Adopted with the access read, in the same render — no second read, and
+    // no extra render cycle of its own. A provisional `guest_temp-…` row
+    // rides along: its POST is still in flight, and the POST's answer (or
+    // failure) reconciles it — the swap looks for the temp id, the rollback
+    // removes it. Without this the wholesale replace drops the optimistic
+    // row, the in-flight swap has nothing to swap into, and a quick re-add
+    // can land twice (the server has no name uniqueness). Temp ids are
+    // client-minted, so they can never collide with the server's list.
+    setGuests((current) => {
+      const pending = (current ?? []).filter(
+        (g) => g.guestId.startsWith("guest_temp-") && !value.guests.some((n) => n.guestId === g.guestId),
+      );
+      return [...value.guests, ...pending];
+    });
     reportInvites.current?.(value.invites.some((i) => i.status === "pending"));
     // Cleared on success: a retry that worked must not leave the previous
     // failure sitting next to fresh, correct data.
@@ -245,51 +279,13 @@ export function PeopleSection({
     adopt(provided);
   }, [provided, adopt]);
 
-  // Guests: named travellers with no account (guests spec P1). Their own
-  // read — `TripAccess` carries members, not guests — re-made on the access
-  // revision: every guest write bumps it (server/access/guests.ts), and the
-  // trip provider re-reads access on the poll when it moves, so a guest added
-  // in another browser arrives here without this section polling. The rev
-  // guard is the same race `isOlder` above answers for the member read.
-  const [guests, setGuests] = useState<Guest[] | null>(null);
-  const [guestError, setGuestError] = useState<string | null>(null);
-  const [addingGuest, setAddingGuest] = useState(false);
-  const [guestName, setGuestName] = useState("");
-  const [guestNameError, setGuestNameError] = useState<string | null>(null);
-  const [linkingGuest, setLinkingGuest] = useState<Guest | null>(null);
-  const guestRev = useRef<string | undefined>(undefined);
-  // A guest write's list is newer than any guest fetch that started before
-  // the write landed: `loadGuests` drops a landing whose fetch predates the
-  // latest local write. The rev guard below cannot see the write — the new
-  // `accessRev` only arrives with the trip provider's next read — so without
-  // this a toggle visibly reverts until the poll refetches.
-  const guestWriteEpoch = useRef(0);
-  const loadGuests = useCallback(
-    async (rev: string | undefined) => {
-      const startedAt = guestWriteEpoch.current;
-      const result = await fetchGuests(tripId);
-      if (!result.ok) {
-        setGuestError(result.error.message);
-        return;
-      }
-      if (guestWriteEpoch.current !== startedAt) return;
-      if (guestRev.current !== undefined && (rev === undefined || Number(rev) < Number(guestRev.current))) return;
-      guestRev.current = rev;
-      setGuests(result.value);
-      setGuestError(null);
-    },
-    [tripId],
-  );
-  useEffect(() => {
-    void loadGuests(access?.accessRev);
-  }, [loadGuests, access?.accessRev]);
-
   /**
    * Runs a guest write and folds the guest it answers into the list. The v1
    * guest endpoints answer the guest, not `TripAccess` (the member writes'
    * shape), so the list is updated from the response rather than re-read —
    * and `onAccessChanged` fires, because a guest moves the trip's per-person
-   * totals the way a member write does.
+   * totals the way a member write does. The re-read that follows replaces
+   * the list wholesale, so a folded answer is only ever provisional.
    */
   async function runGuestWrite(
     write: () => Promise<ApiResult<Guest>>,
@@ -303,10 +299,6 @@ export function PeopleSection({
         return false;
       }
       setGuests((current) => apply(current ?? [], result.value));
-      // This write's list is fresher than any fetch already in flight; the
-      // epoch in `loadGuests` drops those landings so the write is not
-      // clobbered.
-      guestWriteEpoch.current += 1;
       setGuestError(null);
       onAccessChanged?.();
       return true;
@@ -323,10 +315,40 @@ export function PeopleSection({
       setGuestNameError("A guest needs a name (1-120 characters).");
       return;
     }
-    if (await runGuestWrite(() => createGuest(tripId, name), (list, answered) => [...list, answered])) {
+    // Optimistic: the row appears at once, under a client-minted id no
+    // server read will ever carry — `guest_temp-…`, still inside the `guest_`
+    // namespace the contract pins, so the row renders through the same path
+    // as a real one. The POST's answer swaps it for the real guest; a failure
+    // takes the row back out and says so. Either way the re-read
+    // `onAccessChanged` triggers reconciles the list with the server.
+    const tempId = `guest_temp-${crypto.randomUUID()}`;
+    const provisional: Guest = {
+      guestId: tempId,
+      tripId,
+      name,
+      // The server's rule (access.ts): a named guest is coming.
+      travelling: true,
+      linkedUserId: null,
+      // Never read: the POST's answer replaces this row before anything
+      // could, and the row keeps the contract's shape rather than growing a
+      // second, provisional type.
+      createdBy: "",
+      createdAt: "",
+    };
+    setGuests((current) => [...(current ?? []), provisional]);
+    setGuestError(null);
+    const ok = await runGuestWrite(
+      () => createGuest(tripId, name),
+      (list, answered) => list.map((g) => (g.guestId === tempId ? answered : g)),
+    );
+    if (ok) {
       setGuestName("");
       setGuestNameError(null);
       setAddingGuest(false);
+    } else {
+      // The write failed: the provisional row goes, and the error below says
+      // what the server answered.
+      setGuests((current) => (current ?? []).filter((g) => g.guestId !== tempId));
     }
   }
 
@@ -495,6 +517,12 @@ export function PeopleSection({
   }
 
   function guestActions(guest: Guest): PersonAction[] {
+    // A provisional row (its POST still in flight) has no server identity
+    // yet: a toggle, link, or remove would send the client-minted id to the
+    // server and 404. `PersonMenu` renders no trigger for an empty action
+    // list, so the row shows the guest with no menu until the POST's answer
+    // swaps in the real id.
+    if (guest.guestId.startsWith("guest_temp-")) return [];
     const actions: PersonAction[] = [];
     if (canManageGuests) {
       actions.push({
@@ -744,7 +772,7 @@ export function PeopleSection({
       )}
 
       {/* Guests: named travellers with no account (guests spec P1). The list
-          is the v1 read beside the members above; add, remove and the
+          rides on the access read above; add, remove and the
           travelling toggle are `mayManageGuests` (owner or editor) — a viewer
           reads the list, and may only claim a record for themselves. */}
       <div className="flex flex-col gap-0.5">

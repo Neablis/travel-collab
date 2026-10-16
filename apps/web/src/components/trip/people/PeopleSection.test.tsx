@@ -1,7 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { PersonColor, TripAccess, TripMemberProfile } from "@tc/contracts";
+import type { Guest, PersonColor, TripAccess, TripMemberProfile } from "@tc/contracts";
 import { tripAccessFixture, tripInviteFactory, tripMemberProfileFactory } from "@tc/factories";
 
 const fetchTripAccessMock = vi.fn();
@@ -11,6 +11,11 @@ const setTravellingMock = vi.fn();
 const changeMemberRoleMock = vi.fn();
 const removeMemberMock = vi.fn();
 const leaveTripMock = vi.fn();
+const createGuestMock = vi.fn();
+const updateGuestMock = vi.fn();
+const removeGuestMock = vi.fn();
+const linkGuestMock = vi.fn();
+const unlinkGuestMock = vi.fn();
 
 vi.mock("@/lib/apiClient", () => ({
   fetchTripAccess: (...args: unknown[]) => fetchTripAccessMock(...args),
@@ -20,6 +25,11 @@ vi.mock("@/lib/apiClient", () => ({
   changeMemberRole: (...args: unknown[]) => changeMemberRoleMock(...args),
   removeMember: (...args: unknown[]) => removeMemberMock(...args),
   leaveTrip: (...args: unknown[]) => leaveTripMock(...args),
+  createGuest: (...args: unknown[]) => createGuestMock(...args),
+  updateGuest: (...args: unknown[]) => updateGuestMock(...args),
+  removeGuest: (...args: unknown[]) => removeGuestMock(...args),
+  linkGuest: (...args: unknown[]) => linkGuestMock(...args),
+  unlinkGuest: (...args: unknown[]) => unlinkGuestMock(...args),
   inviteLink: (token: string) => `http://test/invite/${token}`,
 }));
 
@@ -93,6 +103,11 @@ beforeEach(() => {
   changeMemberRoleMock.mockReset();
   removeMemberMock.mockReset();
   leaveTripMock.mockReset();
+  createGuestMock.mockReset();
+  updateGuestMock.mockReset();
+  removeGuestMock.mockReset();
+  linkGuestMock.mockReset();
+  unlinkGuestMock.mockReset();
   pushMock.mockReset();
   writeText.mockReset().mockResolvedValue(undefined);
   Object.assign(navigator, { clipboard: { writeText } });
@@ -873,6 +888,137 @@ describe("PeopleSection", () => {
       expect(screen.queryByTestId("collaborators-gate")).toBeNull();
       expect(screen.queryByRole("status")).toBeNull();
     });
+  });
+});
+
+// Guests ride on the access read (Fix 2): the section adopts `access.guests`
+// and never makes its own guest read — this suite's apiClient mock does not
+// even export one, so a stray call would throw rather than silently pass.
+describe("PeopleSection — guests from the access read", () => {
+  const grandma: Guest = {
+    guestId: "guest_mock_grandma",
+    tripId,
+    name: "Grandma",
+    travelling: true,
+    linkedUserId: null,
+    createdBy: "dev-alice",
+    createdAt: "2026-10-15T00:00:00.000Z",
+  };
+
+  function addGuestNamed(name: string) {
+    fireEvent.click(screen.getByRole("button", { name: "Add guest" }));
+    fireEvent.change(screen.getByLabelText("Guest name"), { target: { value: name } });
+    fireEvent.click(screen.getByRole("button", { name: /^Add$/ }));
+  }
+
+  it("renders the access read's guests, with no separate fetch", async () => {
+    // A rev on the provided read, so the section's own mount read (no rev)
+    // is the older one `isOlder` drops rather than the list's replacement.
+    render(<PeopleSection tripId={tripId} access={access({ guests: [grandma], accessRev: "5" })} />);
+
+    const row = await screen.findByTestId("guest-row");
+    expect(row.getAttribute("data-guest-id")).toBe("guest_mock_grandma");
+    expect(within(row).getByText("Grandma")).toBeTruthy();
+    expect(screen.getByText("Guests · 1")).toBeTruthy();
+  });
+
+  // The new row appears before the POST answers, under a client-minted id;
+  // the POST's answer swaps that id for the server's, and the count stays one.
+  it("shows the new guest at once, then swaps the provisional id for the server's", async () => {
+    let answer!: (result: { ok: true; value: Guest }) => void;
+    createGuestMock.mockReturnValue(new Promise((resolve) => (answer = resolve)));
+    render(<PeopleSection tripId={tripId} access={access()} />);
+    await screen.findByText("Guests · 0");
+
+    addGuestNamed("Grandma");
+
+    const provisional = await screen.findByTestId("guest-row");
+    expect(within(provisional).getByText("Grandma")).toBeTruthy();
+    expect(provisional.getAttribute("data-guest-id")).toMatch(/^guest_temp-/);
+    expect(screen.getByText("Guests · 1")).toBeTruthy();
+
+    await act(async () => {
+      answer({ ok: true, value: { ...grandma, guestId: "guest_mock_1" } });
+    });
+
+    const confirmed = screen.getByTestId("guest-row");
+    expect(confirmed.getAttribute("data-guest-id")).toBe("guest_mock_1");
+    expect(within(confirmed).getByText("Grandma")).toBeTruthy();
+    expect(screen.getByText("Guests · 1")).toBeTruthy();
+  });
+
+  // A failed create takes the provisional row back out and says what the
+  // server answered, in the section's own error spot.
+  it("removes the provisional row and says so when the create fails", async () => {
+    createGuestMock.mockResolvedValue({ ok: false, error: { status: 500, message: "The trip service is down" } });
+    render(<PeopleSection tripId={tripId} access={access()} />);
+    await screen.findByText("Guests · 0");
+
+    addGuestNamed("Grandma");
+    // Optimistic first: the row is there even though the POST will fail.
+    expect(await screen.findByTestId("guest-row")).toBeTruthy();
+
+    expect(await screen.findByText("The trip service is down")).toBeTruthy();
+    expect(screen.queryByTestId("guest-row")).toBeNull();
+    expect(screen.getByText("Guests · 0")).toBeTruthy();
+  });
+
+  // While the POST is in flight the provisional row shows no `⋯` menu: its
+  // actions would send the client-minted id to the server and 404.
+  it("renders no menu trigger on a provisional row", async () => {
+    let answer!: (result: { ok: true; value: Guest }) => void;
+    createGuestMock.mockReturnValue(new Promise((resolve) => (answer = resolve)));
+    render(<PeopleSection tripId={tripId} access={access()} />);
+    await screen.findByText("Guests · 0");
+
+    addGuestNamed("Grandma");
+
+    const provisional = await screen.findByTestId("guest-row");
+    expect(provisional.getAttribute("data-guest-id")).toMatch(/^guest_temp-/);
+    expect(within(provisional).queryByRole("button", { name: "Actions for Grandma" })).toBeNull();
+
+    await act(async () => {
+      answer({ ok: true, value: { ...grandma, guestId: "guest_mock_1" } });
+    });
+
+    // The real row carries the menu again once the server answers.
+    const confirmed = screen.getByTestId("guest-row");
+    expect(within(confirmed).getByRole("button", { name: "Actions for Grandma" })).toBeTruthy();
+  });
+
+  // A newer-rev adopt landing while the POST is still in flight must not drop
+  // the provisional row: it rides along, and the POST's answer still swaps it
+  // for the server's guest. (Without the carry, a quick re-add can land
+  // twice — the server has no name uniqueness.)
+  it("keeps the provisional row across a newer-rev adopt, then swaps it when the POST answers", async () => {
+    let answer!: (result: { ok: true; value: Guest }) => void;
+    createGuestMock.mockReturnValue(new Promise((resolve) => (answer = resolve)));
+    const { rerender } = render(<PeopleSection tripId={tripId} access={access({ accessRev: "5" })} />);
+    await screen.findByText("Guests · 0");
+
+    addGuestNamed("Grandma");
+
+    const provisional = await screen.findByTestId("guest-row");
+    expect(provisional.getAttribute("data-guest-id")).toMatch(/^guest_temp-/);
+
+    // The trip's rev moved elsewhere (another browser) while the POST is in flight.
+    rerender(<PeopleSection tripId={tripId} access={access({ guests: [grandma], accessRev: "6" })} />);
+
+    // The adopt carried the provisional row alongside the server's list.
+    const tempId = provisional.getAttribute("data-guest-id");
+    const carried = screen
+      .getAllByTestId("guest-row")
+      .find((r) => r.getAttribute("data-guest-id") === tempId);
+    expect(carried).toBeTruthy();
+    expect(screen.getByText("Guests · 2")).toBeTruthy();
+
+    await act(async () => {
+      answer({ ok: true, value: { ...grandma, guestId: "guest_mock_1" } });
+    });
+
+    const ids = screen.getAllByTestId("guest-row").map((r) => r.getAttribute("data-guest-id"));
+    expect(ids).toEqual(expect.arrayContaining(["guest_mock_1", "guest_mock_grandma"]));
+    expect(screen.getByText("Guests · 2")).toBeTruthy();
   });
 });
 
