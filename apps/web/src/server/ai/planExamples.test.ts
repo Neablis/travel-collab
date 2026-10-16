@@ -28,16 +28,23 @@ afterEach(() => {
   mocks.retrieveDayChunks.mockReset();
 });
 
-/** Import planExamples under a stubbed RAG_PLAN_RETRIEVAL value. */
-async function planExamplesWithFlag(flag: string | undefined) {
+/** Import planExamples under stubbed env values. */
+async function planExamplesWithEnv(env: Record<string, string | undefined>) {
   // Fresh module per case: `serverConfig` reads the env once at load, and the
   // static import of handleAskRequest above already pulled planExamples into
   // the registry at collection time (with the ambient env). Without the reset
   // the first test to run would see a stale flag.
   vi.resetModules();
-  if (flag === undefined) delete process.env.RAG_PLAN_RETRIEVAL;
-  else vi.stubEnv("RAG_PLAN_RETRIEVAL", flag);
+  for (const [key, value] of Object.entries(env)) {
+    if (value === undefined) delete process.env[key];
+    else vi.stubEnv(key, value);
+  }
   return import("./planExamples");
+}
+
+/** Import planExamples under a stubbed RAG_PLAN_RETRIEVAL value. */
+async function planExamplesWithFlag(flag: string | undefined, extraEnv: Record<string, string | undefined> = {}) {
+  return planExamplesWithEnv({ RAG_PLAN_RETRIEVAL: flag, ...extraEnv });
 }
 
 function dayChunk(overrides: Partial<DayChunk> = {}): DayChunk {
@@ -145,6 +152,9 @@ describe("formatExampleBlocks", () => {
       text: expect.stringMatching(/never copy them verbatim/) as unknown,
     });
     expect((blocks[0] as { text: string }).text).toMatch(/user's request wins/);
+    // Gate 2 follow-up: the rule also asks for tight plans — the examples are
+    // structure, not material to restate.
+    expect((blocks[0] as { text: string }).text).toMatch(/keep the plan tight/i);
     // The example text is outside text (ADR-043): a `data` block, never a `rule`.
     expect(blocks[1]?.kind).toBe("data");
     const dataBlock = blocks[1] as { kind: "data"; label: string; value: unknown };
@@ -155,20 +165,70 @@ describe("formatExampleBlocks", () => {
     expect(compact[0]?.country).toBe("JP");
     expect(compact[0]?.tags).toEqual(["food"]);
     // Truncated to the token-efficient share, not the whole chunk.
-    expect(compact[0]?.text.length).toBeLessThanOrEqual(500);
+    expect(compact[0]?.text.length).toBeLessThanOrEqual(250);
     expect(longText.startsWith(compact[0]?.text ?? "")).toBe(true);
   });
 
   it("truncates on code-point boundaries, never splitting a surrogate pair", async () => {
     const { formatExampleBlocks } = await planExamplesWithFlag("1");
-    // An emoji straddling the truncation boundary: a UTF-16 slice(0, 500)
+    // An emoji straddling the truncation boundary: a UTF-16 slice(0, 250)
     // would keep its high surrogate and leave a lone surrogate in the prompt.
-    const text = `${"x".repeat(499)}😀${"y".repeat(100)}`;
+    const text = `${"x".repeat(249)}😀${"y".repeat(100)}`;
 
     const blocks = formatExampleBlocks([dayChunk({ chunkText: text })]);
 
     const dataBlock = blocks[1] as { kind: "data"; label: string; value: { text: string }[] };
-    expect(dataBlock.value[0]?.text).toBe(`${"x".repeat(499)}😀`);
+    expect(dataBlock.value[0]?.text).toBe(`${"x".repeat(249)}😀`);
+  });
+
+  it("honors RAG_PLAN_EXAMPLE_CHARS when set", async () => {
+    const { formatExampleBlocks } = await planExamplesWithFlag("1", { RAG_PLAN_EXAMPLE_CHARS: "100" });
+    const longText = "sushi ".repeat(200);
+
+    const blocks = formatExampleBlocks([dayChunk({ chunkText: longText })]);
+
+    const dataBlock = blocks[1] as { kind: "data"; label: string; value: { text: string }[] };
+    expect(dataBlock.value[0]?.text.length).toBeLessThanOrEqual(100);
+    expect(longText.startsWith(dataBlock.value[0]?.text ?? "")).toBe(true);
+  });
+});
+
+describe("selectPromptExamples", () => {
+  it("returns the top N by retrieval order, keeping order", async () => {
+    const { selectPromptExamples } = await planExamplesWithFlag("1");
+    const chunks = ["a", "b", "c", "d", "e"].map((id) => dayChunk({ id }));
+
+    const selected = selectPromptExamples(chunks);
+
+    expect(selected.map((c) => c.id)).toEqual(["a", "b", "c"]);
+  });
+
+  it("returns all when fewer than the prompt count", async () => {
+    const { selectPromptExamples } = await planExamplesWithFlag("1");
+
+    const selected = selectPromptExamples([dayChunk({ id: "a" }), dayChunk({ id: "b" })]);
+
+    expect(selected.map((c) => c.id)).toEqual(["a", "b"]);
+  });
+
+  it("returns [] for []", async () => {
+    const { selectPromptExamples } = await planExamplesWithFlag("1");
+
+    expect(selectPromptExamples([])).toEqual([]);
+  });
+
+  it("honors RAG_PLAN_EXAMPLE_PROMPT_COUNT when set", async () => {
+    const { selectPromptExamples } = await planExamplesWithFlag("1", { RAG_PLAN_EXAMPLE_PROMPT_COUNT: "1" });
+    const chunks = ["a", "b", "c"].map((id) => dayChunk({ id }));
+
+    expect(selectPromptExamples(chunks).map((c) => c.id)).toEqual(["a"]);
+  });
+
+  it("falls back to the default on a nonsense RAG_PLAN_EXAMPLE_PROMPT_COUNT", async () => {
+    const { selectPromptExamples } = await planExamplesWithFlag("1", { RAG_PLAN_EXAMPLE_PROMPT_COUNT: "banana" });
+    const chunks = ["a", "b", "c", "d", "e"].map((id) => dayChunk({ id }));
+
+    expect(selectPromptExamples(chunks)).toHaveLength(3);
   });
 });
 

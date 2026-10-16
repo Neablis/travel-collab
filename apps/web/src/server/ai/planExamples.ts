@@ -28,16 +28,14 @@ export type { DayChunk };
  */
 const PLAN_EXAMPLE_BUDGET_MS = 2_000;
 
-/** How many example days one plan turn may show the model (spec sketch: "the best few"). */
-const PLAN_EXAMPLE_COUNT = 5;
-
-/** The prompt's share of one example's text, in characters. Token-efficient, not lossless. */
-const EXAMPLE_TEXT_CHARS = 500;
-
 /**
  * The example days for a plan turn: embed the request, run the hybrid
- * retrieval, return up to {@link PLAN_EXAMPLE_COUNT} day-chunks.
+ * retrieval, return up to `serverConfig.ragPlanExampleCount` day-chunks.
  *
+ * Retrieval fetches the full candidate set; only
+ * {@link selectPromptExamples} decides how many reach the prompt, so the
+ * serving logs keep the wider recall picture while the model sees the
+ * token-cheap top few.
  * **The contract is fail-open, like the two helpers it chains.** This
  * function never throws and returns `[]` on every failure, each logged with
  * the `rag:` prefix:
@@ -82,7 +80,7 @@ export async function getPlanExamples({
           queryEmbedding: embedding,
           queryText: question,
           userId,
-          k: PLAN_EXAMPLE_COUNT,
+          k: serverConfig.ragPlanExampleCount,
         });
       })(),
       new Promise<DayChunk[]>((_, reject) => {
@@ -103,15 +101,39 @@ export async function getPlanExamples({
 }
 
 /**
+ * The retrieved examples narrowed to what the prompt may carry: the top
+ * `serverConfig.ragPlanExamplePromptCount` by retrieval rank. Retrieval
+ * fetches the wider set (recall for the logs, candidates for tuning); the
+ * prompt gets the few the model actually reads. Gate 2 showed 5 examples at
+ * ~1500 input tokens with no output-token win — 3 shorter ones keep the
+ * quality signal at ~40% of that input cost.
+ *
+ * Pure and total: `[]` in, `[]` out. The serving path applies this once and
+ * passes the result to both the prompt blocks and the used-detection, so the
+ * "used" heuristic only ever checks text the model actually saw.
+ *
+ * @param examples The days `getPlanExamples` returned, best first.
+ * @returns At most `ragPlanExamplePromptCount` of them, order kept.
+ */
+export function selectPromptExamples(examples: DayChunk[]): DayChunk[] {
+  return examples.slice(0, serverConfig.ragPlanExamplePromptCount);
+}
+
+/**
  * The retrieved examples as prompt blocks: one server-authored `rule` and
  * one `data` block, appended after the turn's existing instruction.
  *
  * The example text is outside text (ADR-043) — written by other users, in
  * other trips — so it arrives as a `data` block, never as a `rule`. The
- * `rule` beside it says the one thing commitment 2 needs said: adapt, never
- * copy verbatim, and the user's request wins over any example.
+ * `rule` beside it says the two things the turn needs said: adapt, never
+ * copy verbatim, keep the plan tight (the examples are structure, not
+ * material to restate), and the user's request wins over any example.
  *
- * @param examples The days `getPlanExamples` returned. `[]` returns `[]`,
+ * Each example's text is truncated to `serverConfig.ragPlanExampleChars`
+ * characters — token-efficient, not lossless.
+ *
+ * @param examples The days to format — normally the output of
+ * {@link selectPromptExamples}, not the raw retrieval set. `[]` returns `[]`,
  * which is what keeps a flag-off turn's prompt byte-identical to today's.
  * @returns One `rule` block and one `data` block, or `[]` with no examples.
  */
@@ -121,14 +143,14 @@ export function formatExampleBlocks(examples: DayChunk[]): PromptBlock[] {
     city: example.city,
     country: example.countryCode,
     tags: example.tags,
-    // Code points, not UTF-16 units: a plain slice(0, 500) can split a
+    // Code points, not UTF-16 units: a plain slice(0, n) can split a
     // surrogate pair when an emoji lands exactly on the boundary, leaving a
     // lone surrogate in the prompt.
-    text: [...example.chunkText].slice(0, EXAMPLE_TEXT_CHARS).join(""),
+    text: [...example.chunkText].slice(0, serverConfig.ragPlanExampleChars).join(""),
   }));
   return [
     rule(
-      "Adapt from the example days below when they fit; never copy them verbatim. The user's request wins over any example.",
+      "Adapt from the example days below when they fit; never copy them verbatim. Keep the plan tight — use the examples for structure and inspiration, not as material to restate at length. The user's request wins over any example.",
     ),
     data("Example days from other trips (adapt, don't copy):", compact),
   ];
