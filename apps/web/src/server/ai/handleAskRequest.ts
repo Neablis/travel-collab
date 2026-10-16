@@ -89,6 +89,7 @@ import {
   detectUsedExamples,
   formatExampleBlocks,
   getPlanExamples,
+  selectPromptExamples,
   type DayChunk,
 } from "@/server/ai/planExamples";
 import {
@@ -713,6 +714,10 @@ export async function handleAskRequest(
       count: planExamples.length,
     });
   }
+  // The prompt's share: the top few by retrieval rank, not the whole
+  // candidate set. The retrieved log above keeps the wider picture; the
+  // model and the used-detection only ever see these.
+  const promptExamples = selectPromptExamples(planExamples);
 
   const agent = new ToolLoopAgent({
     model: grant.model,
@@ -774,7 +779,7 @@ export async function handleAskRequest(
       grant.classWithheld,
       standingOf(detail),
       clock,
-      planExamples,
+      promptExamples,
     ),
     tools,
     // The narrow set is what step 1 sends. `prepareStep` below is the only
@@ -833,7 +838,7 @@ export async function handleAskRequest(
             grant.classWithheld,
             standingOf(detail),
             clock,
-            planExamples,
+            promptExamples,
           ),
         };
       }
@@ -891,7 +896,7 @@ export async function handleAskRequest(
       if (planExamples.length > 0) {
         try {
           const finalText = typeof end.text === "string" ? end.text : "";
-          console.info("rag: plan examples used", { turnId, used: detectUsedExamples(planExamples, finalText) });
+          console.info("rag: plan examples used", { turnId, used: detectUsedExamples(promptExamples, finalText) });
         } catch (error) {
           console.error("rag: plan example usage logging failed", { turnId, error });
         }

@@ -14,6 +14,17 @@ export const DATABASE_URL = process.env.DATABASE_URL;
 // by two copies of a string that can drift.
 const DEFAULT_AI_MODEL = "anthropic/claude-haiku-4-5";
 
+/**
+ * A positive-int env var with a safe default: unparsable, zero, negative, or
+ * fractional values fall back to `fallback` rather than silently reshaping a
+ * token budget. Not exported — `serverConfig` is the read surface.
+ */
+function parsePositiveInt(raw: string | undefined, fallback: number): number {
+  if (raw === undefined) return fallback;
+  const parsed = Number(raw);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
 export const serverConfig = {
   locationIqApiKey: process.env.LOCATIONIQ_API_KEY ?? "",
   // The ops contact in the User-Agent every outside-data call sends (ADR-052
@@ -99,4 +110,13 @@ export const serverConfig = {
   // path is fail-open, so turning it on only ever ADDS optional context: a
   // lookup that throws, times out or returns nothing leaves the turn working.
   ragPlanRetrieval: process.env.RAG_PLAN_RETRIEVAL === "1",
+  // Token budget for plan-turn example injection (RAG stack, Gate 2 follow-up).
+  // Retrieval still fetches the top `ragPlanExampleCount` candidates, but only
+  // `ragPlanExamplePromptCount` reach the prompt, each truncated to
+  // `ragPlanExampleChars` characters. Gate 2 showed examples improve quality
+  // but cost ~1500 input tokens at 5x500; 3x250 is ~60% cheaper. All three are
+  // tunable without a code change; nonsense values fall back to the defaults.
+  ragPlanExampleCount: parsePositiveInt(process.env.RAG_PLAN_EXAMPLE_COUNT, 5),
+  ragPlanExamplePromptCount: parsePositiveInt(process.env.RAG_PLAN_EXAMPLE_PROMPT_COUNT, 3),
+  ragPlanExampleChars: parsePositiveInt(process.env.RAG_PLAN_EXAMPLE_CHARS, 250),
 };
