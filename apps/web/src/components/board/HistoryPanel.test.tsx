@@ -94,6 +94,7 @@ describe("HistoryPanel — accepted suggestions", () => {
             { userId: "u-ana", role: "suggester", name: "Ana", email: null, image: null },
           ],
           invites: [],
+          guests: [],
           collaboratorsEntitled: true,
         },
       }),
@@ -201,7 +202,7 @@ describe("HistoryPanel — accepted suggestions", () => {
       http.get("/api/trips/:tripId/access", () => {
         reads += 1;
         const members = [member("u1", "Alice"), ...(reads > 1 ? [member("u-nia", "Nia")] : [])];
-        return HttpResponse.json({ access: { tripId: TRIP, myRole: "owner", members, invites: [], collaboratorsEntitled: true } });
+        return HttpResponse.json({ access: { tripId: TRIP, myRole: "owner", members, invites: [], guests: [], collaboratorsEntitled: true } });
       }),
     );
     const panel = (entries: TripHistory["entries"]) => (
@@ -242,7 +243,7 @@ describe("HistoryPanel — accepted suggestions", () => {
         reads += 1;
         if (reads === 2) return HttpResponse.json({ error: "unavailable" }, { status: 503 });
         const members = [member("u1", "Alice"), ...(reads > 2 ? [member("u-nia", "Nia")] : [])];
-        return HttpResponse.json({ access: { tripId: TRIP, myRole: "owner", members, invites: [], collaboratorsEntitled: true } });
+        return HttpResponse.json({ access: { tripId: TRIP, myRole: "owner", members, invites: [], guests: [], collaboratorsEntitled: true } });
       }),
     );
     const panel = (entries: TripHistory["entries"]) => (

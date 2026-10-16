@@ -1,6 +1,7 @@
 import { TripAccess } from "@tc/contracts";
 import { requireTripAccess } from "@/server/access/trip-access";
 import { accessRevForRead, withProfiles } from "@/server/access/members";
+import { listGuests } from "@/server/access/guests";
 import { listInvites } from "@/server/access/invites";
 import { demoTripMembers } from "@/server/demoTrip";
 import { isDemoTripId } from "@/lib/demoTrip";
@@ -53,6 +54,10 @@ export async function GET(_request: Request, { params }: { params: Promise<{ tri
   // session probe. Only a reader on the list: the demo visitor carries a
   // stand-in id that names nobody.
   const viewerId = members.some((m) => m.userId === access.userId) ? access.userId : undefined;
+  // The trip's guests ride on the access read so the People section does not
+  // chase a second read after every access load. The demo trip is served
+  // without touching the database, as `members` above.
+  const guests = isDemoTripId(tripId) ? [] : await listGuests(tripId);
   return Response.json({
     access: TripAccess.parse({
       tripId,
@@ -62,6 +67,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ tri
       collaboratorsEntitled,
       accessRev,
       viewerId,
+      guests,
     }),
   });
 }

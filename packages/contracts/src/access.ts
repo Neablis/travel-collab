@@ -195,6 +195,15 @@ export const TripAccess = z.object({
    * it falls back to the session.
    */
   viewerId: z.string().min(1).optional(),
+  /**
+   * The trip's guests: named travellers with no account (guests spec P1).
+   * Bundled into the access read so the People section gets them with the
+   * members in one round trip, instead of chasing a second read after every
+   * access load (the N+1 the standalone `GET /v1/trips/:id/guests` would
+   * otherwise cost). Empty for the demo trip, which is served without the
+   * database.
+   */
+  guests: z.array(Guest),
 });
 export type TripAccess = z.infer<typeof TripAccess>;
 

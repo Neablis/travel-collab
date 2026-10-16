@@ -25,6 +25,7 @@ const server = setupServer(
         myRole: role,
         members: [{ userId: "dev-alice", role, name: null, email: null, image: null }],
         invites: [],
+        guests: [],
         collaboratorsEntitled: true,
       },
     });

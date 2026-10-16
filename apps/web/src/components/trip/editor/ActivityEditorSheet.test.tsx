@@ -157,7 +157,7 @@ beforeEach(() => {
   sendTripUnitsMock.mockReset().mockReturnValue(new Promise(() => {}));
   fetchTripAccessMock.mockReset().mockResolvedValue({
     ok: true,
-    value: { tripId: TRIP_ID, myRole: "owner", members: [], invites: [] },
+    value: { tripId: TRIP_ID, myRole: "owner", members: [], invites: [], guests: [] },
   });
   // An empty library unless a test says otherwise (M34).
   fetchNearbyStopsMock.mockReset().mockResolvedValue({ ok: true, value: { stops: [] } });
@@ -620,7 +620,7 @@ describe("ActivityEditorSheet — a viewer gets no form", () => {
   const asViewer = () =>
     fetchTripAccessMock.mockResolvedValue({
       ok: true,
-      value: { tripId: TRIP_ID, myRole: "viewer", members: [], invites: [] },
+      value: { tripId: TRIP_ID, myRole: "viewer", members: [], invites: [], guests: [] },
     });
 
   it("shows the stop read-only instead of the editor, and dispatches nothing", async () => {
@@ -759,6 +759,7 @@ describe("ActivityEditorSheet — who a stop is for, by name", () => {
           { userId: U2, role: "editor", name: null, email: "sam@example.com", image: null },
         ],
         invites: [],
+        guests: [],
       },
     });
     renderEditorSheet({ mode: "edit", activityId: SCHEDULED_ACTIVITY_ID });
@@ -784,6 +785,7 @@ describe("ActivityEditorSheet — who a stop is for, by name", () => {
           tripMemberProfileFactory.build({ userId: U2, displayName: "Sam Lee", avatar: "bike", color: "moss" }),
         ],
         invites: [],
+        guests: [],
       },
     });
     renderEditorSheet({ mode: "edit", activityId: SCHEDULED_ACTIVITY_ID });
@@ -800,7 +802,7 @@ describe("ActivityEditorSheet — who a stop is for, by name", () => {
     const dana = { userId: U1, role: "owner" as const, name: "Dana Reyes", email: null, image: null };
     fetchTripAccessMock.mockResolvedValue({
       ok: true,
-      value: { tripId: TRIP_ID, myRole: "owner", members: [dana], invites: [] },
+      value: { tripId: TRIP_ID, myRole: "owner", members: [dana], invites: [], guests: [] },
     });
     function Refresh() {
       const { refreshAccess } = useTrip();
@@ -830,6 +832,7 @@ describe("ActivityEditorSheet — who a stop is for, by name", () => {
         myRole: "owner",
         members: [dana, { userId: U2, role: "editor", name: "Sam Lee", email: null, image: null }],
         invites: [],
+        guests: [],
       },
     });
     // Outside the sheet, so the open dialog hides it: found with `hidden`.

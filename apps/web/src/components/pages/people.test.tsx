@@ -29,6 +29,7 @@ const server = setupServer(
           { userId: "u-ben-4f2a91", role: "editor", name: null, email: "ben@example.com", image: null, displayName: null, avatar: null, color: null },
         ],
         invites: [],
+        guests: [],
         collaboratorsEntitled: true,
       },
     }),

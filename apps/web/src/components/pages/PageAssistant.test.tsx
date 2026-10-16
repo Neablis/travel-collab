@@ -109,6 +109,7 @@ function accessAs(myRole: "owner" | "viewer") {
         myRole,
         members: [{ userId: "u1", role: myRole, name: null, email: null, image: null }],
         invites: [],
+        guests: [],
         collaboratorsEntitled: true,
       },
     }),
@@ -486,6 +487,7 @@ describe("the assistant on a notebook page", () => {
                 myRole: "owner",
                 members: [{ userId: "u1", role: "owner", name: null, email: null, image: null }],
                 invites: [],
+                guests: [],
                 collaboratorsEntitled: true,
               },
             });

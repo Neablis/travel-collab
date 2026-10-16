@@ -466,6 +466,8 @@ export function makeTripHandlers(
           collaboratorsEntitled: options?.collaboratorsEntitled ?? true,
           accessRev: String(accessRev),
           viewerId,
+          // The access read now carries the guests; the mock's trips have none.
+          guests: [],
         },
       }),
     ),
@@ -516,6 +518,8 @@ export function makeTripHandlers(
             collaboratorsEntitled: options?.collaboratorsEntitled ?? true,
             accessRev: String(accessRev),
             viewerId,
+            // The access read now carries the guests; the mock's trips have none.
+            guests: [],
           },
         });
       }),
