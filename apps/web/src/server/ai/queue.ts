@@ -88,8 +88,8 @@ export async function enqueueDayChunksInTransaction(
 ): Promise<void> {
   const indexes = [...new Set(dayIndexes)];
   if (indexes.length === 0) return;
-  await tx.execute(sql`SAVEPOINT rag_enqueue`);
   try {
+    await tx.execute(sql`SAVEPOINT rag_enqueue`);
     for (const dayIndex of indexes) {
       await tx.execute(queueUpsert(sourceType, sourceId, dayIndex));
     }

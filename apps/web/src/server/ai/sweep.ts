@@ -9,9 +9,9 @@
 // leaves rows at `processing`; the next run recovers them before claiming.
 import { randomUUID } from "node:crypto";
 import { eq, sql } from "drizzle-orm";
-import { SavedStop } from "@tc/contracts";
 import { db } from "@/server/db/client";
 import { dayEmbeddings, savedDays } from "@/server/db/schema";
+import { parseSavedDayColumns } from "@/server/savedDayRow";
 import { getTripDetail } from "@/server/projections";
 import { buildPlaybookDayChunks, buildTripDayChunks, type BuiltDayChunk } from "./chunks";
 import { embedText } from "./embeddings";
@@ -183,18 +183,27 @@ async function resolveChunk(
     const row = rows[0];
     if (row === undefined) return { kind: "tombstone", reason: "playbook row missing", scope: "source" };
     if (row.deletedAt !== null) return { kind: "tombstone", reason: "playbook soft-deleted", scope: "source" };
-    // The read boundary's rule (savedDays.ts `fromRow`): jsonb stops are
-    // parsed, never trusted, and an unreadable row is dropped, not guessed at.
-    const parsed = SavedStop.array().safeParse(row.stops);
-    if (!parsed.success) return { kind: "tombstone", reason: "playbook stops unreadable", scope: "source" };
+    // The read boundary's rule, not an ad-hoc parse: `parseSavedDayColumns`
+    // is what `fromRow` uses, so the sweep parses the stops, validates the
+    // visibility, and repairs `dayCount` upward to the stops' floor exactly
+    // as every other reader does. An unreadable row is dropped, not guessed
+    // at (KI-71).
+    const parsed = parseSavedDayColumns({
+      savedDayId: sourceId,
+      stops: row.stops,
+      visibility: row.visibility,
+      authorKind: row.authorKind,
+      dayCount: row.dayCount,
+    });
+    if (parsed === null) return { kind: "tombstone", reason: "playbook columns unreadable", scope: "source" };
     const chunk = buildPlaybookDayChunks({
       name: row.name,
       summary: row.summary,
-      stops: parsed.data,
-      dayCount: row.dayCount,
+      stops: parsed.stops,
+      dayCount: parsed.dayCount,
     })[dayIndex];
     if (chunk === undefined) return { kind: "tombstone", reason: "day index beyond the playbook's day count", scope: "day" };
-    return { kind: "ready", chunk, visibility: row.visibility, ownerId: row.ownerId };
+    return { kind: "ready", chunk, visibility: parsed.visibility, ownerId: row.ownerId };
   }
   if (sourceType === "trip") {
     // `getTripDetail` is the one place the document leaves the database

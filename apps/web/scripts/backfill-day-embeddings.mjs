@@ -61,8 +61,9 @@ export async function backfillDayEmbeddings(db) {
   for (const row of playbookRows.rows) {
     playbooks++;
     for (let dayIndex = 0; dayIndex < Number(row.day_count); dayIndex++) {
-      deadReset += await queueDay(db, "playbook", row.id, dayIndex);
-      queued++;
+      const { queued: q, resurrected } = await queueDay(db, "playbook", row.id, dayIndex);
+      queued += q;
+      deadReset += resurrected;
     }
   }
 
@@ -75,8 +76,9 @@ export async function backfillDayEmbeddings(db) {
   for (const row of tripRows.rows) {
     trips++;
     for (let dayIndex = 0; dayIndex < Number(row.day_count); dayIndex++) {
-      deadReset += await queueDay(db, "trip", row.trip_id, dayIndex);
-      queued++;
+      const { queued: q, resurrected } = await queueDay(db, "trip", row.trip_id, dayIndex);
+      queued += q;
+      deadReset += resurrected;
     }
   }
 
@@ -84,9 +86,12 @@ export async function backfillDayEmbeddings(db) {
 }
 
 /**
- * One idempotent queue upsert. Returns 1 when it resurrected a dead row.
+ * One idempotent queue upsert. Reports whether the row was actually written:
+ * a no-op on an already-queued/finished row returns zeros, so a re-run's log
+ * line is honest about what it did.
  *
  * @param {ReturnType<typeof drizzle>} db
+ * @returns {Promise<{ queued: number; resurrected: number }>}
  */
 async function queueDay(db, sourceType, sourceId, dayIndex) {
   const result = await db.execute(sql`
@@ -98,9 +103,11 @@ async function queueDay(db, sourceType, sourceId, dayIndex) {
     RETURNING (xmax = 0) AS inserted
   `);
   // `xmax = 0` distinguishes a fresh insert from an update of an existing
-  // row; only a resurrected dead row counts.
-  const resurrected = result.rows.filter((r) => r.inserted === false);
-  return resurrected.length > 0 ? 1 : 0;
+  // row; no row at all means the conflict hit a pending/processing/done row
+  // and the WHERE declined the update — a no-op by design.
+  const row = result.rows[0];
+  if (row === undefined) return { queued: 0, resurrected: 0 };
+  return { queued: 1, resurrected: row.inserted === false ? 1 : 0 };
 }
 
 // Only when run as a script. The export above is what the integration suite
