@@ -20,6 +20,7 @@ import { aiModelsReport } from "@/server/entitlements/aiModels";
 import { ASSISTANT_TOOLS } from "@/server/assistant/registry";
 import { adminUserId } from "@/server/entitlements/requireAdmin";
 import { priceConsistencyReport } from "@/server/billing/prices";
+import { testModeFor } from "@/server/billing/testMode";
 import { listReports } from "@/server/reports";
 import { adminNotebooks } from "@/server/savedNotebooks";
 
@@ -133,13 +134,19 @@ export default async function AdminPage({
   const accountId = Array.isArray(params.account) ? params.account[0] : params.account;
   if (tab === "users" && accountId !== undefined && accountId !== "") {
     const back = accountsViewHref(resolveAccountsView(params));
-    const detail = await adminAccountDetail(accountId);
+    const [detail, testMode] = await Promise.all([adminAccountDetail(accountId), testModeFor(accountId)]);
     return (
       <ConsoleShell tab={tab}>
-        {detail === null ? (
+        {detail === null || testMode === null ? (
           <NoSuchAccount back={back} />
         ) : (
-          <AccountPage detail={detail} plans={grantablePlanIds()} back={back} now={new Date().toISOString()} />
+          <AccountPage
+            detail={detail}
+            plans={grantablePlanIds()}
+            back={back}
+            now={new Date().toISOString()}
+            testMode={testMode}
+          />
         )}
       </ConsoleShell>
     );

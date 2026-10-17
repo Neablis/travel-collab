@@ -200,6 +200,30 @@ export const AdminRevokeGrantInput = z.object({
 export type AdminRevokeGrantInput = z.infer<typeof AdminRevokeGrantInput>;
 
 /**
+ * The body of the operator's Stripe test-mode switch
+ * (`PUT /api/admin/accounts/[accountId]/test-mode`, ADR-076 §6).
+ *
+ * The account is the path's, not the body's, so one request cannot name two.
+ */
+export const AdminTestModeInput = z.object({
+  enabled: z.boolean(),
+});
+export type AdminTestModeInput = z.infer<typeof AdminTestModeInput>;
+
+/**
+ * One account's switch as the console reads it.
+ *
+ * `available` is whether this deployment holds a test key pair at all. A
+ * switch turned on without one would change nothing, so the PUT refuses it
+ * (409 `test-mode-unavailable`) and the console says why instead of offering it.
+ */
+export const AdminTestMode = z.object({
+  enabled: z.boolean(),
+  available: z.boolean(),
+});
+export type AdminTestMode = z.infer<typeof AdminTestMode>;
+
+/**
  * What Stripe says a subscription is, stored verbatim (M21 link 1).
  *
  * **Stripe's own words, not ours.** The division of authority M21 link 2

@@ -19,6 +19,7 @@ import {
   REFERRAL_REWARD_CAP,
   REFERRAL_REWARD_DAYS,
   mintReferralCode,
+  paidPlanHeldBy,
   rewardReferrer,
 } from "./referrals";
 
@@ -120,6 +121,30 @@ describe("a referral earns one month of the tier the referrer holds", () => {
     const grants = await allGrantsFor(referrer);
     expect(grants).toHaveLength(1);
     expect(grants[0]!.source).toBe("trial");
+  });
+
+  // **A plan bought with a test card is not a paid plan** (ADR-076 §4). The
+  // admin's switch makes one reachable on production, and a referral grant has
+  // no mode: it would outlive the test subscription as a real month of plus.
+  it("earns a referrer holding a test-mode plan nothing", async () => {
+    const referrer = await account("plus");
+    await db.update(users).set({ planLivemode: false }).where(eq(users.id, referrer));
+    const code = await codeFrom(referrer);
+    expect(await rewardReferrer(code, await account())).toEqual({
+      rewarded: false,
+      reason: "referrer-holds-no-paid-plan",
+    });
+    expect(await allGrantsFor(referrer)).toHaveLength(0);
+  });
+
+  // The account sheet's `earnsReward` asks this too, so it cannot tell a
+  // test-mode tester they earn what the reward then refuses.
+  it("counts only a live plan as paid", async () => {
+    const live = await account("plus");
+    const test = await account("plus");
+    await db.update(users).set({ planLivemode: false }).where(eq(users.id, test));
+    expect(await paidPlanHeldBy(live)).toMatchObject({ planId: "plus" });
+    expect(await paidPlanHeldBy(test)).toBeNull();
   });
 
   it("earns nothing when a code is redeemed by its own minter", async () => {

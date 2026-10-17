@@ -13,10 +13,10 @@ import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/server/db/client";
-import { stripeCustomers, users } from "@/server/db/schema";
+import { stripeCustomers, subscriptions, users } from "@/server/db/schema";
 import { upsertUser } from "@/server/users";
 import { deploymentOrigin } from "@/lib/deploymentOrigin";
 import { fakeStripeKey, otherFakeStripeKey } from "@/test-support/stripeSignature";
@@ -162,5 +162,170 @@ describe("the mode checkout and the portal use", () => {
     await portalUrlFor({ userId, returnOrigin: "http://localhost" });
     const [portal] = stripeRequest.mock.calls.at(-1)!;
     expect(portal).toMatchObject({ mode, path: "/billing_portal/sessions", body: { customer: `cus_${mode}_${userId}` } });
+  });
+});
+
+// **A switched account buys in test mode** (ADR-076 §6). Its checkout uses the
+// test pair, its test customer and the test-mode Price, and carries the origin
+// the test webhook attributes it by; the live customer it already has is left
+// alone. Its portal follows the subscription it holds, else the switch.
+describe("checkout for an account with the test-mode switch on", () => {
+  beforeEach(() => {
+    vi.stubEnv("STRIPE_SECRET_KEY", fakeStripeKey("sk_live"));
+    vi.stubEnv("STRIPE_WEBHOOK_SECRET", fakeStripeKey("whsec"));
+    vi.stubEnv("STRIPE_TEST_SECRET_KEY", fakeStripeKey("sk_test"));
+    vi.stubEnv("STRIPE_TEST_WEBHOOK_SECRET", otherFakeStripeKey("whsec"));
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  async function switchedAccount(): Promise<string> {
+    const userId = await makeAccount();
+    await db.update(users).set({ stripeTestMode: true }).where(eq(users.id, userId));
+    await db.insert(stripeCustomers).values({ userId, livemode: true, customerId: "cus_live_existing" });
+    return userId;
+  }
+
+  /** A held subscription in one mode, which is what the portal manages. */
+  async function holds(userId: string, livemode: boolean, status: "active" | "past_due" | "canceled" = "active"): Promise<void> {
+    await db.insert(subscriptions).values({
+      id: randomUUID(),
+      userId,
+      stripeCustomerId: livemode ? "cus_live_existing" : `cus_test_${userId}`,
+      stripeSubscriptionId: `sub_${randomUUID()}`,
+      livemode,
+      planId: "plus",
+      planVersion: 1,
+      status,
+      currentPeriodEnd: new Date(Date.now() + 86_400_000),
+      cancelAtPeriodEnd: false,
+      pastDueSince: null,
+      lastEventAt: new Date(),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+  }
+
+  it("checks out with the test pair and its test customer, leaving the live customer alone", async () => {
+    const userId = await switchedAccount();
+    await startCheckout({ userId, planId: "plus", returnOrigin: "https://app.test" });
+
+    expect(createCustomer).toHaveBeenCalledWith(expect.objectContaining({ userId, mode: "test" }));
+    const [checkout] = stripeRequest.mock.calls.at(-1)!;
+    expect(checkout).toMatchObject({
+      mode: "test",
+      path: "/checkout/sessions",
+      body: {
+        customer: `cus_test_${userId}`,
+        line_items: [{ price: "price_test" }],
+        // Without the origin the test webhook answers a production event
+        // `unattributable` and the walk's plan never lands (PR 476).
+        subscription_data: { metadata: { deploymentOrigin: deploymentOrigin() } },
+        metadata: { deploymentOrigin: deploymentOrigin() },
+      },
+    });
+    expect(await customersOf(userId)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ livemode: true, customerId: "cus_live_existing" }),
+        expect.objectContaining({ livemode: false, customerId: `cus_test_${userId}` }),
+      ]),
+    );
+  });
+
+  // Stripe may scope a key to the account, not the mode: a live checkout and a
+  // switched retry inside one hour must not share one.
+  it("keys the checkout by its mode", async () => {
+    const userId = await switchedAccount();
+    await startCheckout({ userId, planId: "plus", returnOrigin: "https://app.test" });
+    await db.update(users).set({ stripeTestMode: false }).where(eq(users.id, userId));
+    await startCheckout({ userId, planId: "plus", returnOrigin: "https://app.test" });
+
+    const keys = stripeRequest.mock.calls.map(([request]) => (request as { idempotencyKey?: string }).idempotencyKey);
+    expect(keys).toEqual([
+      expect.stringMatching(new RegExp(`^checkout:test:${userId}:`)),
+      expect.stringMatching(new RegExp(`^checkout:live:${userId}:`)),
+    ]);
+  });
+
+  it("opens the portal on the test customer when nothing is held", async () => {
+    const userId = await switchedAccount();
+    stripeRequest.mockResolvedValue({ url: "https://billing.stripe.test/p" });
+    await portalUrlFor({ userId, returnOrigin: "https://app.test" });
+    expect(stripeRequest.mock.calls.at(-1)![0]).toMatchObject({
+      mode: "test",
+      path: "/billing_portal/sessions",
+      body: { customer: `cus_test_${userId}` },
+    });
+  });
+
+  // The portal manages the subscription the account holds, which Stripe knows
+  // in its own mode only: a switched payer must still reach its live card.
+  it("opens the portal in a held live subscription's mode, whatever the switch says", async () => {
+    const userId = await switchedAccount();
+    await holds(userId, true);
+    stripeRequest.mockResolvedValue({ url: "https://billing.stripe.test/p" });
+    await portalUrlFor({ userId, returnOrigin: "https://app.test" });
+    expect(stripeRequest.mock.calls.at(-1)![0]).toMatchObject({
+      mode: "live",
+      path: "/billing_portal/sessions",
+      body: { customer: "cus_live_existing" },
+    });
+    expect(createCustomer).not.toHaveBeenCalled();
+  });
+
+  // A test subscription outlives the switch: Stripe knows it in test mode only,
+  // so turning the switch off must not send its portal to a live customer.
+  it("opens the portal in a held test subscription's mode once the switch is off", async () => {
+    const userId = await switchedAccount();
+    await holds(userId, false);
+    await db.update(users).set({ stripeTestMode: false }).where(eq(users.id, userId));
+    stripeRequest.mockResolvedValue({ url: "https://billing.stripe.test/p" });
+    await portalUrlFor({ userId, returnOrigin: "https://app.test" });
+    expect(stripeRequest.mock.calls.at(-1)![0]).toMatchObject({
+      mode: "test",
+      path: "/billing_portal/sessions",
+      body: { customer: `cus_test_${userId}` },
+    });
+  });
+
+  // A lapsed card is fixed in the portal, so a `past_due` row still picks it.
+  it("opens the portal in a past-due subscription's mode, whatever the switch says", async () => {
+    const userId = await switchedAccount();
+    await holds(userId, true, "past_due");
+    stripeRequest.mockResolvedValue({ url: "https://billing.stripe.test/p" });
+    await portalUrlFor({ userId, returnOrigin: "https://app.test" });
+    expect(stripeRequest.mock.calls.at(-1)![0]).toMatchObject({
+      mode: "live",
+      path: "/billing_portal/sessions",
+      body: { customer: "cus_live_existing" },
+    });
+  });
+
+  // A cancelled test subscription manages nothing; were it to pick the mode,
+  // removing the test keys would turn "Manage billing" into a 500.
+  it("opens the portal in the switch's mode once the held subscription is cancelled", async () => {
+    const userId = await switchedAccount();
+    await holds(userId, false, "canceled");
+    await db.update(users).set({ stripeTestMode: false }).where(eq(users.id, userId));
+    stripeRequest.mockResolvedValue({ url: "https://billing.stripe.test/p" });
+    await portalUrlFor({ userId, returnOrigin: "https://app.test" });
+    expect(stripeRequest.mock.calls.at(-1)![0]).toMatchObject({
+      mode: "live",
+      path: "/billing_portal/sessions",
+      body: { customer: "cus_live_existing" },
+    });
+  });
+
+  it("checks out an unswitched account live, on its live customer", async () => {
+    const userId = await switchedAccount();
+    await db.update(users).set({ stripeTestMode: false }).where(eq(users.id, userId));
+    await startCheckout({ userId, planId: "plus", returnOrigin: "https://app.test" });
+    expect(createCustomer).not.toHaveBeenCalled();
+    expect(stripeRequest.mock.calls.at(-1)![0]).toMatchObject({
+      mode: "live",
+      body: { customer: "cus_live_existing", line_items: [{ price: "price_live" }] },
+    });
   });
 });
