@@ -180,44 +180,64 @@ function summarizeChecks(rollup) {
 }
 
 /**
+ * What GraphQL's `reviewDecision` would say, from REST reviews: each
+ * reviewer's latest approving or blocking review counts; comments do not.
+ */
+function reviewDecision(reviews) {
+  const latest = new Map();
+  for (const r of reviews) {
+    if (r?.state === "APPROVED" || r?.state === "CHANGES_REQUESTED" || r?.state === "DISMISSED") {
+      latest.set(r.user?.login ?? "", r.state);
+    }
+  }
+  const states = [...latest.values()];
+  if (states.includes("CHANGES_REQUESTED")) return "changes requested";
+  if (states.includes("APPROVED")) return "approved";
+  return "no review decision";
+}
+
+/**
  * Open PRs. `gh` is optional infrastructure: it may not be installed, may not
  * be authenticated, and may be slow. Every one of those prints "(gh
  * unavailable)" and costs the session nothing.
+ *
+ * REST only (`gh api`), as in `pr-digest.mjs`: `gh pr list` is GraphQL, which
+ * the cloud session proxy refuses, so this block used to read "(gh
+ * unavailable)" in every cloud session. REST has no review decision field,
+ * so it is derived from each reviewer's latest review. Checks and reviews
+ * are fetched for milestone parts alone, since those are the only lines that
+ * print them.
  */
 function readPullRequests(root, { skip }) {
   if (skip) return { unavailable: "--no-gh" };
-  const out = run(
-    "gh",
-    [
-      "pr",
-      "list",
-      "--state",
-      "open",
-      "--json",
-      "number,title,headRefName,createdAt,isDraft,reviewDecision,statusCheckRollup",
-      "--limit",
-      "20",
-    ],
-    { cwd: root, timeout: GH_TIMEOUT_MS },
-  );
-  if (out === null) return { unavailable: "gh unavailable" };
-  try {
-    const parsed = JSON.parse(out);
-    if (!Array.isArray(parsed)) return { unavailable: "gh returned an unexpected shape" };
-    return {
-      prs: parsed.map((pr) => ({
-        number: pr.number,
-        title: String(pr.title ?? ""),
-        branch: String(pr.headRefName ?? ""),
-        created: String(pr.createdAt ?? "").slice(0, 10),
-        draft: pr.isDraft === true,
-        review: String(pr.reviewDecision ?? ""),
-        ci: summarizeChecks(pr.statusCheckRollup),
-      })),
-    };
-  } catch {
-    return { unavailable: "gh returned unparseable JSON" };
+  const api = (path) => {
+    const out = run("gh", ["api", path], { cwd: root, timeout: GH_TIMEOUT_MS });
+    if (out === null) return null;
+    try {
+      return JSON.parse(out);
+    } catch {
+      return undefined;
+    }
+  };
+  const parsed = api("repos/{owner}/{repo}/pulls?state=open&per_page=20");
+  if (parsed === null) return { unavailable: "gh unavailable" };
+  if (parsed === undefined) return { unavailable: "gh returned unparseable JSON" };
+  if (!Array.isArray(parsed)) return { unavailable: "gh returned an unexpected shape" };
+  const prs = parsed.map((pr) => ({
+    number: pr.number,
+    title: String(pr.title ?? ""),
+    branch: String(pr.head?.ref ?? ""),
+    sha: String(pr.head?.sha ?? ""),
+    created: String(pr.created_at ?? "").slice(0, 10),
+    draft: pr.draft === true,
+  }));
+  for (const pr of prs.filter((p) => PART_BRANCH.test(p.branch)).slice(0, PR_MAX_LINES)) {
+    const checks = pr.sha ? api(`repos/{owner}/{repo}/commits/${pr.sha}/check-runs?per_page=100`) : null;
+    pr.ci = Array.isArray(checks?.check_runs) ? summarizeChecks(checks.check_runs) : "checks unread";
+    const reviews = api(`repos/{owner}/{repo}/pulls/${pr.number}/reviews?per_page=100`);
+    pr.review = Array.isArray(reviews) ? reviewDecision(reviews) : "reviews unread";
   }
+  return { prs };
 }
 
 /**
@@ -372,7 +392,7 @@ function render(d) {
       out.push(`  #${pr.number} ${truncate(pr.title, 62)} [${pr.branch}] ${pr.created}`);
     }
     if (d.prs.prs.length > PR_MAX_LINES) {
-      out.push(`  …and ${d.prs.prs.length - PR_MAX_LINES} more (gh pr list)`);
+      out.push(`  …and ${d.prs.prs.length - PR_MAX_LINES} more (pnpm -s pr-digest)`);
     }
   }
 
@@ -384,8 +404,7 @@ function render(d) {
     if (parts.length > 0) {
       out.push(`MILESTONE PARTS: ${parts.length} open, not merged`);
       for (const pr of parts.slice(0, PR_MAX_LINES)) {
-        const review = pr.review ? pr.review.toLowerCase().replace(/_/g, " ") : "no review decision";
-        out.push(`  PR ${pr.number} [${pr.branch}] ${pr.draft ? "draft" : "ready"}, ${pr.ci}, ${review}`);
+        out.push(`  PR ${pr.number} [${pr.branch}] ${pr.draft ? "draft" : "ready"}, ${pr.ci ?? "checks unread"}, ${pr.review ?? "reviews unread"}`);
       }
     }
   }
