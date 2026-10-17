@@ -127,7 +127,7 @@ afterEach(() => {
 });
 
 describe("AccountPage", () => {
-  it("draws the account's header, facts, assistant, activity and grants", () => {
+  it("draws the account's header, facts, assistant, activity, grants and test-mode switch", () => {
     render(page());
     expect(screen.getByRole("link", { name: "← All accounts" }).getAttribute("href")).toBe(
       "/admin?tab=users&filter=granted",
@@ -136,6 +136,7 @@ describe("AccountPage", () => {
     expect(screen.getByText("free v1")).toBeTruthy();
     expect(screen.getByText("granted")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Grant a plan to dev-mei" })).toBeTruthy();
+    expect((screen.getByRole("checkbox", { name: /Stripe test mode/ }) as HTMLInputElement).checked).toBe(false);
 
     const facts = screen.getByLabelText("Facts");
     expect(within(facts).getByText("2 own · 1 invited to")).toBeTruthy();
