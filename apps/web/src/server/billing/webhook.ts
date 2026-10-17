@@ -25,7 +25,8 @@ import { PlanId, SubscriptionStatus } from "@tc/contracts";
 import { db } from "@/server/db/client";
 import { billingEvents, subscriptions, users } from "@/server/db/schema";
 import { isPublishedRef, livePlanVersion } from "@/server/entitlements/planVersions";
-import { parseCheckoutReference } from "./config";
+import { deploymentOrigin } from "@/lib/deploymentOrigin";
+import { ORIGIN_METADATA_KEY, parseCheckoutReference } from "./config";
 import type { VerifiedStripeEvent } from "./signature";
 import { retrieveSubscription, type StripeSubscription } from "./stripeApi";
 import {
@@ -232,6 +233,15 @@ function statusOf(subscription: StripeSubscription): SubscriptionStatus | null {
 /**
  * **The one write path**, given a Stripe subscription and the event it came on.
  *
+ * **A test-mode event applies only where its checkout began.** Stripe delivers
+ * every event in a test account to every test endpoint registered in it, so a
+ * deployment sharing that account hears every local and preview checkout too,
+ * naming accounts it does not have or, by coincidence of id, does (PR 476
+ * review, finding 2). `startCheckout` stamps its origin on the subscription;
+ * an event without this deployment's is `unattributable`, claimed and stamped,
+ * and answered 200 so Stripe stops. Live events are not checked: one live
+ * account is one production.
+ *
  * `pastDueSince` is carried forward rather than recomputed: the decline is an
  * `invoice.payment_failed` and the subscription events around it do not say
  * when it happened. A subscription that is `past_due` and has no anchor yet
@@ -245,9 +255,16 @@ async function writeFrom(
   event: VerifiedStripeEvent,
   now: Date,
 ): Promise<WebhookOutcome> {
+  if (event.mode === "test" && subscription.metadata?.[ORIGIN_METADATA_KEY] !== deploymentOrigin()) {
+    return { applied: false, note: "unattributable" };
+  }
   const existing = await subscriptionByStripeId(subscription.id);
   const who = attribute(subscription, existing);
   if (who === null) return { applied: false, note: "unattributable" };
+  // `subscriptions.user_id` has no foreign key, so an id from another
+  // database would otherwise land as an orphan row.
+  const [account] = await db.select({ id: users.id }).from(users).where(eq(users.id, who.userId)).limit(1);
+  if (account === undefined) return { applied: false, note: "unattributable" };
 
   const status = statusOf(subscription);
   if (status === null) return { applied: false, note: "ignored" };

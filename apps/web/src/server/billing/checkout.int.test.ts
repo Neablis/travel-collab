@@ -13,19 +13,29 @@ import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { stripeCustomers, users } from "@/server/db/schema";
 import { upsertUser } from "@/server/users";
+import { deploymentOrigin } from "@/lib/deploymentOrigin";
+import { fakeStripeKey, otherFakeStripeKey } from "@/test-support/stripeSignature";
+import type { StripeMode } from "./config";
 
-const createCustomer = vi.fn<(input: { userId: string }) => Promise<{ id: string }>>();
+const createCustomer = vi.fn<(input: { userId: string; mode?: StripeMode }) => Promise<{ id: string }>>();
+const stripeRequest = vi.fn<(request: { mode: StripeMode; path: string; body?: Record<string, unknown> }) => Promise<unknown>>();
 vi.mock("./stripeApi", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./stripeApi")>()),
-  createCustomer: (input: { userId: string; email: string | null }) => createCustomer(input),
+  createCustomer: (input: { userId: string; email: string | null; mode: StripeMode }) => createCustomer(input),
+  stripeRequest: (request: { mode: StripeMode; path: string; body?: Record<string, unknown> }) =>
+    stripeRequest(request),
+}));
+vi.mock("./prices", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./prices")>()),
+  stripePriceFor: async (_version: unknown, mode: StripeMode) => `price_${mode}`,
 }));
 
-const { stripeCustomerFor } = await import("./checkout");
+const { portalUrlFor, startCheckout, stripeCustomerFor } = await import("./checkout");
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 
@@ -40,16 +50,18 @@ const customersOf = (userId: string) =>
 
 beforeEach(() => {
   createCustomer.mockReset();
-  createCustomer.mockImplementation(async ({ userId }) => ({ id: `cus_${userId}` }));
+  createCustomer.mockImplementation(async ({ userId, mode }) => ({ id: `cus_${mode ?? "live"}_${userId}` }));
+  stripeRequest.mockReset();
+  stripeRequest.mockResolvedValue({ id: "cs_1", url: "https://checkout.stripe.test/cs_1" });
 });
 
 describe("the Stripe customer for an account", () => {
   it("creates one live customer the first time and reuses it after", async () => {
     const userId = await makeAccount();
-    expect(await stripeCustomerFor(userId, true)).toBe(`cus_${userId}`);
-    expect(await stripeCustomerFor(userId, true)).toBe(`cus_${userId}`);
+    expect(await stripeCustomerFor(userId, true)).toBe(`cus_live_${userId}`);
+    expect(await stripeCustomerFor(userId, true)).toBe(`cus_live_${userId}`);
     expect(createCustomer).toHaveBeenCalledTimes(1);
-    expect(await customersOf(userId)).toMatchObject([{ livemode: true, customerId: `cus_${userId}` }]);
+    expect(await customersOf(userId)).toMatchObject([{ livemode: true, customerId: `cus_live_${userId}` }]);
   });
 
   it("writes one row when two first checkouts race", async () => {
@@ -60,10 +72,10 @@ describe("the Stripe customer for an account", () => {
     createCustomer.mockImplementation(async ({ userId: id }) => {
       if (createCustomer.mock.calls.length === 2) release();
       await bothRead;
-      return { id: `cus_${id}` };
+      return { id: `cus_live_${id}` };
     });
     const both = await Promise.all([stripeCustomerFor(userId, true), stripeCustomerFor(userId, true)]);
-    expect(both).toEqual([`cus_${userId}`, `cus_${userId}`]);
+    expect(both).toEqual([`cus_live_${userId}`, `cus_live_${userId}`]);
     expect(await customersOf(userId)).toHaveLength(1);
   });
 
@@ -73,7 +85,7 @@ describe("the Stripe customer for an account", () => {
     const userId = await makeAccount();
     await db.insert(stripeCustomers).values({ userId, livemode: false, customerId: "cus_test_only" });
 
-    expect(await stripeCustomerFor(userId, true)).toBe(`cus_${userId}`);
+    expect(await stripeCustomerFor(userId, true)).toBe(`cus_live_${userId}`);
     expect(createCustomer).toHaveBeenCalledTimes(1);
     expect(await stripeCustomerFor(userId, false)).toBe("cus_test_only");
     const [test] = await db
@@ -107,5 +119,48 @@ describe("a customer id from before stripe_customers", () => {
 
     expect(await stripeCustomerFor(userId, true)).toBe("cus_from_before");
     expect(createCustomer).not.toHaveBeenCalled();
+  });
+});
+
+// **The mode an unswitched account buys and manages in**: the primary pair's.
+// Live where a live key is primary, whatever test pair sits beside it, and
+// test where the only key is a test key (PR 476 review, finding 4).
+describe("the mode checkout and the portal use", () => {
+  const LIVE = { STRIPE_SECRET_KEY: fakeStripeKey("sk_live"), STRIPE_WEBHOOK_SECRET: fakeStripeKey("whsec") };
+  const TEST_PAIR = {
+    STRIPE_TEST_SECRET_KEY: fakeStripeKey("sk_test"),
+    STRIPE_TEST_WEBHOOK_SECRET: otherFakeStripeKey("whsec"),
+  };
+
+  it.each([
+    ["live beside a test pair", { ...LIVE, ...TEST_PAIR }, "live"],
+    // A broken test pair must not cost the live sale (finding 1).
+    ["live beside half a test pair", { ...LIVE, STRIPE_TEST_SECRET_KEY: fakeStripeKey("sk_test") }, "live"],
+    ["a lone test pair", { STRIPE_SECRET_KEY: fakeStripeKey("sk_test"), STRIPE_WEBHOOK_SECRET: fakeStripeKey("whsec") }, "test"],
+  ] as const)("is %s's primary mode", async (_what, env, mode) => {
+    for (const [name, value] of Object.entries(env)) vi.stubEnv(name, value);
+    onTestFinished(() => {
+      vi.unstubAllEnvs();
+    });
+    const userId = await makeAccount();
+
+    await startCheckout({ userId, planId: "plus", returnOrigin: "http://localhost" });
+    const [checkout] = stripeRequest.mock.calls.at(-1)!;
+    expect(checkout).toMatchObject({
+      mode,
+      path: "/checkout/sessions",
+      body: {
+        customer: `cus_${mode}_${userId}`,
+        line_items: [{ price: `price_${mode}` }],
+        subscription_data: { metadata: { deploymentOrigin: deploymentOrigin() } },
+        metadata: { deploymentOrigin: deploymentOrigin() },
+      },
+    });
+    expect(await customersOf(userId)).toMatchObject([{ livemode: mode === "live" }]);
+
+    stripeRequest.mockResolvedValue({ url: "https://billing.stripe.test/p" });
+    await portalUrlFor({ userId, returnOrigin: "http://localhost" });
+    const [portal] = stripeRequest.mock.calls.at(-1)!;
+    expect(portal).toMatchObject({ mode, path: "/billing_portal/sessions", body: { customer: `cus_${mode}_${userId}` } });
   });
 });

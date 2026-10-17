@@ -188,6 +188,18 @@ describe("the Stripe mode of a delivery", () => {
     expect(verified.mode).toBe("test");
   });
 
+  // Only the signature names the mode; a `mode` key in the signed body is data.
+  it("ignores a mode key in the body", () => {
+    const rawBody = JSON.stringify({ ...TEST_EVENT, mode: "live" });
+    const verified = constructStripeEvent({
+      rawBody,
+      header: signed(rawBody, NOW, TEST_SECRET),
+      secrets: BOTH,
+      now: NOW,
+    });
+    expect(verified.mode).toBe("test");
+  });
+
   it("is live when the live secret verified it", () => {
     expect(constructStripeEvent({ rawBody: BODY, header: signed(), secrets: BOTH, now: NOW }).mode).toBe("live");
   });

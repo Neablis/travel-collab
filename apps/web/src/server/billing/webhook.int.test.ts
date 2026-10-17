@@ -19,6 +19,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { billingEvents, subscriptions, users } from "@/server/db/schema";
 import { upsertUser } from "@/server/users";
+import { deploymentOrigin } from "@/lib/deploymentOrigin";
 import { fakeStripeKey, otherFakeStripeKey, signStripePayload } from "@/test-support/stripeSignature";
 import type { StripeMode } from "./config";
 import type { StripeSubscription } from "./stripeApi";
@@ -54,6 +55,13 @@ function subscription(over: Partial<StripeSubscription> & { id: string; userId: 
     metadata: { userId, planVersionRef: "plus@v1" },
     ...rest,
   };
+}
+
+// A subscription this deployment's own checkout created, which is the only
+// kind a test-mode delivery beside a live pair may apply.
+function fromHere(over: Partial<StripeSubscription> & { id: string; userId: string }): StripeSubscription {
+  const sub = subscription(over);
+  return { ...sub, metadata: { ...sub.metadata, deploymentOrigin: deploymentOrigin() } };
 }
 
 // Live, as verified by the live secret: what `constructStripeEvent` hands on
@@ -142,6 +150,15 @@ describe("a purchase", () => {
     expect(outcome).toEqual({ applied: false, note: "unattributable" });
     expect(await db.select().from(subscriptions).where(eq(subscriptions.stripeSubscriptionId, subId))).toEqual([]);
   });
+
+  // `subscriptions.user_id` has no foreign key, so this is the only thing
+  // between a stray event and an orphan row.
+  it("writes nothing for a subscription naming an account that does not exist", async () => {
+    const subId = `sub_${randomUUID()}`;
+    const evt = event("customer.subscription.created", subscription({ id: subId, userId: `dev-${randomUUID()}` }), T0);
+    expect(await applyStripeEvent(evt, T0)).toEqual({ applied: false, note: "unattributable" });
+    expect(await db.select().from(subscriptions).where(eq(subscriptions.stripeSubscriptionId, subId))).toEqual([]);
+  });
 });
 
 // **Every row says its Stripe mode** (ADR-076 §1, §3): the mode of the secret
@@ -181,6 +198,40 @@ describe("the Stripe mode", () => {
     );
     const [fell] = await db.select().from(users).where(eq(users.id, userId));
     expect(fell).toMatchObject({ planId: "free", planLivemode: true });
+  });
+});
+
+// A broken optional test pair must not cost a single live delivery (PR 476
+// review, finding 1).
+describe("a live delivery while the test pair is half set", () => {
+  beforeEach(() => {
+    vi.stubEnv("STRIPE_SECRET_KEY", fakeStripeKey("sk_live"));
+    vi.stubEnv("STRIPE_WEBHOOK_SECRET", fakeStripeKey("whsec"));
+    vi.stubEnv("STRIPE_TEST_SECRET_KEY", fakeStripeKey("sk_test"));
+    vi.stubEnv("STRIPE_TEST_WEBHOOK_SECRET", "");
+    return () => vi.unstubAllEnvs();
+  });
+
+  it("is applied", async () => {
+    const userId = await makeAccount();
+    const subId = `sub_${randomUUID()}`;
+    const rawBody = JSON.stringify({
+      id: `evt_${randomUUID()}`,
+      type: "customer.subscription.created",
+      created: Math.floor(Date.now() / 1000),
+      livemode: true,
+      data: { object: subscription({ id: subId, userId }) },
+    });
+    const response = await POST(
+      new Request("http://localhost/api/stripe/webhook", {
+        method: "POST",
+        headers: { "stripe-signature": signStripePayload(rawBody, fakeStripeKey("whsec"), new Date()) },
+        body: rawBody,
+      }),
+    );
+    expect(response.status).toBe(200);
+    const [account] = await db.select().from(users).where(eq(users.id, userId));
+    expect(account!.planId).toBe("plus");
   });
 });
 
@@ -241,7 +292,7 @@ describe("a delivery signed with the test secret", () => {
   it("buys a test-mode plan that confers, recorded as test throughout", async () => {
     const userId = await makeAccount();
     const subId = `sub_${randomUUID()}`;
-    retrieveSubscription.mockResolvedValue(subscription({ id: subId, userId }));
+    retrieveSubscription.mockResolvedValue(fromHere({ id: subId, userId }));
     const evt = signedEvent(
       "checkout.session.completed",
       { id: "cs_test", subscription: subId, client_reference_id: `${userId}|plus@v1` },
@@ -259,6 +310,55 @@ describe("a delivery signed with the test secret", () => {
     const [account] = await db.select().from(users).where(eq(users.id, userId));
     expect(account).toMatchObject({ planId: "plus", planLivemode: false });
     expect((await entitlementsFor(userId)).conferred.planId).toBe("plus");
+  });
+
+  // **Production's test endpoint hears the whole test account** (PR 476
+  // review, finding 2): every local and preview checkout in it is delivered
+  // here too, naming accounts this database does not have, or worse, does.
+  it.each([
+    ["no origin", {}],
+    ["another deployment's origin", { deploymentOrigin: "https://some-preview.vercel.app" }],
+  ])("records but applies nothing for a test checkout with %s", async (_what, origin) => {
+    const userId = await makeAccount();
+    const subId = `sub_${randomUUID()}`;
+    const sub = subscription({ id: subId, userId });
+    retrieveSubscription.mockResolvedValue({ ...sub, metadata: { ...sub.metadata, ...origin } });
+    const evt = signedEvent(
+      "checkout.session.completed",
+      { id: "cs_test", subscription: subId, client_reference_id: `${userId}|plus@v1` },
+      false,
+    );
+
+    const response = await deliver(evt, TEST_SECRET);
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ ok: true, applied: false, note: "unattributable" });
+    const [claim] = await db.select().from(billingEvents).where(eq(billingEvents.id, evt.id));
+    expect(claim!.appliedAt).not.toBeNull();
+    expect(
+      await db.select().from(subscriptions).where(eq(subscriptions.stripeSubscriptionId, subId)),
+    ).toEqual([]);
+    const [account] = await db.select().from(users).where(eq(users.id, userId));
+    expect(account!.planId).toBe("free");
+  });
+
+  it("writes nothing for a test checkout naming an account this database does not have", async () => {
+    const userId = `dev-${randomUUID()}`;
+    const subId = `sub_${randomUUID()}`;
+    retrieveSubscription.mockResolvedValue(fromHere({ id: subId, userId }));
+    const evt = signedEvent(
+      "checkout.session.completed",
+      { id: "cs_test", subscription: subId, client_reference_id: `${userId}|plus@v1` },
+      false,
+    );
+
+    const response = await deliver(evt, TEST_SECRET);
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ ok: true, applied: false, note: "unattributable" });
+    expect(
+      await db.select().from(subscriptions).where(eq(subscriptions.stripeSubscriptionId, subId)),
+    ).toEqual([]);
   });
 
   it("is a bad signature when neither secret signed it", async () => {
