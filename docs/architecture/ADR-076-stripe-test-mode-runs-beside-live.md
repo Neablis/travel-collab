@@ -68,8 +68,13 @@ Three facts make "just add the test keys" unsafe:
    deployment has up to two key pairs:
    - `STRIPE_SECRET_KEY` + `STRIPE_WEBHOOK_SECRET`. The pair's mode is read from the key's prefix,
      as today.
-   - `STRIPE_TEST_SECRET_KEY` + `STRIPE_TEST_WEBHOOK_SECRET`, optional, and refused at first use
-     unless the key begins `sk_test_`. The config also refuses two pairs of the same mode.
+   - `STRIPE_TEST_SECRET_KEY` + `STRIPE_TEST_WEBHOOK_SECRET`, optional and validated on its own.
+     A test pair that is half set, holds a live key, repeats the primary webhook secret, or sits
+     beside a test primary is treated as absent: test mode is off, the reason is logged and sent
+     to Sentry once, and asking for the test key throws it. **The primary pair alone decides
+     whether billing is configured**, so nothing about the test pair can stop a live checkout or
+     a live delivery (part 2's review, 2026-10-17). New checkouts for an unswitched account use
+     the primary pair, which is live on production and test on a preview or locally.
 
    The route verifies the raw body against each configured secret. Verification still happens
    before any parse. **The mode is the mode of the pair whose secret verified.** The verified
@@ -92,6 +97,16 @@ Three facts make "just add the test keys" unsafe:
 7. **Prices are looked up per mode.** A lookup key names the same Price in both modes, but the
    Price ids differ between Stripe's two accounts, so `stripePriceFor` and `findPriceByLookupKey`
    take the mode. The console's price check (`priceConsistencyReport`) checks live only.
+
+8. **A test event applies only where its checkout began.** Stripe delivers every test-mode event
+   to every endpoint in that test account, so a preview's or a laptop's test checkout also reaches
+   production's test endpoint. Checkout therefore stamps `deploymentOrigin` (`deploymentOrigin()`)
+   on the session, the subscription and the customer. The webhook records a test-mode event whose
+   subscription carries another origin, or none, as `unattributable`: claimed, applied to nothing,
+   answered 200. Any event naming an account this database does not hold is handled the same way.
+   Production's test pair comes from a **dedicated Stripe sandbox**, not the test mode shared with
+   local and preview deployments; the origin check is the second line of defence, not the first.
+   (Part 2's review, 2026-10-17; decided unattended as the safer fix, reversible by Mitchell.)
 
 ## What changes in the billing guideline
 
