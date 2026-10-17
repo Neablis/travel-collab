@@ -36,14 +36,16 @@ GitHub linger and look like live branches.
 
 ```
 gh api 'repos/Neablis/travel-collab/pulls?state=open' \
-  --jq '.[] | "PR \(.number) draft=\(.draft) \(.created_at[0:10]) \(.head.ref) — \(.title)"'
+  --jq '.[] | "PR \(.number) draft=\(.draft) opened=\(.created_at[0:10]) updated=\(.updated_at[0:10]) \(.head.ref) — \(.title)"'
 ```
 
-(REST: `gh pr list` is GraphQL and fails in a cloud session, `github-rest` skill.)
+(REST: `gh pr list` is GraphQL and fails in a cloud session, `github-rest` skill. The list
+payload carries no `mergeable`; read it per PR.)
 
 Flag, with the reason:
 
-- **Conflicting** — `mergeable: CONFLICTING`. Dead until rebased.
+- **Conflicting** — `gh api repos/Neablis/travel-collab/pulls/<n> --jq .mergeable` prints
+  `false` (`null` means GitHub is still computing it: read again). Dead until rebased.
 - **Stale** — open more than ~7 days with no recent update.
 - **Superseded** — its head branch is already an ancestor of `main`, meaning
   the work landed some other way:

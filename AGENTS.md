@@ -175,8 +175,9 @@ What each tool does, why it exists and what it measured:
   `build-a-milestone` with its sub-skills `plan-a-milestone`, `build-a-part`,
   `review-a-part` and `close-a-milestone`. The first four are symlinks into
   `.agents/skills/`; edit them there. **`github-rest` is how GitHub is reached
-  from a cloud session**: the proxy refuses GraphQL, so `gh pr …` and
-  `gh run view` fail there and every recipe is `gh api repos/…`.
+  from a cloud session**: the proxy refuses GraphQL, so `gh pr …` fails there
+  (`gh run list`, `gh run view` and `gh pr diff` are REST and work) and every
+  other recipe is `gh api repos/…`; logs and artifacts stay unreachable.
 - **Walls.** `pnpm lint` runs `pnpm arch` (dependency-cruiser; blind to a
   folder↔subfolder cycle, `KI-2026-09-23-b`) and `pnpm surface --check`
   (byte budgets on this file and the other first reads — past 85% a file gets a

@@ -116,8 +116,11 @@ In the main session, one KI at a time:
 1. Run the fix's **scoped checks** (`minimal-check-subset`); the full suite is
    CI's and `check-test-lane.mjs` denies `pnpm check` locally.
 2. Open the PR **ready for review** using `.github/PULL_REQUEST_TEMPLATE.md`
-   (`github-rest`, *Create a PR*). Fill in **Verification actually performed**
-   honestly, including what was *not* run and why.
+   (`github-rest`, *Create a PR*). Ready, not draft, because step 1 is the point
+   at which you believe it is green, which is `AGENTS.md`'s own condition for
+   marking a PR ready; the draft-first rule is for work still in flight. Fill
+   in **Verification actually performed** honestly, including what was *not*
+   run and why.
 3. Read the checks of your own HEAD, not the PR's newest run, which right after
    a push can still be the previous commit's (`github-rest`, *Checks on a head*):
 

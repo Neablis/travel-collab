@@ -25,13 +25,14 @@ get a real run rather than hunting for a broken workflow.
 
 ## 1. Name the red job, over REST
 
-`gh pr checks` and `gh run view` are GraphQL and fail from a cloud session (`github-rest`
-skill). With `R=repos/Neablis/travel-collab` and the sha from `git rev-parse HEAD`:
+`gh pr checks` is GraphQL and fails from a cloud session (`github-rest` skill); `gh run list`
+and `gh run view` are REST and work. With `R=repos/Neablis/travel-collab` and the sha from
+`git rev-parse HEAD`:
 
 ```
 gh api $R/commits/<sha>/check-runs --jq '.check_runs[] | "\(.id) \(.name): \(.status) \(.conclusion)"'
-gh api "$R/actions/runs?head_sha=<sha>" --jq '.workflow_runs[] | "\(.id) \(.name) \(.conclusion)"'
-gh api $R/actions/runs/<run-id>/jobs --jq '.jobs[] | "\(.id) \(.name) \(.conclusion)"'
+gh run list --commit <sha> --limit 3
+gh run view <run-id>        # per-job status and job ids; same as gh api $R/actions/runs/<run-id>/jobs
 ```
 
 Confirm the sha is the PR's current head before reading on. Then rule out the two checks
@@ -66,10 +67,11 @@ which dumps every job.
 - **e2e (1/2), e2e (2/2)**: two Playwright shards, split by spec file, each
   with its own build and database. Check both: one failing says nothing about
   the other. Playwright runs with the `line` reporter (compact). Grep
-  for `✘` (or `failed`) to find failing test titles. If you need a trace or
-  screenshot to debug further, download that shard's artifact (REST) instead of
-  reading raw bytes into context: `gh run download <run-id> -n
-  playwright-report-1` (or `-2`), then open it locally. To reproduce, run the
+  for `✘` (or `failed`) to find failing test titles. On a laptop, a trace or
+  screenshot is in that shard's artifact: `gh run download <run-id> -n
+  playwright-report-1` (or `-2`), opened locally rather than read raw into
+  context. From a cloud session the download is refused like the log
+  (KI-2026-10-13-f), so reproduce instead. To reproduce, run the
   failing spec, not the shard: `pnpm --filter web test:e2e:ci-like
   e2e/<spec>.ts` (no `--` before the path). A whole shard is a full e2e run,
   which is CI's and which `check-test-lane.mjs` denies locally.

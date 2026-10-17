@@ -388,12 +388,13 @@ event on the PRs it watched. A check-in batches every change into one wake.
   (GraphQL is refused here) and prints only what changed on every open PR since
   the last check-in, keeping its snapshot in the git common dir. Act on the whole
   batch, then arm the next check-in. Stop when nothing is open.
-- **`gh pr …`, `gh run view` and anything else GraphQL-backed fail here** with
-  "GitHub GraphQL is not available from Claude Code sessions", for every token,
-  a personal access token included: the proxy refuses the endpoint. REST works,
-  and the `github-rest` skill holds every recipe this repo needs (checks on a
-  head, create or ready a PR, review threads, re-runs). Job logs stay out of
-  reach (KI-2026-10-13-f); `ci-triage` reads annotations and reproduces instead.
+- **`gh pr …` and anything else GraphQL-backed fail here** with "GitHub GraphQL
+  is not available from Claude Code sessions", for every token, a personal
+  access token included: the proxy refuses the endpoint. REST works (`gh api`,
+  `gh run list`, `gh run view`, `gh pr diff`), and the `github-rest` skill holds
+  every recipe this repo needs (checks on a head, create or ready a PR, review
+  threads, re-runs). Job logs and artifacts stay out of reach
+  (KI-2026-10-13-f); `ci-triage` reads annotations and reproduces instead.
 - **Do not poll between check-ins.** Repeated check reads were measured as a
   reliable time sink; one read per check-in.
 

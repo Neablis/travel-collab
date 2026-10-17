@@ -74,7 +74,9 @@ against `.claude/launch.json` where the browser tools exist, else
 `WEB_PORT=<n> pnpm --filter web dev` and `walk:preview` against it.
 
 Walk the specific flow the diff changed — not a generic smoke test. Click
-through it as a user would, then:
+through it as a user would, then (with `walk:preview`, the console errors it
+prints per path stand in for `read_console_messages`; the width checks and the
+screenshot need the browser tools, so say "not run" for them without):
 
 - `read_console_messages` for runtime errors the UI swallowed
 - `resize_window` to 1100px if you touched layout, overlays, or anything
