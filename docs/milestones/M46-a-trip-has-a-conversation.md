@@ -1,7 +1,7 @@
 # M46 — A trip has a conversation, with the people taking it
 
-**Status:** **Proposed 2026-10-06, placed after M45. Current from 2026-10-13, when M45's gate
-closed. Scoped 2026-10-13**: every decision below was answered by Mitchell that day, after a code
+**Status:** **Closed 2026-10-17, gate 10 of 10** (part 0, PR 472). **Proposed 2026-10-06, placed
+after M45. Current from 2026-10-13, when M45's gate closed. Scoped 2026-10-13**: every decision below was answered by Mitchell that day, after a code
 survey of today's UI (M41's ⌘K palette and M45's assistant rail postdate the proposal). Minted
 from `docs/candidates.md` (see `docs/milestones/README.md`, *2026-10-06 — proposed: M37 to M47*).
 It is the largest new surface in this set, and the first feature that would generate
@@ -199,23 +199,19 @@ at `97caeb0`. Checked 2026-10-17.
       run 38508820543, and still on PR 470's head `b01e2f3` on 2026-10-17,
       [run 38991735043](https://github.com/Neablis/travel-collab/actions/runs/38991735043). Locally,
       `test:e2e:ci-like e2e/m46-trip-chat.spec.ts` passed 4 of 4 in PRs 443 to 447's bodies.)*
-- [ ] **[walk]** Two people on the PR preview, one on a phone.
-      *(NEEDS MITCHELL. Not ticked: nothing records this walk. Mitchell walked the parts' previews
-      one at a time, and each note became a fix, PRs 441 to 447, quoted in their bodies. No PR
-      body, PR comment or plan records two people at once with one on a phone. The last build
-      session ended on 2026-10-14 asking for it: "PR 432 needs your walk and answer". To walk it,
-      on a production or preview deploy of `main`: open a shared trip as two people, one on a
-      phone. Post from each and watch the other's Ask button gain its unread dot within a couple
-      of seconds, without a reload. On the phone, the tab bar's Ask opens the sheet; switch to
-      Chat. Link a stop with *@*, then tap the chip. Edit a message, delete one, and report one.
-      Then check that the phone's face gains the online dot in the other's header stack and in
-      Trip settings → People.)*
+- [x] **[walk]** Two people on the PR preview, one on a phone.
+      *(Mitchell's walk, confirmed by Mitchell 2026-10-17: "close M46, I did the walk." The steps
+      the box asked for: on a production or preview deploy of `main`, open a shared trip as two
+      people, one on a phone; post from each and watch the other's Ask button gain its unread dot
+      without a reload; on the phone, open the sheet from the tab bar's Ask and switch to Chat;
+      link a stop with *@* and tap the chip; edit, delete and report a message; check the phone's
+      face gains the online dot in the header stack and in Trip settings → People.)*
 - [x] A retro is appended at gate close. *(Below, 2026-10-17.)*
 
-## Retro — written 2026-10-17 (9 of 10 boxes ticked)
+## Retro — written 2026-10-17 (10 of 10 boxes ticked)
 
-*The box left open is the two-person walk, one on a phone, which is Mitchell's. `pnpm milestone
-close M46` refuses while it is open, so the milestone is not closed and M46 stays current.*
+*Written with the two-person walk still open. Mitchell confirmed it on 2026-10-17 ("close M46, I
+did the walk"), the box was ticked, and `pnpm milestone close M46` ran the same day.*
 
 **What shipped.** Six parts on `main`, all merged on 2026-10-13: part 1, the store, routes and
 access rules (PR 433, `a1a5dfd`); part 4, unread on Home (PR 435); part 2, the Chat tab (PR 436);
@@ -272,7 +268,7 @@ of which 15,142 are the five drizzle snapshots (`drizzle/meta/0048_snapshot.json
 
 ### Leftovers
 
-- **The [walk] box:** Mitchell's call. The steps are in the box.
+- **The [walk] box:** ticked 2026-10-17 on Mitchell's confirmation.
 - **KI-2026-10-14-a** (a send that never answers holds every later line at *Sending…*) and
   **KI-2026-10-14-b** (a send queued behind a failed one comes back joined to it): open.
 - **KI-2026-10-05-h**, a removed member's open page: open. Only its chat says access is gone.

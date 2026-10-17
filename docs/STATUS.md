@@ -21,18 +21,19 @@ general setup.
 
 ## Where the work is right now
 
-**M46 — A trip has a conversation, with the people taking it — is still the current milestone**
-(`docs/milestones/M46-a-trip-has-a-conversation.md`). All of its code is on `main`: parts 1 to 6
-and the walk fixes (PRs 433, 435, 436, 438-447), merged 2026-10-13 and 14, migrations `0048` to
-`0052`. **The gate is 9 of 10, with evidence for each box, and the retro is appended
-(2026-10-17).** The one open box is Mitchell's: the **[walk]** with two people on a preview, one on
-a phone. Its steps are written in the box. `pnpm milestone close M46` refuses until it is ticked.
+**M47 — The operator console shows tiers over time, and paid flows can be tested in production —
+is the current milestone** (`docs/milestones/M47-the-business-over-time.md`), since M46's gate
+closed on 2026-10-17. Its four parts are on `main`: PRs 474, 476, 477 and 475, merged 2026-10-17.
+Its part 0 is PR 473, where its gate is being closed.
 
-**Next action:** Mitchell walks M46. Once he ticks the box, run
-`pnpm milestone close M46 --no-spend "<reason>"`: the build transcripts are gone, and the retro's
-spend block comes from `list_sessions`. Then run it again with `--confirm`, and M47 becomes
-current (`docs/milestones/M47-the-business-over-time.md`, planning in progress). Whether
-production holds every migration is `pnpm state`'s `PROD MIGRATIONS` line, not a number here.
+**Next action:** close M47's gate on PR 473 with `close-a-milestone`. Whether production holds
+every migration is `pnpm state`'s `PROD MIGRATIONS` line, not a number here.
+
+**M46 closed 2026-10-17, gate 10 of 10** (part 0 PR 472, after PR 432 merged early). The last box,
+the two-person walk, is ticked on Mitchell's confirmation that day. Evidence, retro and the
+`list_sessions` spend block (closed with `--no-spend`: the transcripts were gone) are in
+`docs/milestones/M46-a-trip-has-a-conversation.md`. Parts 1 to 6 and the walk fixes are PRs 433,
+435, 436 and 438-447, migrations `0048` to `0052`.
 
 **Built off the milestone order, by Mitchell's approval (2026-10-17).** Three things were moved
 up ahead of the row order, and each was his call. This is his waiver, recorded here once, of
@@ -52,7 +53,7 @@ Also merged beside it: `docs/guidelines/building-with-judgment.md` (PR 468).
 **M45 closed 2026-10-13, gate 12 of 12** (part 0 PR 420); evidence and retro in
 `docs/milestones/M45-the-assistant-beyond-one-trip.md`. Accepted gap: KI-2026-10-13-a.
 
-Order: `… M42 ✓ → M45 ✓ → M46 → M47 → M48 → M49 → M43 → M44`; the reorder is in
+Order: `… M42 ✓ → M45 ✓ → M46 ✓ → M47 → M48 → M49 → M43 → M44`; the reorder is in
 `docs/milestones/README.md`, *2026-10-12 — reordered and minted*. Earlier closed milestones'
 narrative is in `docs/retros/2026-10-16-status-archive.md` and each milestone's own file.
 
