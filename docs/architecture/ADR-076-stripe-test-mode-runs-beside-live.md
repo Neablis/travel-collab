@@ -64,6 +64,11 @@ Three facts make "just add the test keys" unsafe:
    reads, so the console needs no test-mode rendering of its own. Mitchell confirmed
    live-only everywhere on 2026-10-17.
 
+   The referral reward is a money read too: only a plan held from a live checkout
+   (`plan_livemode = true`) earns a referral grant or reports `earnsReward`, so a referral cannot be
+   walked end to end through a test checkout, and a preview walk seeds `plan_id` directly (part 3's
+   review, 2026-10-17).
+
 5. **The webhook tries both secrets, and the secret that verifies decides the mode.** The
    deployment has up to two key pairs:
    - `STRIPE_SECRET_KEY` + `STRIPE_WEBHOOK_SECRET`. The pair's mode is read from the key's prefix,
@@ -93,6 +98,9 @@ Three facts make "just add the test keys" unsafe:
    uses that subscription's own `livemode`, because Stripe only knows it in its own mode. A test
    checkout then confers the plan through the ordinary webhook path, with `plan_livemode = false`.
    With the switch on and no test pair configured, the PUT answers 409 `test-mode-unavailable`.
+   Turning the switch off changes only new checkouts: a test subscription the account already
+   holds keeps its mode until it ends. The portal opens in the held subscription's own mode,
+   whatever the switch says; the switch decides only when nothing is held.
 
 7. **Prices are looked up per mode.** A lookup key names the same Price in both modes, but the
    Price ids differ between Stripe's two accounts, so `stripePriceFor` and `findPriceByLookupKey`

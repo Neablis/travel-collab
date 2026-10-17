@@ -209,6 +209,10 @@ dashboard pointing at production's `/api/stripe/webhook`; `STRIPE_TEST_SECRET_KE
 `STRIPE_TEST_WEBHOOK_SECRET` in the Production scope, then a redeploy; and parts 1–3's migrations
 dispatched (ADR-004).
 
+Added in review (2026-10-17): `server/entitlements/grants.ts` and `referrals.ts`, and
+`app/api/account/referrals/route.ts`: a plan held from a test checkout earns no referral reward and
+reads `earnsReward: false` (`paidPlanHeldBy`), tested in `referrals.int.test.ts`.
+
 ## Part 4 — the tier rollup (~14 files)
 
 **Theme.** Decision 1: the weekly table, the cron that writes it, and the Users tab's per-tier
