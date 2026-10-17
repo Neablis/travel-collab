@@ -26,12 +26,23 @@ The code refuses to help you get this wrong in the ways it can:
 - `modeOfSecretKey` reads test-vs-live **out of the key itself**, so there is no
   `STRIPE_MODE` variable that can disagree with the key beside it. That variable
   not existing is the design.
+- **The second pair is not a mode switch** (ADR-076). A deployment may also hold
+  `STRIPE_TEST_SECRET_KEY` and `STRIPE_TEST_WEBHOOK_SECRET`, and the mode is
+  still read from a key: the webhook tries every configured signing secret, and
+  the one that verifies is the delivery's mode. A delivery whose own `livemode`
+  disagrees with that secret is refused `400 mode-mismatch` and writes nothing.
 - A publishable key (`pk_`), a restricted key (`rk_`) or a webhook secret in
   `STRIPE_SECRET_KEY` is refused at the first call with a message naming the
   mistake, rather than surfacing as a failed checkout later.
 - A secret key in `STRIPE_WEBHOOK_SECRET` is refused too. Swapped round, it would
   verify no signature and reject every delivery — which looks exactly like Stripe
   being down.
+- **`sk_test_` in `STRIPE_TEST_SECRET_KEY`, and never `sk_live_` there.** The
+  config refuses a live key in it, half a test pair, the live endpoint's
+  `whsec_` again, and a test pair beside a `STRIPE_SECRET_KEY` that is already a
+  test key (two pairs of one mode). **A refused test pair turns off test mode
+  only**: it reads as absent, with one warning in the logs and Sentry, and live
+  checkout and live deliveries carry on.
 
 What the code **cannot** check is that the live key is in the right *environment*.
 Only you can, and the check is one command:
@@ -286,9 +297,11 @@ broken product and is really a blocked request.
 `stripe listen` forwards wherever you point it, and nothing says that has to be
 the host you are clicking on. Sign in to the preview, start checkout there, pay
 on Stripe's real hosted page — and let the event land on your machine, where no
-bypass is involved at all. What you give up is that the grant lands in your local
-database rather than the preview's. For *"does Checkout render, redirect, and
-come back"* that is usually the whole question.
+bypass is involved at all. What you give up is the grant: a test-mode event
+applies only on the deployment its checkout began on (the `deploymentOrigin`
+metadata `startCheckout` writes), so your machine records it as
+`unattributable` and the preview never hears it. For *"does Checkout render,
+redirect, and come back"* that is usually the whole question.
 
 **2. Forward to the preview with the bypass as a HEADER — the best of both.**
 `stripe listen --forward-to` takes any URL, and `--headers` (short `-H`, a
@@ -391,6 +404,48 @@ the three-day grace window are all faster and more controllable through
 `stripe listen` and `stripe trigger`, and none of them look any different on a
 deployment. A preview is for proving the hosted pieces, not for re-walking the
 suite.
+
+---
+
+## Testing on production
+
+Production holds the live pair, and since ADR-076 it can hold the test pair
+beside it, so a paid flow can be walked there with `4242 4242 4242 4242` and no
+real money. What it buys is checked by the code rather than by you: a test-mode
+event is recorded `livemode = false`, and every money read (MRR, the underwater
+report, the tier panel) counts live only.
+
+Once:
+
+1. **Make a dedicated Stripe sandbox for production, and register its webhook
+   endpoint.** Not the account's shared test mode that local and every preview
+   use: Stripe delivers each test-mode event to every endpoint in that test
+   account, so production would hear every developer's and every preview's
+   checkout, naming accounts it does not have or, by a coincidence of id, does.
+   In the Stripe dashboard, create a sandbox → Developers → Webhooks → add an
+   endpoint at production's `/api/stripe/webhook`, for the same events as the
+   live one. Its signing secret is the `whsec_` for step 2. Production is a
+   custom domain, so no bypass header is involved.
+2. **Set the pair in Vercel's Production scope**: `STRIPE_TEST_SECRET_KEY` (the
+   sandbox's own `sk_test_`) and `STRIPE_TEST_WEBHOOK_SECRET` (step 1's
+   `whsec_`).
+3. **Redeploy.** Vercel injects variables at build time.
+
+Then, each time: switch the account on in the console (its account page's
+**Stripe test mode**, which M47 part 3 adds; until then checkout sells in the
+primary pair's mode, live on production), sign in as it, and buy with `4242…`. The account holds
+the plan with `plan_livemode = false`, and the console's money panels do not
+move. That is the M47 walk.
+
+**A red `mode-mismatch` delivery in Stripe's dashboard means the two signing
+secrets are crossed**: the test endpoint's `whsec_` is in `STRIPE_WEBHOOK_SECRET`,
+or the live one's in `STRIPE_TEST_WEBHOOK_SECRET`. Nothing was written for it.
+
+**A test-mode delivery answered `unattributable`** was recorded and applied to
+nothing: its subscription carries no `deploymentOrigin`, or another
+deployment's, or names an account this database does not have. That is the
+code holding the line step 1 draws; if it happens often, the test pair is the
+shared test mode's rather than a sandbox's.
 
 ---
 

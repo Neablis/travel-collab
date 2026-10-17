@@ -12,7 +12,12 @@
 // else on that endpoint is a control: it is unauthenticated by necessity
 // (Stripe has no session), it is public, and its URL is guessable. The HMAC is
 // the entire boundary.
+//
+// **And which Stripe account it came from** (ADR-076 §5). A deployment may hold
+// a live and a test signing secret; the body is tried against each, and the one
+// that verifies decides the mode. Nothing in the body is believed about it.
 import { createHmac, timingSafeEqual } from "node:crypto";
+import type { StripeMode } from "./config";
 
 /** The delivery could not be shown to have come from Stripe. */
 export class WebhookSignatureError extends Error {
@@ -20,6 +25,31 @@ export class WebhookSignatureError extends Error {
     super(message);
     this.name = "WebhookSignatureError";
   }
+}
+
+/**
+ * A verified delivery whose own `livemode` disagrees with the secret that
+ * verified it, or does not say.
+ *
+ * **Refused, not recorded as one mode or the other** (ADR-076, *Rejected* 1).
+ * Writing it either way makes a row whose mode two sources dispute, and the
+ * cause is a configuration mistake — a test-mode endpoint's secret stored in
+ * the live pair, say — that a red delivery in Stripe's dashboard shows better
+ * than a quiet row.
+ * Not a `WebhookSignatureError`: the signature is fine, and the route answers
+ * the two differently.
+ */
+export class WebhookModeMismatchError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "WebhookModeMismatchError";
+  }
+}
+
+/** One signing secret this deployment holds, and the mode of the pair it belongs to. */
+export interface WebhookSecret {
+  mode: StripeMode;
+  secret: string;
 }
 
 /**
@@ -89,21 +119,24 @@ function digestsMatch(expected: string, candidate: string): boolean {
 }
 
 /**
- * **Verify, and say nothing about the body.**
+ * **Verify, and say nothing about the body** — except which secret signed it.
  *
  * Takes the RAW body as Stripe sent it. Not a re-serialised object: JSON
  * round-tripping reorders keys and drops whitespace, and the HMAC is over
  * bytes, so a verified-after-parse scheme fails for well-formed payloads in a
  * way that looks random. The route reads `await request.text()` and hands that
  * string here untouched.
+ *
+ * Returns the mode of the first secret any `v1` matches. Live and test secrets
+ * are different strings, so at most one can.
  */
 export function verifyStripeSignature(input: {
   rawBody: string;
   header: string | null;
-  secret: string;
+  secrets: readonly WebhookSecret[];
   now?: Date;
   toleranceSeconds?: number;
-}): void {
+}): StripeMode {
   if (input.header === null || input.header === "") {
     throw new WebhookSignatureError("No Stripe-Signature header.");
   }
@@ -121,12 +154,13 @@ export function verifyStripeSignature(input: {
     );
   }
 
-  const expected = createHmac("sha256", input.secret)
-    .update(`${timestamp}.${input.rawBody}`, "utf8")
-    .digest("hex");
-  if (!signatures.some((candidate) => digestsMatch(expected, candidate))) {
-    throw new WebhookSignatureError("Stripe-Signature does not match the body.");
+  for (const { mode, secret } of input.secrets) {
+    const expected = createHmac("sha256", secret)
+      .update(`${timestamp}.${input.rawBody}`, "utf8")
+      .digest("hex");
+    if (signatures.some((candidate) => digestsMatch(expected, candidate))) return mode;
   }
+  throw new WebhookSignatureError("Stripe-Signature does not match the body.");
 }
 
 /** The envelope every Stripe event arrives in, narrowed to what is read. */
@@ -135,7 +169,17 @@ export interface StripeEvent {
   type: string;
   /** Seconds since the epoch. The ordering comparison's input. */
   created: number;
+  /** The body's own word on its mode, checked against the verifying secret's. */
+  livemode: boolean;
   data: { object: Record<string, unknown> };
+}
+
+/**
+ * An event as `constructStripeEvent` hands it on: with the mode of the secret
+ * that verified it, which is the mode everything after the route acts in.
+ */
+export interface VerifiedStripeEvent extends StripeEvent {
+  mode: StripeMode;
 }
 
 /**
@@ -150,11 +194,11 @@ export interface StripeEvent {
 export function constructStripeEvent(input: {
   rawBody: string;
   header: string | null;
-  secret: string;
+  secrets: readonly WebhookSecret[];
   now?: Date;
   toleranceSeconds?: number;
-}): StripeEvent {
-  verifyStripeSignature(input);
+}): VerifiedStripeEvent {
+  const mode = verifyStripeSignature(input);
 
   let parsed: unknown;
   try {
@@ -176,5 +220,21 @@ export function constructStripeEvent(input: {
   ) {
     throw new WebhookSignatureError("Body is signed but is not a Stripe event envelope.");
   }
-  return event as StripeEvent;
+  if (event.livemode !== (mode === "live")) {
+    throw new WebhookModeMismatchError(
+      `Body is signed with the ${mode} pair's webhook secret and says livemode: ` +
+        `${String(event.livemode)}. That pair's signing secret may belong to a ` +
+        `${mode === "live" ? "test" : "live"}-mode endpoint in Stripe's dashboard.`,
+    );
+  }
+  // Built field by field rather than spread, so a `mode` key in the body cannot
+  // stand in for the one the signature gave.
+  return {
+    id: event.id,
+    type: event.type,
+    created: event.created,
+    livemode: event.livemode,
+    data: event.data,
+    mode,
+  };
 }
