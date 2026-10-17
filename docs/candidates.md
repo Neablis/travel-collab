@@ -49,18 +49,6 @@ here two days later.
     question 2; M36 decision 4 is why it is here rather than there.
   *Placed 2026-10-06 → `docs/milestones/M47-the-business-over-time.md` (proposed, not yet scoped). M47's gate deletes this entry at close.*
 
-- **A chat for a trip, with the people taking it (asked 2026-10-04).** Mitchell: *"a chat for a
-  trip with the others taking the trip"*. Nothing like it exists; collaborators coordinate
-  outside the app.
-  - **The idea.** One thread per trip, visible to members, optionally linking a message to a
-    day or stop.
-  - **Decisions it needs.** Whether messages are trip events (History, replay, ADR-012) or
-    their own store (they are conversation, not plan state, so the second looks likelier).
-    Which roles may read and post (a suggester?). Realtime versus refresh. Notifications, which
-    nothing generates today. Moderation, report and delete, given the admin reports panel.
-    Retention when a trip is soft-deleted (ADR-016).
-  *Placed 2026-10-06 → `docs/milestones/M46-a-trip-has-a-conversation.md` (proposed, not yet scoped). M46's gate deletes this entry at close.*
-
 - **The assistant on eve: the port, deferred until there are users (asked 2026-10-02,
   deferred 2026-10-03).** ADR-062 records the decision and the Phase 0 spike's evidence.
   Mitchell chose a full port onto Vercel's eve framework, with the ledger first. On
@@ -475,8 +463,9 @@ here two days later.
   **Not placed.**
 
 - **Trip chat follow-ups from M46's preview walk (asked 2026-10-13).** Mitchell, testing PR 439:
-  - **Link a notebook from a chat message.** Part 3's chips link only a day or a stop of the
-    current trip. A notebook chip would follow the same rule: resolve the id only against this trip's
-    notebooks, and render plain text otherwise.
+  - **Link a notebook from a chat message.** *Shipped in PR 446 (2026-10-14), with people as
+    well: `@` mentions a person or a notebook, checked server-side against the trip.*
+  - **Notify the person a message mentions** (PR 446's body, 2026-10-14). Mentioning someone
+    today only draws their name; nothing tells them.
   - **Group a run of messages.** When one person sends several messages in a row within 30 minutes,
     show the author once and draw the run as one visual block.

@@ -21,19 +21,22 @@ general setup.
 
 ## Where the work is right now
 
-**M46 — A trip has a conversation, with the people taking it — is the current milestone**, since
-M45's gate closed on 2026-10-13 (`docs/milestones/M46-a-trip-has-a-conversation.md`). All of its
-code is on `main`: parts 1 to 6 (PR 433, PRs 435-436, PRs 438-447, including the walk fixes)
-merged 2026-10-13 and 2026-10-14, with migrations `0048` to `0052`. Chat is its own store
-(ADR-073), live on the events poll by `chatRev`, a *Chat · Ask* tab in the assistant rail.
-Part 0 (PR 432) merged 2026-10-14 too, before its gate. **The gate is 0 of 10 and there is no
-retro.**
+**M47 — The operator console shows tiers over time, and paid flows can be tested in production —
+is the current milestone** (`docs/milestones/M47-the-business-over-time.md`), since M46's gate
+closed on 2026-10-17. Its four parts are on `main`: PRs 474, 476, 477 and 475, merged 2026-10-17.
+Its part 0, PR 473, merged 2026-10-17 with the gate at 6 of 7 and the retro written.
 
-**Next action: close M46's gate** with `close-a-milestone`: tick each box only on its evidence
-(the integration tests and the ci-like e2e as CI ran them on the merged parts), get Mitchell's
-two-person walk (one on a phone), append the retro, run `pnpm milestone close M46`, and delete
-`docs/plans/2026-10-13-M46-a-trip-has-a-conversation.md`. Whether production holds every
-migration is `pnpm state`'s `PROD MIGRATIONS` line, not a number here.
+**Next action:** Mitchell's production walk, the one open box
+(`docs/milestones/M47-the-business-over-time.md:136`): an admin-switched account checks out with
+a test card and MRR does not move. It needs migrations `0055` to `0057` in production first, and
+production's test key pair set. Then tick the box and run `pnpm milestone close M47`. Whether
+production holds every migration is `pnpm state`'s `PROD MIGRATIONS` line, not a number here.
+
+**M46 closed 2026-10-17, gate 10 of 10** (part 0 PR 472, after PR 432 merged early). The last box,
+the two-person walk, is ticked on Mitchell's confirmation that day. Evidence, retro and the
+`list_sessions` spend block (closed with `--no-spend`: the transcripts were gone) are in
+`docs/milestones/M46-a-trip-has-a-conversation.md`. Parts 1 to 6 and the walk fixes are PRs 433,
+435, 436 and 438-447, migrations `0048` to `0052`.
 
 **Built off the milestone order, by Mitchell's approval (2026-10-17).** Three things were moved
 up ahead of the row order, and each was his call. This is his waiver, recorded here once, of
@@ -42,7 +45,8 @@ up ahead of the row order, and each was his call. This is his waiver, recorded h
 - **Trip guests**: travellers who are not on the app (PR 457, its parts stacked into it,
   ADR-074, migration `0053`).
 - **Plan-retrieval RAG, M48's serving code**: PRs 459-467, migration `0054`, pgvector in Neon
-  (ADR-075). It serves only behind a flag that is off by default. M48 is **not current**: its
+  (ADR-075). It serves only behind a flag that is off by default. The Gate 1 recall eval
+  (PR 461) merged on 2026-10-17 too, on Mitchell's call, so it can be re-run from `main`. M48 is **not current**: its
   row keeps its place, and its decisions and remaining gate boxes are in
   `docs/milestones/M48-plans-start-from-examples.md`.
 - **M46's part 0**, PR 432, merged before the gate rather than last.
@@ -52,7 +56,7 @@ Also merged beside it: `docs/guidelines/building-with-judgment.md` (PR 468).
 **M45 closed 2026-10-13, gate 12 of 12** (part 0 PR 420); evidence and retro in
 `docs/milestones/M45-the-assistant-beyond-one-trip.md`. Accepted gap: KI-2026-10-13-a.
 
-Order: `… M42 ✓ → M45 ✓ → M46 → M47 → M48 → M49 → M43 → M44`; the reorder is in
+Order: `… M42 ✓ → M45 ✓ → M46 ✓ → M47 → M48 → M49 → M43 → M44`; the reorder is in
 `docs/milestones/README.md`, *2026-10-12 — reordered and minted*. Earlier closed milestones'
 narrative is in `docs/retros/2026-10-16-status-archive.md` and each milestone's own file.
 
