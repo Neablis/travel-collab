@@ -4,7 +4,7 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 import type { SavedStop } from "@tc/contracts";
 import { db } from "@/server/db/client";
 import { dayEmbeddings, pendingEmbeddings, savedDays, events, tripDetails, tripSummaries } from "@/server/db/schema";
-import { deleteSavedDay, storeSavedDay, updatePlaybookContent } from "@/server/savedDays";
+import { deleteSavedDay, setSavedDayVisibility, storeSavedDay, updatePlaybookContent } from "@/server/savedDays";
 import { executeTripCommand } from "@/server/commands";
 import { enqueueDayChunksForEmbedding } from "@/server/ai/queue";
 import { runEmbedSweep } from "@/server/ai/sweep";
@@ -179,6 +179,46 @@ describe("embed-on-write hooks", () => {
     });
     expect(stale.ok).toBe(false);
     expect((await pendingRows("playbook", playbook.savedDayId))[0]).toMatchObject({ status: "done" });
+  });
+
+  it("setSavedDayVisibility re-enqueues finished rows on publish and unpublish", async () => {
+    const owner = `sweep-cathy-${run}`;
+    const playbook = await createPlaybook(owner, "Kyoto Stroll", [stop("Fushimi Inari", 0), stop("Arashiyama", 1)], 2);
+    await setPendingStatus("playbook", playbook.savedDayId, "done");
+
+    expect(await setSavedDayVisibility(playbook.savedDayId, owner, "public")).not.toBeNull();
+    let rows = await pendingRows("playbook", playbook.savedDayId);
+    expect(rows.map((r) => r.dayIndex).sort()).toEqual([0, 1]);
+    expect(rows.every((r) => r.status === "pending")).toBe(true);
+
+    await setPendingStatus("playbook", playbook.savedDayId, "done");
+    expect(await setSavedDayVisibility(playbook.savedDayId, owner, "private")).not.toBeNull();
+    rows = await pendingRows("playbook", playbook.savedDayId);
+    expect(rows.every((r) => r.status === "pending")).toBe(true);
+
+    // Somebody else's day matches no row: nothing may move for it.
+    await setPendingStatus("playbook", playbook.savedDayId, "done");
+    expect(await setSavedDayVisibility(playbook.savedDayId, `sweep-mallory-${run}`, "public")).toBeNull();
+    expect((await pendingRows("playbook", playbook.savedDayId)).every((r) => r.status === "done")).toBe(true);
+  });
+
+  it("deleteSavedDay re-enqueues the days so the sweep tombstones them", async () => {
+    await drainQueue();
+    const owner = `sweep-dan-${run}`;
+    const playbook = await createPlaybook(owner, "Kyoto Stroll", [stop("Fushimi Inari", 0)], 1);
+    await runEmbedSweep({ embed: fakeEmbed });
+
+    expect(await deleteSavedDay(playbook.savedDayId, owner)).toBe("deleted");
+    expect((await pendingRows("playbook", playbook.savedDayId))[0]).toMatchObject({ status: "pending" });
+
+    const summary = await runEmbedSweep({ embed: fakeEmbed });
+    expect(summary.tombstoned).toBe(1);
+    expect(
+      await db
+        .select()
+        .from(dayEmbeddings)
+        .where(and(eq(dayEmbeddings.sourceType, "playbook"), eq(dayEmbeddings.sourceId, playbook.savedDayId))),
+    ).toHaveLength(0);
   });
 
   it("trip commands enqueue the trip's days through the command pipeline", async () => {

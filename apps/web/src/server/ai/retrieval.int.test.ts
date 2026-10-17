@@ -2,7 +2,9 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/server/db/client";
-import { dayEmbeddings, tripMemberships } from "@/server/db/schema";
+import type { SavedStop } from "@tc/contracts";
+import { dayEmbeddings, savedDays, tripMemberships } from "@/server/db/schema";
+import { deleteSavedDay, setSavedDayVisibility, storeSavedDay } from "@/server/savedDays";
 import { retrieveDayChunks, PUBLIC_LIBRARY_OWNER_ID } from "./retrieval";
 
 // Hybrid retrieval against REAL pgvector (integration lane): the HNSW index,
@@ -18,6 +20,7 @@ const OTHER = `rag-other-${run}`;
 const STRANGER = `rag-stranger-${run}`;
 
 const ids: string[] = [];
+const playbookIds: string[] = [];
 
 /** A 1536-dim vector with the first two components set, for exact distance control. */
 const vec = (a: number, b = 0): number[] => {
@@ -203,7 +206,39 @@ beforeAll(async () => {
 afterAll(async () => {
   await db.delete(dayEmbeddings).where(inArray(dayEmbeddings.id, ids));
   await db.delete(tripMemberships).where(eq(tripMemberships.userId, READER));
+  if (playbookIds.length > 0) await db.delete(savedDays).where(inArray(savedDays.id, playbookIds));
 });
+
+/** A real `saved_days` row, so the source's live state is what the query can read. */
+async function livePlaybook(ownerId: string): Promise<string> {
+  const stop: SavedStop = {
+    title: "Withdrawal probe stop",
+    timeWindow: null,
+    location: null,
+    notes: null,
+    anchors: [],
+    kind: "planned",
+    tags: [],
+    cost: null,
+    dayIndex: 0,
+    mode: null,
+    endLocation: null,
+    pendingReason: null,
+  };
+  const saved = await storeSavedDay({
+    ownerId,
+    name: "Withdrawal probe",
+    stops: [stop],
+    dayCount: 1,
+    sourceTripId: randomUUID(),
+    sourceTripName: "retrieval.int.test",
+    now: new Date().toISOString(),
+    context: { route: "retrieval.int.test" },
+  });
+  if (!saved.ok) throw new Error("storeSavedDay failed in test setup");
+  playbookIds.push(saved.value.savedDayId);
+  return saved.value.savedDayId;
+}
 
 describe("retrieveDayChunks", () => {
   it("fuses dense and sparse with RRF: both-legs first, then by leg rank", async () => {
@@ -305,6 +340,54 @@ describe("retrieveDayChunks", () => {
       // And the stranger's own trip stays theirs alone.
       expect(found).toContain(tripStranger);
       expect(found).not.toContain(privMine);
+    });
+  });
+
+  // The embedding row's `visibility` is a copy taken at embed time, refreshed
+  // only when the sweep next re-embeds the day — a day later on the daily
+  // cron. These rows are embedded while their playbook is visible and then
+  // withdrawn with NO sweep in between: the source's live state must decide.
+  describe("a playbook withdrawn after it was embedded", () => {
+    const find = (word: string, userId: string | null) =>
+      retrieveDayChunks({ queryEmbedding: QUERY_VEC, queryText: word, userId, k: 20 }).then((chunks) =>
+        chunks.map((c) => c.id),
+      );
+
+    it("is never served to anyone else once unpublished, and still to its owner", async () => {
+      const playbook = await livePlaybook(OTHER);
+      expect(await setSavedDayVisibility(playbook, OTHER, "public")).not.toBeNull();
+      const embedded = await chunk({
+        sourceType: "playbook",
+        sourceId: playbook,
+        chunkText: "unpublishprobe quiet meadow",
+        visibility: "public",
+        ownerId: OTHER,
+      });
+      await db.execute(sql`UPDATE day_embeddings SET fts = to_tsvector('english', chunk_text) WHERE id = ${embedded}`);
+      expect(await find("unpublishprobe", READER)).toContain(embedded);
+
+      expect(await setSavedDayVisibility(playbook, OTHER, "private")).not.toBeNull();
+
+      expect(await find("unpublishprobe", READER)).not.toContain(embedded);
+      expect(await find("unpublishprobe", null)).not.toContain(embedded);
+      expect(await find("unpublishprobe", OTHER)).toContain(embedded);
+    });
+
+    it("is never served again once deleted, not even to its owner", async () => {
+      const playbook = await livePlaybook(OTHER);
+      const embedded = await chunk({
+        sourceType: "playbook",
+        sourceId: playbook,
+        chunkText: "deleteprobe quiet meadow",
+        visibility: "private",
+        ownerId: OTHER,
+      });
+      await db.execute(sql`UPDATE day_embeddings SET fts = to_tsvector('english', chunk_text) WHERE id = ${embedded}`);
+      expect(await find("deleteprobe", OTHER)).toContain(embedded);
+
+      expect(await deleteSavedDay(playbook, OTHER)).toBe("deleted");
+
+      expect(await find("deleteprobe", OTHER)).not.toContain(embedded);
     });
   });
 });

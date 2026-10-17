@@ -719,6 +719,12 @@ export async function setSavedDayVisibility(
     // Raised in review on pull request 101.
     throw new Error(`saved day ${savedDayId} is unreadable after a committed visibility change`);
   }
+  // Embed-on-write (RAG Part 2), `updatePlaybookContent`'s reason: the sweep
+  // stores visibility fresh at embed time, so re-queueing is what refreshes
+  // the copy `day_embeddings` carries. Retrieval already reads the live row
+  // (`retrieval.ts`), so this is cleanup, not the privacy guarantee.
+  const dayIndexes = Array.from({ length: day.dayCount }, (_, dayIndex) => dayIndex);
+  await enqueueDayChunksForEmbedding("playbook", savedDayId, dayIndexes);
   return day;
 }
 
@@ -969,11 +975,15 @@ export async function deleteSavedDay(
         eq(savedDays.visibility, SavedDayVisibility.enum.private),
       ),
     )
-    .returning({ id: savedDays.id });
-  if (deleted.length > 0) {
+    .returning({ id: savedDays.id, dayCount: savedDays.dayCount });
+  if (deleted[0] !== undefined) {
     // Only a private day gets here, so no cached read holds it; its author's
     // numbers do (the adds it had now count for nothing), and those are cached.
     await invalidatePublicDay(savedDayId, ownerId);
+    // Re-queue so the sweep tombstones the day's embeddings: a deleted source
+    // must not linger in `day_embeddings`. Retrieval already hides it.
+    const dayIndexes = Array.from({ length: deleted[0].dayCount }, (_, dayIndex) => dayIndex);
+    await enqueueDayChunksForEmbedding("playbook", savedDayId, dayIndexes);
     return "deleted";
   }
 

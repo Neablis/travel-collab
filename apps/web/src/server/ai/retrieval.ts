@@ -34,12 +34,29 @@ export const PUBLIC_LIBRARY_OWNER_ID = "service-ai-library";
 // Duplicating it per leg would let a later edit change one leg's idea of
 // who may see a chunk and not the other's — the privacy invariant is the
 // one thing in this query that must never drift between legs.
+//
+// The playbook leg also reads the source row: `day_embeddings.visibility` is
+// a copy taken at embed time, refreshed only when the daily sweep re-embeds
+// the day, so on its own it would keep serving an unpublished or deleted
+// playbook until then. A withdrawn source vetoes the copy; the copy can never
+// widen what the source allows.
 const privacyFilter = (userId: string | null) => sql`
   (
     (source_type = 'playbook' AND (
       visibility = 'public'
       OR owner_id = ${userId}
       OR owner_id = ${PUBLIC_LIBRARY_OWNER_ID}
+    ) AND NOT EXISTS (
+      SELECT 1 FROM saved_days
+      WHERE saved_days.id = day_embeddings.source_id
+        AND (
+          saved_days.deleted_at IS NOT NULL
+          OR (
+            saved_days.visibility <> 'public'
+            AND saved_days.owner_id IS DISTINCT FROM ${userId}
+            AND saved_days.owner_id <> ${PUBLIC_LIBRARY_OWNER_ID}
+          )
+        )
     ))
     OR (source_type = 'trip' AND (
       owner_id = ${userId}
@@ -70,7 +87,10 @@ const privacyFilter = (userId: string | null) => sql`
  *
  * **Privacy is enforced in the query, in the app layer — not Postgres RLS**
  * (this codebase has no RLS precedent). A chunk is visible when:
- * - it is a playbook day that is public, or the reader owns it; or
+ * - it is a playbook day that is public, or the reader owns it — and its
+ *   `saved_days` row has not since been deleted, or unpublished by somebody
+ *   other than the reader (the embedding's own `visibility` is a stale copy
+ *   until the sweep re-embeds it); or
  * - it is a trip day and the reader is the trip's owner (Part 2 records
  *   `owner_id` at write time — the owner has no `trip_memberships` row, so
  *   membership alone would hide their own trip from them) or a member; or
