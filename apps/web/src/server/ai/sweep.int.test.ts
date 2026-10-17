@@ -4,7 +4,7 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 import type { SavedStop } from "@tc/contracts";
 import { db } from "@/server/db/client";
 import { dayEmbeddings, pendingEmbeddings, savedDays, events, tripDetails, tripSummaries } from "@/server/db/schema";
-import { deleteSavedDay, storeSavedDay, updatePlaybookContent } from "@/server/savedDays";
+import { deleteSavedDay, setSavedDayVisibility, storeSavedDay, updatePlaybookContent } from "@/server/savedDays";
 import { executeTripCommand } from "@/server/commands";
 import { enqueueDayChunksForEmbedding } from "@/server/ai/queue";
 import { runEmbedSweep } from "@/server/ai/sweep";
@@ -181,6 +181,46 @@ describe("embed-on-write hooks", () => {
     expect((await pendingRows("playbook", playbook.savedDayId))[0]).toMatchObject({ status: "done" });
   });
 
+  it("setSavedDayVisibility re-enqueues finished rows on publish and unpublish", async () => {
+    const owner = `sweep-cathy-${run}`;
+    const playbook = await createPlaybook(owner, "Kyoto Stroll", [stop("Fushimi Inari", 0), stop("Arashiyama", 1)], 2);
+    await setPendingStatus("playbook", playbook.savedDayId, "done");
+
+    expect(await setSavedDayVisibility(playbook.savedDayId, owner, "public")).not.toBeNull();
+    let rows = await pendingRows("playbook", playbook.savedDayId);
+    expect(rows.map((r) => r.dayIndex).sort()).toEqual([0, 1]);
+    expect(rows.every((r) => r.status === "pending")).toBe(true);
+
+    await setPendingStatus("playbook", playbook.savedDayId, "done");
+    expect(await setSavedDayVisibility(playbook.savedDayId, owner, "private")).not.toBeNull();
+    rows = await pendingRows("playbook", playbook.savedDayId);
+    expect(rows.every((r) => r.status === "pending")).toBe(true);
+
+    // Somebody else's day matches no row: nothing may move for it.
+    await setPendingStatus("playbook", playbook.savedDayId, "done");
+    expect(await setSavedDayVisibility(playbook.savedDayId, `sweep-mallory-${run}`, "public")).toBeNull();
+    expect((await pendingRows("playbook", playbook.savedDayId)).every((r) => r.status === "done")).toBe(true);
+  });
+
+  it("deleteSavedDay re-enqueues the days so the sweep tombstones them", async () => {
+    await drainQueue();
+    const owner = `sweep-dan-${run}`;
+    const playbook = await createPlaybook(owner, "Kyoto Stroll", [stop("Fushimi Inari", 0)], 1);
+    await runEmbedSweep({ embed: fakeEmbed });
+
+    expect(await deleteSavedDay(playbook.savedDayId, owner)).toBe("deleted");
+    expect((await pendingRows("playbook", playbook.savedDayId))[0]).toMatchObject({ status: "pending" });
+
+    const summary = await runEmbedSweep({ embed: fakeEmbed });
+    expect(summary.tombstoned).toBe(1);
+    expect(
+      await db
+        .select()
+        .from(dayEmbeddings)
+        .where(and(eq(dayEmbeddings.sourceType, "playbook"), eq(dayEmbeddings.sourceId, playbook.savedDayId))),
+    ).toHaveLength(0);
+  });
+
   it("trip commands enqueue the trip's days through the command pipeline", async () => {
     const actor = `sweep-dave-${run}`;
     const tripId = randomUUID();
@@ -302,6 +342,63 @@ describe("runEmbedSweep", () => {
       .where(and(eq(dayEmbeddings.sourceType, "playbook"), eq(dayEmbeddings.sourceId, playbook.savedDayId)));
     expect(chunks).toHaveLength(1);
     expect(chunks[0]!.visibility).toBe("public");
+  });
+
+  it("skips the provider for a day whose text has not changed, and still stores fresh metadata", async () => {
+    await drainQueue();
+    const owner = `sweep-gus-${run}`;
+    const playbook = await createPlaybook(owner, "Kyoto Stroll", [stop("Fushimi Inari", 0)], 1);
+    let calls = 0;
+    const countingEmbed = async (text: string) => {
+      calls++;
+      return fakeEmbed(text);
+    };
+    await runEmbedSweep({ embed: countingEmbed });
+    expect(calls).toBe(1);
+
+    // A visibility flip re-queues the day; the chunk text is the same.
+    expect(await setSavedDayVisibility(playbook.savedDayId, owner, "public")).not.toBeNull();
+    const summary = await runEmbedSweep({ embed: countingEmbed });
+    expect(calls).toBe(1);
+    expect(summary).toMatchObject({ claimed: 1, embedded: 0, unchanged: 1 });
+    const chunks = await db
+      .select()
+      .from(dayEmbeddings)
+      .where(and(eq(dayEmbeddings.sourceType, "playbook"), eq(dayEmbeddings.sourceId, playbook.savedDayId)));
+    expect(chunks).toHaveLength(1);
+    expect(chunks[0]!.visibility).toBe("public");
+    expect(chunks[0]!.embedding).not.toBeNull();
+    expect((await pendingRows("playbook", playbook.savedDayId))[0]!.status).toBe("done");
+
+    // A content change does reach the provider.
+    expect(await setSavedDayVisibility(playbook.savedDayId, owner, "private")).not.toBeNull();
+    await runEmbedSweep({ embed: countingEmbed });
+    const edited = await updatePlaybookContent(playbook.savedDayId, owner, {
+      days: { stops: [stop("Kinkaku-ji", 0)], dayCount: 1 },
+      expectedVersion: 1,
+    });
+    expect(edited.ok).toBe(true);
+    const after = await runEmbedSweep({ embed: countingEmbed });
+    expect(calls).toBe(2);
+    expect(after).toMatchObject({ embedded: 1, unchanged: 0 });
+  });
+
+  it("reports how many rows are still pending after the run", async () => {
+    await drainQueue();
+    const owner = `sweep-hal-${run}`;
+    await createPlaybook(owner, "Kyoto Stroll", [stop("Fushimi Inari", 0), stop("Arashiyama", 1), stop("Gion", 2)], 3);
+    const summary = await runEmbedSweep({ embed: fakeEmbed, batchSize: 2 });
+    expect(summary).toMatchObject({ claimed: 2, pending: 1 });
+  });
+
+  it("stops at its time budget and hands the rest of the claim back unspent", async () => {
+    await drainQueue();
+    const owner = `sweep-ida-${run}`;
+    const playbook = await createPlaybook(owner, "Kyoto Stroll", [stop("Fushimi Inari", 0), stop("Arashiyama", 1)], 2);
+    const summary = await runEmbedSweep({ embed: fakeEmbed, budgetMs: 0 });
+    expect(summary).toMatchObject({ claimed: 2, embedded: 0, deferred: 2, pending: 2 });
+    const rows = await pendingRows("playbook", playbook.savedDayId);
+    expect(rows.every((r) => r.status === "pending" && r.attempts === 0)).toBe(true);
   });
 
   it("retries a failed row and dead-letters it after 5 attempts", async () => {

@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { and, count, desc, eq, inArray, isNull, ne, or, sql } from "drizzle-orm";
 import type { ChatLink, ChatMessage, PostChatMessage, TripDetail, TripRole } from "@tc/contracts";
-import { db } from "../db/client";
+import { db, type Queryable } from "../db/client";
 import { pages, tripChatReads, tripMessages } from "../db/schema";
 import { isUuid } from "../ids";
 import { bumpChatRev } from "./rev";
@@ -190,6 +190,32 @@ export async function deleteMessage(
     await bumpChatRev(tx, tripId);
     return { ok: true, value: toMessage(updated) } as const;
   });
+}
+
+/**
+ * An admin hiding or restoring a reported message (ADR-073 §4), inside the
+ * moderation transaction the caller holds. Hidden reads as removed for every
+ * member, and `chatRev` moves in the same transaction so every open page
+ * re-reads, as it does for an author's delete. Hiding twice keeps the first
+ * time. Returns how many rows moved: 0 when no such message exists.
+ *
+ * The Chat module's write: Community (`reports.ts`) names the message by id
+ * and never writes `trip_messages` itself.
+ */
+export async function setMessageHidden(
+  tx: Queryable,
+  tripId: string,
+  messageId: string,
+  hidden: boolean,
+  at: Date,
+): Promise<number> {
+  const moved = await tx
+    .update(tripMessages)
+    .set({ hiddenAt: hidden ? sql`coalesce(${tripMessages.hiddenAt}, ${at})` : null })
+    .where(and(eq(tripMessages.id, messageId), eq(tripMessages.tripId, tripId)))
+    .returning({ id: tripMessages.id });
+  if (moved.length > 0) await bumpChatRev(tx, tripId);
+  return moved.length;
 }
 
 /**

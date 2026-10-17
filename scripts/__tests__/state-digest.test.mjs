@@ -413,23 +413,39 @@ test("PROD MIGRATIONS attributes a migration a --no-ff merge brought in to the c
 
 test("MILESTONE PARTS gives one line per open part PR, with CI and review state", () => {
   const dir = makeFixture();
+  // REST shapes (`gh api`), answered by path: the PR list, then per part PR
+  // its head's check runs and its reviews.
   const prs = [
-    {
-      number: 401, title: "Part 2", headRefName: "claude/m41-part2-drawer-is-cards", createdAt: "2026-10-10T00:00:00Z",
-      isDraft: false, reviewDecision: "APPROVED",
-      statusCheckRollup: [
-        { name: "unit", status: "COMPLETED", conclusion: "FAILURE" },
-        { name: "ci-ok", status: "COMPLETED", conclusion: "SUCCESS" },
-      ],
-    },
-    {
-      number: 402, title: "Part 3", headRefName: "claude/m41-part3-parked-origin", createdAt: "2026-10-10T00:00:00Z",
-      isDraft: false, reviewDecision: "",
-      statusCheckRollup: [{ name: "e2e", status: "IN_PROGRESS", conclusion: "" }],
-    },
-    { number: 400, title: "Part 0", headRefName: "claude/build-a-milestone-x", createdAt: "2026-10-09T00:00:00Z" },
+    { number: 401, title: "Part 2", head: { ref: "claude/m41-part2-drawer-is-cards", sha: "a401" }, created_at: "2026-10-10T00:00:00Z", draft: false },
+    { number: 402, title: "Part 3", head: { ref: "claude/m41-part3-parked-origin", sha: "a402" }, created_at: "2026-10-10T00:00:00Z", draft: false },
+    { number: 400, title: "Part 0", head: { ref: "claude/build-a-milestone-x", sha: "a400" }, created_at: "2026-10-09T00:00:00Z" },
   ];
-  const bin = makeBin({ gh: `#!/bin/sh\ncat <<'JSON'\n${JSON.stringify(prs)}\nJSON\n` });
+  const checks401 = {
+    check_runs: [
+      { name: "unit", status: "completed", conclusion: "failure" },
+      { name: "ci-ok", status: "completed", conclusion: "success" },
+    ],
+  };
+  const checks402 = { check_runs: [{ name: "e2e", status: "in_progress", conclusion: null }] };
+  const reviews401 = [
+    { user: { login: "a" }, state: "CHANGES_REQUESTED" },
+    { user: { login: "a" }, state: "APPROVED" },
+    { user: { login: "b" }, state: "COMMENTED" },
+  ];
+  const bin = makeBin({
+    gh: [
+      "#!/bin/sh",
+      'case "$2" in',
+      `  *a401/check-runs*) echo '${JSON.stringify(checks401)}';;`,
+      `  *a402/check-runs*) echo '${JSON.stringify(checks402)}';;`,
+      `  *pulls/401/reviews*) echo '${JSON.stringify(reviews401)}';;`,
+      "  *pulls/*/reviews*) echo '[]';;",
+      `  *pulls\?state=open*) echo '${JSON.stringify(prs)}';;`,
+      "  *) echo '[]';;",
+      "esac",
+      "",
+    ].join("\n"),
+  });
   const { status, stdout } = runDigest([dir], { env: { ...process.env, PATH: `${bin}:${process.env.PATH}` } });
 
   assert.equal(status, 0);

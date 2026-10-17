@@ -1,57 +1,57 @@
-### KI-2026-09-20-a — KI-39's wrong-venue geocode check exists, is tested, and is wired to ~~nothing~~ nothing on the trip/assistant geocode path
+### KI-2026-09-20-a — the trip/assistant geocode path accepts a wrong venue inside the right box, because `resolveOne` never consults KI-39's name check
 
-- **Severity:** real, silent, and already shipping. Every defect KI-39 describes
-  is live today ~~: the module written to reject a wrong-VENUE geocode match has no
-  caller anywhere in the repo, so nothing rejects one~~ on the trip/assistant path: `resolveOne` does not consult it, so nothing there rejects one.
-- **Milestone:** **M9, carried (assigned 2026-09-24, KI pass)** — owned by M9, not a gate box. Parked under Mitchell's 2026-09-01 rule that every open AI known issue belongs to M9; filed after that audit, so it had no owner until now. Listed in `docs/milestones/M9-ai-planning-partner.md` § *Parked 2026-09-24*.
-- **Area:** `apps/web/src/server/ai/geocodeNameMatch.ts` (`placeNameVerdict`,
-  `candidateOwnName`, `distinctiveTokens`, `nameTokens`) and whichever geocode
-  acceptance path should consult it — ~~`geocodeRegion.ts`'s~~ `server/geocoding/region.ts`'s `withinBox` is the
-  check that is actually running.
-- **Symptom / What happens:** `geocodeNameMatch.ts` says in its own opening
-  lines why it exists: *"Name identity for a geocode candidate (KI-39) — the
-  acceptance test `withinBox` (geocodeRegion.ts) structurally cannot make. A
-  per-city bounding box only rejects a wrong-CITY match. It has no way to reject
-  a wrong-VENUE match that lands inside the right city."* Its own examples:
-  "Kegon Falls, Chūzenji, Nikkō" resolving to **Urami Falls** (a different
-  waterfall in the same city), "Zentis Osaka, Kita, Osaka" to **Hotels Inn Osaka
-  KitaUmeda**, "Shin-Osaka Station, Yodogawa, Tokyo" to a different station.
-
-  ~~All five exports are unreferenced. `grep -rn "geocodeNameMatch\|nameMatch"`
-  across the whole repository — `src/**`, `scripts/**`, `packages/**`, every
-  `.ts`, `.tsx` and `.mjs` — returns the module itself and its test, and nothing
-  else. **The verdict is computed by nobody.**~~
-
-- **Why the suite is green:** `geocodeNameMatch.test.ts` tests the module
-  directly and thoroughly. A unit test of a pure module cannot tell you whether
-  anything calls it, so the tests pass, the coverage looks right, and the check
-  does not run in production.
-
-- **How it was found:** not by a test, and not by reading this module. It came
-  out of a sweep for *"modules with no production importer"* run on 2026-09-20
-  after Mitchell found the same shape by walking the preview —
-  `sharedDayGeometry.ts` had shipped with its unit test and no screen, so a
-  shared Playbook day had no map (fixed in the same session, M26 link 4). The
-  sweep found 16 candidates; most are test-support, instrumentation, or Next.js
-  convention files. **This one and the M26 map were the two real ones.**
-
-- **Related but NOT the same:** `OverlapWarning.tsx`, `EndOfTrip.tsx` and
-  `timelineData.ts` also have no production importer, but they are orphans of
-  the Timeline lens that SPEC §24 deleted — dead code to remove, not a check
-  that should be running. `Board.tsx:68-75` already records that deletion and
-  where the one control worth keeping went. Filed separately.
-
-- **Fix sketch (not done):** decide where a candidate is accepted — the geocode
-  write path that currently calls `withinBox` — and consult `placeNameVerdict`
-  there, with `"mismatch"` rejecting the candidate and `"not-comparable"`
-  falling through to today's behaviour. The interesting part is not the wiring
-  but what a rejection DOES: a stop with no coordinates is a real outcome the
-  map already handles (§16 numbers it in the list and draws no pin), so failing
-  closed is available and is probably right for a wrong venue.
-
-  **Whatever the fix, it needs a test that fails when the call is removed** —
-  an end-to-end one through the geocode path, not another unit test of the
-  module. A unit test is exactly what this entry is about.
-
+- **Severity:** correctness. The failure is silent and it has shipped. A wrong venue gets renamed,
+  re-pinned and reported `verified`.
+- **Milestone:** none. M9 carried it (parked 2026-09-24, `docs/milestones/M9-ai-planning-partner.md`
+  § *Parked 2026-09-24*), and M9's gate closed on 2026-10-06 without taking it.
+- **Area:**
+  - `apps/web/src/server/ai/geocodeEnrichment.ts`: `resolveOne`, `enrichCommandLocations`, and the
+    module's `hintTrusted` / anchor logic.
+  - `apps/web/src/server/ai/geocodeNameMatch.ts`: `placeNameVerdict`, `candidateOwnName`,
+    `distinctiveTokens`, `nameTokens`.
+  - `apps/web/src/server/geocoding/region.ts`: `withinBox` and `boundingBoxAround`.
+  - `apps/web/src/server/savedDayPins.ts`, the working pattern for the wiring.
+- **Symptom / What happens:** a location a person typed goes through `resolveOne`. So does any
+  location the assistant did not ground; assistant-grounded stops, which carry `precision` beside
+  real coordinates, skip the pass (KI-81). `resolveOne` accepts a candidate on distance-to-hint or
+  `withinBox` alone, then overwrites `location.name` with the vendor's `canonicalName`. A per-city
+  box can only reject a wrong *city*. It can't reject a wrong *venue* inside the right city.
+  - Kegon Falls, Chūzenji, Nikkō resolves to Urami Falls (8 km away), and the stop is renamed,
+    re-pinned and reported `verified`. That status keeps it out of `hasUnverifiedLocations` and
+    lets it widen `tripRegionOf` for good (review finding F-G02, with a unit-level reproduction).
+  - `geocodeNameMatch.ts`'s own examples: "Zentis Osaka, Kita, Osaka" becomes Hotels Inn Osaka
+    KitaUmeda, and "Shin-Osaka Station, Yodogawa, Tokyo" becomes a different station.
+  - `placeNameVerdict` was written for exactly this check (KI-39/58/77) and is tested directly.
+    Its callers are the seed pipeline (`apps/web/scripts/geocode-japan-seed.mts`) and, since
+    `57922bd` (#205), the Playbook map backfill in `savedDayPins.ts`. That backfill refuses a
+    `"mismatch"` and pins the stop at city level. `geocodeEnrichment.ts` does not import it
+    (re-checked 2026-10-17).
+- **Why the suite is green:** `geocodeNameMatch.test.ts` tests the module directly, and a unit
+  test of a pure module can't tell whether anything calls it. The sweep for "modules with no
+  production importer" found it on 2026-09-20.
+- **Fix sketch (not done):** in `resolveOne`, consult `placeNameVerdict`. A `"mismatch"` rejects
+  the candidate. `"not-comparable"` falls through to today's behaviour. What a rejection does is a
+  decision. Failing closed is available: a stop with no coordinates is a real outcome the map
+  already handles (§16 numbers it in the list and draws no pin). The other choice is keeping the
+  hint or the city-level pin, as `savedDayPins.ts` does. The fix needs a test that fails when the
+  call is removed, through the geocode path. Another unit test of the module won't do.
+- **Accepted residuals of the same enrichment path** (from KI-15's 2026-08-06 review). Each fails
+  safe or announces itself. Each is worth knowing before it comes back as a support question:
+  1. On the `verified` path, one command's hint drives a lookup shared by every command with the
+     same name. The match is applied to all of them, so a second command's own coordinates can be
+     discarded. Bounded: the match must fall inside the trip region if there is one.
+  2. A spread-out trip (a Venice day added to a Rome-only trip) gets more `unverified` reports.
+     A genuine hint for the far leg is untrusted against the established region.
+  3. An `unverified` fallback is still the raw guess. It is persisted and feeds `tripRegionOf` on
+     the next request like a verified one. The unverified-locations notice in `commitProposal`
+     announces the widening, but doesn't prevent it.
+  4. The acceptance thresholds (`MAX_REFINE_KM` 50 km, the 150 km trip margin, the 50 km hint
+     margin) come from one dogfood run and haven't been measured against a corpus.
+  5. `boundingBoxAround` doesn't handle the antimeridian. A trip that spans the Pacific gets no
+     useful bias. That fails safe.
+  6. The first lookup on a trip with no geocoded stops is `unchecked` by construction, so a wrong
+     first answer survives and becomes the anchor for the rest of the batch.
+- **Cross-reference:** KI-15 (merged here on 2026-10-17, moved to `resolved/` as a duplicate; it
+  keeps the 2026-08-02 Rochester incident and the history of the fix); KI-39; KI-81 (resolved, the
+  grounding half); F-G02, F-F12 (`docs/reviews/2026-09-05-overnight-review/findings/`).
 - **First noted:** 2026-09-20.
-- **Re-verified 2026-09-25 (overnight sweep):** NARROWED. Struck: "no caller anywhere" / "computed by nobody" — `grep -rn placeNameVerdict apps/web/src apps/web/scripts` now finds two importers: `apps/web/scripts/geocode-japan-seed.mts:135,362` (seed pipeline) and `apps/web/src/server/savedDayPins.ts:2,195` (Playbook map backfill, request path via `app/api/saved-days/[savedDayId]/route.ts`, added in `57922bd`/#205, 2026-09-23), which refuses a `"mismatch"` venue and pins the stop at city level. `geocodeRegion.ts` is now `server/geocoding/region.ts`. Still holds: the trip/assistant acceptance path — `resolveOne` in `server/ai/geocodeEnrichment.ts:283-340` — accepts on `withinBox`/distance alone and overwrites `name` with `canonicalName` (line 304); `geocodeEnrichment.ts` does not import `geocodeNameMatch`. Note: this is the same remaining defect as KI-15's post-2026-09-16 residual ("wire `placeNameVerdict` into `resolveOne`") — two open entries now describe one defect; `savedDayPins.ts:190-200` is a working pattern for the wiring.

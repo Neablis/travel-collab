@@ -29,8 +29,6 @@ here two days later.
   - **Multi-select drag:** shift-click several stops and drag them as one batch.
   - **Resize by keyboard:** M41 gives moving a keyboard path (the editor's Day field) but not
     changing a stop's length.
-  - **⌘K hands unmatched text to the assistant:** "Ask: …". ADR-068 §5 keeps the palette off the
-    model in v1, so this needs a decision.
   - **Pinch or ⌘-scroll to zoom the river's time scale:** the scale is tuned, and pinch already
     zooms the page on a phone.
   - **Follow Google Maps short links on paste:** a `maps.app.goo.gl` link is what the Maps app's
@@ -168,6 +166,11 @@ here two days later.
   annotation step, which `docs/milestones/README.md` records as not adopted and
   `scripts/milestone.mjs`'s checklist does not have; and the KI `Area:` → node
   binding.
+  **Status (2026-10-17): the annotation layer exists by hand.**
+  `docs/architecture/SYSTEM-DESIGN.md` (as of 2026-10-05) is the as-built design, and `CLAUDE.md`
+  points to it; it is written by a person, not at gate close, and its own header says nothing
+  checks it. Still not built: the generated map (that file says so), the gate-close step, and
+  the KI binding.
 
 - **Stripe test mode alongside live, without a redeploy to switch.** Asked for
   2026-09-16: *"i would like to be able to use test card without needing to take
@@ -430,49 +433,11 @@ here two days later.
   recorded transcripts (`server/ai/eval/replay.int.test.ts`, which closed
   KI-011). What does not exist is the comparison itself: nothing runs the same
   prompts against several models and scores them side by side.
-
-- **`/ask` survives a throw while building its proposal (2026-09-25,
-  `KI-2026-09-24-w`).** A throw inside `buildProposal` (called from
-  `messageMetadata` on the stream's `finish` part in `handleAskRequest.ts`)
-  errors the response body instead of reaching `onError`, so the client gets
-  neither the failure message nor a proposal. No known trigger today — it needs
-  a bug in `buildProposal` — and the entry has a reproduction already
-  (`route.int.test.ts` with `buildProposal` mocked to throw). Small. It is AI
-  code, so it belongs with M9's carried cluster; it is listed here only because
-  the 2026-09-24 KI pass never gave it a `Milestone:` line and the overnight
-  sweep missed it. **Either take it standalone or give the entry M9's
-  Milestone line and a row in M9's Parked table.**
-
-- **Travellers who are not on the app count toward per-person cost (asked 2026-10-10).**
-  Mitchell: *"set people going on trip (we kinda have that now with those invited) but also add
-  people who arent in the app who are going on trip so you can get the per person trip price
-  correct"*. His example: a family of three, husband, wife and a baby. The husband and wife both
-  edit the trip; the baby has no account but is still coming, and per-person cost has to know
-  there are three people.
-  - **What exists.** ADR-065 made travelling a per-person Access attribute:
-    `trip_travellers(trip_id, user_id, travelling, …)`, counted at read time by `overlayMembers`
-    through `travellerIds(members)`. Every traveller is a member with an account, so a trip can
-    count only the people who have been invited and accepted. The People panel (M35) is where
-    travelling is set.
-  - **The idea.** The owner (and maybe editors) can add a named traveller with no account, for
-    example "Baby" or "Grandma", from the People panel. That person counts in "nobody picked"
-    totals and can be picked in *Who is in* on a stop, exactly as a member traveller is. They
-    never sign in, never receive an invite, and appear as a person without an avatar. If they
-    later join the app, they can be linked to the invited account so their picks carry over.
-  - **Decisions it needs.** Where a non-account traveller lives: a row in `trip_travellers` with
-    no `user_id` (an id of its own plus a display name), or a separate `trip_guests` table. Either
-    way it stays Access data, not planning events, per ADR-065 D1. *Who is in* picks are stored as
-    user ids today, so picking a guest needs an id space that is not a user id, and the planning
-    events would then name someone Access owns. That is the half-evented boundary question again.
-    Whether a guest can be *Booked by* (probably not; they have no balance to settle) and how
-    balances split when guests travel, since a baby costs but does not pay; a parent pays for
-    them. Whether some guests are priced differently from adults (infant or child fares, a
-    per-traveller multiplier) or whether that stays out of scope and the stop's price is edited
-    instead. Who may add or remove a guest (the owner only, like `maySetTravelling` for others,
-    or any editor). How the public API's `GET /v1/trips/:id/members` and `cost × headcount`
-    totals show guests (a contract change, `docs/contracts/CHANGELOG.md`). How the assistant
-    and notebook widgets that count heads see them.
-  **Not placed.**
+  **Status (2026-10-17): M33 built the harness.** `pnpm --filter web eval` runs the live set
+  through the real `/ask` handler on production's per-tier models and scores each turn by code,
+  and `EVAL_MODEL_<TIER>` swaps one tier's model to measure a candidate against the same prompts
+  (`docs/milestones/M33-evals.md`); the 2026-10-05 cheap-tier switch was chosen that way. What
+  is left is only a sweep of several models in one run, and a table of the results.
 
 - **Reposition a cover: drag the photo to choose what the band shows (asked 2026-10-10).**
   Mitchell, on the trip page's cover: *"i want to do the adjusted photo crop like notion option

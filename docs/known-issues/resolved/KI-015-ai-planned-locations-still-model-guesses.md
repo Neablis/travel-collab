@@ -1,4 +1,4 @@
-### KI-15 — AI-planned locations are still model guesses, not cited facts
+### KI-15 — AI-planned locations are still model guesses, not cited facts — RESOLVED (duplicate of KI-2026-09-20-a)
 - **Severity:** correctness (downgraded 2026-08-06 — silent corruption fixed, the guess remains)
 - **Area:** `apps/web/src/server/ai/geocodeEnrichment.ts`
 - **Fixed on 2026-08-06, before PR #21 merged:** `enrichCommandLocations`/`resolveOne`
@@ -124,3 +124,13 @@
   milestone — it is one function acquiring the caller it was written for.
 - **Cross-reference:** KI-81 (resolved 2026-09-16 — the grounding half), KI-93 (resolved with it), F-G02, F-F12.
 - **Re-verified 2026-09-25 (overnight sweep):** NARROWED. Struck: "`placeNameVerdict` still has no caller on the request path" — since `57922bd` (#205, 2026-09-23) `server/savedDayPins.ts:195` calls it on the Playbook-read backfill (`app/api/saved-days/[savedDayId]/route.ts` → `savedDayPinBackfill.ts`). Still holds, and is the whole of this entry: `resolveOne` (`server/ai/geocodeEnrichment.ts:283-340`, was `:157-199`) still accepts on distance-to-hint or `withinBox` alone and writes `name: match.canonicalName` (line 304) with no name check — `grep placeNameVerdict geocodeEnrichment.ts` returns nothing. The KI-81 skip (`precision` beside real coordinates, line 199) still keeps assistant-grounded stops out of it. Same defect as KI-2026-09-20-a; see that entry's re-verification.
+- **Closed as a duplicate, 2026-10-17 (the 2026-10-16 audit, §6). Still live: tracked in
+  `open/KI-20260920-a-geocode-name-check-is-written-but-unwired.md`.** After the 2026-09-16
+  narrowing, the only defect left here was "wire `placeNameVerdict` into `resolveOne`", and
+  KI-2026-09-20-a describes the same defect. Both entries said so in their 2026-09-25
+  re-verifications. That entry now also carries this one's enrichment residuals: the
+  verified-path dedupe, spread-trip `unverified` reports, `unverified` fallbacks widening
+  `tripRegionOf`, uncalibrated thresholds, the antimeridian, and the `unchecked` first lookup.
+  Re-checked on 2026-10-17: `geocodeEnrichment.ts` still never calls `placeNameVerdict` and still
+  writes `name: match.canonicalName`. The history above stays here because source comments cite
+  KI-15 for the 2026-08-02 incident and the grounding demotion.

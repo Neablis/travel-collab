@@ -289,6 +289,7 @@ dispatched workflow. Details: `docs/guidelines/content-bundles.md`.
 |---|---|---|---|
 | Neon Postgres | everything durable, rate-limit counters, external-data cache | `db/client.ts` | errors propagate |
 | Vercel AI Gateway | model calls | `aiModel()`, reachable only from `modelSelection.ts` | falls closed to `simulatedModel.ts` |
+| Vercel AI Gateway, embeddings | plan-example day and request embeddings (`openai/text-embedding-3-small`) | `ai/embeddings.ts`, its own gateway client (ADR-075) | returns null; the turn plans without examples |
 | Stripe | subscriptions | `billing/stripeApi.ts`, own HMAC verify in `signature.ts` | webhook 500 → Stripe retries |
 | LocationIQ | geocoding, place search | `Geocoder` interface; only normalised results stored (ADR-007) | throws without a key; paced and quota'd |
 | MET Norway, NASA POWER | forecast and climate widgets | ports + read-through `external_data_cache`; coordinates rounded first (ADR-052) | 4 s timeout; forecast degrades to "typical" |
@@ -372,6 +373,7 @@ dispatched workflow. Details: `docs/guidelines/content-bundles.md`.
 | Travellers are access data, counted at read | storing it in the log (Planning would know who is invited) | 065 |
 | A stop's price is per person | — accepted as wrong for a shared room or taxi | 060 |
 | ⌘K runs the page's own actions, named Action › Type › Target | commands with handlers of their own (copies drift); a flat list of labels and keywords (names and ranking stopped agreeing as it grew) | 068, 069 |
+| Plan examples come from pgvector in our own Postgres: hybrid HNSW and full-text search with RRF, embedded on write by a daily sweep, privacy decided in the query | Upstash Vector (a second store with its own lifecycle); Postgres RLS (no precedent here) | 075 |
 | Money is integer minor units, one currency per trip | floats (break bit-identical rebuild); live FX (a projection cannot call an API) | 008 |
 
 **ADR status that is easy to misread**

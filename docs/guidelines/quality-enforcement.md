@@ -139,12 +139,12 @@ gh run list --commit "$(git rev-parse HEAD)" --limit 1
 
 ## Fast feedback while you work
 
-- A `PostToolUse` hook (`scripts/hooks/typecheck-touched-package.mjs`)
-  typechecks only the package owning each edited `.ts`/`.tsx` file, so a type
-  error surfaces seconds after the edit rather than at `pnpm check` time. It
-  applies the same narrowing rules as the `minimal-check-subset` skill,
-  including the contracts hard-exception, and uses an incremental build-info
-  cache (~4s first run, ~1.6s after).
+- A `PreToolUse` hook on `git commit` (`scripts/hooks/typecheck-on-commit.mjs`)
+  typechecks the packages the commit touches and blocks the commit on a type
+  error. Same narrowing as the `minimal-check-subset` skill, contracts
+  hard-exception included; packages run in parallel on an incremental cache,
+  with a 300 s timeout. A commit with no `.ts`/`.tsx` file costs nothing. It
+  replaced a per-edit hook that took 14 to 66 s on every `apps/web` edit.
 - A failing CI e2e run uploads `playwright-report/` and `test-results/` as the
   `playwright-report` artifact. `trace: "on-first-retry"` means a flaky failure
   hands back a real trace — download it instead of re-reading job logs.

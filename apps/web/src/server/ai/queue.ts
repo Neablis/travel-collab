@@ -10,11 +10,21 @@ import { db, type Queryable } from "@/server/db/client";
 /** Which corpus a queued day belongs to: a playbook (`saved_days`) or a trip (the planning log). */
 export type EmbedSourceType = "playbook" | "trip";
 
-/** One queue upsert: insert, or reset to `pending` a row the sweep already finished or dead-lettered. */
-function queueUpsert(sourceType: EmbedSourceType, sourceId: string, dayIndex: number) {
+/**
+ * One queue upsert for every day index, as a single statement: insert, or
+ * reset to `pending` a row the sweep already finished or dead-lettered. One
+ * round trip per write rather than one per day — the trip path runs this on
+ * every command. `indexes` must be non-empty and free of duplicates (a
+ * multi-row upsert may not touch the same key twice).
+ */
+function queueUpsert(sourceType: EmbedSourceType, sourceId: string, indexes: readonly number[]) {
+  const rows = sql.join(
+    indexes.map((dayIndex) => sql`(${randomUUID()}, ${sourceType}, ${sourceId}, ${dayIndex}, 'pending', 0, now())`),
+    sql`, `,
+  );
   return sql`
     INSERT INTO pending_embeddings (id, source_type, source_id, day_index, status, attempts, created_at)
-    VALUES (${randomUUID()}, ${sourceType}, ${sourceId}, ${dayIndex}, 'pending', 0, now())
+    VALUES ${rows}
     ON CONFLICT (source_type, source_id, day_index)
     DO UPDATE SET status = 'pending', attempts = 0
     WHERE pending_embeddings.status IN ('done', 'dead')
@@ -43,9 +53,7 @@ export async function enqueueDayChunksForEmbedding(
   const indexes = [...new Set(dayIndexes)];
   if (indexes.length === 0) return;
   try {
-    for (const dayIndex of indexes) {
-      await db.execute(queueUpsert(sourceType, sourceId, dayIndex));
-    }
+    await db.execute(queueUpsert(sourceType, sourceId, indexes));
   } catch (error) {
     // The playbook/trip write already committed; losing its enqueue only
     // delays its embedding until the next backfill, it never loses the write.
@@ -90,9 +98,7 @@ export async function enqueueDayChunksInTransaction(
   if (indexes.length === 0) return;
   try {
     await tx.execute(sql`SAVEPOINT rag_enqueue`);
-    for (const dayIndex of indexes) {
-      await tx.execute(queueUpsert(sourceType, sourceId, dayIndex));
-    }
+    await tx.execute(queueUpsert(sourceType, sourceId, indexes));
     await tx.execute(sql`RELEASE SAVEPOINT rag_enqueue`);
   } catch (error) {
     // Contain it: roll the queue write back to the savepoint so the planning

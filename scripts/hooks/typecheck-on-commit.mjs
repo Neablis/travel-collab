@@ -1,0 +1,153 @@
+import { execFileSync, spawn } from "node:child_process";
+import { existsSync, mkdirSync } from "node:fs";
+import { join, resolve } from "node:path";
+import { tmpdir } from "node:os";
+import { parseStdin, readAll } from "./lib/run-context.mjs";
+import { gitSubcommandArgs, parseShell } from "./lib/shell.mjs";
+
+// PreToolUse hook (matcher: Bash). Before a `git commit`, typechecks the
+// workspace packages the commit touches, and blocks (exit 2) with the errors
+// if any fail. A commit with no .ts/.tsx file in it costs one `git diff`.
+//
+// It replaced typecheck-touched-package.mjs, which ran on every Edit|Write:
+// measured 14 to 66 s per edit for apps/web (audit 2026-10-16 §7), killed
+// silently at the 60 s default hook timeout, and blind in worktrees because it
+// resolved paths against the main checkout. Here the root is the git toplevel
+// of the checkout the commit runs in (the session's cwd, moved by a literal
+// `cd` or `git -C`), the settings entry carries `"timeout": 300`, the packages
+// run in parallel, and every skip says why on stderr.
+//
+// The files pick the packages; `tsc` then checks each package whole, so an
+// error in a file the commit leaves out (unstaged, untracked) blocks it too.
+// Checking only the staged content would mean stashing the rest mid-commit,
+// which a hook must not do to the working tree.
+//
+// The path -> package mapping and the contracts fan-out are the
+// `minimal-check-subset` skill's rules. FAILS OPEN on anything it cannot work
+// out: this is a fast early signal, and CI's typecheck is the verdict.
+
+// Every workspace package in `pnpm-workspace.yaml` must appear: an omitted
+// package's commits go unchecked and the contracts fan-out skips it.
+const PACKAGES = [
+  { prefix: "apps/web", name: "web" },
+  { prefix: "packages/contracts", name: "@tc/contracts" },
+  { prefix: "packages/domain", name: "@tc/domain" },
+  { prefix: "packages/factories", name: "@tc/factories" },
+  { prefix: "packages/fixtures", name: "@tc/fixtures" },
+  { prefix: "packages/pages", name: "@tc/pages" },
+  { prefix: "packages/predict", name: "@tc/predict" },
+];
+
+const payload = parseStdin(await readAll(process.stdin));
+const command = String(payload?.tool_input?.command ?? "");
+const cwd = String(payload?.cwd ?? process.cwd());
+
+const segments = parseShell(command);
+const commitAt = segments.findIndex((seg) => gitSubcommandArgs(seg, "commit"));
+if (commitAt === -1) process.exit(0);
+const commitArgs = gitSubcommandArgs(segments[commitAt], "commit");
+
+// Where the commit runs: the session's cwd, moved by any `cd` before it, then
+// by the commit's own `git -C`. Reading only the session's cwd checked the
+// wrong checkout (or none) for a commit made in another worktree.
+let where = cwd;
+// Only a path this hook can resolve moves it: `cd -`, `~user` and anything
+// with `$` or a backtick keep the last known checkout rather than resolve to
+// a directory that is not one, which would skip the check silently.
+const literal = (arg) => typeof arg === "string" && arg !== "" && !/^[-~]|[$`]/.test(arg);
+for (const seg of segments.slice(0, commitAt)) {
+  if ((seg.words[0] === "cd" || seg.words[0] === "pushd") && literal(seg.words[1])) {
+    where = resolve(where, seg.words[1]);
+  }
+}
+const words = segments[commitAt].words;
+for (let i = 1; i < words.length && words[i] !== "commit"; i += 1) {
+  if (words[i] === "-C" && literal(words[i + 1])) where = resolve(where, words[(i += 1)]);
+}
+
+const git = (args, root) =>
+  execFileSync("git", args, { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
+const lines = (out) => out.split("\n").filter(Boolean);
+
+let root;
+let files;
+try {
+  root = git(["rev-parse", "--show-toplevel"], where).trim();
+  // Deletions count: removing a file can break what imports it.
+  // `--no-renames`: a rename lists both paths, so a `git mv` across packages
+  // checks the package it left as well as the one it joined.
+  files = lines(git(["diff", "--cached", "--name-only", "--no-renames"], root));
+  // `git commit -a`, or `git add … && git commit` in one command, commits what
+  // is not staged yet when this runs: count the working tree's changes too.
+  const commitsAll = commitArgs.some((a) => a === "--all" || /^-[a-zA-Z]*a/.test(a));
+  const addsFirst = segments.slice(0, commitAt).some((seg) => gitSubcommandArgs(seg, "add"));
+  if (commitsAll || addsFirst) {
+    files.push(...lines(git(["diff", "--name-only", "--no-renames"], root)));
+    if (addsFirst) files.push(...lines(git(["ls-files", "--others", "--exclude-standard"], root)));
+  }
+} catch {
+  process.exit(0); // not a git checkout, or git failed: git will say so itself
+}
+
+const ts = files.filter((f) => /\.(ts|tsx)$/.test(f));
+if (ts.length === 0) process.exit(0);
+
+const owners = new Set();
+for (const f of ts) {
+  const owner = PACKAGES.filter((p) => f.startsWith(`${p.prefix}/`)).sort((a, b) => b.prefix.length - a.prefix.length)[0];
+  if (owner) owners.add(owner);
+}
+// AGENTS.md invariant 5: a contracts change can break every consumer while
+// none of their own files changed, so it is the one case that does not narrow.
+const targets = ts.some((f) => f.startsWith("packages/contracts/src/")) ? PACKAGES : [...owners];
+if (targets.length === 0) process.exit(0);
+
+const cacheDir = join(tmpdir(), "tc-typecheck-hook");
+mkdirSync(cacheDir, { recursive: true });
+
+const skipped = [];
+const runs = targets.map((pkg) => {
+  const pkgDir = join(root, pkg.prefix);
+  const tsc = join(pkgDir, "node_modules", ".bin", "tsc");
+  if (!existsSync(tsc)) {
+    skipped.push(pkg.name);
+    return Promise.resolve(null);
+  }
+  // Build info keyed by checkout as well as package: two worktrees sharing
+  // one file would each invalidate the other's cache on every run.
+  const key = `${root}-${pkg.name}`.replace(/[^a-z0-9]/gi, "-");
+  return new Promise((done) => {
+    let out = "";
+    const child = spawn(tsc, ["--noEmit", "--incremental", "--tsBuildInfoFile", join(cacheDir, `${key}.tsbuildinfo`)], {
+      cwd: pkgDir,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    child.stdout.on("data", (c) => (out += c));
+    child.stderr.on("data", (c) => (out += c));
+    child.on("error", (err) => done({ pkg: pkg.name, out: String(err.message ?? err) }));
+    // A non-zero exit with no output is still a failure: tsc could not run.
+    child.on("close", (code) => done(code === 0 ? null : { pkg: pkg.name, out: out.trim() || `tsc exited ${code}` }));
+  });
+});
+const failures = (await Promise.all(runs)).filter(Boolean);
+
+if (skipped.length > 0) {
+  console.error(`typecheck-on-commit: skipped ${skipped.join(", ")} (no node_modules/.bin/tsc in ${root}).`);
+}
+if (failures.length === 0) process.exit(0);
+
+const report = failures
+  .map(({ pkg, out }) => {
+    // The first lines identify the break; the rest crowds out the fix.
+    const all = out.split("\n");
+    const more = all.length > 25 ? `\n… ${all.length - 25} more line(s)` : "";
+    return `--- ${pkg} ---\n${all.slice(0, 25).join("\n")}${more}`;
+  })
+  .join("\n\n");
+console.error(
+  `Typecheck failed for ${failures.map((f) => f.pkg).join(", ")}; the commit was not made.\n\n${report}\n\n` +
+    `Fix these and commit again. tsc checks the whole package, so an error in a file this ` +
+    `commit leaves out (unstaged or untracked) blocks it too. To re-run one: ` +
+    `pnpm --filter ${failures[0].pkg} typecheck`,
+);
+process.exit(2);

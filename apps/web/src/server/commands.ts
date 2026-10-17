@@ -280,8 +280,9 @@ async function appendAndProject(
   const { detail, history: historyDto } = await projectAndHistory(tx, [...history, ...appended.envelopes], tripId);
   // Embed-on-write (RAG Part 2): queue every day of the new detail for
   // (re-)embedding. Unconditional — there is no cheap "did the days change"
-  // check (a note edit keeps the same day count), the queue upsert is
-  // idempotent, and the sweep dedupes. Inside the command's transaction, under
+  // check (a note edit keeps the same day count), the queue upsert is one
+  // idempotent statement, and the sweep skips the provider for any day whose
+  // text did not change (`refreshIfUnchanged` in `ai/sweep.ts`). Inside the command's transaction, under
   // a savepoint (see `enqueueDayChunksInTransaction`): a rolled-back command
   // leaves no phantom queue rows, and a queue failure never breaks the trip
   // write. Every trip write funnels through here — single commands, batches,

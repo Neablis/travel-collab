@@ -1,6 +1,7 @@
 services:
   postgres:
-    image: postgres:17
+    # pgvector: migration 0054 creates the extension; CI runs the same image.
+    image: pgvector/pgvector:pg17
     # Default must match apps/web/.env.example's DATABASE_URL port.
     ports: ["${POSTGRES_PORT:-5433}:5432"]
     environment:

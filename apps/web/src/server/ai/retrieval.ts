@@ -34,12 +34,32 @@ export const PUBLIC_LIBRARY_OWNER_ID = "service-ai-library";
 // Duplicating it per leg would let a later edit change one leg's idea of
 // who may see a chunk and not the other's — the privacy invariant is the
 // one thing in this query that must never drift between legs.
+//
+// Both legs also read the source row: `day_embeddings.visibility` is a copy
+// taken at embed time, refreshed only when the daily sweep re-embeds the day,
+// so on its own it would keep serving an unpublished, moderated or deleted
+// playbook, or a deleted trip, until then. A withdrawn source vetoes the copy; the copy can
+// never widen what the source allows.
 const privacyFilter = (userId: string | null) => sql`
   (
     (source_type = 'playbook' AND (
       visibility = 'public'
       OR owner_id = ${userId}
       OR owner_id = ${PUBLIC_LIBRARY_OWNER_ID}
+    ) AND NOT EXISTS (
+      SELECT 1 FROM saved_days
+      WHERE saved_days.id = day_embeddings.source_id
+        AND (
+          saved_days.deleted_at IS NOT NULL
+          -- Taken down by an admin (M12): every non-owner read filters on it,
+          -- library content included.
+          OR (saved_days.moderated_at IS NOT NULL AND saved_days.owner_id IS DISTINCT FROM ${userId})
+          OR (
+            saved_days.visibility <> 'public'
+            AND saved_days.owner_id IS DISTINCT FROM ${userId}
+            AND saved_days.owner_id <> ${PUBLIC_LIBRARY_OWNER_ID}
+          )
+        )
     ))
     OR (source_type = 'trip' AND (
       owner_id = ${userId}
@@ -49,6 +69,10 @@ const privacyFilter = (userId: string | null) => sql`
         WHERE trip_memberships.trip_id = day_embeddings.source_id
           AND trip_memberships.user_id = ${userId}
       )
+    ) AND NOT EXISTS (
+      SELECT 1 FROM trip_summaries
+      WHERE trip_summaries.trip_id = day_embeddings.source_id
+        AND trip_summaries.status = 'deleted'
     ))
   )
 `;
@@ -70,10 +94,14 @@ const privacyFilter = (userId: string | null) => sql`
  *
  * **Privacy is enforced in the query, in the app layer — not Postgres RLS**
  * (this codebase has no RLS precedent). A chunk is visible when:
- * - it is a playbook day that is public, or the reader owns it; or
- * - it is a trip day and the reader is the trip's owner (Part 2 records
- *   `owner_id` at write time — the owner has no `trip_memberships` row, so
- *   membership alone would hide their own trip from them) or a member; or
+ * - it is a playbook day that is public, or the reader owns it — and its
+ *   `saved_days` row has not since been deleted, nor (unless the reader owns
+ *   it) taken down by moderation or unpublished. The embedding's own
+ *   `visibility` is a stale copy until the sweep re-embeds it; or
+ * - it is a day of a trip that is not deleted, and the reader is the trip's
+ *   owner (Part 2 records `owner_id` at write time — the owner has no
+ *   `trip_memberships` row, so membership alone would hide their own trip
+ *   from them) or a member; or
  * - it is owned by `PUBLIC_LIBRARY_OWNER_ID` (the system account holding
  *   seeded sample content) — treated as public for every reader, including
  *   logged-out.

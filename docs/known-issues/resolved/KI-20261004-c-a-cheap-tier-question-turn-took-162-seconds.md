@@ -1,4 +1,4 @@
-### KI-2026-10-04-c — a cheap-tier question turn took 162 seconds, and the ledger cannot yet say which step
+### KI-2026-10-04-c — a cheap-tier question turn took 162 seconds, and the ledger cannot yet say which step — RESOLVED (obsolete: the models it measured no longer serve)
 
 - **Severity:** major (a person waits nearly three minutes for a one-sentence answer).
 - **Milestone:** M32, which adds the measurement; the fix is not in M32's scope.
@@ -47,3 +47,14 @@
 - **First production turn after the switch, 2026-10-05:** turn `0b34629f-…`, the same question
   on the same trip as the 162-second turn: `zai/glm-5.3-flash`, two steps of 734 ms and 780 ms,
   4.5s end to end. One turn; the resolution still waits on query 8 over a few days.
+- **Retired 2026-10-17 as obsolete (the 2026-10-16 audit, §6).** Every model this entry measured
+  has left production. `apps/web/src/server/ai/eval/models.json` (verified 2026-10-10) has the
+  cheap tier and the classifier on `anthropic/claude-haiku-5.5`, the mid tier on
+  `anthropic/claude-sonnet-5.5` and the strong tier on `anthropic/claude-opus-5.5`. That is
+  Mitchell's 2026-10-10 Vercel env change, on our own Anthropic key. So neither
+  `zai/glm-4.7-flashx` (the cheap-tier stall) nor `zai/glm-5.3` (the strong tier's one slow run)
+  answers a turn any more. The "query 8 over a few days" check above was waiting to confirm the
+  `zai/glm-5.3-flash` switch, and that model is gone too.
+- **Proof:** no fix was made, and there is nothing to prove. The provider route this entry was
+  about no longer runs. A slow step on the Anthropic tiers is a new finding: file it against
+  them, using M32's per-step durations (query 8 of `.claude/skills/ai-usage/ledger.sql`).
