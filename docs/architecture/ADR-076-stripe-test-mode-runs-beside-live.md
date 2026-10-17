@@ -109,12 +109,34 @@ Three facts make "just add the test keys" unsafe:
 8. **A test event applies only where its checkout began.** Stripe delivers every test-mode event
    to every endpoint in that test account, so a preview's or a laptop's test checkout also reaches
    production's test endpoint. Checkout therefore stamps `deploymentOrigin` (`deploymentOrigin()`)
-   on the session, the subscription and the customer. The webhook records a test-mode event whose
-   subscription carries another origin, or none, as `unattributable`: claimed, applied to nothing,
-   answered 200. Any event naming an account this database does not hold is handled the same way.
+   on the session, the subscription and the customer. **A test-mode event applies if its
+   subscription carries this deployment's origin, or if this database already holds the
+   subscription** (Stripe subscription ids are unique, so a row proves it was bought here). Any
+   other test-mode event is recorded as `unattributable`: claimed, applied to nothing, answered 200.
+   Any event naming an account this database does not hold is handled the same way. The origin is a
+   host, not an identity: production's is its domain and a preview's its branch alias, but every
+   laptop shares `http://localhost:3001`, so between two laptops only the account check tells them
+   apart.
+
+   **No delivery writes to a subscription row held in the other mode.** A test-signed event can
+   never write a live row, and a live-signed event can never write a test row. Such an event is
+   `unattributable`, and the mismatch alerts in either mode, because one side is always a live row.
+
+   **Live drops alert.** A live event dropped as unattributable (no account named, the account
+   absent, the row in the other mode) or ignored for a subscription status this build does not know
+   goes to `console.error` and to Sentry at error, as one fixed message (`Stripe event dropped`)
+   fingerprinted per subscription, so each subscription is one issue. Test-mode drops that are not a
+   mode mismatch stay quiet.
+
+   Migration 0055 marked every row that existed before it live. So a test-mode row from before
+   0055, which only previews and laptops have, is held in the other mode, and a test event on it is
+   refused and alerts. **Those pre-0055 test rows are disposable:** reset those databases rather
+   than expect them to update.
+
    Production's test pair comes from a **dedicated Stripe sandbox**, not the test mode shared with
    local and preview deployments; the origin check is the second line of defence, not the first.
-   (Part 2's review, 2026-10-17; decided unattended as the safer fix, reversible by Mitchell.)
+   (Part 2's review rounds 1 to 4, 2026-10-17; decided unattended as the safer fix, reversible by
+   Mitchell.)
 
 ## What changes in the billing guideline
 
