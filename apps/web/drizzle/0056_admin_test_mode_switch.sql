@@ -1,0 +1,1 @@
+ALTER TABLE "users" ADD COLUMN "stripe_test_mode" boolean DEFAULT false NOT NULL;

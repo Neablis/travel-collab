@@ -1,6 +1,11 @@
 import * as Sentry from "@sentry/nextjs";
 import { billingConfig } from "@/server/billing/config";
-import { constructStripeEvent, WebhookSignatureError } from "@/server/billing/signature";
+import {
+  constructStripeEvent,
+  WebhookModeMismatchError,
+  WebhookSignatureError,
+  type WebhookSecret,
+} from "@/server/billing/signature";
 import { applyStripeEvent } from "@/server/billing/webhook";
 
 // **The sole writer of subscription state** (M21 link 4).
@@ -21,20 +26,31 @@ export const dynamic = "force-dynamic";
  * **What answer means what to Stripe**, because it decides whether it retries:
  *
  *   * **200** — we have it. Applied, or deliberately not applied (a replay, a
- *     stale delivery, an event type we do not handle). All four are final
- *     answers, so all four are 200: a non-2xx on an event we simply do not
- *     handle would make Stripe retry it for three days.
- *   * **400** — the signature did not verify. No retry will fix a body we
- *     cannot attribute, and answering 500 would have Stripe retrying an
- *     attacker's request for us.
+ *     stale delivery, an event type we do not handle, or one we cannot
+ *     attribute to an account here). All are final answers, so all are 200:
+ *     a non-2xx on an event we simply do not handle would make Stripe retry
+ *     it for three days.
+ *   * **400** — the signature did not verify (`bad-signature`), or it did and
+ *     the body's `livemode` disagrees with the secret that verified it
+ *     (`mode-mismatch`, ADR-076 §5). No retry will fix either, and answering
+ *     500 would have Stripe retrying an attacker's request for us. A mismatch
+ *     is refused before the claim, so nothing in the database records it;
+ *     Sentry does, and Stripe's own dashboard shows it red.
  *   * **500** — we failed. Stripe should retry, and the ordering tolerance and
  *     the idempotency claim are both built so that a retry after a partial
  *     failure converges rather than double-applies.
  */
 export async function POST(request: Request) {
-  let secret: string;
+  // **Every pair's secret**, because which one verifies is the delivery's mode.
+  // A broken test pair is absent here, not a throw: `billingConfig()` reports
+  // it once, and live deliveries keep landing.
+  let secrets: WebhookSecret[];
   try {
-    secret = billingConfig().webhookSecret;
+    const config = billingConfig();
+    secrets = (["live", "test"] as const).flatMap((mode) => {
+      const pair = config[mode];
+      return pair === undefined ? [] : [{ mode, secret: pair.webhookSecret }];
+    });
   } catch (error) {
     // No signing secret configured means every delivery is refused, which is
     // the safe direction and is not the same thing as working. 500 rather than
@@ -55,9 +71,15 @@ export async function POST(request: Request) {
     event = constructStripeEvent({
       rawBody,
       header: request.headers.get("stripe-signature"),
-      secret,
+      secrets,
     });
   } catch (error) {
+    if (error instanceof WebhookModeMismatchError) {
+      // Reported: unlike a bad signature, only a holder of one of our secrets
+      // can produce this, so it is our configuration and not background noise.
+      Sentry.captureException(error);
+      return Response.json({ error: "mode-mismatch" }, { status: 400 });
+    }
     if (error instanceof WebhookSignatureError) {
       // **Not reported to Sentry.** A public endpoint collects unsigned
       // requests the way any public endpoint does, and paging on them would

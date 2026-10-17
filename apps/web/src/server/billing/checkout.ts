@@ -10,7 +10,7 @@
 // browser back and that return proves only that a browser followed a URL. The
 // grant happens when the webhook says so (M21 link 4), which is why the
 // success page's job is to wait rather than to celebrate.
-import type { PlanId } from "@tc/contracts";
+import { CONFERRING_STATUSES, type PlanId } from "@tc/contracts";
 import { db } from "@/server/db/client";
 import { stripeCustomers, users } from "@/server/db/schema";
 import { and, eq } from "drizzle-orm";
@@ -20,10 +20,12 @@ import {
   planVersionRefOf,
   type PlanVersion,
 } from "@/server/entitlements/planVersions";
-import { checkoutReference } from "./config";
+import { deploymentOrigin } from "@/lib/deploymentOrigin";
+import { checkoutReference, modeOfLivemode, ORIGIN_METADATA_KEY } from "./config";
 import { stripePriceFor, UnpurchasableVersionError } from "./prices";
 import { createCustomer, stripeRequest, type StripeCheckoutSession, type StripePortalSession } from "./stripeApi";
 import { subscriptionFor } from "./subscriptions";
+import { billingModeFor } from "./testMode";
 
 /**
  * The Stripe customer for an account in one Stripe mode, creating one the
@@ -31,8 +33,8 @@ import { subscriptionFor } from "./subscriptions";
  *
  * **One per account per mode** (ADR-076 §2): test and live are separate
  * customer spaces at Stripe, so each mode has its own row in
- * `stripe_customers`. Live is the only mode a checkout starts in until the
- * admin test-mode switch exists (ADR-076 §6).
+ * `stripe_customers`. Which mode a checkout is in is `billingModeFor`'s
+ * answer: the admin's test-mode switch, else the primary pair (ADR-076 §6).
  *
  * **Written here and not by the webhook**, which is the one exception to link
  * 4's sole-writer rule and is not really an exception: a customer id is who you
@@ -46,7 +48,7 @@ import { subscriptionFor } from "./subscriptions";
  * for this account and mode. Two concurrent first checkouts therefore produce
  * one customer and one write.
  */
-export async function stripeCustomerFor(userId: string, livemode = true): Promise<string> {
+export async function stripeCustomerFor(userId: string, livemode: boolean): Promise<string> {
   const rows = await db
     .select({ email: users.email, customerId: stripeCustomers.customerId })
     .from(users)
@@ -66,7 +68,7 @@ export async function stripeCustomerFor(userId: string, livemode = true): Promis
   }
   if (row.customerId !== null) return row.customerId;
 
-  const customer = await createCustomer({ userId, email: row.email });
+  const customer = await createCustomer({ userId, email: row.email, mode: modeOfLivemode(livemode) });
   // **Only if there is still none.** Another request may have created and
   // written one between the read above and here; Stripe's idempotency key
   // means it is the SAME customer, so this is a race with no loser — but the
@@ -165,12 +167,17 @@ export async function startCheckout(input: {
     );
   }
 
+  // **The account's switch, else the primary pair's mode** (ADR-076 §6): a
+  // switched account buys with the test pair, its test customer and the
+  // test-mode Price, so a test card confers the plan with `plan_livemode = false`.
+  const mode = await billingModeFor(input.userId);
   const [customerId, priceId] = await Promise.all([
-    stripeCustomerFor(input.userId),
-    stripePriceFor(version),
+    stripeCustomerFor(input.userId, mode === "live"),
+    stripePriceFor(version, mode),
   ]);
 
   const session = await stripeRequest<StripeCheckoutSession>({
+    mode,
     method: "POST",
     path: "/checkout/sessions",
     body: {
@@ -184,12 +191,16 @@ export async function startCheckout(input: {
       // `customer.subscription.updated` carries no session and therefore no
       // `client_reference_id` — and those are most of the events. Without this
       // a renewal two months later would have no way back to an account.
+      // The origin rides on both: a test-mode event applies only on the
+      // deployment its checkout began on (`ORIGIN_METADATA_KEY`).
       subscription_data: {
         metadata: {
           userId: input.userId,
           planVersionRef: planVersionRefOf(version),
+          [ORIGIN_METADATA_KEY]: deploymentOrigin(),
         },
       },
+      metadata: { [ORIGIN_METADATA_KEY]: deploymentOrigin() },
       // `{CHECKOUT_SESSION_ID}` is Stripe's own placeholder; it is substituted
       // on the redirect. The success page uses it to ask what happened, and
       // asking is all it does — the answer that matters comes from the webhook.
@@ -203,8 +214,9 @@ export async function startCheckout(input: {
     // **Scoped to the account, the version and the hour.** Not to the account
     // alone: a person who starts a checkout, abandons it and comes back an hour
     // later must get a fresh session rather than a 24-hour-old expired one.
-    // Not per-request either, which would make the key decorative.
-    idempotencyKey: `checkout:${input.userId}:${planVersionRefOf(version)}:${Math.floor(Date.now() / 3_600_000)}`,
+    // Not per-request either, which would make the key decorative. And by
+    // mode, as `createCustomer`'s is: the switch can flip inside the hour.
+    idempotencyKey: `checkout:${mode}:${input.userId}:${planVersionRefOf(version)}:${Math.floor(Date.now() / 3_600_000)}`,
   });
 
   if (session.url === null) {
@@ -225,8 +237,19 @@ export async function portalUrlFor(input: {
   userId: string;
   returnOrigin: string;
 }): Promise<string> {
-  const customerId = await stripeCustomerFor(input.userId);
+  // **The held subscription's own mode, else its checkouts' mode** (ADR-076
+  // §6). Stripe knows a subscription in its own mode only, so a switched
+  // account that pays live must still reach its live card, and a test
+  // subscription outlives the switch being turned off. Held means its status
+  // confers: a cancelled test row manages nothing, and letting it pick test
+  // would 500 "Manage billing" once the test keys are gone. A lapsed
+  // `past_due` row still counts, since fixing its card is the portal's job.
+  const current = await subscriptionFor(input.userId);
+  const held = current !== null && CONFERRING_STATUSES.includes(current.status) ? current : null;
+  const mode = held !== null ? modeOfLivemode(held.livemode) : await billingModeFor(input.userId);
+  const customerId = await stripeCustomerFor(input.userId, mode === "live");
   const session = await stripeRequest<StripePortalSession>({
+    mode,
     method: "POST",
     path: "/billing_portal/sessions",
     // **Home, because there is no `/account` route to return to.** Account

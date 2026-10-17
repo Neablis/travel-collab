@@ -127,6 +127,9 @@ describe("users repository", () => {
       stripeCustomerId: null,
       // M47's column: a held plan from sign-in is not from a test checkout.
       planLivemode: true,
+      // M47's switch: a first sign-in buys live. On would hand every new
+      // account a free-plan switch (ADR-076 §6).
+      stripeTestMode: false,
       createdAt: "2026-08-27 10:00:00+00",
       updatedAt: "2026-08-27 10:00:00+00",
     });

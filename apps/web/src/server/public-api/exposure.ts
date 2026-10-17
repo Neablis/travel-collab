@@ -75,6 +75,7 @@ export const EXPOSURE: Readonly<Record<string, Exposure>> = {
   reports: PLANNED("Reporting content — behind a new admin scope, with the admin review routes"),
   "admin/reports": PLANNED("Reviewing reports and removing reviews — admin scope"),
   "admin/reports/[reportId]": PLANNED("Reviewing reports and removing reviews — admin scope"),
+  "admin/accounts/[accountId]/test-mode": PLANNED("Undecided — admin scope if ever"),
   "admin/grants": PLANNED("Undecided — admin scope if ever"),
   "admin/overview": PLANNED("Undecided — admin scope if ever"),
   // Spec 2026-10-03 W14: one collection, one change resource.

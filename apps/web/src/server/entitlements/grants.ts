@@ -20,6 +20,8 @@ export type GrantRow = typeof entitlementGrants.$inferSelect;
 export interface HeldPlan {
   planId: PlanId;
   planVersion: number;
+  /** False when it was bought with a test card (ADR-076 §4). */
+  planLivemode: boolean;
 }
 
 /**
@@ -98,12 +100,11 @@ export async function hasEverHeldTrial(userId: string): Promise<boolean> {
 /** What one account holds as its base plan. `null` when there is no row. */
 export async function heldPlanFor(userId: string): Promise<HeldPlan | null> {
   const rows = await db
-    .select({ planId: users.planId, planVersion: users.planVersion })
+    .select({ planId: users.planId, planVersion: users.planVersion, planLivemode: users.planLivemode })
     .from(users)
     .where(eq(users.id, userId))
     .limit(1);
-  const row = rows[0];
-  return row === undefined ? null : { planId: row.planId, planVersion: row.planVersion };
+  return rows[0] ?? null;
 }
 
 /** What a grant is asked for, by the trial, the referral loop, and an operator. */

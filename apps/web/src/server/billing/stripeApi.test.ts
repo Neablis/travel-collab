@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { fakeStripeKey } from "@/test-support/stripeSignature";
+import { fakeStripeKey, otherFakeStripeKey } from "@/test-support/stripeSignature";
 import {
+  createCustomer,
   findPriceByLookupKey,
+  retrieveSubscription,
   retrieveSubscriptionWithItems,
 } from "./stripeApi";
 
@@ -42,11 +44,18 @@ function requestedUrl(call: number): URL {
 const saved = new Map<string, string | undefined>();
 
 beforeEach(() => {
-  for (const key of ["STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET"]) {
+  for (const key of [
+    "STRIPE_SECRET_KEY",
+    "STRIPE_WEBHOOK_SECRET",
+    "STRIPE_TEST_SECRET_KEY",
+    "STRIPE_TEST_WEBHOOK_SECRET",
+  ]) {
     saved.set(key, process.env[key]);
   }
   process.env.STRIPE_SECRET_KEY = fakeStripeKey("sk_test");
   process.env.STRIPE_WEBHOOK_SECRET = fakeStripeKey("whsec");
+  delete process.env.STRIPE_TEST_SECRET_KEY;
+  delete process.env.STRIPE_TEST_WEBHOOK_SECRET;
   fetchMock.mockReset();
   fetchMock.mockImplementation(async () =>
     okJson({ object: "list", data: [] })(),
@@ -69,7 +78,7 @@ describe("findPriceByLookupKey", () => {
   // list — so this is not a style preference, it is the difference between a
   // working checkout and a 500.
   it("sends lookup_keys as an array parameter, not a scalar", async () => {
-    await findPriceByLookupKey("plus_v1_usd_900");
+    await findPriceByLookupKey("plus_v1_usd_900", "test");
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
     for (const call of [0, 1]) {
@@ -84,7 +93,7 @@ describe("findPriceByLookupKey", () => {
   });
 
   it("asks for the active and the archived listing of the same key", async () => {
-    await findPriceByLookupKey("premium_v1_usd_1900");
+    await findPriceByLookupKey("premium_v1_usd_1900", "test");
 
     const actives = [requestedUrl(0), requestedUrl(1)]
       .map((url) => url.searchParams.get("active"))
@@ -104,7 +113,7 @@ describe("findPriceByLookupKey", () => {
         okJson({ object: "list", data: [{ id: "price_archived" }] })(),
       );
 
-    const found = await findPriceByLookupKey("plus_v1_usd_900");
+    const found = await findPriceByLookupKey("plus_v1_usd_900", "test");
 
     expect(found?.id).toBe("price_active");
   });
@@ -116,10 +125,46 @@ describe("retrieveSubscriptionWithItems", () => {
   it("expands the price with an array parameter", async () => {
     fetchMock.mockImplementation(async () => okJson({ id: "sub_123" })());
 
-    await retrieveSubscriptionWithItems("sub_123");
+    await retrieveSubscriptionWithItems("sub_123", "test");
 
     const url = requestedUrl(0);
     expect(url.pathname).toBe("/v1/subscriptions/sub_123");
     expect(url.searchParams.getAll("expand[]")).toEqual(["items.data.price"]);
+  });
+});
+
+/** The headers of the Nth `fetch` call. */
+function requestedHeaders(call: number): Record<string, string> {
+  const [, init] = fetchMock.mock.calls[call] as [string, { headers: Record<string, string> }];
+  return init.headers;
+}
+
+// **Every call names its mode, and the mode picks the key** (ADR-076 §5, §7).
+// A test-mode subscription id asked of the live key is a 404 at Stripe, which on
+// the webhook is a 500 and three days of retries for an event that was fine.
+describe("the key a request is made with", () => {
+  beforeEach(() => {
+    process.env.STRIPE_SECRET_KEY = fakeStripeKey("sk_live");
+    process.env.STRIPE_TEST_SECRET_KEY = fakeStripeKey("sk_test");
+    process.env.STRIPE_TEST_WEBHOOK_SECRET = otherFakeStripeKey("whsec");
+    fetchMock.mockImplementation(async () => okJson({ id: "sub_1" })());
+  });
+
+  it("is the mode's own", async () => {
+    await retrieveSubscription("sub_1", "test");
+    await retrieveSubscription("sub_1", "live");
+    expect(requestedHeaders(0).Authorization).toBe(`Bearer ${fakeStripeKey("sk_test")}`);
+    expect(requestedHeaders(1).Authorization).toBe(`Bearer ${fakeStripeKey("sk_live")}`);
+  });
+
+  // ADR-076 §2: an account's test and live customers are two different
+  // customers, and one idempotency key for two different requests is the misuse
+  // the key exists to rule out.
+  it("creates a customer under an idempotency key that names the mode", async () => {
+    fetchMock.mockImplementation(async () => okJson({ id: "cus_1" })());
+    await createCustomer({ userId: "u1", email: null, mode: "test" });
+    await createCustomer({ userId: "u1", email: null, mode: "live" });
+    expect(requestedHeaders(0)["Idempotency-Key"]).toBe("customer:test:u1");
+    expect(requestedHeaders(1)["Idempotency-Key"]).toBe("customer:live:u1");
   });
 });
