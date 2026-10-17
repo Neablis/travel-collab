@@ -255,6 +255,12 @@ function statusOf(subscription: StripeSubscription): SubscriptionStatus | null {
  * Stripe stops. Live events are not checked: one live account is one
  * production.
  *
+ * **Neither mode writes to a row held in the other.** The held-here bypass
+ * would otherwise let a test-signed body move a live row's status and plan
+ * while the row still said live, and the live-only money reads would count it
+ * (PR 476 review round 3, finding 1). One side of that is always live, so it
+ * alerts in both modes.
+ *
  * `pastDueSince` is carried forward rather than recomputed: the decline is an
  * `invoice.payment_failed` and the subscription events around it do not say
  * when it happened. A subscription that is `past_due` and has no anchor yet
@@ -269,6 +275,10 @@ async function writeFrom(
   now: Date,
 ): Promise<WebhookOutcome> {
   const existing = await subscriptionByStripeId(subscription.id);
+  if (existing !== null && existing.livemode !== (event.mode === "live")) {
+    alertDropped(event, subscription, "is held in the other mode");
+    return { applied: false, note: "unattributable" };
+  }
   if (
     event.mode === "test" &&
     existing === null &&
@@ -286,7 +296,14 @@ async function writeFrom(
   }
 
   const status = statusOf(subscription);
-  if (status === null) return { applied: false, note: "ignored" };
+  if (status === null) {
+    // Unlike the other `ignored` exits this one loses state: the row keeps
+    // conferring on its old status, and the 200 means no redelivery.
+    if (event.mode === "live") {
+      alertDropped(event, subscription, `has status ${subscription.status}, which this build does not know`);
+    }
+    return { applied: false, note: "ignored" };
+  }
 
   const eventAt = new Date(event.created * 1000);
   const pastDueSince =
@@ -327,12 +344,30 @@ function unattributable(
   subscription: StripeSubscription,
   why: string,
 ): WebhookOutcome {
-  if (event.mode === "live") {
-    const message = `Live Stripe event ${event.id} (${event.type}) dropped: subscription ${subscription.id} ${why}`;
-    console.error(message);
-    Sentry.captureMessage(message, "error");
-  }
+  if (event.mode === "live") alertDropped(event, subscription, why);
   return { applied: false, note: "unattributable" };
+}
+
+/**
+ * Sentry groups by message, so the message stays fixed and the event goes in
+ * tags: every event of one stuck subscription is then one issue that
+ * frequency alerting can count (PR 476 review round 3, finding 3).
+ */
+function alertDropped(event: VerifiedStripeEvent, subscription: StripeSubscription, why: string): void {
+  console.error(
+    `Stripe ${event.mode} event ${event.id} (${event.type}) dropped: subscription ${subscription.id} ${why}`,
+  );
+  Sentry.captureMessage("Stripe event dropped", {
+    level: "error",
+    tags: {
+      stripe_mode: event.mode,
+      stripe_event_id: event.id,
+      stripe_event_type: event.type,
+      stripe_subscription_id: subscription.id,
+    },
+    extra: { why },
+    fingerprint: ["stripe-event-dropped", subscription.id],
+  });
 }
 
 /**
