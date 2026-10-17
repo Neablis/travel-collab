@@ -131,10 +131,10 @@ tags with no extension and no embedding call. Nothing in the repo measured it ag
 
 - **Embeddings are ordinary rows.** Each Neon branch (preview, production) has its own corpus, and
   each fills from its own queue or from the backfill.
-- **Local Postgres has not caught up.** `docker-compose.yml` still runs stock `postgres:17`, which
-  does not ship pgvector, so a local `db:migrate` fails at `0054`. CI is not affected. The
-  migration's own comment says the local database carries pgvector, and `docker-compose.yml:3`
-  shows it does not.
+- **Local Postgres runs the CI image.** `docker-compose.yml` moved from stock `postgres:17`, which
+  does not ship pgvector and failed a local `db:migrate` at `0054`, to `pgvector/pgvector:pg17`
+  (on the branch, pending merge). An existing local volume keeps working; the new image adds the
+  extension's files.
 - **Every plan turn with the flag on makes one embedding call.** Embedding on write costs one
   provider call per queued day, whatever the flag says: the queue and the sweep do not read
   `RAG_PLAN_RETRIEVAL`.
@@ -145,9 +145,10 @@ tags with no extension and no embedding call. Nothing in the repo measured it ag
   §5.2, §5.3). The same branch has a fix pending merge (commit `29f91e9`): the sweep skips days
   whose text has not changed, the enqueue becomes one statement, the summary reports the
   backlog, and `maxDuration` is set. That commit does not invert the import.
-- **A deleted trip's days stay visible to its own owner and members until the next sweep.** The
-  trip leg does not read the trip's status. The delete is a command, so it re-queues the days and
-  the sweep tombstones them.
+- **A deleted trip's days are hidden at once.** The trip leg reads `trip_summaries.status` and a
+  deleted trip vetoes its rows, as a withdrawn playbook does (on the branch, pending merge, with a
+  red-first test). The delete is a command, so it also re-queues the days and the sweep
+  tombstones them.
 - **The `service-ai-library` account sees past the privacy rule.** Anything it owns, in either
   leg, is served to every reader. Content that must stay private must not be stored under that
   owner.

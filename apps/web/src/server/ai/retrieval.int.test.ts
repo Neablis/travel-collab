@@ -3,8 +3,9 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import type { SavedStop } from "@tc/contracts";
-import { dayEmbeddings, savedDays, tripMemberships } from "@/server/db/schema";
+import { dayEmbeddings, events, pendingEmbeddings, savedDays, tripDetails, tripMemberships, tripSummaries } from "@/server/db/schema";
 import { deleteSavedDay, setSavedDayVisibility, storeSavedDay } from "@/server/savedDays";
+import { executeTripCommand } from "@/server/commands";
 import { retrieveDayChunks, PUBLIC_LIBRARY_OWNER_ID } from "./retrieval";
 
 // Hybrid retrieval against REAL pgvector (integration lane): the HNSW index,
@@ -21,6 +22,7 @@ const STRANGER = `rag-stranger-${run}`;
 
 const ids: string[] = [];
 const playbookIds: string[] = [];
+const tripIds: string[] = [];
 
 /** A 1536-dim vector with the first two components set, for exact distance control. */
 const vec = (a: number, b = 0): number[] => {
@@ -207,6 +209,12 @@ afterAll(async () => {
   await db.delete(dayEmbeddings).where(inArray(dayEmbeddings.id, ids));
   await db.delete(tripMemberships).where(eq(tripMemberships.userId, READER));
   if (playbookIds.length > 0) await db.delete(savedDays).where(inArray(savedDays.id, playbookIds));
+  for (const tripId of tripIds) {
+    await db.delete(pendingEmbeddings).where(eq(pendingEmbeddings.sourceId, tripId));
+    await db.delete(events).where(eq(events.streamId, tripId));
+    await db.delete(tripDetails).where(eq(tripDetails.tripId, tripId));
+    await db.delete(tripSummaries).where(eq(tripSummaries.tripId, tripId));
+  }
 });
 
 /** A real `saved_days` row, so the source's live state is what the query can read. */
@@ -347,7 +355,7 @@ describe("retrieveDayChunks", () => {
   // only when the sweep next re-embeds the day — a day later on the daily
   // cron. These rows are embedded while their playbook is visible and then
   // withdrawn with NO sweep in between: the source's live state must decide.
-  describe("a playbook withdrawn after it was embedded", () => {
+  describe("a source withdrawn after it was embedded", () => {
     const find = (word: string, userId: string | null) =>
       retrieveDayChunks({ queryEmbedding: QUERY_VEC, queryText: word, userId, k: 20 }).then((chunks) =>
         chunks.map((c) => c.id),
@@ -388,6 +396,24 @@ describe("retrieveDayChunks", () => {
       expect(await deleteSavedDay(playbook, OTHER)).toBe("deleted");
 
       expect(await find("deleteprobe", OTHER)).not.toContain(embedded);
+    });
+
+    it("is never served again once its trip is deleted, not even to its owner", async () => {
+      const tripId = randomUUID();
+      tripIds.push(tripId);
+      expect((await executeTripCommand({ type: "CreateTrip", tripId, name: "Withdrawal probe" }, OTHER)).ok).toBe(true);
+      const embedded = await chunk({
+        sourceType: "trip",
+        sourceId: tripId,
+        chunkText: "deletetripprobe quiet meadow",
+        ownerId: OTHER,
+      });
+      await db.execute(sql`UPDATE day_embeddings SET fts = to_tsvector('english', chunk_text) WHERE id = ${embedded}`);
+      expect(await find("deletetripprobe", OTHER)).toContain(embedded);
+
+      expect((await executeTripCommand({ type: "DeleteTrip", tripId }, OTHER)).ok).toBe(true);
+
+      expect(await find("deletetripprobe", OTHER)).not.toContain(embedded);
     });
   });
 });

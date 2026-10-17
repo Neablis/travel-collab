@@ -190,8 +190,8 @@ About how it is built:
     - **The search:** hybrid, full-text search fused with the dense query by reciprocal rank.
     - **Embedding:** on write, through `pending_embeddings` and a daily cron sweep, which also
       tombstones the embeddings of a deleted source.
-    - **The Postgres image:** CI runs `pgvector/pgvector:pg17`. Local is not done:
-      `docker-compose.yml` still runs `postgres:17`, which cannot apply `0054`.
+    - **The Postgres image:** `pgvector/pgvector:pg17` in CI and, on the branch pending merge,
+      in `docker-compose.yml`.
 11. **What the second pass is**, once Sunny defines it. Until then it is out of scope.
     **Open.** Sunny has not yet said what the *"Jev evidence filter"* and *"one packed `noul`
     per candidate"* mean, and nothing for a second pass has been built.
