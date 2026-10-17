@@ -1,4 +1,4 @@
-### KI-2026-10-14-c — CI's `test / unit` goes red once on a PR, then green: unseeded property floors that a rare draw trips (four proven, four suspected)
+### KI-2026-10-14-c — CI's `test / unit` goes red on a PR, then green (usually after one red, once after two): unseeded property floors that a rare draw trips (four proven, five suspected)
 
 - **Severity:** reliability. CI noise only; no product behaviour is wrong. Each occurrence costs a
   re-run or a push cycle, and because the job log can't be read from a cloud session
