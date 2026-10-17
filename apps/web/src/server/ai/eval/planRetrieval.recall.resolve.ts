@@ -36,6 +36,11 @@ export interface TestSource {
   sourceType: "playbook" | "trip";
 }
 
+/**
+ * Every test-named playbook and trip in the target database, by the patterns
+ * `TestSource` above describes, so a production-mode eval can leave them out
+ * of the corpus. Throws if either lookup errors.
+ */
 export async function resolveTestSourceIds(): Promise<TestSource[]> {
   const patterns = ["%delete me%", "%throwaway%"];
   const playbookClauses = patterns.map((p) => sql`name ILIKE ${p}`);

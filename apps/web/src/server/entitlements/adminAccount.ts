@@ -195,7 +195,7 @@ export async function adminAccountPlan(
     const mode = subscription.livemode ? "" : " (test mode)";
     history.push({ at: subscription.createdAt.toISOString(), what: `Bought ${plan}${mode}` });
     if (subscription.status === "canceled") {
-      history.push({ at: subscription.updatedAt.toISOString(), what: `Cancelled ${plan}` });
+      history.push({ at: subscription.updatedAt.toISOString(), what: `Cancelled ${plan}${mode}` });
     }
   }
   history.sort((a, b) => b.at.localeCompare(a.at));

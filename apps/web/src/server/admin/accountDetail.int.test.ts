@@ -230,7 +230,7 @@ describe("the account page reads one account", () => {
 
   // Financial leaves a test-mode purchase out (ADR-076 §4), so the history
   // says which one it was rather than showing a sale the numbers lack.
-  it("marks a test-mode purchase in the history", async () => {
+  it("marks a test-mode purchase and its cancellation in the history", async () => {
     const id = await account("plus");
     for (const livemode of [true, false]) {
       await db.insert(subscriptions).values({
@@ -250,8 +250,30 @@ describe("the account page reads one account", () => {
         updatedAt: ago(DAY),
       });
     }
-    const bought = (await detailOf(id)).plan.history.filter((moment) => moment.what.startsWith("Bought"));
-    expect(bought.map((moment) => moment.what)).toEqual(["Bought plus v1 (test mode)", "Bought plus v1"]);
+    // And a cancelled one, so the cancellation says which of the two it was.
+    await db.insert(subscriptions).values({
+      id: randomUUID(),
+      userId: id,
+      stripeCustomerId: `cus_${id}`,
+      stripeSubscriptionId: `sub_${randomUUID()}`,
+      livemode: false,
+      planId: "plus",
+      planVersion: 1,
+      status: "canceled",
+      currentPeriodEnd: null,
+      cancelAtPeriodEnd: false,
+      pastDueSince: null,
+      lastEventAt: ago(DAY / 2),
+      createdAt: ago(4 * DAY),
+      updatedAt: ago(DAY / 2),
+    });
+    const history = (await detailOf(id)).plan.history.map((moment) => moment.what);
+    expect(history.filter((what) => what.startsWith("Bought"))).toEqual([
+      "Bought plus v1 (test mode)",
+      "Bought plus v1",
+      "Bought plus v1 (test mode)",
+    ]);
+    expect(history.filter((what) => what.startsWith("Cancelled"))).toEqual(["Cancelled plus v1 (test mode)"]);
   });
 
   // ADR-045 rule 4: decided from the resolver's set, so a grant offers it.
