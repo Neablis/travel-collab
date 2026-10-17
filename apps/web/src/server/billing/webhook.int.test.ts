@@ -205,8 +205,49 @@ describe("a live event dropped", () => {
     expect(captureMessage).toHaveBeenCalledTimes(2);
     const [firstCall, secondCall] = captureMessage.mock.calls;
     expect(secondCall![0]).toBe(firstCall![0]);
-    expect(firstCall![1]).toMatchObject({ tags: { stripe_event_id: first.id } });
-    expect(secondCall![1]).toMatchObject({ tags: { stripe_event_id: second.id } });
+    expect(firstCall![1]).toMatchObject({
+      tags: { stripe_event_id: first.id },
+      fingerprint: ["stripe-event-dropped", subId],
+    });
+    expect(secondCall![1]).toMatchObject({
+      tags: { stripe_event_id: second.id },
+      fingerprint: ["stripe-event-dropped", subId],
+    });
+  });
+
+  // The other direction of the cross-mode guard (PR 476 review round 4,
+  // finding 2): a live event must not take over a row a test checkout made.
+  it("writes nothing to a test subscription this database holds, and alerts", async () => {
+    const userId = await makeAccount();
+    const subId = `sub_${randomUUID()}`;
+    await applySubscriptionFacts(
+      {
+        userId,
+        stripeCustomerId: `cus_${userId}`,
+        stripeSubscriptionId: subId,
+        livemode: false,
+        planId: "plus",
+        planVersion: 1,
+        status: "active",
+        currentPeriodEnd: new Date(T0.getTime() + 30 * DAY),
+        cancelAtPeriodEnd: false,
+        pastDueSince: null,
+        eventAt: T0,
+      },
+      T0,
+    );
+    const evt = event(
+      "customer.subscription.updated",
+      { ...subscription({ id: subId, userId }), cancel_at_period_end: true },
+      new Date(T0.getTime() + DAY),
+    );
+
+    expect(await applyStripeEvent(evt, T0)).toEqual({ applied: false, note: "unattributable" });
+    expect(await subscriptionFor(userId)).toMatchObject({ livemode: false, cancelAtPeriodEnd: false });
+    expect(captureMessage).toHaveBeenCalledWith(
+      "Stripe event dropped",
+      expect.objectContaining({ level: "error", tags: expect.objectContaining({ stripe_event_id: evt.id }) }),
+    );
   });
 });
 
@@ -413,9 +454,9 @@ describe("a delivery signed with the test secret", () => {
     expect(captureMessage).not.toHaveBeenCalled();
   });
 
-  // **A subscription this database already holds is this deployment's**,
-  // whatever its origin says: one bought before origins were stamped, or on a
-  // production domain since renamed (PR 476 review round 2, findings 1 and 2).
+  // **A test subscription this database already holds is this deployment's**,
+  // whatever its origin says: one bought on a production domain since renamed
+  // (PR 476 review round 2, findings 1 and 2).
   it("keeps updating a test subscription this database already holds, origin or none", async () => {
     const userId = await makeAccount();
     const subId = `sub_${randomUUID()}`;
