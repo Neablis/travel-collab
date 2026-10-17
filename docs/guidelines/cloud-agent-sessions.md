@@ -377,9 +377,8 @@ each wake re-reads the session's whole context. In M42 the orchestrator was woke
 event on the PRs it watched. A check-in batches every change into one wake.
 
 - **The harness subscribes the session to every PR opened in it**, a subagent's
-  included. Call `unsubscribe_pr_activity` for it at once.
-  `notification-unsubscribe-nudge.mjs` says so on any GitHub wake that still
-  arrives, for any PR. Past 250k context, `orchestrator-context-limit.mjs`
+  included. Call `unsubscribe_pr_activity` for it at once, and again on any
+  GitHub wake that still arrives, for any PR. Past 250k context, `orchestrator-context-limit.mjs`
   says to hand off with `create_session` on each check-in's prompt
   (`building-a-milestone.md`, *Hand-off*).
 - **One check-in at a time:** about 60 minutes while any PR is in CI or review,
@@ -389,10 +388,14 @@ event on the PRs it watched. A check-in batches every change into one wake.
   (GraphQL is refused here) and prints only what changed on every open PR since
   the last check-in, keeping its snapshot in the git common dir. Act on the whole
   batch, then arm the next check-in. Stop when nothing is open.
-- **Never run a blocking `gh pr checks --watch` here.** It spends a median 6.6
-  minutes of session doing nothing, and misses what lands afterwards.
-- **Do not poll between check-ins.** Repeated `gh pr checks` was measured as a
-  reliable time sink.
+- **`gh pr …`, `gh run view` and anything else GraphQL-backed fail here** with
+  "GitHub GraphQL is not available from Claude Code sessions", for every token,
+  a personal access token included: the proxy refuses the endpoint. REST works,
+  and the `github-rest` skill holds every recipe this repo needs (checks on a
+  head, create or ready a PR, review threads, re-runs). Job logs stay out of
+  reach (KI-2026-10-13-f); `ci-triage` reads annotations and reproduces instead.
+- **Do not poll between check-ins.** Repeated check reads were measured as a
+  reliable time sink; one read per check-in.
 
 ## Node is pinned, and the hook switches to it
 
@@ -465,7 +468,8 @@ session, and the M14 retro before it, cost to learn.
   queue was done, and three new agents duplicated it before they were stopped
   too. Start a new agent with its own scope instead.
 - **Before pushing to a PR branch, check the PR is still open.**
-  `gh pr view <n> --json state,mergedAt` — `MERGED` means stop. Mitchell merged
+  `gh api repos/Neablis/travel-collab/pulls/<n> --jq '{state,merged}'` — merged
+  means stop. Mitchell merged
   #314 at 18:40, `8540c46` was pushed at 18:41, and the push recreated the
   deleted branch, so the fix needed its own PR (#317). The merge event reached
   the session after the push did. **When more commits are coming, tell Mitchell
@@ -473,8 +477,8 @@ session, and the M14 retro before it, cost to learn.
 - **Fetch before stating the state of `main`, production, a PR or an agent.**
   "Production is missing `0036`" was said from a stale `origin/main`;
   production had all 37 migrations. An agent's work was called unfinished when
-  most of it was committed. `git fetch`, `gh pr view` or the agent's own
-  branch first, then the sentence.
+  most of it was committed. `git fetch`, the PR over REST (`github-rest`) or
+  the agent's own branch first, then the sentence.
 - **Stay silent on echoes and status-only bot edits, and report real changes in
   batches.** A bot editing its own status comment, a preview rebuild and a
   stop-hook nudge are not news. Red CI, a review finding and a question for

@@ -122,15 +122,6 @@
             "command": "node scripts/hooks/orchestrator-context-limit.mjs"
           }
         ]
-      },
-      {
-        "matcher": "ReadNotifications",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node scripts/hooks/notification-unsubscribe-nudge.mjs"
-          }
-        ]
       }
     ],
     "UserPromptSubmit": [

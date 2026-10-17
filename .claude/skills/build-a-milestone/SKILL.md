@@ -25,8 +25,8 @@ one sub-skill per stage and hands every hands-on step to a subagent.
   Move a part's task the moment its state changes.
 - **A wake costs your whole context, read or not** (M42: 190 GitHub wakes, $57, 141 of them for
   nothing). So you subscribe to no PR, part 0 included. The harness subscribes you to every PR
-  opened in this session, a subagent's too: call `unsubscribe_pr_activity` for it at once.
-  `notification-unsubscribe-nudge.mjs` repeats this on any GitHub wake you still get.
+  opened in this session, a subagent's too: call `unsubscribe_pr_activity` for it at once,
+  and again on any GitHub wake that still reaches you.
 - **You wait on a scheduled check-in.** Keep one `send_later` armed: about 60 minutes while any part
   is in CI or review, about 4 hours while everything waits on Mitchell. On each, run
   `pnpm -s pr-digest` once, act on everything it prints in that one batch (dispatch reviewers and

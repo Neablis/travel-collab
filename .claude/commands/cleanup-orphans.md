@@ -13,7 +13,7 @@ Scope (empty means all): **$ARGUMENTS**
 
 ## Step 0 — Find live work before you classify anything
 
-**Do this first.** Call `mcp__ccd_session_mgmt__list_sessions` and note every
+**Do this first.** Call `mcp__claude-code-remote__list_sessions` and note every
 session with `isRunning: true`.
 
 A running session's branch, its worktree, and any worktrees its subagents
@@ -35,9 +35,11 @@ GitHub linger and look like live branches.
 ### Orphaned PRs
 
 ```
-gh pr list --state open --json number,title,headRefName,createdAt,updatedAt,mergeable,isDraft \
-  --jq '.[] | "#\(.number) [\(.mergeable)] \(.createdAt[0:10]) \(.headRefName) — \(.title)"'
+gh api 'repos/Neablis/travel-collab/pulls?state=open' \
+  --jq '.[] | "PR \(.number) draft=\(.draft) \(.created_at[0:10]) \(.head.ref) — \(.title)"'
 ```
+
+(REST: `gh pr list` is GraphQL and fails in a cloud session, `github-rest` skill.)
 
 Flag, with the reason:
 
@@ -104,8 +106,8 @@ wrong read here:
 The test that actually works is PR history for that head branch:
 
 ```
-gh pr list --state all --head <branch> --json number,state,mergedAt \
-  --jq '.[] | "PR #\(.number) \(.state) \(.mergedAt[0:10] // "")"'
+gh api 'repos/Neablis/travel-collab/pulls?state=all&head=Neablis:<branch>' \
+  --jq '.[] | "PR \(.number) \(.state) \(.merged_at[0:10] // "")"'
 ```
 
 If that is empty, fall back to checking whether the branch's distinctive
@@ -130,14 +132,14 @@ entries, and it is deliberately read-only.
 List other sessions for this repo and correlate them with PR state:
 
 ```
-mcp__ccd_session_mgmt__list_sessions
+mcp__claude-code-remote__list_sessions
 ```
 
 A session whose recorded `prState` is `OPEN` while the PR is actually `MERGED`
 is stale bookkeeping — those accumulate. Flag sessions whose PR has merged or
 closed as archive candidates via `archive_session`.
 
-If Vercel agent runs are in play, `mcp__plugin_vercel_vercel__list_agent_runs`
+If Vercel agent runs are in play, `mcp__Vercel__list_agent_runs`
 shows those separately.
 
 ## Step 2 — Report before touching anything

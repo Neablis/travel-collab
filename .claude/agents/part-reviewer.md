@@ -42,8 +42,14 @@ read what the diff answers to:
 
 - **Correctness.** Wrong results, unhandled states, races, stale closures,
   off-by-one, an error swallowed.
-- **Invariants.** The six in `AGENTS.md`; a contract change without its
+- **Invariants.** The seven in `AGENTS.md`; a contract change without its
   changelog entry or with a consumer left behind; scope beyond the plan.
+- **Data paths.** For a diff that writes a table, a cache or a derived copy of
+  another module's data (an embedding, a snapshot, a denormalised column): what
+  happens when the source row changes visibility, is deleted, or its owner
+  lapses, and which module owns this write? The RAG unpublish gap and the
+  moderation write into Chat's table (audit of 2026-10-16, §5.1 and §5.5) were
+  each one line of this question.
 - **Accessibility.** Keyboard-only use, focus order and return, labels and
   roles, phone width.
 - **Tests that assert nothing.** A test that would pass with the code under it

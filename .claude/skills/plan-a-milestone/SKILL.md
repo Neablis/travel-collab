@@ -35,6 +35,13 @@ do the code survey.
    - **Every part targets `main` and merges on its own when ready.** No part is based on part 0
      or on another part. A part that needs an earlier one waits for it to merge to `main`, then
      branches from `main`.
+   - **An unattended run (overnight, nobody merging) may stack instead** (Mitchell,
+     2026-10-17): part K+1 branches from part K's head and its PR targets part K's branch;
+     GitHub retargets it to `main` when K merges. The morning's job is to merge in order. Say in
+     each stacked PR's body which PR it waits on. `stacked-prs.md` has the mechanics.
+   - **Decisions are answered before an unattended run starts.** Step 2 is the only step that
+     needs Mitchell in the room; an overnight session that reaches it stalls until morning, so
+     it runs the evening before, and the brief says every decision is settled.
 6. **Create the sidebar tasks**: one for the decisions, one per part, and one for the gate close.
    Each part's task lists its steps, ticked as the part moves:
    build → test seen red → scoped checks → push (opened ready, not draft) → review → fixes →

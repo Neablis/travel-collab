@@ -29,16 +29,14 @@ git worktree list
 Then, if a PR exists for this branch:
 
 ```
-gh pr view <n> --json number,state,mergeable,headRefOid --jq '"#\(.number) \(.state) mergeable=\(.mergeable) head=\(.headRefOid[0:7])"'
-gh pr checks <n>
+R=repos/Neablis/travel-collab
+gh api $R/pulls/<n> --jq '"PR \(.number) \(.state) merged=\(.merged) mergeable=\(.mergeable) head=\(.head.sha[0:7])"'
+gh api $R/commits/$(git rev-parse HEAD)/check-runs --jq '.check_runs[] | "\(.name): \(.status) \(.conclusion)"'
 ```
 
-Confirm the reported checks belong to your actual HEAD — `gh pr checks` will
-happily show a previous commit's results:
-
-```
-gh run list --commit "$(git rev-parse HEAD)" --limit 1
-```
+(REST on purpose: `gh pr view` and `gh pr checks` are GraphQL and fail in a cloud
+session, `github-rest` skill.) Reading the check runs of your own HEAD, not the PR's
+latest run, is what keeps a previous commit's green from being reported as yours.
 
 ## Step 2 — Separate what is proven from what is assumed
 

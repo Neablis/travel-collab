@@ -32,12 +32,16 @@ them on every push to a ready PR, and repeating them costs time and proves
 nothing new.
 
 ```
-gh run list --commit <head sha> --limit 3
-gh pr checks <n>
+gh api repos/Neablis/travel-collab/commits/<head sha>/check-runs --jq '.check_runs[] | "\(.name): \(.status) \(.conclusion)"'
+gh api "repos/Neablis/travel-collab/actions/runs?head_sha=<head sha>" --jq '.workflow_runs[] | "\(.id) \(.name) \(.conclusion)"'
 ```
 
+(`gh pr checks` is GraphQL and fails from a cloud session: `github-rest` skill.)
+
 - Confirm the run is for the PR's **current head** before reading it. Right
-  after a push, `gh pr checks` can show the previous commit's results.
+  after a push, the newest run can still be the previous commit's.
+- `github-advanced-security` red on its own is not this PR's (KI-2026-10-17-b);
+  `ci-ok` is the verdict.
 - A PR that is still a draft has run nothing. Say so; that is not a pass.
 - For a red job, use the `ci-triage` skill and quote the failing assertion.
   A job that went green only on re-run is a flaky-labelled bug, not a pass.
@@ -52,18 +56,22 @@ Report each check by name, with its conclusion and the run it came from.
 M10 Phases 5 and 6 skipped it. Phase 7 ran it and immediately found a crash
 (`RangeError: Invalid time value`) that the entire unit suite missed.
 
-You do not need local infra. Every PR gets a Vercel preview:
+You do not need local infra. Every PR gets a Vercel preview, at
+`https://travel-collab-git-<branch>-neablis-projects.vercel.app`; the exact URL is the
+`READY` deployment for the head sha in `mcp__Vercel__list_deployments` (`review-a-part`
+step 6 has the project and team ids). Vercel's PR comment is off.
 
-```
-gh pr checks <n> --json name,link
-```
-
-The preview URL follows `https://travel-collab-git-<branch>-neablis-projects.vercel.app`
-(the Vercel bot's PR comment carries the exact one). Open it with
-`preview_start({url})` and drive it.
+**In a cloud session the walk is `pnpm --filter web walk:preview <url> [path ...]`**
+(`docs/guidelines/cloud-agent-sessions.md`, *The Vercel preview IS reachable from here*):
+it needs `VERCEL_AUTOMATION_BYPASS_SECRET` or a `?_vercel_share=` URL, and it reports
+status, title and console errors per path. The `mcp__Claude_Browser__*` tools exist only
+in the desktop app, or as `mcp__remote-devices__Claude_Browser__*` when a cloud session is
+linked to Mitchell's computer: use them when they are in your tool list, `walk:preview`
+otherwise, and say which you used.
 
 If there is no PR yet, use the local dev server via `preview_start({name})`
-against `.claude/launch.json`.
+against `.claude/launch.json` where the browser tools exist, else
+`WEB_PORT=<n> pnpm --filter web dev` and `walk:preview` against it.
 
 Walk the specific flow the diff changed — not a generic smoke test. Click
 through it as a user would, then:

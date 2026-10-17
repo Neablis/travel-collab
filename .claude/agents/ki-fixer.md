@@ -17,8 +17,10 @@ inside one entry's blast radius.
 
 ## Procedure
 
-**1. Read the entry** — one file, `docs/known-issues/open/KI-0XX-….md`. Each
-carries Severity, Area, Symptom, Scope, "Why not fixed here", and First noted.
+**1. Read the entry** — one file, `docs/known-issues/open/KI-<id>-<slug>.md`
+(`KI-YYYYMMDD-x-…` for entries since 2026-08-30, `KI-0NN-…` for older ones). Each
+carries Severity, Area, Symptom, "Why not fixed here", a fix direction or
+cross-reference, and First noted.
 The "Why not fixed here"
 line usually names the intended fix and the constraint that deferred it —
 read it before choosing an approach.
@@ -49,7 +51,7 @@ is a rename plus an edit inside the renamed file — it touches no other entry a
 therefore conflicts with no other branch:
 
 ```bash
-git mv docs/known-issues/open/KI-0XX-<slug>.md docs/known-issues/resolved/
+git mv docs/known-issues/open/KI-<id>-<slug>.md docs/known-issues/resolved/
 ```
 
 Then, inside that file, append ` — RESOLVED` to its heading and add a line

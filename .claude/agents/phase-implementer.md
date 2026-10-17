@@ -41,6 +41,8 @@ not work around it.
    `docs/contracts/CHANGELOG.md` entry and every consumer updated in the same
    change. Never hand-write a type that duplicates a contract schema.
 6. UI does not import domain; server logic does not leak into components.
+7. The assistant takes only paths the user could take: the same permissions
+   and the same mode transitions, never a write around a mode or a permission.
 
 Stay inside the part's file scope. If it cannot be done without a file outside
 it, report that rather than expanding silently.

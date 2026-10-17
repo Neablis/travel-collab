@@ -132,7 +132,7 @@ followed and still cost $34:
 
 | Habit | What stops it |
 |---|---|
-| The orchestrator woken 190 times by GitHub events on part PRs | It subscribes to no PR (2026-10-13) and wakes on one scheduled check-in that runs `pnpm -s pr-digest`. `notification-unsubscribe-nudge.mjs` says to unsubscribe on any GitHub wake that still arrives. |
+| The orchestrator woken 190 times by GitHub events on part PRs | It subscribes to no PR (2026-10-13) and wakes on one scheduled check-in that runs `pnpm -s pr-digest`; `build-a-milestone` says to unsubscribe on any GitHub wake that still arrives. |
 | Follow-ups sent to builders 250k–480k deep, often after their cache expired | `closed-agent-guard.mjs` denies the message; `implementer-brief-check.mjs` makes the new agent's brief complete. |
 | Logs and full reviews read into the orchestrator | `orchestrator-lean-reads.mjs` denies job logs; `reviewer-report-check.mjs` keeps the review in a file. |
 
