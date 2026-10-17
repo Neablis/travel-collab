@@ -24,10 +24,13 @@ general setup.
 **M47 — The operator console shows tiers over time, and paid flows can be tested in production —
 is the current milestone** (`docs/milestones/M47-the-business-over-time.md`), since M46's gate
 closed on 2026-10-17. Its four parts are on `main`: PRs 474, 476, 477 and 475, merged 2026-10-17.
-Its part 0 is PR 473, where its gate is being closed.
+Its part 0, PR 473, merged 2026-10-17 with the gate at 6 of 7 and the retro written.
 
-**Next action:** close M47's gate on PR 473 with `close-a-milestone`. Whether production holds
-every migration is `pnpm state`'s `PROD MIGRATIONS` line, not a number here.
+**Next action:** Mitchell's production walk, the one open box
+(`docs/milestones/M47-the-business-over-time.md:136`): an admin-switched account checks out with
+a test card and MRR does not move. It needs migrations `0055` to `0057` in production first, and
+production's test key pair set. Then tick the box and run `pnpm milestone close M47`. Whether
+production holds every migration is `pnpm state`'s `PROD MIGRATIONS` line, not a number here.
 
 **M46 closed 2026-10-17, gate 10 of 10** (part 0 PR 472, after PR 432 merged early). The last box,
 the two-person walk, is ticked on Mitchell's confirmation that day. Evidence, retro and the
