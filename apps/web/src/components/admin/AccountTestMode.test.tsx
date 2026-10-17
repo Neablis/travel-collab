@@ -76,8 +76,14 @@ describe("AccountTestMode", () => {
 
     answer(json({ enabled: true, available: true }));
     expect(await screen.findByText(/Nothing it buys counts as revenue/)).toBeTruthy();
-    expect(document.activeElement).toBe(toggle());
     expect(toggle().getAttribute("aria-disabled")).toBeNull();
+    // Focus is proven by where the next press lands: back on the switch.
+    fetchMock.mockResolvedValue(json({ enabled: false, available: true }));
+    await user.keyboard(" ");
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      "/api/admin/accounts/dev-mei/test-mode",
+      expect.objectContaining({ body: JSON.stringify({ enabled: false }) }),
+    );
   });
 
   // A switch left on after the keys went must still be turnable off.
