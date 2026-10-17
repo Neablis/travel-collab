@@ -246,10 +246,14 @@ function statusOf(subscription: StripeSubscription): SubscriptionStatus | null {
  *     branch alias, and every laptop's `http://localhost:3001`, so two laptops
  *     on one test account do pass each other's checkouts, and only the
  *     account-exists check below stands between them.
- *   * **This database already holds it.** A Stripe subscription id is unique,
- *     so a row is proof it was bought here: one from before origins were
- *     stamped, or from before production's domain changed, keeps updating
- *     (PR 476 review round 2, findings 1 and 2).
+ *   * **This database already holds it** in test mode. A Stripe subscription
+ *     id is unique, so a row is proof it was bought here: one from before
+ *     production's domain changed keeps updating (PR 476 review round 2,
+ *     findings 1 and 2). Rows from before origins were stamped do not, because
+ *     migration 0055 marked every older row live: a test event on one of those
+ *     is refused by the mode check below and alerts. Only previews and laptops
+ *     have such rows, and their databases are disposable (PR 476 review
+ *     round 4, finding 3).
  *
  * Anything else is `unattributable`, claimed and stamped, and answered 200 so
  * Stripe stops. Live events are not checked: one live account is one
