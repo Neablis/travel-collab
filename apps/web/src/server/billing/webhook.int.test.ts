@@ -29,10 +29,15 @@ vi.mock("./stripeApi", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./stripeApi")>()),
   retrieveSubscription: (id: string, mode: StripeMode) => retrieveSubscription(id, mode),
 }));
+const captureMessage = vi.fn();
+vi.mock("@sentry/nextjs", () => ({
+  captureMessage: (...args: unknown[]) => captureMessage(...args),
+  captureException: () => undefined,
+}));
 
 const { applyStripeEvent } = await import("./webhook");
 const { standingOf } = await import("./standing");
-const { subscriptionFor } = await import("./subscriptions");
+const { applySubscriptionFacts, subscriptionFor } = await import("./subscriptions");
 const { entitlementsFor } = await import("@/server/entitlements/resolver");
 const { POST } = await import("@/app/api/stripe/webhook/route");
 
@@ -79,6 +84,7 @@ function event(type: string, object: unknown, at: Date, id = `evt_${randomUUID()
 
 beforeEach(() => {
   retrieveSubscription.mockReset();
+  captureMessage.mockReset();
 });
 
 describe("a purchase", () => {
@@ -149,6 +155,8 @@ describe("a purchase", () => {
     );
     expect(outcome).toEqual({ applied: false, note: "unattributable" });
     expect(await db.select().from(subscriptions).where(eq(subscriptions.stripeSubscriptionId, subId))).toEqual([]);
+    // A live event is money, so dropping one is never quiet.
+    expect(captureMessage).toHaveBeenCalledWith(expect.stringContaining(subId), "error");
   });
 
   // `subscriptions.user_id` has no foreign key, so this is the only thing
@@ -158,6 +166,7 @@ describe("a purchase", () => {
     const evt = event("customer.subscription.created", subscription({ id: subId, userId: `dev-${randomUUID()}` }), T0);
     expect(await applyStripeEvent(evt, T0)).toEqual({ applied: false, note: "unattributable" });
     expect(await db.select().from(subscriptions).where(eq(subscriptions.stripeSubscriptionId, subId))).toEqual([]);
+    expect(captureMessage).toHaveBeenCalledWith(expect.stringContaining(subId), "error");
   });
 });
 
@@ -340,6 +349,42 @@ describe("a delivery signed with the test secret", () => {
     ).toEqual([]);
     const [account] = await db.select().from(users).where(eq(users.id, userId));
     expect(account!.planId).toBe("free");
+    // The whole test account's traffic arrives here, so these are not alerts.
+    expect(captureMessage).not.toHaveBeenCalled();
+  });
+
+  // **A subscription this database already holds is this deployment's**,
+  // whatever its origin says: one bought before origins were stamped, or on a
+  // production domain since renamed (PR 476 review round 2, findings 1 and 2).
+  it("keeps updating a test subscription this database already holds, origin or none", async () => {
+    const userId = await makeAccount();
+    const subId = `sub_${randomUUID()}`;
+    await applySubscriptionFacts(
+      {
+        userId,
+        stripeCustomerId: `cus_${userId}`,
+        stripeSubscriptionId: subId,
+        livemode: false,
+        planId: "plus",
+        planVersion: 1,
+        status: "active",
+        currentPeriodEnd: new Date(T0.getTime() + 30 * DAY),
+        cancelAtPeriodEnd: false,
+        pastDueSince: null,
+        eventAt: T0,
+      },
+      T0,
+    );
+    const evt = signedEvent(
+      "customer.subscription.updated",
+      { ...subscription({ id: subId, userId }), cancel_at_period_end: true },
+      false,
+    );
+
+    const response = await deliver(evt, TEST_SECRET);
+
+    expect(await response.json()).toEqual({ ok: true, applied: true, note: "written" });
+    expect((await subscriptionFor(userId))!.cancelAtPeriodEnd).toBe(true);
   });
 
   it("writes nothing for a test checkout naming an account this database does not have", async () => {
@@ -359,6 +404,7 @@ describe("a delivery signed with the test secret", () => {
     expect(
       await db.select().from(subscriptions).where(eq(subscriptions.stripeSubscriptionId, subId)),
     ).toEqual([]);
+    expect(captureMessage).not.toHaveBeenCalled();
   });
 
   it("is a bad signature when neither secret signed it", async () => {

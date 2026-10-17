@@ -20,6 +20,7 @@
 // "what you bought" has to land there or a subscription would grant nothing.
 // Nothing else in the product writes it except account creation, and
 // `billing.soleWriter.test.ts` sweeps for a third writer.
+import * as Sentry from "@sentry/nextjs";
 import { and, eq, isNull, lt } from "drizzle-orm";
 import { PlanId, SubscriptionStatus } from "@tc/contracts";
 import { db } from "@/server/db/client";
@@ -233,14 +234,26 @@ function statusOf(subscription: StripeSubscription): SubscriptionStatus | null {
 /**
  * **The one write path**, given a Stripe subscription and the event it came on.
  *
- * **A test-mode event applies only where its checkout began.** Stripe delivers
- * every event in a test account to every test endpoint registered in it, so a
- * deployment sharing that account hears every local and preview checkout too,
- * naming accounts it does not have or, by coincidence of id, does (PR 476
- * review, finding 2). `startCheckout` stamps its origin on the subscription;
- * an event without this deployment's is `unattributable`, claimed and stamped,
- * and answered 200 so Stripe stops. Live events are not checked: one live
- * account is one production.
+ * **A test-mode event applies only to a subscription this deployment owns.**
+ * Stripe delivers every event in a test account to every test endpoint
+ * registered in it, so a deployment sharing that account hears every local and
+ * preview checkout too, naming accounts it does not have or, by coincidence of
+ * id, does (PR 476 review, finding 2). Owned means either of two things:
+ *
+ *   * **Its checkout began here**: the `ORIGIN_METADATA_KEY` that
+ *     `startCheckout` stamps equals this `deploymentOrigin()`. That is a host,
+ *     not an identity: production's is its production domain, a preview's its
+ *     branch alias, and every laptop's `http://localhost:3001`, so two laptops
+ *     on one test account do pass each other's checkouts, and only the
+ *     account-exists check below stands between them.
+ *   * **This database already holds it.** A Stripe subscription id is unique,
+ *     so a row is proof it was bought here: one from before origins were
+ *     stamped, or from before production's domain changed, keeps updating
+ *     (PR 476 review round 2, findings 1 and 2).
+ *
+ * Anything else is `unattributable`, claimed and stamped, and answered 200 so
+ * Stripe stops. Live events are not checked: one live account is one
+ * production.
  *
  * `pastDueSince` is carried forward rather than recomputed: the decline is an
  * `invoice.payment_failed` and the subscription events around it do not say
@@ -255,16 +268,22 @@ async function writeFrom(
   event: VerifiedStripeEvent,
   now: Date,
 ): Promise<WebhookOutcome> {
-  if (event.mode === "test" && subscription.metadata?.[ORIGIN_METADATA_KEY] !== deploymentOrigin()) {
+  const existing = await subscriptionByStripeId(subscription.id);
+  if (
+    event.mode === "test" &&
+    existing === null &&
+    subscription.metadata?.[ORIGIN_METADATA_KEY] !== deploymentOrigin()
+  ) {
     return { applied: false, note: "unattributable" };
   }
-  const existing = await subscriptionByStripeId(subscription.id);
   const who = attribute(subscription, existing);
-  if (who === null) return { applied: false, note: "unattributable" };
+  if (who === null) return unattributable(event, subscription, "names no account");
   // `subscriptions.user_id` has no foreign key, so an id from another
   // database would otherwise land as an orphan row.
   const [account] = await db.select({ id: users.id }).from(users).where(eq(users.id, who.userId)).limit(1);
-  if (account === undefined) return { applied: false, note: "unattributable" };
+  if (account === undefined) {
+    return unattributable(event, subscription, `names account ${who.userId}, which does not exist`);
+  }
 
   const status = statusOf(subscription);
   if (status === null) return { applied: false, note: "ignored" };
@@ -293,6 +312,27 @@ async function writeFrom(
 
   await syncHeldPlan(who.userId);
   return { applied: true, note: "written" };
+}
+
+/**
+ * An event that names no account here, answered 200 so Stripe stops.
+ *
+ * **A live one is an alert.** Live mode has one endpoint and one database, so a
+ * live subscription this cannot place is money taken that grants nothing, and
+ * the 200 means Stripe will never ask again. A test one is the shared test
+ * account's ordinary traffic, and stays quiet.
+ */
+function unattributable(
+  event: VerifiedStripeEvent,
+  subscription: StripeSubscription,
+  why: string,
+): WebhookOutcome {
+  if (event.mode === "live") {
+    const message = `Live Stripe event ${event.id} (${event.type}) dropped: subscription ${subscription.id} ${why}`;
+    console.error(message);
+    Sentry.captureMessage(message, "error");
+  }
+  return { applied: false, note: "unattributable" };
 }
 
 /**
