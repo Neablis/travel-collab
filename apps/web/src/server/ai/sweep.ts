@@ -8,7 +8,7 @@
 // dead-lettered, or tombstoned) and never kills the batch. A crashed run
 // leaves rows at `processing`; the next run recovers them before claiming.
 import { randomUUID } from "node:crypto";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, isNotNull, sql } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { dayEmbeddings, savedDays } from "@/server/db/schema";
 import { parseSavedDayColumns } from "@/server/savedDayRow";
@@ -30,12 +30,20 @@ export interface SweepSummary {
   recovered: number;
   /** Rows embedded and marked `done`. */
   embedded: number;
+  /** Rows whose chunk text matched the stored one: metadata refreshed, no provider call. */
+  unchanged: number;
   /** Rows whose attempt failed and went back to `pending`. */
   retried: number;
   /** Rows that exhausted their attempts and were marked `dead`. */
   dead: number;
   /** Rows whose source is gone, deleted or unreadable: embeddings removed, marked `done`. */
   tombstoned: number;
+  /**
+   * Rows still `pending` after this run: the backlog the next run starts
+   * with. A number that grows run over run means the daily sweep is not
+   * keeping up. -1 when the count itself failed.
+   */
+  pending: number;
 }
 
 /** A resolved chunk, or the news that its source should not be embedded. */
@@ -72,7 +80,16 @@ export async function runEmbedSweep(
   const embed = options.embed ?? embedText;
   const batchSize = options.batchSize ?? SWEEP_BATCH_SIZE;
   const maxAttempts = options.maxAttempts ?? SWEEP_MAX_ATTEMPTS;
-  const summary: SweepSummary = { claimed: 0, recovered: 0, embedded: 0, retried: 0, dead: 0, tombstoned: 0 };
+  const summary: SweepSummary = {
+    claimed: 0,
+    recovered: 0,
+    embedded: 0,
+    unchanged: 0,
+    retried: 0,
+    dead: 0,
+    tombstoned: 0,
+    pending: 0,
+  };
 
   summary.recovered = await recoverOrphanedRows();
   const claimed = await claimPendingRows(batchSize);
@@ -91,6 +108,14 @@ export async function runEmbedSweep(
         await setRowStatus(row, "done", row.attempts);
         console.error("rag: embed sweep tombstoned a row", { ...logContext, reason: resolved.reason });
         summary.tombstoned++;
+        continue;
+      }
+      // Most re-queues carry the same text: every trip command re-queues every
+      // day, and a visibility flip changes no words. The stored vector is
+      // still right for those, so only the metadata is written.
+      if (await refreshIfUnchanged(row, resolved)) {
+        await setRowStatus(row, "done", row.attempts);
+        summary.unchanged++;
         continue;
       }
       const vector = await embed(resolved.chunk.text);
@@ -118,7 +143,52 @@ export async function runEmbedSweep(
       summary[row.attempts + 1 >= maxAttempts ? "dead" : "retried"]++;
     }
   }
+  summary.pending = await countPendingRows();
   return summary;
+}
+
+/** The queue's backlog. Total: a failed count reads -1 rather than failing the run. */
+async function countPendingRows(): Promise<number> {
+  try {
+    const result = await db.execute<{ count: string }>(sql`
+      SELECT count(*)::text AS count FROM pending_embeddings WHERE status = 'pending'
+    `);
+    return Number(result.rows[0]?.count ?? 0);
+  } catch (error) {
+    console.error("rag: embed sweep failed to count pending rows", { error });
+    return -1;
+  }
+}
+
+/**
+ * When the stored chunk for this day already has this exact text and a
+ * vector, write the fresh metadata (visibility, owner, city, tags) and report
+ * true — no provider call. False means the day needs embedding.
+ */
+async function refreshIfUnchanged(
+  row: ClaimedRow,
+  resolved: Extract<ResolvedChunk, { kind: "ready" }>,
+): Promise<boolean> {
+  const refreshed = await db
+    .update(dayEmbeddings)
+    .set({
+      city: resolved.chunk.city,
+      countryCode: resolved.chunk.countryCode,
+      tags: resolved.chunk.tags,
+      visibility: resolved.visibility,
+      ownerId: resolved.ownerId,
+    })
+    .where(
+      and(
+        eq(dayEmbeddings.sourceType, row.source_type),
+        eq(dayEmbeddings.sourceId, row.source_id),
+        eq(dayEmbeddings.dayIndex, row.day_index),
+        eq(dayEmbeddings.chunkText, resolved.chunk.text),
+        isNotNull(dayEmbeddings.embedding),
+      ),
+    )
+    .returning({ id: dayEmbeddings.id });
+  return refreshed.length > 0;
 }
 
 /** Rows stuck at `processing` are a crashed run's, not a live one's: reset them. */

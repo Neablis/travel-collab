@@ -344,6 +344,53 @@ describe("runEmbedSweep", () => {
     expect(chunks[0]!.visibility).toBe("public");
   });
 
+  it("skips the provider for a day whose text has not changed, and still stores fresh metadata", async () => {
+    await drainQueue();
+    const owner = `sweep-gus-${run}`;
+    const playbook = await createPlaybook(owner, "Kyoto Stroll", [stop("Fushimi Inari", 0)], 1);
+    let calls = 0;
+    const countingEmbed = async (text: string) => {
+      calls++;
+      return fakeEmbed(text);
+    };
+    await runEmbedSweep({ embed: countingEmbed });
+    expect(calls).toBe(1);
+
+    // A visibility flip re-queues the day; the chunk text is the same.
+    expect(await setSavedDayVisibility(playbook.savedDayId, owner, "public")).not.toBeNull();
+    const summary = await runEmbedSweep({ embed: countingEmbed });
+    expect(calls).toBe(1);
+    expect(summary).toMatchObject({ claimed: 1, embedded: 0, unchanged: 1 });
+    const chunks = await db
+      .select()
+      .from(dayEmbeddings)
+      .where(and(eq(dayEmbeddings.sourceType, "playbook"), eq(dayEmbeddings.sourceId, playbook.savedDayId)));
+    expect(chunks).toHaveLength(1);
+    expect(chunks[0]!.visibility).toBe("public");
+    expect(chunks[0]!.embedding).not.toBeNull();
+    expect((await pendingRows("playbook", playbook.savedDayId))[0]!.status).toBe("done");
+
+    // A content change does reach the provider.
+    expect(await setSavedDayVisibility(playbook.savedDayId, owner, "private")).not.toBeNull();
+    await runEmbedSweep({ embed: countingEmbed });
+    const edited = await updatePlaybookContent(playbook.savedDayId, owner, {
+      days: { stops: [stop("Kinkaku-ji", 0)], dayCount: 1 },
+      expectedVersion: 1,
+    });
+    expect(edited.ok).toBe(true);
+    const after = await runEmbedSweep({ embed: countingEmbed });
+    expect(calls).toBe(2);
+    expect(after).toMatchObject({ embedded: 1, unchanged: 0 });
+  });
+
+  it("reports how many rows are still pending after the run", async () => {
+    await drainQueue();
+    const owner = `sweep-hal-${run}`;
+    await createPlaybook(owner, "Kyoto Stroll", [stop("Fushimi Inari", 0), stop("Arashiyama", 1), stop("Gion", 2)], 3);
+    const summary = await runEmbedSweep({ embed: fakeEmbed, batchSize: 2 });
+    expect(summary).toMatchObject({ claimed: 2, pending: 1 });
+  });
+
   it("retries a failed row and dead-letters it after 5 attempts", async () => {
     await drainQueue();
     const owner = `sweep-heidi-${run}`;

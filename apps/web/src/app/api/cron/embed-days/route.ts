@@ -11,6 +11,12 @@ import { runEmbedSweep } from "@/server/ai/sweep";
 // cached 200 would report yesterday's counts while rows pile up.
 export const dynamic = "force-dynamic";
 
+// The sweep embeds up to `SWEEP_BATCH_SIZE` rows one after another, each with
+// its own provider timeout; the platform default would cut a slow run short
+// and leave its rows at `processing` until tomorrow's recovery. 300 is what the
+// ask routes already run under on this plan.
+export const maxDuration = 300;
+
 /** Drain the embed queue. Unauthorised without the cron secret, by `cronAuth`. */
 export async function GET(request: Request): Promise<Response> {
   if (!isCronRequestAuthorized(request)) {
