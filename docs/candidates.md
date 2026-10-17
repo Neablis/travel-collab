@@ -16,14 +16,6 @@ not by anybody remembering. That automation exists because the rule was being
 skipped: M23's entry survived its own gate closing on 2026-09-19 and was still
 here two days later.
 
-- **Quick-add and search-to-add (cut from M41 at its scoping, 2026-10-10).** What was left of the
-  M8 trim's C1 and C2. M41 judged both redundant with the gestures it builds. The river's
-  double-click and drag already add a stop on a day, and M41's paste-to-add turns a Maps link or a
-  line of text into one (D8). Place search already lives in the editor, and M34 suggests nearby
-  stops there. A header input was never in the prototype either (`SPEC.md` §11 calls quick add
-  "the in-trip FAB"). Revisit only if people are seen typing stops one after another and the
-  editor is the friction.
-
 - **Gesture and keyboard follow-ups left out of M41 (2026-10-10).** Considered while scoping M41
   and left for later, in rough order of value:
   - **Multi-select drag:** shift-click several stops and drag them as one batch.
@@ -89,28 +81,6 @@ here two days later.
   whether check-in/out times belong here or in the time window, and whether a
   confirmation number is sensitive enough to hide from viewers and share links.
   *Placed 2026-10-06 → `docs/milestones/M44-a-stop-knows-what-was-booked.md` (proposed, not yet scoped). M44's gate deletes this entry at close.*
-
-- **Reset a trip's default notebooks to their seed, and add any seed the trip is
-  missing (asked 2026-09-27).** Mitchell, reading the M29/M30 Overview: *"Its hard to
-  test this, we might want a way to reset a trips default notebooks back to there seed
-  and add any new seeds that didnt exist when the trip was made."* A trip gets its
-  default notebooks once, lazily, the first time its notebooks are listed
-  (`apps/web/src/server/pages.ts`, `instantiateDefaults` in
-  `packages/pages/src/templates.ts`). So a trip made before M30 never gets the new
-  itinerary Overview or the seeds added since, and the only fresh copy is a new trip or
-  `/demo`. Two actions:
-  - **Add missing seeds.** Seed each `DEFAULT_TEMPLATES` entry the trip has no system seed
-    row for. `pages_system_seed_unique` already identifies seeded rows, so this is the
-    existing insert with `onConflictDoNothing`.
-  - **Reset a seeded notebook to its template.** Notebook history is event-sourced per
-    page (ADR-036), so a reset is one more edit session: undoable, and visible in
-    history, not a delete-and-recreate. It should confirm first, since it replaces the
-    notebook's content.
-  
-  Open questions: where the control lives (the notebook list, or each notebook's menu),
-  who may use it (owner only?), and whether the Overview's links to the other seeds
-  survive a reset (they name seed ids, which a reset keeps).
-  *Placed 2026-10-06 → `docs/milestones/M43-notebooks-keep-up.md` (proposed, not yet scoped). M43's gate deletes this entry at close.*
 
 - **An architecture map that is generated, drift-checked, and annotated at gate
   close (designed 2026-09-18 — `docs/specs/2026-09-18-architecture-map-and-drift-audit-design.md`).**
@@ -196,21 +166,6 @@ here two days later.
   better walked in an environment that is entirely test mode (local with
   `stripe listen`) than in a live one with a mode switch inside it.
   *Placed 2026-10-06 → `docs/milestones/M47-the-business-over-time.md` (proposed, not yet scoped). M47's gate deletes this entry at close.*
-
-- **A capability `premium` does not grant would make M20's fourth-plan proof
-  unconditional.** `studio` grants `trip.collaborators` without `ai.command`,
-  which makes it incomparable with `plus` — but it is still a *subset of
-  `premium`*, because the latest `premium` holds every capability. A fourth
-  capability now exists (`api.tokens`, `packages/contracts/src/entitlement.ts`)
-  and did not change that: `premium@v2` grants it (`planVersions.ts`). So the
-  proof still becomes unconditional only the day a capability exists that no
-  `premium` version grants. **Stale on the way, noticed 2026-09-25:**
-  `planVersions.fourthPlan.test.ts` asserts `setOf("premium").size === 3`, which
-  holds because `setOf` returns the first entry (`premium@v1`), and its comment
-  that premium "holds the whole vocabulary" is no longer true of v1 — a
-  one-line fix to fold into whatever touches that test next. *(Filed 2026-09-13
-  with the M20 build; not a defect, a sharper version of a claim already
-  true.)*
 
 - **`open` ("What needs you") is built as a two-column table and the design is
   not a table (raised by Mitchell on the PR 170 preview, 2026-09-13).** *"it
@@ -331,48 +286,6 @@ here two days later.
   Either way it is a contracts change with a changelog entry, and it belongs
   with the widget work rather than bolted onto a design-sync PR that is green.
   *Placed 2026-10-06 → `docs/milestones/M43-notebooks-keep-up.md` (proposed, not yet scoped). M43's gate deletes this entry at close.*
-
-- **Save light: move Retry out of the mark and into a popover on it
-  (2026-08-26, Mitchell, PR #55 — "nice to have, to do later").** SPEC's "The
-  logo is the save light" justifies putting trip-scoped save state in an
-  account-scope bar on the grounds that it is *status, not an action* — which
-  is exactly the exemption `RULES.md` 1 needs. What shipped makes the mark
-  itself a Retry **button** while a send has failed, because the design gives
-  the failure a colour and no way out of it and this queue only retries when
-  asked (KI-36); that keeps `RULES.md` 6's "recover from the worst" but spends
-  the very justification SPEC used.
-  The better shape, deferred rather than rejected: the mark stays status-only
-  and **clicking it opens a small popover** carrying the failure detail and the
-  Retry control. The top bar then holds status, the action sits one level in,
-  and rule 1 is clean again. It also gives the failure message and
-  `failure.at` timestamp somewhere to live — today nothing renders either, and
-  `SaveLight.tsx` documents why it will not fake a relative "(since …)" without
-  a ticking clock.
-  Not free: a popover on the logo is a new interaction on the one element
-  present on every route, so it needs its own dismiss/focus behaviour and a
-  decision about whether it opens at rest (probably not — there is nothing to
-  say when everything is saved).
-
-- **Design-sync items with no milestone yet (2026-08-23).** From
-  `docs/design-feedback/2026-08-23-design-sync-review.md`, which writes each one
-  up in full. **Audited 2026-09-25; what shipped is gone from this entry:**
-  `TripSummary.startDate` (#218, KI-034), start-only trip dates (M10 Task 8b.6),
-  trip lifecycle (SPEC §27, M26 D13), the landing page (SPEC says it needs no
-  states) and first run (rebuilt as the new-trip conversation, SPEC §30–32).
-  What is left is design work, not build work:
-  - **History beyond the popover** and **`MapRail`** — `SPEC.md` §8 still lists
-    both as not designed.
-  - **Auth-screen error/empty states** — not yet checked against the design.
-
-- **Duplicate and the undo-toast's Restore: no optimistic update yet (Mitchell,
-  2026-08-01, from M8 dogfooding).** Delete's optimism (page.tsx's
-  `deletingIds` filter-set, M8/A15 follow-up) and the rename/date/budget
-  optimism fix (TripHeader reading `activeTrip` instead of `trip`) both landed
-  as small, well-scoped fixes. Duplicate (network round-trip before the
-  redirect fires) and Undo (`page.tsx`'s `undoDelete` does a full `load()`
-  refetch rather than re-inserting the row locally) are lower-value/more work
-  for now — deferred rather than done reflexively.
-  *Placed into M41 on 2026-10-06, and cut at its scoping on 2026-10-10: it is a Home trip-list item, off M41's theme. Unplaced again.*
 
 - **Contained activities: a meal inside a day-long activity is not a conflict
   (Mitchell, 2026-08-02, from M8 dogfooding).** Every day of the Rochester run
