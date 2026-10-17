@@ -16,13 +16,18 @@ import { Text } from "@/components/ui/text";
 // `AccountGrants` does for a revoke.
 
 const ON = "Checkouts from this account use Stripe test mode. Nothing it buys counts as revenue.";
-const OFF = "Off: checkouts from this account take real cards.";
-const UNAVAILABLE = "This deployment has no Stripe test keys, so there is nothing to switch to.";
+// Off reaches new checkouts only: a test subscription keeps its own mode until
+// it ends (ADR-076 §6), and an operator back from a walk must not read "live".
+const OFF =
+  "Off: new checkouts from this account take real cards. A test subscription it already holds keeps running in test mode until it ends.";
+// Unavailable is either no test pair or a broken one (PR 476), so this names
+// neither.
+const UNAVAILABLE = "Stripe test keys are not set up on this deployment, so there is nothing to switch to.";
 
 /** What the operator is told when a PUT did not land. */
 function refusalOf(status: number, code: string | null): string {
   if (status === 409 && code === "test-mode-unavailable") {
-    return "This deployment has no Stripe test keys any more. Nothing changed.";
+    return "Stripe test keys are no longer set up on this deployment. Nothing changed.";
   }
   if (status === 404 && code === "not-found") return "Your session ended. Nothing changed.";
   return `The server refused the change (${status}). Nothing changed.`;
@@ -69,8 +74,13 @@ export function AccountTestMode({ accountId, initial }: { accountId: string; ini
         checked={state.enabled}
         // Off stays reachable with no test keys: a switch left on after they
         // were removed must not be stuck on.
-        disabled={busy || (!state.available && !state.enabled)}
-        onCheckedChange={(enabled) => void change(enabled)}
+        disabled={!state.available && !state.enabled}
+        // Busy is announced, not `disabled`: disabling the focused box drops
+        // keyboard focus to the page while the request is in flight.
+        aria-disabled={busy || undefined}
+        onCheckedChange={(enabled) => {
+          if (!busy) void change(enabled);
+        }}
       />
       {failed !== null && (
         <Text as="span" role="alert" className="text-sm text-danger-ink">
