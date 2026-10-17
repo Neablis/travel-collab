@@ -189,7 +189,7 @@ describe("checkout for an account with the test-mode switch on", () => {
   }
 
   /** A held subscription in one mode, which is what the portal manages. */
-  async function holds(userId: string, livemode: boolean): Promise<void> {
+  async function holds(userId: string, livemode: boolean, status: "active" | "canceled" = "active"): Promise<void> {
     await db.insert(subscriptions).values({
       id: randomUUID(),
       userId,
@@ -198,7 +198,7 @@ describe("checkout for an account with the test-mode switch on", () => {
       livemode,
       planId: "plus",
       planVersion: 1,
-      status: "active",
+      status,
       currentPeriodEnd: new Date(Date.now() + 86_400_000),
       cancelAtPeriodEnd: false,
       pastDueSince: null,
@@ -273,6 +273,21 @@ describe("checkout for an account with the test-mode switch on", () => {
       body: { customer: "cus_live_existing" },
     });
     expect(createCustomer).not.toHaveBeenCalled();
+  });
+
+  // A cancelled test subscription manages nothing; were it to pick the mode,
+  // removing the test keys would turn "Manage billing" into a 500.
+  it("opens the portal in the switch's mode once the held subscription is cancelled", async () => {
+    const userId = await switchedAccount();
+    await holds(userId, false, "canceled");
+    await db.update(users).set({ stripeTestMode: false }).where(eq(users.id, userId));
+    stripeRequest.mockResolvedValue({ url: "https://billing.stripe.test/p" });
+    await portalUrlFor({ userId, returnOrigin: "https://app.test" });
+    expect(stripeRequest.mock.calls.at(-1)![0]).toMatchObject({
+      mode: "live",
+      path: "/billing_portal/sessions",
+      body: { customer: "cus_live_existing" },
+    });
   });
 
   it("checks out an unswitched account live, on its live customer", async () => {

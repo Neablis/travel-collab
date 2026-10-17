@@ -10,7 +10,7 @@
 // browser back and that return proves only that a browser followed a URL. The
 // grant happens when the webhook says so (M21 link 4), which is why the
 // success page's job is to wait rather than to celebrate.
-import type { PlanId } from "@tc/contracts";
+import { CONFERRING_STATUSES, type PlanId } from "@tc/contracts";
 import { db } from "@/server/db/client";
 import { stripeCustomers, users } from "@/server/db/schema";
 import { and, eq } from "drizzle-orm";
@@ -240,9 +240,13 @@ export async function portalUrlFor(input: {
   // **The held subscription's own mode, else its checkouts' mode** (ADR-076
   // §6). Stripe knows a subscription in its own mode only, so a switched
   // account that pays live must still reach its live card, and a test
-  // subscription outlives the switch being turned off.
+  // subscription outlives the switch being turned off. Held means its status
+  // confers: a cancelled test row manages nothing, and letting it pick test
+  // would 500 "Manage billing" once the test keys are gone. A lapsed
+  // `past_due` row still counts, since fixing its card is the portal's job.
   const current = await subscriptionFor(input.userId);
-  const mode = current !== null ? modeOfLivemode(current.livemode) : await billingModeFor(input.userId);
+  const held = current !== null && CONFERRING_STATUSES.includes(current.status) ? current : null;
+  const mode = held !== null ? modeOfLivemode(held.livemode) : await billingModeFor(input.userId);
   const customerId = await stripeCustomerFor(input.userId, mode === "live");
   const session = await stripeRequest<StripePortalSession>({
     mode,
