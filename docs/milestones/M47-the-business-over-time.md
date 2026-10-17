@@ -168,7 +168,10 @@ the first two are below, and the third (the close) adds its own at hand-off.
   github-actions reporter), after a unit red that matched KI-2026-10-14-c could not be read from
   the cloud session.
 - **The second session kept every agent's context small.** Its implementers averaged 54k (peak
-  93k) and its reviewers 44k, against a worst implementer average of 148k in the first session.
+  93k) and its reviewers 44k, against a worst implementer average of 148k in the first session
+  (unverified: that figure comes only from the hand-off prompt that started `01CL1oeA`; no one
+  ran session-metrics on the first session's transcript, which is gone, and 148k is also M45's
+  worst builder, so it may have been copied from there).
   The first built the parts and the second ran fix rounds, so their totals (13.64M and 7.05M units)
   do not compare like for like; context per agent does. What held it down: review findings pasted
   inline in each brief, every implementer in its own isolated worktree, and re-reviews of a
@@ -254,8 +257,10 @@ guideline's rule (`9c0fed5^1..b026115`, without `docs/`, `*.generated.json` and
   the close session's cost at hand-off.
 - **Orchestrator's share (under 15%):** missed, 31.6% in `01CL1oeA` and 17.8% in
   `015NsvHH` (M45: 19.8%). Cause above, under *What could be better*.
-- **A builder's average context (none over 250k):** met. Worst implementer average 148k in
-  `015NsvHH`; 54k (peak 93k) in `01CL1oeA` (M45's worst builder: 148k). The orchestrator's own
-  peak was 260k.
+- **A builder's average context (none over 250k):** met, on `01CL1oeA`'s measured 54k average
+  (peak 93k). `015NsvHH`'s worst implementer average is unverified: the 148k given for it comes
+  only from the hand-off prompt that started `01CL1oeA` ("worst implementer avg 148k (met)"), no
+  one ran session-metrics on that transcript, which is gone, and it matches M45's worst builder
+  (148k), so it may have been copied from there. The orchestrator's own peak was 260k.
 - **GitHub wakes per merged part (under 5):** met, 0 in `01CL1oeA` (M45: 0 of 7).
 - **Cache re-writes after a coordinator message (2 or fewer):** not in the carried blocks.
