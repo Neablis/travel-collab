@@ -139,7 +139,8 @@ tags with no extension and no embedding call. Nothing in the repo measured it ag
   provider call per queued day, whatever the flag says: the queue and the sweep do not read
   `RAG_PLAN_RETRIEVAL`.
 - **Trip text goes to a hosted embedding model** (OpenAI, through the gateway), because trip days
-  are queued on every command. M48's file already says nothing user-facing tells people this.
+  are queued on every command, flag on or off. Users are not told, by decision: Mitchell, 2026-10-17: *"the data in the app is ours, we don't need to communicate that with users."* Embedding
+  stays independent of the flag, so the corpus is ready the day the flag turns on.
 - **Planning now imports the AI module.** `server/commands.ts` imports `./ai/queue`. Each command
   re-queues every day of the trip, and a daily sweep of 50 rows can fall behind (audit 2026-10-16
   §5.2, §5.3). The same branch has a fix pending merge (commit `29f91e9`): the sweep skips days

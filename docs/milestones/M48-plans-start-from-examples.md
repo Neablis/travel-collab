@@ -95,8 +95,7 @@ Notes for whoever scopes this, from reading the code the brief's author could no
   how that arrives: as a labelled data block.
 - **An example has to be forgettable.** An unpublished or moderated playbook (M12), or a deleted
   trip, must stop being used.
-- **Private trip text would be sent to a hosted embedding model.** Nothing user-facing says that
-  yet.
+- **Private trip text is sent to a hosted embedding model.** Decided, no notice to users: Mitchell, 2026-10-17: *"the data in the app is ours, we don't need to communicate that with users."*
 - **pgvector is an extension, not a new store**, so embeddings are rows: they sit beside the days
   they describe, are removed with them, and each Neon branch (preview, production) has its own.
   Three things come with it that the Upstash index hid:
@@ -135,7 +134,8 @@ About the feature:
    So commitment 4 holds because of the privacy predicate, not by construction. On `main`, an
    unpublished or deleted playbook is still served, because nothing re-queues it for the sweep
    (audit 2026-10-16 §5.1). The fix is on a branch, pending merge (exit gate below). Trip text goes to
-   the embedding provider whether or not the flag is on.
+   the embedding provider whether or not the flag is on, by decision (no user notice; Mitchell,
+   2026-10-17).
 3. **Who gets examples** (Sunny's question 2). *Recommended:* any signed-in plan turn.
    **Answered as recommended.** Examples go to every turn classified `plan` while
    `RAG_PLAN_RETRIEVAL=1` is set (`server/ai/handleAskRequest.ts:709`). Retrieval runs as the
