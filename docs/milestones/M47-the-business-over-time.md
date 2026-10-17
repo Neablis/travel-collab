@@ -167,6 +167,13 @@ the first two are below, and the third (the close) adds its own at hand-off.
 - **PR 474 made web unit failures annotate in CI** (the `dot` reporter had suppressed vitest's
   github-actions reporter), after a unit red that matched KI-2026-10-14-c could not be read from
   the cloud session.
+- **The second session kept every agent's context small.** Its implementers averaged 54k (peak
+  93k) and its reviewers 44k, against a worst implementer average of 148k in the first session.
+  The first built the parts and the second ran fix rounds, so their totals (13.64M and 7.05M units)
+  do not compare like for like; context per agent does. What held it down: review findings pasted
+  inline in each brief, every implementer in its own isolated worktree, and re-reviews of a
+  follow-up push that read only the delta (36–45k each). No PR was subscribed to, so there were 0
+  GitHub wakes.
 
 ### What could be better
 
@@ -176,7 +183,9 @@ the first two are below, and the third (the close) adds its own at hand-off.
   Postgres error. Repaired by hand on the preview branch with Mitchell's approval (redeploy
   `dpl_EdknDNvmQD5p7zfDw3anh9ooBqLe` READY). The plan's *Migrations* rule ("the one that merges
   second regenerates") protects production's journal order but not a preview branch that already
-  applied the old file. Filed as KI-2026-10-17-c, with the recovery and three fix directions.
+  applied the old file. Filed as
+  [KI-2026-10-17-c](../known-issues/open/KI-20261017-c-renumbering-a-migration-the-preview-branch-applied-breaks-every-preview-build.md),
+  with the recovery and three fix directions.
 - **The tracker's planned merge order was wrong about who would regenerate.** It expected part 3
   to regenerate as `0057`; part 3 merged first and part 4 regenerated. Nothing broke beyond the
   preview incident above, but the merge order should be decided when a second migration-bearing
@@ -186,8 +195,20 @@ the first two are below, and the third (the close) adds its own at hand-off.
   the tier charts have been seen only in component tests until Mitchell's walk.
 - **The orchestrator's share missed its target badly: 31.6% in the second session** (target under
   15%; M45 19.8%), with a peak context of 260k. Its long review loops (part 2 to round 5, part 4
-  through two review series) ran through one orchestrator context. Handing off to a fresh session
-  earlier, as this close did, would have cut it.
+  through two review series) ran through one orchestrator context: 90 orchestrator calls averaged
+  183k, so every subagent report it read re-read about 180k, and it ran past the 250k hand-off line.
+  The change: batch the dispatches of one wake into one turn, and hand off at about 200k.
+- **PR 476 took four fix rounds**, about 8 agents in all, and each round's minor findings were in
+  the code the round before had added. Proposed rule, for Mitchell to accept: from round 3 on, a
+  minor finding is answered in the PR body unless it is a real defect.
+- **PR 475's unit red was called a flake and was not one.** It was deterministic:
+  `chart.test.tsx:218` needed `TierGrowthCharts` in the `CHARTS` token registry. It passed for
+  KI-2026-10-14-c because the web unit lane's `dot` reporter suppressed the annotations; once
+  PR 474 restored them, the next run named the real failure. An unnamed red is not a flake until
+  it has been named.
+- **`implementer-brief-check` refused three dispatches over the brief's format**: a
+  `Findings (…):` heading (twice) and a *Files* line with no repo path. Briefs also pointed
+  `part-reviewer` at review files it cannot write.
 - **Decisions were taken unattended.** ADR-076 §8 (the origin gate, no cross-mode writes, live
   drops alerting, production's test pair from a dedicated Stripe sandbox) was decided in part 2's
   review rounds 1 to 4 without Mitchell, as the safer fix, and is marked reversible by him.
@@ -196,6 +217,8 @@ the first two are below, and the third (the close) adds its own at hand-off.
 
 - **The [walk] box**: Mitchell's call and Mitchell's walk. Prerequisites are in the box above.
 - **ADR-076 §8's unattended decisions**: Mitchell's call to keep or reverse.
+- **The proposed review-round rule** (minors answered in the PR body from round 3 on, above):
+  Mitchell's call.
 - **Two CodeQL "log injection" comments on PR 476** (`github-advanced-security`, review comments
   4302144874 and 4302173488 on `apps/web/src/server/billing/webhook.ts`, the second at line 362).
   Not a required check; left open for Mitchell to dismiss or fix. The check's own red on every
@@ -229,9 +252,10 @@ guideline's rule (`9c0fed5^1..b026115`, without `docs/`, `*.generated.json` and
 - **Dollars per 1,000 lines added (under 20):** $5.7 by the rule, but $23.6 without the three
   migration snapshots, which inflate the denominator. Read as missed (M45: $24). Recompute with
   the close session's cost at hand-off.
-- **Orchestrator's share (under 15%):** missed, 31.6% in `01CL1oeA` (M45: 19.8%); not in
-  `015NsvHH`'s carried block. Cause above, under *What could be better*.
-- **A builder's average context (none over 250k):** not in the carried blocks; the orchestrator's
-  own peak was 260k (M45's worst builder: 148k).
+- **Orchestrator's share (under 15%):** missed, 31.6% in `01CL1oeA` and 17.8% in
+  `015NsvHH` (M45: 19.8%). Cause above, under *What could be better*.
+- **A builder's average context (none over 250k):** met. Worst implementer average 148k in
+  `015NsvHH`; 54k (peak 93k) in `01CL1oeA` (M45's worst builder: 148k). The orchestrator's own
+  peak was 260k.
 - **GitHub wakes per merged part (under 5):** met, 0 in `01CL1oeA` (M45: 0 of 7).
 - **Cache re-writes after a coordinator message (2 or fewer):** not in the carried blocks.
