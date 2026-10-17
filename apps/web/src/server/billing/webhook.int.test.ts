@@ -156,7 +156,10 @@ describe("a purchase", () => {
     expect(outcome).toEqual({ applied: false, note: "unattributable" });
     expect(await db.select().from(subscriptions).where(eq(subscriptions.stripeSubscriptionId, subId))).toEqual([]);
     // A live event is money, so dropping one is never quiet.
-    expect(captureMessage).toHaveBeenCalledWith(expect.stringContaining(subId), "error");
+    expect(captureMessage).toHaveBeenCalledWith(
+      "Stripe event dropped",
+      expect.objectContaining({ level: "error", tags: expect.objectContaining({ stripe_subscription_id: subId }) }),
+    );
   });
 
   // `subscriptions.user_id` has no foreign key, so this is the only thing
@@ -166,7 +169,44 @@ describe("a purchase", () => {
     const evt = event("customer.subscription.created", subscription({ id: subId, userId: `dev-${randomUUID()}` }), T0);
     expect(await applyStripeEvent(evt, T0)).toEqual({ applied: false, note: "unattributable" });
     expect(await db.select().from(subscriptions).where(eq(subscriptions.stripeSubscriptionId, subId))).toEqual([]);
-    expect(captureMessage).toHaveBeenCalledWith(expect.stringContaining(subId), "error");
+    expect(captureMessage).toHaveBeenCalledWith(
+      "Stripe event dropped",
+      expect.objectContaining({ level: "error", tags: expect.objectContaining({ stripe_subscription_id: subId }) }),
+    );
+  });
+});
+
+// **A live event that places nothing is an alert** (PR 476 review round 3,
+// findings 2 and 3): the 200 means Stripe never redelivers it.
+describe("a live event dropped", () => {
+  it("alerts when its subscription has a status this build does not know", async () => {
+    const userId = await makeAccount();
+    const subId = `sub_${randomUUID()}`;
+    const evt = event("customer.subscription.created", subscription({ id: subId, userId, status: "suspended" }), T0);
+
+    expect(await applyStripeEvent(evt, T0)).toEqual({ applied: false, note: "ignored" });
+    expect(captureMessage).toHaveBeenCalledWith(
+      "Stripe event dropped",
+      expect.objectContaining({ level: "error", tags: expect.objectContaining({ stripe_subscription_id: subId }) }),
+    );
+  });
+
+  // Sentry groups by message, so an event id in it would open one issue per
+  // event for what is one subscription's problem.
+  it("raises one message for every event of the same subscription, the event ids beside it", async () => {
+    const subId = `sub_${randomUUID()}`;
+    const sub = subscription({ id: subId, userId: `dev-${randomUUID()}` });
+    const first = event("customer.subscription.created", sub, T0);
+    const second = event("customer.subscription.updated", sub, new Date(T0.getTime() + DAY));
+
+    await applyStripeEvent(first, T0);
+    await applyStripeEvent(second, T0);
+
+    expect(captureMessage).toHaveBeenCalledTimes(2);
+    const [firstCall, secondCall] = captureMessage.mock.calls;
+    expect(secondCall![0]).toBe(firstCall![0]);
+    expect(firstCall![1]).toMatchObject({ tags: { stripe_event_id: first.id } });
+    expect(secondCall![1]).toMatchObject({ tags: { stripe_event_id: second.id } });
   });
 });
 
@@ -190,19 +230,39 @@ describe("the Stripe mode", () => {
   it("takes the held plan's mode from the subscription that confers it", async () => {
     const userId = await makeAccount();
     const subId = `sub_${randomUUID()}`;
-    await applyStripeEvent(event("customer.subscription.created", subscription({ id: subId, userId }), T0), T0);
-    // Planted, so the next event's own mode cannot be what moves the held plan.
-    await db.update(subscriptions).set({ livemode: false }).where(eq(subscriptions.stripeSubscriptionId, subId));
+    await applySubscriptionFacts(
+      {
+        userId,
+        stripeCustomerId: `cus_${userId}`,
+        stripeSubscriptionId: subId,
+        livemode: false,
+        planId: "plus",
+        planVersion: 1,
+        status: "active",
+        currentPeriodEnd: new Date(T0.getTime() + 30 * DAY),
+        cancelAtPeriodEnd: false,
+        pastDueSince: null,
+        eventAt: T0,
+      },
+      T0,
+    );
 
+    // A live event on another, ended subscription moves the held plan without
+    // conferring it, so its own mode cannot be what the held plan says.
     const later = new Date(T0.getTime() + 60_000);
-    await applyStripeEvent(event("customer.subscription.updated", subscription({ id: subId, userId }), later), later);
+    const ended = subscription({ id: `sub_${randomUUID()}`, userId, status: "canceled" });
+    await applyStripeEvent(event("customer.subscription.deleted", ended, later), later);
     const [held] = await db.select().from(users).where(eq(users.id, userId));
     expect(held).toMatchObject({ planId: "plus", planLivemode: false });
 
     // A fall to `free` is live, whatever the subscription that ended was.
     const end = new Date(T0.getTime() + 120_000);
     await applyStripeEvent(
-      event("customer.subscription.deleted", subscription({ id: subId, userId, status: "canceled" }), end),
+      {
+        ...event("customer.subscription.deleted", subscription({ id: subId, userId, status: "canceled" }), end),
+        livemode: false,
+        mode: "test",
+      },
       end,
     );
     const [fell] = await db.select().from(users).where(eq(users.id, userId));
@@ -385,6 +445,48 @@ describe("a delivery signed with the test secret", () => {
 
     expect(await response.json()).toEqual({ ok: true, applied: true, note: "written" });
     expect((await subscriptionFor(userId))!.cancelAtPeriodEnd).toBe(true);
+  });
+
+  // **A test secret never moves a live row** (PR 476 review round 3, finding
+  // 1): the held-here bypass above would otherwise let a forged test body
+  // cancel what a paying account holds, under a row that still says live.
+  it("writes nothing to a live subscription this database holds, and alerts", async () => {
+    const userId = await makeAccount();
+    const subId = `sub_${randomUUID()}`;
+    await applySubscriptionFacts(
+      {
+        userId,
+        stripeCustomerId: `cus_${userId}`,
+        stripeSubscriptionId: subId,
+        livemode: true,
+        planId: "plus",
+        planVersion: 1,
+        status: "active",
+        currentPeriodEnd: new Date(T0.getTime() + 30 * DAY),
+        cancelAtPeriodEnd: false,
+        pastDueSince: null,
+        eventAt: T0,
+      },
+      T0,
+    );
+    const evt = signedEvent(
+      "customer.subscription.updated",
+      { ...subscription({ id: subId, userId }), status: "canceled", cancel_at_period_end: true },
+      false,
+    );
+
+    const response = await deliver(evt, TEST_SECRET);
+
+    expect(await response.json()).toEqual({ ok: true, applied: false, note: "unattributable" });
+    expect(await subscriptionFor(userId)).toMatchObject({
+      livemode: true,
+      status: "active",
+      cancelAtPeriodEnd: false,
+    });
+    expect(captureMessage).toHaveBeenCalledWith(
+      "Stripe event dropped",
+      expect.objectContaining({ level: "error", tags: expect.objectContaining({ stripe_event_id: evt.id }) }),
+    );
   });
 
   it("writes nothing for a test checkout naming an account this database does not have", async () => {
