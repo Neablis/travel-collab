@@ -117,9 +117,10 @@ It does not re-quote it.** That is what went wrong here.
 
 ## Waiting on PR checks
 
-Do not hand-poll `gh pr checks` in a loop. In a cloud session, read every open
+Do not hand-poll checks in a loop. In a cloud session, read every open
 PR once per scheduled check-in with `pnpm -s pr-digest` (`AGENTS.md`, *Waiting
-on PR checks*). Locally, one command blocks on all of them:
+on PR checks*); `gh pr checks` is GraphQL and fails there (`github-rest`
+skill). Locally, one command blocks on all of them:
 
 ```
 gh pr checks <n> --watch --fail-fast

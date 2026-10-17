@@ -1,6 +1,6 @@
 ---
 name: ci-triage
-description: Fetch and triage failing GitHub Actions checks for travel-collab using scoped `gh` CLI log fetches (--log-failed, not the full run log) to avoid pasting an entire multi-job CI log into context. Use when a PR check is red, a CI run failed, or you need to find the root cause of a failing build/test/lint job in this repo.
+description: Triage a failing GitHub Actions check for travel-collab from a cloud session — name the red job over REST, read its check-run annotations, rule out the two known-noise checks, then reproduce it locally with the job's own scoped command, because job logs cannot be read through the cloud proxy. Use when a PR check is red, a CI run failed, or you need the root cause of a failing build/test/lint job in this repo.
 ---
 
 # CI triage
@@ -23,45 +23,55 @@ check is the workflow working as intended (see
 `docs/guidelines/ci-cost-and-capacity.md`) — mark the PR ready for review to
 get a real run rather than hunting for a broken workflow.
 
-## 1. Identify the failing run and job
+## 1. Name the red job, over REST
 
-- PR: `gh pr checks <PR-number>`
-- Branch: `gh run list --branch <branch> --limit 5`
-- Either way, then: `gh run view <run-id>` to see per-job status and job IDs.
-
-## 2. Fetch only the failed job's log
+`gh pr checks` is GraphQL and fails from a cloud session (`github-rest` skill); `gh run list`
+and `gh run view` are REST and work. With `R=repos/Neablis/travel-collab` and the sha from
+`git rev-parse HEAD`:
 
 ```
-gh run view <run-id> --log-failed
+gh api $R/commits/<sha>/check-runs --jq '.check_runs[] | "\(.id) \(.name): \(.status) \(.conclusion)"'
+gh run list --commit <sha> --limit 3
+gh run view <run-id>        # per-job status and job ids; same as gh api $R/actions/runs/<run-id>/jobs
 ```
 
-If you also know the job ID, narrow further:
+Confirm the sha is the PR's current head before reading on. Then rule out the two checks
+that go red without the PR's help: `github-advanced-security` (KI-2026-10-17-b, not required)
+and a lone `test / unit` red that a re-run clears (KI-2026-10-14-c). `ci-ok` is the verdict.
+
+## 2. Read the annotations, not the log
+
+The job log is unreadable from here: the API redirects to a blob host the proxy refuses
+(KI-2026-10-13-f). The check run's annotations carry the failing step and, for typecheck,
+lint and the vitest reporters, the file and line:
 
 ```
-gh run view <run-id> --job <job-id> --log-failed
+gh api $R/check-runs/<check_run_id>/annotations --jq '.[] | "\(.path):\(.start_line) \(.annotation_level) \(.message)"'
 ```
 
-**Do not use `gh run view <run-id> --log`** (no suffix) for triage — it dumps the
-full output of every job and wastes context on the ones that passed.
+When the annotations say only `Process completed with exit code 1`, go straight to §4 and
+reproduce the job with its own command: that output is the log you could not fetch. On a
+laptop `gh run view <run-id> --job <job-id> --log-failed` still works; never `--log` alone,
+which dumps every job.
 
 ## 3. Per-job triage tips
 
 - **typecheck** (`pnpm typecheck`, then `db:check` even if typecheck failed)
-  and **lint** (`pnpm lint`): output is usually self-explanatory from
-  `--log-failed` alone. Each job reports on its own, so several can be red at
-  once — check every red one before you start fixing.
-- **unit** (`pnpm test:unit`): Vitest runs with the `dot` reporter (compact).
-  Grep the log for `FAIL` to jump straight to failing test names before
-  reading stack traces.
-- **script-tests** (`pnpm test:scripts`): node:test; grep for `✖`.
+  and **lint** (`pnpm lint`): the annotations name the file and line. Each job
+  reports on its own, so several can be red at once — check every red one
+  before you start fixing.
+- **unit** (`pnpm test:unit`): the annotation names the failing test file; run
+  that file locally (§4) rather than the suite.
+- **script-tests** (`pnpm test:scripts`): node:test; reproduce with the same command.
 - **integration** (`pnpm --filter web test:int`): vitest against Postgres.
 - **e2e (1/2), e2e (2/2)**: two Playwright shards, split by spec file, each
   with its own build and database. Check both: one failing says nothing about
   the other. Playwright runs with the `line` reporter (compact). Grep
-  for `✘` (or `failed`) to find failing test titles. If you need a trace or
-  screenshot to debug further, download that shard's artifact instead of
-  reading raw bytes into context: `gh run download <run-id> -n
-  playwright-report-1` (or `-2`), then open it locally. To reproduce, run the
+  for `✘` (or `failed`) to find failing test titles. On a laptop, a trace or
+  screenshot is in that shard's artifact: `gh run download <run-id> -n
+  playwright-report-1` (or `-2`), opened locally rather than read raw into
+  context. From a cloud session the download is refused like the log
+  (KI-2026-10-13-f), so reproduce instead. To reproduce, run the
   failing spec, not the shard: `pnpm --filter web test:e2e:ci-like
   e2e/<spec>.ts` (no `--` before the path). A whole shard is a full e2e run,
   which is CI's and which `check-test-lane.mjs` denies locally.

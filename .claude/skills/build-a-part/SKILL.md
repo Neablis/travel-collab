@@ -30,9 +30,12 @@ PR opens ready and a push prints the review reminder.
    package; the rest is still CI's.
 4. **Self-check your diff** (`git diff origin/main...HEAD`): scope, invariants, comments
    (`commenting.md`), a second way to do something that already has one (ADR-068).
-5. **Push, then open the PR ready for review, never draft**, usually with `gh pr create` (no
-   `--draft`). From a part branch `draft-pr-guard.mjs` refuses `gh pr create --draft` and
-   `pr-tool-guard.mjs` refuses `draft: true` through the MCP tools. A model id is refused in the PR
+5. **Push, then open the PR ready for review, never draft.** In a cloud session that is the
+   `github-rest` skill's *Create a PR* recipe (`gh api -X POST … -F draft=false`), since
+   `gh pr create` is GraphQL and fails there; on a laptop `gh pr create` (no `--draft`) works
+   too. From a part branch `draft-pr-guard.mjs` refuses `gh pr create --draft` and
+   `pr-tool-guard.mjs` refuses `draft: true` through the MCP tools; on `gh api` the no-draft
+   rule is yours to keep. A model id is refused in the PR
    title or body (`--title`, `--body`, `--body-file`, or the MCP fields) and in the commit message
    (`commit-message-guard.mjs`). A push while a PR is draft cancels its ready-for-review run. Fill `.github/PULL_REQUEST_TEMPLATE.md`, with each test's source edit and
    real failure text. After that, do not push again until CI has started on the head. Anything

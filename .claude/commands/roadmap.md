@@ -80,15 +80,15 @@ Say which file you believe and why.
 ## Step 3 — Ground it in live repo state
 
 The docs describe intent. Step 1's digest already ran the live checks —
-`git log --oneline origin/main -5`, `gh pr list --state open`,
+`git log --oneline origin/main -5`, the open PRs over REST,
 `git worktree list`, and the open-KI count — so **do not run them again**. Read
 the `OPEN PRS`, `WORKTREES`, `ORIGIN/MAIN` and `OPEN KIs` blocks it printed.
 
 If the digest said `OPEN PRS: (gh unavailable)`, that is the one case where you
-run the query yourself:
+run the query yourself (REST; `gh pr list` is GraphQL and fails in a cloud session):
 
 ```
-gh pr list --state open --json number,title,headRefName,createdAt --jq '.[] | "#\(.number) \(.title) [\(.headRefName)] \(.createdAt[0:10])"'
+gh api 'repos/Neablis/travel-collab/pulls?state=open' --jq '.[] | "PR \(.number) \(.title) [\(.head.ref)] \(.created_at[0:10])"'
 ```
 
 What the digest does *not* do is judge, and this step is the judgement:

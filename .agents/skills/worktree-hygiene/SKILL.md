@@ -30,7 +30,7 @@ itself — those are separate, human-approved steps.
    against what the PR claims:
    ```
    git rev-list --count <merge-base>..<worktree-branch>
-   gh pr view <PR-number> --json commits --jq '.commits | length'
+   gh api repos/Neablis/travel-collab/pulls/<PR-number> --jq .commits
    ```
    A large mismatch means the worktree carries commits beyond what the PR
    represents. Flag this explicitly and call out that "merge to main" from

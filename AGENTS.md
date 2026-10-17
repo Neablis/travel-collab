@@ -170,11 +170,14 @@ What each tool does, why it exists and what it measured:
   `phase-verifier`, `ki-fixer`. Dispatch these rather than writing the prompt again —
   `phase-verifier` drives the PR's Vercel preview, so the browser walk needs no
   local infra.
-- **Skills** (`.claude/skills/`): `minimal-check-subset`, `ci-triage`,
-  `worktree-hygiene`, `write-a-test`, `ai-usage`, and `build-a-milestone`
-  with its sub-skills `plan-a-milestone`, `build-a-part`, `review-a-part` and
-  `close-a-milestone`. The first three are symlinks
-  into `.agents/skills/`; edit them there.
+- **Skills** (`.claude/skills/`): `github-rest`, `minimal-check-subset`,
+  `ci-triage`, `worktree-hygiene`, `write-a-test`, `ai-usage`, and
+  `build-a-milestone` with its sub-skills `plan-a-milestone`, `build-a-part`,
+  `review-a-part` and `close-a-milestone`. The first four are symlinks into
+  `.agents/skills/`; edit them there. **`github-rest` is how GitHub is reached
+  from a cloud session**: the proxy refuses GraphQL, so `gh pr …` fails there
+  (`gh run list`, `gh run view` and `gh pr diff` are REST and work) and every
+  other recipe is `gh api repos/…`; logs and artifacts stay unreachable.
 - **Walls.** `pnpm lint` runs `pnpm arch` (dependency-cruiser; blind to a
   folder↔subfolder cycle, `KI-2026-09-23-b`) and `pnpm surface --check`
   (byte budgets on this file and the other first reads — past 85% a file gets a
@@ -186,8 +189,8 @@ What each tool does, why it exists and what it measured:
   touches, blocking on a type error; a guard on history-rewriting git while several worktrees
   exist; and the **draft-PR guard**, which asks before `gh pr create` without
   `--draft` (on a milestone part branch it refuses `--draft` instead).
-  `gh pr ready` passes: marking a PR ready is what makes CI run the full suite
-  on it, and that run is the verdict. No local stamp is involved.
+  Marking a PR ready (`github-rest`: `ccr/ready_for_review`) is what makes CI
+  run the full suite on it, and that run is the verdict. No local stamp is involved.
 - **The subagent protocol** (`.claude/protocol/CONTRACT.md`) binds every
   dispatched subagent: three exit states, two-strike handback, report shape.
   `ADAPTER.md` holds this repo's facts, including the one resource no hook
@@ -350,12 +353,13 @@ M42's 190 GitHub wakes cost $57, 141 of them for nothing
 (`docs/retros/2026-10-12-m42-token-spend-retro.md`). A check-in batches them.
 
 **Locally**, one blocking command: `gh pr checks <n> --watch --fail-fast`.
-Hand-polling is a reliable time sink.
+Hand-polling is a reliable time sink. In a cloud session that command is
+GraphQL and fails; read the head's check runs once per check-in with the
+`github-rest` skill instead.
 
-**The trap:** right after a push, `--watch` can return in a second reporting
-the *previous* commit's checks, all green, because GitHub has not registered
-the new run. Confirm a run exists for your HEAD first
-(`gh run list --commit $(git rev-parse --short HEAD) --limit 1`), then watch.
+**The trap:** right after a push, the newest run can be the *previous*
+commit's, all green, because GitHub has not registered the new run. Confirm a
+run exists for your HEAD first (`github-rest`, *Runs for a head*), then read.
 
 ### Review is ours: a `part-reviewer` after every push
 
@@ -373,9 +377,9 @@ Mitchell merges.
 `--watch` is right only **when checks will exist**. They will not on a
 **Tier 1 PR** — the *whole PR* prose, so only `ci-ok` reports, in under a
 minute (a prose commit on a branch that carries code is not this case) — or on
-a **draft PR**, where `ci.yml`'s `if:` guards skip everything until
-`gh pr ready <n>`. If no run exists for your HEAD and none should, that is the
-finished state: say so and move on.
+a **draft PR**, where `ci.yml`'s `if:` guards skip everything until it is
+marked ready (`github-rest`). If no run exists for your HEAD and none should,
+that is the finished state: say so and move on.
 
 ## Milestone discipline and drift detection
 

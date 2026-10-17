@@ -105,7 +105,7 @@ Ask whether the user wants **one PR per KI** (independent review and revert) or
 to one per KI. The two answers have different mechanics — 6a and 6b below.
 
 For either answer, first confirm each agent resolved its entry properly:
-`git mv docs/known-issues/open/KI-0XX-….md docs/known-issues/resolved/`, ` — RESOLVED`
+`git mv docs/known-issues/open/KI-<id>-<slug>.md docs/known-issues/resolved/`, ` — RESOLVED`
 appended to the heading inside that file, and the proof line present, per the
 `ki-fixer` definition. If it did not, do it.
 
@@ -113,16 +113,19 @@ appended to the heading inside that file, and the proof line present, per the
 
 In the main session, one KI at a time:
 
-1. Run the **full `pnpm check`** once — serially, never concurrently.
-2. Open a **draft** PR using `.github/PULL_REQUEST_TEMPLATE.md` (the
-   draft-PR guard hook asks otherwise). Fill in **Verification
-   actually performed** honestly, including what was *not* run and why.
-3. Wait on checks in the correct order — straight after a push, `--watch` can
-   return in a second with the *previous* commit's green results:
+1. Run the fix's **scoped checks** (`minimal-check-subset`); the full suite is
+   CI's and `check-test-lane.mjs` denies `pnpm check` locally.
+2. Open the PR **ready for review** using `.github/PULL_REQUEST_TEMPLATE.md`
+   (`github-rest`, *Create a PR*). Ready, not draft, because step 1 is the point
+   at which you believe it is green, which is `AGENTS.md`'s own condition for
+   marking a PR ready; the draft-first rule is for work still in flight. Fill
+   in **Verification actually performed** honestly, including what was *not*
+   run and why.
+3. Read the checks of your own HEAD, not the PR's newest run, which right after
+   a push can still be the previous commit's (`github-rest`, *Checks on a head*):
 
 ```
-gh run list --commit "$(git rev-parse HEAD)" --limit 1
-gh pr checks <n> --watch --fail-fast
+gh api repos/Neablis/travel-collab/commits/$(git rev-parse HEAD)/check-runs --jq '.check_runs[] | "\(.name): \(.status) \(.conclusion)"'
 ```
 
 ### 6b — One integration branch (the "all on one branch" answer)
@@ -134,8 +137,8 @@ integration branch off `main` and merge the sweep into it, then land that once:
 git switch main && git pull
 git switch -c claude/ki-sweep-<date>-integration
 for b in <sweep branches>; do git merge --no-ff "$b" || break; done   # resolve here, once
-pnpm check                                                            # one full run
-gh pr create --draft ...                                              # one PR, one CI cycle
+# scoped checks for the union of the fixes (minimal-check-subset); CI runs the full suite
+gh api -X POST repos/Neablis/travel-collab/pulls -f title='…' -f head=<branch> -f base=main -F draft=false -F body=@body.md
 ```
 
 **If anything is stacked on a branch in this sweep, bring the stacked branch
@@ -174,7 +177,7 @@ Before reporting, verify every branch this sweep created:
 
 ```
 git for-each-ref --format='%(refname:short)' refs/heads
-gh pr list --state open --json headRefName --jq '.[].headRefName'
+gh api 'repos/Neablis/travel-collab/pulls?state=open' --jq '.[].head.ref'
 ```
 
 For each sweep branch confirm it is pushed **and** has an open or merged PR:
