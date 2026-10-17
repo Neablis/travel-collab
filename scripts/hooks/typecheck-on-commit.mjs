@@ -13,8 +13,14 @@ import { gitSubcommandArgs, parseShell } from "./lib/shell.mjs";
 // measured 14 to 66 s per edit for apps/web (audit 2026-10-16 §7), killed
 // silently at the 60 s default hook timeout, and blind in worktrees because it
 // resolved paths against the main checkout. Here the root is the git toplevel
-// of the session's cwd, the settings entry carries `"timeout": 300`, the
-// packages run in parallel, and every skip says why on stderr.
+// of the checkout the commit runs in (the session's cwd, moved by a literal
+// `cd` or `git -C`), the settings entry carries `"timeout": 300`, the packages
+// run in parallel, and every skip says why on stderr.
+//
+// The files pick the packages; `tsc` then checks each package whole, so an
+// error in a file the commit leaves out (unstaged, untracked) blocks it too.
+// Checking only the staged content would mean stashing the rest mid-commit,
+// which a hook must not do to the working tree.
 //
 // The path -> package mapping and the contracts fan-out are the
 // `minimal-check-subset` skill's rules. FAILS OPEN on anything it cannot work
@@ -45,12 +51,18 @@ const commitArgs = gitSubcommandArgs(segments[commitAt], "commit");
 // by the commit's own `git -C`. Reading only the session's cwd checked the
 // wrong checkout (or none) for a commit made in another worktree.
 let where = cwd;
+// Only a path this hook can resolve moves it: `cd -`, `~user` and anything
+// with `$` or a backtick keep the last known checkout rather than resolve to
+// a directory that is not one, which would skip the check silently.
+const literal = (arg) => typeof arg === "string" && arg !== "" && !/^[-~]|[$`]/.test(arg);
 for (const seg of segments.slice(0, commitAt)) {
-  if (seg.words[0] === "cd" && seg.words[1]) where = resolve(where, seg.words[1]);
+  if ((seg.words[0] === "cd" || seg.words[0] === "pushd") && literal(seg.words[1])) {
+    where = resolve(where, seg.words[1]);
+  }
 }
 const words = segments[commitAt].words;
 for (let i = 1; i < words.length && words[i] !== "commit"; i += 1) {
-  if (words[i] === "-C" && words[i + 1]) where = resolve(where, words[(i += 1)]);
+  if (words[i] === "-C" && literal(words[i + 1])) where = resolve(where, words[(i += 1)]);
 }
 
 const git = (args, root) =>
@@ -62,13 +74,15 @@ let files;
 try {
   root = git(["rev-parse", "--show-toplevel"], where).trim();
   // Deletions count: removing a file can break what imports it.
-  files = lines(git(["diff", "--cached", "--name-only"], root));
+  // `--no-renames`: a rename lists both paths, so a `git mv` across packages
+  // checks the package it left as well as the one it joined.
+  files = lines(git(["diff", "--cached", "--name-only", "--no-renames"], root));
   // `git commit -a`, or `git add … && git commit` in one command, commits what
   // is not staged yet when this runs: count the working tree's changes too.
   const commitsAll = commitArgs.some((a) => a === "--all" || /^-[a-zA-Z]*a/.test(a));
   const addsFirst = segments.slice(0, commitAt).some((seg) => gitSubcommandArgs(seg, "add"));
   if (commitsAll || addsFirst) {
-    files.push(...lines(git(["diff", "--name-only"], root)));
+    files.push(...lines(git(["diff", "--name-only", "--no-renames"], root)));
     if (addsFirst) files.push(...lines(git(["ls-files", "--others", "--exclude-standard"], root)));
   }
 } catch {

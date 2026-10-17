@@ -85,11 +85,12 @@ BM25.
    codebase has no RLS precedent. The predicate is written once (`privacyFilter`) and used in both
    legs, so the legs cannot disagree about who may see a chunk:
    - **a playbook day** is visible when it is public or the reader owns it;
-   - **a trip day** is visible when the reader is the trip's owner or a member. The owner's id is
+   - **a trip day** is visible when the trip is not deleted and the reader is its owner or a member. The owner's id is
      stored at embed time, because the owner has no `trip_memberships` row. Membership is read
      live from `trip_memberships`;
    - **content owned by `PUBLIC_LIBRARY_OWNER_ID` (`"service-ai-library"`)** is visible to every
-     reader, including a reader who is logged out, in both legs. Mitchell, 2026-10-16: *"anything
+     reader, including a reader who is logged out, in both legs, unless moderation has taken a
+     library playbook down. Mitchell, 2026-10-16: *"anything
      owned by that id is owned by everyone"*;
    - **a logged-out reader** (`userId: null`) sees only public playbook days and the library's
      days.
@@ -97,11 +98,11 @@ BM25.
    **Playbook rows are also checked against the live `saved_days` row** (PR 470; audit
    2026-10-16 §5.1). A source that is deleted, or that someone other than the reader has
    unpublished or that moderation has taken down (library content included), overrides the
-   embedding's stored `visibility`, which can never allow more than the source does. The same
-   commit re-enqueues the days from `setSavedDayVisibility` and `deleteSavedDay`, so the sweep
-   refreshes the copy or tombstones it, and adds red-first integration tests for both cases. On
-   `main` until it merges, the playbook leg reads only the copy that was stored when the day was
-   embedded.
+   embedding's stored `visibility`, which can never allow more than the source does. The trip leg
+   likewise reads `trip_summaries.status`. `setSavedDayVisibility` and `deleteSavedDay` also
+   re-enqueue the days, so the sweep refreshes the copy or tombstones it. Red-first integration
+   tests cover unpublished, moderated and deleted playbooks, the library exception, and a deleted
+   trip.
 7. **Serving is behind a flag and never breaks the turn** (`server/ai/planExamples.ts`, called
    from `handleAskRequest.ts`):
    - It runs only when `RAG_PLAN_RETRIEVAL=1` (off by default) and only on a turn already
@@ -151,8 +152,8 @@ tags with no extension and no embedding call. Nothing in the repo measured it ag
   `AI_EMBEDDING_MODEL`, run `UPDATE day_embeddings SET embedding = NULL` and then the backfill,
   or every row keeps the old model's vectors.
 - **A deleted trip's days are hidden at once.** The trip leg reads `trip_summaries.status` and a
-  deleted trip vetoes its rows, as a withdrawn playbook does (PR 470, with a red-first test). The delete is a command, so it also re-queues the days and the sweep
-  tombstones them.
+  deleted trip vetoes its rows, as a withdrawn playbook does (PR 470, with a red-first test). The
+  delete is a command, so it also re-queues the days and the sweep tombstones them.
 - **The `service-ai-library` account sees past the privacy rule.** Anything it owns, in either
-  leg, is served to every reader. Content that must stay private must not be stored under that
+  leg, is served to every reader unless moderation takes a playbook down. Content that must stay private must not be stored under that
   owner.

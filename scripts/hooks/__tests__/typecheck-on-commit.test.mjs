@@ -110,3 +110,21 @@ test("a commit that only deletes a TypeScript file still checks its package", ()
   assert.equal(run("git commit -m rm", root).status, 0);
   assert.ok(ran(root, "packages/domain"));
 });
+
+test("a `cd` it cannot resolve leaves the session's checkout in place, not unchecked", () => {
+  const root = repoWithPackages();
+  stage(root, "apps/web/bad.ts");
+  for (const command of ["cd - && git commit -m x", 'cd "$PWD" && git commit -m x', "cd ~nobody-here && git commit -m x"]) {
+    assert.equal(run(command, root).status, 2, command);
+  }
+});
+
+test("a `git mv` across packages checks the package it left, too", () => {
+  const root = repoWithPackages();
+  stage(root, "packages/domain/src/a.ts");
+  execFileSync("git", ["-c", "user.email=t@e.st", "-c", "user.name=T", "commit", "-qm", "add"], { cwd: root });
+  mkdirSync(join(root, "apps/web"), { recursive: true });
+  execFileSync("git", ["mv", "packages/domain/src/a.ts", "apps/web/a.ts"], { cwd: root });
+  assert.equal(run("git commit -m mv", root).status, 0);
+  assert.ok(ran(root, "packages/domain"));
+});

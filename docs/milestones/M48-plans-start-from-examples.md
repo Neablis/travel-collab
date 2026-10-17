@@ -128,12 +128,14 @@ About the feature:
    **Answered, wider than recommended.** Both playbooks and trips are embedded, and the query
    decides who sees what (ADR-075 decision 6):
    - a public playbook is served to everyone, and a private one only to its owner;
-   - a trip day is served only to the trip's owner and members;
-   - anything owned by `service-ai-library` is served to everyone (Mitchell, 2026-10-16).
+   - a trip day is served only to the trip's owner and members, and not once the trip is deleted;
+   - anything owned by `service-ai-library` is served to everyone (Mitchell, 2026-10-16), unless
+     moderation takes it down.
 
-   So commitment 4 holds because of the privacy predicate, not by construction. On `main`, an
-   unpublished or deleted playbook is still served, because nothing re-queues it for the sweep
-   (audit 2026-10-16 §5.1). The fix is PR 470 (exit gate below). Trip text goes to
+   So commitment 4 holds because of the privacy predicate, not by construction. Before PR 470 an
+   unpublished, moderated or deleted playbook kept being served until the sweep re-embedded it
+   (audit 2026-10-16 §5.1); since then the predicate reads the source's live state (exit gate
+   below). Trip text goes to
    the embedding provider whether or not the flag is on, by decision (no user notice; Mitchell,
    2026-10-17).
 3. **Who gets examples** (Sunny's question 2). *Recommended:* any signed-in plan turn.
