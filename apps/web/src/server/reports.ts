@@ -10,7 +10,7 @@ import type {
 import type { AdminReportQueueItem } from "@/lib/reports";
 import { displayNameFor } from "@/lib/displayName";
 import { isDemoTripId } from "@/lib/demoTrip";
-import { bumpChatRev } from "./chat/rev";
+import { setMessageHidden } from "./chat/messages";
 import { forgetCitySearches } from "./cities";
 import { db, type Queryable } from "./db/client";
 import { contentReports, savedDayReviews, savedDays, tripMessages } from "./db/schema";
@@ -374,16 +374,9 @@ export async function actOnReport(
       }
       case "hide-message":
       case "restore-message":
-        // The message reads as removed for every member while hidden (ADR-073
-        // §4); `chatRev` moves in the same transaction, so every open page
-        // re-reads, as it does for an author's delete.
-        touched = await tx
-          .update(tripMessages)
-          .set({ hiddenAt: action.action === "hide-message" ? sql`coalesce(${tripMessages.hiddenAt}, ${at})` : null })
-          .where(eq(tripMessages.id, row.tripMessageId!))
-          .returning({ id: tripMessages.id })
-          .then((r) => r.length);
-        if (touched > 0) await bumpChatRev(tx, row.tripId!);
+        // Chat owns the write and the revision (ADR-073 §4); Community names
+        // the message by id.
+        touched = await setMessageHidden(tx, row.tripId!, row.tripMessageId!, action.action === "hide-message", at);
         break;
       case "hide-review":
       case "restore-review":
