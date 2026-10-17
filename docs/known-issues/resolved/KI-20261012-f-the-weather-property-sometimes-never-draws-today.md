@@ -1,4 +1,4 @@
-### KI-2026-10-12-f — the weather property sometimes never draws "today", so its coverage check fails
+### KI-2026-10-12-f — the weather property sometimes never draws "today", so its coverage check fails — RESOLVED (duplicate of KI-2026-10-14-c)
 
 - **Severity:** reliability. CI noise only; no product behaviour is wrong.
 - **Area:** `packages/pages/src/macros/primitives/weather.property.test.ts:70` (the closing
@@ -24,3 +24,8 @@
   Or pin a seed for this property. Prefer either of these to deleting the coverage check, which
   is what proves the table is reached.
 - **First noted:** 2026-10-12, M45 (PR 424 review round 4).
+- **Closed as a duplicate, 2026-10-17 (the 2026-10-16 audit, §6). Still live: tracked in
+  `open/KI-20261014-c-ci-unit-job-red-once-per-pr-not-reproducible.md`,** the umbrella for every
+  unseeded fast-check floor that trips on a rare draw. This instance, its measurements and its
+  fix direction are listed there. One fix (pin seeds, or bias the generators) closes the class.
+  The coverage check and the unseeded 1000-run property were re-read on 2026-10-17 and are unchanged.

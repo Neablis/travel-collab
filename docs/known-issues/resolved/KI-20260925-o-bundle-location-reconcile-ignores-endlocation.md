@@ -1,4 +1,4 @@
-### KI-2026-09-25-o — the bundle location reconciler compares and patches `location` only, so a corrected `endLocation` never reaches an imported trip
+### KI-2026-09-25-o — the bundle location reconciler compares and patches `location` only, so a corrected `endLocation` never reaches an imported trip — RESOLVED (duplicate of KI-2026-09-25-n)
 
 - **Severity:** latent. No bundle carries an `endLocation` yet (see KI-2026-09-25-n). Once one does, a destination fixed in the bundle file will stay wrong on every trip already imported.
 - **Milestone:** M24, carried rather than gating. Found by the whole-stack review of #229–#233 on 2026-09-25.
@@ -6,3 +6,8 @@
 - **What happens:** the reconciler exists to carry a geocode audit's corrections from a bundle into trips that were imported before the fix (the KI-2026-09-23-e case). It compares only `location`, so a corrected `endLocation` looks like "no difference" and no update is planned.
 - **Fix shape:** compare `{ ...current, location, endLocation }` through the same `activityStatesEqual`, and patch whichever changed. A destination has only a coordinate to correct, since its legality depends on `kind`, which the reconciler does not touch.
 - **First noted:** 2026-09-25.
+- **Closed as a duplicate, 2026-10-17 (the 2026-10-16 audit, §6). Still live: tracked in
+  `open/KI-20260925-n-the-content-geocoder-skips-a-legs-destination.md`.** This is one defect,
+  the bundle pipeline reading only `location` and never `endLocation`, at its second site. That
+  entry now covers the geocoder and this reconciler together. Re-checked on 2026-10-17:
+  `bundleLocationReconcile.ts` has no `endLocation` reference.

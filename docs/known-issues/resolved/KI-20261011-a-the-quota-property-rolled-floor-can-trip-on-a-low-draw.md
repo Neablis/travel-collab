@@ -1,4 +1,4 @@
-### KI-2026-10-11-a — the quota property's "rolled" floor can trip on a low random draw
+### KI-2026-10-11-a — the quota property's "rolled" floor can trip on a low random draw — RESOLVED (duplicate of KI-2026-10-14-c)
 
 - **Severity:** minor. CI noise only; no product behaviour is wrong.
 - **Area:** `apps/web/src/server/quota.property.test.ts:244-248` ("reserve and settle keep every
@@ -14,3 +14,8 @@
   generator so a window roll is common enough that the floor has headroom, rather than only
   lowering the floor.
 - **First noted:** 2026-10-11, M42 (PR 405).
+- **Closed as a duplicate, 2026-10-17 (the 2026-10-16 audit, §6). Still live: tracked in
+  `open/KI-20261014-c-ci-unit-job-red-once-per-pr-not-reproducible.md`,** the umbrella for every
+  unseeded fast-check floor that trips on a rare draw. This instance, its measurements and its
+  fix direction are listed there. One fix (pin seeds, or bias the generators) closes the class.
+  The floor was re-read in the test on 2026-10-17 and is unchanged.

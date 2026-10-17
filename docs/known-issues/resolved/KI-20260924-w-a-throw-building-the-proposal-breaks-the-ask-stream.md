@@ -1,4 +1,4 @@
-### KI-2026-09-24-w — a throw while building the proposal breaks `/ask`'s stream instead of reaching `onError`
+### KI-2026-09-24-w — a throw while building the proposal breaks `/ask`'s stream instead of reaching `onError` — RESOLVED
 
 - **Severity:** correctness, narrow. No known trigger today. It needs a bug in
   `buildProposal`, and there isn't one known.
@@ -29,3 +29,15 @@
 - **Cross-reference:** `docs/contracts/CHANGELOG.md`, 2026-09-24,
   `ASK_FAILED_MESSAGE`.
 - **First noted:** 2026-09-24, PR #224 review.
+- **Resolved:** 2026-10-14, `19c6fc9` (PR #451), on Mitchell's product call of the same day: keep
+  the streamed answer and add a note. `finalOutcome` in `handleAskRequest.ts` wraps
+  `buildProposal` in a `try`. On a throw it logs the cause server-side, re-emits the failure on the
+  `ai.ask.outcome` line (`{ kind: "buildFailed" }`, joined by `turnId`, because the `ai.ask` record
+  has already finished in `onEnd`), and ends the turn with `proposalFailed` carrying
+  `ASK_PROPOSAL_FAILED_MESSAGE` where the proposal would have been. Contracts: the new
+  `AskStreamShape` member and message, in `docs/contracts/CHANGELOG.md`.
+- **Proof:** `route.int.test.ts` arms a `buildProposal` throw and asserts the stream completes with
+  the answer intact, `proposalFailed` on the final chunk and `buildFailed` on the outcome line.
+  The commit records it red before the fix (the body errored with the `TypeError`), along with the
+  contracts envelope and `apiClient` wire tests. Moved to `resolved/` on 2026-10-17 after
+  re-reading the `catch` in the tree (the 2026-10-16 audit, §6).

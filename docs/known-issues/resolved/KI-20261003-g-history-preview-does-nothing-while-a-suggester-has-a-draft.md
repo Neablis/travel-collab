@@ -1,4 +1,4 @@
-### KI-2026-10-03-g — history preview does nothing, and says nothing, while a suggester has an unsent draft
+### KI-2026-10-03-g — history preview does nothing, and says nothing, while a suggester has an unsent draft — RESOLVED (duplicate of KI-2026-10-03-d)
 
 - **Severity:** cosmetic (a silent control). Nothing is lost or wrong: the
   preview is refused for a real reason, but the reader is not told it.
@@ -24,3 +24,8 @@
   `return` on the history-command path, the same shape, as a product rule).
 - **First noted:** 2026-10-03, while building the suggester role; moved here
   from the spec's §6 in that branch's review.
+- **Closed as a duplicate, 2026-10-17 (the 2026-10-16 audit, §6). Still live: tracked in
+  `open/KI-20261003-d-a-suggester-s-draft-shows-in-history-as-pending-rows.md`.** Both entries
+  have one cause: a suggester's draft is the optimistic queue, so everything that reads `pending`
+  treats it as unsent work. They need one decision, so they now have one entry. Re-checked on
+  2026-10-17: `preview.enter` in `TripProvider.tsx` still returns early on `if (pending) return;`.

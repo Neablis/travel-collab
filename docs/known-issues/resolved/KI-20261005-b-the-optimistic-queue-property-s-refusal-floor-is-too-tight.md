@@ -1,4 +1,4 @@
-### KI-2026-10-05-b — the optimistic-queue property's refusal floor is too tight, and fails CI by chance
+### KI-2026-10-05-b — the optimistic-queue property's refusal floor is too tight, and fails CI by chance — RESOLVED (duplicate of KI-2026-10-14-c)
 
 - **Severity:** minor (a red `test / unit` on a PR that did not touch the code; a re-run passes).
 - **Area:** `apps/web/src/components/trip/context/optimistic.test.ts`, *the optimistic queue loses
@@ -18,3 +18,8 @@
   test (`w`, `retained`, `adoptedOverQueue`) sit on much larger counts and were not seen near
   their floors.
 - **First noted:** 2026-10-05, on #327's CI.
+- **Closed as a duplicate, 2026-10-17 (the 2026-10-16 audit, §6). Still live: tracked in
+  `open/KI-20261014-c-ci-unit-job-red-once-per-pr-not-reproducible.md`,** the umbrella for every
+  unseeded fast-check floor that trips on a rare draw. This instance, its measurements and its
+  fix direction are listed there. One fix (pin seeds, or bias the generators) closes the class.
+  The floor was re-read in the test on 2026-10-17 and is unchanged.

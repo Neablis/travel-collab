@@ -1,4 +1,4 @@
-### KI-2026-10-12-b — a CI job fails at "Initialize containers" because the postgres service image will not pull
+### KI-2026-10-12-b — a CI job fails at "Initialize containers" because the postgres service image will not pull — RESOLVED
 
 - **Severity:** reliability. CI noise only; no code is at fault. Each occurrence costs a re-run
   of the whole workflow run (and `ci-ok` goes red with it).
@@ -32,3 +32,13 @@
   `docs/retros/2026-10-12-m42-token-spend-retro.md` (the open-items list);
   KI-2026-09-27-a (Google Fonts, the other infra re-run of M42).
 - **First noted:** 2026-10-12, M45 (PR 421's third review, after the third occurrence).
+- **Resolved:** 2026-10-14, `096a0ce`, the first half of the fix direction above. Both
+  `test / integration` and `test / e2e` now pull the service image from Docker Hub with
+  `services.postgres.credentials` (`secrets.DOCKER_USERNAME` / `secrets.DOCKER_PASSWORD`).
+  Authenticated pulls are metered per account, not per shared runner IP. `0b22ab0` (2026-10-15)
+  then switched both to `pgvector/pgvector:pg17` under the same credentials. `ci.yml` has no
+  anonymous `public.ecr.aws` pull left.
+- **Proof:** a config fix, so there is no red-first test. The evidence is `ci.yml` at HEAD (both
+  service blocks carry `credentials:`). The register held no occurrence after 2026-10-14 when this
+  was moved on 2026-10-17 (the 2026-10-16 audit, §6). If "Initialize containers" fails again,
+  reopen this entry with the registry's error text. Don't file a new one.
