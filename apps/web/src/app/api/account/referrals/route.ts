@@ -1,7 +1,5 @@
 import { auth } from "@/server/auth";
-import { codesMintedBy, mintReferralCode } from "@/server/entitlements/referrals";
-import { heldPlanFor } from "@/server/entitlements/grants";
-import { planVersionFromRef } from "@/server/entitlements/planVersions";
+import { codesMintedBy, mintReferralCode, paidPlanHeldBy } from "@/server/entitlements/referrals";
 
 // **Self-serve invite codes** (M20 link 8). Account scope, so the guard is
 // `auth()` and a 401 — the same shape as `/api/account/preferences`, and for
@@ -17,14 +15,9 @@ export async function GET() {
   const userId = session?.user?.id;
   if (!userId) return Response.json({ error: "unauthenticated" }, { status: 401 });
 
-  const held = await heldPlanFor(userId);
-  // **Whether a redemption would earn anything**, asked as *"does the plan this
-  // account HOLDS grant anything"* — never as a comparison against a plan id
-  // (ADR-045 rule 4). A trial is a grant, not a held plan, so a trial-only
-  // account reads `false` here, which is the narrowing that removes most of the
-  // anti-abuse surface.
-  const earns =
-    held !== null && planVersionFromRef(`${held.planId}@v${held.planVersion}`).entitlements.length > 0;
+  // **Whether a redemption would earn anything**: the same read the reward
+  // itself makes, so the sheet cannot promise what `rewardReferrer` refuses.
+  const earns = (await paidPlanHeldBy(userId)) !== null;
 
   const codes = await codesMintedBy(userId);
   return Response.json({

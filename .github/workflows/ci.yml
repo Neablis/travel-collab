@@ -202,7 +202,35 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup-workspace
-      - run: pnpm test:unit
+      # The job log can't be read from a cloud session (KI-2026-10-13-f), so a
+      # red run has to name itself where REST can see it. Vitest's
+      # github-actions reporter annotates failed assertions, but not an
+      # unhandled error, a crashed worker or a package that died before its
+      # reporter ran (KI-2026-10-14-c). On failure this greps the log for those
+      # lines and writes them to the step summary and one `::error`.
+      - name: Run pnpm test:unit
+        shell: bash
+        run: |
+          set +e
+          log="$RUNNER_TEMP/unit.log"
+          pnpm test:unit 2>&1 | tee "$log"
+          status=${PIPESTATUS[0]}
+          if [ "$status" -ne 0 ]; then
+            hits=$(sed 's/\x1b\[[0-9;]*m//g' "$log" \
+              | grep -aE 'FAIL |originated in "|Uncaught Exception|Unhandled Rejection|Error: |Worker exited|Test timed out|heap out of memory|ERR_PNPM|Test Files ' \
+              | grep -v '^::' | cut -c1-300 | head -n 40)
+            [ -n "$hits" ] || hits=$(sed 's/\x1b\[[0-9;]*m//g' "$log" | tail -n 40)
+            {
+              echo "### test / unit exited $status"
+              echo '```'
+              echo "$hits"
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+            # One annotation, not one per line: a step keeps only 10 errors.
+            msg=$(printf '%s' "$hits" | sed 's/%/%25/g' | awk 'BEGIN{ORS="%0A"} {print}')
+            echo "::error title=test / unit exited ${status}::${msg}"
+          fi
+          exit "$status"
 
   # `scripts/**/__tests__` under node:test: ~90s, most of it
   # check-lint-wall.test.mjs running eslint against sabotaged configs.

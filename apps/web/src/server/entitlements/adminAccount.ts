@@ -190,9 +190,12 @@ export async function adminAccountPlan(
   // was applied, which for a cancelled row is the cancellation.
   for (const subscription of subscriptions) {
     const plan = spoken(`${subscription.planId}@v${subscription.planVersion}`);
-    history.push({ at: subscription.createdAt.toISOString(), what: `Bought ${plan}` });
+    // Said, because Financial leaves it out (ADR-076 §4) and the page would
+    // otherwise show a purchase the revenue numbers do not.
+    const mode = subscription.livemode ? "" : " (test mode)";
+    history.push({ at: subscription.createdAt.toISOString(), what: `Bought ${plan}${mode}` });
     if (subscription.status === "canceled") {
-      history.push({ at: subscription.updatedAt.toISOString(), what: `Cancelled ${plan}` });
+      history.push({ at: subscription.updatedAt.toISOString(), what: `Cancelled ${plan}${mode}` });
     }
   }
   history.sort((a, b) => b.at.localeCompare(a.at));

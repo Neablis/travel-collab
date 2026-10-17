@@ -30,7 +30,7 @@ import {
   StripeApiError,
   type StripePrice,
 } from "./stripeApi";
-import { billingConfigured } from "./config";
+import { billingConfig, billingConfigured, type StripeMode } from "./config";
 
 /**
  * The plan file and Stripe disagree about what something costs.
@@ -118,8 +118,12 @@ export function assertPriceMatches(entry: PlanVersion, price: StripePrice): void
  * present it is still checked against Stripe, because an id committed by hand
  * is exactly the thing that can name the wrong Price. What it saves is a list
  * call, not a verification.
+ *
+ * **Per mode** (ADR-076 §7): a lookup key names the same Price in both of
+ * Stripe's modes, but they are separate accounts with separate Price ids, so
+ * each mode finds or creates its own.
  */
-export async function stripePriceFor(entry: PlanVersion): Promise<string> {
+export async function stripePriceFor(entry: PlanVersion, mode: StripeMode): Promise<string> {
   const ref = planVersionRefOf(entry);
   if (!isPurchasable(entry)) {
     throw new UnpurchasableVersionError(
@@ -136,7 +140,7 @@ export async function stripePriceFor(entry: PlanVersion): Promise<string> {
   // and asserted rather than assumed, because the two could drift apart.
   if (lookupKey === null) throw new UnpurchasableVersionError(ref, "it has no lookup key");
 
-  const existing = await findPriceByLookupKey(lookupKey);
+  const existing = await findPriceByLookupKey(lookupKey, mode);
   if (existing !== null) {
     assertPriceMatches(entry, existing);
     return existing.id;
@@ -152,6 +156,7 @@ export async function stripePriceFor(entry: PlanVersion): Promise<string> {
       // Product per version is what makes that dashboard's history readable —
       // see `createPrice`.
       productName: `Caesura ${entry.planId} (${ref})`,
+      mode,
     });
     assertPriceMatches(entry, created);
     return created.id;
@@ -161,7 +166,7 @@ export async function stripePriceFor(entry: PlanVersion): Promise<string> {
     // account. That is not an error to show anyone — the Price the other call
     // created is the right one, so look it up and use it.
     if (error instanceof StripeApiError && error.status === 400) {
-      const raced = await findPriceByLookupKey(lookupKey);
+      const raced = await findPriceByLookupKey(lookupKey, mode);
       if (raced !== null) {
         assertPriceMatches(entry, raced);
         return raced.id;
@@ -200,7 +205,7 @@ function committedOf(price: { minor: number; currency: string }): { minor: numbe
  * of checking would make the check a write. `mismatch` is the row that matters
  * and the one a caller should refuse to ship past.
  */
-export async function checkPriceConsistency(): Promise<PriceCheckRow[]> {
+export async function checkPriceConsistency(mode: StripeMode): Promise<PriceCheckRow[]> {
   // One GET per priced version, ISSUED TOGETHER: the console bounds this whole
   // sweep at `PRICE_CHECK_DEADLINE_MS`, and serial round trips (~0.5s each)
   // would push a healthy Stripe past it once there are half a dozen versions.
@@ -217,7 +222,7 @@ export async function checkPriceConsistency(): Promise<PriceCheckRow[]> {
           verdict: "unpriced",
         };
       }
-      const price = await findPriceByLookupKey(lookupKey);
+      const price = await findPriceByLookupKey(lookupKey, mode);
       if (price === null) {
         return { ref, committed: committedOf(entry.price), stripe: null, verdict: "missing" };
       }
@@ -272,7 +277,10 @@ export async function priceConsistencyReport(): Promise<PriceConsistencyReport> 
       PRICE_CHECK_DEADLINE_MS,
     );
   });
-  const sweep = checkPriceConsistency().then(
+  // **The primary pair's mode only**: live on production, where this panel
+  // matters (ADR-076 §7). A test pair beside it sells test cards, and a
+  // mismatch there charges nobody.
+  const sweep = checkPriceConsistency(billingConfig().primary).then(
     (rows): PriceConsistencyReport => ({ status: "checked", rows }),
     (error: unknown): PriceConsistencyReport => ({
       status: "unavailable",

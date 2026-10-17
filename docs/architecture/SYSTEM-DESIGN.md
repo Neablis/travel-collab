@@ -209,7 +209,9 @@ The assistant does **not** run on eve. ADR-062 is Proposed; only its measurement
 3. `POST /api/stripe/webhook`: verify the signature over the raw body, then `applyStripeEvent`.
 4. **Claim the event id** in `billing_events` (`ON CONFLICT DO NOTHING`; a redelivery stops here). Re-fetch the
    subscription from Stripe instead of trusting the event body. Drop events older than `last_event_at`. Write
-   `subscriptions`, then `users.plan_id/plan_version`.
+   `subscriptions`, then `users.plan_id/plan_version/plan_livemode`. Every row records its Stripe mode, and every
+   money read (MRR, the underwater report, the tier panel, the accounts table's *paying* and *past due*) counts
+   live only, in every environment (ADR-076).
 5. **Entitlements are resolved per request** (`entitlements/resolver.ts`): the union of the held plan version and
    active grants. Plans are a committed append-only array, `PLAN_VERSIONS`, not a table (ADR-045). Capabilities:
    `ai.ask`, `ai.command`, `trip.collaborators`, `api.tokens`.
@@ -398,7 +400,7 @@ dispatched workflow. Details: `docs/guidelines/content-bundles.md`.
 | ADR-062's title: the assistant runs on eve | It runs on the AI SDK through the gateway |
 | Foundation spec §5: events table without `batch_id`/`origin`; snapshots "deferred" | Both columns exist; still no snapshots |
 | "Handlers never fold at read time" | True for trip reads; every write folds the full stream, and shares and history replay on read |
-| "The webhook is billing's only writer" | One stated exception: checkout writes `users.stripe_customer_id` |
+| "The webhook is billing's only writer" | One stated exception: checkout writes `stripe_customers`, one customer per account per Stripe mode (ADR-076); `users.stripe_customer_id` is left in place, unread |
 | Widget registry comment: "Twelve primitives" | About 25 registered definitions |
 | `admission.ts` is named as a gate | Since open signup it only tracks referral codes |
 

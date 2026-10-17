@@ -82,6 +82,18 @@ export interface AdminPlanPanelRow {
   medianMarginMicroUsd: number | null;
 }
 
+/**
+ * Mirrors `TierSeriesRow` (`@/server/entitlements/tierRollup`, M47 part 4) —
+ * one tier's accounts at the end of each week, oldest first, from the first
+ * rollup on. Empty before the cron has run.
+ */
+export interface AdminTierSeriesRow {
+  planId: PlanId;
+  firstWeek: string | null;
+  lastWeek: string | null;
+  points: { weekStart: string; accounts: number }[];
+}
+
 /** Mirrors `AdminGrantRow`. */
 export interface AdminGrantRow {
   id: string;
@@ -112,7 +124,12 @@ export interface AdminAccountRow {
    * exactly the account whose bill nobody can account for.
    */
   paysMicroUsd: number | null;
-  /** Stripe's own word, `"lapsed"`, or `null` for an account that never paid. */
+  /**
+   * Stripe's own word, `"lapsed"`, or `null` for an account that never paid.
+   * A test-mode subscription's carries ` (test mode)`, so `=== "active"` is
+   * live only. The subscription is the account's conferring one first, then
+   * live before test, then newest.
+   */
   subscriptionState: string | null;
   /** M36 D6 — ISO; newest planning event or assistant turn in the window, or `null`. */
   lastActiveAt: string | null;

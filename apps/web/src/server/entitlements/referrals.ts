@@ -27,7 +27,7 @@ import { and, asc, eq, gte, isNull, sql } from "drizzle-orm";
 import { db, type Queryable } from "@/server/db/client";
 import { entitlementGrants, inviteCodes } from "@/server/db/schema";
 import { heldPlanFor, issueGrant } from "./grants";
-import { planVersionFromRef } from "./planVersions";
+import { planVersionFromRef, type PlanVersion } from "./planVersions";
 
 /**
  * The alphabet a code is drawn from: no `I`, `L`, `O`, `0` or `1`, because
@@ -188,20 +188,8 @@ export async function rewardReferrer(
   // yourself with your own code is not itself a problem.
   if (row.createdBy === redeemedBy) return { rewarded: false, reason: "self-referral" };
 
-  // **The tier the referrer HOLDS, not what they were granted.** A trial is a
-  // grant, not a held plan, so a trial-only account earns nothing — which is
-  // the narrowing that removes most of the anti-abuse surface. `heldPlanFor`
-  // reads `users.plan_id`; the resolver's union is deliberately not consulted.
-  const held = await heldPlanFor(row.createdBy);
-  if (held === null) return { rewarded: false, reason: "referrer-holds-no-paid-plan" };
-  const version = planVersionFromRef(`${held.planId}@v${held.planVersion}`);
-  // A plan that grants nothing is not a paid plan. Asked as *"does this plan
-  // grant anything"* rather than *"is this plan `free`"*, because the second is
-  // a comparison against a plan id — the one shape ADR-045 rule 4 forbids, and
-  // the one a fourth plan cannot survive.
-  if (version.entitlements.length === 0) {
-    return { rewarded: false, reason: "referrer-holds-no-paid-plan" };
-  }
+  const version = await paidPlanHeldBy(row.createdBy);
+  if (version === null) return { rewarded: false, reason: "referrer-holds-no-paid-plan" };
 
   // **The cap and the grant in one transaction, under the referrer's lock**, so
   // "count says there is room" and "write the row" cannot be interleaved by a
@@ -229,6 +217,29 @@ export async function rewardReferrer(
     );
     return { rewarded: true, planId: version.planId } as const;
   });
+}
+
+/**
+ * The paid plan this account holds, or `null`: what a referral pays out in,
+ * and what `earnsReward` reports.
+ *
+ * **The tier HELD, not what was granted.** A trial is a grant, not a held plan,
+ * so a trial-only account earns nothing, which is the narrowing that removes
+ * most of the anti-abuse surface. `heldPlanFor` reads `users.plan_id`; the
+ * resolver's union is deliberately not consulted.
+ *
+ * **Live only** (ADR-076 §4): a plan bought with a test card is money nobody
+ * sent, and a referral grant has no mode, so it would outlive the test.
+ *
+ * A plan that grants nothing is not a paid plan. Asked as *"does this plan
+ * grant anything"* rather than *"is this plan `free`"*, because the second is a
+ * comparison against a plan id, the one shape ADR-045 rule 4 forbids.
+ */
+export async function paidPlanHeldBy(userId: string): Promise<PlanVersion | null> {
+  const held = await heldPlanFor(userId);
+  if (held === null || !held.planLivemode) return null;
+  const version = planVersionFromRef(`${held.planId}@v${held.planVersion}`);
+  return version.entitlements.length === 0 ? null : version;
 }
 
 /** Referral grants this account has earned inside the cap's rolling window. */

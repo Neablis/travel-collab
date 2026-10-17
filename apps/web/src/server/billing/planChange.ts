@@ -20,6 +20,7 @@ import {
   type PlanVersion,
 } from "@/server/entitlements/planVersions";
 import { CheckoutRefusedError, startCheckout, stripeCustomerFor } from "./checkout";
+import { modeOfLivemode } from "./config";
 import { stripePriceFor } from "./prices";
 import {
   defaultPaymentMethod,
@@ -146,10 +147,13 @@ export async function previewPlanChange(input: {
     };
   }
 
+  // **The subscription's own mode** (ADR-076 §6): Stripe knows it in that
+  // mode only, so its customer, Price and key all come from there.
+  const mode = modeOfLivemode(current.livemode);
   const [customerId, priceId, subscription] = await Promise.all([
-    stripeCustomerFor(input.userId),
-    stripePriceFor(version),
-    retrieveSubscriptionWithItems(current.stripeSubscriptionId),
+    stripeCustomerFor(input.userId, current.livemode),
+    stripePriceFor(version, mode),
+    retrieveSubscriptionWithItems(current.stripeSubscriptionId, mode),
   ]);
   const item = subscription.items?.data[0];
   if (item === undefined) {
@@ -162,8 +166,9 @@ export async function previewPlanChange(input: {
       subscriptionId: current.stripeSubscriptionId,
       subscriptionItemId: item.id,
       priceId,
+      mode,
     }),
-    defaultPaymentMethod(customerId),
+    defaultPaymentMethod(customerId, mode),
   ]);
 
   return {
@@ -273,6 +278,7 @@ export async function applyPlanChange(input: {
     await updateSubscription(
       current.stripeSubscriptionId,
       { cancel_at_period_end: true },
+      modeOfLivemode(current.livemode),
       operationKey("cancel", current.stripeSubscriptionId, input.operationId),
     );
     return { kind: "cancelling", effectiveAt: current.currentPeriodEnd?.toISOString() ?? null };
@@ -287,9 +293,11 @@ export async function applyPlanChange(input: {
     return { kind: "checkout", url: started.url, sessionId: started.sessionId };
   }
 
+  // The subscription's own mode, as in `previewPlanChange`.
+  const mode = modeOfLivemode(current.livemode);
   const [priceId, subscription] = await Promise.all([
-    stripePriceFor(version),
-    retrieveSubscriptionWithItems(current.stripeSubscriptionId),
+    stripePriceFor(version, mode),
+    retrieveSubscriptionWithItems(current.stripeSubscriptionId, mode),
   ]);
   const item = subscription.items?.data[0];
   if (item === undefined) {
@@ -313,6 +321,7 @@ export async function applyPlanChange(input: {
       cancel_at_period_end: false,
       metadata: { userId: input.userId, planVersionRef: liveRef },
     },
+    mode,
     operationKey(`change:${liveRef}`, current.stripeSubscriptionId, input.operationId),
   );
   return { kind: "applied", planVersionRef: liveRef };

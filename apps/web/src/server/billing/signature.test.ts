@@ -3,6 +3,7 @@ import { createHmac } from "node:crypto";
 import { fakeStripeKey, otherFakeStripeKey, signStripePayload } from "@/test-support/stripeSignature";
 import {
   SIGNATURE_TOLERANCE_SECONDS,
+  WebhookModeMismatchError,
   WebhookSignatureError,
   constructStripeEvent,
   verifyStripeSignature,
@@ -18,12 +19,16 @@ import {
 // real one that was committed by accident, which is the exact mistake this
 // module exists to make impossible.
 const SECRET = fakeStripeKey("whsec");
+const TEST_SECRET = otherFakeStripeKey("whsec");
+const LIVE_ONLY = [{ mode: "live" as const, secret: SECRET }];
+const BOTH = [...LIVE_ONLY, { mode: "test" as const, secret: TEST_SECRET }];
 const NOW = new Date("2026-10-01T12:00:00.000Z");
 
 const EVENT = {
   id: "evt_1",
   type: "customer.subscription.updated",
   created: Math.floor(NOW.getTime() / 1000),
+  livemode: true,
   data: { object: { id: "sub_1" } },
 };
 const BODY = JSON.stringify(EVENT);
@@ -38,21 +43,21 @@ describe("a delivery that did not come from Stripe", () => {
     ["a header with no signature", "t=1790000000"],
     ["a header that is not one", "nonsense"],
   ])("is refused when it has %s", (_what, header) => {
-    expect(() => verifyStripeSignature({ rawBody: BODY, header, secret: SECRET, now: NOW })).toThrow(
+    expect(() => verifyStripeSignature({ rawBody: BODY, header, secrets: LIVE_ONLY, now: NOW })).toThrow(
       WebhookSignatureError,
     );
   });
 
   it("is refused when the signature is for a different body", () => {
     const header = signed(JSON.stringify({ ...EVENT, id: "evt_other" }));
-    expect(() => verifyStripeSignature({ rawBody: BODY, header, secret: SECRET, now: NOW })).toThrow(
+    expect(() => verifyStripeSignature({ rawBody: BODY, header, secrets: LIVE_ONLY, now: NOW })).toThrow(
       WebhookSignatureError,
     );
   });
 
   it("is refused when it was signed with a different secret", () => {
     const header = signed(BODY, NOW, otherFakeStripeKey("whsec"));
-    expect(() => verifyStripeSignature({ rawBody: BODY, header, secret: SECRET, now: NOW })).toThrow(
+    expect(() => verifyStripeSignature({ rawBody: BODY, header, secrets: LIVE_ONLY, now: NOW })).toThrow(
       WebhookSignatureError,
     );
   });
@@ -62,7 +67,7 @@ describe("a delivery that did not come from Stripe", () => {
   // Caught by validating the hex before decoding it.
   it("is refused when the signature is not hex", () => {
     const header = `t=${EVENT.created},v1=zzzz`;
-    expect(() => verifyStripeSignature({ rawBody: BODY, header, secret: SECRET, now: NOW })).toThrow(
+    expect(() => verifyStripeSignature({ rawBody: BODY, header, secrets: LIVE_ONLY, now: NOW })).toThrow(
       WebhookSignatureError,
     );
   });
@@ -71,7 +76,7 @@ describe("a delivery that did not come from Stripe", () => {
   // so a short `v1` would be a 500 instead of a 400 without the length check.
   it("is refused, not crashed, by a signature of the wrong length", () => {
     const header = `t=${EVENT.created},v1=abcd`;
-    expect(() => verifyStripeSignature({ rawBody: BODY, header, secret: SECRET, now: NOW })).toThrow(
+    expect(() => verifyStripeSignature({ rawBody: BODY, header, secrets: LIVE_ONLY, now: NOW })).toThrow(
       WebhookSignatureError,
     );
   });
@@ -80,7 +85,7 @@ describe("a delivery that did not come from Stripe", () => {
 describe("a delivery that did", () => {
   it("is accepted", () => {
     expect(() =>
-      verifyStripeSignature({ rawBody: BODY, header: signed(), secret: SECRET, now: NOW }),
+      verifyStripeSignature({ rawBody: BODY, header: signed(), secrets: LIVE_ONLY, now: NOW }),
     ).not.toThrow();
   });
 
@@ -98,7 +103,7 @@ describe("a delivery that did", () => {
       verifyStripeSignature({
         rawBody: BODY,
         header: `t=${timestamp},v1=${stale},v1=${good}`,
-        secret: SECRET,
+        secrets: LIVE_ONLY,
         now: NOW,
       }),
     ).not.toThrow();
@@ -110,7 +115,7 @@ describe("the replay window", () => {
     verifyStripeSignature({
       rawBody: BODY,
       header: signed(BODY, new Date(NOW.getTime() + offsetSeconds * 1000)),
-      secret: SECRET,
+      secrets: LIVE_ONLY,
       now: NOW,
     });
 
@@ -136,7 +141,7 @@ describe("the gate box: rejected BEFORE its body is parsed", () => {
   // and it is about the signature.
   it("reports the signature, not the parse, for a body that is neither", () => {
     expect(() =>
-      constructStripeEvent({ rawBody: "{{{ not json", header: "t=1,v1=ff", secret: SECRET, now: NOW }),
+      constructStripeEvent({ rawBody: "{{{ not json", header: "t=1,v1=ff", secrets: LIVE_ONLY, now: NOW }),
     ).toThrow(/Stripe-Signature/);
   });
 
@@ -146,20 +151,90 @@ describe("the gate box: rejected BEFORE its body is parsed", () => {
   it("says so plainly when a body is signed and is not JSON", () => {
     const rawBody = "{{{ not json";
     expect(() =>
-      constructStripeEvent({ rawBody, header: signed(rawBody), secret: SECRET, now: NOW }),
+      constructStripeEvent({ rawBody, header: signed(rawBody), secrets: LIVE_ONLY, now: NOW }),
     ).toThrow(/signed but is not JSON/);
   });
 
   it("refuses a signed body that is not an event envelope", () => {
     const rawBody = JSON.stringify({ id: "evt_1", type: "x" });
     expect(() =>
-      constructStripeEvent({ rawBody, header: signed(rawBody), secret: SECRET, now: NOW }),
+      constructStripeEvent({ rawBody, header: signed(rawBody), secrets: LIVE_ONLY, now: NOW }),
     ).toThrow(/not a Stripe event envelope/);
   });
 
   it("returns the event when everything holds", () => {
-    expect(constructStripeEvent({ rawBody: BODY, header: signed(), secret: SECRET, now: NOW })).toEqual(
-      EVENT,
+    expect(constructStripeEvent({ rawBody: BODY, header: signed(), secrets: LIVE_ONLY, now: NOW })).toEqual({
+      ...EVENT,
+      mode: "live",
+    });
+  });
+});
+
+// **The secret that verified decides the mode** (ADR-076 §5). The body's own
+// `livemode` is unverified until the signature is, and even then it is a second
+// opinion: a delivery whose two answers disagree is refused, because recording
+// it either way writes a row whose mode two sources dispute.
+describe("the Stripe mode of a delivery", () => {
+  const TEST_EVENT = { ...EVENT, livemode: false };
+  const TEST_BODY = JSON.stringify(TEST_EVENT);
+
+  it("is test when the test secret verified it", () => {
+    const verified = constructStripeEvent({
+      rawBody: TEST_BODY,
+      header: signed(TEST_BODY, NOW, TEST_SECRET),
+      secrets: BOTH,
+      now: NOW,
+    });
+    expect(verified.mode).toBe("test");
+  });
+
+  // Only the signature names the mode; a `mode` key in the signed body is data.
+  it("ignores a mode key in the body", () => {
+    const rawBody = JSON.stringify({ ...TEST_EVENT, mode: "live" });
+    const verified = constructStripeEvent({
+      rawBody,
+      header: signed(rawBody, NOW, TEST_SECRET),
+      secrets: BOTH,
+      now: NOW,
+    });
+    expect(verified.mode).toBe("test");
+  });
+
+  it("is live when the live secret verified it", () => {
+    expect(constructStripeEvent({ rawBody: BODY, header: signed(), secrets: BOTH, now: NOW }).mode).toBe("live");
+  });
+
+  it("is refused as a bad signature when neither secret verifies it", () => {
+    const header = signed(BODY, NOW, fakeStripeKey("sk_test"));
+    expect(() => constructStripeEvent({ rawBody: BODY, header, secrets: BOTH, now: NOW })).toThrow(
+      WebhookSignatureError,
     );
+    // And still before the parse, with two secrets to try.
+    expect(() =>
+      constructStripeEvent({ rawBody: "{{{ not json", header, secrets: BOTH, now: NOW }),
+    ).toThrow(/Stripe-Signature does not match/);
+  });
+
+  // The gate box: *an event signed with the test secret but claiming
+  // `livemode: true` is refused*.
+  it("is refused when the test secret verified a body that says livemode: true", () => {
+    const header = signed(BODY, NOW, TEST_SECRET);
+    expect(() => constructStripeEvent({ rawBody: BODY, header, secrets: BOTH, now: NOW })).toThrow(
+      WebhookModeMismatchError,
+    );
+  });
+
+  it("is refused when the live secret verified a body that says livemode: false", () => {
+    const header = signed(TEST_BODY, NOW, SECRET);
+    expect(() => constructStripeEvent({ rawBody: TEST_BODY, header, secrets: BOTH, now: NOW })).toThrow(
+      WebhookModeMismatchError,
+    );
+  });
+
+  it("is refused when the body does not say its mode at all", () => {
+    const rawBody = JSON.stringify({ ...EVENT, livemode: undefined });
+    expect(() =>
+      constructStripeEvent({ rawBody, header: signed(rawBody), secrets: BOTH, now: NOW }),
+    ).toThrow(WebhookModeMismatchError);
   });
 });

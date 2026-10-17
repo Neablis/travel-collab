@@ -7,6 +7,7 @@ import { accountsViewHref, resolveAccountsView } from "@/components/admin/accoun
 import { ConsoleTabs } from "@/components/admin/ConsoleTabs";
 import { resolveConsoleTab, type ConsoleTab } from "@/components/admin/consoleTab";
 import { TierPanel } from "@/components/admin/TierPanel";
+import { TierGrowthCharts } from "@/components/admin/TierGrowthCharts";
 import { RevenueStaleBanner, RevenueStrip } from "@/components/admin/RevenueStrip";
 import { UnderwaterPanel } from "@/components/admin/UnderwaterPanel";
 import { PriceCheckPanel, PriceCheckPending } from "@/components/admin/PriceCheckPanel";
@@ -20,6 +21,7 @@ import { aiModelsReport } from "@/server/entitlements/aiModels";
 import { ASSISTANT_TOOLS } from "@/server/assistant/registry";
 import { adminUserId } from "@/server/entitlements/requireAdmin";
 import { priceConsistencyReport } from "@/server/billing/prices";
+import { testModeFor } from "@/server/billing/testMode";
 import { listReports } from "@/server/reports";
 import { adminNotebooks } from "@/server/savedNotebooks";
 
@@ -133,13 +135,19 @@ export default async function AdminPage({
   const accountId = Array.isArray(params.account) ? params.account[0] : params.account;
   if (tab === "users" && accountId !== undefined && accountId !== "") {
     const back = accountsViewHref(resolveAccountsView(params));
-    const detail = await adminAccountDetail(accountId);
+    const [detail, testMode] = await Promise.all([adminAccountDetail(accountId), testModeFor(accountId)]);
     return (
       <ConsoleShell tab={tab}>
-        {detail === null ? (
+        {detail === null || testMode === null ? (
           <NoSuchAccount back={back} />
         ) : (
-          <AccountPage detail={detail} plans={grantablePlanIds()} back={back} now={new Date().toISOString()} />
+          <AccountPage
+            detail={detail}
+            plans={grantablePlanIds()}
+            back={back}
+            now={new Date().toISOString()}
+            testMode={testMode}
+          />
         )}
       </ConsoleShell>
     );
@@ -152,6 +160,12 @@ export default async function AdminPage({
       // **Stale revenue is a page-level banner on both tabs that read it** —
       // Financial's MRR and Users' *Pays* column go stale together.
       <ConsoleShell tab={tab} banner={<RevenueStaleBanner revenue={users.revenue} />}>
+        {/* **Above the table, as drawn** (M47 part 4): the weekly counts the
+            tier-rollup cron keeps, so how each tier has moved is read before
+            who is in it. */}
+        <Panel title="Accounts by tier">
+          <TierGrowthCharts tiers={users.tiers} thisWeek={users.thisWeek} />
+        </Panel>
         <Panel title="Accounts">
           {/* **One page, read for the view in the URL** (D2, M36 perf pass):
               the server searches, counts the six filters over the whole

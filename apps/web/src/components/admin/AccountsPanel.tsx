@@ -44,7 +44,11 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 /** How long typing must pause before the search is sent — a word, not a letter. */
 export const SEARCH_PAUSE_MS = 300;
 
-/** The two words that are not a Stripe status: nothing, and lapsed. */
+/**
+ * A Stripe status in words, or one of the two that are not one: nothing, and
+ * lapsed. A test-mode subscription's carries ` (test mode)`, drawn as
+ * `past due (test mode)`.
+ */
 function stateLabel(account: AdminAccountRow): string {
   if (account.subscriptionState === null) return "—";
   return account.subscriptionState.replace(/_/g, " ");

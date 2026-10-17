@@ -52,12 +52,23 @@ export async function subscriptionsOf(userId: string): Promise<SubscriptionRow[]
     .orderBy(desc(subscriptions.createdAt));
 }
 
-/** Every subscription in a set of statuses — link 7's revenue reads. */
+/**
+ * Every **live-mode** subscription in a set of statuses — link 7's revenue
+ * reads.
+ *
+ * Live only in every environment (ADR-076 §4): a test-mode subscription is
+ * money nobody sent, so MRR, the underwater report and revenue by plan must
+ * not see it. What an account may do is not a money read, and `subscriptionFor`
+ * keeps reading both modes.
+ */
 export async function subscriptionsWithStatus(
   statuses: readonly SubscriptionStatus[],
 ): Promise<SubscriptionRow[]> {
   if (statuses.length === 0) return [];
-  return db.select().from(subscriptions).where(inArray(subscriptions.status, [...statuses]));
+  return db
+    .select()
+    .from(subscriptions)
+    .where(and(eq(subscriptions.livemode, true), inArray(subscriptions.status, [...statuses])));
 }
 
 /** The row a Stripe subscription id names, if this deployment has seen it. */
@@ -78,6 +89,8 @@ export interface SubscriptionFacts {
   userId: string;
   stripeCustomerId: string;
   stripeSubscriptionId: string;
+  /** The Stripe mode the event came from (ADR-076 §1). */
+  livemode: boolean;
   planId: PlanId;
   planVersion: number;
   status: SubscriptionStatus;
@@ -111,6 +124,7 @@ export async function applySubscriptionFacts(
       userId: facts.userId,
       stripeCustomerId: facts.stripeCustomerId,
       stripeSubscriptionId: facts.stripeSubscriptionId,
+      livemode: facts.livemode,
       planId: facts.planId,
       planVersion: facts.planVersion,
       status: facts.status,

@@ -13,6 +13,11 @@
 // converted UP into micro-dollars to meet cost rather than cost being rounded
 // down to meet revenue. Formatting happens where a number is displayed.
 //
+// **Live mode only, in every environment** (ADR-076 §4). Every subscription
+// read here comes through `subscriptionsWithStatus`, which counts no test-mode
+// row, so a test card adds nothing to MRR, the underwater report or revenue by
+// plan. A read written straight against `subscriptions` would miss that filter.
+//
 // **Nothing here reads a plan as a rank.** A price is a number on a price list;
 // what an account may do is `can()`. The only arithmetic is addition and a
 // median.

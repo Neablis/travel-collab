@@ -1,4 +1,4 @@
-### KI-2026-10-14-c — CI's `test / unit` goes red once on a PR, then green: unseeded property floors that a rare draw trips (four proven, four suspected)
+### KI-2026-10-14-c — CI's `test / unit` goes red on a PR, then green (usually after one red, once after two): unseeded property floors that a rare draw trips (four proven, five suspected)
 
 - **Severity:** reliability. CI noise only; no product behaviour is wrong. Each occurrence costs a
   re-run or a push cycle, and because the job log can't be read from a cloud session
@@ -30,6 +30,23 @@
     115627045967; green on `7c597ec`) and PR 446 at `02c55a7` (job 115627633453). On `c33ef09`
     the full `pnpm test:unit` passed twice under Node 24.21, `TZ=UTC`, `CI=true` (web: 424
     files, 6029 tests). PR 441 and PR 442 passed three full web runs each.
+  - A fifth unnamed one: PR 474 at `e6ac355` (run 39011303845), red on **both** attempts.
+    Attempt 1 died after 2m30s, attempt 2 after 4m16s; a green run takes about 4m40s, so the
+    failure point moved. Locally the job's exact command (root `pnpm test:unit`, `CI=true`,
+    Node 24.22) passed, web 437 files / 6201 tests, sharded and unsharded. PR 476 and PR 477
+    contain `e6ac355` and were green on unit.
+- **Why every unnamed red was unnamed:** `apps/web/vitest.unit.config.ts` set
+  `reporters: ["dot"]`, and naming any reporter drops the `github-actions` one Vitest adds under
+  `GITHUB_ACTIONS=true`. The five `packages/*` configs name none, so their failures were always
+  annotated; a web failure never was. So the unnamed reds are most likely web:
+  `suggestions.test.tsx` (KI-2026-10-11-c) or a web property floor.
+- **What the job reports now (PR 474):** the web config adds `github-actions` in CI, so a failed
+  assertion is a check-run annotation with file, line and test name. The unit step tees the log
+  and, on a non-zero exit, writes the `FAIL`, `Error:`, `originated in "<file>"`, `Worker
+  exited`, `ERR_PNPM` and `Test Files` lines to the step summary and one `::error` annotation.
+  That covers what the reporter skips: an unhandled error (Vitest gave it no annotation in a
+  local run) and a package that pnpm killed before its reporter ran. A crashed worker shows as
+  `Worker exited unexpectedly`, but Vitest does not say which file it was running.
 - **Why:** each property draws 200–1000 unseeded cases. Each floor was set at about half the
   minimum seen over a handful of calibration runs, and that many runs can't see the tail of a
   small, wide count. Measured:
@@ -48,9 +65,10 @@
   - Lowering a floor alone (for example `refused.atLeast(3)`) is a fallback, and needs its
     comment updated with the wider measurements.
   - Don't delete a coverage check: it is what proves the table is reached.
-  - To name the test behind the four unknown reds, have the unit job write vitest's failing test
-    names to `$GITHUB_STEP_SUMMARY`, or upload its junit/JSON report as an artifact the API can
-    read.
+  - Naming the test behind an unknown red is done (PR 474, above): read the check run's
+    annotations and the job's step summary. Fast-check prints its seed when a property fails,
+    but a floor or coverage check fails after `fc.assert` returns, so it prints none: pinning
+    seeds stays the fix.
 - **Cross-reference:** KI-2026-10-13-f (unreadable job logs); KI-2026-10-11-c
   (`suggestions.test.tsx` under full-suite load, the other suspect for the unnamed reds);
   KI-2026-09-05-p (the optimistic property). Merged here on 2026-10-17 and moved to `resolved/` as

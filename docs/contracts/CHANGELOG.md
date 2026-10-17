@@ -13,6 +13,21 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-10-17 — The admin Stripe test-mode switch (M47 part 3)
+- **Added** (`packages/contracts/src/entitlement.ts`, beside `AdminGrantInput`):
+  `AdminTestModeInput { enabled: boolean }`, the body of
+  `PUT /api/admin/accounts/[accountId]/test-mode`, and
+  `AdminTestMode { enabled, available }`, what that route and its `GET` answer.
+  `available` says whether the deployment holds a test key pair; turning the
+  switch on without one is refused 409 `test-mode-unavailable`.
+- Why: ADR-076 §6. An admin turns Stripe test mode on for one account so a
+  test card can walk a paid flow on production without counting as revenue.
+  The switch is admin-only, so neither schema is in any payload the account
+  itself reads.
+- Consumers updated: `apps/web` (the route, `server/billing/testMode.ts`,
+  `components/admin/AccountTestMode.tsx`, `AccountPage`, `app/admin/page.tsx`).
+- Breaking? no. Both schemas are new.
+
 ## 2026-10-15 — Trip guests, part 2: guests count in cost + read path
 - **Changed** (`packages/contracts/src/costs.ts`): `travellerIds(members, guests = [])`
   takes an optional guests list. A travelling guest emits its `guestId`, unless

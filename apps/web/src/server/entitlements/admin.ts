@@ -28,6 +28,7 @@ import { consoleCached } from "./consoleCache";
 import { activeGrantHolders } from "./grants";
 import { PLAN_VERSIONS, livePlanVersion, planVersionRefOf, type PlanVersion } from "./planVersions";
 import { entitlementsFor, type AccountEntitlements } from "./resolver";
+import { tierSeries, weekStartOf, type TierSeriesRow } from "./tierRollup";
 import {
   monthlyMicroUsd,
   revenueByPlan,
@@ -37,7 +38,7 @@ import {
   type UnderwaterReport,
 } from "@/server/billing/revenue";
 import { priceConsistencyReport, type PriceConsistencyReport } from "@/server/billing/prices";
-import { GRACE_WINDOW_DAYS } from "@/server/billing/standing";
+import { GRACE_WINDOW_DAYS, standingOf, type SubscriptionStanding } from "@/server/billing/standing";
 import { costPerAccount, requestCounts, topSpenders, type AccountCost } from "./usage";
 
 /**
@@ -195,6 +196,10 @@ function median(values: readonly number[]): number | null {
  * what it holds and what it was granted are two different facts, and the
  * per-source counts in Billing's `underwaterReport` are where the second one is
  * answered.
+ *
+ * **Live holdings only** (ADR-076 §4): a plan held from a test-mode checkout
+ * (`plan_livemode = false`) is in no row, so the tiers no longer sum to every
+ * account.
  */
 export async function planPanel(
   now: Date = new Date(),
@@ -216,6 +221,7 @@ export async function planPanel(
         count: sql<number>`count(*)::int`,
       })
       .from(users)
+      .where(eq(users.planLivemode, true))
       .groupBy(users.planId, users.planVersion),
     costByPlan(ledger),
     // Billing prices the revenue half; the cost it is compared against is this
@@ -271,9 +277,14 @@ export function grantablePlanIds(): PlanId[] {
  * about accounts that used the assistant, and folding in every dormant account
  * pulls every median to zero and tells you nothing. This is the same
  * null-is-not-zero rule `microUsdFor` follows, one level up.
+ *
+ * A test-mode holding is no plan's holder here, as in `planPanel`.
  */
 async function costByPlan(costs: readonly AccountCost[]): Promise<Map<PlanId, number[]>> {
-  const holders = await db.select({ id: users.id, planId: users.planId }).from(users);
+  const holders = await db
+    .select({ id: users.id, planId: users.planId })
+    .from(users)
+    .where(eq(users.planLivemode, true));
   const planOf = new Map(holders.map((row) => [row.id, row.planId]));
   const byPlan = new Map<PlanId, number[]>();
   for (const cost of costs) {
@@ -348,7 +359,10 @@ export interface AdminAccountRow {
    * CodeRabbit, PR #177.
    */
   paysMicroUsd: number | null;
-  /** Stripe's own word, or `null` for an account that has never subscribed. */
+  /**
+   * Stripe's own word, `"lapsed"`, or `null` for an account that has never
+   * subscribed. A test-mode subscription's carries ` (test mode)`.
+   */
   subscriptionState: string | null;
   /**
    * **Last active** (M36 D6), ISO — the later of the account's newest planning
@@ -461,15 +475,16 @@ async function accountRows(
 ): Promise<AdminAccountRow[]> {
   const since = trailingWindowStart(now);
   const ids = rows.map((row) => row.id);
-  const [costs, counts, lastActive, resolved] = await Promise.all([
+  const [costs, counts, lastActive, resolved, held] = await Promise.all([
     trailing ?? costPerAccount(since, ids),
     requestCounts(since, ids),
     lastActiveSince(since, ids),
     Promise.all(ids.map((id) => entitlementsFor(id, now))),
+    shownSubscriptions(ids, now),
   ]);
   const costByUser = new Map(costs.map((cost) => [cost.userId, cost]));
   return rows.map((row, index) =>
-    accountRow(row, resolved[index]!, {
+    accountRow(row, resolved[index]!, held.get(row.id) ?? null, {
       cost: costByUser.get(row.id),
       requests: counts.get(row.id) ?? 0,
       lastActiveAt: lastActive.get(row.id) ?? null,
@@ -542,10 +557,10 @@ function plansGrantingNothing(): PlanId[] {
  * in SQL so the counts and the page are taken over the whole set rather than
  * over rows the server already resolved:
  *
- *   * `paying` — the account's subscription (`subscriptionFor`'s pick: its
- *     newest conferring-status row, else its newest) confers right now
- *     (`standingOf`: a conferring status, and not `past_due` beyond the grace
- *     window) and is not on a version sold at no charge. That is the row's
+ *   * `paying` — the account's shown subscription (`shownSubscriptions`'s
+ *     pick: conferring first, then live before test, then newest) confers
+ *     right now (`standingOf`: a conferring status, and not `past_due`
+ *     beyond the grace window) and is not on a version sold at no charge. That is the row's
  *     `paysMicroUsd !== 0`, unpriceable subscriptions included.
  *   * `granted` — an active grant: not revoked, not expired (`activeAt`).
  *   * `unentitled` — `users.plan_id` grants nothing, the row's held plan.
@@ -554,8 +569,11 @@ function plansGrantingNothing(): PlanId[] {
  *   * `underwater` — the underwater report's paying ids, handed in, so *Show
  *     them in Users* lists every account Financial counted.
  *
+ * `paying` and `pastDue` are money, so a test-mode subscription is neither
+ * (ADR-076 §4), and the row says its state in test mode rather than as one.
+ *
  * `admin.int.test.ts` builds one account per rule and holds the counts to
- * the rows the resolver draws.
+ * the rows `accountRow` draws.
  */
 function accountsMatching(view: AccountsQuery, now: Date, underwater: readonly string[]): SQL {
   const needle = view.query.trim().toLowerCase();
@@ -574,19 +592,19 @@ function accountsMatching(view: AccountsQuery, now: Date, underwater: readonly s
   const confers = inList(sql`s.status`, CONFERRING_STATUSES);
   return sql`(
     select u.id, u.email, u.is_admin, u.created_at,
-           coalesce(${confers} and not ${lapsed}
+           coalesce(s.livemode and ${confers} and not ${lapsed}
              and not ${inList(sql`(s.plan_id || '@v' || s.plan_version)`, FREE_OF_CHARGE)}, false) as paying,
            exists (select 1 from ${entitlementGrants} g
                     where g.user_id = u.id and g.revoked_at is null
                       and (g.expires_at is null or g.expires_at > ${at}::timestamptz)) as granted,
            ${inList(sql`u.plan_id`, plansGrantingNothing())} as unentitled,
-           coalesce(s.status = 'past_due' and not ${lapsed}, false) as past_due,
+           coalesce(s.livemode and s.status = 'past_due' and not ${lapsed}, false) as past_due,
            ${inList(sql`u.id`, underwater)} as underwater
       from ${users} u
       left join lateral (
-        select s.status, s.plan_id, s.plan_version, s.past_due_since
+        select s.status, s.plan_id, s.plan_version, s.past_due_since, s.livemode
           from ${subscriptions} s where s.user_id = u.id
-         order by ${confers} desc, s.created_at desc
+         order by ${confers} desc, s.livemode desc, s.created_at desc
          limit 1
       ) s on true
      where ${search}
@@ -672,7 +690,7 @@ export async function adminAccount(
   now: Date = new Date(),
 ): Promise<{ row: AdminAccountRow; resolved: AccountEntitlements; cost: AccountCost | undefined } | null> {
   const since = trailingWindowStart(now);
-  const [found, costs, counts, lastActive, resolved] = await Promise.all([
+  const [found, costs, counts, lastActive, resolved, held] = await Promise.all([
     db
       .select({ id: users.id, email: users.email, isAdmin: users.isAdmin })
       .from(users)
@@ -682,13 +700,14 @@ export async function adminAccount(
     requestCounts(since, [userId]),
     lastActiveSince(since, [userId]),
     entitlementsFor(userId, now),
+    shownSubscriptions([userId], now),
   ]);
   const user = found[0];
   if (user === undefined) return null;
   const cost = costs.find((entry) => entry.userId === userId);
   return {
     cost,
-    row: accountRow(user, resolved, {
+    row: accountRow(user, resolved, held.get(userId) ?? null, {
       cost,
       requests: counts.get(userId) ?? 0,
       lastActiveAt: lastActive.get(userId) ?? null,
@@ -697,19 +716,53 @@ export async function adminAccount(
   };
 }
 
-/** One `users` row and its resolver answer, as the accounts table shows it. */
+/**
+ * The subscription each account's row shows, by `userId`: **conferring
+ * first**, then live before test, then newest. The order `accountsMatching`'s
+ * lateral pick writes in SQL, so a filter and the row it lists agree.
+ *
+ * Conferring first, so a cancelled live subscription never hides the test one
+ * that holds the plan the row draws. Live before test among those, which
+ * `subscriptionFor`'s pick does not do because it answers what the account may
+ * do: a live payer with a newer test subscription beside it still pays, and
+ * the row has to say so (ADR-076 §4).
+ */
+async function shownSubscriptions(ids: readonly string[], now: Date): Promise<Map<string, SubscriptionStanding>> {
+  if (ids.length === 0) return new Map();
+  const rows = await db
+    .select()
+    .from(subscriptions)
+    .where(inArray(subscriptions.userId, [...ids]))
+    .orderBy(desc(subscriptions.createdAt));
+  const byUser = new Map<string, (typeof rows)[number][]>();
+  for (const row of rows) byUser.set(row.userId, [...(byUser.get(row.userId) ?? []), row]);
+  return new Map(
+    [...byUser].map(([userId, held]) => {
+      const confers = (row: (typeof held)[number]) => CONFERRING_STATUSES.includes(row.status);
+      const pick =
+        held.find((row) => confers(row) && row.livemode) ??
+        held.find(confers) ??
+        held.find((row) => row.livemode) ??
+        held[0]!;
+      return [userId, standingOf(pick, now)];
+    }),
+  );
+}
+
+/** One `users` row, its resolver answer and its shown subscription, as the accounts table draws it. */
 function accountRow(
   row: { id: string; email: string | null; isAdmin: boolean },
   resolved: AccountEntitlements,
+  subscription: SubscriptionStanding | null,
   reads: { cost: AccountCost | undefined; requests: number; lastActiveAt: string | null },
 ): AdminAccountRow {
-  // **Read off the resolver's own answer**, not re-queried. It already
-  // fetched this account's subscription standing to decide what the account
-  // may do, so asking again would be a second read that can disagree with
-  // the gate — which is the one thing an operator console must never do.
-  const subscription = resolved.subscription;
+  // A test-mode subscription confers but pays nothing (ADR-076 §4), the same
+  // rule `accountsMatching`'s `paying` writes in SQL.
   const pays =
-    subscription !== null && subscription.conferring ? monthlyMicroUsd(subscription.row) : 0;
+    subscription !== null && subscription.conferring && subscription.row.livemode
+      ? monthlyMicroUsd(subscription.row)
+      : 0;
+  const state = subscription === null ? null : subscription.lapsed ? "lapsed" : subscription.row.status;
   return {
     userId: row.id,
     email: row.email,
@@ -727,7 +780,9 @@ function accountRow(
     microUsd: reads.cost?.microUsd ?? 0,
     unpriced: reads.cost?.unpriced ?? 0,
     paysMicroUsd: pays,
-    subscriptionState: subscription?.lapsed === true ? "lapsed" : (subscription?.row.status ?? null),
+    // Marked, so a test-mode `past_due` never reads as the *Past due* the
+    // filter counts.
+    subscriptionState: state !== null && subscription?.row.livemode === false ? `${state} (test mode)` : state,
     lastActiveAt: reads.lastActiveAt,
   };
 }
@@ -763,8 +818,8 @@ export async function adminCostPerAccount(now: Date = new Date()): Promise<Accou
 export type AdminFinancial = Pick<AdminOverview, "plans" | "windowDays" | "revenue" | "underwater">;
 
 /**
- * **What the Users tab draws**: one page of the accounts table, and the
- * revenue summary for the stale banner.
+ * **What the Users tab draws**: each tier's weekly history, one page of the
+ * accounts table, and the revenue summary for the stale banner.
  *
  * **No price sweep** — that is a round trip to Stripe per published version,
  * and this tab shows none of it — and no tier panel or underwater report.
@@ -774,6 +829,10 @@ export interface AdminUsers {
   windowDays: number;
   /** Only `unpricedSubscriptions` is drawn, by the banner both tabs share. */
   revenue: RevenueSummary;
+  /** *Accounts by tier*: each tier's last 26 weeks from `tier_weekly` (M47 part 4). */
+  tiers: TierSeriesRow[];
+  /** The week `now` falls in: a tier whose newest row is older reads *as of* that row, not *now*. */
+  thisWeek: string;
 }
 
 /** Everything the console reads, in one call — what `GET /api/admin/overview` answers. */
@@ -854,7 +913,7 @@ export async function adminUsers(
 ): Promise<AdminUsers> {
   const { trailing, holders } = await sharedReads(now);
   const underwater = await underwaterReport(TRAILING_WINDOW_DAYS, trailing, holders, now);
-  const [table, revenue] = await Promise.all([
+  const [table, revenue, tiers] = await Promise.all([
     adminAccountsPage(
       view,
       now,
@@ -862,8 +921,9 @@ export async function adminUsers(
       underwater.paying.map((row) => row.userId),
     ),
     revenueSummary(TRAILING_WINDOW_DAYS, trailing, now),
+    tierSeries(26, now),
   ]);
-  return { table, windowDays: TRAILING_WINDOW_DAYS, revenue };
+  return { table, windowDays: TRAILING_WINDOW_DAYS, revenue, tiers, thisWeek: weekStartOf(now) };
 }
 
 /**

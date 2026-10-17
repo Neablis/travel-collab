@@ -110,11 +110,13 @@ describe("only the webhook writes what an account pays for", () => {
   it("moves an account's held plan from the webhook, account creation and nowhere else", () => {
     const offenders = ALL.filter((file) => {
       if (MAY_WRITE_HELD_PLAN.has(relative(file))) return false;
-      // Every payload pattern below needs `planId` or `planVersion` literally.
-      const source = strippedIfMentions(file, /planId|planVersion/);
+      // Every payload pattern below needs `planId`, `planVersion` or
+      // `planLivemode` literally — the last is the held plan's Stripe mode
+      // (ADR-076 §3), which the tier panel reads as whether it counts.
+      const source = strippedIfMentions(file, /planId|planVersion|planLivemode/);
       if (source === null) return false;
       return writePayloads(source, "users").some((payload) =>
-        /\bplanId\s*:|\bplanVersion\s*:/.test(payload),
+        /\bplanId\s*:|\bplanVersion\s*:|\bplanLivemode\s*:/.test(payload),
       );
     }).map(relative);
     expect(offenders).toEqual([]);
@@ -132,15 +134,27 @@ describe("only the webhook writes what an account pays for", () => {
     }
   });
 
-  // `stripe_customer_id` is the ONE column outside that rule, and it is not an
-  // exception to it: a customer id is who you are at Stripe, not what you are
-  // entitled to, and it must exist before a Checkout Session can name it. It is
-  // listed here so the exception is a decision somebody wrote down.
-  it("lets checkout write the Stripe customer id, which grants nothing", () => {
+  // `stripe_customers` is the ONE table outside that rule (ADR-076 §2), and it
+  // is not an exception to it: a customer id is who you are at Stripe, not
+  // what you are entitled to, and it must exist before a Checkout Session can
+  // name it. Listed here so the exception is a decision somebody wrote down,
+  // and so `users` is no longer written from checkout at all.
+  it("lets checkout write the Stripe customer, which grants nothing", () => {
     const checkout = code(path.join(SRC, "server/billing/checkout.ts"));
-    const payloads = writePayloads(checkout, "users");
+    expect(writePayloads(checkout, "users")).toEqual([]);
+    const payloads = writePayloads(checkout, "stripeCustomers");
     expect(payloads).toHaveLength(1);
-    expect(payloads[0]).toMatch(/stripeCustomerId/);
-    expect(payloads[0]).not.toMatch(/planId|planVersion/);
+    expect(payloads[0]).toMatch(/customerId/);
+    expect(payloads[0]).not.toMatch(/planId|planVersion|planLivemode/);
+  });
+
+  it("writes stripe_customers from checkout and nowhere else", () => {
+    const offenders = ALL.filter((file) => {
+      if (relative(file) === "server/billing/checkout.ts") return false;
+      const source = strippedIfMentions(file, /stripeCustomers/);
+      if (source === null) return false;
+      return /\.(insert|update|delete)\(\s*stripeCustomers\s*\)/.test(source);
+    }).map(relative);
+    expect(offenders).toEqual([]);
   });
 });

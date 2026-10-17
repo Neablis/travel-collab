@@ -20,13 +20,15 @@
 // "what you bought" has to land there or a subscription would grant nothing.
 // Nothing else in the product writes it except account creation, and
 // `billing.soleWriter.test.ts` sweeps for a third writer.
+import * as Sentry from "@sentry/nextjs";
 import { and, eq, isNull, lt } from "drizzle-orm";
 import { PlanId, SubscriptionStatus } from "@tc/contracts";
 import { db } from "@/server/db/client";
 import { billingEvents, subscriptions, users } from "@/server/db/schema";
 import { isPublishedRef, livePlanVersion } from "@/server/entitlements/planVersions";
-import { parseCheckoutReference } from "./config";
-import type { StripeEvent } from "./signature";
+import { deploymentOrigin } from "@/lib/deploymentOrigin";
+import { ORIGIN_METADATA_KEY, parseCheckoutReference } from "./config";
+import type { VerifiedStripeEvent } from "./signature";
 import { retrieveSubscription, type StripeSubscription } from "./stripeApi";
 import {
   applySubscriptionFacts,
@@ -110,7 +112,7 @@ const CLAIM_LEASE_MS = 60_000;
  * and only one statement can move `received_at` under it.
  */
 
-async function claimEvent(event: StripeEvent, now: Date): Promise<boolean> {
+async function claimEvent(event: VerifiedStripeEvent, now: Date): Promise<boolean> {
   const inserted = await db
     .insert(billingEvents)
     .values({
@@ -118,6 +120,8 @@ async function claimEvent(event: StripeEvent, now: Date): Promise<boolean> {
       type: event.type,
       eventAt: new Date(event.created * 1000),
       receivedAt: now,
+      // The verifying secret's mode, never the body's (ADR-076 §5).
+      livemode: event.mode === "live",
       appliedAt: null,
     })
     .onConflictDoNothing()
@@ -230,6 +234,37 @@ function statusOf(subscription: StripeSubscription): SubscriptionStatus | null {
 /**
  * **The one write path**, given a Stripe subscription and the event it came on.
  *
+ * **A test-mode event applies only to a subscription this deployment owns.**
+ * Stripe delivers every event in a test account to every test endpoint
+ * registered in it, so a deployment sharing that account hears every local and
+ * preview checkout too, naming accounts it does not have or, by coincidence of
+ * id, does (PR 476 review, finding 2). Owned means either of two things:
+ *
+ *   * **Its checkout began here**: the `ORIGIN_METADATA_KEY` that
+ *     `startCheckout` stamps equals this `deploymentOrigin()`. That is a host,
+ *     not an identity: production's is its production domain, a preview's its
+ *     branch alias, and every laptop's `http://localhost:3001`, so two laptops
+ *     on one test account do pass each other's checkouts, and only the
+ *     account-exists check below stands between them.
+ *   * **This database already holds it** in test mode. A Stripe subscription
+ *     id is unique, so a row is proof it was bought here: one from before
+ *     production's domain changed keeps updating (PR 476 review round 2,
+ *     findings 1 and 2). Rows from before origins were stamped do not, because
+ *     migration 0055 marked every older row live: a test event on one of those
+ *     is refused by the mode check below and alerts. Only previews and laptops
+ *     have such rows, and their databases are disposable (PR 476 review
+ *     round 4, finding 3).
+ *
+ * Anything else is `unattributable`, claimed and stamped, and answered 200 so
+ * Stripe stops. Live events are not checked: one live account is one
+ * production.
+ *
+ * **Neither mode writes to a row held in the other.** The held-here bypass
+ * would otherwise let a test-signed body move a live row's status and plan
+ * while the row still said live, and the live-only money reads would count it
+ * (PR 476 review round 3, finding 1). One side of that is always live, so it
+ * alerts in both modes.
+ *
  * `pastDueSince` is carried forward rather than recomputed: the decline is an
  * `invoice.payment_failed` and the subscription events around it do not say
  * when it happened. A subscription that is `past_due` and has no anchor yet
@@ -240,15 +275,39 @@ function statusOf(subscription: StripeSubscription): SubscriptionStatus | null {
  */
 async function writeFrom(
   subscription: StripeSubscription,
-  event: StripeEvent,
+  event: VerifiedStripeEvent,
   now: Date,
 ): Promise<WebhookOutcome> {
   const existing = await subscriptionByStripeId(subscription.id);
+  if (existing !== null && existing.livemode !== (event.mode === "live")) {
+    alertDropped(event, subscription, "is held in the other mode");
+    return { applied: false, note: "unattributable" };
+  }
+  if (
+    event.mode === "test" &&
+    existing === null &&
+    subscription.metadata?.[ORIGIN_METADATA_KEY] !== deploymentOrigin()
+  ) {
+    return { applied: false, note: "unattributable" };
+  }
   const who = attribute(subscription, existing);
-  if (who === null) return { applied: false, note: "unattributable" };
+  if (who === null) return unattributable(event, subscription, "names no account");
+  // `subscriptions.user_id` has no foreign key, so an id from another
+  // database would otherwise land as an orphan row.
+  const [account] = await db.select({ id: users.id }).from(users).where(eq(users.id, who.userId)).limit(1);
+  if (account === undefined) {
+    return unattributable(event, subscription, `names account ${who.userId}, which does not exist`);
+  }
 
   const status = statusOf(subscription);
-  if (status === null) return { applied: false, note: "ignored" };
+  if (status === null) {
+    // Unlike the other `ignored` exits this one loses state: the row keeps
+    // conferring on its old status, and the 200 means no redelivery.
+    if (event.mode === "live") {
+      alertDropped(event, subscription, `has status ${subscription.status}, which this build does not know`);
+    }
+    return { applied: false, note: "ignored" };
+  }
 
   const eventAt = new Date(event.created * 1000);
   const pastDueSince =
@@ -258,6 +317,8 @@ async function writeFrom(
     userId: who.userId,
     stripeCustomerId: subscription.customer,
     stripeSubscriptionId: subscription.id,
+    // The mode for the reason `claimEvent` gives.
+    livemode: event.mode === "live",
     planId: who.planId,
     planVersion: who.planVersion,
     status,
@@ -272,6 +333,45 @@ async function writeFrom(
 
   await syncHeldPlan(who.userId);
   return { applied: true, note: "written" };
+}
+
+/**
+ * An event that names no account here, answered 200 so Stripe stops.
+ *
+ * **A live one is an alert.** Live mode has one endpoint and one database, so a
+ * live subscription this cannot place is money taken that grants nothing, and
+ * the 200 means Stripe will never ask again. A test one is the shared test
+ * account's ordinary traffic, and stays quiet.
+ */
+function unattributable(
+  event: VerifiedStripeEvent,
+  subscription: StripeSubscription,
+  why: string,
+): WebhookOutcome {
+  if (event.mode === "live") alertDropped(event, subscription, why);
+  return { applied: false, note: "unattributable" };
+}
+
+/**
+ * Sentry groups by message, so the message stays fixed and the event goes in
+ * tags: every event of one stuck subscription is then one issue that
+ * frequency alerting can count (PR 476 review round 3, finding 3).
+ */
+function alertDropped(event: VerifiedStripeEvent, subscription: StripeSubscription, why: string): void {
+  console.error(
+    `Stripe ${event.mode} event ${event.id} (${event.type}) dropped: subscription ${subscription.id} ${why}`,
+  );
+  Sentry.captureMessage("Stripe event dropped", {
+    level: "error",
+    tags: {
+      stripe_mode: event.mode,
+      stripe_event_id: event.id,
+      stripe_event_type: event.type,
+      stripe_subscription_id: subscription.id,
+    },
+    extra: { why },
+    fingerprint: ["stripe-event-dropped", subscription.id],
+  });
 }
 
 /**
@@ -299,12 +399,14 @@ async function syncHeldPlan(userId: string): Promise<void> {
     current.status === "canceled" ||
     current.status === "unpaid" ||
     current.status === "incomplete_expired";
+  // `planLivemode` is the conferring subscription's mode, and live on a fall to
+  // `free` (ADR-076 §3), so the tier panel can leave a test-mode holding out.
   const held = over
-    ? { planId: livePlanVersion("free").planId, planVersion: livePlanVersion("free").version }
-    : { planId: current.planId, planVersion: current.planVersion };
+    ? { planId: livePlanVersion("free").planId, planVersion: livePlanVersion("free").version, planLivemode: true }
+    : { planId: current.planId, planVersion: current.planVersion, planLivemode: current.livemode };
   await db
     .update(users)
-    .set({ planId: held.planId, planVersion: held.planVersion })
+    .set({ planId: held.planId, planVersion: held.planVersion, planLivemode: held.planLivemode })
     .where(eq(users.id, userId));
 }
 
@@ -321,12 +423,13 @@ function subscriptionIdOnInvoice(object: Record<string, unknown>): string | null
 /**
  * **Apply one verified Stripe event.**
  *
- * The caller has already verified the signature; this is everything after
- * that, and it is written so that "what happens on a redelivery" is one branch
- * at the top rather than a property each handler has to preserve.
+ * The caller has already verified the signature, and `event.mode` is the
+ * mode of the secret that did. This is everything after that, and it is
+ * written so that "what happens on a redelivery" is one branch at the top
+ * rather than a property each handler has to preserve.
  */
 export async function applyStripeEvent(
-  event: StripeEvent,
+  event: VerifiedStripeEvent,
   now: Date = new Date(),
 ): Promise<WebhookOutcome> {
   if (!HANDLED.has(event.type)) return { applied: false, note: "ignored" };
@@ -358,8 +461,9 @@ export async function applyStripeEvent(
     // **Fetched from Stripe rather than read off the session.** The session
     // carries a subscription ID and none of its state, and reading state from
     // the object the browser's return was about is how a redirect becomes a
-    // grant. This asks Stripe.
-    const subscription = await retrieveSubscription(subscriptionId);
+    // grant. This asks Stripe — in the event's own mode, since the other
+    // mode's key has never heard of this subscription.
+    const subscription = await retrieveSubscription(subscriptionId, event.mode);
     // The session is the one place the account id is stated outright, so an
     // attribution that would otherwise fail is rescued here — a subscription
     // created before `subscription_data.metadata` existed, for instance.
@@ -383,7 +487,7 @@ export async function applyStripeEvent(
   // Both invoice events: find the subscription they are about and reconcile it.
   const subscriptionId = subscriptionIdOnInvoice(object);
   if (subscriptionId === null) return finish({ applied: false, note: "ignored" });
-  const subscription = await retrieveSubscription(subscriptionId);
+  const subscription = await retrieveSubscription(subscriptionId, event.mode);
   const outcome = await writeFrom(subscription, event, now);
 
   // **The decline's date, which only this event knows** (M21 link 6). The

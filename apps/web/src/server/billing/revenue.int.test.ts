@@ -21,7 +21,13 @@ import { aiUsage, entitlementGrants, subscriptions, users } from "@/server/db/sc
 import { upsertUser } from "@/server/users";
 import { activeGrantHolders, issueGrant } from "@/server/entitlements/grants";
 import { costPerAccount } from "@/server/entitlements/usage";
-import { MICRO_USD_PER_MINOR, monthlyMicroUsd, revenueSummary, underwaterReport } from "./revenue";
+import {
+  MICRO_USD_PER_MINOR,
+  monthlyMicroUsd,
+  revenueByPlan,
+  revenueSummary,
+  underwaterReport,
+} from "./revenue";
 
 const WINDOW = 30;
 const NOW = new Date("2026-11-01T12:00:00.000Z");
@@ -51,12 +57,13 @@ async function account(): Promise<string> {
 }
 
 /** A conferring subscription on a real plan, at that plan's real price. */
-async function subscribe(userId: string, planId: "plus" | "premium"): Promise<void> {
+async function subscribe(userId: string, planId: "plus" | "premium", livemode = true): Promise<void> {
   await db.insert(subscriptions).values({
     id: randomUUID(),
     userId,
     stripeCustomerId: `cus_${userId}`,
     stripeSubscriptionId: `sub_${randomUUID()}`,
+    livemode,
     planId,
     planVersion: 1,
     status: "active",
@@ -184,6 +191,42 @@ describe("the four numbers", () => {
     const summary = await revenueSummary(WINDOW, await trailingCosts(), NOW);
     expect(summary.medianMarginMicroUsd).toBeNull();
     expect(summary.mrrMicroUsd).toBe(0);
+  });
+});
+
+// **A test card is not money** (ADR-076 §4, M47's gate box). A test-mode
+// subscription confers its plan, and every revenue read must still count it
+// as nothing — in every environment, so a production tester's purchase never
+// reaches MRR.
+describe("a test-mode subscription", () => {
+  async function liveAndTest(): Promise<{ live: string; test: string }> {
+    const live = await account();
+    const test = await account();
+    await subscribe(live, "plus");
+    await subscribe(test, "plus", false);
+    // Both burn more than they pay, so the underwater report would list both.
+    await spend(live, 400);
+    await spend(test, 400);
+    return { live, test };
+  }
+
+  it("adds nothing to MRR or the paying count", async () => {
+    await liveAndTest();
+    const summary = await revenueSummary(WINDOW, await trailingCosts(), NOW);
+    expect(summary.mrrMicroUsd).toBe(900 * MICRO_USD_PER_MINOR);
+    expect(summary.payingAccounts).toBe(1);
+  });
+
+  it("is in neither half of the underwater report", async () => {
+    const { live } = await liveAndTest();
+    const report = await underwaterReport(WINDOW, await trailingCosts(), await activeGrantHolders(NOW), NOW);
+    expect(report.paying.map((row) => row.userId)).toEqual([live]);
+  });
+
+  it("adds nothing to its plan's revenue", async () => {
+    await liveAndTest();
+    const plus = (await revenueByPlan(await trailingCosts(), NOW)).find((row) => row.planId === "plus");
+    expect(plus?.mrrMicroUsd).toBe(900 * MICRO_USD_PER_MINOR);
   });
 });
 
