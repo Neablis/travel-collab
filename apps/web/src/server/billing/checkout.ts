@@ -20,10 +20,11 @@ import {
   planVersionRefOf,
   type PlanVersion,
 } from "@/server/entitlements/planVersions";
-import { billingConfig, checkoutReference, modeOfLivemode } from "./config";
+import { checkoutReference, modeOfLivemode } from "./config";
 import { stripePriceFor, UnpurchasableVersionError } from "./prices";
 import { createCustomer, stripeRequest, type StripeCheckoutSession, type StripePortalSession } from "./stripeApi";
 import { subscriptionFor } from "./subscriptions";
+import { billingModeFor } from "./testMode";
 
 /**
  * The Stripe customer for an account in one Stripe mode, creating one the
@@ -31,8 +32,8 @@ import { subscriptionFor } from "./subscriptions";
  *
  * **One per account per mode** (ADR-076 §2): test and live are separate
  * customer spaces at Stripe, so each mode has its own row in
- * `stripe_customers`. A checkout starts in the primary pair's mode until the
- * admin test-mode switch exists (ADR-076 §6).
+ * `stripe_customers`. Which mode a checkout is in is `billingModeFor`'s
+ * answer: the admin's test-mode switch, else the primary pair (ADR-076 §6).
  *
  * **Written here and not by the webhook**, which is the one exception to link
  * 4's sole-writer rule and is not really an exception: a customer id is who you
@@ -165,9 +166,10 @@ export async function startCheckout(input: {
     );
   }
 
-  // **The primary pair's mode**: live on production, test on a deployment
-  // whose only keys are test keys. Part 3 of M47 makes it the account's switch.
-  const mode = billingConfig().primary;
+  // **The account's switch, else the primary pair's mode** (ADR-076 §6): a
+  // switched account buys with the test pair, its test customer and the
+  // test-mode Price, so a test card confers the plan with `plan_livemode = false`.
+  const mode = await billingModeFor(input.userId);
   const [customerId, priceId] = await Promise.all([
     stripeCustomerFor(input.userId, mode === "live"),
     stripePriceFor(version, mode),
@@ -229,7 +231,9 @@ export async function portalUrlFor(input: {
   userId: string;
   returnOrigin: string;
 }): Promise<string> {
-  const mode = billingConfig().primary;
+  // The same mode as its checkouts, so a switched account manages the test
+  // subscription it bought rather than an empty live customer.
+  const mode = await billingModeFor(input.userId);
   const customerId = await stripeCustomerFor(input.userId, mode === "live");
   const session = await stripeRequest<StripePortalSession>({
     mode,

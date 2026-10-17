@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { AdminTestMode } from "@tc/contracts";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { DataText } from "@/components/ui/data-text";
@@ -9,6 +10,7 @@ import { Text } from "@/components/ui/text";
 import type { AdminAccountDetail, AdminAccountState, AdminAccountTurn } from "@/lib/adminAccount";
 import { cn } from "@/lib/cn";
 import { AccountGrants } from "./AccountGrants";
+import { AccountTestMode } from "./AccountTestMode";
 import {
   CONTEXT_DANGER_TOKENS,
   ceilingRule,
@@ -32,9 +34,9 @@ import { microUsdCost, microUsdMoney } from "./microUsd";
 //   * No *shared* or *started N trips* under Notebooks (D5): neither has a
 //     source until a notebook share link exists.
 //
-// A server component apart from its two writes — `GrantDialog` and the grant
-// cards — which are client components because they hold dialog and confirm
-// state and call `/api/admin/grants`.
+// A server component apart from its writes — `GrantDialog`, the grant cards
+// and the Stripe test-mode switch — which are client components because they
+// hold dialog, confirm or request state and call `/api/admin/*`.
 
 const STATE: Record<AdminAccountState, { label: string; variant: "success" | "info" | "warning" | "neutral" }> = {
   active: { label: "active", variant: "success" },
@@ -85,6 +87,7 @@ export function AccountPage({
   plans,
   back,
   now,
+  testMode,
 }: {
   detail: AdminAccountDetail;
   /** Plan ids an operator may grant — enabled plans only. */
@@ -93,6 +96,12 @@ export function AccountPage({
   back: string;
   /** ISO, from the server render. */
   now: string;
+  /**
+   * The account's Stripe test-mode switch (ADR-076 §6). Its own prop rather
+   * than a field of `detail`, so the one read that carries it is the admin
+   * page's own call to `testModeFor`.
+   */
+  testMode: AdminTestMode;
 }) {
   const { plan, activity, windowDays } = detail;
   const account = plan.account;
@@ -214,6 +223,7 @@ export function AccountPage({
             account={address}
             now={now}
           />
+          <AccountTestMode accountId={account.userId} initial={testMode} />
         </Panel>
       </div>
     </div>

@@ -173,6 +173,21 @@ export function billingConfigured(): boolean {
 }
 
 /**
+ * Whether this deployment holds a test-mode pair, without throwing — the
+ * condition for the admin test-mode switch to mean anything (ADR-076 §6).
+ *
+ * True on a deployment whose primary pair is itself test (local, a preview) as
+ * well as on one with a `STRIPE_TEST_*` pair beside live.
+ */
+export function testPairConfigured(): boolean {
+  try {
+    return billingConfig().test !== undefined;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Where Stripe sends the browser back to.
  *
  * Taken from the request the checkout was started by, not from configuration.

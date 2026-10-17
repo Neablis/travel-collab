@@ -104,7 +104,13 @@ function detail(over: { assistant?: Partial<AdminAccountDetail["assistant"]>; gr
 }
 
 const page = (value: AdminAccountDetail = detail()) => (
-  <AccountPage detail={value} plans={["plus", "premium"]} back="/admin?tab=users&filter=granted" now={NOW} />
+  <AccountPage
+    detail={value}
+    plans={["plus", "premium"]}
+    back="/admin?tab=users&filter=granted"
+    now={NOW}
+    testMode={{ enabled: false, available: true }}
+  />
 );
 
 const assistantPanel = () => screen.getByRole("complementary", { name: "Assistant · last 30 days" });

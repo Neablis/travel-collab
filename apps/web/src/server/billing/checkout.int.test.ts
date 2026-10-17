@@ -13,19 +13,21 @@ import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { stripeCustomers, users } from "@/server/db/schema";
 import { upsertUser } from "@/server/users";
+import { livePlanVersion } from "@/server/entitlements/planVersions";
+import { fakeStripeKey, otherFakeStripeKey } from "@/test-support/stripeSignature";
 
-const createCustomer = vi.fn<(input: { userId: string }) => Promise<{ id: string }>>();
+const createCustomer = vi.fn<(input: { userId: string; mode: string }) => Promise<{ id: string }>>();
 vi.mock("./stripeApi", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./stripeApi")>()),
-  createCustomer: (input: { userId: string; email: string | null }) => createCustomer(input),
+  createCustomer: (input: { userId: string; email: string | null; mode: string }) => createCustomer(input),
 }));
 
-const { stripeCustomerFor } = await import("./checkout");
+const { portalUrlFor, startCheckout, stripeCustomerFor } = await import("./checkout");
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 
@@ -107,5 +109,102 @@ describe("a customer id from before stripe_customers", () => {
 
     expect(await stripeCustomerFor(userId, true)).toBe("cus_from_before");
     expect(createCustomer).not.toHaveBeenCalled();
+  });
+});
+
+// **A switched account buys in test mode** (ADR-076 §6). Its checkout and its
+// portal use the test pair's key, its test customer and the test-mode Price;
+// the live customer it already has is left alone. Stripe is stubbed at
+// `fetch`, so the assertions are on the requests this module built.
+describe("checkout for an account with the test-mode switch on", () => {
+  const fetchMock = vi.fn<(url: string, init: RequestInit) => Promise<Response>>();
+  const LIVE_KEY = fakeStripeKey("sk_live");
+  const TEST_KEY = fakeStripeKey("sk_test");
+  const plus = livePlanVersion("plus");
+
+  beforeEach(() => {
+    vi.stubEnv("STRIPE_SECRET_KEY", LIVE_KEY);
+    vi.stubEnv("STRIPE_WEBHOOK_SECRET", fakeStripeKey("whsec"));
+    vi.stubEnv("STRIPE_TEST_SECRET_KEY", TEST_KEY);
+    vi.stubEnv("STRIPE_TEST_WEBHOOK_SECRET", otherFakeStripeKey("whsec"));
+    createCustomer.mockImplementation(async ({ userId, mode }) => ({ id: `cus_${mode}_${userId}` }));
+    fetchMock.mockReset();
+    fetchMock.mockImplementation(async (url) => {
+      const { pathname } = new URL(url);
+      const body =
+        pathname === "/v1/prices"
+          ? {
+              data: [
+                {
+                  id: "price_plus",
+                  active: true,
+                  currency: plus.price!.currency,
+                  unit_amount: plus.price!.minor,
+                  lookup_key: null,
+                  recurring: { interval: "month" },
+                },
+              ],
+            }
+          : pathname === "/v1/checkout/sessions"
+            ? { id: "cs_1", url: "https://checkout.stripe.test/cs_1" }
+            : { url: "https://billing.stripe.test/portal" };
+      return new Response(JSON.stringify(body), { status: 200 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+  });
+
+  async function switchedAccount(): Promise<string> {
+    const userId = await makeAccount();
+    await db.update(users).set({ stripeTestMode: true }).where(eq(users.id, userId));
+    await db.insert(stripeCustomers).values({ userId, livemode: true, customerId: "cus_live_existing" });
+    return userId;
+  }
+
+  /** Every Stripe call: the key it was made with, its path, and its form body. */
+  const calls = () =>
+    fetchMock.mock.calls.map(([url, init]) => ({
+      key: (init.headers as Record<string, string>).Authorization,
+      path: new URL(url).pathname,
+      body: new URLSearchParams(typeof init.body === "string" ? init.body : ""),
+    }));
+
+  it("checks out with the test key and its test customer, leaving the live customer alone", async () => {
+    const userId = await switchedAccount();
+    await startCheckout({ userId, planId: "plus", returnOrigin: "https://app.test" });
+
+    expect(createCustomer).toHaveBeenCalledWith(expect.objectContaining({ userId, mode: "test" }));
+    expect(calls().map((call) => call.key)).toEqual(calls().map(() => `Bearer ${TEST_KEY}`));
+    const session = calls().find((call) => call.path === "/v1/checkout/sessions");
+    expect(session?.body.get("customer")).toBe(`cus_test_${userId}`);
+    expect(await customersOf(userId)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ livemode: true, customerId: "cus_live_existing" }),
+        expect.objectContaining({ livemode: false, customerId: `cus_test_${userId}` }),
+      ]),
+    );
+  });
+
+  it("opens the portal on the test customer with the test key", async () => {
+    const userId = await switchedAccount();
+    await portalUrlFor({ userId, returnOrigin: "https://app.test" });
+    expect(calls()).toHaveLength(1);
+    expect(calls()[0]!.key).toBe(`Bearer ${TEST_KEY}`);
+    expect(calls()[0]!.body.get("customer")).toBe(`cus_test_${userId}`);
+  });
+
+  it("checks out an unswitched account live, on its live customer", async () => {
+    const userId = await switchedAccount();
+    await db.update(users).set({ stripeTestMode: false }).where(eq(users.id, userId));
+    await startCheckout({ userId, planId: "plus", returnOrigin: "https://app.test" });
+    expect(createCustomer).not.toHaveBeenCalled();
+    expect(new Set(calls().map((call) => call.key))).toEqual(new Set([`Bearer ${LIVE_KEY}`]));
+    expect(calls().find((call) => call.path === "/v1/checkout/sessions")?.body.get("customer")).toBe(
+      "cus_live_existing",
+    );
   });
 });

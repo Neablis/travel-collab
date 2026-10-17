@@ -142,6 +142,12 @@ export const users = pgTable("users", {
   // account may do does not read it; the tier panel does, so a plan held from
   // a test-mode checkout counts as no tier's holder.
   planLivemode: boolean("plan_livemode").notNull().default(true),
+  // **The admin's Stripe test-mode switch** (ADR-076 §6). On, this account's
+  // new checkouts and its portal use the test pair, so a test card confers a
+  // plan. That makes it a free-plan switch, so it is **server-only**: written
+  // and read by `server/billing/testMode.ts` behind `requireAdminApi`, and in
+  // no payload, session or page props the account itself can read.
+  stripeTestMode: boolean("stripe_test_mode").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).notNull(),
 });
