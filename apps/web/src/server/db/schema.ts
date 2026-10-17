@@ -4,6 +4,7 @@ import {
   boolean,
   check,
   customType,
+  date,
   doublePrecision,
   index,
   integer,
@@ -1645,6 +1646,32 @@ export const stripeCustomers = pgTable(
   // two concurrent first checkouts cannot both write a customer for one
   // account and mode.
   (t) => [primaryKey({ columns: [t.userId, t.livemode] })],
+);
+
+// **Accounts per tier at the end of each week** (M47 decision 1). The tier
+// panel counts `users.plan_id`, which says what an account holds now and keeps
+// no history; this is that count, kept per week by `rollupTiers`.
+//
+// **Written daily, keyed weekly.** The cron upserts this week's row every day,
+// so a week ends holding its last day's count and a missed day heals on the
+// next. Nothing back-fills weeks before the job shipped: no record of past
+// holdings has been checked against Stripe's, and a guess would be drawn as a
+// fact (decision 1).
+//
+// **A derived count that cannot be rebuilt**, and not a planning projection:
+// `users.plan_id` keeps no history, so a week the job missed stays missing.
+export const tierWeekly = pgTable(
+  "tier_weekly",
+  {
+    // The Monday (UTC) the week starts on, as `YYYY-MM-DD`.
+    weekStart: date("week_start", { mode: "string" }).notNull(),
+    planId: text("plan_id").$type<PlanId>().notNull(),
+    accounts: integer("accounts").notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull(),
+  },
+  // The uniqueness the rollup's `ON CONFLICT DO UPDATE` lands on: a second run
+  // in one week rewrites the week's row instead of adding one.
+  (t) => [uniqueIndex("tier_weekly_week_plan").on(t.weekStart, t.planId)],
 );
 
 // Retrieval-augmented plan generation, part 1 (Neon pgvector).

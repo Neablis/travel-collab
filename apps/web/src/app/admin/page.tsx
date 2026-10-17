@@ -7,6 +7,7 @@ import { accountsViewHref, resolveAccountsView } from "@/components/admin/accoun
 import { ConsoleTabs } from "@/components/admin/ConsoleTabs";
 import { resolveConsoleTab, type ConsoleTab } from "@/components/admin/consoleTab";
 import { TierPanel } from "@/components/admin/TierPanel";
+import { TierGrowthCharts } from "@/components/admin/TierGrowthCharts";
 import { RevenueStaleBanner, RevenueStrip } from "@/components/admin/RevenueStrip";
 import { UnderwaterPanel } from "@/components/admin/UnderwaterPanel";
 import { PriceCheckPanel, PriceCheckPending } from "@/components/admin/PriceCheckPanel";
@@ -152,6 +153,12 @@ export default async function AdminPage({
       // **Stale revenue is a page-level banner on both tabs that read it** —
       // Financial's MRR and Users' *Pays* column go stale together.
       <ConsoleShell tab={tab} banner={<RevenueStaleBanner revenue={users.revenue} />}>
+        {/* **Above the table, as drawn** (M47 part 4): the weekly counts the
+            tier-rollup cron keeps, so how each tier has moved is read before
+            who is in it. */}
+        <Panel title="Accounts by tier">
+          <TierGrowthCharts tiers={users.tiers} />
+        </Panel>
         <Panel title="Accounts">
           {/* **One page, read for the view in the URL** (D2, M36 perf pass):
               the server searches, counts the six filters over the whole

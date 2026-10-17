@@ -82,6 +82,16 @@ export interface AdminPlanPanelRow {
   medianMarginMicroUsd: number | null;
 }
 
+/**
+ * Mirrors `TierSeriesRow` (`@/server/entitlements/tierRollup`, M47 part 4) —
+ * one tier's accounts at the end of each week, oldest first, from the first
+ * rollup on. Empty before the cron has run.
+ */
+export interface AdminTierSeriesRow {
+  planId: PlanId;
+  points: { weekStart: string; accounts: number }[];
+}
+
 /** Mirrors `AdminGrantRow`. */
 export interface AdminGrantRow {
   id: string;

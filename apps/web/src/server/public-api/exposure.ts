@@ -136,6 +136,11 @@ export const EXPOSURE: Readonly<Record<string, Exposure>> = {
     why: "The embed-queue sweep — runs on Vercel Cron's secret, never on an API token",
     reaches: [{ module: "@/server/ai/sweep" }, { module: "@/server/cronAuth" }],
   },
+  "cron/tier-rollup": {
+    status: "never",
+    why: "The weekly tier rollup — runs on Vercel Cron's secret, never on an API token",
+    reaches: [{ module: "@/server/entitlements/tierRollup" }, { module: "@/server/cronAuth" }],
+  },
   "account/referrals": {
     status: "never",
     why: "Referrals grant plan time; scripted, they can be gamed (Mitchell, 2026-09-30)",

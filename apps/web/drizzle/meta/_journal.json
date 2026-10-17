@@ -393,6 +393,13 @@
       "when": 1792217495563,
       "tag": "0055_mode_keyed_billing",
       "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1792218447573,
+      "tag": "0056_tier_weekly",
+      "breakpoints": true
     }
   ]
 }

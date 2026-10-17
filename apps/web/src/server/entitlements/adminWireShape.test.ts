@@ -27,6 +27,7 @@ import type {
   AdminAccountsPage as UiAdminAccountsPage,
   AdminGrantRow as UiAdminGrantRow,
   AdminOverview as UiAdminOverview,
+  AdminTierSeriesRow as UiAdminTierSeriesRow,
 } from "@/lib/adminOverview";
 import type { AdminAiModelsReport as UiAiModelsReport } from "@/lib/adminAiModels";
 import type { AdminNotebooksReport as UiNotebooksReport } from "@/lib/adminNotebooks";
@@ -39,6 +40,7 @@ import type {
 } from "./admin";
 import type { AccountCost as ServerAccountCost } from "./usage";
 import type { AiModelsReport as ServerAiModelsReport } from "./aiModels";
+import type { TierSeriesRow as ServerTierSeriesRow } from "./tierRollup";
 import type { AdminNotebooksReport as ServerNotebooksReport } from "../savedNotebooks";
 import type {
   AdminAccountAssistant as UiAdminAccountAssistant,
@@ -78,6 +80,8 @@ const cost: AssertEquals<UiAdminAccountCost, ServerAccountCost> = true;
 const aiModels: AssertEquals<UiAiModelsReport, ServerAiModelsReport> = true;
 // M36 link 5: the Library tab's notebook read, from the module that owns the table.
 const notebooks: AssertEquals<UiNotebooksReport, ServerNotebooksReport> = true;
+// M47 part 4: the Users tab's accounts by tier, week by week.
+const tierSeries: AssertEquals<UiAdminTierSeriesRow, ServerTierSeriesRow> = true;
 
 // M36 link 3's account page. The whole detail is pinned, and its parts too, so
 // a mismatch names the part rather than only the outermost type.
@@ -89,7 +93,7 @@ const grantRecord: AssertEquals<UiAdminAccountGrantRecord, ServerAdminAccountGra
 
 describe("the console's wire shape", () => {
   it("is byte-identical on both sides of the lint wall", () => {
-    const checks = [overview, account, grant, accountsPage, filterIds, cost, aiModels, notebooks, detail, accountPlan, assistant, turn, grantRecord];
+    const checks = [overview, account, grant, accountsPage, filterIds, cost, aiModels, notebooks, tierSeries, detail, accountPlan, assistant, turn, grantRecord];
     expect(checks).toEqual(Array.from({ length: checks.length }, () => true));
   });
 });
