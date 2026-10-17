@@ -214,8 +214,9 @@ export async function startCheckout(input: {
     // **Scoped to the account, the version and the hour.** Not to the account
     // alone: a person who starts a checkout, abandons it and comes back an hour
     // later must get a fresh session rather than a 24-hour-old expired one.
-    // Not per-request either, which would make the key decorative.
-    idempotencyKey: `checkout:${input.userId}:${planVersionRefOf(version)}:${Math.floor(Date.now() / 3_600_000)}`,
+    // Not per-request either, which would make the key decorative. And by
+    // mode, as `createCustomer`'s is: the switch can flip inside the hour.
+    idempotencyKey: `checkout:${mode}:${input.userId}:${planVersionRefOf(version)}:${Math.floor(Date.now() / 3_600_000)}`,
   });
 
   if (session.url === null) {
@@ -236,9 +237,12 @@ export async function portalUrlFor(input: {
   userId: string;
   returnOrigin: string;
 }): Promise<string> {
-  // The same mode as its checkouts, so a switched account manages the test
-  // subscription it bought rather than an empty live customer.
-  const mode = await billingModeFor(input.userId);
+  // **The held subscription's own mode, else its checkouts' mode** (ADR-076
+  // §6). Stripe knows a subscription in its own mode only, so a switched
+  // account that pays live must still reach its live card, and a test
+  // subscription outlives the switch being turned off.
+  const current = await subscriptionFor(input.userId);
+  const mode = current !== null ? modeOfLivemode(current.livemode) : await billingModeFor(input.userId);
   const customerId = await stripeCustomerFor(input.userId, mode === "live");
   const session = await stripeRequest<StripePortalSession>({
     mode,

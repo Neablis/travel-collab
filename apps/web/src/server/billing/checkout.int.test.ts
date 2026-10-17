@@ -16,7 +16,7 @@ import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/server/db/client";
-import { stripeCustomers, users } from "@/server/db/schema";
+import { stripeCustomers, subscriptions, users } from "@/server/db/schema";
 import { upsertUser } from "@/server/users";
 import { deploymentOrigin } from "@/lib/deploymentOrigin";
 import { fakeStripeKey, otherFakeStripeKey } from "@/test-support/stripeSignature";
@@ -188,6 +188,26 @@ describe("checkout for an account with the test-mode switch on", () => {
     return userId;
   }
 
+  /** A held subscription in one mode, which is what the portal manages. */
+  async function holds(userId: string, livemode: boolean): Promise<void> {
+    await db.insert(subscriptions).values({
+      id: randomUUID(),
+      userId,
+      stripeCustomerId: livemode ? "cus_live_existing" : `cus_test_${userId}`,
+      stripeSubscriptionId: `sub_${randomUUID()}`,
+      livemode,
+      planId: "plus",
+      planVersion: 1,
+      status: "active",
+      currentPeriodEnd: new Date(Date.now() + 86_400_000),
+      cancelAtPeriodEnd: false,
+      pastDueSince: null,
+      lastEventAt: new Date(),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+  }
+
   it("checks out with the test pair and its test customer, leaving the live customer alone", async () => {
     const userId = await switchedAccount();
     await startCheckout({ userId, planId: "plus", returnOrigin: "https://app.test" });
@@ -214,6 +234,21 @@ describe("checkout for an account with the test-mode switch on", () => {
     );
   });
 
+  // Stripe may scope a key to the account, not the mode: a live checkout and a
+  // switched retry inside one hour must not share one.
+  it("keys the checkout by its mode", async () => {
+    const userId = await switchedAccount();
+    await startCheckout({ userId, planId: "plus", returnOrigin: "https://app.test" });
+    await db.update(users).set({ stripeTestMode: false }).where(eq(users.id, userId));
+    await startCheckout({ userId, planId: "plus", returnOrigin: "https://app.test" });
+
+    const keys = stripeRequest.mock.calls.map(([request]) => (request as { idempotencyKey?: string }).idempotencyKey);
+    expect(keys).toEqual([
+      expect.stringMatching(new RegExp(`^checkout:test:${userId}:`)),
+      expect.stringMatching(new RegExp(`^checkout:live:${userId}:`)),
+    ]);
+  });
+
   it("opens the portal on the test customer when nothing is held", async () => {
     const userId = await switchedAccount();
     stripeRequest.mockResolvedValue({ url: "https://billing.stripe.test/p" });
@@ -223,6 +258,21 @@ describe("checkout for an account with the test-mode switch on", () => {
       path: "/billing_portal/sessions",
       body: { customer: `cus_test_${userId}` },
     });
+  });
+
+  // The portal manages the subscription the account holds, which Stripe knows
+  // in its own mode only: a switched payer must still reach its live card.
+  it("opens the portal in a held live subscription's mode, whatever the switch says", async () => {
+    const userId = await switchedAccount();
+    await holds(userId, true);
+    stripeRequest.mockResolvedValue({ url: "https://billing.stripe.test/p" });
+    await portalUrlFor({ userId, returnOrigin: "https://app.test" });
+    expect(stripeRequest.mock.calls.at(-1)![0]).toMatchObject({
+      mode: "live",
+      path: "/billing_portal/sessions",
+      body: { customer: "cus_live_existing" },
+    });
+    expect(createCustomer).not.toHaveBeenCalled();
   });
 
   it("checks out an unswitched account live, on its live customer", async () => {
