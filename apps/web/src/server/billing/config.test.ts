@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { fakeStripeKey, otherFakeStripeKey } from "@/test-support/stripeSignature";
 import {
   BillingNotConfiguredError,
@@ -11,6 +11,9 @@ import {
   returnOrigin,
   stripeKeyPair,
 } from "./config";
+
+const captureMessage = vi.hoisted(() => vi.fn());
+vi.mock("@sentry/nextjs", () => ({ captureMessage }));
 
 // **The gate box this file answers**: *"Stripe keys are absent from the repo,
 // present in `.env.example` as names with the secret ones marked, and test-mode
@@ -173,6 +176,29 @@ describe("a test key pair beside the live one", () => {
     expect(billingConfigured()).toBe(true);
     expect(billingConfig().test).toEqual({ secretKey: fakeStripeKey("sk_test"), webhookSecret: fakeStripeKey("whsec") });
     expect(billingConfig().testPairProblem?.message).toMatch(/two test-mode pairs/);
+  });
+
+  // `billingConfig()` runs on every Stripe call, so a warning per call would
+  // be one Sentry event per checkout and per delivery for one fact.
+  it("warns once per problem per process, however often it is read", async () => {
+    vi.resetModules();
+    const fresh = await import("./config");
+    captureMessage.mockClear();
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    setEnv({ ...LIVE, STRIPE_TEST_SECRET_KEY: fakeStripeKey("sk_test") });
+    fresh.billingConfig();
+    fresh.billingConfig();
+    fresh.billingConfig();
+    expect(captureMessage).toHaveBeenCalledTimes(1);
+    expect(captureMessage).toHaveBeenCalledWith(expect.stringMatching(/STRIPE_TEST_WEBHOOK_SECRET/), "warning");
+
+    // A different problem is a different fact, and is reported too.
+    setEnv({ ...LIVE, STRIPE_TEST_WEBHOOK_SECRET: otherFakeStripeKey("whsec") });
+    fresh.billingConfig();
+    expect(captureMessage).toHaveBeenCalledTimes(2);
+    expect(captureMessage).toHaveBeenLastCalledWith(expect.stringMatching(/STRIPE_TEST_SECRET_KEY/), "warning");
+    vi.restoreAllMocks();
   });
 
   it("names the test pair when a test-mode call has none", () => {
