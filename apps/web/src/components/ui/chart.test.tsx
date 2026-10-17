@@ -11,6 +11,7 @@ import { SpendByDayChart } from "../pages/blocks/SpendByDayChart";
 import { breakdownChartConfig } from "../pages/blocks/SpendBreakdownBlock";
 import { SpendBreakdownChart } from "../pages/blocks/SpendBreakdownChart";
 import { ContextByStepChart, TurnsADayChart } from "../admin/AiModelsCharts";
+import { TierGrowthCharts } from "../admin/TierGrowthCharts";
 import { tagBreakdownConfig } from "../pages/blocks/TagBreakdownBlock";
 import { tagsByDayConfig } from "../pages/blocks/TagsByDayBlock";
 import { TagBreakdownChart, TagsByDayChart } from "../pages/blocks/TagCharts";
@@ -113,6 +114,26 @@ const CHARTS: Record<string, Record<string, () => ReactElement>> = {
       />
     ),
   },
+  // The operator console's Users tab (M47 part 4). One tier, so one chart for
+  // the sweep's single `img`; the other cards draw the same area.
+  "components/admin/TierGrowthCharts.tsx": {
+    "one tier": () => (
+      <TierGrowthCharts
+        thisWeek="2026-10-12"
+        tiers={[
+          {
+            planId: "plus",
+            firstWeek: "2026-09-07",
+            lastWeek: "2026-10-12",
+            points: [2, 15, 20, 9, 14, 12].map((accounts, i) => ({
+              weekStart: new Date(Date.UTC(2026, 8, 7 + i * 7)).toISOString().slice(0, 10),
+              accounts,
+            })),
+          },
+        ]}
+      />
+    ),
+  },
 };
 
 // A chart that draws far fewer marks than the bars gets its own floor below.
@@ -124,6 +145,9 @@ const PAINTED_FLOOR: Record<string, number> = {
   // Two areas (fill and stroke for turns, fill for failed) and the baseline:
   // measured at 4, no axis by design. 3 still fails a chart missing an area.
   "components/admin/AiModelsCharts.tsx": 3,
+  // The area's fill and its stroke, and nothing else: both axes are hidden and
+  // there is no grid. Measured at 2, so an area missing either half fails.
+  "components/admin/TierGrowthCharts.tsx": 2,
 };
 
 // Every kind priced, and stops tagged as `spendTrip` tags them, so each split

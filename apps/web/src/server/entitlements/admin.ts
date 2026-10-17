@@ -28,6 +28,7 @@ import { consoleCached } from "./consoleCache";
 import { activeGrantHolders } from "./grants";
 import { PLAN_VERSIONS, livePlanVersion, planVersionRefOf, type PlanVersion } from "./planVersions";
 import { entitlementsFor, type AccountEntitlements } from "./resolver";
+import { tierSeries, weekStartOf, type TierSeriesRow } from "./tierRollup";
 import {
   monthlyMicroUsd,
   revenueByPlan,
@@ -817,8 +818,8 @@ export async function adminCostPerAccount(now: Date = new Date()): Promise<Accou
 export type AdminFinancial = Pick<AdminOverview, "plans" | "windowDays" | "revenue" | "underwater">;
 
 /**
- * **What the Users tab draws**: one page of the accounts table, and the
- * revenue summary for the stale banner.
+ * **What the Users tab draws**: each tier's weekly history, one page of the
+ * accounts table, and the revenue summary for the stale banner.
  *
  * **No price sweep** — that is a round trip to Stripe per published version,
  * and this tab shows none of it — and no tier panel or underwater report.
@@ -828,6 +829,10 @@ export interface AdminUsers {
   windowDays: number;
   /** Only `unpricedSubscriptions` is drawn, by the banner both tabs share. */
   revenue: RevenueSummary;
+  /** *Accounts by tier*: each tier's last 26 weeks from `tier_weekly` (M47 part 4). */
+  tiers: TierSeriesRow[];
+  /** The week `now` falls in: a tier whose newest row is older reads *as of* that row, not *now*. */
+  thisWeek: string;
 }
 
 /** Everything the console reads, in one call — what `GET /api/admin/overview` answers. */
@@ -908,7 +913,7 @@ export async function adminUsers(
 ): Promise<AdminUsers> {
   const { trailing, holders } = await sharedReads(now);
   const underwater = await underwaterReport(TRAILING_WINDOW_DAYS, trailing, holders, now);
-  const [table, revenue] = await Promise.all([
+  const [table, revenue, tiers] = await Promise.all([
     adminAccountsPage(
       view,
       now,
@@ -916,8 +921,9 @@ export async function adminUsers(
       underwater.paying.map((row) => row.userId),
     ),
     revenueSummary(TRAILING_WINDOW_DAYS, trailing, now),
+    tierSeries(26, now),
   ]);
-  return { table, windowDays: TRAILING_WINDOW_DAYS, revenue };
+  return { table, windowDays: TRAILING_WINDOW_DAYS, revenue, tiers, thisWeek: weekStartOf(now) };
 }
 
 /**

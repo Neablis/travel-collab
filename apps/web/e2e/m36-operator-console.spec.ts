@@ -111,6 +111,13 @@ test.describe("M36 — the operator console", () => {
     await strip.getByRole("tab", { name: "Users" }).click();
     await expect(operator).toHaveURL(/[?&]tab=users(&|$)/);
     await expect(operator.getByTestId("accounts-table")).toBeVisible();
+    // **Accounts by tier** (M47 part 4), above it: the cards, or, on a
+    // database the tier-rollup cron has never run against (CI's), the empty
+    // state. CI sets no `CRON_SECRET`, so no spec can run the rollup itself.
+    await expect(operator.getByRole("heading", { name: "Accounts by tier" })).toBeVisible();
+    await expect(
+      operator.getByTestId("tier-growth").or(operator.getByRole("heading", { name: "No weekly counts yet" })),
+    ).toBeVisible();
 
     // **Search and filter, written to the URL.** The fresh account holds a plan
     // that grants nothing, so *Free* contains it.
