@@ -20,7 +20,8 @@ import {
   planVersionRefOf,
   type PlanVersion,
 } from "@/server/entitlements/planVersions";
-import { checkoutReference, modeOfLivemode } from "./config";
+import { deploymentOrigin } from "@/lib/deploymentOrigin";
+import { checkoutReference, modeOfLivemode, ORIGIN_METADATA_KEY } from "./config";
 import { stripePriceFor, UnpurchasableVersionError } from "./prices";
 import { createCustomer, stripeRequest, type StripeCheckoutSession, type StripePortalSession } from "./stripeApi";
 import { subscriptionFor } from "./subscriptions";
@@ -190,12 +191,16 @@ export async function startCheckout(input: {
       // `customer.subscription.updated` carries no session and therefore no
       // `client_reference_id` — and those are most of the events. Without this
       // a renewal two months later would have no way back to an account.
+      // The origin rides on both: a test-mode event applies only on the
+      // deployment its checkout began on (`ORIGIN_METADATA_KEY`).
       subscription_data: {
         metadata: {
           userId: input.userId,
           planVersionRef: planVersionRefOf(version),
+          [ORIGIN_METADATA_KEY]: deploymentOrigin(),
         },
       },
+      metadata: { [ORIGIN_METADATA_KEY]: deploymentOrigin() },
       // `{CHECKOUT_SESSION_ID}` is Stripe's own placeholder; it is substituted
       // on the redirect. The success page uses it to ask what happened, and
       // asking is all it does — the answer that matters comes from the webhook.

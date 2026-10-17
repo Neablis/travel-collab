@@ -557,9 +557,9 @@ function plansGrantingNothing(): PlanId[] {
  * over rows the server already resolved:
  *
  *   * `paying` — the account's shown subscription (`shownSubscriptions`'s
- *     pick: live before test, then conferring, then newest) confers right now
- *     (`standingOf`: a conferring status, and not `past_due` beyond the grace
- *     window) and is not on a version sold at no charge. That is the row's
+ *     pick: conferring first, then live before test, then newest) confers
+ *     right now (`standingOf`: a conferring status, and not `past_due`
+ *     beyond the grace window) and is not on a version sold at no charge. That is the row's
  *     `paysMicroUsd !== 0`, unpriceable subscriptions included.
  *   * `granted` — an active grant: not revoked, not expired (`activeAt`).
  *   * `unentitled` — `users.plan_id` grants nothing, the row's held plan.
@@ -572,7 +572,7 @@ function plansGrantingNothing(): PlanId[] {
  * (ADR-076 §4), and the row says its state in test mode rather than as one.
  *
  * `admin.int.test.ts` builds one account per rule and holds the counts to
- * the rows the resolver draws.
+ * the rows `accountRow` draws.
  */
 function accountsMatching(view: AccountsQuery, now: Date, underwater: readonly string[]): SQL {
   const needle = view.query.trim().toLowerCase();
@@ -603,7 +603,7 @@ function accountsMatching(view: AccountsQuery, now: Date, underwater: readonly s
       left join lateral (
         select s.status, s.plan_id, s.plan_version, s.past_due_since, s.livemode
           from ${subscriptions} s where s.user_id = u.id
-         order by s.livemode desc, ${confers} desc, s.created_at desc
+         order by ${confers} desc, s.livemode desc, s.created_at desc
          limit 1
       ) s on true
      where ${search}
@@ -716,13 +716,15 @@ export async function adminAccount(
 }
 
 /**
- * The subscription each account's row shows, by `userId`: **live before
- * test**, then conferring, then newest. The order `accountsMatching`'s lateral
- * pick writes in SQL, so a filter and the row it lists agree.
+ * The subscription each account's row shows, by `userId`: **conferring
+ * first**, then live before test, then newest. The order `accountsMatching`'s
+ * lateral pick writes in SQL, so a filter and the row it lists agree.
  *
- * Not `subscriptionFor`'s pick, which reads both modes as one because it
- * answers what the account may do. A live payer with a newer test
- * subscription beside it still pays, and the row has to say so (ADR-076 §4).
+ * Conferring first, so a cancelled live subscription never hides the test one
+ * that holds the plan the row draws. Live before test among those, which
+ * `subscriptionFor`'s pick does not do because it answers what the account may
+ * do: a live payer with a newer test subscription beside it still pays, and
+ * the row has to say so (ADR-076 §4).
  */
 async function shownSubscriptions(ids: readonly string[], now: Date): Promise<Map<string, SubscriptionStanding>> {
   if (ids.length === 0) return new Map();
@@ -730,14 +732,17 @@ async function shownSubscriptions(ids: readonly string[], now: Date): Promise<Ma
     .select()
     .from(subscriptions)
     .where(inArray(subscriptions.userId, [...ids]))
-    .orderBy(desc(subscriptions.livemode), desc(subscriptions.createdAt));
+    .orderBy(desc(subscriptions.createdAt));
   const byUser = new Map<string, (typeof rows)[number][]>();
   for (const row of rows) byUser.set(row.userId, [...(byUser.get(row.userId) ?? []), row]);
   return new Map(
     [...byUser].map(([userId, held]) => {
-      // Live first, newest first: the first row's mode is the one shown.
-      const ofMode = held.filter((row) => row.livemode === held[0]!.livemode);
-      const pick = ofMode.find((row) => CONFERRING_STATUSES.includes(row.status)) ?? ofMode[0]!;
+      const confers = (row: (typeof held)[number]) => CONFERRING_STATUSES.includes(row.status);
+      const pick =
+        held.find((row) => confers(row) && row.livemode) ??
+        held.find(confers) ??
+        held.find((row) => row.livemode) ??
+        held[0]!;
       return [userId, standingOf(pick, now)];
     }),
   );

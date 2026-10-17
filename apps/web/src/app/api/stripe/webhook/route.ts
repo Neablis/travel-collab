@@ -26,21 +26,24 @@ export const dynamic = "force-dynamic";
  * **What answer means what to Stripe**, because it decides whether it retries:
  *
  *   * **200** — we have it. Applied, or deliberately not applied (a replay, a
- *     stale delivery, an event type we do not handle). All four are final
- *     answers, so all four are 200: a non-2xx on an event we simply do not
- *     handle would make Stripe retry it for three days.
+ *     stale delivery, an event type we do not handle, or one we cannot
+ *     attribute to an account here). All are final answers, so all are 200:
+ *     a non-2xx on an event we simply do not handle would make Stripe retry
+ *     it for three days.
  *   * **400** — the signature did not verify (`bad-signature`), or it did and
  *     the body's `livemode` disagrees with the secret that verified it
  *     (`mode-mismatch`, ADR-076 §5). No retry will fix either, and answering
  *     500 would have Stripe retrying an attacker's request for us. A mismatch
- *     is refused before the claim, so nothing records it but Stripe's own
- *     dashboard, which shows it red.
+ *     is refused before the claim, so nothing in the database records it;
+ *     Sentry does, and Stripe's own dashboard shows it red.
  *   * **500** — we failed. Stripe should retry, and the ordering tolerance and
  *     the idempotency claim are both built so that a retry after a partial
  *     failure converges rather than double-applies.
  */
 export async function POST(request: Request) {
   // **Every pair's secret**, because which one verifies is the delivery's mode.
+  // A broken test pair is absent here, not a throw: `billingConfig()` reports
+  // it once, and live deliveries keep landing.
   let secrets: WebhookSecret[];
   try {
     const config = billingConfig();

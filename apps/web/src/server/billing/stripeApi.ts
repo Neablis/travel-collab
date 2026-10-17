@@ -24,7 +24,8 @@
 // and a test key, and the two address separate Stripe accounts: an id from one
 // is a 404 in the other. So no call here picks a key for itself; each caller
 // says which account it means.
-import { stripeKeyPair, type StripeMode } from "./config";
+import { deploymentOrigin } from "@/lib/deploymentOrigin";
+import { ORIGIN_METADATA_KEY, stripeKeyPair, type StripeMode } from "./config";
 
 const STRIPE_API = "https://api.stripe.com/v1";
 
@@ -304,7 +305,8 @@ export async function createCustomer(input: {
       // **The account id travels with the customer.** It is what makes a
       // Stripe dashboard row answerable back to an account without a lookup
       // table, and what a support question starts from.
-      metadata: { userId: input.userId },
+      // And the deployment that made it, for the reason `ORIGIN_METADATA_KEY` gives.
+      metadata: { userId: input.userId, [ORIGIN_METADATA_KEY]: deploymentOrigin() },
     },
     // One customer per account per mode, forever (ADR-076 §2). The account id
     // and the mode are exactly the right idempotency key: two concurrent first

@@ -120,45 +120,59 @@ describe("a test key pair beside the live one", () => {
     expect(billingConfig().test).toBeUndefined();
   });
 
-  it("refuses a live key in STRIPE_TEST_SECRET_KEY", () => {
-    setEnv({
-      ...LIVE,
-      STRIPE_TEST_SECRET_KEY: fakeStripeKey("sk_live"),
-      STRIPE_TEST_WEBHOOK_SECRET: otherFakeStripeKey("whsec"),
-    });
-    expect(() => billingConfig()).toThrow(StripeKeyShapeError);
-    expect(() => billingConfig()).toThrow(/STRIPE_TEST_SECRET_KEY/);
+  // **A broken test pair costs test mode only** (PR 476 review, finding 1).
+  // It is optional and live billing does not read it, so refusing the whole
+  // config for it would take live checkout and every live delivery down with it.
+  it("leaves live billing up when only the test secret key is set", () => {
+    setEnv({ ...LIVE, STRIPE_TEST_SECRET_KEY: fakeStripeKey("sk_test") });
+    expect(billingConfigured()).toBe(true);
+    expect(billingConfig().primary).toBe("live");
+    expect(billingConfig().test).toBeUndefined();
+    expect(stripeKeyPair("live").secretKey).toBe(fakeStripeKey("sk_live"));
+    expect(() => stripeKeyPair("test")).toThrow(BillingNotConfiguredError);
+    expect(() => stripeKeyPair("test")).toThrow(/STRIPE_TEST_WEBHOOK_SECRET/);
   });
 
-  it("refuses two test pairs", () => {
+  // Each refused pair reads as absent, and a test-mode call names why.
+  it.each([
+    ["only its secret key", { STRIPE_TEST_SECRET_KEY: fakeStripeKey("sk_test") }, /STRIPE_TEST_WEBHOOK_SECRET/],
+    ["only its webhook secret", { STRIPE_TEST_WEBHOOK_SECRET: otherFakeStripeKey("whsec") }, /STRIPE_TEST_SECRET_KEY/],
+    [
+      "a live key in STRIPE_TEST_SECRET_KEY",
+      { STRIPE_TEST_SECRET_KEY: fakeStripeKey("sk_live"), STRIPE_TEST_WEBHOOK_SECRET: otherFakeStripeKey("whsec") },
+      /STRIPE_TEST_SECRET_KEY must be a test-mode/,
+    ],
+    [
+      "a secret key in the test webhook secret's place",
+      { STRIPE_TEST_SECRET_KEY: fakeStripeKey("sk_test"), STRIPE_TEST_WEBHOOK_SECRET: fakeStripeKey("sk_test") },
+      /STRIPE_TEST_WEBHOOK_SECRET is not a webhook signing secret/,
+    ],
+    // The live endpoint's secret in both: every test delivery would verify as
+    // live and be refused mode-mismatch, on every retry.
+    [
+      "the live webhook secret again",
+      { STRIPE_TEST_SECRET_KEY: fakeStripeKey("sk_test"), STRIPE_TEST_WEBHOOK_SECRET: fakeStripeKey("whsec") },
+      /same signing secret/,
+    ],
+  ])("refuses %s, as test mode only", (_what, half, names) => {
+    setEnv({ ...LIVE, ...half });
+    expect(billingConfigured()).toBe(true);
+    expect(billingConfig().test).toBeUndefined();
+    expect(billingConfig().testPairProblem?.message).toMatch(names);
+    expect(() => stripeKeyPair("test")).toThrow(names);
+    expect(stripeKeyPair("live").secretKey).toBe(fakeStripeKey("sk_live"));
+  });
+
+  it("refuses two test pairs, keeping the primary one", () => {
     setEnv({
       STRIPE_SECRET_KEY: fakeStripeKey("sk_test"),
       STRIPE_WEBHOOK_SECRET: fakeStripeKey("whsec"),
       STRIPE_TEST_SECRET_KEY: fakeStripeKey("sk_test"),
       STRIPE_TEST_WEBHOOK_SECRET: otherFakeStripeKey("whsec"),
     });
-    expect(() => billingConfig()).toThrow(StripeKeyShapeError);
-    expect(() => billingConfig()).toThrow(/two test-mode pairs/);
-  });
-
-  it("refuses a secret key in the test webhook secret's place", () => {
-    setEnv({
-      ...LIVE,
-      STRIPE_TEST_SECRET_KEY: fakeStripeKey("sk_test"),
-      STRIPE_TEST_WEBHOOK_SECRET: fakeStripeKey("sk_test"),
-    });
-    expect(() => billingConfig()).toThrow(/STRIPE_TEST_WEBHOOK_SECRET/);
-  });
-
-  // Half a pair could sign nothing or verify nothing, and either half alone
-  // reads in a dashboard as "test mode is set up".
-  it.each([
-    ["only its secret key", { STRIPE_TEST_SECRET_KEY: fakeStripeKey("sk_test") }, /STRIPE_TEST_WEBHOOK_SECRET/],
-    ["only its webhook secret", { STRIPE_TEST_WEBHOOK_SECRET: otherFakeStripeKey("whsec") }, /STRIPE_TEST_SECRET_KEY/],
-  ])("refuses %s", (_what, half, names) => {
-    setEnv({ ...LIVE, ...half });
-    expect(() => billingConfig()).toThrow(BillingNotConfiguredError);
-    expect(() => billingConfig()).toThrow(names);
+    expect(billingConfigured()).toBe(true);
+    expect(billingConfig().test).toEqual({ secretKey: fakeStripeKey("sk_test"), webhookSecret: fakeStripeKey("whsec") });
+    expect(billingConfig().testPairProblem?.message).toMatch(/two test-mode pairs/);
   });
 
   it("names the test pair when a test-mode call has none", () => {

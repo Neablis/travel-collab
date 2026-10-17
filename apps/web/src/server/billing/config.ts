@@ -12,6 +12,7 @@
 // module registry internals to change a value (`KI-2026-09-11-c`). A function
 // costs one call and makes this module importable by a test that has set no
 // environment at all — which the signature and price tests both do.
+import * as Sentry from "@sentry/nextjs";
 import { PlanId } from "@tc/contracts";
 
 /**
@@ -43,6 +44,8 @@ export interface BillingConfig {
   primary: StripeMode;
   live?: StripeKeyPair;
   test?: StripeKeyPair;
+  /** Why a set `STRIPE_TEST_*` pair was not taken; test-mode calls throw it. */
+  testPairProblem?: Error;
 }
 
 /** Thrown when billing is asked to act and has not been configured to. */
@@ -102,16 +105,20 @@ function keyPairFrom(keyVariable: string, secretVariable: string): StripeKeyPair
 }
 
 /**
- * The billing configuration, or a throw naming what is missing.
+ * The billing configuration, or a throw naming what is missing from the
+ * primary pair.
  *
  * Callers that must work without billing configured — the account sheet, which
  * renders a plan whether or not anyone can buy one — use `billingConfigured()`
  * below instead of catching this.
  *
- * **The test pair is refused whole rather than half-used.** Half a pair can
- * either call Stripe or verify its deliveries but not both, and in a dashboard
- * it reads as "test mode is set up"; a live key in it is the confusion M21's
- * gate box names, arriving by a new door. Both throw here, at first use.
+ * **The test pair is refused whole rather than half-used, and refused alone.**
+ * Half a pair can either call Stripe or verify its deliveries but not both, and
+ * a live key in it is the confusion M21's gate box names, arriving by a new
+ * door. But it is optional and live billing never reads it, so a broken one
+ * reads as absent, with the reason kept for `stripeKeyPair("test")` to throw:
+ * throwing here took live checkout and every live delivery down with it (PR 476
+ * review, finding 1).
  */
 export function billingConfig(): BillingConfig {
   const primaryPair = keyPairFrom("STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET");
@@ -121,6 +128,17 @@ export function billingConfig(): BillingConfig {
   const testKey = process.env.STRIPE_TEST_SECRET_KEY ?? "";
   const testSecret = process.env.STRIPE_TEST_WEBHOOK_SECRET ?? "";
   if (testKey === "" && testSecret === "") return config;
+  try {
+    return { ...config, test: testPairBeside(primary, primaryPair) };
+  } catch (error) {
+    const problem = error instanceof Error ? error : new Error(String(error));
+    reportTestPairOnce(problem);
+    return { ...config, testPairProblem: problem };
+  }
+}
+
+/** The `STRIPE_TEST_*` pair, or a throw saying why it cannot sit beside the primary one. */
+function testPairBeside(primary: StripeMode, primaryPair: StripeKeyPair): StripeKeyPair {
   const testPair = keyPairFrom("STRIPE_TEST_SECRET_KEY", "STRIPE_TEST_WEBHOOK_SECRET");
   if (!testPair.secretKey.startsWith("sk_test_")) {
     throw new StripeKeyShapeError(
@@ -135,7 +153,26 @@ export function billingConfig(): BillingConfig {
         `pair here, or put the live pair in STRIPE_SECRET_KEY.`,
     );
   }
-  return { ...config, test: testPair };
+  // The live secret is tried first, so every test delivery would verify as
+  // live and be refused `mode-mismatch`, on every one of Stripe's retries.
+  if (testPair.webhookSecret === primaryPair.webhookSecret) {
+    throw new StripeKeyShapeError(
+      `STRIPE_TEST_WEBHOOK_SECRET is the same signing secret as STRIPE_WEBHOOK_SECRET. Each ` +
+        `Stripe endpoint has its own; take the test-mode endpoint's.`,
+    );
+  }
+  return testPair;
+}
+
+// `billingConfig()` is read on every call that touches Stripe, so the warning
+// is once per message per process rather than once per request.
+const reportedTestPairProblems = new Set<string>();
+
+function reportTestPairOnce(problem: Error): void {
+  if (reportedTestPairProblems.has(problem.message)) return;
+  reportedTestPairProblems.add(problem.message);
+  console.warn(`Stripe test mode is off on this deployment: ${problem.message}`);
+  Sentry.captureMessage(`Stripe test mode is off: ${problem.message}`, "warning");
 }
 
 /** The mode a row's `livemode` column names. */
@@ -145,8 +182,10 @@ export function modeOfLivemode(livemode: boolean): StripeMode {
 
 /** The pair for one mode, or a throw naming the variables that would supply it. */
 export function stripeKeyPair(mode: StripeMode): StripeKeyPair {
-  const pair = billingConfig()[mode];
+  const config = billingConfig();
+  const pair = config[mode];
   if (pair === undefined) {
+    if (mode === "test" && config.testPairProblem !== undefined) throw config.testPairProblem;
     throw new BillingNotConfiguredError(
       mode === "test" ? "STRIPE_TEST_SECRET_KEY" : "A live STRIPE_SECRET_KEY",
     );
@@ -204,6 +243,14 @@ export function testPairConfigured(): boolean {
 export function returnOrigin(request: Request): string {
   return new URL(request.url).origin;
 }
+
+/**
+ * The metadata key naming the deployment a checkout began on, its
+ * `deploymentOrigin()`, written on the session, the subscription and the
+ * customer. A test-mode event applies only on the deployment it names
+ * (`webhook.ts`, `writeFrom`).
+ */
+export const ORIGIN_METADATA_KEY = "deploymentOrigin";
 
 /**
  * The `client_reference_id` a Checkout Session carries, and the plan it names.
