@@ -228,9 +228,9 @@ charts (`.design-sync/handoff/specs/operator-console.md:40-50`).
 | `apps/web/e2e/m36-operator-console.spec.ts` | the walk at :66 | the Users tab shows the panel (on CI's fresh database, its empty state) | itself, via `test:e2e:ci-like` |
 
 **The handoff's *+N added / −N lost*** needs per-account movement, and a table of counts does not
-hold it. Part 4 draws the **net change over the last four rows**, labelled as net, unless Mitchell
-asks for gross figures. Gross figures need a per-account snapshot, which would be a second table
-and a decision.
+hold it. Part 4 draws the **net change over the last four rows**, labelled as net (Mitchell,
+2026-10-17). Gross figures need a per-account snapshot, a second table; that is a candidate, not
+this milestone.
 
 **Tests seen red.** In `tierRollup.int.test.ts`: `rollupTiers` run twice for one week leaves **one
 row per plan**, with the second run's count. Swap the upsert for a plain insert and see the
