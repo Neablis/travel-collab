@@ -181,6 +181,7 @@ describe("the accounts table and the underwater count", () => {
       userId: payer,
       stripeCustomerId: `cus_${payer}`,
       stripeSubscriptionId: `sub_${randomUUID()}`,
+      livemode: true,
       planId: "plus",
       planVersion: 1,
       status: "active",

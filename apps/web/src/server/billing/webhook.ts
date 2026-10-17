@@ -118,6 +118,9 @@ async function claimEvent(event: StripeEvent, now: Date): Promise<boolean> {
       type: event.type,
       eventAt: new Date(event.created * 1000),
       receivedAt: now,
+      // Live until part 2 of M47 verifies a test-mode secret and passes its
+      // mode here: this deployment holds one key pair, and it is live.
+      livemode: true,
       appliedAt: null,
     })
     .onConflictDoNothing()
@@ -258,6 +261,8 @@ async function writeFrom(
     userId: who.userId,
     stripeCustomerId: subscription.customer,
     stripeSubscriptionId: subscription.id,
+    // Live for the reason `claimEvent` gives.
+    livemode: true,
     planId: who.planId,
     planVersion: who.planVersion,
     status,
@@ -299,12 +304,14 @@ async function syncHeldPlan(userId: string): Promise<void> {
     current.status === "canceled" ||
     current.status === "unpaid" ||
     current.status === "incomplete_expired";
+  // `planLivemode` is the conferring subscription's mode, and live on a fall to
+  // `free` (ADR-076 §3), so the tier panel can leave a test-mode holding out.
   const held = over
-    ? { planId: livePlanVersion("free").planId, planVersion: livePlanVersion("free").version }
-    : { planId: current.planId, planVersion: current.planVersion };
+    ? { planId: livePlanVersion("free").planId, planVersion: livePlanVersion("free").version, planLivemode: true }
+    : { planId: current.planId, planVersion: current.planVersion, planLivemode: current.livemode };
   await db
     .update(users)
-    .set({ planId: held.planId, planVersion: held.planVersion })
+    .set({ planId: held.planId, planVersion: held.planVersion, planLivemode: held.planLivemode })
     .where(eq(users.id, userId));
 }
 

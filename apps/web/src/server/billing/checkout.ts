@@ -12,8 +12,8 @@
 // success page's job is to wait rather than to celebrate.
 import type { PlanId } from "@tc/contracts";
 import { db } from "@/server/db/client";
-import { users } from "@/server/db/schema";
-import { and, eq, isNull } from "drizzle-orm";
+import { stripeCustomers, users } from "@/server/db/schema";
+import { and, eq } from "drizzle-orm";
 import {
   isPurchasable,
   livePlanVersion,
@@ -26,7 +26,13 @@ import { createCustomer, stripeRequest, type StripeCheckoutSession, type StripeP
 import { subscriptionFor } from "./subscriptions";
 
 /**
- * The Stripe customer for an account, creating one the first time.
+ * The Stripe customer for an account in one Stripe mode, creating one the
+ * first time.
+ *
+ * **One per account per mode** (ADR-076 §2): test and live are separate
+ * customer spaces at Stripe, so each mode has its own row in
+ * `stripe_customers`. Live is the only mode a checkout starts in until the
+ * admin test-mode switch exists (ADR-076 §6).
  *
  * **Written here and not by the webhook**, which is the one exception to link
  * 4's sole-writer rule and is not really an exception: a customer id is who you
@@ -36,13 +42,18 @@ import { subscriptionFor } from "./subscriptions";
  * account may do — stay the webhook's alone.
  *
  * Idempotent in two places at once: `createCustomer` sends an idempotency key
- * derived from the account id, and the column is only written when it is null.
- * Two concurrent first checkouts therefore produce one customer and one write.
+ * derived from the account id, and the row is only inserted when none exists
+ * for this account and mode. Two concurrent first checkouts therefore produce
+ * one customer and one write.
  */
-export async function stripeCustomerFor(userId: string): Promise<string> {
+export async function stripeCustomerFor(userId: string, livemode = true): Promise<string> {
   const rows = await db
-    .select({ stripeCustomerId: users.stripeCustomerId, email: users.email })
+    .select({ email: users.email, customerId: stripeCustomers.customerId })
     .from(users)
+    .leftJoin(
+      stripeCustomers,
+      and(eq(stripeCustomers.userId, users.id), eq(stripeCustomers.livemode, livemode)),
+    )
     .where(eq(users.id, userId))
     .limit(1);
   const row = rows[0];
@@ -53,27 +64,26 @@ export async function stripeCustomerFor(userId: string): Promise<string> {
     // exist would be inventing a paying relationship with nobody.
     throw new Error(`No users row for ${userId}; refusing to create a Stripe customer for it.`);
   }
-  if (row.stripeCustomerId !== null) return row.stripeCustomerId;
+  if (row.customerId !== null) return row.customerId;
 
   const customer = await createCustomer({ userId, email: row.email });
-  // **Only if it is still null.** Another request may have created and written
-  // one between the read above and here; Stripe's idempotency key means it is
-  // the SAME customer, so this is a race with no loser — but writing
-  // unconditionally would still be a needless update on a column whose whole
-  // value is that it never changes.
+  // **Only if there is still none.** Another request may have created and
+  // written one between the read above and here; Stripe's idempotency key
+  // means it is the SAME customer, so this is a race with no loser — but the
+  // row's whole value is that it never changes, so the loser writes nothing.
   const written = await db
-    .update(users)
-    .set({ stripeCustomerId: customer.id })
-    .where(and(eq(users.id, userId), isNull(users.stripeCustomerId)))
-    .returning({ id: users.id });
+    .insert(stripeCustomers)
+    .values({ userId, livemode, customerId: customer.id })
+    .onConflictDoNothing()
+    .returning({ customerId: stripeCustomers.customerId });
   if (written.length > 0) return customer.id;
 
   const settled = await db
-    .select({ stripeCustomerId: users.stripeCustomerId })
-    .from(users)
-    .where(eq(users.id, userId))
+    .select({ customerId: stripeCustomers.customerId })
+    .from(stripeCustomers)
+    .where(and(eq(stripeCustomers.userId, userId), eq(stripeCustomers.livemode, livemode)))
     .limit(1);
-  return settled[0]?.stripeCustomerId ?? customer.id;
+  return settled[0]?.customerId ?? customer.id;
 }
 
 /** Why a checkout could not be started, in words a screen can show. */

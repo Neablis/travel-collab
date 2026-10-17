@@ -41,6 +41,7 @@ async function subscriber(over: Partial<typeof subscriptions.$inferInsert> = {})
     userId,
     stripeCustomerId: `cus_${userId}`,
     stripeSubscriptionId: `sub_${randomUUID()}`,
+    livemode: true,
     planId: "premium",
     planVersion: 1,
     status: "active",
