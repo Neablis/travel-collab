@@ -89,6 +89,7 @@ export interface AdminPlanPanelRow {
  */
 export interface AdminTierSeriesRow {
   planId: PlanId;
+  firstWeek: string | null;
   points: { weekStart: string; accounts: number }[];
 }
 

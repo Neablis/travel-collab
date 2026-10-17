@@ -157,7 +157,7 @@ export default async function AdminPage({
             tier-rollup cron keeps, so how each tier has moved is read before
             who is in it. */}
         <Panel title="Accounts by tier">
-          <TierGrowthCharts tiers={users.tiers} />
+          <TierGrowthCharts tiers={users.tiers} thisWeek={users.thisWeek} />
         </Panel>
         <Panel title="Accounts">
           {/* **One page, read for the view in the URL** (D2, M36 perf pass):

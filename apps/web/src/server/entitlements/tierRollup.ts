@@ -6,7 +6,7 @@
 // current week's rows, so the week ends holding its last day's count and a
 // missed day costs nothing once the next one runs. Nothing before the first
 // run exists, and nothing invents it: the chart says *"since <date>"*.
-import { and, asc, eq, gte, lte, sql } from "drizzle-orm";
+import { and, asc, eq, gte, lte, min, sql } from "drizzle-orm";
 import type { PlanId } from "@tc/contracts";
 import { db } from "@/server/db/client";
 import { tierWeekly, users } from "@/server/db/schema";
@@ -64,6 +64,8 @@ export async function rollupTiers(now: Date = new Date()): Promise<TierRollup> {
 /** One tier's weeks, oldest first. */
 export interface TierSeriesRow {
   planId: PlanId;
+  /** Its first rollup ever, which the window can cut off: the chart's *since*. `null` before one. */
+  firstWeek: string | null;
   points: { weekStart: string; accounts: number }[];
 }
 
@@ -73,13 +75,22 @@ export interface TierSeriesRow {
  */
 export async function tierSeries(weeks = 26, now: Date = new Date()): Promise<TierSeriesRow[]> {
   const from = weekStartOf(new Date(now.getTime() - (weeks - 1) * 7 * DAY_MS));
-  const rows = await db
-    .select({ weekStart: tierWeekly.weekStart, planId: tierWeekly.planId, accounts: tierWeekly.accounts })
-    .from(tierWeekly)
-    .where(and(gte(tierWeekly.weekStart, from), lte(tierWeekly.weekStart, weekStartOf(now))))
-    .orderBy(asc(tierWeekly.weekStart));
+  const to = weekStartOf(now);
+  const [rows, firsts] = await Promise.all([
+    db
+      .select({ weekStart: tierWeekly.weekStart, planId: tierWeekly.planId, accounts: tierWeekly.accounts })
+      .from(tierWeekly)
+      .where(and(gte(tierWeekly.weekStart, from), lte(tierWeekly.weekStart, to)))
+      .orderBy(asc(tierWeekly.weekStart)),
+    db
+      .select({ planId: tierWeekly.planId, firstWeek: min(tierWeekly.weekStart) })
+      .from(tierWeekly)
+      .where(lte(tierWeekly.weekStart, to))
+      .groupBy(tierWeekly.planId),
+  ]);
   return planIds().map((planId) => ({
     planId,
+    firstWeek: firsts.find((row) => row.planId === planId)?.firstWeek ?? null,
     points: rows
       .filter((row) => row.planId === planId)
       .map(({ weekStart, accounts }) => ({ weekStart, accounts })),

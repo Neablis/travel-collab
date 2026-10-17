@@ -19,11 +19,17 @@ import { count, shortDay } from "./aiFormat";
 // account's movement, and a table of weekly counts holds only the totals, so
 // the card says the net over the last four weeks and says that it is net
 // (Mitchell, 2026-10-17). The gross pair would need a per-account snapshot.
+// Four weeks by date, not four rows: a week the cron missed has no row.
 //
 // **"since <first week>"**, because nothing before the first rollup exists and
-// nothing back-fills it (M47 decision 1).
+// nothing back-fills it (M47 decision 1). That is the tier's first row ever,
+// not the first one the 26-week window draws.
+//
+// **"as of <week>" rather than "now"** when the newest row is not this week's:
+// a cron that has stopped would otherwise go on reading as current.
 
 const CHART_HEIGHT = 72;
+const DAY_MS = 24 * 60 * 60 * 1000;
 /** Four weeks back from the newest point is the design's "last 30 days", in whole weeks. */
 const NET_WEEKS = 4;
 
@@ -31,16 +37,18 @@ const growthConfig = { accounts: { label: "Accounts", color: "--color-ink" } } s
 
 type Point = AdminTierSeriesRow["points"][number];
 
+const weeksBetween = (from: string, to: string) => Math.round((Date.parse(to) - Date.parse(from)) / (7 * DAY_MS));
+
 /**
- * The change from the point `NET_WEEKS` before the newest to the newest, or
- * from the first point when there are fewer. `null` with one point or none:
- * there is no change to report yet.
+ * The change to the newest point from the oldest one at most `NET_WEEKS` weeks
+ * before it, and how many weeks apart the two are. `null` when no other point
+ * is that recent: there is no change to report.
  */
 export function netChange(points: readonly Point[]): { delta: number; weeks: number } | null {
-  if (points.length < 2) return null;
-  const last = points.length - 1;
-  const from = Math.max(0, last - NET_WEEKS);
-  return { delta: points[last]!.accounts - points[from]!.accounts, weeks: last - from };
+  const now = points[points.length - 1];
+  const from = points.find((point) => now && weeksBetween(point.weekStart, now.weekStart) <= NET_WEEKS);
+  if (!now || !from || from === now) return null;
+  return { delta: now.accounts - from.accounts, weeks: weeksBetween(from.weekStart, now.weekStart) };
 }
 
 function netLabel(net: { delta: number; weeks: number }): string {
@@ -61,12 +69,14 @@ function WeekTooltip({ active, payload }: Hover) {
   );
 }
 
-function TierCard({ tier }: { tier: AdminTierSeriesRow }) {
+function TierCard({ tier, thisWeek }: { tier: AdminTierSeriesRow; thisWeek: string }) {
   const { planId, points } = tier;
   const first = points[0];
   const now = points[points.length - 1];
+  const since = tier.firstWeek ?? first?.weekStart;
   const peak = Math.max(...points.map((point) => point.accounts));
   const net = netChange(points);
+  const asOf = now && now.weekStart !== thisWeek ? `as of ${shortDay(now.weekStart)}` : "now";
   return (
     <section
       aria-label={`${planId} accounts by week`}
@@ -89,15 +99,15 @@ function TierCard({ tier }: { tier: AdminTierSeriesRow }) {
         </DataText>
       ) : (
         <Text as="span" className="text-xs text-slate">
-          {now ? "One week so far" : "Not counted yet"}
+          {points.length > 1 ? "No count in the four weeks before" : now ? "One week so far" : "Not counted yet"}
         </Text>
       )}
-      {first && now ? (
+      {first && now && since ? (
         <>
           <ChartContainer
             config={growthConfig}
             height={CHART_HEIGHT}
-            label={`${planId}: ${count(now.accounts)} accounts now, peak ${count(peak)}, since ${shortDay(first.weekStart)}.`}
+            label={`${planId}: ${count(now.accounts)} accounts ${asOf}, peak ${count(peak)}, since ${shortDay(since)}.`}
           >
             <AreaChart data={[...points]} margin={{ top: 2, right: 0, bottom: 0, left: 0 }} accessibilityLayer={false}>
               <XAxis dataKey="weekStart" hide />
@@ -120,10 +130,12 @@ function TierCard({ tier }: { tier: AdminTierSeriesRow }) {
           <span className="flex justify-between">
             <DataText size="xs">{shortDay(first.weekStart)}</DataText>
             <DataText size="xs">peak {count(peak)}</DataText>
-            <DataText size="xs">now</DataText>
+            <DataText size="xs" data-testid={`tier-growth-${planId}-end`}>
+              {asOf}
+            </DataText>
           </span>
           <Text as="span" className="text-xs text-slate" data-testid={`tier-growth-${planId}-since`}>
-            since {shortDay(first.weekStart)}
+            since {shortDay(since)}
           </Text>
         </>
       ) : null}
@@ -135,7 +147,7 @@ function TierCard({ tier }: { tier: AdminTierSeriesRow }) {
  * One card per tier, in the tier panel's order (premium before free), or an
  * empty state before the first rollup has run.
  */
-export function TierGrowthCharts({ tiers }: { tiers: readonly AdminTierSeriesRow[] }) {
+export function TierGrowthCharts({ tiers, thisWeek }: { tiers: readonly AdminTierSeriesRow[]; thisWeek: string }) {
   if (tiers.every((tier) => tier.points.length === 0)) {
     return (
       <EmptyState
@@ -149,7 +161,7 @@ export function TierGrowthCharts({ tiers }: { tiers: readonly AdminTierSeriesRow
       {/* Reversed for the same reason `TierPanel` reverses: the wire is the
           plan file's ladder order, and the design reads top tier first. */}
       {[...tiers].reverse().map((tier) => (
-        <TierCard key={tier.planId} tier={tier} />
+        <TierCard key={tier.planId} tier={tier} thisWeek={thisWeek} />
       ))}
     </div>
   );

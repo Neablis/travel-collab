@@ -6,12 +6,12 @@
 // rather than an absolute.
 import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { eq } from "drizzle-orm";
+import { and, count, eq } from "drizzle-orm";
 import type { PlanId } from "@tc/contracts";
 import { db } from "@/server/db/client";
 import { tierWeekly, users } from "@/server/db/schema";
 import { upsertUser } from "@/server/users";
-import { planPanel } from "./admin";
+import { adminUsers, planPanel } from "./admin";
 import { rollupTiers, tierSeries, weekStartOf } from "./tierRollup";
 
 async function holder(planId: PlanId, planLivemode = true) {
@@ -72,10 +72,16 @@ describe("rollupTiers", () => {
     expect(accounts).toEqual(Object.fromEntries(panel.map((row) => [row.planId, row.accounts])));
   });
 
-  it("writes 0 for a plan nobody holds", async () => {
-    // `studio` is published but not enabled, so nothing in this lane holds it.
+  // Against a count taken here, not an assumed 0: the lane shares one
+  // database, and nothing stops another file giving an account `studio`.
+  // `studio` is published but not enabled, so that count is 0 unless one does.
+  it("writes a row for a plan nobody holds, holding its live count", async () => {
+    const [held] = await db
+      .select({ n: count() })
+      .from(users)
+      .where(and(eq(users.planId, "studio"), eq(users.planLivemode, true)));
     await rollupTiers(WEDNESDAY);
-    expect(accountsOf(await rowsFor("2031-03-10"), "studio")).toBe(0);
+    expect(accountsOf(await rowsFor("2031-03-10"), "studio")).toBe(held!.n);
   });
 
   it("starts a new row when a new week starts", async () => {
@@ -97,5 +103,24 @@ describe("tierSeries", () => {
     // 2031-03-10 is more than two weeks back, and 2031-03-31 is after `now`.
     expect(premium.points.map((point) => point.weekStart)).toEqual(["2031-03-17", "2031-03-24"]);
     expect(series.map((row) => row.planId).sort()).toEqual(["free", "plus", "premium", "studio"]);
+  });
+
+  // The chart's *since* is when the history starts, which the window can cut.
+  it("dates each plan's first week, however far before the window it is", async () => {
+    await rollupTiers(new Date("2031-03-10T12:00:00Z"));
+    await rollupTiers(new Date("2031-03-24T12:00:00Z"));
+    const series = await tierSeries(1, new Date("2031-03-25T12:00:00Z"));
+    const premium = series.find((row) => row.planId === "premium")!;
+    expect(premium.points.map((point) => point.weekStart)).toEqual(["2031-03-24"]);
+    expect(premium.firstWeek).toBe("2031-03-10");
+  });
+});
+
+describe("adminUsers", () => {
+  it("hands the Users tab each plan's weekly series", async () => {
+    await rollupTiers(WEDNESDAY);
+    const { tiers } = await adminUsers(WEDNESDAY);
+    expect(tiers).toEqual(await tierSeries(26, WEDNESDAY));
+    expect(tiers.find((row) => row.planId === "premium")!.points.at(-1)!.weekStart).toBe("2031-03-10");
   });
 });

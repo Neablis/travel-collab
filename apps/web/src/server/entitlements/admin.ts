@@ -28,7 +28,7 @@ import { consoleCached } from "./consoleCache";
 import { activeGrantHolders } from "./grants";
 import { PLAN_VERSIONS, livePlanVersion, planVersionRefOf, type PlanVersion } from "./planVersions";
 import { entitlementsFor, type AccountEntitlements } from "./resolver";
-import { tierSeries, type TierSeriesRow } from "./tierRollup";
+import { tierSeries, weekStartOf, type TierSeriesRow } from "./tierRollup";
 import {
   monthlyMicroUsd,
   revenueByPlan,
@@ -831,6 +831,8 @@ export interface AdminUsers {
   revenue: RevenueSummary;
   /** *Accounts by tier*: each tier's last 26 weeks from `tier_weekly` (M47 part 4). */
   tiers: TierSeriesRow[];
+  /** The week `now` falls in: a tier whose newest row is older reads *as of* that row, not *now*. */
+  thisWeek: string;
 }
 
 /** Everything the console reads, in one call — what `GET /api/admin/overview` answers. */
@@ -921,7 +923,7 @@ export async function adminUsers(
     revenueSummary(TRAILING_WINDOW_DAYS, trailing, now),
     tierSeries(26, now),
   ]);
-  return { table, windowDays: TRAILING_WINDOW_DAYS, revenue, tiers };
+  return { table, windowDays: TRAILING_WINDOW_DAYS, revenue, tiers, thisWeek: weekStartOf(now) };
 }
 
 /**
