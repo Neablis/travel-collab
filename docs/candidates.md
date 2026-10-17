@@ -475,8 +475,9 @@ here two days later.
   **Not placed.**
 
 - **Trip chat follow-ups from M46's preview walk (asked 2026-10-13).** Mitchell, testing PR 439:
-  - **Link a notebook from a chat message.** Part 3's chips link only a day or a stop of the
-    current trip. A notebook chip would follow the same rule: resolve the id only against this trip's
-    notebooks, and render plain text otherwise.
+  - **Link a notebook from a chat message.** *Shipped in PR 446 (2026-10-14), with people as
+    well: `@` mentions a person or a notebook, checked server-side against the trip.*
+  - **Notify the person a message mentions** (PR 446's body, 2026-10-14). Mentioning someone
+    today only draws their name; nothing tells them.
   - **Group a run of messages.** When one person sends several messages in a row within 30 minutes,
     show the author once and draw the run as one visual block.
