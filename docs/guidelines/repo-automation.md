@@ -102,8 +102,8 @@ an `ALLOW_FULL_SUITE=1` run, and no hook reads it any more: CI on the PR is the
 full-suite verdict. The stamp, `.git/tc-tier3.json`, holds the commit checked and **which lanes were live**.
 
 **Hooks** (`scripts/hooks/`, tests in `scripts/hooks/__tests__/` and
-`scripts/__tests__/`): a `PostToolUse` typecheck of the touched package
-on every `.ts`/`.tsx` edit, and a `PreToolUse` guard on history-rewriting git
+`scripts/__tests__/`): a `PreToolUse` typecheck of the packages a
+`git commit` touches (blocking on a type error), and a `PreToolUse` guard on history-rewriting git
 commands while multiple worktrees exist. The milestone loop adds these:
 
 - **Test lane** (`check-test-lane.mjs`, `PreToolUse` Bash): denies `pnpm check`,

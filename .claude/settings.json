@@ -45,6 +45,12 @@
           {
             "type": "command",
             "command": "node scripts/hooks/commit-message-guard.mjs"
+          },
+          {
+            "type": "command",
+            "command": "node scripts/hooks/typecheck-on-commit.mjs",
+            "timeout": 300,
+            "statusMessage": "Typechecking the packages this commit touches..."
           }
         ]
       },
@@ -104,16 +110,6 @@
       }
     ],
     "PostToolUse": [
-      {
-        "matcher": "Edit|Write",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node scripts/hooks/typecheck-touched-package.mjs",
-            "statusMessage": "Typechecking touched package..."
-          }
-        ]
-      },
       {
         "matcher": "Bash",
         "hooks": [
