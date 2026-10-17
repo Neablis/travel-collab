@@ -14,7 +14,7 @@ AI generation.
 
 Think: Jira's planning + git's history + Notion's editing, for vacations.
 
-**Current phase: 1 (full single-player product).** The active milestone lives in
+**Current phase: 3 (outward), per `TODO.md`.** The active milestone lives in
 one place — `docs/milestones/README.md` ("Current milestone"); do not restate the
 number here (that duplication is how it drifts).
 Current state of the work — blockers, in-flight, next action, local dev recipe:
@@ -23,8 +23,8 @@ Design record: `docs/specs/2026-07-07-foundation-design.md` · Decisions:
 `docs/architecture/` · Roadmap: `TODO.md` + `docs/milestones/README.md` ·
 How-to guides: `docs/guidelines/`
 
-Implementation plans are **archived, not checked out** — `docs/plans/README.md`
-explains why and how to retrieve one from history.
+Implementation plans are checked out while their work is in flight and deleted
+when it closes — `docs/plans/README.md` says how to retrieve one from history.
 
 ## Working agreement with Mitchell
 
