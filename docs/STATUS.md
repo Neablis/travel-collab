@@ -21,215 +21,40 @@ general setup.
 
 ## Where the work is right now
 
-**M46 — A TRIP HAS A CONVERSATION, WITH THE PEOPLE TAKING IT — IS THE CURRENT MILESTONE AS OF
-2026-10-13**, when M45's gate closed (`docs/milestones/M46-a-trip-has-a-conversation.md`). It is
-**scoped 2026-10-13**: Mitchell answered all six decisions and the layout. Chat is its own store
+**M46 — A trip has a conversation, with the people taking it — is the current milestone**, since
+M45's gate closed on 2026-10-13 (`docs/milestones/M46-a-trip-has-a-conversation.md`). All of its
+code is on `main`: parts 1 to 6 (PR 433, PRs 435-436, PRs 438-447, including the walk fixes)
+merged 2026-10-13 and 2026-10-14, with migrations `0048` to `0052`. Chat is its own store
 (ADR-073), live on the events poll by `chatRev`, a *Chat · Ask* tab in the assistant rail.
-Plan: `docs/plans/2026-10-13-M46-a-trip-has-a-conversation.md`, five parts, each its own PR on
-`main`. Part 0 (prose only, a draft that merges last) is on `claude/m46-a-trip-has-a-conversation`.
+Part 0 (PR 432) merged 2026-10-14 too, before its gate. **The gate is 0 of 10 and there is no
+retro.**
 
-**Next action:**
-1. Build part 1, `claude/m46-part1-store-and-routes` (migration `0048`, the chat routes, the
-   access rules, `chatRev` on the poll), with `build-a-part`.
-2. Then parts 2 and 4 from `main` once part 1 merges; parts 3 and 5 after part 2.
-3. Optional, from M45: when the first production playbook turn lands, read it with
-   `.claude/skills/ai-usage/ledger.sql` query 11 (no `ask.playbook` row exists yet).
+**Next action: close M46's gate** with `close-a-milestone`: tick each box only on its evidence
+(the integration tests and the ci-like e2e as CI ran them on the merged parts), get Mitchell's
+two-person walk (one on a phone), append the retro, run `pnpm milestone close M46`, and delete
+`docs/plans/2026-10-13-M46-a-trip-has-a-conversation.md`. Whether production holds every
+migration is `pnpm state`'s `PROD MIGRATIONS` line, not a number here.
 
-**M45 closed 2026-10-13, gate 12 of 12**, on part 0, PR 420 (`claude/stoic-dijkstra-01wxup`).
-The assistant answers across all your trips and takes you places:
-- An account-scoped ask with four deterministic cross-trip tools (PR 421).
-- The palette learns notebooks and runs a command by id (PR 422); the assistant names palette
-  commands, and edit mode turns on only after Approve (PR 424, ADR-072).
-- Home's rail and ⌘K's *Ask:* row (PR 426); the assistant on the playbook pages (PR 427).
-- Fixes the live eval found: KI-2026-10-12-e (PR 425), and the trip-name matcher (PR 429,
-  `8143772`, now on production).
+**Built off the milestone order, by Mitchell's approval (2026-10-17).** Three things were moved
+up ahead of the row order, and each was his call. This is his waiver, recorded here once, of
+*"do not build ahead of the current milestone"* (`AGENTS.md`) and of *"part 0 merges last"*
+(`docs/guidelines/building-a-milestone.md`) for them:
+- **Trip guests**: travellers who are not on the app (PR 457, its parts stacked into it,
+  ADR-074, migration `0053`).
+- **Plan-retrieval RAG, M48's serving code**: PRs 459-467, migration `0054`, pgvector in Neon
+  (ADR-075). It serves only behind a flag that is off by default. M48 is **not current**: its
+  row keeps its place, and its decisions and remaining gate boxes are in
+  `docs/milestones/M48-plans-start-from-examples.md`.
+- **M46's part 0**, PR 432, merged before the gate rather than last.
 
-No migrations. Both [walk] boxes are ticked on Mitchell's word ("Tested and worked"). The Home
-walk shows in production's `ai_usage` as two `ask.account` turns. The playbook walk left no
-production trace, so the ledger box closed without an `ask.playbook` row, on his call. Accepted
-known gap: KI-2026-10-13-a (Ask at hydration on a phone). Gate evidence and retro:
-`docs/milestones/M45-the-assistant-beyond-one-trip.md`. The plan is deleted.
+Also merged beside it: `docs/guidelines/building-with-judgment.md` (PR 468).
 
-Order:
-`… M42 ✓ → M45 ✓ → M46 → M47 → M48 → M49 → M43 → M44`; the reorder is recorded in
-`docs/milestones/README.md`, *2026-10-12 — reordered and minted*.
+**M45 closed 2026-10-13, gate 12 of 12** (part 0 PR 420); evidence and retro in
+`docs/milestones/M45-the-assistant-beyond-one-trip.md`. Accepted gap: KI-2026-10-13-a.
 
-**M48 was proposed 2026-10-11** from a PM brief: example playbook days retrieved into `plan` turns
-to cut their cost. Not scoped, placed last, and its offline gates can run early
-(`docs/milestones/M48-plans-start-from-examples.md`).
-
-**M42 closed 2026-10-12.** The front door shows more than one trip, and what it costs:
-- `/demo/<slug>` for every bundled trip, with a picker on `/demo`; a demo opens on Plan (#411).
-- Three plan cards and prices on the landing at `#pricing`, read from a generated snapshot of
-  `planVersions.ts` (#405).
-- Thirteen activity tags (twelve categories, Ticketed as a modifier), with bundled content
-  re-tagged, API 1.13.0 → 1.15.0 (#406, #408, ADR-070).
-- A trip or day description worked out from its tags, on five surfaces (#409); tag and city×tag
-  pages, a Discover tag filter and Discover pagination (#412); four tag widgets (#410).
-- Leaving a playbook review needs Plus or Premium (#407, ADR-071).
-- The landing's feature blocks and phone claims render the real app, with Mitchell's Hanoi
-  playbook as the Discover card (#413).
-
-It shipped as #405–#413, all merged by 2026-10-12; part 0 is #404. CI on #413's head (`97c4d9e`,
-run 38184850349, attempt 2) was green on every job, including both e2e shards. Mitchell walked it
-after every part had merged. No migrations. Its retro is at the end of
-`docs/milestones/M42-the-front-door-shows-more.md`.
-
-**M41 closed 2026-10-11.** Moving and adding stops takes one gesture wherever you are: the
-editor's Day field moves any stop, a drawer of just cards with double-click to create, the
-empty-day hint, *"from Day N"* on a parked stop (API 1.12.0), Calendar's city-block drag, Plan's
-day drag, Option-drag copy, top-edge resize and Delete, paste or drop to add, and a ⌘K palette
-that runs the page's own actions (ADR-068, ADR-069). It shipped as #392–#398 (with #399), merged
-into part 0, #391, which Mitchell merges to `main`. CI on #391 (`50d9a2d`, run 38103062053) was
-green on every job, including both ci-like e2e shards, and Mitchell walked the preview with the
-mouse and keyboard only. No migrations. Its retro is at the end of
-`docs/milestones/M41-planning-without-friction.md`.
-
-The README had stamped M41–M47 *"scoped 2026-10-07, all six decisions answered"* by a bulk edit.
-Corrected 2026-10-10: **M42–M47 are not scoped**, and each needs its decisions checked against
-today's UI before building, as M41's were.
-
-**M40 closed 2026-10-10.** A big change is reviewed, taken and undone whole:
-- *Accept all* is one batch, so one History entry and one undo (#376).
-- Named snapshots save, preview and restore in one undoable step (#377).
-- An assistant turn of several changes is stored as one suggestion on the board, after a
-  "Before: …" snapshot. Its note in the chat offers *Accept all* too (#378, ADR-067).
-
-Found on the way:
-- #379 moved CI's Postgres image to ECR Public.
-- #381 draws a suggested new day as a ghost day.
-- #382 refuses a turn on a deleted trip.
-
-Migrations `0045_trip_snapshots` and `0046_suggestions_via` are applied (`migrate-production` runs
-43 and 44, on #377's and #378's merges). The ci-like e2e passed 292 of 292, with no retries, on merged
-`main` (`b8fb9aa`). Its retro is at the end of
-`docs/milestones/M40-a-big-change-is-one-change.md`.
-
-**M39 closed 2026-10-09.** The phone layout was decided once, in the critique (#362). It shipped
-as Parts 1–7 (#363–#369, plus #371 for Part 7's self-review), all merged 2026-10-09:
-- one pinned header row with the day rail;
-- a touch floor on touch screens;
-- a phone Overview and a phone conflicts chip;
-- safe-area insets;
-- an installable app, with the two-stroke icons (#372) and an *Install app* row and one-time
-  phone nudge (#373).
-
-The hotfix #374 removed the service worker's `fetch` listener, which had lost edits queued at a
-reload in production (`KI-2026-10-09-e`). The ci-like e2e passed 290 of 290 on `814f469`. The
-device walk was **Android only**, by Mitchell's call: the iPhone half is open as
-`KI-2026-10-09-f`. Its retro is at the end of `docs/milestones/M39-the-phone-is-decided.md`.
-
-**M38 closed 2026-10-08.** People carry a chosen avatar, colour and display name on every person
-surface. A clash within a trip shifts the later joiner. A chosen name reaches public pages only
-when its owner opts in. An invitee sees the plan, who is going and the total before joining, drawn
-by the shared notebook widgets. It shipped as #356 → #360, merged 2026-10-08, and every code part
-was reviewed by CodeRabbit. Its retro is at the end of
-`docs/milestones/M38-people-you-can-tell-apart.md`. Migration `0044_personas` is applied:
-`migrate-production` ran on `b10f513`.
-
-**M37 closed 2026-10-07.** Trip cards show length and stops, and an unplanned trip is designed.
-Trips and playbook days get Unsplash covers. It shipped as #350 → #354, merged 2026-10-07, with a
-self-review and a CodeRabbit review on every code part. Its retro is at the end of
-`docs/milestones/M37-trips-look-like-somewhere.md`. Migrations `0042_trip_covers` and
-`0043_saved_day_covers` are applied: `migrate-production` ran on `eeef6cc`.
-
-**M35 closed 2026-10-06.** Migration `0039` is confirmed applied from `migrate-production` run #37
-on #335's merge. CodeRabbit never reviewed #335, so there was nothing to work. The eval re-run is
-ticked on Mitchell's word and was **not** run. Its retro is at the end of
-`docs/milestones/M35-travellers-and-people.md`.
-
-**M37 to M47 were proposed on 2026-10-06** by grouping the candidates file, and placed after M35 in
-that order. The order was confirmed the same day, and **M37 is scoped**: its six decisions were answered as
-recommended. M38 was scoped 2026-10-07, M39 on 2026-10-08 and M40 on 2026-10-09; M41–M47 are not scoped yet. Grouping and order:
-`docs/milestones/README.md`, *2026-10-06 — proposed: M37 to M47*.
-
-**M36 closed 2026-10-06** on Mitchell's word that the admin console works; its two walk boxes are
-ticked on that attestation, not re-walked. Its retro is at the end of
-`docs/milestones/M36-operator-console.md`.
-
-**M34 and M9 closed 2026-10-06** on Mitchell's word that both work in production; their walk
-boxes are ticked on that attestation, not re-walked. **M9 is closed for good**, not paused: two of
-its boxes asked for an artefact (a pasted `meta`, a recorded transcript) that was not added, and
-are ticked by decision. Each retro is at the end of its milestone file.
-
-**M33 closed 2026-10-05** on Mitchell's word, with every box but the retro already ticked. Its
-retro is at the end of `docs/milestones/M33-evals.md`.
-
-**M32 closed 2026-10-05** on Mitchell's production walk, same trip as the 162-second turn: one
-`find_free_time {"wholeTrip": true}` call, two steps of 734 and 780 ms, 4.5s end to end, and
-*"Day 8 … 660 minutes open between 8 am and 10 pm"* where the old turn said *"21 hours"*. Its
-retro is at the end of `docs/milestones/M32-free-day.md`.
-
-**M31 closed 2026-10-05** on Mitchell's two answers: a **$20/month** Gateway spend budget, and
-the baseline accepted as two hand-typed production turns rather than a preview live-set run. Its
-retro is at the end of `docs/milestones/M31-assistant-ledger.md`. **The eve port is deferred
-until there are users** (ADR-062 § *Deferred: the port*). M19's leftovers, none gating:
-`KI-2026-09-24-p` (totals add across currencies), `KI-2026-09-24-q` (a stored `person` filter
-widens to the whole trip), and free vs unknown (KI-82).
-
-**M33 — evals — minted and built 2026-10-05, beside M31 and M32.** `pnpm --filter web eval` runs the
-live set on production's per-tier models through the real `/ask` handler and scores each turn by
-code (needs `TRAVEL_COLLAB_EVAL_KEY`). It showed M32 working before merge (0/3 → 3/3 on
-`q-most-free`), and found that a tool error the model recovers from was recorded as a failed turn
-(`KI-2026-10-05-a`, `KI-2026-09-16-a`, both fixed on #327). With the turns recorded honestly, the
-cheap tier's model stalls inside single steps (134.5s in one): `KI-2026-10-04-c`. **Mitchell switched
-`AI_MODEL_CHEAP` to `zai/glm-5.3-flash` on 2026-10-05**; the KI stays open until production's step
-durations show it held. Every run states its plan without `EVAL_CONFIRM=1` and stops at
-`EVAL_MAX_USD` (seen live: $0.0027, two turns skipped). (`docs/milestones/M33-evals.md`)
-
-**M29 (the time river) and M30 (notebooks with one job each) closed their gates on
-2026-10-04**, at 20 of 20 and 9 of 9; each retro is at the end of its milestone file. Their
-ticked rows were added to `TODO.md` on 2026-10-06, so `pnpm milestones` reads them as closed.
-
-**Built beside M19, not a milestone: the SEO pass** (five stacked draft PRs, #295-#299,
-to merge 1 → 5 with merge commits; plan `docs/plans/2026-10-02-seo-pass.md`). It adds robots
-and canonicals, a sitemap, server-rendered day and Discover pages with real 404s and
-slugged URLs, JSON-LD, and city and country pages. **Three steps are Mitchell's:** the
-Vercel firewall bypass for `/`, `/welcome`, `/playbooks/**`, `/robots.txt` and
-`/sitemap.xml` (crawlers get the Security Checkpoint today); submitting the sitemap once
-part 2 is live; and checking production's canonical on `caesura.today/playbooks`.
-
-**M35 — who is travelling, and the People panel — minted 2026-10-05, after it was built** beside
-M33 and M34 (PR #335, one branch `ccr-d8e97d98-xyat7o`, T1–T9, not restacked by Mitchell's call;
-plan `docs/plans/2026-10-05-travellers-and-people-panel.md`). Gate:
-`docs/milestones/M35-travellers-and-people.md`. **Gate closed 2026-10-06, 12 of 12.**
-Per-person totals count travellers, not members (ADR-065, amending ADR-060 decision 2). Trip
-settings → People replaces the Travelers panel, and the owner's open panel now sees a join
-(KI-2026-10-04-b, resolved). **Migration 0039** is applied (run #37). Open from it: `KI-2026-10-05-e`, `-f` and `-g`.
-
-**M28 — Three kinds — closed 2026-09-26** (#238, #239): a stop's kind is
-`planned`, `pending` or `transit`, and the retired `idea`/`hold`/`booked` are
-read back as their replacement (ADR-054). Its retro is at the end of
-`docs/milestones/M28-three-kinds.md`. Open, not gating: the Pending badge's
-amber matches the Meal tag's, which Mitchell's queued design handoff decides.
-M24 shipped as #229, #230, #232 and #233. Its retro is at the end of
-`docs/milestones/M24-travel-legs.md`, and what it left open is
-`KI-2026-09-25-q` (surfaces that read a stop's city directly, first a shared
-helper and then a start-vs-end decision per surface).
-
-## CLOSED 2026-10-01 — M14 Rich layer, pulled ahead of M24; gate 22 of 22
-
-Mitchell's call, 2026-09-24: build all of M14 ahead of M24. It shipped as four
-stacked PRs: #222 → #223 → #226 → #221. **The gate closed 2026-10-01.** On
-2026-09-27 Mitchell settled the insert Sheet box (a fixed sample preview, as
-ADR-037 says) and accepted the six widgets on their e2e and ADR-052 as built. On
-2026-10-01 he attested the real-service weather walk. The retro is at the end of
-`docs/milestones/M14-rich-layer.md`. `docs/retros/2026-09-24-m14-stacked-prs-retro.md`
-is the *process* retro. The route map block is unblocked by M24 but unbuilt and
-unowned.
-
-**Operator items: both done** (verified 2026-09-27, three days after this file
-last called them outstanding). Production has `0000`-`0031` (runs #29/#30), and
-`EXTERNAL_DATA_CONTACT` is set for all three Vercel targets. Migration state is
-now `pnpm state`'s computed `PROD MIGRATIONS` line; don't restate it here.
-
-Branches cut from `main` before #221 still carry the part-3 version of
-`m14-notebook-widgets.spec.ts` *"a sentence inserted mid-sentence…"*. That
-version fails about 3 times in 20: it types into a repeat node view before
-React has mounted its editable line, and loses the first keystrokes. Merge
-`main` into those branches; `main`'s version passed 20 of 20. Known carriers
-are `claude/optimistic-shannon-tce4t8` and `claude/ecstatic-villani-13d488`.
-The mechanism is in `docs/guidelines/testing.md` § *Copy these → E2E*.
+Order: `… M42 ✓ → M45 ✓ → M46 → M47 → M48 → M49 → M43 → M44`; the reorder is in
+`docs/milestones/README.md`, *2026-10-12 — reordered and minted*. Earlier closed milestones'
+narrative is in `docs/retros/2026-10-16-status-archive.md` and each milestone's own file.
 
 ## Live rules that the code cannot enforce
 
@@ -331,12 +156,7 @@ unbiased top match overwriting correct model coordinates; rate-limit failures
 swallowed into coordinate-less locations) is fixed. The remaining architectural
 half, the model guessing a coordinate rather than citing one, is M9 scope.
 
-## Next action
-
-**Scope M43** (`docs/milestones/M43-notebooks-keep-up.md`) with Mitchell: answer its decisions
-against today's UI, then plan its parts (`build-a-milestone`). M42 is merged, with no migration.
-All 48 migrations are applied. Separately, `KI-2026-10-04-c` resolves on query 8 of `ledger.sql`
-over a few days of cheap-tier step durations.
+## Open, not gating
 
 **Carried out of M24, not gating:** `KI-2026-09-25-q`. About a dozen
 surfaces read `activity.location.city` directly, including the M14 ones this
@@ -354,6 +174,9 @@ backfill does nothing without it.
 it would expose. M9's gate is closed, but its Phase 0 open questions were never answered
 (`docs/milestones/M9-ai-planning-partner.md`, *open questions*). The one that costs if left is
 *which quota window a sold ceiling binds*: it is implemented per-day and stated in no contract.
+Also his, from the SEO pass (recorded 2026-10-02, not re-checked since): the Vercel firewall
+bypass for the public pages, submitting the sitemap, and checking production's canonical on
+`caesura.today/playbooks`.
 
 **`KI-20260916-d` is still open**: no account can hold `api.tokens` on a
 preview, so the next tier-gated box walked on a preview will meet it. The entry
@@ -376,3 +199,4 @@ carries the next step.
 | The 2026-09-20 shared-day-map handoff (43,702 B) | `docs/retros/2026-09-21-status-archive.md` |
 | The closed M12, M13 and M26-link-4b `DONE` sections, moved 2026-09-25 | `docs/retros/2026-09-25-status-archive.md` |
 | The M11-gate retired list, the pre-M14 *Next action* history, *Landed in the last week* (2026-08-28 to 2026-09-11), and this header's cut history, moved 2026-09-30 | `docs/retros/2026-09-30-status-archive.md` |
+| The M45 close-out, the closed-milestone narrative from M42 back to M14 (lines 61-232 as of `14cda86`), and the stale second *Next action*, moved 2026-10-17 | `docs/retros/2026-10-16-status-archive.md` |

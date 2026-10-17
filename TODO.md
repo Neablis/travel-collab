@@ -79,9 +79,9 @@ drift.
 - [x] **M41 Moving and adding stops takes one gesture wherever you are** (proposed 2026-10-06 from `docs/candidates.md`, scoped and re-framed 2026-10-10 with Mitchell: gestures over buttons — Calendar city-block drag, the editor's Day field moves any stop, a drawer of just cards, Plan day drag, Option-drag copy, top-edge resize, paste-to-add, parked origin, a ⌘K palette on the page's own actions) → `docs/milestones/M41-planning-without-friction.md` (closed 2026-10-11, gate 13 of 13)
 - [x] **M42 The front door shows more than one trip, and what it costs** (proposed 2026-10-06 from `docs/candidates.md`, scoped 2026-10-11 with Mitchell and widened with richer activity tags, ADR-070: demo picker, landing pricing, SEO leftovers, thirteen tags, trip descriptions, tag pages, tag widgets; plan `docs/plans/2026-10-11-M42-front-door-and-tags.md`, (deleted at close; in git history)) → `docs/milestones/M42-the-front-door-shows-more.md`
 - [x] **M45 The assistant answers about all your trips, and can take you places** (proposed 2026-10-06 from `docs/candidates.md`, not scoped: account-wide assistant, ClientAction navigation, approved edit mode) → `docs/milestones/M45-the-assistant-beyond-one-trip.md`
-- [ ] **M46 A trip has a conversation, with the people taking it** (proposed 2026-10-06 from `docs/candidates.md`, scoped 2026-10-13: trip chat, ADR-073, five parts) → `docs/milestones/M46-a-trip-has-a-conversation.md` ← **current milestone**
+- [ ] **M46 A trip has a conversation, with the people taking it** (proposed 2026-10-06 from `docs/candidates.md`, scoped 2026-10-13: trip chat, ADR-073; all six parts and part 0 merged 2026-10-14, gate open) → `docs/milestones/M46-a-trip-has-a-conversation.md` ← **current milestone**
 - [ ] **M47 The operator console shows tiers over time, and paid flows can be tested in production** (proposed 2026-10-06 from `docs/candidates.md`, not scoped: tier history rollup, Stripe livemode) → `docs/milestones/M47-the-business-over-time.md`
-- [ ] **M48 A planned trip starts from trips that already exist** (proposed 2026-10-11 from a PM brief, on Mitchell's ask, not scoped: retrieve example playbook days into plan turns to cut their cost; two offline gates before any serving code) → `docs/milestones/M48-plans-start-from-examples.md`
+- [ ] **M48 A planned trip starts from trips that already exist** (proposed 2026-10-11 from a PM brief, on Mitchell's ask: retrieve example playbook days into plan turns to cut their cost; its serving code merged 2026-10-16 off the row order with Mitchell's approval, behind a flag that is off (PRs 459-467, ADR-075); decisions and the remaining gate are in its file) → `docs/milestones/M48-plans-start-from-examples.md`
 - [ ] **M49 A cover can come from anywhere, and be framed where you want it** (proposed 2026-10-12 on Mitchell's ask, not scoped: the public API sets, reads and clears a trip's cover from any image URL, referenced and never stored; a cover's crop can be repositioned, in the API and on the Unsplash covers in the UI) → `docs/milestones/M49-covers-from-anywhere.md`
 - [ ] **M43 A trip's notebooks keep up with their templates** (proposed 2026-10-06 from `docs/candidates.md`, moved last 2026-10-12, by Mitchell: nothing is hurting today; not scoped: seed back-fill and reset, pages.kind, the open widget's design and filters) → `docs/milestones/M43-notebooks-keep-up.md`
 - [ ] **M44 A stop knows what was booked, and what it sits inside** (proposed 2026-10-06 from `docs/candidates.md`, moved last 2026-10-12 with M43; not scoped: booking fields, containment rule) → `docs/milestones/M44-a-stop-knows-what-was-booked.md`
@@ -102,93 +102,18 @@ drift.
 of this file. `pnpm candidates` lists them; that file carries the placement
 lifecycle and the rule that a gate close deletes what it absorbed.
 
-## Deferred work with a resume condition that has already fired
+## Deferred work, still live
 
-Not a milestone, and not a candidate idea — work that was consciously paused
-behind a named trigger, where the trigger has since happened. Listed here
-because the only thing that recorded it was a paragraph in `docs/STATUS.md`
-marked "history", so nothing live surfaced it and nobody resumed.
+Not a milestone and not a candidate: work paused behind a trigger that has already fired. The
+closed-out history of this section moved to `docs/retros/2026-10-16-status-archive.md` §3.
 
-- **Test-suite overhaul, Phases 5-7 — CLOSED OUT 2026-08-31.** Phases 0-4
-  landed 2026-08-23; 5-7 were gated on M10 Wave 2's gate, which closed
-  2026-08-27 with nothing resuming. The required Phase 0 re-inventory was run
-  (`docs/plans/test-overhaul/phase-5-inventory-2026-08-30.md`) and the verdict
-  is per phase, not wholesale:
-  **Phase 5 superseded** — the suite is 138 files / 1,908 tests against the
-  overhaul's 95/569 baseline, but reading the candidates rather than ranking
-  them, category (c) is empty, (a) is 7 assertions, (b) is 60, and (d), the big
-  lever at a claimed 152 tests, is nine false positives. The suite tripled
-  because the product tripled; volume is real, waste is not.
-  **Phase 6 absorbed** — 6.4 was `check-sleep-wall.mjs` (since 2026-09-25 the ESLint rules `playwright/no-wait-for-timeout` and `no-restricted-properties` on `waitForTimeout`, fixtured in `check-lint-wall.mjs`), 6.5 is AGENTS.md's
-  property-test rule plus `witness.ts`, whose last gap (three `fast-check`
-  files with no floor) was closed 2026-08-30 with measured, non-vacuity-proven
-  floors.
-  **Phase 7 is NOT closed** — see the two live items below.
-
-- **The activity-field descriptor refactor — unattached since 2026-08-31.**
-  Project review §6.1. Scheduled 2026-08-29 "alongside" M11a and M11b; both
-  gates closed 2026-08-31 and it did not happen, so it belongs to no milestone
-  and nothing surfaced it. **Recorded here 2026-09-11** because the only thing
-  carrying it was `docs/STATUS.md`'s "Next action" — the precise failure this
-  section exists for, repeated. It is **not blocked**: its stated prerequisite
-  is already met (§1.6 / KI-54 resolved, `equality.ts:55-56` compares `city`
-  and `countryCode`). `AGENTS.md` reserves the contracts step as **its own
-  reviewed PR**, which Mitchell scheduled it knowing — so keep it separate from
-  any milestone PR.
-- **The 19 Dependabot alerts.** Per-advisory triage against actual usage, not a
-  bulk bump. Deferred deliberately; recorded here 2026-09-11 for the same
-  reason as the item above.
-
-## Live, and previously hidden inside a closed-out plan
-
-- ~~**Seed content is code, so there is not much of it**~~ — **done 2026-09-06**,
-  branch `claude/serialize-and-seed-data-66f8tb`, **ADR-041**. Mitchell asked for
-  a JSON serialization for notebooks, activities and trips, an importer, and *"a
-  lot of believable playbooks"*. `travel-collab/content-bundle/v1` +
-  `pnpm --filter web content:import` + **148 playbook days over twenty regions**
-  and four demo trips, all in `content/` — including San Francisco, Napa,
-  Capitola/Monterey and the Finger Lakes, which Mitchell named on the night. `saved_days.author_kind` (migration `0017`)
-  is the human-vs-AI flag he asked for, surfaced as an "AI starter" badge.
-  **It closed a real gap**: Discover's budget filter had no occupant in three of
-  its four bands anywhere in the seed — the thing `starterDays.ts`' own header
-  flagged and said it was too small to fix. All four are populated now.
-  What it left open, on purpose: **`KI-2026-09-06-c`** — imported stops carry no
-  coordinates (a wrong pin is worse than none; KI-39 measured that once already),
-  so the four demo trips read "N stops have no place yet" on the Map lens until
-  somebody runs an offline geocoding pass on the model of
-  `scripts/geocode-japan-seed.mts`. The playbook days are unaffected — Discover
-  matches on `location.city` and all 1,375 stops carry one. And
-  **`KI-2026-09-06-d`** — the later bundles were written without live web access,
-  so their prices and opening hours need a verification pass; each says so in its
-  own `bundle.sources`.
-
-- ~~`docs/guidelines/testing.md` does not exist~~ (7.2) — **done 2026-09-02.**
-- ~~No `write-a-test` skill~~ (7.4) — **done 2026-09-02.**
-- ~~Task 7.1's lint rules~~ — **done 2026-09-02**, and the reason it was still
-  live is worth keeping: 7.1's header had said *landed* since 2026-08-31 on the
-  strength of four unrelated walls in `scripts/`. Five of its six rows had
-  shipped as nothing. **A task marked done by substitution is worse than one
-  marked open** — nothing was looking for it. Two of the six rows are now
-  rejected in writing rather than left implied (`randomUUID` breaks the
-  integration lane's row isolation; the `TripDetail` row needs type information
-  ESLint does not have).
-- **Task 7.5 — close out the plan.** The last live item in the test overhaul.
-  `ADR-021-testing-strategy.md` does not exist, and it is the thing that stops
-  a future session re-proposing the three levers already evaluated and
-  rejected: `isolate: false` (248 failures), a coverage-percentage gate, and a
-  permanent mutation-testing CI job. Then `docs/plans/2026-08-23-test-suite-overhaul.md`
-  and `docs/plans/test-overhaul/` are removed in the same commit, per
-  `docs/plans/README.md`. Own PR. **Do not delete the directory without writing
-  the ADR first** — the rejected levers are the durable half.
-- **DONE 2026-10-04 — `ci.yml` has a `changes` job and `ci-ok` is the one
-  required check on `main`.** What it was: Convert `ci.yml`'s `paths-ignore` to a skip-job pattern BEFORE enabling
-  branch protection. The repo went public 2026-08-31, so branch protection is
-  now available (`gh api .../branches/main/protection` returns "Branch not
-  protected", not the old "Upgrade to GitHub Pro"). The moment a path-filtered
-  job is made a *required* status check, every prose-only PR is unmergeable
-  forever — a required check that never runs never reports. A job that runs and
-  skips does report, which is the fix. `docs/guidelines/ci-cost-and-capacity.md`
-  carries the detail. **Do this before flipping required checks on, not after.**
+- **Test-suite overhaul task 7.5 — close out the plan.** Write the testing-strategy ADR (the
+  number `ADR-021` it was once given is taken) recording the three rejected levers:
+  `isolate: false`, a coverage-percentage gate, a permanent mutation-testing CI job. Then remove
+  `docs/plans/2026-08-23-test-suite-overhaul.md` and `docs/plans/test-overhaul/` in the same
+  commit, as its own PR; never the directory without the ADR.
+- **The Dependabot alerts.** Per-advisory triage against actual usage, not a bulk bump;
+  deferred deliberately since 2026-09-11.
 
 ## Standing tasks (every milestone)
 
