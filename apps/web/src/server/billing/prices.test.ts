@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PLAN_VERSIONS, priceLookupKey, type PlanVersion } from "@/server/entitlements/planVersions";
+import type { StripeMode } from "./config";
 import { StripeApiError, type StripePrice } from "./stripeApi";
 
 // **The worst class of billing bug is the one where nothing errors** (M21 link
@@ -8,14 +9,14 @@ import { StripeApiError, type StripePrice } from "./stripeApi";
 // consistent. Nothing catches that except a check that compares them, which is
 // why the milestone makes it a gate box and why this file is where it lives.
 
-const findPriceByLookupKey = vi.fn<(key: string) => Promise<StripePrice | null>>();
+const findPriceByLookupKey = vi.fn<(key: string, mode: StripeMode) => Promise<StripePrice | null>>();
 const createPrice = vi.fn();
 
 vi.mock("./stripeApi", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./stripeApi")>();
   return {
     ...actual,
-    findPriceByLookupKey: (key: string) => findPriceByLookupKey(key),
+    findPriceByLookupKey: (key: string, mode: StripeMode) => findPriceByLookupKey(key, mode),
     createPrice: (input: unknown) => createPrice(input),
   };
 });
@@ -76,14 +77,14 @@ describe("the lookup key is a function of the price, so the two cannot disagree"
 describe("resolving a plan version to the Stripe Price it is sold as", () => {
   it("uses the Price already carrying the key", async () => {
     findPriceByLookupKey.mockResolvedValue(stripePrice());
-    await expect(stripePriceFor(plan("plus"))).resolves.toBe("price_abc");
+    await expect(stripePriceFor(plan("plus"), "live")).resolves.toBe("price_abc");
     expect(createPrice).not.toHaveBeenCalled();
   });
 
   it("creates one the first time a published price is bought", async () => {
     findPriceByLookupKey.mockResolvedValue(null);
     createPrice.mockResolvedValue(stripePrice({ id: "price_new" }));
-    await expect(stripePriceFor(plan("plus"))).resolves.toBe("price_new");
+    await expect(stripePriceFor(plan("plus"), "live")).resolves.toBe("price_new");
     expect(createPrice).toHaveBeenCalledWith(
       expect.objectContaining({ lookupKey: "plus_v1_usd_900", unitAmount: 900, currency: "usd" }),
     );
@@ -96,25 +97,35 @@ describe("resolving a plan version to the Stripe Price it is sold as", () => {
   it("recovers when another request created the same Price first", async () => {
     findPriceByLookupKey.mockResolvedValueOnce(null).mockResolvedValueOnce(stripePrice({ id: "price_raced" }));
     createPrice.mockRejectedValue(new StripeApiError(400, "resource_already_exists", "taken"));
-    await expect(stripePriceFor(plan("plus"))).resolves.toBe("price_raced");
+    await expect(stripePriceFor(plan("plus"), "live")).resolves.toBe("price_raced");
+  });
+
+  // ADR-076 §7: one lookup key, two Stripe accounts, two Price ids. A live
+  // Price id handed to a test-mode checkout is refused by Stripe at the till.
+  it("finds and creates in the mode it is asked for", async () => {
+    findPriceByLookupKey.mockResolvedValue(null);
+    createPrice.mockResolvedValue(stripePrice({ id: "price_test" }));
+    await expect(stripePriceFor(plan("plus"), "test")).resolves.toBe("price_test");
+    expect(findPriceByLookupKey).toHaveBeenCalledWith("plus_v1_usd_900", "test");
+    expect(createPrice).toHaveBeenCalledWith(expect.objectContaining({ mode: "test" }));
   });
 
   it("refuses a Price that charges a different amount, rather than making a second one", async () => {
     findPriceByLookupKey.mockResolvedValue(stripePrice({ unit_amount: 1000 }));
-    await expect(stripePriceFor(plan("plus"))).rejects.toBeInstanceOf(PriceMismatchError);
+    await expect(stripePriceFor(plan("plus"), "live")).rejects.toBeInstanceOf(PriceMismatchError);
     expect(createPrice).not.toHaveBeenCalled();
   });
 
   it("refuses a Price in a different currency", async () => {
     findPriceByLookupKey.mockResolvedValue(stripePrice({ currency: "eur" }));
-    await expect(stripePriceFor(plan("plus"))).rejects.toBeInstanceOf(PriceMismatchError);
+    await expect(stripePriceFor(plan("plus"), "live")).rejects.toBeInstanceOf(PriceMismatchError);
   });
 
   it.each([
     ["a disabled plan", "studio"],
     ["a plan that costs nothing", "free"],
   ])("refuses to check out %s", async (_what, planId) => {
-    await expect(stripePriceFor(plan(planId))).rejects.toBeInstanceOf(UnpurchasableVersionError);
+    await expect(stripePriceFor(plan(planId), "live")).rejects.toBeInstanceOf(UnpurchasableVersionError);
     expect(findPriceByLookupKey).not.toHaveBeenCalled();
   });
 });
@@ -127,7 +138,7 @@ describe("the consistency check the gate box asks for", () => {
     findPriceByLookupKey.mockImplementation(async (key) =>
       key === "plus_v1_usd_900" ? stripePrice() : null,
     );
-    const rows = await checkPriceConsistency();
+    const rows = await checkPriceConsistency("live");
     expect(rows.find((row) => row.ref === "plus@v1")?.verdict).toBe("ok");
     expect(rows.find((row) => row.ref === "premium@v1")?.verdict).toBe("missing");
     expect(rows.find((row) => row.ref === "studio@v1")?.verdict).toBe("unpriced");
@@ -136,7 +147,7 @@ describe("the consistency check the gate box asks for", () => {
 
   it("reports a divergence as a mismatch, which is the finding", async () => {
     findPriceByLookupKey.mockResolvedValue(stripePrice({ unit_amount: 1 }));
-    const rows = await checkPriceConsistency();
+    const rows = await checkPriceConsistency("live");
     expect(rows.find((row) => row.ref === "plus@v1")).toMatchObject({
       verdict: "mismatch",
       committed: { minor: 900, currency: "usd" },
@@ -155,7 +166,7 @@ describe("the consistency check the gate box asks for", () => {
     expect(priced.length).toBeGreaterThan(1);
     const pending: ((price: StripePrice | null) => void)[] = [];
     findPriceByLookupKey.mockImplementation(() => new Promise((resolve) => pending.push(resolve)));
-    const sweep = checkPriceConsistency();
+    const sweep = checkPriceConsistency("live");
     await Promise.resolve();
     expect(findPriceByLookupKey).toHaveBeenCalledTimes(priced.length);
     for (const resolve of pending) resolve(null);

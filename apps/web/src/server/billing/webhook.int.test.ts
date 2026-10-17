@@ -19,17 +19,21 @@ import { eq } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { billingEvents, subscriptions, users } from "@/server/db/schema";
 import { upsertUser } from "@/server/users";
+import { fakeStripeKey, otherFakeStripeKey, signStripePayload } from "@/test-support/stripeSignature";
+import type { StripeMode } from "./config";
 import type { StripeSubscription } from "./stripeApi";
 
-const retrieveSubscription = vi.fn<(id: string) => Promise<StripeSubscription>>();
+const retrieveSubscription = vi.fn<(id: string, mode: StripeMode) => Promise<StripeSubscription>>();
 vi.mock("./stripeApi", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./stripeApi")>()),
-  retrieveSubscription: (id: string) => retrieveSubscription(id),
+  retrieveSubscription: (id: string, mode: StripeMode) => retrieveSubscription(id, mode),
 }));
 
 const { applyStripeEvent } = await import("./webhook");
 const { standingOf } = await import("./standing");
 const { subscriptionFor } = await import("./subscriptions");
+const { entitlementsFor } = await import("@/server/entitlements/resolver");
+const { POST } = await import("@/app/api/stripe/webhook/route");
 
 const DAY = 24 * 60 * 60 * 1000;
 const T0 = new Date("2026-10-01T12:00:00.000Z");
@@ -52,12 +56,16 @@ function subscription(over: Partial<StripeSubscription> & { id: string; userId: 
   };
 }
 
+// Live, as verified by the live secret: what `constructStripeEvent` hands on
+// for a live delivery. The route cases below go through the signature instead.
 function event(type: string, object: unknown, at: Date, id = `evt_${randomUUID()}`) {
   return {
     id,
     type,
     created: Math.floor(at.getTime() / 1000),
+    livemode: true,
     data: { object: object as Record<string, unknown> },
+    mode: "live" as const,
   };
 }
 
@@ -114,7 +122,7 @@ describe("a purchase", () => {
       T0,
     );
 
-    expect(retrieveSubscription).toHaveBeenCalledWith(subId);
+    expect(retrieveSubscription).toHaveBeenCalledWith(subId, "live");
     const row = await subscriptionFor(userId);
     expect(row!.status).toBe("incomplete");
     // `incomplete` is not a conferring status, so nothing was granted.
@@ -136,9 +144,9 @@ describe("a purchase", () => {
   });
 });
 
-// **Every row says its Stripe mode** (ADR-076 §1, §3). This deployment holds
-// one key pair, so everything it writes is live; the held plan's mode is the
-// mode of the subscription that confers it.
+// **Every row says its Stripe mode** (ADR-076 §1, §3): the mode of the secret
+// that verified the delivery. The held plan's mode is the mode of the
+// subscription that confers it.
 describe("the Stripe mode", () => {
   it("records the event, the subscription and the held plan as live", async () => {
     const userId = await makeAccount();
@@ -157,8 +165,7 @@ describe("the Stripe mode", () => {
     const userId = await makeAccount();
     const subId = `sub_${randomUUID()}`;
     await applyStripeEvent(event("customer.subscription.created", subscription({ id: subId, userId }), T0), T0);
-    // Planted: nothing writes a test-mode subscription until the webhook can
-    // verify a test secret.
+    // Planted, so the next event's own mode cannot be what moves the held plan.
     await db.update(subscriptions).set({ livemode: false }).where(eq(subscriptions.stripeSubscriptionId, subId));
 
     const later = new Date(T0.getTime() + 60_000);
@@ -174,6 +181,91 @@ describe("the Stripe mode", () => {
     );
     const [fell] = await db.select().from(users).where(eq(users.id, userId));
     expect(fell).toMatchObject({ planId: "free", planLivemode: true });
+  });
+});
+
+// **Through the route, signed** (ADR-076 §5): a deployment with both pairs,
+// and deliveries signed the way Stripe signs them.
+describe("a delivery signed with the test secret", () => {
+  const TEST_SECRET = otherFakeStripeKey("whsec");
+
+  beforeEach(() => {
+    vi.stubEnv("STRIPE_SECRET_KEY", fakeStripeKey("sk_live"));
+    vi.stubEnv("STRIPE_WEBHOOK_SECRET", fakeStripeKey("whsec"));
+    vi.stubEnv("STRIPE_TEST_SECRET_KEY", fakeStripeKey("sk_test"));
+    vi.stubEnv("STRIPE_TEST_WEBHOOK_SECRET", TEST_SECRET);
+    return () => vi.unstubAllEnvs();
+  });
+
+  function deliver(body: unknown, secret: string): Promise<Response> {
+    const rawBody = JSON.stringify(body);
+    return POST(
+      new Request("http://localhost/api/stripe/webhook", {
+        method: "POST",
+        headers: { "stripe-signature": signStripePayload(rawBody, secret, new Date()) },
+        body: rawBody,
+      }),
+    );
+  }
+
+  function signedEvent(type: string, object: unknown, livemode: boolean) {
+    return {
+      id: `evt_${randomUUID()}`,
+      type,
+      created: Math.floor(Date.now() / 1000),
+      livemode,
+      data: { object },
+    };
+  }
+
+  // The gate box: *an event signed with the test secret but claiming
+  // `livemode: true` is refused*, and refused before the claim, so not even
+  // `billing_events` knows it arrived.
+  it("is refused 400 mode-mismatch, writing nothing, when it says livemode: true", async () => {
+    const userId = await makeAccount();
+    const subId = `sub_${randomUUID()}`;
+    const evt = signedEvent("customer.subscription.created", subscription({ id: subId, userId }), true);
+
+    const response = await deliver(evt, TEST_SECRET);
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "mode-mismatch" });
+    expect(await db.select().from(billingEvents).where(eq(billingEvents.id, evt.id))).toEqual([]);
+    expect(
+      await db.select().from(subscriptions).where(eq(subscriptions.stripeSubscriptionId, subId)),
+    ).toEqual([]);
+    const [account] = await db.select().from(users).where(eq(users.id, userId));
+    expect(account!.planId).toBe("free");
+  });
+
+  it("buys a test-mode plan that confers, recorded as test throughout", async () => {
+    const userId = await makeAccount();
+    const subId = `sub_${randomUUID()}`;
+    retrieveSubscription.mockResolvedValue(subscription({ id: subId, userId }));
+    const evt = signedEvent(
+      "checkout.session.completed",
+      { id: "cs_test", subscription: subId, client_reference_id: `${userId}|plus@v1` },
+      false,
+    );
+
+    const response = await deliver(evt, TEST_SECRET);
+
+    expect(response.status).toBe(200);
+    // Re-fetched with the test key: the live one has never heard of it.
+    expect(retrieveSubscription).toHaveBeenCalledWith(subId, "test");
+    const [claim] = await db.select().from(billingEvents).where(eq(billingEvents.id, evt.id));
+    expect(claim!.livemode).toBe(false);
+    expect((await subscriptionFor(userId))!.livemode).toBe(false);
+    const [account] = await db.select().from(users).where(eq(users.id, userId));
+    expect(account).toMatchObject({ planId: "plus", planLivemode: false });
+    expect((await entitlementsFor(userId)).conferred.planId).toBe("plus");
+  });
+
+  it("is a bad signature when neither secret signed it", async () => {
+    const evt = signedEvent("customer.subscription.created", {}, false);
+    const response = await deliver(evt, fakeStripeKey("sk_test"));
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "bad-signature" });
   });
 });
 

@@ -46,8 +46,8 @@ beforeEach(() => {
 describe("the Stripe customer for an account", () => {
   it("creates one live customer the first time and reuses it after", async () => {
     const userId = await makeAccount();
-    expect(await stripeCustomerFor(userId)).toBe(`cus_${userId}`);
-    expect(await stripeCustomerFor(userId)).toBe(`cus_${userId}`);
+    expect(await stripeCustomerFor(userId, true)).toBe(`cus_${userId}`);
+    expect(await stripeCustomerFor(userId, true)).toBe(`cus_${userId}`);
     expect(createCustomer).toHaveBeenCalledTimes(1);
     expect(await customersOf(userId)).toMatchObject([{ livemode: true, customerId: `cus_${userId}` }]);
   });
@@ -62,7 +62,7 @@ describe("the Stripe customer for an account", () => {
       await bothRead;
       return { id: `cus_${id}` };
     });
-    const both = await Promise.all([stripeCustomerFor(userId), stripeCustomerFor(userId)]);
+    const both = await Promise.all([stripeCustomerFor(userId, true), stripeCustomerFor(userId, true)]);
     expect(both).toEqual([`cus_${userId}`, `cus_${userId}`]);
     expect(await customersOf(userId)).toHaveLength(1);
   });
@@ -73,7 +73,7 @@ describe("the Stripe customer for an account", () => {
     const userId = await makeAccount();
     await db.insert(stripeCustomers).values({ userId, livemode: false, customerId: "cus_test_only" });
 
-    expect(await stripeCustomerFor(userId)).toBe(`cus_${userId}`);
+    expect(await stripeCustomerFor(userId, true)).toBe(`cus_${userId}`);
     expect(createCustomer).toHaveBeenCalledTimes(1);
     expect(await stripeCustomerFor(userId, false)).toBe("cus_test_only");
     const [test] = await db
@@ -84,7 +84,7 @@ describe("the Stripe customer for an account", () => {
   });
 
   it("refuses to invent a customer for an account that does not exist", async () => {
-    await expect(stripeCustomerFor(`dev-${randomUUID()}`)).rejects.toThrow(/No users row/);
+    await expect(stripeCustomerFor(`dev-${randomUUID()}`, true)).rejects.toThrow(/No users row/);
     expect(createCustomer).not.toHaveBeenCalled();
   });
 });
@@ -105,7 +105,7 @@ describe("a customer id from before stripe_customers", () => {
     await db.update(users).set({ stripeCustomerId: "cus_from_before" }).where(eq(users.id, userId));
     await db.execute(sql.raw(copy!));
 
-    expect(await stripeCustomerFor(userId)).toBe("cus_from_before");
+    expect(await stripeCustomerFor(userId, true)).toBe("cus_from_before");
     expect(createCustomer).not.toHaveBeenCalled();
   });
 });

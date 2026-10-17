@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { fakeStripeKey } from "@/test-support/stripeSignature";
+import { fakeStripeKey, otherFakeStripeKey } from "@/test-support/stripeSignature";
 import {
   BillingNotConfiguredError,
   StripeKeyShapeError,
@@ -9,6 +9,7 @@ import {
   modeOfSecretKey,
   parseCheckoutReference,
   returnOrigin,
+  stripeKeyPair,
 } from "./config";
 
 // **The gate box this file answers**: *"Stripe keys are absent from the repo,
@@ -20,7 +21,12 @@ import {
 // beside it, so the confusion the box names is not a mistake anyone can make —
 // there is no second place to disagree with.
 
-const KEYS = ["STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET"] as const;
+const KEYS = [
+  "STRIPE_SECRET_KEY",
+  "STRIPE_WEBHOOK_SECRET",
+  "STRIPE_TEST_SECRET_KEY",
+  "STRIPE_TEST_WEBHOOK_SECRET",
+] as const;
 const saved = new Map<string, string | undefined>();
 
 function setEnv(values: Partial<Record<(typeof KEYS)[number], string>>): void {
@@ -86,7 +92,79 @@ describe("billing that is not configured", () => {
     expect(billingConfigured()).toBe(false);
     setEnv({ STRIPE_SECRET_KEY: fakeStripeKey("sk_test"), STRIPE_WEBHOOK_SECRET: fakeStripeKey("whsec") });
     expect(billingConfigured()).toBe(true);
-    expect(billingConfig().mode).toBe("test");
+    expect(billingConfig().primary).toBe("test");
+  });
+});
+
+// **The second pair** (ADR-076 §5): test mode beside live on one deployment.
+// The pair is named for its mode, so a key of the other mode in it is the
+// confusion the gate box above is about, arriving by a new door.
+describe("a test key pair beside the live one", () => {
+  const LIVE = { STRIPE_SECRET_KEY: fakeStripeKey("sk_live"), STRIPE_WEBHOOK_SECRET: fakeStripeKey("whsec") };
+
+  it("is read as the test pair, with the primary pair still live", () => {
+    setEnv({
+      ...LIVE,
+      STRIPE_TEST_SECRET_KEY: fakeStripeKey("sk_test"),
+      STRIPE_TEST_WEBHOOK_SECRET: otherFakeStripeKey("whsec"),
+    });
+    expect(billingConfig()).toEqual({
+      primary: "live",
+      live: { secretKey: fakeStripeKey("sk_live"), webhookSecret: fakeStripeKey("whsec") },
+      test: { secretKey: fakeStripeKey("sk_test"), webhookSecret: otherFakeStripeKey("whsec") },
+    });
+  });
+
+  it("is absent when neither of its variables is set", () => {
+    setEnv(LIVE);
+    expect(billingConfig().test).toBeUndefined();
+  });
+
+  it("refuses a live key in STRIPE_TEST_SECRET_KEY", () => {
+    setEnv({
+      ...LIVE,
+      STRIPE_TEST_SECRET_KEY: fakeStripeKey("sk_live"),
+      STRIPE_TEST_WEBHOOK_SECRET: otherFakeStripeKey("whsec"),
+    });
+    expect(() => billingConfig()).toThrow(StripeKeyShapeError);
+    expect(() => billingConfig()).toThrow(/STRIPE_TEST_SECRET_KEY/);
+  });
+
+  it("refuses two test pairs", () => {
+    setEnv({
+      STRIPE_SECRET_KEY: fakeStripeKey("sk_test"),
+      STRIPE_WEBHOOK_SECRET: fakeStripeKey("whsec"),
+      STRIPE_TEST_SECRET_KEY: fakeStripeKey("sk_test"),
+      STRIPE_TEST_WEBHOOK_SECRET: otherFakeStripeKey("whsec"),
+    });
+    expect(() => billingConfig()).toThrow(StripeKeyShapeError);
+    expect(() => billingConfig()).toThrow(/two test-mode pairs/);
+  });
+
+  it("refuses a secret key in the test webhook secret's place", () => {
+    setEnv({
+      ...LIVE,
+      STRIPE_TEST_SECRET_KEY: fakeStripeKey("sk_test"),
+      STRIPE_TEST_WEBHOOK_SECRET: fakeStripeKey("sk_test"),
+    });
+    expect(() => billingConfig()).toThrow(/STRIPE_TEST_WEBHOOK_SECRET/);
+  });
+
+  // Half a pair could sign nothing or verify nothing, and either half alone
+  // reads in a dashboard as "test mode is set up".
+  it.each([
+    ["only its secret key", { STRIPE_TEST_SECRET_KEY: fakeStripeKey("sk_test") }, /STRIPE_TEST_WEBHOOK_SECRET/],
+    ["only its webhook secret", { STRIPE_TEST_WEBHOOK_SECRET: otherFakeStripeKey("whsec") }, /STRIPE_TEST_SECRET_KEY/],
+  ])("refuses %s", (_what, half, names) => {
+    setEnv({ ...LIVE, ...half });
+    expect(() => billingConfig()).toThrow(BillingNotConfiguredError);
+    expect(() => billingConfig()).toThrow(names);
+  });
+
+  it("names the test pair when a test-mode call has none", () => {
+    setEnv(LIVE);
+    expect(() => stripeKeyPair("test")).toThrow(/STRIPE_TEST_SECRET_KEY/);
+    expect(stripeKeyPair("live").secretKey).toBe(fakeStripeKey("sk_live"));
   });
 });
 

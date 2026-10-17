@@ -19,7 +19,12 @@
 // `POST /v1/customers` — where the request succeeded and the response was
 // lost — creates a second customer on the retry, which is how an account ends
 // up with two invoice histories and the portal shows the wrong one.
-import { billingConfig } from "./config";
+//
+// **And a mode on every call** (ADR-076 §5, §7). A deployment may hold a live
+// and a test key, and the two address separate Stripe accounts: an id from one
+// is a 404 in the other. So no call here picks a key for itself; each caller
+// says which account it means.
+import { stripeKeyPair, type StripeMode } from "./config";
 
 const STRIPE_API = "https://api.stripe.com/v1";
 
@@ -126,6 +131,8 @@ export function formEncode(payload: Record<string, unknown>, prefix = ""): strin
 }
 
 interface StripeRequest {
+  /** Which Stripe account this is asked of, and so which key it carries. */
+  mode: StripeMode;
   method: "GET" | "POST";
   path: string;
   body?: Record<string, unknown>;
@@ -150,7 +157,7 @@ interface StripeRequest {
  * response worth preserving in a type.
  */
 export async function stripeRequest<T>(request: StripeRequest): Promise<T> {
-  const { secretKey } = billingConfig();
+  const { secretKey } = stripeKeyPair(request.mode);
   const query =
     request.query === undefined ? "" : `?${new URLSearchParams(request.query).toString()}`;
   const headers: Record<string, string> = {
@@ -286,8 +293,10 @@ export interface StripeList<T> {
 export async function createCustomer(input: {
   userId: string;
   email: string | null;
+  mode: StripeMode;
 }): Promise<StripeCustomer> {
   return stripeRequest<StripeCustomer>({
+    mode: input.mode,
     method: "POST",
     path: "/customers",
     body: {
@@ -297,10 +306,11 @@ export async function createCustomer(input: {
       // table, and what a support question starts from.
       metadata: { userId: input.userId },
     },
-    // One customer per account, forever. The account id is exactly the right
-    // idempotency key: two concurrent first checkouts by the same person
-    // produce one customer, which is the defect the header describes.
-    idempotencyKey: `customer:${input.userId}`,
+    // One customer per account per mode, forever (ADR-076 §2). The account id
+    // and the mode are exactly the right idempotency key: two concurrent first
+    // checkouts by the same person produce one customer, which is the defect
+    // the header describes.
+    idempotencyKey: `customer:${input.mode}:${input.userId}`,
   });
 }
 
@@ -326,14 +336,19 @@ export async function createCustomer(input: {
 // both reach here through `stripePriceFor`. `retrieveSubscriptionWithItems`
 // below already spelled its `expand[]` correctly, which is why the symptom was
 // confined to price resolution. `stripeApi.test.ts` pins both.
-export async function findPriceByLookupKey(lookupKey: string): Promise<StripePrice | null> {
+export async function findPriceByLookupKey(
+  lookupKey: string,
+  mode: StripeMode,
+): Promise<StripePrice | null> {
   const [active, archived] = await Promise.all([
     stripeRequest<StripeList<StripePrice>>({
+      mode,
       method: "GET",
       path: "/prices",
       query: { "lookup_keys[]": lookupKey, active: "true", limit: "2" },
     }),
     stripeRequest<StripeList<StripePrice>>({
+      mode,
       method: "GET",
       path: "/prices",
       query: { "lookup_keys[]": lookupKey, active: "false", limit: "2" },
@@ -349,8 +364,10 @@ export async function createPrice(input: {
   currency: string;
   unitAmount: number;
   productName: string;
+  mode: StripeMode;
 }): Promise<StripePrice> {
   return stripeRequest<StripePrice>({
+    mode: input.mode,
     method: "POST",
     path: "/prices",
     body: {
@@ -370,8 +387,9 @@ export async function createPrice(input: {
   });
 }
 
-export async function retrieveSubscription(id: string): Promise<StripeSubscription> {
+export async function retrieveSubscription(id: string, mode: StripeMode): Promise<StripeSubscription> {
   return stripeRequest<StripeSubscription>({
+    mode,
     method: "GET",
     path: `/subscriptions/${stripeId(id, "subscription id")}`,
   });
@@ -416,8 +434,10 @@ export async function previewSubscriptionChange(input: {
   subscriptionId: string;
   subscriptionItemId: string;
   priceId: string;
+  mode: StripeMode;
 }): Promise<StripeInvoicePreview> {
   return stripeRequest<StripeInvoicePreview>({
+    mode: input.mode,
     method: "POST",
     path: "/invoices/create_preview",
     body: {
@@ -444,9 +464,11 @@ export async function previewSubscriptionChange(input: {
 export async function updateSubscription(
   subscriptionId: string,
   body: Record<string, unknown>,
+  mode: StripeMode,
   idempotencyKey?: string,
 ): Promise<StripeSubscription> {
   return stripeRequest<StripeSubscription>({
+    mode,
     method: "POST",
     path: `/subscriptions/${stripeId(subscriptionId, "subscription id")}`,
     body,
@@ -455,8 +477,12 @@ export async function updateSubscription(
 }
 
 /** The subscription with its items expanded, which a change needs the id of. */
-export async function retrieveSubscriptionWithItems(id: string): Promise<StripeSubscription> {
+export async function retrieveSubscriptionWithItems(
+  id: string,
+  mode: StripeMode,
+): Promise<StripeSubscription> {
   return stripeRequest<StripeSubscription>({
+    mode,
     method: "GET",
     path: `/subscriptions/${stripeId(id, "subscription id")}`,
     query: { "expand[]": "items.data.price" },
@@ -464,8 +490,12 @@ export async function retrieveSubscriptionWithItems(id: string): Promise<StripeS
 }
 
 /** The card a customer has on file, for the confirm step's one honest line. */
-export async function defaultPaymentMethod(customerId: string): Promise<StripePaymentMethod | null> {
+export async function defaultPaymentMethod(
+  customerId: string,
+  mode: StripeMode,
+): Promise<StripePaymentMethod | null> {
   const found = await stripeRequest<StripeList<StripePaymentMethod>>({
+    mode,
     method: "GET",
     path: "/payment_methods",
     query: { customer: customerId, type: "card", limit: "1" },

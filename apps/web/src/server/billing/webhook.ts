@@ -26,7 +26,7 @@ import { db } from "@/server/db/client";
 import { billingEvents, subscriptions, users } from "@/server/db/schema";
 import { isPublishedRef, livePlanVersion } from "@/server/entitlements/planVersions";
 import { parseCheckoutReference } from "./config";
-import type { StripeEvent } from "./signature";
+import type { VerifiedStripeEvent } from "./signature";
 import { retrieveSubscription, type StripeSubscription } from "./stripeApi";
 import {
   applySubscriptionFacts,
@@ -110,7 +110,7 @@ const CLAIM_LEASE_MS = 60_000;
  * and only one statement can move `received_at` under it.
  */
 
-async function claimEvent(event: StripeEvent, now: Date): Promise<boolean> {
+async function claimEvent(event: VerifiedStripeEvent, now: Date): Promise<boolean> {
   const inserted = await db
     .insert(billingEvents)
     .values({
@@ -118,9 +118,8 @@ async function claimEvent(event: StripeEvent, now: Date): Promise<boolean> {
       type: event.type,
       eventAt: new Date(event.created * 1000),
       receivedAt: now,
-      // Live until part 2 of M47 verifies a test-mode secret and passes its
-      // mode here: this deployment holds one key pair, and it is live.
-      livemode: true,
+      // The verifying secret's mode, never the body's (ADR-076 §5).
+      livemode: event.mode === "live",
       appliedAt: null,
     })
     .onConflictDoNothing()
@@ -243,7 +242,7 @@ function statusOf(subscription: StripeSubscription): SubscriptionStatus | null {
  */
 async function writeFrom(
   subscription: StripeSubscription,
-  event: StripeEvent,
+  event: VerifiedStripeEvent,
   now: Date,
 ): Promise<WebhookOutcome> {
   const existing = await subscriptionByStripeId(subscription.id);
@@ -261,8 +260,8 @@ async function writeFrom(
     userId: who.userId,
     stripeCustomerId: subscription.customer,
     stripeSubscriptionId: subscription.id,
-    // Live for the reason `claimEvent` gives.
-    livemode: true,
+    // The mode for the reason `claimEvent` gives.
+    livemode: event.mode === "live",
     planId: who.planId,
     planVersion: who.planVersion,
     status,
@@ -328,12 +327,13 @@ function subscriptionIdOnInvoice(object: Record<string, unknown>): string | null
 /**
  * **Apply one verified Stripe event.**
  *
- * The caller has already verified the signature; this is everything after
- * that, and it is written so that "what happens on a redelivery" is one branch
- * at the top rather than a property each handler has to preserve.
+ * The caller has already verified the signature, and `event.mode` is the
+ * mode of the secret that did. This is everything after that, and it is
+ * written so that "what happens on a redelivery" is one branch at the top
+ * rather than a property each handler has to preserve.
  */
 export async function applyStripeEvent(
-  event: StripeEvent,
+  event: VerifiedStripeEvent,
   now: Date = new Date(),
 ): Promise<WebhookOutcome> {
   if (!HANDLED.has(event.type)) return { applied: false, note: "ignored" };
@@ -365,8 +365,9 @@ export async function applyStripeEvent(
     // **Fetched from Stripe rather than read off the session.** The session
     // carries a subscription ID and none of its state, and reading state from
     // the object the browser's return was about is how a redirect becomes a
-    // grant. This asks Stripe.
-    const subscription = await retrieveSubscription(subscriptionId);
+    // grant. This asks Stripe — in the event's own mode, since the other
+    // mode's key has never heard of this subscription.
+    const subscription = await retrieveSubscription(subscriptionId, event.mode);
     // The session is the one place the account id is stated outright, so an
     // attribution that would otherwise fail is rescued here — a subscription
     // created before `subscription_data.metadata` existed, for instance.
@@ -390,7 +391,7 @@ export async function applyStripeEvent(
   // Both invoice events: find the subscription they are about and reconcile it.
   const subscriptionId = subscriptionIdOnInvoice(object);
   if (subscriptionId === null) return finish({ applied: false, note: "ignored" });
-  const subscription = await retrieveSubscription(subscriptionId);
+  const subscription = await retrieveSubscription(subscriptionId, event.mode);
   const outcome = await writeFrom(subscription, event, now);
 
   // **The decline's date, which only this event knows** (M21 link 6). The

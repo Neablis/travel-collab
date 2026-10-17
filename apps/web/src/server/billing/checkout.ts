@@ -20,7 +20,7 @@ import {
   planVersionRefOf,
   type PlanVersion,
 } from "@/server/entitlements/planVersions";
-import { checkoutReference } from "./config";
+import { billingConfig, checkoutReference, modeOfLivemode } from "./config";
 import { stripePriceFor, UnpurchasableVersionError } from "./prices";
 import { createCustomer, stripeRequest, type StripeCheckoutSession, type StripePortalSession } from "./stripeApi";
 import { subscriptionFor } from "./subscriptions";
@@ -31,7 +31,7 @@ import { subscriptionFor } from "./subscriptions";
  *
  * **One per account per mode** (ADR-076 §2): test and live are separate
  * customer spaces at Stripe, so each mode has its own row in
- * `stripe_customers`. Live is the only mode a checkout starts in until the
+ * `stripe_customers`. A checkout starts in the primary pair's mode until the
  * admin test-mode switch exists (ADR-076 §6).
  *
  * **Written here and not by the webhook**, which is the one exception to link
@@ -46,7 +46,7 @@ import { subscriptionFor } from "./subscriptions";
  * for this account and mode. Two concurrent first checkouts therefore produce
  * one customer and one write.
  */
-export async function stripeCustomerFor(userId: string, livemode = true): Promise<string> {
+export async function stripeCustomerFor(userId: string, livemode: boolean): Promise<string> {
   const rows = await db
     .select({ email: users.email, customerId: stripeCustomers.customerId })
     .from(users)
@@ -66,7 +66,7 @@ export async function stripeCustomerFor(userId: string, livemode = true): Promis
   }
   if (row.customerId !== null) return row.customerId;
 
-  const customer = await createCustomer({ userId, email: row.email });
+  const customer = await createCustomer({ userId, email: row.email, mode: modeOfLivemode(livemode) });
   // **Only if there is still none.** Another request may have created and
   // written one between the read above and here; Stripe's idempotency key
   // means it is the SAME customer, so this is a race with no loser — but the
@@ -165,12 +165,16 @@ export async function startCheckout(input: {
     );
   }
 
+  // **The primary pair's mode**: live on production, test on a deployment
+  // whose only keys are test keys. Part 3 of M47 makes it the account's switch.
+  const mode = billingConfig().primary;
   const [customerId, priceId] = await Promise.all([
-    stripeCustomerFor(input.userId),
-    stripePriceFor(version),
+    stripeCustomerFor(input.userId, mode === "live"),
+    stripePriceFor(version, mode),
   ]);
 
   const session = await stripeRequest<StripeCheckoutSession>({
+    mode,
     method: "POST",
     path: "/checkout/sessions",
     body: {
@@ -225,8 +229,10 @@ export async function portalUrlFor(input: {
   userId: string;
   returnOrigin: string;
 }): Promise<string> {
-  const customerId = await stripeCustomerFor(input.userId);
+  const mode = billingConfig().primary;
+  const customerId = await stripeCustomerFor(input.userId, mode === "live");
   const session = await stripeRequest<StripePortalSession>({
+    mode,
     method: "POST",
     path: "/billing_portal/sessions",
     // **Home, because there is no `/account` route to return to.** Account

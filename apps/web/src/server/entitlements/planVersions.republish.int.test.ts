@@ -26,12 +26,13 @@
 // all against a real database. **What is mocked:** Stripe, at the four
 // functions of `stripeApi.ts` these paths call, and nothing further in.
 import { randomUUID } from "node:crypto";
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { eq, inArray } from "drizzle-orm";
 import type { PlanId } from "@tc/contracts";
 import { db } from "@/server/db/client";
 import { subscriptions, users } from "@/server/db/schema";
 import { upsertUser } from "@/server/users";
+import { fakeStripeKey } from "@/test-support/stripeSignature";
 import type { StripePrice, StripeSubscription } from "@/server/billing/stripeApi";
 import type { PlanVersion } from "./planVersions";
 
@@ -168,7 +169,9 @@ function event(type: string, object: unknown, at: Date) {
     id: `evt_${randomUUID()}`,
     type,
     created: Math.floor(at.getTime() / 1000),
+    livemode: true,
     data: { object: object as Record<string, unknown> },
+    mode: "live" as const,
   };
 }
 
@@ -265,6 +268,12 @@ describe("republishing plus at a new price", () => {
   it("sells the new version, at the new price, to the next buyer", async () => {
     republished.push(PLUS_V2);
     const userId = await makeAccount();
+    // A checkout reads which mode to sell in from the configured key pair.
+    vi.stubEnv("STRIPE_SECRET_KEY", fakeStripeKey("sk_live"));
+    vi.stubEnv("STRIPE_WEBHOOK_SECRET", fakeStripeKey("whsec"));
+    onTestFinished(() => {
+      vi.unstubAllEnvs();
+    });
 
     const started = await startCheckout({ userId, planId: "plus", returnOrigin: "https://app.test" });
 
