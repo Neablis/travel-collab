@@ -2,14 +2,15 @@
 
 **Status:** **Built ahead of the milestone order, with Mitchell's approval; the gate is not
 closed.** It was proposed on 2026-10-11 and placed after M47. The RAG stack merged on
-2026-10-15/16 as PRs 459 to 467, all but 461 (migration `0054_rag_day_embeddings`). It is in production
-behind `RAG_PLAN_RETRIEVAL`, which is off.
+2026-10-15/16 as PRs 459 to 467 (migration `0054_rag_day_embeddings`), and the Gate 1 eval,
+PR 461, merged last, on 2026-10-17. It is in production behind `RAG_PLAN_RETRIEVAL`, which is
+off.
 - **Decisions:** 2, 3, 5, 6, 7, 8, 9 and 10 are answered by what was built. Mitchell said on
   2026-10-17 to record them that way. Decision 4 is partly answered, and 1 and 11 are open.
 - **The index:** ADR-075.
 - **The gate:** 3 of 11 boxes, each with its evidence below.
-- **PR 461**, the Gate 1 eval, is still an open draft. A disposition is recommended below,
-  pending Mitchell.
+- **PR 461**, the Gate 1 eval, merged on 2026-10-17 (merge commit `97caeb0`), on Mitchell's
+  call so it can be re-run from `main`. Where it lives and how it runs is below.
 
 Minted on Mitchell's ask the same day (*"Add as a
 upcoming milestone this new feature … its a starting point to validate the proposal, not the
@@ -156,7 +157,7 @@ About the feature:
 5. **The bar for "examples can be found"** (Sunny's question 1). *Recommended:* recall@5 ≥ 0.7
    as proposed, plus the coverage count above.
    **Answered for recall, open for coverage.** The bar is macro recall@5 ≥ 0.7 over 25
-   hand-labelled real requests. The eval that measures it is in PR 461 and has not merged. The
+   hand-labelled real requests. The eval that measures it merged on 2026-10-17 (PR 461). The
    coverage count, how many real requests have any fitting example at all, was never taken.
 6. **The bar for "it costs less".** *Recommended:* ≥ 25% lower cost per plan turn at equal
    quality, in dollars, across three arms: today, today's tier with examples, a cheaper tier with
@@ -198,40 +199,49 @@ About how it is built:
     **Open.** Sunny has not yet said what the *"Jev evidence filter"* and *"one packed `noul`
     per candidate"* mean, and nothing for a second pass has been built.
 
-## The Gate 1 eval branch (PR 461)
+## The Gate 1 eval (PR 461, on `main` since 2026-10-17)
 
-What it is: draft PR 461, `sunny/rag-part3-gate1`, head `ebb8a19`, opened 2026-10-16 and still
-open. Against `main` it adds seven files:
-- the 25 labelled queries (`planRetrieval.recall.dataset.ts`);
-- a label resolver that looks labels up by name, and its tests (`planRetrieval.recall.resolve.ts`);
-- the paid recall eval (`planRetrieval.recall.eval.ts`), which runs in a fixture mode or against
-  production;
-- a free CI test of the dataset;
+PR 461, `sunny/rag-part3-gate1` (head `ebb8a19`), opened 2026-10-16 and merged to `main` on
+2026-10-17 05:40 UTC as merge commit `97caeb0`. Mitchell merged it so the eval can be re-run from
+`main` instead of from a branch. It added seven files and 1,365 lines
+(`git diff --stat 97caeb0^1 97caeb0`):
+- `apps/web/src/server/ai/eval/planRetrieval.recall.dataset.ts`: the 25 labelled queries;
+- `apps/web/src/server/ai/eval/planRetrieval.recall.resolve.ts`: a resolver that looks labels up
+  by name, with `planRetrieval.recall.resolve.test.ts`;
+- `apps/web/src/server/ai/eval/planRetrieval.recall.eval.ts`: the paid recall eval;
+- `apps/web/src/server/ai/eval/planRetrieval.recall.dataset.test.ts`: the free half (dataset
+  invariants, labels resolved against the checked-in content), which runs in CI;
 - `docs/evals/gate1-recall-runbook.md`;
-- an optional `excludeSourceIds` parameter on `retrieveDayChunks`, which only the eval passes.
+- an optional `excludeSourceIds` parameter on `retrieveDayChunks` in
+  `apps/web/src/server/ai/retrieval.ts`, which only the eval passes.
 
-GitHub reports it mergeable and clean. A trial merge with `git merge-tree` shows no conflict with
-`main` or with the branch that carries the privacy fix.
+**How it is run** (the header of `planRetrieval.recall.eval.ts`, and the runbook):
+- Fixture mode, which seeds the 19 playbook bundles and the Japan fixture trip into the lane's
+  throwaway Postgres and embeds them through the real sweep:
+  `RECALL_EVAL_CONFIRM=1 pnpm --filter web eval -- planRetrieval.recall`.
+- Production mode, against an already-backfilled Neon database:
+  `RECALL_EVAL_PRODUCTION=1 RECALL_EVAL_USER_ID=… RECALL_EVAL_JAPAN_TRIP_ID=… RECALL_EVAL_CONFIRM=1 TRAVEL_COLLAB_EVAL_KEY=… DATABASE_URL=… pnpm --filter web eval:run -- planRetrieval.recall`.
 
-**None of it landed through another PR.** No recall eval, dataset or Gate 1 runbook exists on
-`main`. Main's Gate 2 dataset points at the branch by name
-(`planRetrieval.gate2.dataset.ts:6-7`).
+**Either mode spends money.** It calls the embedding model (`openai/text-embedding-3-small`)
+through the AI Gateway on the paid `TRAVEL_COLLAB_EVAL_KEY`: 187 embeds in fixture mode, 25 in
+production mode. It is the eval lane (`vitest.eval.config.ts`), which is not in CI, so a run
+needs Mitchell's ask (`AGENTS.md`: *never run the live eval without asking Mitchell first*).
+The verdict is macro recall@5, PASS at 0.7 or more, and the per-query report is written to the
+git-ignored `eval-results/`.
 
-**Gate 1's result is recorded only as prose**, never as a report. The first run scored 0.607 and
-the re-run 0.740 (`docs/guidelines/building-with-judgment.md:27,50`; the runbook for Gate 2,
-line 4; the body of PR 465). The per-query JSON report is git-ignored, and the coverage count was
-never taken. The 0.84 in the branch's own runbook is sample output, not a result.
+**Gate 1's result is still recorded only as prose**, never as a report. The first run scored
+0.607 and the re-run 0.740 (`docs/guidelines/building-with-judgment.md`; the Gate 2 runbook,
+line 4; the body of PR 465). The coverage count was never taken.
 
-**Recommendation, pending Mitchell: merge it, after one review pass.** It is the only runnable
-record of the first offline check, which the exit gate asks to have pasted here. `main` already
-carries the Gate 2 paid eval on the same terms, so *"eval-only branches stay branches"*
-(`building-with-judgment.md:61`) is not what `main` does. Two things to check in that review:
-- whether `excludeSourceIds`, a parameter on the serving function used only by the eval, should
-  stay;
-- that the runbook says the real result rather than leaving 0.84 as the only number.
-
-If Mitchell prefers to close it, record head `ebb8a19` here so the eval stays retrievable from
-history, and change the comment in `planRetrieval.gate2.dataset.ts` to point at that commit.
+Left behind by the merge, for a later pass:
+- `static / lint` was red on the head it merged at (`ebb8a19`,
+  [run 39007094868](https://github.com/Neablis/travel-collab/actions/runs/39007094868), so
+  `ci-ok` failed), and CI does not run on `main`. Its annotations name no file; the cause is
+  not yet known;
+- the runbook still says to check out `sunny/rag-part3-gate1` (lines 19 and 119), and its only
+  number is the sample output 0.84 (lines 92 and 174), not the real result;
+- the comment in `planRetrieval.gate2.dataset.ts:6-7` still points at the branch, not at `main`;
+- whether `excludeSourceIds`, a serving-function parameter only the eval uses, should stay.
 
 ## Scope
 
@@ -265,8 +275,9 @@ should. The flag is off.
       and no serving code.
       *(2026-10-17: it was run, and macro recall@5 is reported as 0.607, then 0.740 after the
       fixes, against a bar of 0.7. That number is recorded only in prose
-      (`building-with-judgment.md`, the body of PR 465). The coverage count was never taken, and
-      the eval is on the unmerged PR 461. Not ticked until the per-query numbers and the coverage
+      (`building-with-judgment.md`, the body of PR 465). The coverage count was never taken. The
+      eval merged to `main` on 2026-10-17 (PR 461, *The Gate 1 eval* above), so it can be re-run
+      from there, on Mitchell's ask. Not ticked until the per-query numbers and the coverage
       count are pasted here.)*
 - [ ] **The second offline check is run and its three arms are pasted here**, in dollars per
       turn, with the quality verdict. Below the bar, the same.

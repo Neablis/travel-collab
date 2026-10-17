@@ -21,19 +21,18 @@ general setup.
 
 ## Where the work is right now
 
-**M46 — A trip has a conversation, with the people taking it — is the current milestone**, since
-M45's gate closed on 2026-10-13 (`docs/milestones/M46-a-trip-has-a-conversation.md`). All of its
-code is on `main`: parts 1 to 6 (PR 433, PRs 435-436, PRs 438-447, including the walk fixes)
-merged 2026-10-13 and 2026-10-14, with migrations `0048` to `0052`. Chat is its own store
-(ADR-073), live on the events poll by `chatRev`, a *Chat · Ask* tab in the assistant rail.
-Part 0 (PR 432) merged 2026-10-14 too, before its gate. **The gate is 0 of 10 and there is no
-retro.**
+**M46 — A trip has a conversation, with the people taking it — is still the current milestone**
+(`docs/milestones/M46-a-trip-has-a-conversation.md`). All of its code is on `main`: parts 1 to 6
+and the walk fixes (PRs 433, 435, 436, 438-447), merged 2026-10-13 and 14, migrations `0048` to
+`0052`. **The gate is 9 of 10, with evidence for each box, and the retro is appended
+(2026-10-17).** The one open box is Mitchell's: the **[walk]** with two people on a preview, one on
+a phone. Its steps are written in the box. `pnpm milestone close M46` refuses until it is ticked.
 
-**Next action: close M46's gate** with `close-a-milestone`: tick each box only on its evidence
-(the integration tests and the ci-like e2e as CI ran them on the merged parts), get Mitchell's
-two-person walk (one on a phone), append the retro, run `pnpm milestone close M46`, and delete
-`docs/plans/2026-10-13-M46-a-trip-has-a-conversation.md`. Whether production holds every
-migration is `pnpm state`'s `PROD MIGRATIONS` line, not a number here.
+**Next action:** Mitchell walks M46. Once he ticks the box, run
+`pnpm milestone close M46 --no-spend "<reason>"`: the build transcripts are gone, and the retro's
+spend block comes from `list_sessions`. Then run it again with `--confirm`, and M47 becomes
+current (`docs/milestones/M47-the-business-over-time.md`, planning in progress). Whether
+production holds every migration is `pnpm state`'s `PROD MIGRATIONS` line, not a number here.
 
 **Built off the milestone order, by Mitchell's approval (2026-10-17).** Three things were moved
 up ahead of the row order, and each was his call. This is his waiver, recorded here once, of
@@ -42,7 +41,8 @@ up ahead of the row order, and each was his call. This is his waiver, recorded h
 - **Trip guests**: travellers who are not on the app (PR 457, its parts stacked into it,
   ADR-074, migration `0053`).
 - **Plan-retrieval RAG, M48's serving code**: PRs 459-467, migration `0054`, pgvector in Neon
-  (ADR-075). It serves only behind a flag that is off by default. M48 is **not current**: its
+  (ADR-075). It serves only behind a flag that is off by default. The Gate 1 recall eval
+  (PR 461) merged on 2026-10-17 too, on Mitchell's call, so it can be re-run from `main`. M48 is **not current**: its
   row keeps its place, and its decisions and remaining gate boxes are in
   `docs/milestones/M48-plans-start-from-examples.md`.
 - **M46's part 0**, PR 432, merged before the gate rather than last.

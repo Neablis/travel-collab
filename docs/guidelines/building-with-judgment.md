@@ -58,9 +58,11 @@ Each merged on its own, in order, with its own review. No big-bang PRs. The
 stack is visible in the PR list, and any part can be held, reviewed, or
 reverted without dragging the rest.
 
-Eval-only branches stay branches. The Gate 1 eval (PR #461) never merged —
-it exists to be run, not shipped. Serving code and eval code have different
-lifetimes; don't weld them together.
+Eval code and serving code have different lifetimes, so they go in separate
+PRs; don't weld them together. The Gate 1 recall eval (PR 461) was its own PR
+for that reason, and it merged on 2026-10-17 on Mitchell's call so that it
+can be re-run from `main` rather than from a branch. A paid eval on `main` is
+still run only when Mitchell asks (`AGENTS.md`); CI runs only its free half.
 
 ## Fix forward; production blockers get immediate PRs
 
