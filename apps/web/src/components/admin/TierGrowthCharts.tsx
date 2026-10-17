@@ -26,7 +26,9 @@ import { count, shortDay } from "./aiFormat";
 // not the first one the 26-week window draws.
 //
 // **"as of <week>" rather than "now"** when the newest row is not this week's:
-// a cron that has stopped would otherwise go on reading as current.
+// a cron that has stopped would otherwise go on reading as current. The net
+// then says the week it runs to, for the same reason. Stopped for longer than
+// the window, every tier has no points; `lastWeek` tells that from never run.
 
 const CHART_HEIGHT = 72;
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -51,9 +53,11 @@ export function netChange(points: readonly Point[]): { delta: number; weeks: num
   return { delta: now.accounts - from.accounts, weeks: weeksBetween(from.weekStart, now.weekStart) };
 }
 
-function netLabel(net: { delta: number; weeks: number }): string {
+/** `staleTo` is the newest week when it is not this one: "last" would then mean before today. */
+function netLabel(net: { delta: number; weeks: number }, staleTo: string | null): string {
   const signed = net.delta > 0 ? `+${count(net.delta)}` : net.delta < 0 ? `−${count(-net.delta)}` : "0";
-  return `${signed} net, last ${net.weeks} week${net.weeks === 1 ? "" : "s"}`;
+  const span = `${net.weeks} week${net.weeks === 1 ? "" : "s"}`;
+  return staleTo ? `${signed} net, ${span} to ${shortDay(staleTo)}` : `${signed} net, last ${span}`;
 }
 
 type Hover = { active?: boolean; payload?: readonly { payload?: unknown }[] };
@@ -76,7 +80,8 @@ function TierCard({ tier, thisWeek }: { tier: AdminTierSeriesRow; thisWeek: stri
   const since = tier.firstWeek ?? first?.weekStart;
   const peak = Math.max(...points.map((point) => point.accounts));
   const net = netChange(points);
-  const asOf = now && now.weekStart !== thisWeek ? `as of ${shortDay(now.weekStart)}` : "now";
+  const staleTo = now && now.weekStart !== thisWeek ? now.weekStart : null;
+  const asOf = staleTo ? `as of ${shortDay(staleTo)}` : "now";
   return (
     <section
       aria-label={`${planId} accounts by week`}
@@ -95,10 +100,10 @@ function TierCard({ tier, thisWeek }: { tier: AdminTierSeriesRow; thisWeek: stri
           className={net.delta > 0 ? "text-success-ink" : undefined}
           data-testid={`tier-growth-${planId}-net`}
         >
-          {netLabel(net)}
+          {netLabel(net, staleTo)}
         </DataText>
       ) : (
-        <Text as="span" className="text-xs text-slate">
+        <Text as="span" className="text-xs text-slate" data-testid={`tier-growth-${planId}-net`}>
           {points.length > 1 ? "No count in the four weeks before" : now ? "One week so far" : "Not counted yet"}
         </Text>
       )}
@@ -145,10 +150,21 @@ function TierCard({ tier, thisWeek }: { tier: AdminTierSeriesRow; thisWeek: stri
 
 /**
  * One card per tier, in the tier panel's order (premium before free), or an
- * empty state before the first rollup has run.
+ * empty state: before the first rollup has run, or once the newest one is
+ * older than the window.
  */
 export function TierGrowthCharts({ tiers, thisWeek }: { tiers: readonly AdminTierSeriesRow[]; thisWeek: string }) {
   if (tiers.every((tier) => tier.points.length === 0)) {
+    // ISO dates: the greatest string is the newest week.
+    const lastWeek = tiers.flatMap((tier) => tier.lastWeek ?? []).sort().at(-1);
+    if (lastWeek) {
+      return (
+        <EmptyState
+          title={`No weekly count since the week of ${shortDay(lastWeek)}`}
+          body="The tier rollup runs daily at 04:30 UTC, so it has stopped. Its next run starts drawing again."
+        />
+      );
+    }
     return (
       <EmptyState
         title="No weekly counts yet"

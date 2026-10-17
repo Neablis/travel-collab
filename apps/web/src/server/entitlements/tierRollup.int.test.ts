@@ -114,13 +114,25 @@ describe("tierSeries", () => {
     expect(premium.points.map((point) => point.weekStart)).toEqual(["2031-03-24"]);
     expect(premium.firstWeek).toBe("2031-03-10");
   });
+
+  // A rollup stopped for longer than the window leaves no points, which alone
+  // reads as never run.
+  it("dates each plan's last week when the window holds none of its rows", async () => {
+    await rollupTiers(new Date("2032-06-09T12:00:00Z"));
+    const series = await tierSeries(1, new Date("2032-12-20T12:00:00Z"));
+    const premium = series.find((row) => row.planId === "premium")!;
+    expect(premium.points).toEqual([]);
+    expect(premium.lastWeek).toBe("2032-06-07");
+  });
 });
 
 describe("adminUsers", () => {
   it("hands the Users tab each plan's weekly series", async () => {
     await rollupTiers(WEDNESDAY);
-    const { tiers } = await adminUsers(WEDNESDAY);
+    const { tiers, thisWeek } = await adminUsers(WEDNESDAY);
     expect(tiers).toEqual(await tierSeries(26, WEDNESDAY));
+    // What every card compares its newest week with to say "now" or "as of".
+    expect(thisWeek).toBe("2031-03-10");
     expect(tiers.find((row) => row.planId === "premium")!.points.at(-1)!.weekStart).toBe("2031-03-10");
   });
 });

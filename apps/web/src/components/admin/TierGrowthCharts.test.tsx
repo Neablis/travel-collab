@@ -19,6 +19,7 @@ const THIS_WEEK = WEEKS[WEEKS.length - 1]!;
 const tier = (planId: PlanId, counts: readonly number[], weeks: readonly string[] = WEEKS): AdminTierSeriesRow => ({
   planId,
   firstWeek: counts.length > 0 ? weeks[0]! : null,
+  lastWeek: counts.length > 0 ? weeks[counts.length - 1]! : null,
   points: counts.map((accounts, i) => ({ weekStart: weeks[i]!, accounts })),
 });
 
@@ -43,6 +44,17 @@ describe("TierGrowthCharts", () => {
     expect(screen.getByTestId("tier-growth-plus-end").textContent).toBe("as of 12 Oct");
   });
 
+  // "last 4 weeks" on a stale card would be the four weeks before today.
+  it("dates the net change when the rollup has not run this week", () => {
+    render(<TierGrowthCharts thisWeek="2026-10-26" tiers={[tier("plus", [2, 15, 20, 9, 14, 12])]} />);
+    expect(screen.getByTestId("tier-growth-plus-net").textContent).toBe("−3 net, 4 weeks to 12 Oct");
+  });
+
+  it("says there is no change when no other count is within four weeks", () => {
+    render(<TierGrowthCharts thisWeek={THIS_WEEK} tiers={[tier("plus", [5, 9], ["2026-08-03", "2026-10-12"])]} />);
+    expect(screen.getByTestId("tier-growth-plus-net").textContent).toBe("No count in the four weeks before");
+  });
+
   it("calls the newest count now when it is this week's", () => {
     render(<TierGrowthCharts thisWeek={THIS_WEEK} tiers={[tier("plus", [2, 15, 20, 9, 14, 12])]} />);
     expect(screen.getByTestId("tier-growth-plus-end").textContent).toBe("now");
@@ -57,7 +69,7 @@ describe("TierGrowthCharts", () => {
   });
 
   it("measures from the first week while there are fewer than four", () => {
-    render(<TierGrowthCharts thisWeek={THIS_WEEK} tiers={[tier("premium", [3, 4, 6])]} />);
+    render(<TierGrowthCharts thisWeek={WEEKS[2]!} tiers={[tier("premium", [3, 4, 6])]} />);
     expect(screen.getByTestId("tier-growth-premium-net").textContent).toBe("+3 net, last 2 weeks");
     expect(screen.getByTestId("tier-growth-premium-since").textContent).toBe("since 7 Sep");
   });
@@ -75,5 +87,13 @@ describe("TierGrowthCharts", () => {
     render(<TierGrowthCharts thisWeek={THIS_WEEK} tiers={[tier("free", []), tier("plus", [])]} />);
     expect(screen.getByRole("heading", { name: "No weekly counts yet" })).toBeTruthy();
     expect(screen.queryByRole("region")).toBeNull();
+  });
+
+  // Rows older than the 26-week window are not drawn, but the rollup did run.
+  it("says when the rollup last counted once its counts have aged out of the window", () => {
+    const stopped = (planId: PlanId) => ({ ...tier(planId, []), firstWeek: "2025-11-03", lastWeek: "2026-03-02" });
+    render(<TierGrowthCharts thisWeek={THIS_WEEK} tiers={[stopped("free"), stopped("plus")]} />);
+    expect(screen.getByRole("heading", { name: "No weekly count since the week of 2 Mar" })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "No weekly counts yet" })).toBeNull();
   });
 });
