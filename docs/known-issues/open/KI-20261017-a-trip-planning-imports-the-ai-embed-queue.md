@@ -25,6 +25,10 @@
      `register`, or a module the API routes import), and add a test that asserts the
      composition registered the enqueue listener. Keep `sweep.int.test.ts`'s "trip commands
      enqueue the trip's days" test green throughout: it is the behaviour proof.
+     Verify before relying on it: a registry is module state, and Next can give route bundles
+     and `instrumentation.ts` separate module instances. Prove on a preview deployment that a
+     trip write through `/api/trips/[tripId]/commands` queues its days. If it does not, pass the
+     listener in explicitly from each entry point instead of registering it.
   4. Add a `.dependency-cruiser.cjs` rule forbidding `server/*.ts` → `server/ai/**`, so the
      direction cannot come back.
 - **Cross-reference:** audit `docs/reviews/2026-10-16-codebase-and-agent-architecture-audit.md`
