@@ -20,6 +20,7 @@ function row(over: Partial<SubscriptionRow> = {}): SubscriptionRow {
     userId: "dev-alice",
     stripeCustomerId: "cus_1",
     stripeSubscriptionId: "sub_1",
+    livemode: true,
     planId: "plus",
     planVersion: 1,
     status: "active",

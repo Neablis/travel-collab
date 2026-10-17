@@ -195,6 +195,10 @@ function median(values: readonly number[]): number | null {
  * what it holds and what it was granted are two different facts, and the
  * per-source counts in Billing's `underwaterReport` are where the second one is
  * answered.
+ *
+ * **Live holdings only** (ADR-076 §4): a plan held from a test-mode checkout
+ * (`plan_livemode = false`) is in no row, so the tiers no longer sum to every
+ * account.
  */
 export async function planPanel(
   now: Date = new Date(),
@@ -216,6 +220,7 @@ export async function planPanel(
         count: sql<number>`count(*)::int`,
       })
       .from(users)
+      .where(eq(users.planLivemode, true))
       .groupBy(users.planId, users.planVersion),
     costByPlan(ledger),
     // Billing prices the revenue half; the cost it is compared against is this
@@ -271,9 +276,14 @@ export function grantablePlanIds(): PlanId[] {
  * about accounts that used the assistant, and folding in every dormant account
  * pulls every median to zero and tells you nothing. This is the same
  * null-is-not-zero rule `microUsdFor` follows, one level up.
+ *
+ * A test-mode holding is no plan's holder here, as in `planPanel`.
  */
 async function costByPlan(costs: readonly AccountCost[]): Promise<Map<PlanId, number[]>> {
-  const holders = await db.select({ id: users.id, planId: users.planId }).from(users);
+  const holders = await db
+    .select({ id: users.id, planId: users.planId })
+    .from(users)
+    .where(eq(users.planLivemode, true));
   const planOf = new Map(holders.map((row) => [row.id, row.planId]));
   const byPlan = new Map<PlanId, number[]>();
   for (const cost of costs) {
@@ -554,6 +564,9 @@ function plansGrantingNothing(): PlanId[] {
  *   * `underwater` — the underwater report's paying ids, handed in, so *Show
  *     them in Users* lists every account Financial counted.
  *
+ * `paying` and `pastDue` are money, so a test-mode subscription is neither
+ * (ADR-076 §4); the pick stays `subscriptionFor`'s, which reads both modes.
+ *
  * `admin.int.test.ts` builds one account per rule and holds the counts to
  * the rows the resolver draws.
  */
@@ -574,17 +587,17 @@ function accountsMatching(view: AccountsQuery, now: Date, underwater: readonly s
   const confers = inList(sql`s.status`, CONFERRING_STATUSES);
   return sql`(
     select u.id, u.email, u.is_admin, u.created_at,
-           coalesce(${confers} and not ${lapsed}
+           coalesce(s.livemode and ${confers} and not ${lapsed}
              and not ${inList(sql`(s.plan_id || '@v' || s.plan_version)`, FREE_OF_CHARGE)}, false) as paying,
            exists (select 1 from ${entitlementGrants} g
                     where g.user_id = u.id and g.revoked_at is null
                       and (g.expires_at is null or g.expires_at > ${at}::timestamptz)) as granted,
            ${inList(sql`u.plan_id`, plansGrantingNothing())} as unentitled,
-           coalesce(s.status = 'past_due' and not ${lapsed}, false) as past_due,
+           coalesce(s.livemode and s.status = 'past_due' and not ${lapsed}, false) as past_due,
            ${inList(sql`u.id`, underwater)} as underwater
       from ${users} u
       left join lateral (
-        select s.status, s.plan_id, s.plan_version, s.past_due_since
+        select s.status, s.plan_id, s.plan_version, s.past_due_since, s.livemode
           from ${subscriptions} s where s.user_id = u.id
          order by ${confers} desc, s.created_at desc
          limit 1
@@ -708,8 +721,12 @@ function accountRow(
   // may do, so asking again would be a second read that can disagree with
   // the gate — which is the one thing an operator console must never do.
   const subscription = resolved.subscription;
+  // A test-mode subscription confers but pays nothing (ADR-076 §4), the same
+  // rule `accountsMatching`'s `paying` writes in SQL.
   const pays =
-    subscription !== null && subscription.conferring ? monthlyMicroUsd(subscription.row) : 0;
+    subscription !== null && subscription.conferring && subscription.row.livemode
+      ? monthlyMicroUsd(subscription.row)
+      : 0;
   return {
     userId: row.id,
     email: row.email,

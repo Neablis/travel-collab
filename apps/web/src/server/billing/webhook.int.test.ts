@@ -136,6 +136,47 @@ describe("a purchase", () => {
   });
 });
 
+// **Every row says its Stripe mode** (ADR-076 §1, §3). This deployment holds
+// one key pair, so everything it writes is live; the held plan's mode is the
+// mode of the subscription that confers it.
+describe("the Stripe mode", () => {
+  it("records the event, the subscription and the held plan as live", async () => {
+    const userId = await makeAccount();
+    const subId = `sub_${randomUUID()}`;
+    const evt = event("customer.subscription.created", subscription({ id: subId, userId }), T0);
+    expect(await applyStripeEvent(evt, T0)).toEqual({ applied: true, note: "written" });
+
+    const [claim] = await db.select().from(billingEvents).where(eq(billingEvents.id, evt.id));
+    expect(claim!.livemode).toBe(true);
+    expect((await subscriptionFor(userId))!.livemode).toBe(true);
+    const [account] = await db.select().from(users).where(eq(users.id, userId));
+    expect(account!.planLivemode).toBe(true);
+  });
+
+  it("takes the held plan's mode from the subscription that confers it", async () => {
+    const userId = await makeAccount();
+    const subId = `sub_${randomUUID()}`;
+    await applyStripeEvent(event("customer.subscription.created", subscription({ id: subId, userId }), T0), T0);
+    // Planted: nothing writes a test-mode subscription until the webhook can
+    // verify a test secret.
+    await db.update(subscriptions).set({ livemode: false }).where(eq(subscriptions.stripeSubscriptionId, subId));
+
+    const later = new Date(T0.getTime() + 60_000);
+    await applyStripeEvent(event("customer.subscription.updated", subscription({ id: subId, userId }), later), later);
+    const [held] = await db.select().from(users).where(eq(users.id, userId));
+    expect(held).toMatchObject({ planId: "plus", planLivemode: false });
+
+    // A fall to `free` is live, whatever the subscription that ended was.
+    const end = new Date(T0.getTime() + 120_000);
+    await applyStripeEvent(
+      event("customer.subscription.deleted", subscription({ id: subId, userId, status: "canceled" }), end),
+      end,
+    );
+    const [fell] = await db.select().from(users).where(eq(users.id, userId));
+    expect(fell).toMatchObject({ planId: "free", planLivemode: true });
+  });
+});
+
 describe("the same event delivered twice", () => {
   it("applies once", async () => {
     const userId = await makeAccount();

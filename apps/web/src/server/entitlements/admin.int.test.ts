@@ -173,6 +173,30 @@ describe("the console answers from real data", () => {
     expect(Object.keys(studio.holdsByVersion)).toHaveLength(studio.versions.length);
   });
 
+  // **A plan held from a test-mode checkout is no tier's holder** (ADR-076 §4,
+  // M47's gate box): it confers the plan, and the panel still counts it as
+  // nothing, in its account count and in its cost median.
+  it("leaves a test-mode holding out of the tier panel", async () => {
+    const premiumAccounts = async () => (await planPanel()).find((row) => row.planId === "premium")!.accounts;
+    const before = await premiumAccounts();
+    const tester = await account({ planId: "premium" });
+    await db.update(users).set({ planLivemode: false }).where(eq(users.id, tester));
+    expect(await premiumAccounts()).toBe(before);
+    // The witness that the count moves at all: a live holder does.
+    await account({ planId: "premium" });
+    expect(await premiumAccounts()).toBe(before + 1);
+
+    // `studio` is held by nobody (the case above), so a test-mode holder with
+    // spend is the only thing that could give it a cost median.
+    const studioTester = newUser();
+    await upsertUser({ id: studioTester, email: null, name: null, image: null });
+    await db.update(users).set({ planId: "studio", planVersion: 1, planLivemode: false }).where(eq(users.id, studioTester));
+    await recordTurnLedger(usage(studioTester));
+    const studio = (await planPanel()).find((row) => row.planId === "studio")!;
+    expect(studio.accounts).toBe(0);
+    expect(studio.medianMicroUsd).toBeNull();
+  });
+
   // What *Underwater by construction* counts per source (M36 link 1 deleted
   // the grant-cost panel that used to be asserted here; the read is the same).
   it("counts accounts per ACTIVE grant source", async () => {
@@ -297,7 +321,12 @@ describe("the accounts table's page", () => {
   async function subscribe(
     userId: string,
     status: "active" | "past_due" | "canceled",
-    options: { planId?: "free" | "plus" | "studio"; pastDueDays?: number; createdDaysAgo?: number } = {},
+    options: {
+      planId?: "free" | "plus" | "studio";
+      pastDueDays?: number;
+      createdDaysAgo?: number;
+      livemode?: boolean;
+    } = {},
   ) {
     const created = new Date(now.getTime() - (options.createdDaysAgo ?? 10) * DAY);
     await db.insert(subscriptions).values({
@@ -305,6 +334,7 @@ describe("the accounts table's page", () => {
       userId,
       stripeCustomerId: `cus_${userId}`,
       stripeSubscriptionId: `sub_${randomUUID()}`,
+      livemode: options.livemode ?? true,
       planId: options.planId ?? "plus",
       planVersion: 1,
       status,
@@ -351,6 +381,8 @@ describe("the accounts table's page", () => {
       expired: await tagged(tag, "expired"),
       revoked: await tagged(tag, "revoked"),
       sinking: await tagged(tag, "sinking", "plus"),
+      // Bought with a test card: it confers, and it pays nothing (ADR-076 §4).
+      tester: await tagged(tag, "tester", "plus"),
       idle: await tagged(tag, "idle"),
     };
     await subscribe(ids.payer, "active");
@@ -364,6 +396,7 @@ describe("the accounts table's page", () => {
     await subscribe(ids.resubscribed, "active", { createdDaysAgo: 40 });
     await subscribe(ids.resubscribed, "canceled", { createdDaysAgo: 2 });
     await subscribe(ids.sinking, "active");
+    await subscribe(ids.tester, "active", { livemode: false });
     await grant(ids.granted);
     await grant(ids.expired, { expired: true });
     await grant(ids.revoked, { revoked: true });
@@ -418,8 +451,9 @@ describe("the accounts table's page", () => {
       expect(all!.counts[filter], filter).toBe(rows.filter((row) => drawnAs(row, filter, underwater)).length);
     }
     expect(all!.counts).toEqual({
-      all: 11,
-      // payer, unpriced, late (inside its window), resubscribed, sinking.
+      all: 12,
+      // payer, unpriced, late (inside its window), resubscribed, sinking — and
+      // not tester, whose subscription is test mode.
       paying: 5,
       granted: 1,
       // freesub, granted, expired, revoked, idle — their held plan grants nothing.
@@ -446,8 +480,8 @@ describe("the accounts table's page", () => {
   it("serves at most a page of rows, covers the set once, and keeps the counts page to page", async () => {
     const { tag, ids, underwater } = await fixture();
     const pages = await everyPage(tag, "all", underwater);
-    // 11 accounts: a full page and a short one.
-    expect(pages.map((page) => page.rows.length)).toEqual([ACCOUNTS_PAGE_SIZE, 11 - ACCOUNTS_PAGE_SIZE]);
+    // 12 accounts: a full page and a short one.
+    expect(pages.map((page) => page.rows.length)).toEqual([ACCOUNTS_PAGE_SIZE, 12 - ACCOUNTS_PAGE_SIZE]);
     expect(pages[1]!.counts).toEqual(pages[0]!.counts);
     const seen = pages.flatMap((page) => page.rows.map((row) => row.userId));
     expect(new Set(seen).size).toBe(seen.length);
@@ -462,7 +496,7 @@ describe("the accounts table's page", () => {
     const { tag, underwater } = await fixture();
     const served = await adminAccountsPage({ query: tag, filter: "all", page: 40 }, now, [], underwater);
     expect(served.page).toBe(1);
-    expect(served.rows).toHaveLength(11 - ACCOUNTS_PAGE_SIZE);
+    expect(served.rows).toHaveLength(12 - ACCOUNTS_PAGE_SIZE);
   });
 
   // An address search is a substring, not a pattern: a `%` typed into the box

@@ -8,7 +8,7 @@ import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import { db } from "@/server/db/client";
-import { events, savedNotebooks, tripMemberships, users } from "@/server/db/schema";
+import { events, savedNotebooks, subscriptions, tripMemberships, users } from "@/server/db/schema";
 import { executeTripCommand } from "@/server/commands";
 import { upsertUser } from "@/server/users";
 import type { TurnLedger } from "@/server/assistant/ledger";
@@ -226,6 +226,32 @@ describe("the account page reads one account", () => {
       ]),
     );
     expect(detail.plan.history.at(-1)!.what).toBe("Signed up");
+  });
+
+  // Financial leaves a test-mode purchase out (ADR-076 §4), so the history
+  // says which one it was rather than showing a sale the numbers lack.
+  it("marks a test-mode purchase in the history", async () => {
+    const id = await account("plus");
+    for (const livemode of [true, false]) {
+      await db.insert(subscriptions).values({
+        id: randomUUID(),
+        userId: id,
+        stripeCustomerId: `cus_${id}`,
+        stripeSubscriptionId: `sub_${randomUUID()}`,
+        livemode,
+        planId: "plus",
+        planVersion: 1,
+        status: "active",
+        currentPeriodEnd: null,
+        cancelAtPeriodEnd: false,
+        pastDueSince: null,
+        lastEventAt: ago(DAY),
+        createdAt: ago(livemode ? 3 * DAY : 2 * DAY),
+        updatedAt: ago(DAY),
+      });
+    }
+    const bought = (await detailOf(id)).plan.history.filter((moment) => moment.what.startsWith("Bought"));
+    expect(bought.map((moment) => moment.what)).toEqual(["Bought plus v1 (test mode)", "Bought plus v1"]);
   });
 
   // ADR-045 rule 4: decided from the resolver's set, so a grant offers it.

@@ -125,6 +125,8 @@ describe("users repository", () => {
       // what makes that a decision somebody made rather than a column that
       // appeared.
       stripeCustomerId: null,
+      // M47's column: a held plan from sign-in is not from a test checkout.
+      planLivemode: true,
       createdAt: "2026-08-27 10:00:00+00",
       updatedAt: "2026-08-27 10:00:00+00",
     });

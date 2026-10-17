@@ -109,6 +109,13 @@ export const users = pgTable("users", {
   // is deliberately not one: it is a single boolean gating an operator tool,
   // not the first rung of a permission ladder. Per-trip roles stay `TripRole`.
   isAdmin: boolean("is_admin").notNull().default(false),
+  // **No longer read or written** (ADR-076 §2): the customer id moved to
+  // `stripe_customers`, one per account per Stripe mode, and migration 0055
+  // copied every value here into it as live. The column stays until no
+  // deployed build reads it, because production migrations are dispatched
+  // apart from deploys (ADR-004); a later migration drops it. What follows is
+  // why it was on `users`, which `stripe_customers` still holds to.
+  //
   // M21 link 1 — **the Stripe customer this account is, once it has been one.**
   //
   // Null until the first checkout, and then permanent: a customer outlives
@@ -129,6 +136,12 @@ export const users = pgTable("users", {
   // — the two things that decide what an account may do — stay the webhook's
   // alone, and `billing.soleWriter.test.ts` sweeps for exactly those two.
   stripeCustomerId: text("stripe_customer_id"),
+  // **The Stripe mode of the subscription that confers `plan_id`** (ADR-076
+  // §3), `true` when the account falls back to `free`. Written only by the
+  // webhook, in the same statement as `plan_id` and `plan_version`. What the
+  // account may do does not read it; the tier panel does, so a plan held from
+  // a test-mode checkout counts as no tier's holder.
+  planLivemode: boolean("plan_livemode").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).notNull(),
 });
@@ -1501,6 +1514,11 @@ export const subscriptions = pgTable(
     // idempotent at the row level as well as at the event level: two deliveries
     // of the same subscription's events cannot produce two rows.
     stripeSubscriptionId: text("stripe_subscription_id").notNull(),
+    // **Which Stripe mode this subscription lives in** (ADR-076 §1). No
+    // default: every writer names it, because a test-mode row read as live is
+    // revenue nobody paid. Every money read counts `true` only
+    // (`subscriptionsWithStatus`, the console's `accountsMatching`).
+    livemode: boolean("livemode").notNull(),
     planId: text("plan_id").$type<PlanId>().notNull(),
     planVersion: integer("plan_version").notNull(),
     // Stripe's own word, stored verbatim — see `SubscriptionStatus` in
@@ -1579,6 +1597,9 @@ export const billingEvents = pgTable("billing_events", {
   // answerable from this table alone.
   eventAt: timestamp("event_at", { withTimezone: true, mode: "date" }).notNull(),
   receivedAt: timestamp("received_at", { withTimezone: true, mode: "date" }).notNull(),
+  // Which Stripe mode the event came from (ADR-076 §1), with no default for
+  // the same reason as `subscriptions.livemode`.
+  livemode: boolean("livemode").notNull(),
   // **When the work finished — null while a delivery is still in flight.**
   //
   // The claim alone was not enough, and the gap it left was the worst one in
@@ -1595,6 +1616,36 @@ export const billingEvents = pgTable("billing_events", {
   // CodeRabbit, PR #177.
   appliedAt: timestamp("applied_at", { withTimezone: true, mode: "date" }),
 });
+
+// **The Stripe customer an account is, per Stripe mode** (ADR-076 §2).
+//
+// Stripe's test and live modes are separate customer spaces, so one id per
+// account (`users.stripe_customer_id`, which this replaces) could hold only
+// one of them. A row per `(user_id, livemode)` is the fact's own shape; a
+// column per mode would put the mode in a column name and make every reader
+// branch on it.
+//
+// **Written by checkout, not by the webhook** — the one table outside M21 link
+// 4's sole-writer rule, on the argument `users.stripe_customer_id` made: a
+// customer id is who you are at Stripe, not what you may do, and it has to
+// exist before a Checkout Session can name it. Permanent once written, so the
+// portal can still open after a cancellation. `stripeCustomerFor` is its only
+// reader and writer.
+//
+// No foreign keys (ADR-025).
+export const stripeCustomers = pgTable(
+  "stripe_customers",
+  {
+    userId: text("user_id").notNull(),
+    livemode: boolean("livemode").notNull(),
+    customerId: text("customer_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  // The key is the uniqueness `stripeCustomerFor`'s insert-if-absent leans on:
+  // two concurrent first checkouts cannot both write a customer for one
+  // account and mode.
+  (t) => [primaryKey({ columns: [t.userId, t.livemode] })],
+);
 
 // Retrieval-augmented plan generation, part 1 (Neon pgvector).
 //
