@@ -136,7 +136,12 @@ export default defineConfig({
         },
       },
     ],
-    reporters: ["dot"],
+    // Naming any reporter drops Vitest's implicit `github-actions` one, so
+    // CI has to ask for it back. Without it a red web run left no annotation
+    // and no step summary, only "Process completed with exit code 1", and
+    // the job log is unreadable from a cloud session (KI-2026-10-13-f,
+    // KI-2026-10-14-c). The five packages name no reporter and get it free.
+    reporters: process.env.GITHUB_ACTIONS === "true" ? ["dot", "github-actions"] : ["dot"],
     // KI-13's confirmed mechanism is wall-clock waitFor budgets starving
     // when the machine is oversubscribed — `pnpm -r` runs packages in
     // parallel, each spawning its own worker pool. Cap this suite's own
