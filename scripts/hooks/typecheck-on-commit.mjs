@@ -1,6 +1,6 @@
 import { execFileSync, spawn } from "node:child_process";
 import { existsSync, mkdirSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { parseStdin, readAll } from "./lib/run-context.mjs";
 import { gitSubcommandArgs, parseShell } from "./lib/shell.mjs";
@@ -41,6 +41,18 @@ const commitAt = segments.findIndex((seg) => gitSubcommandArgs(seg, "commit"));
 if (commitAt === -1) process.exit(0);
 const commitArgs = gitSubcommandArgs(segments[commitAt], "commit");
 
+// Where the commit runs: the session's cwd, moved by any `cd` before it, then
+// by the commit's own `git -C`. Reading only the session's cwd checked the
+// wrong checkout (or none) for a commit made in another worktree.
+let where = cwd;
+for (const seg of segments.slice(0, commitAt)) {
+  if (seg.words[0] === "cd" && seg.words[1]) where = resolve(where, seg.words[1]);
+}
+const words = segments[commitAt].words;
+for (let i = 1; i < words.length && words[i] !== "commit"; i += 1) {
+  if (words[i] === "-C" && words[i + 1]) where = resolve(where, words[(i += 1)]);
+}
+
 const git = (args, root) =>
   execFileSync("git", args, { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
 const lines = (out) => out.split("\n").filter(Boolean);
@@ -48,14 +60,15 @@ const lines = (out) => out.split("\n").filter(Boolean);
 let root;
 let files;
 try {
-  root = git(["rev-parse", "--show-toplevel"], cwd).trim();
-  files = lines(git(["diff", "--cached", "--name-only", "--diff-filter=d"], root));
+  root = git(["rev-parse", "--show-toplevel"], where).trim();
+  // Deletions count: removing a file can break what imports it.
+  files = lines(git(["diff", "--cached", "--name-only"], root));
   // `git commit -a`, or `git add … && git commit` in one command, commits what
   // is not staged yet when this runs: count the working tree's changes too.
   const commitsAll = commitArgs.some((a) => a === "--all" || /^-[a-zA-Z]*a/.test(a));
   const addsFirst = segments.slice(0, commitAt).some((seg) => gitSubcommandArgs(seg, "add"));
   if (commitsAll || addsFirst) {
-    files.push(...lines(git(["diff", "--name-only", "--diff-filter=d"], root)));
+    files.push(...lines(git(["diff", "--name-only"], root)));
     if (addsFirst) files.push(...lines(git(["ls-files", "--others", "--exclude-standard"], root)));
   }
 } catch {
@@ -119,6 +132,8 @@ const report = failures
   .join("\n\n");
 console.error(
   `Typecheck failed for ${failures.map((f) => f.pkg).join(", ")}; the commit was not made.\n\n${report}\n\n` +
-    `Fix these and commit again. To re-run one: pnpm --filter ${failures[0].pkg} typecheck`,
+    `Fix these and commit again. tsc checks the whole package, so an error in a file this ` +
+    `commit leaves out (unstaged or untracked) blocks it too. To re-run one: ` +
+    `pnpm --filter ${failures[0].pkg} typecheck`,
 );
 process.exit(2);

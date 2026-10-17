@@ -94,9 +94,9 @@ BM25.
    - **a logged-out reader** (`userId: null`) sees only public playbook days and the library's
      days.
 
-   **On the branch, pending merge: playbook rows are also checked against the live `saved_days`
-   row** (commit `3d070c6`, branch `ccr-7d8b023c-xqp1jh`, no PR yet; audit 2026-10-16 §5.1). A
-   source that is deleted, or that someone other than the reader has unpublished, overrides the
+   **Playbook rows are also checked against the live `saved_days` row** (PR 470; audit
+   2026-10-16 §5.1). A source that is deleted, or that someone other than the reader has
+   unpublished or that moderation has taken down (library content included), overrides the
    embedding's stored `visibility`, which can never allow more than the source does. The same
    commit re-enqueues the days from `setSavedDayVisibility` and `deleteSavedDay`, so the sweep
    refreshes the copy or tombstones it, and adds red-first integration tests for both cases. On
@@ -133,7 +133,7 @@ tags with no extension and no embedding call. Nothing in the repo measured it ag
   each fills from its own queue or from the backfill.
 - **Local Postgres runs the CI image.** `docker-compose.yml` moved from stock `postgres:17`, which
   does not ship pgvector and failed a local `db:migrate` at `0054`, to `pgvector/pgvector:pg17`
-  (on the branch, pending merge). An existing local volume keeps working; the new image adds the
+  (PR 470). An existing local volume keeps working; the new image adds the
   extension's files.
 - **Every plan turn with the flag on makes one embedding call.** Embedding on write costs one
   provider call per queued day, whatever the flag says: the queue and the sweep do not read
@@ -143,12 +143,15 @@ tags with no extension and no embedding call. Nothing in the repo measured it ag
   stays independent of the flag, so the corpus is ready the day the flag turns on.
 - **Planning now imports the AI module.** `server/commands.ts` imports `./ai/queue`. Each command
   re-queues every day of the trip, and a daily sweep of 50 rows can fall behind (audit 2026-10-16
-  §5.2, §5.3). The same branch has a fix pending merge (commit `29f91e9`): the sweep skips days
-  whose text has not changed, the enqueue becomes one statement, the summary reports the
-  backlog, and `maxDuration` is set. That commit does not invert the import.
+  §5.2, §5.3). PR 470 fixes the cost half: the sweep skips days whose text has not changed, the
+  enqueue becomes one statement, the summary reports the backlog, `maxDuration` is set and the
+  sweep stops at a 240 s budget. It does not invert the import (KI-2026-10-17-a).
+- **Changing the embedding model needs a manual reset.** The sweep skips a day whose chunk text
+  is unchanged, and rows do not record which model made their vector. After changing
+  `AI_EMBEDDING_MODEL`, run `UPDATE day_embeddings SET embedding = NULL` and then the backfill,
+  or every row keeps the old model's vectors.
 - **A deleted trip's days are hidden at once.** The trip leg reads `trip_summaries.status` and a
-  deleted trip vetoes its rows, as a withdrawn playbook does (on the branch, pending merge, with a
-  red-first test). The delete is a command, so it also re-queues the days and the sweep
+  deleted trip vetoes its rows, as a withdrawn playbook does (PR 470, with a red-first test). The delete is a command, so it also re-queues the days and the sweep
   tombstones them.
 - **The `service-ai-library` account sees past the privacy rule.** Anything it owns, in either
   leg, is served to every reader. Content that must stay private must not be stored under that

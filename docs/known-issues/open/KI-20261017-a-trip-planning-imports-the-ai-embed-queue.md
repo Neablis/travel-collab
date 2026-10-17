@@ -30,7 +30,10 @@
      trip write through `/api/trips/[tripId]/commands` queues its days. If it does not, pass the
      listener in explicitly from each entry point instead of registering it.
   4. Add a `.dependency-cruiser.cjs` rule forbidding `server/*.ts` → `server/ai/**`, so the
-     direction cannot come back.
+     direction cannot come back. `commands.ts` is not the only root importer: `savedDays.ts`
+     (the playbook enqueue), `savedDayPins.ts` and `savedDayPinBackfill.ts` import `server/ai/`
+     too, so either route them through the same hook or start the rule with those named as
+     known exceptions.
 - **Cross-reference:** audit `docs/reviews/2026-10-16-codebase-and-agent-architecture-audit.md`
   §5.2; KI-2026-09-23-b (server root hides module cycles); ADR-075 (plan retrieval on pgvector).
 - **First noted:** 2026-10-16 audit; filed 2026-10-17.

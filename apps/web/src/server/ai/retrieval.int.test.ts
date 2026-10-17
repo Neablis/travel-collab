@@ -398,6 +398,44 @@ describe("retrieveDayChunks", () => {
       expect(await find("deleteprobe", OTHER)).not.toContain(embedded);
     });
 
+    it("is never served to anyone else once moderated, and still to its owner", async () => {
+      const playbook = await livePlaybook(OTHER);
+      expect(await setSavedDayVisibility(playbook, OTHER, "public")).not.toBeNull();
+      const embedded = await chunk({
+        sourceType: "playbook",
+        sourceId: playbook,
+        chunkText: "moderateprobe quiet meadow",
+        visibility: "public",
+        ownerId: OTHER,
+      });
+      await db.execute(sql`UPDATE day_embeddings SET fts = to_tsvector('english', chunk_text) WHERE id = ${embedded}`);
+      expect(await find("moderateprobe", READER)).toContain(embedded);
+
+      // An admin takes it down (reports.ts hide-day sets exactly this column).
+      await db.update(savedDays).set({ moderatedAt: new Date() }).where(eq(savedDays.id, playbook));
+
+      expect(await find("moderateprobe", READER)).not.toContain(embedded);
+      expect(await find("moderateprobe", null)).not.toContain(embedded);
+      expect(await find("moderateprobe", OTHER)).toContain(embedded);
+    });
+
+    it("keeps serving a private library playbook to everyone, and drops it once moderated", async () => {
+      const playbook = await livePlaybook(PUBLIC_LIBRARY_OWNER_ID);
+      const embedded = await chunk({
+        sourceType: "playbook",
+        sourceId: playbook,
+        chunkText: "libraryvetoprobe quiet meadow",
+        visibility: "private",
+        ownerId: PUBLIC_LIBRARY_OWNER_ID,
+      });
+      await db.execute(sql`UPDATE day_embeddings SET fts = to_tsvector('english', chunk_text) WHERE id = ${embedded}`);
+      expect(await find("libraryvetoprobe", STRANGER)).toContain(embedded);
+      expect(await find("libraryvetoprobe", null)).toContain(embedded);
+
+      await db.update(savedDays).set({ moderatedAt: new Date() }).where(eq(savedDays.id, playbook));
+      expect(await find("libraryvetoprobe", STRANGER)).not.toContain(embedded);
+    });
+
     it("is never served again once its trip is deleted, not even to its owner", async () => {
       const tripId = randomUUID();
       tripIds.push(tripId);

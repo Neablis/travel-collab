@@ -391,6 +391,16 @@ describe("runEmbedSweep", () => {
     expect(summary).toMatchObject({ claimed: 2, pending: 1 });
   });
 
+  it("stops at its time budget and hands the rest of the claim back unspent", async () => {
+    await drainQueue();
+    const owner = `sweep-ida-${run}`;
+    const playbook = await createPlaybook(owner, "Kyoto Stroll", [stop("Fushimi Inari", 0), stop("Arashiyama", 1)], 2);
+    const summary = await runEmbedSweep({ embed: fakeEmbed, budgetMs: 0 });
+    expect(summary).toMatchObject({ claimed: 2, embedded: 0, deferred: 2, pending: 2 });
+    const rows = await pendingRows("playbook", playbook.savedDayId);
+    expect(rows.every((r) => r.status === "pending" && r.attempts === 0)).toBe(true);
+  });
+
   it("retries a failed row and dead-letters it after 5 attempts", async () => {
     await drainQueue();
     const owner = `sweep-heidi-${run}`;

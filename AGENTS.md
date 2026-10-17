@@ -182,8 +182,8 @@ What each tool does, why it exists and what it measured:
   decision recorded in the commit that raises it). `pnpm seed:verify` checks
   the Japan fixture (ADR-030); `pnpm content:verify` checks content bundles
   (ADR-041).
-- **Hooks** (`scripts/hooks/`): a typecheck of the touched package on every
-  `.ts`/`.tsx` edit; a guard on history-rewriting git while several worktrees
+- **Hooks** (`scripts/hooks/`): a typecheck of the packages a `git commit`
+  touches, blocking on a type error; a guard on history-rewriting git while several worktrees
   exist; and the **draft-PR guard**, which asks before `gh pr create` without
   `--draft` (on a milestone part branch it refuses `--draft` instead).
   `gh pr ready` passes: marking a PR ready is what makes CI run the full suite

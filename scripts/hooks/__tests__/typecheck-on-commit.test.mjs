@@ -90,3 +90,23 @@ test("a package with no tsc installed is skipped out loud, not passed silently",
   assert.equal(res.status, 0);
   assert.match(res.stderr, /skipped @tc\/domain/);
 });
+
+test("`git -C dir commit` and `cd dir && git commit` check that checkout, not the session's", () => {
+  const root = repoWithPackages();
+  stage(root, "apps/web/bad.ts");
+  const elsewhere = makeRepo();
+  for (const command of [`git -C ${root} commit -m x`, `cd ${root} && git commit -m x`]) {
+    const res = run(command, elsewhere);
+    assert.equal(res.status, 2, command);
+    assert.match(res.stderr, /Typecheck failed for web/, command);
+  }
+});
+
+test("a commit that only deletes a TypeScript file still checks its package", () => {
+  const root = repoWithPackages();
+  stage(root, "packages/domain/src/a.ts");
+  execFileSync("git", ["-c", "user.email=t@e.st", "-c", "user.name=T", "commit", "-qm", "add"], { cwd: root });
+  execFileSync("git", ["rm", "-q", "packages/domain/src/a.ts"], { cwd: root });
+  assert.equal(run("git commit -m rm", root).status, 0);
+  assert.ok(ran(root, "packages/domain"));
+});

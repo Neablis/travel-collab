@@ -99,9 +99,9 @@ Notes for whoever scopes this, from reading the code the brief's author could no
 - **pgvector is an extension, not a new store**, so embeddings are rows: they sit beside the days
   they describe, are removed with them, and each Neon branch (preview, production) has its own.
   Three things come with it that the Upstash index hid:
-  - **Local and CI Postgres are stock `postgres:17`** (`docker-compose.yml`, `ci.yml`), which
-    does not ship pgvector. A migration that runs `CREATE EXTENSION vector` fails there until
-    both images change.
+  - **Local and CI Postgres had to change image**, since stock `postgres:17` does not ship
+    pgvector. Both now run `pgvector/pgvector:pg17` (CI since PR 459; `docker-compose.yml` in
+    PR 470).
   - **Nothing embeds the text any more.** Upstash hosted the embedding model. With pgvector the
     app calls one itself, on write and once per plan turn for the request, and that call is a
     cost and a failure the fallback in commitment 3 has to cover.
@@ -133,7 +133,7 @@ About the feature:
 
    So commitment 4 holds because of the privacy predicate, not by construction. On `main`, an
    unpublished or deleted playbook is still served, because nothing re-queues it for the sweep
-   (audit 2026-10-16 §5.1). The fix is on a branch, pending merge (exit gate below). Trip text goes to
+   (audit 2026-10-16 §5.1). The fix is PR 470 (exit gate below). Trip text goes to
    the embedding provider whether or not the flag is on, by decision (no user notice; Mitchell,
    2026-10-17).
 3. **Who gets examples** (Sunny's question 2). *Recommended:* any signed-in plan turn.
@@ -190,7 +190,7 @@ About how it is built:
     - **The search:** hybrid, full-text search fused with the dense query by reciprocal rank.
     - **Embedding:** on write, through `pending_embeddings` and a daily cron sweep, which also
       tombstones the embeddings of a deleted source.
-    - **The Postgres image:** `pgvector/pgvector:pg17` in CI and, on the branch pending merge,
+    - **The Postgres image:** `pgvector/pgvector:pg17` in CI and, from PR 470,
       in `docker-compose.yml`.
 11. **What the second pass is**, once Sunny defines it. Until then it is out of scope.
     **Open.** Sunny has not yet said what the *"Jev evidence filter"* and *"one packed `noul`
@@ -293,11 +293,9 @@ should. The flag is off.
       and an empty retrieval mapped to a non-empty one.)*
 - [ ] **A playbook that is unpublished or taken down is not used as an example.** A test
       is seen red.
-      *(2026-10-17: the fix is on a branch, pending merge: commit `3d070c6` on
-      `ccr-7d8b023c-xqp1jh`, with no PR yet. It has two red-first integration tests in
-      `retrieval.int.test.ts`, "is never served to anyone else once unpublished, and still to
-      its owner" and "is never served again once deleted, not even to its owner". The failure
-      text is not yet recorded anywhere. Tick this once the fix is on `main` and the failure
+      *(2026-10-17: the fix is PR 470, with red-first integration tests in
+      `retrieval.int.test.ts` for unpublished, moderated and deleted playbooks and for a
+      deleted trip. The failure text is not yet recorded anywhere. Tick this once the fix is on `main` and the failure
       text is in its PR.)*
 - [x] **No model id is a literal in kernel code** (ADR-019): the lint wall passes. (Part 4 adds
       no model ids; the embedding model id stays in `serverConfig.embeddingModel` from Part 2.)

@@ -19,6 +19,14 @@ import { embedText } from "./embeddings";
 /** Rows claimed per sweep run: 50 embeddings at ~1-2s each fits a cron invocation with room. */
 export const SWEEP_BATCH_SIZE = 50;
 
+/**
+ * How long a run may spend before it hands the rest of its claim back: the
+ * cron route's `maxDuration` is 300 s, and 50 rows at a 30 s provider timeout
+ * each would run far past it, leaving the unvisited rows at `processing`
+ * until tomorrow's recovery. 240 s leaves room for one more slow call.
+ */
+export const SWEEP_BUDGET_MS = 240_000;
+
 /** Failures before a row is dead-lettered instead of retried. */
 export const SWEEP_MAX_ATTEMPTS = 5;
 
@@ -38,6 +46,8 @@ export interface SweepSummary {
   dead: number;
   /** Rows whose source is gone, deleted or unreadable: embeddings removed, marked `done`. */
   tombstoned: number;
+  /** Claimed rows the run had no time left for: back to `pending`, attempt unspent. */
+  deferred: number;
   /**
    * Rows still `pending` after this run: the backlog the next run starts
    * with. A number that grows run over run means the daily sweep is not
@@ -75,11 +85,13 @@ export async function runEmbedSweep(
     embed?: (text: string) => Promise<number[] | null>;
     batchSize?: number;
     maxAttempts?: number;
+    budgetMs?: number;
   } = {},
 ): Promise<SweepSummary> {
   const embed = options.embed ?? embedText;
   const batchSize = options.batchSize ?? SWEEP_BATCH_SIZE;
   const maxAttempts = options.maxAttempts ?? SWEEP_MAX_ATTEMPTS;
+  const deadline = Date.now() + (options.budgetMs ?? SWEEP_BUDGET_MS);
   const summary: SweepSummary = {
     claimed: 0,
     recovered: 0,
@@ -88,6 +100,7 @@ export async function runEmbedSweep(
     retried: 0,
     dead: 0,
     tombstoned: 0,
+    deferred: 0,
     pending: 0,
   };
 
@@ -96,6 +109,11 @@ export async function runEmbedSweep(
   summary.claimed = claimed.length;
 
   for (const row of claimed) {
+    if (Date.now() >= deadline) {
+      await setRowStatus(row, "pending", row.attempts);
+      summary.deferred++;
+      continue;
+    }
     const logContext = { sourceType: row.source_type, sourceId: row.source_id, dayIndex: row.day_index };
     try {
       const resolved = await resolveChunk(row.source_type, row.source_id, row.day_index);
@@ -164,6 +182,10 @@ async function countPendingRows(): Promise<number> {
  * When the stored chunk for this day already has this exact text and a
  * vector, write the fresh metadata (visibility, owner, city, tags) and report
  * true — no provider call. False means the day needs embedding.
+ *
+ * Rows do not record which model made their vector, so after changing the
+ * embedding model, null `day_embeddings.embedding` before the backfill or
+ * every row takes this path and keeps the old model's vectors (ADR-075).
  */
 async function refreshIfUnchanged(
   row: ClaimedRow,
