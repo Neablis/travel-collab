@@ -122,7 +122,12 @@ export interface AdminAccountRow {
    * exactly the account whose bill nobody can account for.
    */
   paysMicroUsd: number | null;
-  /** Stripe's own word, `"lapsed"`, or `null` for an account that never paid. */
+  /**
+   * Stripe's own word, `"lapsed"`, or `null` for an account that never paid.
+   * A test-mode subscription's carries ` (test mode)`, so `=== "active"` is
+   * live only. The subscription is the account's conferring one first, then
+   * live before test, then newest.
+   */
   subscriptionState: string | null;
   /** M36 D6 — ISO; newest planning event or assistant turn in the window, or `null`. */
   lastActiveAt: string | null;

@@ -38,7 +38,7 @@ import {
   type UnderwaterReport,
 } from "@/server/billing/revenue";
 import { priceConsistencyReport, type PriceConsistencyReport } from "@/server/billing/prices";
-import { GRACE_WINDOW_DAYS } from "@/server/billing/standing";
+import { GRACE_WINDOW_DAYS, standingOf, type SubscriptionStanding } from "@/server/billing/standing";
 import { costPerAccount, requestCounts, topSpenders, type AccountCost } from "./usage";
 
 /**
@@ -359,7 +359,10 @@ export interface AdminAccountRow {
    * CodeRabbit, PR #177.
    */
   paysMicroUsd: number | null;
-  /** Stripe's own word, or `null` for an account that has never subscribed. */
+  /**
+   * Stripe's own word, `"lapsed"`, or `null` for an account that has never
+   * subscribed. A test-mode subscription's carries ` (test mode)`.
+   */
   subscriptionState: string | null;
   /**
    * **Last active** (M36 D6), ISO — the later of the account's newest planning
@@ -472,15 +475,16 @@ async function accountRows(
 ): Promise<AdminAccountRow[]> {
   const since = trailingWindowStart(now);
   const ids = rows.map((row) => row.id);
-  const [costs, counts, lastActive, resolved] = await Promise.all([
+  const [costs, counts, lastActive, resolved, held] = await Promise.all([
     trailing ?? costPerAccount(since, ids),
     requestCounts(since, ids),
     lastActiveSince(since, ids),
     Promise.all(ids.map((id) => entitlementsFor(id, now))),
+    shownSubscriptions(ids, now),
   ]);
   const costByUser = new Map(costs.map((cost) => [cost.userId, cost]));
   return rows.map((row, index) =>
-    accountRow(row, resolved[index]!, {
+    accountRow(row, resolved[index]!, held.get(row.id) ?? null, {
       cost: costByUser.get(row.id),
       requests: counts.get(row.id) ?? 0,
       lastActiveAt: lastActive.get(row.id) ?? null,
@@ -553,10 +557,10 @@ function plansGrantingNothing(): PlanId[] {
  * in SQL so the counts and the page are taken over the whole set rather than
  * over rows the server already resolved:
  *
- *   * `paying` — the account's subscription (`subscriptionFor`'s pick: its
- *     newest conferring-status row, else its newest) confers right now
- *     (`standingOf`: a conferring status, and not `past_due` beyond the grace
- *     window) and is not on a version sold at no charge. That is the row's
+ *   * `paying` — the account's shown subscription (`shownSubscriptions`'s
+ *     pick: conferring first, then live before test, then newest) confers
+ *     right now (`standingOf`: a conferring status, and not `past_due`
+ *     beyond the grace window) and is not on a version sold at no charge. That is the row's
  *     `paysMicroUsd !== 0`, unpriceable subscriptions included.
  *   * `granted` — an active grant: not revoked, not expired (`activeAt`).
  *   * `unentitled` — `users.plan_id` grants nothing, the row's held plan.
@@ -566,10 +570,10 @@ function plansGrantingNothing(): PlanId[] {
  *     them in Users* lists every account Financial counted.
  *
  * `paying` and `pastDue` are money, so a test-mode subscription is neither
- * (ADR-076 §4); the pick stays `subscriptionFor`'s, which reads both modes.
+ * (ADR-076 §4), and the row says its state in test mode rather than as one.
  *
  * `admin.int.test.ts` builds one account per rule and holds the counts to
- * the rows the resolver draws.
+ * the rows `accountRow` draws.
  */
 function accountsMatching(view: AccountsQuery, now: Date, underwater: readonly string[]): SQL {
   const needle = view.query.trim().toLowerCase();
@@ -600,7 +604,7 @@ function accountsMatching(view: AccountsQuery, now: Date, underwater: readonly s
       left join lateral (
         select s.status, s.plan_id, s.plan_version, s.past_due_since, s.livemode
           from ${subscriptions} s where s.user_id = u.id
-         order by ${confers} desc, s.created_at desc
+         order by ${confers} desc, s.livemode desc, s.created_at desc
          limit 1
       ) s on true
      where ${search}
@@ -686,7 +690,7 @@ export async function adminAccount(
   now: Date = new Date(),
 ): Promise<{ row: AdminAccountRow; resolved: AccountEntitlements; cost: AccountCost | undefined } | null> {
   const since = trailingWindowStart(now);
-  const [found, costs, counts, lastActive, resolved] = await Promise.all([
+  const [found, costs, counts, lastActive, resolved, held] = await Promise.all([
     db
       .select({ id: users.id, email: users.email, isAdmin: users.isAdmin })
       .from(users)
@@ -696,13 +700,14 @@ export async function adminAccount(
     requestCounts(since, [userId]),
     lastActiveSince(since, [userId]),
     entitlementsFor(userId, now),
+    shownSubscriptions([userId], now),
   ]);
   const user = found[0];
   if (user === undefined) return null;
   const cost = costs.find((entry) => entry.userId === userId);
   return {
     cost,
-    row: accountRow(user, resolved, {
+    row: accountRow(user, resolved, held.get(userId) ?? null, {
       cost,
       requests: counts.get(userId) ?? 0,
       lastActiveAt: lastActive.get(userId) ?? null,
@@ -711,23 +716,53 @@ export async function adminAccount(
   };
 }
 
-/** One `users` row and its resolver answer, as the accounts table shows it. */
+/**
+ * The subscription each account's row shows, by `userId`: **conferring
+ * first**, then live before test, then newest. The order `accountsMatching`'s
+ * lateral pick writes in SQL, so a filter and the row it lists agree.
+ *
+ * Conferring first, so a cancelled live subscription never hides the test one
+ * that holds the plan the row draws. Live before test among those, which
+ * `subscriptionFor`'s pick does not do because it answers what the account may
+ * do: a live payer with a newer test subscription beside it still pays, and
+ * the row has to say so (ADR-076 §4).
+ */
+async function shownSubscriptions(ids: readonly string[], now: Date): Promise<Map<string, SubscriptionStanding>> {
+  if (ids.length === 0) return new Map();
+  const rows = await db
+    .select()
+    .from(subscriptions)
+    .where(inArray(subscriptions.userId, [...ids]))
+    .orderBy(desc(subscriptions.createdAt));
+  const byUser = new Map<string, (typeof rows)[number][]>();
+  for (const row of rows) byUser.set(row.userId, [...(byUser.get(row.userId) ?? []), row]);
+  return new Map(
+    [...byUser].map(([userId, held]) => {
+      const confers = (row: (typeof held)[number]) => CONFERRING_STATUSES.includes(row.status);
+      const pick =
+        held.find((row) => confers(row) && row.livemode) ??
+        held.find(confers) ??
+        held.find((row) => row.livemode) ??
+        held[0]!;
+      return [userId, standingOf(pick, now)];
+    }),
+  );
+}
+
+/** One `users` row, its resolver answer and its shown subscription, as the accounts table draws it. */
 function accountRow(
   row: { id: string; email: string | null; isAdmin: boolean },
   resolved: AccountEntitlements,
+  subscription: SubscriptionStanding | null,
   reads: { cost: AccountCost | undefined; requests: number; lastActiveAt: string | null },
 ): AdminAccountRow {
-  // **Read off the resolver's own answer**, not re-queried. It already
-  // fetched this account's subscription standing to decide what the account
-  // may do, so asking again would be a second read that can disagree with
-  // the gate — which is the one thing an operator console must never do.
-  const subscription = resolved.subscription;
   // A test-mode subscription confers but pays nothing (ADR-076 §4), the same
   // rule `accountsMatching`'s `paying` writes in SQL.
   const pays =
     subscription !== null && subscription.conferring && subscription.row.livemode
       ? monthlyMicroUsd(subscription.row)
       : 0;
+  const state = subscription === null ? null : subscription.lapsed ? "lapsed" : subscription.row.status;
   return {
     userId: row.id,
     email: row.email,
@@ -745,7 +780,9 @@ function accountRow(
     microUsd: reads.cost?.microUsd ?? 0,
     unpriced: reads.cost?.unpriced ?? 0,
     paysMicroUsd: pays,
-    subscriptionState: subscription?.lapsed === true ? "lapsed" : (subscription?.row.status ?? null),
+    // Marked, so a test-mode `past_due` never reads as the *Past due* the
+    // filter counts.
+    subscriptionState: state !== null && subscription?.row.livemode === false ? `${state} (test mode)` : state,
     lastActiveAt: reads.lastActiveAt,
   };
 }

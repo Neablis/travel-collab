@@ -383,6 +383,15 @@ describe("the accounts table's page", () => {
       sinking: await tagged(tag, "sinking", "plus"),
       // Bought with a test card: it confers, and it pays nothing (ADR-076 §4).
       tester: await tagged(tag, "tester", "plus"),
+      // A declined test card: its row reads past due in test mode, and the
+      // *Past due* filter, a money read, leaves it out.
+      declined: await tagged(tag, "declined", "plus"),
+      // Live and paying, with a newer test subscription beside it: the row
+      // shows the live one, so it pays.
+      switched: await tagged(tag, "switched", "plus"),
+      // Cancelled for real, then bought again with a test card: the row shows
+      // the test one, which is what holds the plan.
+      returned: await tagged(tag, "returned", "plus"),
       idle: await tagged(tag, "idle"),
     };
     await subscribe(ids.payer, "active");
@@ -397,6 +406,11 @@ describe("the accounts table's page", () => {
     await subscribe(ids.resubscribed, "canceled", { createdDaysAgo: 2 });
     await subscribe(ids.sinking, "active");
     await subscribe(ids.tester, "active", { livemode: false });
+    await subscribe(ids.declined, "past_due", { pastDueDays: 1, livemode: false });
+    await subscribe(ids.switched, "active", { createdDaysAgo: 20 });
+    await subscribe(ids.switched, "active", { createdDaysAgo: 2, livemode: false });
+    await subscribe(ids.returned, "canceled", { createdDaysAgo: 20 });
+    await subscribe(ids.returned, "active", { createdDaysAgo: 2, livemode: false });
     await grant(ids.granted);
     await grant(ids.expired, { expired: true });
     await grant(ids.revoked, { revoked: true });
@@ -451,16 +465,24 @@ describe("the accounts table's page", () => {
       expect(all!.counts[filter], filter).toBe(rows.filter((row) => drawnAs(row, filter, underwater)).length);
     }
     expect(all!.counts).toEqual({
-      all: 12,
-      // payer, unpriced, late (inside its window), resubscribed, sinking — and
-      // not tester, whose subscription is test mode.
-      paying: 5,
+      all: 15,
+      // payer, unpriced, late (inside its window), resubscribed, sinking,
+      // switched — and not tester, declined or returned, whose conferring
+      // subscriptions are test mode.
+      paying: 6,
       granted: 1,
       // freesub, granted, expired, revoked, idle — their held plan grants nothing.
       unentitled: 5,
       pastDue: 1,
       underwater: 1,
     });
+    // A test-mode state is said as one; a conferring subscription is shown
+    // over one that does not, and then live over test.
+    const stateOf = (id: string) => rows.find((row) => row.userId === id)!.subscriptionState;
+    expect(stateOf(ids.declined)).toBe("past_due (test mode)");
+    expect(stateOf(ids.tester)).toBe("active (test mode)");
+    expect(stateOf(ids.switched)).toBe("active");
+    expect(stateOf(ids.returned)).toBe("active (test mode)");
   });
 
   it("serves each filter's own rows, newest first", async () => {
@@ -468,7 +490,7 @@ describe("the accounts table's page", () => {
     const ofFilter = async (filter: AccountFilterId) =>
       (await everyPage(tag, filter, underwater)).flatMap((page) => page.rows.map((row) => row.userId));
     expect((await ofFilter("paying")).sort()).toEqual(
-      [ids.payer, ids.unpriced, ids.late, ids.resubscribed, ids.sinking].sort(),
+      [ids.payer, ids.unpriced, ids.late, ids.resubscribed, ids.sinking, ids.switched].sort(),
     );
     expect(await ofFilter("pastDue")).toEqual([ids.late]);
     expect(await ofFilter("granted")).toEqual([ids.granted]);
@@ -480,8 +502,8 @@ describe("the accounts table's page", () => {
   it("serves at most a page of rows, covers the set once, and keeps the counts page to page", async () => {
     const { tag, ids, underwater } = await fixture();
     const pages = await everyPage(tag, "all", underwater);
-    // 12 accounts: a full page and a short one.
-    expect(pages.map((page) => page.rows.length)).toEqual([ACCOUNTS_PAGE_SIZE, 12 - ACCOUNTS_PAGE_SIZE]);
+    // 15 accounts: a full page and a short one.
+    expect(pages.map((page) => page.rows.length)).toEqual([ACCOUNTS_PAGE_SIZE, 15 - ACCOUNTS_PAGE_SIZE]);
     expect(pages[1]!.counts).toEqual(pages[0]!.counts);
     const seen = pages.flatMap((page) => page.rows.map((row) => row.userId));
     expect(new Set(seen).size).toBe(seen.length);
@@ -496,7 +518,7 @@ describe("the accounts table's page", () => {
     const { tag, underwater } = await fixture();
     const served = await adminAccountsPage({ query: tag, filter: "all", page: 40 }, now, [], underwater);
     expect(served.page).toBe(1);
-    expect(served.rows).toHaveLength(12 - ACCOUNTS_PAGE_SIZE);
+    expect(served.rows).toHaveLength(15 - ACCOUNTS_PAGE_SIZE);
   });
 
   // An address search is a substring, not a pattern: a `%` typed into the box
