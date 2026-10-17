@@ -189,7 +189,7 @@ describe("checkout for an account with the test-mode switch on", () => {
   }
 
   /** A held subscription in one mode, which is what the portal manages. */
-  async function holds(userId: string, livemode: boolean, status: "active" | "canceled" = "active"): Promise<void> {
+  async function holds(userId: string, livemode: boolean, status: "active" | "past_due" | "canceled" = "active"): Promise<void> {
     await db.insert(subscriptions).values({
       id: randomUUID(),
       userId,
@@ -273,6 +273,34 @@ describe("checkout for an account with the test-mode switch on", () => {
       body: { customer: "cus_live_existing" },
     });
     expect(createCustomer).not.toHaveBeenCalled();
+  });
+
+  // A test subscription outlives the switch: Stripe knows it in test mode only,
+  // so turning the switch off must not send its portal to a live customer.
+  it("opens the portal in a held test subscription's mode once the switch is off", async () => {
+    const userId = await switchedAccount();
+    await holds(userId, false);
+    await db.update(users).set({ stripeTestMode: false }).where(eq(users.id, userId));
+    stripeRequest.mockResolvedValue({ url: "https://billing.stripe.test/p" });
+    await portalUrlFor({ userId, returnOrigin: "https://app.test" });
+    expect(stripeRequest.mock.calls.at(-1)![0]).toMatchObject({
+      mode: "test",
+      path: "/billing_portal/sessions",
+      body: { customer: `cus_test_${userId}` },
+    });
+  });
+
+  // A lapsed card is fixed in the portal, so a `past_due` row still picks it.
+  it("opens the portal in a past-due subscription's mode, whatever the switch says", async () => {
+    const userId = await switchedAccount();
+    await holds(userId, true, "past_due");
+    stripeRequest.mockResolvedValue({ url: "https://billing.stripe.test/p" });
+    await portalUrlFor({ userId, returnOrigin: "https://app.test" });
+    expect(stripeRequest.mock.calls.at(-1)![0]).toMatchObject({
+      mode: "live",
+      path: "/billing_portal/sessions",
+      body: { customer: "cus_live_existing" },
+    });
   });
 
   // A cancelled test subscription manages nothing; were it to pick the mode,
