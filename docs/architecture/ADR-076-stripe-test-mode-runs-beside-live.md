@@ -61,7 +61,8 @@ Three facts make "just add the test keys" unsafe:
    so a test checkout confers the plan (decision 4 of the milestone). The literal is `true`, not
    "the deployment's own mode". On a deployment whose only keys are test keys (local, a preview)
    the console's money panels therefore show nothing bought there. The integration tests prove the
-   reads, so the console needs no test-mode rendering of its own.
+   reads, so the console needs no test-mode rendering of its own. Mitchell confirmed
+   live-only everywhere on 2026-10-17.
 
 5. **The webhook tries both secrets, and the secret that verifies decides the mode.** The
    deployment has up to two key pairs:
