@@ -1,4 +1,5 @@
 import { describe, expect, it, vi, afterEach } from "vitest";
+import { getPathMatch } from "next/dist/shared/lib/router/utils/path-match";
 
 /**
  * The CSP is a build-time string keyed off VERCEL_ENV, so nothing that runs in
@@ -178,6 +179,43 @@ describe("the preview CSP admits the Vercel Toolbar", () => {
       expect(await cspFor(value)).toBe(await cspFor("production"));
     },
   );
+});
+
+/**
+ * What a response for `pathname` carries: every `headers()` entry whose source
+ * matches, applied in order so a later entry's value for a key wins, which is
+ * how Next applies them. Matched with Next's own matcher, so a source that
+ * stops matching its path fails here rather than on a deployment.
+ */
+async function headersServedAt(pathname: string): Promise<Map<string, string>> {
+  const served = new Map<string, string>();
+  for (const route of await headersFor("production", "production")) {
+    if (!getPathMatch(route.source, { removeUnnamedParams: true, strict: true })(pathname)) continue;
+    for (const { key, value } of route.headers) served.set(key.toLowerCase(), value);
+  }
+  return served;
+}
+
+describe("the web manifest", () => {
+  // Next serves the static manifest `max-age=0, must-revalidate`, which put it
+  // at the end of the landing page's critical request chain. A day is safe
+  // because the icons it names are versioned filenames.
+  it("is cacheable for a day and still carries every global security header", async () => {
+    const served = await headersServedAt("/manifest.webmanifest");
+    expect(served.get("cache-control")).toBe("public, max-age=86400, stale-while-revalidate=604800");
+
+    const global = (await headersFor("production", "production")).find((r) => r.source === "/:path*");
+    expect(global?.headers.map((h) => h.key)).toContain("Content-Security-Policy");
+    for (const { key, value } of global?.headers ?? []) {
+      expect(served.get(key.toLowerCase()), key).toBe(value);
+    }
+  });
+
+  it("lends its Cache-Control to no other path", async () => {
+    for (const pathname of ["/", "/manifest.json", "/icons/icon-192-v2.png", "/s/abc/manifest.webmanifest"]) {
+      expect((await headersServedAt(pathname)).has("cache-control"), pathname).toBe(false);
+    }
+  });
 });
 
 /**
