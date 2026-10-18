@@ -8,6 +8,7 @@ import { FrontDoorHeader } from "@/components/front/FrontDoorHeader";
 import { LandingHeroArt } from "@/components/front/LandingHeroArt";
 import { LandingFeatureBlocks } from "@/components/front/LandingFeatureBlocks";
 import { LandingPricing } from "@/components/front/LandingPricing";
+import { LeaveLandingIfSignedIn } from "@/components/front/LeaveLandingIfSignedIn";
 import { DEMO_PATH } from "@/lib/demoTrip";
 import { cn } from "@/lib/cn";
 
@@ -138,6 +139,7 @@ const HERO_PLOTS = [
 export function LandingScreen() {
   return (
     <>
+      <LeaveLandingIfSignedIn />
       <PhoneFrontDoor />
       <div data-testid="desktop-landing" className="hidden min-h-screen flex-col bg-paper text-ink md:flex">
       <FrontDoorHeader

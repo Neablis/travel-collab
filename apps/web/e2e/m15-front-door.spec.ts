@@ -131,6 +131,26 @@ test.describe("signed in", () => {
   });
 });
 
+// The proxy sets the hint only on a page load of a route it matches, and
+// `/playbooks` is not one: a sign-in that lands there is followed only by
+// client fetches. The `(app)` shell sets the hint itself once it knows who is
+// reading (`SessionUserProvider`), so the bare domain still opens Home.
+test("a sign-in that lands outside Home still sends / on to Home", async ({ page }) => {
+  await page.goto(`/signin?callbackUrl=${encodeURIComponent("/playbooks")}`);
+  const username = page.getByLabel(/username/i);
+  await username.fill("alice");
+  await expect(username).toHaveValue("alice");
+  await page.getByRole("button", { name: /sign in with dev login/i }).click();
+  await expect(page).toHaveURL(/\/playbooks$/);
+  // The shell's effect runs after hydration; wait for its write, not a clock.
+  await expect
+    .poll(async () => (await page.context().cookies()).some((cookie) => cookie.name === "tc_signed_in"))
+    .toBe(true);
+  await page.goto("/");
+  await expect(page).toHaveURL(/\/home$/);
+  await expect(page.getByRole("heading", { name: "Your trips" })).toBeVisible();
+});
+
 // Reported from the 2026-08-30 preview design pass: "Pressing enter should
 // submit the Dev Login flow here." It already did — but only once React had
 // hydrated. Before that the form was a plain `<form>` with no `action`, so

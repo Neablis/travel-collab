@@ -49,7 +49,42 @@ export function signedInHintCookieOptions(secure: boolean) {
  * straight back.
  */
 export function clearSignedInHint(doc: Pick<Document, "cookie"> = document): void {
+  hintCleared = true;
   doc.cookie = `${SIGNED_IN_HINT_COOKIE}=; Path=/; Max-Age=0; SameSite=Lax`;
+}
+
+// Set by `clearSignedInHint`, read by `setSignedInHint`: once this document has
+// started signing out, nothing in it may put the hint back. Every sign-out
+// clears the hint, then POSTs, then navigates away, and a render in that window
+// that re-set it would send the signed-out visitor from the landing to `/home`
+// and on to sign in. The shell's setter is keyed on the user id, which does not
+// change in that window, so this is the second lock, not the only one. Module
+// state, so a full load — which is how every sign-out ends — resets it.
+let hintCleared = false;
+
+/**
+ * Sets the hint from the browser, with the attributes the proxy gives it
+ * (`signedInHintCookieOptions`). The `(app)` shell calls it once a session user
+ * is known (`SessionUserProvider`), because the proxy sets it only on a document load
+ * of a route it matches: a sign-in whose callback is `/plans`, `/playbooks/…`
+ * or `/demo/…` lands on a page it does not, and every move after that is a
+ * client fetch it deliberately skips (ADR-078). A no-op after
+ * `clearSignedInHint` in the same document.
+ */
+export function setSignedInHint(
+  doc: Pick<Document, "cookie"> = document,
+  secure: boolean = location.protocol === "https:",
+): void {
+  if (hintCleared) return;
+  const { path, maxAge } = signedInHintCookieOptions(secure);
+  doc.cookie = `${SIGNED_IN_HINT_COOKIE}=1; Path=${path}; Max-Age=${maxAge}; SameSite=Lax${secure ? "; Secure" : ""}`;
+}
+
+const HINT_IN_COOKIE_HEADER = new RegExp(`(?:^|;\\s*)${SIGNED_IN_HINT_COOKIE}=`);
+
+/** Whether a `document.cookie` string carries the hint. */
+export function hasSignedInHint(cookie: string): boolean {
+  return HINT_IN_COOKIE_HEADER.test(cookie);
 }
 
 /**
@@ -63,5 +98,12 @@ export function clearSignedInHint(doc: Pick<Document, "cookie"> = document): voi
  * head is sent once per full load and never re-rendered, which is the only
  * case the script can act in anyway. The CSP already admits inline scripts
  * (next.config.ts).
+ *
+ * A client navigation to `/`, and a back-forward-cache restore of it, are the
+ * landing's own effect's (`LeaveLandingIfSignedIn`). **Keep this string as
+ * short as it is**: e2e/seo.spec.ts's "same 404 with the same body" goes red
+ * when the root layout's HTML grows by as little as an 84-byte comment here,
+ * because the flight payload's row ids then follow a different flush
+ * (measured 2026-10-18, PR 490).
  */
 export const LEAVE_LANDING_IF_SIGNED_IN = `if(location.pathname==="/"&&/(?:^|;\\s*)${SIGNED_IN_HINT_COOKIE}=/.test(document.cookie))location.replace(${JSON.stringify(HOME_PATH)});`;

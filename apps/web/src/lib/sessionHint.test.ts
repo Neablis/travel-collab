@@ -5,6 +5,8 @@ import {
   SIGNED_IN_HINT_COOKIE,
   clearSignedInHint,
   hasSessionCookie,
+  hasSignedInHint,
+  setSignedInHint,
 } from "./sessionHint";
 
 // The cookie that decides the app shell's first paint (`(app)/layout.tsx`).
@@ -57,6 +59,33 @@ describe("LEAVE_LANDING_IF_SIGNED_IN", () => {
   });
 });
 
+describe("hasSignedInHint", () => {
+  it.each([
+    [`${SIGNED_IN_HINT_COOKIE}=1`, true],
+    [`theme=dark; ${SIGNED_IN_HINT_COOKIE}=1`, true],
+    [`x${SIGNED_IN_HINT_COOKIE}=1`, false],
+    ["", false],
+  ])("reads %j as %s", (cookie, expected) => {
+    expect(hasSignedInHint(cookie)).toBe(expected);
+  });
+});
+
+// Before `clearSignedInHint`'s block on purpose: clearing locks the setter for
+// the rest of the module's life, as it does for a document signing out.
+describe("setSignedInHint", () => {
+  it("sets the hint with the proxy's attributes", () => {
+    const doc = { cookie: "" };
+    setSignedInHint(doc, false);
+    expect(doc.cookie).toBe(`${SIGNED_IN_HINT_COOKIE}=1; Path=/; Max-Age=2592000; SameSite=Lax`);
+  });
+
+  it("marks it Secure on https", () => {
+    const doc = { cookie: "" };
+    setSignedInHint(doc, true);
+    expect(doc.cookie).toMatch(/; Secure$/);
+  });
+});
+
 describe("clearSignedInHint", () => {
   it("expires the hint at the path it was set on", () => {
     const doc = { cookie: "" };
@@ -64,5 +93,12 @@ describe("clearSignedInHint", () => {
     expect(doc.cookie).toMatch(new RegExp(`^${SIGNED_IN_HINT_COOKIE}=;`));
     expect(doc.cookie).toContain("Path=/");
     expect(doc.cookie).toContain("Max-Age=0");
+  });
+
+  it("stops the setter putting the hint back for the rest of the document", () => {
+    clearSignedInHint({ cookie: "" });
+    const doc = { cookie: "" };
+    setSignedInHint(doc, false);
+    expect(doc.cookie).toBe("");
   });
 });

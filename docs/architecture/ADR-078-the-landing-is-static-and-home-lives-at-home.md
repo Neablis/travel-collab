@@ -47,7 +47,11 @@ That made the most-visited URL the most expensive one:
    - The proxy sets `tc_signed_in=1` (not HttpOnly, `Path=/`, `SameSite=Lax`, Secure on https,
      the session's 30-day life) on a signed-in **page load** of a matched route, and deletes it
      on any matched request with no session.
-   - Both sign-out buttons, and Home when its read answers 401, delete it before they leave.
+   - The `(app)` shell sets it from the browser, with the same attributes, once it knows a
+     session user (`SessionUserProvider`, keyed on the user id). The proxy alone missed a sign-in whose
+     `callbackUrl` is a page it does not match (below).
+   - Both sign-out buttons, and Home when its read answers 401, delete it before they leave. The
+     delete also stops the browser setter for the rest of that document.
    - `LEAVE_LANDING_IF_SIGNED_IN` (`src/lib/sessionHint.ts`), inline in the root layout's
      `<head>`, does `location.replace("/home")` when the path is `/` and the hint is present —
      before the landing paints. There is no header link and no server check.
@@ -79,11 +83,21 @@ That made the most-visited URL the most expensive one:
 - **The sign-out race the old `/welcome` callback worked around is gone.** It existed because `/`
   was Home for a request whose session cookie had not yet been cleared. `/` no longer reads the
   session, so sign-out goes to `/`.
-- **A signed-in account with no hint sees the landing once.** Anybody signed in before this ships
-  holds no hint until their next page load of `/home`, `/trips/*` or `/invite/*`; a visit to `/`
-  before that shows the landing, whose *Sign in* takes them in.
-- **A client navigation to `/` while signed in shows the landing** (the not-found page's link is
-  the one left). The script runs on full loads only. Accepted: the app's own links all go to
-  `/home`.
+- **A signed-in browser with no hint sees the landing until it opens an app page.** Two kinds of
+  account get there. One signed in before this shipped. The other signed in to a page outside the
+  proxy's matcher — `/plans`, `/account`, `/playbooks/…`, `/demo/…`, `/s/…` — after which every
+  move is a client fetch the proxy skips. Code review on PR 490 found the second; the proxy alone
+  would have left it hint-less until a page load of `/home`, `/trips/*` or `/invite/*`. The
+  shell's setter closes it for every page under `(app)`, however it was reached. What is left is a
+  browser that has opened no app page since signing in (a `/demo/…` or `/s/…` visit only), whose
+  `/` shows the landing, whose *Sign in* takes them in.
+- **A client navigation to `/` while signed in goes on to Home too.** The head script runs on a
+  full load only. The landing's own effect (`LeaveLandingIfSignedIn`) covers a client navigation
+  and Back within a document — the not-found page's *Caesura home*, Back from `/signin`, the
+  front-door logo — and, through a `pageshow` listener kept with the page, a back-forward-cache
+  restore. A client render shows the landing for one frame before it leaves. The `pageshow` check
+  is not in the head script because growing the root layout's HTML by even 84 bytes turned
+  `e2e/seo.spec.ts`'s "same 404 with the same body" red: the flight payload's row ids follow the
+  flush, and that test compares them.
 - Old browsers without `Sec-Fetch-Dest` (Safari before 16.4) keep the prefetch race above: at
   worst a sign-out lands on `/signin` rather than the landing.

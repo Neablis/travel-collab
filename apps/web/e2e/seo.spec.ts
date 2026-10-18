@@ -32,14 +32,8 @@ test("a signed-out / serves the landing in place, cacheable, with one h1", async
   await visitor.context().close();
 });
 
-test("a signed-in / ends up on /home", async ({ page }) => {
-  // The landing's HTML is the same for everybody; it is the hint cookie, set
-  // on the way through Home, that sends a signed-in browser on.
-  await page.goto("/home");
-  await page.goto("/");
-  await expect(page).toHaveURL(/\/home$/);
-  await expect(page.getByRole("heading", { name: "Your trips" })).toBeVisible();
-});
+// A signed-in `/` going on to `/home` is e2e/m15-front-door.spec.ts's, beside
+// the sign-out half of the same hint (ADR-078).
 
 test("/welcome, the landing's old address, is a permanent redirect to /", async ({ browser }) => {
   const visitor = await stranger(browser);
