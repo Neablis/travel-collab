@@ -6,6 +6,7 @@ import {
   normalizePendingAdmission,
   pendingAdmissionCookieOptions,
 } from "@/lib/pendingAdmission";
+import { playbooksReaderFor, playbooksRoute } from "@/lib/playbooksReader";
 
 // This file was `src/middleware.ts` until the Next 16 upgrade, which
 // deprecated the `middleware` file convention in favour of `proxy` (the
@@ -57,8 +58,21 @@ const { auth } = NextAuth(authConfig);
 // database read happens here (this project uses JWT sessions with no
 // adapter — see server/auth.ts), which is the configuration Auth.js v5's
 // docs call out as the one that works reliably in the Edge runtime.
-/** The request seam: a signed-out `/` is the landing, an invite banks its token, anything else matched goes to sign-in. */
+/** The request seam: the library picks its copy, a signed-out `/` is the landing, an invite banks its token, anything else matched goes to sign-in. */
 export default auth((req) => {
+  // The public library, for everyone: a reader with no session and no query
+  // gets the cached copy, anyone else the per-request one (`playbooksReader.ts`).
+  // `req.auth` rather than the cookie's presence: a cookie whose session has
+  // expired would be answered signed-out by the live page too.
+  const library = playbooksRoute(
+    req.nextUrl.pathname,
+    playbooksReaderFor(Boolean(req.auth), req.nextUrl.pathname, req.nextUrl.searchParams),
+  );
+  if (library !== null) {
+    const target = new URL(req.nextUrl);
+    target.pathname = library;
+    return NextResponse.rewrite(target);
+  }
   if (!req.auth) {
     const { pathname } = req.nextUrl;
     if (pathname === "/") {
@@ -143,11 +157,13 @@ function tripInviteToken(pathname: string): string | null {
 //     NOT to send anyone to /signin — both pages are public — but to bank the
 //     token for M11a's gate on the way past (see the handler above).
 //
-// `/playbooks/:path*` was on this list until ADR-061 made the public library
-// readable without an account: a shared playbook link has to open for somebody
-// who has not signed up, so a signed-out visitor must reach those pages rather
-// than be sent to /signin. They stay in `(app)`; what a signed-out reader may
-// DO there is decided by the API routes, which still answer every write 401.
+//   - `/playbooks/:path*` — the public library, bare prefix included. NOT to
+//     send anyone to /signin (ADR-061: a shared playbook link opens for
+//     somebody with no account; what they may DO there is decided by the API
+//     routes, which answer every write 401), but to pick which copy of the
+//     page they get. Every request is rewritten: the routes live under
+//     `app/playbooks/live` and `app/playbooks/[copy]`, so nothing at
+//     `/playbooks` renders without this file.
 export const config = {
-  matcher: ["/", "/trips/:path*", "/invite/:path*"],
+  matcher: ["/", "/trips/:path*", "/invite/:path*", "/playbooks/:path*"],
 };

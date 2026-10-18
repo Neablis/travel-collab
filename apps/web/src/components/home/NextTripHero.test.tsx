@@ -1,4 +1,6 @@
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { hydrateRoot, type Root } from "react-dom/client";
+import { renderToString } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TripSummary } from "@tc/contracts";
 import { costedTripDetailFixture, tripCoverFactory, tripDetailFixture, tripSummaryFactory, tripSummaryMemberFactory } from "@tc/factories";
@@ -471,6 +473,36 @@ describe("NextTripHero", () => {
 
     expect(screen.getByText(/^Thu, Oct 1\b/)).toBeTruthy();
     expect(screen.queryByText(/^Created /)).toBeNull();
+  });
+
+  // Home renders its hero on the server now (2026-10-18), in UTC, and the
+  // browser hydrates it in the reader's zone. `createdAt` is an instant, so
+  // near midnight the two fall on different days; a label formatted in the
+  // local zone during render made React discard the server's HTML.
+  it("hydrates the server's created date without a mismatch, then shows the reader's own", async () => {
+    const originalTz = process.env.TZ;
+    process.env.TZ = "America/Los_Angeles";
+    try {
+      // 03:00 UTC on the 16th is still the evening of the 15th in Los Angeles.
+      const trip = tripSummaryFixture({ startDate: null, createdAt: "2030-06-16T03:00:00.000Z" });
+      fetchTripDetailMock.mockReturnValue(new Promise(() => {}));
+      const host = document.createElement("div");
+      host.innerHTML = renderToString(<NextTripHero trip={trip} />);
+      document.body.append(host);
+      expect(within(host).getByText(/^Created Jun 16, 2030 ·/)).toBeTruthy();
+
+      const onRecoverableError = vi.fn();
+      let root: Root | undefined;
+      await act(async () => {
+        root = hydrateRoot(host, <NextTripHero trip={trip} />, { onRecoverableError });
+      });
+      expect(onRecoverableError).not.toHaveBeenCalled();
+      expect(within(host).getByText(/^Created Jun 15, 2030 ·/)).toBeTruthy();
+      act(() => root?.unmount());
+    } finally {
+      document.body.replaceChildren();
+      process.env.TZ = originalTz;
+    }
   });
 
   // M46 D5: the hero carries the same unread chat count a card does.

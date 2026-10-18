@@ -1,8 +1,8 @@
 import { PreferencesResponse, UpdateUserPreferences } from "@tc/contracts";
 import { auth } from "@/server/auth";
-import { readPreferences, writePreferences } from "@/server/users";
+import { writePreferences } from "@/server/users";
 import { defaultColorFor } from "@/server/access/personaColors";
-import { callerIsAdmin } from "@/server/entitlements/admin";
+import { readAccountPreferences } from "@/server/accountPreferences";
 
 // The Identity module's only read/write surface outside the sign-in callback
 // (M17). Account scope, so there is no `requireUser()` here and no access seam
@@ -43,16 +43,11 @@ export async function GET() {
   // `callerIsAdmin`, not `isAdmin`: this answers about whoever is asking, so a
   // flag-only operator gets the menu item too. That is the whole point of the
   // flag — turning admin on must not need a redeploy OR a sign-out.
-  const [preferences, admin] = await Promise.all([
-    readPreferences(session.user.id),
-    callerIsAdmin(session.user.id),
-  ]);
+  //
   // `defaultColor` beside them for the same reason, on both verbs: see
-  // `PreferencesResponse`.
-  return Response.json({
-    ...PreferencesResponse.parse({ preferences, defaultColor: defaultColorFor(session.user.id) }),
-    isAdmin: admin,
-  });
+  // `PreferencesResponse`. The composition lives in `readAccountPreferences`
+  // because `(app)/layout.tsx` serves the same answer with the page.
+  return Response.json(await readAccountPreferences(session.user.id));
 }
 
 /**
