@@ -393,6 +393,12 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
       const overtaken = window.setTimeout(() => setReveal(null), 10_000);
       return () => window.clearTimeout(overtaken);
     }
+    // Plan reached: from here, leaving it for any view, its origin included,
+    // is leaving the jump.
+    if (reveal.from !== "Plan") {
+      setReveal({ ...reveal, from: "Plan" });
+      return;
+    }
     if (!planDrawn) return;
     setReveal(null);
     const column = document.querySelector<HTMLElement>(`[data-day-column][data-day-id="${reveal.dayId}"]`);
