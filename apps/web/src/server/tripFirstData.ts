@@ -19,7 +19,9 @@ import type { TripFirstData } from "@/lib/tripFirstData";
  * "The trip page renders its first data on the server"): every body the board
  * would otherwise fetch after hydration before it could draw — the trip, its
  * history, who is on it, the cover, the notebook list, the Overview notebook
- * and the globals — so the board is in the page's first HTML.
+ * and the globals — so the board's header and its view's placeholder are in
+ * the page's first HTML, and the lens has its data the moment it mounts at
+ * hydration.
  *
  * One access check, `requireTripAccess` as the routes ask it, and every body
  * from the routes' own builders (`tripViews.ts`), so the page cannot answer

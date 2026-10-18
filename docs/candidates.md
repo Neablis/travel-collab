@@ -356,8 +356,9 @@ here two days later.
 - **The Overview document is in the first HTML (found by PR 486, 2026-10-18).** On a phone the
   trip page's LCP element is a `<p>` of the Overview notebook. Since PR 486 the first HTML holds
   the trip's header and the lens's skeleton, but no lens: the board is `inert` and every lens is
-  its placeholder until hydration (so a phone never sees a lens in its desktop form, and no tap
-  lands on a dead control), and the lens's chunk loads after it. The paragraph then waits on the
+  its placeholder until hydration (so no tap lands on a dead control, and a phone sees no lens in
+  its desktop form — only, at `?view=Plan`, the placeholder's day chips in the body, which move
+  into the pinned header once the phone hook corrects), and the lens's chunk loads after it. The paragraph then waits on the
   editor too: `PageEditor` creates TipTap with `immediatelyRender: false`. It needs a static
   server render of the document — TipTap's static renderer or `generateHTML`, a new dependency,
   or a second renderer — swapped for the editor once the editor exists. Mitchell deferred it on
@@ -374,7 +375,9 @@ here two days later.
     the server and on the first client render, so `TripHeader` (its one-row phone header) is
     drawn in its desktop form in the server HTML and shifts when the hook corrects after
     hydration. Before PR 486 it did not render until the provider had loaded, by which time the
-    hook had. The lenses no longer do this, being placeholders until hydration. Accepted for
+    hook had. The lenses no longer do this, being placeholders until hydration, except that
+    Plan's placeholder draws its day chips in the body, where a phone pins them in the header
+    after hydration. Accepted for
     part 1; the fix is the same breakpoint in CSS (`max-md:`) wherever the form is only a
     restyle.
 

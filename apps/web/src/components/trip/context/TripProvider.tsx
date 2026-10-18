@@ -255,7 +255,8 @@ export function TripProvider({
   /**
    * The trip's first reads, answered by the page on the server
    * (`server/tripFirstData.ts`). With it the provider starts `ready`, issues
-   * none of `load`'s reads, and the board renders in the first HTML; without
+   * none of `load`'s reads, and the board's header and the view's placeholder
+   * are in the first HTML (the lens mounts at hydration); without
    * it, everything is read on mount as before.
    */
   initial?: TripFirstData | null;

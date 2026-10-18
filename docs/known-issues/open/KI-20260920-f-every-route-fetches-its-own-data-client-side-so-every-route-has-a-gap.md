@@ -83,7 +83,8 @@
 - **The trip board moved too, 2026-10-18 (PR 486).** `(board)/page.tsx` now reads the board's
   first data on the server (`server/tripFirstData.ts`, after one `requireTripAccess`, through the
   GET routes' own builders in `server/tripViews.ts`), and `TripProvider`'s `initial` seeds the
-  client cache, so the board and its header are in the first HTML. The wall was opened for that one
+  client cache, so the board's header (and the view's placeholder, the lens itself mounting at
+  hydration) is in the first HTML. The wall was opened for that one
   file (Mitchell's decision of 2026-10-18, AGENTS.md). The 2026-09-20 and 2026-09-25 lines above
   that say the trip page "fetches nothing" and that the wall forbids it are true of their date
   only. The `TripProvider` cost described above was paid that way: the seed is adopted once,

@@ -140,7 +140,8 @@ export function OverviewLens({
   const isPhone = useIsPhone();
   // **What the server sent with the page, or the cache it was primed into**
   // (`useTripSeed`): the first render starts from it, so the letter is drawn
-  // without a request, and the server's HTML and the hydrating render agree.
+  // without a request. This lens mounts only after hydration (the board shows
+  // its placeholder until then), so that first render is a client one.
   // The effects below still run their reads; the cache answers them. Without
   // a seed nothing is painted from the cache, whose entries can be any age:
   // the lens waits for its reads, as it always did.
