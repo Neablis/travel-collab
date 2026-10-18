@@ -28,7 +28,7 @@ const END = "<!-- ROUTE-ARTBOARD-INDEX:END -->";
 // `gate` is the `<sc-if value="{{ … }}">` the design file wraps that screen in;
 // `spec` is the section numbers that describe it. Line numbers are NOT here.
 export const ROUTES = [
-  { route: "/", gate: "isHome", spec: [28, 32], note: "Trips, the new-trip fork and the import entry" },
+  { route: "/home", gate: "isHome", spec: [28, 32], note: "Trips, the new-trip fork and the import entry" },
   { route: "/trips/[tripId]", gate: "isTrip", spec: [24, 25], note: "The four tabs; Overview is a notebook page" },
   { route: "/trips/[tripId]/pages", gate: "isNotebook", spec: [7, 18, 19], note: "Notebook index" },
   { route: "/trips/[tripId]/pages/[pageId]", gate: "isDoc", spec: [18, 21, 26], note: "One page, and the widget framework" },
@@ -39,7 +39,7 @@ export const ROUTES = [
   { route: "/plans", gate: "isPlansRoute", spec: [29, 34], note: "§34.3 adds the phone treatment" },
   { route: "/account", gate: "isAccountRoute", spec: [12, 34], note: "Three tabs in `?tab=`; was a Sheet until M26 link 1" },
   { route: "/admin", gate: "isAdminRoute", spec: [17], note: "Operator console. The artboard also draws M21's strip — read M20 link 7's split note" },
-  { route: "/welcome", gate: "isDeskLanding", spec: [14, 17], note: "The landing page; `isPhoneLanding` is its phone artboard. §17.1 is the pricing block" },
+  { route: "/", gate: "isDeskLanding", spec: [14, 17], note: "The landing page; `isPhoneLanding` is its phone artboard. §17.1 is the pricing block" },
   { route: "/signin", gate: "isSignin", spec: [14, 28], note: "Inside the `isAuth` block" },
   { route: "/signup", gate: "isSignup", spec: [14, 28], note: "Inside the `isAuth` block" },
   // The two read-only entrances have no artboard of their own ON PURPOSE, and
