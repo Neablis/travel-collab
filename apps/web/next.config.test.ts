@@ -181,37 +181,6 @@ describe("the preview CSP admits the Vercel Toolbar", () => {
 });
 
 /**
- * Sentry's browser profiling is two things that have to agree, in two files.
- *
- * `instrumentation-client.ts` adds `browserProfilingIntegration()`; this header
- * is what lets the page construct a `Profiler` at all. Without it the
- * integration initialises, fails, and disables profiling for the rest of the
- * session — silently, outside a debug build. So "browser profiling is enabled"
- * is a claim about BOTH, and deleting either one leaves a config that looks
- * complete and collects nothing. These cases are the tripwire.
- */
-describe("the js-profiling document policy", () => {
-  it("is served on every route, so a profile can start on any page", async () => {
-    const global = (await headersFor("production")).find((r) => r.source === "/:path*");
-    expect(global?.headers).toContainEqual({ key: "Document-Policy", value: "js-profiling" });
-  });
-
-  // Share and invite pages get a different Referrer-Policy and otherwise the
-  // same header set. A `filter` there that removed more than it meant to would
-  // quietly turn profiling off for exactly the pages a reviewer walks.
-  it("is served on the share and invite routes too", async () => {
-    const secrets = (await headersFor("production")).find((r) => r.source === "/:prefix(s|invite)/:path*");
-    expect(secrets?.headers).toContainEqual({ key: "Document-Policy", value: "js-profiling" });
-  });
-
-  it.each(["production", "preview", undefined])("is not environment-gated (%o)", async (env) => {
-    for (const route of await headersFor(env)) {
-      expect(route.headers).toContainEqual({ key: "Document-Policy", value: "js-profiling" });
-    }
-  });
-});
-
-/**
  * KI-2026-09-24-v: when the Sentry build plugin's own telemetry is left at its
  * default (on), every `next build`, including the one e2e serves, sends that
  * telemetry to o1.ingest.sentry.io, bypassing the proxy (seen under strace).

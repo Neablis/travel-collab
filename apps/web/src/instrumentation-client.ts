@@ -1,13 +1,11 @@
 // Sentry in the browser: loaded on every page load, before the app renders.
 // https://docs.sentry.io/platforms/javascript/guides/nextjs/
+//
+// No browser profiling (Mitchell, 2026-10-18; ADR-032's amendment of that
+// date): it cost every visitor its code in the every-page chunk to sample
+// Chromium alone. The server still profiles: `sentry.server.config.ts`.
 import * as Sentry from "@sentry/nextjs";
-import {
-  profileSessionSampleRate,
-  sampleRate,
-  scrubReplayRecordingEvent,
-  scrubSentryPayload,
-  sharedSentryOptions,
-} from "../sentry.shared";
+import { sampleRate, scrubReplayRecordingEvent, scrubSentryPayload, sharedSentryOptions } from "../sentry.shared";
 
 Sentry.init({
   ...sharedSentryOptions,
@@ -22,24 +20,7 @@ Sentry.init({
       // carry the URL. This is the only callback the SDK offers on that path.
       beforeAddRecordingEvent: scrubReplayRecordingEvent,
     }),
-    // Browser profiling uses the JS Self-Profiling API, which a page may only
-    // call if the response carried `Document-Policy: js-profiling`. That
-    // header is set in `next.config.ts`, and the pairing is the whole feature:
-    // without it this integration initialises, fails to construct a
-    // `Profiler`, and disables itself for the session with nothing in the
-    // console outside a debug build. `next.config.test.ts` asserts the header
-    // so the two cannot drift apart.
-    //
-    // Chromium-only today (Firefox and Safari ship no Self-Profiling API), so
-    // this is a sample of the traffic rather than all of it, by construction.
-    Sentry.browserProfilingIntegration(),
   ],
-
-  // Same deal as the server: profile only while a sampled root span is open,
-  // which in the browser means a page load or a route transition rather than
-  // the whole time a tab sits open.
-  profileLifecycle: "trace",
-  profileSessionSampleRate,
 
   // Replay: 10% of sessions, and every session that hit an error. Unchanged
   // from the wizard's values, now reading the environment so they can be

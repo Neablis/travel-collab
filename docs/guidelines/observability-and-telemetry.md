@@ -141,14 +141,17 @@ here needs a code change:
   project.
 - `SENTRY_TRACES_SAMPLE_RATE` — **this also turns the AI Agents view down**,
   because the `gen_ai` spans ride on the same sampling decision.
-- `SENTRY_PROFILE_SESSION_SAMPLE_RATE` — CPU profiles, browser and server.
 
-  **Both of those have a `NEXT_PUBLIC_` twin, and you usually want to set it
-  too.** `sentry.shared.ts` is imported by the browser bundle, where Next.js
-  inlines only `NEXT_PUBLIC_*` names — so the server-only name turns the rate
-  down on the server and silently leaves the browser at its default. The public
-  name wins in both runtimes, so setting just that one is the simplest correct
+  **It has a `NEXT_PUBLIC_` twin, and you usually want to set it too.**
+  `sentry.shared.ts` is imported by the browser bundle, where Next.js inlines
+  only `NEXT_PUBLIC_*` names — so the server-only name turns the rate down on
+  the server and silently leaves the browser at its default. The public name
+  wins in both runtimes, so setting just that one is the simplest correct
   answer.
+- `SENTRY_PROFILE_SESSION_SAMPLE_RATE` — CPU profiles, **server only**. Browser
+  profiling was removed on 2026-10-18 (ADR-032 amendment), so this one needs no
+  public twin; `NEXT_PUBLIC_SENTRY_PROFILE_SESSION_SAMPLE_RATE` is still
+  honoured on the server, and wins there, if a deployment set it.
 - `NEXT_PUBLIC_SENTRY_REPLAYS_SESSION_SAMPLE_RATE`,
   `NEXT_PUBLIC_SENTRY_REPLAYS_ON_ERROR_SAMPLE_RATE` — Session Replay.
 
@@ -159,15 +162,7 @@ turn a feature off while looking like it had been turned up.
 `SENTRY_AUTH_TOKEN` is the one secret here — build-time source-map upload only,
 read by `withSentryConfig`, never by app code.
 
-## Three traps, all already paid for
-
-**Browser profiling is two files that have to agree.**
-`instrumentation-client.ts` adds `browserProfilingIntegration()`, and
-`next.config.ts` serves `Document-Policy: js-profiling`. Without the header the
-integration initialises, fails to construct a profiler, and turns itself off
-for the session with nothing in the console outside a debug build. Deleting
-either half leaves a config that looks complete and collects nothing.
-`next.config.test.ts` is the tripwire.
+## Two traps, both already paid for
 
 **The AI tracing rests on three default-on switches, and all three fail
 silently.** The `ai:telemetry` channel is `ai` >= 7 only (on v6 and below
@@ -188,8 +183,8 @@ children are already gone in their own envelope, correctly parented.
 
 ## Verifying it end to end
 
-- `pnpm --filter web test` covers the metric names, the sample-rate parsing and
-  the `Document-Policy` header. `pnpm --filter web test:int` runs
+- `pnpm --filter web test` covers the metric names and the sample-rate
+  parsing. `pnpm --filter web test:int` runs
   `telemetry.int.test.ts`, which boots a real Sentry client behind a capturing
   transport, drives a real turn through the real agent, and asserts the spans
   and metrics that actually left the SDK — the only check that would notice the

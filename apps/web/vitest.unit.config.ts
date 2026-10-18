@@ -76,7 +76,7 @@ export default defineConfig({
           environment: "node",
           // Eight unit tests live outside src/, because the things they cover
           // do too: `next.config.test.ts` covers the CSP's build-time
-          // VERCEL_ENV branch and the js-profiling document policy,
+          // VERCEL_ENV branch and the Sentry build plugin's options,
           // `sentry.shared.test.ts` covers the sample-rate parsing shared by
           // the three `sentry.*.config.ts` files — which sit at the app root
           // because that is where the Next.js SDK looks for them —
