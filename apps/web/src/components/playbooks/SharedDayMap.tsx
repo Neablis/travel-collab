@@ -1,6 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+// MapLibre's stylesheet travels with the map, not the root layout, where it
+// was ~83KB of render-blocking CSS on every route for a map only the trip's
+// Map view and a shared day draw. Without it, marker positioning transforms
+// and the map's stacking context are undefined. Order against `globals.css`
+// does not matter: nothing there targets a `.maplibregl-*` class, and
+// Tailwind's utilities sit in a cascade layer that unlayered rules outrank.
+// Not in `mapBootstrap.ts`, which Playwright imports under plain Node.
+import "maplibre-gl/dist/maplibre-gl.css";
 import type { MapStop } from "./sharedDayGeometry";
 import { createBaseMap } from "@/components/lenses/mapBootstrap";
 import { mapPaintColor } from "@/components/lenses/mapColor";

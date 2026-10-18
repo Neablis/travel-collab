@@ -15,6 +15,7 @@ import { JoinedToast } from "@/components/access/JoinedToast";
 // M11's share links, where read access becomes deliberate.
 export const metadata = { title: "Trip plan" };
 
+/** `/trips/<id>`: the trip board inside its providers. In the `(board)` group so `loading.tsx` bounds it alone. */
 export default async function TripPage({ params }: { params: Promise<{ tripId: string }> }) {
   const { tripId } = await params;
   // Task L1: non-full lenses (Board and Schedule — Itinerary/Daily/Trip were

@@ -873,6 +873,8 @@ describe("NextTripHero — a cover", () => {
     const photo = within(hero).getByRole("img", { name: "Maples over a temple roof" });
     // The top of Home: never lazy, or it pops in after the page has painted.
     expect(photo.getAttribute("loading")).toBe("eager");
+    // And fetched first: it is Home's largest paint.
+    expect(photo.getAttribute("fetchpriority")).toBe("high");
     expect(within(hero).getByText((_, el) => el?.tagName === "P" && el.textContent === "Photo by Aiko Tanaka on Unsplash")).toBeTruthy();
     expect(within(hero).getByRole("link", { name: "Aiko Tanaka" }).getAttribute("href")).toBe(
       `${cover.photographerUrl}?utm_source=caesura&utm_medium=referral`,

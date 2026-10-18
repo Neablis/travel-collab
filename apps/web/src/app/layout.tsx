@@ -2,9 +2,9 @@ import type { Metadata, Viewport } from "next";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Bricolage_Grotesque, IBM_Plex_Mono, IBM_Plex_Sans } from "next/font/google";
-// Required by MapLens (maplibre-gl): without this, marker positioning
-// transforms and the map's stacking context are undefined.
-import "maplibre-gl/dist/maplibre-gl.css";
+// MapLibre's stylesheet is not imported here: it travels with the map
+// (`MapLens.tsx`, `SharedDayMap.tsx`), so a route with no map does not wait
+// on it.
 import "./globals.css";
 import { SaveLightProvider } from "@/components/SaveLight";
 import { ServiceWorkerRegistration } from "@/components/ServiceWorkerRegistration";
@@ -94,6 +94,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {/* Before any bundle, so an install offer fired early is held for
             `InstallPromptRegistration` rather than lost (installPrompt.ts). */}
         <script dangerouslySetInnerHTML={{ __html: EARLY_INSTALL_LISTENER }} />
+        {/* Cover photos are hot-linked from Unsplash's CDN (`CoverImage`), and
+            on Home and a trip the cover is the page's largest paint, so the
+            connection is opened before the first one is asked for. No
+            `crossOrigin`, on purpose: the `<img>` carries none, so it fetches
+            in no-cors mode, and an anonymous-CORS preconnect would warm a
+            different connection from the one the image then uses. */}
+        <link rel="preconnect" href="https://images.unsplash.com" />
       </head>
       <body>
         {/* Above the header AND the page, because the header's logo is the
