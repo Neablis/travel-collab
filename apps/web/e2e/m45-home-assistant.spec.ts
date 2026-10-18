@@ -26,12 +26,12 @@ let tripName = "";
 let tripId = "";
 
 test.beforeEach(async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/home");
   // A trip with places on it, so "which city" has one to name. Specs share
   // the dev user, so which city comes top is not this spec's to assert.
   tripName = e2eTripName("Home ask");
   tripId = await createMappedTrip(page, tripName, 2);
-  await page.goto("/");
+  await page.goto("/home");
 });
 
 // D6's walk: the reply names Home's own ⌘K command for that trip's Map view

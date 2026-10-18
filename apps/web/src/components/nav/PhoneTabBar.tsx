@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { BrandMark } from "@/components/BrandMark";
 import { askOrChatName, UnreadDot } from "./askOrChat";
 import { usePhoneAsk } from "./phoneAsk";
+import { HOME_PATH } from "@/lib/homePath";
 
 // Handoff `Trip Planner Redesign.dc.html:863-871` (markup) and `:7211-7229`
 // (the active-state logic). The phone's bottom bar, and — per SPEC §13 "The tab
@@ -191,7 +192,7 @@ function activePhoneTab(pathname: string, view: View | null): PhoneTabId | null 
     if (view === "Plan") return "plan";
     return null;
   }
-  if (pathname === "/") return "trips";
+  if (pathname === HOME_PATH) return "trips";
   if (pathname === "/playbooks/board" || pathname.startsWith("/playbooks/profile/")) return "trips";
   if (pathname === "/playbooks" || pathname.startsWith("/playbooks/day/")) return "playbooks";
   return null;
@@ -216,7 +217,7 @@ function phoneTabHref(tab: PhoneTabId, pathname: string): string {
   const tripPath = tripId ? `/trips/${tripId}` : isDemoBoardPath(pathname) ? pathname : null;
   switch (tab) {
     case "trips":
-      return "/";
+      return HOME_PATH;
     case "playbooks":
       return "/playbooks";
     // The trip views are only ever rendered inside a trip or the demo

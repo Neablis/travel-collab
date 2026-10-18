@@ -11,7 +11,7 @@ import { entitlementsFor } from "@/server/entitlements/resolver";
 // — Sign in in the header, no account tab bar, no Yours/Saved — instead of the
 // signed-in skeleton that then changed its mind. A cookie only means "ask"
 // (`lib/sessionHint.ts`). The cost: reading cookies makes a layout render per
-// request, so the shells under `(app)` that were prerendered (`/`, `/account`,
+// request, so the shells under `(app)` that were prerendered (Home, `/account`,
 // `/plans`) no longer are. They fetch their data on the client either way; what
 // moved is one server render of a shell. The public library pays it only for a
 // reader with a session (`lib/playbooksReader.ts`).

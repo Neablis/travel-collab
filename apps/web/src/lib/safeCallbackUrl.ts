@@ -1,3 +1,5 @@
+import { HOME_PATH } from "@/lib/homePath";
+
 // I3 (final review): before this branch, Auth.js's own default sign-in page
 // honoured `?callbackUrl=`, so a signed-out visitor deep-linking to
 // `/trips/:id` landed back on that trip after signing in. `server/auth.ts`
@@ -12,7 +14,7 @@
 // (`//evil.example` is a protocol-relative URL — the browser resolves it
 // against the *current* protocol, e.g. `https://evil.example`, so it is an
 // open-redirect vector even though it "starts with /"). Anything else falls
-// back to `"/"`.
+// back to Home (`HOME_PATH`).
 //
 // CodeRabbit (PR #56, finding 2): also reject any input containing a
 // backslash (e.g. `/\evil.example`, `/\/evil.example`). A prior review
@@ -30,7 +32,7 @@
 // not a currently-exploitable-bug fix, so don't "simplify" it away as
 // redundant with the `//` check above; it isn't the same check.
 export function safeCallbackUrl(raw: string | null): string {
-  if (raw === null) return "/";
-  if (!raw.startsWith("/") || raw.startsWith("//") || raw.includes("\\")) return "/";
+  if (raw === null) return HOME_PATH;
+  if (!raw.startsWith("/") || raw.startsWith("//") || raw.includes("\\")) return HOME_PATH;
   return raw;
 }

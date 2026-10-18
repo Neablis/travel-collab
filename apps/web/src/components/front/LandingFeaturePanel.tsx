@@ -9,7 +9,7 @@ import { ChartErrorBoundary } from "@/components/ui/chart";
 // numbers). The server renders the real panel into the page's HTML, so it is
 // the chunk's JavaScript that waits; the drawing it is handed is what a
 // client-side render shows meanwhile, and stays if the load fails: `Suspense`
-// does not catch a rejected `lazy` import, and nothing above `/welcome` but
+// does not catch a rejected `lazy` import, and nothing above the landing but
 // `app/global-error.tsx` would.
 const loadPanels = () => import("./LandingFeaturePanels");
 const PANELS = {

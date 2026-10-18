@@ -8,6 +8,7 @@ import { FrontDoorHeader } from "@/components/front/FrontDoorHeader";
 import { LandingHeroArt } from "@/components/front/LandingHeroArt";
 import { LandingFeatureBlocks } from "@/components/front/LandingFeatureBlocks";
 import { LandingPricing } from "@/components/front/LandingPricing";
+import { LeaveLandingIfSignedIn } from "@/components/front/LeaveLandingIfSignedIn";
 import { DEMO_PATH } from "@/lib/demoTrip";
 import { cn } from "@/lib/cn";
 
@@ -134,10 +135,11 @@ const HERO_PLOTS = [
 // one. It IS a test problem, because jsdom applies no media queries and sees
 // both — so the tests below scope themselves to one tree by testid rather than
 // querying the screen.
-/** The signed-out landing page at `/welcome`: the desktop tree and the phone front door, one shown per breakpoint. */
+/** The landing page at `/`: the desktop tree and the phone front door, one shown per breakpoint. */
 export function LandingScreen() {
   return (
     <>
+      <LeaveLandingIfSignedIn />
       <PhoneFrontDoor />
       <div data-testid="desktop-landing" className="hidden min-h-screen flex-col bg-paper text-ink md:flex">
       <FrontDoorHeader

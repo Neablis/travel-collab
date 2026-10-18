@@ -10,6 +10,7 @@ import { SaveLightProvider } from "@/components/SaveLight";
 import { ServiceWorkerRegistration } from "@/components/ServiceWorkerRegistration";
 import { InstallPromptRegistration } from "@/components/install/InstallPromptRegistration";
 import { EARLY_INSTALL_LISTENER } from "@/lib/installPrompt";
+import { LEAVE_LANDING_IF_SIGNED_IN } from "@/lib/sessionHint";
 import { appColors } from "@/lib/appColors.generated";
 import { SITE_DESCRIPTION, SITE_NAME, siteRobots } from "@/lib/siteMetadata";
 import { deploymentOrigin } from "@/lib/deploymentOrigin";
@@ -94,6 +95,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {/* Before any bundle, so an install offer fired early is held for
             `InstallPromptRegistration` rather than lost (installPrompt.ts). */}
         <script dangerouslySetInnerHTML={{ __html: EARLY_INSTALL_LISTENER }} />
+        {/* A signed-in browser on the static landing goes to Home before it
+            paints (ADR-078); a no-op on every other path. */}
+        <script dangerouslySetInnerHTML={{ __html: LEAVE_LANDING_IF_SIGNED_IN }} />
         {/* Cover photos are hot-linked from Unsplash's CDN (`CoverImage`), and
             on Home and a trip the cover is the page's largest paint, so the
             connection is opened before the first one is asked for. No
@@ -107,7 +111,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             save light and the state it shows is published from inside the
             trip below (SaveLight.tsx). AppHeader itself no longer renders
             here — the (app) route group's own layout renders it, nested
-            inside this provider — but the front door (/welcome, /signin,
+            inside this provider — but the front door (/, /signin,
             /signup) renders through this same slot with no AppHeader at all,
             so this provider wraps both: a save light with no consumer where
             there's no header, and the real one where (app)/layout.tsx

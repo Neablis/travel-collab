@@ -61,7 +61,7 @@ test("map rail: scrolling tracks focus through every day", async ({ page, networ
   test.setTimeout(90_000);
   // Distinct prefix from other specs' trip names — parallel workers share a DB.
   const tripName = e2eTripName("MapRail");
-  await page.goto("/");
+  await page.goto("/home");
   const tripId = await createMappedTrip(page, tripName, DAY_COUNT);
 
   await page.goto(`/trips/${tripId}?view=Map`);
@@ -280,7 +280,7 @@ test("map lens: loads its tile-decoding worker", async ({ page, network }) => {
   const worker = watchMapWorker(page);
   // Distinct prefix from other specs' trip names — parallel workers share a DB.
   const tripName = e2eTripName("MapWorker");
-  await page.goto("/");
+  await page.goto("/home");
   const tripId = await createMappedTrip(page, tripName, 3);
 
   await page.goto(`/trips/${tripId}?view=Map`);
@@ -332,7 +332,7 @@ test("map lens: loads its tile-decoding worker", async ({ page, network }) => {
 test("map lens: says the map could not load when the basemap host is unreachable", async ({ page }) => {
   const blocked = await blockMapTiles(page);
   const tripName = e2eTripName("MapOffline");
-  await page.goto("/");
+  await page.goto("/home");
   const tripId = await createMappedTrip(page, tripName, 2);
 
   await page.goto(`/trips/${tripId}?view=Map`);

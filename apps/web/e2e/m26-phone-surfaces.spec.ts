@@ -27,7 +27,7 @@ test.describe("the phone's account screen", () => {
   // steps aside. The bar is `position: fixed` and would otherwise sit over the
   // foot of a screen somebody is trying to finish something on.
   test("is a task: no tab bar, a way back to Trips, and sign out on it", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/home");
     // The bar is present on Trips, which is what makes its absence below a
     // measurement rather than an assumption.
     await expect(page.getByRole("navigation", { name: "Phone navigation" })).toBeVisible();
@@ -43,7 +43,7 @@ test.describe("the phone's account screen", () => {
     await expect(page.getByTestId("account-done")).toBeVisible();
 
     await page.getByTestId("account-done").click();
-    await expect(page).toHaveURL(/\/$/);
+    await expect(page).toHaveURL(/\/home$/);
     await expect(page.getByRole("navigation", { name: "Phone navigation" })).toBeVisible();
   });
 
@@ -53,7 +53,7 @@ test.describe("the phone's account screen", () => {
     // `openAccountPage` opens the avatar menu, so the page has to BE somewhere
     // first — without this the test starts at `about:blank` and spends its
     // timeout waiting for a header that was never rendered.
-    await page.goto("/");
+    await page.goto("/home");
     await openAccountPage(page);
     for (const name of ["Profile", "Plan & usage"]) {
       const box = await page.getByRole("tab", { name }).boundingBox();
@@ -65,7 +65,7 @@ test.describe("the phone's account screen", () => {
   // Each tab is a URL (`?tab=`), which is what makes the back button walk them —
   // and the tokens sub-view (not a tab since M27, §35.4) is one too.
   test("walks its tabs with the back button", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/home");
     await openAccountPage(page, "tokens");
     await expect(page).toHaveURL(/tab=tokens/);
     await page.goBack();
@@ -143,7 +143,7 @@ test.describe("new trip on a phone", () => {
     // run is the inline conversation (§32.1), which is a different surface.
     const made = await page.request.post("/api/trips", { data: { name: e2eTripName("M26Phone") } });
     expect(made.ok()).toBe(true);
-    await page.goto("/");
+    await page.goto("/home");
 
     await page.getByRole("button", { name: "New trip" }).click();
     const dialog = page.getByRole("dialog", { name: "New trip" });

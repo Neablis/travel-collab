@@ -7,7 +7,7 @@ test("optimistic add renders instantly and persists", async ({ page }) => {
   // "alice" dev user's trip list, and a same-millisecond Date.now() would
   // otherwise make specs' trip names collide (see m3/m4's comment).
   const tripName = e2eTripName("Oslo");
-  await page.goto("/");
+  await page.goto("/home");
 
   await createEmptyTripViaWizard(page, tripName);
   await page.getByRole("link", { name: tripName }).click();
@@ -42,7 +42,7 @@ test("optimistic add renders instantly and persists", async ({ page }) => {
 
 test("a rejected change stays visible, shows an error, and can be retried", async ({ page }) => {
   const tripName = e2eTripName("Bergen");
-  await page.goto("/");
+  await page.goto("/home");
 
   await createEmptyTripViaWizard(page, tripName);
   await page.getByRole("link", { name: tripName }).click();

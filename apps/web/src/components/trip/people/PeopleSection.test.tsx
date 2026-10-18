@@ -540,7 +540,7 @@ describe("PeopleSection", () => {
       await userEvent.click(within(dialog).getByRole("button", { name: "Leave trip" }));
 
       await waitFor(() => expect(leaveTripMock).toHaveBeenCalledWith(tripId));
-      expect(pushMock).toHaveBeenCalledWith("/");
+      expect(pushMock).toHaveBeenCalledWith("/home");
     });
 
     // A cancel that closed the dialog mid-leave did not stop the leave: the
@@ -566,7 +566,7 @@ describe("PeopleSection", () => {
       expect(pushMock).not.toHaveBeenCalled();
 
       await act(async () => answer({ ok: true, value: { ok: true } }));
-      expect(pushMock).toHaveBeenCalledWith("/");
+      expect(pushMock).toHaveBeenCalledWith("/home");
     });
 
     it("stays put and says so when leaving is refused", async () => {

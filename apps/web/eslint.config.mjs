@@ -599,13 +599,13 @@ export default [
   {
     // THE HOME PAGE'S LIST READ (Mitchell's decision of 2026-10-18). Home's
     // largest paint was the next-trip hero, drawn only after the client's
-    // `GET /api/trips` returned (~5.1s LCP against ~0.9s FCP). `(app)/page.tsx`
+    // `GET /api/trips` returned (~5.1s LCP against ~0.9s FCP). `(app)/home/page.tsx`
     // now reads `@/server/listedTrips` — the route's own body — in-process and
     // hands the list to `HomeScreen`, so the hero and the grid are in the first
     // HTML. Fetching its own API over HTTP would keep the wall's letter and
     // invert its reason, as the console's note says. That one file only: the
     // screen it renders, and every page beside it, stay UI.
-    files: ["src/app/(app)/page.tsx"],
+    files: ["src/app/(app)/home/page.tsx"],
     rules: {
       "no-restricted-imports": ["error", { patterns: exemptWallPatterns }],
     },

@@ -42,7 +42,7 @@ describe("AuthScreen", () => {
   it("dispatches a real Google sign-in", async () => {
     render(<AuthScreen mode="signin" devLoginEnabled={false} googleAvailable />);
     await userEvent.click(screen.getByRole("button", { name: "Continue with Google" }));
-    expect(signInMock).toHaveBeenCalledWith("google", { callbackUrl: "/" });
+    expect(signInMock).toHaveBeenCalledWith("google", { callbackUrl: "/home" });
   });
 
   // I3 (final review): before this branch, Auth.js's own default sign-in
@@ -110,7 +110,7 @@ describe("AuthScreen", () => {
     );
   });
 
-  // A hostile `?callbackUrl=` is normalised to "/" before anything reads it
+  // A hostile `?callbackUrl=` is normalised to Home before anything reads it
   // (`safeCallbackUrl`), and the swap link is built from the NORMALISED value —
   // so an open-redirect attempt cannot ride across the hop either.
   it("does not carry a hostile callbackUrl across the swap", async () => {
@@ -138,7 +138,7 @@ describe("AuthScreen", () => {
       />,
     );
     await userEvent.type(screen.getByLabelText("Invite code"), "LET-ME-IN{Enter}");
-    await waitFor(() => expect(signInMock).toHaveBeenCalledWith("google", { callbackUrl: "/" }));
+    await waitFor(() => expect(signInMock).toHaveBeenCalledWith("google", { callbackUrl: "/home" }));
     expect(storeAdmissionCodeMock).toHaveBeenCalledWith("LET-ME-IN");
   });
 
@@ -174,14 +174,14 @@ describe("AuthScreen", () => {
     searchParams = new URLSearchParams("callbackUrl=//evil.example");
     render(<AuthScreen mode="signin" devLoginEnabled={false} googleAvailable />);
     await userEvent.click(screen.getByRole("button", { name: "Continue with Google" }));
-    expect(signInMock).toHaveBeenCalledWith("google", { callbackUrl: "/" });
+    expect(signInMock).toHaveBeenCalledWith("google", { callbackUrl: "/home" });
   });
 
   it("rejects an absolute cross-origin callbackUrl and falls back to /", async () => {
     searchParams = new URLSearchParams("callbackUrl=https://evil.example/phish");
     render(<AuthScreen mode="signin" devLoginEnabled={false} googleAvailable />);
     await userEvent.click(screen.getByRole("button", { name: "Continue with Google" }));
-    expect(signInMock).toHaveBeenCalledWith("google", { callbackUrl: "/" });
+    expect(signInMock).toHaveBeenCalledWith("google", { callbackUrl: "/home" });
   });
 
   it("explains a declined Google grant instead of showing a code", () => {
@@ -338,7 +338,7 @@ describe("AuthScreen", () => {
     );
     await userEvent.type(screen.getByLabelText("Invite code"), "SPRING-2026");
     await userEvent.click(screen.getByRole("button", { name: "Continue with Google" }));
-    await waitFor(() => expect(signInMock).toHaveBeenCalledWith("google", { callbackUrl: "/" }));
+    await waitFor(() => expect(signInMock).toHaveBeenCalledWith("google", { callbackUrl: "/home" }));
     expect(storeAdmissionCodeMock).toHaveBeenCalledWith("SPRING-2026");
     expect(storeAdmissionCodeMock.mock.invocationCallOrder[0]).toBeLessThan(
       signInMock.mock.invocationCallOrder[0]!,
@@ -395,7 +395,7 @@ describe("AuthScreen", () => {
       );
       if (code) await userEvent.type(screen.getByLabelText("Invite code"), code);
       await userEvent.click(screen.getByRole("button", { name: "Continue with Google" }));
-      await waitFor(() => expect(signInMock).toHaveBeenCalledWith("google", { callbackUrl: "/" }));
+      await waitFor(() => expect(signInMock).toHaveBeenCalledWith("google", { callbackUrl: "/home" }));
       expect(storeAdmissionCodeMock).not.toHaveBeenCalled();
     },
   );
@@ -417,7 +417,7 @@ describe("AuthScreen", () => {
     await userEvent.type(screen.getByLabelText("Username"), "sam");
     await userEvent.click(screen.getByRole("button", { name: /sign in with dev login/i }));
     await waitFor(() =>
-      expect(signInMock).toHaveBeenCalledWith("dev-login", { username: "sam", callbackUrl: "/" }),
+      expect(signInMock).toHaveBeenCalledWith("dev-login", { username: "sam", callbackUrl: "/home" }),
     );
     expect(storeAdmissionCodeMock.mock.invocationCallOrder[0]).toBeLessThan(
       signInMock.mock.invocationCallOrder[0]!,
@@ -462,7 +462,7 @@ describe("AuthScreen", () => {
     await screen.findByText(ADMISSION_FIELD_COPY.saveFailed);
 
     await userEvent.click(button);
-    await waitFor(() => expect(signInMock).toHaveBeenCalledWith("google", { callbackUrl: "/" }));
+    await waitFor(() => expect(signInMock).toHaveBeenCalledWith("google", { callbackUrl: "/home" }));
     expect(screen.queryByText(ADMISSION_FIELD_COPY.saveFailed)).toBeNull();
   });
 
@@ -555,7 +555,7 @@ describe("AuthScreen", () => {
     expect(container.querySelector('input[name="username"]')).not.toBeNull();
     await userEvent.type(screen.getByLabelText("Username"), "sam");
     await userEvent.click(screen.getByRole("button", { name: /sign in with dev login/i }));
-    expect(signInMock).toHaveBeenCalledWith("dev-login", { username: "sam", callbackUrl: "/" });
+    expect(signInMock).toHaveBeenCalledWith("dev-login", { username: "sam", callbackUrl: "/home" });
   });
 
   it("still explains itself with no dead form when Google and dev login are both unavailable", () => {
@@ -572,6 +572,6 @@ describe("AuthScreen", () => {
     const button = screen.getByRole("button", { name: "Continue with Google" });
     expect(button.hasAttribute("disabled")).toBe(false);
     await userEvent.click(button);
-    expect(signInMock).toHaveBeenCalledWith("google", { callbackUrl: "/" });
+    expect(signInMock).toHaveBeenCalledWith("google", { callbackUrl: "/home" });
   });
 });

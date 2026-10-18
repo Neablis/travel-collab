@@ -186,13 +186,14 @@ describe("AccountScreen", () => {
     expect(screen.getAllByRole("button", { name: /sign out/i })).toHaveLength(1);
   });
 
-  it("signs out to /welcome, not /", () => {
+  it("signs out to the landing, clearing the signed-in hint first", () => {
+    document.cookie = "tc_signed_in=1; Path=/";
     mount();
     fireEvent.click(screen.getByTestId("account-sign-out"));
-    // `/` depends on the proxy bouncing a signed-out visitor onward, and the
-    // navigation can outrun the Set-Cookie that clears the session —
-    // `AccountMenu` measured that on Next 16. `/welcome` is public either way.
-    expect(signOutMock).toHaveBeenCalledWith({ callbackUrl: "/welcome" });
+    // With the hint left behind, the landing's script would send the visitor
+    // straight back to Home (ADR-078).
+    expect(signOutMock).toHaveBeenCalledWith({ callbackUrl: "/" });
+    expect(document.cookie).not.toContain("tc_signed_in");
   });
 
   // PR 426 review, finding 1: a shared browser keeps nothing this account
@@ -220,6 +221,6 @@ describe("AccountScreen", () => {
   // both class claims this layer cannot hold; link 16 walks them at 411px.
   it("gives the screen a way back to Trips", () => {
     mount();
-    expect(screen.getByTestId("account-done").getAttribute("href")).toBe("/");
+    expect(screen.getByTestId("account-done").getAttribute("href")).toBe("/home");
   });
 });

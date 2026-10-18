@@ -30,7 +30,7 @@ test("asked for a day, the assistant suggests it; Accept all lands it as one ent
   page,
 }) => {
   const tripName = e2eTripName("Big Change");
-  await page.goto("/");
+  await page.goto("/home");
   const tripId = await createMappedTrip(page, tripName, 2);
   await page.goto(`/trips/${tripId}?view=Plan`);
   await expect(page.getByRole("heading", { name: tripName, level: 1 })).toBeVisible();

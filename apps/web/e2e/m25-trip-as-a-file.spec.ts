@@ -196,7 +196,7 @@ test.describe("M25 — a trip is a file you can take with you", () => {
     // carries "New trip" alone. The sheet closes on the click and the picker
     // is the page's, so this also proves the picker opens from a link whose
     // own surface has just gone.
-    await page.goto("/");
+    await page.goto("/home");
     await expect(page.getByRole("heading", { name: "Your trips" })).toBeVisible();
     await page.getByRole("button", { name: "New trip" }).click();
     const sheet = page.getByRole("dialog", { name: "New trip" });
@@ -226,7 +226,7 @@ test.describe("M25 — a trip is a file you can take with you", () => {
     page,
   }) => {
     await signInAs(page, newcomer("m25refuse"));
-    await page.goto("/");
+    await page.goto("/home");
     await expect(page.getByRole("heading", { name: "Your trips" })).toBeVisible();
 
     // A newcomer has no trips, so it is the empty state's quiet line (§35.2).
@@ -243,7 +243,7 @@ test.describe("M25 — a trip is a file you can take with you", () => {
     // The server's own refusal, rendered where the person is.
     await expect(page.getByRole("alert")).toBeVisible();
     // Still on Home — no trip was created and nothing navigated.
-    await expect(page).toHaveURL(/\/$/);
+    await expect(page).toHaveURL(/\/home$/);
     const trips = await page.request.get("/api/trips");
     expect(((await trips.json()) as { trips: unknown[] }).trips).toHaveLength(0);
   });

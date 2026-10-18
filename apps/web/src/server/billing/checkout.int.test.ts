@@ -230,7 +230,8 @@ describe("checkout for an account with the test-mode switch on", () => {
     expect(stripeRequest.mock.calls.at(-1)![0]).toMatchObject({
       mode: "test",
       path: "/billing_portal/sessions",
-      body: { customer: `cus_test_${userId}` },
+      // Back to Home, which is `/home` since ADR-078: `/` is the landing.
+      body: { customer: `cus_test_${userId}`, return_url: "https://app.test/home" },
     });
   });
 

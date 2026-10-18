@@ -29,6 +29,7 @@ import { phoneAskContext } from "@/components/assistant/phoneAskContext";
 import { useAskThread } from "@/components/assistant/useAskThread";
 import { suggestedWords } from "@/components/assistant/SuggestedNote";
 import { useIsPhone } from "@/lib/useIsPhone";
+import { HOME_PATH } from "@/lib/homePath";
 
 type Status = "loading" | "ready" | "error";
 
@@ -524,7 +525,7 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
             tab bar's Ask item now (`usePhoneAskEntry` above), in the same
             place on every in-trip screen. */}
         <div className="mb-2 flex items-center justify-between gap-3">
-          <Link href="/" className="inline-flex min-h-11 items-center text-xs text-slate no-underline hover:text-ink">
+          <Link href={HOME_PATH} className="inline-flex min-h-11 items-center text-xs text-slate no-underline hover:text-ink">
             ← Your trips
           </Link>
         </div>

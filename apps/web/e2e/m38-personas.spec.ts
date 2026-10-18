@@ -164,7 +164,7 @@ test("a persona survives a reload, shows on the invite before joining, and in Pe
       visitor.waitForURL((url) => url.pathname.startsWith("/invite/")),
       visitor.getByRole("button", { name: /sign in with dev login/i }).click(),
     ]);
-    await visitor.goto("/");
+    await visitor.goto("/home");
     await expect(visitor.getByRole("heading", { name: "Your trips" })).toBeVisible();
     await choosePersona(visitor, { name: GUEST_NAME, avatar: "Bike", color: "Plum" });
 

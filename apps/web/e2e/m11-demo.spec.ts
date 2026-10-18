@@ -33,7 +33,7 @@ test.describe("the demo trip", () => {
   test.use({ storageState: { cookies: [], origins: [] } });
 
   test("both landing CTAs open the real board, read-only, with no account", async ({ page }) => {
-    await page.goto("/welcome");
+    await page.goto("/");
     for (const name of ["Look around a real trip", "See a finished one"]) {
       await expect(page.getByRole("link", { name })).toHaveAttribute("href", "/demo");
     }

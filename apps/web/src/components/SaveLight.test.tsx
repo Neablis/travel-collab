@@ -31,7 +31,7 @@ describe("SaveLightMark", () => {
   it("rests as a link home, with nothing to announce but 'All changes saved'", () => {
     renderLight(null);
 
-    expect(screen.getByRole("link", { name: /Caesura/ }).getAttribute("href")).toBe("/");
+    expect(screen.getByRole("link", { name: /Caesura/ }).getAttribute("href")).toBe("/home");
     expect(screen.getByRole("status").textContent).toBe("All changes saved");
   });
 

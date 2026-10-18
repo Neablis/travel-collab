@@ -342,10 +342,10 @@ expectRejectedBy(
   "a layout below (app) gets no exemption",
 );
 
-// THE HOME PAGE'S LIST READ (2026-10-18): `(app)/page.tsx` alone may read
+// THE HOME PAGE'S LIST READ (2026-10-18): `(app)/home/page.tsx` alone may read
 // `src/server`, to send the reader's trip list with the page. Open for that
 // file; shut for the domain, for authConfig, and for any other page in (app).
-const HOME_PAGE = "src/app/(app)/page.tsx";
+const HOME_PAGE = "src/app/(app)/home/page.tsx";
 
 expectClean(
   lintFixture("home_page_server", `import "@/server/listedTrips";${PAGE_BODY}`, { file: HOME_PAGE }),

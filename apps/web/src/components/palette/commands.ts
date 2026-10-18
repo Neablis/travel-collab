@@ -2,6 +2,7 @@ import { VIEWS, type View } from "@/components/trip/context/LensRouter";
 import type { TripDetail } from "@tc/contracts";
 import type { SettingsSection } from "@/lib/tripSettingsLink";
 import type { PaletteCommand, PaletteNearness } from "./paletteRegistry";
+import { HOME_PATH } from "@/lib/homePath";
 
 // **The palette's commands, as lists of the page's own actions** (ADR-068 §1).
 // Every builder here takes the function a page control already calls and
@@ -86,7 +87,7 @@ export function newTripCommand(startNewTrip: () => void): PaletteCommand {
  */
 export function placeCommands(go: (href: string) => void, trips: readonly { tripId: string; name: string }[]): PaletteCommand[] {
   return [
-    { id: "go:home", action: "Go to", type: "Page", target: { label: "Home" }, nearness: "global", order: 0, run: () => go("/") },
+    { id: "go:home", action: "Go to", type: "Page", target: { label: "Home" }, nearness: "global", order: 0, run: () => go(HOME_PATH) },
     { id: "go:playbooks", action: "Go to", type: "Page", target: { label: "Playbooks" }, nearness: "global", order: 1, run: () => go("/playbooks") },
     { id: "go:account", action: "Go to", type: "Page", target: { label: "Account" }, nearness: "global", order: 2, run: () => go("/account") },
     ...trips.flatMap((trip, order) => {

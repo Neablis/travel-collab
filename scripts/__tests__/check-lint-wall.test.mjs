@@ -136,7 +136,7 @@ test("passes against the checked-in config, and every rejection names the rule t
   // may import `@/server/*` to send the plan with the page, still may not
   // import `@tc/domain`, and a layout below it gets no exemption.
   //
-  // **64 → 68 on 2026-10-18**: `src/app/(app)/page.tsx` (Home's list read) may
+  // **64 → 68 on 2026-10-18**: `src/app/(app)/home/page.tsx` (Home's list read) may
   // import `@/server/*`, still may not import `@tc/domain` or build an Auth.js
   // instance, and a page beside it in `(app)` gets no exemption.
   //

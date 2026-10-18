@@ -22,6 +22,7 @@ import {
 import { safeCallbackUrl } from "@/lib/safeCallbackUrl";
 import { submitOnEnter } from "@/lib/submitOnEnter";
 import { PENDING_ADMISSION_MAX_LENGTH, normalizePendingAdmission } from "@/lib/pendingAdmission";
+import { HOME_PATH } from "@/lib/homePath";
 
 // `useSearchParams()` is the only piece of this screen that needs a
 // Suspense boundary during static prerender — isolating it in its own leaf
@@ -114,7 +115,7 @@ export function AuthScreen({
   devLoginEnabled,
   googleAvailable,
   storeAdmissionCode,
-  initialCallbackUrl = "/",
+  initialCallbackUrl = HOME_PATH,
   initialAdmissionCode = "",
 }: {
   mode: AuthMode;
@@ -202,10 +203,10 @@ export function AuthScreen({
   //
   // `callbackUrl` is already `safeCallbackUrl`-normalised (AuthSearchParams
   // above), so the value re-encoded here is a same-origin relative path and
-  // nothing else. "/" is the default-for-absent, and appending it would put a
+  // nothing else. Home is the default-for-absent, and appending it would put a
   // pointless parameter on every ordinary visit to this screen.
   const swapHref =
-    callbackUrl === "/"
+    callbackUrl === HOME_PATH
       ? copy.swapHref
       : `${copy.swapHref}?callbackUrl=${encodeURIComponent(callbackUrl)}`;
 

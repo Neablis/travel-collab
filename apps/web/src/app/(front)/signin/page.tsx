@@ -18,8 +18,9 @@ import { safeCallbackUrl } from "@/lib/safeCallbackUrl";
 //
 // Reading `searchParams` makes this route request-rendered rather than
 // prerendered — the price of the card, and it's the auth screen, not a
-// hot path. `safeCallbackUrl` normalises hostile input to "/" first, the
-// same guard AuthScreen applies before redirecting to the value.
+// hot path. `safeCallbackUrl` normalises hostile input to Home
+// (`HOME_PATH`) first, the same guard AuthScreen applies before redirecting
+// to the value.
 /** Metadata for `/signin`: `noindex`, with generic shared-trip copy when the callback is a trip. */
 export async function generateMetadata({
   searchParams,

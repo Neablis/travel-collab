@@ -4,7 +4,7 @@ import { e2eTripName } from "./tripNames";
 
 test("board: days, activities, drag, conflicts as data", async ({ page, browser }) => {
   const tripName = e2eTripName("Lisbon");
-  await page.goto("/");
+  await page.goto("/home");
 
   await createEmptyTripViaWizard(page, tripName);
   await page.getByRole("link", { name: tripName }).click();

@@ -410,7 +410,8 @@ here two days later.
     `dependabot.yml` pins until this migration (`check-singletons`).
 
 - **The signed-in app moves from `/` to `/home` (decided by Mitchell, 2026-10-18, PR 485's
-  session).** `/` becomes only the static landing, with no edge `auth()` in front of it and no
+  session).** *Built on `claude/vibrant-wright-5rblus` (ADR-078); delete this entry when it
+  merges, keeping the "Coordinate with" line below if Home's trip list is still client-fetched.* `/` becomes only the static landing, with no edge `auth()` in front of it and no
   `private, no-store`. Measured first: the landing is already a Vercel CDN hit behind the
   rewrite. The edge check costs about 17ms (a 15-sample median TTFB of 216ms for `/` against 200ms
   for `/welcome`). He chose the move knowing that number.
