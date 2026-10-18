@@ -29,8 +29,11 @@
 -- table, which blocks reads as well, and every lock is held until the
 -- migration commits. So the three DROPs come last, after every build, which
 -- keeps `pending_embeddings`, `trip_messages` and `trip_suggestion_changes`
--- unreadable only for the moment between the last DROP and the commit, not
--- for the whole run (PR 481 review). It cannot be CONCURRENTLY:
+-- unreadable only from the last DROP to the commit, not for the whole run
+-- (PR 481 review). That is a moment only when 0058 is the last migration
+-- pending: drizzle commits every pending migration together, so one applied
+-- in the same run after it extends the hold. A DROP waiting on a long read
+-- also queues new reads behind it. It cannot be CONCURRENTLY:
 -- `drizzle-kit migrate` applies every pending migration inside one
 -- transaction, and Postgres refuses CREATE INDEX CONCURRENTLY in a
 -- transaction block (0040 checked this against Postgres 16 and drizzle-orm
