@@ -25,7 +25,8 @@
 // `tools/places.ts`.
 import type { TripDetail } from "@tc/contracts";
 import { db } from "@/server/db/client";
-import { getTripDetail, listTripSummariesVisibleTo } from "@/server/projections";
+import { listTripSummariesVisibleTo } from "@/server/projections";
+import { getTripDetails } from "@/server/tripDetailsMany";
 import { withEffectiveMembersByTrip } from "@/server/access/members";
 import { discoverDays } from "@/server/playbooks";
 import { discoverFor } from "@/server/publicLibrary";
@@ -262,15 +263,19 @@ function isPlaceable(place: Partial<ResolvedPlace> & { name: string }): place is
  * batch). Which of these the person TOOK is `travelledTrips`'s rule in the
  * domain, not this read's — so the cross-trip tools hold it in one place.
  *
- * One detail read per trip. A person's trip count is small, and reading every
- * document in one statement is an optimisation this does not need yet.
+ * Every document in one statement (`getTripDetails`), in the list's order. It
+ * was one read per trip, which Sentry reported as an N+1 on every turn that
+ * reads the account.
  */
 export async function readAccountTrips(userId: string): Promise<TripDetail[]> {
   const listed = await listTripSummariesVisibleTo(userId);
-  const details = await Promise.all(listed.map((row) => getTripDetail(row.tripId)));
+  const details = await getTripDetails(listed.map((row) => row.tripId));
   return withEffectiveMembersByTrip(
     db,
-    details.filter((detail): detail is TripDetail => detail !== null),
+    listed.flatMap((row) => {
+      const detail = details.get(row.tripId);
+      return detail === undefined ? [] : [detail];
+    }),
   );
 }
 
