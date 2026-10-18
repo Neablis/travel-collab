@@ -3,8 +3,8 @@ import { afterEach, describe, expect, it } from "vitest";
 import { SIGNED_IN_HINT_COOKIE, clearSignedInHint, hasSignedInHint } from "@/lib/sessionHint";
 import { SessionUserProvider, type SessionUser } from "./useSessionUser";
 
-// The `(app)` shell's half of ADR-078's hint: a sign-in that lands on a page
-// the proxy does not match (`/plans`, `/account`) must still leave the
+// ADR-078's only setter of the hint: the proxy only deletes it, so every app
+// page — matched by the proxy or not (`/plans`, `/account`) — must leave the
 // browser hinted, or the bare domain shows a signed-in person the landing.
 function shell(props: { initialUser?: SessionUser | null; noSessionCookie?: boolean }) {
   return (

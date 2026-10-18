@@ -24,28 +24,28 @@ function hintSetCookie(res: Response): string | undefined {
   return res.headers.getSetCookie().find((line) => line.startsWith(`${SIGNED_IN_HINT_COOKIE}=`));
 }
 
-// ADR-078: `/` is static, so it leaves the matcher, and the hint the landing
-// reads is kept by whatever the proxy does see.
+// ADR-078: `/` is static, so it leaves the matcher, and of the hint the
+// landing reads, the proxy only ever takes it away.
 describe("proxy", () => {
   it("matches Home at /home, and no longer matches /", () => {
     expect(config.matcher).toContain("/home");
     expect(config.matcher).not.toContain("/");
   });
 
-  it.each([undefined, "document"])("refreshes the hint on a signed-in page load (Sec-Fetch-Dest %s)", (dest) => {
-    const res = handle(request("/home", { session: true, hint: false, dest }));
-    expect(res.headers.get("location")).toBeNull();
-    const cookie = hintSetCookie(res);
-    expect(cookie).toMatch(new RegExp(`^${SIGNED_IN_HINT_COOKIE}=1;`));
-    expect(cookie).toMatch(/Max-Age=2592000/);
-    expect(cookie).toMatch(/Secure/);
-    expect(cookie).not.toMatch(/HttpOnly/i);
-  });
+  // ADR-078: the app shell is the hint's only setter. A set here needed a
+  // page load told apart from the client router's prefetch, and a prefetch
+  // answered after sign-out's clear put the hint back (proxy.ts says when).
+  it.each([undefined, "document", "empty"])(
+    "never sets the hint on a signed-in matched request (Sec-Fetch-Dest %s)",
+    (dest) => {
+      const res = handle(request("/home", { session: true, hint: false, dest }));
+      expect(res.headers.get("location")).toBeNull();
+      expect(hintSetCookie(res)).toBeUndefined();
+    },
+  );
 
-  // A prefetch answered after sign-out's clear would put the hint back, and
-  // the landing would send a signed-out visitor to Home (proxy.ts says when).
-  it("does not set the hint on a fetch, such as the client router's prefetch", () => {
-    const res = handle(request("/home", { session: true, hint: false, dest: "empty" }));
+  it("leaves a signed-in browser's hint alone", () => {
+    const res = handle(request("/trips/t1", { session: true, hint: true, dest: "document" }));
     expect(hintSetCookie(res)).toBeUndefined();
   });
 
@@ -61,7 +61,7 @@ describe("proxy", () => {
   });
 
   // The library is matched to pick its copy (ADR-077), never to send anyone
-  // to sign in; the hint follows the session there as everywhere else.
+  // to sign in; a signed-out request sheds the hint there as everywhere else.
   it("serves a signed-out reader the library's cached copy, and sheds a stale hint", () => {
     const res = handle(request("/playbooks/board", { session: false, hint: true }));
     expect(res.headers.get("location")).toBeNull();
@@ -69,10 +69,11 @@ describe("proxy", () => {
     expect(hintSetCookie(res)).toMatch(/Max-Age=0|Expires=Thu, 01 Jan 1970/);
   });
 
-  it("serves a signed-in reader the library's live copy, and refreshes the hint", () => {
+  // The live copy renders the app shell, which sets the hint; this does not.
+  it("serves a signed-in reader the library's live copy, without setting the hint", () => {
     expect(config.matcher).toContain("/playbooks/:path*");
     const res = handle(request("/playbooks", { session: true, hint: false, dest: "document" }));
     expect(res.headers.get("x-middleware-rewrite")).toBe("https://caesura.test/playbooks/live");
-    expect(hintSetCookie(res)).toMatch(new RegExp(`^${SIGNED_IN_HINT_COOKIE}=1;`));
+    expect(hintSetCookie(res)).toBeUndefined();
   });
 });

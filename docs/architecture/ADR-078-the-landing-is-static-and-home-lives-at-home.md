@@ -45,12 +45,15 @@ That made the most-visited URL the most expensive one:
 4. **A signed-in browser on `/` is sent on by a hint cookie and an inline script.** The Auth.js
    session cookie is HttpOnly, so a script cannot see it, and a static page cannot ask the
    server. So:
-   - The proxy sets `tc_signed_in=1` (not HttpOnly, `Path=/`, `SameSite=Lax`, Secure on https,
-     the session's 30-day life) on a signed-in **page load** of a matched route, and deletes it
-     on any matched request with no session.
-   - The `(app)` shell sets it from the browser, with the same attributes, once it knows a
-     session user (`SessionUserProvider`, keyed on the user id). The proxy alone missed a sign-in whose
-     `callbackUrl` is a page it does not match (below).
+   - **The app shell is the only setter.** `SessionUserProvider` (keyed on the user id) sets
+     `tc_signed_in=1` from the browser — not HttpOnly, `Path=/`, `SameSite=Lax`, Secure on https,
+     the session's 30-day life — once it knows a session user. Every page a signed-in person reads
+     renders it with the served user: everything under `(app)` (`/home`, `/trips/*`, `/plans`,
+     `/account`) and the library's live copy (`app/playbooks/live`). So the hint appears after
+     hydration, not on the first response. `/invite/*` has no shell and does not set it; an
+     invite hands off to a trip page, which does.
+   - **The proxy only deletes it**, on any matched request with no session — the library's
+     cached copy included. It never sets it.
    - Both sign-out buttons, and Home when its read answers 401, delete it before they leave. The
      delete also stops the browser setter for the rest of that document.
    - `LEAVE_LANDING_IF_SIGNED_IN` (`src/lib/sessionHint.ts`), inline in the root layout's
@@ -68,13 +71,18 @@ That made the most-visited URL the most expensive one:
   `<head>` is sent once per full load and never re-rendered — the only case a script can act in
   anyway — and the script checks the path, so it is a no-op everywhere else. The CSP already
   admits inline scripts (`next.config.ts`; `EARLY_INSTALL_LISTENER` is the precedent).
-- **The hint is set on page loads only.** Setting it on every signed-in matched request let a
-  client-router prefetch — sent when the account menu's *Trips* link renders — answer after
-  sign-out had deleted it and put it back, so the landing sent the visitor to `/home` and then to
-  sign in: 6 of 10 runs of `e2e/m15-front-door.spec.ts`'s sign-out. Next strips its own `RSC`
-  headers before the proxy sees a request, so the proxy reads the browser's `Sec-Fetch-Dest`
-  (`document` for a page load, `empty` for a fetch); a browser too old to send it is treated as a
-  page load. 0 of 10 after.
+- **The proxy does not set the hint (Mitchell, 2026-10-18).** It did at first, on a signed-in
+  matched request. Set on every one, a client-router prefetch — sent when the account menu's
+  *Trips* link renders — answered after sign-out had deleted the hint and put it back, so the
+  landing sent the visitor to `/home` and then to sign in: 6 of 10 runs of
+  `e2e/m15-front-door.spec.ts`'s sign-out. Filtering to page loads by the browser's
+  `Sec-Fetch-Dest` fixed it for current browsers but left the race on any that do not send the
+  header (Safari before 16.4), and the proxy alone missed a sign-in that lands on a page it does
+  not match (`/plans`, `/account`). Once every matched page a signed-in person reads rendered the
+  app shell with the served user (PRs 485, 487 and 489), the shell's setter covered everything
+  the proxy's did, so the proxy's set went. With no response able to set the hint, nothing in
+  flight can put it back after sign-out, and `clearSignedInHint` stops the shell's setter for the
+  rest of that document.
 
 ## Options not taken
 
@@ -92,16 +100,13 @@ That made the most-visited URL the most expensive one:
 - **The sign-out race the old `/welcome` callback worked around is gone.** It existed because `/`
   was Home for a request whose session cookie had not yet been cleared. `/` no longer reads the
   session, so sign-out goes to `/`.
-- **A signed-in browser with no hint sees the landing until it opens an app page.** Two kinds of
-  account get there. One signed in before this shipped. The other signed in to a page outside the
-  proxy's matcher — `/plans`, `/account`, `/demo/…`, `/s/…` — after which every
-  move is a client fetch the proxy skips. Code review on PR 490 found the second; the proxy alone
-  would have left it hint-less until a page load of `/home`, `/trips/*`, `/invite/*` or
-  `/playbooks/*`. The
-  shell's setter closes it for every page under `(app)` and the library's live copy, however it
-  was reached. What is left is a
-  browser that has opened no app page since signing in (a `/demo/…` or `/s/…` visit only), whose
+- **A signed-in browser with no hint sees the landing until it opens an app page.** The shell
+  sets the hint on every page under `(app)` and the library's live copy, however it was reached,
+  so what is left is an account that signed in before this shipped and has opened no app page
+  since, or a browser that has seen only `/demo/…`, `/s/…` or `/invite/*` since signing in. Its
   `/` shows the landing, whose *Sign in* takes them in.
+- **The hint arrives after hydration, not with the first response.** A browser that leaves the
+  first app page it opens before its scripts run has no hint yet; the next app page sets it.
 - **A client navigation to `/` while signed in goes on to Home too.** The head script runs on a
   full load only. The landing's own effect (`LeaveLandingIfSignedIn`) covers a client navigation
   and Back within a document — the not-found page's *Caesura home*, Back from `/signin`, the
@@ -114,5 +119,3 @@ That made the most-visited URL the most expensive one:
   rather than request Home a second time. The `pageshow` check is not in the head script because
   growing the root layout's HTML by even 84 bytes turned `e2e/seo.spec.ts`'s "same 404 with the
   same body" red (KI-2026-10-18-e).
-- Old browsers without `Sec-Fetch-Dest` (Safari before 16.4) keep the prefetch race above: at
-  worst a sign-out lands on `/signin` rather than the landing.

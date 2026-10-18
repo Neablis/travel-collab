@@ -73,7 +73,7 @@ describe("hasSignedInHint", () => {
 // Before `clearSignedInHint`'s block on purpose: clearing locks the setter for
 // the rest of the module's life, as it does for a document signing out.
 describe("setSignedInHint", () => {
-  it("sets the hint with the proxy's attributes", () => {
+  it("sets the hint readable by script, site-wide, for the session's 30 days", () => {
     const doc = { cookie: "" };
     setSignedInHint(doc, false);
     expect(doc.cookie).toBe(`${SIGNED_IN_HINT_COOKIE}=1; Path=/; Max-Age=2592000; SameSite=Lax`);

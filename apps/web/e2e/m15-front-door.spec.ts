@@ -1,5 +1,13 @@
+import type { Page } from "@playwright/test";
 import { expect, test } from "./fixtures/test";
 import { e2eTripName } from "./tripNames";
+
+// Whether the browser holds ADR-078's signed-in hint. The app shell writes it
+// from an effect after hydration, so a spec polls this rather than reading the
+// cookie once after a navigation.
+function hasHint(page: Page): () => Promise<boolean> {
+  return async () => (await page.context().cookies()).some((cookie) => cookie.name === "tc_signed_in");
+}
 
 // The front door only exists for signed-out visitors, so this spec opts out
 // of the shared storageState the "desktop" project supplies (same override
@@ -100,7 +108,9 @@ test("landing → sign in → first trip → sign out", async ({ page }) => {
   // first match establishes that however many copies a later layout draws.
   await expect(page.getByText(tripName).first()).toBeVisible();
 
-  // And back out the front door.
+  // And back out the front door — with the hint set first, so the landing
+  // staying put below is sign-out's doing and not a hint that never arrived.
+  await expect.poll(hasHint(page)).toBe(true);
   await page.getByRole("button", { name: "Account menu" }).click();
   await page.getByRole("button", { name: "Sign out" }).click();
   // To the landing, and it stays there: sign-out took the signed-in hint
@@ -122,20 +132,21 @@ test.describe("signed in", () => {
 
   test("a signed-in / ends up on Home", async ({ page }) => {
     // Through Home once, as anybody signing in does: that visit is what sets
-    // the hint the landing reads.
+    // the hint the landing reads — from the shell, after hydration, not on the
+    // response (the proxy only deletes it), so wait for the write.
     await page.goto("/home");
     await expect(page.getByRole("heading", { name: "Your trips" })).toBeVisible();
+    await expect.poll(hasHint(page)).toBe(true);
     await page.goto("/");
     await expect(page).toHaveURL(/\/home$/);
     await expect(page.getByRole("heading", { name: "Your trips" })).toBeVisible();
   });
 });
 
-// The proxy sets the hint only on a page load of a route it matches, and
-// `/plans` is not one (`/playbooks` is, since ADR-077, so it cannot stand in
-// here): nothing but the `(app)` shell can hint a sign-in that lands there.
-// The shell sets it once it knows who is reading (`SessionUserProvider`), so
-// the bare domain still opens Home.
+// The `(app)` shell is the hint's only setter (the proxy only deletes it), and
+// `/plans` is a page the proxy does not even see: a sign-in that lands there
+// is hinted by the shell once it knows who is reading (`SessionUserProvider`),
+// so the bare domain still opens Home.
 test("a sign-in that lands outside Home still sends / on to Home", async ({ page }) => {
   await page.goto(`/signin?callbackUrl=${encodeURIComponent("/plans")}`);
   const username = page.getByLabel(/username/i);
@@ -144,9 +155,7 @@ test("a sign-in that lands outside Home still sends / on to Home", async ({ page
   await page.getByRole("button", { name: /sign in with dev login/i }).click();
   await expect(page).toHaveURL(/\/plans$/);
   // The shell's effect runs after hydration; wait for its write, not a clock.
-  await expect
-    .poll(async () => (await page.context().cookies()).some((cookie) => cookie.name === "tc_signed_in"))
-    .toBe(true);
+  await expect.poll(hasHint(page)).toBe(true);
   await page.goto("/");
   await expect(page).toHaveURL(/\/home$/);
   await expect(page.getByRole("heading", { name: "Your trips" })).toBeVisible();

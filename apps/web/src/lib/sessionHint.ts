@@ -26,22 +26,19 @@ export function hasSessionCookie(names: Iterable<string>): boolean {
 // ADR-078: `/` is a static page, so it cannot read the session — and the
 // Auth.js cookie is HttpOnly, so a script on it cannot either. This second
 // cookie exists to be read by `LEAVE_LANDING_IF_SIGNED_IN`, and says only "this
-// browser had a session the last time the proxy looked". **It authorises
-// nothing.** A stale or forged one costs a visit to `/home`, where the proxy
-// finds no session, sends the visitor to sign in and clears it — so the worst
-// it can do is one extra hop, never a loop and never a page.
+// browser had a session the last time an app page knew its user". The app
+// shell sets it (`setSignedInHint`, from `SessionUserProvider`); the proxy
+// only deletes it. **It authorises nothing.** A stale or forged one costs a
+// visit to `/home`, where the proxy finds no session, sends the visitor to sign
+// in and clears it — so the worst it can do is one extra hop, never a loop and
+// never a page.
 /** The non-HttpOnly cookie that tells the static landing a signed-in browser is reading it. */
 export const SIGNED_IN_HINT_COOKIE = "tc_signed_in";
 
 // Auth.js's default session life: `authConfig` sets no `session.maxAge`, so
-// the JWT lasts 30 days from its last refresh. The proxy re-sets the hint on
-// every signed-in request it sees, so the two age out together.
+// the JWT lasts 30 days from its last refresh. The shell re-sets the hint on
+// every app page a signed-in person opens, so the two age out together.
 const SESSION_MAX_AGE_SECONDS = 30 * 24 * 60 * 60;
-
-/** How the proxy sets the hint: readable by script, sent on same-site navigations, Secure on https. */
-export function signedInHintCookieOptions(secure: boolean) {
-  return { httpOnly: false, sameSite: "lax" as const, path: "/", maxAge: SESSION_MAX_AGE_SECONDS, secure };
-}
 
 /**
  * Deletes the hint from the browser. Called before every sign-out and by Home
@@ -58,17 +55,17 @@ export function clearSignedInHint(doc: Pick<Document, "cookie"> = document): voi
 // clears the hint, then POSTs, then navigates away, and a render in that window
 // that re-set it would send the signed-out visitor from the landing to `/home`
 // and on to sign in. The shell's setter is keyed on the user id, which does not
-// change in that window, so this is the second lock, not the only one. Module
-// state, so a full load — which is how every sign-out ends — resets it.
+// change in that window, so this is the second lock, not the only one; and with
+// the proxy no longer setting the hint, no response can put it back either.
+// Module state, so a full load — which is how every sign-out ends — resets it.
 let hintCleared = false;
 
 /**
- * Sets the hint from the browser, with the attributes the proxy gives it
- * (`signedInHintCookieOptions`). The `(app)` shell calls it once a session user
- * is known (`SessionUserProvider`), because the proxy sets it only on a document load
- * of a route it matches: a sign-in whose callback is `/plans`, `/account` or
- * `/demo/…` lands on a page it does not, and every move after that is a client
- * fetch it deliberately skips (ADR-078). A no-op after
+ * Sets the hint from the browser: readable by script, sent on same-site
+ * navigations, `Path=/` like the proxy's delete, Secure on https. The only
+ * setter (ADR-078) — the `(app)` shell and the library's live copy call it once
+ * a session user is known (`SessionUserProvider`), so the hint arrives after
+ * hydration rather than on the first response. A no-op after
  * `clearSignedInHint` in the same document.
  */
 export function setSignedInHint(
@@ -76,8 +73,7 @@ export function setSignedInHint(
   secure: boolean = location.protocol === "https:",
 ): void {
   if (hintCleared) return;
-  const { path, maxAge } = signedInHintCookieOptions(secure);
-  doc.cookie = `${SIGNED_IN_HINT_COOKIE}=1; Path=${path}; Max-Age=${maxAge}; SameSite=Lax${secure ? "; Secure" : ""}`;
+  doc.cookie = `${SIGNED_IN_HINT_COOKIE}=1; Path=/; Max-Age=${SESSION_MAX_AGE_SECONDS}; SameSite=Lax${secure ? "; Secure" : ""}`;
 }
 
 const HINT_IN_COOKIE_HEADER = new RegExp(`(?:^|;\\s*)${SIGNED_IN_HINT_COOKIE}=`);

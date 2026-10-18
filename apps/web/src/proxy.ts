@@ -7,7 +7,7 @@ import {
   pendingAdmissionCookieOptions,
 } from "@/lib/pendingAdmission";
 import { playbooksReaderFor, playbooksRoute } from "@/lib/playbooksReader";
-import { SIGNED_IN_HINT_COOKIE, signedInHintCookieOptions } from "@/lib/sessionHint";
+import { SIGNED_IN_HINT_COOKIE } from "@/lib/sessionHint";
 
 // This file was `src/middleware.ts` until the Next 16 upgrade, which
 // deprecated the `middleware` file convention in favour of `proxy` (the
@@ -48,8 +48,9 @@ const { auth } = NextAuth(authConfig);
 // `private, no-store`, and every visit to the bare domain paid for an edge
 // `auth()`. Home moved to `/home` (`HOME_PATH`), `/` became a static page, and
 // the one thing it still needs to know — "is this browser signed in?" — it
-// learns from the hint cookie this file keeps (below), read by an inline
-// script, because a static page cannot read a session.
+// learns from a hint cookie read by an inline script, because a static page
+// cannot read a session. The app shell sets that hint (`SessionUserProvider`);
+// this file only takes it away (below).
 //
 // Exported directly as Auth.js v5's wrapper (`auth((req) => ...)`) rather
 // than composed with other logic — there's nothing else this route needs.
@@ -57,44 +58,29 @@ const { auth } = NextAuth(authConfig);
 // read happens here (this project uses JWT sessions with no adapter — see
 // server/auth.ts), which is the configuration Auth.js v5's docs call out as
 // the one that works reliably in the Edge runtime.
-/** The request seam: the library picks its copy, an invite banks its token, anything else matched goes to sign-in, and the signed-in hint follows the session. */
+/** The request seam: the library picks its copy, an invite banks its token, anything else matched goes to sign-in, and a signed-out request sheds the signed-in hint. */
 export default auth((req) => {
   const response = route(req);
-  // The hint follows what this request found (ADR-078): refreshed while there
-  // is a session, so it lives as long as the JWT does, and removed when there
-  // is none — which is also what ends a stale hint's one wasted hop, since the
-  // landing sends it to `/home` and `/home` is matched.
+  // ADR-078: **this file only ever deletes the hint; it never sets it.** The
+  // app shell sets it from the browser once it knows a session user
+  // (`SessionUserProvider`), and every matched page a signed-in person reads —
+  // `/home`, `/trips/*`, the library's live copy — renders that shell. Here a
+  // matched request with no session removes it, which is what ends a stale
+  // hint's one wasted hop: the landing sends it to `/home`, `/home` is
+  // matched, and this answers it signed out.
   //
-  // **Set only on a page load, never on the client router's own requests.** A
-  // prefetch is sent whenever a link to a matched route comes into view — the
-  // account menu's *Trips* is one — and sign-out clears the hint and then
-  // POSTs, so a prefetch already in flight answered after the clear and put
-  // the hint back: the landing then sent the signed-out visitor on to `/home`
-  // and from there to sign in. Measured: 6 of 10 runs of
-  // e2e/m15-front-door.spec.ts's sign-out. Next strips its own `RSC` headers
-  // before this file sees a request, so the browser's `Sec-Fetch-Dest` is what
-  // tells them apart: `document` for a page load, sign-in's landing included,
-  // `empty` for every fetch. A browser too old to send it gets the old
-  // behaviour, race and all.
-  if (req.auth && isPageLoad(req)) {
-    response.cookies.set(
-      SIGNED_IN_HINT_COOKIE,
-      "1",
-      signedInHintCookieOptions(req.nextUrl.protocol === "https:"),
-    );
-  } else if (!req.auth && req.cookies.has(SIGNED_IN_HINT_COOKIE)) {
+  // It used to be set here too, on a signed-in page load. That needed telling
+  // a page load from the client router's prefetch by `Sec-Fetch-Dest` — a
+  // prefetch answered after sign-out's clear put the hint back — and a browser
+  // too old to send that header kept the race. With no set here, there is no
+  // response that can put the hint back, whatever the request.
+  if (!req.auth && req.cookies.has(SIGNED_IN_HINT_COOKIE)) {
     response.cookies.delete(SIGNED_IN_HINT_COOKIE);
   }
   return response;
 });
 
-// Whether the browser is loading this as a page, rather than fetching it.
-function isPageLoad(req: NextAuthRequest): boolean {
-  const dest = req.headers.get("sec-fetch-dest");
-  return dest === null || dest === "document";
-}
-
-// What the request gets before the hint is applied to it.
+// What the request gets before a stale hint is taken off it.
 function route(req: NextAuthRequest): NextResponse {
   // The public library, for everyone: a reader with no session and no query
   // gets the cached copy, anyone else the per-request one (`playbooksReader.ts`).
@@ -187,10 +173,9 @@ function tripInviteToken(pathname: string): string | null {
 //     routes, which answer every write 401), but to pick which copy of the
 //     page they get. Every request is rewritten: the routes live under
 //     `app/playbooks/live` and `app/playbooks/[copy]`, so nothing at
-//     `/playbooks` renders without this file. The signed-in hint (ADR-078)
-//     follows the session here as on every other matched route: a signed-in
-//     page load refreshes it, and a signed-out one sheds a stale one, the
-//     cached copy included.
+//     `/playbooks` renders without this file. As on every other matched
+//     route, a signed-out request sheds a stale signed-in hint (ADR-078), the
+//     cached copy included; the live copy's shell is what sets it.
 export const config = {
   matcher: ["/home", "/trips/:path*", "/invite/:path*", "/playbooks/:path*"],
 };

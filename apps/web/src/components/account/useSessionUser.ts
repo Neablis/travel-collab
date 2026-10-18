@@ -120,10 +120,11 @@ export function SessionUserProvider({
   const known = noSessionCookie ? null : initialUser;
   const user = useResolvedSession(known === undefined, known);
   // ADR-078: the landing's signed-in hint, set from every app page however it
-  // was reached. The proxy sets it only on a page load of a route it matches,
-  // so a sign-in whose callback is `/plans` or `/account` — pages it does not
-  // match, whose later requests are client fetches it skips on purpose — left
-  // the bare domain showing that person the marketing landing.
+  // was reached — `/home`, `/trips/*`, `/plans`, `/account` and the library's
+  // live copy all render this provider with the served user. **The only
+  // setter**: the proxy only deletes the hint on a signed-out request, so it
+  // appears after hydration, not on the first response. `/invite/*` has no
+  // shell and does not set it; an invite hands off to a trip page, which does.
   //
   // Here, in the one place under `(app)` that already holds the answer.
   //
