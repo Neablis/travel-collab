@@ -365,11 +365,30 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   };
   useEffect(() => {
     if (reveal === null || view !== "Plan") return;
-    // Plan is drawn in the commit `view` becomes it, so no column is a day gone since.
-    const column = document.querySelector<HTMLElement>(`[data-day-column][data-day-id="${reveal.dayId}"]`);
-    const block = reveal.activityId === null ? null : column?.querySelector<HTMLElement>(`[data-activity-id="${reveal.activityId}"] [data-river-edit]`);
-    (block ?? column?.querySelector<HTMLElement>("[data-day-header] button"))?.focus();
-    setReveal(null);
+    const focusIt = () => {
+      const column = document.querySelector<HTMLElement>(`[data-day-column][data-day-id="${reveal.dayId}"]`);
+      if (column === null) return false;
+      const block = reveal.activityId === null ? null : column.querySelector<HTMLElement>(`[data-activity-id="${reveal.activityId}"] [data-river-edit]`);
+      (block ?? column.querySelector<HTMLElement>("[data-day-header] button"))?.focus();
+      setReveal(null);
+      return true;
+    };
+    if (focusIt()) return;
+    // **Plan may not be drawn yet.** It used to be, in the commit `view`
+    // became it, but its code now loads with the view (`Board` above is a
+    // `next/dynamic`), so a jump from another view lands before the columns
+    // do and found nothing to focus (PR 481's e2e: a chat chip's stop). So
+    // wait for the column to appear, and give up after a few seconds, which
+    // is also what happens to a day deleted in the meantime.
+    const appeared = new MutationObserver(() => {
+      if (focusIt()) appeared.disconnect();
+    });
+    appeared.observe(document.body, { childList: true, subtree: true });
+    const giveUp = window.setTimeout(() => setReveal(null), 5000);
+    return () => {
+      appeared.disconnect();
+      window.clearTimeout(giveUp);
+    };
   }, [reveal, view]);
   // Which stop and day keyboard focus is in, for ⌘K's nearness (ADR-069 §5).
   // Read from `focusin`, so the palette taking focus (`data-command-palette`)
