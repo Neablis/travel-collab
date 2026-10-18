@@ -5,8 +5,8 @@
 // the DSN literal alone appeared three times, so a project rename would have
 // left whichever file nobody grepped pointing at the old one. Everything that
 // is genuinely the same in all three lives here; each runtime file adds only
-// what is specific to it (Replay and browser profiling on the client, the CPU
-// profiler on the server).
+// what is specific to it (Replay on the client, the CPU profiler on the
+// server).
 //
 // **Nothing here is a secret.** A Sentry DSN is a public write-only ingest key
 // and ships in the client bundle by design — `NEXT_PUBLIC_SENTRY_DSN` is
@@ -130,13 +130,19 @@ export const tracesSampleRate = envRate(
 );
 
 /**
- * How many user/server sessions get a CPU profile.
+ * How many server sessions get a CPU profile. Server only since 2026-10-18,
+ * when browser profiling was removed to shrink the every-page chunk (ADR-032
+ * amendment of that date).
  *
- * Paired with `profileLifecycle: "trace"` everywhere it is used, which is the
- * cheap half of the deal: the profiler only runs while a SAMPLED root span is
- * open, so a session that is sampled here still profiles nothing until a real
- * request or page load is in flight. The two together are why 1.0 is
- * affordable at this traffic level.
+ * The `NEXT_PUBLIC_` name is still read first, although no browser code uses
+ * this any more: a deployment that set only the public name, as `.env.example`
+ * used to advise, keeps the server rate it had.
+ *
+ * Paired with `profileLifecycle: "trace"` in `sentry.server.config.ts`, which
+ * is the cheap half of the deal: the profiler only runs while a SAMPLED root
+ * span is open, so a session that is sampled here still profiles nothing until
+ * a real request is in flight. The two together are why 1.0 is affordable at
+ * this traffic level.
  */
 export const profileSessionSampleRate = envRate(
   process.env.NEXT_PUBLIC_SENTRY_PROFILE_SESSION_SAMPLE_RATE,

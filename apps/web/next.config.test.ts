@@ -1,4 +1,5 @@
 import { describe, expect, it, vi, afterEach } from "vitest";
+import { getPathMatch } from "next/dist/shared/lib/router/utils/path-match";
 
 /**
  * The CSP is a build-time string keyed off VERCEL_ENV, so nothing that runs in
@@ -181,32 +182,38 @@ describe("the preview CSP admits the Vercel Toolbar", () => {
 });
 
 /**
- * Sentry's browser profiling is two things that have to agree, in two files.
- *
- * `instrumentation-client.ts` adds `browserProfilingIntegration()`; this header
- * is what lets the page construct a `Profiler` at all. Without it the
- * integration initialises, fails, and disables profiling for the rest of the
- * session — silently, outside a debug build. So "browser profiling is enabled"
- * is a claim about BOTH, and deleting either one leaves a config that looks
- * complete and collects nothing. These cases are the tripwire.
+ * What a response for `pathname` carries: every `headers()` entry whose source
+ * matches, applied in order so a later entry's value for a key wins, which is
+ * how Next applies them. Matched with Next's own matcher, so a source that
+ * stops matching its path fails here rather than on a deployment.
  */
-describe("the js-profiling document policy", () => {
-  it("is served on every route, so a profile can start on any page", async () => {
-    const global = (await headersFor("production")).find((r) => r.source === "/:path*");
-    expect(global?.headers).toContainEqual({ key: "Document-Policy", value: "js-profiling" });
+async function headersServedAt(pathname: string): Promise<Map<string, string>> {
+  const served = new Map<string, string>();
+  for (const route of await headersFor("production", "production")) {
+    if (!getPathMatch(route.source, { removeUnnamedParams: true, strict: true })(pathname)) continue;
+    for (const { key, value } of route.headers) served.set(key.toLowerCase(), value);
+  }
+  return served;
+}
+
+describe("the web manifest", () => {
+  // Next serves the static manifest `max-age=0, must-revalidate`, which put it
+  // at the end of the landing page's critical request chain. A day is safe
+  // because the icons it names are versioned filenames.
+  it("is cacheable for a day and still carries every global security header", async () => {
+    const served = await headersServedAt("/manifest.webmanifest");
+    expect(served.get("cache-control")).toBe("public, max-age=86400, stale-while-revalidate=604800");
+
+    const global = (await headersFor("production", "production")).find((r) => r.source === "/:path*");
+    expect(global?.headers.map((h) => h.key)).toContain("Content-Security-Policy");
+    for (const { key, value } of global?.headers ?? []) {
+      expect(served.get(key.toLowerCase()), key).toBe(value);
+    }
   });
 
-  // Share and invite pages get a different Referrer-Policy and otherwise the
-  // same header set. A `filter` there that removed more than it meant to would
-  // quietly turn profiling off for exactly the pages a reviewer walks.
-  it("is served on the share and invite routes too", async () => {
-    const secrets = (await headersFor("production")).find((r) => r.source === "/:prefix(s|invite)/:path*");
-    expect(secrets?.headers).toContainEqual({ key: "Document-Policy", value: "js-profiling" });
-  });
-
-  it.each(["production", "preview", undefined])("is not environment-gated (%o)", async (env) => {
-    for (const route of await headersFor(env)) {
-      expect(route.headers).toContainEqual({ key: "Document-Policy", value: "js-profiling" });
+  it("lends its Cache-Control to no other path", async () => {
+    for (const pathname of ["/", "/manifest.json", "/icons/icon-192-v2.png", "/s/abc/manifest.webmanifest"]) {
+      expect((await headersServedAt(pathname)).has("cache-control"), pathname).toBe(false);
     }
   });
 });
