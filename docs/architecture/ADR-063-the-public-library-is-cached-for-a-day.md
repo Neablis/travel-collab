@@ -166,7 +166,9 @@ found a per-instance store could not do.
 - Discover for a signed-out reader is keyed by its search, and a search is text anyone can type,
   so junk searches each leave an entry for a day. Nothing in the app meters that. The rendered
   pages are the Vercel firewall's to protect (ADR-061 decision 3, as amended 2026-10-03). A
-  miss on a day is never stored, so the day page has no such cost.
+  miss on a day is never stored in the data cache. *Amended by ADR-077 (2026-10-18):* the
+  cached copy of the day page stores its 404 as an ISR page, so the day page now has this cost
+  too, bounded the same way.
 - The preview routes' lookups (`dayCardFor` and the rest) are not cached in the data cache: they
   run only on a CDN miss, which is now once a day per card.
 - CI restores `apps/web/.next/cache` between runs (`.github/workflows/ci.yml`), and the data

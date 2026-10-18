@@ -1,7 +1,8 @@
 # ADR-077: The public library serves a cached copy to readers with no session
 
 **Status:** **Accepted — 2026-10-18.** Mitchell chose the split over a cookie-free route group
-and over `cacheComponents`, the same day.
+and over `cacheComponents`, the same day. One question is still his: whether cached misses (see
+Consequences) need a firewall rule on `/playbooks/**` before merge.
 **Deciders:** Mitchell (product); Claude — drafted
 Related: **ADR-061** (the library is readable without an account), **ADR-063** (its reads are
 cached for a day and cleared on publish), **ADR-045** (entitlements; never a JWT claim), M45
