@@ -42,7 +42,7 @@ export async function GET() {
     // Each card's "planned of budget" line, which Home used to fetch as one
     // `GET /api/trips/:id` per card: one read of every stored detail and one
     // of every trip's guests, recosted below the way the single read recosts.
-    getTripDetails(tripIds),
+    getTripDetails(tripIds, "omit"),
     listGuestsByTrip(tripIds),
   ]);
   // Home's own list, so a `ListedTripSummary`: the unread chat count (M46 D5)

@@ -282,23 +282,32 @@ function parseStoredDetail(tripId: string, doc: unknown): ReturnType<typeof Trip
 }
 
 /**
- * `getTripDetail` for many trips in ONE statement, for Home's list (the
- * per-card budget line used to be a `GET /api/trips/:id` per card).
+ * `getTripDetail` for many trips in ONE statement, for a caller that would
+ * otherwise read them one at a time: Home's list (the per-card budget line
+ * used to be a `GET /api/trips/:id` per card) and the assistant's account
+ * trips (a select per trip, Sentry's N+1).
  *
- * The same parse, but a doc that fails it is left out of the map rather than
- * thrown: one broken row must not take every card on Home down with it, and
- * the caller reads a missing id as "no figure", which is what it shows. The
- * failure is still logged with its `tripId`. Ids that are not uuids are
- * dropped before the query, for `getTripDetail`'s `22P02` reason.
+ * The same parse per trip. An id with no row is absent, and ids that are not
+ * uuids are dropped before the query, for `getTripDetail`'s `22P02` reason.
+ * A doc that fails the parse is logged with its `tripId` either way; what
+ * happens next is the caller's, because the two callers need opposite
+ * answers. `"omit"` (Home) leaves it out: one broken row must not take every
+ * card down with it, and a missing id reads as "no figure". `"throw"` (the
+ * assistant) throws as `getTripDetail` does: a skipped trip would vanish from
+ * what the assistant sees with nothing to say why.
  */
-export async function getTripDetails(tripIds: readonly string[]): Promise<Map<string, TripDetail>> {
+export async function getTripDetails(
+  tripIds: readonly string[],
+  malformed: "omit" | "throw",
+): Promise<Map<string, TripDetail>> {
   const byTrip = new Map<string, TripDetail>();
-  const ids = tripIds.filter(isUuid);
+  const ids = [...new Set(tripIds.filter(isUuid))];
   if (ids.length === 0) return byTrip;
   const rows = await db.select().from(tripDetails).where(inArray(tripDetails.tripId, ids));
   for (const row of rows) {
     const parsed = parseStoredDetail(row.tripId, row.doc);
     if (parsed.success) byTrip.set(row.tripId, parsed.data);
+    else if (malformed === "throw") throw parsed.error;
   }
   return byTrip;
 }

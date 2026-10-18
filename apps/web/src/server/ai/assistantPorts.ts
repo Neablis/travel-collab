@@ -25,8 +25,7 @@
 // `tools/places.ts`.
 import type { TripDetail } from "@tc/contracts";
 import { db } from "@/server/db/client";
-import { listTripSummariesVisibleTo } from "@/server/projections";
-import { getTripDetails } from "@/server/tripDetailsMany";
+import { getTripDetails, listTripSummariesVisibleTo } from "@/server/projections";
 import { withEffectiveMembersByTrip } from "@/server/access/members";
 import { discoverDays } from "@/server/playbooks";
 import { discoverFor } from "@/server/publicLibrary";
@@ -269,7 +268,7 @@ function isPlaceable(place: Partial<ResolvedPlace> & { name: string }): place is
  */
 export async function readAccountTrips(userId: string): Promise<TripDetail[]> {
   const listed = await listTripSummariesVisibleTo(userId);
-  const details = await getTripDetails(listed.map((row) => row.tripId));
+  const details = await getTripDetails(listed.map((row) => row.tripId), "throw");
   return withEffectiveMembersByTrip(
     db,
     listed.flatMap((row) => {
