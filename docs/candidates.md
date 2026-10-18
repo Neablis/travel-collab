@@ -338,3 +338,83 @@ here two days later.
   part 4).** `tier_weekly` holds one count per plan per week, so the Users tab can draw net change
   only. *+N added / −N lost* needs a per-account weekly snapshot (or a holdings diff in the rollup
   job), so the job can tell an account that moved between tiers from one that joined or left.
+
+- **The trip page renders its first data on the server (found by PR 481's audit, 2026-10-18).**
+  The biggest load-time item that pass left out: it was larger than a cleanup.
+  `app/(app)/trips/[tripId]/(board)/page.tsx` passes only `tripId`, so the board draws a skeleton
+  until hydration and then waits on chained client reads before the cover, the LCP image, can
+  start: detail, history, access and the cover read, then Overview's `fetchPages` → `fetchPage`.
+  - **The shape:** `Promise.all` the access check, detail, cover and the overview page in
+    `page.tsx`, and pass them down as `initial*` props seeding `cachedRead`, the way
+    `useLibraryRead`'s `initial` already works. Draw the header and cover band on the server,
+    with CSS breakpoints instead of the `useIsAbovePhone()` gate.
+  - **Same pattern, smaller:** `/s/[token]` (`SharedTripScreen` fetches in an effect), the
+    `/playbooks/profile/[userId]` and `/playbooks/board` pages (`useLibraryRead` without
+    `initial`), and `/demo/[slug]` (static shell, then six API reads; build the demo's
+    `TripDetail` at build time).
+  - **Measure first and after:** the Vercel Real Experience Score and Sentry, which PR 481 had no
+    access to. Its numbers came from a local production build.
+
+- **Trip requests stop re-reading the whole trip (found by PR 481's audit, 2026-10-18).** Every
+  `/api/trips/[tripId]/**` request runs `requireTripAccess`, which reads and Zod-parses the whole
+  trip document plus 3–7 member, entitlement and guest queries. The events poll does this every 2s
+  per open tab, about 9–13 queries a poll. Opening a trip fires 5–9 such requests. PR 481 only made
+  `readTrip`'s guests read run in parallel.
+  - A light `tripRoleFor(userId, tripId)` for routes that need only the role (`events`, `chat`,
+    `globals`, `pages`, `weather`, `suggestions`): `trip_summaries.members` plus the
+    `trip_memberships` primary key, with the entitlement check only for a membership-row role. It
+    must give the same answer as `effectiveMembers`, lapse cap included. That is access control:
+    an ADR, and tests on every denial path.
+  - Collapse the poll's head-seq, access-rev and chat-rev reads into one statement. Keep a
+    `suggestions_rev` counter like `trip_chat_revs` instead of hashing every open change row.
+  - Have `readTrip` return `guests` and `collaboratorsEntitled`, so the access, members, chat and
+    history routes stop re-running them (chat runs the entitlement check twice per request).
+  - Optionally a bootstrap endpoint: detail, history, access and pages after one access check.
+  - Consider a 4–5s poll with idle back-off.
+
+- **Public playbook pages become cacheable (found by PR 481's audit, 2026-10-18).** `/playbooks`
+  and its tag, city, country and day pages render per request, because the `(app)` layout reads
+  `cookies()` and awaits `auth()` + `entitlementsFor()` before anything streams. Their data is
+  already in `unstable_cache` for 24h (`libraryCache.ts`), so ISR fits. Move them into a route
+  group whose layout reads no cookies, with the session chrome as a client island (or adopt
+  PPR/`cacheComponents`). Then `revalidate` plus `generateStaticParams` for the top tags and
+  cities. **Not** a `loading.tsx` on these routes: the SEO pass plan
+  (`docs/plans/2026-10-02-seo-pass.md`) says it would turn `notFound()` and `permanentRedirect`
+  into 200s.
+
+- **Smaller query and fetch follow-ups left by PR 481 (2026-10-18).** Each is small. Grouped so
+  none is lost.
+  - **The embedding sweep** (`server/ai/sweep.ts`) re-reads the whole trip document for each
+    claimed day row, so editing one trip makes N document reads. Group by source, batch-load with
+    `inArray`, build chunks once per source, and batch the status updates.
+  - **Geocode quota** is charged one stop at a time (`geocodeEnrichment.ts` `affordable`,
+    `assistantPorts.ts` place search). Batching needs a capped bump on `QuotaCounters` to keep
+    today's stop-at-first-refusal charging, which touches the interface, the Postgres store and
+    every fake.
+  - **Discover, signed in** (`server/playbooks.ts`): it runs the same filter twice per request,
+    and the keyset clause recomputes `matchedCount` per row, so it can't use an index.
+    `ownerNames` uses two correlated subqueries per row where one join would do.
+  - **`listPageRows`** selects whole page rows, `content` JSONB included, to build summaries.
+  - **`day_embeddings`**: check with EXPLAIN that the dense leg's `ORDER BY embedding <=> $q, id`
+    still uses HNSW. Ordering by distance alone inside the leg may be needed.
+  - **⌘K's trip read** now pays for `GET /api/trips`' spend reads it ignores: every listed trip's
+    document read and parsed, at idle on every `(app)` page and on each opening. A list variant
+    without `spend` is the fix if it shows up in the ledger or Sentry.
+  - **Client reads the server already has:** `PageScreen` calls `fetchTripDetail` outside
+    `cachedRead`, `PreferencesProvider` fetches preferences the layout could pass, Settings'
+    `PlanSection` and `TokensSection` re-fetch what the layout resolved, and the admin layout's
+    `PreferencesProvider` fetches without `noSessionCookie`.
+
+- **The major upgrades Dependabot is told to skip (2026-10-18, PR 481).** `dependabot.yml`
+  ignores majors because each is a migration. PR 481 took every in-range bump and left these. Do
+  each on its own branch, with its upgrade notes read:
+  - `@tiptap/*` 2 → 3: also the only fix for GHSA-cp6q-959q-f8rh (KI-2026-10-18-b). The notebook
+    editor, 23 files.
+  - `eslint-config-next` 15 → 16 (matching `next` 16): it should drop the `braces` advisory
+    pulled in through `fast-glob` → `micromatch`, which has no patched release.
+  - `zod` 3 → 4 (contracts and every consumer), `typescript` 5 → 7, `eslint` 9 → 10, `vitest` /
+    `@vitest/coverage-v8` 4 → 5, `msw` 2 → 3, `jsdom` 29 → 30, `@vitejs/plugin-react` 4 → 6,
+    `@types/node` 24 → 26.
+  - `@sentry/nextjs` / `@sentry/profiling-node` 10 → 11.
+  - `@atlaskit/pragmatic-drag-and-drop` 3 → 4, together with auto-scroll ≥3.2.1, which
+    `dependabot.yml` pins until this migration (`check-singletons`).

@@ -35,6 +35,12 @@
     failure point moved. Locally the job's exact command (root `pnpm test:unit`, `CI=true`,
     Node 24.22) passed, web 437 files / 6201 tests, sharded and unsharded. PR 476 and PR 477
     contain `e6ac355` and were green on unit.
+  - A fifth named one, a property not on the list above:
+    `apps/web/src/components/assistant/phoneAskContext.test.ts` › *never widens scope past the
+    surface, and never offers an ask whose precondition is false*. It failed with
+    `phoneAskContext notebook ask offered: ran 21 assertion(s), expected at least 23`, on PR 481
+    at `f2a2cf7` (job 117616266808). The PR didn't touch it, and unit was green on the heads
+    before and after. Its floor belongs in the seed-pinning fix below.
 - **Why every unnamed red was unnamed:** `apps/web/vitest.unit.config.ts` set
   `reporters: ["dot"]`, and naming any reporter drops the `github-actions` one Vitest adds under
   `GITHUB_ACTIONS=true`. The five `packages/*` configs name none, so their failures were always
