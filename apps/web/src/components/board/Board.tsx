@@ -187,6 +187,7 @@ export type BoardCallbacks = {
  * @param addSavedDay - Optional control for inserting a saved day, after the last column
  * @param endOfDay - Optional row after the one day a phone shows (the Unscheduled row)
  * @param suggestions - Optional pending suggestions, drawn as ghosts
+ * @param onDrawn - Optional; told once the board has drawn and scrolled, and when it goes
  */
 export function Board({
   trip,
@@ -202,8 +203,16 @@ export function Board({
   oneDay = false,
   endOfDay,
   suggestions,
+  onDrawn,
 }: {
   trip: TripDetail;
+  /**
+   * Told `true` once the board's first commit and its arrival scroll have run,
+   * and `false` when it unmounts. For a parent that must act on what the board
+   * drew: its code loads with Plan (`next/dynamic` in `TripBoardScreen`), so
+   * the parent's own effects can run before there is a board (PR 481).
+   */
+  onDrawn?: (drawn: boolean) => void;
   /**
    * Pending suggestions to draw as ghosts (spec §2.4) — `useBoardSuggestions`,
    * passed in because it reads `useTrip()`. Absent for a viewer, who sees none.
@@ -367,6 +376,13 @@ export function Board({
   useFollowFocusedDay(sync, focusedDay, trip.days.length, (index) =>
     columnRefs.current[index]?.querySelector("[data-day-header]"),
   );
+  // After `useFollowFocusedDay` on purpose: effects run in the order they are
+  // declared, so a parent told now acts after the arrival scroll, and a stop
+  // it focuses is not scrolled away again by the day header.
+  useEffect(() => {
+    onDrawn?.(true);
+    return () => onDrawn?.(false);
+  }, [onDrawn]);
 
   // **The row's scrollbar, pinned to the bottom of the viewport**
   // (KI-2026-09-22-b). The row's own scrollbar sits on its bottom inside edge,

@@ -417,6 +417,10 @@ test.describe("mobile assistant (phone viewport)", () => {
     // jump's own scrolling rather than on its wheel — vacuously, in the third
     // shape of the vacuity the note above already tells twice.
     await expect(page.locator('[data-day-index="0"][aria-pressed="true"]')).toBeVisible();
+    // **And for the plan itself**, which loads with its view since PR 481: the
+    // day rail above is drawn without it, so the probe could run against the
+    // placeholder, a page with nothing below the fold to scroll.
+    await expect(page.locator("[data-day-column]").first()).toBeVisible();
     await expect.poll(scrollTop).toBe(0);
 
     // The gesture, at these coordinates, does move the plan.

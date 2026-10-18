@@ -228,6 +228,15 @@ describe("CommandPalette", () => {
     expect(await screen.findByRole("option", { name: "Ask: kyoto" })).toBeTruthy();
   });
 
+  // Registered as "places" so the assistant can run `go:trip:<id>` without
+  // ⌘K ever being opened, but not on the first frame, where it competed with
+  // the page's own requests.
+  it("reads your trips on mount once the page is idle, not during it", async () => {
+    render(<CommandPalette />);
+    expect(fetchTrips).not.toHaveBeenCalled();
+    await waitFor(() => expect(fetchTrips).toHaveBeenCalledTimes(1));
+  });
+
   it("goes to one of your trips by name", async () => {
     fetchTrips.mockResolvedValue({ ok: true, value: [{ tripId: "t1", name: "Kyoto in spring", status: "active" }] });
     render(<CommandPalette />);
@@ -266,8 +275,9 @@ describe("CommandPalette", () => {
     fetchTrips.mockResolvedValue({ ok: false, error: { code: "network" } });
     await userEvent.keyboard("{Meta>}k{/Meta}kyo");
     expect(palette()).toBeTruthy();
-    // On mount, then on each opening.
-    await waitFor(() => expect(fetchTrips).toHaveBeenCalledTimes(3));
+    // On each opening. The mount read waits for idle, and an opening first
+    // stands in for it.
+    await waitFor(() => expect(fetchTrips).toHaveBeenCalledTimes(2));
     expect(screen.queryByRole("option", { name: /Kyoto in spring/ })).toBeNull();
   });
 
@@ -396,6 +406,17 @@ describe("CommandPalette", () => {
       expect(screen.getByTestId("palette-path").textContent).toBe("Move › Stop › Ramen ›");
       await userEvent.keyboard("{Enter}");
       await waitFor(() => expect(ramenToDay3).toHaveBeenCalledTimes(1));
+    });
+
+    // The group's name comes from `aria-labelledby`, a space-separated list of
+    // ids: a heading with a space in it ("Go to") must not become two ids.
+    it("names a group whose heading has a space in it", async () => {
+      signedIn = false;
+      leaves();
+      offer([{ id: "go-ramen", action: "Go to", type: "Stop", target: { label: "Ramen" }, run: vi.fn() }]);
+      render(<CommandPalette />);
+      await userEvent.keyboard("{Meta>}k{/Meta}ramen");
+      expect(within(screen.getByRole("group", { name: "Go to" })).getAllByRole("option").map((o) => o.textContent)).toEqual(["Go to › Stop › Ramen"]);
     });
 
     // Mitchell, PR 398: typing the action shows its options, not its leaves.

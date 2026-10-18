@@ -459,8 +459,9 @@ export const TripSummary = z.object({
 export type TripSummary = z.infer<typeof TripSummary>;
 
 /**
- * A trip as Home's list serves it (`GET /api/trips`): a `TripSummary` and how
- * many of the trip's chat messages the reader has not read (M46 D5).
+ * A trip as Home's list serves it (`GET /api/trips`): a `TripSummary`, how
+ * many of the trip's chat messages the reader has not read (M46 D5), and what
+ * its card's budget line needs (`spend`).
  *
  * **Not on `TripSummary`**, which `/v1/trips` also serves: chat has no public
  * endpoint yet (*Features ship before their endpoints*), so the count stays on
@@ -468,6 +469,22 @@ export type TripSummary = z.infer<typeof TripSummary>;
  */
 export const ListedTripSummary = TripSummary.extend({
   unreadChat: z.number().int().nonnegative().default(0),
+  // What a card's "{planned} planned of {budget}" line is made from: the
+  // trip's total and budget in minor units, and its currency (ISO-4217, as
+  // `TripDetail.currency`). Numbers, not the sentence, so the client formats
+  // it with the same helper the trip page uses. The total is the one the trip
+  // page shows — recosted for the effective travellers, guests included — so
+  // the two cannot disagree. Null when the trip's document could not be read;
+  // a card then shows no line. Here and not on `TripSummary`, so `/v1/trips`
+  // is unchanged. `.default(null)` for the same version skew as `startDate`.
+  spend: z
+    .object({
+      totalMinor: z.number().int().nonnegative(),
+      budgetMinor: z.number().int().nonnegative().nullable(),
+      currency: z.string(),
+    })
+    .nullable()
+    .default(null),
 });
 export type ListedTripSummary = z.infer<typeof ListedTripSummary>;
 

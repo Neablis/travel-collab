@@ -10,11 +10,10 @@ vi.mock("./savedDayPinBackfill", () => ({ schedulePinBackfill: () => false }));
 // Published and unmoderated unless a test says otherwise.
 let visibility = "public";
 let moderation: { moderatedAt: string; moderationNote: string | null } | null = null;
-vi.mock("./savedDays", () => ({
-  readableSavedDay: async () => ({ savedDayId: "d-1", ownerId: "dev-alice", stops: STOPS, visibility }),
-  publishedAtOf: async () => null,
-  moderationOf: async () => moderation,
-}));
+// The two single-field reads are here only to be NOT called: the day's row
+// already carries both (Sentry's N+1 selected it three times).
+const savedDays = vi.hoisted(() => ({ readableSavedDayWithStanding: vi.fn(), publishedAtOf: vi.fn(), moderationOf: vi.fn() }));
+vi.mock("./savedDays", () => savedDays);
 // The cover is read beside the day (M37 part 5), after the read seam.
 const COVER = { unsplashId: "p-1" };
 vi.mock("./savedDayCovers", () => ({ getSavedDayCover: async () => COVER }));
@@ -25,6 +24,13 @@ beforeEach(() => {
   visibility = "public";
   moderation = null;
   publicAuthor.mockReset().mockResolvedValue({ userId: "dev-alice", displayName: "Alice C." });
+  savedDays.readableSavedDayWithStanding.mockReset().mockImplementation(async () => ({
+    day: { savedDayId: "d-1", ownerId: "dev-alice", stops: STOPS, visibility },
+    publishedAt: "2026-10-01T09:00:00.000Z",
+    moderation,
+  }));
+  savedDays.publishedAtOf.mockReset();
+  savedDays.moderationOf.mockReset();
 });
 
 describe("sharedDayRead", () => {
@@ -57,6 +63,17 @@ describe("sharedDayRead", () => {
     moderation = { moderatedAt: "2026-10-11T09:00:00.000Z", moderationNote: "spam" };
     const read = await sharedDayRead("d-1", "dev-alice");
     expect([read?.description, read?.namedTags]).toEqual(["Sightseeing", []]);
+  });
+
+  it("takes when it was published and its moderation off the one row read, never re-selecting it", async () => {
+    moderation = { moderatedAt: "2026-10-11T09:00:00.000Z", moderationNote: "spam" };
+    const read = await sharedDayRead("d-1", "dev-alice");
+    expect(savedDays.readableSavedDayWithStanding).toHaveBeenCalledOnce();
+    expect(savedDays.publishedAtOf).not.toHaveBeenCalled();
+    expect(savedDays.moderationOf).not.toHaveBeenCalled();
+    expect([read?.publishedAt, read?.moderation]).toEqual(["2026-10-01T09:00:00.000Z", moderation]);
+    // Only the author is shown an operator's note.
+    expect((await sharedDayRead("d-1", "dev-bob"))?.moderation).toBeNull();
   });
 });
 

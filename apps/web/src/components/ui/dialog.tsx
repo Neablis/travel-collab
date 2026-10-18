@@ -66,8 +66,13 @@ export function Dialog({
           onCloseAutoFocus={onCloseAutoFocus}
         >
           <div className="mb-3 flex items-start justify-between gap-3">
+            {/* Level 2, styled as the level 3 it used to be: a dialog sits
+                over a page whose one heading is its `h1`, so an `h3` skipped a
+                level for anyone navigating by headings. */}
             <RadixDialog.Title asChild>
-              <Heading level={3}>{title}</Heading>
+              <Heading level={2} className="text-lg">
+                {title}
+              </Heading>
             </RadixDialog.Title>
             <RadixDialog.Close asChild>
               <Button variant="ghost" size="icon" aria-label="Close">

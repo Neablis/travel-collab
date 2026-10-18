@@ -289,7 +289,9 @@ test("an invited viewer can read the trip but is told, and shown, that it is rea
     // Nothing opened it, so nothing to close — and the sheet's own read-only
     // presentation stays covered by ActivityEditorSheet.test.tsx, where it is
     // reachable, rather than being asserted through a door that is now shut.
-    await expect(carol.getByRole("heading", { name: "Activity", level: 3 })).toHaveCount(0);
+    // No `level`: the sheet's title moved from h3 to h2, and a level here
+    // would let this absence pass against a sheet that IS open.
+    await expect(carol.getByRole("heading", { name: "Activity", exact: true })).toHaveCount(0);
 
     // Taking a copy is a read (ADR-028 decision 3), so the download a demo
     // visitor is denied — for want of a session, not a role — stays hers.

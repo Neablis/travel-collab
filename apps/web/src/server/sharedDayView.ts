@@ -4,7 +4,7 @@ import type { SharedDayView } from "@/lib/sharedDayView";
 import { publicAuthor } from "./playbooks";
 import { getSavedDayCover } from "./savedDayCovers";
 import { schedulePinBackfill } from "./savedDayPinBackfill";
-import { moderationOf, publishedAtOf, readableSavedDay } from "./savedDays";
+import { readableSavedDayWithStanding } from "./savedDays";
 
 /**
  * One shared day as `readerId` may see it, without its author, or null.
@@ -22,16 +22,16 @@ export async function sharedDayRead(
   savedDayId: string,
   readerId: string | null,
 ): Promise<Omit<SharedDayView, "author"> | null> {
-  const day = await readableSavedDay(savedDayId, readerId);
-  if (day === null) return null;
+  // The day, when it was published and its moderation, off the one row the
+  // read seam selects — not that row selected twice more for two fields.
+  const read = await readableSavedDayWithStanding(savedDayId, readerId);
+  if (read === null) return null;
+  const { day, publishedAt } = read;
   const isAuthor = readerId !== null && day.ownerId === readerId;
-  const [publishedAt, moderation, cover] = await Promise.all([
-    publishedAtOf(savedDayId),
-    isAuthor ? moderationOf(savedDayId) : null,
-    // After the read seam, as `publishedAtOf` is: a day this reader may not
-    // open never reaches here, so neither does its cover.
-    getSavedDayCover(savedDayId),
-  ]);
+  const moderation = isAuthor ? read.moderation : null;
+  // After the read seam: a day this reader may not open never reaches here,
+  // so neither does its cover.
+  const cover = await getSavedDayCover(savedDayId);
   return {
     day,
     isAuthor,

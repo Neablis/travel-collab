@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import type { Guest } from "@tc/contracts";
 import { mayLinkGuest, mayManageGuests, mayUnlinkGuest } from "../accessPolicy";
 import { db, type Queryable } from "../db/client";
@@ -50,6 +50,28 @@ export async function listGuests(tripId: string): Promise<Guest[]> {
     .where(eq(tripGuests.tripId, tripId))
     .orderBy(tripGuests.createdAt, tripGuests.guestId);
   return rows.map(toGuest);
+}
+
+/**
+ * `listGuests` for many trips in ONE round trip, for Home's list (the budget
+ * line recosts for guests too, guests spec P2). Same order within a trip; a
+ * trip with no guests is absent, and callers read `?? []`.
+ */
+export async function listGuestsByTrip(tripIds: readonly string[]): Promise<Map<string, Guest[]>> {
+  const byTrip = new Map<string, Guest[]>();
+  const ids = tripIds.filter(isUuid);
+  if (ids.length === 0) return byTrip;
+  const rows = await db
+    .select()
+    .from(tripGuests)
+    .where(inArray(tripGuests.tripId, ids))
+    .orderBy(tripGuests.createdAt, tripGuests.guestId);
+  for (const row of rows) {
+    const list = byTrip.get(row.tripId);
+    if (list === undefined) byTrip.set(row.tripId, [toGuest(row)]);
+    else list.push(toGuest(row));
+  }
+  return byTrip;
 }
 
 async function readGuest(tx: Queryable, tripId: string, guestId: string): Promise<GuestRow | undefined> {

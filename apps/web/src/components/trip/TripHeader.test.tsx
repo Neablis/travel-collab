@@ -66,7 +66,7 @@ import { fetchTripDetail, fetchTripDetailAt } from "@/lib/apiClient";
 import { TripProvider, useTrip } from "@/components/trip/context/TripProvider";
 // Task 9: TripHeader's new "Add stop" button calls useEditor().openCreate(),
 // so it now needs an EditorHost ancestor (the real app tree provides one —
-// trips/[tripId]/page.tsx wraps TripBoardScreen, which mounts TripHeader, in
+// trips/[tripId]/(board)/page.tsx wraps TripBoardScreen, which mounts TripHeader, in
 // <EditorHost>). Same StateSpy pattern board.test.tsx uses to observe
 // openCreate's effect on EditorHost's state without mocking useEditor.
 import { EditorHost, useEditor } from "@/components/trip/context/EditorHost";

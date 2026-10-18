@@ -12,6 +12,7 @@ import { fetchTrips } from "@/lib/apiClient";
 import { cn } from "@/lib/cn";
 import { orderHomeTrips } from "@/lib/homeTripOrder";
 import { localTodayIso } from "@/lib/today";
+import { whenIdle } from "@/lib/whenIdle";
 import { askCommand, placeCommands } from "./commands";
 import { type PaletteNode, paletteLevel } from "./grammar";
 import { type PaletteStep, searchPalette } from "./match";
@@ -127,16 +128,28 @@ export function CommandPalette() {
   // Your trips, read on mount and again each time it opens: a list kept from
   // the last opening would offer a trip deleted since. In Home's order
   // (ADR-069 §5).
+  //
+  // **The mount read waits for idle.** It is not for the palette, which reads
+  // afresh on opening, but for a command named by id (the assistant's
+  // `go:trip:<id>`), and nobody can ask for one in the first second of a page.
+  // On the first frame it was one more request racing every app page's own.
+  // An opening before then cancels it and reads at once.
   useEffect(() => {
     if (!signedIn) return;
     let live = true;
-    void fetchTrips().then((result) => {
-      if (!live) return;
-      if (result.ok) setTrips(orderHomeTrips(result.value.filter((trip) => trip.status === "active"), localTodayIso()));
-      setReadOpening(openings);
-    });
+    const read = () => {
+      void fetchTrips().then((result) => {
+        if (!live) return;
+        if (result.ok) setTrips(orderHomeTrips(result.value.filter((trip) => trip.status === "active"), localTodayIso()));
+        setReadOpening(openings);
+      });
+    };
+    let cancel: (() => void) | undefined;
+    if (openings === 0) cancel = whenIdle(read);
+    else read();
     return () => {
       live = false;
+      cancel?.();
     };
   }, [openings, signedIn]);
 
@@ -308,12 +321,14 @@ export function CommandPalette() {
         </div>
         <div id={listId} role="listbox" aria-label={path.length > 0 ? path.map((step) => step.label).join(" › ") : "Commands"} className="mt-2 py-1 text-sm">
           {rows.length === 0 ? <p className="px-3 py-2 text-slate">No match</p> : null}
-          {sections.map((section) =>
+          {sections.map((section, sectionIndex) =>
             section.heading === undefined ? (
               section.rows.map(({ row, index }) => option(row, index))
             ) : (
-              <div key={`group:${section.heading}`} role="group" aria-labelledby={`${listId}-group-${section.heading}`}>
-                <div id={`${listId}-group-${section.heading}`} role="presentation" className="px-3 pt-2 pb-1 text-xs text-slate">
+              // By the section's index, not its heading: `aria-labelledby` is a
+              // space-separated list of ids, so "Go to" named two that do not exist.
+              <div key={`group:${section.heading}`} role="group" aria-labelledby={`${listId}-group-${sectionIndex}`}>
+                <div id={`${listId}-group-${sectionIndex}`} role="presentation" className="px-3 pt-2 pb-1 text-xs text-slate">
                   {section.heading}
                 </div>
                 {section.rows.map(({ row, index }) => option(row, index))}

@@ -270,10 +270,20 @@ describe("SettingsSheet Dates row (restored, M10 Phase 4)", () => {
   // "does not cover" is asserted in e2e (m3-place-and-time); this pins the
   // structure — a disclosure that names the region it expands, inside the
   // sheet rather than portalled out of it.
+  // The row's name stays "Dates" (every spec reaches it by that), so the dates
+  // themselves are its description — the label alone hid them from a screen
+  // reader until the row was opened.
+  it("reads the row's visible dates as its description", () => {
+    renderSheet();
+    expect(screen.getByRole("button", { name: "Dates", description: "No dates set" })).toBeTruthy();
+  });
+
   it("expands the date editor inline, as a disclosure", async () => {
     renderSheet();
     const row = screen.getByRole("button", { name: "Dates" });
     expect(row.getAttribute("aria-expanded")).toBe("false");
+    // No `aria-controls` while there is no editor for it to name.
+    expect(row.hasAttribute("aria-controls")).toBe(false);
 
     await userEvent.click(row);
 

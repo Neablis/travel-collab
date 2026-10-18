@@ -7,7 +7,7 @@
 // **This module does not know what a trip is** (ADR-045 rule 5). No trip type
 // is imported here or anywhere under `server/entitlements/`, and
 // `moduleBoundary.test.ts` enforces it.
-import { and, eq, isNull, or, gt, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, or, gt, sql } from "drizzle-orm";
 import type { GrantSource, PlanId } from "@tc/contracts";
 import { db, type Queryable } from "@/server/db/client";
 import { entitlementGrants, users } from "@/server/db/schema";
@@ -44,6 +44,21 @@ export async function activeGrantsFor(userId: string, now: Date = new Date()): P
     .select()
     .from(entitlementGrants)
     .where(and(eq(entitlementGrants.userId, userId), activeAt(now)));
+}
+
+/** `activeGrantsFor` for many accounts in one read, by account; an account holding none is absent. */
+export async function activeGrantsByUser(
+  userIds: readonly string[],
+  now: Date = new Date(),
+): Promise<Map<string, GrantRow[]>> {
+  if (userIds.length === 0) return new Map();
+  const rows = await db
+    .select()
+    .from(entitlementGrants)
+    .where(and(inArray(entitlementGrants.userId, [...userIds]), activeAt(now)));
+  const byUser = new Map<string, GrantRow[]>();
+  for (const row of rows) byUser.set(row.userId, [...(byUser.get(row.userId) ?? []), row]);
+  return byUser;
 }
 
 /**
@@ -105,6 +120,16 @@ export async function heldPlanFor(userId: string): Promise<HeldPlan | null> {
     .where(eq(users.id, userId))
     .limit(1);
   return rows[0] ?? null;
+}
+
+/** `heldPlanFor` for many accounts in one read, by account; an account with no row is absent. */
+export async function heldPlansFor(userIds: readonly string[]): Promise<Map<string, HeldPlan>> {
+  if (userIds.length === 0) return new Map();
+  const rows = await db
+    .select({ id: users.id, planId: users.planId, planVersion: users.planVersion, planLivemode: users.planLivemode })
+    .from(users)
+    .where(inArray(users.id, [...userIds]));
+  return new Map(rows.map(({ id, ...held }) => [id, held]));
 }
 
 /** What a grant is asked for, by the trial, the referral loop, and an operator. */

@@ -119,7 +119,7 @@ export function TripHeader({
     refreshAccess,
   } = useTrip();
   // The phone menu's "Add stop" opens the portable activity editor with no
-  // day: a parked stop. TripHeader renders inside EditorHost (trips/[tripId]/page.tsx wraps
+  // day: a parked stop. TripHeader renders inside EditorHost (trips/[tripId]/(board)/page.tsx wraps
   // TripBoardScreen, which mounts TripHeader, in <EditorHost>), so this hook
   // is always safe to call here.
   const { openCreate } = useEditor();

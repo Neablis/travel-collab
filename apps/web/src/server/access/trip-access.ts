@@ -224,6 +224,15 @@ async function readTrip(
   // still an exception, because those are not "this trip is unreadable" —
   // they are "the database did not answer", and swallowing them here would
   // report a healthy trip as corrupt.
+  //
+  // Guests count toward per-person cost (guests spec P2): the read recosts
+  // for the members' and the guests' travellers together. Their read depends
+  // on nothing above, so it starts beside the doc read rather than after the
+  // access decision: every trip request and the `/events` poll pass through
+  // here. A denied read discards the result unread, and the no-op catch keeps
+  // that early return from leaving a rejection unhandled.
+  const guestsRead = listGuests(tripId);
+  guestsRead.catch(() => {});
   let projected: TripDetail | null;
   try {
     projected = await getTripDetail(tripId);
@@ -234,9 +243,7 @@ async function readTrip(
   if (projected === null) return { ok: false, denial: "not-found" };
   const members = await effectiveMembers(db, tripId, projected.members);
   if (!mayRead(members)) return { ok: false, denial: "forbidden" };
-  // Guests count toward per-person cost (guests spec P2): the read recosts
-  // for the members' and the guests' travellers together.
-  const guests = await listGuests(tripId);
+  const guests = await guestsRead;
   const parsed = TripDetail.safeParse(overlayMembers(projected, members, guests));
   if (!parsed.success) {
     // The issues are logged because the response deliberately does not carry

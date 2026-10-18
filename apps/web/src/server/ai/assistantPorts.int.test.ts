@@ -1,13 +1,16 @@
 import { randomUUID } from "node:crypto";
-import { afterAll, describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it, vi } from "vitest";
 import { inArray } from "drizzle-orm";
-import { SavedStop, type ActivityTag } from "@tc/contracts";
+import { SavedStop, type ActivityTag, type TripDetail } from "@tc/contracts";
 import { PLACE_PAGE_SIZE, slugify } from "@/lib/playbookUrls";
 import type { PlaybookDiscoverSearch } from "@/server/assistant/admission";
 import { db } from "@/server/db/client";
 import { savedDays } from "@/server/db/schema";
 import { newSavedDayRow } from "@/server/savedDays";
-import { readPlaybookList } from "./assistantPorts";
+import { executeTripCommand } from "@/server/commands";
+import { getTripDetail, listTripSummariesVisibleTo } from "@/server/projections";
+import { withEffectiveMembersByTrip } from "@/server/access/members";
+import { readAccountTrips, readPlaybookList } from "./assistantPorts";
 
 // M45 D9: a playbook list page's assistant reads the list on screen, and
 // nothing past it. Each list kind against real rows, in places minted per run:
@@ -102,5 +105,48 @@ describe("readPlaybookList", () => {
       everywhere.push(...next);
     }
     expect(everywhere).toEqual(expect.arrayContaining([late, lateElsewhere]));
+  });
+});
+
+// The account read behind the cross-trip tools. It read one trip_details row
+// per trip (Sentry's N+1) and now reads them in one statement, so it is held to
+// the old answer and to a statement count that does not grow with the trips.
+describe("readAccountTrips", () => {
+  async function seedTrips(userId: string, count: number) {
+    for (let i = 0; i < count; i += 1) {
+      const tripId = randomUUID();
+      await executeTripCommand({ type: "CreateTrip", tripId, name: `Trip ${i}` }, userId);
+      await executeTripCommand({ type: "AddDay", tripId, dayId: randomUUID() }, userId);
+    }
+  }
+
+  /** How many selects `readAccountTrips` issues for `userId`. */
+  async function selectsFor(userId: string) {
+    const select = vi.spyOn(db, "select");
+    try {
+      await readAccountTrips(userId);
+      return select.mock.calls.length;
+    } finally {
+      select.mockRestore();
+    }
+  }
+
+  it("answers what a detail read per trip answered, in the list's order", async () => {
+    const userId = `account-${run}-${randomUUID()}`;
+    await seedTrips(userId, 3);
+    const listedTrips = await listTripSummariesVisibleTo(userId);
+    const oneByOne = await Promise.all(listedTrips.map((row) => getTripDetail(row.tripId)));
+    const before = await withEffectiveMembersByTrip(db, oneByOne.filter((d): d is TripDetail => d !== null));
+
+    const trips = await readAccountTrips(userId);
+    expect(trips).toHaveLength(3);
+    expect(trips).toEqual(before);
+  });
+
+  it("issues as many selects for three trips as for one", async () => {
+    const [one, three] = [`account-${run}-${randomUUID()}`, `account-${run}-${randomUUID()}`];
+    await seedTrips(one, 1);
+    await seedTrips(three, 3);
+    expect(await selectsFor(three)).toBe(await selectsFor(one));
   });
 });

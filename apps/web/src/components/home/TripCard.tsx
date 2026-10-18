@@ -24,11 +24,10 @@ export type TripCardProps = {
   // given, so behavior is identical to the pre-restyle row.
   menuSlot?: ReactNode;
   // Already-formatted "{planned} planned of {budget}" (or "No budget yet")
-  // line. TripSummary — all this card ever gets — carries no cost fields at
-  // all, so TripCard cannot derive this itself: the caller is page.tsx,
-  // which fetches each visible trip's own TripDetail and computes the same
-  // line NextTripHero computes for its single trip, via the shared
-  // plannedOfBudgetLine helper (lib/cost.ts). An absent prop renders nothing
+  // line. The caller is page.tsx, which formats it from the list's
+  // `ListedTripSummary.spend` figures with the same plannedOfBudgetLine
+  // helper (lib/cost.ts) NextTripHero uses for its single trip, so this card
+  // takes the finished string and derives nothing. An absent prop renders nothing
   // rather than a fabricated line (Task 4.1, M10 Phase 4).
   plannedOfBudget?: string;
   // Who is reading, so an unplanned trip offers its owner next steps and a

@@ -147,10 +147,16 @@ export function SaveLightMark() {
     // is the way home from every route, and it measured 32px tall at 411px on
     // all seven of them (M26 link 14's sweep). `PHONE_TOUCH` rather than the
     // `Button` base, because a link is not a button.
-    <Link href="/" className={cn("flex items-center gap-2.5 no-underline", PHONE_TOUCH)}>
-      {mark}
+    //
+    // The status is a SIBLING of the link, not inside it: inside, its text
+    // became part of the link's name, so the way home was announced as "All
+    // changes saved Caesura". It is `sr-only`, so moving it moves nothing.
+    <span className="flex items-center">
+      <Link href="/" className={cn("flex items-center gap-2.5 no-underline", PHONE_TOUCH)}>
+        {mark}
+        <span className="font-display text-md font-semibold text-ink">Caesura</span>
+      </Link>
       {status}
-      <span className="font-display text-md font-semibold text-ink">Caesura</span>
-    </Link>
+    </span>
   );
 }

@@ -17,3 +17,11 @@ allowBuilds:
 # unless the lockfile itself holds a too-new version. To take one on purpose,
 # list it as `name@version` under minimumReleaseAgeExclude.
 minimumReleaseAge: 1440
+# Security floors for transitive dependencies a direct bump cannot reach.
+# Each one names the advisory's patched version; drop a line once its parent
+# ships the fix itself (`pnpm why <name>` shows who still needs it).
+overrides:
+  # GHSA qs DoS advisories, via @stryker-mutator/core > typed-rest-client (dev).
+  qs@<6.16.0: ^6.16.0
+  # GHSA-67mh-4wv8-2f99, via drizzle-kit > @esbuild-kit/core-utils (dev).
+  "@esbuild-kit/core-utils>esbuild": ^0.25.0

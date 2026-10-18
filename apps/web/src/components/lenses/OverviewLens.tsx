@@ -13,7 +13,8 @@ import { inspectStoredPageDoc } from "@/components/pages/editor/storedPageDoc";
 import { PageEditor } from "@/components/pages/editor/PageEditor";
 import { usePreferences } from "@/components/account/PreferencesProvider";
 import { buttonVariants } from "@/components/ui/button";
-import { RegionError, Skeleton, SkeletonRegion } from "@/components/ui/skeleton";
+import { RegionError } from "@/components/ui/skeleton";
+import { OverviewLensSkeleton } from "./LensSkeletons";
 import { Text } from "@/components/ui/text";
 import { cn } from "@/lib/cn";
 import { PeopleProvider } from "@/components/pages/people";
@@ -289,46 +290,9 @@ export function OverviewLens({
     // once, at their final height. A failed read still settles — the widgets
     // then say what they cannot show, as before.
     if (state.status === "loading" || (state.status === "ready" && !globalsSettled)) {
-      // The `ovBody` region (dc.html:1966-2013). The proportions are the
-      // artboard's, and they are not arbitrary: a loading Overview should read
-      // as a trip page — a title, a paragraph, a table of days, some cards —
-      // rather than as a blank form.
-      return (
-        <SkeletonRegion className="flex flex-col gap-6" label="Loading the Overview">
-          <div className="flex flex-col gap-2.5">
-            <Skeleton className="h-5 w-2/5" />
-            <Skeleton circle className="h-3 w-11/12" />
-            <Skeleton circle className="h-3 w-10/12" />
-            <Skeleton circle className="h-3 w-1/2" delay={2} />
-          </div>
-          <div className="overflow-hidden rounded-lg border border-hairline">
-            {[0, 1, 2, 3].map((row) => (
-              <div key={row} className="flex gap-3.5 border-b border-hairline px-3.5 py-3">
-                <div className="flex w-34 flex-none flex-col gap-1.5">
-                  <Skeleton circle className="h-2.5 w-20" delay={2} />
-                  <Skeleton circle className="h-2 w-14" delay={2} />
-                </div>
-                <div className="flex min-w-0 flex-1 flex-col gap-1.5 pt-0.5">
-                  <Skeleton circle className="h-2.5 w-10/12" delay={2} />
-                  <Skeleton circle className="h-2.5 w-1/2" delay={3} />
-                </div>
-              </div>
-            ))}
-          </div>
-          <div className="flex flex-col gap-2.5">
-            <Skeleton className="h-5 w-1/3" delay={3} />
-            {[0, 1, 2].map((card) => (
-              <div key={card} className="flex items-center gap-3.5 rounded-lg border border-hairline px-3.5 py-3">
-                <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-                  <Skeleton circle className="h-3 w-2/5" delay={3} />
-                  <Skeleton circle className="h-2 w-2/3" delay={3} />
-                </div>
-                <Skeleton circle className="h-2.5 w-16" delay={3} />
-              </div>
-            ))}
-          </div>
-        </SkeletonRegion>
-      );
+      // The `ovBody` region (dc.html:1966-2013), shared with the placeholder
+      // `TripBoardScreen` draws while this lens's own code is arriving.
+      return <OverviewLensSkeleton />;
     }
 
     if (state.status === "error") {

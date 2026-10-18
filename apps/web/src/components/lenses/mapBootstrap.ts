@@ -25,6 +25,11 @@
 // A from-scratch second map re-acquires all four. That is the whole argument
 // for this file: it is not shared because it is similar, it is shared because
 // the differences are bugs.
+//
+// **Not MapLibre's stylesheet**, though both maps need it: Playwright's
+// `e2e/fixtures/mapTiles.ts` imports `STYLE_URL` from here under plain Node,
+// which cannot load a `.css` import. Each map component imports the sheet
+// itself (`MapLens.tsx`, `SharedDayMap.tsx`).
 
 /**
  * The muted "positron" basemap, so day accents (routes, markers) are the only

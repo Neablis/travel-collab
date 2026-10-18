@@ -44,7 +44,19 @@ function tripOf(days: { date: string | null; stops: Stop[] }[]): TripDetail {
 
 function memoryStore(): CacheStore & { rows: Map<string, CacheRow> } {
   const rows = new Map<string, CacheRow>();
-  return { rows, read: async (key) => rows.get(key) ?? null, write: async (row) => void rows.set(row.key, row) };
+  return {
+    rows,
+    read: async (key) => rows.get(key) ?? null,
+    readMany: async (keys) => new Map(keys.flatMap((key) => (rows.has(key) ? [[key, rows.get(key)!] as const] : []))),
+    write: async (row) => void rows.set(row.key, row),
+  };
+}
+
+/** A quota with `headroom` units left: it admits that many of a run, and records what is given back. */
+function quotaOf(headroom = Infinity) {
+  const giveBack = vi.fn(async (_unused: number) => {});
+  const charge = vi.fn(async (count: number) => ({ admitted: Math.min(count, headroom), giveBack }));
+  return { charge, giveBack };
 }
 
 const NORMALS: MonthlyNormals = {
@@ -58,7 +70,7 @@ const fresh = <T,>(value: T): Fetched<T> => ({
 function deps(over: Partial<WeatherDeps> = {}) {
   const forecast = { forecast: vi.fn(async () => fresh(SERIES)) } satisfies Forecast;
   const climate = { normals: vi.fn(async () => fresh(NORMALS)) } satisfies Climate;
-  const charge = vi.fn(async () => true);
+  const { charge } = quotaOf();
   return {
     forecast, climate, charge,
     deps: { forecast, climate, charge, store: memoryStore(), now: NOW, outOfTime: () => false, ...over } as WeatherDeps,
@@ -145,7 +157,8 @@ describe("buildTripWeather", () => {
     const weather = await buildTripWeather(trip(), d);
     expect(forecast.forecast).toHaveBeenCalledOnce();
     expect(climate.normals).toHaveBeenCalledOnce();
-    expect(charge).toHaveBeenCalledTimes(2);
+    // Both misses in one charge, not one charge each.
+    expect(charge).toHaveBeenCalledExactlyOnceWith(2);
     expect(weather.points.map((p) => [p.date, "unavailable" in p.forecast ? p.forecast.unavailable : "forecast"])).toEqual([
       ["2026-09-23", "not-in-horizon"], // in the asked-for window, but not in the series
       ["2026-09-24", "forecast"],
@@ -198,6 +211,55 @@ describe("buildTripWeather", () => {
     const weather = await buildTripWeather(many, d);
     expect(weather.points).toHaveLength(8);
     expect(most).toBe(4);
+  });
+
+  // Sentry's N+1: a read and a charge per key was up to ~60 statements on one
+  // page load. Eight cities are sixteen keys; the store is asked once.
+  it("reads every key's row in one readMany and charges the misses in one run", async () => {
+    const many = tripOf(
+      Array.from({ length: 8 }, (_, i) => ({ date: "2026-09-24", stops: [{ lat: 40 + i, lng: 10, city: `City ${i}` }] })),
+    );
+    const store = memoryStore();
+    const readMany = vi.spyOn(store, "readMany");
+    const read = vi.spyOn(store, "read");
+    const { charge, deps: d } = deps({ store });
+    await buildTripWeather(many, d);
+    expect(readMany).toHaveBeenCalledOnce();
+    expect(readMany.mock.calls[0]![0]).toHaveLength(16);
+    expect(read).not.toHaveBeenCalled();
+    expect(charge).toHaveBeenCalledExactlyOnceWith(16);
+  });
+
+  it("makes only the calls the quota admitted, and serves the refused point what the cache has", async () => {
+    const quota = quotaOf(1);
+    const { forecast, climate, deps: d } = deps({ charge: quota.charge });
+    const weather = await buildTripWeather(trip(), d);
+    expect(forecast.forecast.mock.calls.length + climate.normals.mock.calls.length).toBe(1);
+    expect(quota.giveBack).not.toHaveBeenCalled();
+    const refused = forecast.forecast.mock.calls.length === 1 ? "typical" : "forecast";
+    expect(weather.points[1]![refused]).toEqual({ unavailable: "source" });
+  });
+
+  it("gives back the units of calls never started because the request ran out of time", async () => {
+    let started = 0;
+    const counted = async <T,>(value: T) => {
+      started += 1;
+      return fresh(value);
+    };
+    const many = tripOf(
+      Array.from({ length: 8 }, (_, i) => ({ date: "2026-09-24", stops: [{ lat: 40 + i, lng: 10, city: `City ${i}` }] })),
+    );
+    const quota = quotaOf();
+    const { deps: d } = deps({
+      charge: quota.charge,
+      forecast: { forecast: () => counted(SERIES) },
+      climate: { normals: () => counted(NORMALS) },
+      // The budget is spent once four calls have started: the first lane-full.
+      outOfTime: () => started >= 4,
+    });
+    await buildTripWeather(many, d);
+    expect(quota.charge).toHaveBeenCalledExactlyOnceWith(16);
+    expect(quota.giveBack).toHaveBeenCalledExactlyOnceWith(12);
   });
 });
 

@@ -141,4 +141,23 @@ describe("external_data_cache read-through", () => {
     // Not conditional: a 304 would leave nothing that parses to serve.
     expect(port.mock.calls[0]![0]).toBeUndefined();
   });
+
+  it("readMany answers every stored key among those asked, in one read, and a read through its row is the same path", async () => {
+    const row = {
+      payload: { asOf: "2026-09-24T08:00:00Z", n: 1 }, fetchedAt: T0, expiresAt: minutes(30),
+      lastModified: null, sourceUpdatedAt: null, backoffUntil: null,
+    };
+    await db.insert(externalDataCache).values([{ key: KEY, ...row }, { key: "power:normals2:59.91,10.75", ...row }]);
+    const rows = await pgCacheStore().readMany([KEY, "power:normals2:59.91,10.75", "met:forecast:0.00,0.00"]);
+    expect([...rows.keys()].sort()).toEqual([KEY, "power:normals2:59.91,10.75"]);
+    expect(await pgCacheStore().readMany([])).toEqual(new Map());
+
+    const { port, charge, read } = harness(async () => fresh({ asOf: "2026-09-24T09:00:00Z", n: 2 }, minutes(60)), {
+      row: rows.get(KEY)!,
+      store: { ...pgCacheStore(), read: () => Promise.reject(new Error("read again")) },
+    });
+    expect(await read(minutes(1))).toEqual({ value: { asOf: "2026-09-24T08:00:00Z", n: 1 }, stale: false });
+    expect(port).not.toHaveBeenCalled();
+    expect(charge).not.toHaveBeenCalled();
+  });
 });

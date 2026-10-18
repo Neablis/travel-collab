@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { buttonVariants } from "@/components/ui/button";
+import { Heading } from "@/components/ui/heading";
 import { FrontDoorHeader } from "@/components/front/FrontDoorHeader";
 import { cn } from "@/lib/cn";
 import { pageMetadata } from "@/lib/siteMetadata";
@@ -30,9 +31,16 @@ export default function ApiReferencePage() {
           </>
         }
       />
-      <div className="border-t border-hairline">
+      {/* A <main> and an `h1` of our own: Scalar's layout brings neither, so
+          the page had no main landmark and no top-level heading. The heading
+          is screen-reader only because the reference's own sidebar already
+          says what this is to anyone who can see it. */}
+      <main className="border-t border-hairline">
+        <Heading level={1} className="sr-only">
+          API reference
+        </Heading>
         <ApiReferenceClient />
-      </div>
+      </main>
     </div>
   );
 }

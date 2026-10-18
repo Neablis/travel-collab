@@ -13,7 +13,8 @@ import {
   type PageDoc,
 } from "@tc/contracts";
 import { describeByTags, projectTripDetails, projectTripSummaries } from "@tc/domain";
-import { and, desc, eq, getTableColumns, inArray, isNull, lte, ne, or, sql } from "drizzle-orm";
+import { and, desc, eq, getTableColumns, inArray, isNull, lte, ne, sql, type SQL } from "drizzle-orm";
+import { alias, union } from "drizzle-orm/pg-core";
 import { z } from "zod";
 import { hasMembershipRow } from "./access/members";
 import { serverConflictContext } from "./conflictContext";
@@ -263,15 +264,52 @@ export async function getTripDetail(tripId: string): Promise<TripDetail | null> 
   const rows = await db.select().from(tripDetails).where(eq(tripDetails.tripId, tripId));
   const doc = rows[0]?.doc;
   if (doc === undefined) return null;
+  const parsed = parseStoredDetail(tripId, doc);
+  if (!parsed.success) throw parsed.error;
+  return parsed.data;
+}
+
+/** A stored `trip_details.doc` parsed as `TripDetail`, a failure logged with its `tripId`. */
+function parseStoredDetail(tripId: string, doc: unknown): ReturnType<typeof TripDetail.safeParse> {
   const parsed = TripDetail.safeParse(doc);
   if (!parsed.success) {
     console.error("trip_details doc failed TripDetail parse", {
       tripId,
       issues: parsed.error.issues,
     });
-    throw parsed.error;
   }
-  return parsed.data;
+  return parsed;
+}
+
+/**
+ * `getTripDetail` for many trips in ONE statement, for a caller that would
+ * otherwise read them one at a time: Home's list (the per-card budget line
+ * used to be a `GET /api/trips/:id` per card) and the assistant's account
+ * trips (a select per trip, Sentry's N+1).
+ *
+ * The same parse per trip. An id with no row is absent, and ids that are not
+ * uuids are dropped before the query, for `getTripDetail`'s `22P02` reason.
+ * A doc that fails the parse is logged with its `tripId` either way; what
+ * happens next is the caller's, because the two callers need opposite
+ * answers. `"omit"` (Home) leaves it out: one broken row must not take every
+ * card down with it, and a missing id reads as "no figure". `"throw"` (the
+ * assistant) throws as `getTripDetail` does: a skipped trip would vanish from
+ * what the assistant sees with nothing to say why.
+ */
+export async function getTripDetails(
+  tripIds: readonly string[],
+  malformed: "omit" | "throw",
+): Promise<Map<string, TripDetail>> {
+  const byTrip = new Map<string, TripDetail>();
+  const ids = [...new Set(tripIds.filter(isUuid))];
+  if (ids.length === 0) return byTrip;
+  const rows = await db.select().from(tripDetails).where(inArray(tripDetails.tripId, ids));
+  for (const row of rows) {
+    const parsed = parseStoredDetail(row.tripId, row.doc);
+    if (parsed.success) byTrip.set(row.tripId, parsed.data);
+    else if (malformed === "throw") throw parsed.error;
+  }
+  return byTrip;
 }
 
 /**
@@ -425,13 +463,13 @@ export async function listTripSummaries() {
  * table is the Access module talking: one row per accepted invite, which is
  * what makes a shared trip appear in the grid indistinguishable from your own
  * (M11 exit gate, SPEC R4). An inner join over memberships would answer the
- * second and drop the first entirely, so this is `OR` over a containment test
- * and an EXISTS.
+ * second and drop the first entirely, so this is a UNION of the trip ids each
+ * source names.
  *
  * In SQL rather than a `.filter()` over `listTripSummaries()` because the old
  * shape loaded every trip on the instance and cost grew with total users, not
  * with the caller's trips — and because a predicate a caller can accidentally
- * delete is one edit away from a cross-tenant dump (project review L3, PR #71
+ * delete is one edit away from a cross-tenant dump (project review L3, PR 71
  * review §6). The Access half comes from `hasMembershipRow` rather than being
  * rewritten here: Planning does not own `trip_memberships` and does not decide
  * who is invited (AGENTS.md module map).
@@ -439,13 +477,51 @@ export async function listTripSummaries() {
  * `members @> '[{"userId": ...}]'` is role-agnostic containment, so it keeps
  * matching if a planning event ever mints a non-owner — the JS predicate it
  * replaces (`members.some((m) => m.userId === userId)`) was role-agnostic too.
+ *
+ * **A UNION, not `containment OR EXISTS`, for the planner.** The two used to
+ * be one `OR`, which Postgres can only evaluate row by row: it read every trip
+ * on the instance per request and tested each, with the GIN index on `members`
+ * (`trip_summaries_members`) unusable. As separate legs each one is a
+ * top-level predicate again — the containment leg is a bitmap scan of that
+ * index, and the EXISTS becomes a semi-join driven by `trip_memberships_user`
+ * — and the outer query only fetches the ids they name. Same rows: UNION
+ * de-duplicates a trip both sources name, and `status` and the order are the
+ * caller's, applied outside. Measured locally on 200k trips: one user's list
+ * went from a sequential scan of all of them (150-240 ms, and still that with
+ * the GIN index in place under the old `OR`) to index scans (0.3 ms).
+ *
+ * Each leg reads its own alias of `trip_summaries`, so neither can resolve a
+ * column to the OUTER row: a leg that correlated with it would be the per-row
+ * subplan again, and still return the right rows, so no test would notice.
  */
+function visibleTrips(userId: string): SQL {
+  const viaLog = alias(tripSummaries, "visible_via_log");
+  const viaAccess = alias(tripSummaries, "visible_via_access");
+  return and(
+    eq(tripSummaries.status, "active"),
+    inArray(
+      tripSummaries.tripId,
+      union(
+        db
+          .select({ tripId: viaLog.tripId })
+          .from(viaLog)
+          .where(sql`${viaLog.members} @> ${JSON.stringify([{ userId }])}::jsonb`),
+        db
+          .select({ tripId: viaAccess.tripId })
+          .from(viaAccess)
+          .where(hasMembershipRow(viaAccess.tripId, userId)),
+      ),
+    ),
+  )!;
+}
+
 /**
  * **One keyset page of the trips this user can see** (M22 Phase 2).
  *
  * The same visibility predicate as `listTripSummariesVisibleTo` — deliberately
- * the same expression rather than a second copy, because a predicate that can
- * drift is one edit away from a cross-tenant dump (project review L3).
+ * the same expression (`visibleTrips`) rather than a second copy, because a
+ * predicate that can drift is one edit away from a cross-tenant dump (project
+ * review L3).
  *
  * **Keyset, not offset.** The cursor is `createdAt|tripId` and the comparison is
  * a Postgres row comparison, so a trip created while someone is paging cannot
@@ -458,13 +534,7 @@ export async function listTripSummariesPage(
   userId: string,
   page: { limit: number; after: string | null },
 ) {
-  const visible = and(
-    eq(tripSummaries.status, "active"),
-    or(
-      sql`${tripSummaries.members} @> ${JSON.stringify([{ userId }])}::jsonb`,
-      hasMembershipRow(tripSummaries.tripId, userId),
-    ),
-  );
+  const visible = visibleTrips(userId);
   // A cursor we did not mint is treated as no cursor rather than as an error:
   // it can only cost the caller a first page, and 400-ing on an opaque string
   // we asked them not to interpret would be punishing them for obeying.
@@ -511,15 +581,7 @@ export async function listTripSummariesVisibleTo(userId: string) {
     .from(tripSummaries)
     .leftJoin(tripDetails, eq(tripDetails.tripId, tripSummaries.tripId))
     .leftJoin(tripCovers, eq(tripCovers.tripId, tripSummaries.tripId))
-    .where(
-      and(
-        eq(tripSummaries.status, "active"),
-        or(
-          sql`${tripSummaries.members} @> ${JSON.stringify([{ userId }])}::jsonb`,
-          hasMembershipRow(tripSummaries.tripId, userId),
-        ),
-      ),
-    )
+    .where(visibleTrips(userId))
     .orderBy(desc(tripSummaries.createdAt), desc(tripSummaries.tripId))
     .then((rows) => rows.map(describedListing));
 }

@@ -6,7 +6,7 @@ import { LIBRARY_CACHE_SECONDS, LIBRARY_TAG, authorTag, dayTag, libraryCached } 
 import * as live from "./playbooks";
 import { getSavedDayCover } from "./savedDayCovers";
 import { schedulePinBackfill } from "./savedDayPinBackfill";
-import { publishedAtOf, readableSavedDay } from "./savedDays";
+import { readableSavedDayWithStanding } from "./savedDays";
 import { sharedDayView, whatKindOfDay } from "./sharedDayView";
 
 // The public library's reads, cached for a day (ADR-063). What the server
@@ -30,10 +30,11 @@ type PublicDay = { day: SavedDay; publishedAt: string | null; cover: TripCover |
 class NotInLibrary extends Error {}
 
 async function readPublicDay(savedDayId: string): Promise<PublicDay> {
-  const day = await readableSavedDay(savedDayId, null);
-  if (day === null) throw new NotInLibrary();
-  const [publishedAt, cover] = await Promise.all([publishedAtOf(savedDayId), getSavedDayCover(savedDayId)]);
-  return { day, publishedAt, cover, readAt: Date.now() };
+  // `publishedAt` off the row the read seam selects, as `sharedDayRead` takes it.
+  const read = await readableSavedDayWithStanding(savedDayId, null);
+  if (read === null) throw new NotInLibrary();
+  const cover = await getSavedDayCover(savedDayId);
+  return { day: read.day, publishedAt: read.publishedAt, cover, readAt: Date.now() };
 }
 
 // A day past its lifetime is read live, not served. Next answers an expired

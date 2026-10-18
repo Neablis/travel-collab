@@ -16,7 +16,7 @@
   fetches its own data; ~~exactly one — `app/(app)/page.tsx`, Home — does any
   server-side reading at all.~~** *(Struck 2026-09-25: Home is `"use client"`
   and reads `fetch("/api/trips")` in an effect, both today and at `ffce992`,
-  the commit this was measured against. No route page reads data server-side.)* `app/(app)/trips/[tripId]/page.tsx` is typical
+  the commit this was measured against. No route page reads data server-side.)* `app/(app)/trips/[tripId]/(board)/page.tsx` (moved into the `(board)` group by PR 481) is typical
   and is the clearest case: it is already an `async` server component, it
   `await`s `params`, and it fetches nothing.
 

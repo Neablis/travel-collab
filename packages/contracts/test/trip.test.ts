@@ -17,6 +17,7 @@ import {
   TripMember,
   TripRole,
   TripSummary,
+  ListedTripSummary,
   travellerIds,
 } from "../src";
 
@@ -172,6 +173,24 @@ describe("trip contracts", () => {
     expect(TripSummary.safeParse({ ...summary, members: [{ ...chosen, color: "#ff0000" }] }).success).toBe(false);
     // Never an address: a card is read by everyone on the trip.
     expect(TripSummary.parse({ ...summary, members: [{ ...chosen, email: "a@example.com" }] }).members[0]).not.toHaveProperty("email");
+  });
+
+  // Home's budget line comes in the list: a server from before `spend` reads
+  // as no figures (the card draws no line), and a budget-less trip keeps its total.
+  it("parses a ListedTripSummary from before spend existed, as no figures", () => {
+    const summary = {
+      tripId: "6e9a2c9e-3f7a-4b6e-9d3f-2b1a5c8d7e6f",
+      name: "Rome 2027",
+      status: "active",
+      members: [{ userId: "dev-alice", role: "owner" }],
+      createdAt: "2026-07-08T12:00:00.000Z",
+    };
+    expect(ListedTripSummary.parse(summary).spend).toBeNull();
+    const unbudgeted = { totalMinor: 120_00, budgetMinor: null, currency: "USD" };
+    expect(ListedTripSummary.parse({ ...summary, spend: unbudgeted }).spend).toEqual(unbudgeted);
+    expect(ListedTripSummary.safeParse({ ...summary, spend: { ...unbudgeted, totalMinor: 1.5 } }).success).toBe(false);
+    // Not on the public summary: `/v1/trips` is unchanged.
+    expect(TripSummary.parse({ ...summary, spend: unbudgeted })).not.toHaveProperty("spend");
   });
 });
 

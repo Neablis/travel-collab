@@ -279,13 +279,15 @@ export function NextTripHero({ trip, menuSlot, viewerId, unreadChat = 0 }: NextT
     <Card raised className="overflow-hidden p-0" data-testid="next-trip-hero">
       <div className="grid hero-grid">
         <div className="flex flex-col border-b border-hairline lg:border-b-0 lg:border-r">
-          {/* 200px on a phone, 236px from `sm`: the canvas's two bands. Eager:
-              the hero is the top of Home, so its photo is never below the fold. */}
+          {/* 200px on a phone, 236px from `sm`: the canvas's two bands.
+              `priority` (eager, and `fetchpriority="high"`): the hero is the
+              top of Home, so its photo is never below the fold, and it is the
+              page's largest paint. */}
           {cover !== null && (
             <CoverImage
               photo={cover}
               veil="band"
-              eager
+              priority
               className="h-50 shrink-0 sm:h-59"
               sizes="(min-width: 1024px) 640px, 100vw"
             >

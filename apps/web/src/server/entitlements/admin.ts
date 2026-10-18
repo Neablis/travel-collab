@@ -27,7 +27,7 @@ import { aiUsage, entitlementGrants, events, subscriptions, users } from "@/serv
 import { consoleCached } from "./consoleCache";
 import { activeGrantHolders } from "./grants";
 import { PLAN_VERSIONS, livePlanVersion, planVersionRefOf, type PlanVersion } from "./planVersions";
-import { entitlementsFor, type AccountEntitlements } from "./resolver";
+import { entitlementsFor, entitlementsForMany, type AccountEntitlements } from "./resolver";
 import { tierSeries, weekStartOf, type TierSeriesRow } from "./tierRollup";
 import {
   monthlyMicroUsd,
@@ -463,7 +463,7 @@ export async function adminAccounts(
 }
 
 /**
- * These accounts' rows, in the order given: the resolver per account, and the
+ * These accounts' rows, in the order given: the resolver over all of them in three reads, and the
  * window's activity read for these ids only. `trailing` is the caller's one
  * ledger read when it has one (see `adminOverview`); without it only these
  * accounts' cost is priced.
@@ -479,12 +479,12 @@ async function accountRows(
     trailing ?? costPerAccount(since, ids),
     requestCounts(since, ids),
     lastActiveSince(since, ids),
-    Promise.all(ids.map((id) => entitlementsFor(id, now))),
+    entitlementsForMany(ids, now),
     shownSubscriptions(ids, now),
   ]);
   const costByUser = new Map(costs.map((cost) => [cost.userId, cost]));
-  return rows.map((row, index) =>
-    accountRow(row, resolved[index]!, held.get(row.id) ?? null, {
+  return rows.map((row) =>
+    accountRow(row, resolved.get(row.id)!, held.get(row.id) ?? null, {
       cost: costByUser.get(row.id),
       requests: counts.get(row.id) ?? 0,
       lastActiveAt: lastActive.get(row.id) ?? null,

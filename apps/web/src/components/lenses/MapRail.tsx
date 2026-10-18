@@ -341,6 +341,10 @@ export function MapRail({
   return (
     <div
       ref={containerRef}
+      // `region`, because a name on a role-less div is ignored by most screen
+      // readers — the label said "Days" to nobody. A landmark is right for it:
+      // it is the map's one scrolling panel, and worth jumping to.
+      role="region"
       aria-label="Days"
       className="absolute overflow-y-auto rounded-2xl border border-hairline bg-surface shadow-overlay"
       // eslint-disable-next-line no-restricted-syntax -- rail width/inset (MAP_RAIL_WIDTH_PX/MAP_RAIL_INSET_PX above) + z-index 4 have no token equivalent, matching AssistantRail's computed-geometry pattern

@@ -5,14 +5,17 @@ import { createContext, createElement, useContext, useEffect, useState, type Rea
 export type SessionUser = { id?: string | null; name?: string | null; email?: string | null };
 
 /**
- * The signed-in identity, resolved client-side.
+ * The signed-in identity, resolved client-side unless the layout already has
+ * it.
  *
- * A server component cannot hand this down: `src/components` is UI, and the
+ * This module cannot read the session itself: `src/components` is UI, and the
  * UI/server lint wall (AGENTS.md invariant 6, "server logic does not leak into
  * components") bars importing `@/server/*` from anywhere outside `src/server`
- * and `src/app/api`. So identity is resolved through next-auth/react's
- * `getSession` — the same NextAuth instance reached through its client-side
- * door (`/api/auth/session`, already registered by
+ * and `src/app/api`. A server layout that has already called `auth()` passes
+ * the user down as `initialUser` on the provider below, as data rather than an
+ * import, and then nothing is fetched. Without it, identity is resolved through
+ * next-auth/react's `getSession` — the same NextAuth instance reached through
+ * its client-side door (`/api/auth/session`, already registered by
  * `src/app/api/auth/[...nextauth]/route.ts`) rather than a second auth path.
  *
  * Extracted from `AccountMenu` when `/account` became a route (M26 link 1) and
@@ -91,6 +94,7 @@ export function useKnownSessionUser(): SessionUser | null | undefined {
 export function SessionUserProvider({
   children,
   noSessionCookie = false,
+  initialUser,
 }: {
   children: ReactNode;
   /**
@@ -99,8 +103,21 @@ export function SessionUserProvider({
    * and do not ask. Without it, the state starts `undefined` and is fetched.
    */
   noSessionCookie?: boolean;
+  /**
+   * The session the server already resolved for this request, handed down so
+   * the client does not ask `/api/auth/session` the same question again on
+   * every full load. The user, or `null` for a cookie with no live session
+   * behind it: either is an answer, and nothing is fetched. `undefined` — the
+   * server could not tell (its read threw) or did not look — falls back to
+   * the client's own read, exactly as before.
+   *
+   * Passed by `(app)/layout.tsx`, which may read `@/server/auth`; this file is
+   * UI and may not, which is why it is a prop and not a call.
+   */
+  initialUser?: SessionUser | null;
 }) {
-  const user = useResolvedSession(!noSessionCookie, noSessionCookie ? null : undefined);
+  const known = noSessionCookie ? null : initialUser;
+  const user = useResolvedSession(known === undefined, known);
   return createElement(SessionUserContext.Provider, { value: user }, children);
 }
 

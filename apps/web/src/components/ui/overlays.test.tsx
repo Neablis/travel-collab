@@ -221,3 +221,25 @@ describe("the Sheet's optional Cancel / Save header", () => {
     expect(screen.getByRole("button", { name: "Save" })).toBeTruthy();
   });
 });
+
+// Both overlays sit over a page whose one heading is its `h1`, so the title is
+// an `h2`: the `h3` it was skipped a level for anyone moving by headings.
+describe("an overlay's title", () => {
+  it.each([
+    ["Dialog", Dialog],
+    ["Sheet", Sheet],
+  ] as const)("%s titles itself at level 2", (_name, Overlay) => {
+    render(
+      <Overlay open onOpenChange={() => {}} title="Trip settings">
+        <p>body</p>
+      </Overlay>,
+    );
+    expect(within(screen.getByRole("dialog")).getByRole("heading", { level: 2, name: "Trip settings" })).toBeTruthy();
+  });
+
+  it("titles a Sheet with actions at level 2 too", () => {
+    render(<ActionSheetHarness onSave={() => {}} />);
+    expect(within(screen.getByRole("dialog")).getByRole("heading", { level: 2, name: "Add a stop" })).toBeTruthy();
+  });
+
+});

@@ -6,7 +6,9 @@ import { executeTripCommand } from "@/server/commands";
 import { withListedMembers } from "@/server/access/members";
 import { db } from "@/server/db/client";
 import { unreadByTrip } from "@/server/chat/messages";
-import { listTripSummariesVisibleTo } from "@/server/projections";
+import { getTripDetails, listTripSummariesVisibleTo } from "@/server/projections";
+import { listGuestsByTrip } from "@/server/access/guests";
+import { listedSpend } from "@/server/access/overlay";
 
 export async function GET() {
   const session = await auth();
@@ -28,21 +30,42 @@ export async function GET() {
   // person's persona (M38) on it. One batched read of each for all of them —
   // this was an `effectiveMembers` per trip. The stored projection is
   // untouched (invariant 2): this is a read overlay and nothing writes back.
-  const [trips, unread] = await Promise.all([
+  const tripIds = rows.map((r) => r.tripId);
+  const [trips, unread, details, guests] = await Promise.all([
     withListedMembers(db, rows),
     // A badge must not take the trip list down with it: on failure every card
     // reads zero, as `chatRevFor` costs the events poll one poll.
-    unreadByTrip(
-      userId,
-      rows.map((r) => r.tripId),
-    ).catch((error: unknown) => {
+    unreadByTrip(userId, tripIds).catch((error: unknown) => {
       console.error("trips list: unread chat query failed", { error });
       return new Map<string, number>();
     }),
+    // Each card's "planned of budget" line, which Home used to fetch as one
+    // `GET /api/trips/:id` per card: one read of every stored detail and one
+    // of every trip's guests, recosted below the way the single read recosts.
+    // A budget line must not take the trip list down either (PR 481 review):
+    // if either read fails, every card's `spend` is null, which Home draws as
+    // no line. Both, not just the one that failed: a total recosted without
+    // its guests would be a wrong figure, not a missing one.
+    getTripDetails(tripIds, "omit").catch((error: unknown) => {
+      console.error("trips list: trip detail read for spend failed", { error });
+      return null;
+    }),
+    listGuestsByTrip(tripIds).catch((error: unknown) => {
+      console.error("trips list: guests read for spend failed", { error });
+      return null;
+    }),
   ]);
+  const spendable = details !== null && guests !== null;
   // Home's own list, so a `ListedTripSummary`: the unread chat count (M46 D5)
-  // stays off `TripSummary`, which `/v1/trips` serves too.
-  return Response.json({ trips: trips.map((t) => ({ ...t, unreadChat: unread.get(t.tripId) ?? 0 })) });
+  // and the budget line's figures stay off `TripSummary`, which `/v1/trips`
+  // serves too.
+  return Response.json({
+    trips: trips.map((t) => ({
+      ...t,
+      unreadChat: unread.get(t.tripId) ?? 0,
+      spend: spendable ? listedSpend(details.get(t.tripId), t.members, guests.get(t.tripId)) : null,
+    })),
+  });
 }
 
 // **The client may mint the id** (KI-2026-09-12-e). `CreateTrip` in

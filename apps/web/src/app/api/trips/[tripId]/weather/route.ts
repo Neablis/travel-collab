@@ -3,7 +3,7 @@ import { requireTripAccess } from "@/server/access/trip-access";
 import { pgCacheStore } from "@/server/external/cache";
 import { getClimate, getForecast, type Forecast } from "@/server/external/weather";
 import { buildTripWeather } from "@/server/external/weather/tripWeather";
-import { consumeQuota, weatherQuota } from "@/server/quota";
+import { consumeQuotaUnits, weatherQuota } from "@/server/quota";
 
 // The trip's weather (ADR-052 decision 3). Its own route for `globals`' reason:
 // only a notebook that shows weather pays for it, and the client asks only when
@@ -51,7 +51,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ tri
     store: pgCacheStore(),
     // Per actor: every demo visitor is `demo-visitor`, one shared bucket,
     // which is the conservative direction.
-    charge: async () => (await consumeQuota(weatherQuota(), access.userId)).allowed,
+    charge: (count) => consumeQuotaUnits(weatherQuota(), access.userId, count),
     now: new Date(started),
     outOfTime: () => Date.now() - started > START_BUDGET_MS,
   });

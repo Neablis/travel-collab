@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { PageSummary, TimeWindow } from "@tc/contracts";
@@ -24,12 +25,16 @@ import {
 } from "@/components/palette/commands";
 import { usePaletteSource } from "@/components/palette/paletteRegistry";
 import { newStopPrefill } from "@/components/trip/newStopPrefill";
-import { useLens } from "@/components/trip/context/LensRouter";
+import { useLens, type View } from "@/components/trip/context/LensRouter";
 import { chipModel, cityFor } from "@/lib/dayChips";
 import { DayChips } from "@/components/trip/DayChips";
-import { MapLens } from "@/components/lenses/MapLens";
-import { CalendarLens } from "@/components/lenses/CalendarLens";
-import { OverviewLens } from "@/components/lenses/OverviewLens";
+import {
+  AssistantRailSkeleton,
+  CalendarLensSkeleton,
+  MapLensSkeleton,
+  OverviewLensFallback,
+  PlanLensSkeleton,
+} from "@/components/lenses/LensSkeletons";
 import { useIsAbovePhone, useIsPhone, useIsTabletWidth } from "@/lib/useIsPhone";
 import { Heading } from "@/components/ui/heading";
 import { Text } from "@/components/ui/text";
@@ -45,9 +50,8 @@ import { usePhoneAskEntry } from "@/components/nav/phoneAsk";
 import { AddSavedDayButton } from "@/components/trip/AddSavedDayButton";
 import { useBoardSuggestions } from "./SuggestionActions";
 import { SuggestionTray } from "./SuggestionTray";
-import { ActivityEditorSheet } from "@/components/trip/editor/ActivityEditorSheet";
 import { PeopleProvider } from "@/components/pages/people";
-import { type RackItem, UnscheduledRack } from "@/components/trip/UnscheduledRack";
+import type { RackItem } from "@/components/trip/UnscheduledRack";
 import { moveCommands } from "./moveCommands";
 import { type CopyDestination, copyCommands } from "./copyActivity";
 import type { resolveCalendarDrop } from "@/components/lenses/calendarDrop";
@@ -65,7 +69,7 @@ import { cachedRead, DEDUPE } from "@/lib/queryCache";
 import { tripKeys } from "@/lib/queryKeys";
 import { useAssistantShape } from "@/components/assistant/useAssistantShape";
 import { useAssistantVisibility } from "@/components/assistant/useAssistantVisibility";
-import { AssistantRail, type RailTab } from "@/components/assistant/AssistantRail";
+import type { RailTab } from "@/components/assistant/AssistantRail";
 import { readLastRailTab, rememberRailTab } from "@/components/assistant/lastTab";
 import { ChatPanel } from "@/components/chat/ChatPanel";
 import { useBoardFocusEntry } from "@/components/chat/boardFocus";
@@ -83,9 +87,69 @@ import {
   type ApiError,
   type TripAskScope,
 } from "@/lib/apiClient";
-import { Board } from "./Board";
 import { ConflictsChip } from "./ConflictsChip";
 import { cn } from "@/lib/cn";
+import { whenIdle } from "@/lib/whenIdle";
+
+// **Each view's code loads when that view is open** (Vercel's Real Experience
+// Score, falling as views were added). Imported statically, every trip page
+// shipped all four lenses whichever was showing: the notebook editor (tiptap,
+// through `OverviewLens` → `PageEditor`), drag and drop (Plan's `Board`, the
+// rack and `CalendarLens`) and the map's glue. Now the active view's module is
+// asked for as soon as the screen mounts (`LENS_MODULES`, below), alongside the
+// trip read rather than after it, and each placeholder (`LensSkeletons.tsx`)
+// holds its view's height while it arrives.
+//
+// `ssr` is left at its default: none of these renders on the server anyway,
+// since this screen draws its header skeleton until `TripProvider` answers on
+// the client. The rack rides with Plan, the only view that mounts it.
+const MapLens = dynamic(() => import("@/components/lenses/MapLens").then((m) => m.MapLens), {
+  loading: () => <MapLensSkeleton />,
+});
+const CalendarLens = dynamic(() => import("@/components/lenses/CalendarLens").then((m) => m.CalendarLens), {
+  loading: () => <CalendarLensSkeleton />,
+});
+const OverviewLens = dynamic(() => import("@/components/lenses/OverviewLens").then((m) => m.OverviewLens), {
+  loading: () => <OverviewLensFallback />,
+});
+const Board = dynamic(() => import("./Board").then((m) => m.Board), { loading: () => <PlanLensSkeleton /> });
+const UnscheduledRack = dynamic(() => import("@/components/trip/UnscheduledRack").then((m) => m.UnscheduledRack));
+
+/** Each view's modules, asked for as soon as it is the view (see above). */
+const LENS_MODULES: Record<View, () => Promise<unknown>> = {
+  Overview: () => import("@/components/lenses/OverviewLens"),
+  Plan: () => Promise.all([import("./Board"), import("@/components/trip/UnscheduledRack")]),
+  Calendar: () => import("@/components/lenses/CalendarLens"),
+  Map: () => import("@/components/lenses/MapLens"),
+};
+
+// **And what only opens on request loads when it is requested**, or once the
+// page is idle, whichever is first (`whenIdle` below), so a click rarely
+// waits on it. The assistant is unmounted until shown; the stop editor is
+// mounted on its first opening. `React.lazy` for the rail rather than
+// `next/dynamic`: its placeholder depends on the rail's presentation, which a
+// `next/dynamic` `loading` cannot see.
+//
+// `ChatPanel` stays a static import, deliberately. It is small (no editor, no
+// drag and drop), and loaded on its own it arrived a beat after the rail that
+// holds it: the rail's opener focuses Chat's composer on mount, found nothing
+// there yet, and focus fell to <body>.
+const loadAssistantRail = () => import("@/components/assistant/AssistantRail");
+const AssistantRail = lazy(() => loadAssistantRail().then((m) => ({ default: m.AssistantRail })));
+const ActivityEditorSheet = dynamic(() =>
+  import("@/components/trip/editor/ActivityEditorSheet").then((m) => m.ActivityEditorSheet),
+);
+const ON_REQUEST_MODULES = [loadAssistantRail, () => import("@/components/trip/editor/ActivityEditorSheet")];
+
+/**
+ * Every module this screen loads on demand, all at once. For a caller that
+ * knows the whole board is about to be used — a test file chief among them,
+ * whose first render would otherwise pay a cold module transform inside a
+ * one-second `findBy` and time out on a loaded machine.
+ */
+export function preloadTripBoardModules(): Promise<unknown> {
+  return Promise.all([...Object.values(LENS_MODULES), ...ON_REQUEST_MODULES].map((load) => load()));
+}
 
 // What the rail SAYS when an ask fails. Branches on the server's `code`, not
 // its prose: a refusal's wording is free to change, and two of these are
@@ -114,9 +178,31 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   refreshSuggestions.current = tripSuggestions?.refresh;
   const { view, setView } = useLens();
   const { openCreate, openEdit, state: editor } = useEditor();
+  // The open view's code, asked for on mount rather than once the trip has
+  // answered and the lens first renders, so the two arrive together. And,
+  // once nothing more urgent is in flight, the panels that open on request
+  // and the other views: a view's chunk that has to be fetched at the moment
+  // of the switch can fail to arrive (a dropped connection, a deploy since
+  // the page loaded), and a failed `next/dynamic` import takes the page to
+  // `global-error` (PR 481 review). Fetched at idle, it is already here.
+  useEffect(() => {
+    void LENS_MODULES[view]().catch(() => {});
+  }, [view]);
+  useEffect(
+    () =>
+      whenIdle(() =>
+        [...ON_REQUEST_MODULES, ...Object.values(LENS_MODULES)].forEach((load) => void load().catch(() => {})),
+      ),
+    [],
+  );
+  // The stop editor mounts on its first opening and stays, so its closing
+  // still animates. Its code is warmed at idle above; an opening before then
+  // waits only for that one chunk.
+  const [editorMounted, setEditorMounted] = useState(false);
+  if (editor.mode !== null && !editorMounted) setEditorMounted(true);
   const suggestions = useBoardSuggestions();
   // Task 4's FocusProvider is mounted around this whole tree (trips/[tripId]/
-  // page.tsx), so this hook must run unconditionally before the early
+  // (board)/page.tsx), so this hook must run unconditionally before the early
   // returns below — the day chips (Task 8) above Plan's columns both read and
   // set it.
   const { focusedDay, setFocusedDay, focusedTag, toggleFocusedTag } = useFocus();
@@ -265,26 +351,60 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // stop the river does not draw (an untimed one sits in the rack) — once
   // Plan has drawn it. `focus()`, never `scrollIntoView` (banned, SPEC §30.6):
   // focusing it brings it into view.
-  const [reveal, setReveal] = useState<{ dayId: string; activityId: string | null } | null>(null);
+  const [reveal, setReveal] = useState<{ dayId: string; activityId: string | null; from: View } | null>(null);
   const focusDay = (dayId: string, activityId: string | null = null) => {
     const index = activeTrip?.days.findIndex((d) => d.dayId === dayId) ?? -1;
     if (index === -1) return;
     setView("Plan");
     setFocusedDay(index);
-    setReveal({ dayId, activityId });
+    setReveal({ dayId, activityId, from: view });
   };
   const focusActivity = (activityId: string) => {
     const day = activeTrip?.days.find((d) => d.activityIds.includes(activityId));
     if (day !== undefined) focusDay(day.dayId, activityId);
   };
+  //
+  // **Plan may not be drawn yet.** It used to be, in the commit `view` became
+  // it, but its code now loads with the view (`Board` above is a
+  // `next/dynamic`), so a jump from another view landed before the columns
+  // and focused nothing (PR 481's e2e: a chat chip's stop). So the reveal
+  // waits for the board to say it has drawn (`onDrawn`), which it does after
+  // its own arrival scroll: focusing before that scroll let it carry the stop
+  // back off screen.
+  //
+  // **A jump another view overtook is dropped**, so a later plain click on
+  // Plan does not focus an old stop. `setView` goes through the URL (a server
+  // round trip), so the render that asks for a reveal is still on the view it
+  // left from (`from`), and may stay there a moment. Any view but Plan or
+  // `from` means another tab was chosen first; still on `from` after a while
+  // means the same one was (PR 481 review).
+  //
+  // It is NOT dropped because focus sits in a text field by then: both doors
+  // to a jump are text fields (⌘K's input, and the chat composer, which keeps
+  // focus when a chip is clicked), so that test drops every jump it guards.
+  const [planDrawn, setPlanDrawn] = useState(false);
   useEffect(() => {
-    if (reveal === null || view !== "Plan") return;
-    // Plan is drawn in the commit `view` becomes it, so no column is a day gone since.
+    if (reveal === null) return;
+    if (view !== "Plan") {
+      if (view !== reveal.from) {
+        setReveal(null);
+        return;
+      }
+      const overtaken = window.setTimeout(() => setReveal(null), 10_000);
+      return () => window.clearTimeout(overtaken);
+    }
+    // Plan reached: from here, leaving it for any view, its origin included,
+    // is leaving the jump.
+    if (reveal.from !== "Plan") {
+      setReveal({ ...reveal, from: "Plan" });
+      return;
+    }
+    if (!planDrawn) return;
+    setReveal(null);
     const column = document.querySelector<HTMLElement>(`[data-day-column][data-day-id="${reveal.dayId}"]`);
     const block = reveal.activityId === null ? null : column?.querySelector<HTMLElement>(`[data-activity-id="${reveal.activityId}"] [data-river-edit]`);
     (block ?? column?.querySelector<HTMLElement>("[data-day-header] button"))?.focus();
-    setReveal(null);
-  }, [reveal, view]);
+  }, [reveal, view, planDrawn]);
   // Which stop and day keyboard focus is in, for ⌘K's nearness (ADR-069 §5).
   // Read from `focusin`, so the palette taking focus (`data-command-palette`)
   // leaves it standing while it is open; focus anywhere else lets it go.
@@ -520,8 +640,8 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
     if (index === -1) return;
     setView("Plan");
     setFocusedDay(index);
-    setReveal({ dayId: activeTrip.days[index]!.dayId, activityId: linkedStop });
-  }, [linkedStop, activeTrip, setFocusedDay, setView]);
+    setReveal({ dayId: activeTrip.days[index]!.dayId, activityId: linkedStop, from: view });
+  }, [linkedStop, activeTrip, setFocusedDay, setView, view]);
 
   // A demo board (`/demo/<slug>`, ADR-031) runs everything on this screen except
   // the assistant. Not because it would look wrong — because it would not
@@ -650,29 +770,51 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // the page, `bottom` stayed at the bare 24px, and the launcher sat over the
   // rack it is supposed to clear: 15px of it collapsed, 212px once open. A
   // callback ref fires when the node actually appears, whatever gated it.
+  //
+  // **And the rack arrives after its wrapper** since it loads with Plan's
+  // code (`UnscheduledRack` above is a `next/dynamic`): the wrapper can
+  // commit empty and the rack's <section> appear inside it a moment later,
+  // which fires no ref at all. The same defect as Phase 9's, one level down.
+  // So the wrapper's children are watched too, and the measurement moves to
+  // whichever element is its first child now.
   const rackObserverRef = useRef<ResizeObserver | null>(null);
+  const rackChildrenObserverRef = useRef<MutationObserver | null>(null);
   const [rackHeight, setRackHeight] = useState(0);
   const rackWrapperRef = useCallback((node: HTMLDivElement | null) => {
-    rackObserverRef.current?.disconnect();
-    rackObserverRef.current = null;
-    // React attaches refs bottom-up, so the rack's own <section> is already in
-    // the DOM by the time this runs for its wrapper.
-    const el = node?.firstElementChild ?? null;
-    if (!el) {
-      setRackHeight(0);
-      return;
-    }
-    // `border-box`: the rack's bottom safe-area inset is padding (M39 Part
-    // 7), and the default content box does not change when only the inset
-    // does — a rotation, say — so `--rack-height` would keep the old number.
-    // `getBoundingClientRect` already reports the border box.
-    const observer = new ResizeObserver(() => setRackHeight(el.getBoundingClientRect().height));
-    observer.observe(el, { box: "border-box" });
-    rackObserverRef.current = observer;
+    rackChildrenObserverRef.current?.disconnect();
+    rackChildrenObserverRef.current = null;
+    const measure = () => {
+      rackObserverRef.current?.disconnect();
+      rackObserverRef.current = null;
+      const el = node?.firstElementChild ?? null;
+      if (!el) {
+        setRackHeight(0);
+        return;
+      }
+      // `border-box`: the rack's bottom safe-area inset is padding (M39 Part
+      // 7), and the default content box does not change when only the inset
+      // does — a rotation, say — so `--rack-height` would keep the old number.
+      // `getBoundingClientRect` already reports the border box.
+      const observer = new ResizeObserver(() => setRackHeight(el.getBoundingClientRect().height));
+      observer.observe(el, { box: "border-box" });
+      rackObserverRef.current = observer;
+      setRackHeight(el.getBoundingClientRect().height);
+    };
+    measure();
+    if (!node) return;
+    const children = new MutationObserver(measure);
+    children.observe(node, { childList: true });
+    rackChildrenObserverRef.current = children;
   }, []);
-  useEffect(() => () => rackObserverRef.current?.disconnect(), []);
+  useEffect(
+    () => () => {
+      rackObserverRef.current?.disconnect();
+      rackChildrenObserverRef.current?.disconnect();
+    },
+    [],
+  );
 
-  // The page shell (trips/[tripId]/page.tsx) now owns the <main> landmark via
+  // The page shell (trips/[tripId]/(board)/page.tsx) now owns the <main> landmark via
   // PageContainer as="main" width="full" px-0 (Task L1) — this component owns
   // its own horizontal padding via PageContainer wrappers below, so these
   // early-return states need their own too.
@@ -1435,6 +1577,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
                   <Board
                     trip={activeTrip}
                     focusedDay={focusedDay}
+                    onDrawn={setPlanDrawn}
                     // **One day at a time on a phone** — M26 link 13, SPEC
                     // §13.4. `useIsPhone` is the right tool here for the same
                     // reason it is on `NewTripWizard`'s sheet and the wrong one
@@ -1552,69 +1695,71 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
             deliberately rather than assumed, and pinned by the
             "tabs are not tappable behind an open sheet" e2e test. */}
         {!isDemo && assistant.open && (
-          <AssistantRail
-            // **The reader's own choice from 1100px up** (SPEC §9, M26 link
-            // 10a; M39 D3): this hardcoded `docked`, which is now only the
-            // DEFAULT. Below 1100px it is not offered — §23 gives the phone a
-            // sheet and only a sheet, and the tablet band gets the same sheet
-            // so the board keeps its width — and `onShapeChange` is withheld
-            // there so the rail draws no control it cannot honour.
-            presentation={assistantPresentation}
-            {...(assistantPresentation === "sheet" ? {} : { onShapeChange: chooseAssistantShape })}
-            // **§29's "hidden, not unmounted", delivered the only way this
-            // tree allows** (M26 link 10c). `/plans` is an account-scope route
-            // that renders neither this screen nor the trip, so there is
-            // nothing here to hide — the subtree is genuinely gone. What §29
-            // is protecting is that coming back does not reset the panel, and
-            // that is now true of all three things it names but one: the
-            // thread already survived (`persistAs` above), the shape survives
-            // (`useAssistantShape`), and the position survives through this
-            // key. The open/closed state does not, deliberately —
-            // `useAssistantVisibility`'s note is the reason, and
-            // `useAssistantPosition` states the trade in full.
-            //
-            // Per TRIP, like the thread: a panel parked clear of one trip's
-            // unscheduled rack has no business deciding where another's opens.
-            rememberPositionAs={`assistant:position:trip:${tripId}`}
-            // Under the thread's own name: a reply that leaves this page, or
-            // a reload, keeps what was typed while it answered (KI-2026-10-12-g).
-            rememberDraftAs={`trip:${tripId}`}
-            incoming={handOff}
-            onIncomingTaken={() => setHandOff(null)}
-            contextLine={isPhone ? phoneAsk.contextLine : assistantContextLine}
-            scope={askScope}
-            turns={thread}
-            suggestions={isPhone ? phoneAsk.quickAsks : assistantSuggestions}
-            // Undefined on the desktop, which leaves the rail's own trip-wide
-            // sentence — §23 changes the phone and nothing above 768px.
-            emptyHint={assistantPresentation === "sheet" ? phoneAsk.emptyHint : undefined}
-            asksRemaining={ask.asksRemaining}
-            restoreDraft={ask.restoredDraft}
-            onRestoreTaken={ask.clearRestoredDraft}
-            onNewConversation={ask.startNewConversation}
-            onAsk={(text) => submitAssistantAsk(text)}
-            onApproveProposal={(turnId) => void approveProposal(turnId)}
-            onRejectProposal={rejectProposal}
-            onUndoProposal={undoProposal}
-            undoFor={undoFor}
-            approvalBlockedReason={approvalBlockedReason}
-            asking={ask.asking}
-            askError={ask.askError}
-            // **From the CODE, never from the prose** (M20 link 4). The refusal's
-            // wording is free to change; a surface that pattern-matched on it
-            // would silently fall back to a red alert the day it did.
-            askUpgrade={ask.askErrorCode === AI_NOT_ENTITLED_CODE}
-            simulated={ask.simulated}
-            takeFocus={assistant.takeFocus}
-            chat={{
-              tab: railTab,
-              onTabChange: chooseTab,
-              panel: <ChatPanel chat={chat} personas={personas} touch={assistantPresentation === "sheet"} />,
-              // Gated as the button's is, so a removed member's tab drops its count too.
-              unread: hasChat ? chat.unread : 0,
-            }}
-            onHide={assistant.hide}
-          />
+          <Suspense fallback={assistantPresentation === "docked" ? <AssistantRailSkeleton /> : null}>
+            <AssistantRail
+              // **The reader's own choice from 1100px up** (SPEC §9, M26 link
+              // 10a; M39 D3): this hardcoded `docked`, which is now only the
+              // DEFAULT. Below 1100px it is not offered — §23 gives the phone a
+              // sheet and only a sheet, and the tablet band gets the same sheet
+              // so the board keeps its width — and `onShapeChange` is withheld
+              // there so the rail draws no control it cannot honour.
+              presentation={assistantPresentation}
+              {...(assistantPresentation === "sheet" ? {} : { onShapeChange: chooseAssistantShape })}
+              // **§29's "hidden, not unmounted", delivered the only way this
+              // tree allows** (M26 link 10c). `/plans` is an account-scope route
+              // that renders neither this screen nor the trip, so there is
+              // nothing here to hide — the subtree is genuinely gone. What §29
+              // is protecting is that coming back does not reset the panel, and
+              // that is now true of all three things it names but one: the
+              // thread already survived (`persistAs` above), the shape survives
+              // (`useAssistantShape`), and the position survives through this
+              // key. The open/closed state does not, deliberately —
+              // `useAssistantVisibility`'s note is the reason, and
+              // `useAssistantPosition` states the trade in full.
+              //
+              // Per TRIP, like the thread: a panel parked clear of one trip's
+              // unscheduled rack has no business deciding where another's opens.
+              rememberPositionAs={`assistant:position:trip:${tripId}`}
+              // Under the thread's own name: a reply that leaves this page, or
+              // a reload, keeps what was typed while it answered (KI-2026-10-12-g).
+              rememberDraftAs={`trip:${tripId}`}
+              incoming={handOff}
+              onIncomingTaken={() => setHandOff(null)}
+              contextLine={isPhone ? phoneAsk.contextLine : assistantContextLine}
+              scope={askScope}
+              turns={thread}
+              suggestions={isPhone ? phoneAsk.quickAsks : assistantSuggestions}
+              // Undefined on the desktop, which leaves the rail's own trip-wide
+              // sentence — §23 changes the phone and nothing above 768px.
+              emptyHint={assistantPresentation === "sheet" ? phoneAsk.emptyHint : undefined}
+              asksRemaining={ask.asksRemaining}
+              restoreDraft={ask.restoredDraft}
+              onRestoreTaken={ask.clearRestoredDraft}
+              onNewConversation={ask.startNewConversation}
+              onAsk={(text) => submitAssistantAsk(text)}
+              onApproveProposal={(turnId) => void approveProposal(turnId)}
+              onRejectProposal={rejectProposal}
+              onUndoProposal={undoProposal}
+              undoFor={undoFor}
+              approvalBlockedReason={approvalBlockedReason}
+              asking={ask.asking}
+              askError={ask.askError}
+              // **From the CODE, never from the prose** (M20 link 4). The refusal's
+              // wording is free to change; a surface that pattern-matched on it
+              // would silently fall back to a red alert the day it did.
+              askUpgrade={ask.askErrorCode === AI_NOT_ENTITLED_CODE}
+              simulated={ask.simulated}
+              takeFocus={assistant.takeFocus}
+              chat={{
+                tab: railTab,
+                onTabChange: chooseTab,
+                panel: <ChatPanel chat={chat} personas={personas} touch={assistantPresentation === "sheet"} />,
+                // Gated as the button's is, so a removed member's tab drops its count too.
+                unread: hasChat ? chat.unread : 0,
+              }}
+              onHide={assistant.hide}
+            />
+          </Suspense>
         )}
       </div>
       {/* Behavior change #2 (M5 wave 2, resolves #9): the activity editor is a
@@ -1622,9 +1767,11 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
           lens switch so it's available regardless of which lens is active. */}
       {/* Names the stop editor's Who is in / Booked by (M19). The same cached
           access read TripProvider makes, so no second request. */}
-      <PeopleProvider tripId={tripId}>
-        <ActivityEditorSheet />
-      </PeopleProvider>
+      {editorMounted && (
+        <PeopleProvider tripId={tripId}>
+          <ActivityEditorSheet />
+        </PeopleProvider>
+      )}
       {/* The unscheduled rack (Phase 3): mounted here, outside the lens
           switch, because the design has the drawer present in every view.
           It pins itself to the bottom of the viewport via `.unscheduled-rack`
@@ -1672,7 +1819,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
       ) : lensAcceptsDrops(view) && !rackIsRow && (
         // Unmounted on a phone, where the rack is the board's end-of-day row:
         // the ref's `null` is what puts `--rack-height` back to 0.
-        <div ref={rackWrapperRef} inert={preview.seq !== null ? true : undefined}>
+        <div ref={rackWrapperRef} data-testid="rack-dock" inert={preview.seq !== null ? true : undefined}>
           {unscheduledRack("dock")}
         </div>
       )}

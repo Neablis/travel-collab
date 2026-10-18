@@ -5,7 +5,7 @@ import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
 import { ASK_FAILED_MESSAGE, ChatMessage, TripCommand, type TripDetail } from "@tc/contracts";
-import { TripBoardScreen } from "@/components/board/TripBoardScreen";
+import { preloadTripBoardModules, TripBoardScreen } from "@/components/board/TripBoardScreen";
 import { moveCommands } from "@/components/board/moveCommands";
 import { TripProvider } from "@/components/trip/context/TripProvider";
 import { EditorHost, useEditor } from "@/components/trip/context/EditorHost";
@@ -170,6 +170,9 @@ const server = setupServer(
   // P4); the board names none on its own, so the list is empty here.
   http.get("/api/v1/trips/:tripId/guests", () => HttpResponse.json({ items: [] })),
 );
+// The lenses, the rail and the editor load on demand; warm them once so a
+// first render does not pay a cold transform inside a `findBy`.
+beforeAll(() => preloadTripBoardModules());
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
 beforeEach(() => {
   // **`view=Plan`, not "" — and this is the single change SPEC §24 makes to
@@ -203,7 +206,8 @@ describe("TripBoardScreen", () => {
     renderScreen(fixture.tripId);
 
     expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Add a day" }));
+    // Plan's own code arrives after the header (it loads per view).
+    fireEvent.click(await screen.findByRole("button", { name: "Add a day" }));
     await waitFor(() => expect(screen.getAllByTestId("day-column")).toHaveLength(1));
   });
 
@@ -801,7 +805,8 @@ describe("TripBoardScreen", () => {
     // The rail is closed until asked for now, so open it before reaching for
     // anything inside it.
     fireEvent.click(screen.getByTestId("ask-pill"));
-    fireEvent.change(screen.getByPlaceholderText(/ask about this (?:day|trip)/i), { target: { value: "How is it looking?" } });
+    // The rail's code loads when it is first opened.
+    fireEvent.change(await screen.findByPlaceholderText(/ask about this (?:day|trip)/i), { target: { value: "How is it looking?" } });
     fireEvent.click(askButton());
 
     const log = await screen.findByRole("log", { name: "Conversation" });
@@ -1366,6 +1371,28 @@ describe("TripBoardScreen", () => {
     triggerResize();
 
     await waitFor(() => expect(content.style.getPropertyValue("--rack-height")).toBe("56px"));
+  });
+
+  // The same defect one level down (PR 481 review): the rack loads with
+  // Plan's code, so in a browser its wrapper can commit empty and the rack
+  // appear inside it later, which fires no ref. This suite preloads every
+  // module (`preloadTripBoardModules`), so the rack is always there first;
+  // the late arrival is staged here by swapping the wrapper's child, which is
+  // what the dynamic import's resolution does to the DOM.
+  it("measures the rack when it arrives after its wrapper", async () => {
+    const fixture = tripDetailFixture();
+    server.use(...makeTripHandlers(fixture));
+    renderScreen(fixture.tripId);
+
+    expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+    const content = screen.getByTestId("trip-board-content");
+    const wrapper = screen.getByTestId("rack-dock");
+
+    const arrived = document.createElement("section");
+    vi.spyOn(arrived, "getBoundingClientRect").mockReturnValue({ height: 72 } as DOMRect);
+    wrapper.replaceChildren(arrived);
+
+    await waitFor(() => expect(content.style.getPropertyValue("--rack-height")).toBe("72px"));
   });
 
   // What used to be here: "publishes the launcher's flow height on attach".
