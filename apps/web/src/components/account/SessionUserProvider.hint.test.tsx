@@ -4,7 +4,7 @@ import { SIGNED_IN_HINT_COOKIE, clearSignedInHint, hasSignedInHint } from "@/lib
 import { SessionUserProvider, type SessionUser } from "./useSessionUser";
 
 // The `(app)` shell's half of ADR-078's hint: a sign-in that lands on a page
-// the proxy does not match (`/plans`, `/playbooks/…`) must still leave the
+// the proxy does not match (`/plans`, `/account`) must still leave the
 // browser hinted, or the bare domain shows a signed-in person the landing.
 function shell(props: { initialUser?: SessionUser | null; noSessionCookie?: boolean }) {
   return (

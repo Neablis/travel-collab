@@ -76,6 +76,14 @@ That made the most-visited URL the most expensive one:
   (`document` for a page load, `empty` for a fetch); a browser too old to send it is treated as a
   page load. 0 of 10 after.
 
+## Options not taken
+
+- **A proxy rewrite of a signed-out `/` to a cached landing**, as ADR-077 does for the library.
+  It keeps the edge `auth()` (~17 ms) on every visit to `/`, which is the cost this ADR removes.
+  And one URL that answers two documents by session must stay `private, no-store`, out of the
+  browser cache and the bfcache, or a visitor who just signed in is shown the landing from
+  cache (D9's hazard).
+
 ## Consequences
 
 - `/` is cacheable by a CDN, the browser and the back-forward cache, and pays for no `auth()`.
