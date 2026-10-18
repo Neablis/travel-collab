@@ -308,12 +308,14 @@ export function CommandPalette() {
         </div>
         <div id={listId} role="listbox" aria-label={path.length > 0 ? path.map((step) => step.label).join(" › ") : "Commands"} className="mt-2 py-1 text-sm">
           {rows.length === 0 ? <p className="px-3 py-2 text-slate">No match</p> : null}
-          {sections.map((section) =>
+          {sections.map((section, sectionIndex) =>
             section.heading === undefined ? (
               section.rows.map(({ row, index }) => option(row, index))
             ) : (
-              <div key={`group:${section.heading}`} role="group" aria-labelledby={`${listId}-group-${section.heading}`}>
-                <div id={`${listId}-group-${section.heading}`} role="presentation" className="px-3 pt-2 pb-1 text-xs text-slate">
+              // By the section's index, not its heading: `aria-labelledby` is a
+              // space-separated list of ids, so "Go to" named two that do not exist.
+              <div key={`group:${section.heading}`} role="group" aria-labelledby={`${listId}-group-${sectionIndex}`}>
+                <div id={`${listId}-group-${sectionIndex}`} role="presentation" className="px-3 pt-2 pb-1 text-xs text-slate">
                   {section.heading}
                 </div>
                 {section.rows.map(({ row, index }) => option(row, index))}
