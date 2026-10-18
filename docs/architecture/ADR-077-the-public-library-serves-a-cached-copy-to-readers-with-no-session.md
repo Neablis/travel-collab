@@ -82,8 +82,10 @@ itself 404s: the proxy prefixes it again.
 - The lint-wall exemptions moved with the files: `src/app/playbooks/**/page.tsx` for the pages
   and `src/app/playbooks/live/layout.tsx` beside `(app)/layout.tsx` for the session read. The
   cached layout has none. Fixtures are in `scripts/check-lint-wall.mjs`.
-- A shared link's campaign tag is dropped by the cached day page's canonical redirect (308). The
-  live copy kept it, and no page reads it.
+- A day segment that cannot be canonical (a bare id, an upper-cased id, a doubled hyphen) is
+  answered live, because it is a 308 and Next 16.4.2 doubles a cached redirect's `Location` under
+  `next start` (KI-2026-10-18-d; Vercel does not). A stale slug still reaches the cached copy, and
+  its redirect drops a shared link's campaign tag, which no page reads.
 - `/signin` and `/signup` stay dynamic, deliberately. They read `searchParams` for the link card a
   scraper sees (*"A trip shared with you"*, the referral card) and to seed the callback before
   hydration. Their own comments carry that decision.

@@ -66,7 +66,7 @@ export default auth((req) => {
   // expired would be answered signed-out by the live page too.
   const library = playbooksRoute(
     req.nextUrl.pathname,
-    playbooksReaderFor(Boolean(req.auth), req.nextUrl.searchParams),
+    playbooksReaderFor(Boolean(req.auth), req.nextUrl.pathname, req.nextUrl.searchParams),
   );
   if (library !== null) {
     const target = new URL(req.nextUrl);

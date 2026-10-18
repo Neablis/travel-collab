@@ -8,26 +8,46 @@ describe("playbooksReaderFor", () => {
   const query = (search: string) => new URLSearchParams(search);
 
   it("sends a reader with no session and no query to the cached copy", () => {
-    expect(playbooksReaderFor(false, query(""))).toBe("cached");
+    expect(playbooksReaderFor(false, "/playbooks", query(""))).toBe("cached");
   });
 
   it("keeps every signed-in reader live, query or not", () => {
-    expect(playbooksReaderFor(true, query(""))).toBe("live");
+    expect(playbooksReaderFor(true, "/playbooks", query(""))).toBe("live");
   });
 
   it.each(["?city=Kyoto", "?page=2", "?from=discover", "?after=abc", "?sort=top"])(
     "keeps %s live: a page reads it",
     (search) => {
-      expect(playbooksReaderFor(false, query(search))).toBe("live");
+      expect(playbooksReaderFor(false, "/playbooks", query(search))).toBe("live");
     },
   );
 
   it("ignores Next's _rsc and a shared link's campaign tags", () => {
-    expect(playbooksReaderFor(false, query("?_rsc=1x2y&utm_source=x&utm_campaign=y&fbclid=z&gclid=w"))).toBe("cached");
+    expect(playbooksReaderFor(false, "/playbooks", query("?_rsc=1x2y&utm_source=x&utm_campaign=y&fbclid=z&gclid=w"))).toBe("cached");
   });
 
   it("is live when a read parameter rides with an ignored one", () => {
-    expect(playbooksReaderFor(false, query("?utm_source=x&city=Kyoto"))).toBe("live");
+    expect(playbooksReaderFor(false, "/playbooks", query("?utm_source=x&city=Kyoto"))).toBe("live");
+  });
+});
+
+describe("playbooksReaderFor, on a day", () => {
+  const ID = "aa000000-0000-4000-8000-000000000002";
+  const reader = (segment: string) => playbooksReaderFor(false, `/playbooks/day/${segment}`, new URLSearchParams());
+
+  it("caches a segment that can be canonical: a slug, then the lower-case id", () => {
+    expect(reader(`tokyo-to-hakone-slowly-${ID}`)).toBe("cached");
+  });
+
+  // Each of these is a 308, whose cache-filling render sends `Location` twice
+  // under `next start` (the note in playbooksReader.ts).
+  it.each([
+    ["a bare id", ID],
+    ["an upper-cased id", `tokyo-${ID.toUpperCase()}`],
+    ["a doubled hyphen", `tokyo--hakone-${ID}`],
+    ["an upper-cased slug", `Tokyo-${ID}`],
+  ])("answers %s live", (_case, segment) => {
+    expect(reader(segment)).toBe("live");
   });
 });
 
