@@ -1,8 +1,8 @@
 # ADR-077: The public library serves a cached copy to readers with no session
 
 **Status:** **Accepted — 2026-10-18.** Mitchell chose the split over a cookie-free route group
-and over `cacheComponents`, the same day. One question is still his: whether cached misses (see
-Consequences) need a firewall rule on `/playbooks/**` before merge.
+and over `cacheComponents`, the same day. He also answered the one question
+left open: cached misses need no firewall rule on `/playbooks/**` (see Consequences).
 **Deciders:** Mitchell (product); Claude — drafted
 Related: **ADR-061** (the library is readable without an account), **ADR-063** (its reads are
 cached for a day and cleared on publish), **ADR-045** (entitlements; never a JWT claim), M45
@@ -85,9 +85,8 @@ itself 404s: the proxy prefixes it again.
   country or tag slug writes one that lives until the next publish clears `library`. A profile
   id writes a 200 that lives an hour. Each is one ISR write and some storage, bounded by the rate
   someone can send requests. The guard is Vercel's firewall rate limiting, not this code. Live
-  rendering for misses would need the proxy to know what exists, which it cannot. Mitchell to
-  decide whether that bound is acceptable, or whether a firewall rule on `/playbooks/**` comes
-  with this.
+  rendering for misses would need the proxy to know what exists, which it cannot. Mitchell, 2026-10-18:
+  that bound is acceptable, and no firewall rule comes with this.
 
 - The proxy now runs on every library request: one Edge invocation and a JWT decode, before a
   CDN hit.
