@@ -42,7 +42,7 @@ import { beginWrite, clearQueryCache, endWrite } from "@/lib/queryCache";
 import { tripKeys } from "@/lib/queryKeys";
 import { useTripSeed } from "./tripSeed";
 import { tripFirstDataFixture } from "@/test-support/tripFirstData";
-import { POLL_INTERVAL_MS } from "./broadcast";
+import { headSeqOf, POLL_INTERVAL_MS } from "./broadcast";
 
 const accessAs = (myRole: "owner" | "editor" | "viewer") => ({
   ok: true as const,
@@ -213,14 +213,29 @@ describe("TripProvider — the server's first data", () => {
   // the seed's head, and the trip is read again.
   it("reads the trip again when the log has moved past the seed", async () => {
     const first = tripFirstDataFixture();
-    fetchTripEventsMock.mockResolvedValue({ ok: true, value: { headSeq: 99, events: [], resync: false } });
+    const seedHead = headSeqOf(first.history.history);
+    fetchTripEventsMock.mockResolvedValue({ ok: true, value: { headSeq: seedHead + 1, events: [], resync: false } });
     render(
       <TripProvider tripId={first.trip.trip.tripId} initial={first}>
         <StatusProbe />
       </TripProvider>,
     );
     await waitFor(() => expect(fetchTripDetailMock).toHaveBeenCalledTimes(1));
-    expect(fetchTripEventsMock).toHaveBeenCalledWith(first.trip.trip.tripId, expect.any(Number));
+    expect(fetchTripEventsMock).toHaveBeenCalledWith(first.trip.trip.tripId, seedHead);
+  });
+
+  it("reads nothing more when the log is where the seed left it", async () => {
+    const first = tripFirstDataFixture();
+    const seedHead = headSeqOf(first.history.history);
+    fetchTripEventsMock.mockResolvedValue({ ok: true, value: { headSeq: seedHead, events: [], resync: false } });
+    render(
+      <TripProvider tripId={first.trip.trip.tripId} initial={first}>
+        <StatusProbe />
+      </TripProvider>,
+    );
+    await waitFor(() => expect(fetchTripEventsMock).toHaveBeenCalledWith(first.trip.trip.tripId, seedHead));
+    await settle();
+    expect(reads()).toEqual([0, 0, 0]);
   });
 
   it("reads all three on mount without it", async () => {

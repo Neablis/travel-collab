@@ -432,16 +432,27 @@ export function TripProvider({
   // trip runs no poll timer, so nothing else would ever look: the board showed
   // the edit undone until the next reload. One events read, from the seed's
   // head; news is the same re-read the poll makes.
-  const seedIsCurrent = useCallback(async () => {
-    if (seed === null) return;
-    const after = headSeqOf(seed.history);
-    const result = await fetchTripEvents(tripId, after);
-    if (result.ok && (result.value.resync || result.value.headSeq > after)) onRemoteChangeRef.current();
-  }, [seed, tripId]);
+  //
+  // News is measured against the confirmed head when the answer arrives, not
+  // the seed's: a command of your own confirmed meanwhile has moved the head,
+  // and re-reading for it could briefly undo a second edit (`adoptOutcome`
+  // has no seq guard). The answer is used for its head only; the revisions it
+  // carries are left to the poll.
+  const seedIsCurrent = useCallback(
+    async (stillMounted: () => boolean) => {
+      if (seed === null) return;
+      const result = await fetchTripEvents(tripId, headSeqOf(seed.history));
+      if (!result.ok || !stillMounted()) return;
+      const confirmed = optimisticRef.current ? headSeqOf(optimisticRef.current.confirmed.history) : 0;
+      const known = Math.max(headSeqOf(seed.history), confirmed);
+      if (result.value.resync || result.value.headSeq > known) onRemoteChangeRef.current();
+    },
+    [seed, tripId],
+  );
   useEffect(() => {
     let live = true;
     const settled = writesSettled(tripKeys.all(tripId));
-    void (seed === null ? load() : seedIsCurrent()).then(async () => {
+    void (seed === null ? load() : seedIsCurrent(() => live)).then(async () => {
       if (!settled) return;
       await settled;
       if (live) onRemoteChangeRef.current();
