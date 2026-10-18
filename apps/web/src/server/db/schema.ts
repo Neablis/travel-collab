@@ -387,7 +387,15 @@ export const tripSummaries = pgTable("trip_summaries", {
   // history is allowed to hold (see `TripDateInput` in the contract). ISO
   // dates sort correctly as text.
   startDate: text("start_date"),
-});
+}, (t) => [
+  // Every list of "my trips" (Home, `/api/trips`, `/api/v1/trips`, the
+  // assistant) asks `members @> '[{"userId": …}]'` — the projection's half of
+  // `visibleTripIds` in `projections.ts`. Without this it was a sequential scan
+  // of every trip on the instance per request. `jsonb_path_ops` because
+  // containment is the only operator anything applies to this column, and it
+  // builds a smaller index than the default `jsonb_ops`.
+  index("trip_summaries_members").using("gin", t.members.op("jsonb_path_ops")),
+]);
 
 export const tripDetails = pgTable("trip_details", {
   tripId: uuid("trip_id").primaryKey(),
@@ -577,8 +585,13 @@ export const tripMessages = pgTable(
     hiddenAt: timestamp("hidden_at", { withTimezone: true, mode: "date" }),
   },
   (t) => [
-    // The page read and the unread count both walk one trip's messages by time.
-    index("trip_messages_trip_created").on(t.tripId, t.createdAt),
+    // The page read and the unread count both walk one trip's messages by time,
+    // and both order — or compare a cursor — on `(created_at, id)`, so `id` is
+    // in the key: a trip's newest page is then read straight off the index with
+    // no sort. One index for both rather than a partial one for the unread
+    // count (`deleted_at is null and hidden_at is null`): removed messages are
+    // a sliver of any conversation, so a partial index would be this one again.
+    index("trip_messages_trip_created_id").on(t.tripId, t.createdAt, t.id),
     check("trip_messages_link_kind", sql`${t.linkKind} in ('day', 'stop', 'notebook', 'person')`),
     check("trip_messages_link_whole", sql`(${t.linkKind} is null) = (${t.linkId} is null)`),
   ],
@@ -731,7 +744,9 @@ export const tripSuggestions = pgTable(
 
 // One change = one optimistic-queue unit (spec W1). `trip_id` is repeated from
 // the suggestion so the list and the poll's revision read one table on the
-// `(trip_id, status)` index. `depends_on` holds the ids of earlier changes of
+// `(trip_id, status, created_at)` index — `openAt` is `status = 'pending' and
+// created_at >= <expiry>`, and the poll runs it every two seconds per open
+// tab, so the range bound is in the key rather than filtered off the heap. `depends_on` holds the ids of earlier changes of
 // the same suggestion (W9); `position` is the unit's index in the draft.
 // `suggestion_id` is indexed for the cascade walk, which reads a suggestion's
 // changes by it, and for the foreign key's own cascade on delete.
@@ -753,7 +768,7 @@ export const tripSuggestionChanges = pgTable(
     resolvedAt: timestamp("resolved_at", { withTimezone: true, mode: "date" }),
   },
   (t) => [
-    index("trip_suggestion_changes_trip_status").on(t.tripId, t.status),
+    index("trip_suggestion_changes_trip_status_created").on(t.tripId, t.status, t.createdAt),
     index("trip_suggestion_changes_suggestion").on(t.suggestionId),
   ],
 );
@@ -1000,6 +1015,15 @@ export const savedDays = pgTable(
     index("saved_days_day_count").on(t.dayCount),
     // Country containment, for the reason `saved_days_cities` gives.
     index("saved_days_countries").using("gin", t.countries),
+    // What a stranger can open: public, not deleted, not moderated — the
+    // `notDeleted`/`notModerated` predicate in `playbooks.ts` that the sitemap,
+    // `publishedPlaybookCount` (run on every Discover read) and the place and
+    // tag pages all filter on. Keyed in `sitemapDays`' own order so the sitemap
+    // reads it without a sort. Partial, because the predicate is the point:
+    // private days, a user's own library, never enter it.
+    index("saved_days_public_published")
+      .on(t.publishedAt.desc().nullsLast(), t.id)
+      .where(sql`${t.visibility} = 'public' and ${t.deletedAt} is null and ${t.moderatedAt} is null`),
     // No index for the rating sorts: they order a set the predicates above
     // have already narrowed and `CANDIDATE_LIMIT` caps, the same position the
     // unindexed `adds` sort has always been in.
@@ -1028,9 +1052,9 @@ export const savedDays = pgTable(
 //
 // `added_by` is recorded but does not key anything: it is what makes "copying
 // your own day into your own trip does not count" auditable after the fact,
-// and what a future "days you have taken" surface would read. No index on it
-// yet — no query asks, and `invite_codes` above sets the precedent for not
-// indexing one that nobody makes.
+// and what Discover's `saved` scope reads ("days you have taken":
+// `scopePredicate` in `playbooks.ts`) — hence the `(added_by, saved_day_id)`
+// index below, which answers that EXISTS from the index alone.
 export const savedDayAdds = pgTable(
   "saved_day_adds",
   {
@@ -1044,7 +1068,10 @@ export const savedDayAdds = pgTable(
   },
   // No separate index on `saved_day_id`: the primary key leads with it, so
   // "how many times was this day added" already has one.
-  (t) => [primaryKey({ columns: [t.savedDayId, t.tripId] })],
+  (t) => [
+    primaryKey({ columns: [t.savedDayId, t.tripId] }),
+    index("saved_day_adds_added_by_day").on(t.addedBy, t.savedDayId),
+  ],
 );
 
 // Reviews of a published Playbook (M12 link 1). One row per (saved day,
@@ -1223,12 +1250,11 @@ export const contentReports = pgTable(
 // against — the same construction `acceptInvite` already uses on
 // `trip_invites.token`.
 //
-// **No secondary index, deliberately.** The obvious candidates would serve
-// "which codes did I issue" (`created_by`) and "who did I let in"
-// (`redeemed_by`), and neither has a caller: invite-code administration is
-// explicitly out of M11a's scope (codes are minted by hand), so both would
-// index a query nobody makes, on a table with one row per invited person. Add
-// one when the surface that reads it exists.
+// **`created_by` is indexed; `redeemed_by` is not.** This used to say no
+// secondary index, because "which codes did I issue" had no caller. Referrals
+// gave it two (`entitlements/referrals.ts`: the outstanding-code cap on every
+// mint, and the account sheet's `codesMintedBy`), both `where created_by = ?`,
+// so it has its index. "Who did I let in" (`redeemed_by`) still has no caller.
 export const inviteCodes = pgTable("invite_codes", {
   code: text("code").primaryKey(),
   // A `users.id`, on the same no-foreign-key terms as `events.actor_id`
@@ -1241,7 +1267,7 @@ export const inviteCodes = pgTable("invite_codes", {
   // same code produce exactly one winner without a transaction or a lock.
   redeemedBy: text("redeemed_by"),
   redeemedAt: timestamp("redeemed_at", { withTimezone: true, mode: "date" }),
-});
+}, (t) => [index("invite_codes_created_by").on(t.createdBy)]);
 
 // **What an account costs** (M20 link 9). One row per AI request.
 //
@@ -1781,9 +1807,10 @@ export const pendingEmbeddings = pgTable(
   (t) => [
     check("pending_embeddings_status", sql`${t.status} in ('pending','processing','done','dead')`),
     unique("pending_embeddings_source_day").on(t.sourceType, t.sourceId, t.dayIndex),
-    // The sweep's claim query (`WHERE status = 'pending'`) is the table's
-    // reason to exist; the index ships with the column rather than in a
-    // second migration once the sweep lands.
-    index("pending_embeddings_status").on(t.status),
+    // The sweep's claim query (`WHERE status = 'pending' ORDER BY created_at
+    // LIMIT n`, `claimPendingRows`) is the table's reason to exist. With
+    // `created_at` in the key the claim reads the oldest n pending rows off the
+    // index in order instead of sorting every pending row to take n.
+    index("pending_embeddings_status_created").on(t.status, t.createdAt),
   ],
 );
