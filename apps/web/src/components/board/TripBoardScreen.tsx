@@ -351,13 +351,13 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // stop the river does not draw (an untimed one sits in the rack) — once
   // Plan has drawn it. `focus()`, never `scrollIntoView` (banned, SPEC §30.6):
   // focusing it brings it into view.
-  const [reveal, setReveal] = useState<{ dayId: string; activityId: string | null } | null>(null);
+  const [reveal, setReveal] = useState<{ dayId: string; activityId: string | null; from: View } | null>(null);
   const focusDay = (dayId: string, activityId: string | null = null) => {
     const index = activeTrip?.days.findIndex((d) => d.dayId === dayId) ?? -1;
     if (index === -1) return;
     setView("Plan");
     setFocusedDay(index);
-    setReveal({ dayId, activityId });
+    setReveal({ dayId, activityId, from: view });
   };
   const focusActivity = (activityId: string) => {
     const day = activeTrip?.days.find((d) => d.activityIds.includes(activityId));
@@ -370,25 +370,29 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // and focused nothing (PR 481's e2e: a chat chip's stop). So the reveal
   // waits for the board to say it has drawn (`onDrawn`), which it does after
   // its own arrival scroll: focusing before that scroll let it carry the stop
-  // back off screen. A reveal is dropped if Plan is reached and then left
-  // before it lands. Reached first: `setView` goes through the URL, so the
-  // render that asks for a reveal is still on the old view.
+  // back off screen.
+  //
+  // **A jump another view overtook is dropped**, so a later plain click on
+  // Plan does not focus an old stop. `setView` goes through the URL (a server
+  // round trip), so the render that asks for a reveal is still on the view it
+  // left from (`from`), and may stay there a moment. Any view but Plan or
+  // `from` means another tab was chosen first; still on `from` after a while
+  // means the same one was (PR 481 review).
   //
   // It is NOT dropped because focus sits in a text field by then: both doors
   // to a jump are text fields (⌘K's input, and the chat composer, which keeps
   // focus when a chip is clicked), so that test drops every jump it guards.
   const [planDrawn, setPlanDrawn] = useState(false);
-  const revealReachedPlan = useRef(false);
   useEffect(() => {
-    if (reveal === null) {
-      revealReachedPlan.current = false;
-      return;
-    }
+    if (reveal === null) return;
     if (view !== "Plan") {
-      if (revealReachedPlan.current) setReveal(null);
-      return;
+      if (view !== reveal.from) {
+        setReveal(null);
+        return;
+      }
+      const overtaken = window.setTimeout(() => setReveal(null), 10_000);
+      return () => window.clearTimeout(overtaken);
     }
-    revealReachedPlan.current = true;
     if (!planDrawn) return;
     setReveal(null);
     const column = document.querySelector<HTMLElement>(`[data-day-column][data-day-id="${reveal.dayId}"]`);
@@ -630,8 +634,8 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
     if (index === -1) return;
     setView("Plan");
     setFocusedDay(index);
-    setReveal({ dayId: activeTrip.days[index]!.dayId, activityId: linkedStop });
-  }, [linkedStop, activeTrip, setFocusedDay, setView]);
+    setReveal({ dayId: activeTrip.days[index]!.dayId, activityId: linkedStop, from: view });
+  }, [linkedStop, activeTrip, setFocusedDay, setView, view]);
 
   // A demo board (`/demo/<slug>`, ADR-031) runs everything on this screen except
   // the assistant. Not because it would look wrong — because it would not
