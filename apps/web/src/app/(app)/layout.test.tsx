@@ -31,4 +31,11 @@ describe("the app layout's plan read", () => {
     // the Ask from every paying reader whenever the read fails.
     expect(tree.props.children.props.entitlements).toBeNull();
   });
+
+  // The session the layout already read goes down with the page, so the client
+  // does not ask /api/auth/session again; a failed plan read does not lose it.
+  it("hands the reader it resolved to the session provider", async () => {
+    const tree = (await AppLayout({ children: null })) as React.ReactElement<{ initialUser: unknown }>;
+    expect(tree.props.initialUser).toEqual({ id: "user-a", name: null, email: null });
+  });
 });

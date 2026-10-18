@@ -5,7 +5,7 @@ import { AppHeader } from "@/components/AppHeader";
 import { CommandPalette } from "@/components/palette/CommandPalette";
 import { PhoneTabBar, PhoneTabBarFallback } from "@/components/nav/PhoneTabBar";
 import { PreferencesProvider } from "@/components/account/PreferencesProvider";
-import { SessionUserProvider } from "@/components/account/useSessionUser";
+import { type SessionUser, SessionUserProvider } from "@/components/account/useSessionUser";
 import type { Entitlement } from "@tc/contracts";
 import { hasSessionCookie } from "@/lib/sessionHint";
 import { ServedEntitlementsProvider } from "@/lib/useAiEntitled";
@@ -49,10 +49,10 @@ import { entitlementsFor } from "@/server/entitlements/resolver";
 // (ADR-045 rule 2); this file's lint-wall exemption says the same.
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const noSessionCookie = !hasSessionCookie((await cookies()).getAll().map((cookie) => cookie.name));
-  const entitlements = noSessionCookie ? null : await servedEntitlements();
+  const served = noSessionCookie ? null : await servedSession();
   return (
-    <SessionUserProvider noSessionCookie={noSessionCookie}>
-      <ServedEntitlementsProvider entitlements={entitlements}>
+    <SessionUserProvider noSessionCookie={noSessionCookie} initialUser={served?.user}>
+      <ServedEntitlementsProvider entitlements={served?.entitlements ?? null}>
         <PreferencesProvider noSessionCookie={noSessionCookie}>
           <AppHeader />
           {/* ⌘K, from every app page (M41 D9). The page below registers what it offers. */}
@@ -102,20 +102,32 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 }
 
 /**
- * The signed-in reader's conferred entitlements, or `null` to leave each
- * surface to ask for itself: a cookie with no live session behind it, or a
- * read that failed. A failure must not take the whole app down with it, and
- * `null` is the answer every caller already treats as entitled; the route's
- * 402 is the gate either way. It is still reported: a version reference that
- * no longer resolves must fail loudly (ADR-045 rule 3), and the fallback alone
- * would hide it.
+ * Who is reading, and what their account is conferred, from one `auth()`.
+ *
+ * **The user goes down too**, so `SessionUserProvider` starts at the answer
+ * instead of asking `/api/auth/session` the same question from the client on
+ * every full load. `null` for a cookie with no live session behind it, which is
+ * an answer; `undefined` when the read threw, which leaves the client to ask
+ * for itself, as it always did. Only the three fields `SessionUser` names are
+ * passed: this lands in the page's payload.
+ *
+ * The entitlements are `null` to leave each surface to ask for itself: a
+ * cookie with no live session behind it, or a read that failed. A failure must
+ * not take the whole app down with it, and `null` is the answer every caller
+ * already treats as entitled; the route's 402 is the gate either way. It is
+ * still reported: a version reference that no longer resolves must fail loudly
+ * (ADR-045 rule 3), and the fallback alone would hide it.
  */
-async function servedEntitlements(): Promise<Entitlement[] | null> {
+async function servedSession(): Promise<{ user: SessionUser | null | undefined; entitlements: Entitlement[] | null }> {
+  let user: SessionUser | null | undefined;
   try {
-    const userId = (await auth())?.user?.id;
-    return userId === undefined ? null : [...(await entitlementsFor(userId)).entitlements];
+    const session = await auth();
+    user = session?.user ? { id: session.user.id ?? null, name: session.user.name ?? null, email: session.user.email ?? null } : null;
+    const userId = session?.user?.id;
+    return { user, entitlements: userId === undefined ? null : [...(await entitlementsFor(userId)).entitlements] };
   } catch (error) {
     Sentry.captureException(error);
-    return null;
+    // A failed plan read does not unlearn who is reading.
+    return { user, entitlements: null };
   }
 }

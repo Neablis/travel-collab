@@ -110,4 +110,30 @@ describe("SessionUserProvider", () => {
     expect(read()).toBe("signed-out");
     expect(sessionRead).not.toHaveBeenCalled();
   });
+
+  // The (app) layout has already asked; the client must not ask again.
+  it("starts at the server's answer and asks nothing when one is handed down", () => {
+    const sessionRead = vi.fn(async () => new Response(JSON.stringify({ user: { email: "x@example.com" } }), { status: 200 }));
+    vi.stubGlobal("fetch", sessionRead);
+    render(
+      <SessionUserProvider initialUser={{ id: "u1", email: "sam@example.com" }}>
+        <Probe />
+      </SessionUserProvider>,
+    );
+    expect(read()).toBe("sam@example.com");
+    expect(sessionRead).not.toHaveBeenCalled();
+  });
+
+  // A cookie with no live session behind it: the server's `null` is an answer too.
+  it("takes the server's signed-out answer without asking", () => {
+    const sessionRead = vi.fn(async () => new Response(JSON.stringify({ user: { email: "x@example.com" } }), { status: 200 }));
+    vi.stubGlobal("fetch", sessionRead);
+    render(
+      <SessionUserProvider initialUser={null}>
+        <Probe />
+      </SessionUserProvider>,
+    );
+    expect(read()).toBe("signed-out");
+    expect(sessionRead).not.toHaveBeenCalled();
+  });
 });
