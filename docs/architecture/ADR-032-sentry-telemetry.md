@@ -81,7 +81,7 @@ the deployment's config reads as if someone had turned it up.
 
 ### 2. Profiling on both runtimes, with the two things each one actually needs
 
-* **Browser:** `browserProfilingIntegration()` **plus**
+* **Browser (removed 2026-10-18; see that amendment):** `browserProfilingIntegration()` **plus**
   `Document-Policy: js-profiling` on every route in `next.config.ts`. The JS
   Self-Profiling API is gated on that header; without it the integration
   initialises, fails to construct a profiler, and disables itself for the
@@ -275,3 +275,34 @@ That retires the amendment above's last clause: a real error on a preview is no
 longer a round-trip check, because a preview sends nothing.
 `telemetry.int.test.ts` is the check before merge; a real error in production
 is the check after.
+
+## Amendment — 2026-10-18: no browser profiling, and Replay loads after the page
+
+Mitchell, on Lighthouse mobile runs against production: the chunk every page
+parses before it can respond was ~160KB gz / 490KB raw, Lighthouse charged it
+~2.0s of script evaluation under a 4x CPU throttle, and Session Replay (rrweb)
+and browser profiling were most of what was in it that the first frame does
+not need. Landing TBT ran 740–1,610ms.
+
+* **Browser profiling is removed.** `browserProfilingIntegration()`,
+  `profileLifecycle` and `profileSessionSampleRate` are gone from
+  `instrumentation-client.ts`, and `Document-Policy: js-profiling` is gone from
+  `next.config.ts`, which retires decision 2's browser bullet. It only ever
+  sampled Chromium, and every visitor paid for its code. **Server profiling is
+  unchanged**: `sentry.server.config.ts`, `@sentry/profiling-node`, and
+  `profileSessionSampleRate`, which still reads its `NEXT_PUBLIC_` name first
+  so a deployment that set only that one keeps its server rate.
+* **Replay is added once the page is idle**, through `Sentry.addIntegration`:
+  after `load`, then `requestIdleCallback` (a timer where Safari has none).
+  `src/lib/sentryReplay.ts` builds the integration, with the same
+  `scrubReplayRecordingEvent` scrubber, and is reached only through `import()`
+  from `src/lib/lazySentryReplay.ts`. That is what makes it its own chunk:
+  Turbopack tree-shakes `replayIntegration` out of `instrumentation-client.ts`'s
+  `import * as Sentry` once nothing there names it. Nothing is loaded when
+  Sentry is off. The sample rates stay in `Sentry.init`; Replay reads them off
+  the client when it is added. The cost is the first second or so of each
+  session's recording, including the on-error buffer: an error in that window
+  is still an event, without a replay.
+* Measured on `NEXT_PUBLIC_SENTRY_DSN='' pnpm build`: the every-page files
+  went from 749,788 bytes raw / 233,097 gz to 615,115 / 192,043, and Replay is
+  a 125,684 / 39,749 chunk fetched after idle.

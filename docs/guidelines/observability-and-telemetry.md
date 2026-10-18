@@ -162,7 +162,19 @@ turn a feature off while looking like it had been turned up.
 `SENTRY_AUTH_TOKEN` is the one secret here — build-time source-map upload only,
 read by `withSentryConfig`, never by app code.
 
-## Two traps, both already paid for
+## Three traps, all already paid for
+
+**Session Replay is a separate chunk only while nothing imports it
+statically.** `instrumentation-client.ts` starts Sentry without Replay, and
+`src/lib/lazySentryReplay.ts` adds it once the page is idle by `import()`ing
+`src/lib/sentryReplay.ts`. Turbopack leaves rrweb out of the every-page chunk
+only because no static import reaches `replayIntegration`: naming
+`Sentry.replayIntegration` in `instrumentation-client.ts`, or a static import
+of `sentryReplay.ts` anywhere on the client, puts ~125KB raw back on every page
+with every test still green. To check, build and grep `.next/static/chunks/`
+for `rrweb`: it should appear in one chunk, and not in any `rootMainFiles`
+entry of `.next/build-manifest.json`. (Browser profiling, the trap that used to
+be here, was removed on 2026-10-18; ADR-032.)
 
 **The AI tracing rests on three default-on switches, and all three fail
 silently.** The `ai:telemetry` channel is `ai` >= 7 only (on v6 and below
@@ -183,8 +195,8 @@ children are already gone in their own envelope, correctly parented.
 
 ## Verifying it end to end
 
-- `pnpm --filter web test` covers the metric names and the sample-rate
-  parsing. `pnpm --filter web test:int` runs
+- `pnpm --filter web test` covers the metric names, the sample-rate parsing
+  and when Session Replay is added. `pnpm --filter web test:int` runs
   `telemetry.int.test.ts`, which boots a real Sentry client behind a capturing
   transport, drives a real turn through the real agent, and asserts the spans
   and metrics that actually left the SDK — the only check that would notice the
