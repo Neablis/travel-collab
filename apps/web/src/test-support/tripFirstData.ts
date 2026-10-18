@@ -1,5 +1,5 @@
 import { historyFixture, tripAccessFixture, tripCoverFactory, tripDetailFixture } from "@tc/factories";
-import type { TripCover } from "@tc/contracts";
+import type { TripCover, TripDetail } from "@tc/contracts";
 import type { TripFirstData } from "@/lib/tripFirstData";
 
 // Each fixture is a fresh answer, as each server render is: a provider adopts
@@ -12,13 +12,14 @@ export const FIRST_DATA_OVERVIEW_ID = "3f5a1c22-9b4e-4d77-8a21-5c6d7e8f9a01";
 /**
  * What the trip page sends with its HTML (`server/tripFirstData.ts`), for the
  * factories' trip: an owner's read, the trip's Overview notebook saying
- * `overviewText`, and a cover unless `cover` says `null`.
+ * `overviewText`, and a cover unless `cover` says `null`. `trip` replaces the
+ * factories' trip.
  */
 export function tripFirstDataFixture({
   overviewText = "Dear crew",
   cover = tripCoverFactory.build(),
-}: { overviewText?: string; cover?: TripCover | null } = {}): TripFirstData {
-  const trip = tripDetailFixture();
+  trip = tripDetailFixture(),
+}: { overviewText?: string; cover?: TripCover | null; trip?: TripDetail } = {}): TripFirstData {
   const tripId = trip.tripId;
   const summary = {
     id: FIRST_DATA_OVERVIEW_ID,

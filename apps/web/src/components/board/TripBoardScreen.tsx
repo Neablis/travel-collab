@@ -36,6 +36,7 @@ import {
   PlanLensSkeleton,
 } from "@/components/lenses/LensSkeletons";
 import { useIsAbovePhone, useIsPhone, useIsTabletWidth } from "@/lib/useIsPhone";
+import { useHydrated } from "@/lib/useHydrated";
 import { Heading } from "@/components/ui/heading";
 import { Text } from "@/components/ui/text";
 import { buttonVariants } from "@/components/ui/button";
@@ -281,6 +282,14 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // band is kept off a phone by CSS (`TripCoverBanner`), not by this gate.
   const abovePhone = useIsAbovePhone();
   const seed = useTripSeed();
+  // **The server's HTML is the board's shape, not a live board** (PR 486
+  // e2e). With the trip sent from the server the header and the cover band
+  // render there, but until hydration a tap on them is dead, and a phone's
+  // lens would be drawn in its desktop form (`useIsPhone` is `false` there).
+  // So until then the column is `inert` — a tap lands nowhere, focus cannot
+  // enter it, and Playwright waits — and the lens is its skeleton. The lens
+  // mounts at hydration, from the seeded cache, with no request.
+  const hydrated = useHydrated();
   const { settled: coverSettled } = useTripCover(tripId, abovePhone === true && !isDemoTripId(tripId), seed?.cover);
   const headerReady = (abovePhone !== undefined || seed !== null) && coverSettled;
   const boardRenders = status === "ready" && trip !== null && activeTrip !== null && headerReady;
@@ -1424,6 +1433,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
           // carries no role or accessible name to reach it by — it is a
           // styling seam, which is exactly the case `data-testid` is for here.
           data-testid="trip-board-content"
+          inert={hydrated ? undefined : true}
           // The rack is `position: fixed`, so it is outside normal flow and
           // reserves no space: the day columns' own 24px bottom padding was
           // measured against the viewport, not against the bar sitting on
@@ -1546,7 +1556,9 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
             </PageContainer>
           )}
           <div inert={preview.seq !== null ? true : undefined}>
-            {isFullLens ? (
+            {!hydrated ? (
+              <LensPlaceholder view={view} />
+            ) : isFullLens ? (
               // px-0: Task 2.3 makes the Map lens genuinely full-bleed
               // ("mapwrap" in the handoff) — the default px-6 gutter would
               // leave the rail's 16px inset reading as ~40px instead.
@@ -1834,5 +1846,19 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
         </div>
       )}
     </>
+  );
+}
+
+/**
+ * A view's skeleton, for the server's HTML and the hydrating render, where the
+ * lens itself is not drawn (`TripBoardScreen`'s `hydrated`). The same
+ * placeholders the lenses' code shows while it loads.
+ */
+function LensPlaceholder({ view }: { view: View }) {
+  if (view === "Map") return <MapLensSkeleton />;
+  return (
+    <PageContainer width="content">
+      {view === "Overview" ? <OverviewLensFallback /> : view === "Calendar" ? <CalendarLensSkeleton /> : <PlanLensSkeleton />}
+    </PageContainer>
   );
 }

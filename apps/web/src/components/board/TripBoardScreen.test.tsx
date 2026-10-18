@@ -1,6 +1,9 @@
 import { useSyncExternalStore, type ComponentProps } from "react";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { followHistory } from "@/test-support/nextHistory";
+import { renderToStaticMarkup, renderToString } from "react-dom/server";
+import { hydrateRoot } from "react-dom/client";
+import { tripFirstDataFixture } from "@/test-support/tripFirstData";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
@@ -123,6 +126,8 @@ vi.mock("next/navigation", () => ({
         listeners.add(onStoreChange);
         return () => listeners.delete(onStoreChange);
       },
+      () => search,
+      // The server's snapshot too, for the suite that renders on the server.
       () => search,
     ),
   usePathname: () => "/trips/x",
@@ -3419,5 +3424,65 @@ describe("⌘K runs the trip page's own actions", () => {
     await waitFor(() => expect(log.textContent).toContain("I didn't open that notebook, because you have a stop open for editing."));
     expect(pushSpy).not.toHaveBeenCalled();
     expect(screen.getByRole("dialog", { name: "Add a stop" })).toBeTruthy();
+  });
+});
+
+// PR 486 e2e: with the trip sent from the server, the board's HTML arrives
+// before its code. Until hydration its controls answer nothing, and a phone's
+// lens would be drawn in its desktop form (`useIsPhone` is `false` there). So
+// the server's board is `inert` and its lens is the view's skeleton; at
+// hydration the lens mounts from the seeded cache, with no request, and the
+// column comes alive.
+describe("TripBoardScreen — the server's first data before and after hydration", () => {
+  const seededTree = (first: ReturnType<typeof tripFirstDataFixture>) => (
+    <TripProvider tripId={first.trip.trip.tripId} initial={first}>
+      <FocusProvider>
+        <EditorHost>
+          <LensRouter>
+            <TripBoardScreen tripId={first.trip.trip.tripId} />
+          </LensRouter>
+        </EditorHost>
+      </FocusProvider>
+    </TripProvider>
+  );
+
+  // A trip with a day, so Plan draws its day chips: drawn by this screen, not
+  // by a lens's own lazily loaded code, so their absence is this gate's doing.
+  const withADay = () => tripFirstDataFixture({ trip: costedTripDetailFixture() });
+
+  it("renders the header on the server, inert, with the view's skeleton and no lens", () => {
+    const html = renderToStaticMarkup(seededTree(withADay()));
+    expect(html).toMatch(/<div[^>]*data-testid="trip-board-content"[^>]*inert=""/);
+    expect(html).toContain("Rome 2027");
+    expect(html).not.toContain('aria-label="Days"');
+    expect(html).toContain('aria-busy="true"');
+  });
+
+  it("mounts the lens at hydration with no trip read, and is no longer inert", async () => {
+    const first = withADay();
+    server.use(...makeTripHandlers(first.trip.trip));
+    const reads: string[] = [];
+    server.events.on("request:start", ({ request }) => {
+      const path = new URL(request.url).pathname;
+      if (request.method === "GET" && /^\/api\/trips\/[^/]+(\/(history|access|cover|globals|pages))?$/.test(path)) reads.push(path);
+    });
+    try {
+      const container = document.createElement("div");
+      document.body.appendChild(container);
+      // `renderToString`, not static markup: hydration needs its text markers.
+      container.innerHTML = renderToString(seededTree(first));
+      const mismatches: unknown[] = [];
+      await act(async () => {
+        hydrateRoot(container, seededTree(first), { onRecoverableError: (error) => mismatches.push(error) });
+      });
+      // Plan's own content, where the server drew the skeleton.
+      await waitFor(() => expect(within(container).getByRole("group", { name: "Days" })).toBeTruthy());
+      expect(within(container).getAllByTestId("day-column").length).toBeGreaterThan(0);
+      expect(mismatches).toEqual([]);
+      expect(within(container).getByTestId("trip-board-content").hasAttribute("inert")).toBe(false);
+      expect(reads).toEqual([]);
+    } finally {
+      server.events.removeAllListeners();
+    }
   });
 });
