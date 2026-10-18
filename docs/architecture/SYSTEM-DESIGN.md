@@ -261,8 +261,8 @@ dispatched workflow. Details: `docs/guidelines/content-bundles.md`.
   (ADR-034). A `users` row is upserted at sign-in (ADR-025).
 - **Two Auth.js instances**: edge-safe `authConfig` for `proxy.ts`; the full one in `server/auth.ts` (ADR-024).
 - **The proxy is not the security boundary.** It only tidies signed-out navigation, on `/home`, `/trips/*` and
-  `/invite/*`, and keeps the `tc_signed_in` hint the static `/` reads to send a signed-in browser to `/home`
-  (ADR-078). Every API route authenticates itself.
+  `/invite/*`, picks the library's cached or live copy on `/playbooks/*` (ADR-077), and keeps the `tc_signed_in`
+  hint the static `/` reads to send a signed-in browser to `/home` (ADR-078). Every API route authenticates itself.
 - **Roles**: `viewer < suggester < editor < owner`, one rank table in `src/server/accessPolicy.ts`, with an
   exhaustive minimum role per command. Planning and history commands need `editor`; delete/restore need `owner`.
 - **The owner is not a membership row.** It comes from `TripCreated.createdBy` in the log.
@@ -298,6 +298,7 @@ dispatched workflow. Details: `docs/guidelines/content-bundles.md`.
 | MET Norway, NASA POWER | forecast and climate widgets | ports + read-through `external_data_cache`; coordinates rounded first (ADR-052) | 4 s timeout; forecast degrades to "typical" |
 | Upstash Redis | link-preview card data only | `CachePort`, drivers `upstash | memory | off` | swallowed; never a source of truth (ADR-059) |
 | Next data cache | public library and OG cards, 24 h, tag-purged | `src/server/libraryCache.ts` | strangers may see a day-old page (ADR-063, cache) |
+| Vercel CDN (ISR) | library pages for a reader with no session and no query; the tags above purge them | `proxy.ts` rewrites to `app/playbooks/[copy]` (ADR-077) | a miss renders the live page |
 | Resend | welcome and invite email | `sendEmail` never throws | mail failure never undoes the action |
 | Sentry | errors, traces, AI spans, metrics | shared options and scrubbing; tunnel `/monitoring` (ADR-032) | — |
 

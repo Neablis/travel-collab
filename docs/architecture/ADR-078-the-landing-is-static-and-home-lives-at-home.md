@@ -7,7 +7,7 @@ pass's **D9** (`docs/specs/2026-10-02-seo-pass-design.md`): the landing is still
 but to everybody, and `/welcome` now redirects there instead of being canonical to it.
 **Deciders:** Mitchell (product); Claude — drafted
 Related: ADR-024 (the edge-safe Auth.js instance the proxy builds), ADR-061 (the public library
-stays out of the proxy's matcher), and `docs/candidates.md`'s *"The signed-in app moves from `/`
+is readable without an account), ADR-077 (the proxy picks the library's cached or live copy), and `docs/candidates.md`'s *"The signed-in app moves from `/`
 to `/home`"*, where the 17 ms was measured (PR 485's session).
 
 ## Context
@@ -34,7 +34,8 @@ That made the most-visited URL the most expensive one:
    keep their identity (it defaulted to the old `start_url`).
 
 2. **The landing is `(front)/page.tsx`, at `/`, and is static** — `○` in `next build`. It reads
-   no cookie and no header. The proxy's matcher is `["/home", "/trips/:path*", "/invite/:path*"]`;
+   no cookie and no header. The proxy's matcher is `["/home", "/trips/:path*", "/invite/:path*", "/playbooks/:path*"]`
+   (the last for ADR-077's copy, never a sign-in);
    `/` is not on it, and the rewrite and its `no-store` are gone. A signed-out `/home` takes the
    existing branch: `/signin?callbackUrl=%2Fhome`.
 
@@ -85,10 +86,12 @@ That made the most-visited URL the most expensive one:
   session, so sign-out goes to `/`.
 - **A signed-in browser with no hint sees the landing until it opens an app page.** Two kinds of
   account get there. One signed in before this shipped. The other signed in to a page outside the
-  proxy's matcher — `/plans`, `/account`, `/playbooks/…`, `/demo/…`, `/s/…` — after which every
+  proxy's matcher — `/plans`, `/account`, `/demo/…`, `/s/…` — after which every
   move is a client fetch the proxy skips. Code review on PR 490 found the second; the proxy alone
-  would have left it hint-less until a page load of `/home`, `/trips/*` or `/invite/*`. The
-  shell's setter closes it for every page under `(app)`, however it was reached. What is left is a
+  would have left it hint-less until a page load of `/home`, `/trips/*`, `/invite/*` or
+  `/playbooks/*`. The
+  shell's setter closes it for every page under `(app)` and the library's live copy, however it
+  was reached. What is left is a
   browser that has opened no app page since signing in (a `/demo/…` or `/s/…` visit only), whose
   `/` shows the landing, whose *Sign in* takes them in.
 - **A client navigation to `/` while signed in goes on to Home too.** The head script runs on a
@@ -102,6 +105,6 @@ That made the most-visited URL the most expensive one:
   of `/` the head script has already left, so the effect skips its first mount in that document
   rather than request Home a second time. The `pageshow` check is not in the head script because
   growing the root layout's HTML by even 84 bytes turned `e2e/seo.spec.ts`'s "same 404 with the
-  same body" red (KI-2026-10-18-d).
+  same body" red (KI-2026-10-18-e).
 - Old browsers without `Sec-Fetch-Dest` (Safari before 16.4) keep the prefetch race above: at
   worst a sign-out lands on `/signin` rather than the landing.

@@ -66,9 +66,9 @@ let hintCleared = false;
  * Sets the hint from the browser, with the attributes the proxy gives it
  * (`signedInHintCookieOptions`). The `(app)` shell calls it once a session user
  * is known (`SessionUserProvider`), because the proxy sets it only on a document load
- * of a route it matches: a sign-in whose callback is `/plans`, `/playbooks/…`
- * or `/demo/…` lands on a page it does not, and every move after that is a
- * client fetch it deliberately skips (ADR-078). A no-op after
+ * of a route it matches: a sign-in whose callback is `/plans`, `/account` or
+ * `/demo/…` lands on a page it does not, and every move after that is a client
+ * fetch it deliberately skips (ADR-078). A no-op after
  * `clearSignedInHint` in the same document.
  */
 export function setSignedInHint(
@@ -102,6 +102,6 @@ export function hasSignedInHint(cookie: string): boolean {
  * A client navigation to `/`, and a back-forward-cache restore of it, are the
  * landing's own effect's (`LeaveLandingIfSignedIn`). **Keep this string as
  * short as it is**: growing the root layout's HTML can turn a seo e2e red
- * (KI-2026-10-18-d).
+ * (KI-2026-10-18-e).
  */
 export const LEAVE_LANDING_IF_SIGNED_IN = `if(location.pathname==="/"&&/(?:^|;\\s*)${SIGNED_IN_HINT_COOKIE}=/.test(document.cookie))location.replace(${JSON.stringify(HOME_PATH)});`;

@@ -81,8 +81,11 @@ export function appRoutes(dir = APP_DIR, prefix = "") {
     }
     // `(app)` and `(front)` are route groups: they organise files and do not
     // appear in the URL. `@modal`-style parallel routes and `_private` folders
-    // are not used here, so groups are the only case to unwrap.
-    const segment = /^\(.*\)$/.test(entry) ? "" : `/${entry}`;
+    // are not used here. The library's two copies, `playbooks/live` and
+    // `playbooks/[copy]`, are the other case: `proxy.ts` rewrites every
+    // `/playbooks/**` URL into one of them, so neither is in a URL (ADR-077).
+    const internal = /^\(.*\)$/.test(entry) || (prefix === "/playbooks" && (entry === "live" || entry === "[copy]"));
+    const segment = internal ? "" : `/${entry}`;
     found.push(...appRoutes(full, prefix + segment));
   }
   if (readdirSync(dir).includes("page.tsx")) found.push(prefix === "" ? "/" : prefix);

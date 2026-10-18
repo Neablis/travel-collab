@@ -372,16 +372,6 @@ here two days later.
   - Optionally a bootstrap endpoint: detail, history, access and pages after one access check.
   - Consider a 4–5s poll with idle back-off.
 
-- **Public playbook pages become cacheable (found by PR 481's audit, 2026-10-18).** `/playbooks`
-  and its tag, city, country and day pages render per request, because the `(app)` layout reads
-  `cookies()` and awaits `auth()` + `entitlementsFor()` before anything streams. Their data is
-  already in `unstable_cache` for 24h (`libraryCache.ts`), so ISR fits. Move them into a route
-  group whose layout reads no cookies, with the session chrome as a client island (or adopt
-  PPR/`cacheComponents`). Then `revalidate` plus `generateStaticParams` for the top tags and
-  cities. **Not** a `loading.tsx` on these routes: the SEO pass plan
-  (`docs/plans/2026-10-02-seo-pass.md`) says it would turn `notFound()` and `permanentRedirect`
-  into 200s.
-
 - **Smaller query and fetch follow-ups left by PR 481 (2026-10-18).** Each is small. Grouped so
   none is lost.
   - **The embedding sweep** (`server/ai/sweep.ts`) re-reads the whole trip document for each

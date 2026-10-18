@@ -59,4 +59,20 @@ describe("proxy", () => {
     const res = handle(request("/trips/t1", { session: false, hint: false }));
     expect(hintSetCookie(res)).toBeUndefined();
   });
+
+  // The library is matched to pick its copy (ADR-077), never to send anyone
+  // to sign in; the hint follows the session there as everywhere else.
+  it("serves a signed-out reader the library's cached copy, and sheds a stale hint", () => {
+    const res = handle(request("/playbooks/board", { session: false, hint: true }));
+    expect(res.headers.get("location")).toBeNull();
+    expect(res.headers.get("x-middleware-rewrite")).toBe("https://caesura.test/playbooks/cached/board");
+    expect(hintSetCookie(res)).toMatch(/Max-Age=0|Expires=Thu, 01 Jan 1970/);
+  });
+
+  it("serves a signed-in reader the library's live copy, and refreshes the hint", () => {
+    expect(config.matcher).toContain("/playbooks/:path*");
+    const res = handle(request("/playbooks", { session: true, hint: false, dest: "document" }));
+    expect(res.headers.get("x-middleware-rewrite")).toBe("https://caesura.test/playbooks/live");
+    expect(hintSetCookie(res)).toMatch(new RegExp(`^${SIGNED_IN_HINT_COOKIE}=1;`));
+  });
 });

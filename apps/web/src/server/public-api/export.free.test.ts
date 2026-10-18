@@ -47,7 +47,7 @@ const EXPORT_PATH_FILES = [
   // The download lives here…
   path.join(WEB, "src/components/trip/SettingsSheet.tsx"),
   // …and the upload on whichever of these two is on screen (M25 link 2).
-  path.join(WEB, "src/app/(app)/home/page.tsx"),
+  path.join(WEB, "src/components/home/HomeScreen.tsx"),
   path.join(WEB, "src/components/home/FirstTripStart.tsx"),
 ];
 

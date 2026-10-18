@@ -226,7 +226,7 @@ test("a day's head: name and first city in the title, the facts line, a slugged 
 //    list, across the `<script>` chunks they are cut into.
 // Where those chunks are interleaved into the HTML is NOT normalised, and it
 // follows byte counts: growing the root layout by 84 bytes turned this red with
-// no privacy change (KI-2026-10-18-d). Read that before chasing a leak here.
+// no privacy change (KI-2026-10-18-e). Read that before chasing a leak here.
 function comparable(body: string, segment: string): string {
   return body
     .replace(/<meta name="(?:sentry-trace|baggage)" content="[^"]*"\/>/g, "")
@@ -269,7 +269,13 @@ test("a private day and an unknown one are the same 404 with the same body", asy
     // Nor the name as a slug: with the asked-for segment taken out, no answer
     // may spell it, least of all the one that was asked by bare id.
     for (const which of Object.keys(asked)) expect(bodies[which], which).not.toContain(slug);
-    for (const which of Object.keys(asked)) expect(bodies[which], which).toBe(bodies.unknown);
+    // Each hidden day against the unknown one asked the same way. The URL's
+    // shape picks which copy answers (`lib/playbooksReader.ts`: a bare id is
+    // answered live, a slugged one cached), and the two copies' 404s differ in
+    // Next's own payload. Existence never picks the copy, so this is the claim.
+    expect(bodies.hidden, "hidden").toBe(bodies.unknown);
+    expect(bodies.hiddenSlugged, "hiddenSlugged").toBe(bodies.unknownSlugged);
+    expect(bodies.junk, "junk").toBe(bodies.unknown);
 
     // Its author still opens it.
     const mine = await page.request.get(`/playbooks/day/${savedDayId}`);
@@ -278,6 +284,31 @@ test("a private day and an unknown one are the same 404 with the same body", asy
     expect(own).toMatch(new RegExp(`<h1[^>]*>${name}</h1>`));
     // A private day describes itself to nobody, its author's page included.
     expect(ldJson(own)).toEqual([]);
+    await visitor.context().close();
+  } finally {
+    await forget(page, savedDayId);
+  }
+});
+
+// ADR-077: a stranger's day page is the cached copy, the same answer from the
+// cache on the second ask, while its author at the same URL is answered live.
+// `x-nextjs-cache` is `next start`'s own report of which it served.
+test("a stranger's day page comes from the cache, its author's never does", async ({ page, browser }) => {
+  test.slow();
+  const name = `Cache split ${randomUUID().slice(0, 8)}`;
+  const savedDayId = await publishedDay(page, `Seoe2e${randomUUID().slice(0, 6)}`, name);
+  try {
+    const visitor = await stranger(browser);
+    const path = sluggedPath(name, savedDayId);
+    expect((await visitor.request.get(path)).status()).toBe(200);
+    const again = await visitor.request.get(path);
+    expect(again.status()).toBe(200);
+    expect(again.headers()["x-nextjs-cache"]).toBe("HIT");
+
+    const mine = await page.request.get(path);
+    expect(mine.status()).toBe(200);
+    expect(mine.headers()["x-nextjs-cache"]).toBeUndefined();
+    expect(mine.headers()["cache-control"]).toContain("no-store");
     await visitor.context().close();
   } finally {
     await forget(page, savedDayId);

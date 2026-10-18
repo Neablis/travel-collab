@@ -6,6 +6,7 @@ import {
   normalizePendingAdmission,
   pendingAdmissionCookieOptions,
 } from "@/lib/pendingAdmission";
+import { playbooksReaderFor, playbooksRoute } from "@/lib/playbooksReader";
 import { SIGNED_IN_HINT_COOKIE, signedInHintCookieOptions } from "@/lib/sessionHint";
 
 // This file was `src/middleware.ts` until the Next 16 upgrade, which
@@ -56,7 +57,7 @@ const { auth } = NextAuth(authConfig);
 // read happens here (this project uses JWT sessions with no adapter — see
 // server/auth.ts), which is the configuration Auth.js v5's docs call out as
 // the one that works reliably in the Edge runtime.
-/** The request seam: an invite banks its token, anything else matched goes to sign-in, and the signed-in hint follows the session. */
+/** The request seam: the library picks its copy, an invite banks its token, anything else matched goes to sign-in, and the signed-in hint follows the session. */
 export default auth((req) => {
   const response = route(req);
   // The hint follows what this request found (ADR-078): refreshed while there
@@ -95,6 +96,19 @@ function isPageLoad(req: NextAuthRequest): boolean {
 
 // What the request gets before the hint is applied to it.
 function route(req: NextAuthRequest): NextResponse {
+  // The public library, for everyone: a reader with no session and no query
+  // gets the cached copy, anyone else the per-request one (`playbooksReader.ts`).
+  // `req.auth` rather than the cookie's presence: a cookie whose session has
+  // expired would be answered signed-out by the live page too.
+  const library = playbooksRoute(
+    req.nextUrl.pathname,
+    playbooksReaderFor(Boolean(req.auth), req.nextUrl.pathname, req.nextUrl.searchParams),
+  );
+  if (library !== null) {
+    const target = new URL(req.nextUrl);
+    target.pathname = library;
+    return NextResponse.rewrite(target);
+  }
   if (req.auth) return NextResponse.next();
   const { pathname } = req.nextUrl;
   // M27 link 6: the invite landing is PUBLIC — it is what an invite link
@@ -167,12 +181,16 @@ function tripInviteToken(pathname: string): string | null {
 //   - `/invite/:path*`   — the invite landing and its look (M27 link 6).
 //     NOT to send anyone to /signin — both pages are public — but to bank the
 //     token for M11a's gate on the way past (see the handler above).
-//
-// `/playbooks/:path*` was on this list until ADR-061 made the public library
-// readable without an account: a shared playbook link has to open for somebody
-// who has not signed up, so a signed-out visitor must reach those pages rather
-// than be sent to /signin. They stay in `(app)`; what a signed-out reader may
-// DO there is decided by the API routes, which still answer every write 401.
+//   - `/playbooks/:path*` — the public library, bare prefix included. NOT to
+//     send anyone to /signin (ADR-061: a shared playbook link opens for
+//     somebody with no account; what they may DO there is decided by the API
+//     routes, which answer every write 401), but to pick which copy of the
+//     page they get. Every request is rewritten: the routes live under
+//     `app/playbooks/live` and `app/playbooks/[copy]`, so nothing at
+//     `/playbooks` renders without this file. The signed-in hint (ADR-078)
+//     follows the session here as on every other matched route: a signed-in
+//     page load refreshes it, and a signed-out one sheds a stale one, the
+//     cached copy included.
 export const config = {
-  matcher: ["/home", "/trips/:path*", "/invite/:path*"],
+  matcher: ["/home", "/trips/:path*", "/invite/:path*", "/playbooks/:path*"],
 };
