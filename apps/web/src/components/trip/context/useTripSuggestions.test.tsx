@@ -113,6 +113,36 @@ describe("useTripSuggestions, through TripProvider", () => {
     expect(seen).toEqual(["GET suggestions"]);
   });
 
+  // The idle wait and the poll's interval are both about 2s, so the first
+  // poll can answer while the idle read is still out: one read, not two.
+  it("reads once when the first revision arrives while the idle read is out", async () => {
+    const idle = holdIdle();
+    const { seen } = await mount("owner");
+    let release!: () => void;
+    const held = new Promise<void>((r) => (release = r));
+    let polled = 0;
+    server.events.on("response:mocked", ({ request }) => {
+      if (new URL(request.url).pathname.endsWith("/events")) polled += 1;
+    });
+    server.use(
+      http.get("/api/trips/:tripId/suggestions", async () => {
+        await held;
+        return HttpResponse.json({ changes: [], rev: "moved" });
+      }),
+      http.get("/api/trips/:tripId/events", () =>
+        HttpResponse.json({ headSeq: 0, events: [], resync: false, suggestionsRev: "moved" }),
+      ),
+    );
+    idle.fire();
+    await waitFor(() => expect(seen).toEqual(["GET suggestions"]));
+
+    act(() => void window.dispatchEvent(new Event("focus")));
+    await waitFor(() => expect(polled).toBe(1));
+    await act(async () => release());
+    await settle();
+    expect(seen).toEqual(["GET suggestions"]);
+  });
+
   it("reads nothing when it unmounts before idle", async () => {
     const idle = holdIdle();
     const { seen } = await mount("owner");

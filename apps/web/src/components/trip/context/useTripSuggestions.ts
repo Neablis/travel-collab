@@ -60,6 +60,8 @@ export function useTripSuggestions({ tripId, enabled, onAccepted }: Args): {
   // Only the newest read may land. A poll's refetch and a resolve's can cross,
   // and an older answer arriving last would put a resolved change back.
   const latest = useRef(0);
+  // Reads out now, for `onRevision`, which runs between renders.
+  const reading = useRef(0);
   const live = useRef(enabled);
   live.current = enabled;
 
@@ -67,7 +69,9 @@ export function useTripSuggestions({ tripId, enabled, onAccepted }: Args): {
     if (!live.current) return;
     const ticket = ++latest.current;
     setInFlight((n) => n + 1);
+    reading.current++;
     const result = await fetchTripSuggestions(tripId);
+    reading.current--;
     setInFlight((n) => n - 1);
     if (ticket !== latest.current || !live.current) return;
     if (!result.ok) {
@@ -105,7 +109,12 @@ export function useTripSuggestions({ tripId, enabled, onAccepted }: Args): {
       // The poll reports its revision on every tick (W68), usually the one
       // already held. A read that failed leaves `revRef` behind, so the next
       // tick asks again: one retry per poll, not a loop.
-      if (next !== revRef.current) void refresh();
+      //
+      // Nothing held yet and a read out is the mount's read at idle, which the
+      // first poll can overtake (both wait about 2s). That read answers with
+      // the current revision; a later one is the next tick's to notice.
+      if (next === revRef.current || (revRef.current === null && reading.current > 0)) return;
+      void refresh();
     },
     [refresh],
   );
