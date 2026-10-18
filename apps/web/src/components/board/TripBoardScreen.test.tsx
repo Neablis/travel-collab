@@ -1903,9 +1903,13 @@ describe("assistant rail visibility", () => {
       setViewportMatches({ "(min-width: 1180px)": true });
       window.localStorage.setItem("assistant:tab", "chat");
       const fixture = shared();
-      server.use(...makeTripHandlers(fixture));
+      server.use(...makeChatHandlers({ viewerId: "dev-alice", messages: [said] }).handlers, ...makeTripHandlers(fixture));
       renderWithTabBar(fixture.tripId);
       expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+      // The chat's first read waits for idle, and its composer for that read:
+      // opened sooner, focus takes the panel itself (`focusOpenTab`). The count
+      // on the button says the read has landed.
+      await waitFor(() => expect(screen.getByTestId("ask-pill").getAttribute("aria-label")).toBe("Ask or chat, 1 unread message"));
 
       await userEvent.click(screen.getByTestId("ask-pill"));
       const panel = await screen.findByRole("complementary", { name: "Assistant" });

@@ -1,9 +1,10 @@
-import { act, renderHook, waitFor } from "@testing-library/react";
+import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
 import { ChatMessage, type ChatPage } from "@tc/contracts";
 import { uuidFrom } from "@tc/factories";
+import { holdIdle } from "@/test-support/holdIdle";
 import { useTripChat } from "./useTripChat";
 
 // The reader, whose own sent lines these are.
@@ -13,6 +14,10 @@ const server = setupServer();
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
 afterEach(() => {
   vi.useRealTimers();
+  // Unmounted while the stubs below still stand: a pending idle callback is
+  // cancelled through them.
+  cleanup();
+  vi.unstubAllGlobals();
   server.resetHandlers();
 });
 afterAll(() => server.close());
@@ -29,6 +34,9 @@ const message = (n: number, authorId = "u-bea") =>
     body: `message ${n}`,
   });
 const pageOf = (messages: ChatMessage[]): ChatPage => ({ messages, hasEarlier: false, unread: messages.length, canPost: true });
+
+/** Long enough for a read the hook was going to make to reach the network. */
+const settle = () => act(() => new Promise((r) => setTimeout(r, 50)));
 
 describe("useTripChat", () => {
   // M46 D1: a message shows on every open page without a refresh, and the
@@ -61,6 +69,69 @@ describe("useTripChat", () => {
     rerender("2");
     await waitFor(() => expect(result.current.messages.map((m) => m.messageId)).toEqual([message(1).messageId, message(2).messageId]));
     expect(result.current.unread).toBe(2);
+  });
+
+  // The conversation feeds only the header's count until the panel opens, so
+  // its first read is not one of the first paint's (2026-10-18, Lighthouse on
+  // the Japan trip: it landed among the trip's own reads at 2.5s).
+  describe("the first read", () => {
+    function counting() {
+      let reads = 0;
+      server.use(
+        http.get(`/api/trips/${TRIP}/chat`, () => {
+          reads += 1;
+          return HttpResponse.json(pageOf([message(1)]));
+        }),
+        http.post(`/api/trips/${TRIP}/chat/read`, () => new HttpResponse(null, { status: 204 })),
+      );
+      return () => reads;
+    }
+    type Props = { chatRev: string | null; reading: boolean };
+    const mount = (initialProps: Props) =>
+      renderHook(({ chatRev, reading }: Props) => useTripChat({ tripId: TRIP, enabled: true, chatRev, reading, accessLost: false }), {
+        initialProps,
+      });
+
+    it("waits for idle, then reads once", async () => {
+      const idle = holdIdle();
+      const reads = counting();
+      const { result } = mount({ chatRev: null, reading: false });
+      await settle();
+      expect(reads()).toBe(0);
+
+      idle.fire();
+      await waitFor(() => expect(result.current.status).toBe("ready"));
+      await settle();
+      expect(reads()).toBe(1);
+    });
+
+    it("is at once when the panel opens before idle, and idle does not read again", async () => {
+      const idle = holdIdle();
+      const reads = counting();
+      const { result, rerender } = mount({ chatRev: null, reading: false });
+      await settle();
+
+      rerender({ chatRev: null, reading: true });
+      await waitFor(() => expect(result.current.status).toBe("ready"));
+      // Closed again before idle would have come: still nothing more to read.
+      rerender({ chatRev: null, reading: false });
+      idle.fire();
+      await settle();
+      expect(reads()).toBe(1);
+    });
+
+    it("is at once when chatRev moves before idle, and idle does not read again", async () => {
+      const idle = holdIdle();
+      const reads = counting();
+      const { result, rerender } = mount({ chatRev: null, reading: false });
+      await settle();
+
+      rerender({ chatRev: "1", reading: false });
+      await waitFor(() => expect(result.current.status).toBe("ready"));
+      idle.fire();
+      await settle();
+      expect(reads()).toBe(1);
+    });
   });
 
   // M46 D2: a removed member's open page does not otherwise learn it was
