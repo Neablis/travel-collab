@@ -10,8 +10,8 @@ checkout) covers the time before that. M46 stays the current milestone until its
 **Built 2026-10-17.** All four parts merged that day: PR 474 (part 1, merge `9c0fed5`), PR 476
 (part 2, `21c861e`), PR 477 (part 3, `4947aa0`), PR 475 (part 4, `b026115`). Production migrated
 from `b026115` (`migrate-production` run 39048588747): `0055_mode_keyed_billing`,
-`0056_admin_test_mode_switch`, `0057_tier_weekly`. **The gate is open on the [walk] box**,
-Mitchell's production test-card walk; `pnpm milestone close M47` runs after it.
+`0056_admin_test_mode_switch`, `0057_tier_weekly`. **Gate closed 2026-10-18, 7 of 7**, on
+Mitchell's production test-card walk.
 
 ADR: `docs/architecture/ADR-076-stripe-test-mode-runs-beside-live.md` (amends ADR-047). Plan:
 `docs/plans/2026-10-17-M47-the-business-over-time.md` (deleted at the close).
@@ -133,14 +133,16 @@ Four parts, each its own PR on `main` (plan: `docs/plans/2026-10-17-M47-the-busi
       signed-in non-admin's GET and PUT, and the column is unchanged*; seen red on PR 477 with
       `requireAdminApi` deleted from `PUT` (`expected 200 to be 404`, 3 failed). Green in CI run
       39020918905 (PR 477, `80d6892`) and run 39047067614 (`main`'s tree at `b026115`).
-- [ ] **[walk]** On production, an admin-switched account checks out with a test card, and MRR
-      does not move. Walked by Mitchell. **Open, Mitchell's.** It needs, once: a test-mode
-      webhook endpoint in a dedicated Stripe sandbox (ADR-076 §8) pointing at production's
-      `/api/stripe/webhook`; `STRIPE_TEST_SECRET_KEY` and `STRIPE_TEST_WEBHOOK_SECRET` in the
-      Production scope, then a redeploy. The migrations are done (run 39048588747). No part had a
-      preview browser walk either: the build ran unattended.
+- [x] **[walk]** On production, an admin-switched account checks out with a test card, and MRR
+      does not move. Walked by Mitchell. **Ticked on Mitchell's word, 2026-10-18** (*"I walked
+      M47"*). The set-up it needed is in Vercel: `STRIPE_TEST_SECRET_KEY` and
+      `STRIPE_TEST_WEBHOOK_SECRET` were added to the Production scope at 03:48 UTC, and production
+      redeployed after them at 03:49 UTC (`dpl_Hkg9tdwiJZKXsYunEfMQpJ1mk2ab`, `main` at
+      `47e8254`). The migrations were already done (run 39048588747). No part had a preview browser
+      walk: the build ran unattended, so this walk is the only time the toggle and the charts
+      have been seen outside component tests.
 - [x] A retro is appended at gate close. Below, written before the [walk]; the close session's
-      own spend is added at hand-off.
+      spend is added under *Spend*.
 
 ## Retro — written 2026-10-17 (6 of 7 boxes ticked)
 
@@ -218,7 +220,11 @@ the first two are below, and the third (the close) adds its own at hand-off.
 
 ### Leftovers
 
-- **The [walk] box**: Mitchell's call and Mitchell's walk. Prerequisites are in the box above.
+- ~~**The [walk] box**~~: walked by Mitchell, 2026-10-18.
+- **Three extra Stripe variables in Vercel**, noticed at the close: `STRIPE_TEST_SECRET_KEY_STRIPE_SECRET_KEY`,
+  `…_STRIPE_PUBLISHABLE_KEY` and `…_STRIPE_MCP_KEY`, in Preview and Production, added 2026-10-18
+  at 03:42 UTC. Nothing in `apps/web/src` reads them; they look like a Stripe integration
+  installed with `STRIPE_TEST_SECRET_KEY` as its prefix. Mitchell's to keep or remove.
 - **ADR-076 §8's unattended decisions**: Mitchell's call to keep or reverse.
 - **The proposed review-round rule** (minors answered in the PR body from round 3 on, above):
   Mitchell's call.
@@ -227,21 +233,21 @@ the first two are below, and the third (the close) adds its own at hand-off.
   Not a required check; left open for Mitchell to dismiss or fix. The check's own red on every
   part is KI-2026-10-17-b.
 - **The preview-migration incident**: KI-2026-10-17-c.
-- **At the close, still to do** (plan, *Gate close*): delete the two absorbed candidates from
-  `docs/candidates.md`, file the follow-up to drop `users.stripe_customer_id` (ADR-076 §2), and
-  delete the plan. Left until after the walk, because the plan's part 3 section holds the walk's
-  steps.
-- **Gross *+N added / −N lost*** on the tier charts needs a per-account snapshot table; part 4
-  draws net change (Mitchell, 2026-10-17). Not filed yet; a candidate at the close.
+- **Done at the close (2026-10-18):** the two absorbed candidates deleted by `pnpm milestone
+  close`; the follow-up to drop `users.stripe_customer_id` (ADR-076 §2) and the gross
+  *+N added / −N lost* tier charts (a per-account snapshot table; part 4 draws net change,
+  Mitchell, 2026-10-17) filed as candidates in `docs/candidates.md`; the plan deleted (it is in
+  git history).
 
 ## Spend
 <!-- session-metrics:milestone v1 -->
 
-Two of three sessions. Each line is that session's block as carried in its hand-off text, pasted
-unchanged. The third (the close) adds its own at hand-off.
+Three sessions. Each line is that session's block as carried in its hand-off text, pasted
+unchanged; the third is the close, measured in its own container.
 
 - `session_01CL1oeAdnH4F2CurrqHaSQG`: 29 agents, 604 API calls, 7.05M units (phase-implementer 2.56M / 12 agents, orchestrator 2.23M, part-reviewer 1.14M / 11, general-purpose 1.12M / 5). Orchestrator peak context 260k, avg 183k; orchestrator share 31.6% (missed <15%). GitHub wakes 0.
 - `session_015NsvHHKe5Z72VtnATvKbcV`: 21 agents, 911 calls, 13.64M units
+- `session_01TJZ3eBijzp26EWvwgD5wYs` (the close): 3 agents, 106 API calls, 2.64M units (orchestrator 2.28M, peak context 317k, avg 186k; Explore 364k / 2). $7.89. It was mostly a roadmap clean-up (PR 478) before the close, so it overstates M47's own close.
 
 ### Spend against the last milestone
 
@@ -253,8 +259,8 @@ guideline's rule (`9c0fed5^1..b026115`, without `docs/`, `*.generated.json` and
 `apps/web/drizzle/meta/`.
 
 - **Dollars per 1,000 lines added (under 20):** $5.7 by the rule, but $23.6 without the three
-  migration snapshots, which inflate the denominator. Read as missed (M45: $24). Recompute with
-  the close session's cost at hand-off.
+  migration snapshots, which inflate the denominator. Read as missed (M45: $24). With the close
+  session's $7.89: $6.3 by the rule, $26.0 without the snapshots.
 - **Orchestrator's share (under 15%):** missed, 31.6% in `01CL1oeA` and 17.8% in
   `015NsvHH` (M45: 19.8%). Cause above, under *What could be better*.
 - **A builder's average context (none over 250k):** met, on `01CL1oeA`'s measured 54k average
