@@ -363,33 +363,38 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
     const day = activeTrip?.days.find((d) => d.activityIds.includes(activityId));
     if (day !== undefined) focusDay(day.dayId, activityId);
   };
+  //
+  // **Plan may not be drawn yet.** It used to be, in the commit `view` became
+  // it, but its code now loads with the view (`Board` above is a
+  // `next/dynamic`), so a jump from another view landed before the columns
+  // and focused nothing (PR 481's e2e: a chat chip's stop). So the reveal
+  // waits for the board to say it has drawn (`onDrawn`), which it does after
+  // its own arrival scroll: focusing before that scroll let it carry the stop
+  // back off screen. A reveal is dropped if Plan is reached and then left
+  // before it lands. Reached first: `setView` goes through the URL, so the
+  // render that asks for a reveal is still on the old view.
+  //
+  // It is NOT dropped because focus sits in a text field by then: both doors
+  // to a jump are text fields (⌘K's input, and the chat composer, which keeps
+  // focus when a chip is clicked), so that test drops every jump it guards.
+  const [planDrawn, setPlanDrawn] = useState(false);
+  const revealReachedPlan = useRef(false);
   useEffect(() => {
-    if (reveal === null || view !== "Plan") return;
-    const focusIt = () => {
-      const column = document.querySelector<HTMLElement>(`[data-day-column][data-day-id="${reveal.dayId}"]`);
-      if (column === null) return false;
-      const block = reveal.activityId === null ? null : column.querySelector<HTMLElement>(`[data-activity-id="${reveal.activityId}"] [data-river-edit]`);
-      (block ?? column.querySelector<HTMLElement>("[data-day-header] button"))?.focus();
-      setReveal(null);
-      return true;
-    };
-    if (focusIt()) return;
-    // **Plan may not be drawn yet.** It used to be, in the commit `view`
-    // became it, but its code now loads with the view (`Board` above is a
-    // `next/dynamic`), so a jump from another view lands before the columns
-    // do and found nothing to focus (PR 481's e2e: a chat chip's stop). So
-    // wait for the column to appear, and give up after a few seconds, which
-    // is also what happens to a day deleted in the meantime.
-    const appeared = new MutationObserver(() => {
-      if (focusIt()) appeared.disconnect();
-    });
-    appeared.observe(document.body, { childList: true, subtree: true });
-    const giveUp = window.setTimeout(() => setReveal(null), 5000);
-    return () => {
-      appeared.disconnect();
-      window.clearTimeout(giveUp);
-    };
-  }, [reveal, view]);
+    if (reveal === null) {
+      revealReachedPlan.current = false;
+      return;
+    }
+    if (view !== "Plan") {
+      if (revealReachedPlan.current) setReveal(null);
+      return;
+    }
+    revealReachedPlan.current = true;
+    if (!planDrawn) return;
+    setReveal(null);
+    const column = document.querySelector<HTMLElement>(`[data-day-column][data-day-id="${reveal.dayId}"]`);
+    const block = reveal.activityId === null ? null : column?.querySelector<HTMLElement>(`[data-activity-id="${reveal.activityId}"] [data-river-edit]`);
+    (block ?? column?.querySelector<HTMLElement>("[data-day-header] button"))?.focus();
+  }, [reveal, view, planDrawn]);
   // Which stop and day keyboard focus is in, for ⌘K's nearness (ADR-069 §5).
   // Read from `focusin`, so the palette taking focus (`data-command-palette`)
   // leaves it standing while it is open; focus anywhere else lets it go.
@@ -1562,6 +1567,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
                   <Board
                     trip={activeTrip}
                     focusedDay={focusedDay}
+                    onDrawn={setPlanDrawn}
                     // **One day at a time on a phone** — M26 link 13, SPEC
                     // §13.4. `useIsPhone` is the right tool here for the same
                     // reason it is on `NewTripWizard`'s sheet and the wrong one

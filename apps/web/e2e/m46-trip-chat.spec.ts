@@ -244,7 +244,11 @@ test("a message's @stop is a chip that focuses the stop on Plan, and plain text 
   await expect(messages).toContainText("Meet at Stop on day 1");
   await messages.getByRole("button", { name: "Stop on day 1", exact: true }).click();
   await expect(page).toHaveURL(/view=Plan/);
-  await expect(page.getByTestId(`activity-card-${stopId}`).getByRole("button", { name: /^Edit / })).toBeFocused();
+  const stopEdit = page.getByTestId(`activity-card-${stopId}`).getByRole("button", { name: /^Edit / });
+  await expect(stopEdit).toBeFocused();
+  // And on screen: focused off it, behind the day's arrival scroll, is the
+  // same as not taken there (PR 481 review).
+  await expect(stopEdit).toBeInViewport();
 
   const removed = await page.request.post(`/api/trips/${tripId}/commands`, { data: { type: "RemoveActivity", tripId, activityId: stopId } });
   expect(removed.ok()).toBe(true);
