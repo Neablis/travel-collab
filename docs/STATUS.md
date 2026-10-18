@@ -21,16 +21,22 @@ general setup.
 
 ## Where the work is right now
 
-**M47 — The operator console shows tiers over time, and paid flows can be tested in production —
-is the current milestone** (`docs/milestones/M47-the-business-over-time.md`), since M46's gate
-closed on 2026-10-17. Its four parts are on `main`: PRs 474, 476, 477 and 475, merged 2026-10-17.
-Its part 0, PR 473, merged 2026-10-17 with the gate at 6 of 7 and the retro written.
+**M48 — A planned trip starts from trips that already exist — is the current milestone**
+(`docs/milestones/M48-plans-start-from-examples.md`), since M47's gate closed on 2026-10-18. Its
+serving code is already on `main` (PRs 459-467 and 470, built ahead of the order; see below), and
+`RAG_PLAN_RETRIEVAL=1` is live in production from the deploy of `47e8254` (PR 478, 2026-10-18), so
+plan turns now retrieve example days. Gate 4 of 11; Mitchell's walk is ticked. It stays open while
+flag-on plan turns accumulate: production served 1 plan turn in the 30 days before.
 
-**Next action:** Mitchell's production walk, the one open box
-(`docs/milestones/M47-the-business-over-time.md:136`): an admin-switched account checks out with
-a test card and MRR does not move. It needs migrations `0055` to `0057` in production first, and
-production's test key pair set. Then tick the box and run `pnpm milestone close M47`. Whether
-production holds every migration is `pnpm state`'s `PROD MIGRATIONS` line, not a number here.
+**Next action:** M48's work that needs no traffic. (1) Record the example count per plan turn in
+the M31 ledger (a migration and the recorder): today it reaches only the `rag: plan examples` log
+lines, so the ledger box cannot be measured. (2) Paste the baseline (the `ai-usage` skill over
+plan turns before 2026-10-18). (3) The playbook-filter box: capture PR 470's red text and tick it.
+Decisions 1 and 11 and both offline checks' pasted numbers are Mitchell's (M48's file says which).
+
+**M47 closed 2026-10-18, gate 7 of 7**, on Mitchell's production test-card walk (ticked on his
+word). Parts are PRs 474, 476, 477 and 475, migrations `0055` to `0057`; part 0 PR 473. Evidence,
+retro and spend are in `docs/milestones/M47-the-business-over-time.md`.
 
 **M46 closed 2026-10-17, gate 10 of 10** (part 0 PR 472, after PR 432 merged early). The last box,
 the two-person walk, is ticked on Mitchell's confirmation that day. Evidence, retro and the
@@ -47,8 +53,8 @@ up ahead of the row order, and each was his call. This is his waiver, recorded h
 - **Plan-retrieval RAG, M48's serving code**: PRs 459-467, migration `0054`, pgvector in Neon
   (ADR-075). It serves behind `RAG_PLAN_RETRIEVAL`, which Mitchell turned on in production on
   2026-10-17 to let it prove itself on real plan turns (his walk is done). The Gate 1 recall eval
-  (PR 461) merged on 2026-10-17 too, on Mitchell's call, so it can be re-run from `main`. M48 is **not current**: its
-  row keeps its place, and its decisions and remaining gate boxes are in
+  (PR 461) merged on 2026-10-17 too, on Mitchell's call, so it can be re-run from `main`. M48 became current on
+  2026-10-18, when M47 closed; its decisions and remaining gate boxes are in
   `docs/milestones/M48-plans-start-from-examples.md`.
 - **M46's part 0**, PR 432, merged before the gate rather than last.
 
@@ -57,7 +63,7 @@ Also merged beside it: `docs/guidelines/building-with-judgment.md` (PR 468).
 **M45 closed 2026-10-13, gate 12 of 12** (part 0 PR 420); evidence and retro in
 `docs/milestones/M45-the-assistant-beyond-one-trip.md`. Accepted gap: KI-2026-10-13-a.
 
-Order: `… M42 ✓ → M45 ✓ → M46 ✓ → M47 → M48 → M49 → M43 → M44`; the reorder is in
+Order: `… M42 ✓ → M45 ✓ → M46 ✓ → M47 ✓ → M48 → M49 → M43 → M44`; the reorder is in
 `docs/milestones/README.md`, *2026-10-12 — reordered and minted*. Earlier closed milestones'
 narrative is in `docs/retros/2026-10-16-status-archive.md` and each milestone's own file.
 

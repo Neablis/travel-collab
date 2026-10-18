@@ -29,18 +29,6 @@ here two days later.
     Google per paste, against a redirect that is not a documented API. Worth it if people are seen
     pasting short links and retyping the place.
 
-- **Accounts by tier, week by week, on the operator console (split out of M36, 2026-10-06).**
-  The 2026-10-05 handoff draws one area chart per tier on the Users tab — accounts holding the tier
-  at the end of each week for 26 weeks, with *+N added* and *−N lost* over 30 days
-  (`.design-sync/handoff/specs/operator-console.md`, *Accounts by tier*).
-  - **What exists.** Nothing history-preserving: `users.plan_id` is the current holding, and
-    `entitlement_grants` plus `subscriptions` say what is held now, not what was held last week.
-  - **Decisions it needs.** A weekly rollup table (a migration and a scheduled job, exact from the
-    day it ships, empty before) or a derivation from `entitlement_grants` and `billing_events`
-    (back-fills history, but has never been checked against Stripe's own record). The spec's open
-    question 2; M36 decision 4 is why it is here rather than there.
-  *Placed 2026-10-06 → `docs/milestones/M47-the-business-over-time.md` (proposed, not yet scoped). M47's gate deletes this entry at close.*
-
 - **The assistant on eve: the port, deferred until there are users (asked 2026-10-02,
   deferred 2026-10-03).** ADR-062 records the decision and the Phase 0 spike's evidence.
   Mitchell chose a full port onto Vercel's eve framework, with the ledger first. On
@@ -129,43 +117,6 @@ here two days later.
   points to it; it is written by a person, not at gate close, and its own header says nothing
   checks it. Still not built: the generated map (that file says so), the gate-close step, and
   the KI binding.
-
-- **Stripe test mode alongside live, without a redeploy to switch.** Asked for
-  2026-09-16: *"i would like to be able to use test card without needing to take
-  down prod with new ENV variables."* The want is real — today the only way to
-  exercise a paid flow against a deployment is to swap `STRIPE_SECRET_KEY` and
-  `STRIPE_WEBHOOK_SECRET` and redeploy, which means production is either live or
-  testable and never both.
-
-  **Not a config change, and the reason is a data problem rather than a wiring
-  one.** There is no `livemode` column on `subscriptions` or `billing_events`
-  (`schema.ts:679`), and `revenue.ts:270` sums every live subscription into MRR
-  through `conferringNow()` — so a test-mode subscription would be counted as
-  real revenue with nothing to filter it out by. `users.stripe_customer_id` is a
-  single column (`schema.ts:104`), so a test `cus_` and a live `cus_` for one
-  person collide. Minimum honest scope:
-
-  - migration adding `livemode` to `subscriptions` **and** `billing_events`
-  - `users.stripe_customer_id` keyed per mode
-  - every read that assumes "a subscription means money" filtered on it —
-    `revenue.ts`, the admin console's tier and underwater panels
-  - the webhook verifying against both secrets, taking mode only from the
-    **verified** event, never from the unverified payload (ADR-047 keeps this
-    seam narrow on purpose)
-  - the per-account switch strictly server-side and admin-gated: a flag that
-    grants real entitlements for a test card is a free-premium switch if it is
-    ever client-readable
-  - integration coverage for the mode boundary itself
-
-  **What covers the want in the meantime**, and why this stayed unscheduled:
-  `entitlement_grants` already gives a specific account premium with no payment,
-  through the admin console, and `revenue.ts:272-278` reads grants separately
-  from paying subscriptions so a granted tester never pollutes MRR. That covers
-  "let these accounts use the paid features". It does not cover exercising
-  checkout, the webhook, or the decline → grace → lapse chain — and those are
-  better walked in an environment that is entirely test mode (local with
-  `stripe listen`) than in a live one with a mode switch inside it.
-  *Placed 2026-10-06 → `docs/milestones/M47-the-business-over-time.md` (proposed, not yet scoped). M47's gate deletes this entry at close.*
 
 - **`open` ("What needs you") is built as a two-column table and the design is
   not a table (raised by Mitchell on the PR 170 preview, 2026-09-13).** *"it
@@ -382,3 +333,14 @@ here two days later.
     today only draws their name; nothing tells them.
   - **Group a run of messages.** When one person sends several messages in a row within 30 minutes,
     show the author once and draw the run as one visual block.
+
+- **Drop `users.stripe_customer_id` (filed at M47's close, 2026-10-18).** ADR-076 §2 moved the
+  customer id into `stripe_customers`, keyed by `(user_id, livemode)`; migration `0055` copied the
+  existing values there, and the column stopped being read or written. ADR-076 leaves the drop to
+  a later migration once nothing has read it for a release. A one-migration change: confirm no
+  reader with `grep -rn stripe_customer_id apps/web/src`, drop the column, regenerate the snapshot.
+
+- **The tier charts show gross added and lost, not only net (Mitchell, 2026-10-17, at M47's
+  part 4).** `tier_weekly` holds one count per plan per week, so the Users tab can draw net change
+  only. *+N added / −N lost* needs a per-account weekly snapshot (or a holdings diff in the rollup
+  job), so the job can tell an account that moved between tiers from one that joined or left.

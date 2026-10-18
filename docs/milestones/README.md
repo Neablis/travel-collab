@@ -195,7 +195,7 @@ Placement notes (decided 2026-07-07):
   questions stay open — start-only trip dates, first-run vs. the four-step
   wizard, and whether the landing copy may sell M11/M12 — see the review's §8.
 
-Current milestone: M47 — The operator console shows tiers over time, and paid…
+Current milestone: M48 — A planned trip starts from trips that already exist
 
 ### Archived decision notes
 
