@@ -386,7 +386,7 @@ export function invalidate(prefix: string): void {
  *
  * **Deliberately not wired to sign-out**, which is the first thing to check of
  * any module-level cache holding another account's trips. It does not need to
- * be: `signOut({ callbackUrl: "/welcome" })` in `AccountMenu` ends in a
+ * be: `signOut({ callbackUrl: "/" })` in `AccountMenu` ends in a
  * `window.location.href` assignment — a full document load, which takes this
  * module's Maps with it. The cache outlives a client-side route change, which
  * is the whole point, and cannot outlive a sign-out.

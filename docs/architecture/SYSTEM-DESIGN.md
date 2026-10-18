@@ -260,8 +260,10 @@ dispatched workflow. Details: `docs/guidelines/content-bundles.md`.
 - **Session**: JWT cookie, no DB adapter. The token names its Vercel environment and is rejected elsewhere
   (ADR-034). A `users` row is upserted at sign-in (ADR-025).
 - **Two Auth.js instances**: edge-safe `authConfig` for `proxy.ts`; the full one in `server/auth.ts` (ADR-024).
-- **The proxy is not the security boundary.** It only tidies signed-out navigation. Every API route authenticates
-  itself.
+- **The proxy is not the security boundary.** It only tidies signed-out navigation, on `/home`, `/trips/*` and
+  `/invite/*`, picks the library's cached or live copy on `/playbooks/*` (ADR-077), and deletes the `tc_signed_in`
+  hint on a signed-out request. The app shell (`SessionUserProvider`) is the hint's only setter; the static `/`
+  reads it to send a signed-in browser to `/home` (ADR-078). Every API route authenticates itself.
 - **Roles**: `viewer < suggester < editor < owner`, one rank table in `src/server/accessPolicy.ts`, with an
   exhaustive minimum role per command. Planning and history commands need `editor`; delete/restore need `owner`.
 - **The owner is not a membership row.** It comes from `TripCreated.createdBy` in the log.
@@ -335,7 +337,7 @@ dispatched workflow. Details: `docs/guidelines/content-bundles.md`.
 | Consistency | Per trip, a planning write is one transaction: append, both projections, optionally one extra row. Other clients converge in about one 2 s poll plus a refetch. |
 | Concurrency | Optimistic, on the unique index. Unconditioned batches retry 3×; conditioned writes get a 409. CRUD modules lean on conditional updates, `ON CONFLICT DO NOTHING` and partial unique indexes. |
 | Conflicts | Domain conflicts are data and dismissible. Write-write collisions on the same stop become a client-side `concurrent-edit` conflict. |
-| Caching | Client: short-window `queryCache`. Server: Next data cache (library, OG), Redis (card data), Postgres (weather). Signed-out `/` is `private, no-store`. |
+| Caching | Client: short-window `queryCache`. Server: Next data cache (library, OG), Redis (card data), Postgres (weather). `/` is a static page for everybody; Home is `/home` (ADR-078). |
 | Fail closed | rate limiter (503), AI (simulated model), malformed stored trip (throws, never reads as 404). |
 | Fail open | Redis, email. |
 | Cost ceilings | AI: per-user and global quotas, 8 steps, tier cap per plan, a gateway spend budget, the `ai-live` kill switch. Geocoding and the public API have their own quotas (`src/server/quota.ts`). |
@@ -381,7 +383,7 @@ dispatched workflow. Details: `docs/guidelines/content-bundles.md`.
 
 **ADR status that is easy to misread**
 
-- **Superseded or reversed**: 023 by 024. 014 ("pages are CRUD") is reversed in substance by 036 but carries no
+- **Superseded or reversed**: 023 by 024; what 023 and 024 say about `/` by 078. 014 ("pages are CRUD") is reversed in substance by 036 but carries no
   amendment. 036's own "page as its own stream" was reversed on 2026-09-24. 060 decision 2 is amended by 065.
 - **Still marked Proposed, but built**: 025–029, 057, 058.
 - **Proposed and only half built**: 062 (ledger and evals yes, eve port no).

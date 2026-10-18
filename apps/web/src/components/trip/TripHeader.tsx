@@ -32,6 +32,7 @@ import { BudgetChip } from "./BudgetChip";
 import { AddCoverButton, COVER_BAND, TripCoverBanner } from "./cover/TripCoverBanner";
 import { useTripCover } from "./cover/useTripCover";
 import { useTripSeed } from "./context/tripSeed";
+import { HOME_PATH } from "@/lib/homePath";
 
 // The bounded chrome surface (design-system.md surface vocabulary, Pattern 4):
 // trip identity (name + status) on one row with Share / Add stop / sync /
@@ -422,7 +423,7 @@ export function TripHeader({
                 {/* An arrow alone on a phone, in a 44px box; the words stay in
                     the accessible name. */}
                 <Link
-                  href="/"
+                  href={HOME_PATH}
                   className="inline-flex min-h-11 items-center text-xs text-slate no-underline hover:text-ink max-md:min-w-11 max-md:shrink-0 max-md:justify-center max-md:text-base"
                 >
                   ←<span className="max-md:sr-only"> Your trips</span>

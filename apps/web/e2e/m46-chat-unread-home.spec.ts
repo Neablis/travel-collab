@@ -47,7 +47,7 @@ test("Home counts another member's unread messages, and drops the count once rea
     .getByTestId(/^(trip-card|next-trip-hero)$/)
     .filter({ has: page.getByRole("link", { name: tripName, exact: true }) });
 
-  await page.goto("/");
+  await page.goto("/home");
   await expect(trip).toBeVisible();
   await expect(trip.getByRole("img", { name: "2 unread messages" })).toBeVisible();
 
@@ -55,7 +55,7 @@ test("Home counts another member's unread messages, and drops the count once rea
   expect(read.status()).toBe(204);
 
   // Home does not poll: the count is as fresh as its load, so load it again.
-  await page.goto("/");
+  await page.goto("/home");
   await expect(trip).toBeVisible();
   await expect(trip.getByRole("img", { name: /unread/ })).toHaveCount(0);
 });

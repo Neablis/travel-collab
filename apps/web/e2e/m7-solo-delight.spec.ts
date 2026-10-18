@@ -112,7 +112,7 @@ test("solo delight: the Notebook and its default pages", async ({ page }) => {
   // "alice" dev user's trip list, and a same-millisecond Date.now() would
   // otherwise make specs' trip names collide (see m3/m4's comment).
   const tripName = e2eTripName("Faro");
-  await page.goto("/");
+  await page.goto("/home");
 
   await createEmptyTripViaWizard(page, tripName);
   await page.getByRole("link", { name: tripName }).click();
@@ -207,7 +207,7 @@ test("solo delight: the Notebook and its default pages", async ({ page }) => {
 // that skeleton renders rather than erroring or rendering blank.
 test("fresh trip: Notebook default pages render their starter text", async ({ page }) => {
   const tripName = e2eTripName("Lagos");
-  await page.goto("/");
+  await page.goto("/home");
 
   await createEmptyTripViaWizard(page, tripName);
   await page.getByRole("link", { name: tripName }).click();
@@ -274,7 +274,7 @@ async function waitForPageSaved(page: Page, action: () => Promise<void>): Promis
 // happens to the trip's event-sourced plan state around it.
 test("undo a trip revert: hand-typed prose survives untouched", async ({ page }) => {
   const tripName = e2eTripName("Sintra");
-  await page.goto("/");
+  await page.goto("/home");
 
   await createEmptyTripViaWizard(page, tripName);
   await page.getByRole("link", { name: tripName }).click();

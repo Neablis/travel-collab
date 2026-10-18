@@ -264,7 +264,7 @@ describe("InviteLandingScreen — every other state", () => {
     expect(await screen.findByRole("heading", { level: 1, name: "This invite was taken back" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: /Join/ })).toBeNull();
     expect(screen.queryByRole("link", { name: "Sign in" })).toBeNull();
-    expect(screen.getByRole("link", { name: "What is Caesura?" }).getAttribute("href")).toBe("/welcome");    // Only a pending invite has a preview to read.
+    expect(screen.getByRole("link", { name: "What is Caesura?" }).getAttribute("href")).toBe("/");    // Only a pending invite has a preview to read.
     expect(fetchInvitePreviewMock).not.toHaveBeenCalled();
   });
 

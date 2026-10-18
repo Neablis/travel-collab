@@ -16,7 +16,7 @@ import { e2eTripName } from "./tripNames";
 // it is what the unload flush uses.
 test("edits still queued when the page reloads are not lost", async ({ page }) => {
   const tripName = e2eTripName("Tromso");
-  await page.goto("/");
+  await page.goto("/home");
   await createEmptyTripViaWizard(page, tripName);
   await page.getByRole("link", { name: tripName }).click();
   await expect(page.getByRole("heading", { name: tripName, level: 1 })).toBeVisible();
@@ -60,7 +60,7 @@ test("edits still queued when the page reloads are not lost", async ({ page }) =
 // applied), and the trip persisted the last three edits without the first.
 test("an edit whose request never left the page is still saved, ahead of the ones behind it", async ({ page }) => {
   const tripName = e2eTripName("Narvik");
-  await page.goto("/");
+  await page.goto("/home");
   await createEmptyTripViaWizard(page, tripName);
   await page.getByRole("link", { name: tripName }).click();
   await expect(page.getByRole("heading", { name: tripName, level: 1 })).toBeVisible();
@@ -98,7 +98,7 @@ test("an edit whose request never left the page is still saved, ahead of the one
 // batch makes two (the unit in flight, then everything behind it).
 test("edits still queued when you navigate away inside the app are each saved on their own", async ({ page }) => {
   const tripName = e2eTripName("Bodo");
-  await page.goto("/");
+  await page.goto("/home");
   await createEmptyTripViaWizard(page, tripName);
   await page.getByRole("link", { name: tripName }).click();
   await expect(page.getByRole("heading", { name: tripName, level: 1 })).toBeVisible();
@@ -148,7 +148,7 @@ test("edits queued at a reload reach the server with the service worker in contr
 
   // Production builds register the worker after hydration, and `claim()` on
   // activate hands it the open page; the trip page is then loaded under it.
-  await page.goto("/");
+  await page.goto("/home");
   await page.evaluate(async () => {
     await navigator.serviceWorker.ready;
   });

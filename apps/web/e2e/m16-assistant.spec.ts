@@ -22,7 +22,7 @@ test("a multi-turn conversation, scoped by the focused day and started from a de
   const tripName = e2eTripName("Multiturn");
   // page.request shares the context's cookies, and the context needs an
   // origin before a relative request URL means anything.
-  await page.goto("/");
+  await page.goto("/home");
   const tripId = await createMappedTrip(page, tripName, 3);
   await page.goto(`/trips/${tripId}?view=Plan`);
   await expect(page.getByRole("heading", { name: tripName, level: 1 })).toBeVisible();
@@ -141,7 +141,7 @@ test("a multi-turn conversation, scoped by the focused day and started from a de
 // `propose_notebook_editing` (simulatedModel.ts).
 test("the assistant takes you to the map and to a notebook, and turns editing on only after Approve", async ({ page }) => {
   const tripName = e2eTripName("TakeMe");
-  await page.goto("/");
+  await page.goto("/home");
   const tripId = await createMappedTrip(page, tripName, 2);
   await page.goto(`/trips/${tripId}?view=Plan`);
   await expect(page.getByRole("heading", { name: tripName, level: 1 })).toBeVisible();
@@ -187,7 +187,7 @@ test("the assistant takes you to the map and to a notebook, and turns editing on
 // used the keyboard missed it.
 test("the chips that used to be dead ends are clickable and answered", async ({ page }) => {
   const tripName = e2eTripName("Chips");
-  await page.goto("/");
+  await page.goto("/home");
   // Zero days: the empty-trip chip is the whole of the rail's opening offer,
   // and it is literally the first step of "plan a trip from start to finish".
   const tripId = await createMappedTrip(page, tripName, 0);
@@ -270,7 +270,7 @@ test("the chips that used to be dead ends are clickable and answered", async ({ 
 // viewport this file does not run.
 test("the Ask button is exactly as tall as the box beside it", async ({ page }) => {
   const tripName = e2eTripName("Composer");
-  await page.goto("/");
+  await page.goto("/home");
   const tripId = await createMappedTrip(page, tripName, 1);
   await page.goto(`/trips/${tripId}?view=Plan`);
   await openAssistantRail(page);

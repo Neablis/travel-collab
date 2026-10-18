@@ -78,7 +78,7 @@ describe("ChatPanel", () => {
   it("says the reader no longer has access, with a link home, and shows no conversation", () => {
     render(<ChatPanel chat={chat({ status: "no-access" })} personas={null} />);
     expect(screen.getByRole("status").textContent).toContain(NO_ACCESS_LINE);
-    expect(screen.getByRole("link", { name: "Back to your trips" }).getAttribute("href")).toBe("/");
+    expect(screen.getByRole("link", { name: "Back to your trips" }).getAttribute("href")).toBe("/home");
     expect(screen.queryByRole("list", { name: "Messages" })).toBeNull();
     expect(screen.queryByRole("combobox", { name: "Message" })).toBeNull();
   });

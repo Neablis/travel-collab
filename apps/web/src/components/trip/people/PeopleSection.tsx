@@ -47,6 +47,7 @@ import { InviteRow, inviteMenuLabel } from "./InviteRow";
 import { PersonMenu, type PersonAction } from "./PersonMenu";
 import { PersonRow } from "./PersonRow";
 import { RoleDialog } from "./RoleDialog";
+import { HOME_PATH } from "@/lib/homePath";
 
 // The travellers spec §4. One avatar, one name, one plain-words role line and
 // ONE control per row — the `⋯` menu, holding only what the reader may do.
@@ -425,9 +426,9 @@ export function PeopleSection({
       } else {
         // Leaving answers `{ ok: true }`, not the list: whoever left may no
         // longer read it. Home is where Home's own *Leave this trip* leaves
-        // you (`(app)/page.tsx`), and this trip is no longer yours to look at.
+        // you (`(app)/home/page.tsx`), and this trip is no longer yours to look at.
         const result = await leaveTrip(tripId);
-        if (result.ok) router.push("/");
+        if (result.ok) router.push(HOME_PATH);
         else setError(result.error.message);
       }
     } finally {

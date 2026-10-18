@@ -77,7 +77,7 @@ test.describe("the front door, signed out (M42)", () => {
   });
 
   test("the landing's Pricing link lands on the three plans", async ({ page }) => {
-    await page.goto("/welcome");
+    await page.goto("/");
     await page.getByRole("link", { name: "Pricing", exact: true }).click();
     await expect(page).toHaveURL(/#pricing$/);
     const pricing = page.getByRole("region", { name: "Pricing" });
@@ -98,7 +98,7 @@ test.describe("the front door, signed out (M42)", () => {
       }
     });
     page.on("pageerror", (error) => hydration.push(error.message));
-    await page.goto("/welcome");
+    await page.goto("/");
     const landing = page.getByTestId("desktop-landing");
     await expect(
       landing.getByRole("region", { name: "The trip starts before the trip." }).getByRole("list", { name: "Day 7 timeline" }),
@@ -121,7 +121,7 @@ test.describe("the front door, signed out (M42)", () => {
   // columns sits in the middle of the page.
   test("the landing's feature cards keep a card's width and sit centred on a wide screen", async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
-    await page.goto("/welcome");
+    await page.goto("/");
     const landing = page.getByTestId("desktop-landing");
     const titles = ["Relive someone’s perfect day.", "The trip starts before the trip.", "Too excited to sleep.", "How you’ll remember it."];
     const boxes = [];
@@ -144,7 +144,7 @@ test.describe("the front door, signed out (M42)", () => {
   // claim over it, and a hidden claim's links take no focus.
   test("the phone's Playbooks claim fits a short phone and its card takes the tap", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 664 });
-    await page.goto("/welcome");
+    await page.goto("/");
     const phone = page.getByTestId("phone-front-door");
     const title = phone.getByTestId("discover-card").getByRole("link", { name: PLAYBOOK });
     await expect(title).toBeVisible();

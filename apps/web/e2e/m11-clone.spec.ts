@@ -129,7 +129,7 @@ test("a stranger clones a shared trip, gets the pinned plan, and can edit it", a
     await expect(erin.getByText(new RegExp(`Copied from .${escapeForRegExp(tripName)}`))).toBeVisible();
 
     // It is hers, in her own trip list.
-    await erin.goto("/");
+    await erin.goto("/home");
     await expect(erin.getByRole("link", { name: `${tripName} (copy)` })).toBeVisible();
   } finally {
     await erin.context().close();
@@ -150,7 +150,7 @@ test("duplicating your own trip records where the copy came from", async ({ page
   test.slow();
   const tripName = e2eTripName("Duplicated");
   await createTrip(page, tripName);
-  await page.goto("/");
+  await page.goto("/home");
 
   await page.getByRole("button", { name: `Trip actions for ${tripName}` }).click();
   await Promise.all([

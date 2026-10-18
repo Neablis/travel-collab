@@ -69,7 +69,7 @@ async function visitedBefore(page: Page, returning: boolean): Promise<void> {
 }
 
 async function openHome(page: Page): Promise<void> {
-  await page.goto("/");
+  await page.goto("/home");
   await expect(page.getByRole("heading", { level: 1, name: "Your trips" })).toBeVisible();
 }
 

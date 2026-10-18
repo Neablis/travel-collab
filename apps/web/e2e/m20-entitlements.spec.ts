@@ -415,7 +415,7 @@ test.describe("M20 — an account knows what it may do", () => {
     const operator = await openOperator(browser);
 
     await operator.setViewportSize({ width: 411, height: 823 });
-    await operator.goto("/");
+    await operator.goto("/home");
     await operator.getByRole("button", { name: "Account menu" }).click();
     await expect(operator.getByRole("link", { name: "Your account" })).toBeVisible();
     // Present in the DOM (the link is rendered, then hidden by the breakpoint)
@@ -424,7 +424,7 @@ test.describe("M20 — an account knows what it may do", () => {
 
     // The same account, the same menu, one breakpoint wider.
     await operator.setViewportSize({ width: 1280, height: 800 });
-    await operator.goto("/");
+    await operator.goto("/home");
     await operator.getByRole("button", { name: "Account menu" }).click();
     await expect(operator.getByRole("link", { name: "Operator console" })).toBeVisible();
 

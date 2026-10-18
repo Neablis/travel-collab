@@ -30,7 +30,7 @@ test("history: dismiss persists, undo/redo, preview, revert", async ({ page }) =
   // the "alice" dev user's trip list, and a same-millisecond Date.now() would
   // otherwise make both specs' trip names collide.
   const tripName = e2eTripName("Venice");
-  await page.goto("/");
+  await page.goto("/home");
 
   // -- setup: a day with an overlap conflict (M1 vocabulary) --
   await createEmptyTripViaWizard(page, tripName);

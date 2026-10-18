@@ -963,13 +963,16 @@ describe("Home first-run experience", () => {
 });
 
 describe("Home unauthenticated visitor", () => {
-  it("sends an unauthenticated visitor to the landing page", async () => {
+  it("sends an unauthenticated visitor to the landing page, without the signed-in hint", async () => {
     fetchMock = vi.fn(async () => jsonResponse({ error: "unauthenticated" }, 401));
     vi.stubGlobal("fetch", fetchMock);
+    document.cookie = "tc_signed_in=1; Path=/";
 
     render(<HomeScreen />);
 
-    await waitFor(() => expect(replaceMock).toHaveBeenCalledWith("/welcome"));
+    await waitFor(() => expect(replaceMock).toHaveBeenCalledWith("/"));
+    // Left behind, the landing's script would send them straight back (ADR-078).
+    expect(document.cookie).not.toContain("tc_signed_in");
   });
 });
 
@@ -1238,7 +1241,7 @@ describe("Home trip list load failures", () => {
     // Not the first-run card: "your trips could not be read" and "you have no
     // trips" are different statements, and only one of them is true here.
     expect(screen.queryByText("Plan your first trip")).toBeNull();
-    // And not /welcome either — only a 401 means that (F-G03's "Do not").
+    // And not the landing either — only a 401 means that (F-G03's "Do not").
     expect(replaceMock).not.toHaveBeenCalled();
   });
 
@@ -1628,7 +1631,7 @@ describe("Home's assistant", () => {
   });
 });
 
-// **The list in the first HTML** (2026-10-18). `(app)/page.tsx` reads the list
+// **The list in the first HTML** (2026-10-18). `(app)/home/page.tsx` reads the list
 // on the server and hands it down as `initialTrips`, with the server's UTC date
 // as `initialToday`. `renderToString` is the server's render: no effects run,
 // so what it draws is what the HTML carries before hydration.

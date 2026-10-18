@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next";
 import { appColors } from "@/lib/appColors.generated";
+import { HOME_PATH } from "@/lib/homePath";
 import { SITE_DESCRIPTION, SITE_NAME } from "@/lib/siteMetadata";
 
 // M39 Part 4 (D4, D10): what makes Caesura installable — Chrome's *Install
@@ -19,7 +20,12 @@ export default function manifest(): MetadataRoute.Manifest {
     name: SITE_NAME,
     short_name: SITE_NAME,
     description: SITE_DESCRIPTION,
-    start_url: "/",
+    // ADR-078: the installed app opens on Home, which moved to `/home`. `id`
+    // is spelled out as the old start_url because an installed app's identity
+    // defaults to its start_url — without it, every existing install would be
+    // a different app from the one the browser now offers.
+    id: "/",
+    start_url: HOME_PATH,
     display: "standalone",
     theme_color: appColors.surface,
     background_color: appColors.paper,

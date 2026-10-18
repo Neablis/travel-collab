@@ -14,7 +14,7 @@ import { createEmptyTripViaWizard } from "./helpers";
 
 async function newTrip(page: Page, label: string): Promise<string> {
   const tripName = e2eTripName(label);
-  await page.goto("/");
+  await page.goto("/home");
   await createEmptyTripViaWizard(page, tripName);
   await page.getByRole("link", { name: tripName }).click();
   await page.waitForURL(/\/trips\/[^/]+$/);

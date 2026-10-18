@@ -44,7 +44,7 @@ describe("running a palette command by id", () => {
     expect(runPaletteCommand("go:trip:t1")).toBe(true);
     expect(push).toHaveBeenLastCalledWith("/trips/t1");
     expect(runPaletteCommand("go:home")).toBe(true);
-    expect(push).toHaveBeenLastCalledWith("/");
+    expect(push).toHaveBeenLastCalledWith("/home");
   });
 
   // ADR-072 §6: one command for "open my Kyoto trip on the map", by the

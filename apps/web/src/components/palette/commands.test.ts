@@ -86,7 +86,7 @@ describe("palette commands hold the page's own actions", () => {
     ]);
     const listed = commands.filter((c) => c.unlisted !== true);
     for (const command of listed) command.run();
-    expect(go.mock.calls.flat()).toEqual(["/", "/playbooks", "/account", "/trips/t1", "/trips/t2"]);
+    expect(go.mock.calls.flat()).toEqual(["/home", "/playbooks", "/account", "/trips/t1", "/trips/t2"]);
     expect(listed.filter((c) => c.type === "Trip").map((c) => c.order)).toEqual([0, 1]);
   });
 

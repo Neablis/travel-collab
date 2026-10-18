@@ -22,7 +22,7 @@ import { isDemoTripId } from "./demoTrip";
  *      ADR-063; nothing refuses a sign-in for want of a code any more.)
  *   3. A returning account never sees `/demo` at all — the gate waves them
  *      through and Auth.js lands them wherever the callback said, which after
- *      hop 1 or 2 is `/`.
+ *      hop 1 or 2 is Home (`/home`).
  *
  * So the intent is banked in the browser instead of being threaded through
  * every one of those URLs, and it is redeemed by whichever of `/demo/<slug>` and the

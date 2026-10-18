@@ -81,7 +81,7 @@ describe("PhoneTabBar", () => {
   // through to 'anything that isn't a trip'". `/invite/<token>` is the proof
   // of that: a route no tab owns selects nothing.
   it.each([
-    ["/", "Trips"],
+    ["/home", "Trips"],
     ["/playbooks", "Playbooks"],
     ["/playbooks/day/d1", "Playbooks"],
     ["/playbooks/board", "Trips"],
@@ -135,7 +135,7 @@ describe("PhoneTabBar", () => {
     // it, so a fresh mount is the one thing that never happens in production —
     // and it is exactly what would let a `useState` initialiser look correct
     // here while desyncing in the app.
-    url = "/";
+    url = "/home";
     rerender(<PhoneTabBar />);
     expect(currentTab()).toBe("Trips");
   });
@@ -259,7 +259,7 @@ describe("PhoneTabBar", () => {
     // that it is gone. This is why the height effect runs on a task route too
     // rather than being skipped with the render.
     it("unpublishes the height it reserved when it steps aside", () => {
-      const { unmount } = renderAt("/");
+      const { unmount } = renderAt("/home");
       unmount();
       renderAt("/account");
       expect(document.documentElement.style.getPropertyValue("--phone-tab-bar-height")).toBe("");
@@ -270,7 +270,7 @@ describe("PhoneTabBar", () => {
   // this bar is Trips (theirs, of which they have none) and Playbooks (where
   // they already are). The header's *Sign in* is their way in.
   describe("for a reader with no account", () => {
-    it.each(["/playbooks", "/playbooks/day/d1", "/playbooks/board", "/"])("renders no bar on %s", (route) => {
+    it.each(["/playbooks", "/playbooks/day/d1", "/playbooks/board", "/home"])("renders no bar on %s", (route) => {
       session = null;
       renderAt(route);
       expect(tabs()).toEqual([]);
@@ -385,7 +385,7 @@ describe("PhoneTabBar", () => {
       expect(screen.queryByRole("link", { name: label })).toBeNull();
       expect(screen.queryByRole("button", { name: new RegExp(`^${label}`) })).toBeNull();
     }
-    expect(hrefOf("Trips")).toBe("/");
+    expect(hrefOf("Trips")).toBe("/home");
     expect(hrefOf("Playbooks")).toBe("/playbooks");
   });
 

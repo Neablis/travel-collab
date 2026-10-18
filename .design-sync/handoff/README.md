@@ -312,7 +312,7 @@ against the milestone link that owns the screen before writing code
 
 | Route | Where it is drawn | Spec | Notes |
 |---|---|---|---|
-| `/` | `isHome` · line 1589 | §28, §32 | Trips, the new-trip fork and the import entry |
+| `/home` | `isHome` · line 1589 | §28, §32 | Trips, the new-trip fork and the import entry |
 | `/trips/[tripId]` | `isTrip` · line 1873 | §24, §25 | The four tabs; Overview is a notebook page |
 | `/trips/[tripId]/pages` | `isNotebook` · line 3724 | §7, §18, §19 | Notebook index |
 | `/trips/[tripId]/pages/[pageId]` | `isDoc` · line 3819 | §18, §21, §26 | One page, and the widget framework |
@@ -323,7 +323,7 @@ against the milestone link that owns the screen before writing code
 | `/plans` | `isPlansRoute` · line 3488 | §29, §34 | §34.3 adds the phone treatment |
 | `/account` | `isAccountRoute` · line 3220 | §12, §34 | Three tabs in `?tab=`; was a Sheet until M26 link 1 |
 | `/admin` | `isAdminRoute` · line 3620 | §17 | Operator console. The artboard also draws M21's strip — read M20 link 7's split note |
-| `/welcome` | `isDeskLanding` · line 5004 | §14, §17 | The landing page; `isPhoneLanding` is its phone artboard. §17.1 is the pricing block |
+| `/` | `isDeskLanding` · line 5004 | §14, §17 | The landing page; `isPhoneLanding` is its phone artboard. §17.1 is the pricing block |
 | `/signin` | `isSignin` · line 5417 | §14, §28 | Inside the `isAuth` block |
 | `/signup` | `isSignup` · line 5414 | §14, §28 | Inside the `isAuth` block |
 | `/demo/[slug]` | `isTrip` · line 1873 | §27 | No artboard of its own — the trip surface in `readOnly` (§27); one per demo trip (M42 D1) |

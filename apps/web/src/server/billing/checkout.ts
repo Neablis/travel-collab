@@ -26,6 +26,7 @@ import { stripePriceFor, UnpurchasableVersionError } from "./prices";
 import { createCustomer, stripeRequest, type StripeCheckoutSession, type StripePortalSession } from "./stripeApi";
 import { subscriptionFor } from "./subscriptions";
 import { billingModeFor } from "./testMode";
+import { HOME_PATH } from "@/lib/homePath";
 
 /**
  * The Stripe customer for an account in one Stripe mode, creating one the
@@ -256,7 +257,7 @@ export async function portalUrlFor(input: {
     // settings is a Sheet opened from the header's avatar menu, not a page —
     // so a return URL naming one would be a 404 at the end of a billing
     // journey, which is the worst place to put one.
-    body: { customer: customerId, return_url: `${input.returnOrigin}/` },
+    body: { customer: customerId, return_url: `${input.returnOrigin}${HOME_PATH}` },
   });
   return session.url;
 }

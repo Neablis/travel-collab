@@ -95,7 +95,7 @@ test("a trip walked from the keyboard alone: drilling, typing across levels, a n
 });
 
 test("Add › Trip from Home is Home's own button", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/home");
   await expect(page.getByRole("heading", { name: "Your trips" })).toBeVisible();
   await command(page, "add trip");
   await expect(page.getByRole("dialog", { name: "New trip" })).toBeVisible();

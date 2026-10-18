@@ -208,7 +208,7 @@ export function DevelopersScreen() {
 
       <footer className="border-t border-hairline">
         <div className="mx-auto flex w-full max-w-180 flex-wrap items-center gap-x-2 gap-y-1 px-4 py-6 md:px-7">
-          <Link href="/welcome" className="text-xs text-slate">
+          <Link href="/" className="text-xs text-slate">
             &larr; Caesura home
           </Link>
           <Text as="span" variant="muted" aria-hidden>

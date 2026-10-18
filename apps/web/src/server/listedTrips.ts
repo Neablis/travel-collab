@@ -8,7 +8,7 @@ import { listedSpend } from "@/server/access/overlay";
 /**
  * Home's trip list for one reader: every trip `userId` can see, each with its
  * effective members, the reader's unread chat count and the budget line's
- * figures — the body of `GET /api/trips`, and what `(app)/page.tsx` renders on
+ * figures — the body of `GET /api/trips`, and what `(app)/home/page.tsx` renders on
  * the server, so the two cannot drift.
  *
  * The unread count and the spend figures degrade on their own (zero, `null`)
