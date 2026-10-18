@@ -3446,43 +3446,51 @@ describe("TripBoardScreen — the server's first data before and after hydration
     </TripProvider>
   );
 
-  // A trip with a day, so Plan draws its day chips: drawn by this screen, not
-  // by a lens's own lazily loaded code, so their absence is this gate's doing.
+  // A trip with a day, so Plan has day chips and columns to draw.
   const withADay = () => tripFirstDataFixture({ trip: costedTripDetailFixture() });
 
-  it("renders the header on the server, inert, with the view's skeleton and no lens", () => {
+  it("renders the header on the server, inert, with the view's placeholder and nothing live outside it", () => {
     const html = renderToStaticMarkup(seededTree(withADay()));
     expect(html).toMatch(/<div[^>]*data-testid="trip-board-content"[^>]*inert=""/);
     expect(html).toContain("Rome 2027");
-    expect(html).not.toContain('aria-label="Days"');
-    expect(html).toContain('aria-busy="true"');
+    // The lens is its placeholder — Plan's frame, chips above its columns.
+    expect(html).toContain('data-testid="lens-placeholder"');
+    expect(html).toContain('aria-label="Loading the plan"');
+    expect(html).toContain('aria-label="Days"');
+    // The rack's dock is outside the inert column, so it is not drawn at all.
+    expect(html).not.toContain('data-testid="rack-dock"');
   });
 
   it("mounts the lens at hydration with no trip read, and is no longer inert", async () => {
     const first = withADay();
     server.use(...makeTripHandlers(first.trip.trip));
     const reads: string[] = [];
-    server.events.on("request:start", ({ request }) => {
+    const onRequest = ({ request }: { request: Request }) => {
       const path = new URL(request.url).pathname;
       if (request.method === "GET" && /^\/api\/trips\/[^/]+(\/(history|access|cover|globals|pages))?$/.test(path)) reads.push(path);
-    });
+    };
+    server.events.on("request:start", onRequest);
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    // `renderToString`, not static markup: hydration needs its text markers.
+    container.innerHTML = renderToString(seededTree(first));
+    const mismatches: unknown[] = [];
+    let root: ReturnType<typeof hydrateRoot> | undefined;
     try {
-      const container = document.createElement("div");
-      document.body.appendChild(container);
-      // `renderToString`, not static markup: hydration needs its text markers.
-      container.innerHTML = renderToString(seededTree(first));
-      const mismatches: unknown[] = [];
       await act(async () => {
-        hydrateRoot(container, seededTree(first), { onRecoverableError: (error) => mismatches.push(error) });
+        root = hydrateRoot(container, seededTree(first), { onRecoverableError: (error) => mismatches.push(error) });
       });
-      // Plan's own content, where the server drew the skeleton.
-      await waitFor(() => expect(within(container).getByRole("group", { name: "Days" })).toBeTruthy());
-      expect(within(container).getAllByTestId("day-column").length).toBeGreaterThan(0);
+      // Plan's own columns, where the server drew the placeholder.
+      await waitFor(() => expect(within(container).getAllByTestId("day-column").length).toBeGreaterThan(0));
+      expect(within(container).queryByTestId("lens-placeholder")).toBeNull();
+      expect(within(container).getByTestId("rack-dock")).toBeTruthy();
       expect(mismatches).toEqual([]);
       expect(within(container).getByTestId("trip-board-content").hasAttribute("inert")).toBe(false);
       expect(reads).toEqual([]);
     } finally {
-      server.events.removeAllListeners();
+      server.events.removeListener("request:start", onRequest);
+      act(() => root?.unmount());
+      document.body.removeChild(container);
     }
   });
 });

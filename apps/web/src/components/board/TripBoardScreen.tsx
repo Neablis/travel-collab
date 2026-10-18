@@ -102,8 +102,10 @@ import { whenIdle } from "@/lib/whenIdle";
 // trip read rather than after it, and each placeholder (`LensSkeletons.tsx`)
 // holds its view's height while it arrives.
 //
-// `ssr` is left at its default: none of these renders on the server anyway,
-// since this screen draws its header skeleton until `TripProvider` answers on
+// `ssr` is left at its default: none of these renders on the server anyway.
+// With the trip sent from the server (PR 486) the board's header does, but its
+// lens is the view's placeholder until hydration (`LensPlaceholder`); without
+// it, this screen draws its header skeleton until `TripProvider` answers on
 // the client. The rack rides with Plan, the only view that mounts it.
 const MapLens = dynamic(() => import("@/components/lenses/MapLens").then((m) => m.MapLens), {
   loading: () => <MapLensSkeleton />,
@@ -1557,7 +1559,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
           )}
           <div inert={preview.seq !== null ? true : undefined}>
             {!hydrated ? (
-              <LensPlaceholder view={view} />
+              <LensPlaceholder view={view} dayChips={view === "Plan" && !pinsDayRail ? dayChips : null} />
             ) : isFullLens ? (
               // px-0: Task 2.3 makes the Map lens genuinely full-bleed
               // ("mapwrap" in the handoff) — the default px-6 gutter would
@@ -1833,8 +1835,13 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
           from the Map and Calendar too (W35), and the bar is where those edits
           wait. Outside the `inert` wrapper's reach for the same reason the
           header's controls are: discarding or sending is not an edit to the
-          version being previewed. */}
-      {draft !== null ? (
+          version being previewed.
+
+          Both only once hydrated (PR 486 review): they sit outside the
+          column that is `inert` until then, so drawn in the server's HTML
+          they were dead controls, and a phone, whose rack is a row on the
+          board rather than this dock, saw the desktop dock until hydration. */}
+      {!hydrated ? null : draft !== null ? (
         <div ref={rackWrapperRef}>
           <SuggestionTray draft={draft} />
         </div>
@@ -1851,14 +1858,27 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
 
 /**
  * A view's skeleton, for the server's HTML and the hydrating render, where the
- * lens itself is not drawn (`TripBoardScreen`'s `hydrated`). The same
- * placeholders the lenses' code shows while it loads.
+ * lens itself is not drawn (`TripBoardScreen`'s `hydrated`): the frame each
+ * view has while its own code loads — its container, Plan's day chips above
+ * its columns — with that view's placeholder in it, so nothing moves when the
+ * lens replaces it.
  */
-function LensPlaceholder({ view }: { view: View }) {
-  if (view === "Map") return <MapLensSkeleton />;
+function LensPlaceholder({ view, dayChips }: { view: View; dayChips: React.ReactNode }) {
+  if (view === "Map") {
+    return (
+      <PageContainer width="full" className="px-0">
+        <div data-testid="lens-placeholder">
+          <MapLensSkeleton />
+        </div>
+      </PageContainer>
+    );
+  }
   return (
-    <PageContainer width="content">
-      {view === "Overview" ? <OverviewLensFallback /> : view === "Calendar" ? <CalendarLensSkeleton /> : <PlanLensSkeleton />}
+    <PageContainer width={view === "Plan" ? "full" : "content"}>
+      <div data-testid="lens-placeholder">
+        {dayChips !== null && <div className="pt-2.5">{dayChips}</div>}
+        {view === "Overview" ? <OverviewLensFallback /> : view === "Calendar" ? <CalendarLensSkeleton /> : <PlanLensSkeleton />}
+      </div>
     </PageContainer>
   );
 }

@@ -354,18 +354,29 @@ here two days later.
     access to. Its numbers came from a local production build.
 
 - **The Overview document is in the first HTML (found by PR 486, 2026-10-18).** On a phone the
-  trip page's LCP element is a `<p>` of the Overview notebook, and `PageEditor` creates TipTap
-  with `immediatelyRender: false`. So even with the page's data sent from the server, the
-  paragraph appears only after hydration, the lens's chunk and the editor's creation. It needs a
-  static server render of the document — TipTap's static renderer or `generateHTML`, a new
-  dependency, or a second renderer — swapped for the editor once the editor exists. Mitchell
-  deferred it on 2026-10-18, out of the trip page's first-data stack. Measured in PR 486.
+  trip page's LCP element is a `<p>` of the Overview notebook. Since PR 486 the first HTML holds
+  the trip's header and the lens's skeleton, but no lens: the board is `inert` and every lens is
+  its placeholder until hydration (so a phone never sees a lens in its desktop form, and no tap
+  lands on a dead control), and the lens's chunk loads after it. The paragraph then waits on the
+  editor too: `PageEditor` creates TipTap with `immediatelyRender: false`. It needs a static
+  server render of the document — TipTap's static renderer or `generateHTML`, a new dependency,
+  or a second renderer — swapped for the editor once the editor exists. Mitchell deferred it on
+  2026-10-18, out of the trip page's first-data stack. Measured in PR 486.
+  - **What PR 486 measured** (Lighthouse 12, mobile, local production build, median of 5,
+    devtools throttling): LCP 10.70s on main, 8.11s with the PR. Under Lighthouse's default
+    simulated throttling LCP is about 7.7s for every variant, because Lantern charges all
+    JavaScript evaluation before the paint. A throwaway prototype that put the Overview's
+    paragraphs in the server HTML, in the editor's own classes, moved the observed (unthrottled)
+    LCP to the first paint but not the simulated one — so a static render's lab value has to be
+    judged under devtools throttling. LCP's remaining ~8s is main-thread render delay, not
+    network: React hydrating the board in the framework chunk, about 2.7s of scripting at 4x.
   - **A phone's first HTML is the desktop form until hydration.** `useIsPhone` is `false` on
-    the server and on the first client render, so `TripHeader` (its one-row phone header) and
-    `OverviewLens` (`compact`) are drawn in their desktop form in the server HTML and shift when
-    the hook corrects after hydration. Before PR 486 neither rendered until the provider had
-    loaded, by which time the hook had. Accepted for part 1; the fix is the same breakpoint in
-    CSS (`max-md:`) wherever the form is only a restyle.
+    the server and on the first client render, so `TripHeader` (its one-row phone header) is
+    drawn in its desktop form in the server HTML and shifts when the hook corrects after
+    hydration. Before PR 486 it did not render until the provider had loaded, by which time the
+    hook had. The lenses no longer do this, being placeholders until hydration. Accepted for
+    part 1; the fix is the same breakpoint in CSS (`max-md:`) wherever the form is only a
+    restyle.
 
 - **Trip requests stop re-reading the whole trip (found by PR 481's audit, 2026-10-18).** Every
   `/api/trips/[tripId]/**` request runs `requireTripAccess`, which reads and Zod-parses the whole
