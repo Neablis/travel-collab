@@ -77,6 +77,18 @@ export function useIsAbovePhone(): boolean | undefined {
 }
 
 /**
+ * `useIsPhone`'s question answered without its effect: `true` below 768px,
+ * `false` from 768px up, `undefined` on the server and through hydration.
+ * Known on a component's first client render, where `useIsPhone` still holds
+ * its `false` guess — so `useIsPhoneKnown() === useIsPhone()` is how a caller
+ * waits until a `useIsPhone` reader will draw its right form (the trip
+ * board's lens, PR 486).
+ */
+export function useIsPhoneKnown(): boolean | undefined {
+  return useKnownMatches(PHONE);
+}
+
+/**
  * Whether an assistant that docks where the trip board does (from 1100px) is
  * docked: `false` on a phone and from 768 to 1099px, `undefined` until known,
  * as `useIsAbovePhone`. Home's, read while its rail is open; nothing opens it

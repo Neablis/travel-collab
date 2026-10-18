@@ -35,7 +35,7 @@ import {
   OverviewLensFallback,
   PlanLensSkeleton,
 } from "@/components/lenses/LensSkeletons";
-import { useIsAbovePhone, useIsPhone, useIsTabletWidth } from "@/lib/useIsPhone";
+import { useIsAbovePhone, useIsPhone, useIsPhoneKnown, useIsTabletWidth } from "@/lib/useIsPhone";
 import { useHydrated } from "@/lib/useHydrated";
 import { Heading } from "@/components/ui/heading";
 import { Text } from "@/components/ui/text";
@@ -543,6 +543,14 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // which-button-did-you-press flag would not: rotating a 411x852 phone into
   // landscape crosses 768px with the panel already open.
   const isPhone = useIsPhone();
+  // **Live once hydrated AND once the width is known** (PR 486 e2e,
+  // m26-phone-plan). `useIsPhone` corrects in an effect, after the render that
+  // hydration triggers, so a lens mounted on that render drew a phone's Plan in
+  // its desktop form for a frame. `useIsPhoneKnown` asks the same media query
+  // without the effect, so the lens, the rack and the column's `inert` wait
+  // until the two agree.
+  const isPhoneKnown = useIsPhoneKnown();
+  const widthKnown = isPhoneKnown !== undefined && isPhoneKnown === isPhone;
   // SPEC §9's "and the user picks" (M26 link 10a). Per surface and per
   // device — see `useAssistantShape` for why neither is one global setting.
   const [assistantShape, chooseAssistantShape] = useAssistantShape("board");
@@ -641,6 +649,18 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
     defaultedPhoneDay.current = true;
     setFocusedDay(0);
   }, [isPhone, focusedDay, activeTrip, setFocusedDay]);
+  // **Live once hydrated, once the width is known, and on a phone once a day
+  // is focused** (PR 486 e2e, m26-phone-plan). The arrival day above draws a
+  // card that moves the page; with the lens mounted before it, the page moved
+  // under a reader already looking at the river. Latched once a day has been
+  // focused, so a reader clearing the focus later does not unmount the lens.
+  const [phoneDayFocused, setPhoneDayFocused] = useState(false);
+  useEffect(() => {
+    if (focusedDay !== null) setPhoneDayFocused(true);
+  }, [focusedDay]);
+  const awaitsPhoneDay =
+    isPhone && !phoneDayFocused && focusedDay === null && activeTrip !== null && activeTrip.days.length > 0;
+  const live = hydrated && widthKnown && !awaitsPhoneDay;
 
   const searchParams = useSearchParams();
   /** **A link card to a notebook** from a board with no notebook route — `/demo/<slug>`, an invite's look (`linkHref`). */
@@ -1447,7 +1467,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
           // carries no role or accessible name to reach it by — it is a
           // styling seam, which is exactly the case `data-testid` is for here.
           data-testid="trip-board-content"
-          inert={hydrated ? undefined : true}
+          inert={live ? undefined : true}
           // The rack is `position: fixed`, so it is outside normal flow and
           // reserves no space: the day columns' own 24px bottom padding was
           // measured against the viewport, not against the bar sitting on
@@ -1570,7 +1590,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
             </PageContainer>
           )}
           <div inert={preview.seq !== null ? true : undefined}>
-            {!hydrated ? (
+            {!live ? (
               <LensPlaceholder view={view} dayChips={view === "Plan" && !pinsDayRail ? dayChips : null} />
             ) : isFullLens ? (
               // px-0: Task 2.3 makes the Map lens genuinely full-bleed
@@ -1853,7 +1873,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
           column that is `inert` until then, so drawn in the server's HTML
           they were dead controls, and a phone, whose rack is a row on the
           board rather than this dock, saw the desktop dock until hydration. */}
-      {!hydrated ? null : draft !== null ? (
+      {!live ? null : draft !== null ? (
         <div ref={rackWrapperRef}>
           <SuggestionTray draft={draft} />
         </div>

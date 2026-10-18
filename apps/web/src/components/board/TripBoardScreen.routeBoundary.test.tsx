@@ -125,6 +125,8 @@ describe("TripBoardScreen — inside the route's Suspense boundary", () => {
     gates.rack.release();
     const shown = await renderInRoute();
     expect(await screen.findByTestId("rack-dock")).toBeTruthy();
+    // The rack is the other case's; from here only the editor is under test.
+    shown.routeFallback = false;
     fireEvent.click(screen.getByRole("button", { name: "open the editor" }));
     expect(shown.routeFallback).toBe(false);
     expect(screen.getByRole("heading", { name: "Rome 2027" })).toBeTruthy();
