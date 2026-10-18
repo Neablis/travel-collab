@@ -21,7 +21,7 @@ import { cn } from "@/lib/cn";
 // `/demo/<slug>` — the real board, read-only, for someone who has no account
 // yet (ADR-031), on one of the demo trips (M42 D1).
 //
-// The provider stack below is the SAME stack `(app)/trips/[tripId]/page.tsx`
+// The provider stack below is the SAME stack `(app)/trips/[tripId]/(board)/page.tsx`
 // mounts, in the same order, around the same `TripBoardScreen`. That is the
 // whole design: a visitor gets the actual product — Day columns, Timeline,
 // Calendar, the Map with its rail and focus card, the day chips, the budget

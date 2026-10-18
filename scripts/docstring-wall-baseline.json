@@ -5,7 +5,6 @@
   "apps/web/src/app/(app)/playbooks/board/page.tsx::LeaderboardPage",
   "apps/web/src/app/(app)/playbooks/page.tsx::PlaybooksPage",
   "apps/web/src/app/(app)/playbooks/profile/[userId]/page.tsx::PublicProfilePage",
-  "apps/web/src/app/(app)/trips/[tripId]/page.tsx::TripPage",
   "apps/web/src/app/(app)/trips/[tripId]/pages/[pageId]/page.tsx::NotebookPagePage",
   "apps/web/src/app/(app)/trips/[tripId]/pages/page.tsx::NotebookPage",
   "apps/web/src/app/(front)/s/[token]/page.tsx::SharedTripPage",

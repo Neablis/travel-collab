@@ -192,7 +192,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   if (editor.mode !== null && !editorMounted) setEditorMounted(true);
   const suggestions = useBoardSuggestions();
   // Task 4's FocusProvider is mounted around this whole tree (trips/[tripId]/
-  // page.tsx), so this hook must run unconditionally before the early
+  // (board)/page.tsx), so this hook must run unconditionally before the early
   // returns below — the day chips (Task 8) above Plan's columns both read and
   // set it.
   const { focusedDay, setFocusedDay, focusedTag, toggleFocusedTag } = useFocus();
@@ -748,7 +748,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   }, []);
   useEffect(() => () => rackObserverRef.current?.disconnect(), []);
 
-  // The page shell (trips/[tripId]/page.tsx) now owns the <main> landmark via
+  // The page shell (trips/[tripId]/(board)/page.tsx) now owns the <main> landmark via
   // PageContainer as="main" width="full" px-0 (Task L1) — this component owns
   // its own horizontal padding via PageContainer wrappers below, so these
   // early-return states need their own too.
