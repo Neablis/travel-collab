@@ -95,9 +95,13 @@ That made the most-visited URL the most expensive one:
   full load only. The landing's own effect (`LeaveLandingIfSignedIn`) covers a client navigation
   and Back within a document — the not-found page's *Caesura home*, Back from `/signin`, the
   front-door logo — and, through a `pageshow` listener kept with the page, a back-forward-cache
-  restore. A client render shows the landing for one frame before it leaves. The `pageshow` check
-  is not in the head script because growing the root layout's HTML by even 84 bytes turned
-  `e2e/seo.spec.ts`'s "same 404 with the same body" red: the flight payload's row ids follow the
-  flush, and that test compares them.
+  restore. It leaves with `location.replace`, a full load of request-rendered Home, so the landing
+  stays on screen until Home's response commits: a server render behind `auth()` and database
+  reads, hundreds of milliseconds on a cold function, not one frame. A full load rather than
+  `router.replace` because it goes through the proxy, which clears a stale hint. On a full load
+  of `/` the head script has already left, so the effect skips its first mount in that document
+  rather than request Home a second time. The `pageshow` check is not in the head script because
+  growing the root layout's HTML by even 84 bytes turned `e2e/seo.spec.ts`'s "same 404 with the
+  same body" red (KI-2026-10-18-d).
 - Old browsers without `Sec-Fetch-Dest` (Safari before 16.4) keep the prefetch race above: at
   worst a sign-out lands on `/signin` rather than the landing.

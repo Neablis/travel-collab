@@ -61,3 +61,54 @@ describe("LeaveLandingIfSignedIn", () => {
     expect(replace).toHaveBeenCalledWith("/home");
   });
 });
+
+// On a full load of `/` the head script has already replaced the page, so the
+// first mount must not replace it again (that cancels the request and renders
+// Home twice). jsdom has no navigation entries, so the entry is stubbed, and
+// each test imports a fresh module because "first mount" is module state.
+describe("LeaveLandingIfSignedIn in a document loaded at a given URL", () => {
+  async function loadedAt(url: string) {
+    Object.defineProperty(performance, "getEntriesByType", {
+      configurable: true,
+      value: (type: string) => (type === "navigation" ? [{ name: url }] : []),
+    });
+    vi.resetModules();
+    return (await import("./LeaveLandingIfSignedIn")).LeaveLandingIfSignedIn;
+  }
+
+  afterEach(() => {
+    delete (performance as { getEntriesByType?: unknown }).getEntriesByType;
+  });
+
+  it("leaves the first mount in a document loaded at / to the head script", async () => {
+    const Leave = await loadedAt("http://localhost:3000/");
+    document.cookie = `${SIGNED_IN_HINT_COOKIE}=1; Path=/`;
+    render(<Leave />);
+    expect(replace).not.toHaveBeenCalled();
+  });
+
+  it("leaves on a later mount in that document, as on Back to /", async () => {
+    const Leave = await loadedAt("http://localhost:3000/");
+    document.cookie = `${SIGNED_IN_HINT_COOKIE}=1; Path=/`;
+    render(<Leave />);
+    cleanup();
+    render(<Leave />);
+    expect(replace).toHaveBeenCalledTimes(1);
+    expect(replace).toHaveBeenCalledWith("/home");
+  });
+
+  it("leaves on the first mount in a document loaded elsewhere, as on a client navigation from /signin", async () => {
+    const Leave = await loadedAt("http://localhost:3000/signin");
+    document.cookie = `${SIGNED_IN_HINT_COOKIE}=1; Path=/`;
+    render(<Leave />);
+    expect(replace).toHaveBeenCalledWith("/home");
+  });
+
+  it("still leaves on a back-forward-cache restore of the first mount", async () => {
+    const Leave = await loadedAt("http://localhost:3000/");
+    document.cookie = `${SIGNED_IN_HINT_COOKIE}=1; Path=/`;
+    render(<Leave />);
+    window.dispatchEvent(new PageTransitionEvent("pageshow", { persisted: true }));
+    expect(replace).toHaveBeenCalledWith("/home");
+  });
+});

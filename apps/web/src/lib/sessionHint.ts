@@ -101,9 +101,7 @@ export function hasSignedInHint(cookie: string): boolean {
  *
  * A client navigation to `/`, and a back-forward-cache restore of it, are the
  * landing's own effect's (`LeaveLandingIfSignedIn`). **Keep this string as
- * short as it is**: e2e/seo.spec.ts's "same 404 with the same body" goes red
- * when the root layout's HTML grows by as little as an 84-byte comment here,
- * because the flight payload's row ids then follow a different flush
- * (measured 2026-10-18, PR 490).
+ * short as it is**: growing the root layout's HTML can turn a seo e2e red
+ * (KI-2026-10-18-d).
  */
 export const LEAVE_LANDING_IF_SIGNED_IN = `if(location.pathname==="/"&&/(?:^|;\\s*)${SIGNED_IN_HINT_COOKIE}=/.test(document.cookie))location.replace(${JSON.stringify(HOME_PATH)});`;

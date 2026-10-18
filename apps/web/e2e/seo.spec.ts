@@ -224,6 +224,9 @@ test("a day's head: name and first city in the title, the facts line, a slugged 
 //  - The ORDER of the rows in Next's flight payload. They are written as they
 //    resolve, so the order follows timing: the rows are compared as a sorted
 //    list, across the `<script>` chunks they are cut into.
+// Where those chunks are interleaved into the HTML is NOT normalised, and it
+// follows byte counts: growing the root layout by 84 bytes turned this red with
+// no privacy change (KI-2026-10-18-d). Read that before chasing a leak here.
 function comparable(body: string, segment: string): string {
   return body
     .replace(/<meta name="(?:sentry-trace|baggage)" content="[^"]*"\/>/g, "")
