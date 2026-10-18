@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import { safeCallbackUrl } from "./safeCallbackUrl";
 
 describe("safeCallbackUrl", () => {
-  it("defaults to / when there is no callbackUrl", () => {
-    expect(safeCallbackUrl(null)).toBe("/");
+  it("defaults to Home when there is no callbackUrl", () => {
+    expect(safeCallbackUrl(null)).toBe("/home");
   });
 
   it("honours a same-origin relative path", () => {
@@ -15,23 +15,23 @@ describe("safeCallbackUrl", () => {
   // -> `https://evil.example`), so it must be rejected even though a naive
   // `startsWith("/")` check alone would accept it.
   it("rejects a protocol-relative URL", () => {
-    expect(safeCallbackUrl("//evil.example")).toBe("/");
-    expect(safeCallbackUrl("//evil.example/phish")).toBe("/");
+    expect(safeCallbackUrl("//evil.example")).toBe("/home");
+    expect(safeCallbackUrl("//evil.example/phish")).toBe("/home");
   });
 
   it("rejects an absolute URL to another origin", () => {
-    expect(safeCallbackUrl("https://evil.example")).toBe("/");
-    expect(safeCallbackUrl("http://evil.example/trips/abc")).toBe("/");
+    expect(safeCallbackUrl("https://evil.example")).toBe("/home");
+    expect(safeCallbackUrl("http://evil.example/trips/abc")).toBe("/home");
   });
 
   it("rejects a path that does not start with /", () => {
-    expect(safeCallbackUrl("trips/abc-123")).toBe("/");
-    expect(safeCallbackUrl("")).toBe("/");
+    expect(safeCallbackUrl("trips/abc-123")).toBe("/home");
+    expect(safeCallbackUrl("")).toBe("/home");
   });
 
   it("rejects a javascript: or data: pseudo-URL", () => {
-    expect(safeCallbackUrl("javascript:alert(1)")).toBe("/");
-    expect(safeCallbackUrl("data:text/html,<script>alert(1)</script>")).toBe("/");
+    expect(safeCallbackUrl("javascript:alert(1)")).toBe("/home");
+    expect(safeCallbackUrl("data:text/html,<script>alert(1)</script>")).toBe("/home");
   });
 
   // Parser-differential guard: `/\evil.example` and `/\/evil.example` both
@@ -43,7 +43,7 @@ describe("safeCallbackUrl", () => {
   // `baseUrl` to a literal `/`-prefixed string), but the guard should not
   // depend on that staying true.
   it("rejects a callbackUrl containing a backslash", () => {
-    expect(safeCallbackUrl("/\\evil.example")).toBe("/");
-    expect(safeCallbackUrl("/\\/evil.example")).toBe("/");
+    expect(safeCallbackUrl("/\\evil.example")).toBe("/home");
+    expect(safeCallbackUrl("/\\/evil.example")).toBe("/home");
   });
 });

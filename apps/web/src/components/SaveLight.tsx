@@ -6,6 +6,7 @@ import { Button, PHONE_TOUCH } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 import { BrandMark } from "@/components/BrandMark";
 import type { SendFailure } from "@/components/trip/context/optimistic";
+import { HOME_PATH } from "@/lib/homePath";
 
 // RULES.md 1 says the top bar is account scope only, and SPEC §"The logo is
 // the save light" answers the objection head-on rather than leaving it to be
@@ -152,7 +153,7 @@ export function SaveLightMark() {
     // became part of the link's name, so the way home was announced as "All
     // changes saved Caesura". It is `sr-only`, so moving it moves nothing.
     <span className="flex items-center">
-      <Link href="/" className={cn("flex items-center gap-2.5 no-underline", PHONE_TOUCH)}>
+      <Link href={HOME_PATH} className={cn("flex items-center gap-2.5 no-underline", PHONE_TOUCH)}>
         {mark}
         <span className="font-display text-md font-semibold text-ink">Caesura</span>
       </Link>

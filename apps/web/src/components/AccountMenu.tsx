@@ -20,6 +20,8 @@ import { pathAfterDemoReset } from "@/lib/demoDataReset";
 import { BrandMark } from "@/components/BrandMark";
 import { useInstallApp } from "@/components/install/InstallApp";
 import { GetTheAppButton } from "@/components/install/GetTheAppButton";
+import { HOME_PATH } from "@/lib/homePath";
+import { clearSignedInHint } from "@/lib/sessionHint";
 
 // Handoff `…dc.html:97`: the 30px round avatar sits between Tailwind's h-7
 // (28px) and h-8 (32px) steps — same computed-geometry escape hatch as
@@ -341,7 +343,7 @@ export function HeaderSessionChrome({ demoResetEnabled = false }: { demoResetEna
           indistinguishable in a screen reader's landmark list (axe
           `landmark-unique`). */}
       <nav aria-label="Main" className="hidden items-center gap-1 pl-2 md:flex">
-        <Link href="/" className={cn(PHONE_TOUCH, "inline-flex items-center rounded-sm px-2.5 py-1.5 text-base font-medium text-slate no-underline hover:text-ink")}>
+        <Link href={HOME_PATH} className={cn(PHONE_TOUCH, "inline-flex items-center rounded-sm px-2.5 py-1.5 text-base font-medium text-slate no-underline hover:text-ink")}>
           Trips
         </Link>
         <Link
@@ -445,23 +447,18 @@ function AccountMenuFor({
       avatar={preferences.avatar}
       // The colour trips show, chosen or derived; slate only while unknown.
       color={color}
-      // `/welcome`, not `/` — sign-out must not depend on a redirect it races.
-      // `signOut` POSTs to /api/auth/signout (whose response clears the session
-      // cookie) and then sets `window.location.href`. Pointed at `/`, the
-      // landing depends on `src/proxy.ts` bouncing a signed-out visitor on to
-      // `/welcome` — but if the navigation is issued before the browser has
-      // committed that Set-Cookie, the `/` request still carries a valid
-      // session, the proxy passes it through, and the user is left on a
-      // signed-out-but-still-rendering-Home page. Measured on Next 16:
-      // `GET /` came back 200 instead of 307 in 4 of 16 runs of
-      // e2e/m15-front-door.spec.ts (0 of 16 on Next 15, which is why this
-      // surfaced with that upgrade and not before). `/welcome` is public, so
-      // going straight there is correct whether or not the cookie has landed
-      // yet — and it is where `/` was going to send them anyway.
+      // To the landing at `/`. This used to be `/welcome`, because `/` was
+      // Home for a signed-in request and `signOut`'s navigation could outrun
+      // the Set-Cookie that clears the session (`GET /` answered Home in 4 of
+      // 16 runs of e2e/m15-front-door.spec.ts on Next 16). Since ADR-078 `/`
+      // is a static page with no session check, so there is nothing left to
+      // race — provided the signed-in hint goes first, or the landing's script
+      // would send the visitor to `/home`, and from there to sign in.
       // What this account asked on this browser goes with it (PR 426 review).
       onSignOut={() => {
         if (user.id) forgetAskConversationsOf(user.id);
-        void signOut({ callbackUrl: "/welcome" });
+        clearSignedInHint();
+        void signOut({ callbackUrl: "/" });
       }}
       demoResetEnabled={demoResetEnabled}
       onResetDemoData={demoResetEnabled ? handleResetDemoData : undefined}

@@ -14,6 +14,8 @@ import { useSessionUser } from "./useSessionUser";
 import { ProfileSection } from "./ProfileSection";
 import { PlanSection } from "./PlanSection";
 import { TokensSection } from "./TokensSection";
+import { HOME_PATH } from "@/lib/homePath";
+import { clearSignedInHint } from "@/lib/sessionHint";
 
 // SPEC §34.4 — Account is a page with tabs, not a Sheet.
 //
@@ -80,7 +82,7 @@ export function AccountScreen() {
             A `Link`, not a `router.back()`: §34.3 names the destination, and
             "back" from a bookmarked `/account` leaves the app. */}
         <Link
-          href="/"
+          href={HOME_PATH}
           className={cn(
             buttonVariants({ variant: "ghost", size: "sm" }),
             PHONE_TOUCH,
@@ -176,11 +178,8 @@ export function AccountScreen() {
             would be project rule 4 twice on one account — so `md:hidden`, and
             the desktop `/account` artboard has no sign-out either.
 
-            `/welcome`, not `/` — the same race `AccountMenu` documents:
-            `signOut` sets `window.location.href` after POSTing, and pointed at
-            `/` the navigation can outrun the Set-Cookie that clears the
-            session. `/welcome` is public, so it is correct whether the cookie
-            has landed or not. */}
+            To the static landing at `/`, with the signed-in hint cleared
+            first — as `AccountMenu`'s, which says why. */}
         <div className="border-t border-hairline pt-4 md:hidden">
           <Button
             variant="secondary"
@@ -189,7 +188,8 @@ export function AccountScreen() {
             onClick={() => {
               // As `AccountMenu`'s: this account's conversations stay behind.
               if (user?.id) forgetAskConversationsOf(user.id);
-              void signOut({ callbackUrl: "/welcome" });
+              clearSignedInHint();
+              void signOut({ callbackUrl: "/" });
             }}
           >
             Sign out

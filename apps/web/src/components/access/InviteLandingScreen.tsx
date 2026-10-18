@@ -21,6 +21,7 @@ import { InvitePlanCard, PlanUnavailable, PreviewScope, PreviewWidget } from "./
 import { previewContext } from "./previewContext";
 import { useInviteJoin } from "./useInviteJoin";
 import { type PreviewRead, useInvitePreview } from "./useInvitePreview";
+import { HOME_PATH } from "@/lib/homePath";
 
 // The screen an invite link opens (M27 link 6, SPEC §35.6). It answers, before
 // anything else: who asked, what the trip is, who is already in it, and what
@@ -109,7 +110,7 @@ export function InviteLandingScreen({ token, googleAvailable }: { token: string;
             eyebrow="Invite withdrawn"
             title="This invite was taken back"
             body="Nothing about you was shared. If you think it was a mistake, ask the person who sent it."
-            action={<PrimaryLink href="/">Start your own trip</PrimaryLink>}
+            action={<PrimaryLink href={HOME_PATH}>Start your own trip</PrimaryLink>}
           />
         )}
         {landing?.state === "member" && (
@@ -125,7 +126,7 @@ export function InviteLandingScreen({ token, googleAvailable }: { token: string;
             eyebrow="Invite unavailable"
             title="This invite doesn't work"
             body={landing.message}
-            action={<PrimaryLink href="/">Start your own trip</PrimaryLink>}
+            action={<PrimaryLink href={HOME_PATH}>Start your own trip</PrimaryLink>}
           />
         )}
       </main>
@@ -169,7 +170,7 @@ function Elsewhere({
       <Text className="text-md leading-relaxed text-slate">{body}</Text>
       <div className="flex flex-wrap gap-2.5">
         {action}
-        <Link href="/welcome" className={cn(buttonVariants({ variant: "ghost" }), "h-10 no-underline")}>
+        <Link href="/" className={cn(buttonVariants({ variant: "ghost" }), "h-10 no-underline")}>
           What is Caesura?
         </Link>
       </div>

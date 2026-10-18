@@ -172,13 +172,19 @@ const nextConfig: NextConfig = {
   // into one of its views (`/demo?view=Map`, `?lens=`, `?page=`, `?day=`) still
   // means Japan at that view. One rule per key because `has` is an AND; Next
   // carries the query across, so the view survives. A bare `/demo` is the picker.
-  redirects: async () =>
-    ["view", "lens", "page", "day"].map((key) => ({
+  //
+  // `/welcome` was the landing's own path until ADR-078 made `/` the landing
+  // itself; links to it are out in the world, so it answers 308 to `/` here,
+  // in config, rather than in the proxy, which `/` no longer passes through.
+  redirects: async () => [
+    ...["view", "lens", "page", "day"].map((key) => ({
       source: "/demo",
       has: [{ type: "query" as const, key }],
       destination: "/demo/japan",
       permanent: true,
     })),
+    { source: "/welcome", destination: "/", permanent: true },
+  ],
   headers: async () => [
     { source: "/:path*", headers: securityHeaders },
     {

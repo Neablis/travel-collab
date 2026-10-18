@@ -15,7 +15,7 @@ import { readAccountPreferences } from "@/server/accountPreferences";
 import { entitlementsFor } from "@/server/entitlements/resolver";
 
 // The app chrome belongs to the app's surfaces, not to every route. The
-// front door — /welcome, /signin, /signup — draws its own header
+// front door — /, /signin, /signup — draws its own header
 // (FrontDoorHeader), so AppHeader moved out of the root layout and into this
 // group's layout when M15 split the shell.
 //
@@ -40,7 +40,7 @@ import { entitlementsFor } from "@/server/entitlements/resolver";
 // — Sign in in the header, no account tab bar, no Yours/Saved — instead of the
 // signed-in skeleton that then changed its mind. A cookie only means "ask"
 // (`lib/sessionHint.ts`). The cost: reading cookies makes this group render per
-// request, so the four shells that were prerendered (`/`, `/account`, `/plans`,
+// request, so the four shells that were prerendered (Home, `/account`, `/plans`,
 // `/playbooks/board`) no longer are. They fetch their data on the client either
 // way; what moved is one server render of a shell.
 //

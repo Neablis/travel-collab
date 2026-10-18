@@ -35,6 +35,7 @@ import { orderHomeTrips } from "@/lib/homeTripOrder";
 import { newTripCommand } from "@/components/palette/commands";
 import { usePaletteSource } from "@/components/palette/paletteRegistry";
 import { AssistantAskButton, BeyondTripAssistant } from "@/components/assistant/BeyondTripAssistant";
+import { clearSignedInHint } from "@/lib/sessionHint";
 
 /** Home's assistant answers across every trip you travelled on (M45 D7). */
 const ACCOUNT_SCOPE = { kind: "account" } as const;
@@ -219,7 +220,7 @@ export default function Home() {
   // without it: `res.json()` on a non-JSON 500 body, and the `fetch` itself
   // rejecting (offline, DNS) — both are covered here.
   //
-  // Only a 401 means `/welcome`. A 500 is not "you are signed out", and
+  // Only a 401 means the landing. A 500 is not "you are signed out", and
   // sending someone to the front door on one would log them out of a working
   // session.
   // LAST WRITER WINS, AND THE LAST WRITER IS THE LAST REQUEST — not the last
@@ -270,7 +271,7 @@ export default function Home() {
   // is belt to that braces.
   //
   // Gated on `trips !== null`: it must not race the first `/api/trips` read,
-  // whose 401 is what sends an expired session to `/welcome`. Running the copy
+  // whose 401 is what sends an expired session to the landing. Running the copy
   // first would fire a duplicate request that 401s and leaves the marker spent.
   const demoCloneAttempted = useRef(false);
   useEffect(() => {
@@ -422,20 +423,22 @@ export default function Home() {
   // In the same order, so the grid reads on from the hero.
   const otherTrips = orderedTrips.slice(1);
 
-  // M15 (ADR-023): `src/proxy.ts` handles *arrival* — a signed-out visitor
-  // hitting `/` is served the landing by a rewrite (the URL stays `/`, no
-  // redirect; `/welcome` is canonical to `/`) before this page ever renders,
-  // so this branch no longer fires on first load. What it still covers is
+  // M15 (ADR-023), ADR-078: `src/proxy.ts` handles *arrival* — a signed-out
+  // request for `/home` is sent to sign in before this page ever renders, so
+  // this branch no longer fires on first load. What it still covers is
   // *expiry-in-place*: a session that lapses while this page is already open
   // produces a 401 the next time `load()` fetches /api/trips (a manual
   // refresh, a background poll, etc.), and that visitor should still be sent
   // to the front door rather than left looking at a stuck or broken
-  // authenticated view. The landing page lives at /welcome, outside this
-  // route group's AppHeader shell. `replace`, not `push`, so the back button
+  // authenticated view. The landing page lives at `/`, outside this route
+  // group's AppHeader shell. `replace`, not `push`, so the back button
   // doesn't bounce them straight back into a page that will only redirect
-  // them again.
+  // them again. The signed-in hint goes first: with it, a later full load of
+  // `/` would send them straight back here.
   useEffect(() => {
-    if (unauthenticated) router.replace("/welcome");
+    if (!unauthenticated) return;
+    clearSignedInHint();
+    router.replace("/");
   }, [unauthenticated, router]);
 
   // ⌘K's *New trip* is this page's button (ADR-068): the same function, under

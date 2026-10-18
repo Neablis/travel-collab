@@ -17,6 +17,7 @@ import { ChatMessage, type MessageViewer } from "./ChatMessage";
 import { ChatMentionsProvider, type ChatMentions } from "./MessageChip";
 import { useTargetPicker } from "./TargetPicker";
 import type { TripChat } from "./useTripChat";
+import { HOME_PATH } from "@/lib/homePath";
 
 /** The read-only line after the owner's lapse (M46 D2): why, not just that. */
 export const READ_ONLY_LINE = "This chat is read-only: the trip owner's plan no longer includes collaborators.";
@@ -86,7 +87,7 @@ export function ChatPanel({
     return (
       <div role="status" className="flex flex-col items-start gap-2 px-4 py-3.5">
         <p className="text-sm text-ink">{NO_ACCESS_LINE}</p>
-        <Link href="/" className={buttonVariants({ variant: "secondary", size: touch ? "touch" : "sm" })}>
+        <Link href={HOME_PATH} className={buttonVariants({ variant: "secondary", size: touch ? "touch" : "sm" })}>
           Back to your trips
         </Link>
       </div>

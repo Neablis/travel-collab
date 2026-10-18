@@ -16,7 +16,7 @@ import { LANDING_ACCENTS, LANDING_RIVER_CITY, LANDING_RIVER_TITLE, LandingRiver 
 //
 // Loaded lazily by `LandingFeaturePanel`, as `LandingHeroPanels` is by the
 // hero, which keeps the river's drag-and-drop and `@tc/pages` out of
-// `/welcome`'s first load. Each panel carries its own surface, so a block and
+// the landing's first load. Each panel carries its own surface, so a block and
 // a phone claim can hold the same one.
 
 const SURFACE = "overflow-hidden rounded-lg border border-hairline bg-surface";

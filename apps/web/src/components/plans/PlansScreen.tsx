@@ -13,6 +13,7 @@ import { grantedTier, type AccountPlanChoice, type AccountPlanView } from "@/lib
 import { formatDate, formatPrice } from "@/lib/planCopy";
 import { cn } from "@/lib/cn";
 import { PlanComparison, planBullets, planPrice, whoItIsFor } from "./PlanComparison";
+import { HOME_PATH } from "@/lib/homePath";
 
 // **The `plans` route: chooser, confirm, result — one route, no overlay in any
 // of them** (SPEC §29).
@@ -470,7 +471,7 @@ export function PlansScreen() {
           <div className="flex flex-col gap-3 rounded-lg border border-hairline p-4" data-testid="plans-result">
             <Heading level={2}>Done</Heading>
             <Text className="text-sm">{step.message}</Text>
-            <Link href="/" className="text-sm text-brand underline">
+            <Link href={HOME_PATH} className="text-sm text-brand underline">
               Back to your trips
             </Link>
           </div>
@@ -861,7 +862,7 @@ function Pending({ slow }: { slow: boolean }) {
         <Link href="/plans" className="text-sm text-brand underline" data-testid="plans-pending-back">
           Back to plans
         </Link>
-        <Link href="/" className="text-sm text-brand underline">
+        <Link href={HOME_PATH} className="text-sm text-brand underline">
           Back to your trips
         </Link>
       </div>

@@ -12,7 +12,12 @@ export const metadata = pageMetadata({
   canonical: "/",
 });
 
-export default function WelcomePage() {
+// ADR-078: this page is static — no `cookies()`, no `headers()`, nothing
+// per request — so a CDN, a browser and the back-forward cache can all keep
+// it. A signed-in visitor is sent on to Home by the root layout's inline
+// script (`LEAVE_LANDING_IF_SIGNED_IN`), never by a server check here.
+/** `/`: the landing page and the indexed homepage, the same for every visitor. */
+export default function LandingPage() {
   const origin = deploymentOrigin();
   return (
     <>

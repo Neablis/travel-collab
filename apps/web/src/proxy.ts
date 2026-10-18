@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
-import NextAuth from "next-auth";
+import NextAuth, { type NextAuthRequest } from "next-auth";
 import { authConfig } from "@/lib/authConfig";
 import {
   PENDING_ADMISSION_COOKIE,
   normalizePendingAdmission,
   pendingAdmissionCookieOptions,
 } from "@/lib/pendingAdmission";
+import { SIGNED_IN_HINT_COOKIE, signedInHintCookieOptions } from "@/lib/sessionHint";
 
 // This file was `src/middleware.ts` until the Next 16 upgrade, which
 // deprecated the `middleware` file convention in favour of `proxy` (the
@@ -25,78 +26,101 @@ import {
 // instance is safe to construct in the Edge runtime.
 const { auth } = NextAuth(authConfig);
 
-// `/` serves the landing page to a signed-out visitor (a rewrite to
-// `/welcome`, so the URL stays `/`). This used to be a redirect, and before
-// that happened client-side — Home rendered nothing, fetched
-// /api/trips, got a 401, and only then called router.replace("/welcome") —
-// which cost a round trip and briefly flashed the authenticated app chrome
-// (AppHeader, (app)/layout.tsx) above an empty body before bouncing. Doing it
-// here means an unauthenticated request to `/` never reaches that page at
-// all: this runs before rendering starts, at the HTTP layer.
+// Every route this file matches is one a signed-out visitor should not be
+// shown as-is. History, because the reasons are still the reasons:
 //
-// CodeRabbit (PR #56, finding 1): the matcher used to be scoped to exactly
-// `/`, so a signed-out visitor hitting `/playbooks`, `/trips/:tripId`, or the
-// notebook routes under `/trips/:tripId/pages/...` still rendered the full
+// CodeRabbit (PR 56, finding 1): the matcher used to be scoped to exactly
+// `/`, so a signed-out visitor hitting `/trips/:tripId`, or the notebook
+// routes under `/trips/:tripId/pages/...`, still rendered the full
 // authenticated shell (AppHeader + (app)/layout.tsx children) before
 // anything 401'd — not a data leak (every apps/web/src/app/api/** handler
 // checks auth() independently and that is unchanged), but app chrome and
-// empty screens shown to strangers. Fixed here, not in the layout: the
-// layout is UI and can't call auth() (lint wall forbids importing
-// @/server/* outside src/app/api/**), and this file already exists as the
-// right seam.
+// empty screens shown to strangers. Fixed here, not in the layout: this file
+// already exists as the right seam, and it runs before rendering starts.
 //
-// `/` keeps its own distinct behaviour (serves `/welcome`, the
-// marketing front door — see e2e/m15-front-door.spec.ts). Every other
-// matched route sends a signed-out visitor to `/signin?callbackUrl=<path>`
-// instead: they asked for a specific thing, so sign-in should return them to
-// it. AuthScreen already honours `callbackUrl` via lib/safeCallbackUrl.ts,
-// so this composes with that existing path rather than inventing a new one.
+// A signed-out visitor is sent to `/signin?callbackUrl=<path>`: they asked
+// for a specific thing, so sign-in should return them to it. AuthScreen
+// already honours `callbackUrl` via lib/safeCallbackUrl.ts.
+//
+// ADR-078: `/` is NOT matched. It was — a signed-out `/` was rewritten to the
+// landing and a signed-in one served Home, so `/` was two pages and answered
+// `private, no-store`, and every visit to the bare domain paid for an edge
+// `auth()`. Home moved to `/home` (`HOME_PATH`), `/` became a static page, and
+// the one thing it still needs to know — "is this browser signed in?" — it
+// learns from the hint cookie this file keeps (below), read by an inline
+// script, because a static page cannot read a session.
 //
 // Exported directly as Auth.js v5's wrapper (`auth((req) => ...)`) rather
-// than composed with other logic — there's nothing else this route needs. `req.auth` is populated by the wrapper from the session JWT; no
-// database read happens here (this project uses JWT sessions with no
-// adapter — see server/auth.ts), which is the configuration Auth.js v5's
-// docs call out as the one that works reliably in the Edge runtime.
-/** The request seam: a signed-out `/` is the landing, an invite banks its token, anything else matched goes to sign-in. */
+// than composed with other logic — there's nothing else this route needs.
+// `req.auth` is populated by the wrapper from the session JWT; no database
+// read happens here (this project uses JWT sessions with no adapter — see
+// server/auth.ts), which is the configuration Auth.js v5's docs call out as
+// the one that works reliably in the Edge runtime.
+/** The request seam: an invite banks its token, anything else matched goes to sign-in, and the signed-in hint follows the session. */
 export default auth((req) => {
-  if (!req.auth) {
-    const { pathname } = req.nextUrl;
-    if (pathname === "/") {
-      // The landing is served AT `/` (SEO pass, D9): the bare domain is the
-      // indexed homepage, so it must answer 200 with the page, not a redirect.
-      // `/` is two different pages depending on the session, so this response
-      // is never stored: not by a CDN, not by the browser. Without that, a
-      // visitor who signs in could be shown the landing again from a cache.
-      const landing = NextResponse.rewrite(new URL("/welcome", req.nextUrl));
-      landing.headers.set("Cache-Control", "private, no-store");
-      return landing;
-    }
-    // M27 link 6: the invite landing is PUBLIC — it is what an invite link
-    // opens for somebody with no account (SPEC §35.6), so it is served, not
-    // bounced to /signin. It stays in the matcher for the other half of what
-    // this file did for it:
-    //
-    // M11a link 5. The gate runs *during* a sign-in, and by then the URL the
-    // person arrived on is gone — so the token is banked here and read out of
-    // the cookie by `recordSignIn`. It used to ride the /signin redirect; now
-    // it rides the landing itself (and *Have a look first*, whose Join leaves
-    // for sign-in from there). Every visit re-banks it, so the cookie's short
-    // life counts from the last page the person saw, not the first.
-    const token = tripInviteToken(pathname);
-    if (token !== null) {
-      const response = NextResponse.next();
-      response.cookies.set(
-        PENDING_ADMISSION_COOKIE,
-        token,
-        pendingAdmissionCookieOptions(req.headers.get("host")),
-      );
-      return response;
-    }
-    const callbackUrl = encodeURIComponent(pathname + req.nextUrl.search);
-    return NextResponse.redirect(new URL(`/signin?callbackUrl=${callbackUrl}`, req.nextUrl));
+  const response = route(req);
+  // The hint follows what this request found (ADR-078): refreshed while there
+  // is a session, so it lives as long as the JWT does, and removed when there
+  // is none — which is also what ends a stale hint's one wasted hop, since the
+  // landing sends it to `/home` and `/home` is matched.
+  //
+  // **Set only on a page load, never on the client router's own requests.** A
+  // prefetch is sent whenever a link to a matched route comes into view — the
+  // account menu's *Trips* is one — and sign-out clears the hint and then
+  // POSTs, so a prefetch already in flight answered after the clear and put
+  // the hint back: the landing then sent the signed-out visitor on to `/home`
+  // and from there to sign in. Measured: 6 of 10 runs of
+  // e2e/m15-front-door.spec.ts's sign-out. Next strips its own `RSC` headers
+  // before this file sees a request, so the browser's `Sec-Fetch-Dest` is what
+  // tells them apart: `document` for a page load, sign-in's landing included,
+  // `empty` for every fetch. A browser too old to send it gets the old
+  // behaviour, race and all.
+  if (req.auth && isPageLoad(req)) {
+    response.cookies.set(
+      SIGNED_IN_HINT_COOKIE,
+      "1",
+      signedInHintCookieOptions(req.nextUrl.protocol === "https:"),
+    );
+  } else if (!req.auth && req.cookies.has(SIGNED_IN_HINT_COOKIE)) {
+    response.cookies.delete(SIGNED_IN_HINT_COOKIE);
   }
-  return NextResponse.next();
+  return response;
 });
+
+// Whether the browser is loading this as a page, rather than fetching it.
+function isPageLoad(req: NextAuthRequest): boolean {
+  const dest = req.headers.get("sec-fetch-dest");
+  return dest === null || dest === "document";
+}
+
+// What the request gets before the hint is applied to it.
+function route(req: NextAuthRequest): NextResponse {
+  if (req.auth) return NextResponse.next();
+  const { pathname } = req.nextUrl;
+  // M27 link 6: the invite landing is PUBLIC — it is what an invite link
+  // opens for somebody with no account (SPEC §35.6), so it is served, not
+  // bounced to /signin. It stays in the matcher for the other half of what
+  // this file did for it:
+  //
+  // M11a link 5. The gate runs *during* a sign-in, and by then the URL the
+  // person arrived on is gone — so the token is banked here and read out of
+  // the cookie by `recordSignIn`. It used to ride the /signin redirect; now
+  // it rides the landing itself (and *Have a look first*, whose Join leaves
+  // for sign-in from there). Every visit re-banks it, so the cookie's short
+  // life counts from the last page the person saw, not the first.
+  const token = tripInviteToken(pathname);
+  if (token !== null) {
+    const response = NextResponse.next();
+    response.cookies.set(
+      PENDING_ADMISSION_COOKIE,
+      token,
+      pendingAdmissionCookieOptions(req.headers.get("host")),
+    );
+    return response;
+  }
+  const callbackUrl = encodeURIComponent(pathname + req.nextUrl.search);
+  return NextResponse.redirect(new URL(`/signin?callbackUrl=${callbackUrl}`, req.nextUrl));
+}
 
 /**
  * The token in `/invite/<token>` or `/invite/<token>/look`, or null for
@@ -131,10 +155,11 @@ function tripInviteToken(pathname: string): string | null {
 
 // An explicit matcher list, not a catch-all negative-lookahead: a broad
 // `"/((?!api|_next).*)"` pattern risks guarding API routes, static assets,
-// and the front-door routes (`/welcome`, `/signin`, `/signup`) themselves,
+// and the front-door routes (`/`, `/signin`, `/signup`) themselves,
 // none of which should ever hit this file. An explicit list matches
-// exactly the `(app)` route group instead:
-//   - `/`                 — Home (apps/web/src/app/(app)/page.tsx)
+// exactly the `(app)` routes that need a session, plus the invite links:
+//   - `/home`             — Home (apps/web/src/app/(app)/home/page.tsx). Not
+//     `/home/:path*`: nothing lives under it.
 //   - `/trips/:path*`     — matches `/trips/:tripId` and the nested notebook
 //     routes under `/trips/:tripId/pages/...` (Next.js treats a `:path*`
 //     segment as zero-or-more, so the bare prefix matches too, not just
@@ -149,5 +174,5 @@ function tripInviteToken(pathname: string): string | null {
 // than be sent to /signin. They stay in `(app)`; what a signed-out reader may
 // DO there is decided by the API routes, which still answer every write 401.
 export const config = {
-  matcher: ["/", "/trips/:path*", "/invite/:path*"],
+  matcher: ["/home", "/trips/:path*", "/invite/:path*"],
 };

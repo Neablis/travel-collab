@@ -55,6 +55,7 @@ import type { RackItem } from "@/components/trip/UnscheduledRack";
 import { moveCommands } from "./moveCommands";
 import { type CopyDestination, copyCommands } from "./copyActivity";
 import type { resolveCalendarDrop } from "@/components/lenses/calendarDrop";
+import { HOME_PATH } from "@/lib/homePath";
 
 type CalendarDropOutcome = NonNullable<ReturnType<typeof resolveCalendarDrop>>;
 import { rackDropWindow } from "./rackDropWindow";
@@ -858,14 +859,14 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
     //
     // CodeRabbit (PR #56, finding 1): `src/proxy.ts` now guards
     // `/trips/:path*` (and `/playbooks/:path*`) the same way it already
-    // guarded `/`, so a signed-out *arrival* at this route never reaches
+    // guarded Home, so a signed-out *arrival* at this route never reaches
     // this component at all — it's redirected to `/signin?callbackUrl=...`
     // at the HTTP layer before rendering starts. That makes this branch
     // unreachable in the normal flow, but it is not dead code: it remains
     // the correct fallback for a session that expires while this page is
     // already open (a `useTrip` refetch turns up a 401 mid-session), the
     // same division of labour — the proxy owns arrival, the component owns
-    // expiry-in-place — that `(app)/page.tsx`'s Home documents for `/`.
+    // expiry-in-place — that `(app)/home/page.tsx`'s Home documents for `/home`.
     return (
       <PageContainer width="full">
         <div className="flex flex-col items-start gap-3 py-10">
@@ -887,7 +888,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
     return (
       <PageContainer width="full">
         <p role="alert">{error ?? "Something went wrong"}</p>
-        <Link href="/">← Your trips</Link>
+        <Link href={HOME_PATH}>← Your trips</Link>
       </PageContainer>
     );
   }

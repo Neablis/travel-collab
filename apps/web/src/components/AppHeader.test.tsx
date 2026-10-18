@@ -77,7 +77,7 @@ describe("AppHeader", () => {
     vi.mocked(getSessionMock).mockResolvedValue({ user: { name: "Sam K", email: "sam@example.com" }, expires: "" });
     render(<AppHeader />);
 
-    expect((await screen.findByRole("link", { name: "Trips" })).getAttribute("href")).toBe("/");
+    expect((await screen.findByRole("link", { name: "Trips" })).getAttribute("href")).toBe("/home");
     expect(screen.getByRole("link", { name: "Playbooks" }).getAttribute("href")).toBe("/playbooks");
   });
 
