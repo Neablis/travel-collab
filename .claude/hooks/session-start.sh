@@ -113,11 +113,48 @@ start_postgres() {
     || psql -h 127.0.0.1 -p 5433 -U postgres -q -c "CREATE DATABASE travel" >/dev/null 2>&1 \
     || { echo "session-start: could not create the 'travel' database." >&2; return 0; }
 
+  ensure_pgvector "$pgbin" "$logdir"
+
   # Without this the first `db:reseed` of every session dies on
   # `relation "events" does not exist` — db-reset.mjs truncates tables that
   # only a migration creates.
-  pnpm --filter web db:migrate >"$logdir/db-migrate.log" 2>&1 \
-    || echo "session-start: db:migrate failed; run it by hand (see $logdir/db-migrate.log)." >&2
+  #
+  # **Said on stdout, and checked after.** Until 2026-10-18 a failed migrate
+  # was reported on stderr only, which a session never sees: the session reads
+  # this hook's stdout (the state digest), so a database ten migrations behind
+  # looked healthy and surfaced as a 42703 on the first sign-in
+  # (KI-2026-10-18-a). drizzle-kit applies every pending migration in one
+  # transaction, so one failure leaves ALL of them unapplied. `db:state`
+  # compares the journal with what the database holds, whatever the reason.
+  if ! pnpm --filter web db:migrate >"$logdir/db-migrate.log" 2>&1; then
+    echo "session-start: WARNING db:migrate failed, so the local database is missing migrations. See $logdir/db-migrate.log."
+  fi
+  if ! pnpm -s --filter web db:state >"$logdir/db-state.log" 2>&1; then
+    echo "session-start: WARNING the local database is not at the newest migration:"
+    grep -m1 "migrations applied" "$logdir/db-state.log" | sed 's/^/  /' || true
+  fi
+}
+
+# **pgvector, which migration 0054 needs** (`CREATE EXTENSION vector`, the
+# assistant's day embeddings, ADR-075). The remote image ships Postgres 16
+# without it, and drizzle-kit applies every pending migration in one
+# transaction, so a missing extension stopped a fresh database at 0053 and
+# rolled back everything after it (KI-2026-10-18-a). Installed from the
+# image's own apt sources when its control file is absent: a no-op on every
+# later start in the same container. Advisory like the rest: a failure is
+# said on stdout and costs the database, not the session.
+ensure_pgvector() {
+  local pgbin="$1" logdir="$2" ver sharedir
+  sharedir="$("$pgbin/pg_config" --sharedir 2>/dev/null || true)"
+  [ -n "$sharedir" ] && [ -f "$sharedir/extension/vector.control" ] && return 0
+  ver="$(basename "$(dirname "$pgbin")")"
+  export DEBIAN_FRONTEND=noninteractive
+  if apt-get install -y -q "postgresql-$ver-pgvector" >"$logdir/pgvector.log" 2>&1 \
+    || { apt-get update -q >>"$logdir/pgvector.log" 2>&1 \
+      && apt-get install -y -q "postgresql-$ver-pgvector" >>"$logdir/pgvector.log" 2>&1; }; then
+    return 0
+  fi
+  echo "session-start: WARNING could not install postgresql-$ver-pgvector (see $logdir/pgvector.log); migrations from 0054 on will not apply."
 }
 
 # The pinned Node (.nvmrc), for the rest of the session. The remote image ships

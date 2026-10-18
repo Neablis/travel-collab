@@ -14,10 +14,13 @@
   every pending migration in one transaction, so 0054's failure rolls back 0048–0057 with it, and
   the session-start hook does not report it. `apt-get install postgresql-16-pgvector`, then
   `pnpm --filter web db:migrate`, brought the database to 59/59.
-- **Why not fixed here:** a hook change cannot be tested from inside the session it would run in.
-  Found during PR 481, a performance pass.
-- **Fix direction:** have `session-start.sh` install `postgresql-16-pgvector` before it migrates
-  (or check for `vector` in `pg_available_extensions` and say so loudly), and make the hook fail
-  visibly when `db:migrate` exits non-zero. Move this entry to `resolved/` once a fresh session
-  starts at the newest migration.
+- **Fix (PR on `claude/session-start-pgvector`, 2026-10-18):** `session-start.sh` now installs
+  `postgresql-<v>-pgvector` when `vector.control` is absent, and after migrating checks
+  `db:state`. Either failure is a `session-start: WARNING` line on **stdout**. The old
+  "db:migrate failed" warning went to stderr, which a session never sees, so this was never
+  reported. Tested in this container: with pgvector uninstalled, the hook's `ensure_pgvector`
+  reinstalled it and a fresh database migrated 60/60. A version with no package printed the
+  warning.
+- **Still open because:** only a fresh cloud session proves the hook end to end. Move this entry to
+  `resolved/` once one starts at the newest migration with no warning.
 - **First noted:** 2026-10-18, on PR 481.
