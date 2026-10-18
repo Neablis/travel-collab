@@ -341,19 +341,25 @@ here two days later.
 
 - **The trip page renders its first data on the server (found by PR 481's audit, 2026-10-18).**
   The biggest load-time item that pass left out: it was larger than a cleanup.
-  `app/(app)/trips/[tripId]/(board)/page.tsx` passes only `tripId`, so the board draws a skeleton
-  until hydration and then waits on chained client reads before the cover, the LCP image, can
-  start: detail, history, access and the cover read, then Overview's `fetchPages` → `fetchPage`.
-  - **The shape:** `Promise.all` the access check, detail, cover and the overview page in
-    `page.tsx`, and pass them down as `initial*` props seeding `cachedRead`, the way
-    `useLibraryRead`'s `initial` already works. Draw the header and cover band on the server,
-    with CSS breakpoints instead of the `useIsAbovePhone()` gate.
-  - **Same pattern, smaller:** `/s/[token]` (`SharedTripScreen` fetches in an effect), the
-    `/playbooks/profile/[userId]` and `/playbooks/board` pages (`useLibraryRead` without
-    `initial`), and `/demo/[slug]` (static shell, then six API reads; build the demo's
-    `TripDetail` at build time).
+  - **The trip page itself: done in PR TBD (part 1).** `(board)/page.tsx` reads the board's first
+    answers in-process (`server/tripFirstData.ts`) after one `requireTripAccess`, with the GET
+    routes' own view builders (`server/tripViews.ts`), and `TripProvider`'s `initial` seeds the
+    query cache in the browser. The header and cover band draw on the server, the band hidden on
+    a phone by CSS and a `<picture>` whose phone source is blank. Numbers: see PR TBD.
+  - **Same pattern, smaller (what is left of this entry):** `/s/[token]` (`SharedTripScreen`
+    fetches in an effect), the `/playbooks/profile/[userId]` and `/playbooks/board` pages
+    (`useLibraryRead` without `initial`), and `/demo/[slug]` (static shell, then six API reads;
+    build the demo's `TripDetail` at build time).
   - **Measure first and after:** the Vercel Real Experience Score and Sentry, which PR 481 had no
     access to. Its numbers came from a local production build.
+
+- **The Overview document is in the first HTML (found by PR TBD, 2026-10-18).** On a phone the
+  trip page's LCP element is a `<p>` of the Overview notebook, and `PageEditor` creates TipTap
+  with `immediatelyRender: false`. So even with the page's data sent from the server, the
+  paragraph appears only after hydration, the lens's chunk and the editor's creation. It needs a
+  static server render of the document — TipTap's static renderer or `generateHTML`, a new
+  dependency, or a second renderer — swapped for the editor once the editor exists. Mitchell
+  deferred it on 2026-10-18, out of the trip page's first-data stack. Numbers: see PR TBD.
 
 - **Trip requests stop re-reading the whole trip (found by PR 481's audit, 2026-10-18).** Every
   `/api/trips/[tripId]/**` request runs `requireTripAccess`, which reads and Zod-parses the whole

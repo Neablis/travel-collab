@@ -5,19 +5,25 @@ import { FocusProvider } from "@/components/trip/context/FocusProvider";
 import { EditorHost } from "@/components/trip/context/EditorHost";
 import { LensRouter } from "@/components/trip/context/LensRouter";
 import { JoinedToast } from "@/components/access/JoinedToast";
+import { tripFirstData } from "@/server/tripFirstData";
 
 // "Trip plan — Caesura" via the layout's title template. Deliberately not a
-// per-trip generateMetadata: the lint wall keeps `@/server/*` out of page
-// files, this route is auth-gated so an unfurl scraper never reaches it
-// (middleware 307s it to /signin, whose generateMetadata carries the
-// shared-trip card — see that file), and a private trip's name shouldn't be
-// in anonymous <head> output anyway. Real per-trip OpenGraph belongs to
-// M11's share links, where read access becomes deliberate.
+// per-trip generateMetadata: this route is auth-gated so an unfurl scraper
+// never reaches it (middleware 307s it to /signin, whose generateMetadata
+// carries the shared-trip card — see that file), and a private trip's name
+// shouldn't be in anonymous <head> output anyway. Real per-trip OpenGraph
+// belongs to M11's share links, where read access becomes deliberate.
 export const metadata = { title: "Trip plan" };
 
 /** `/trips/<id>`: the trip board inside its providers. In the `(board)` group so `loading.tsx` bounds it alone. */
 export default async function TripPage({ params }: { params: Promise<{ tripId: string }> }) {
   const { tripId } = await params;
+  // The board's first reads, in-process, so its first render is the board and
+  // not the header skeleton (`server/tripFirstData.ts`). This file is exempt
+  // from the UI/server lint wall for exactly this (AGENTS.md, Mitchell's
+  // decision of 2026-10-18). `null` when the server has no answer, and the
+  // board then reads for itself as before; `loading.tsx` streams meanwhile.
+  const first = await tripFirstData(tripId);
   // Task L1: non-full lenses (Board and Schedule — Itinerary/Daily/Trip were
   // retired in KI-20) each own a
   // PageContainer width="content" wrapper in TripBoardScreen's LensOutlet.
@@ -26,7 +32,7 @@ export default async function TripPage({ params }: { params: Promise<{ tripId: s
   // edge-to-edge as before.
   return (
     <PageContainer as="main" width="full" className="px-0">
-      <TripProvider tripId={tripId}>
+      <TripProvider tripId={tripId} initial={first}>
         <FocusProvider>
           <EditorHost>
             <LensRouter>

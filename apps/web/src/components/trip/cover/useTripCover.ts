@@ -33,12 +33,21 @@ export function readTripCover(tripId: string) {
  * The trip's cover as last stored: `undefined` until known (or when `enabled`
  * is false), `null` for none. Reads nothing — for a placeholder that should
  * agree with the banner without starting a read of its own.
+ *
+ * `seeded` is the cover the server sent with the page (`useTripSeed`), which
+ * makes the cover known whatever `enabled` says: it is what the server render
+ * and the hydrating render draw, and the cache holds the same answer after
+ * (`TripProvider` primed it).
  */
-export function usePeekedTripCover(tripId: string, enabled: boolean): TripCover | null | undefined {
+export function usePeekedTripCover(
+  tripId: string,
+  enabled: boolean,
+  seeded?: TripCover | null,
+): TripCover | null | undefined {
   return useSyncExternalStore(
     subscribeQueryCache,
-    () => (enabled ? peekCached<TripCover | null>(coverKeys.trip(tripId)) : undefined),
-    () => undefined,
+    () => (enabled || seeded !== undefined ? peekCached<TripCover | null>(coverKeys.trip(tripId)) : undefined),
+    () => seeded,
   );
 }
 
@@ -54,12 +63,16 @@ export function usePeekedTripCover(tripId: string, enabled: boolean): TripCover 
  * known, or the read answered either way. The board holds its header skeleton
  * on it, so the band arrives in the same paint as the header under it rather
  * than pushing it down afterwards (`TripBoardScreen`).
+ *
+ * `seeded`, as {@link usePeekedTripCover}'s: known from the first render, and
+ * the read on mount is answered by the cache the seed was primed into.
  */
 export function useTripCover(
   tripId: string,
   enabled: boolean,
+  seeded?: TripCover | null,
 ): { cover: TripCover | null | undefined; settled: boolean } {
-  const cover = usePeekedTripCover(tripId, enabled);
+  const cover = usePeekedTripCover(tripId, enabled, seeded);
   // Which trip's read has answered, ok or not: per id, so moving to another
   // trip waits for that one's.
   const [answered, setAnswered] = useState<string | null>(null);

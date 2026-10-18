@@ -47,6 +47,9 @@ import { invalidate } from "@/lib/queryCache";
 import { tripKeys } from "@/lib/queryKeys";
 import { PreferencesProvider } from "@/components/account/PreferencesProvider";
 import { OverviewLens } from "./OverviewLens";
+import { TripSeedContext } from "@/components/trip/context/tripSeed";
+import { primeTripSeed, seedFrom } from "@/lib/tripFirstData";
+import { tripFirstDataFixture } from "@/test-support/tripFirstData";
 
 afterEach(cleanup);
 beforeEach(() => {
@@ -302,6 +305,40 @@ describe("OverviewLens — a co-traveller's edit arrives without a reload", () =
     rerender(<OverviewLens detail={{ ...detail }} tripId={TRIP_ID} remoteRevision={3} />);
     await new Promise((r) => setTimeout(r, 10));
     expect(fetchPagesMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+// The trip page's first data (`server/tripFirstData.ts`). In the browser
+// `TripProvider` has primed the cache with it before this lens renders, and the
+// lens's reads are answered there; on the server there is no cache, and the
+// seed itself is what the first render draws from. Either way the first render
+// is the letter, not its skeleton.
+describe("OverviewLens — the trip page's first data", () => {
+  const renderSeeded = (seed: ReturnType<typeof seedFrom>) =>
+    render(
+      <TripSeedContext.Provider value={seed}>
+        <OverviewLens detail={seed.detail} tripId={TRIP_ID} />
+      </TripSeedContext.Provider>,
+    );
+  const loading = () => screen.queryByRole("status", { name: "Loading the Overview" });
+
+  it("draws the letter from the primed cache with no skeleton and no request", async () => {
+    const seed = seedFrom(tripFirstDataFixture({ overviewText: "Seeded crew" }));
+    primeTripSeed(TRIP_ID, seed);
+    renderSeeded(seed);
+    expect(loading()).toBeNull();
+    expect(await screen.findByText("Seeded crew")).toBeTruthy();
+    expect(fetchPagesMock).not.toHaveBeenCalled();
+    expect(fetchPageMock).not.toHaveBeenCalled();
+    expect(fetchTripGlobalsMock).not.toHaveBeenCalled();
+  });
+
+  it("draws from the seed alone where nothing is cached, as on the server", () => {
+    // Reads that never answer: only the first render is under test.
+    fetchPagesMock.mockReturnValue(new Promise(() => {}));
+    fetchTripGlobalsMock.mockReturnValue(new Promise(() => {}));
+    renderSeeded(seedFrom(tripFirstDataFixture()));
+    expect(loading()).toBeNull();
   });
 });
 

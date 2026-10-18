@@ -46,6 +46,7 @@ import { PageContainer } from "@/components/ui/page-container";
 import { TripHeader } from "@/components/trip/TripHeader";
 import { TripHeaderSkeleton } from "@/components/trip/TripHeaderSkeleton";
 import { useTripCover } from "@/components/trip/cover/useTripCover";
+import { useTripSeed } from "@/components/trip/context/tripSeed";
 import { usePhoneAskEntry } from "@/components/nav/phoneAsk";
 import { AddSavedDayButton } from "@/components/trip/AddSavedDayButton";
 import { useBoardSuggestions } from "./SuggestionActions";
@@ -274,10 +275,14 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // runs alongside `TripProvider`'s own, a failed one settles too (no band),
   // and a phone never reads it, so the cost is the slower of two parallel
   // reads, on desktop only. `undefined` from `useIsAbovePhone` is hydration,
-  // when the trip is still loading anyway.
+  // when the trip is still loading anyway — unless the server sent the trip
+  // with the page (`useTripSeed`). Then the cover came with it, there is
+  // nothing to wait for at any width, and the header is in the first HTML: the
+  // band is kept off a phone by CSS (`TripCoverBanner`), not by this gate.
   const abovePhone = useIsAbovePhone();
-  const { settled: coverSettled } = useTripCover(tripId, abovePhone === true && !isDemoTripId(tripId));
-  const headerReady = abovePhone !== undefined && coverSettled;
+  const seed = useTripSeed();
+  const { settled: coverSettled } = useTripCover(tripId, abovePhone === true && !isDemoTripId(tripId), seed?.cover);
+  const headerReady = (abovePhone !== undefined || seed !== null) && coverSettled;
   const boardRenders = status === "ready" && trip !== null && activeTrip !== null && headerReady;
   // ⌘K's *Ask: <text>* (M45 D6): opens the rail and hands it the words, which
   // it sends through its own gate and `submitAssistantAsk`'s refusals. Dropped
@@ -447,7 +452,12 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // last list, and another trip's never shows. None on the demo trip, which
   // has no Notebooks menu either.
   const router = useRouter();
-  const [read, setRead] = useState<{ tripId: string; pages: readonly PageSummary[] } | null>(null);
+  // From the server's answer when there is one, so the server render and the
+  // hydrating one offer the same notebooks; the read below then finds the
+  // cache `TripProvider` primed and sends nothing.
+  const [read, setRead] = useState<{ tripId: string; pages: readonly PageSummary[] } | null>(() =>
+    seed === null ? null : { tripId, pages: seed.pages.pages },
+  );
   const notebooks = read !== null && read.tripId === tripId ? read.pages : [];
   useEffect(() => {
     if (isDemoTripId(tripId)) return;

@@ -37,6 +37,7 @@ import {
   type SendFailure,
 } from "./optimistic";
 import { isDemoTripId } from "@/lib/demoTrip";
+import { firstDataSpent, primeTripSeed, seedFrom, spendFirstData, type TripFirstData, type TripSeed } from "@/lib/tripFirstData";
 import { placeGhosts, type SuggestionGhosts } from "@/lib/suggestionOverlay";
 import { boardMode } from "@/lib/tripRole";
 import { headSeqOf, useTripBroadcast } from "./broadcast";
@@ -44,6 +45,7 @@ import { draftStops, enqueueDraft, type DraftStops } from "./draftQueue";
 import { drainAfter, sendUnit } from "./queueDrain";
 import { unloadFlushAfterHead } from "./unloadFlush";
 import { useTripSuggestions, type TripSuggestions } from "./useTripSuggestions";
+import { TripSeedContext } from "./tripSeed";
 
 type Status = "loading" | "ready" | "unauthenticated" | "error";
 /**
@@ -221,12 +223,55 @@ export const useOptionalTrip = (): TripCtx | null => useContext(Ctx);
 // while anything is pending (don't interleave with unconfirmed optimistic edits).
 const HISTORY_TYPES = new Set(["UndoLastChange", "RedoChange", "RevertToState"]);
 
-export function TripProvider({ tripId, children }: { tripId: string; children: React.ReactNode }) {
-  const [optimistic, setOptimistic] = useState<OptimisticState | null>(null);
-  const [status, setStatus] = useState<Status>("loading");
+/**
+ * The seed this provider starts from, decided once, on its first render: the
+ * server's first data decoded, or `null` to read everything on mount.
+ *
+ * Primed into the query cache HERE, during render, and only in a browser
+ * (`primeTripSeed` holds its own guard too): the board's reads and the
+ * Overview's are children, and React runs a child's effects before its
+ * parent's, so a prime in an effect would come after the reads it exists to
+ * answer. `null` for a replayed page whose answer this document has already
+ * adopted (`firstDataSpent`) — its data is as old as the visit it came from.
+ */
+function adoptFirstData(tripId: string, initial: TripFirstData | null): TripSeed | null {
+  if (initial === null || initial.trip.trip.tripId !== tripId) return null;
+  const browser = typeof window !== "undefined";
+  if (browser && firstDataSpent(initial)) return null;
+  const seed = seedFrom(initial);
+  if (browser) primeTripSeed(tripId, seed);
+  return seed;
+}
+
+export function TripProvider({
+  tripId,
+  initial = null,
+  children,
+}: {
+  tripId: string;
+  /**
+   * The trip's first reads, answered by the page on the server
+   * (`server/tripFirstData.ts`). With it the provider starts `ready`, issues
+   * none of `load`'s reads, and the board renders in the first HTML; without
+   * it, everything is read on mount as before.
+   */
+  initial?: TripFirstData | null;
+  children: React.ReactNode;
+}) {
+  const [seed] = useState(() => adoptFirstData(tripId, initial));
+  useEffect(() => {
+    if (initial !== null) spendFirstData(initial);
+  }, [initial]);
+  const [optimistic, setOptimistic] = useState<OptimisticState | null>(() =>
+    seed === null ? null : { confirmed: { detail: seed.detail, history: seed.history }, pending: [] },
+  );
+  const [status, setStatus] = useState<Status>(seed === null ? "loading" : "ready");
   const [error, setError] = useState<string | null>(null);
-  const [myRole, setMyRole] = useState<TripRole | null>(null);
-  const [access, setAccess] = useState<TripAccess | null>(null);
+  // From here to `inviteOut`, a seed starts the state `adoptAccess` below would
+  // set from the same read — on the first render, so a viewer's first HTML is
+  // already a viewer's board.
+  const [myRole, setMyRole] = useState<TripRole | null>(seed?.access.myRole ?? null);
+  const [access, setAccess] = useState<TripAccess | null>(seed?.access ?? null);
   const [accessUnknown, setAccessUnknown] = useState(false);
   const [online, setOnline] = useState<ReadonlySet<string>>(NOBODY_ONLINE);
   // Every 2s poll reports it; an unchanged answer keeps the same set, so the
@@ -241,7 +286,7 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
   }, []);
   useEffect(() => () => clearTimeout(onlineExpiry.current), []);
   // An invite still out, as of the access read or one made here since (W73).
-  const [inviteOut, setInviteOut] = useState(false);
+  const [inviteOut, setInviteOut] = useState(() => seed?.access.invites.some((i) => i.status === "pending") ?? false);
   // See `remoteRevision` on the context type for why this is a counter.
   const [remoteRevision, setRemoteRevision] = useState(0);
   // The same value twice is no re-render, so every poll may set it.
@@ -264,7 +309,7 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
 
   // The last `accessRev` this provider has acted on, and one being acted on.
   // Read and written by `onAccessRevision` below; seeded here.
-  const seenAccessRev = useRef<string | null>(null);
+  const seenAccessRev = useRef<string | null>(seed?.access.accessRev ?? null);
   const readingAccessRev = useRef<string | null>(null);
 
   const adoptAccess = useCallback((value: TripAccess) => {
@@ -371,10 +416,13 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
   // and acted on only after `load` has set its state, so the re-read cannot be
   // overtaken by the answer it corrects.
   const onRemoteChangeRef = useRef<() => void>(() => {});
+  // A seeded provider skips `load` — the server answered it — and keeps the
+  // check: a write the previous board left on the wire is just as likely to
+  // land after a server render as after a read of the provider's own.
   useEffect(() => {
     let live = true;
     const settled = writesSettled(tripKeys.all(tripId));
-    void load().then(async () => {
+    void (seed === null ? load() : Promise.resolve()).then(async () => {
       if (!settled) return;
       await settled;
       if (live) onRemoteChangeRef.current();
@@ -382,7 +430,7 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
     return () => {
       live = false;
     };
-  }, [load, tripId]);
+  }, [load, tripId, seed]);
 
   const exit = useCallback(() => {
     setPreviewSeq(null);
@@ -1057,6 +1105,13 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
     [mode, draftUnits, draftSending, draftError, discardDraft, sendDraft],
   );
 
+  const confirmedSeq = optimistic ? headSeqOf(optimistic.confirmed.history) : 0;
+  // The seed stays on offer while the trip is still what the server sent: no
+  // remote change, and no command of yours confirmed since. After either, a
+  // reader that mounts must not start from it — it would paint the trip as it
+  // was, until its own read caught up.
+  const liveSeed = seed !== null && remoteRevision === 0 && confirmedSeq === headSeqOf(seed.history) ? seed : null;
+
   return (
     <Ctx.Provider
       value={{
@@ -1085,7 +1140,7 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
         sync,
         preview: { seq: previewSeq, enter, exit },
         remoteRevision,
-        confirmedSeq: optimistic ? headSeqOf(optimistic.confirmed.history) : 0,
+        confirmedSeq,
         chatRev,
         accessLost,
       }}
@@ -1097,7 +1152,7 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
           because TripHeader returns early while the trip is loading, which is
           exactly when "saving…" matters. */}
       <PublishSaveState sync={sync} />
-      {children}
+      <TripSeedContext.Provider value={liveSeed}>{children}</TripSeedContext.Provider>
     </Ctx.Provider>
   );
 }

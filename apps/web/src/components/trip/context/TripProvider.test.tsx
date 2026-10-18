@@ -38,6 +38,8 @@ vi.mock("@/lib/apiClient", async (orig) => {
 });
 
 import { TripProvider, useTrip } from "./TripProvider";
+import { clearQueryCache } from "@/lib/queryCache";
+import { tripFirstDataFixture } from "@/test-support/tripFirstData";
 import { POLL_INTERVAL_MS } from "./broadcast";
 
 const accessAs = (myRole: "owner" | "editor" | "viewer") => ({
@@ -170,6 +172,69 @@ describe("TripProvider confirmedSeq", () => {
     const head = { ...before.entries[0]!, batchId: "9a0c4e1f-5b9c-4d8f-9f5b-4d3c7e0f9a99", fromSeq: 3, toSeq: 3 };
     resolveSend({ ok: true, value: { detail: twoDayDetail(), history: { ...before, entries: [head, ...before.entries] } } });
     await waitFor(() => expect(screen.getByTestId("confirmedSeq").textContent).toBe("3"));
+  });
+});
+
+// The trip page's first data (`server/tripFirstData.ts`): with it the provider
+// starts from the server's answer — ready on its first render, so the board is
+// in the server's HTML — and makes none of `load`'s three reads. Without it,
+// or with an answer this document has already adopted (a page the router
+// replayed on Back), it reads as before.
+describe("TripProvider — the server's first data", () => {
+  function StatusProbe() {
+    const { status, activeTrip, myRole } = useTrip();
+    return (
+      <span data-testid="first">
+        {status}:{activeTrip?.name ?? "none"}:{myRole ?? "none"}
+      </span>
+    );
+  }
+  const settle = () => act(async () => {
+    await new Promise((r) => setTimeout(r, 10));
+  });
+  const reads = () => [fetchTripDetailMock, fetchTripHistoryMock, fetchTripAccessMock].map((m) => m.mock.calls.length);
+
+  it("is ready on its first render and reads nothing on mount", async () => {
+    const first = tripFirstDataFixture();
+    render(
+      <TripProvider tripId={first.trip.trip.tripId} initial={first}>
+        <StatusProbe />
+      </TripProvider>,
+    );
+    expect(screen.getByTestId("first").textContent).toBe("ready:Rome 2027:owner");
+    await settle();
+    expect(reads()).toEqual([0, 0, 0]);
+  });
+
+  it("reads all three on mount without it", async () => {
+    render(
+      <TripProvider tripId="x">
+        <StatusProbe />
+      </TripProvider>,
+    );
+    expect(screen.getByTestId("first").textContent).toBe("loading:none:none");
+    await waitFor(() => expect(screen.getByTestId("first").textContent).toBe("ready:Rome 2027:owner"));
+    expect(reads()).toEqual([1, 1, 1]);
+  });
+
+  it("reads for itself when handed an answer it has already adopted", async () => {
+    const first = tripFirstDataFixture();
+    const tripId = first.trip.trip.tripId;
+    const { unmount } = render(
+      <TripProvider tripId={tripId} initial={first}>
+        <StatusProbe />
+      </TripProvider>,
+    );
+    await settle();
+    unmount();
+    clearQueryCache();
+    render(
+      <TripProvider tripId={tripId} initial={first}>
+        <StatusProbe />
+      </TripProvider>,
+    );
+    expect(screen.getByTestId("first").textContent).toBe("loading:none:none");
+    await waitFor(() => expect(reads()).toEqual([1, 1, 1]));
   });
 });
 

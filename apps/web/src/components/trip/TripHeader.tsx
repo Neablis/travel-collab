@@ -31,6 +31,7 @@ import { TripMetaPill, tripCounts, tripDateRange } from "./TripMetaPill";
 import { BudgetChip } from "./BudgetChip";
 import { AddCoverButton, COVER_BAND, TripCoverBanner } from "./cover/TripCoverBanner";
 import { useTripCover } from "./cover/useTripCover";
+import { useTripSeed } from "./context/tripSeed";
 
 // The bounded chrome surface (design-system.md surface vocabulary, Pattern 4):
 // trip identity (name + status) on one row with Share / Add stop / sync /
@@ -222,8 +223,13 @@ export function TripHeader({
   // band was only hidden there by CSS, so a phone still read the cover and
   // downloaded a full-width eager photo it never showed. `useIsAbovePhone`, not
   // `useIsPhone`, because the latter's first-paint guess would start the read.
+  //
+  // A cover the server sent with the page is known before either (`useTripSeed`),
+  // so the band is in the first HTML whatever the width: CSS keeps it off a
+  // phone, and `TripCoverBanner`'s `<picture>` keeps the phone from fetching it.
   const abovePhone = useIsAbovePhone();
-  const { cover } = useTripCover(tripId, abovePhone === true && !isDemoTripId(tripId));
+  const seed = useTripSeed();
+  const { cover } = useTripCover(tripId, abovePhone === true && !isDemoTripId(tripId), seed?.cover);
   // The header sits on the band's faded foot, see-through, until it pins; then
   // it paints its own background, or the board would scroll visibly under it.
   const [headerEl, setHeaderEl] = useState<HTMLElement | null>(null);
@@ -377,7 +383,8 @@ export function TripHeader({
           // Over a cover: on its foot, and see-through until it pins. The
           // hairline stays, so pinning changes only the fill.
           cover != null && COVER_BAND.OVERLAP,
-          overCover && "bg-transparent",
+          // `md:`: a phone never shows the band, so its header stays filled.
+          overCover && "md:bg-transparent",
         )}
       >
         {/* On a phone the two columns and the nav row dissolve (`contents`)

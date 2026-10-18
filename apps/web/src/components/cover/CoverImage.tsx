@@ -26,6 +26,15 @@ export function coverSrc(raw: string, width: number): string {
 }
 
 /**
+ * A transparent 1px GIF, inline: what a phone's `<source>` picks instead of the
+ * photo when `notOnPhone` is set, so it requests nothing.
+ */
+const BLANK = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
+
+/** The phone line, as `lib/useIsPhone.ts` and Tailwind's `md:` draw it: below 768px. */
+const PHONE_MEDIA = "(max-width: 767px)";
+
+/**
  * The image's alt text: Unsplash's description, else who took it (plan rule
  * 8). `||`, not `??`: Unsplash sends `""` for a photo with no description.
  */
@@ -61,6 +70,7 @@ export function CoverImage({
   veil,
   eager = false,
   priority = false,
+  notOnPhone = false,
   children,
 }: {
   photo: CoverPhoto;
@@ -72,21 +82,38 @@ export function CoverImage({
   eager?: boolean;
   /** Eager and `fetchpriority="high"`: the page's largest image. */
   priority?: boolean;
+  /**
+   * The box is hidden on a phone, so a phone must not download the photo
+   * either: a hidden `<img>` is still fetched, and an eager one first. Wraps
+   * it in a `<picture>` whose phone `<source>` is a blank inline GIF. The
+   * caller still hides the box (`max-md:hidden`).
+   */
+  notOnPhone?: boolean;
   children?: ReactNode;
 }) {
+  const img = (
+    // eslint-disable-next-line @next/next/no-img-element -- hotlinked from Unsplash's CDN by its guidelines (D3); next/image would proxy it
+    <img
+      src={photo.urls.regular}
+      srcSet={WIDTHS.map((w) => `${coverSrc(photo.urls.raw, w)} ${w}w`).join(", ")}
+      sizes={sizes}
+      alt={coverAlt(photo)}
+      loading={eager || priority ? "eager" : "lazy"}
+      fetchPriority={priority ? "high" : undefined}
+      decoding="async"
+      className="absolute inset-0 size-full object-cover"
+    />
+  );
   return (
     <div className={cn("relative overflow-hidden bg-moss", className)}>
-      {/* eslint-disable-next-line @next/next/no-img-element -- hotlinked from Unsplash's CDN by its guidelines (D3); next/image would proxy it */}
-      <img
-        src={photo.urls.regular}
-        srcSet={WIDTHS.map((w) => `${coverSrc(photo.urls.raw, w)} ${w}w`).join(", ")}
-        sizes={sizes}
-        alt={coverAlt(photo)}
-        loading={eager || priority ? "eager" : "lazy"}
-        fetchPriority={priority ? "high" : undefined}
-        decoding="async"
-        className="absolute inset-0 size-full object-cover"
-      />
+      {notOnPhone ? (
+        <picture>
+          <source media={PHONE_MEDIA} srcSet={BLANK} />
+          {img}
+        </picture>
+      ) : (
+        img
+      )}
       {veil !== undefined && <div aria-hidden className={cn("absolute inset-0", VEIL_CLASS[veil])} />}
       {children}
     </div>
