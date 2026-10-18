@@ -1,5 +1,7 @@
-import { cleanup, render, screen, within } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { act, cleanup, render, screen, within } from "@testing-library/react";
+import { hydrateRoot, type Root } from "react-dom/client";
+import { renderToString } from "react-dom/server";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { TripSummary } from "@tc/contracts";
 import { tripCoverFactory, tripSummaryFactory, tripSummaryMemberFactory } from "@tc/factories";
 import { TripCard } from "./TripCard";
@@ -61,6 +63,35 @@ describe("TripCard", () => {
 
     expect(screen.queryByText(trip.createdAt)).toBeNull();
     expect(screen.getByText(/jul(y)? 8, 2026/i)).toBeTruthy();
+  });
+
+  // Home renders its cards on the server now (2026-10-18), in UTC, and the
+  // browser hydrates them in the reader's zone. `createdAt` is an instant, so
+  // near midnight the two fall on different days; a label formatted in the
+  // local zone during render made React discard the server's HTML.
+  it("hydrates the server's created date without a mismatch, then shows the reader's own", async () => {
+    const originalTz = process.env.TZ;
+    process.env.TZ = "America/Los_Angeles";
+    try {
+      // 03:00 UTC on the 16th is still the evening of the 15th in Los Angeles.
+      const trip = tripSummaryFixture({ startDate: null, createdAt: "2030-06-16T03:00:00.000Z" });
+      const host = document.createElement("div");
+      host.innerHTML = renderToString(<TripCard trip={trip} />);
+      document.body.append(host);
+      expect(within(host).getByText(/^Created Jun 16, 2030 ·/)).toBeTruthy();
+
+      const onRecoverableError = vi.fn();
+      let root: Root | undefined;
+      await act(async () => {
+        root = hydrateRoot(host, <TripCard trip={trip} />, { onRecoverableError });
+      });
+      expect(onRecoverableError).not.toHaveBeenCalled();
+      expect(within(host).getByText(/^Created Jun 15, 2030 ·/)).toBeTruthy();
+      act(() => root?.unmount());
+    } finally {
+      document.body.replaceChildren();
+      process.env.TZ = originalTz;
+    }
   });
 
   it("keys the accent bar off a stable field of the trip (same trip -> same accent across renders)", () => {
