@@ -16,6 +16,10 @@ const subscribeNever = () => () => {};
  * reader's own zone straight after hydration, which is the date they have
  * always seen. A component mounted later, on the client, reads the local zone
  * from its first render.
+ *
+ * The cost, plainly: a reader whose local date differs from UTC's (near
+ * midnight) sees the UTC date for one frame, then their own. Only the text
+ * changes; the label's length and the layout around it do not.
  */
 export function useCreatedLabel(createdAt: string): string | null {
   const local = useSyncExternalStore(

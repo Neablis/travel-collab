@@ -247,9 +247,10 @@ export function HomeScreen({ initialTrips = null, initialToday = null }: HomeScr
   // good result, or overwrite newer trips with older ones (CodeRabbit, PR 155).
   // A monotonic ticket rather than an AbortController because the loser here
   // must not CANCEL the winner's work — both may legitimately be running, only
-  // one may write.
+  // one may write. Delete and Leave take a ticket too, so a read sent before
+  // they changed the list cannot undo them when it answers.
   const loadTicket = useRef(0);
-  const load = useCallback(async ({ keepListOnFailure = false }: { keepListOnFailure?: boolean } = {}) => {
+  const load = useCallback(async () => {
     const ticket = ++loadTicket.current;
     const isStale = () => ticket !== loadTicket.current;
     // Through the client rather than a bare fetch (KI-2026-09-05-q): it never
@@ -265,11 +266,6 @@ export function HomeScreen({ initialTrips = null, initialToday = null }: HomeScr
       // Deliberately not `result.error.message`: a `Failed to fetch` or a
       // parse error is about the transport, not about anything the reader can
       // act on. The retry is the actionable half.
-      //
-      // Except over a list the server sent with this page: that list did
-      // arrive, so "Could not load your trips" above it would be false, and
-      // it is seconds old. It stays, and so does the page around it.
-      if (keepListOnFailure) return;
       setLoadError("Could not load your trips.");
       return;
     }
@@ -285,12 +281,12 @@ export function HomeScreen({ initialTrips = null, initialToday = null }: HomeScr
   // payload it had then, so without it a first trip created a moment ago, or
   // one just deleted, would be drawn the way it was before. Its answer
   // replaces the list. The cost is one `/api/trips` after hydration, off the
-  // critical path. Whether the server sent one is read once, so a later prop
-  // never changes what a failure here does (see `keepListOnFailure`); a 401
-  // still sends an expired session to `/welcome`.
-  const servedTrips = useRef(initialTrips !== null);
+  // critical path. It fails the way any read here does: a 401 sends an
+  // expired session to `/welcome`, and anything else draws the error region
+  // and its retry above the list that is still on screen — which, restored by
+  // Back, may be the old one.
   useEffect(() => {
-    void load({ keepListOnFailure: servedTrips.current });
+    void load();
   }, [load]);
 
   // Finish the copy somebody asked for on `/demo` before they had an account.
@@ -382,6 +378,11 @@ export function HomeScreen({ initialTrips = null, initialToday = null }: HomeScr
       setError(result.error.message);
       return;
     }
+    // **A read still in flight is now older than this list**, so it must not
+    // write: the mount's own read, sent before the delete landed, would
+    // otherwise put the card back when it answered. Taking a ticket makes
+    // every outstanding `load` stale (see `loadTicket`).
+    loadTicket.current++;
     setTrips((prev) => (prev ?? []).filter((t) => t.tripId !== trip.tripId));
     setDeletingIds((prev) => {
       const next = new Set(prev);
@@ -419,6 +420,8 @@ export function HomeScreen({ initialTrips = null, initialToday = null }: HomeScr
       setError(result.error.message);
       return;
     }
+    // A read in flight is older than this list — Delete's reason above.
+    loadTicket.current++;
     setTrips((prev) => (prev ?? []).filter((t) => t.tripId !== trip.tripId));
     setDeletingIds((prev) => {
       const next = new Set(prev);

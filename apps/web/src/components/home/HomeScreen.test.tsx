@@ -1701,18 +1701,48 @@ describe("Home with its list from the server", () => {
     expect(screen.queryByRole("heading", { name: "Japan", level: 2 })).toBeNull();
   });
 
-  // The served list did arrive, so a failed re-read must not claim it did not.
-  it("keeps the server's list, with no error, when the mount read fails", async () => {
+  // A failed re-read says so, with its retry, and leaves the list it could not
+  // refresh where it is: restored by Back, that list may be the old one.
+  it("keeps the server's list and offers a retry when the mount read fails", async () => {
     serveMountRead({ status: 500 });
     render(<HomeScreen initialTrips={[NEXT]} initialToday={SERVER_TODAY} />);
 
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(expect.stringMatching(/\/api\/trips$/)));
-    // The read has answered once its response has been read and handled.
+    const failed = await screen.findByTestId("home-trips-error");
+    expect(within(failed).getByRole("button", { name: "Try again" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Japan", level: 2 })).toBeTruthy();
+  });
+
+  // The mount read is sent before anyone can press Delete, so it can answer
+  // after the delete has landed — with the list as it was.
+  it("does not let a mount read sent before a delete bring the card back", async () => {
+    let answerRead: (response: Response) => void = () => {};
+    fetchMock = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input);
+      if (url.includes("/api/auth/session")) return jsonResponse(await getSessionMock());
+      if (url.endsWith("/commands")) {
+        return jsonResponse({ detail: tripDetailFixture({ tripId: OVER.tripId }), history: historyFixture(OVER.tripId) });
+      }
+      if (/\/api\/trips\/[^/]+$/.test(url)) return jsonResponse({ trip: tripDetailFixture({ tripId }) });
+      if (url.endsWith("/api/trips")) {
+        return new Promise<Response>((resolve) => {
+          answerRead = resolve;
+        });
+      }
+      return jsonResponse({ error: "unexpected" }, 404);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<HomeScreen initialTrips={[NEXT, OVER]} initialToday={SERVER_TODAY} />);
+
+    await userEvent.click(screen.getByRole("button", { name: /trip actions for peru/i }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: /delete/i }));
+    await screen.findByText(/deleted "peru"/i);
+
+    // The held read answers now, with Peru still in it.
     await act(async () => {
+      answerRead(jsonResponse({ trips: [NEXT, OVER] }));
       const call = fetchMock.mock.calls.findIndex(([input]) => String(input).endsWith("/api/trips"));
       await fetchMock.mock.results[call]!.value;
     });
-    expect(screen.queryByTestId("home-trips-error")).toBeNull();
-    expect(screen.getByRole("heading", { name: "Japan", level: 2 })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Peru" })).toBeNull();
   });
 });
