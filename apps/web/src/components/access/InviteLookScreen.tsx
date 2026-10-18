@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import type { InviteLanding, TripPreview } from "@tc/contracts";
 import { FrontDoorHeader } from "@/components/front/FrontDoorHeader";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { Heading } from "@/components/ui/heading";
 import { PageContainer } from "@/components/ui/page-container";
 import { Text } from "@/components/ui/text";
 import { fetchInviteLanding } from "@/lib/apiClient";
@@ -67,29 +68,34 @@ export function InviteLookScreen({ token, googleAvailable }: { token: string; go
   return (
     <>
       <FrontDoorHeader />
-      {/* The landing's own line, so the two doors open alike. */}
-      {landing === null && !failed && (
-        <PageContainer>
-          <Text variant="secondary">Opening this invite…</Text>
-        </PageContainer>
-      )}
-      {failed && (
-        <PageContainer>
-          <Text variant="secondary">
-            This trip didn&apos;t open. Check your connection, then{" "}
-            <Link href={landingHref}>go back to the invite</Link>.
-          </Text>
-        </PageContainer>
-      )}
-      {landing !== null && (
-        <>
-          <LookBanner landing={landing} token={token} googleAvailable={googleAvailable} />
-          <PageContainer as="main" width="measure" className="py-6 sm:py-8">
-            {preview.read.kind === "ready" && <LookCard preview={preview.read.preview} />}
-            {preview.read.kind === "failed" && <PlanUnavailable onRetry={preview.retry} />}
+      {/* One <main> for every state, the banner inside it: the banner is the
+          page's subject (its line is the `h1`), and the loading and failed
+          lines used to sit in no landmark at all. */}
+      <main>
+        {/* The landing's own line, so the two doors open alike. */}
+        {landing === null && !failed && (
+          <PageContainer>
+            <Text variant="secondary">Opening this invite…</Text>
           </PageContainer>
-        </>
-      )}
+        )}
+        {failed && (
+          <PageContainer>
+            <Text variant="secondary">
+              This trip didn&apos;t open. Check your connection, then{" "}
+              <Link href={landingHref}>go back to the invite</Link>.
+            </Text>
+          </PageContainer>
+        )}
+        {landing !== null && (
+          <>
+            <LookBanner landing={landing} token={token} googleAvailable={googleAvailable} />
+            <PageContainer width="measure" className="py-6 sm:py-8">
+              {preview.read.kind === "ready" && <LookCard preview={preview.read.preview} />}
+              {preview.read.kind === "failed" && <PlanUnavailable onRetry={preview.retry} />}
+            </PageContainer>
+          </>
+        )}
+      </main>
     </>
   );
 }
@@ -132,10 +138,13 @@ function LookBanner({
   });
   return (
     <div className="flex flex-wrap items-center gap-3.5 border-b border-hairline bg-info-tint px-6.5 py-2.75">
-      <span className="flex min-w-60 flex-1 flex-col gap-0.5">
-        <Text as="span" className="font-semibold text-info-ink">
+      <div className="flex min-w-60 flex-1 flex-col gap-0.5">
+        {/* The page's one heading, set exactly as the body line it was
+            (`Text`'s `text-base`, the sans face): the plan card below has no
+            heading of its own, so without this the page had none. */}
+        <Heading level={1} className="font-sans text-base font-semibold text-info-ink">
           {landing.inviterName} invited you to plan this trip
-        </Text>
+        </Heading>
         <Text as="span" className="text-pretty text-xs text-info-ink opacity-85">
           {LOOK_LINE[landing.role]}
         </Text>
@@ -144,7 +153,7 @@ function LookBanner({
             {error}
           </Text>
         )}
-      </span>
+      </div>
       <span className="flex items-center gap-2">
         <Button variant="secondary" size="sm" disabled={joining} onClick={() => void join()}>
           {joining ? "Joining…" : "Join the trip"}

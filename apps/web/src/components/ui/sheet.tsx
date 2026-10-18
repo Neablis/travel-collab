@@ -130,7 +130,7 @@ export function Sheet({
                 <RadixDialog.Title asChild>
                   {/* `min-w-0` because `truncate`'s overflow does nothing to a
                       flex item that refuses to shrink below its content. */}
-                  <Heading level={3} className="min-w-0 truncate">
+                  <Heading level={2} className="min-w-0 truncate text-lg">
                     {title}
                   </Heading>
                 </RadixDialog.Title>
@@ -150,8 +150,13 @@ export function Sheet({
               </div>
             ) : (
               <div className="flex items-start justify-between gap-3">
+                {/* Level 2 in both headers, styled as the level 3 they were:
+                    the sheet sits over a page whose one heading is its `h1`,
+                    and an `h3` there skipped a level. */}
                 <RadixDialog.Title asChild>
-                  <Heading level={3}>{title}</Heading>
+                  <Heading level={2} className="text-lg">
+                    {title}
+                  </Heading>
                 </RadixDialog.Title>
                 <RadixDialog.Close asChild>
                   <Button variant="ghost" size="icon" aria-label="Close">

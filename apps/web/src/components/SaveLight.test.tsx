@@ -35,6 +35,13 @@ describe("SaveLightMark", () => {
     expect(screen.getByRole("status").textContent).toBe("All changes saved");
   });
 
+  it("names the link home by the brand alone, not by the save state beside it", () => {
+    renderLight({ unsent: 2, failure: null, retry: () => {} });
+
+    // Exact: with the status inside the link, its name was "Saving… Caesura".
+    expect(screen.getByRole("link", { name: "Caesura" })).toBeTruthy();
+  });
+
   it("breathes while there is unsent work, and does not become a spinner", () => {
     const { container } = renderLight({ unsent: 2, failure: null, retry: () => {} });
 

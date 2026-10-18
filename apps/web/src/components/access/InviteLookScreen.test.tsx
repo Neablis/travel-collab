@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { InviteLanding, TripPreview } from "@tc/contracts";
 
@@ -81,7 +81,16 @@ describe("InviteLookScreen", () => {
   it("says it is opening the invite while the reads resolve", () => {
     fetchInviteLandingMock.mockReturnValue(new Promise(() => {}));
     render(<InviteLookScreen token="tok" googleAvailable />);
-    expect(screen.getByText("Opening this invite…")).toBeTruthy();
+    expect(within(screen.getByRole("main")).getByText("Opening this invite…")).toBeTruthy();
+  });
+
+  // The banner is the page's subject: its line is the one `h1`, and it sits
+  // inside the one <main> with the plan card rather than above it.
+  it("heads the page with the banner's line, inside the main landmark", async () => {
+    render(<InviteLookScreen token="tok" googleAvailable />);
+    const main = await screen.findByRole("main");
+    expect(within(main).getByRole("heading", { level: 1, name: "Dana Reyes invited you to plan this trip" })).toBeTruthy();
+    expect(within(main).getByRole("button", { name: "Join the trip" })).toBeTruthy();
   });
 
   // As on the landing: the preview is the picture, not the invite.

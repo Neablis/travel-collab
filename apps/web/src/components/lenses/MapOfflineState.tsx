@@ -49,7 +49,11 @@ export function MapOfflineState({
       data-testid="map-offline"
       className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-moss p-6 text-center"
     >
-      <Heading level={3}>The map could not load</Heading>
+      {/* Level 2 at level 3's size: the map sits under the page's `h1`, so an
+          `h3` here skipped a level. */}
+      <Heading level={2} className="text-lg">
+        The map could not load
+      </Heading>
       {/* The reassurance, and it is the load-bearing sentence: what a reader
           fears when a screen goes blank is that the thing itself is gone. */}
       <Text variant="secondary" className="max-w-80 text-pretty">
