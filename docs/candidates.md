@@ -341,11 +341,11 @@ here two days later.
 
 - **The trip page renders its first data on the server (found by PR 481's audit, 2026-10-18).**
   The biggest load-time item that pass left out: it was larger than a cleanup.
-  - **The trip page itself: done in PR TBD (part 1).** `(board)/page.tsx` reads the board's first
+  - **The trip page itself: done in PR 486 (part 1).** `(board)/page.tsx` reads the board's first
     answers in-process (`server/tripFirstData.ts`) after one `requireTripAccess`, with the GET
     routes' own view builders (`server/tripViews.ts`), and `TripProvider`'s `initial` seeds the
     query cache in the browser. The header and cover band draw on the server, the band hidden on
-    a phone by CSS and a `<picture>` whose phone source is blank. Numbers: see PR TBD.
+    a phone by CSS and a `<picture>` whose phone source is blank. Measured in PR 486.
   - **Same pattern, smaller (what is left of this entry):** `/s/[token]` (`SharedTripScreen`
     fetches in an effect), the `/playbooks/profile/[userId]` and `/playbooks/board` pages
     (`useLibraryRead` without `initial`), and `/demo/[slug]` (static shell, then six API reads;
@@ -353,13 +353,19 @@ here two days later.
   - **Measure first and after:** the Vercel Real Experience Score and Sentry, which PR 481 had no
     access to. Its numbers came from a local production build.
 
-- **The Overview document is in the first HTML (found by PR TBD, 2026-10-18).** On a phone the
+- **The Overview document is in the first HTML (found by PR 486, 2026-10-18).** On a phone the
   trip page's LCP element is a `<p>` of the Overview notebook, and `PageEditor` creates TipTap
   with `immediatelyRender: false`. So even with the page's data sent from the server, the
   paragraph appears only after hydration, the lens's chunk and the editor's creation. It needs a
   static server render of the document — TipTap's static renderer or `generateHTML`, a new
   dependency, or a second renderer — swapped for the editor once the editor exists. Mitchell
-  deferred it on 2026-10-18, out of the trip page's first-data stack. Numbers: see PR TBD.
+  deferred it on 2026-10-18, out of the trip page's first-data stack. Measured in PR 486.
+  - **A phone's first HTML is the desktop form until hydration.** `useIsPhone` is `false` on
+    the server and on the first client render, so `TripHeader` (its one-row phone header) and
+    `OverviewLens` (`compact`) are drawn in their desktop form in the server HTML and shift when
+    the hook corrects after hydration. Before PR 486 neither rendered until the provider had
+    loaded, by which time the hook had. Accepted for part 1; the fix is the same breakpoint in
+    CSS (`max-md:`) wherever the form is only a restyle.
 
 - **Trip requests stop re-reading the whole trip (found by PR 481's audit, 2026-10-18).** Every
   `/api/trips/[tripId]/**` request runs `requireTripAccess`, which reads and Zod-parses the whole

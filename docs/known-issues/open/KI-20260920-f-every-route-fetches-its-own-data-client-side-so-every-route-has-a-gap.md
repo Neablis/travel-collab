@@ -78,3 +78,14 @@
   `/api/playbooks` fetch), and the new city and country pages (part 5). Still
   client-side, so the entry stays open: public profiles, the board, home, the
   trip routes, plans and every `(front)` page.
+
+- **The trip board moved too, 2026-10-18 (PR 486).** `(board)/page.tsx` now reads the board's
+  first data on the server (`server/tripFirstData.ts`, after one `requireTripAccess`, through the
+  GET routes' own builders in `server/tripViews.ts`), and `TripProvider`'s `initial` seeds the
+  client cache, so the board and its header are in the first HTML. The wall was opened for that one
+  file (Mitchell's decision of 2026-10-18, AGENTS.md). The 2026-09-20 and 2026-09-25 lines above
+  that say the trip page "fetches nothing" and that the wall forbids it are true of their date
+  only. The `TripProvider` cost described above was paid that way: the seed is adopted once,
+  refused while a write to the trip is open, and withdrawn after the first change. Still
+  client-side, so the entry stays open: public profiles, the board of saved days, home, the
+  notebook routes, `/s/[token]`, `/demo/[slug]`, plans and every `(front)` page.
