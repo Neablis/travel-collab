@@ -148,8 +148,12 @@ const LENS_MODULES: Record<View, () => Promise<unknown>> = {
 // there yet, and focus fell to <body>.
 const loadAssistantRail = () => import("@/components/assistant/AssistantRail");
 const AssistantRail = lazy(() => loadAssistantRail().then((m) => ({ default: m.AssistantRail })));
-const ActivityEditorSheet = dynamic(() =>
-  import("@/components/trip/editor/ActivityEditorSheet").then((m) => m.ActivityEditorSheet),
+// `loading` for the rack's reason (above): opened by a tap on Add stop or ⌘K
+// before the idle preload has fetched it, an editor with no boundary of its
+// own suspended to the route's and hid the board.
+const ActivityEditorSheet = dynamic(
+  () => import("@/components/trip/editor/ActivityEditorSheet").then((m) => m.ActivityEditorSheet),
+  { loading: () => null },
 );
 const ON_REQUEST_MODULES = [loadAssistantRail, () => import("@/components/trip/editor/ActivityEditorSheet")];
 
