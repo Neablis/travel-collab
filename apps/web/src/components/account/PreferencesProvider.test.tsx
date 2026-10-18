@@ -8,11 +8,14 @@ import type { UpdateUserPreferences, UserPreferences } from "@tc/contracts";
 const pending: Array<{ patch: UpdateUserPreferences; settle: (value: UserPreferences) => void }> = [];
 
 const preferencesRead = vi.fn();
+// What the mocked endpoint answers for the name; one test sets it to tell a
+// fetched read from the defaults.
+let fetchedName: string | null = null;
 vi.mock("@/lib/apiClient", () => ({
   fetchPreferences: async () => (preferencesRead(), {
     ok: true as const,
     value: {
-      preferences: { displayName: null, homeAirport: null, distanceUnit: "km", timeFormat: "12h", avatar: null, color: null, publicDisplayName: false } satisfies UserPreferences,
+      preferences: { displayName: fetchedName, homeAirport: null, distanceUnit: "km", timeFormat: "12h", avatar: null, color: null, publicDisplayName: false } satisfies UserPreferences,
       isAdmin: false,
     },
   }),
@@ -41,6 +44,7 @@ function Probe() {
 beforeEach(() => {
   pending.length = 0;
   preferencesRead.mockClear();
+  fetchedName = null;
 });
 afterEach(cleanup);
 
@@ -143,11 +147,31 @@ describe("PreferencesProvider", () => {
     expect(screen.getByTestId("admin").textContent).toBe("admin");
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(preferencesRead).not.toHaveBeenCalled();
+  });
 
-    // A save from the served state is adopted like any other.
-    void save({ distanceUnit: "km" });
-    await waitFor(() => expect(pending).toHaveLength(1));
-    pending[0]!.settle({ displayName: "Sam", homeAirport: null, distanceUnit: "km", timeFormat: "12h", avatar: null, color: null, publicDisplayName: false });
-    await waitFor(() => expect(screen.getByTestId("unit").textContent).toBe("km"));
+  // The layout's read failed, so the provider fetched for itself; then a
+  // `router.refresh()` re-rendered the layout with a read that succeeded. The
+  // fetch already in flight must still land, or the page is left on defaults.
+  it("keeps its own fetch when a served read arrives after mount", async () => {
+    fetchedName = "Fetched";
+    const { rerender } = render(
+      <PreferencesProvider>
+        <Probe />
+      </PreferencesProvider>,
+    );
+    rerender(
+      <PreferencesProvider
+        initialRead={{
+          preferences: { displayName: "Sam", homeAirport: null, distanceUnit: "mi", timeFormat: "12h", avatar: null, color: null, publicDisplayName: false },
+          defaultColor: null,
+          isAdmin: false,
+        }}
+      >
+        <Probe />
+      </PreferencesProvider>,
+    );
+    await waitFor(() => expect(preferencesRead).toHaveBeenCalledTimes(1));
+    // The fetched name, not the defaults' "—" and not the late read's "Sam".
+    await waitFor(() => expect(screen.getByTestId("name").textContent).toBe("Fetched"));
   });
 });

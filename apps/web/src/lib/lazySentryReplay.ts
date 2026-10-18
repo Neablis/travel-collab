@@ -2,11 +2,13 @@
 // `Sentry.init` (Mitchell, 2026-10-18). Lighthouse on production put the shared
 // client chunk at ~160KB gz, ~2.0s of script evaluation under a 4x CPU
 // throttle, on every page, and Replay's rrweb recorder was the largest single
-// thing in it. A replay that starts a second late loses that second of
-// recording; a page that waits for rrweb before it can respond loses it for
-// every visitor, sampled or not.
+// thing in it. A replay that starts late loses the recording from navigation
+// to load plus idle (up to IDLE_DEADLINE_MS after load, or
+// NO_IDLE_CALLBACK_DELAY_MS on Safari), plus the chunk's fetch; a page that
+// waits for rrweb before it can respond loses that time for every visitor,
+// sampled or not.
 //
-// Errors in that first second are still captured as events. What they miss is
+// Errors in that window are still captured as events. What they miss is
 // the replay: `replaysOnErrorSampleRate` buffers only from the moment the
 // integration is added.
 import { addIntegration } from "@sentry/nextjs";

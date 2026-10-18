@@ -23,8 +23,8 @@ is a bug, not a sampling artefact.
 - **Errors**, client and server, plus `global-error.tsx` and
   `onRequestError`.
 - **Traces** at `tracesSampleRate` (default 1).
-- **CPU profiles**, browser (JS Self-Profiling) and server
-  (`@sentry/profiling-node`), only while a sampled root span is open.
+- **CPU profiles**, server only (`@sentry/profiling-node`), only while a
+  sampled root span is open. Browser profiling was removed on 2026-10-18.
 - **Session Replay**: 10% of sessions, 100% of sessions that hit an error.
 - **Logs** — `Sentry.logger.*`. Note the app's own analytics lines are
   `console.info` and go to Vercel, not here.

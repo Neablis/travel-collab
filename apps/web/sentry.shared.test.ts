@@ -606,6 +606,9 @@ describe("Session Replay", () => {
       "utf8",
     );
     expect(source).toContain("Sentry.addEventProcessor(scrubSentryPayload)");
+    // And Replay is still asked for, gated on the same switch as the client.
+    // Deleting this call loses every replay with every other test green.
+    expect(source).toContain("loadSentryReplayWhenIdle(sentryEnabled)");
   });
 });
 

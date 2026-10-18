@@ -99,9 +99,10 @@ export function PreferencesProvider({
   const [isAdmin, setIsAdmin] = useState(initialRead?.isAdmin ?? false);
   const [defaultColor, setDefaultColor] = useState<PersonColor | null>(initialRead?.defaultColor ?? null);
   const [loaded, setLoaded] = useState(noSessionCookie || initialRead !== undefined);
-  // A boolean in the effect's deps, not the object: a fresh object on a later
-  // render must not set off a fetch the first render did not need.
-  const served = initialRead !== undefined;
+  // Settled at mount, like the state above. Re-derived per render, a read that
+  // arrives later (a `router.refresh()` while the provider's own fetch is in
+  // flight) would flip it, cancel that fetch, and leave the defaults in place.
+  const [served] = useState(initialRead !== undefined);
 
   useEffect(() => {
     if (noSessionCookie || served) return;

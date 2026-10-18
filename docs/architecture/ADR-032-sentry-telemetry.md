@@ -300,8 +300,10 @@ not need. Landing TBT ran 740–1,610ms.
   Turbopack tree-shakes `replayIntegration` out of `instrumentation-client.ts`'s
   `import * as Sentry` once nothing there names it. Nothing is loaded when
   Sentry is off. The sample rates stay in `Sentry.init`; Replay reads them off
-  the client when it is added. The cost is the first second or so of each
-  session's recording, including the on-error buffer: an error in that window
+  the client when it is added. The cost is each session's recording from
+  navigation until page load plus idle (up to 5s after load; 2s on Safari,
+  which has no `requestIdleCallback`) plus the chunk's fetch, including the
+  on-error buffer: an error in that window
   is still an event, without a replay.
 * Measured on `NEXT_PUBLIC_SENTRY_DSN='' pnpm build`: the every-page files
   went from 749,788 bytes raw / 233,097 gz to 615,115 / 192,043, and Replay is
