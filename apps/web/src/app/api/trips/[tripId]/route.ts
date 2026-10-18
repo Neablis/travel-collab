@@ -1,5 +1,5 @@
-import { TripDetail } from "@tc/contracts";
 import { requireTripAccess } from "@/server/access/trip-access";
+import { tripDetailView } from "@/server/tripViews";
 
 export async function GET(_request: Request, { params }: { params: Promise<{ tripId: string }> }) {
   const { tripId } = await params;
@@ -10,6 +10,6 @@ export async function GET(_request: Request, { params }: { params: Promise<{ tri
   // traveler show up in the trip's Travelers row (M11 link 3).
   const access = await requireTripAccess(tripId, "viewer", { allowDemo: true });
   if ("error" in access) return access.error;
-  // Contract-honest response: validate against the schema before returning.
-  return Response.json({ trip: TripDetail.parse(access.detail) });
+  // Contract-honest response: validated against the schema before returning.
+  return Response.json(tripDetailView(access));
 }

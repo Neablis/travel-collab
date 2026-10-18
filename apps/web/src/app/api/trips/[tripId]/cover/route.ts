@@ -2,7 +2,8 @@ import { TripCoverResponse } from "@tc/contracts";
 import { requireTripAccess } from "@/server/access/trip-access";
 import { coverPick, tripDeleted } from "@/server/coverRoutes";
 import { getCoverPhotos } from "@/server/external/unsplash";
-import { clearTripCover, getTripCover, setTripCover } from "@/server/tripCovers";
+import { clearTripCover, setTripCover } from "@/server/tripCovers";
+import { tripCoverView } from "@/server/tripViews";
 
 // A trip's cover photo (M37). Not a planning command: a cover is a decoration
 // on the trip, kept in its own table and never in the event log (D1), so these
@@ -18,7 +19,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ tri
   const { tripId } = await params;
   const access = await requireTripAccess(tripId, "viewer");
   if ("error" in access) return access.error;
-  return Response.json(TripCoverResponse.parse({ cover: await getTripCover(tripId) }));
+  return Response.json(await tripCoverView(tripId));
 }
 
 /**
