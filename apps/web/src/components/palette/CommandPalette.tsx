@@ -12,6 +12,7 @@ import { fetchTrips } from "@/lib/apiClient";
 import { cn } from "@/lib/cn";
 import { orderHomeTrips } from "@/lib/homeTripOrder";
 import { localTodayIso } from "@/lib/today";
+import { whenIdle } from "@/lib/whenIdle";
 import { askCommand, placeCommands } from "./commands";
 import { type PaletteNode, paletteLevel } from "./grammar";
 import { type PaletteStep, searchPalette } from "./match";
@@ -127,16 +128,28 @@ export function CommandPalette() {
   // Your trips, read on mount and again each time it opens: a list kept from
   // the last opening would offer a trip deleted since. In Home's order
   // (ADR-069 §5).
+  //
+  // **The mount read waits for idle.** It is not for the palette, which reads
+  // afresh on opening, but for a command named by id (the assistant's
+  // `go:trip:<id>`), and nobody can ask for one in the first second of a page.
+  // On the first frame it was one more request racing every app page's own.
+  // An opening before then cancels it and reads at once.
   useEffect(() => {
     if (!signedIn) return;
     let live = true;
-    void fetchTrips().then((result) => {
-      if (!live) return;
-      if (result.ok) setTrips(orderHomeTrips(result.value.filter((trip) => trip.status === "active"), localTodayIso()));
-      setReadOpening(openings);
-    });
+    const read = () => {
+      void fetchTrips().then((result) => {
+        if (!live) return;
+        if (result.ok) setTrips(orderHomeTrips(result.value.filter((trip) => trip.status === "active"), localTodayIso()));
+        setReadOpening(openings);
+      });
+    };
+    let cancel: (() => void) | undefined;
+    if (openings === 0) cancel = whenIdle(read);
+    else read();
     return () => {
       live = false;
+      cancel?.();
     };
   }, [openings, signedIn]);
 
