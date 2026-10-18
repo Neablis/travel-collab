@@ -1,5 +1,7 @@
 import { act, render, screen, fireEvent, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { useSyncExternalStore } from "react";
+import { afterEach, describe, expect, it, vi, beforeEach } from "vitest";
+import { followHistory } from "@/test-support/nextHistory";
 
 // Mock the API client the provider wraps. The detail must be a
 // contract-complete TripDetail (not just the fields this test happens to
@@ -54,9 +56,23 @@ vi.mock("@/lib/apiClient", () => ({
 // Mock next/navigation: URL is the store.
 let search = new URLSearchParams("");
 let pathname = "/trips/x";
-const replaceSpy = vi.fn((url: string) => { search = new URLSearchParams(url.split("?")[1] ?? ""); });
+const replaceSpy = vi.fn();
+// The URL, as Next's patched `history` moves it (`followHistory`): a view
+// change re-renders whoever reads the search params.
+const urlListeners = new Set<() => void>();
+const setUrl = (url: string) => {
+  search = new URLSearchParams(url.split("?")[1] ?? "");
+  urlListeners.forEach((l) => l());
+};
 vi.mock("next/navigation", () => ({
-  useSearchParams: () => search,
+  useSearchParams: () =>
+    useSyncExternalStore(
+      (onChange) => {
+        urlListeners.add(onChange);
+        return () => urlListeners.delete(onChange);
+      },
+      () => search,
+    ),
   usePathname: () => pathname,
   useRouter: () => ({ replace: replaceSpy }),
 }));
@@ -65,7 +81,15 @@ import { TripProvider, useTrip } from "./TripProvider";
 import { EditorHost, useEditor } from "./EditorHost";
 import { LensRouter, useLens } from "./LensRouter";
 
-beforeEach(() => { search = new URLSearchParams(""); pathname = "/trips/x"; replaceSpy.mockClear(); dispatchSpy.mockClear(); });
+let restoreHistory: () => void = () => {};
+beforeEach(() => {
+  search = new URLSearchParams("");
+  pathname = "/trips/x";
+  replaceSpy.mockClear();
+  dispatchSpy.mockClear();
+  restoreHistory = followHistory(setUrl);
+});
+afterEach(() => restoreHistory());
 
 function Consumer() {
   const { activeTrip, dispatch } = useTrip();
@@ -110,11 +134,18 @@ describe("trip context spine", () => {
 
   // SPEC §24: a trip with no view in its URL lands on **Overview** — *"You read
   // a trip before you change it."* It used to land on Board.
+  //
+  // PR 486 review: a tab change writes the URL natively and never through the
+  // router, whose navigation would fetch the trip page from the server again
+  // (every first-data read, for an answer nothing uses).
   it("setView writes the URL, and the view derives from it (unidirectional)", async () => {
+    const written = vi.spyOn(window.history, "replaceState");
     render(<Harness />);
     await waitFor(() => expect(screen.getByTestId("lens").textContent).toBe("Overview"));
     fireEvent.click(screen.getByRole("button", { name: "go map" }));
-    expect(replaceSpy).toHaveBeenCalledWith(expect.stringContaining("view=Map"), { scroll: false });
+    expect(written).toHaveBeenCalledWith(null, "", expect.stringContaining("view=Map"));
+    expect(replaceSpy).not.toHaveBeenCalled();
+    await waitFor(() => expect(screen.getByTestId("lens").textContent).toBe("Map"));
   });
 
   // A demo lands on Plan instead (Mitchell, 2026-10-11): a visitor is there to

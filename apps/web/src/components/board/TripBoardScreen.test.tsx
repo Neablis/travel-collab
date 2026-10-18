@@ -1,5 +1,6 @@
 import { useSyncExternalStore, type ComponentProps } from "react";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { followHistory } from "@/test-support/nextHistory";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
@@ -114,6 +115,7 @@ const replaceSpy = vi.fn((url: string) => {
   listeners.forEach((l) => l());
 });
 const pushSpy = vi.fn();
+let restoreHistory: () => void = () => {};
 vi.mock("next/navigation", () => ({
   useSearchParams: () =>
     useSyncExternalStore(
@@ -187,12 +189,17 @@ beforeEach(() => {
   // below, and by `context.test.tsx`.
   search = new URLSearchParams("view=Plan");
   replaceSpy.mockClear();
+  // A tab writes the URL through `history.replaceState`, which Next syncs into
+  // the search params (`LensRouter.setView`, PR 486); routed to the same spy,
+  // so a test reads every URL change in one place.
+  restoreHistory = followHistory((url) => replaceSpy(url));
   askAssistantMock.mockReset();
   applyProposalMock.mockReset();
   mapLensProps.mockClear();
   setViewportMatches({ "(min-width: 1180px)": true });
 });
 afterEach(() => {
+  restoreHistory();
   server.resetHandlers();
   cleanup();
   listeners.clear();

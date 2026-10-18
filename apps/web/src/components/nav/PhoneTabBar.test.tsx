@@ -156,6 +156,25 @@ describe("PhoneTabBar", () => {
     expect(hrefOf("Notebook")).toBe("/trips/t1/pages");
   });
 
+  // PR 486 review: a view tab on the trip's own path writes the URL natively
+  // (Next syncs it into `useSearchParams`) rather than navigating, which would
+  // fetch the trip page from the server again. A tab to another path still
+  // navigates as a link.
+  it("switches the view on the same path without a navigation, and leaves other tabs to the link", () => {
+    const pushed = vi.spyOn(window.history, "pushState").mockImplementation(() => {});
+    try {
+      renderAt("/trips/t1?view=Overview");
+      fireEvent.click(screen.getByRole("link", { name: "Plan" }));
+      expect(pushed).toHaveBeenCalledWith(null, "", "/trips/t1?view=Plan");
+      pushed.mockClear();
+      const notebook = fireEvent.click(screen.getByRole("link", { name: "Notebook" }), { button: 1 });
+      expect(notebook).toBe(true);
+      expect(pushed).not.toHaveBeenCalled();
+    } finally {
+      pushed.mockRestore();
+    }
+  });
+
   // The Plan tab must never point at a read-only view: it exists to reach the
   // one surface that edits (§24). A bare `/trips/<id>` would now land on
   // Overview, which is the regression this pins.
