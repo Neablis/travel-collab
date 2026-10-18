@@ -79,7 +79,7 @@ Each was put to Mitchell as a choice on 2026-10-02.
 | D6 | City **and** country pages as paths: `/playbooks/city/<slug>`, `/playbooks/country/<slug>` | Cities only; keeping `?city=`; leaving them out |
 | D7 | Day URLs become `/playbooks/day/<slug>-<id>` | Keeping the bare UUID |
 | D8 | Related days on a day page, and paged city and country lists. Discover stays a 24-item view | Paginating Discover; sitemap only |
-| D9 | The landing is served at `/` for a signed-out visitor, and `/welcome` is canonical to `/` | Keeping the redirect |
+| D9 | The landing is served at `/` for a signed-out visitor, and `/welcome` is canonical to `/`. **Amended by ADR-078 (2026-10-18):** `/` is the landing for everybody, static; Home is `/home`; `/welcome` is a 308 to `/` | Keeping the redirect |
 
 D5 is the second hole in the wall after `src/app/admin/**`. The reason is the one AGENTS.md
 records for admin: a server component fetching its own API over HTTP keeps the wall's letter
@@ -122,7 +122,9 @@ Each opens as a draft.
   on `/demo` and `/s/[token]` goes.
 - The proxy rewrites a signed-out `/` to the landing with no redirect. `/welcome` declares `/`
   canonical. The response for `/` must not be cached across the session boundary; the plan
-  says how and a test proves a signed-in request never gets the landing.
+  says how and a test proves a signed-in request never gets the landing. *(Superseded by
+  ADR-078: `/` has no session boundary any more, so it is cached; a signed-in browser is sent
+  to `/home` by a hint cookie.)*
 - `pageMetadata()` sets the `twitter` title and description explicitly.
 
 ### Part 2: sitemap

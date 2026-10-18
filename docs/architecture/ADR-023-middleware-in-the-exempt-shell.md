@@ -16,6 +16,10 @@ Milestone: `docs/milestones/M15-front-door.md`
 > `src/server/auth.ts` never was — mitigated by a narrow
 > `no-restricted-imports` rule). The content below is kept as-written for the
 > historical record; it is no longer the operative decision.
+>
+> **And `/` is no longer the proxy's (ADR-078, 2026-10-18).** Home moved to
+> `/home` and `/` became a static landing for everybody, so nothing below about
+> redirecting a signed-out `/` describes the app any more.
 
 ## Context
 
