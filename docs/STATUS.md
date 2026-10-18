@@ -45,7 +45,8 @@ up ahead of the row order, and each was his call. This is his waiver, recorded h
 - **Trip guests**: travellers who are not on the app (PR 457, its parts stacked into it,
   ADR-074, migration `0053`).
 - **Plan-retrieval RAG, M48's serving code**: PRs 459-467, migration `0054`, pgvector in Neon
-  (ADR-075). It serves only behind a flag that is off by default. The Gate 1 recall eval
+  (ADR-075). It serves behind `RAG_PLAN_RETRIEVAL`, which Mitchell turned on in production on
+  2026-10-17 to let it prove itself on real plan turns (his walk is done). The Gate 1 recall eval
   (PR 461) merged on 2026-10-17 too, on Mitchell's call, so it can be re-run from `main`. M48 is **not current**: its
   row keeps its place, and its decisions and remaining gate boxes are in
   `docs/milestones/M48-plans-start-from-examples.md`.

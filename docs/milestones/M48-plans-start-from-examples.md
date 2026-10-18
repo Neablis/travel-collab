@@ -3,12 +3,18 @@
 **Status:** **Built ahead of the milestone order, with Mitchell's approval; the gate is not
 closed.** It was proposed on 2026-10-11 and placed after M47. The RAG stack merged on
 2026-10-15/16 as PRs 459 to 467 (migration `0054_rag_day_embeddings`), and the Gate 1 eval,
-PR 461, merged last, on 2026-10-17. It is in production behind `RAG_PLAN_RETRIEVAL`, which is
-off.
+PR 461, merged last, on 2026-10-17. It is in production behind `RAG_PLAN_RETRIEVAL`.
+- **The flag is on in production from 2026-10-17** (Mitchell: *"Lets turn on the flag, and give it
+  more time to prove itself … Im confident the quality will grow and the cost will decrease"*).
+  `RAG_PLAN_RETRIEVAL=1` is set in Vercel's Production scope, and takes effect from the first
+  production deploy after that. Production then held 344 `day_embeddings` rows and had served
+  1 plan turn in the previous 30 days, so the measuring is slow: every plan turn before that
+  deploy is the baseline, every one after it is the flag-on arm.
 - **Decisions:** 2, 3, 5, 6, 7, 8, 9 and 10 are answered by what was built. Mitchell said on
-  2026-10-17 to record them that way. Decision 4 is partly answered, and 1 and 11 are open.
+  2026-10-17 to record them that way. Decision 4 is answered by his walk. 1 and 11 are open.
 - **The index:** ADR-075.
-- **The gate:** 3 of 11 boxes, each with its evidence below.
+- **The gate:** 4 of 11 boxes, each with its evidence below. It stays open while the flag-on
+  numbers accumulate.
 - **PR 461**, the Gate 1 eval, merged on 2026-10-17 (merge commit `97caeb0`), on Mitchell's
   call so it can be re-run from `main`. Where it lives and how it runs is below.
 
@@ -153,7 +159,8 @@ About the feature:
      use the M33 harness.
    - The plans are built from a stand-in prompt, not the full production turn prompt, which the
      runbook records as a known limitation.
-   - Mitchell reading the plans side by side is the `[walk]` box below, and it has not happened.
+   - Mitchell reading the plans side by side is the `[walk]` box below. **He walked it** (said in
+     session, 2026-10-17), and shipped improvements aimed at the cost after it.
 5. **The bar for "examples can be found"** (Sunny's question 1). *Recommended:* recall@5 ≥ 0.7
    as proposed, plus the coverage count above.
    **Answered for recall, open for coverage.** The bar is macro recall@5 ≥ 0.7 over 25
@@ -265,11 +272,13 @@ The two offline checks therefore did not come before serving code, as commitment
 should. The flag is off.
 
 - [ ] **Decisions 1–11 are answered and recorded here**, with an ADR for the index if decision 8 keeps one.
-      *(2026-10-17: ADR-075 exists. Not ticked, because 1 and 11 are open and 4 is partly
-      answered.)*
+      *(2026-10-17: ADR-075 exists. 4 is answered by the walk. Not ticked, because 1 and 11 are
+      open.)*
 - [ ] **The baseline is pasted here**: dollars per plan turn, input and output split, plan turns
       per month (`ai-usage` skill output).
-      *(2026-10-17: nothing has been pasted.)*
+      *(2026-10-17: nothing has been pasted. The flag went on in production that day, so the
+      baseline is the ledger's plan turns before that deploy, still readable by the `ai-usage`
+      skill.)*
 - [ ] **The first offline check is run and its numbers are pasted here**: recall and corpus
       coverage over the labelled requests. Below the bar, the milestone closes here with a retro
       and no serving code.
@@ -317,6 +326,8 @@ should. The flag is off.
       *(2026-10-17: this is not built. The example count reaches only the `rag: plan examples`
       and `rag: plan examples used` log lines (`handleAskRequest.ts:710-716` and `:896-899`). It
       does not reach the M31 ledger tables.)*
-- [ ] **[walk]** On the PR preview with the flag on, ask *"plan a 6 day food trip to Tokyo"*,
+- [x] **[walk]** On the PR preview with the flag on, ask *"plan a 6 day food trip to Tokyo"*,
       and the suggestions it writes are a plan Mitchell would accept.
+      *(Ticked on Mitchell's word, 2026-10-17: "We did walk it, and we shipped a few improvements
+      to try to get a better cost savings.")*
 - [ ] A retro is appended at gate close.
