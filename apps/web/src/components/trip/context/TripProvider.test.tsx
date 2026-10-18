@@ -208,6 +208,21 @@ describe("TripProvider — the server's first data", () => {
     expect(reads()).toEqual([0, 0, 0]);
   });
 
+  // A write that landed after the server read the seed — KI-5's `pagehide`
+  // flush, a reload straight after an edit — is caught by one events read from
+  // the seed's head, and the trip is read again.
+  it("reads the trip again when the log has moved past the seed", async () => {
+    const first = tripFirstDataFixture();
+    fetchTripEventsMock.mockResolvedValue({ ok: true, value: { headSeq: 99, events: [], resync: false } });
+    render(
+      <TripProvider tripId={first.trip.trip.tripId} initial={first}>
+        <StatusProbe />
+      </TripProvider>,
+    );
+    await waitFor(() => expect(fetchTripDetailMock).toHaveBeenCalledTimes(1));
+    expect(fetchTripEventsMock).toHaveBeenCalledWith(first.trip.trip.tripId, expect.any(Number));
+  });
+
   it("reads all three on mount without it", async () => {
     render(
       <TripProvider tripId="x">

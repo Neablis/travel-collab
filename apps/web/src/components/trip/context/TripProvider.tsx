@@ -16,6 +16,7 @@ import {
   fetchTripAccess,
   fetchTripDetail,
   fetchTripDetailAt,
+  fetchTripEvents,
   fetchTripHistory,
   sendTripCommand,
   sendTripUnits,
@@ -423,10 +424,24 @@ export function TripProvider({
   // A seeded provider skips `load` — the server answered it — and keeps the
   // check: a write the previous board left on the wire is just as likely to
   // land after a server render as after a read of the provider's own.
+  //
+  // **And asks once whether the log has moved past the seed** (PR 486 e2e,
+  // m26-phone-plan). A write sent as the last page went — KI-5's `pagehide`
+  // flush, a reload straight after an edit — can land after the server read
+  // this page's seed, and no write scope in this document knows of it. A solo
+  // trip runs no poll timer, so nothing else would ever look: the board showed
+  // the edit undone until the next reload. One events read, from the seed's
+  // head; news is the same re-read the poll makes.
+  const seedIsCurrent = useCallback(async () => {
+    if (seed === null) return;
+    const after = headSeqOf(seed.history);
+    const result = await fetchTripEvents(tripId, after);
+    if (result.ok && (result.value.resync || result.value.headSeq > after)) onRemoteChangeRef.current();
+  }, [seed, tripId]);
   useEffect(() => {
     let live = true;
     const settled = writesSettled(tripKeys.all(tripId));
-    void (seed === null ? load() : Promise.resolve()).then(async () => {
+    void (seed === null ? load() : seedIsCurrent()).then(async () => {
       if (!settled) return;
       await settled;
       if (live) onRemoteChangeRef.current();
@@ -434,7 +449,7 @@ export function TripProvider({
     return () => {
       live = false;
     };
-  }, [load, tripId, seed]);
+  }, [load, tripId, seed, seedIsCurrent]);
 
   const exit = useCallback(() => {
     setPreviewSeq(null);

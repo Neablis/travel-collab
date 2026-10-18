@@ -105,10 +105,12 @@ afterEach(cleanup);
 afterAll(() => server.close());
 
 // A fresh answer each time, as each server render is: a provider adopts an
-// answer once per document (`firstDataSpent`).
-const renderBoard = () =>
+// answer once per document (`firstDataSpent`). `seeded: false` is the path
+// with no server answer (`/demo/<slug>`, a refused seed): the trip is read on
+// mount.
+const renderBoard = ({ seeded = true }: { seeded?: boolean } = {}) =>
   render(
-    <TripProvider tripId={tripId} initial={tripFirstDataFixture({ trip: first.trip.trip })}>
+    <TripProvider tripId={tripId} initial={seeded ? tripFirstDataFixture({ trip: first.trip.trip }) : null}>
       <FocusProvider>
         <EditorHost>
           <LensRouter>
@@ -133,6 +135,20 @@ describe("TripBoardScreen — a phone's Plan is first drawn in its right form", 
     act(() => widths.set(true));
     expect(await screen.findByRole("group", { name: "Day columns" })).toBeTruthy();
     expect(screen.queryByTestId("lens-placeholder")).toBeNull();
+  });
+
+  // The same with no server answer: the trip is read on mount, and the board
+  // must not have gone live on its loading render, before there was a trip
+  // whose arrival day to wait for (PR 486 review).
+  it("does not mount the lens until the arrival day is focused when the trip is read on mount", async () => {
+    widths.isPhone = true;
+    focus.held = true;
+    renderBoard({ seeded: false });
+    expect(await screen.findByTestId("lens-placeholder")).toBeTruthy();
+    expect(focus.queued.length).toBeGreaterThan(0);
+    expect(screen.queryByRole("group", { name: "Day columns" })).toBeNull();
+    act(() => focus.queued.forEach((apply) => apply()));
+    expect(await screen.findByRole("group", { name: "Day columns" })).toBeTruthy();
   });
 
   // Once live, for good (PR 486 review): a rotation across 768px re-renders

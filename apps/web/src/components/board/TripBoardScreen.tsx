@@ -661,12 +661,15 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // `useIsPhoneKnown` before `useIsPhone` follows, and clearing the focused day
   // empties it — and each would unmount the lens and the rack under the
   // reader. The gate is for the first mount only.
+  //
+  // Not before the trip is here: these run above the loading return, and with
+  // no trip there is no arrival day to wait for yet (the unseeded path —
+  // `/demo/<slug>`, or a refused seed — would latch on its loading render).
+  // Latched during render rather than in an effect, so it costs no extra commit.
   const awaitsPhoneDay = isPhone && focusedDay === null && activeTrip !== null && activeTrip.days.length > 0;
-  const firstMountReady = hydrated && widthKnown && !awaitsPhoneDay;
+  const firstMountReady = hydrated && widthKnown && activeTrip !== null && !awaitsPhoneDay;
   const [wentLive, setWentLive] = useState(false);
-  useEffect(() => {
-    if (firstMountReady) setWentLive(true);
-  }, [firstMountReady]);
+  if (firstMountReady && !wentLive) setWentLive(true);
   const live = wentLive || firstMountReady;
 
   const searchParams = useSearchParams();
