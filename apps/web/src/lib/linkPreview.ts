@@ -20,6 +20,16 @@ import { pageMetadata } from "./siteMetadata";
 const META_TIMEOUT_MS = 3000;
 
 /**
+ * How long a looked-up card may be reused from Next's data cache. Without it
+ * every render of these pages made a fresh HTTP round trip to its own origin
+ * before the <head> could stream. An hour is the shortest freshness the meta
+ * routes already declare (`INVITE_CACHE_CONTROL`'s `max-age=3600`; the others
+ * allow the CDN longer), so this caches nothing a browser would not. Only a
+ * 200 is stored, so a fallback is never held.
+ */
+const META_REVALIDATE_SECONDS = 3600;
+
+/**
  * Metadata for a link with its own preview card: og:image at `imagePath`, the
  * title and description from `imagePath + "/meta"`, and `fallback` whenever
  * that lookup does not answer 200 with both strings.
@@ -29,6 +39,7 @@ export async function linkPreviewMetadata(imagePath: string, fallback: Metadata)
     // eslint-disable-next-line no-restricted-globals -- a server-side generateMetadata call to an absolute deploymentOrigin() URL, which apiClient's browser-origin apiUrl() cannot build; this function never rejects either
     const response = await fetch(new URL(`${imagePath}/meta`, deploymentOrigin()), {
       signal: AbortSignal.timeout(META_TIMEOUT_MS),
+      next: { revalidate: META_REVALIDATE_SECONDS },
     });
     // A 429 from the route's limiter lands here too, and falls back.
     if (!response.ok) return fallback;
