@@ -9,7 +9,7 @@ test.use({ storageState: { cookies: [], origins: [] } });
 test("landing → sign in → first trip → sign out", async ({ page }) => {
   const tripName = e2eTripName("Kyoto");
 
-  // `/` serves the landing in place for a signed-out visitor: no redirect.
+  // `/` is the landing, the same static page for everybody (ADR-078).
   await page.goto("/");
   await expect(page).toHaveURL(/\/$/);
   await expect(
@@ -103,7 +103,32 @@ test("landing → sign in → first trip → sign out", async ({ page }) => {
   // And back out the front door.
   await page.getByRole("button", { name: "Account menu" }).click();
   await page.getByRole("button", { name: "Sign out" }).click();
-  await expect(page).toHaveURL(/\/welcome$/);
+  // To the landing, and it stays there: sign-out took the signed-in hint
+  // with it, so the landing's script has nothing to send it to Home on.
+  await expect(page).toHaveURL(/\/$/);
+  await expect(page.getByRole("heading", { name: "Put the best day on repeat." })).toBeVisible();
+});
+
+// ADR-078: Home moved from `/` to `/home`, and `/` became a static page that
+// cannot read the session. These are the two ends of that: Home is guarded,
+// and the landing hands a signed-in browser on to it.
+test("a signed-out /home is sent to sign in, with Home as the way back", async ({ page }) => {
+  await page.goto("/home");
+  await expect(page).toHaveURL(/\/signin\?callbackUrl=%2Fhome$/);
+});
+
+test.describe("signed in", () => {
+  test.use({ storageState: ".auth/alice.json" });
+
+  test("a signed-in / ends up on Home", async ({ page }) => {
+    // Through Home once, as anybody signing in does: that visit is what sets
+    // the hint the landing reads.
+    await page.goto("/home");
+    await expect(page.getByRole("heading", { name: "Your trips" })).toBeVisible();
+    await page.goto("/");
+    await expect(page).toHaveURL(/\/home$/);
+    await expect(page.getByRole("heading", { name: "Your trips" })).toBeVisible();
+  });
 });
 
 // Reported from the 2026-08-30 preview design pass: "Pressing enter should

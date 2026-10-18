@@ -109,7 +109,7 @@ test.describe("M39 Part 4 — installable", () => {
     await page.setViewportSize({ width: 600, height: 400 });
     const cdp = await page.context().newCDPSession(page);
     await cdp.send("Emulation.setSafeAreaInsetsOverride", { insets: { left: 30, right: 20 } });
-    await page.goto("/");
+    await page.goto("/home");
 
     const bar = page.getByRole("navigation", { name: "Phone navigation" });
     const barBox = (await bar.boundingBox())!;
@@ -211,7 +211,7 @@ test.describe("M39 Part 7 — the pinned and fixed layers clear the safe area", 
       expect.soft(row.y + row.height, "rack row bottom").toBe(900 - wide.bottom);
 
       // The rail sheet touches the top, the right and the bottom; not the left.
-      await page.goto("/");
+      await page.goto("/home");
       await page.getByRole("button", { name: "New trip" }).click();
       const sheet = page.getByRole("dialog", { name: "New trip" });
       await expect(sheet).toBeVisible();
@@ -246,7 +246,7 @@ test.describe("M39 Part 7 — the pinned and fixed layers clear the safe area", 
       await emulateInsets(page, wide);
       const tripName = e2eTripName("InsetsToast");
       expect((await page.request.post("/api/trips", { data: { name: tripName } })).ok()).toBe(true);
-      await page.goto("/");
+      await page.goto("/home");
       // An empty trip draws its unplanned state at its final height, so its
       // actions menu's anchor does not move under the click (KI-28).
       await expect(homeTrip(page, tripName)).toBeVisible();
@@ -280,7 +280,10 @@ test.describe("M39 Part 7 — the pinned and fixed layers clear the safe area", 
       });
 
       test("the front door's header and headline sit below the status bar, its footer above the home indicator", async ({ page }) => {
-        await page.goto("/welcome");
+        // Signed out: since ADR-078 a signed-in browser never stays on the
+        // landing, and the project's shared session is a signed-in one.
+        await page.context().clearCookies();
+        await page.goto("/");
         const header = page.getByTestId("phone-front-door").getByRole("banner");
         expect.soft(await px(header, "paddingTop"), "header").toBe(24 + tall.top);
         const headline = page.getByTestId("front-door-stage");
@@ -334,7 +337,7 @@ test.describe("M39 Part 7 — the pinned and fixed layers clear the safe area", 
         expect.soft(await px(filters, "paddingBottom"), "bottom sheet bottom").toBe(20 + tall.bottom);
         await page.keyboard.press("Escape");
 
-        await page.goto("/");
+        await page.goto("/home");
         await page.getByRole("button", { name: "New trip" }).click();
         const full = page.getByRole("dialog", { name: "New trip" });
         await expect(full).toBeVisible();

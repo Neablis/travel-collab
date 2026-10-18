@@ -64,7 +64,7 @@ async function openNotebookIndex(page: Page): Promise<void> {
 // "two widgets read two different days" has two days to read.
 async function tripWithTwoDays(page: Page): Promise<string> {
   const tripName = e2eTripName("Porto");
-  await page.goto("/");
+  await page.goto("/home");
   await createEmptyTripViaWizard(page, tripName);
   await page.getByRole("link", { name: tripName }).click();
   await page.waitForURL(/\/trips\/[^/]+$/);
@@ -906,7 +906,7 @@ test("a multi-filter widget keeps every binding, and each survives a reload", as
 // green while a freshly created trip could not filter a widget at all.
 test("an undated trip says it has no days to filter by, and is not a dead end", async ({ page }) => {
   const tripName = e2eTripName("Undated");
-  await page.goto("/");
+  await page.goto("/home");
   await createEmptyTripViaWizard(page, tripName);
   await page.getByRole("link", { name: tripName }).click();
   await page.waitForURL(/\/trips\/[^/]+$/);

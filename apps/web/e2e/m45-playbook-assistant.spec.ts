@@ -40,7 +40,7 @@ let tripId = "";
 
 test.beforeEach(async ({ page }) => {
   test.slow();
-  await page.goto("/");
+  await page.goto("/home");
   // A city nobody else has published into, so the stop's title is this run's.
   city = `Kyoto${randomUUID().replace(/-/g, "").slice(0, 8)}`;
   // Named as a test trip, so the trip "start a trip with this day" makes is

@@ -100,7 +100,7 @@ test.describe("M26 — SPEC §13.1's 44px floor on a phone", () => {
   // line every other phone rule in this app draws.
   test("does not force the floor on a desktop", async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
-    await page.goto("/");
+    await page.goto("/home");
     const addTrip = page.getByRole("button", { name: "New trip" });
     const box = await addTrip.boundingBox();
     expect(box).not.toBeNull();

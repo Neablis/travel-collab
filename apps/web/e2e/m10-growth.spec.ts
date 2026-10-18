@@ -17,7 +17,7 @@ import { e2eTripName } from "./tripNames";
 test("adding a day appends it and every view renders it as an empty day", async ({ page }) => {
   // Distinct prefix from other specs' trip names — parallel workers share a DB.
   const tripName = e2eTripName("Growth");
-  await page.goto("/");
+  await page.goto("/home");
   const tripId = await createMappedTrip(page, tripName, 2);
   await page.goto(`/trips/${tripId}?view=Plan`);
 

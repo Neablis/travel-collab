@@ -22,7 +22,7 @@ test("place & time: dates, geocoded pin, shift/clear/undo", async ({ page }) => 
     });
   });
 
-  await page.goto("/");
+  await page.goto("/home");
 
   await createEmptyTripViaWizard(page, tripName);
   await page.getByRole("link", { name: tripName }).click();

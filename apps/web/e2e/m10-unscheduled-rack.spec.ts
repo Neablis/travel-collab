@@ -15,7 +15,7 @@ test("a stop can be dragged into the unscheduled rack and back onto a day", asyn
   test.setTimeout(90_000);
   // Distinct prefix from other specs' trip names — parallel workers share a DB.
   const tripName = e2eTripName("Rack");
-  await page.goto("/");
+  await page.goto("/home");
   const tripId = await createMappedTrip(page, tripName, 3);
 
   await page.goto(`/trips/${tripId}?view=Plan`);
@@ -65,7 +65,7 @@ test("undo reverses an unschedule", async ({ page }) => {
   // with getByRole("button", { name: /undo/i }) — a leftover "RackUndo ..."
   // trip matches that regex and breaks that spec with a strict-mode violation.
   const tripName = e2eTripName("RackHistory");
-  await page.goto("/");
+  await page.goto("/home");
   const tripId = await createMappedTrip(page, tripName, 2);
 
   await page.goto(`/trips/${tripId}?view=Plan`);
