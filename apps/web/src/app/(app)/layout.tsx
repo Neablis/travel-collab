@@ -9,7 +9,9 @@ import { type SessionUser, SessionUserProvider } from "@/components/account/useS
 import type { Entitlement } from "@tc/contracts";
 import { hasSessionCookie } from "@/lib/sessionHint";
 import { ServedEntitlementsProvider } from "@/lib/useAiEntitled";
+import type { AccountPreferencesRead } from "@/lib/apiClient";
 import { auth } from "@/server/auth";
+import { readAccountPreferences } from "@/server/accountPreferences";
 import { entitlementsFor } from "@/server/entitlements/resolver";
 
 // The app chrome belongs to the app's surfaces, not to every route. The
@@ -21,10 +23,11 @@ import { entitlementsFor } from "@/server/entitlements/resolver";
 // sits above the header in the root layout — the account settings Sheet lives
 // in the header's avatar menu and the distances it changes are rendered in the
 // page below it, so one provider over both is what lets a switch to Miles
-// re-render the map rail without a reload. It reads through the API, not from
-// `@/server/*`: this file is UI and the lint wall applies to it (see the
-// provider's own note). A client provider here does not make this layout a
-// client component — `children` arrives as an already-rendered server tree.
+// re-render the map rail without a reload. A client provider here does not make
+// this layout a client component — `children` arrives as an already-rendered
+// server tree. **Their first read is served from here too** (below), so the
+// provider no longer asks `/api/account/preferences` after hydration; it was
+// the trip page's first API request after the document.
 //
 // ADR-061: the session wraps everything, preferences included, for the same
 // one-read reason. The header, the phone tab bar and the playbook screens all
@@ -47,13 +50,16 @@ import { entitlementsFor } from "@/server/entitlements/resolver";
 // (the playbook pages' Ask, ⌘K's *Ask:*) draws it in the server HTML rather
 // than after a read. Through the entitlements module, never a JWT claim
 // (ADR-045 rule 2); this file's lint-wall exemption says the same.
+//
+// The preferences ride the same exemption, read beside the plan rather than
+// after it, through the function the endpoint itself answers with.
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const noSessionCookie = !hasSessionCookie((await cookies()).getAll().map((cookie) => cookie.name));
   const served = noSessionCookie ? null : await servedSession();
   return (
     <SessionUserProvider noSessionCookie={noSessionCookie} initialUser={served?.user}>
       <ServedEntitlementsProvider entitlements={served?.entitlements ?? null}>
-        <PreferencesProvider noSessionCookie={noSessionCookie}>
+        <PreferencesProvider noSessionCookie={noSessionCookie} initialRead={served?.preferences}>
           <AppHeader />
           {/* ⌘K, from every app page (M41 D9). The page below registers what it offers. */}
           <CommandPalette />
@@ -102,7 +108,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 }
 
 /**
- * Who is reading, and what their account is conferred, from one `auth()`.
+ * Who is reading, what their account is conferred, and their preferences, from
+ * one `auth()`.
  *
  * **The user goes down too**, so `SessionUserProvider` starts at the answer
  * instead of asking `/api/auth/session` the same question from the client on
@@ -117,17 +124,41 @@ export default async function AppLayout({ children }: { children: React.ReactNod
  * already treats as entitled; the route's 402 is the gate either way. It is
  * still reported: a version reference that no longer resolves must fail loudly
  * (ADR-045 rule 3), and the fallback alone would hide it.
+ *
+ * The preferences are `undefined` on the same terms, which leaves
+ * `PreferencesProvider` to fetch them as it did before they were served. Each
+ * read fails alone: a broken plan does not cost the preferences, nor the
+ * reverse.
  */
-async function servedSession(): Promise<{ user: SessionUser | null | undefined; entitlements: Entitlement[] | null }> {
+async function servedSession(): Promise<{
+  user: SessionUser | null | undefined;
+  entitlements: Entitlement[] | null;
+  preferences: AccountPreferencesRead | undefined;
+}> {
   let user: SessionUser | null | undefined;
   try {
     const session = await auth();
     user = session?.user ? { id: session.user.id ?? null, name: session.user.name ?? null, email: session.user.email ?? null } : null;
     const userId = session?.user?.id;
-    return { user, entitlements: userId === undefined ? null : [...(await entitlementsFor(userId)).entitlements] };
+    if (userId === undefined) return { user, entitlements: null, preferences: undefined };
+    // In parallel, so serving the preferences adds no sequential read to the
+    // render. Each catches its own failure (see the docstring).
+    const [entitlements, preferences] = await Promise.all([
+      entitlementsFor(userId).then(
+        (resolved) => [...resolved.entitlements],
+        (error: unknown) => {
+          Sentry.captureException(error);
+          return null;
+        },
+      ),
+      readAccountPreferences(userId).catch((error: unknown) => {
+        Sentry.captureException(error);
+        return undefined;
+      }),
+    ]);
+    return { user, entitlements, preferences };
   } catch (error) {
     Sentry.captureException(error);
-    // A failed plan read does not unlearn who is reading.
-    return { user, entitlements: null };
+    return { user, entitlements: null, preferences: undefined };
   }
 }
