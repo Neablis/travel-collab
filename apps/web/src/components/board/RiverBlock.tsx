@@ -509,13 +509,17 @@ export function RiverBlock({
         )}
       </div>
       {/* On the corner, outside the clipped box, so a narrow lane's hidden
-          controls never take it with them: a reviewer has to find it at rest. */}
+          controls never take it with them: a reviewer has to find it at rest.
+          `size-6` under a mouse, not the `size-5` it was: WCAG 2.5.8's floor is
+          24px, and the spacing exception that lets a tag chip stay smaller
+          does not apply here — the badge overlaps the block, itself a target.
+          The offset grew by the same 2px so its centre stays on the corner. */}
       {suggestion?.(
         <Button
           variant="ghost"
           size="icon"
           aria-label={`Suggested change to ${activity.title}`}
-          className="absolute -top-1.5 -left-1.5 z-10 size-5 rounded-full border border-brand bg-brand-tint p-0 text-brand-pressed hover:bg-brand-tint fine:min-h-0"
+          className="absolute -top-2 -left-2 z-10 size-6 rounded-full border border-brand bg-brand-tint p-0 text-brand-pressed hover:bg-brand-tint fine:min-h-0"
         >
           <Lightbulb className="size-3" aria-hidden />
         </Button>,

@@ -385,7 +385,7 @@ export function PlansScreen() {
 
   if (failed) {
     return (
-      <PageContainer>
+      <PageContainer as="main">
         <Banner variant="warning">Your plan could not be loaded just now.</Banner>
       </PageContainer>
     );
@@ -394,8 +394,11 @@ export function PlansScreen() {
 
   const held = plan.catalogue.find((choice) => choice.held) ?? null;
 
+  // `as="main"` in all three states, as Account's screen does: /plans was the
+  // one signed-in page with no main landmark, so "skip to main content" and a
+  // screen reader's landmark list both had nowhere to go.
   return (
-    <PageContainer>
+    <PageContainer as="main">
       <div className="flex flex-col gap-5" data-testid="plans-screen">
         {/* **The way back, and it points at the tab this route was reached
             from** (SPEC §34.4: *"its back link now returns to Account → Plan &

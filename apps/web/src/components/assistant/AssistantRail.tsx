@@ -929,15 +929,18 @@ export function AssistantRail({
                 tab's conversation: on Chat it is the people's, "called Chat
                 everywhere" (M46's layout), so a sheet open on Chat is not
                 announced as the assistant. The <aside> keeps "Assistant", the
-                panel's one stable name that every opener's locators share. */}
+                panel's one stable name that every opener's locators share.
+                Level 2, set at level 4's size: the panel sits directly under
+                the page's `h1`, and an `h4` skipped two levels for anyone
+                moving by headings. */}
             {isSheet ? (
               <RadixDialog.Title asChild>
-                <Heading level={4} className="font-semibold">
+                <Heading level={2} className="text-md font-semibold">
                   {onChat ? "Chat" : "Assistant"}
                 </Heading>
               </RadixDialog.Title>
             ) : (
-              <Heading level={4} className="font-semibold">
+              <Heading level={2} className="text-md font-semibold">
                 {onChat ? "Chat" : "Assistant"}
               </Heading>
             )}
@@ -1196,6 +1199,11 @@ export function AssistantRail({
               <div className="flex gap-1.5">
                 <Input
                   ref={composerRef}
+                  // A name that outlives the placeholder, which is the only
+                  // label the box had and is gone the moment anyone types.
+                  // Not "Ask the assistant": that is the send button's name
+                  // beside it, and two controls one name apart is a guess.
+                  aria-label="Question for the assistant"
                   placeholder={PLACEHOLDER[scope.kind]}
                   // `h-11` in the sheet, overriding the primitive's `h-9`:
                   // SPEC §13.1's floor is every control, and the box the

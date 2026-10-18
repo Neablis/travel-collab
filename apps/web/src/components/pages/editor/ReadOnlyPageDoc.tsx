@@ -37,7 +37,7 @@ const PLACEHOLDER_LABEL = "Something newer is here";
 function Placeholder({ label }: { label: string }) {
   return (
     <p className="my-2 rounded border border-dashed border-border-strong px-2 py-1 text-sm text-slate">
-      {PLACEHOLDER_LABEL} <span className="opacity-70">({label})</span>
+      {PLACEHOLDER_LABEL} ({label})
     </p>
   );
 }

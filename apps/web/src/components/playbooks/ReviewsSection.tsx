@@ -160,7 +160,7 @@ export function ReviewsSection({
                       size="icon"
                       aria-label={starsPhrase(v)}
                       aria-pressed={stars === v}
-                      className={cn("text-xl leading-none", stars !== null && v <= stars ? "text-warning" : "text-hairline")}
+                      className={cn("text-xl leading-none", stars !== null && v <= stars ? "text-warning" : "text-border-input")}
                       onClick={() => setStars(v)}
                     >
                       ★

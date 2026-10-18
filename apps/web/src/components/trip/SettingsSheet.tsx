@@ -183,6 +183,7 @@ export function SettingsSheet({
   const dispatch = canEditBoard ? onCommand : () => undefined;
   const [datesOpen, setDatesOpen] = useState(false);
   const datesEditorId = useId();
+  const datesValueId = useId();
   // The popover this replaced shut itself on any outside click, so leaving the
   // sheet always left it closed. Inline has no such dismiss, and SettingsSheet
   // stays mounted while the sheet is shut — so without this, reopening the
@@ -291,7 +292,11 @@ export function SettingsSheet({
             unchanged except for the added interactive affordance.
             aria-label is set explicitly (not derived from datesLabel) so the
             e2e specs' getByRole("button", { name: "Dates" }) stays stable
-            regardless of the displayed date value.
+            regardless of the displayed date value. The value is not lost to
+            a screen reader for it: `aria-describedby` reads the visible dates
+            after the name, which the label alone used to hide.
+            `aria-controls` only while the editor is mounted, because an id
+            that points at nothing is an error, not a promise.
 
             Inline, not a Popover (M39 decision 8, KI-048 item 5): the
             popover opened downward over "Total for the trip", hiding the
@@ -300,8 +305,9 @@ export function SettingsSheet({
         <Button
           variant="ghost"
           aria-label="Dates"
+          aria-describedby={datesValueId}
           aria-expanded={datesOpen}
-          aria-controls={datesEditorId}
+          aria-controls={datesOpen ? datesEditorId : undefined}
           disabled={!canEditBoard}
           onClick={() => setDatesOpen((was) => !was)}
           className="w-full justify-between rounded-lg border border-hairline px-3 py-2.5 text-left"
@@ -309,7 +315,7 @@ export function SettingsSheet({
           <Text as="span" className="text-xs text-slate">
             Dates
           </Text>
-          <DataText size="sm" className="text-ink">
+          <DataText id={datesValueId} size="sm" className="text-ink">
             {datesLabel(startDate, endDate)}
           </DataText>
         </Button>

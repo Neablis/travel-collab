@@ -38,7 +38,7 @@ export default function PlansPage() {
   return (
     <Suspense
       fallback={
-        <PageContainer>
+        <PageContainer as="main">
           <Heading level={1}>Plans</Heading>
         </PageContainer>
       }
