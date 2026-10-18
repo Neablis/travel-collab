@@ -74,7 +74,8 @@ export interface QuotaCounters {
    * `bump` clamps to a positive integer so that no caller can decrement a
    * counter; relaxing that clamp would let an actor drain their own usage,
    * which is a worse hole than KI-94's. This method can only ever subtract,
-   * never below zero, and is reachable only through a `StepReservation`.
+   * never below zero, and is reachable only through a `StepReservation` or a
+   * `QuotaUnits.giveBack`, each releasing only what its own call charged.
    */
   release(bucket: string, windowStart: Date, amount: number): Promise<void>;
 }
@@ -484,6 +485,103 @@ export async function consumeQuota(
     }
   }
   return { allowed: true };
+}
+
+/** What `consumeQuotaUnits` decided for a run of units, and how to give back the ones not used. */
+export interface QuotaUnits {
+  /** How many units were admitted. They are always the FIRST ones: a ceiling refuses a suffix. */
+  readonly admitted: number;
+  /** What `consumeQuota` would have answered the first refused unit; `null` when every unit was admitted. */
+  readonly refusal: Extract<QuotaDecision, { allowed: false }> | null;
+  /** Releases the LAST `unused` units from every bucket they were charged to, as though they were never asked for. */
+  giveBack(unused: number): Promise<void>;
+}
+
+/**
+ * `count` calls to `consumeQuota`, back to back, charged with one bump per
+ * bucket instead of two per unit — the weather route asks for up to dozens on
+ * one page load, and each was its own pair of upserts (Sentry's N+1).
+ *
+ * **The same decisions and the same counts, exactly.** Of `count` units
+ * entering a policy, every one bumps the user bucket (a refused unit keeps its
+ * charge there, as `consumeQuota`'s does); only those under the user ceiling
+ * bump the global one; only those under both go on to the next policy. Counts
+ * only grow inside a window, so the admitted units are always a prefix, and the
+ * old count is the returned one minus the amount added — which is all a
+ * sequential loop could have learned from its own bumps. One atomic bump of
+ * `n` is one valid serialization of `n` single bumps.
+ *
+ * A counter-store error refuses every unit not yet decided, as it refuses every
+ * call (fail closed). `giveBack` exists for a caller that charges up front and
+ * then does not use the tail — the weather route out of its time budget — and is
+ * best-effort, as `reserveAiSteps`' rollback is.
+ */
+export async function consumeQuotaUnits(
+  policies: readonly QuotaPolicy[],
+  userId: string,
+  count: number,
+  counters: QuotaCounters = pgCounters(),
+  now: Date = new Date(),
+): Promise<QuotaUnits> {
+  // Each bucket bumped, by how many units: unit `i` was charged there iff `i < units`.
+  const charged: { bucket: string; windowStart: Date; units: number }[] = [];
+  const total = Math.max(0, Math.trunc(count));
+  let entering = total;
+  let refusal: QuotaUnits["refusal"] = null;
+  for (const policy of policies) {
+    // `bump` clamps its amount to at least 1, so an empty run must not reach it.
+    if (entering === 0) break;
+    const windowStart = windowStartFor(policy, now);
+    const retryAfterSeconds = secondsUntilWindowEnd(policy, windowStart, now);
+    const userBucket = `${policy.name}:user:${userId}`;
+    let userCount: number;
+    try {
+      userCount = await counters.bump(userBucket, windowStart, entering);
+    } catch {
+      refusal = { allowed: false, reason: "unavailable", retryAfterSeconds: 60 };
+      entering = 0;
+      break;
+    }
+    charged.push({ bucket: userBucket, windowStart, units: entering });
+    const underUser = Math.min(entering, Math.max(0, policy.perUser - (userCount - entering)));
+    if (underUser === 0) {
+      refusal = { allowed: false, reason: "user", retryAfterSeconds };
+      entering = 0;
+      break;
+    }
+    const globalBucket = `${policy.name}:global`;
+    let globalCount: number;
+    try {
+      globalCount = await counters.bump(globalBucket, windowStart, underUser);
+    } catch {
+      refusal = { allowed: false, reason: "unavailable", retryAfterSeconds: 60 };
+      entering = 0;
+      break;
+    }
+    charged.push({ bucket: globalBucket, windowStart, units: underUser });
+    const underBoth = Math.min(underUser, Math.max(0, policy.global - (globalCount - underUser)));
+    // The first refused unit is the one at index `underBoth`, and the last
+    // policy to shrink the run is the one that refused it: on the global
+    // ceiling if it was under the user one, otherwise on the user ceiling.
+    if (underBoth < entering) {
+      refusal = { allowed: false, reason: underBoth < underUser ? "global" : "user", retryAfterSeconds };
+    }
+    entering = underBoth;
+  }
+  return {
+    admitted: entering,
+    refusal,
+    async giveBack(unused) {
+      const kept = total - Math.min(total, Math.max(0, Math.trunc(unused)));
+      for (const { bucket, windowStart, units } of charged) {
+        try {
+          await counters.release(bucket, windowStart, units - Math.min(units, kept));
+        } catch {
+          // Best-effort: a lost release over-counts, which refuses sooner, never later.
+        }
+      }
+    },
+  };
 }
 
 /**
