@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import type { z } from "zod";
 import { db as defaultDb, type Db } from "../db/client";
 import { externalDataCache } from "../db/schema";
@@ -42,15 +42,22 @@ export interface CacheRow {
 /** The table's I/O, injected so the read path is testable without Postgres. */
 export interface CacheStore {
   read(key: string): Promise<CacheRow | null>;
+  /** Every row among `keys` that exists, by key, in one read: a page that needs many keys asks once, not once each. */
+  readMany(keys: readonly string[]): Promise<Map<string, CacheRow>>;
   write(row: CacheRow): Promise<void>;
 }
 
-/** The `external_data_cache` table as a `CacheStore`: read a row by key, upsert a row whole. */
+/** The `external_data_cache` table as a `CacheStore`: read a row (or many) by key, upsert a row whole. */
 export function pgCacheStore(database: Db = defaultDb): CacheStore {
   return {
     async read(key) {
       const [row] = await database.select().from(externalDataCache).where(eq(externalDataCache.key, key));
       return row ?? null;
+    },
+    async readMany(keys) {
+      if (keys.length === 0) return new Map();
+      const rows = await database.select().from(externalDataCache).where(inArray(externalDataCache.key, [...keys]));
+      return new Map(rows.map((row) => [row.key, row]));
     },
     async write(row) {
       await database
@@ -82,6 +89,11 @@ export interface ReadThrough<T> {
   /** Charges one call to our own quota; `false` is a refusal (decision 8). */
   charge: () => Promise<boolean>;
   store: CacheStore;
+  /**
+   * The key's row when the caller already read it with `readMany` (`null`:
+   * there is none); omitted, it is read here. The path below is the same.
+   */
+  row?: CacheRow | null;
   now: Date;
   /** Decision 8: each upstream call gets this long, and then the row is served as if it had failed. */
   timeoutMs: number;
@@ -115,6 +127,28 @@ function backoffAfter(error: unknown, now: Date): Date | null {
   return null;
 }
 
+/** A row's payload read back through `schema`; `null` when there is none, or it no longer fits. */
+function heldIn<T>(row: CacheRow | null, schema: z.ZodType<T>): T | null {
+  const parsed = row?.payload == null ? null : schema.safeParse(row.payload);
+  return parsed?.success ? parsed.data : null;
+}
+
+/** Which of the header's steps 1-3 a row is at: served fresh, held back by a back-off, or to be charged. */
+function stepOf(row: CacheRow | null, held: unknown, now: Date): "fresh" | "backoff" | "charge" {
+  if (row && held !== null && now < row.expiresAt) return "fresh";
+  if (row?.backoffUntil && now < row.backoffUntil) return "backoff";
+  return "charge";
+}
+
+/**
+ * Whether `readThrough` would CHARGE for this row, so a caller that charges a
+ * page's misses together (the weather route) counts exactly the ones the read
+ * path will ask to spend — the same `stepOf`, not a copy of it.
+ */
+export function wouldCharge<T>(row: CacheRow | null, schema: z.ZodType<T>, now: Date): boolean {
+  return stepOf(row, heldIn(row, schema), now) === "charge";
+}
+
 /**
  * One key through the read path in this file's header. Returns the value and
  * whether it is past its `Expires`, or `null` when there is nothing to serve.
@@ -122,13 +156,13 @@ function backoffAfter(error: unknown, now: Date): Date | null {
  */
 export async function readThrough<T>(options: ReadThrough<T>): Promise<Cached<T> | null> {
   const { key, schema, store, now } = options;
-  const row = await store.read(key);
-  const parsed = row?.payload == null ? null : schema.safeParse(row.payload);
-  const held = parsed?.success ? parsed.data : null;
+  const row = options.row !== undefined ? options.row : await store.read(key);
+  const held = heldIn(row, schema);
   const serveHeld = (): Cached<T> | null => (held === null ? null : { value: held, stale: true });
 
-  if (row && held !== null && now < row.expiresAt) return { value: held, stale: false };
-  if (row?.backoffUntil && now < row.backoffUntil) return serveHeld();
+  const step = stepOf(row, held, now);
+  if (step === "fresh" && held !== null) return { value: held, stale: false };
+  if (step === "backoff") return serveHeld();
   if (!(await options.charge())) return serveHeld();
 
   // Conditional only when there is a payload to keep: a 304 to a request for
