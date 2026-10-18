@@ -567,8 +567,11 @@ export default [
     // and a timeout in the render path — which is what `linkPreviewMetadata`
     // does and why a day's card could silently fall back to the generic one.
     // **This block is the exemption.** Page files only: the screens they
-    // render are still UI and still call the API.
-    files: ["src/app/(app)/playbooks/**/page.tsx"],
+    // render are still UI and still call the API. Under `app/playbooks` since
+    // the pages split into a live and a cached copy (`lib/playbooksReader.ts`):
+    // `live/**` holds them and `[copy]/**` re-exports them. They were
+    // `(app)/playbooks/**/page.tsx` before.
+    files: ["src/app/playbooks/**/page.tsx"],
     rules: {
       "no-restricted-imports": ["error", { patterns: exemptWallPatterns }],
     },
@@ -583,9 +586,12 @@ export default [
     // `/api/account/plan` would cost the same round trip after paint that the
     // decision removed. The reader's preferences ride the same exemption, read
     // beside the plan through `@/server/accountPreferences`, for the same
-    // round trip. Per request, never a JWT claim (ADR-045 rule 2). That
-    // one file only: the layouts below it and the screens it renders stay UI.
-    files: ["src/app/(app)/layout.tsx"],
+    // round trip. Per request, never a JWT claim (ADR-045 rule 2). Both reads
+    // now sit in `server/servedSession.ts`, and two files only may call it:
+    // this one, and the public library's layout, whose live copy reads it the
+    // same way (`lib/playbooksReader.ts`). The layouts below them, the cached
+    // copy's layout and the screens they render stay UI.
+    files: ["src/app/(app)/layout.tsx", "src/app/playbooks/live/layout.tsx"],
     rules: {
       "no-restricted-imports": ["error", { patterns: exemptWallPatterns }],
     },
