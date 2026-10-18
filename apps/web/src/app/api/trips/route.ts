@@ -42,9 +42,20 @@ export async function GET() {
     // Each card's "planned of budget" line, which Home used to fetch as one
     // `GET /api/trips/:id` per card: one read of every stored detail and one
     // of every trip's guests, recosted below the way the single read recosts.
-    getTripDetails(tripIds, "omit"),
-    listGuestsByTrip(tripIds),
+    // A budget line must not take the trip list down either (PR 481 review):
+    // if either read fails, every card's `spend` is null, which Home draws as
+    // no line. Both, not just the one that failed: a total recosted without
+    // its guests would be a wrong figure, not a missing one.
+    getTripDetails(tripIds, "omit").catch((error: unknown) => {
+      console.error("trips list: trip detail read for spend failed", { error });
+      return null;
+    }),
+    listGuestsByTrip(tripIds).catch((error: unknown) => {
+      console.error("trips list: guests read for spend failed", { error });
+      return null;
+    }),
   ]);
+  const spendable = details !== null && guests !== null;
   // Home's own list, so a `ListedTripSummary`: the unread chat count (M46 D5)
   // and the budget line's figures stay off `TripSummary`, which `/v1/trips`
   // serves too.
@@ -52,7 +63,7 @@ export async function GET() {
     trips: trips.map((t) => ({
       ...t,
       unreadChat: unread.get(t.tripId) ?? 0,
-      spend: listedSpend(details.get(t.tripId), t.members, guests.get(t.tripId)),
+      spend: spendable ? listedSpend(details.get(t.tripId), t.members, guests.get(t.tripId)) : null,
     })),
   });
 }

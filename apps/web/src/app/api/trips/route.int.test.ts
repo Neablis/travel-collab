@@ -49,6 +49,11 @@ vi.mock("@/server/chat/messages", async (importOriginal) => {
   return { ...actual, unreadByTrip: vi.fn(actual.unreadByTrip) };
 });
 const { unreadByTrip } = await import("@/server/chat/messages");
+vi.mock("@/server/access/guests", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/server/access/guests")>();
+  return { ...actual, listGuestsByTrip: vi.fn(actual.listGuestsByTrip) };
+});
+const { listGuestsByTrip } = await import("@/server/access/guests");
 
 // Import after the mocks so the route picks up the mocked `auth`.
 const { GET } = await import("./route");
@@ -447,5 +452,18 @@ describe("GET /api/trips spend", () => {
     logged.mockRestore();
     expect(trips.find((t) => t.tripId === broken)?.spend).toBeNull();
     expect(trips.find((t) => t.tripId === fine)?.spend?.totalMinor).toBe(120_00);
+  });
+
+  // A budget line must not take the list down (PR 481 review), and a guests
+  // read that fails must not leave a total recosted without them: that would
+  // be 80_00 here, a wrong figure, where null is an honest missing one.
+  it("still lists every trip, with no figures, when the guests read fails", async () => {
+    const tripId = await pricedTrip("Guests unreadable", 500_00);
+    vi.mocked(listGuestsByTrip).mockRejectedValueOnce(new Error("statement timeout"));
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const trips = await grid();
+    logged.mockRestore();
+    expect(trips.find((t) => t.tripId === tripId)?.spend).toBeNull();
   });
 });
