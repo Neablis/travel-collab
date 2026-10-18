@@ -35,8 +35,8 @@ const ALL = sourceFilesUnder(SRC).filter((file) => !/\.test\.tsx?$/.test(file));
  *
  * **The naive version — "does this file write `users` AND mention `planId`
  * anywhere" — was wrong on its first run**, and wrong in the direction that
- * matters: it reported `checkout.ts`, which writes only `stripe_customer_id`
- * and mentions `planId` because `startCheckout` takes one as an argument. A
+ * matters: it reported `checkout.ts`, which then wrote only `stripe_customer_id`
+ * (since ADR-076, to `stripe_customers`) and mentions `planId` because `startCheckout` takes one as an argument. A
  * sweep that cries wolf on the legitimate file is a sweep somebody widens an
  * allowlist to silence, and the allowlist is the thing being protected.
  *

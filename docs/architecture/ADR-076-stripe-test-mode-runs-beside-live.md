@@ -43,7 +43,7 @@ Three facts make "just add the test keys" unsafe:
    its insert-only-if-absent race handling, and puts the mode in `createCustomer`'s idempotency
    key. `users.stripe_customer_id` stops being read or written; it is dropped by a later migration
    once no deployed build reads it, because production migrations are dispatched apart from
-   deploys (ADR-004). This replaces ADR-047 decision 2's *"the one column outside that rule"*: the
+   deploys (ADR-004). *(Dropped by `0059_drop_users_stripe_customer_id`, 2026-10-18.)* This replaces ADR-047 decision 2's *"the one column outside that rule"*: the
    exception is now this table, on the same argument. A customer id is who you are at Stripe, not
    what you may do.
 

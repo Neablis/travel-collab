@@ -110,33 +110,6 @@ export const users = pgTable("users", {
   // is deliberately not one: it is a single boolean gating an operator tool,
   // not the first rung of a permission ladder. Per-trip roles stay `TripRole`.
   isAdmin: boolean("is_admin").notNull().default(false),
-  // **No longer read or written** (ADR-076 §2): the customer id moved to
-  // `stripe_customers`, one per account per Stripe mode, and migration 0055
-  // copied every value here into it as live. The column stays until no
-  // deployed build reads it, because production migrations are dispatched
-  // apart from deploys (ADR-004); a later migration drops it. What follows is
-  // why it was on `users`, which `stripe_customers` still holds to.
-  //
-  // M21 link 1 — **the Stripe customer this account is, once it has been one.**
-  //
-  // Null until the first checkout, and then permanent: a customer outlives
-  // every subscription it ever had, which is what makes "open the portal for
-  // this account" answerable after a cancellation. Deleting it on lapse would
-  // orphan the invoice history the portal exists to show.
-  //
-  // **On `users` rather than on `subscriptions`** because the relationship is
-  // one customer per account for the account's whole life, while subscriptions
-  // come and go. Storing it on the subscription would give an account that
-  // cancelled and resubscribed two customer ids and two invoice histories, and
-  // the second one would look like a new person to Stripe.
-  //
-  // Written by the checkout route, not by the webhook. That is not a breach of
-  // link 4's *the webhook is the sole writer*: a customer id is who you are at
-  // Stripe, not what you are entitled to, and it has to exist before a
-  // Checkout Session can be created for it. `subscriptions` and `users.plan_id`
-  // — the two things that decide what an account may do — stay the webhook's
-  // alone, and `billing.soleWriter.test.ts` sweeps for exactly those two.
-  stripeCustomerId: text("stripe_customer_id"),
   // **The Stripe mode of the subscription that confers `plan_id`** (ADR-076
   // §3), `true` when the account falls back to `free`. Written only by the
   // webhook, in the same statement as `plan_id` and `plan_version`. What the
@@ -1653,13 +1626,13 @@ export const billingEvents = pgTable("billing_events", {
 // **The Stripe customer an account is, per Stripe mode** (ADR-076 §2).
 //
 // Stripe's test and live modes are separate customer spaces, so one id per
-// account (`users.stripe_customer_id`, which this replaces) could hold only
-// one of them. A row per `(user_id, livemode)` is the fact's own shape; a
+// account (`users.stripe_customer_id`, which this replaced: 0055 copied it
+// here, 0059 dropped it) could hold only one of them. A row per `(user_id, livemode)` is the fact's own shape; a
 // column per mode would put the mode in a column name and make every reader
 // branch on it.
 //
 // **Written by checkout, not by the webhook** — the one table outside M21 link
-// 4's sole-writer rule, on the argument `users.stripe_customer_id` made: a
+// 4's sole-writer rule, on the argument the old `users` column made: a
 // customer id is who you are at Stripe, not what you may do, and it has to
 // exist before a Checkout Session can name it. Permanent once written, so the
 // portal can still open after a cancellation. `stripeCustomerFor` is its only
