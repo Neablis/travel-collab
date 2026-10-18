@@ -263,15 +263,43 @@ export async function getTripDetail(tripId: string): Promise<TripDetail | null> 
   const rows = await db.select().from(tripDetails).where(eq(tripDetails.tripId, tripId));
   const doc = rows[0]?.doc;
   if (doc === undefined) return null;
+  const parsed = parseStoredDetail(tripId, doc);
+  if (!parsed.success) throw parsed.error;
+  return parsed.data;
+}
+
+/** A stored `trip_details.doc` parsed as `TripDetail`, a failure logged with its `tripId`. */
+function parseStoredDetail(tripId: string, doc: unknown): ReturnType<typeof TripDetail.safeParse> {
   const parsed = TripDetail.safeParse(doc);
   if (!parsed.success) {
     console.error("trip_details doc failed TripDetail parse", {
       tripId,
       issues: parsed.error.issues,
     });
-    throw parsed.error;
   }
-  return parsed.data;
+  return parsed;
+}
+
+/**
+ * `getTripDetail` for many trips in ONE statement, for Home's list (the
+ * per-card budget line used to be a `GET /api/trips/:id` per card).
+ *
+ * The same parse, but a doc that fails it is left out of the map rather than
+ * thrown: one broken row must not take every card on Home down with it, and
+ * the caller reads a missing id as "no figure", which is what it shows. The
+ * failure is still logged with its `tripId`. Ids that are not uuids are
+ * dropped before the query, for `getTripDetail`'s `22P02` reason.
+ */
+export async function getTripDetails(tripIds: readonly string[]): Promise<Map<string, TripDetail>> {
+  const byTrip = new Map<string, TripDetail>();
+  const ids = tripIds.filter(isUuid);
+  if (ids.length === 0) return byTrip;
+  const rows = await db.select().from(tripDetails).where(inArray(tripDetails.tripId, ids));
+  for (const row of rows) {
+    const parsed = parseStoredDetail(row.tripId, row.doc);
+    if (parsed.success) byTrip.set(row.tripId, parsed.data);
+  }
+  return byTrip;
 }
 
 /**

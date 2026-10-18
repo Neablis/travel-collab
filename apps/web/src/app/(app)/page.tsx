@@ -25,12 +25,12 @@ import { ImportTripButton, type ImportTripHandle } from "@/components/home/Impor
 
 /** The inline first-run composer, so the page head's "New trip" can focus it. */
 const FIRST_TRIP_COMPOSER_ID = "first-trip-composer";
-import { duplicateTrip, createTrip as createTripApi, leaveTrip, sendTripCommand, fetchTripDetail, fetchTrips } from "@/lib/apiClient";
+import { duplicateTrip, createTrip as createTripApi, leaveTrip, sendTripCommand, fetchTrips } from "@/lib/apiClient";
 import { viewerOwnsTrip } from "@/lib/tripRole";
 import { useSessionUser } from "@/components/account/useSessionUser";
 import { takeDemoClone } from "@/lib/pendingDemoClone";
 import { pendingPlaybookAddDay } from "@/lib/pendingPlaybookAdd";
-import { tripSpend, plannedOfBudgetLine } from "@/lib/cost";
+import { plannedOfBudgetLine } from "@/lib/cost";
 import { orderHomeTrips } from "@/lib/homeTripOrder";
 import { newTripCommand } from "@/components/palette/commands";
 import { usePaletteSource } from "@/components/palette/paletteRegistry";
@@ -50,6 +50,17 @@ function withAssistant(page: React.ReactNode) {
       <BeyondTripAssistant scope={ACCOUNT_SCOPE} />
     </div>
   );
+}
+
+/**
+ * A grid card's "{planned} planned of {budget}" line (Task 4.1, M10 Phase 4),
+ * from the figures the list carries (`ListedTripSummary.spend`) — each card
+ * used to fetch its own `TripDetail` for them. Undefined when the server had
+ * no figures, so `TripCard` draws no line rather than a made-up one.
+ */
+function plannedOfBudgetOf(trip: ListedTripSummary): string | undefined {
+  if (trip.spend === null) return undefined;
+  return plannedOfBudgetLine({ total: trip.spend.totalMinor, budget: trip.spend.budgetMinor }, trip.spend.currency);
 }
 
 // Today's calendar date as YYYY-MM-DD in local time, so formatTripDateLong
@@ -146,16 +157,6 @@ export default function Home() {
   // optimistic mechanism. A failure removes the id again, bringing the row
   // back; a success leaves it removed permanently via the `trips` filter below.
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
-  // Per-card "{planned} planned of {budget}" lines (Task 4.1, M10 Phase 4),
-  // keyed by tripId. TripSummary (what /api/trips returns) carries no cost
-  // fields at all, so this grid — unlike NextTripHero, which already has its
-  // one trip's real TripDetail — fetches each visible trip's own TripDetail
-  // itself below and computes the same line via the shared
-  // plannedOfBudgetLine helper. A trip whose fetch is still pending or
-  // failed simply has no entry here: TripCard already renders nothing for a
-  // missing plannedOfBudget prop, so that's honest absence, not a fabricated
-  // or stale line.
-  const [plannedOfBudgetById, setPlannedOfBudgetById] = useState<Record<string, string>>({});
 
   // Computed above the effects that read it, not beside the render — "does
   // this person have any trips" is what decides whether the first run fires,
@@ -421,51 +422,6 @@ export default function Home() {
   // In the same order, so the grid reads on from the hero.
   const otherTrips = orderedTrips.slice(1);
 
-  // One TripDetail fetch per grid trip (keyed by a joined id string so this
-  // only refires when the actual set of ids changes, not on every render):
-  // TripSummary has no cost fields, and there is no batch endpoint for "cost
-  // for these N trips" — accepted N-fetch cost (Task 4.1 brief), not something
-  // to cache/paginate/batch around here. The hero is not in the grid and
-  // fetches its own detail, so it is not fetched again here.
-  const gridTripIds = otherTrips.map((t) => t.tripId).join(",");
-  useEffect(() => {
-    const ids = gridTripIds === "" ? [] : gridTripIds.split(",");
-    // Clear synchronously before the async work: a trip-set change always
-    // shows honest absence while its round is in flight (consistent with
-    // first-load behavior), and a round that never completes (e.g. because
-    // one fetch rejects below) can't leave a previous round's data lingering
-    // on screen as a stale, mistaken-for-current figure.
-    setPlannedOfBudgetById({});
-    if (ids.length === 0) return;
-    let cancelled = false;
-    void Promise.all(
-      ids.map(async (tripId) => {
-        try {
-          const result = await fetchTripDetail(tripId);
-          return result.ok
-            ? ([tripId, plannedOfBudgetLine(tripSpend(result.value), result.value.currency)] as const)
-            : null;
-        } catch {
-          // A network-level failure (offline, DNS, CORS) rejects rather than
-          // resolving with { ok: false }. Promise.all is fail-fast, so one
-          // rejection here would otherwise take down every other trip's
-          // result in this round. Treat it the same as an HTTP failure.
-          return null;
-        }
-      }),
-    ).then((entries) => {
-      if (cancelled) return;
-      const next: Record<string, string> = {};
-      for (const entry of entries) {
-        if (entry !== null) next[entry[0]] = entry[1];
-      }
-      setPlannedOfBudgetById(next);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [gridTripIds]);
-
   // M15 (ADR-023): `src/proxy.ts` handles *arrival* — a signed-out visitor
   // hitting `/` is served the landing by a rewrite (the URL stays `/`, no
   // redirect; `/welcome` is canonical to `/`) before this page ever renders,
@@ -670,8 +626,8 @@ export default function Home() {
             SHAPES is "a page paints its own shape immediately"; making one
             appear before the other would be inventing a seam that does not
             exist, which §3b names as the thing not to do. The page's real
-            second wave is per-card — `plannedOfBudgetById` and the hero's own
-            `TripDetail` — and both of those already degrade to honest absence.
+            second wave is the hero's own `TripDetail`, which already degrades
+            to honest absence; the grid cards' budget lines come in the list.
 
             Not drawn while `loadError` is set: the region below says what
             happened instead, and a breathing placeholder above a failure
@@ -771,7 +727,7 @@ export default function Home() {
                       <TripCard
                         key={t.tripId}
                         trip={t}
-                        plannedOfBudget={plannedOfBudgetById[t.tripId]}
+                        plannedOfBudget={plannedOfBudgetOf(t)}
                         menuSlot={tripMenu(t)}
                         viewerId={viewerId}
                         unreadChat={t.unreadChat}
