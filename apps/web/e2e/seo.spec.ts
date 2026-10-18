@@ -261,7 +261,13 @@ test("a private day and an unknown one are the same 404 with the same body", asy
     // Nor the name as a slug: with the asked-for segment taken out, no answer
     // may spell it, least of all the one that was asked by bare id.
     for (const which of Object.keys(asked)) expect(bodies[which], which).not.toContain(slug);
-    for (const which of Object.keys(asked)) expect(bodies[which], which).toBe(bodies.unknown);
+    // Each hidden day against the unknown one asked the same way. The URL's
+    // shape picks which copy answers (`lib/playbooksReader.ts`: a bare id is
+    // answered live, a slugged one cached), and the two copies' 404s differ in
+    // Next's own payload. Existence never picks the copy, so this is the claim.
+    expect(bodies.hidden, "hidden").toBe(bodies.unknown);
+    expect(bodies.hiddenSlugged, "hiddenSlugged").toBe(bodies.unknownSlugged);
+    expect(bodies.junk, "junk").toBe(bodies.unknown);
 
     // Its author still opens it.
     const mine = await page.request.get(`/playbooks/day/${savedDayId}`);
