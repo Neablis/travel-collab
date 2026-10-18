@@ -5,7 +5,7 @@ import { http, HttpResponse, type RequestHandler } from "msw";
 import { setupServer } from "msw/node";
 import type { BatchableCommand, SuggestionChange, TripDetail, TripRole } from "@tc/contracts";
 import { activityFactory, tripAccessFixture, tripDetailFixture, tripMemberProfileFactory, uuidFrom } from "@tc/factories";
-import { TripBoardScreen } from "@/components/board/TripBoardScreen";
+import { preloadTripBoardModules, TripBoardScreen } from "@/components/board/TripBoardScreen";
 import { TripProvider } from "@/components/trip/context/TripProvider";
 import { EditorHost } from "@/components/trip/context/EditorHost";
 import { FocusProvider } from "@/components/trip/context/FocusProvider";
@@ -32,6 +32,9 @@ const server = setupServer(
   makeNearbyStopsHandler([]),
   http.get("/api/auth/session", () => HttpResponse.json({ user: { id: sessionUserId } })),
 );
+// Plan and the editor load on demand; warm them so the first test does not
+// pay a cold transform inside its `findBy`.
+beforeAll(() => preloadTripBoardModules());
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
 afterEach(() => {
   server.resetHandlers();
