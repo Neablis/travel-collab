@@ -39,7 +39,7 @@ test.describe("signed out", () => {
   test.use({ storageState: { cookies: [], origins: [] } });
 
   test("the landing page", async ({ page }) => {
-    await page.goto("/welcome");
+    await page.goto("/");
     await expect(page.getByRole("heading", { level: 1 }).first()).toBeVisible();
     expect(await seriousViolations(page)).toEqual([]);
   });
@@ -65,7 +65,7 @@ test.describe("signed out", () => {
 
 test.describe("signed in", () => {
   test("Home", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/home");
     await expect(page.getByRole("heading", { name: "Your trips" })).toBeVisible();
     expect(await seriousViolations(page)).toEqual([]);
   });

@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, createElement, useContext, useEffect, useState, type ReactNode } from "react";
+import { setSignedInHint } from "@/lib/sessionHint";
 
 export type SessionUser = { id?: string | null; name?: string | null; email?: string | null };
 
@@ -118,6 +119,23 @@ export function SessionUserProvider({
 }) {
   const known = noSessionCookie ? null : initialUser;
   const user = useResolvedSession(known === undefined, known);
+  // ADR-078: the landing's signed-in hint, set from every app page however it
+  // was reached — `/home`, `/trips/*`, `/plans`, `/account` and the library's
+  // live copy all render this provider with the served user. **The only
+  // setter**: the proxy only deletes the hint on a signed-out request, so it
+  // appears after hydration, not on the first response. `/invite/*` has no
+  // shell and does not set it; an invite hands off to a trip page, which does.
+  //
+  // Here, in the one place under `(app)` that already holds the answer.
+  //
+  // **Keyed on the id, not the user.** Sign-out clears the hint, then POSTs,
+  // then navigates away, and the id does not change in that window, so this
+  // cannot run in it; `setSignedInHint` also refuses once the document has
+  // cleared the hint, should anything remount.
+  const id = user?.id;
+  useEffect(() => {
+    if (id) setSignedInHint();
+  }, [id]);
   return createElement(SessionUserContext.Provider, { value: user }, children);
 }
 

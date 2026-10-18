@@ -33,7 +33,7 @@ test("create, name, date, build, reorder, rename, delete", async ({ page }) => {
     });
   });
 
-  await page.goto("/");
+  await page.goto("/home");
 
   await createEmptyTripViaWizard(page, tripName);
   await page.getByRole("link", { name: tripName }).click();
@@ -123,7 +123,7 @@ test("create, name, date, build, reorder, rename, delete", async ({ page }) => {
   await expect(page.getByRole("status", { name: "All changes saved" })).toBeVisible(); // KI-5, C4
 
   // -- delete + undo, from the trip list --
-  await page.goto("/");
+  await page.goto("/home");
   // KI-28: the home page fans out one `GET /api/trips/:id` per visible card to
   // fill in each card's cost line, and that line landing grows the target
   // card's *own* row (~73px, measured 2026-08-24). The actions menu is
@@ -197,7 +197,7 @@ test("an open trip-actions menu does not drift when the cost lines land", async 
     expect((await page.request.post(`/api/trips/${tripId}/commands`, { data: command })).ok()).toBe(true);
   }
 
-  await page.goto("/");
+  await page.goto("/home");
   // **A second trip after it, so the anchor is a CARD** (SPEC §35.2). The
   // hero is not in *Other trips*, so a trip that is the hero has no card to
   // anchor a menu on. Home picks the hero by date (`orderHomeTrips`, KI-034):
@@ -222,7 +222,7 @@ test("an open trip-actions menu does not drift when the cost lines land", async 
     await held;
     await route.continue();
   });
-  await page.goto("/");
+  await page.goto("/home");
 
   const card = page.getByTestId("trip-card").filter({ hasText: tripName });
   await expect(card).toBeVisible();

@@ -6,7 +6,7 @@ test("money & lenses: currency, costs, rollups, budget conflict, dismiss, undo",
   // Distinct prefix from other specs' trip names — see m3-place-and-time.spec.ts's
   // comment for why parallel workers need this.
   const tripName = e2eTripName("Porto");
-  await page.goto("/");
+  await page.goto("/home");
 
   await createEmptyTripViaWizard(page, tripName);
   await page.getByRole("link", { name: tripName }).click();

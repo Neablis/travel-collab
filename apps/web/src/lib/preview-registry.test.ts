@@ -378,7 +378,7 @@ describe("the orphan scanner itself", () => {
 
   it("treats a Next.js entry point as rendered even though nothing imports it", () => {
     // M15 put the authenticated home route inside a route group
-    // (`app/(app)/page.tsx`), so the match can't require "page.tsx" to sit
+    // (`app/(app)/home/page.tsx`; the landing is `app/(front)/page.tsx`), so the match can't require "page.tsx" to sit
     // directly under "app/" — it walks through any number of `(group)/`
     // segments, which route groups are (they don't affect the URL or change
     // that Next.js renders the file as an entry point).

@@ -259,11 +259,12 @@ expectRejectedBy(
 );
 
 // THE PLAYBOOKS PAGE EXEMPTION (SEO pass, D5), proven to be exactly the page
-// files under `(app)/playbooks`. Open for a page; shut for the domain and
-// authConfig; shut for a non-page file beside it, a layout above it, and a
-// page in any other route group.
+// files under `app/playbooks` (`(app)/playbooks` until the live/cached split).
+// Open for a page; shut for the domain and authConfig; shut for a non-page
+// file beside it, the cached copy's layout, and a page in any other route
+// group.
 const PAGE_BODY = "\nexport default function Fixture() { return null; }\n";
-const DAY_PAGE = "src/app/(app)/playbooks/day/[savedDayId]/page.tsx";
+const DAY_PAGE = "src/app/playbooks/live/day/[savedDayId]/page.tsx";
 
 expectClean(
   lintFixture("playbooks_page_server", `import "@/server/playbooks";${PAGE_BODY}`, { file: DAY_PAGE }),
@@ -271,7 +272,7 @@ expectClean(
 );
 expectClean(
   lintFixture("playbooks_root_page_server", `import "@/server/playbooks";${PAGE_BODY}`, {
-    file: "src/app/(app)/playbooks/page.tsx",
+    file: "src/app/playbooks/live/page.tsx",
   }),
   "the Discover page may import @/server/*",
 );
@@ -287,17 +288,17 @@ expectRejectedBy(
 );
 expectRejectedBy(
   lintFixture("playbooks_helper_server", `import "@/server/playbooks";${PAGE_BODY}`, {
-    file: "src/app/(app)/playbooks/day/[savedDayId]/helper.tsx",
+    file: "src/app/playbooks/live/day/[savedDayId]/helper.tsx",
   }),
   "no-restricted-imports",
   "a non-page file beside a playbooks page gets no exemption",
 );
 expectRejectedBy(
   lintFixture("playbooks_layout_server", `import "@/server/playbooks";${PAGE_BODY}`, {
-    file: "src/app/(app)/playbooks/layout.tsx",
+    file: "src/app/playbooks/[copy]/layout.tsx",
   }),
   "no-restricted-imports",
-  "a layout under playbooks gets no exemption",
+  "the cached copy's layout gets no exemption (it reads no session)",
 );
 expectRejectedBy(
   lintFixture("trips_page_server", `import "@/server/playbooks";${PAGE_BODY}`, {
@@ -307,10 +308,22 @@ expectRejectedBy(
   "a page outside playbooks gets no exemption",
 );
 
-// THE APP LAYOUT'S PLAN READ (M45 decision 3): `(app)/layout.tsx` alone may
-// read `src/server`, to send the reader's entitlements with the page. Open for
-// that file; shut for the domain and for any other layout.
+// THE APP LAYOUT'S PLAN READ (M45 decision 3): `(app)/layout.tsx` and the
+// library's live `playbooks/live/layout.tsx` alone may read `src/server`, to
+// send the reader's entitlements with the page. Open for those two files; shut
+// for the domain and for any other layout.
 const APP_LAYOUT = "src/app/(app)/layout.tsx";
+const LIBRARY_LAYOUT = "src/app/playbooks/live/layout.tsx";
+
+expectClean(
+  lintFixture("library_layout_server", `import "@/server/servedSession";${PAGE_BODY}`, { file: LIBRARY_LAYOUT }),
+  "the library's live layout may import @/server/* (the exemption is open)",
+);
+expectRejectedBy(
+  lintFixture("library_layout_domain", `import "@tc/domain";${PAGE_BODY}`, { file: LIBRARY_LAYOUT }),
+  "no-restricted-imports",
+  "the library's live layout still may not import @tc/domain",
+);
 
 expectClean(
   lintFixture("app_layout_server", `import "@/server/entitlements/resolver";${PAGE_BODY}`, { file: APP_LAYOUT }),
@@ -327,6 +340,33 @@ expectRejectedBy(
   }),
   "no-restricted-imports",
   "a layout below (app) gets no exemption",
+);
+
+// THE HOME PAGE'S LIST READ (2026-10-18): `(app)/home/page.tsx` alone may read
+// `src/server`, to send the reader's trip list with the page. Open for that
+// file; shut for the domain, for authConfig, and for any other page in (app).
+const HOME_PAGE = "src/app/(app)/home/page.tsx";
+
+expectClean(
+  lintFixture("home_page_server", `import "@/server/listedTrips";${PAGE_BODY}`, { file: HOME_PAGE }),
+  "the (app) Home page may import @/server/* (the exemption is open)",
+);
+expectRejectedBy(
+  lintFixture("home_page_domain", `import "@tc/domain";${PAGE_BODY}`, { file: HOME_PAGE }),
+  "no-restricted-imports",
+  "the (app) Home page still may not import @tc/domain",
+);
+expectRejectedBy(
+  lintFixture("home_page_authconfig", `import "@/lib/authConfig";${PAGE_BODY}`, { file: HOME_PAGE }),
+  "no-restricted-imports",
+  "the (app) Home page still may not build an Auth.js instance",
+);
+expectRejectedBy(
+  lintFixture("account_page_server", `import "@/server/listedTrips";${PAGE_BODY}`, {
+    file: "src/app/(app)/account/page.tsx",
+  }),
+  "no-restricted-imports",
+  "a page beside Home in (app) gets no exemption",
 );
 
 // THE GATEWAY CHOKEPOINT WALL (ADR-019's 2026-08-25 amendment): only
@@ -429,7 +469,7 @@ expectRejectedBy(
 // block restates `no-restricted-imports` without the Unsplash patterns — so
 // what holds it is the wall's path zone, which that block leaves in place.
 expectRejectedBy(
-  lintFixture("unsplash_day_page_fixture", UNSPLASH_IMPORT, { file: "src/app/(app)/playbooks/day/[savedDayId]/page.tsx" }),
+  lintFixture("unsplash_day_page_fixture", UNSPLASH_IMPORT, { file: DAY_PAGE }),
   "import/no-restricted-paths",
   "unsplash: the server-rendered day page (inside the playbooks page exemption) correctly rejected",
 );

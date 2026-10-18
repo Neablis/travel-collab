@@ -140,16 +140,26 @@ Since 2026-10-02 the shell also holds **`src/app/sitemap.ts` and
 which only the database knows. Console terms; five fixtures in
 `scripts/check-lint-wall.mjs`.
 
-And **`src/app/(app)/playbooks/**/page.tsx`** (SEO pass, D5): the public
+And **`src/app/playbooks/**/page.tsx`** (SEO pass, D5): the public
 library's pages render on the server so a crawler receives the day and a
 missing one answers 404. Page files only, on the console's terms; the screens
-they render still call the API. Seven fixtures hold it there.
+they render still call the API. Seven fixtures hold it there. `live/` holds
+them; `[copy]/` re-exports them as the cached copy `proxy.ts` serves a reader
+with no session and no query (ADR-077).
 
 And **`src/app/(app)/layout.tsx`** (M45, Mitchell's decision 3 of 2026-10-13):
 it resolves the reader's conferred entitlements per request through
 `server/entitlements/resolver.ts` and sends them with the page, so an Ask
-offered only to a plan with the assistant is in the first HTML. That one file,
-on the console's terms; never a JWT claim (ADR-045 rule 2). Three fixtures.
+offered only to a plan with the assistant is in the first HTML, and, beside
+it, the reader's preferences through `server/accountPreferences.ts`, so
+`PreferencesProvider` does not fetch them after hydration. That file and
+`src/app/playbooks/live/layout.tsx`, both through `server/servedSession.ts`,
+on the console's terms; never a JWT claim (ADR-045 rule 2). Five fixtures.
+
+And **`src/app/(app)/page.tsx`** (Mitchell's decision of 2026-10-18): Home
+reads `server/listedTrips.ts`, the `/api/trips` body, so the next-trip hero
+and the grid are in the first HTML. That file only; `HomeScreen` stays UI.
+Four fixtures.
 
 The UI/server lint wall is CI-enforced and is our escape hatch: if serverless
 stops fitting (likely at Phase 2 realtime), `src/server` extracts into a

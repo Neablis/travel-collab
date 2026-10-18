@@ -32,7 +32,7 @@ async function finishEditing(page: Page): Promise<void> {
 
 test("the owner resets an edited Overview to its default, and adds back a missing notebook", async ({ page }) => {
   const tripName = e2eTripName("Coimbra");
-  await page.goto("/");
+  await page.goto("/home");
   await createEmptyTripViaWizard(page, tripName);
   await page.getByRole("link", { name: tripName }).click();
   await expect(page.getByRole("heading", { name: tripName, level: 1 })).toBeVisible();
@@ -101,7 +101,7 @@ test("the owner resets an edited Overview to its default, and adds back a missin
 // the owner's click adds that one notebook and the same card becomes the link.
 test("the Overview's card for a missing default adds it, and then leads to it", async ({ page }) => {
   const tripName = e2eTripName("Viseu");
-  await page.goto("/");
+  await page.goto("/home");
   await createEmptyTripViaWizard(page, tripName);
   await page.getByRole("link", { name: tripName }).click();
   await openNotebookIndex(page);
@@ -127,7 +127,7 @@ test("the Overview's card for a missing default adds it, and then leads to it", 
 
 test("the reset can be undone straight afterwards", async ({ page }) => {
   const tripName = e2eTripName("Braga");
-  await page.goto("/");
+  await page.goto("/home");
   await createEmptyTripViaWizard(page, tripName);
   await page.getByRole("link", { name: tripName }).click();
   await openNotebookIndex(page);
@@ -160,7 +160,7 @@ test("the reset can be undone straight afterwards", async ({ page }) => {
 // beside it, and renaming "Budget" back was refused (KI-2026-09-27-e).
 test("a renamed default notebook is still that default, and resets to its template", async ({ page }) => {
   const tripName = e2eTripName("Aveiro");
-  await page.goto("/");
+  await page.goto("/home");
   await createEmptyTripViaWizard(page, tripName);
   await page.getByRole("link", { name: tripName }).click();
   await openNotebookIndex(page);

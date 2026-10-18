@@ -32,7 +32,7 @@ test("a simulated AI answer streams into the rail and is badged as simulated", a
   const tripName = e2eTripName("AI Kill Switch");
   // page.request shares the context's cookies, and the context needs an
   // origin before a relative request URL means anything.
-  await page.goto("/");
+  await page.goto("/home");
   const tripId = await createMappedTrip(page, tripName, 2);
   await page.goto(`/trips/${tripId}?view=Plan`);
   await expect(page.getByRole("heading", { name: tripName, level: 1 })).toBeVisible();
@@ -72,7 +72,7 @@ test("a simulated AI answer streams into the rail and is badged as simulated", a
 // tested in simulatedModel.test.ts; here it is just what a user would type.
 test("an AI plan reaches the board only once it is approved", async ({ page }) => {
   const tripName = e2eTripName("AI Yes");
-  await page.goto("/");
+  await page.goto("/home");
   const tripId = await createMappedTrip(page, tripName, 2);
   await page.goto(`/trips/${tripId}?view=Plan`);
   await expect(page.getByRole("heading", { name: tripName, level: 1 })).toBeVisible();
@@ -135,7 +135,7 @@ test("an AI plan reaches the board only once it is approved", async ({ page }) =
 
 test("rejecting an AI plan leaves the trip exactly as it was", async ({ page }) => {
   const tripName = e2eTripName("AI No");
-  await page.goto("/");
+  await page.goto("/home");
   const tripId = await createMappedTrip(page, tripName, 2);
   await page.goto(`/trips/${tripId}?view=Plan`);
   await expect(page.getByRole("heading", { name: tripName, level: 1 })).toBeVisible();
@@ -232,7 +232,7 @@ test("a playbook day the assistant found reaches the board once it is approved",
 
   const city = `Kyotoai${randomUUID().replace(/-/g, "").slice(0, 8)}`;
   const dayName = `Temples on foot ${randomUUID().slice(0, 8)}`;
-  await page.goto("/");
+  await page.goto("/home");
 
   // The library day: kept, then published, so `search_playbooks` can see it.
   const source = await tripWithStops(page, e2eTripName("AI Library Source"), [
@@ -307,7 +307,7 @@ test("a playbook day the assistant found reaches the board once it is approved",
 // notebook, survives the save and reads back after a reload.
 test("asked to add a spend by tag chart to Money, the assistant finds it and puts it in the notebook", async ({ page }) => {
   const tripName = e2eTripName("AI Notebook Widget");
-  await page.goto("/");
+  await page.goto("/home");
   // A priced stop, so each "Spend by tag" pie draws its table rather than its
   // empty line — the table's name is what is counted below.
   const tripId = await createMappedTrip(page, tripName, 2, { costs: [{ amountMinor: 2500, currency: "USD" }] });
@@ -364,7 +364,7 @@ test("asked to add a spend by tag chart to Money, the assistant finds it and put
 // read back tag-filtered.
 test("asked for a notebook about meals on a new notebook in Reading, the assistant switches to Editing and fills it", async ({ page }) => {
   const tripName = e2eTripName("AI Meals Notebook");
-  await page.goto("/");
+  await page.goto("/home");
   const tripId = await createMappedTrip(page, tripName, 2);
   // A NEW notebook, as on 2026-09-26: it opens in Reading.
   const created = await page.request.post(`/api/trips/${tripId}/pages`, {

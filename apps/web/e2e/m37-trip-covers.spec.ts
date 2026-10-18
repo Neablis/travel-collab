@@ -12,7 +12,7 @@ import { e2eTripName } from "./tripNames";
 
 /** Creates an empty trip and follows its *Choose a cover photo* link into Trip settings. */
 async function openCoverPickerFromHome(page: Page, tripName: string): Promise<Locator> {
-  await page.goto("/");
+  await page.goto("/home");
   await createEmptyTripViaWizard(page, tripName);
 
   // The designed empty state (D6): the dates line, then the next steps. The
@@ -84,7 +84,7 @@ test("pick a cover for an empty trip in Trip settings, and see it credited on Ho
   await expect(page.getByRole("dialog", { name: "Trip settings" }).getByRole("region", { name: "Cover photo" })).toBeVisible();
 
   // Home reads the cover off the trip list, on its next load.
-  await page.goto("/");
+  await page.goto("/home");
   const onHome = homeTrip(page, tripName);
   const photo = onHome.getByRole("img", { name: "Sand dunes under a pale sun" });
   await expect(photo).toBeVisible();
@@ -136,7 +136,7 @@ test("the cover picker fits a 390px phone, with 44px targets", async ({ page }) 
     page.waitForResponse((r) => /\/api\/trips\/[^/]+\/cover$/.test(new URL(r.url()).pathname) && r.request().method() === "PUT" && r.ok()),
     section.getByRole("button", { name: "Use photo by Ben Offline" }).click(),
   ]);
-  await page.goto("/");
+  await page.goto("/home");
   const onHome = homeTrip(page, tripName);
   for (const link of [onHome.getByRole("link", { name: "Ben Offline" }), onHome.getByRole("link", { name: "Unsplash" })]) {
     await link.scrollIntoViewIfNeeded();

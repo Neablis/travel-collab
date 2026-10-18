@@ -41,6 +41,6 @@ describe("DevelopersScreen", () => {
   it("has a way back home", () => {
     render(<DevelopersScreen />);
     const footer = within(screen.getByRole("contentinfo"));
-    expect(footer.getByRole("link", { name: /Caesura home/ }).getAttribute("href")).toBe("/welcome");
+    expect(footer.getByRole("link", { name: /Caesura home/ }).getAttribute("href")).toBe("/");
   });
 });

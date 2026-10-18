@@ -22,13 +22,13 @@ import { cn } from "@/lib/cn";
 
 // **The real panels are split out of the first load.** The river and the
 // blocks bring the board's drag-and-drop and `@tc/pages` with them, which put
-// `/welcome`'s first-load JS up from 319 to 400 KB gzip when imported directly
+// the landing's first-load JS up from 319 to 400 KB gzip when imported directly
 // (`next build`, 2026-09-27), all of it for two views that are not on screen
 // when the page opens. The load starts once the page has painted, so it has
 // normally landed long before the ten-second rotation or a pill asks for it.
 //
 // **A load that fails keeps the static art.** `Suspense` does not catch a
-// rejected `lazy` import, and the only boundary above `/welcome` is
+// rejected `lazy` import, and the only boundary above the landing is
 // `app/global-error.tsx`, so a replaced chunk or a dropped connection would
 // otherwise take the whole front door down the moment a panel was shown. Each
 // panel has its own boundary whose fallback is the art `Suspense` shows while

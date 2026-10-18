@@ -25,7 +25,7 @@ export default function ApiReferencePage() {
             <Link href="/developers" className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "no-underline")}>
               Getting a token
             </Link>
-            <Link href="/welcome" className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "no-underline")}>
+            <Link href="/" className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "no-underline")}>
               Caesura home
             </Link>
           </>

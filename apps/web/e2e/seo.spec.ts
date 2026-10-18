@@ -12,14 +12,15 @@ import { forget, publishedDay, stranger } from "./helpers";
 // page's <head> opens with the same words.
 const HEADLINE = /Put the best day on repeat\.<\/h[12]>/;
 
-test("a signed-out / serves the landing in place, uncached, with one h1", async ({ browser }) => {
+test("a signed-out / serves the landing in place, cacheable, with one h1", async ({ browser }) => {
   const visitor = await stranger(browser);
   const response = await visitor.request.get("/", { maxRedirects: 0 });
   expect(response.status()).toBe(200);
-  // `/` is two pages by session: never stored by a CDN or the browser. (A
-  // `Vary: Cookie` set beside this is not asserted because it does not arrive:
-  // Next replaces `Vary` on the rewritten response with its own RSC list.)
-  expect(response.headers()["cache-control"]).toBe("private, no-store");
+  // ADR-078: `/` is one static page for everybody, so a CDN, the browser and
+  // the back-forward cache may all keep it. It was `private, no-store` while
+  // it was two pages by session.
+  const cacheControl = response.headers()["cache-control"] ?? "";
+  expect(cacheControl).not.toMatch(/private|no-store/);
   const html = await response.text();
   expect(html).toMatch(HEADLINE);
   // The phone and desktop trees are both in the document; only one may be an h1.
@@ -31,11 +32,15 @@ test("a signed-out / serves the landing in place, uncached, with one h1", async 
   await visitor.context().close();
 });
 
-test("a signed-in / is the app home, never the landing", async ({ page }) => {
-  const html = await (await page.request.get("/", { maxRedirects: 0 })).text();
-  expect(html).not.toMatch(HEADLINE);
-  await page.goto("/");
-  await expect(page.getByRole("heading", { name: "Your trips" })).toBeVisible();
+// A signed-in `/` going on to `/home` is e2e/m15-front-door.spec.ts's, beside
+// the sign-out half of the same hint (ADR-078).
+
+test("/welcome, the landing's old address, is a permanent redirect to /", async ({ browser }) => {
+  const visitor = await stranger(browser);
+  const response = await visitor.request.get("/welcome", { maxRedirects: 0 });
+  expect(response.status()).toBe(308);
+  expect(new URL(response.headers().location ?? "", "http://x").pathname).toBe("/");
+  await visitor.context().close();
 });
 
 test("robots.txt allows the site, keeps /api out, and names the sitemap", async ({ browser }) => {
@@ -219,6 +224,9 @@ test("a day's head: name and first city in the title, the facts line, a slugged 
 //  - The ORDER of the rows in Next's flight payload. They are written as they
 //    resolve, so the order follows timing: the rows are compared as a sorted
 //    list, across the `<script>` chunks they are cut into.
+// Where those chunks are interleaved into the HTML is NOT normalised, and it
+// follows byte counts: growing the root layout by 84 bytes turned this red with
+// no privacy change (KI-2026-10-18-e). Read that before chasing a leak here.
 function comparable(body: string, segment: string): string {
   return body
     .replace(/<meta name="(?:sentry-trace|baggage)" content="[^"]*"\/>/g, "")
@@ -261,7 +269,13 @@ test("a private day and an unknown one are the same 404 with the same body", asy
     // Nor the name as a slug: with the asked-for segment taken out, no answer
     // may spell it, least of all the one that was asked by bare id.
     for (const which of Object.keys(asked)) expect(bodies[which], which).not.toContain(slug);
-    for (const which of Object.keys(asked)) expect(bodies[which], which).toBe(bodies.unknown);
+    // Each hidden day against the unknown one asked the same way. The URL's
+    // shape picks which copy answers (`lib/playbooksReader.ts`: a bare id is
+    // answered live, a slugged one cached), and the two copies' 404s differ in
+    // Next's own payload. Existence never picks the copy, so this is the claim.
+    expect(bodies.hidden, "hidden").toBe(bodies.unknown);
+    expect(bodies.hiddenSlugged, "hiddenSlugged").toBe(bodies.unknownSlugged);
+    expect(bodies.junk, "junk").toBe(bodies.unknown);
 
     // Its author still opens it.
     const mine = await page.request.get(`/playbooks/day/${savedDayId}`);
@@ -270,6 +284,31 @@ test("a private day and an unknown one are the same 404 with the same body", asy
     expect(own).toMatch(new RegExp(`<h1[^>]*>${name}</h1>`));
     // A private day describes itself to nobody, its author's page included.
     expect(ldJson(own)).toEqual([]);
+    await visitor.context().close();
+  } finally {
+    await forget(page, savedDayId);
+  }
+});
+
+// ADR-077: a stranger's day page is the cached copy, the same answer from the
+// cache on the second ask, while its author at the same URL is answered live.
+// `x-nextjs-cache` is `next start`'s own report of which it served.
+test("a stranger's day page comes from the cache, its author's never does", async ({ page, browser }) => {
+  test.slow();
+  const name = `Cache split ${randomUUID().slice(0, 8)}`;
+  const savedDayId = await publishedDay(page, `Seoe2e${randomUUID().slice(0, 6)}`, name);
+  try {
+    const visitor = await stranger(browser);
+    const path = sluggedPath(name, savedDayId);
+    expect((await visitor.request.get(path)).status()).toBe(200);
+    const again = await visitor.request.get(path);
+    expect(again.status()).toBe(200);
+    expect(again.headers()["x-nextjs-cache"]).toBe("HIT");
+
+    const mine = await page.request.get(path);
+    expect(mine.status()).toBe(200);
+    expect(mine.headers()["x-nextjs-cache"]).toBeUndefined();
+    expect(mine.headers()["cache-control"]).toContain("no-store");
     await visitor.context().close();
   } finally {
     await forget(page, savedDayId);

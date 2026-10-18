@@ -596,13 +596,19 @@ describe("Session Replay", () => {
   // alternative needs a browser and a running replay session, which is a
   // Playwright-shaped cost for a two-line wiring. What it does catch is the
   // regression that actually happens — someone tidying an option away.
-  it("hands both of its bypass hooks to the client SDK", () => {
+  //
+  // The other hook, `beforeAddRecordingEvent`, moved with Replay into
+  // `src/lib/sentryReplay.ts` on 2026-10-18, and `lazySentryReplay.test.ts`
+  // checks it on the integration that actually reaches `addIntegration`.
+  it("hands the replay-envelope scrubber to the client SDK", () => {
     const source = readFileSync(
       fileURLToPath(new URL("./src/instrumentation-client.ts", import.meta.url)),
       "utf8",
     );
-    expect(source).toContain("beforeAddRecordingEvent: scrubReplayRecordingEvent");
     expect(source).toContain("Sentry.addEventProcessor(scrubSentryPayload)");
+    // And Replay is still asked for, gated on the same switch as the client.
+    // Deleting this call loses every replay with every other test green.
+    expect(source).toContain("loadSentryReplayWhenIdle(sentryEnabled)");
   });
 });
 

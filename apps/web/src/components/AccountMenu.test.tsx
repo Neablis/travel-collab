@@ -266,7 +266,7 @@ describe("HeaderSessionChrome's account menu", () => {
     render(<HeaderSessionChrome />);
 
     const main = await screen.findByRole("navigation", { name: "Main" });
-    expect(within(main).getByRole("link", { name: "Trips" }).getAttribute("href")).toBe("/");
+    expect(within(main).getByRole("link", { name: "Trips" }).getAttribute("href")).toBe("/home");
   });
 
   // ADR-061: the playbooks are readable without an account, so a signed-out
@@ -314,14 +314,16 @@ describe("HeaderSessionChrome's account menu", () => {
     saveAskDraft(ownedAskName("user-a", "account"), "and dinner?");
     saveAskDraft(ownedAskName("user-b", "account"), "where next?");
 
+    document.cookie = "tc_signed_in=1; Path=/";
     render(<HeaderSessionChrome />);
 
     await userEvent.click(await screen.findByRole("button", { name: "Account menu" }));
     await userEvent.click(screen.getByRole("button", { name: "Sign out" }));
 
-    // `/welcome`, not `/`: see AccountMenu.tsx's onSignOut comment — routing
-    // sign-out through `/` raced the session cookie being cleared.
-    expect(signOut).toHaveBeenCalledWith({ callbackUrl: "/welcome" });
+    // To the static landing, with the signed-in hint gone first so its script
+    // does not send the visitor back to Home (ADR-078).
+    expect(signOut).toHaveBeenCalledWith({ callbackUrl: "/" });
+    expect(document.cookie).not.toContain("tc_signed_in");
     expect(loadAskThread(ownedAskName("user-a", "account"))).toEqual([]);
     expect(loadAskDraft(ownedAskName("user-a", "account"))).toBeNull();
     expect(loadAskDraft(ownedAskName("user-b", "account"))).toBe("where next?");

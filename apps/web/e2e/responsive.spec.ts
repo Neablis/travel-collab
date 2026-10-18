@@ -318,7 +318,7 @@ test.describe("responsive (narrow viewport)", () => {
       }
 
       await page.setViewportSize({ width, height: 900 });
-      await page.goto("/");
+      await page.goto("/home");
       const card = page.getByTestId("trip-card").filter({ hasText: "Narrow cost" }).first();
       await expect(card).toBeVisible();
       // The line has actually landed — otherwise this would measure the
@@ -364,7 +364,7 @@ test.describe("responsive (narrow viewport)", () => {
     }
 
     await page.setViewportSize({ width: 360, height: 900 });
-    await page.goto("/");
+    await page.goto("/home");
     const hero = page.locator(".hero-grid");
     await expect(hero).toBeVisible();
     await expect(hero.getByText(/planned of|No budget yet/)).toBeVisible();
@@ -447,7 +447,7 @@ test.describe("responsive (Home hero on a phone, fresh account)", () => {
       await route.continue();
     });
 
-    await page.goto("/");
+    await page.goto("/home");
     const hero = page.getByTestId("next-trip-hero");
     await expect(hero.getByRole("heading", { level: 2, name })).toBeVisible();
     await expect(hero.getByRole("status", { name: /shape of the trip/i })).toBeVisible();
@@ -490,7 +490,7 @@ test.describe("responsive (Home hero below 1024px, fresh account)", () => {
       await page.request.post(`/api/trips/${tripId}/commands`, { data: command });
     }
 
-    await page.goto("/");
+    await page.goto("/home");
     const hero = page.getByTestId("next-trip-hero");
     await expect(hero.getByRole("heading", { level: 2, name })).toBeVisible();
     const columns = await page
@@ -854,7 +854,7 @@ test.describe("responsive (narrow viewport, signed out)", () => {
 
     // 900px: one column — same x, y strictly increasing in page order.
     await page.setViewportSize({ width: 900, height: 900 });
-    await page.goto("/welcome");
+    await page.goto("/");
     const stacked = await cardBoxes();
     expect(new Set(stacked.map((b) => b.x)).size).toBe(1);
     const stackedY = stacked.map((b) => b.y);
@@ -892,7 +892,7 @@ test.describe("responsive (narrow viewport, signed out)", () => {
   for (const width of [402, 375, 320]) {
     test(`the hero art stays inside the viewport at ${width}px`, async ({ page }) => {
       await page.setViewportSize({ width, height: 900 });
-      await page.goto("/welcome");
+      await page.goto("/");
       await expect(
         page.getByRole("heading", { name: "Put the best day on repeat." }),
       ).toBeVisible();
@@ -933,7 +933,7 @@ test.describe("responsive (narrow viewport, signed out)", () => {
     const art = page.locator("div.h-107\\.5");
 
     await page.setViewportSize({ width: 1280, height: 900 });
-    await page.goto("/welcome");
+    await page.goto("/");
     await expect(art.getByText("Fushimi Inari")).toBeVisible();
     await expect(art.getByText("Nishiki Market")).toBeVisible();
     await expect(art.getByText("Ryokan · unconfirmed")).toBeVisible();
@@ -963,9 +963,9 @@ test.describe("responsive (narrow viewport, signed out)", () => {
   // offsets with `whitespace-nowrap` labels — the shape that silently pushes a
   // page sideways. 402px is the width docs/STATUS.md's design audit walks.
   for (const width of [402, 360]) {
-    test(`/welcome does not scroll sideways at ${width}px`, async ({ page }) => {
+    test(`the landing does not scroll sideways at ${width}px`, async ({ page }) => {
       await page.setViewportSize({ width, height: 900 });
-      await page.goto("/welcome");
+      await page.goto("/");
       // Witnesses before measuring: an empty shell, a redirect to /signin, or a
       // 500 all have scrollWidth === clientWidth and would sail through the
       // assertion below (CodeRabbit, PR #58). The h1 proves this is the landing
@@ -1018,7 +1018,7 @@ test.describe("responsive (narrow viewport, signed out)", () => {
   // fold, which is how far off screen it had been all along.
   test("the phone front door keeps its header on screen through the sequence", async ({ page }) => {
     await page.setViewportSize({ width: 411, height: 760 });
-    await page.goto("/welcome");
+    await page.goto("/");
     const signIn = page.getByRole("link", { name: "Sign in" });
     await expect(signIn).toBeVisible();
     const atRest = (await signIn.boundingBox())!;
@@ -1103,7 +1103,7 @@ test.describe("responsive (new trip sheet, short viewport)", () => {
     // A trip has to exist, or Home renders the conversation inline instead of
     // in a sheet — that path is bounded by `h-a-thread` and never had this bug.
     await page.request.post("/api/trips", { data: { name: e2eTripName("Dock") } });
-    await page.goto("/");
+    await page.goto("/home");
 
     await page.getByRole("button", { name: "New trip" }).click();
     const sheet = page.getByRole("dialog", { name: "New trip" });

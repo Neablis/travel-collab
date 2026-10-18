@@ -55,7 +55,7 @@ async function insertFromRail(page: Page, name: RegExp, search: string): Promise
 
 test("a new trip comes with four notebooks, and the Overview links to the other three", async ({ page }) => {
   const tripName = e2eTripName("Porto");
-  await page.goto("/");
+  await page.goto("/home");
   await createEmptyTripViaWizard(page, tripName);
   await page.getByRole("link", { name: tripName }).click();
   await expect(page.getByRole("heading", { name: tripName, level: 1 })).toBeVisible();
@@ -161,7 +161,7 @@ test.describe("the Japan demo's Overview", () => {
 
 test("insert an internal link to Money and follow it; insert a link to a website", async ({ page }) => {
   const tripName = e2eTripName("Evora");
-  await page.goto("/");
+  await page.goto("/home");
   await createEmptyTripViaWizard(page, tripName);
   await page.getByRole("link", { name: tripName }).click();
   await expect(page.getByRole("heading", { name: tripName, level: 1 })).toBeVisible();

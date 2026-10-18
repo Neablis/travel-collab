@@ -199,7 +199,7 @@ test("an invited editor opens the trip and changes it; the owner sees them liste
 
     // The trip now appears in bob's own Home grid, alongside his own trips —
     // SPEC R4 deleted the "shared with you" label, so it simply appears.
-    await bob.goto("/");
+    await bob.goto("/home");
     await expect(bob.getByRole("link", { name: tripName })).toBeVisible();
   } finally {
     await bob.context().close();

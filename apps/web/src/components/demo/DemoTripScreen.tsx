@@ -184,7 +184,7 @@ function DemoBanner({ demo }: { demo: DemoTrip }) {
   // way back, which meant the page could only finish a copy for somebody the
   // callbackUrl had survived for — and made the intent something a shared link
   // could assert. `takeDemoClone` is read-and-clear, so this and the trip list
-  // (`(app)/page.tsx`, where anyone who SIGNED UP actually lands) race for one
+  // (`(app)/home/page.tsx`, where anyone who SIGNED UP actually lands) race for one
   // marker and exactly one of them wins.
   //
   // No `useSearchParams()` here even now that there is no param to read: this

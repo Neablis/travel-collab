@@ -37,6 +37,7 @@ import { PersonChip } from "@/components/ui/person-chip";
 import { needsBooking } from "@/lib/needsBooking";
 import { tripSpend, plannedOfBudgetLine } from "@/lib/cost";
 import { cn } from "@/lib/cn";
+import { useCreatedLabel } from "@/lib/useCreatedLabel";
 
 export type NextTripHeroProps = {
   trip: TripSummary;
@@ -90,10 +91,7 @@ export function NextTripHero({ trip, menuSlot, viewerId, unreadChat = 0 }: NextT
   // Who is going, as TripCard counts and draws them (travellers spec §5).
   const going = new Set(travellerIds(trip.members));
   const travellers = trip.members.filter((m) => going.has(m.userId));
-  const created = new Date(trip.createdAt);
-  const createdLabel = Number.isNaN(created.getTime())
-    ? null
-    : created.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  const createdLabel = useCreatedLabel(trip.createdAt);
 
   // Real TripDetail, fetched on mount (and again if the hero starts
   // rendering a different trip) — the source for both the sparkline and the

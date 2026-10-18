@@ -83,7 +83,7 @@ export function takePlaybookAdd(savedDayId: string, now: number = Date.now()): b
 /**
  * Which day a live marker is waiting on, WITHOUT clearing it — or `null`.
  *
- * For the trip list (`(app)/page.tsx`), which is where a new account often
+ * For the trip list (`(app)/home/page.tsx`), which is where a new account often
  * lands: a refused sign-up is redirected server-side and loses its
  * `callbackUrl` (`pendingDemoClone.ts` lists the hops). The list sends the
  * reader back to the day, and the day page's `takePlaybookAdd` is what spends
