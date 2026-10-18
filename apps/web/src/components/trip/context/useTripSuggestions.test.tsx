@@ -1,10 +1,11 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
 import type { SuggestionChange, TripRole } from "@tc/contracts";
 import { tripDetailFixture, uuidFrom } from "@tc/factories";
 import { makeTripHandlers } from "@/mocks/handlers";
+import { holdIdle } from "@/test-support/holdIdle";
 import { TripProvider, useTrip } from "./TripProvider";
 
 // Through the provider and MSW: the claims are about when the list is read
@@ -16,6 +17,7 @@ afterEach(() => {
   server.resetHandlers();
   server.events.removeAllListeners();
   cleanup();
+  vi.unstubAllGlobals();
 });
 afterAll(() => server.close());
 
@@ -81,10 +83,43 @@ async function mount(myRole: TripRole, suggestions: (tripId: string) => Suggesti
 const settle = () => act(() => new Promise((r) => setTimeout(r, 50)));
 
 describe("useTripSuggestions, through TripProvider", () => {
-  it("reads the list on mount for a suggester", async () => {
+  // Not for the first paint: the list draws ghosts and the header's chip, and
+  // on the mount it raced the trip's own reads (2026-10-18, Lighthouse on the
+  // Japan trip: 2.5s in).
+  it("reads the list for a suggester once the page is idle, and not before", async () => {
+    const idle = holdIdle();
     const { seen } = await mount("suggester");
+    await settle();
+    expect(seen).toEqual([]);
+
+    idle.fire();
     await waitFor(() => expect(screen.getByTestId("suggestions").textContent).toBe("empty"));
     expect(seen).toEqual(["GET suggestions"]);
+  });
+
+  it("reads at once when the poll's revision arrives before idle, and idle does not read again", async () => {
+    const idle = holdIdle();
+    const { seen } = await mount("owner");
+    server.use(
+      http.get("/api/trips/:tripId/events", () =>
+        HttpResponse.json({ headSeq: 0, events: [], resync: false, suggestionsRev: "moved" }),
+      ),
+    );
+    act(() => void window.dispatchEvent(new Event("focus")));
+    await waitFor(() => expect(seen).toEqual(["GET suggestions"]));
+
+    idle.fire();
+    await settle();
+    expect(seen).toEqual(["GET suggestions"]);
+  });
+
+  it("reads nothing when it unmounts before idle", async () => {
+    const idle = holdIdle();
+    const { seen } = await mount("owner");
+    cleanup();
+    idle.fire();
+    await settle();
+    expect(seen).toEqual([]);
   });
 
   // The list is 404 to a viewer (spec §2.4: ghosts are never shown to one).
@@ -119,6 +154,8 @@ describe("useTripSuggestions, through TripProvider", () => {
   // triggered that failed left the list stale until the revision moved again.
   it("retries a failed read on the next poll that reports the same revision", async () => {
     const { fixture, seen } = await mount("owner");
+    // The mount's read, at idle; "empty" alone shows before it.
+    await waitFor(() => expect(seen).toEqual(["GET suggestions"]));
     await waitFor(() => expect(screen.getByTestId("suggestions").textContent).toBe("empty"));
 
     server.use(

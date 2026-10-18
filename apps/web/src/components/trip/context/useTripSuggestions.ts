@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ResolveSuggestionChangeInput, SuggestionChange } from "@tc/contracts";
 import { acceptSuggestionChanges, fetchTripSuggestions, resolveSuggestionChange, type ApiResult } from "@/lib/apiClient";
+import { whenIdle } from "@/lib/whenIdle";
 
 /** The trip's suggestion changes as the context exposes them (spec §2.4). */
 export type TripSuggestions = {
@@ -37,8 +38,9 @@ type Args = {
 };
 
 /**
- * The suggestion list for `TripProvider`: read on mount, and again whenever
- * the poll's revision differs from the one held (W6, W16, W68), or on request.
+ * The suggestion list for `TripProvider`: read once the page is idle after
+ * mount, and again whenever the poll's revision differs from the one held
+ * (W6, W16, W68), or on request.
  * `suggestions` is null while disabled. `onRevision` is for the poll's
  * `onSuggestionsChanged`.
  */
@@ -78,10 +80,17 @@ export function useTripSuggestions({ tripId, enabled, onAccepted }: Args): {
     setError(null);
   }, [tripId]);
 
+  // The mount's read waits for idle: the list draws ghosts and the header's
+  // chip, neither needed for the first paint, and on the mount it raced the
+  // trip's own requests (2.5s into a mobile load, measured 2026-10-18). Any
+  // read before then (a revision, a resolve, a send) makes it redundant, so
+  // it reads only if `latest` has not moved since it was scheduled.
   useEffect(() => {
     if (enabled) {
-      void refresh();
-      return;
+      const scheduled = latest.current;
+      return whenIdle(() => {
+        if (latest.current === scheduled) void refresh();
+      });
     }
     // Disabled, or the trip changed under a disabled hook: nothing held over.
     latest.current++;
