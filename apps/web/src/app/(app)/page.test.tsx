@@ -21,17 +21,25 @@ beforeEach(() => {
   captureException.mockReset();
 });
 
+const originalTz = process.env.TZ;
+
 afterEach(() => {
   vi.useRealTimers();
+  process.env.TZ = originalTz;
 });
 
 describe("Home's server read", () => {
   it("hands the screen the list as the contract parses it, and the server's UTC date", async () => {
-    const trip = tripSummaryFactory.build();
-    // A field the contract does not name stays on the server.
-    listed.read.mockResolvedValue([{ ...trip, unreadChat: 2, spend: null, internal: "not for the client" }]);
+    const trip = tripSummaryFactory.build({ createdAt: "2030-06-01T10:00:00.000Z" });
+    // A field the contract does not name stays on the server, and a value only
+    // JSON gives its wire shape (a `Date`) arrives the way the route sends it.
+    listed.read.mockResolvedValue([
+      { ...trip, createdAt: new Date(trip.createdAt), unreadChat: 2, spend: null, internal: "not for the client" },
+    ]);
 
-    // Half past eleven at night in Chicago is already the 16th in UTC.
+    // Half past eleven at night in Chicago is already the 16th in UTC — in a
+    // process whose own zone is Chicago, so a local date reads the 15th.
+    process.env.TZ = "America/Chicago";
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2030-06-15T23:30:00-05:00"));
 

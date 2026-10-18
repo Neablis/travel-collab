@@ -244,12 +244,12 @@ export function HomeScreen({ initialTrips = null, initialToday = null }: HomeScr
   // response. `load` is called from the first-run effect, from Try again, and
   // after a create or a restore, so two can be in flight at once; without this
   // a slow earlier call settling second would reinstate a stale error over a
-  // good result, or overwrite newer trips with older ones (CodeRabbit, PR #155).
+  // good result, or overwrite newer trips with older ones (CodeRabbit, PR 155).
   // A monotonic ticket rather than an AbortController because the loser here
   // must not CANCEL the winner's work — both may legitimately be running, only
   // one may write.
   const loadTicket = useRef(0);
-  const load = useCallback(async () => {
+  const load = useCallback(async ({ keepListOnFailure = false }: { keepListOnFailure?: boolean } = {}) => {
     const ticket = ++loadTicket.current;
     const isStale = () => ticket !== loadTicket.current;
     // Through the client rather than a bare fetch (KI-2026-09-05-q): it never
@@ -265,6 +265,11 @@ export function HomeScreen({ initialTrips = null, initialToday = null }: HomeScr
       // Deliberately not `result.error.message`: a `Failed to fetch` or a
       // parse error is about the transport, not about anything the reader can
       // act on. The retry is the actionable half.
+      //
+      // Except over a list the server sent with this page: that list did
+      // arrive, so "Could not load your trips" above it would be false, and
+      // it is seconds old. It stays, and so does the page around it.
+      if (keepListOnFailure) return;
       setLoadError("Could not load your trips.");
       return;
     }
@@ -273,15 +278,19 @@ export function HomeScreen({ initialTrips = null, initialToday = null }: HomeScr
     setTrips(result.value);
   }, []);
 
-  // **Not on mount when the server already sent the list** — the page read the
-  // same `listedTripsFor` the route serves, so a fetch here would ask again for
-  // what is on screen. Read once, so a later prop never re-arms it. Every other
-  // caller of `load` (Try again, after a create or a restore, the first run's
-  // `onDone`) still reads it.
+  // **On mount, even when the server already sent the list** — stale while
+  // revalidate. The served list paints first, with no skeleton, which is what
+  // the server read is for; this read keeps the page honest when that list is
+  // old. Browser Back restores Home from the router's cache with the RSC
+  // payload it had then, so without it a first trip created a moment ago, or
+  // one just deleted, would be drawn the way it was before. Its answer
+  // replaces the list. The cost is one `/api/trips` after hydration, off the
+  // critical path. Whether the server sent one is read once, so a later prop
+  // never changes what a failure here does (see `keepListOnFailure`); a 401
+  // still sends an expired session to `/welcome`.
   const servedTrips = useRef(initialTrips !== null);
   useEffect(() => {
-    if (servedTrips.current) return;
-    void load();
+    void load({ keepListOnFailure: servedTrips.current });
   }, [load]);
 
   // Finish the copy somebody asked for on `/demo` before they had an account.
@@ -298,9 +307,9 @@ export function HomeScreen({ initialTrips = null, initialToday = null }: HomeScr
   // whose 401 is what sends an expired session to `/welcome`. Running the copy
   // first would fire a duplicate request that 401s and leaves the marker spent.
   // When the server sent the list, `trips` is non-null on mount and this runs
-  // straight away, which is right: that list exists only because the server
-  // found a live session for this very request, so there is no first read
-  // left to race.
+  // straight away, beside the mount's own read, which is right: that list
+  // exists only because the server found a live session for this very
+  // request, so neither request is the one that discovers an expired session.
   const demoCloneAttempted = useRef(false);
   useEffect(() => {
     if (demoCloneAttempted.current || trips === null || unauthenticated) return;
@@ -627,7 +636,7 @@ export function HomeScreen({ initialTrips = null, initialToday = null }: HomeScr
           // dialog's exact behavior — close, refresh the list, stay put — so
           // e2e specs built around it can still find the new trip on this
           // page (it lands as the hero: the list is newest-first) rather than
-          // having already been navigated away from it (CI, PR #32).
+          // having already been navigated away from it (CI, PR 32).
           onCreated={(tripId, { navigate }) => {
             if (navigate) {
               router.push(`/trips/${tripId}`);
@@ -730,7 +739,7 @@ export function HomeScreen({ initialTrips = null, initialToday = null }: HomeScr
               // `navigate: true`, so both already push. *create an empty one*
               // is not one of them — it is this build's own escape hatch from
               // the old single-field dialog, and making IT navigate is the
-              // precise regression CI caught on PR #32: `createEmptyTripViaWizard`
+              // precise regression CI caught on PR 32: `createEmptyTripViaWizard`
               // reaches this component on an empty list and then asserts the
               // new trip on THIS page. The prototype needs `ntLand` because its
               // first-run screen has no app behind it; ours re-renders Home
@@ -766,7 +775,7 @@ export function HomeScreen({ initialTrips = null, initialToday = null }: HomeScr
                   </div>
                 </>
               )}
-              {/* **One trip, and nothing under it** — Mitchell, PR #269
+              {/* **One trip, and nothing under it** — Mitchell, PR 269
                   preview, asked for a larger call to action here on a new
                   account (see `NextTripPrompt`). This branch already means the
                   list landed non-empty, so the hero is above; zero other trips
@@ -800,7 +809,7 @@ export function HomeScreen({ initialTrips = null, initialToday = null }: HomeScr
             the desktop account menu). It renders nothing on a desktop, on a
             first visit, where installing would not work, and once answered.
 
-            **Under the trips, last in the column** (PR #384 review). It was
+            **Under the trips, last in the column** (PR 384 review). It was
             above the hero, and since whether it shows is only known after its
             effects read storage and the viewport, it arrived after the hero
             had painted and pushed the hero and the list down about 130px.

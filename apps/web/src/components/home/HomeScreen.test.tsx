@@ -1674,22 +1674,45 @@ describe("Home with its list from the server", () => {
     expect(within(html.getByTestId("trip-card")).getByRole("heading", { name: "Peru" })).toBeTruthy();
   });
 
-  // The page read the same list the route serves; asking again on mount would
-  // be a second read of what is already on screen.
-  it("does not read /api/trips on mount when the server sent the list", async () => {
+  /** `fetch` for a mounted Home whose own `/api/trips` read answers `trips`, or `status` with no list. */
+  function serveMountRead(answer: { trips: ListedTripSummary[] } | { status: number }) {
     fetchMock = vi.fn(async (input: string | URL | Request) => {
       const url = String(input);
       if (url.includes("/api/auth/session")) return jsonResponse(await getSessionMock());
       if (/\/api\/trips\/[^/]+$/.test(url)) return jsonResponse({ trip: tripDetailFixture({ tripId }) });
-      return jsonResponse({ trips: [] });
+      if (url.endsWith("/api/trips")) {
+        return "trips" in answer ? jsonResponse(answer) : jsonResponse({ error: "boom" }, answer.status);
+      }
+      return jsonResponse({ error: "unexpected" }, 404);
     });
     vi.stubGlobal("fetch", fetchMock);
+  }
+
+  // Stale while revalidate. Browser Back restores Home with the list the
+  // server sent then, so the mount still reads it again and the answer wins —
+  // a first trip created since, or one deleted, is drawn as it is now.
+  it("paints the server's list with no skeleton, then takes the mount read's answer", async () => {
+    serveMountRead({ trips: [OVER] });
     render(<HomeScreen initialTrips={[NEXT]} initialToday={SERVER_TODAY} />);
 
     expect(screen.getByRole("heading", { name: "Japan", level: 2 })).toBeTruthy();
-    // The session read is a mount effect too: once it has gone out, every
-    // mount effect has run, so a list read would have gone out with it.
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining("/api/auth/session"), expect.anything()));
-    expect(fetchMock).not.toHaveBeenCalledWith(expect.stringMatching(/\/api\/trips$/));
+    expect(screen.queryByRole("status", { name: "Loading your next trip" })).toBeNull();
+    expect(await screen.findByRole("heading", { name: "Peru", level: 2 })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Japan", level: 2 })).toBeNull();
+  });
+
+  // The served list did arrive, so a failed re-read must not claim it did not.
+  it("keeps the server's list, with no error, when the mount read fails", async () => {
+    serveMountRead({ status: 500 });
+    render(<HomeScreen initialTrips={[NEXT]} initialToday={SERVER_TODAY} />);
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(expect.stringMatching(/\/api\/trips$/)));
+    // The read has answered once its response has been read and handled.
+    await act(async () => {
+      const call = fetchMock.mock.calls.findIndex(([input]) => String(input).endsWith("/api/trips"));
+      await fetchMock.mock.results[call]!.value;
+    });
+    expect(screen.queryByTestId("home-trips-error")).toBeNull();
+    expect(screen.getByRole("heading", { name: "Japan", level: 2 })).toBeTruthy();
   });
 });
