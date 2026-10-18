@@ -51,6 +51,12 @@ A native cluster on **5433**, started and migrated by
 needed. `docker ps` showing nothing is normal; `pg_isready -h 127.0.0.1 -p
 5433` is the check that means anything. See `environments-and-deploys.md`.
 
+The hook also installs **pgvector** (`postgresql-16-pgvector`, from the image's apt sources) when
+it is missing, because migration 0054 needs it and the image ships without it. Then it checks
+`db:state`. A database that is not at the newest migration is said on the hook's **stdout**, as a
+`session-start: WARNING` line above the digest. If you see one, the cause is in the log it names;
+`pnpm --filter web db:state` says how far behind the database is (KI-2026-10-18-a).
+
 ## Browsers
 
 Playwright's browsers live at `PLAYWRIGHT_BROWSERS_PATH` (`/opt/pw-browsers`),
