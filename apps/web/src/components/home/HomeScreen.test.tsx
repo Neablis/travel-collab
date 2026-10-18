@@ -1,7 +1,8 @@
 import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { renderToString } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { ListedTripSummary, TripSummary } from "@tc/contracts";
+import { ListedTripSummary, type TripSummary } from "@tc/contracts";
 import { tripDetailFixture, historyFixture, tripSummaryFactory, tripSummaryMemberFactory } from "@tc/factories";
 import { formatMoney } from "@/lib/formatMoney";
 
@@ -27,7 +28,7 @@ vi.mock("@/components/install/InstallNudge", () => ({
   InstallNudge: () => <div data-testid="install-nudge-slot" />,
 }));
 
-import Home from "./page";
+import { HomeScreen } from "./HomeScreen";
 import { setViewportMatches } from "../../../vitest.setup";
 import { usePhoneAsk } from "@/components/nav/phoneAsk";
 import { SessionUserProvider } from "@/components/account/useSessionUser";
@@ -96,7 +97,7 @@ describe("Home trip actions", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<Home />);
+    render(<HomeScreen />);
     await userEvent.click(await screen.findByRole("button", { name: /trip actions for japan/i }));
     // **No confirm dialog since SPEC §27**: the card goes on the click, and
     // the toast's Undo is the recovery. The step that used to follow here was
@@ -141,7 +142,7 @@ describe("Home trip actions", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<Home />);
+    render(<HomeScreen />);
     await userEvent.click(await screen.findByRole("button", { name: /trip actions for japan/i }));
     await userEvent.click(screen.getByRole("menuitem", { name: /delete/i }));
 
@@ -173,7 +174,7 @@ describe("Home trip actions", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<Home />);
+    render(<HomeScreen />);
     await userEvent.click(await screen.findByRole("button", { name: /trip actions for japan/i }));
     await userEvent.click(screen.getByRole("menuitem", { name: /delete/i }));
 
@@ -204,7 +205,7 @@ describe("Home trip actions", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<Home />);
+    render(<HomeScreen />);
     await userEvent.click(await screen.findByRole("button", { name: /trip actions for japan/i }));
     await userEvent.click(screen.getByRole("menuitem", { name: /duplicate/i }));
 
@@ -239,7 +240,7 @@ describe("Home trip actions", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<Home />);
+    render(<HomeScreen />);
     await userEvent.click(await screen.findByRole("button", { name: /^new trip$/i }));
 
     const dialog = await screen.findByRole("dialog", { name: /new trip/i });
@@ -286,7 +287,7 @@ describe("Home trip actions", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<Home />);
+    render(<HomeScreen />);
     // The list loads empty, so the conversation is inline rather than in a
     // sheet (SPEC §31) — same flow, same link, one fewer click.
     const firstRun = await screen.findByTestId("first-trip-start");
@@ -314,7 +315,7 @@ describe("Home trip actions", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<Home />);
+    render(<HomeScreen />);
     const link = await screen.findByRole("link", { name: /start from a playbook/i });
     expect(link.getAttribute("href")).toBe("/playbooks");
     // eslint-disable-next-line testing-library/no-node-access -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
@@ -343,7 +344,7 @@ describe("Home's unread chat counts", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<Home />);
+    render(<HomeScreen />);
 
     const hero = await screen.findByTestId("next-trip-hero");
     expect(within(hero).getByRole("img", { name: "2 unread messages" })).toBeTruthy();
@@ -371,7 +372,7 @@ describe("Home trip cards' planned-of-budget line", () => {
       return jsonResponse({ error: "unexpected" }, 404);
     });
     vi.stubGlobal("fetch", fetchMock);
-    render(<Home />);
+    render(<HomeScreen />);
   }
 
   /** The grid card headed `name`. */
@@ -431,7 +432,7 @@ describe("Home page head", () => {
       return jsonResponse({ error: "unexpected" }, 404);
     });
     vi.stubGlobal("fetch", fetchMock);
-    return render(<Home />);
+    return render(<HomeScreen />);
   }
 
   it("heads the page with today's date above the title", () => {
@@ -592,7 +593,7 @@ describe("Home page head", () => {
       return jsonResponse({ error: "unexpected" }, 404);
     });
     vi.stubGlobal("fetch", fetchMock);
-    render(<Home />);
+    render(<HomeScreen />);
 
     await userEvent.click(await screen.findByRole("button", { name: /trip actions for peru/i }));
     await userEvent.click(screen.getByRole("menuitem", { name: "Delete" }));
@@ -685,7 +686,7 @@ describe("Home first-run experience", () => {
     fetchMock = vi.fn(async () => jsonResponse({ trips: [] }));
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<Home />);
+    render(<HomeScreen />);
 
     expect(await screen.findByText("Plan your first trip")).toBeDefined();
     expect(screen.getByText(/A name is enough to start/)).toBeDefined();
@@ -699,7 +700,7 @@ describe("Home first-run experience", () => {
     fetchMock = vi.fn(async () => jsonResponse({ trips: [] }));
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<Home />);
+    render(<HomeScreen />);
 
     const firstRun = await screen.findByTestId("first-trip-start");
     expect(within(firstRun).getByRole("button", { name: "Have a trip file? Import it" })).toBeTruthy();
@@ -717,7 +718,7 @@ describe("Home first-run experience", () => {
     fetchMock = vi.fn(async () => jsonResponse({ trips: [] }));
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<Home />);
+    render(<HomeScreen />);
 
     const firstRun = await screen.findByTestId("first-trip-start");
     // The first question, and the field that answers it — no click-through.
@@ -743,7 +744,7 @@ describe("Home first-run experience", () => {
     );
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<Home />);
+    render(<HomeScreen />);
 
     const firstRun = await screen.findByTestId("first-trip-start");
     await waitFor(() =>
@@ -761,7 +762,7 @@ describe("Home first-run experience", () => {
     fetchMock = vi.fn(async () => jsonResponse({ trips: [] }));
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<Home />);
+    render(<HomeScreen />);
     await screen.findByTestId("first-trip-start");
 
     await userEvent.click(screen.getByRole("button", { name: "New trip" }));
@@ -789,7 +790,7 @@ describe("Home first-run experience", () => {
     fetchMock = vi.fn(async () => jsonResponse({ trips: [] }));
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<Home />);
+    render(<HomeScreen />);
 
     const firstRun = await screen.findByTestId("first-trip-start");
     expect(within(firstRun).getByRole("link", { name: "Start from a Playbook" })).toBeTruthy();
@@ -841,7 +842,7 @@ describe("Home first-run experience", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<Home />);
+    render(<HomeScreen />);
     await userEvent.click(await screen.findByRole("button", { name: /^new trip$/i }));
     const sheet = await screen.findByRole("dialog", { name: /new trip/i });
 
@@ -882,7 +883,7 @@ describe("Home first-run experience", () => {
     fetchMock = vi.fn(async () => jsonResponse({ trips: [] }));
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<Home />);
+    render(<HomeScreen />);
     const firstRun = await screen.findByTestId("first-trip-start");
     expect(within(firstRun).getByTestId("first-trip-conversation")).toBeTruthy();
     expect(within(firstRun).getByRole("link", { name: "Start from a Playbook" })).toBeTruthy();
@@ -922,7 +923,7 @@ describe("Home first-run experience", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<Home />);
+    render(<HomeScreen />);
     await userEvent.click(await screen.findByRole("button", { name: "New trip" }));
     await userEvent.type(screen.getByLabelText("Where are you going?"), "Japan");
 
@@ -966,7 +967,7 @@ describe("Home unauthenticated visitor", () => {
     fetchMock = vi.fn(async () => jsonResponse({ error: "unauthenticated" }, 401));
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<Home />);
+    render(<HomeScreen />);
 
     await waitFor(() => expect(replaceMock).toHaveBeenCalledWith("/welcome"));
   });
@@ -1024,7 +1025,7 @@ describe("Home finishing a demo clone", () => {
     rememberDemoClone(DEMO_TRIP_ID);
     stubEmptyListAndDuplicate();
 
-    render(<Home />);
+    render(<HomeScreen />);
 
     await waitFor(() => expect(pushMock).toHaveBeenCalledWith(`/trips/${clonedTripId}`));
     expect(duplicateCalls()).toHaveLength(1);
@@ -1038,7 +1039,7 @@ describe("Home finishing a demo clone", () => {
     rememberDemoClone(iceland);
     stubEmptyListAndDuplicate();
 
-    render(<Home />);
+    render(<HomeScreen />);
 
     await waitFor(() => expect(pushMock).toHaveBeenCalledWith(`/trips/${clonedTripId}`));
     const duplicated = fetchMock.mock.calls.map(([input]) => String(input)).filter((url) => url.endsWith("/duplicate"));
@@ -1048,7 +1049,7 @@ describe("Home finishing a demo clone", () => {
   it("does nothing when no copy was ever asked for", async () => {
     stubEmptyListAndDuplicate();
 
-    render(<Home />);
+    render(<HomeScreen />);
 
     await screen.findByTestId("first-trip-start");
     expect(duplicateCalls()).toHaveLength(0);
@@ -1061,9 +1062,9 @@ describe("Home finishing a demo clone", () => {
     rememberDemoClone(DEMO_TRIP_ID);
     stubEmptyListAndDuplicate();
 
-    const { rerender } = render(<Home />);
+    const { rerender } = render(<HomeScreen />);
     await waitFor(() => expect(duplicateCalls()).toHaveLength(1));
-    rerender(<Home />);
+    rerender(<HomeScreen />);
     await waitFor(() => expect(duplicateCalls()).toHaveLength(1));
   });
 
@@ -1073,7 +1074,7 @@ describe("Home finishing a demo clone", () => {
     rememberDemoClone(DEMO_TRIP_ID);
     stubEmptyListAndDuplicate(500);
 
-    render(<Home />);
+    render(<HomeScreen />);
 
     const alert = await screen.findByRole("alert");
     expect(alert.textContent).toContain("could not take a copy");
@@ -1107,7 +1108,7 @@ describe("Home finishing a demo clone", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<Home />);
+    render(<HomeScreen />);
 
     const headButton = await screen.findByRole("button", { name: "New trip" });
     // **The first-run launcher is the conversation's own exit now** (SPEC §31):
@@ -1159,7 +1160,7 @@ describe("Home finishing a demo clone", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<Home />);
+    render(<HomeScreen />);
 
     // `trips` is still null here, so `hasNoTrips` is false and `FirstTripStart`
     // hasn't rendered yet — the page-head button is the only launcher on
@@ -1193,7 +1194,7 @@ describe("Home finishing a demo clone", () => {
     rememberPlaybookAdd(day);
     stubEmptyListAndDuplicate();
 
-    render(<Home />);
+    render(<HomeScreen />);
 
     await waitFor(() => expect(replaceMock).toHaveBeenCalledWith(`/playbooks/day/${day}`));
     expect(window.localStorage.getItem("pending_playbook_add")).not.toBeNull();
@@ -1202,7 +1203,7 @@ describe("Home finishing a demo clone", () => {
   it("stays on the list when no Playbook was waiting", async () => {
     stubEmptyListAndDuplicate();
 
-    render(<Home />);
+    render(<HomeScreen />);
 
     await screen.findByTestId("first-trip-start");
     expect(replaceMock).not.toHaveBeenCalledWith(expect.stringContaining("/playbooks/day/"));
@@ -1229,7 +1230,7 @@ describe("Home trip list load failures", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<Home />);
+    render(<HomeScreen />);
 
     const alert = await screen.findByRole("alert");
     expect(alert.textContent).toMatch(/could not load your trips/i);
@@ -1259,7 +1260,7 @@ describe("Home trip list load failures", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<Home />);
+    render(<HomeScreen />);
     expect((await screen.findByRole("alert")).textContent).toMatch(/could not load your trips/i);
 
     await userEvent.click(screen.getByRole("button", { name: /try again/i }));
@@ -1297,7 +1298,7 @@ describe("Home — the states between asked and answered", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<Home />);
+    render(<HomeScreen />);
 
     // Both regions, by their own names — a single "Loading…" for a page that
     // is part-painted is what §3b is against.
@@ -1327,7 +1328,7 @@ describe("Home — the states between asked and answered", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<Home />);
+    render(<HomeScreen />);
 
     const failed = await screen.findByTestId("home-trips-error");
     expect(within(failed).getByText(/Could not load your trips/i)).toBeTruthy();
@@ -1383,7 +1384,7 @@ describe("Home — Delete or Leave, never the wrong one", () => {
 
   it("offers Delete on a trip you own", async () => {
     stubTrips(tripSummaryFixture());
-    render(<Home />);
+    render(<HomeScreen />);
 
     await userEvent.click(await screen.findByRole("button", { name: /trip actions for japan/i }));
     expect(screen.getByRole("menuitem", { name: "Delete" })).toBeTruthy();
@@ -1393,7 +1394,7 @@ describe("Home — Delete or Leave, never the wrong one", () => {
   it("offers Leave this trip, and no Delete, on a trip shared with you", async () => {
     getSessionMock.mockResolvedValue({ user: { id: GUEST_ID } });
     stubTrips(shared());
-    render(<Home />);
+    render(<HomeScreen />);
 
     await userEvent.click(await screen.findByRole("button", { name: /trip actions for kyoto/i }));
     expect(screen.getByRole("menuitem", { name: /leave this trip/i })).toBeTruthy();
@@ -1403,7 +1404,7 @@ describe("Home — Delete or Leave, never the wrong one", () => {
   it("leaving drops the card and calls the membership endpoint, not a command", async () => {
     getSessionMock.mockResolvedValue({ user: { id: GUEST_ID } });
     stubTrips(shared(), () => jsonResponse({ ok: true }));
-    render(<Home />);
+    render(<HomeScreen />);
 
     await userEvent.click(await screen.findByRole("button", { name: /trip actions for kyoto/i }));
     await userEvent.click(screen.getByRole("menuitem", { name: /leave this trip/i }));
@@ -1428,7 +1429,7 @@ describe("Home — Delete or Leave, never the wrong one", () => {
   it("offers no undo toast for leaving", async () => {
     getSessionMock.mockResolvedValue({ user: { id: GUEST_ID } });
     stubTrips(shared(), () => jsonResponse({ ok: true }));
-    render(<Home />);
+    render(<HomeScreen />);
 
     await userEvent.click(await screen.findByRole("button", { name: /trip actions for kyoto/i }));
     await userEvent.click(screen.getByRole("menuitem", { name: /leave this trip/i }));
@@ -1440,7 +1441,7 @@ describe("Home — Delete or Leave, never the wrong one", () => {
   it("puts the card back and says why when the server refuses", async () => {
     getSessionMock.mockResolvedValue({ user: { id: GUEST_ID } });
     stubTrips(shared(), () => jsonResponse({ error: "You are not a member of this trip." }, 404));
-    render(<Home />);
+    render(<HomeScreen />);
 
     await userEvent.click(await screen.findByRole("button", { name: /trip actions for kyoto/i }));
     await userEvent.click(screen.getByRole("menuitem", { name: /leave this trip/i }));
@@ -1488,7 +1489,7 @@ describe("Home's assistant", () => {
     }
     render(
       <>
-        <Home />
+        <HomeScreen />
         <TabBar />
       </>,
     );
@@ -1500,7 +1501,7 @@ describe("Home's assistant", () => {
 
   it("starts closed at 1280px; Ask docks it, it asks the account door, and Hide closes it", async () => {
     const asked = homeWithAsk();
-    render(<Home />);
+    render(<HomeScreen />);
     expect(await screen.findByRole("link", { name: /japan/i })).toBeTruthy();
     expect(rail()).toBeNull();
 
@@ -1521,7 +1522,7 @@ describe("Home's assistant", () => {
     // The draft is stored under the signed-in user, read from the layout's provider.
     render(
       <SessionUserProvider>
-        <Home />
+        <HomeScreen />
       </SessionUserProvider>,
     );
     await userEvent.click(await askButton());
@@ -1540,7 +1541,7 @@ describe("Home's assistant", () => {
     homeWithAsk(undefined, () => jsonResponse({ error: "must be 4000 characters or fewer" }, 400));
     render(
       <SessionUserProvider>
-        <Home />
+        <HomeScreen />
       </SessionUserProvider>,
     );
     const box = () => within(rail()!).getByPlaceholderText("Ask about your trips…") as HTMLInputElement;
@@ -1564,7 +1565,7 @@ describe("Home's assistant", () => {
   // wherever focus is.
   it("from 1100px moves focus to the composer on Ask, and back to Ask on Hide", async () => {
     homeWithAsk();
-    render(<Home />);
+    render(<HomeScreen />);
     await userEvent.click(await askButton());
     const open = await screen.findByRole("complementary", { name: "Assistant" });
     await userEvent.keyboard("where next");
@@ -1595,7 +1596,7 @@ describe("Home's assistant", () => {
     homeWithAsk();
     setViewportMatches({ "(min-width: 768px) and (max-width: 1099px)": true });
     try {
-      render(<Home />);
+      render(<HomeScreen />);
       expect(await screen.findByRole("link", { name: /japan/i })).toBeTruthy();
       expect(rail()).toBeNull();
       await userEvent.click(await askButton());
@@ -1624,5 +1625,71 @@ describe("Home's assistant", () => {
     } finally {
       setViewportMatches({});
     }
+  });
+});
+
+// **The list in the first HTML** (2026-10-18). `(app)/page.tsx` reads the list
+// on the server and hands it down as `initialTrips`, with the server's UTC date
+// as `initialToday`. `renderToString` is the server's render: no effects run,
+// so what it draws is what the HTML carries before hydration.
+describe("Home with its list from the server", () => {
+  const SERVER_TODAY = "2030-06-15";
+  // The earliest start, and over before `SERVER_TODAY`: with no date to
+  // compare against, `orderHomeTrips` would make it the hero.
+  const OVER = ListedTripSummary.parse(
+    tripSummaryFixture({
+      tripId: "0b9d4a1e-2c3f-4d5e-8f60-718293a4b5c6",
+      name: "Peru",
+      startDate: "2030-06-01",
+      endDate: "2030-06-05",
+    }),
+  );
+  const NEXT = ListedTripSummary.parse(tripSummaryFixture({ startDate: "2030-07-01", endDate: "2030-07-04" }));
+
+  /** The server's HTML for Home, mounted so it can be read by role. */
+  function serverHtml(props: React.ComponentProps<typeof HomeScreen>) {
+    const host = document.createElement("div");
+    host.innerHTML = renderToString(<HomeScreen {...props} />);
+    document.body.append(host);
+    return host;
+  }
+
+  afterEach(() => {
+    document.body.replaceChildren();
+  });
+
+  it("draws the hero and the grid in the server's HTML, not their skeletons", () => {
+    const html = within(serverHtml({ initialTrips: [OVER, NEXT], initialToday: SERVER_TODAY }));
+    expect(html.getByTestId("next-trip-hero")).toBeTruthy();
+    expect(html.getByRole("heading", { name: "Other trips" })).toBeTruthy();
+    expect(html.queryByRole("status", { name: "Loading your next trip" })).toBeNull();
+    expect(html.queryByRole("status", { name: "Loading your trips" })).toBeNull();
+  });
+
+  // The hero the HTML draws must be the one hydration draws, or the reader
+  // watches a past trip swap out for the next one.
+  it("picks the hero by the server's date, not the soonest start", () => {
+    const html = within(serverHtml({ initialTrips: [OVER, NEXT], initialToday: SERVER_TODAY }));
+    expect(html.getByRole("heading", { name: "Japan", level: 2 })).toBeTruthy();
+    expect(within(html.getByTestId("trip-card")).getByRole("heading", { name: "Peru" })).toBeTruthy();
+  });
+
+  // The page read the same list the route serves; asking again on mount would
+  // be a second read of what is already on screen.
+  it("does not read /api/trips on mount when the server sent the list", async () => {
+    fetchMock = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input);
+      if (url.includes("/api/auth/session")) return jsonResponse(await getSessionMock());
+      if (/\/api\/trips\/[^/]+$/.test(url)) return jsonResponse({ trip: tripDetailFixture({ tripId }) });
+      return jsonResponse({ trips: [] });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<HomeScreen initialTrips={[NEXT]} initialToday={SERVER_TODAY} />);
+
+    expect(screen.getByRole("heading", { name: "Japan", level: 2 })).toBeTruthy();
+    // The session read is a mount effect too: once it has gone out, every
+    // mount effect has run, so a list read would have gone out with it.
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining("/api/auth/session"), expect.anything()));
+    expect(fetchMock).not.toHaveBeenCalledWith(expect.stringMatching(/\/api\/trips$/));
   });
 });

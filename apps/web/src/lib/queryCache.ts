@@ -99,7 +99,7 @@ export function subscribeQueryCache(listener: () => void): () => void {
  * One monotonic clock for the whole cache. Every read takes a ticket from it;
  * every invalidation and every clear stamps itself with one.
  *
- * This is the same shape as `(app)/page.tsx`'s `loadTicket`, and it is here for
+ * This is the same shape as `HomeScreen`'s `loadTicket`, and it is here for
  * a race that ticket does not cover: a read already on the wire when a write
  * lands. Without it, `dispatch(command)` → (the in-flight `GET /api/trips/:id`
  * resolves) would STORE the pre-command trip, and the next mount inside the

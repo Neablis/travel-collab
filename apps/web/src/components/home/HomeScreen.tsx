@@ -75,30 +75,48 @@ function todayIso(): string {
   return `${y}-${m}-${d}`;
 }
 
+/** What the server hands Home with its first HTML (`app/(app)/page.tsx`). */
+export interface HomeScreenProps {
+  /**
+   * The reader's trip list as `fetchTrips()` would have returned it, read on
+   * the server. `null` (or omitted) when the server had none to give — no
+   * session, or the read threw — and Home reads it for itself as it always did.
+   */
+  initialTrips?: ListedTripSummary[] | null;
+  /** The server's UTC calendar date as `YYYY-MM-DD`, or `null`/omitted for none. */
+  initialToday?: string | null;
+}
+
 /**
  * Home ("Your trips"): the next-trip hero, the other trips as cards, and the
  * new-trip sheet — and where a copy of the demo trip, or a Playbook add, asked
  * for before sign-up is finished.
  */
-export default function Home() {
+export function HomeScreen({ initialTrips = null, initialToday = null }: HomeScreenProps) {
   const router = useRouter();
   // `todayIso()` reads the wall clock, so evaluating it during render would
   // make the server's render (server's local time) and the browser's
   // hydration render (the actual viewer's local time) disagree whenever
   // they're in different timezones — a real hydration mismatch, not just a
   // cosmetic one, since it can also just be a WRONG date until some later,
-  // unrelated re-render happens to overwrite it (CodeRabbit, PR #35).
-  // `null` until the client's own effect runs keeps the server and the
-  // client's first paint identical (both render nothing here), then fills
-  // in the viewer's actual local date once it's safe to read. Kept as the
-  // raw ISO (not the pre-formatted label) so the rendered <time> can carry
-  // an honest machine-readable `dateTime`, not just human-readable text
-  // (CodeRabbit, PR #35).
-  const [dateIso, setDateIso] = useState<string | null>(null);
+  // unrelated re-render happens to overwrite it (CodeRabbit, PR 35).
+  //
+  // So the first render on both sides uses the same value, handed down as a
+  // prop: `initialToday`, the server's UTC date, which the server's own render
+  // also used. Not `null` any more, because the hero is in the server HTML now
+  // and `orderHomeTrips` with no date orders every dated trip soonest-start
+  // first — a trip that ended last month could be drawn as the hero and
+  // swapped out on hydration. The effect below then replaces it with the
+  // viewer's own local date, which differs from UTC's only within hours of
+  // midnight, and changes the hero only for a trip that starts or ends that
+  // very day. Kept as the raw ISO (not the pre-formatted label) so the
+  // rendered <time> can carry an honest machine-readable `dateTime`, not just
+  // human-readable text (CodeRabbit, PR 35).
+  const [dateIso, setDateIso] = useState<string | null>(initialToday);
   useEffect(() => {
     setDateIso(todayIso());
   }, []);
-  const [trips, setTrips] = useState<ListedTripSummary[] | null>(null);
+  const [trips, setTrips] = useState<ListedTripSummary[] | null>(initialTrips);
   const [unauthenticated, setUnauthenticated] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Why this is separate from `error` above: `error` is delete/duplicate
@@ -255,7 +273,14 @@ export default function Home() {
     setTrips(result.value);
   }, []);
 
+  // **Not on mount when the server already sent the list** — the page read the
+  // same `listedTripsFor` the route serves, so a fetch here would ask again for
+  // what is on screen. Read once, so a later prop never re-arms it. Every other
+  // caller of `load` (Try again, after a create or a restore, the first run's
+  // `onDone`) still reads it.
+  const servedTrips = useRef(initialTrips !== null);
   useEffect(() => {
+    if (servedTrips.current) return;
     void load();
   }, [load]);
 
@@ -272,6 +297,10 @@ export default function Home() {
   // Gated on `trips !== null`: it must not race the first `/api/trips` read,
   // whose 401 is what sends an expired session to `/welcome`. Running the copy
   // first would fire a duplicate request that 401s and leaves the marker spent.
+  // When the server sent the list, `trips` is non-null on mount and this runs
+  // straight away, which is right: that list exists only because the server
+  // found a live session for this very request, so there is no first read
+  // left to race.
   const demoCloneAttempted = useRef(false);
   useEffect(() => {
     if (demoCloneAttempted.current || trips === null || unauthenticated) return;
@@ -280,11 +309,11 @@ export default function Home() {
     demoCloneAttempted.current = true;
     setCloningDemo(true);
     // The wizard may already be open (page-head button, or the first-run
-    // card) when this fires — `takeDemoClone` only resolves once `/api/trips`
-    // has answered, and someone can click "New trip" in that same window. A
-    // trip they're actively naming is about to be blown away by a navigation
-    // to the demo copy, so close it rather than let the submit race the
-    // clone (CodeRabbit, pull request 104).
+    // card) when this fires — without a list from the server, `takeDemoClone`
+    // only runs once `/api/trips` has answered, and someone can click "New
+    // trip" in that same window. A trip they're actively naming is about to be
+    // blown away by a navigation to the demo copy, so close it rather than let
+    // the submit race the clone (CodeRabbit, pull request 104).
     setNewTripOpen(false);
     void duplicateTrip(demoTripId).then((result) => {
       if (result.ok) {
@@ -306,7 +335,8 @@ export default function Home() {
   // (ADR-061). Same reason as the demo copy above: this is where a sign-up
   // that lost its `callbackUrl` lands. The day page spends the marker and
   // opens its add dialog; this only takes them there. After the demo copy,
-  // which wins if both were somehow banked.
+  // which wins if both were somehow banked. Gated on the list for the demo
+  // copy's reason, and so on mount too when the server sent it.
   const playbookReturnAttempted = useRef(false);
   useEffect(() => {
     // `demoCloneAttempted` too: it is set in the same commit, before

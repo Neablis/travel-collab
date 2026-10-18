@@ -135,7 +135,11 @@ test("passes against the checked-in config, and every rejection names the rule t
   // **61 → 64 on 2026-10-13**: M45's decision 3 — `src/app/(app)/layout.tsx`
   // may import `@/server/*` to send the plan with the page, still may not
   // import `@tc/domain`, and a layout below it gets no exemption.
-  assert.equal(stdout.trim().split("\n").length, 64,`the wall's assertion count changed:\n${stdout}`);
+  //
+  // **64 → 68 on 2026-10-18**: `src/app/(app)/page.tsx` (Home's list read) may
+  // import `@/server/*`, still may not import `@tc/domain` or build an Auth.js
+  // instance, and a page beside it in `(app)` gets no exemption.
+  assert.equal(stdout.trim().split("\n").length, 68,`the wall's assertion count changed:\n${stdout}`);
 });
 
 // THE REGRESSION THIS ENTRY EXISTS FOR. Both fixtures below trip a second, unrelated rule
