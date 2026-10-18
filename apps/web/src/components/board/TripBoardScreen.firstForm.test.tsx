@@ -124,9 +124,27 @@ describe("TripBoardScreen — a phone's Plan is first drawn in its right form", 
     renderBoard();
     expect(screen.getByTestId("lens-placeholder")).toBeTruthy();
     expect(screen.queryByRole("group", { name: "Day columns" })).toBeNull();
+    // The header is live meanwhile: only the lens waits for the width (PR 486
+    // e2e, m39-phone-conflicts focused a header control in this window).
+    expect(screen.getByTestId("trip-board-content").hasAttribute("inert")).toBe(false);
+    // The rack waits with the lens: on a phone it is a row in the board, and
+    // the desktop dock would be the wrong form.
+    expect(screen.queryByTestId("rack-dock")).toBeNull();
     act(() => widths.set(true));
     expect(await screen.findByRole("group", { name: "Day columns" })).toBeTruthy();
     expect(screen.queryByTestId("lens-placeholder")).toBeNull();
+  });
+
+  // Once live, for good (PR 486 review): a rotation across 768px re-renders
+  // the media query before `useIsPhone` follows, and for that commit the two
+  // disagree again. The lens must not be unmounted and mounted again.
+  it("keeps the lens mounted when the width hooks disagree after it went live", async () => {
+    widths.isPhone = true;
+    renderBoard();
+    const columns = await screen.findByRole("group", { name: "Day columns" });
+    act(() => widths.set(false));
+    expect(screen.queryByTestId("lens-placeholder")).toBeNull();
+    expect(screen.getByRole("group", { name: "Day columns" })).toBe(columns);
   });
 
   it("does not mount the lens until the phone's arrival day is focused", async () => {
@@ -136,6 +154,7 @@ describe("TripBoardScreen — a phone's Plan is first drawn in its right form", 
     expect(focus.queued.length).toBeGreaterThan(0);
     expect(screen.getByTestId("lens-placeholder")).toBeTruthy();
     expect(screen.queryByRole("group", { name: "Day columns" })).toBeNull();
+    expect(screen.getByTestId("trip-board-content").hasAttribute("inert")).toBe(false);
     act(() => focus.queued.forEach((apply) => apply()));
     expect(await screen.findByRole("group", { name: "Day columns" })).toBeTruthy();
   });

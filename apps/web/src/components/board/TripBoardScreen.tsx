@@ -302,7 +302,8 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // lens would be drawn in its desktop form (`useIsPhone` is `false` there).
   // So until then the column is `inert` — a tap lands nowhere, focus cannot
   // enter it, and Playwright waits — and the lens is its skeleton. The lens
-  // mounts at hydration, from the seeded cache, with no request.
+  // mounts once the page is `live` (below), from the seeded cache, with no
+  // request.
   const hydrated = useHydrated();
   const { settled: coverSettled } = useTripCover(tripId, abovePhone === true && !isDemoTripId(tripId), seed?.cover);
   const headerReady = (abovePhone !== undefined || seed !== null) && coverSettled;
@@ -547,8 +548,9 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // m26-phone-plan). `useIsPhone` corrects in an effect, after the render that
   // hydration triggers, so a lens mounted on that render drew a phone's Plan in
   // its desktop form for a frame. `useIsPhoneKnown` asks the same media query
-  // without the effect, so the lens, the rack and the column's `inert` wait
-  // until the two agree.
+  // without the effect, so the lens and the rack wait until the two agree.
+  // The column's `inert` does not: the header is drawn right at hydration
+  // and is live from then (PR 486 e2e, m39-phone-conflicts).
   const isPhoneKnown = useIsPhoneKnown();
   const widthKnown = isPhoneKnown !== undefined && isPhoneKnown === isPhone;
   // SPEC §9's "and the user picks" (M26 link 10a). Per surface and per
@@ -652,15 +654,20 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // **Live once hydrated, once the width is known, and on a phone once a day
   // is focused** (PR 486 e2e, m26-phone-plan). The arrival day above draws a
   // card that moves the page; with the lens mounted before it, the page moved
-  // under a reader already looking at the river. Latched once a day has been
-  // focused, so a reader clearing the focus later does not unmount the lens.
-  const [phoneDayFocused, setPhoneDayFocused] = useState(false);
+  // under a reader already looking at the river.
+  //
+  // **And live for good once live** (PR 486 review): every condition here can
+  // turn false again for a commit — a rotation across 768px re-renders
+  // `useIsPhoneKnown` before `useIsPhone` follows, and clearing the focused day
+  // empties it — and each would unmount the lens and the rack under the
+  // reader. The gate is for the first mount only.
+  const awaitsPhoneDay = isPhone && focusedDay === null && activeTrip !== null && activeTrip.days.length > 0;
+  const firstMountReady = hydrated && widthKnown && !awaitsPhoneDay;
+  const [wentLive, setWentLive] = useState(false);
   useEffect(() => {
-    if (focusedDay !== null) setPhoneDayFocused(true);
-  }, [focusedDay]);
-  const awaitsPhoneDay =
-    isPhone && !phoneDayFocused && focusedDay === null && activeTrip !== null && activeTrip.days.length > 0;
-  const live = hydrated && widthKnown && !awaitsPhoneDay;
+    if (firstMountReady) setWentLive(true);
+  }, [firstMountReady]);
+  const live = wentLive || firstMountReady;
 
   const searchParams = useSearchParams();
   /** **A link card to a notebook** from a board with no notebook route — `/demo/<slug>`, an invite's look (`linkHref`). */
@@ -1467,7 +1474,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
           // carries no role or accessible name to reach it by — it is a
           // styling seam, which is exactly the case `data-testid` is for here.
           data-testid="trip-board-content"
-          inert={live ? undefined : true}
+          inert={hydrated ? undefined : true}
           // The rack is `position: fixed`, so it is outside normal flow and
           // reserves no space: the day columns' own 24px bottom padding was
           // measured against the viewport, not against the bar sitting on

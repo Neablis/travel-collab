@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { Page } from "@playwright/test";
 import { expect, test } from "./fixtures/test";
 import { grantCollaborators } from "./adminBootstrap";
-import { createMappedTrip, signInAsDevUser } from "./helpers";
+import { boardInteractive, createMappedTrip, signInAsDevUser } from "./helpers";
 import { e2eTripName } from "./tripNames";
 
 // **M39 D9 — the phone shows a conflict state**: a count in the pinned row that
@@ -76,6 +76,7 @@ test.describe("M39 D9 — the phone's conflict state", () => {
     const tripId = await overlappingTrip(page, "PhoneDismiss");
     await page.goto(`/trips/${tripId}?view=Plan`);
     await expect(chip(page)).toHaveAccessibleName("2 things to look at");
+    await boardInteractive(page);
 
     // From the keyboard, and back to it: the sheet has no Radix trigger, so
     // closing it used to drop focus on <body> (preview walk, 390×844).

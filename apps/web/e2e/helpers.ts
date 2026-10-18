@@ -309,6 +309,17 @@ export async function openHistory(page: Page): Promise<void> {
 }
 
 /**
+ * Waits until the trip board answers input. Since PR 486 the board's header is
+ * in the server's HTML, and until hydration its column is `inert`: drawn, and
+ * dead. `click()` waits that out on its own, but `focus()` and the keyboard do
+ * not, so a spec that reaches the board by keyboard right after a `goto` calls
+ * this first.
+ */
+export async function boardInteractive(page: Page): Promise<void> {
+  await expect(page.getByTestId("trip-board-content")).not.toHaveAttribute("inert");
+}
+
+/**
  * Reports whether the page got a working maplibre tile-decoding worker.
  *
  * Why this exists. Bump #158 took maplibre 5 -> 6, which moved the worker from
