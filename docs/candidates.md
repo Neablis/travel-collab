@@ -435,24 +435,6 @@ here two days later.
   - `@atlaskit/pragmatic-drag-and-drop` 3 → 4, together with auto-scroll ≥3.2.1, which
     `dependabot.yml` pins until this migration (`check-singletons`).
 
-- **The signed-in app moves from `/` to `/home` (decided by Mitchell, 2026-10-18, PR 485's
-  session).** *Built on `claude/vibrant-wright-5rblus` (ADR-078); delete this entry when it
-  merges, keeping the "Coordinate with" line below if Home's trip list is still client-fetched.* `/` becomes only the static landing, with no edge `auth()` in front of it and no
-  `private, no-store`. Measured first: the landing is already a Vercel CDN hit behind the
-  rewrite. The edge check costs about 17ms (a 15-sample median TTFB of 216ms for `/` against 200ms
-  for `/welcome`). He chose the move knowing that number.
-  - **To settle before building:** what a signed-in visitor landing on `/` sees, without an auth
-    check (a non-HttpOnly hint cookie read by a tiny inline redirect, or a header link); what
-    `/welcome` becomes; `manifest.ts`'s `start_url`; and the SEO pass's D9, which made `/` the
-    indexed homepage.
-  - **Every "go home":** the sign-in default `callbackUrl`, AppHeader, `PhoneTabBar`, the
-    palette, post-leave and post-delete navigation, invite admission, and email templates.
-    `e2e/m15-front-door.spec.ts` and every spec that `goto("/")`s signed in.
-  - **Coordinate with** *The trip page renders its first data on the server* above, and with
-    server-rendering Home's trip list (signed-in Home scored 56 on Lighthouse mobile on a local
-    production build, LCP 6.2s, because it fetches `/api/trips` after hydration and its server
-    response took 720ms).
-
 - **Facts from PR 485's Lighthouse pass, kept so they are not measured again (2026-10-18).**
   - **"Legacy JavaScript" is Next's own `polyfill-module`** (`Array.prototype.at`, `flat`,
     `Object.hasOwn`, `URL.canParse`…, ~15KB raw). Next ships it unconditionally and `browserslist`

@@ -238,6 +238,50 @@ describe("TripProvider — the server's first data", () => {
     expect(reads()).toEqual([0, 0, 0]);
   });
 
+  // A command of yours confirmed while the catch-up read is out has moved the
+  // head itself: answering with that head is not news, and re-reading for it
+  // could briefly undo a second edit.
+  it("does not count your own confirmed command as news", async () => {
+    const first = tripFirstDataFixture();
+    const seedHead = headSeqOf(first.history.history);
+    let answer: (value: unknown) => void = () => {};
+    fetchTripEventsMock.mockReturnValue(new Promise((resolve) => (answer = resolve)));
+    const before = first.history.history;
+    const head = { ...before.entries[0]!, batchId: "9a0c4e1f-5b9c-4d8f-9f5b-4d3c7e0f9a99", fromSeq: seedHead + 1, toSeq: seedHead + 1 };
+    sendTripCommandMock.mockResolvedValue({
+      ok: true,
+      value: { detail: first.trip.trip, history: { ...before, entries: [head, ...before.entries] } },
+    });
+    render(
+      <TripProvider tripId={first.trip.trip.tripId} initial={first}>
+        <SeedProbe />
+      </TripProvider>,
+    );
+    await waitFor(() => expect(fetchTripEventsMock).toHaveBeenCalled());
+    fireEvent.click(screen.getByRole("button", { name: "add-day" }));
+    await waitFor(() => expect(screen.getByTestId("seed").textContent).toBe("none"));
+    await act(async () => answer({ ok: true, value: { headSeq: seedHead + 1, events: [], resync: false } }));
+    await settle();
+    expect(fetchTripDetailMock).not.toHaveBeenCalled();
+  });
+
+  it("does not read the trip again once unmounted", async () => {
+    const first = tripFirstDataFixture();
+    const seedHead = headSeqOf(first.history.history);
+    let answer: (value: unknown) => void = () => {};
+    fetchTripEventsMock.mockReturnValue(new Promise((resolve) => (answer = resolve)));
+    const { unmount } = render(
+      <TripProvider tripId={first.trip.trip.tripId} initial={first}>
+        <StatusProbe />
+      </TripProvider>,
+    );
+    await waitFor(() => expect(fetchTripEventsMock).toHaveBeenCalled());
+    unmount();
+    await act(async () => answer({ ok: true, value: { headSeq: seedHead + 5, events: [], resync: false } }));
+    await settle();
+    expect(fetchTripDetailMock).not.toHaveBeenCalled();
+  });
+
   it("reads all three on mount without it", async () => {
     render(
       <TripProvider tripId="x">

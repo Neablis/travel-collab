@@ -156,7 +156,7 @@ it, the reader's preferences through `server/accountPreferences.ts`, so
 `src/app/playbooks/live/layout.tsx`, both through `server/servedSession.ts`,
 on the console's terms; never a JWT claim (ADR-045 rule 2). Five fixtures.
 
-And **`src/app/(app)/page.tsx`** (Mitchell's decision of 2026-10-18): Home
+And **`src/app/(app)/home/page.tsx`** (Mitchell's decision of 2026-10-18): Home
 reads `server/listedTrips.ts`, the `/api/trips` body, so the next-trip hero
 and the grid are in the first HTML. That file only; `HomeScreen` stays UI.
 Four fixtures.
