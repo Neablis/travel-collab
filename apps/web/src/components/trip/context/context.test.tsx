@@ -139,11 +139,14 @@ describe("trip context spine", () => {
   // router, whose navigation would fetch the trip page from the server again
   // (every first-data read, for an answer nothing uses).
   it("setView writes the URL, and the view derives from it (unidirectional)", async () => {
+    // The entry carries Next's own state, as in the browser: a write that
+    // passes it on is taken for Next's own and never moves the view.
+    window.history.replaceState({ __NA: true }, "");
     const written = vi.spyOn(window.history, "replaceState");
     render(<Harness />);
     await waitFor(() => expect(screen.getByTestId("lens").textContent).toBe("Overview"));
     fireEvent.click(screen.getByRole("button", { name: "go map" }));
-    expect(written).toHaveBeenCalledWith(null, "", expect.stringContaining("view=Map"));
+    expect(String(written.mock.calls.at(-1)?.[2])).toContain("view=Map");
     expect(replaceSpy).not.toHaveBeenCalled();
     await waitFor(() => expect(screen.getByTestId("lens").textContent).toBe("Map"));
   });

@@ -395,7 +395,8 @@ function PhoneTabBarView({
                 ? (event) => {
                     if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
                     event.preventDefault();
-                    window.history.pushState(null, "", href);
+                    // Re-tapping the tab you are on writes no second entry.
+                    if (`${window.location.pathname}${window.location.search}` !== href) window.history.pushState(null, "", href);
                   }
                 : undefined
             }
