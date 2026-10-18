@@ -48,6 +48,10 @@ for a second — because the second writer is never called "grant the plan from
 the redirect"; it is a helpful success route that updates the row so the page
 has something to show.
 
+*(Superseded by ADR-076 §2: the customer id moved to `stripe_customers`, one row per account per
+Stripe mode, and migration 0059 dropped `users.stripe_customer_id`. The argument below now holds
+for that table.)*
+
 The one column outside that rule is `users.stripe_customer_id`, written by the
 checkout route. It is not an exception in substance: a customer id is **who you
 are at Stripe**, not what you are entitled to, and it has to exist before a

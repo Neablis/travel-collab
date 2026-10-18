@@ -34,7 +34,6 @@ vi.mock("./prices", async (importOriginal) => ({
 
 const { portalUrlFor, startCheckout, stripeCustomerFor } = await import("./checkout");
 
-
 async function makeAccount(): Promise<string> {
   const id = `dev-${randomUUID()}`;
   await upsertUser({ id, email: `${id}@example.test`, name: null, image: null });

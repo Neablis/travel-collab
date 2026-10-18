@@ -10,6 +10,14 @@
 -- the first preview build of this branch, so a preview of an older branch
 -- breaks there until it merges `main`.
 --
+-- **Roll forward only, once applied.** A build from before this change names
+-- the column in every `users` select and insert, so a Vercel rollback past it
+-- fails on every user query. Fix forward instead.
+--
 -- Irreversible: the values were copied to `stripe_customers` by 0055, and
--- nothing reads them here.
+-- nothing reads them here. Before dispatching, this should return 0; if it
+-- does not, do not dispatch, and decide per account (read-only):
+--   SELECT count(*) FROM users u WHERE u.stripe_customer_id IS NOT NULL
+--     AND NOT EXISTS (SELECT 1 FROM stripe_customers s WHERE s.user_id = u.id
+--       AND s.livemode AND s.customer_id = u.stripe_customer_id);
 ALTER TABLE "users" DROP COLUMN "stripe_customer_id";
