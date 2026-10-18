@@ -18,8 +18,9 @@ const subscribeNever = () => () => {};
  * from its first render.
  *
  * The cost, plainly: a reader whose local date differs from UTC's (near
- * midnight) sees the UTC date for one frame, then their own. Only the text
- * changes; the label's length and the layout around it do not.
+ * midnight) sees the UTC date for one frame, then their own. The text changes,
+ * and with it possibly its width ("Jun 9" to "Jun 10", or "Dec 31, 2029" to
+ * "Jan 1, 2030"), so the rest of that meta line can move by a character or two.
  */
 export function useCreatedLabel(createdAt: string): string | null {
   const local = useSyncExternalStore(

@@ -1712,18 +1712,25 @@ describe("Home with its list from the server", () => {
     expect(screen.getByRole("heading", { name: "Japan", level: 2 })).toBeTruthy();
   });
 
-  // The mount read is sent before anyone can press Delete, so it can answer
-  // after the delete has landed — with the list as it was.
-  it("does not let a mount read sent before a delete bring the card back", async () => {
+  /**
+   * `fetch` for a mounted Home whose first `/api/trips` read (the mount's) is
+   * held until the returned function answers it; later reads answer `later`.
+   */
+  function holdMountRead(later: ListedTripSummary[] = []) {
     let answerRead: (response: Response) => void = () => {};
+    let listReads = 0;
     fetchMock = vi.fn(async (input: string | URL | Request) => {
       const url = String(input);
       if (url.includes("/api/auth/session")) return jsonResponse(await getSessionMock());
+      if (url.endsWith("/membership")) return jsonResponse({ ok: true });
       if (url.endsWith("/commands")) {
-        return jsonResponse({ detail: tripDetailFixture({ tripId: OVER.tripId }), history: historyFixture(OVER.tripId) });
+        const id = url.split("/").at(-2)!;
+        return jsonResponse({ detail: tripDetailFixture({ tripId: id }), history: historyFixture(id) });
       }
       if (/\/api\/trips\/[^/]+$/.test(url)) return jsonResponse({ trip: tripDetailFixture({ tripId }) });
       if (url.endsWith("/api/trips")) {
+        listReads += 1;
+        if (listReads > 1) return jsonResponse({ trips: later });
         return new Promise<Response>((resolve) => {
           answerRead = resolve;
         });
@@ -1731,18 +1738,87 @@ describe("Home with its list from the server", () => {
       return jsonResponse({ error: "unexpected" }, 404);
     });
     vi.stubGlobal("fetch", fetchMock);
+    /** Answers the held read with `trips`, and returns once Home has handled it. */
+    return async (trips: ListedTripSummary[]) => {
+      await act(async () => {
+        answerRead(jsonResponse({ trips }));
+        const call = fetchMock.mock.calls.findIndex(([input]) => String(input).endsWith("/api/trips"));
+        await fetchMock.mock.results[call]!.value;
+      });
+    };
+  }
+
+  /** Deletes `name` through its card's menu, and waits for the toast that says it went. */
+  async function deleteFromMenu(name: string) {
+    await userEvent.click(screen.getByRole("button", { name: `Trip actions for ${name}` }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: /delete/i }));
+    await screen.findByText(`Deleted "${name}"`);
+  }
+
+  // The mount read is sent before anyone can press Delete, so it can answer
+  // after the delete has landed — with the list as it was.
+  it("does not let a mount read sent before a delete bring the card back", async () => {
+    const answerMountRead = holdMountRead();
     render(<HomeScreen initialTrips={[NEXT, OVER]} initialToday={SERVER_TODAY} />);
 
-    await userEvent.click(screen.getByRole("button", { name: /trip actions for peru/i }));
-    await userEvent.click(await screen.findByRole("menuitem", { name: /delete/i }));
-    await screen.findByText(/deleted "peru"/i);
+    await deleteFromMenu("Peru");
+    await answerMountRead([NEXT, OVER]);
 
-    // The held read answers now, with Peru still in it.
-    await act(async () => {
-      answerRead(jsonResponse({ trips: [NEXT, OVER] }));
-      const call = fetchMock.mock.calls.findIndex(([input]) => String(input).endsWith("/api/trips"));
-      await fetchMock.mock.results[call]!.value;
-    });
     expect(screen.queryByRole("heading", { name: "Peru" })).toBeNull();
+  });
+
+  // Back restored a list with Chile on it, which somebody has since deleted
+  // elsewhere. The mount read says so; a delete here before it answers must
+  // not cost the page that news.
+  it("still takes the mount read's other news when a delete lands before it", async () => {
+    const CHILE = ListedTripSummary.parse(
+      tripSummaryFixture({ tripId: "1c2d3e4f-5a6b-4c7d-8e9f-a0b1c2d3e4f5", name: "Chile", startDate: "2030-08-01" }),
+    );
+    const answerMountRead = holdMountRead();
+    render(<HomeScreen initialTrips={[NEXT, OVER, CHILE]} initialToday={SERVER_TODAY} />);
+
+    await deleteFromMenu("Peru");
+    await answerMountRead([NEXT]);
+
+    expect(screen.getByRole("heading", { name: "Japan" })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Chile" })).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Peru" })).toBeNull();
+  });
+
+  // Leave, like Delete: a read sent before it must not put the trip back.
+  it("does not let a mount read sent before leaving a trip bring it back", async () => {
+    const SHARED = ListedTripSummary.parse(
+      tripSummaryFixture({
+        tripId: "2d3e4f5a-6b7c-4d8e-9fa0-b1c2d3e4f5a6",
+        name: "Chile",
+        startDate: "2030-08-01",
+        members: [
+          tripSummaryMemberFactory.build({ userId: "dev-bob", role: "owner" }),
+          tripSummaryMemberFactory.build({ userId: OWNER_ID, role: "editor" }),
+        ],
+      }),
+    );
+    const answerMountRead = holdMountRead();
+    render(<HomeScreen initialTrips={[NEXT, SHARED]} initialToday={SERVER_TODAY} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Trip actions for Chile" }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: /leave this trip/i }));
+    await waitFor(() => expect(screen.queryByRole("heading", { name: "Chile" })).toBeNull());
+    await answerMountRead([NEXT, SHARED]);
+
+    expect(screen.queryByRole("heading", { name: "Chile" })).toBeNull();
+  });
+
+  // Undo restores the trip, so the read after it must be allowed to draw it.
+  it("brings a deleted trip back on Undo", async () => {
+    const answerMountRead = holdMountRead([NEXT, OVER]);
+    render(<HomeScreen initialTrips={[NEXT, OVER]} initialToday={SERVER_TODAY} />);
+
+    await deleteFromMenu("Peru");
+    await answerMountRead([NEXT, OVER]);
+    const toast = (await screen.findAllByRole("status")).find((node) => /deleted "peru"/i.test(node.textContent ?? ""))!;
+    await userEvent.click(within(toast).getByRole("button", { name: /undo/i }));
+
+    expect(await screen.findByRole("heading", { name: "Peru" })).toBeTruthy();
   });
 });

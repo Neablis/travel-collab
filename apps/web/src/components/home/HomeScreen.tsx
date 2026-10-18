@@ -247,9 +247,15 @@ export function HomeScreen({ initialTrips = null, initialToday = null }: HomeScr
   // good result, or overwrite newer trips with older ones (CodeRabbit, PR 155).
   // A monotonic ticket rather than an AbortController because the loser here
   // must not CANCEL the winner's work — both may legitimately be running, only
-  // one may write. Delete and Leave take a ticket too, so a read sent before
-  // they changed the list cannot undo them when it answers.
+  // one may write.
   const loadTicket = useRef(0);
+  // **Trips this page has deleted or left, which no read may bring back.** A
+  // read sent before the removal landed — the mount's own, or one after a
+  // restore or a create — can answer with the trip still in it. Its answer is
+  // filtered by this rather than thrown away, because the same read may carry
+  // other news (a trip deleted elsewhere, the one just restored or created).
+  // Undo takes its id back out before the read that restores it.
+  const removedIds = useRef(new Set<string>());
   const load = useCallback(async () => {
     const ticket = ++loadTicket.current;
     const isStale = () => ticket !== loadTicket.current;
@@ -271,7 +277,7 @@ export function HomeScreen({ initialTrips = null, initialToday = null }: HomeScr
     }
     setUnauthenticated(false);
     setLoadError(null);
-    setTrips(result.value);
+    setTrips(result.value.filter((t) => !removedIds.current.has(t.tripId)));
   }, []);
 
   // **On mount, even when the server already sent the list** — stale while
@@ -378,11 +384,8 @@ export function HomeScreen({ initialTrips = null, initialToday = null }: HomeScr
       setError(result.error.message);
       return;
     }
-    // **A read still in flight is now older than this list**, so it must not
-    // write: the mount's own read, sent before the delete landed, would
-    // otherwise put the card back when it answered. Taking a ticket makes
-    // every outstanding `load` stale (see `loadTicket`).
-    loadTicket.current++;
+    // So a read sent before this landed cannot put the card back (`removedIds`).
+    removedIds.current.add(trip.tripId);
     setTrips((prev) => (prev ?? []).filter((t) => t.tripId !== trip.tripId));
     setDeletingIds((prev) => {
       const next = new Set(prev);
@@ -420,8 +423,8 @@ export function HomeScreen({ initialTrips = null, initialToday = null }: HomeScr
       setError(result.error.message);
       return;
     }
-    // A read in flight is older than this list — Delete's reason above.
-    loadTicket.current++;
+    // So a read sent before this landed cannot put the card back (`removedIds`).
+    removedIds.current.add(trip.tripId);
     setTrips((prev) => (prev ?? []).filter((t) => t.tripId !== trip.tripId));
     setDeletingIds((prev) => {
       const next = new Set(prev);
@@ -439,6 +442,8 @@ export function HomeScreen({ initialTrips = null, initialToday = null }: HomeScr
       setError(result.error.message);
       return;
     }
+    // Restored, so the read below may draw it again.
+    removedIds.current.delete(tripId);
     await load();
   }
 
