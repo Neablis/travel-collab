@@ -297,6 +297,7 @@ dispatched workflow. Details: `docs/guidelines/content-bundles.md`.
 | MET Norway, NASA POWER | forecast and climate widgets | ports + read-through `external_data_cache`; coordinates rounded first (ADR-052) | 4 s timeout; forecast degrades to "typical" |
 | Upstash Redis | link-preview card data only | `CachePort`, drivers `upstash | memory | off` | swallowed; never a source of truth (ADR-059) |
 | Next data cache | public library and OG cards, 24 h, tag-purged | `src/server/libraryCache.ts` | strangers may see a day-old page (ADR-063, cache) |
+| Vercel CDN (ISR) | library pages for a reader with no session and no query; the tags above purge them | `proxy.ts` rewrites to `app/playbooks/[copy]` (ADR-077) | a miss renders the live page |
 | Resend | welcome and invite email | `sendEmail` never throws | mail failure never undoes the action |
 | Sentry | errors, traces, AI spans, metrics | shared options and scrubbing; tunnel `/monitoring` (ADR-032) | — |
 

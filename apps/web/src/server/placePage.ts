@@ -11,7 +11,7 @@ import { placeFor, publishedDaysPage } from "./publicLibrary";
 // The city and country pages (SEO pass, D6): one page over two kinds of place.
 // Here rather than in either page file because a page file is not a module
 // another file imports, and in `src/server` because it reads the database —
-// the lint wall opens `(app)/playbooks/**/page.tsx` to `@/server/*`, not a
+// the lint wall opens `app/playbooks/**/page.tsx` to `@/server/*`, not a
 // helper beside them.
 
 /** What a city or country route hands its page: the `[slug]` segment, and `?page=`. */
