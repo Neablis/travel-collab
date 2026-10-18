@@ -106,7 +106,8 @@ import { whenIdle } from "@/lib/whenIdle";
 // With the trip sent from the server (PR 486) the board's header does, but its
 // lens is the view's placeholder until hydration (`LensPlaceholder`); without
 // it, this screen draws its header skeleton until `TripProvider` answers on
-// the client. The rack rides with Plan, the only view that mounts it.
+// the client. The rack's code rides with Plan; Calendar mounts the rack too
+// (`lensAcceptsDrops`), and loads it as it needs it.
 const MapLens = dynamic(() => import("@/components/lenses/MapLens").then((m) => m.MapLens), {
   loading: () => <MapLensSkeleton />,
 });
@@ -117,7 +118,14 @@ const OverviewLens = dynamic(() => import("@/components/lenses/OverviewLens").th
   loading: () => <OverviewLensFallback />,
 });
 const Board = dynamic(() => import("./Board").then((m) => m.Board), { loading: () => <PlanLensSkeleton /> });
-const UnscheduledRack = dynamic(() => import("@/components/trip/UnscheduledRack").then((m) => m.UnscheduledRack));
+// **A `loading`, even an empty one, is what gives a `next/dynamic` its own
+// Suspense boundary** in the app router (`lazy-dynamic/loadable`). Without
+// one, the rack's dock — mounted only once hydrated — suspended to the route's
+// boundary (`(board)/loading.tsx`) while its chunk loaded, and React hid the
+// whole server-rendered board behind the loading skeleton (PR 486 e2e).
+const UnscheduledRack = dynamic(() => import("@/components/trip/UnscheduledRack").then((m) => m.UnscheduledRack), {
+  loading: () => null,
+});
 
 /** Each view's modules, asked for as soon as it is the view (see above). */
 const LENS_MODULES: Record<View, () => Promise<unknown>> = {
