@@ -329,6 +329,49 @@ expectRejectedBy(
   "a layout below (app) gets no exemption",
 );
 
+// THE TRIP PAGE'S FIRST DATA (Mitchell's decision of 2026-10-18): the trip
+// board's page file alone may read `src/server`, to send the board's first
+// reads with the page. Open for that file; shut for the domain and authConfig;
+// shut for a helper beside it, the group's `loading.tsx`, and a notebook page
+// under the same trip. Real `[tripId]` paths, because the glob escapes them.
+const TRIP_BOARD_PAGE = "src/app/(app)/trips/[tripId]/(board)/page.tsx";
+
+expectClean(
+  lintFixture("trip_board_page_server", `import "@/server/tripFirstData";${PAGE_BODY}`, { file: TRIP_BOARD_PAGE }),
+  "the trip board page may import @/server/* (the exemption is open)",
+);
+expectRejectedBy(
+  lintFixture("trip_board_page_domain", `import "@tc/domain";${PAGE_BODY}`, { file: TRIP_BOARD_PAGE }),
+  "no-restricted-imports",
+  "the trip board page still may not import @tc/domain",
+);
+expectRejectedBy(
+  lintFixture("trip_board_page_authconfig", `import "@/lib/authConfig";${PAGE_BODY}`, { file: TRIP_BOARD_PAGE }),
+  "no-restricted-imports",
+  "the trip board page still may not build an Auth.js instance",
+);
+expectRejectedBy(
+  lintFixture("trip_board_helper_server", `import "@/server/tripFirstData";${PAGE_BODY}`, {
+    file: "src/app/(app)/trips/[tripId]/(board)/helper.tsx",
+  }),
+  "no-restricted-imports",
+  "a non-page file beside the trip board page gets no exemption",
+);
+expectRejectedBy(
+  lintFixture("trip_board_loading_server", `import "@/server/tripFirstData";${PAGE_BODY}`, {
+    file: "src/app/(app)/trips/[tripId]/(board)/loading.tsx",
+  }),
+  "no-restricted-imports",
+  "the (board) group's loading.tsx gets no exemption",
+);
+expectRejectedBy(
+  lintFixture("trip_notebook_page_server", `import "@/server/tripFirstData";${PAGE_BODY}`, {
+    file: "src/app/(app)/trips/[tripId]/pages/[pageId]/page.tsx",
+  }),
+  "no-restricted-imports",
+  "a notebook page under the trip gets no exemption",
+);
+
 // THE GATEWAY CHOKEPOINT WALL (ADR-019's 2026-08-25 amendment): only
 // src/server/ai/modelSelection.ts may import @/server/ai/gateway. Fixtured
 // under src/server/ai/ itself — a NEW file there, not modelSelection.ts —

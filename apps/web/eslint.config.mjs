@@ -589,6 +589,19 @@ export default [
     },
   },
   {
+    // THE TRIP PAGE'S FIRST DATA (Mitchell's decision of 2026-10-18). The trip
+    // page reads the board's first answers in-process (`server/tripFirstData.ts`)
+    // so the board is in the first HTML rather than a skeleton chaining reads
+    // after hydration. Same access check and same bodies as the GET routes
+    // (`server/tripViews.ts`). That one page file, on the console's terms: the
+    // board it renders, and every other file under the trip route, stay UI.
+    // The brackets are escaped because a glob reads `[tripId]` as a class.
+    files: ["src/app/(app)/trips/\\[tripId\\]/(board)/page.tsx"],
+    rules: {
+      "no-restricted-imports": ["error", { patterns: exemptWallPatterns }],
+    },
+  },
+  {
     // THE ELEMENT WALL (design-system.md): text, controls, and tables render
     // through components/ui primitives; no inline styles. Enumerated inline-
     // style exceptions (drag opacity, map container, computed timeline/calendar
