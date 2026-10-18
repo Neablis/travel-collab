@@ -333,6 +333,17 @@ describe("OverviewLens — the trip page's first data", () => {
     expect(fetchTripGlobalsMock).not.toHaveBeenCalled();
   });
 
+  // Without a seed the cache is not painted from: its entries can be minutes
+  // old (`peekCached` ignores the windows), and the lens waits for its reads,
+  // as it did before first data existed.
+  it("paints nothing from the cache without a seed", () => {
+    primeTripSeed(TRIP_ID, seedFrom(tripFirstDataFixture()));
+    fetchPagesMock.mockReturnValue(new Promise(() => {}));
+    fetchTripGlobalsMock.mockReturnValue(new Promise(() => {}));
+    render(<OverviewLens detail={tripDetailFixture()} tripId={TRIP_ID} />);
+    expect(loading()).not.toBeNull();
+  });
+
   it("draws from the seed alone where nothing is cached, as on the server", () => {
     // Reads that never answer: only the first render is under test.
     fetchPagesMock.mockReturnValue(new Promise(() => {}));

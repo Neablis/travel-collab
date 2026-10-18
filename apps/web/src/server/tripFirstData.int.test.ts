@@ -3,7 +3,11 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { executeTripCommand } from "@/server/commands";
 import { db } from "@/server/db/client";
 import { grantMembership } from "@/server/access/members";
+import { createInvite } from "@/server/access/invites";
 import { entitleAccounts } from "@/server/test-support/entitledAccount";
+import { setTripCover } from "@/server/tripCovers";
+import { upsertUser, writePreferences } from "@/server/users";
+import { tripCoverFactory } from "@tc/factories";
 import { DEMO_TRIP_ID } from "@/lib/demoTrip";
 
 // The trip page's server read (`tripFirstData`) against the GET routes it
@@ -34,10 +38,11 @@ const ctx = (tripId: string) => ({ params: Promise.resolve({ tripId }) });
 const req = (path: string) => new Request(`http://x${path}`);
 
 /**
- * A trip with a day and a stop, a viewer on it, and its notebooks already
- * seeded. The seeding matters: the first notebook read creates the defaults,
- * which writes to the log, so a comparison straddling it would compare two
- * different trips.
+ * A trip with a day and a stop, a viewer on it, an invite out, a cover, and its
+ * notebooks already seeded. The seeding matters: the first notebook read
+ * creates the defaults, which writes to the log, so a comparison straddling it
+ * would compare two different trips. The invite and the cover are there so
+ * the bodies that depend on who reads have something in them to differ by.
  */
 async function seedTrip(): Promise<string> {
   const tripId = randomUUID();
@@ -46,12 +51,24 @@ async function seedTrip(): Promise<string> {
   await executeTripCommand({ type: "AddDay", tripId, dayId }, OWNER);
   await executeTripCommand({ type: "AddActivity", tripId, activityId: randomUUID(), dayId, title: "Ramen" }, OWNER);
   await grantMembership(db, { tripId, userId: VIEWER, role: "viewer", invitedBy: OWNER, now: new Date().toISOString() });
+  await createInvite(tripId, OWNER, { email: null, role: "editor" });
+  const cover = tripCoverFactory.build();
+  await setTripCover(
+    tripId,
+    { ...cover, id: cover.unsplashId, downloadLocation: `${cover.photoPageUrl}/download` },
+    OWNER,
+  );
   await GET_PAGES(req(`/api/trips/${tripId}/pages`), ctx(tripId));
   return tripId;
 }
 
+// Each reader has a home airport, and a different one: the globals' home
+// zone is the READER's, so a body built for the wrong reader shows.
 beforeAll(async () => {
   await entitleAccounts([OWNER]);
+  await upsertUser({ id: VIEWER, email: null, name: null, image: null });
+  await writePreferences(OWNER, { homeAirport: "NRT" });
+  await writePreferences(VIEWER, { homeAirport: "JFK" });
 });
 
 beforeEach(() => {
@@ -74,14 +91,21 @@ describe("tripFirstData", () => {
   });
 
   // The "one shape" claim: each field is the body its route answers, for the
-  // same trip and the same reader — a viewer here, so the role-dependent parts
-  // (no invites, `myRole`, the reader's own globals) are a viewer's too.
-  it("answers a viewer each body exactly as its GET route does", async () => {
+  // same trip and the same reader. Asked as a viewer and as the owner, so the
+  // reader-dependent parts — invites (the owner's only), `myRole`, the
+  // reader's own home zone — differ between the two and must match per reader.
+  it.each([
+    ["a viewer", VIEWER, "viewer", 0, "America/New_York"],
+    ["the owner", OWNER, "owner", 1, "Asia/Tokyo"],
+  ] as const)("answers %s each body exactly as its GET route does", async (_who, reader, role, invites, zone) => {
     const tripId = await seedTrip();
-    currentUserId = VIEWER;
+    currentUserId = reader;
     const first = await tripFirstData(tripId);
-    if (first === null) throw new Error("expected first data for a viewer");
-    expect(first.access.access.myRole).toBe("viewer");
+    if (first === null) throw new Error(`expected first data for ${reader}`);
+    expect(first.access.access.myRole).toBe(role);
+    expect(first.access.access.invites).toHaveLength(invites);
+    expect(first.globals.globals.homeTimeZone).toBe(zone);
+    expect(first.cover.cover).not.toBeNull();
 
     const body = async (res: Response) => {
       expect(res.status).toBe(200);

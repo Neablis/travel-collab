@@ -22,7 +22,7 @@ import {
   type BoardCommand,
   type CommandOutcome,
 } from "@/lib/apiClient";
-import { cachedRead, invalidate, writesSettled } from "@/lib/queryCache";
+import { cachedRead, invalidate, writesOpen, writesSettled } from "@/lib/queryCache";
 import { tripKeys } from "@/lib/queryKeys";
 import {
   activeDetail,
@@ -232,12 +232,15 @@ const HISTORY_TYPES = new Set(["UndoLastChange", "RedoChange", "RevertToState"])
  * Overview's are children, and React runs a child's effects before its
  * parent's, so a prime in an effect would come after the reads it exists to
  * answer. `null` for a replayed page whose answer this document has already
- * adopted (`firstDataSpent`) — its data is as old as the visit it came from.
+ * adopted (`firstDataSpent`) — its data is as old as the visit it came from —
+ * and while a write to this trip is still open (`writesOpen`): the server may
+ * have read before it landed, and nothing may be stored under an open write
+ * scope (`queryCache.ts`), so that mount reads for itself, as before.
  */
 function adoptFirstData(tripId: string, initial: TripFirstData | null): TripSeed | null {
   if (initial === null || initial.trip.trip.tripId !== tripId) return null;
   const browser = typeof window !== "undefined";
-  if (browser && firstDataSpent(initial)) return null;
+  if (browser && (firstDataSpent(initial) || writesOpen(tripKeys.all(tripId)))) return null;
   const seed = seedFrom(initial);
   if (browser) primeTripSeed(tripId, seed);
   return seed;

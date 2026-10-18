@@ -201,6 +201,15 @@ export function endWrite(prefix: string): void {
 /** Callers of `writesSettled` still waiting for their scope to close. */
 const settleWaiters = new Set<{ prefix: string; resolve: () => void }>();
 
+/**
+ * Whether a write overlapping `prefix` is outstanding now — `writesSettled`'s
+ * question without the waiting, for a caller deciding whether a value it holds
+ * may be stored (`primeTripSeed`'s caller).
+ */
+export function writesOpen(prefix: string): boolean {
+  return writesOverlapping(prefix);
+}
+
 /** Whether any open write scope could move a key under `prefix`, or be moved by one. */
 function writesOverlapping(prefix: string): boolean {
   for (const open of writing.keys()) {
@@ -328,12 +337,17 @@ export function peekCached<T>(key: CacheKey): T | undefined {
  * request and leave every painter of the key on the old one until it landed.
  * Supersedes any read of `key` already on the wire, the way `invalidate` does:
  * that read started before the write, and must not be stored over it.
+ *
+ * `silent` stores without telling the subscribers: for a prime made DURING a
+ * render (`TripProvider`'s seed), where notifying would update another
+ * component mid-render — React's "Cannot update a component while rendering a
+ * different component". Its readers render from the same seed anyway.
  */
-export function primeCached<T>(key: CacheKey, value: T): void {
+export function primeCached<T>(key: CacheKey, value: T, { silent = false }: { silent?: boolean } = {}): void {
   invalidatedAt.set(key, ++clock);
   inFlight.delete(key);
   entries.set(key, { result: { ok: true, value }, storedAt: Date.now() });
-  emitChange();
+  if (!silent) emitChange();
 }
 
 /**

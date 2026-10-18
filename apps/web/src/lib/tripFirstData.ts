@@ -84,13 +84,16 @@ export function seedFrom(first: TripFirstData): TripSeed {
  */
 export function primeTripSeed(tripId: string, seed: TripSeed): void {
   if (typeof window === "undefined") return;
-  primeCached(tripKeys.detail(tripId), seed.detail);
-  primeCached(tripKeys.history(tripId), seed.history);
-  primeCached(tripKeys.access(tripId), seed.access);
-  primeCached(coverKeys.trip(tripId), seed.cover);
-  primeCached(tripKeys.pages(tripId), seed.pages);
-  if (seed.overview !== null) primeCached(tripKeys.page(tripId, seed.overview.id), seed.overview);
-  primeCached(tripKeys.globals(tripId), seed.globals);
+  // Silent: this runs during `TripProvider`'s render, and a subscriber such as
+  // the loading skeleton's cover peek must not be updated mid-render.
+  const prime = <T,>(key: string, value: T) => primeCached(key, value, { silent: true });
+  prime(tripKeys.detail(tripId), seed.detail);
+  prime(tripKeys.history(tripId), seed.history);
+  prime(tripKeys.access(tripId), seed.access);
+  prime(coverKeys.trip(tripId), seed.cover);
+  prime(tripKeys.pages(tripId), seed.pages);
+  if (seed.overview !== null) prime(tripKeys.page(tripId, seed.overview.id), seed.overview);
+  prime(tripKeys.globals(tripId), seed.globals);
 }
 
 /** The `served` ids this document has already adopted. */

@@ -244,8 +244,12 @@ describe("TripHeader — the cover band", () => {
       // The band as the server's HTML carries it: hidden below 768px, and a
       // phone's `<source>` that is a blank inline GIF, so the photo is never
       // fetched there.
+      // React's own preload of an eager image is lost inside a `<picture>`, so
+      // the banner preloads it for desktop only: a phone fetches nothing.
       const html = renderToStaticMarkup(<TripCoverBanner cover={tripCoverFactory.build()} />);
-      expect(html).toMatch(/^<div class="[^"]*\bmax-md:hidden\b/);
+      expect(html).toMatch(/^<link rel="preload" as="image"[^>]* media="\(min-width: 768px\)"[^>]*\/>/);
+      expect(html.match(/<link /g)).toHaveLength(1);
+      expect(html).toMatch(/\/><div class="[^"]*\bmax-md:hidden\b/);
       expect(html).toMatch(/<picture><source media="\(max-width: 767px\)" srcSet="data:image\/gif;base64,[^"]+"\/><img /);
       await new Promise((resolve) => setTimeout(resolve, 50));
       expect(reads.count).toBe(0);

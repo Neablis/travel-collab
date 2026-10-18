@@ -141,10 +141,12 @@ export function OverviewLens({
   // **What the server sent with the page, or the cache it was primed into**
   // (`useTripSeed`): the first render starts from it, so the letter is drawn
   // without a request, and the server's HTML and the hydrating render agree.
-  // The effects below still run their reads; the cache answers them.
+  // The effects below still run their reads; the cache answers them. Without
+  // a seed nothing is painted from the cache, whose entries can be any age:
+  // the lens waits for its reads, as it always did.
   const seed = useTripSeed();
-  const [globals, setGlobals] = useState<TripGlobals | null>(
-    () => peekCached<TripGlobals>(tripKeys.globals(tripId)) ?? seed?.globals ?? null,
+  const [globals, setGlobals] = useState<TripGlobals | null>(() =>
+    seed === null ? null : (peekCached<TripGlobals>(tripKeys.globals(tripId)) ?? seed.globals),
   );
   // Whether the FIRST globals read has answered, either way. The letter waits
   // on it (see `body`): its widgets read places and zones from the globals,
@@ -152,10 +154,11 @@ export function OverviewLens({
   // time at a different height, under the reader's eyes.
   const [globalsSettled, setGlobalsSettled] = useState(globals !== null);
   const [state, setState] = useState<OverviewState>(() => {
-    const list = peekCached<NotebookList>(tripKeys.pages(tripId)) ?? seed?.pages;
-    const pick = list === undefined ? null : pickOverviewPage(list.pages, linkedPageId);
-    if (pick === null || !pick.ok) return { status: "loading" };
-    const sent = seed?.overview?.id === pick.page.id ? seed.overview : undefined;
+    if (seed === null) return { status: "loading" };
+    const list = peekCached<NotebookList>(tripKeys.pages(tripId)) ?? seed.pages;
+    const pick = pickOverviewPage(list.pages, linkedPageId);
+    if (!pick.ok) return { status: "loading" };
+    const sent = seed.overview?.id === pick.page.id ? seed.overview : undefined;
     const page = peekCached<Page>(tripKeys.page(tripId, pick.page.id)) ?? sent;
     return page === undefined ? { status: "loading" } : stateFor(pick.page, page);
   });

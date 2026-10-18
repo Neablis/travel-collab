@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { tripFirstDataFixture } from "@/test-support/tripFirstData";
-import { peekCached } from "@/lib/queryCache";
+import { peekCached, subscribeQueryCache } from "@/lib/queryCache";
 import { coverKeys, tripKeys } from "@/lib/queryKeys";
 import { primeTripSeed, seedFrom } from "./tripFirstData";
 
@@ -32,5 +32,19 @@ describe("primeTripSeed", () => {
     expect(peekCached(tripKeys.pages(tripId))).toBe(seed.pages);
     expect(peekCached(tripKeys.page(tripId, seed.overview!.id))).toBe(seed.overview);
     expect(peekCached(tripKeys.globals(tripId))).toBe(seed.globals);
+  });
+
+  // It runs during `TripProvider`'s render. A subscriber told then (the
+  // loading skeleton's cover peek) would be updated while another component
+  // renders, which React reports and refuses to batch.
+  it("tells no subscriber, since it runs during a render", () => {
+    const seed = seedFrom(tripFirstDataFixture());
+    const heard = vi.fn();
+    const unsubscribe = subscribeQueryCache(heard);
+    vi.stubGlobal("window", {});
+    primeTripSeed(seed.detail.tripId, seed);
+    unsubscribe();
+    expect(peekCached(tripKeys.detail(seed.detail.tripId))).toBe(seed.detail);
+    expect(heard).not.toHaveBeenCalled();
   });
 });
