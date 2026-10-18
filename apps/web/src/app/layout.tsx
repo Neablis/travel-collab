@@ -3,7 +3,7 @@ import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Bricolage_Grotesque, IBM_Plex_Mono, IBM_Plex_Sans } from "next/font/google";
 // MapLibre's stylesheet is not imported here: it travels with the map
-// (`components/lenses/mapBootstrap.ts`), so a route with no map does not wait
+// (`MapLens.tsx`, `SharedDayMap.tsx`), so a route with no map does not wait
 // on it.
 import "./globals.css";
 import { SaveLightProvider } from "@/components/SaveLight";
