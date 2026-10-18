@@ -865,7 +865,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
     // the correct fallback for a session that expires while this page is
     // already open (a `useTrip` refetch turns up a 401 mid-session), the
     // same division of labour — the proxy owns arrival, the component owns
-    // expiry-in-place — that `(app)/page.tsx`'s Home documents for `/`.
+    // expiry-in-place — that `HomeScreen` documents for `/`.
     return (
       <PageContainer width="full">
         <div className="flex flex-col items-start gap-3 py-10">

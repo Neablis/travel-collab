@@ -329,6 +329,33 @@ expectRejectedBy(
   "a layout below (app) gets no exemption",
 );
 
+// THE HOME PAGE'S LIST READ (2026-10-18): `(app)/page.tsx` alone may read
+// `src/server`, to send the reader's trip list with the page. Open for that
+// file; shut for the domain, for authConfig, and for any other page in (app).
+const HOME_PAGE = "src/app/(app)/page.tsx";
+
+expectClean(
+  lintFixture("home_page_server", `import "@/server/listedTrips";${PAGE_BODY}`, { file: HOME_PAGE }),
+  "the (app) Home page may import @/server/* (the exemption is open)",
+);
+expectRejectedBy(
+  lintFixture("home_page_domain", `import "@tc/domain";${PAGE_BODY}`, { file: HOME_PAGE }),
+  "no-restricted-imports",
+  "the (app) Home page still may not import @tc/domain",
+);
+expectRejectedBy(
+  lintFixture("home_page_authconfig", `import "@/lib/authConfig";${PAGE_BODY}`, { file: HOME_PAGE }),
+  "no-restricted-imports",
+  "the (app) Home page still may not build an Auth.js instance",
+);
+expectRejectedBy(
+  lintFixture("account_page_server", `import "@/server/listedTrips";${PAGE_BODY}`, {
+    file: "src/app/(app)/account/page.tsx",
+  }),
+  "no-restricted-imports",
+  "a page beside Home in (app) gets no exemption",
+);
+
 // THE GATEWAY CHOKEPOINT WALL (ADR-019's 2026-08-25 amendment): only
 // src/server/ai/modelSelection.ts may import @/server/ai/gateway. Fixtured
 // under src/server/ai/ itself — a NEW file there, not modelSelection.ts —

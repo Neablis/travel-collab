@@ -15,6 +15,7 @@ import { PHONE_TOUCH } from "@/components/ui/button";
 import { CoverCredit } from "@/components/cover/CoverCredit";
 import { CoverImage } from "@/components/cover/CoverImage";
 import { UnplannedTripSteps, isUnplanned, tripDateRange, tripMetaLine } from "./UnplannedTrip";
+import { useCreatedLabel } from "@/lib/useCreatedLabel";
 
 export type TripCardProps = {
   trip: TripSummary;
@@ -115,10 +116,8 @@ export function TripCard({ trip, menuSlot, plannedOfBudget, viewerId, unreadChat
   // `createdAt` is an ISO INSTANT, which formatTripDate (a calendar-date
   // parser) would mis-read, so that fallback formats it separately, the way
   // NextTripHero does (Task 6).
-  const created = new Date(trip.createdAt);
-  const createdLabel = Number.isNaN(created.getTime())
-    ? null
-    : created.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  // And in a zone the server and the hydrating client agree on (`useCreatedLabel`).
+  const createdLabel = useCreatedLabel(trip.createdAt);
   // M37: an unplanned trip says "No dates yet" rather than when it was made
   // (`tripMetaLine`), and a trip whose last day is known reads as a range.
   const unplanned = isUnplanned(trip);
