@@ -14,8 +14,10 @@ import {
   aiQuotas,
   aiStepQuotas,
   consumeQuota,
+  consumeQuotaUnits,
   reserveAiSteps,
   settleAiSteps,
+  type QuotaDecision,
   type QuotaPolicy,
   type StepReservation,
 } from "./quota";
@@ -333,5 +335,70 @@ describe("tiered ceilings move numbers and never bucket names", () => {
     // actually moved a number was observed 287-293, so its floor is ~half.
     w.atLeast(300);
     moved.atLeast(140);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// A run of units is the same as that many single charges
+// ---------------------------------------------------------------------------
+
+/**
+ * `consumeQuotaUnits` exists to replace a loop of `consumeQuota` calls with one
+ * bump per bucket (the weather route's N+1), and its whole claim is that the
+ * replacement is invisible: for ANY prior usage, ANY ceilings across one or two
+ * policies and ANY run length, it admits the same number of units, answers the
+ * first refusal the loop would have, and leaves every counter where the loop
+ * would. `giveBack(u)` then leaves them where a loop of `count - u` would.
+ */
+const unitsScenario = fc.record({
+  policies: fc.array(
+    fc.record({ perUser: fc.integer({ min: 1, max: 10 }), global: fc.integer({ min: 1, max: 25 }) }),
+    { minLength: 1, maxLength: 2 },
+  ),
+  prior: fc.array(fc.constantFrom(...USERS), { maxLength: 30 }),
+  count: fc.integer({ min: 0, max: 20 }),
+  unused: fc.nat({ max: 20 }),
+});
+
+describe("consumeQuotaUnits is consumeQuota in a loop", () => {
+  it("admits, refuses and counts exactly as `count` single charges, and gives back as if never asked", async () => {
+    const w = witness("units vs loop");
+    const crossed = witness("a run that crossed a ceiling");
+    await fc.assert(
+      fc.asyncProperty(unitsScenario, async ({ policies: shapes, prior, count, unused }) => {
+        const policies = shapes.map((shape, i): QuotaPolicy => ({ name: `units-${i}`, windowMs: 60_000, ...shape }));
+        const withPrior = async () => {
+          const counters = fakeCounters();
+          for (const user of prior) await consumeQuota(policies, user, counters, T0);
+          return counters;
+        };
+        const loopOf = async (n: number) => {
+          const counters = await withPrior();
+          const decisions: QuotaDecision[] = [];
+          for (let i = 0; i < n; i += 1) decisions.push(await consumeQuota(policies, "alice", counters, T0));
+          return { counters, decisions };
+        };
+        // A bucket the loop never touched and one given back to 0 both mean "nothing charged".
+        const charged = (rows: ReadonlyMap<string, { readonly hits: number }>) =>
+          new Map([...rows].filter(([, row]) => row.hits > 0).map(([bucket, row]) => [bucket, row.hits]));
+
+        const loop = await loopOf(count);
+        const batched = await withPrior();
+        const units = await consumeQuotaUnits(policies, "alice", count, batched, T0);
+
+        expect(units.admitted).toBe(loop.decisions.filter((d) => d.allowed).length);
+        expect(units.refusal).toEqual(loop.decisions.find((d) => !d.allowed) ?? null);
+        expect(charged(batched.rows)).toEqual(charged(loop.counters.rows));
+        if (units.refusal !== null) crossed.tick();
+
+        await units.giveBack(unused);
+        const shorter = await loopOf(Math.max(0, count - unused));
+        expect(charged(batched.rows)).toEqual(charged(shorter.counters.rows));
+        w.tick();
+      }),
+      { numRuns: 300 },
+    );
+    w.atLeast(300);
+    crossed.atLeast(50);
   });
 });

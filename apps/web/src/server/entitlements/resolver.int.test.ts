@@ -10,10 +10,10 @@
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { eq, sql } from "drizzle-orm";
 import { db } from "@/server/db/client";
-import { users } from "@/server/db/schema";
+import { subscriptions, users } from "@/server/db/schema";
 import { upsertUser } from "@/server/users";
 import { can } from "./capability";
 import {
@@ -25,7 +25,7 @@ import {
   offerTrial,
   revokeGrant,
 } from "./grants";
-import { accountCan, entitlementsFor } from "./resolver";
+import { accountCan, entitlementsFor, entitlementsForMany } from "./resolver";
 
 const newUser = () => `dev-${randomUUID()}`;
 
@@ -247,5 +247,62 @@ describe("the founder backfill", () => {
     await db.execute(sql.raw(backfill()));
     expect((await allGrantsFor(id)).length).toBe(after_first);
     expect(after_first).toBe(1);
+  });
+});
+
+// The accounts table resolves every row it shows, and did it with three reads
+// per account (Sentry's N+1). `entitlementsForMany` is three reads in all, and
+// is held here to `entitlementsFor`'s answer for every kind of account the
+// table can show.
+describe("entitlementsForMany", () => {
+  const T0 = new Date("2026-10-01T12:00:00.000Z");
+
+  async function subscribe(userId: string, over: Partial<typeof subscriptions.$inferInsert>) {
+    await db.insert(subscriptions).values({
+      id: randomUUID(), userId, stripeCustomerId: `cus_${userId}`, stripeSubscriptionId: `sub_${randomUUID()}`,
+      livemode: true, planId: "premium", planVersion: 1, status: "active",
+      currentPeriodEnd: new Date(T0.getTime() + 19 * DAY), cancelAtPeriodEnd: false, pastDueSince: null,
+      lastEventAt: T0, createdAt: T0, updatedAt: T0, ...over,
+    });
+  }
+
+  async function premium() {
+    const id = await makeAccount();
+    await db.update(users).set({ planId: "premium", planVersion: 1 }).where(eq(users.id, id));
+    return id;
+  }
+
+  it("answers every account as entitlementsFor does, in three reads however many accounts", async () => {
+    const bare = await makeAccount();
+    const granted = await makeAccount();
+    await issueGrant({ userId: granted, planId: "plus", planVersion: 1, source: "admin", grantedBy: "operator", expiresAt: null });
+    const expired = await makeAccount();
+    await issueGrant({
+      userId: expired, planId: "premium", planVersion: 1, source: "admin", grantedBy: "operator",
+      expiresAt: new Date(T0.getTime() - DAY),
+    });
+    const paying = await premium();
+    await subscribe(paying, {});
+    // A newer cancelled row and an older live one: the live one is the answer.
+    const resubscribed = await premium();
+    await subscribe(resubscribed, { createdAt: new Date(T0.getTime() - 30 * DAY) });
+    await subscribe(resubscribed, { status: "canceled", createdAt: T0 });
+    const lapsed = await premium();
+    await subscribe(lapsed, { status: "canceled", currentPeriodEnd: new Date(T0.getTime() - DAY) });
+    const noRow = newUser();
+
+    const ids = [bare, granted, expired, paying, resubscribed, lapsed, noRow];
+    const select = vi.spyOn(db, "select");
+    const many = await entitlementsForMany(ids, T0);
+    expect(select).toHaveBeenCalledTimes(3);
+    select.mockRestore();
+
+    expect([...many.keys()]).toEqual(ids);
+    for (const id of ids) expect(many.get(id)).toEqual(await entitlementsFor(id, T0));
+    expect(many.get(resubscribed)!.conferred.planId).toBe("premium");
+    expect(many.get(lapsed)!.conferred.planId).toBe("free");
+    expect(many.get(granted)!.grants).toHaveLength(1);
+    expect(many.get(expired)!.grants).toHaveLength(0);
+    expect(await entitlementsForMany([], T0)).toEqual(new Map());
   });
 });

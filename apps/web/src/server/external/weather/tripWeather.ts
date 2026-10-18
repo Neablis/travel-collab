@@ -1,7 +1,7 @@
 import { citiesOfDay, stopsInTimeOrder } from "@tc/domain";
 import { clockIn } from "@tc/pages";
 import type { ForecastDay, TripDetail, TripWeather, TripWeatherPoint, TypicalMonth } from "@tc/contracts";
-import { readThrough, type CacheStore } from "../cache";
+import { readThrough, wouldCharge, type CacheRow, type CacheStore } from "../cache";
 import { pointText, roundForExport, type RoundedPoint } from "../roundedPoint";
 import { timeZoneAt } from "../../timeZones";
 import { ForecastSeries, MonthlyNormals, type Climate, type Forecast } from "./ports";
@@ -32,8 +32,11 @@ export interface WeatherDeps {
   forecast: Forecast | null;
   climate: Climate;
   store: CacheStore;
-  /** Charges one upstream call to our own quota; `false` is a refusal. Called only on a cache miss. */
-  charge: () => Promise<boolean>;
+  /**
+   * Charges `count` upstream calls to our own quota at once — the page's cache
+   * misses, and nothing for a hit. Called at most once a request.
+   */
+  charge: (count: number) => Promise<ChargedCalls>;
   now: Date;
   /**
    * `true` once the request has spent its budget: a call not yet started is
@@ -41,6 +44,18 @@ export interface WeatherDeps {
    * route answers with what has arrived rather than holding the notebook.
    */
   outOfTime: () => boolean;
+}
+
+/** What a charge for N calls bought: the first `admitted` may be made, and `giveBack` returns an unused tail. */
+export interface ChargedCalls {
+  admitted: number;
+  giveBack(unused: number): Promise<void>;
+}
+
+/** One key's read-through: whether its row will be charged for, and the read itself, given that row. */
+interface Job {
+  charges: (row: CacheRow | null) => boolean;
+  run: (row: CacheRow | null, charge: () => Promise<boolean>) => Promise<void>;
 }
 
 /** One (day, city) and where it is. `zone` is the place's own, from the unrounded stop. */
@@ -174,34 +189,55 @@ export async function buildTripWeather(detail: TripDetail, deps: WeatherDeps): P
 
   const series = new Map<string, ForecastSeries | null>();
   const normals = new Map<string, MonthlyNormals | null>();
-  const jobs = new Map<string, () => Promise<void>>();
-  const charge = () => (deps.outOfTime() ? Promise.resolve(false) : deps.charge());
+  const jobs = new Map<string, Job>();
   const source = deps.forecast;
   for (const { date, point } of planned) {
     const forecastKey = keyOf("met:forecast", point);
     // No source, no job: its points are `unavailable: "source"` below, and
     // nothing is charged for a call that could never be made.
     if (source && inHorizon(date) && !jobs.has(forecastKey)) {
-      jobs.set(forecastKey, async () => {
-        const got = await readThrough({
-          key: forecastKey, schema: ForecastSeries, store: deps.store, now: deps.now, charge,
-          timeoutMs: CALL_TIMEOUT_MS, call: (prior) => source.forecast(point, prior),
-        });
-        series.set(forecastKey, got?.value ?? null);
+      jobs.set(forecastKey, {
+        charges: (row) => wouldCharge(row, ForecastSeries, deps.now),
+        run: async (row, charge) => {
+          const got = await readThrough({
+            key: forecastKey, schema: ForecastSeries, store: deps.store, now: deps.now, row, charge,
+            timeoutMs: CALL_TIMEOUT_MS, call: (prior) => source.forecast(point, prior),
+          });
+          series.set(forecastKey, got?.value ?? null);
+        },
       });
     }
     const normalsKey = keyOf("power:normals2", point);
     if (!jobs.has(normalsKey)) {
-      jobs.set(normalsKey, async () => {
-        const got = await readThrough({
-          key: normalsKey, schema: MonthlyNormals, store: deps.store, now: deps.now, charge,
-          timeoutMs: CALL_TIMEOUT_MS, call: () => deps.climate.normals(point),
-        });
-        normals.set(normalsKey, got?.value ?? null);
+      jobs.set(normalsKey, {
+        charges: (row) => wouldCharge(row, MonthlyNormals, deps.now),
+        run: async (row, charge) => {
+          const got = await readThrough({
+            key: normalsKey, schema: MonthlyNormals, store: deps.store, now: deps.now, row, charge,
+            timeoutMs: CALL_TIMEOUT_MS, call: () => deps.climate.normals(point),
+          });
+          normals.set(normalsKey, got?.value ?? null);
+        },
       });
     }
   }
-  await pool([...jobs.values()], CONCURRENCY, (job) => job());
+
+  // Every key's row in one read, and every miss charged in one go, rather than
+  // a read and a charge per key (Sentry's N+1: up to ~60 statements a load).
+  // The quota sees what it saw before: a unit per call that STARTS, handed out
+  // in start order, so the admitted ones are the first calls made, as when each
+  // call charged itself; the tail that never started — out of time — is given back.
+  const rows = jobs.size === 0 ? new Map<string, CacheRow>() : await deps.store.readMany([...jobs.keys()]);
+  const rowOf = (key: string) => rows.get(key) ?? null;
+  const misses = [...jobs].filter(([key, job]) => job.charges(rowOf(key))).length;
+  const charged = misses === 0 || deps.outOfTime() ? null : await deps.charge(misses);
+  let used = 0;
+  const charge = async () => {
+    if (charged === null || deps.outOfTime() || used === misses) return false;
+    return used++ < charged.admitted;
+  };
+  await pool([...jobs], CONCURRENCY, ([key, job]) => job.run(rowOf(key), charge));
+  if (charged !== null && used < misses) await charged.giveBack(misses - used);
 
   const points: TripWeatherPoint[] = planned.map(({ date, city, point, zone }) => {
     const forecastSeries = series.get(keyOf("met:forecast", point));

@@ -510,6 +510,28 @@ export async function readableSavedDay(
   savedDayId: string,
   readerId: string | null,
 ): Promise<SavedDay | null> {
+  const row = await readableRow(savedDayId, readerId);
+  return row === null ? null : fromRow(row);
+}
+
+/**
+ * `readableSavedDay`, and what the same row says about when it was published
+ * and whether an operator hid it — the shared-day read shows both beside the
+ * day, and selected the row twice more to learn them (Sentry's N+1). The same
+ * read rule; `moderation` is still the caller's to show only to the author.
+ */
+export async function readableSavedDayWithStanding(
+  savedDayId: string,
+  readerId: string | null,
+): Promise<{ day: SavedDay; publishedAt: string | null; moderation: SavedDayModeration | null } | null> {
+  const row = await readableRow(savedDayId, readerId);
+  const day = row === null ? null : fromRow(row);
+  if (row === null || day === null) return null;
+  return { day, publishedAt: publishedAtIn(row), moderation: moderationIn(row) };
+}
+
+/** The row `readableSavedDay` reads, under its rule, or null. */
+async function readableRow(savedDayId: string, readerId: string | null): Promise<SavedDayRow | null> {
   // `getSavedDay`'s reason. This one also covers `insertSavedDay`, which reads
   // through here — so `POST /api/trips/:id/saved-days/not-a-uuid` answers 404
   // without the route learning that uuids exist.
@@ -539,7 +561,18 @@ export async function readableSavedDay(
         ),
       ),
     );
-  return rows[0] === undefined ? null : fromRow(rows[0]);
+  return rows[0] ?? null;
+}
+
+/** `publishedAtOf`'s answer, from a row already in hand. */
+function publishedAtIn(row: Pick<SavedDayRow, "publishedAt">): string | null {
+  return row.publishedAt?.toISOString() ?? null;
+}
+
+/** `moderationOf`'s answer, from a row already in hand. */
+function moderationIn(row: Pick<SavedDayRow, "moderatedAt" | "moderationNote">): SavedDayModeration | null {
+  if (row.moderatedAt == null) return null;
+  return { moderatedAt: row.moderatedAt.toISOString(), moderationNote: row.moderationNote };
 }
 
 /**
@@ -557,7 +590,7 @@ export async function publishedAtOf(savedDayId: string): Promise<string | null> 
     .select({ publishedAt: savedDays.publishedAt })
     .from(savedDays)
     .where(eq(savedDays.id, savedDayId));
-  return rows[0]?.publishedAt?.toISOString() ?? null;
+  return rows[0] === undefined ? null : publishedAtIn(rows[0]);
 }
 
 /**
@@ -590,9 +623,7 @@ export async function moderationOf(savedDayId: string): Promise<SavedDayModerati
     .select({ moderatedAt: savedDays.moderatedAt, moderationNote: savedDays.moderationNote })
     .from(savedDays)
     .where(eq(savedDays.id, savedDayId));
-  const row = rows[0];
-  if (row?.moderatedAt == null) return null;
-  return { moderatedAt: row.moderatedAt.toISOString(), moderationNote: row.moderationNote };
+  return rows[0] === undefined ? null : moderationIn(rows[0]);
 }
 
 /**
