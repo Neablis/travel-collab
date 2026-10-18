@@ -255,6 +255,9 @@ export function HomeScreen({ initialTrips = null, initialToday = null }: HomeScr
   // filtered by this rather than thrown away, because the same read may carry
   // other news (a trip deleted elsewhere, the one just restored or created).
   // Undo takes its id back out before the read that restores it.
+  // For the page's lifetime: a trip deleted here and restored from another tab,
+  // or left here and re-invited from another tab, stays hidden until Home
+  // mounts again.
   const removedIds = useRef(new Set<string>());
   const load = useCallback(async () => {
     const ticket = ++loadTicket.current;

@@ -1804,8 +1804,53 @@ describe("Home with its list from the server", () => {
     await userEvent.click(screen.getByRole("button", { name: "Trip actions for Chile" }));
     await userEvent.click(await screen.findByRole("menuitem", { name: /leave this trip/i }));
     await waitFor(() => expect(screen.queryByRole("heading", { name: "Chile" })).toBeNull());
-    await answerMountRead([NEXT, SHARED]);
+    // Chile still listed, and Japan gone elsewhere: the read is taken, minus
+    // the trip left here — not dropped, which would leave Japan drawn.
+    await answerMountRead([SHARED]);
 
+    expect(screen.queryByRole("heading", { name: "Chile" })).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Japan" })).toBeNull();
+  });
+
+  // Undo's read is in flight when a second delete lands. That read is the one
+  // bringing the restored trip back, so it must still be taken — minus the
+  // trip deleted after it was sent.
+  it("brings an undone trip back even when another delete lands before its read answers", async () => {
+    const CHILE = ListedTripSummary.parse(
+      tripSummaryFixture({ tripId: "1c2d3e4f-5a6b-4c7d-8e9f-a0b1c2d3e4f5", name: "Chile", startDate: "2030-08-01" }),
+    );
+    const heldReads: ((response: Response) => void)[] = [];
+    fetchMock = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input);
+      if (url.includes("/api/auth/session")) return jsonResponse(await getSessionMock());
+      if (url.endsWith("/commands")) {
+        const id = url.split("/").at(-2)!;
+        return jsonResponse({ detail: tripDetailFixture({ tripId: id }), history: historyFixture(id) });
+      }
+      if (/\/api\/trips\/[^/]+$/.test(url)) return jsonResponse({ trip: tripDetailFixture({ tripId }) });
+      if (url.endsWith("/api/trips")) return new Promise<Response>((resolve) => heldReads.push(resolve));
+      return jsonResponse({ error: "unexpected" }, 404);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    /** Answers the `n`th `/api/trips` read with `trips`, and returns once Home has handled it. */
+    async function answerRead(n: number, trips: ListedTripSummary[]) {
+      await act(async () => {
+        heldReads[n]!(jsonResponse({ trips }));
+        const call = fetchMock.mock.calls.filter(([input]) => String(input).endsWith("/api/trips"))[n];
+        await fetchMock.mock.results[fetchMock.mock.calls.indexOf(call!)]!.value;
+      });
+    }
+    render(<HomeScreen initialTrips={[NEXT, OVER, CHILE]} initialToday={SERVER_TODAY} />);
+
+    await deleteFromMenu("Peru");
+    await answerRead(0, [NEXT, OVER, CHILE]);
+    const toast = (await screen.findAllByRole("status")).find((node) => /deleted "peru"/i.test(node.textContent ?? ""))!;
+    await userEvent.click(within(toast).getByRole("button", { name: /undo/i }));
+    await waitFor(() => expect(heldReads).toHaveLength(2));
+    await deleteFromMenu("Chile");
+    await answerRead(1, [NEXT, OVER, CHILE]);
+
+    expect(screen.getByRole("heading", { name: "Peru" })).toBeTruthy();
     expect(screen.queryByRole("heading", { name: "Chile" })).toBeNull();
   });
 
