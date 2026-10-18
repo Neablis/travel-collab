@@ -5,14 +5,17 @@ import { createContext, createElement, useContext, useEffect, useState, type Rea
 export type SessionUser = { id?: string | null; name?: string | null; email?: string | null };
 
 /**
- * The signed-in identity, resolved client-side.
+ * The signed-in identity, resolved client-side unless the layout already has
+ * it.
  *
- * A server component cannot hand this down: `src/components` is UI, and the
+ * This module cannot read the session itself: `src/components` is UI, and the
  * UI/server lint wall (AGENTS.md invariant 6, "server logic does not leak into
  * components") bars importing `@/server/*` from anywhere outside `src/server`
- * and `src/app/api`. So identity is resolved through next-auth/react's
- * `getSession` — the same NextAuth instance reached through its client-side
- * door (`/api/auth/session`, already registered by
+ * and `src/app/api`. A server layout that has already called `auth()` passes
+ * the user down as `initialUser` on the provider below, as data rather than an
+ * import, and then nothing is fetched. Without it, identity is resolved through
+ * next-auth/react's `getSession` — the same NextAuth instance reached through
+ * its client-side door (`/api/auth/session`, already registered by
  * `src/app/api/auth/[...nextauth]/route.ts`) rather than a second auth path.
  *
  * Extracted from `AccountMenu` when `/account` became a route (M26 link 1) and

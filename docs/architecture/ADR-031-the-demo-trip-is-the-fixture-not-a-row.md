@@ -81,7 +81,7 @@ route's `withProfiles` (which would look up user rows for invented people).
 
 ### 3. The real board
 
-`/demo` mounts the **same provider stack** `(app)/trips/[tripId]/page.tsx`
+`/demo` mounts the **same provider stack** `(app)/trips/[tripId]/(board)/page.tsx`
 mounts — `TripProvider` → `FocusProvider` → `EditorHost` → `LensRouter` →
 `TripBoardScreen` — around the same board. A visitor gets Day columns, Timeline,
 Calendar, the Map with its rail and focus card, the day chips, the budget chip,
