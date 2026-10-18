@@ -21,9 +21,10 @@ import type {
 } from "@/server/assistant/entitlements";
 import type { ModelTier } from "@/server/assistant/taskClass";
 import { MODEL_TIERS } from "@/server/assistant/taskClass";
-import { standingFor, type SubscriptionStanding } from "@/server/billing/standing";
+import { standingFor, standingOf, type SubscriptionStanding } from "@/server/billing/standing";
+import { subscriptionsFor } from "@/server/billing/subscriptions";
 import { can, entitlementSet, unionEntitlements, type EntitlementSet } from "./capability";
-import { activeGrantsFor, heldPlanFor, type GrantRow, type HeldPlan } from "./grants";
+import { activeGrantsByUser, activeGrantsFor, heldPlanFor, heldPlansFor, type GrantRow, type HeldPlan } from "./grants";
 import { livePlanVersion, planVersionFromRef, planVersionRefOf, type PlanVersion } from "./planVersions";
 
 /**
@@ -267,6 +268,38 @@ export async function entitlementsFor(
     held === null ? fallbackHeldPlan() : versionOf(held),
     grants,
     subscription,
+  );
+}
+
+/**
+ * `entitlementsFor` for many accounts, in three reads rather than three per
+ * account — the operator's accounts table resolves every row it shows
+ * (Sentry's N+1). Each account's answer is the one `entitlementsFor` gives: the
+ * same three stores, the same per-account pick of each, the same pure
+ * `resolveEntitlements`. Every id asked for is answered, a missing row included.
+ */
+export async function entitlementsForMany(
+  userIds: readonly string[],
+  now: Date = new Date(),
+): Promise<Map<string, AccountEntitlements>> {
+  const ids = [...new Set(userIds)];
+  if (ids.length === 0) return new Map();
+  const [held, grants, subscriptions] = await Promise.all([
+    heldPlansFor(ids),
+    activeGrantsByUser(ids, now),
+    subscriptionsFor(ids),
+  ]);
+  return new Map(
+    ids.map((id) => {
+      const plan = held.get(id);
+      const subscription = subscriptions.get(id);
+      const resolved = resolveEntitlements(
+        plan === undefined ? fallbackHeldPlan() : versionOf(plan),
+        grants.get(id) ?? [],
+        subscription === undefined ? null : standingOf(subscription, now),
+      );
+      return [id, resolved];
+    }),
   );
 }
 

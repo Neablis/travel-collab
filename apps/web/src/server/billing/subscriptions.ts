@@ -40,6 +40,29 @@ export async function subscriptionFor(userId: string): Promise<SubscriptionRow |
 }
 
 /**
+ * `subscriptionFor` for many accounts in one read — the accounts table resolved
+ * each row's entitlements with a read per account (Sentry's N+1). Each account
+ * gets the row `subscriptionFor` would pick, by the same rule: a conferring
+ * row first, else the newest. An account with none is absent.
+ */
+export async function subscriptionsFor(userIds: readonly string[]): Promise<Map<string, SubscriptionRow>> {
+  if (userIds.length === 0) return new Map();
+  const rows = await db
+    .select()
+    .from(subscriptions)
+    .where(inArray(subscriptions.userId, [...userIds]))
+    .orderBy(desc(subscriptions.createdAt));
+  const byUser = new Map<string, SubscriptionRow[]>();
+  for (const row of rows) byUser.set(row.userId, [...(byUser.get(row.userId) ?? []), row]);
+  return new Map(
+    [...byUser].map(([userId, held]) => [
+      userId,
+      held.find((row) => CONFERRING_STATUSES.includes(row.status)) ?? held[0]!,
+    ]),
+  );
+}
+
+/**
  * Every subscription this account has ever had, newest first — the operator
  * account page's plan history (M36 link 3). The "what has it ever been on"
  * question `subscriptionFor` declines to answer.
