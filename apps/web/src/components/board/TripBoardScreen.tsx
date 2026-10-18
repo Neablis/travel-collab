@@ -179,12 +179,22 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   const { view, setView } = useLens();
   const { openCreate, openEdit, state: editor } = useEditor();
   // The open view's code, asked for on mount rather than once the trip has
-  // answered and the lens first renders, so the two arrive together. And the
-  // panels that open on request, once nothing more urgent is in flight.
+  // answered and the lens first renders, so the two arrive together. And,
+  // once nothing more urgent is in flight, the panels that open on request
+  // and the other views: a view's chunk that has to be fetched at the moment
+  // of the switch can fail to arrive (a dropped connection, a deploy since
+  // the page loaded), and a failed `next/dynamic` import takes the page to
+  // `global-error` (PR 481 review). Fetched at idle, it is already here.
   useEffect(() => {
     void LENS_MODULES[view]().catch(() => {});
   }, [view]);
-  useEffect(() => whenIdle(() => ON_REQUEST_MODULES.forEach((load) => void load().catch(() => {}))), []);
+  useEffect(
+    () =>
+      whenIdle(() =>
+        [...ON_REQUEST_MODULES, ...Object.values(LENS_MODULES)].forEach((load) => void load().catch(() => {})),
+      ),
+    [],
+  );
   // The stop editor mounts on its first opening and stays, so its closing
   // still animates. Its code is warmed at idle above; an opening before then
   // waits only for that one chunk.
@@ -726,27 +736,49 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // the page, `bottom` stayed at the bare 24px, and the launcher sat over the
   // rack it is supposed to clear: 15px of it collapsed, 212px once open. A
   // callback ref fires when the node actually appears, whatever gated it.
+  //
+  // **And the rack arrives after its wrapper** since it loads with Plan's
+  // code (`UnscheduledRack` above is a `next/dynamic`): the wrapper can
+  // commit empty and the rack's <section> appear inside it a moment later,
+  // which fires no ref at all. The same defect as Phase 9's, one level down.
+  // So the wrapper's children are watched too, and the measurement moves to
+  // whichever element is its first child now.
   const rackObserverRef = useRef<ResizeObserver | null>(null);
+  const rackChildrenObserverRef = useRef<MutationObserver | null>(null);
   const [rackHeight, setRackHeight] = useState(0);
   const rackWrapperRef = useCallback((node: HTMLDivElement | null) => {
-    rackObserverRef.current?.disconnect();
-    rackObserverRef.current = null;
-    // React attaches refs bottom-up, so the rack's own <section> is already in
-    // the DOM by the time this runs for its wrapper.
-    const el = node?.firstElementChild ?? null;
-    if (!el) {
-      setRackHeight(0);
-      return;
-    }
-    // `border-box`: the rack's bottom safe-area inset is padding (M39 Part
-    // 7), and the default content box does not change when only the inset
-    // does — a rotation, say — so `--rack-height` would keep the old number.
-    // `getBoundingClientRect` already reports the border box.
-    const observer = new ResizeObserver(() => setRackHeight(el.getBoundingClientRect().height));
-    observer.observe(el, { box: "border-box" });
-    rackObserverRef.current = observer;
+    rackChildrenObserverRef.current?.disconnect();
+    rackChildrenObserverRef.current = null;
+    const measure = () => {
+      rackObserverRef.current?.disconnect();
+      rackObserverRef.current = null;
+      const el = node?.firstElementChild ?? null;
+      if (!el) {
+        setRackHeight(0);
+        return;
+      }
+      // `border-box`: the rack's bottom safe-area inset is padding (M39 Part
+      // 7), and the default content box does not change when only the inset
+      // does — a rotation, say — so `--rack-height` would keep the old number.
+      // `getBoundingClientRect` already reports the border box.
+      const observer = new ResizeObserver(() => setRackHeight(el.getBoundingClientRect().height));
+      observer.observe(el, { box: "border-box" });
+      rackObserverRef.current = observer;
+      setRackHeight(el.getBoundingClientRect().height);
+    };
+    measure();
+    if (!node) return;
+    const children = new MutationObserver(measure);
+    children.observe(node, { childList: true });
+    rackChildrenObserverRef.current = children;
   }, []);
-  useEffect(() => () => rackObserverRef.current?.disconnect(), []);
+  useEffect(
+    () => () => {
+      rackObserverRef.current?.disconnect();
+      rackChildrenObserverRef.current?.disconnect();
+    },
+    [],
+  );
 
   // The page shell (trips/[tripId]/(board)/page.tsx) now owns the <main> landmark via
   // PageContainer as="main" width="full" px-0 (Task L1) — this component owns
@@ -1752,7 +1784,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
       ) : lensAcceptsDrops(view) && !rackIsRow && (
         // Unmounted on a phone, where the rack is the board's end-of-day row:
         // the ref's `null` is what puts `--rack-height` back to 0.
-        <div ref={rackWrapperRef} inert={preview.seq !== null ? true : undefined}>
+        <div ref={rackWrapperRef} data-testid="rack-dock" inert={preview.seq !== null ? true : undefined}>
           {unscheduledRack("dock")}
         </div>
       )}

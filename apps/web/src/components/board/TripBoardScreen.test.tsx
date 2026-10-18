@@ -1373,6 +1373,28 @@ describe("TripBoardScreen", () => {
     await waitFor(() => expect(content.style.getPropertyValue("--rack-height")).toBe("56px"));
   });
 
+  // The same defect one level down (PR 481 review): the rack loads with
+  // Plan's code, so in a browser its wrapper can commit empty and the rack
+  // appear inside it later, which fires no ref. This suite preloads every
+  // module (`preloadTripBoardModules`), so the rack is always there first;
+  // the late arrival is staged here by swapping the wrapper's child, which is
+  // what the dynamic import's resolution does to the DOM.
+  it("measures the rack when it arrives after its wrapper", async () => {
+    const fixture = tripDetailFixture();
+    server.use(...makeTripHandlers(fixture));
+    renderScreen(fixture.tripId);
+
+    expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+    const content = screen.getByTestId("trip-board-content");
+    const wrapper = screen.getByTestId("rack-dock");
+
+    const arrived = document.createElement("section");
+    vi.spyOn(arrived, "getBoundingClientRect").mockReturnValue({ height: 72 } as DOMRect);
+    wrapper.replaceChildren(arrived);
+
+    await waitFor(() => expect(content.style.getPropertyValue("--rack-height")).toBe("72px"));
+  });
+
   // What used to be here: "publishes the launcher's flow height on attach".
   // `--launcher-height` was a real measurement with a real consumer — MapLens
   // sized its canvas from `calc(100dvh - … - var(--launcher-height))`, because
