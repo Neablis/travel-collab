@@ -25,6 +25,16 @@
 // A from-scratch second map re-acquires all four. That is the whole argument
 // for this file: it is not shared because it is similar, it is shared because
 // the differences are bugs.
+//
+// **MapLibre's stylesheet lives here too**, not in the root layout where it
+// sat until now: there it was ~83KB of render-blocking CSS on every route,
+// Home and the front door included, for a map only the trip's Map view and a
+// shared day draw. Both of those import this module, so the sheet arrives with
+// the map's own chunk. Without it, marker positioning transforms and the map's
+// stacking context are undefined. Order against `globals.css` does not matter:
+// nothing there targets a `.maplibregl-*` class, and Tailwind's utilities sit
+// in a cascade layer that unlayered rules like these outrank either way.
+import "maplibre-gl/dist/maplibre-gl.css";
 
 /**
  * The muted "positron" basemap, so day accents (routes, markers) are the only

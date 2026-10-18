@@ -2,9 +2,9 @@ import type { Metadata, Viewport } from "next";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Bricolage_Grotesque, IBM_Plex_Mono, IBM_Plex_Sans } from "next/font/google";
-// Required by MapLens (maplibre-gl): without this, marker positioning
-// transforms and the map's stacking context are undefined.
-import "maplibre-gl/dist/maplibre-gl.css";
+// MapLibre's stylesheet is not imported here: it travels with the map
+// (`components/lenses/mapBootstrap.ts`), so a route with no map does not wait
+// on it.
 import "./globals.css";
 import { SaveLightProvider } from "@/components/SaveLight";
 import { ServiceWorkerRegistration } from "@/components/ServiceWorkerRegistration";
