@@ -129,9 +129,15 @@ start_postgres() {
   if ! pnpm --filter web db:migrate >"$logdir/db-migrate.log" 2>&1; then
     echo "session-start: WARNING db:migrate failed, so the local database is missing migrations. See $logdir/db-migrate.log."
   fi
-  if ! pnpm -s --filter web db:state >"$logdir/db-state.log" 2>&1; then
+  # db:state exits 1 when the database is behind, and 2 when it could not
+  # tell (no client, no DATABASE_URL, no connection): two different warnings.
+  local state=0
+  pnpm -s --filter web db:state >"$logdir/db-state.log" 2>&1 || state=$?
+  if [ "$state" -eq 1 ]; then
     echo "session-start: WARNING the local database is not at the newest migration:"
     grep -m1 "migrations applied" "$logdir/db-state.log" | sed 's/^/  /' || true
+  elif [ "$state" -ne 0 ]; then
+    echo "session-start: WARNING could not check the local database's migrations (exit $state); see $logdir/db-state.log."
   fi
 }
 
@@ -149,9 +155,12 @@ ensure_pgvector() {
   [ -n "$sharedir" ] && [ -f "$sharedir/extension/vector.control" ] && return 0
   ver="$(basename "$(dirname "$pgbin")")"
   export DEBIAN_FRONTEND=noninteractive
-  if apt-get install -y -q "postgresql-$ver-pgvector" >"$logdir/pgvector.log" 2>&1 \
-    || { apt-get update -q >>"$logdir/pgvector.log" 2>&1 \
-      && apt-get install -y -q "postgresql-$ver-pgvector" >>"$logdir/pgvector.log" 2>&1; }; then
+  # Each apt call capped at 60s, as `scripts/e2e-browser.mjs` caps its own
+  # (PR 345 review): a stalled proxy should cost the extension, not minutes of
+  # every session's start.
+  if timeout 60 apt-get install -y -q "postgresql-$ver-pgvector" >"$logdir/pgvector.log" 2>&1 \
+    || { timeout 60 apt-get update -q >>"$logdir/pgvector.log" 2>&1 \
+      && timeout 60 apt-get install -y -q "postgresql-$ver-pgvector" >>"$logdir/pgvector.log" 2>&1; }; then
     return 0
   fi
   echo "session-start: WARNING could not install postgresql-$ver-pgvector (see $logdir/pgvector.log); migrations from 0054 on will not apply."

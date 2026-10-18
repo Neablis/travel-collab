@@ -54,7 +54,7 @@ needed. `docker ps` showing nothing is normal; `pg_isready -h 127.0.0.1 -p
 The hook also installs **pgvector** (`postgresql-16-pgvector`, from the image's apt sources) when
 it is missing, because migration 0054 needs it and the image ships without it. Then it checks
 `db:state`. A database that is not at the newest migration is said on the hook's **stdout**, as a
-`session-start: WARNING` line under the digest. If you see one, the cause is in the log it names;
+`session-start: WARNING` line above the digest. If you see one, the cause is in the log it names;
 `pnpm --filter web db:state` says how far behind the database is (KI-2026-10-18-a).
 
 ## Browsers
