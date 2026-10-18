@@ -334,12 +334,6 @@ here two days later.
   - **Group a run of messages.** When one person sends several messages in a row within 30 minutes,
     show the author once and draw the run as one visual block.
 
-- **Drop `users.stripe_customer_id` (filed at M47's close, 2026-10-18).** ADR-076 §2 moved the
-  customer id into `stripe_customers`, keyed by `(user_id, livemode)`; migration `0055` copied the
-  existing values there, and the column stopped being read or written. ADR-076 leaves the drop to
-  a later migration once nothing has read it for a release. A one-migration change: confirm no
-  reader with `grep -rn stripe_customer_id apps/web/src`, drop the column, regenerate the snapshot.
-
 - **The tier charts show gross added and lost, not only net (Mitchell, 2026-10-17, at M47's
   part 4).** `tier_weekly` holds one count per plan per week, so the Users tab can draw net change
   only. *+N added / −N lost* needs a per-account weekly snapshot (or a holdings diff in the rollup

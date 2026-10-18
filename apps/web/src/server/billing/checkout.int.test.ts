@@ -10,11 +10,8 @@
 // Stripe is stubbed at `createCustomer`, the one call this path makes. It
 // answers the same id for the same account, as Stripe's idempotency key does.
 import { randomUUID } from "node:crypto";
-import { readFileSync } from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { stripeCustomers, subscriptions, users } from "@/server/db/schema";
 import { upsertUser } from "@/server/users";
@@ -37,7 +34,6 @@ vi.mock("./prices", async (importOriginal) => ({
 
 const { portalUrlFor, startCheckout, stripeCustomerFor } = await import("./checkout");
 
-const HERE = path.dirname(fileURLToPath(import.meta.url));
 
 async function makeAccount(): Promise<string> {
   const id = `dev-${randomUUID()}`;
@@ -97,27 +93,6 @@ describe("the Stripe customer for an account", () => {
 
   it("refuses to invent a customer for an account that does not exist", async () => {
     await expect(stripeCustomerFor(`dev-${randomUUID()}`, true)).rejects.toThrow(/No users row/);
-    expect(createCustomer).not.toHaveBeenCalled();
-  });
-});
-
-// **Migration 0055's copy, run as the migration runs it.** The template
-// database is migrated before any row exists, so the statement is read out of
-// the committed file and run over an account that predates it.
-describe("a customer id from before stripe_customers", () => {
-  it("reads back as that account's live customer", async () => {
-    const migration = readFileSync(path.resolve(HERE, "../../../drizzle/0055_mode_keyed_billing.sql"), "utf8");
-    const copy = migration
-      .split("--> statement-breakpoint")
-      .map((statement) => statement.trim())
-      .find((statement) => statement.startsWith('INSERT INTO "stripe_customers"'));
-    expect(copy).toBeDefined();
-
-    const userId = await makeAccount();
-    await db.update(users).set({ stripeCustomerId: "cus_from_before" }).where(eq(users.id, userId));
-    await db.execute(sql.raw(copy!));
-
-    expect(await stripeCustomerFor(userId, true)).toBe("cus_from_before");
     expect(createCustomer).not.toHaveBeenCalled();
   });
 });

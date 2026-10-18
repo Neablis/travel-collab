@@ -117,14 +117,6 @@ describe("users repository", () => {
       planId: "free",
       planVersion: 1,
       isAdmin: false,
-      // **M21's column, and `null` is the decision rather than the default.**
-      // An account becomes a Stripe customer at its FIRST CHECKOUT, not at
-      // sign-in: creating one for everybody who signs in would invent a paying
-      // relationship with every visitor and leave the dashboard full of
-      // customers who have never been offered anything. `toEqual` above is
-      // what makes that a decision somebody made rather than a column that
-      // appeared.
-      stripeCustomerId: null,
       // M47's column: a held plan from sign-in is not from a test checkout.
       planLivemode: true,
       // M47's switch: a first sign-in buys live. On would hand every new

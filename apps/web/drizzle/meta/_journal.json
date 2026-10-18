@@ -414,6 +414,13 @@
       "when": 1792304113257,
       "tag": "0058_perf_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1792333198656,
+      "tag": "0059_drop_users_stripe_customer_id",
+      "breakpoints": true
     }
   ]
 }

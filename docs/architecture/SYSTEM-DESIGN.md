@@ -400,7 +400,7 @@ dispatched workflow. Details: `docs/guidelines/content-bundles.md`.
 | ADR-062's title: the assistant runs on eve | It runs on the AI SDK through the gateway |
 | Foundation spec §5: events table without `batch_id`/`origin`; snapshots "deferred" | Both columns exist; still no snapshots |
 | "Handlers never fold at read time" | True for trip reads; every write folds the full stream, and shares and history replay on read |
-| "The webhook is billing's only writer" | One stated exception: checkout writes `stripe_customers`, one customer per account per Stripe mode (ADR-076); `users.stripe_customer_id` is left in place, unread |
+| "The webhook is billing's only writer" | One stated exception: checkout writes `stripe_customers`, one customer per account per Stripe mode (ADR-076); `users.stripe_customer_id` was dropped by migration 0059 |
 | Widget registry comment: "Twelve primitives" | About 25 registered definitions |
 | `admission.ts` is named as a gate | Since open signup it only tracks referral codes |
 

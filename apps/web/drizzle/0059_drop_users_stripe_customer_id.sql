@@ -1,0 +1,15 @@
+-- Drops `users.stripe_customer_id` (ADR-076 §2). The customer id moved to
+-- `stripe_customers`, one row per account per Stripe mode; 0055 copied every
+-- value there as live, and since then no code has read or written the column.
+--
+-- **Deploy first, then migrate.** Drizzle names every column of `users` in the
+-- SELECTs it builds, so a build that still has the column in its schema reads
+-- it on every user query, and fails once it is gone. Merging this removes the
+-- column from the schema; dispatch `migrate-production` only after that
+-- deploy is live in production. The shared preview Neon branch drops it on
+-- the first preview build of this branch, so a preview of an older branch
+-- breaks there until it merges `main`.
+--
+-- Irreversible: the values were copied to `stripe_customers` by 0055, and
+-- nothing reads them here.
+ALTER TABLE "users" DROP COLUMN "stripe_customer_id";
