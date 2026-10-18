@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { DistanceUnit, PersonColor, TimeFormat, UpdateUserPreferences, UserPreferences } from "@tc/contracts";
-import { fetchPreferences, updatePreferences, type ApiResult } from "@/lib/apiClient";
+import { fetchPreferences, updatePreferences, type AccountPreferencesRead, type ApiResult } from "@/lib/apiClient";
 
 /**
  * Account preferences, resolved once per authenticated shell and shared by
@@ -14,18 +14,15 @@ import { fetchPreferences, updatePreferences, type ApiResult } from "@/lib/apiCl
  * it and stay stale until they next signed in. That is the wrong shape for a
  * setting whose whole point is that it takes effect now.
  *
- * **Fetched here rather than passed down from a server component.** ADR-019's
- * rule for a server-only value is "props from a server component, never a
- * client component importing `src/server`" — but the lint wall (block 1 of
- * `eslint.config.mjs`) exempts only `src/server/**`, `src/app/api/**` and the
- * `.well-known` route from the `@/server/*` ban, so a page or layout file
- * cannot read the row either; `scripts/check-lint-wall.mjs` fixtures exactly
- * that import from `src/app` and asserts it is rejected. The wall's own
- * instruction for this case is the other half of the same rule — "UI must call
- * the API, not server internals" — which is what this does, through the typed
- * client, the same way `TripProvider` reaches trip state. The invariant the
- * ADR is protecting (no client component importing server code) holds either
- * way; only the transport differs. See the M17 report.
+ * **Served by the `(app)` layout, fetched here otherwise.** That layout reads
+ * the answer `GET /api/account/preferences` gives (`server/accountPreferences.ts`)
+ * beside the plan, under its lint-wall exemption, and hands it over as
+ * `initialRead`; given one, there is no mount fetch. That fetch was the trip
+ * page's first API request after the document. Without one — the layout's read
+ * failed, or the mount point serves nothing (the operator console's layout) —
+ * the provider fetches through the typed client, as it did since M17. Either
+ * way no client component imports `src/server` (ADR-019); only the transport
+ * differs.
  *
  * Mounted in `(app)/layout.tsx` so the header's account menu and the trip
  * page's map are inside ONE provider: the Sheet writes and the map rail's
@@ -82,8 +79,15 @@ const Context = createContext<PreferencesValue | null>(null);
 export function PreferencesProvider({
   children,
   noSessionCookie = false,
+  initialRead,
 }: {
   children: React.ReactNode;
+  /**
+   * The read the server already made for this page, in place of the mount
+   * fetch. Taken once, as initial state: a later render's value is not
+   * adopted, because a `save` that has landed since is newer than it.
+   */
+  initialRead?: AccountPreferencesRead;
   /**
    * The layout saw no session cookie (`lib/sessionHint.ts`): a reader with no
    * account, whose read could only 401 (ADR-061's public playbooks). Defaults,
@@ -91,13 +95,16 @@ export function PreferencesProvider({
    */
   noSessionCookie?: boolean;
 }) {
-  const [preferences, setPreferences] = useState<UserPreferences>(DEFAULTS);
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [defaultColor, setDefaultColor] = useState<PersonColor | null>(null);
-  const [loaded, setLoaded] = useState(noSessionCookie);
+  const [preferences, setPreferences] = useState<UserPreferences>(initialRead?.preferences ?? DEFAULTS);
+  const [isAdmin, setIsAdmin] = useState(initialRead?.isAdmin ?? false);
+  const [defaultColor, setDefaultColor] = useState<PersonColor | null>(initialRead?.defaultColor ?? null);
+  const [loaded, setLoaded] = useState(noSessionCookie || initialRead !== undefined);
+  // A boolean in the effect's deps, not the object: a fresh object on a later
+  // render must not set off a fetch the first render did not need.
+  const served = initialRead !== undefined;
 
   useEffect(() => {
-    if (noSessionCookie) return;
+    if (noSessionCookie || served) return;
     let cancelled = false;
     void fetchPreferences().then((result) => {
       if (cancelled) return;
@@ -116,7 +123,7 @@ export function PreferencesProvider({
     return () => {
       cancelled = true;
     };
-  }, [noSessionCookie]);
+  }, [noSessionCookie, served]);
 
   // Monotonic, and the only reason it exists is the race below. A ref rather
   // than state: it must be read and written synchronously within one `save`

@@ -22,7 +22,7 @@ vi.mock("@/lib/apiClient", () => ({
     }),
 }));
 
-const { PreferencesProvider, useAccountPreferences } = await import("./PreferencesProvider");
+const { PreferencesProvider, useAccountPreferences, useIsAdmin } = await import("./PreferencesProvider");
 
 /** Renders the live preferences and exposes `save` to the test. */
 let save: (patch: UpdateUserPreferences) => Promise<unknown>;
@@ -33,6 +33,7 @@ function Probe() {
     <div>
       <span data-testid="unit">{ctx.preferences.distanceUnit}</span>
       <span data-testid="name">{ctx.preferences.displayName ?? "—"}</span>
+      <span data-testid="admin">{useIsAdmin() ? "admin" : "member"}</span>
     </div>
   );
 }
@@ -112,6 +113,8 @@ describe("PreferencesProvider", () => {
     expect(preferencesRead).not.toHaveBeenCalled();
   });
 
+  // No `initialRead`: the layout's read failed, or the mount point serves
+  // nothing (the operator console's layout).
   it("reads them when there may be a session", async () => {
     render(
       <PreferencesProvider>
@@ -119,5 +122,32 @@ describe("PreferencesProvider", () => {
       </PreferencesProvider>,
     );
     await waitFor(() => expect(preferencesRead).toHaveBeenCalledTimes(1));
+  });
+
+  // The `(app)` layout serves the first read with the page, so the provider
+  // starts at it — the operator flag included, which the account menu reads —
+  // and does not ask the endpoint the same question after hydration.
+  it("starts at a served read and does not fetch it again", async () => {
+    render(
+      <PreferencesProvider
+        initialRead={{
+          preferences: { displayName: "Sam", homeAirport: null, distanceUnit: "mi", timeFormat: "12h", avatar: null, color: null, publicDisplayName: false },
+          defaultColor: null,
+          isAdmin: true,
+        }}
+      >
+        <Probe />
+      </PreferencesProvider>,
+    );
+    expect(screen.getByTestId("unit").textContent).toBe("mi");
+    expect(screen.getByTestId("admin").textContent).toBe("admin");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(preferencesRead).not.toHaveBeenCalled();
+
+    // A save from the served state is adopted like any other.
+    void save({ distanceUnit: "km" });
+    await waitFor(() => expect(pending).toHaveLength(1));
+    pending[0]!.settle({ displayName: "Sam", homeAirport: null, distanceUnit: "km", timeFormat: "12h", avatar: null, color: null, publicDisplayName: false });
+    await waitFor(() => expect(screen.getByTestId("unit").textContent).toBe("km"));
   });
 });

@@ -581,7 +581,9 @@ export default [
     // `ServedEntitlementsProvider`, so an Ask is in the first HTML for a reader
     // who has the assistant and absent for one who has not. Fetching its own
     // `/api/account/plan` would cost the same round trip after paint that the
-    // decision removed. Per request, never a JWT claim (ADR-045 rule 2). That
+    // decision removed. The reader's preferences ride the same exemption, read
+    // beside the plan through `@/server/accountPreferences`, for the same
+    // round trip. Per request, never a JWT claim (ADR-045 rule 2). That
     // one file only: the layouts below it and the screens it renders stay UI.
     files: ["src/app/(app)/layout.tsx"],
     rules: {
