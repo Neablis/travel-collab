@@ -13,6 +13,24 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-10-18 — Home's budget lines come in the trips list
+- **Added** (`packages/contracts/src/trip.ts`): `ListedTripSummary.spend`,
+  `{ totalMinor, budgetMinor: nullable, currency } | null`, `.default(null)`.
+  The figures a Home card's "{planned} planned of {budget}" line is made from:
+  the trip's total recosted for its effective travellers, guests included
+  (`overlayMembers` + `tripSpend`, the single trip read's own steps), its
+  budget, and its currency. Null when the trip's stored document does not parse.
+- Why: Home fetched `GET /api/trips/:id` for every grid card only to compute
+  that line — an N+1 over HTTP, each a full access-guarded document load.
+  `GET /api/trips` now computes it for every listed trip in a constant number
+  of statements (one batched read of the stored details, one of the guests).
+  Numbers, not the sentence, so the client formats it with `plannedOfBudgetLine`.
+- Consumers updated: `apps/web` (`GET /api/trips`, `projections.ts`
+  `getTripDetails`, `access/guests.ts` `listGuestsByTrip`, `access/overlay.ts`
+  `listedSpend`, Home `page.tsx`, `lib/cost.ts` `plannedOfBudgetLine` now takes
+  only `total` and `budget`). `TripSummary` and `/v1/trips` are unchanged.
+- Breaking? no — additive, defaulted for version skew.
+
 ## 2026-10-17 — The admin Stripe test-mode switch (M47 part 3)
 - **Added** (`packages/contracts/src/entitlement.ts`, beside `AdminGrantInput`):
   `AdminTestModeInput { enabled: boolean }`, the body of

@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { inArray } from "drizzle-orm";
-import type { TripSummaryMember } from "@tc/contracts";
+import { eq, inArray } from "drizzle-orm";
+import { TripDetail, type ListedTripSummary, type TripSummaryMember } from "@tc/contracts";
 import { defaultPersonColor, resolveTripColors } from "@tc/domain";
 import { idAvoidingColors } from "@/server/test-support/personaIds";
 import { db } from "@/server/db/client";
@@ -9,6 +9,7 @@ import {
   events,
   pages,
   tripDetails,
+  tripGuests,
   tripInvites,
   tripMemberships,
   tripAccessRevs,
@@ -25,6 +26,8 @@ import { acceptInvite, createInvite } from "@/server/access/invites";
 import { setTravelling } from "@/server/access/travellers";
 import { createShare } from "@/server/access/shares";
 import { postMessage } from "@/server/chat/messages";
+import { addGuest } from "@/server/access/guests";
+import { tripSpend } from "@/lib/cost";
 
 // Every id here is fresh per run, so the grid these tests read is only ever
 // this file's own rows — no truncation, same convention as the sibling route
@@ -49,8 +52,15 @@ const { unreadByTrip } = await import("@/server/chat/messages");
 
 // Import after the mocks so the route picks up the mocked `auth`.
 const { GET } = await import("./route");
+const { GET: GET_TRIP } = await import("./[tripId]/route");
 
-type Summary = { tripId: string; name: string; members: TripSummaryMember[]; unreadChat: number };
+type Summary = {
+  tripId: string;
+  name: string;
+  members: TripSummaryMember[];
+  unreadChat: number;
+  spend: ListedTripSummary["spend"];
+};
 
 // Members as a card carries them when they have no `users` row — every id this
 // file mints that the naming tests below do not sign in: no name, no persona,
@@ -88,6 +98,7 @@ afterAll(async () => {
   if (signedIn.length > 0) await db.delete(users).where(inArray(users.id, signedIn));
   if (seeded.length === 0) return;
   await db.delete(tripShares).where(inArray(tripShares.tripId, seeded));
+  await db.delete(tripGuests).where(inArray(tripGuests.tripId, seeded));
   await db.delete(tripInvites).where(inArray(tripInvites.tripId, seeded));
   await db.delete(tripMemberships).where(inArray(tripMemberships.tripId, seeded));
   await db.delete(tripTravellers).where(inArray(tripTravellers.tripId, seeded));
@@ -362,8 +373,79 @@ describe("GET /api/trips cost", () => {
     expect(fiveCards.length).toBe(5);
     // The summaries query, then one batched read each of the granted members,
     // who is travelling, every member's persona (M38; M37 D5: in one read,
-    // never per card), and the unread chat counts (M46 D5).
-    expect(forSixTrips).toBe(5);
+    // never per card), the unread chat counts (M46 D5), and — for each card's
+    // budget line, which was a `GET /api/trips/:id` per card — the stored
+    // details and the guests.
+    expect(forSixTrips).toBe(7);
     expect(forFiveTrips).toBe(forSixTrips);
+  });
+});
+
+// Each card's "planned of budget" line is made from `spend`, which Home used
+// to get by fetching every grid trip's own detail. It has to be the figure the
+// trip page shows, so it is checked against that page's own read: recosted
+// for every traveller, the invited member and the guest included.
+describe("GET /api/trips spend", () => {
+  const usd = (amountMinor: number) => ({ amountMinor, currency: "USD" });
+
+  async function pricedTrip(name: string, budget: number | null): Promise<string> {
+    const tripId = await seedTrip(name);
+    const dayId = randomUUID();
+    if (budget !== null) await executeTripCommand({ type: "SetTripBudget", tripId, budget: usd(budget) }, OWNER);
+    await executeTripCommand({ type: "AddDay", tripId, dayId }, OWNER);
+    await executeTripCommand(
+      { type: "AddActivity", tripId, activityId: randomUUID(), dayId, title: "Ramen", cost: usd(30_00) },
+      OWNER,
+    );
+    // A backlog idea counts toward the total too, as the trip page counts it.
+    await executeTripCommand(
+      { type: "AddActivity", tripId, activityId: randomUUID(), title: "Onsen", cost: usd(10_00) },
+      OWNER,
+    );
+    await join(tripId, "editor", GUEST);
+    const baby = await addGuest(tripId, "Baby", OWNER);
+    if (!baby.ok) throw new Error(`failed to add a guest: ${baby.error.message}`);
+    return tripId;
+  }
+
+  async function tripPage(tripId: string): Promise<TripDetail> {
+    const res = await GET_TRIP(new Request("http://test/x"), { params: Promise.resolve({ tripId }) });
+    expect(res.status).toBe(200);
+    return TripDetail.parse(((await res.json()) as { trip: unknown }).trip);
+  }
+
+  it("serves the total and budget the trip page shows, priced for members and guests", async () => {
+    const tripId = await pricedTrip("Priced", 500_00);
+    const page = await tripPage(tripId);
+    const spend = (await grid()).find((t) => t.tripId === tripId)!.spend;
+
+    expect(spend).toEqual({ totalMinor: tripSpend(page).total, budgetMinor: tripSpend(page).budget, currency: page.currency });
+    // Three travellers — the owner, the invited editor, the guest — at 30 + 10
+    // each. Pinned as a number too, so the two reads cannot agree on a wrong one.
+    expect(spend).toEqual({ totalMinor: 120_00, budgetMinor: 500_00, currency: "USD" });
+  });
+
+  it("serves a null budget for a trip without one, and still its total", async () => {
+    const tripId = await pricedTrip("Unbudgeted", null);
+    const page = await tripPage(tripId);
+    const spend = (await grid()).find((t) => t.tripId === tripId)!.spend;
+
+    expect(spend).toEqual({ totalMinor: tripSpend(page).total, budgetMinor: null, currency: page.currency });
+    expect(spend?.totalMinor).toBe(120_00);
+  });
+
+  it("serves no figures for a trip whose stored detail does not parse, and still lists it and the rest", async () => {
+    const broken = await seedTrip("Broken doc");
+    const fine = await pricedTrip("Fine", 500_00);
+    await db
+      .update(tripDetails)
+      .set({ doc: { tripId: broken } as unknown as TripDetail })
+      .where(eq(tripDetails.tripId, broken));
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const trips = await grid();
+    logged.mockRestore();
+    expect(trips.find((t) => t.tripId === broken)?.spend).toBeNull();
+    expect(trips.find((t) => t.tripId === fine)?.spend?.totalMinor).toBe(120_00);
   });
 });

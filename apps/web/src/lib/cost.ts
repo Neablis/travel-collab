@@ -55,12 +55,12 @@ export function tripSpend(detail: TripDetail): TripSpend {
   };
 }
 
-// "{planned} planned of {budget}" (or the honest "No budget yet") — shared by
-// every caller that has a real TripDetail in hand (NextTripHero for its own
-// single trip, page.tsx for each visible grid trip, Task 4.1/M10 Phase 4).
-// Takes the already-computed TripSpend rather than a TripDetail directly so
-// callers that already called tripSpend() for other reasons don't recompute it.
-export function plannedOfBudgetLine(spend: TripSpend, currency: string): string {
+// "{planned} planned of {budget}" (or the honest "No budget yet") — the one
+// formatting path for the line: NextTripHero passes its own trip's TripSpend,
+// and page.tsx passes each grid trip's `ListedTripSummary.spend` figures, which
+// the server computed with tripSpend() (Task 4.1/M10 Phase 4). Takes only the
+// two numbers it reads, so both callers fit without a TripDetail.
+export function plannedOfBudgetLine(spend: Pick<TripSpend, "total" | "budget">, currency: string): string {
   return spend.budget === null
     ? "No budget yet"
     : `${formatMoney(spend.total, currency)} planned of ${formatMoney(spend.budget, currency)}`;
