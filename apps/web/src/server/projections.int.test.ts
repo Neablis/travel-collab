@@ -1,11 +1,11 @@
 import { randomUUID } from "node:crypto";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 import type { TripDetail } from "@tc/contracts";
 import { executeTripCommand } from "./commands";
 import { getTripDetail, listTripSummaries, listTripSummariesPage, listTripSummariesVisibleTo, rebuildProjections } from "./projections";
 import { db } from "./db/client";
-import { events, tripDetails, tripSummaries } from "./db/schema";
+import { events, tripDetails, tripMemberships, tripSummaries } from "./db/schema";
 
 // Per run rather than the fixed "u1" (KI-69), so this file's events cannot be
 // confused with another suite's or a developer's own.
@@ -102,6 +102,63 @@ describe("trip summaries carry the start date, in a stated order", () => {
 
     await executeTripCommand({ type: "SetTripStartDate", tripId: older, startDate: null }, member);
     expect((await db.select().from(tripSummaries).where(where))[0]!.startDate).toBeNull();
+  });
+});
+
+/**
+ * The visibility predicate, case by case, through both listing queries. It is
+ * a UNION of two sources now (the log's member list and `trip_memberships`),
+ * so each leg has to be seen to count, and the outer filter and order to still
+ * apply to rows that arrive from either. `/api/trips`' route test covers the
+ * sources one trip at a time; this one puts them in a single list, where a
+ * dropped leg, a lost `status` filter or an order applied per leg shows.
+ */
+describe("both listing queries see the caller's trips from either source, newest first", () => {
+  it("lists log-member and membership-row trips once each, never a stranger's or a deleted one", async () => {
+    const reader = `vis-${randomUUID().slice(0, 8)}`;
+    const other = `vis-other-${randomUUID().slice(0, 8)}`;
+    const [ownOld, shared, both, ownNew, strangers, deleted] = [
+      randomUUID(),
+      randomUUID(),
+      randomUUID(),
+      randomUUID(),
+      randomUUID(),
+      randomUUID(),
+    ];
+    // Created in this order, so newest-first is the reverse; the log's own
+    // timestamps decide it, and the expectation is computed from them below.
+    await executeTripCommand({ type: "CreateTrip", tripId: ownOld, name: "Own, older" }, reader);
+    await executeTripCommand({ type: "CreateTrip", tripId: shared, name: "Shared" }, other);
+    await executeTripCommand({ type: "CreateTrip", tripId: both, name: "Both" }, reader);
+    await executeTripCommand({ type: "CreateTrip", tripId: strangers, name: "Not mine" }, other);
+    await executeTripCommand({ type: "CreateTrip", tripId: deleted, name: "Gone" }, reader);
+    await executeTripCommand({ type: "CreateTrip", tripId: ownNew, name: "Own, newer" }, reader);
+    expect((await executeTripCommand({ type: "DeleteTrip", tripId: deleted }, reader)).ok).toBe(true);
+    // Rows written directly: the predicate reads only the row, and how an
+    // invite becomes one is the Access module's test. `both` names the reader
+    // in the log AND in a row, which must list it once, not twice.
+    const createdAt = new Date().toISOString();
+    await db.insert(tripMemberships).values([
+      { tripId: shared, userId: reader, role: "editor", invitedBy: other, createdAt },
+      { tripId: both, userId: reader, role: "editor", invitedBy: reader, createdAt },
+    ]);
+
+    const visible = [ownOld, shared, both, ownNew];
+    const stamped = await db
+      .select({ tripId: tripSummaries.tripId, createdAt: tripSummaries.createdAt })
+      .from(tripSummaries)
+      .where(inArray(tripSummaries.tripId, visible));
+    // The stated order, `created_at desc, trip_id desc`, worked out here
+    // rather than assumed from creation order: two commands can land in the
+    // same millisecond, and then `trip_id` decides.
+    const expected = stamped
+      .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt) || (a.tripId < b.tripId ? 1 : -1))
+      .map((r) => r.tripId);
+    expect(expected).toHaveLength(4);
+
+    const ids = (rows: { tripId: string }[]) => rows.map((r) => r.tripId);
+    expect(ids(await listTripSummariesVisibleTo(reader))).toEqual(expected);
+    expect(ids(await listTripSummariesPage(reader, { limit: 10, after: null }))).toEqual(expected);
   });
 });
 
