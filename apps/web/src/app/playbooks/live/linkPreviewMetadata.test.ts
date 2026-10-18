@@ -298,9 +298,9 @@ describe("/playbooks/board metadata", () => {
 });
 
 // The copy `proxy.ts` sends a reader with no session and no query to
-// (`lib/playbooksReader.ts`). It is only cacheable while it asks nobody who is
-// reading and reads no query: either one makes Next render it per request, and
-// nothing fails, it just stops being cached. So these say what it reads.
+// (`lib/playbooksReader.ts`). It renders in ISR mode, so it must ask nobody who
+// is reading and read no query: either one fails the render there
+// (`DYNAMIC_SERVER_USAGE`, a 500; ADR-077). So these say what it reads.
 describe("the cached copy", () => {
   const dayHead = (copy: string) => dayMetadata({ params: Promise.resolve({ copy, savedDayId: DAY_ID }) });
 

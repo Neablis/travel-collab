@@ -92,7 +92,7 @@ export function AppShell({
               83px gap with no navigation in it, on exactly the surface that has
               nowhere else to navigate from. `PhoneTabBarFallback` renders the same
               five tabs from `usePathname()` alone, which triggers no bailout.
-              Copilot caught this on PR #143. */}
+              Copilot caught this on PR 143. */}
           <Suspense fallback={<PhoneTabBarFallback />}>
             <PhoneTabBar />
           </Suspense>

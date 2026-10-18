@@ -43,7 +43,9 @@ an Ask, *Saved* or a private day.
 4. **The cache's lifetime is the data's.** The pages' reads are `libraryCached` (ADR-063), whose
    tags land on each page's ISR entry, so `invalidatePublicDay` and `invalidateAuthor` clear the
    pages as well as the reads. That includes a cached 404: the miss read carries the day's tag
-   before it throws. A page with no tagged read (the board) keeps until the next deploy.
+   before it throws. A page with no tagged read (the board) keeps until the next deploy. The
+   profile page's preview card is its own `fetch` with a one-hour revalidate, as it was before
+   this ADR, so a changed public name can stay in a shared profile's card for up to an hour.
 
 ## Why two trees and not one segment
 
@@ -74,6 +76,17 @@ itself 404s: the proxy prefixes it again.
   page built at deploy would not outlive the next publish anyway.
 
 ## Consequences
+
+- **A miss is now cached, at the page.** ADR-063 decision 4 keeps misses out of the *data* cache
+  ("random ids cannot fill it"), and that still holds. But the cached copy's 404 is an ISR page
+  like any other. A signed-out request for a random well-formed day URL writes a 404 entry that
+  lives a day (its `day:<id>` tag is cleared only if that id is ever published). A junk city,
+  country or tag slug writes one that lives until the next publish clears `library`. A profile
+  id writes a 200 that lives an hour. Each is one ISR write and some storage, bounded by the rate
+  someone can send requests. The guard is Vercel's firewall rate limiting, not this code. Live
+  rendering for misses would need the proxy to know what exists, which it cannot. Mitchell to
+  decide whether that bound is acceptable, or whether a firewall rule on `/playbooks/**` comes
+  with this.
 
 - The proxy now runs on every library request: one Edge invocation and a JWT decode, before a
   CDN hit.

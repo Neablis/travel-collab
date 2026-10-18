@@ -24,8 +24,9 @@ export async function readerOf(params: Promise<LibraryParams>): Promise<Playbook
 
 /**
  * The page's query string as a live page reads it, and none at all for the
- * cached copy: reading `searchParams` would make it render per request, and
- * `proxy.ts` only sends a URL there when its query holds nothing a page reads.
+ * cached copy: it renders in ISR mode, where reading `searchParams` fails the
+ * render (ADR-077), and `proxy.ts` only sends a URL there when its query holds
+ * nothing a page reads.
  */
 export function queryFor<T extends object>(reader: PlaybooksReader, searchParams: Promise<T>): Promise<Partial<T>> {
   return reader === "live" ? searchParams : Promise.resolve({});

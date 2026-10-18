@@ -92,6 +92,9 @@ unpublished or hidden day shown to a stranger is the one failure ADR-061 exists 
    - A miss (private, moderated, deleted, unknown) is thrown inside the cache, and
      `unstable_cache` keeps no throw. Random ids cannot fill it, and a private day and an
      unknown one stay the same answer (ADR-061 decision 2).
+     *Amended by ADR-077 (2026-10-18):* the data cache still keeps no miss, but the cached
+     copy of the library's pages stores its 404 as an ISR page, so random URLs can fill the page
+     cache. ADR-077's Consequences say what bounds it.
    - The per-reader side effect, a signed-in reader's pin backfill, runs outside the cache.
      Pins written by it clear nothing, so a cached day can show stops unpinned for up to a day.
      Meanwhile each signed-in stranger who opens it schedules a pass that finds nothing to do:

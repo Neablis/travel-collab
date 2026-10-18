@@ -1,6 +1,6 @@
-// The cached copy's layout. It is only cacheable while it reads no session:
-// `servedForRequest` reads cookies, and one call would make Next render every
-// cached page per request with nothing failing.
+// The cached copy's layout. It must read no session: `servedForRequest` reads
+// cookies, and the cached copy renders in ISR mode, where a cookie read fails
+// the render (`DYNAMIC_SERVER_USAGE`, a 500; ADR-077).
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const servedForRequest = vi.hoisted(() => vi.fn());

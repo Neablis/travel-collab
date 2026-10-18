@@ -282,6 +282,31 @@ test("a private day and an unknown one are the same 404 with the same body", asy
   }
 });
 
+// ADR-077: a stranger's day page is the cached copy, the same answer from the
+// cache on the second ask, while its author at the same URL is answered live.
+// `x-nextjs-cache` is `next start`'s own report of which it served.
+test("a stranger's day page comes from the cache, its author's never does", async ({ page, browser }) => {
+  test.slow();
+  const name = `Cache split ${randomUUID().slice(0, 8)}`;
+  const savedDayId = await publishedDay(page, `Seoe2e${randomUUID().slice(0, 6)}`, name);
+  try {
+    const visitor = await stranger(browser);
+    const path = sluggedPath(name, savedDayId);
+    expect((await visitor.request.get(path)).status()).toBe(200);
+    const again = await visitor.request.get(path);
+    expect(again.status()).toBe(200);
+    expect(again.headers()["x-nextjs-cache"]).toBe("HIT");
+
+    const mine = await page.request.get(path);
+    expect(mine.status()).toBe(200);
+    expect(mine.headers()["x-nextjs-cache"]).toBeUndefined();
+    expect(mine.headers()["cache-control"]).toContain("no-store");
+    await visitor.context().close();
+  } finally {
+    await forget(page, savedDayId);
+  }
+});
+
 // A `Client` per call, `m11a-invite-gate.spec.ts`'s construction: the app's
 // pooled `db` would hold the worker's event loop open. `saved_days` is CRUD,
 // not the planning log, so this is fixture setup rather than a second write path.
