@@ -109,9 +109,11 @@ export function AddToTripDialog({
     // dead end — "start one from Your trips, then come back for this day" — which
     // sent the one reader most likely to want this day away from it.
     const kept = (id: string) => id === NEW_TRIP || result.value.some((trip) => trip.tripId === id);
+    // A retry whose trip was never made offers a new one again, not the
+    // reader's first trip, which one press of Add would put the day into.
     setTripId((current) =>
-      retrying?.tripId && kept(retrying.tripId)
-        ? retrying.tripId
+      retrying && kept(retrying.tripId ?? NEW_TRIP)
+        ? (retrying.tripId ?? NEW_TRIP)
         : kept(current)
           ? current
           : (result.value[0]?.tripId ?? NEW_TRIP),

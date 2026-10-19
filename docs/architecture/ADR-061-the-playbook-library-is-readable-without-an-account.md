@@ -70,8 +70,8 @@ saw only the site card.
 5. **Signed-out readers do not see controls they could only fail at** (ADR-031). That means no
    Yours/Saved scopes, no Report, no review composer and no tab bar. **Add to a trip** is the
    exception and stays. It is the thing the page exists to sell, so it opens a sign-in or
-   sign-up prompt and banks a same-origin marker. When the reader returns signed in, the add
-   dialog opens. ~~The marker only opens the dialog and never adds anything.~~
+   sign-up prompt and banks a same-origin marker. ~~When the reader returns signed in, the add
+   dialog opens.~~ ~~The marker only opens the dialog and never adds anything.~~
 
    > **Amended 2026-10-19 (M50 decision 5, PR 497).** The marker now carries an intent. With
    > `"new-trip"`, the return creates a trip named for the day and adds the day to it, with no

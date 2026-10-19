@@ -242,6 +242,9 @@ export function SharedDayScreen({
   const [retrying, setRetrying] = useState<{ tripId: string | null; error: string } | null>(null);
   const [signingIn, setSigningIn] = useState(false);
   const [withdrawn, setWithdrawn] = useState(false);
+  // The return from signing up had made a trip before the insert found the day
+  // gone, so the reader has an empty trip they never chose (M50 PR 497 review).
+  const [leftEmptyTrip, setLeftEmptyTrip] = useState(false);
   // §33.1: **`All days` is the default and opening any Playbook resets to it.**
   // Keyed on `savedDayId` rather than reset in an effect: a key change
   // re-initialises the state for free, where an effect would run after a render
@@ -307,6 +310,17 @@ export function SharedDayScreen({
   // (`dayName` names the trip) and for a signed-in reader; the author is left
   // out, since a day of their own is not what they went to sign in for.
   const redeemedFor = useRef<string | null>(null);
+  // Whether a reader who followed a link away while the trip was being made is
+  // still here to be sent to it. Set in its own mount-only effect, not in the
+  // redemption's cleanup: under StrictMode that cleanup would cancel the one
+  // run `redeemedFor` allows.
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
   const dayName = feed.data?.day.name ?? null;
   const readerIsAuthor = feed.data?.isAuthor === true;
   useEffect(() => {
@@ -317,10 +331,16 @@ export function SharedDayScreen({
     const latch: { current: NewTripLatch | null } = { current: null };
     setMakingTrip(true);
     void addDayToNewTrip({ savedDayId, dayName }, latch).then((result) => {
+      if (!mounted.current) return;
       setMakingTrip(false);
       if (result.ok) router.push(`/trips/${result.value.tripId}`);
-      // Withdrawn while they were signing up: the page's own banner says so.
-      else if (result.error.status === 404) setWithdrawn(true);
+      // Withdrawn while they were signing up: the page's own banner says so,
+      // and names the trip already made rather than deleting it, which would
+      // be a second write that could fail too.
+      else if (result.error.status === 404) {
+        setWithdrawn(true);
+        setLeftEmptyTrip(latch.current !== null);
+      }
       // Anything else, and the dialog they would otherwise have had to find
       // is the way to try again — on the trip already made, if one was.
       else {
@@ -531,8 +551,12 @@ export function SharedDayScreen({
           <Banner variant="warning" data-testid="day-withdrawn">
             That day is no longer in the library, so it could not be added. Its author took it back
             out while this page was open.
+            {leftEmptyTrip && " We had already made a trip for it, named for the day; it is empty, in Your trips."}
           </Banner>
         )}
+        {/* Here, not only on the rail's button: on a phone the rail stacks
+            after the whole day, and a disabled button's label is not announced. */}
+        {makingTrip && <Banner variant="info">Making your trip from this day…</Banner>}
         {/* KI-2026-09-23-i. Author-only here as well as on the route: the note
             is addressed to them. "Publishing it again" is named because it is
             the obvious next move and it does nothing — moderation and visibility
@@ -887,6 +911,7 @@ export function SharedDayScreen({
                     return;
                   }
                   setWithdrawn(false);
+                  setLeftEmptyTrip(false);
                   setRetrying(null);
                   setAdding(true);
                 }}

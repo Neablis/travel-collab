@@ -1414,6 +1414,61 @@ describe("back from signing in to add", () => {
     expect(createTripMock).toHaveBeenCalledTimes(1);
   });
 
+  // On a phone the rail, and so the button's label, stacks after the whole
+  // day: the reader at the top would see nothing change. And a disabled
+  // button's new label is not announced.
+  it("says the trip is being made out loud, and above the rail", async () => {
+    session = { id: "dev-bob" };
+    insertSavedDayMock.mockReturnValue(new Promise(() => {}));
+    rememberPlaybookAdd(DAY_ID);
+    renderDay();
+
+    await screen.findByRole("button", { name: "Making your trip…" });
+    const statuses = await screen.findAllByRole("status");
+    expect(statuses.some((s) => s.textContent === "Making your trip from this day…")).toBe(true);
+    expect(within(screen.getByRole("complementary")).queryByText("Making your trip from this day…")).toBeNull();
+  });
+
+  it("does not pull a reader who has gone elsewhere back to the trip", async () => {
+    session = { id: "dev-bob" };
+    let finish: (value: unknown) => void = () => {};
+    insertSavedDayMock.mockReturnValue(new Promise((resolve) => (finish = resolve)));
+    rememberPlaybookAdd(DAY_ID);
+    const view = renderDay();
+
+    await screen.findByRole("button", { name: "Making your trip…" });
+    // A city or tag link is another route, so this page unmounts.
+    view.unmount();
+    await act(async () => finish(ok({ detail: {}, history: {} })));
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 0)));
+    expect(insertSavedDayMock).toHaveBeenCalledTimes(1);
+    expect(pushMock).not.toHaveBeenCalled();
+  });
+
+  it("tells them about the empty trip it made when the day went while they signed up", async () => {
+    session = { id: "dev-bob" };
+    insertSavedDayMock.mockResolvedValue({ ok: false, error: { status: 404, message: "gone" } });
+    rememberPlaybookAdd(DAY_ID);
+    renderDay();
+
+    const banner = await screen.findByTestId("day-withdrawn");
+    expect(within(banner).getByText(/already made a trip for it.*empty, in Your trips/)).toBeTruthy();
+  });
+
+  it("offers a new trip again, saying why, when the trip could not be made", async () => {
+    session = { id: "dev-bob" };
+    createTripMock.mockResolvedValue({ ok: false, error: { status: 500, message: "Server error" } });
+    rememberPlaybookAdd(DAY_ID);
+    renderDay();
+
+    const picker = (await screen.findByLabelText("Which trip")) as HTMLSelectElement;
+    const dialog = screen.getByRole("dialog");
+    await waitFor(() => expect(within(dialog).getByText(/could not make the trip.*Server error/)).toBeTruthy());
+    // Not the reader's first trip: one press of Add would put the day there.
+    expect(picker.value).toBe("new");
+    expect(insertSavedDayMock).not.toHaveBeenCalled();
+  });
+
   it("does nothing for a marker banked on another day", async () => {
     session = { id: "dev-bob" };
     rememberPlaybookAdd("aa000000-0000-4000-8000-0000000000ff");
