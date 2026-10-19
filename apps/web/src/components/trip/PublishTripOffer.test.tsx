@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { UserPreferences } from "@tc/contracts";
@@ -9,18 +9,23 @@ import type { KeepDayCandidate } from "./KeepDayDialog";
 const createSavedDayMock = vi.fn();
 const publishSavedDayMock = vi.fn();
 const updatePreferencesMock = vi.fn();
+const fetchTripDetailMock = vi.fn();
 vi.mock("@/lib/apiClient", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/apiClient")>()),
   createSavedDay: (...args: unknown[]) => createSavedDayMock(...args),
   publishSavedDay: (...args: unknown[]) => publishSavedDayMock(...args),
   updatePreferences: (...args: unknown[]) => updatePreferencesMock(...args),
+  fetchTripDetail: (...args: unknown[]) => fetchTripDetailMock(...args),
 }));
 const push = vi.fn();
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
 
 import { PublishTripOffer, TripPageOffer } from "./PublishTripOffer";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+});
 
 const preferences: UserPreferences = {
   displayName: null,
@@ -109,8 +114,9 @@ describe("PublishTripOffer on the trip page", () => {
     expect((await screen.findByRole("alert")).textContent).toBe("Couldn't save. Try again.");
     expect(screen.getByRole("group", { name: "Publish Lisbon long weekend as a playbook" })).toBeTruthy();
     // Both usable again, so the reader can retry or publish instead, and focus
-    // is still on Dismiss: disabling the pressed button would have dropped it
-    // to the top of the page, with nothing to bring it back on a failure.
+    // is still on Dismiss: the error's redraw keeps the pressed button rather
+    // than replacing it. (That it is never `disabled` while held, which in a
+    // browser would drop focus too, is the next test's `:disabled` check.)
     const dismiss = screen.getByRole("button", { name: "Dismiss publishing Lisbon long weekend" });
     expect(dismiss.getAttribute("aria-disabled")).toBeNull();
     const publish = screen.getByRole("button", { name: "Publish Lisbon long weekend" });
@@ -134,6 +140,35 @@ describe("PublishTripOffer on the trip page", () => {
     expect(dismiss.matches(":disabled")).toBe(false);
     await userEvent.click(publish);
     expect(screen.queryByRole("dialog")).toBeNull();
+    // A second press is a second save of the same dismissal.
+    await userEvent.click(dismiss);
+    expect(updatePreferencesMock).toHaveBeenCalledTimes(1);
+  });
+
+  // From Home the days are read when Publish is pressed. A Dismiss landing
+  // during that read would unmount the dialog it is about to open, and a read
+  // that fails must leave both controls usable for a retry.
+  it("holds Dismiss while Publish reads the trip, and frees both if the read fails", async () => {
+    let fail!: () => void;
+    fetchTripDetailMock.mockReturnValue(
+      new Promise((resolve) => (fail = () => resolve({ ok: false, error: { status: 0, message: "Couldn't load the trip." } }))),
+    );
+    render(
+      <PreferencesProvider initialRead={{ preferences, defaultColor: null, isAdmin: false }}>
+        <PublishTripOffer trip={{ tripId, name: "Lisbon long weekend", endDate: "2020-05-02" }} canPublish />
+      </PreferencesProvider>,
+    );
+    await userEvent.click(await screen.findByRole("button", { name: "Publish Lisbon long weekend" }));
+    const dismiss = screen.getByRole("button", { name: "Dismiss publishing Lisbon long weekend" });
+    expect(dismiss.getAttribute("aria-disabled")).toBe("true");
+    await userEvent.click(dismiss);
+    expect(updatePreferencesMock).not.toHaveBeenCalled();
+
+    await act(async () => fail());
+    expect((await screen.findByRole("alert")).textContent).toBe("Couldn't load the trip.");
+    expect(dismiss.getAttribute("aria-disabled")).toBeNull();
+    const publish = screen.getByRole("button", { name: "Publish Lisbon long weekend" });
+    expect(publish.getAttribute("aria-disabled")).toBeNull();
   });
 
   // The page reads the trip's end off its last day: a trip whose first day is
