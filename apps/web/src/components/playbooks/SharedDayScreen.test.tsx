@@ -1382,6 +1382,9 @@ describe("back from signing in to add", () => {
     expect(createTripMock).not.toHaveBeenCalled();
     expect(pushMock).not.toHaveBeenCalled();
     expect(window.localStorage.getItem(MARKER)).toBeNull();
+    // The hold ends with the read: closing the dialog leaves Add pressable.
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect((screen.getByRole("button", { name: "Add to a trip" }) as HTMLButtonElement).disabled).toBe(false);
   });
 
   // A press while the list is read would open the dialog, and the empty list
@@ -1410,6 +1413,9 @@ describe("back from signing in to add", () => {
     await waitFor(() => expect(picker.value).toBe("new"));
     expect(createTripMock).not.toHaveBeenCalled();
     expect(pushMock).not.toHaveBeenCalled();
+    // A failed read ends the hold too.
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect((screen.getByRole("button", { name: "Add to a trip" }) as HTMLButtonElement).disabled).toBe(false);
   });
 
   // Banked by the build before decision 5, where the marker only opened the
