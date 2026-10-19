@@ -120,7 +120,7 @@ function PinGlyph() {
  * in this playbook".
  */
 const EMPTY_TITLE = "Nothing to map yet";
-const EMPTY_BODY = "None of these stops has a place pinned to it, so there's no route to draw.";
+const EMPTY_BODY = "Its author did not pin any of these stops to a place, so there is no route to draw.";
 
 export function SharedDayMap({
   savedDayId,

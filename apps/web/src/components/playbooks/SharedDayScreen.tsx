@@ -477,8 +477,8 @@ export function SharedDayScreen({
       <div className={cn(COLUMN, "flex flex-col gap-4 pt-8")}>
         <BackLink href={backHref} label={backLabel} />
         <EmptyState
-          title="This day is not in the library"
-          body="It may never have been shared, or its author may have taken it back out."
+          title="This day is not shared"
+          body="Its author may have made it private again, or the link may be wrong."
           action={
             <div className="flex gap-2">
               <Button variant="secondary" onClick={feed.reload}>
@@ -757,8 +757,8 @@ export function SharedDayScreen({
 
             {day.stops.length === 0 ? (
               <EmptyState
-                title="This day has nothing on it"
-                body="Every stop has been removed since it was kept."
+                title="This day is empty now"
+                body="Its author took every stop off after keeping it."
               />
             ) : (
               <div>

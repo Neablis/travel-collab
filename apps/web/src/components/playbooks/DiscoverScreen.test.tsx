@@ -183,20 +183,50 @@ describe("Discover", () => {
   // ADR-061: a reader with no account owns nothing, so *Yours* and *Saved* are
   // not places they can be. Seeded from a pasted `?scope=saved` on purpose — the
   // link a signed-in reader copies is the link a stranger opens.
+  // M50 part 6: the grid has a title a person would write, chosen by what the
+  // list is (the sort, or whose days), and its cards come in two sizes.
+  it("titles the results by their sort and lays them out wide, then standard", async () => {
+    const six = Array.from({ length: 6 }, (_, i) =>
+      day({ savedDayId: `aa000000-0000-4000-8000-00000000000${i}`, name: `Day ${i}` }),
+    );
+    searchPlaybooksMock.mockResolvedValue(ok(response({ days: six })));
+    render(<DiscoverScreen />);
+    expect(
+      await screen.findByRole("heading", { level: 2, name: "The days people keep adding to their trips" }),
+    ).toBeTruthy();
+    const results = screen.getByRole("list", { name: "Results" });
+    expect(within(results).getAllByTestId("discover-card").map((card) => card.getAttribute("data-size"))).toEqual([
+      "wide", "standard", "standard", "standard", "standard", "wide",
+    ]);
+
+    cleanup();
+    render(<DiscoverScreen initial={{ sort: "newest" }} />);
+    expect(await screen.findByRole("heading", { level: 2, name: "Just shared" })).toBeTruthy();
+  });
+
+  it("tells a reader with nothing saved how a day gets there", async () => {
+    searchPlaybooksMock.mockResolvedValue(ok(response({ days: [] })));
+    render(<DiscoverScreen initial={{ scope: "saved" }} />);
+    expect(
+      await screen.findByText("Add a day from the library to one of your trips and it shows up here."),
+    ).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Days you have taken into a trip" })).toBeNull();
+  });
+
   it("offers a reader with no account no scope tabs, and reads Everyone whatever the URL says", async () => {
     session = null;
     searchPlaybooksMock.mockResolvedValue(ok(response({ days: [] })));
     render(<DiscoverScreen initial={{ scope: "saved" }} />);
 
-    expect(await screen.findByText("No days match")).toBeTruthy();
+    expect(await screen.findByText("No day fits all of that")).toBeTruthy();
     // One level under the screen's h1 (axe heading-order on /playbooks).
-    expect(screen.getByRole("heading", { level: 2, name: "No days match" })).toBeTruthy();
+    expect(screen.getByRole("heading", { level: 2, name: "No day fits all of that" })).toBeTruthy();
     expect(screen.queryByRole("tablist", { name: "Whose days" })).toBeNull();
     expect(screen.queryByRole("tab", { name: "Saved" })).toBeNull();
     expect(searchPlaybooksMock).toHaveBeenCalled();
     for (const [query] of searchPlaybooksMock.mock.calls) expect(query).toMatchObject({ scope: "everyone" });
     // *Saved*'s empty copy is about the reader's own trips, which they have none of.
-    expect(screen.queryByText(/Days you take into a trip/)).toBeNull();
+    expect(screen.queryByText(/to one of your trips and it shows up here/)).toBeNull();
   });
 
   // Only on a CONFIRMED signed-out session: while it is being read, the tabs
@@ -398,7 +428,7 @@ describe("Discover", () => {
     searchPlaybooksMock.mockResolvedValue(ok(response({ days: [] })));
     render(<DiscoverScreen />);
     // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
-    await waitFor(() => expect(screen.getByText("No days match")).toBeTruthy());
+    await waitFor(() => expect(screen.getByText("No day fits all of that")).toBeTruthy());
     expect(screen.queryByRole("button", { name: "Drop the filters" })).toBeNull();
 
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
@@ -661,7 +691,7 @@ describe("Discover", () => {
     searchPlaybooksMock.mockResolvedValue(ok(response({ days: [], sharedPlaybookCount: 0 })));
     render(<DiscoverScreen />);
     // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
-    await waitFor(() => expect(screen.getByText("No days match")).toBeTruthy());
+    await waitFor(() => expect(screen.getByText("No day fits all of that")).toBeTruthy());
     expect(screen.queryByRole("link", { name: /Who shares the most/ })).toBeNull();
   });
 
@@ -670,7 +700,7 @@ describe("Discover", () => {
     searchPlaybooksMock.mockResolvedValue(ok(response({ days: [], sharedPlaybookCount: 7 })));
     render(<DiscoverScreen />);
     // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
-    await waitFor(() => expect(screen.getByText("No days match")).toBeTruthy());
+    await waitFor(() => expect(screen.getByText("No day fits all of that")).toBeTruthy());
     expect(screen.getByRole("link", { name: /Who shares the most/ })).toBeTruthy();
   });
 

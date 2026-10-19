@@ -947,7 +947,7 @@ describe("a shared day", () => {
   it("offers a way back rather than an error when the day is not readable", async () => {
     fetchSavedDayMock.mockResolvedValue({ ok: false, error: { status: 404, message: "not-found" } });
     renderDay();
-    expect(await screen.findByText("This day is not in the library")).toBeTruthy();
+    expect(await screen.findByText("This day is not shared")).toBeTruthy();
     expect(screen.getByRole("link", { name: "Back to Discover" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Try again" })).toBeTruthy();
   });
@@ -964,7 +964,7 @@ describe("a shared day", () => {
   it("renders a day whose stops have all been removed", async () => {
     fetchSavedDayMock.mockResolvedValue(ok({ savedDay: savedDay({ stops: [] }), isAuthor: false }));
     renderDay();
-    expect(await screen.findByText("This day has nothing on it")).toBeTruthy();
+    expect(await screen.findByText("This day is empty now")).toBeTruthy();
   });
 });
 

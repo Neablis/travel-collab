@@ -80,8 +80,8 @@ export function LeaderboardScreen() {
         // the Retry for it is in the banner above.
         <EmptyState
           level={2}
-          title="The board could not be loaded"
-          body="Nothing has been shown yet. Retry above, or go back to Discover."
+          title="The board did not load"
+          body="Retry above, or look through the shared days on Discover."
         />
       ) : (
         <ol className="flex flex-col gap-2" data-testid="board-rows">

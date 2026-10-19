@@ -28,7 +28,7 @@ import {
 } from "./discoverFilters";
 import { PlaceSearch, type PlacePick } from "./PlaceSearch";
 import { DISCOVER_URL_DEFAULTS, discoverQueryString, type DiscoverUrlState } from "./discoverUrl";
-import { DiscoverCard } from "./DiscoverCard";
+import { DiscoverCard, editorialSize } from "./DiscoverCard";
 import { LibraryMoved, SyncFailure } from "./ReadStates";
 import { useLibraryRead } from "./useLibraryRead";
 import { PlaybookAskButton, PlaybookAssistant } from "@/components/assistant/BeyondTripAssistant";
@@ -59,6 +59,26 @@ const SORTS: readonly { value: DiscoverSort; label: string }[] = [
   { value: "most-reviewed", label: "Most reviewed" },
   { value: "newest", label: "Newest" },
 ];
+
+/**
+ * **The title over the results, as a person would write it** (M50 part 6).
+ * Your own lists are named for whose they are; the library's for what its
+ * sort puts first, since that is what the order says about the days.
+ */
+function collectionTitle(scope: DiscoverScope, sort: DiscoverSort): string {
+  if (scope === "yours") return "Days you kept from your trips";
+  if (scope === "saved") return "Days you have taken into a trip";
+  switch (sort) {
+    case "most-added":
+      return "The days people keep adding to their trips";
+    case "highest-rated":
+      return "Rated best by the people who went";
+    case "most-reviewed":
+      return "The days with the most said about them";
+    case "newest":
+      return "Just shared";
+  }
+}
 
 /** How many skeleton cards stand in while the first read is in flight. */
 const SKELETON_COUNT = 6;
@@ -788,11 +808,11 @@ export function DiscoverScreen({
            together"). */
         <EmptyState
           level={2}
-          title={feed.error !== null ? "Nothing to show yet" : "No days match"}
+          title={feed.error !== null ? "The library did not load" : "No day fits all of that"}
           body={
             scope === "saved"
-              ? "Days you take into a trip show up here. Nothing yet."
-              : "Nothing in the library matches all of these at once."
+              ? "Add a day from the library to one of your trips and it shows up here."
+              : "Try fewer filters, or search everywhere below."
           }
           action={
             // **Keeps the scope**, which `{ ...NO_FILTERS, sort }` did not:
@@ -811,19 +831,22 @@ export function DiscoverScreen({
           }
         />
       ) : (
-        <ul
-          ref={results}
-          // Focusable by script only: where a page turned in place leaves focus.
-          // Named, so a screen reader landing here hears where it is.
-          tabIndex={-1}
-          aria-label="Results"
-          className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-3"
-          data-testid="discover-results"
-        >
-          {days.map((day) => (
-            <DiscoverCard key={day.savedDayId} day={day} origin={{ from: "playbooks" }} />
-          ))}
-        </ul>
+        <>
+          <Heading level={2}>{collectionTitle(scope, sort)}</Heading>
+          <ul
+            ref={results}
+            // Focusable by script only: where a page turned in place leaves focus.
+            // Named, so a screen reader landing here hears where it is.
+            tabIndex={-1}
+            aria-label="Results"
+            className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-3"
+            data-testid="discover-results"
+          >
+            {days.map((day, index) => (
+              <DiscoverCard key={day.savedDayId} day={day} origin={{ from: "playbooks" }} size={editorialSize(index)} />
+            ))}
+          </ul>
+        </>
       )}
 
       {/* The pager (M42 part 5), real links so a crawler follows them. Keyset

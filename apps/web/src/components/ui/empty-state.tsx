@@ -9,14 +9,20 @@ import { Text } from "./text";
  * always an h4, sitting straight under the screen's h1. It looks the same at
  * every level (the h4 type it always had), so passing the right level never
  * changes the design. Defaults to 4 for the callers not yet audited.
+ *
+ * `art` is the place a surface's own illustration goes once one is drawn
+ * (M50 left spot illustrations for later). It sits above the icon, and a
+ * caller passing it owns its alt text or its `aria-hidden`.
  */
 export function EmptyState({
+  art,
   icon,
   title,
   body,
   action,
   level = 4,
 }: {
+  art?: React.ReactNode;
   icon?: React.ReactNode;
   title: string;
   body?: string;
@@ -25,6 +31,7 @@ export function EmptyState({
 }) {
   return (
     <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-border-strong px-6 py-10 text-center">
+      {art ? <div className="mb-2">{art}</div> : null}
       {icon ? <div className="text-slate">{icon}</div> : null}
       <Heading level={level} className="text-md font-medium">
         {title}

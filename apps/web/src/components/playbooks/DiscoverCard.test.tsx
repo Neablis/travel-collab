@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { unsplashCreditHref } from "@tc/contracts";
 import { tripCoverFactory } from "@tc/factories";
 import type { DiscoverDay } from "@/lib/playbooks";
-import { DiscoverCard } from "./DiscoverCard";
+import { DiscoverCard, editorialSize } from "./DiscoverCard";
 
 // The card's stop rows (M27 link 10, `dc.html:2645`). What the server puts in
 // `preview` is its own test (`savedDays.sequence.int.test.ts`); this one is
@@ -260,5 +260,30 @@ describe("a Discover card's description", () => {
     render(<DiscoverCard day={bare} origin={{ from: "playbooks" }} />);
     expect(screen.getByRole("link", { name: "Kyoto temples on foot", description: "" })).toBeTruthy();
     expect(screen.queryByTestId(`tag-chips-${bare.savedDayId}`)).toBeNull();
+  });
+});
+
+// M50 part 6: Discover reads as a page someone laid out, not a uniform grid.
+// One wide card in every five, first on the page, so a three-column row is a
+// wide card and one beside it, then three; on two columns, a wide row then two
+// pairs. Any other rhythm leaves a hole in one of the two grids.
+describe("a Discover card's size", () => {
+  it("is wide for the first card and every fifth after it, standard otherwise", () => {
+    expect(Array.from({ length: 11 }, (_, i) => editorialSize(i))).toEqual([
+      "wide", "standard", "standard", "standard", "standard",
+      "wide", "standard", "standard", "standard", "standard",
+      "wide",
+    ]);
+  });
+
+  it("says which size it was drawn at, and keeps its title a level-two heading when wide", () => {
+    render(<DiscoverCard day={day()} origin={{ from: "playbooks" }} size="wide" />);
+    expect(screen.getByTestId("discover-card").getAttribute("data-size")).toBe("wide");
+    expect(screen.getByRole("heading", { level: 2, name: "Kyoto temples on foot" })).toBeTruthy();
+  });
+
+  it("is standard where nobody asked, as a profile's cards are", () => {
+    render(<DiscoverCard day={day()} origin={{ from: "playbooks" }} />);
+    expect(screen.getByTestId("discover-card").getAttribute("data-size")).toBe("standard");
   });
 });

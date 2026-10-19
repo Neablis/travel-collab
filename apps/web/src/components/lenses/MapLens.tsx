@@ -1010,8 +1010,8 @@ export function MapLens({
            states of one lens answering this differently would be the drift.
            Recorded in `DRIFT.md` rather than left to be re-derived. */
         <EmptyState
-          title="Nothing to map yet"
-          body="A stop draws itself here as soon as it has a place. Add one and the day's walk appears with it."
+          title="No pins on this map yet"
+          body="Give a stop a place on the Plan and it lands here, with the walk between stops drawn in."
           action={
             <Link
               href={`/trips/${detail.tripId}?view=Plan`}

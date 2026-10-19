@@ -159,7 +159,7 @@ describe("SharedDayMap", () => {
     expect(screen.getByTestId("shared-day-map-frame")).toBeDefined();
     expect(screen.getByRole("heading", { name: "Nothing to map yet" })).toBeDefined();
     expect(
-      screen.getByText("None of these stops has a place pinned to it, so there's no route to draw."),
+      screen.getByText("Its author did not pin any of these stops to a place, so there is no route to draw."),
     ).toBeDefined();
     expect(screen.queryByTestId("shared-day-map")).toBeNull();
   });
