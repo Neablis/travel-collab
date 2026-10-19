@@ -149,7 +149,7 @@ test.describe("the front door, signed out (M42)", () => {
     const title = phone.getByTestId("discover-card").getByRole("link", { name: PLAYBOOK });
     await expect(title).toBeVisible();
 
-    const headline = await phone.getByRole("heading", { name: "Put the best day on repeat." }).boundingBox();
+    const headline = await phone.getByRole("heading", { name: "Plan the trip together." }).boundingBox();
     const card = await phone.getByTestId("discover-card").boundingBox();
     expect(card!.y).toBeGreaterThan(headline!.y + headline!.height);
     expect(card!.y + card!.height).toBeLessThanOrEqual(664);

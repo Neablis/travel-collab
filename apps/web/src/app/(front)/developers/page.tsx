@@ -7,7 +7,7 @@ import { pageMetadata } from "@/lib/siteMetadata";
 export const metadata = pageMetadata({
   title: "Developers",
   description:
-    "The Caesura API: how to get invited, make an API token, and find the OpenAPI reference.",
+    "The Caesura API: how to sign up, make an API token, and find the OpenAPI reference.",
 });
 
 /** `/developers`: the onboarding path to an API token, for a person or their agent. */

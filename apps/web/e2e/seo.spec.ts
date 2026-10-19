@@ -10,7 +10,7 @@ import { forget, publishedDay, stranger } from "./helpers";
 
 // The headline as an element, not as text: the site description in every
 // page's <head> opens with the same words.
-const HEADLINE = /Put the best day on repeat\.<\/h[12]>/;
+const HEADLINE = /Plan the trip together\.<\/h[12]>/;
 
 test("a signed-out / serves the landing in place, cacheable, with one h1", async ({ browser }) => {
   const visitor = await stranger(browser);

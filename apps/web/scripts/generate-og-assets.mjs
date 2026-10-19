@@ -208,7 +208,7 @@ const card = /* html */ `<!doctype html>
       <img class="mark" alt="" src="data:image/svg+xml;base64,${Buffer.from(iconSvg).toString("base64")}" />
       <div class="wordmark display">Caesura</div>
     </div>
-    <h1 class="display">Put the best day on repeat.</h1>
+    <h1 class="display">Plan the trip together.</h1>
     <div class="sub">Real days from real trips, saved by the people who lived&nbsp;them.</div>
   </div>
   <div class="board">

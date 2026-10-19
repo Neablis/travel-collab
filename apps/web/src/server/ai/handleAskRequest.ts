@@ -2051,6 +2051,9 @@ export function instructionBlocks(
       ? `This question is about DAY ${scope.dayIndex + 1}. Answer about that day. Do not summarise the other days: you may read one if the user explicitly asks about it, but an answer that wanders off the day it was asked about is the wrong answer.`
       : "This question is about the trip as a whole.",
     "Answer in prose, briefly — a sentence or three. No headings, no bullet lists unless the user asks for a list.",
+    // M50 decision 10: the voice. Unconditional and free of anything per-turn,
+    // so it adds to the cached prefix without ever varying it between steps.
+    "Talk like a friend who has been there, plain, specific, no filler.",
   ];
   // `formatExampleBlocks([])` is `[]`: with no examples this is the same
   // array of blocks as before Part 4, which is the flag-off guarantee.
