@@ -77,8 +77,11 @@ promise one.
     new one). Part 4, PR 497.
 16. **The tone line reaches every assistant prompt**: trip turns, the account-wide assistant and
     the playbook page, with the context-budget baseline regenerated and offline evals only.
-    Part 1, PR 494. Its wording is still open with Mitchell; it stays as decision 10 has it until
-    he answers.
+    Part 1, PR 494.
+17. **The tone line's wording stays as is**: *"Talk like a friend who has been there, plain,
+    specific, no filler."* Mitchell chose it over the guarded alternative (*"a well-travelled
+    friend… never claim you went somewhere yourself"*), knowing it may invite invented first-person
+    visits. No eval case for that unless he asks.
 
 ## Scope
 
