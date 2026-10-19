@@ -193,3 +193,136 @@ Nine parts, each its own PR on `main` (the plan has the files; part 9 came from 
       2026-10-19.
 
 A retro is appended at gate close.
+
+## Retro — written 2026-10-19 (6 of 11 boxes ticked)
+
+### Pending Mitchell's ruling
+
+**The walk-dependent boxes are pending Mitchell's ruling.** Copy (no e2e red recorded),
+attribution (`/` response headers), landing and empty states (grain under both looks), publish
+(the note after Dismiss) and the **[walk]** box itself stay open until Mitchell says how they are
+recorded. He walked production `/` on 2026-10-19 and judged the landing needs a redesign, not
+more fixes (`docs/candidates.md`, *The front door tells the story*). Outcome: *pending Mitchell's
+ruling.*
+
+### What went well
+
+- **All nine parts merged on one day.** PR 494, 495 and 498 at 13:56Z, PR 496 and 497 by 14:09Z,
+  PR 501 at 14:46Z, PR 500 at 15:33Z, PR 499 at 16:33Z, and PR 503 (part 9, from the walk) at
+  21:34Z. Each merged head has `ci-ok` green (part 0's tracker in PR 493 lists the runs).
+- **Both migrations reached production the same day.** `0060_users_signup_ref`: run 39269884761,
+  14:32Z on `b815890`. `0061_users_dismissed_publish_offers`: run 39294506408, 17:29Z on
+  `879fc87`. Both succeeded, with Mitchell's accepted sign-in outage for `0060` (decision 18).
+- **Red-first held on every code part.** Each part PR carries a red-first table: the tone line's
+  baseline red (PR 494), first-touch and malformed-ref (PR 496), the `public-playbooks.spec.ts`
+  path (PR 497), the JSON-LD seo spec (PR 495), both nudge cases (PR 498).
+- **Builder context stayed low**: the worst `phase-implementer` averaged 130k (part 9), against
+  the 250k target.
+
+### What could be better
+
+- **The orchestrator took 26.4% of units (target under 15%).** Human-started turns were 41.2% of
+  its spend (9 turns, 583k): the walk, the part 9 rulings and the redesign split were negotiated
+  in the orchestrator at 167k average context. A walk session started fresh, or a subagent
+  collecting the walk's comments earlier (as *Collect Mitchell's Vercel comments* later did),
+  would have kept that out of the orchestrator.
+- **The copy box has no e2e red.** PR 494 pinned the new text in `seo.spec.ts:13`,
+  `m15-front-door.spec.ts:24` and `responsive.spec.ts:922`, green via ci-like, but never broke
+  the source to watch them fail (CLAUDE.md rule 3). Doing it in the part would have closed the box.
+- **Two reviews were not posted where the gate reads them.** PR 499's approval at `508d57b` was
+  reported in the session only, and PR 497's posted approval is at `c2e1f74`, two commits before
+  its merged head `c4d91dd`. A review posted on the final head saves a re-read at the close.
+- **KI-2026-10-17-c recurred**: `0061` was renumbered after the preview branch had applied it,
+  and the preview build broke until repaired.
+- **The spend record undercounts.** See the note under *Spend*.
+
+### Leftovers
+
+- The landing's redesign: `docs/candidates.md`, *The front door tells the story*.
+- Known issues filed during the build: KI-2026-10-19-c, -d, -e, -f, -g, -h, -i, -j, -k.
+- The walk-dependent boxes: Mitchell's call (*Pending Mitchell's ruling*, above).
+- The Chiang Mai summary row (`e86f19a9-…`) production edit: Mitchell's call.
+- M48 resumes once plan-turn traffic arrives (decision 1).
+
+## Spend
+<!-- session-metrics:milestone v1 -->
+
+11 agents, 365 API calls, 5.35M units. One call is one assistant `message.id`; units = input + 1.25 × cache write + 0.1 × cache read (output excluded, transcripts understate it).
+
+**By agent type**
+
+| Who | Agents | Calls | Avg context | Peak context | Units | Share |
+|---|---|---|---|---|---|---|
+| `phase-implementer` | 3 | 128 | 106k | 193k | 1.73M | 32.3% |
+| `general-purpose` | 4 | 97 | 98k | 143k | 1.47M | 27.5% |
+| `orchestrator` | 1 | 54 | 167k | 224k | 1.41M | 26.4% |
+| `part-reviewer` | 3 | 86 | 57k | 104k | 737k | 13.8% |
+
+**Costliest agents**
+
+| Agent (description) | Type | Calls | Avg context | Peak context | Units |
+|---|---|---|---|---|---|
+| Build M50 part 9 landing fixes | `phase-implementer` | 85 | 130k | 193k | 1.32M |
+| M50 part 0: tracker, KIs, gate | `general-purpose` | 47 | 114k | 143k | 700k |
+| Review M50 part 9 PR 503 | `part-reviewer` | 39 | 70k | 104k | 391k |
+| Collect Mitchell's Vercel comments | `general-purpose` | 17 | 100k | 135k | 325k |
+| Fix PR 503 review findings | `phase-implementer` | 30 | 65k | 86k | 292k |
+| Re-review PR 503 at 8aa86ebe | `part-reviewer` | 32 | 51k | 68k | 243k |
+| Merge PR 503, record redesign on part 0 | `general-purpose` | 20 | 72k | 84k | 242k |
+| Diagnose empty landing boxes | `general-purpose` | 13 | 79k | 91k | 207k |
+| Fix PR 503 chip a11y + nit | `phase-implementer` | 13 | 43k | 49k | 113k |
+| Re-review PR 503 at 6d167a0b | `part-reviewer` | 15 | 35k | 44k | 103k |
+
+**Orchestrator turns, by what started them**
+
+| What started the turn | Turns | Units | Share of orchestrator | Idle |
+|---|---|---|---|---|
+| GitHub / trigger notification | 0 | 0 | 0.0% | 0 of 0 (0 units) |
+| Subagent report | 9 | 375k | 26.5% | – |
+| Subagent finished | 4 | 388k | 27.4% | – |
+| Harness | 1 | 68k | 4.8% | – |
+| Human | 9 | 583k | 41.2% | – |
+| Other (unrecognised frame) | 0 | 0 | 0.0% | – |
+
+**Follow-ups and cache re-writes**
+
+| Measure | Count | Tokens |
+|---|---|---|
+| `SendMessage` calls by the orchestrator | 0 | – |
+| Coordinator messages received mid-life, by 0 subagent(s) | 0 | – |
+| Full cache re-writes in subagents | 0 | 0 |
+| — directly after a coordinator message | 0 | 0 |
+
+**Guard hooks**
+
+| Hook | deny | note |
+|---|---|---|
+| `reviewer-report-check` | 1 | 0 |
+
+**Targets**
+
+| Target | Result | Measured |
+|---|---|---|
+| Orchestrator share of units < 15% | missed | 26.4% |
+| No phase-implementer averaging > 250k context | met | worst 130k |
+| GitHub wakes per merged part < 5 | met | 0 / 1 = 0.0 |
+| Dollars per 1k lines added < 20 | not measurable | needs --cost-usd and --lines-added |
+| Coordinator-message re-writes <= 2 | met | 0 |
+
+**This block covers only the last build session (part 9 and after), so every total undercounts.**
+The spend blocks of the earlier build sessions were not carried over. Only a partial note
+survives: 13 `phase-implementer`, 11 `part-reviewer` and 1 triage agent across the build, and 1
+implementer and 2 reviewers in the session after; their calls and units are not in the tables.
+
+### Spend against the last milestone
+
+Compared with M47 (M48 is parked without a close).
+
+- **Dollars per 1,000 lines added (under 20):** not measurable; no `--cost-usd` or
+  `--lines-added` was given (M47: $5.7 by the rule, read as missed at $23.6 without snapshots).
+- **Orchestrator's share (under 15%):** missed, 26.4% (M47: 31.6% and 17.8%). Cause under *What
+  could be better*.
+- **A builder's average context (none over 250k):** met, worst 130k in the measured session
+  (M47: 54k).
+- **GitHub wakes per merged part (under 5):** met, 0 (M47: 0).
+- **Cache re-writes after a coordinator message (2 or fewer):** met, 0 (M47: not in the blocks).
