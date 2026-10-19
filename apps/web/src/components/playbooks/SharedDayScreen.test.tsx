@@ -952,6 +952,16 @@ describe("a shared day", () => {
     expect(screen.getByRole("button", { name: "Try again" })).toBeTruthy();
   });
 
+  // Only the 404 is the server saying the day is not shared. A read that never
+  // got an answer, or a server that failed, says nothing about the day.
+  it.each([0, 500])("says the day did not load, not that it is not shared, when the read fails with %i", async (status) => {
+    fetchSavedDayMock.mockResolvedValue({ ok: false, error: { status, message: "failed" } });
+    renderDay();
+    expect(await screen.findByRole("heading", { name: "This day did not load" })).toBeTruthy();
+    expect(screen.queryByText("This day is not shared")).toBeNull();
+    expect(screen.getByRole("button", { name: "Try again" })).toBeTruthy();
+  });
+
   it("returns to wherever it was entered from", async () => {
     render(
       <SharedDayScreen savedDayId={DAY_ID} backHref="/playbooks/board" backLabel="Who shares the most" />,

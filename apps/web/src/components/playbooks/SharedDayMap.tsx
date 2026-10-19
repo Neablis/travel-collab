@@ -113,14 +113,14 @@ function PinGlyph() {
 }
 
 /**
- * The empty frame's words (M27 link 10). The heading is the Map lens's own
- * (`MapLens.tsx`, the artboard's `emptyMapCanvas`); its body is not, because
- * that one tells an editor to go and add a stop, and a Playbook's reader has
- * no stop to add. This line is Mitchell's, asked for in place of "No locations
+ * The empty frame's words (M27 link 10). The heading is the artboard's
+ * `emptyMapCanvas` one. The Map lens's heading split from it on purpose in M50
+ * part 6: the lens speaks to an editor who can add a stop, this frame to a
+ * reader who cannot. The body line is Mitchell's, asked for in place of "No locations
  * in this playbook".
  */
 const EMPTY_TITLE = "Nothing to map yet";
-const EMPTY_BODY = "Its author did not pin any of these stops to a place, so there is no route to draw.";
+const EMPTY_BODY = "None of these stops has a place pinned to it, so there's no route to draw.";
 
 export function SharedDayMap({
   savedDayId,

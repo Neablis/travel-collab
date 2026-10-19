@@ -276,14 +276,27 @@ describe("a Discover card's size", () => {
     ]);
   });
 
-  it("says which size it was drawn at, and keeps its title a level-two heading when wide", () => {
+  // `data-size` echoes the prop; the span is what makes a card wide, and jsdom
+  // has no layout to measure it by, so the class is the cheapest pin.
+  it("takes two columns from sm up when wide, and one when standard", () => {
     render(<DiscoverCard day={day()} origin={{ from: "playbooks" }} size="wide" />);
-    expect(screen.getByTestId("discover-card").getAttribute("data-size")).toBe("wide");
-    expect(screen.getByRole("heading", { level: 2, name: "Kyoto temples on foot" })).toBeTruthy();
-  });
-
-  it("is standard where nobody asked, as a profile's cards are", () => {
+    expect(screen.getByTestId("discover-card").className.split(" ")).toContain("sm:col-span-2");
+    cleanup();
     render(<DiscoverCard day={day()} origin={{ from: "playbooks" }} />);
     expect(screen.getByTestId("discover-card").getAttribute("data-size")).toBe("standard");
+    expect(screen.getByTestId("discover-card").className.split(" ")).not.toContain("sm:col-span-2");
+  });
+});
+
+// The card's title sits one level under whatever heads the list it is in: a
+// profile's or a place page's cards sit under the h1, Discover's under the
+// results' h2.
+describe("a Discover card's title", () => {
+  it("is a level-two heading unless the page puts a heading over its cards", () => {
+    render(<DiscoverCard day={day()} origin={{ from: "playbooks" }} />);
+    expect(screen.getByRole("heading", { level: 2, name: "Kyoto temples on foot" })).toBeTruthy();
+    cleanup();
+    render(<DiscoverCard day={day()} origin={{ from: "playbooks" }} headingLevel={3} />);
+    expect(screen.getByRole("heading", { level: 3, name: "Kyoto temples on foot" })).toBeTruthy();
   });
 });

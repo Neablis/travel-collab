@@ -95,10 +95,13 @@ export function DiscoverCard({
   day,
   origin,
   size = "standard",
+  headingLevel = 2,
 }: {
   day: DiscoverDay;
   origin: BackOrigin;
   size?: CardSize;
+  /** 3 under a page that heads its list of cards, as Discover's results are. */
+  headingLevel?: 2 | 3;
 }) {
   const wide = size === "wide";
   const clock = useTimeFormat();
@@ -183,13 +186,14 @@ export function DiscoverCard({
       )}
 
       <div>
-        {/* **h2, styled as the h4 it used to be.** Every screen that lists
-            these cards (Discover, a place's playbooks, a profile) puts them
-            straight under its h1, so an h4 skipped two levels and axe failed
-            `/playbooks` on heading-order. The level is structure; `text-md
+        {/* **One level under what heads the list, styled as the h4 it used to
+            be.** A place's playbooks and a profile put these cards straight
+            under their h1, so an h4 skipped two levels and axe failed
+            `/playbooks` on heading-order; Discover heads its results with an
+            h2 (M50 part 6) and passes 3. The level is structure; `text-md
             font-medium` keeps the card title the size it was, and a wide
-            card's takes the card-title step up (M50 part 6). */}
-        <Heading level={2} className={cn("font-medium leading-snug", wide ? "text-lg" : "text-md")}>
+            card's takes the card-title step up from `sm`, where it is wide. */}
+        <Heading level={headingLevel} className={cn("text-md font-medium leading-snug", wide && "sm:text-lg")}>
           {/* §13.1's phone floor on the card's ROW ACTION — this title link is
               the only way into the day, so it is the target (M26 link 14's
               sweep, found by the census in the full e2e lane where seeded
@@ -341,7 +345,7 @@ export function DiscoverCard({
                 ? "(min-width: 1024px) 740px, 100vw"
                 : "(min-width: 1024px) 360px, (min-width: 640px) 50vw, 100vw"
             }
-            className={cn("flex shrink-0 flex-col justify-end", wide ? "min-h-56" : "min-h-37.5")}
+            className={cn("flex min-h-37.5 shrink-0 flex-col justify-end", wide && "sm:min-h-56")}
           >
             {/* `py-3`: a chip's phone hit area reaches 12px past it either
                 way (`-my-3` on `min-h-11`), and the photo clips what passes
