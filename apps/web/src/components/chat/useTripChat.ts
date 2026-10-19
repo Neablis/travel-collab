@@ -12,6 +12,7 @@ import {
   type ApiError,
   type ApiResult,
 } from "@/lib/apiClient";
+import { whenIdle } from "@/lib/whenIdle";
 
 /**
  * - `loading`: the first read has not answered.
@@ -76,6 +77,9 @@ const REMOVED = 409;
  * and the newest message is marked read then and again as each new one
  * arrives. Marking read is allowed after a lapse (D2), so it is not gated on
  * `canPost`.
+ *
+ * **The first read waits for idle**, unless the panel opens or `chatRev`
+ * moves first, and then it is at once.
  */
 export function useTripChat({
   tripId,
@@ -130,8 +134,23 @@ export function useTripChat({
     return error.status === NO_ACCESS;
   }, []);
 
+  // The first read is not for the first paint: until the panel opens, the
+  // conversation feeds only the header's count. Left on the mount it was one
+  // more request racing the trip's own (2.5s into a mobile load, measured
+  // 2026-10-18). Opening the panel, or a new `chatRev`, reads at once; either
+  // latches `due`, so the idle callback is cancelled rather than read again.
+  const [dueFor, setDueFor] = useState<string | null>(null);
+  const [seenRev, setSeenRev] = useState(chatRev);
+  if (seenRev !== chatRev) setSeenRev(chatRev);
+  if (dueFor !== tripId && (reading || seenRev !== chatRev)) setDueFor(tripId);
+  const due = dueFor === tripId;
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled || due) return;
+    return whenIdle(() => setDueFor(tripId));
+  }, [tripId, enabled, due]);
+
+  useEffect(() => {
+    if (!enabled || !due) return;
     // A slower read for an older revision must not overwrite a newer one.
     let live = true;
     void fetchChat(tripId).then((result) => {
@@ -147,7 +166,7 @@ export function useTripChat({
     return () => {
       live = false;
     };
-  }, [tripId, enabled, chatRev, refused]);
+  }, [tripId, enabled, due, chatRev, refused]);
 
   const newest = page?.messages.at(-1)?.messageId ?? null;
   const marked = useRef<string | null>(null);

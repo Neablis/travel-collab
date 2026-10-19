@@ -1180,6 +1180,54 @@ describe("AssistantRail — focus on open, from useAssistantVisibility", () => {
     expect(screen.getByRole("tab", { name: "Ask" }).matches(":focus")).toBe(true);
   });
 
+  // The chat's first read waits for idle, and its composer for that read:
+  // Chat opened sooner puts focus on the panel, and it moves on to the
+  // composer when the read lands, but never away from where the person put it.
+  describe("Chat opened before its first read", () => {
+    const reading = { tab: "chat" as const, onTabChange: vi.fn(), panel: null, ready: false };
+    const read = { ...reading, panel: <input aria-label="Message" />, ready: true };
+    const mount = () =>
+      render(
+        <>
+          <input aria-label="Elsewhere" />
+          <AssistantRail {...baseProps} takeFocus={() => true} chat={reading} />
+        </>,
+      );
+    const remount = (rerender: (ui: React.ReactNode) => void) =>
+      rerender(
+        <>
+          <input aria-label="Elsewhere" />
+          <AssistantRail {...baseProps} takeFocus={() => true} chat={read} />
+        </>,
+      );
+
+    it("moves focus from the panel to the composer once the chat is read", () => {
+      const { rerender } = mount();
+      expect(screen.getByRole("tabpanel").matches(":focus")).toBe(true);
+      remount(rerender);
+      expect(screen.getByRole("textbox", { name: "Message" }).matches(":focus")).toBe(true);
+    });
+
+    it("leaves focus the person moved meanwhile where it is", () => {
+      const { rerender } = mount();
+      screen.getByRole("textbox", { name: "Elsewhere" }).focus();
+      remount(rerender);
+      expect(screen.getByRole("textbox", { name: "Elsewhere" }).matches(":focus")).toBe(true);
+    });
+
+    // PR 442: a sheet's composer taking focus raises the phone's keyboard
+    // over it, so a read landing under a sheet leaves focus on the panel.
+    it("leaves a sheet's focus on the panel when the read lands", () => {
+      const sheet = (chat: typeof reading | typeof read) => (
+        <AssistantRail {...baseProps} presentation="sheet" onHide={vi.fn()} takeFocus={() => true} chat={chat} />
+      );
+      const { rerender } = render(sheet(reading));
+      screen.getByRole("tabpanel").focus();
+      rerender(sheet(read));
+      expect(screen.getByRole("tabpanel").matches(":focus")).toBe(true);
+    });
+  });
+
   // Mitchell's M46 walk: "Lets keep home card with the full count, the rest
   // as just the unread dot". The tab's name keeps the count.
   it.each([

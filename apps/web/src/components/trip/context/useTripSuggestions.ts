@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ResolveSuggestionChangeInput, SuggestionChange } from "@tc/contracts";
 import { acceptSuggestionChanges, fetchTripSuggestions, resolveSuggestionChange, type ApiResult } from "@/lib/apiClient";
+import { whenIdle } from "@/lib/whenIdle";
 
 /** The trip's suggestion changes as the context exposes them (spec §2.4). */
 export type TripSuggestions = {
@@ -37,8 +38,9 @@ type Args = {
 };
 
 /**
- * The suggestion list for `TripProvider`: read on mount, and again whenever
- * the poll's revision differs from the one held (W6, W16, W68), or on request.
+ * The suggestion list for `TripProvider`: read once the page is idle after
+ * mount, and again whenever the poll's revision differs from the one held
+ * (W6, W16, W68), or on request.
  * `suggestions` is null while disabled. `onRevision` is for the poll's
  * `onSuggestionsChanged`.
  */
@@ -58,6 +60,8 @@ export function useTripSuggestions({ tripId, enabled, onAccepted }: Args): {
   // Only the newest read may land. A poll's refetch and a resolve's can cross,
   // and an older answer arriving last would put a resolved change back.
   const latest = useRef(0);
+  // Reads out now, for `onRevision`, which runs between renders.
+  const reading = useRef(0);
   const live = useRef(enabled);
   live.current = enabled;
 
@@ -65,7 +69,9 @@ export function useTripSuggestions({ tripId, enabled, onAccepted }: Args): {
     if (!live.current) return;
     const ticket = ++latest.current;
     setInFlight((n) => n + 1);
+    reading.current++;
     const result = await fetchTripSuggestions(tripId);
+    reading.current--;
     setInFlight((n) => n - 1);
     if (ticket !== latest.current || !live.current) return;
     if (!result.ok) {
@@ -78,10 +84,17 @@ export function useTripSuggestions({ tripId, enabled, onAccepted }: Args): {
     setError(null);
   }, [tripId]);
 
+  // The mount's read waits for idle: the list draws ghosts and the header's
+  // chip, neither needed for the first paint, and on the mount it raced the
+  // trip's own requests (2.5s into a mobile load, measured 2026-10-18). Any
+  // read before then (a revision, a resolve, a send) makes it redundant, so
+  // it reads only if `latest` has not moved since it was scheduled.
   useEffect(() => {
     if (enabled) {
-      void refresh();
-      return;
+      const scheduled = latest.current;
+      return whenIdle(() => {
+        if (latest.current === scheduled) void refresh();
+      });
     }
     // Disabled, or the trip changed under a disabled hook: nothing held over.
     latest.current++;
@@ -96,7 +109,12 @@ export function useTripSuggestions({ tripId, enabled, onAccepted }: Args): {
       // The poll reports its revision on every tick (W68), usually the one
       // already held. A read that failed leaves `revRef` behind, so the next
       // tick asks again: one retry per poll, not a loop.
-      if (next !== revRef.current) void refresh();
+      //
+      // Nothing held yet and a read out is the mount's read at idle, which the
+      // first poll can overtake (both wait about 2s). That read answers with
+      // the current revision; a later one is the next tick's to notice.
+      if (next === revRef.current || (revRef.current === null && reading.current > 0)) return;
+      void refresh();
     },
     [refresh],
   );

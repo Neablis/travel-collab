@@ -476,9 +476,10 @@ export function AssistantRail({
    * and ⌘K opens this panel on Chat; and the conversation, so the button
    * counts while this is closed. `unread` is that count, which the Chat tab
    * carries too. The Ask tab stays mounted under Chat, so a draft or an answer
-   * streaming in is still there on the way back.
+   * streaming in is still there on the way back. `ready` says the chat has
+   * been read, so its composer is there to take focus.
    */
-  chat?: { tab: RailTab; onTabChange: (tab: RailTab) => void; panel: ReactNode; unread?: number };
+  chat?: { tab: RailTab; onTabChange: (tab: RailTab) => void; panel: ReactNode; unread?: number; ready?: boolean };
 } & (
   | {
       presentation?: "docked" | "floating";
@@ -744,6 +745,16 @@ export function AssistantRail({
     focusOpenTab();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- on a switch of tab only; `focusOpenTab` reads this render's
   }, [chat?.tab]);
+  // The chat's composer comes with its first read, which waits for idle, so
+  // Chat opened sooner put focus on the panel. Once the read lands it moves on
+  // to the composer, but only from the panel: focus the person has moved
+  // since stays where they put it. Not in a sheet, for the PR 442 reason above.
+  const chatReady = chat?.ready === true;
+  useEffect(() => {
+    if (!onChat || !chatReady || isSheet || document.activeElement !== chatPanelRef.current) return;
+    focusOpenTab();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- when the read lands; `focusOpenTab` reads this render's
+  }, [chatReady]);
 
   // Stored a moment after the last keystroke, and at once on unmount: a reply
   // that leaves the page is an unmount, and it is the case this is for.
