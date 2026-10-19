@@ -393,7 +393,7 @@ describe("TripBoardScreen", () => {
     expect(screen.getByTestId("one-more-day-column")).toBeTruthy();
 
     fireEvent.click(screen.getByRole("tab", { name: "Map" }));
-    expect(await screen.findByRole("heading", { name: "Nothing to map yet" })).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "No pins on this map yet" })).toBeTruthy();
 
     fireEvent.click(screen.getByRole("tab", { name: "Calendar" }));
     expect(await screen.findByText("Set a start date to see the calendar.")).toBeTruthy();

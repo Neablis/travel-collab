@@ -228,7 +228,14 @@ export function SharedDayScreen({
   initial?: SharedDayView;
 }) {
   const clock = useTimeFormat();
-  const read = useCallback(() => readDay(savedDayId), [savedDayId]);
+  // Whether the last failed read was the server's 404. `feed.error` keeps only
+  // the message, and the not-shared copy may claim only what a 404 says.
+  const [notShared, setNotShared] = useState(false);
+  const read = useCallback(async () => {
+    const result = await readDay(savedDayId);
+    setNotShared(!result.ok && result.error.status === 404);
+    return result;
+  }, [savedDayId]);
   const feed = useLibraryRead(read, signature, initial);
   const user = useSessionUser();
   const signedOut = user === null;
@@ -471,14 +478,19 @@ export function SharedDayScreen({
   // The day is gone — never yours, withdrawn by its author, or deleted. All
   // three are the same 404 by design (`saved-day-access.ts`: a private day and
   // a nonexistent one must be indistinguishable, so ids cannot be enumerated),
-  // so the copy cannot claim to know which.
+  // so the copy cannot claim to know which. Any other failure (offline, a 5xx)
+  // says nothing about the day, and gets the app's did-not-load line.
   if (feed.data === null && feed.error !== null && !feed.loading) {
     return (
       <div className={cn(COLUMN, "flex flex-col gap-4 pt-8")}>
         <BackLink href={backHref} label={backLabel} />
         <EmptyState
-          title="This day is not in the library"
-          body="It may never have been shared, or its author may have taken it back out."
+          {...(notShared
+            ? {
+                title: "This day is not shared",
+                body: "Its author may have made it private again, or the link may be wrong.",
+              }
+            : { title: "This day did not load", body: "Try again, or look through the shared days on Discover." })}
           action={
             <div className="flex gap-2">
               <Button variant="secondary" onClick={feed.reload}>
@@ -757,8 +769,8 @@ export function SharedDayScreen({
 
             {day.stops.length === 0 ? (
               <EmptyState
-                title="This day has nothing on it"
-                body="Every stop has been removed since it was kept."
+                title="This day is empty now"
+                body="Its author took every stop off after keeping it."
               />
             ) : (
               <div>

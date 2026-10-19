@@ -136,7 +136,7 @@ describe("a public profile", () => {
   it("stops pretending to load when the first read failed, and offers one Retry", async () => {
     fetchPublicProfileMock.mockResolvedValue({ ok: false, error: { status: 0, message: "Network error" } });
     renderProfile();
-    await screen.findByText("This profile could not be loaded");
+    await screen.findByText("This profile did not load");
     expect(screen.queryByTestId("profile-skeleton")).toBeNull();
     // The Retry is the banner's, and there is exactly one of it. Both halves
     // matter: the count rules out a second offer elsewhere on the page, and the
@@ -190,7 +190,7 @@ describe("a public profile", () => {
       ok({ author: { userId: "dev-dan", displayName: "Dan", playbooksShared: 0, adds: 0, reviewsReceived: 0, averageRating: null }, knows: [], days: [] }),
     );
     renderProfile();
-    expect(await screen.findByText("Nothing shared yet")).toBeTruthy();
+    expect(await screen.findByText("No shared days yet")).toBeTruthy();
   });
 
   // The name is the endpoint's answer, not a second derivation from the id in

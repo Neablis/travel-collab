@@ -995,10 +995,13 @@ export function MapLens({
             ))}
         </div>
       ) : (
-        /* **Nothing to map yet** — M26 link 7, §3b's empty state, worded from
-           the artboard (`dc.html:2362-2372`). What stood here was one muted
-           line inside a dashed box: a defined state, but one that named the
-           absence and not the way out of it.
+        /* **The empty map** — M26 link 7, §3b's empty state. Its heading left
+           the artboard's "Nothing to map yet" on purpose in M50 part 6: this
+           one speaks to an editor who can pin a stop, while the shared day's
+           frame (`SharedDayMap.tsx`) keeps the artboard's line for a reader who
+           cannot. Do not resync them. What stood here first was one muted line
+           inside a dashed box: a defined state, but one that named the absence
+           and not the way out of it.
 
            **The rail is NOT kept here, and that is the same call as
            KI-2026-09-20-c's**, one state over. The artboard keeps its day rail
@@ -1010,8 +1013,8 @@ export function MapLens({
            states of one lens answering this differently would be the drift.
            Recorded in `DRIFT.md` rather than left to be re-derived. */
         <EmptyState
-          title="Nothing to map yet"
-          body="A stop draws itself here as soon as it has a place. Add one and the day's walk appears with it."
+          title="No pins on this map yet"
+          body="Give a stop a place on the Plan and it lands here, with the walk between stops drawn in."
           action={
             <Link
               href={`/trips/${detail.tripId}?view=Plan`}

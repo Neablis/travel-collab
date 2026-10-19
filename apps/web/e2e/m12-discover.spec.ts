@@ -87,8 +87,8 @@ async function forget(page: Page, savedDayId: string): Promise<void> {
   expect(res.ok(), `forget -> ${res.status()}`).toBe(true);
 }
 
-/** The card titles in the order Discover shows them. */
-const cardTitles = (page: Page) => page.getByTestId("discover-results").getByRole("heading", { level: 2 });
+/** The card titles in the order Discover shows them: h3s, under the results' h2 (M50 part 6). */
+const cardTitles = (page: Page) => page.getByTestId("discover-results").getByRole("heading", { level: 3 });
 
 test("highest rated and most reviewed order by the reviews, and the floor narrows by them", async ({
   page,

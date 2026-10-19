@@ -183,20 +183,96 @@ describe("Discover", () => {
   // ADR-061: a reader with no account owns nothing, so *Yours* and *Saved* are
   // not places they can be. Seeded from a pasted `?scope=saved` on purpose — the
   // link a signed-in reader copies is the link a stranger opens.
+  // M50 part 6: the grid has a title a person would write, chosen by what the
+  // list is (the sort, or whose days).
+  it.each([
+    ["everyone", "most-added", "The days people keep adding to their trips"],
+    ["everyone", "highest-rated", "Rated best by the people who went"],
+    ["everyone", "most-reviewed", "The days with the most said about them"],
+    ["everyone", "newest", "Just shared"],
+    ["yours", "newest", "Days you kept from your trips"],
+    ["saved", "highest-rated", "Days you have taken into a trip"],
+  ] as const)("titles a %s list sorted %s %j", async (scope, sort, title) => {
+    render(<DiscoverScreen initial={{ scope, sort }} />);
+    expect(await screen.findByRole("heading", { level: 2, name: title })).toBeTruthy();
+  });
+
+  // Its cards come in two sizes, and their titles sit one level under it.
+  it("lays the results out wide, then standard, each card titled under the results' heading", async () => {
+    const six = Array.from({ length: 6 }, (_, i) =>
+      day({ savedDayId: `aa000000-0000-4000-8000-00000000000${i}`, name: `Day ${i}` }),
+    );
+    searchPlaybooksMock.mockResolvedValue(ok(response({ days: six })));
+    render(<DiscoverScreen />);
+    const results = await screen.findByRole("list", { name: "Results" });
+    expect(within(results).getAllByTestId("discover-card").map((card) => card.getAttribute("data-size"))).toEqual([
+      "wide", "standard", "standard", "standard", "standard", "wide",
+    ]);
+    expect(within(results).getAllByRole("heading", { level: 3 }).map((h) => h.textContent)).toEqual(
+      six.map((d) => d.name),
+    );
+  });
+
+  // The cards on screen are the last answer until a new one lands, and for
+  // good when the read fails; the title has to name that answer, not the tab
+  // just clicked.
+  it("keeps the results' title on the answer shown while a new scope loads or fails", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    render(<DiscoverScreen />);
+    expect(
+      await screen.findByRole("heading", { level: 2, name: "The days people keep adding to their trips" }),
+    ).toBeTruthy();
+
+    searchPlaybooksMock.mockResolvedValue({ ok: false, error: { status: 500, message: "boom" } });
+    await user.click(screen.getByRole("tab", { name: "Saved" }));
+    expect(await screen.findByTestId("library-sync-failure")).toBeTruthy();
+    expect(screen.getByRole("heading", { level: 2, name: "The days people keep adding to their trips" })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Days you have taken into a trip" })).toBeNull();
+  });
+
+  // The empty state says why it is empty: a read that failed, a place with
+  // nothing in it yet, or questions nothing answers. Only the last has filters
+  // to drop.
+  it("says the library did not load when the first read fails, and offers no filters to drop", async () => {
+    searchPlaybooksMock.mockResolvedValue({ ok: false, error: { status: 0, message: "offline" } });
+    render(<DiscoverScreen />);
+    expect(await screen.findByRole("heading", { level: 2, name: "The library did not load" })).toBeTruthy();
+    expect(screen.getByText("Retry above, and the search you set up is still here.")).toBeTruthy();
+    expect(screen.queryByText(/Try fewer filters/)).toBeNull();
+    expect(screen.queryByTestId("discover-search-everywhere")).toBeNull();
+  });
+
+  it("tells a new account with nothing of its own that it has kept nothing, not that it filtered too much", async () => {
+    searchPlaybooksMock.mockResolvedValue(ok(response({ days: [] })));
+    render(<DiscoverScreen initial={{ scope: "yours" }} />);
+    expect(await screen.findByRole("heading", { level: 2, name: "You have not kept a day yet" })).toBeTruthy();
+    expect(screen.queryByText(/Try fewer filters/)).toBeNull();
+    expect(screen.queryByTestId("discover-search-everywhere")).toBeNull();
+  });
+
+  it("tells a reader with nothing saved how a day gets there", async () => {
+    searchPlaybooksMock.mockResolvedValue(ok(response({ days: [] })));
+    render(<DiscoverScreen initial={{ scope: "saved" }} />);
+    expect(
+      await screen.findByRole("heading", { level: 2, name: "You have not taken a day into a trip yet" }),
+    ).toBeTruthy();
+    expect(screen.getByText("Add a day from the library to one of your trips and it shows up here.")).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Days you have taken into a trip" })).toBeNull();
+  });
+
   it("offers a reader with no account no scope tabs, and reads Everyone whatever the URL says", async () => {
     session = null;
     searchPlaybooksMock.mockResolvedValue(ok(response({ days: [] })));
     render(<DiscoverScreen initial={{ scope: "saved" }} />);
 
-    expect(await screen.findByText("No days match")).toBeTruthy();
     // One level under the screen's h1 (axe heading-order on /playbooks).
-    expect(screen.getByRole("heading", { level: 2, name: "No days match" })).toBeTruthy();
+    expect(await screen.findByRole("heading", { level: 2, name: "Nothing has been shared yet" })).toBeTruthy();
     expect(screen.queryByRole("tablist", { name: "Whose days" })).toBeNull();
     expect(screen.queryByRole("tab", { name: "Saved" })).toBeNull();
     expect(searchPlaybooksMock).toHaveBeenCalled();
     for (const [query] of searchPlaybooksMock.mock.calls) expect(query).toMatchObject({ scope: "everyone" });
     // *Saved*'s empty copy is about the reader's own trips, which they have none of.
-    expect(screen.queryByText(/Days you take into a trip/)).toBeNull();
+    expect(screen.queryByText(/to one of your trips and it shows up here/)).toBeNull();
   });
 
   // Only on a CONFIRMED signed-out session: while it is being read, the tabs
@@ -398,17 +474,15 @@ describe("Discover", () => {
     searchPlaybooksMock.mockResolvedValue(ok(response({ days: [] })));
     render(<DiscoverScreen />);
     // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
-    await waitFor(() => expect(screen.getByText("No days match")).toBeTruthy());
-    expect(screen.queryByRole("button", { name: "Drop the filters" })).toBeNull();
+    await waitFor(() => expect(screen.getByText("Nothing has been shared yet")).toBeTruthy());
 
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     await user.click(screen.getByTestId("filter-more"));
     await user.click(screen.getByTestId("filter-more-length-four-six"));
-    await waitFor(() =>
-      expect(searchPlaybooksMock).toHaveBeenLastCalledWith(
-        expect.objectContaining({ length: "four-six" }),
-      ),
-    );
+    await user.keyboard("{Escape}");
+    expect(await screen.findByRole("heading", { level: 2, name: "No day fits all of that" })).toBeTruthy();
+    expect(screen.getByText("Try fewer filters, or search everywhere below.")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Drop the filters" })).toBeNull();
     await user.click(screen.getByTestId("discover-search-everywhere"));
     await waitFor(() =>
       expect(searchPlaybooksMock).toHaveBeenLastCalledWith(
@@ -429,14 +503,19 @@ describe("Discover", () => {
     await waitFor(() => expect(screen.getByRole("tab", { name: "Saved" })).toBeTruthy());
 
     await user.click(screen.getByRole("tab", { name: "Saved" }));
-    await waitFor(() =>
-      expect(searchPlaybooksMock).toHaveBeenLastCalledWith(expect.objectContaining({ scope: "saved" })),
-    );
-
-    await user.click(screen.getByTestId("discover-search-everywhere"));
+    await user.click(screen.getByTestId("filter-more"));
+    await user.click(screen.getByTestId("filter-more-length-four-six"));
+    await user.keyboard("{Escape}");
     await waitFor(() =>
       expect(searchPlaybooksMock).toHaveBeenLastCalledWith(
-        expect.objectContaining({ scope: "saved", cities: [] }),
+        expect.objectContaining({ scope: "saved", length: "four-six" }),
+      ),
+    );
+
+    await user.click(await screen.findByTestId("discover-search-everywhere"));
+    await waitFor(() =>
+      expect(searchPlaybooksMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({ scope: "saved", cities: [], length: "any" }),
       ),
     );
   });
@@ -661,16 +740,16 @@ describe("Discover", () => {
     searchPlaybooksMock.mockResolvedValue(ok(response({ days: [], sharedPlaybookCount: 0 })));
     render(<DiscoverScreen />);
     // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
-    await waitFor(() => expect(screen.getByText("No days match")).toBeTruthy());
+    await waitFor(() => expect(screen.getByText("Nothing has been shared yet")).toBeTruthy());
     expect(screen.queryByRole("link", { name: /Who shares the most/ })).toBeNull();
   });
 
   // A filtered-to-nothing search is not an empty library: the link stays.
   it("keeps the leaderboard link when the query matches nothing but the library is not empty", async () => {
     searchPlaybooksMock.mockResolvedValue(ok(response({ days: [], sharedPlaybookCount: 7 })));
-    render(<DiscoverScreen />);
+    render(<DiscoverScreen initial={{ cities: ["Kyoto"] }} />);
     // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
-    await waitFor(() => expect(screen.getByText("No days match")).toBeTruthy());
+    await waitFor(() => expect(screen.getByText("No day fits all of that")).toBeTruthy());
     expect(screen.getByRole("link", { name: /Who shares the most/ })).toBeTruthy();
   });
 

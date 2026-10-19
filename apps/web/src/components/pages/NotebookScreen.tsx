@@ -638,11 +638,11 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
         ) : pages.length === 0 ? (
           <EmptyState
             level={3}
-            title="No notebooks yet"
+            title="Nothing written down yet"
             body={
               reader
-                ? "Nobody has written one for this trip yet."
-                : "Start from a template below, or create a blank one and write your own."
+                ? "No one on this trip has started a notebook."
+                : "Pick a template below, or start a blank one and write it your way."
             }
           />
         ) : (
