@@ -179,6 +179,8 @@
       "Grep(./docs/**)",
       "Bash(pnpm surface:*)",
       "Bash(node scripts/surface-size.mjs:*)",
+      "Bash(pnpm -s pr-digest:*)",
+      "Bash(pnpm -s session-metrics:*)",
       "mcp__Vercel__list_toolbar_threads",
       "mcp__Vercel__get_toolbar_thread",
       "mcp__Vercel__reply_to_toolbar_thread",
