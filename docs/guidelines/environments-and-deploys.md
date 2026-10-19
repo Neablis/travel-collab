@@ -2,7 +2,7 @@
 
 ## New worktree / first run
 
-`pnpm setup` copies `.env.example` to `apps/web/.env.local` (never
+`pnpm run setup` copies `.env.example` to `apps/web/.env.local` (never
 overwrites an existing one — safe to run any time). Fill in
 `LOCATIONIQ_API_KEY` if you need geocoding locally, and `EXTERNAL_DATA_CONTACT`
 (an ops address, never a user's) if you want the weather widget to show a

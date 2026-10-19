@@ -228,12 +228,18 @@ different error, so the second one landed here.
 **Before running anything heavier than a unit test in a new worktree:**
 
     cp <primary-worktree>/apps/web/.env.local apps/web/.env.local
-    # or, equivalently:
-    pnpm setup
+    # or, equivalently (`run` is required: pnpm 11 has a built-in `pnpm setup`
+    # that wins over the script and writes PNPM_HOME into ~/.bashrc instead):
+    pnpm run setup
 
 `pnpm --filter web test` does not need it, which is exactly why the gap survives
 until the expensive lane. `test:e2e:ci-like`, `test:int` and every `db:*` script
 do.
+
+Exporting only `DATABASE_URL` instead is not enough either: `test:int` then runs,
+but without `AUTH_DEV_LOGIN` dev login claims an invite code, and
+`users.int.test.ts`'s *spends no invite code* fails as if sign-up were broken. It
+fails identically on `main` (M50 part 2's review, 2026-10-19). Copy the file.
 
 ### An `.env.local` KEY can be present and its VALUE still empty
 

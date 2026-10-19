@@ -35,7 +35,7 @@ denies it locally: CI runs that suite on the PR. The mid-branch default is
 the `minimal-check-subset` skill's output, per `AGENTS.md` §Definition of Done
 Tier 2. `pnpm check` does
 **not** run e2e, and skips integration with no database, since those need a running Postgres
-(`pnpm setup` once, then `docker compose up -d` or equivalent) and, for e2e,
+(`pnpm run setup` once, then `docker compose up -d` or equivalent) and, for e2e,
 installed Playwright browsers. For anything that touches the server or a
 user-facing flow, run the scoped forms: `pnpm test:int` (`apps/web`'s
 `*.int.test.ts` against real Postgres) and the changed flow's own spec,
