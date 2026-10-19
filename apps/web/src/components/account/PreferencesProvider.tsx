@@ -192,6 +192,8 @@ export function PreferencesProvider({
       const result = await save({ dismissedPublishOffers: all.slice(-MAX_DISMISSED_PUBLISH_OFFERS) });
       // A failed one keeps its offer up with the error; carried on, the next
       // trip's save would store it and the offer would vanish unasked.
+      // Overlapping saves can still store it, via a later save sent first;
+      // accepted, as the reader did ask to dismiss that trip.
       if (!result.ok) dismissedHere.current = dismissedHere.current.filter((id) => id !== tripId);
       return result;
     },

@@ -108,6 +108,14 @@ describe("PublishTripOffer on the trip page", () => {
     await userEvent.click(await screen.findByRole("button", { name: "Dismiss publishing Lisbon long weekend" }));
     expect((await screen.findByRole("alert")).textContent).toBe("Couldn't save. Try again.");
     expect(screen.getByRole("group", { name: "Publish Lisbon long weekend as a playbook" })).toBeTruthy();
+    // Both usable again, so the reader can retry or publish instead, and focus
+    // is still on Dismiss: disabling the pressed button would have dropped it
+    // to the top of the page, with nothing to bring it back on a failure.
+    const dismiss = screen.getByRole("button", { name: "Dismiss publishing Lisbon long weekend" });
+    expect(dismiss.getAttribute("aria-disabled")).toBeNull();
+    const publish = screen.getByRole("button", { name: "Publish Lisbon long weekend" });
+    expect(publish.getAttribute("aria-disabled")).toBeNull();
+    expect(dismiss.matches(":focus")).toBe(true);
   });
 
   // A Publish pressed while the dismissal saves would open the Keep dialog,
@@ -116,8 +124,16 @@ describe("PublishTripOffer on the trip page", () => {
     updatePreferencesMock.mockReturnValue(new Promise(() => {}));
     renderOffer(true);
     await userEvent.click(await screen.findByRole("button", { name: "Dismiss publishing Lisbon long weekend" }));
-    expect(screen.getByRole("button", { name: "Publish Lisbon long weekend" }).hasAttribute("disabled")).toBe(true);
-    expect(screen.getByRole("button", { name: "Dismiss publishing Lisbon long weekend" }).hasAttribute("disabled")).toBe(true);
+    const publish = screen.getByRole("button", { name: "Publish Lisbon long weekend" });
+    const dismiss = screen.getByRole("button", { name: "Dismiss publishing Lisbon long weekend" });
+    expect(publish.getAttribute("aria-disabled")).toBe("true");
+    expect(dismiss.getAttribute("aria-disabled")).toBe("true");
+    // Announced, not `disabled`: a browser moves focus off a disabled button to
+    // the page. jsdom leaves `activeElement` alone, but `:focus` does not match.
+    expect(dismiss.matches(":focus")).toBe(true);
+    expect(dismiss.matches(":disabled")).toBe(false);
+    await userEvent.click(publish);
+    expect(screen.queryByRole("dialog")).toBeNull();
   });
 
   // The page reads the trip's end off its last day: a trip whose first day is

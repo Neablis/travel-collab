@@ -136,6 +136,10 @@ function Offer({
   // While the dismissal saves, a Publish would open the Keep dialog only for
   // the save landing to unmount it mid-edit.
   const [dismissing, setDismissing] = useState(false);
+  // Held is announced, not `disabled`: disabling the pressed button drops
+  // keyboard focus to the page, and on a failed save nothing brings it back.
+  const held = busy || dismissing;
+  const heldStyle = "aria-disabled:cursor-not-allowed aria-disabled:opacity-50";
   const [error, setError] = useState<string | null>(null);
   const candidates = days ?? read;
 
@@ -182,8 +186,11 @@ function Offer({
         size="sm"
         variant="ghost"
         aria-label={`Dismiss publishing ${trip.name}`}
-        disabled={dismissing}
-        onClick={() => void dismiss()}
+        aria-disabled={held || undefined}
+        className={heldStyle}
+        onClick={() => {
+          if (!held) void dismiss();
+        }}
       >
         Dismiss
       </Button>
@@ -192,8 +199,11 @@ function Offer({
         size="sm"
         variant="primary"
         aria-label={`Publish ${trip.name}`}
-        disabled={busy || dismissing}
-        onClick={() => void start()}
+        aria-disabled={held || undefined}
+        className={heldStyle}
+        onClick={() => {
+          if (!held) void start();
+        }}
       >
         Publish
       </Button>
