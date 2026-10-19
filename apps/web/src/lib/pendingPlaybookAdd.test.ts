@@ -50,6 +50,12 @@ describe("the pending playbook-add marker", () => {
     expect(takePlaybookAdd(DAY, NOW)).toBe("choose-trip");
   });
 
+  // The shape banked before decision 5, when every marker meant "ask which trip".
+  it("reads a marker with no intent as choose-trip", () => {
+    store.set("pending_playbook_add", JSON.stringify({ savedDayId: DAY, at: NOW }));
+    expect(takePlaybookAdd(DAY, NOW)).toBe("choose-trip");
+  });
+
   it("does not open on another day, and is spent by looking", () => {
     rememberPlaybookAdd(DAY, "new-trip", NOW);
     expect(takePlaybookAdd(OTHER_DAY, NOW)).toBeNull();
@@ -79,7 +85,6 @@ describe("the pending playbook-add marker", () => {
     ["the demo marker's shape", String(NOW)],
     ["no time", JSON.stringify({ savedDayId: DAY })],
     ["a time that is not a number", JSON.stringify({ savedDayId: DAY, intent: "new-trip", at: "now" })],
-    ["no intent", JSON.stringify({ savedDayId: DAY, at: NOW })],
     ["an intent it does not know", JSON.stringify({ savedDayId: DAY, intent: "open-dialog", at: NOW })],
   ])("treats a corrupted value (%s) as nothing", (_label, raw) => {
     store.set("pending_playbook_add", raw);

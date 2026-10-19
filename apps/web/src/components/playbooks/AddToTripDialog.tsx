@@ -49,6 +49,7 @@ export function AddToTripDialog({
   dayCount,
   onConflict,
   retrying = null,
+  startOnNewTrip = false,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -74,6 +75,8 @@ export function AddToTripDialog({
    * second one.
    */
   retrying?: { tripId: string | null; error: string } | null;
+  /** Opens on *Start a new trip*, not the first trip: what the press before signing up asked for. */
+  startOnNewTrip?: boolean;
 }) {
   const router = useRouter();
   const tripFieldId = useId();
@@ -114,11 +117,13 @@ export function AddToTripDialog({
     setTripId((current) =>
       retrying && kept(retrying.tripId ?? NEW_TRIP)
         ? (retrying.tripId ?? NEW_TRIP)
-        : kept(current)
-          ? current
-          : (result.value[0]?.tripId ?? NEW_TRIP),
+        : startOnNewTrip
+          ? NEW_TRIP
+          : kept(current)
+            ? current
+            : (result.value[0]?.tripId ?? NEW_TRIP),
     );
-  }, [retrying]);
+  }, [retrying, startOnNewTrip]);
 
   useEffect(() => {
     if (open) {

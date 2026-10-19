@@ -33,6 +33,7 @@ import {
   fetchPublicProfile,
   fetchSavedDay,
   fetchSavedDayCover,
+  fetchTrips,
   publishSavedDay,
   searchSavedDayCovers,
   setSavedDayCover,
@@ -240,6 +241,9 @@ export function SharedDayScreen({
   // the dialog if that fails.
   const [makingTrip, setMakingTrip] = useState(false);
   const [retrying, setRetrying] = useState<{ tripId: string | null; error: string } | null>(null);
+  // The return from signing up found the account already had trips, so it asks,
+  // starting where the press pointed.
+  const [startOnNewTrip, setStartOnNewTrip] = useState(false);
   const [signingIn, setSigningIn] = useState(false);
   const [withdrawn, setWithdrawn] = useState(false);
   // The return from signing up had made a trip before the insert found the day
@@ -305,6 +309,10 @@ export function SharedDayScreen({
   // a reader who had no account had no trip to pick, so the press was the
   // choice. From sign-in, opens the add dialog: that account may have the trip.
   //
+  // Which link was pressed is not which kind of account came back: the sign-up
+  // page links to Sign in (decision 15). So sign-up's return makes the trip only
+  // for an account with no trips, and otherwise opens the dialog on a new one.
+  //
   // Single-use, because a second pass would be a second trip: the marker is
   // read-and-cleared before anything is sent, so a remount finds nothing, and
   // the ref keeps StrictMode's double effect to one read. Waits for the day
@@ -336,7 +344,18 @@ export function SharedDayScreen({
     }
     const latch: { current: NewTripLatch | null } = { current: null };
     setMakingTrip(true);
-    void addDayToNewTrip({ savedDayId, dayName }, latch).then((result) => {
+    void (async () => {
+      const trips = await fetchTrips();
+      // Gone before the check came back: nothing was made, and nothing should be.
+      if (!mounted.current) return;
+      // A failed read is not proof of no trips, so it asks rather than writes.
+      if (!trips.ok || trips.value.length > 0) {
+        setMakingTrip(false);
+        setStartOnNewTrip(true);
+        setAdding(true);
+        return;
+      }
+      const result = await addDayToNewTrip({ savedDayId, dayName }, latch);
       if (!mounted.current) return;
       setMakingTrip(false);
       if (result.ok) router.push(`/trips/${result.value.tripId}`);
@@ -359,7 +378,7 @@ export function SharedDayScreen({
         });
         setAdding(true);
       }
-    });
+    })();
   }, [dayName, user, readerIsAuthor, savedDayId, router]);
 
   // Read again while the server is still pinning — silently, because the
@@ -1063,9 +1082,13 @@ export function SharedDayScreen({
         open={adding}
         onOpenChange={(open) => {
           setAdding(open);
-          if (!open) setRetrying(null);
+          if (!open) {
+            setRetrying(null);
+            setStartOnNewTrip(false);
+          }
         }}
         retrying={retrying}
+        startOnNewTrip={startOnNewTrip}
         savedDayId={day.savedDayId}
         dayName={day.name}
         dayCount={day.dayCount}

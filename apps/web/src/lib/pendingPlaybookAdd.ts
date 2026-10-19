@@ -6,12 +6,12 @@
  * in the browser rather than threaded through every one of those URLs (that
  * file records the three hops that drop a `?callbackUrl=`). ADR-061.
  *
- * **What redeeming it does depends on the way in** (M50 decision 5, as
- * Mitchell narrowed it on 2026-10-19). Through sign-up (`"new-trip"`): a new
- * account has no trip to choose, so the press is the choice, and the day page
- * makes a trip named for the day and goes to it. Through sign-in
- * (`"choose-trip"`): an existing account may well have the trip this day
- * belongs in, so the day page opens the add dialog instead. A forged marker —
+ * **What redeeming it does depends on the way in** (M50 decisions 5 and 15).
+ * Through sign-up (`"new-trip"`): a new account has no trip to choose, so the
+ * press is the choice, and the day page makes a trip named for the day and goes
+ * to it — but only if the account has no trips, since the sign-up page links to
+ * Sign in and an existing account can arrive this way too. Through sign-in
+ * (`"choose-trip"`): the day page opens the add dialog. A forged marker —
  * `localStorage` is same-origin, so forging it already means running script on
  * this origin — can do no more than give the reader a trip of their own holding
  * a public day they could have added themselves.
@@ -42,7 +42,8 @@ function storage(): Storage | null {
 
 /**
  * What the return does: make a trip (`"new-trip"`), or ask which one
- * (`"choose-trip"`). A marker naming anything else is never redeemed.
+ * (`"choose-trip"`). A marker naming anything else is never redeemed; one
+ * naming none is `"choose-trip"`, its meaning before there were two.
  */
 export type PlaybookAddIntent = "new-trip" | "choose-trip";
 
@@ -91,7 +92,15 @@ export function takePlaybookAdd(savedDayId: string, now: number = Date.now()): P
     return null;
   }
   if (typeof marker !== "object" || marker === null) return null;
-  const { savedDayId: banked, intent, at } = marker as { savedDayId?: unknown; intent?: unknown; at?: unknown };
+  const { savedDayId: banked, intent: bankedIntent, at } = marker as {
+    savedDayId?: unknown;
+    intent?: unknown;
+    at?: unknown;
+  };
+  // No intent is the marker banked before there were two, when every return
+  // opened the dialog: it still means that, so a reader mid-sign-in across the
+  // deploy is not bounced back to a day that then does nothing (PR 497 review).
+  const intent = bankedIntent === undefined ? "choose-trip" : bankedIntent;
   if (banked !== savedDayId || (intent !== "new-trip" && intent !== "choose-trip")) return null;
   if (typeof at !== "number" || !Number.isFinite(at)) return null;
   return now - at >= 0 && now - at <= PENDING_PLAYBOOK_ADD_MAX_AGE_MS ? intent : null;

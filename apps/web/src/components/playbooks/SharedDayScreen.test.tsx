@@ -67,7 +67,7 @@ vi.mock("maplibre-gl", () => {
 });
 
 import { SharedDayScreen, ledgerLabel } from "./SharedDayScreen";
-import { rememberPlaybookAdd } from "@/lib/pendingPlaybookAdd";
+import { pendingPlaybookAddDay, rememberPlaybookAdd } from "@/lib/pendingPlaybookAdd";
 import { holdReview } from "./reviewQueue";
 
 const DAY_ID = "aa000000-0000-4000-8000-000000000001";
@@ -1335,6 +1335,11 @@ describe("a shared day, read with no account", () => {
 describe("back from signing in to add", () => {
   const MARKER = "pending_playbook_add";
 
+  // A new account: no trips yet. A test about an account that has some says so.
+  beforeEach(() => {
+    fetchTripsMock.mockResolvedValue(ok([]));
+  });
+
   // The whole round trip through the real dialog: signed out, press the way in,
   // then the same day again with an account.
   async function returnThrough(link: "Sign in" | "Create an account") {
@@ -1356,6 +1361,34 @@ describe("back from signing in to add", () => {
     await waitFor(() => expect(pushMock).toHaveBeenCalledWith(`/trips/${NEW_TRIP_ID}`));
     expect(insertSavedDayMock).toHaveBeenCalledWith(NEW_TRIP_ID, DAY_ID);
     expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  // Decision 15: the sign-up page links to Sign in, so the link pressed here is
+  // not proof the account is new. One with trips is asked, starting on a new one.
+  it("opens the dialog on a new trip, and makes none, for an account that already has trips", async () => {
+    fetchTripsMock.mockResolvedValue(
+      ok([{ tripId: TRIP_ID, name: "Japan", status: "active", members: [{ userId: "u", role: "owner", name: null, email: null }], createdAt: "2026-01-01T00:00:00.000Z" }]),
+    );
+    await returnThrough("Create an account");
+
+    const picker = (await screen.findByLabelText("Which trip")) as HTMLSelectElement;
+    await waitFor(() => expect(picker.value).toBe("new"));
+    expect(createTripMock).not.toHaveBeenCalled();
+    expect(pushMock).not.toHaveBeenCalled();
+    expect(window.localStorage.getItem(MARKER)).toBeNull();
+  });
+
+  // Banked by the build before decision 5, where the marker only opened the
+  // dialog. The trip list bounces the reader to the day; the day must open it.
+  it("opens the add dialog for a marker banked with no intent, after the trip list's bounce", async () => {
+    session = { id: "dev-bob" };
+    window.localStorage.setItem(MARKER, JSON.stringify({ savedDayId: DAY_ID, at: Date.now() }));
+    expect(pendingPlaybookAddDay()).toBe(DAY_ID);
+    renderDay();
+
+    expect(await screen.findByLabelText("Which trip")).toBeTruthy();
+    expect(createTripMock).not.toHaveBeenCalled();
+    expect(window.localStorage.getItem(MARKER)).toBeNull();
   });
 
   it("opens the add dialog after signing in, and makes no trip", async () => {
@@ -1426,7 +1459,8 @@ describe("back from signing in to add", () => {
 
   it("opens the dialog on the trip it made, saying why, when the add fails another way", async () => {
     session = { id: "dev-bob" };
-    fetchTripsMock.mockResolvedValue(
+    // None on return, then the one it made beside an older one.
+    fetchTripsMock.mockResolvedValueOnce(ok([])).mockResolvedValue(
       ok([
         { tripId: TRIP_ID, name: "Japan", status: "active", members: [{ userId: "u", role: "owner", name: null, email: null }], createdAt: "2026-01-01T00:00:00.000Z" },
         { tripId: NEW_TRIP_ID, name: savedDay().name, status: "active", members: [{ userId: "u", role: "owner", name: null, email: null }], createdAt: "2026-01-02T00:00:00.000Z" },
