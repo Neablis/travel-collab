@@ -118,26 +118,64 @@ Eight parts, each its own PR on `main` (the plan has the files):
       claim; no admission message says Caesura is invite-only; the four `DevelopersScreen` prose
       em dashes are gone; meta description, OG alt and OG PNG agree with the page; the handoff
       carries the same text. Unit and e2e assertions pin the new text, each seen red.
-- [ ] **Assistant tone:** the line is in the instruction, the context-budget baseline is
+      *Open (2026-10-19):* PR 494 (merged `ad08627`) did all of it, with CI green on its head
+      `11d26c5` (run 39258086972). The unit pins were seen red (PR 494's red-first table). The e2e
+      pins (`seo.spec.ts:13`, `m15-front-door.spec.ts:24`, `responsive.spec.ts:922`) ran green
+      via ci-like, but no e2e red is recorded.
+- [x] **Assistant tone:** the line is in the instruction, the context-budget baseline is
       regenerated in the same PR, and the offline eval set's numbers are pasted in the PR.
+      *Evidence:* `VOICE_RULE`, `apps/web/src/server/ai/handleAskRequest.ts:2066`, used at
+      2054, 2086 and 2125. PR 494's red-first table has the baseline red (`trip · viewer: 4150 →
+      4217 chars`), and its body has the offline evals (`grade.test.ts` 36/36, `replay.int`
+      70/70). Merged `ad08627`, CI green on `11d26c5` (run 39258086972). The account and playbook
+      prompts are outside the budget: KI-2026-10-19-e.
 - [ ] **Attribution:** a visit to `/?ref=showhn` followed by a signup within 30 days stores
       `showhn` on the account; a second `?ref=` does not overwrite the first; a malformed ref is
       dropped; `/` stays static (its response headers in the PR). Integration test seen red.
-- [ ] **Report:** the console's Users tab and `pnpm signups-by-ref` show signups per channel.
-- [ ] **JSON-LD:** every indexable city and country page (`placeIndexable`; thinner ones are
+      *Open (2026-10-19):* PR 496 (merged `494d964`, CI green on `cc90957`, run 39237229216)
+      has the first-touch, no-overwrite and malformed-ref tests seen red. No response headers for
+      `/` are in the PR, and that check needs the preview walk (ADR-079).
+- [x] **Report:** the console's Users tab and `pnpm signups-by-ref` show signups per channel.
+      *Evidence:* PR 496 (merged `494d964`, CI green on `cc90957`, run 39237229216). Its
+      red-first table covers `SignupsByRefTable` ("null reads direct") and the 7/30-day
+      `signupsByRef` windows (int). `scripts/signups-by-ref.mjs` ran against the test DB.
+- [x] **JSON-LD:** every indexable city and country page (`placeIndexable`; thinner ones are
       `noindex` and emit none) carries one `ItemList` of the days it shows, with
       absolute URLs, validated by the seo spec; the cached `[copy]` twins carry it too.
-- [ ] **One step:** signed out, *Add to a trip* → sign up → lands on `/trips/<new>` with the day
+      *Evidence:* PR 495 (merged `278791b`, CI green on `fd1efe1`, run 39214986837).
+      `seo.spec.ts` (city, country, and a thin page emitting none) was seen red. The guard is at
+      `app/playbooks/live/city/[slug]/page.tsx:24` and `live/country/[slug]/page.tsx:22`. The
+      `[copy]` twins re-export the live pages (`[copy]/city/[slug]/page.tsx:3`).
+- [x] **One step:** signed out, *Add to a trip* → sign up → lands on `/trips/<new>` with the day
       in it, no dialog. The existing `public-playbooks.spec.ts` path is updated and green in CI.
+      *Evidence:* PR 497 (merged `b815890`). The `public-playbooks.spec.ts` path was seen red
+      (`Expected pattern: /\/trips\/[0-9a-f-]{36}$/`) and green via ci-like. CI is green on
+      `c4d91dd` (run 39264057976).
 - [ ] **Landing and empty states:** the feature section no longer has four equal cards; the
       closing band is replaced; grain shows under both looks; every `EmptyState` caller outside
       the admin console has its own copy; the colour wall passes.
+      *Open (2026-10-19):* PR 500 (merged `aeea6ce`, CI green on `d29c620`, run 39274224019)
+      and PR 501 (merged `8b3abed`, CI green on `c6d4f41`, run 39271108575) cover the layout,
+      the closing moment and the empty-state copy with tests seen red. Grain under both looks,
+      at its lowered opacity (0.12 / 0.08), has not been seen in a browser yet: that is for the
+      walk.
 - [ ] **Publish:** an ended trip offers the prompt on Home and on the trip page; publishing lands
       on a public playbook holding every day; dismissing hides it for that person and trip.
-- [ ] **Referral:** the nudge shows in Share and Invite for a paid account and not for a free one.
+      *Open (2026-10-19):* PR 499 (merged `879fc87`, CI green on `508d57b`, run 39281259693)
+      has unit and int tests for each clause, seen red. Still open: the walk (the note after
+      Dismiss), and production, where `0061` is not applied yet (`migrate-production`).
+- [x] **Referral:** the nudge shows in Share and Invite for a paid account and not for a free one.
+      *Evidence:* PR 498 (merged `da1a7b7`, CI green on `e73d70a`, run 39237964347).
+      `ShareButton.test.tsx` and `InviteDialog.test.tsx` each test both cases, red-first in PR
+      498. It gates on `earnsReward`, not `canRefer` (`useReferralLink.ts:47-51`). The browser
+      check is in the walk box.
 - [ ] **[walk]** Mitchell walks the preview: signed out from a city page to a new trip; the
       landing on desktop and phone; an ended trip to a published playbook; a paid account's
       Share dialog.
-- [ ] `migrate-production` has applied `0060` (Mitchell's).
+- [x] `migrate-production` has applied `0060` (Mitchell's).
+      *Evidence:* run 39269884761, 2026-10-19T14:32Z, on `b815890`, which contains
+      `0060_users_signup_ref`: success. `0061_users_dismissed_publish_offers` (PR 499) is on
+      `main` but not applied in production. No run was later than 39269884761 when re-read on
+      2026-10-19.
 
 A retro is appended at gate close.

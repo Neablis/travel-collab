@@ -112,7 +112,7 @@ Decision 8.
 
 | Change | Entry point | Tests |
 |---|---|---|
-| A one-line nudge with a copyable link, only when `canRefer` | `components/trip/ShareButton.tsx:32`, `components/trip/people/InviteDialog.tsx`; data from `app/api/account/referrals/route.ts` (GET `earnsReward`, POST mints, 409 at cap); link built like `components/account/PlanSection.tsx:160` `referralLink` (extract it) | `ShareButton.test.tsx`, InviteDialog test, `PlanSection.test.tsx` |
+| A one-line nudge with a copyable link, only when the referrals GET answers `earnsReward: true` (not the plan view's `canRefer`: `earnsReward` is the read `rewardReferrer` makes, so the line never promises a month the reward would refuse; `useReferralLink.ts:47-51`) | `components/trip/ShareButton.tsx:32`, `components/trip/people/InviteDialog.tsx`; data from `app/api/account/referrals/route.ts` (GET `earnsReward`, POST mints, 409 at cap); link built like `components/account/PlanSection.tsx:160` `referralLink` (extracted as PR 498 shipped it: `components/account/useReferralLink.ts`, `components/account/ReferralNudge.tsx`) | `ShareButton.test.tsx`, InviteDialog test, `useReferralLink.test.tsx`, `PlanSection.test.tsx` |
 
 Preview: a paid account's Share dialog shows the nudge; a free account's does not.
 
