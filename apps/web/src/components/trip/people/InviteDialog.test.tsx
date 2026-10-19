@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { tripInviteFactory } from "@tc/factories";
@@ -26,8 +26,23 @@ function comingOnTheTrip(dialog: HTMLElement): HTMLInputElement {
   return within(dialog).getByRole("checkbox", { name: /Coming on the trip/ }) as HTMLInputElement;
 }
 
-afterEach(cleanup);
+// `GET /api/account/referrals`, which the referral nudge reads while it is
+// on screen. Nothing else in this suite goes through `fetch`.
+const referralsFetch = vi.fn();
+function earnsReward(earns: boolean) {
+  referralsFetch.mockImplementation(
+    async () => new Response(JSON.stringify({ codes: [], earnsReward: earns }), { status: 200 }),
+  );
+}
+
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
 beforeEach(() => {
+  referralsFetch.mockReset();
+  earnsReward(false);
+  vi.stubGlobal("fetch", referralsFetch);
   createTripInviteMock.mockReset().mockResolvedValue({ ok: true, value: invite });
   writeText.mockReset().mockResolvedValue(undefined);
   Object.assign(navigator, { clipboard: { writeText } });
@@ -139,5 +154,22 @@ describe("InviteDialog", () => {
     expect(within(again).queryByLabelText("Invite link")).toBeNull();
     expect((within(again).getByLabelText("Email (optional)") as HTMLInputElement).value).toBe("");
     expect(within(again).getByRole("radio", { name: "Can edit" }).getAttribute("aria-checked")).toBe("true");
+  });
+
+  // M50 decision 8, the same rule as the Share panel's.
+  it("offers a referral link to an account that earns the reward", async () => {
+    earnsReward(true);
+    const { dialog } = renderDialog();
+    expect(await within(dialog).findByRole("button", { name: "Copy referral link" })).toBeTruthy();
+  });
+
+  it("offers nothing new to an account that earns nothing", async () => {
+    const { dialog } = renderDialog();
+    await waitFor(() => expect(referralsFetch).toHaveBeenCalledWith("/api/account/referrals"));
+    // Let the answer land before asserting that it changed nothing.
+    await act(async () => {
+      await referralsFetch.mock.results[0]?.value;
+    });
+    expect(within(dialog).queryByRole("button", { name: "Copy referral link" })).toBeNull();
   });
 });

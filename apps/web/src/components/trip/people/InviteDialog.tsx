@@ -9,6 +9,7 @@ import { Dialog, DialogFooter } from "@/components/ui/dialog";
 import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
 import { Text } from "@/components/ui/text";
+import { ReferralNudge } from "@/components/account/ReferralNudge";
 import { createTripInvite, inviteLink } from "@/lib/apiClient";
 import { RolePicker } from "./RoleDialog";
 
@@ -46,6 +47,8 @@ export function InviteDialog({
           next invite starts from an empty form rather than the last one's
           address and link. */}
       <InviteForm tripId={tripId} gated={gated} onCreated={onCreated} onDone={() => onOpenChange(false)} />
+      {/* Below whichever view the form is on: offered before and after the invite is made. */}
+      <ReferralNudge className="mt-4" />
     </Dialog>
   );
 }
