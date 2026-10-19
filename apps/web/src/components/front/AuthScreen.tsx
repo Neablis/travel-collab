@@ -58,7 +58,7 @@ function AuthSearchParams({ onCallbackUrl }: { onCallbackUrl: (url: string) => v
 
   if (!failure) return null;
   // A refusal message may be more than one paragraph (`authCopy`'s
-  // MISSING_INVITE_CODE is two): why the door is shut, then what to do. Split
+  // MISSING_INVITE_CODE is two): why, then what to do. Split
   // on the blank line so the second instruction is not buried in the first.
   const paragraphs = failure.split("\n\n");
   return (
