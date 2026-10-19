@@ -119,6 +119,19 @@ test("sitemap.xml lists the static routes and published days, never a private on
 const ldJson = (html: string): unknown[] =>
   [...html.matchAll(/<script type="application\/ld\+json">(.*?)<\/script>/gs)].flatMap((m) => JSON.parse(m[1]!) as unknown);
 
+const itemLists = (html: string) =>
+  ldJson(html).filter((n) => (n as { "@type": string })["@type"] === "ItemList") as {
+    itemListElement: { url: string; name: string }[];
+  }[];
+
+// The paths of a page's one top-level `ItemList`, sorted; each URL must be absolute to parse.
+const itemListPaths = (html: string): string[] => {
+  const [list, ...rest] = itemLists(html);
+  expect(rest, "one ItemList").toEqual([]);
+  expect(list, "an ItemList").toBeDefined();
+  return list!.itemListElement.map((item) => new URL(item.url).pathname).sort();
+};
+
 // The page's meta description as text: React escapes `&`, `"`, `'`, `<` and `>`
 // in an attribute, and the JSON-LD copy of the same sentence is not escaped.
 const metaDescription = (html: string): string | undefined =>
@@ -412,11 +425,13 @@ test("Discover hydrates from the server's list and makes no first search", async
 // Whether a thin place page is indexed is not asserted here: off production
 // every page is `noindex` (`siteRobots`), so the threshold is proven against
 // the metadata builder in `server/placePage.int.test.ts`.
-test("a city page lists its days in the HTML, and an unknown city or page is a 404", async ({ page, browser }) => {
+test("a city page lists its days in the HTML and, once indexable, as an ItemList; an unknown city or page is a 404", async ({ page, browser }) => {
   test.slow();
   const city = `Seoe2e${randomUUID().slice(0, 6)}`;
   const name = `City page day ${randomUUID().slice(0, 8)}`;
   const savedDayId = await publishedDay(page, city, name);
+  const ids = [savedDayId];
+  const names = [name];
   try {
     const visitor = await stranger(browser);
     const path = `/playbooks/city/${city.toLowerCase()}`;
@@ -443,8 +458,37 @@ test("a city page lists its days in the HTML, and an unknown city or page is a 4
 
     expect((await visitor.request.get("/playbooks/city/no-such-city-anywhere")).status()).toBe(404);
     expect((await visitor.request.get(`${path}?page=9`)).status()).toBe(404);
+
+    // A thin page is noindex and describes nothing to a crawler.
+    expect(itemLists(html)).toEqual([]);
+    for (const more of ["two", "three"]) {
+      ids.push(await publishedDay(page, city, `${name} ${more}`));
+      names.push(`${name} ${more}`);
+    }
+    // At the threshold it lists every day, from the cached copy a stranger is served.
+    expect(itemListPaths(await (await visitor.request.get(path)).text())).toEqual(
+      names.map((n, i) => sluggedPath(n, ids[i]!)).sort(),
+    );
     await visitor.context().close();
   } finally {
-    await forget(page, savedDayId);
+    await Promise.all(ids.map((id) => forget(page, id)));
+  }
+});
+
+test("a country page lists its days as one ItemList of absolute URLs", async ({ page, browser }) => {
+  test.slow();
+  const city = `Seoe2e${randomUUID().slice(0, 6)}`;
+  const names = ["one", "two", "three"].map((n) => `Country page day ${randomUUID().slice(0, 8)} ${n}`);
+  const ids: string[] = [];
+  try {
+    // Nauru: a country no other spec publishes in, so the page holds these days alone.
+    for (const name of names) ids.push(await publishedDay(page, city, name, [], "NR"));
+    const visitor = await stranger(browser);
+    const response = await visitor.request.get("/playbooks/country/nauru");
+    expect(response.status()).toBe(200);
+    expect(itemListPaths(await response.text())).toEqual(names.map((n, i) => sluggedPath(n, ids[i]!)).sort());
+    await visitor.context().close();
+  } finally {
+    await Promise.all(ids.map((id) => forget(page, id)));
   }
 });

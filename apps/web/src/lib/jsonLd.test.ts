@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { dayDescription } from "./playbooksPreview";
-import { dayJsonLd, organizationJsonLd, serializeJsonLd, webSiteJsonLd } from "./jsonLd";
+import { dayJsonLd, organizationJsonLd, placeItemListJsonLd, serializeJsonLd, webSiteJsonLd } from "./jsonLd";
 
 const ORIGIN = "https://caesura.today";
 const DAY = {
@@ -74,6 +74,33 @@ describe("dayJsonLd", () => {
       ["Kyoto", `${ORIGIN}/playbooks/city/kyoto`],
       ["A slow day", `${ORIGIN}/playbooks/day/a-slow-day-abc`],
     ]);
+  });
+});
+
+describe("placeItemListJsonLd", () => {
+  it("lists the place's days in order, each by its name at its absolute canonical URL", () => {
+    const days = [
+      { savedDayId: "11111111-1111-4111-8111-111111111111", name: "A slow day" },
+      { savedDayId: "22222222-2222-4222-8222-222222222222", name: "Temples & tea" },
+    ];
+    expect(placeItemListJsonLd(days, ORIGIN)).toEqual({
+      "@context": "https://schema.org",
+      "@type": "ItemList",
+      itemListElement: [
+        {
+          "@type": "ListItem",
+          position: 1,
+          url: `${ORIGIN}/playbooks/day/a-slow-day-11111111-1111-4111-8111-111111111111`,
+          name: "A slow day",
+        },
+        {
+          "@type": "ListItem",
+          position: 2,
+          url: `${ORIGIN}/playbooks/day/temples-tea-22222222-2222-4222-8222-222222222222`,
+          name: "Temples & tea",
+        },
+      ],
+    });
   });
 });
 
