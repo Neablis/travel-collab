@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Text } from "@/components/ui/text";
 import { usePublishOfferDismissals } from "@/components/account/PreferencesProvider";
 import { KeepDayDialog, keepCandidatesFor, type KeepDayCandidate } from "@/components/trip/KeepDayDialog";
-import { fetchTripDetail } from "@/lib/apiClient";
+import { fetchTripDetail, type ApiResult } from "@/lib/apiClient";
 import { tripHasEnded } from "@/lib/homeTripOrder";
 import { dayPath } from "@/lib/playbookUrls";
 import { cachedRead } from "@/lib/queryCache";
@@ -55,23 +55,22 @@ export function PublishTripOffer({
     setNow(new Date());
   }, []);
   const dismissals = usePublishOfferDismissals();
-  // Hidden at once on Dismiss; the stored list catches up when the save lands.
-  const [dismissedHere, setDismissedHere] = useState(false);
+  // Set once the dismissal is saved, not on the press: a save that fails
+  // leaves the offer up with its error, since it would be back on reload.
+  const [dismissed, setDismissed] = useState(false);
   // Dismiss unmounts the button that has focus, which would drop it to `body`
   // and send a keyboard reader back to the top of Home. Focus moves to a note
-  // in the offer's place instead, so Tab carries on from here; the note goes
-  // once focus leaves it.
-  const [noteShown, setNoteShown] = useState(false);
-  const note = useRef<HTMLSpanElement>(null);
+  // in the offer's place instead, which stays, so Tab carries on from here.
+  const note = useRef<HTMLParagraphElement>(null);
   useEffect(() => {
-    if (noteShown) note.current?.focus();
-  }, [noteShown]);
+    if (dismissed) note.current?.focus();
+  }, [dismissed]);
 
-  if (noteShown) {
+  if (dismissed) {
     return (
-      <span ref={note} tabIndex={-1} role="status" className="sr-only" onBlur={() => setNoteShown(false)}>
+      <p ref={note} tabIndex={-1} role="status" className="text-xs text-slate">
         {`Won't offer to publish ${trip.name} again.`}
-      </span>
+      </p>
     );
   }
   if (
@@ -79,7 +78,6 @@ export function PublishTripOffer({
     now === null ||
     !tripHasEnded(trip, now) ||
     dismissals === null ||
-    dismissedHere ||
     dismissals.dismissed.includes(trip.tripId)
   ) {
     return null;
@@ -88,14 +86,14 @@ export function PublishTripOffer({
     <Offer
       trip={trip}
       days={days}
-      onDismiss={() => {
-        setDismissedHere(true);
-        setNoteShown(true);
-        dismissals.dismiss(trip.tripId);
+      onDismiss={async () => {
+        const result = await dismissals.dismiss(trip.tripId);
+        if (result.ok) setDismissed(true);
+        return result;
       }}
       // Published, the trip is not offered again: a second yes would make a
       // second public Playbook of the same trip.
-      onPublished={() => dismissals.dismiss(trip.tripId)}
+      onPublished={() => void dismissals.dismiss(trip.tripId)}
     />
   );
 }
@@ -128,7 +126,7 @@ function Offer({
 }: {
   trip: OfferTrip;
   days?: KeepDayCandidate[];
-  onDismiss: () => void;
+  onDismiss: () => Promise<ApiResult<unknown>>;
   onPublished: () => void;
 }) {
   const router = useRouter();
@@ -157,6 +155,12 @@ function Offer({
     setOpen(true);
   }
 
+  async function dismiss() {
+    setError(null);
+    const result = await onDismiss();
+    if (!result.ok) setError(result.error.message);
+  }
+
   return (
     <div
       role="group"
@@ -168,7 +172,7 @@ function Offer({
       <Text as="span" className="mr-auto text-sm">
         Turn these days into a playbook?
       </Text>
-      <Button type="button" size="sm" variant="ghost" aria-label={`Dismiss publishing ${trip.name}`} onClick={onDismiss}>
+      <Button type="button" size="sm" variant="ghost" aria-label={`Dismiss publishing ${trip.name}`} onClick={() => void dismiss()}>
         Dismiss
       </Button>
       <Button

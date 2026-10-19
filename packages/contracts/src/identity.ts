@@ -83,6 +83,13 @@ export const PersonColor = z.enum([
 export type PersonColor = z.infer<typeof PersonColor>;
 
 /**
+ * The most trips `UserPreferences.dismissedPublishOffers` holds. Ids of trips
+ * since deleted or left are never pruned, so the list only grows; at the cap
+ * the client drops the oldest rather than have every Dismiss refused.
+ */
+export const MAX_DISMISSED_PUBLISH_OFFERS = 1000;
+
+/**
  * What a person has set about themselves, as read back.
  *
  * Every field is present in the DTO — an absent field would make a reader
@@ -91,13 +98,6 @@ export type PersonColor = z.infer<typeof PersonColor>;
  * be unset because the storage layer defaults them, so a reader never has to
  * pick a fallback.
  */
-/**
- * The most trips `UserPreferences.dismissedPublishOffers` holds. Ids of trips
- * since deleted or left are never pruned, so the list only grows; at the cap
- * the client drops the oldest rather than have every Dismiss refused.
- */
-export const MAX_DISMISSED_PUBLISH_OFFERS = 1000;
-
 export const UserPreferences = z.object({
   /**
    * The name this person chose, distinct from `users.name`, which the sign-in

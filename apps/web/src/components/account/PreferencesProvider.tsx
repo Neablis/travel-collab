@@ -86,7 +86,7 @@ type PreferencesValue = {
    */
   known: boolean;
   /** Add one trip to `dismissedPublishOffers`; see `usePublishOfferDismissals`. */
-  dismissPublishOffer: (tripId: string) => void;
+  dismissPublishOffer: (tripId: string) => Promise<ApiResult<UserPreferences>>;
 };
 
 const Context = createContext<PreferencesValue | null>(null);
@@ -189,7 +189,7 @@ export function PreferencesProvider({
       dismissedHere.current = [...dismissedHere.current, tripId];
       const all = [...new Set([...(stored ?? []), ...dismissedHere.current])];
       // Oldest first, so a full list loses the trip dismissed longest ago.
-      void save({ dismissedPublishOffers: all.slice(-MAX_DISMISSED_PUBLISH_OFFERS) });
+      return save({ dismissedPublishOffers: all.slice(-MAX_DISMISSED_PUBLISH_OFFERS) });
     },
     [save, stored],
   );
@@ -265,7 +265,7 @@ export function useShownColor(): PersonColor | null {
  */
 export function usePublishOfferDismissals(): {
   dismissed: readonly string[];
-  dismiss: (tripId: string) => void;
+  dismiss: (tripId: string) => Promise<ApiResult<UserPreferences>>;
 } | null {
   const value = useContext(Context);
   if (value === null || !value.known) return null;

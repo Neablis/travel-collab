@@ -94,7 +94,20 @@ describe("PublishTripOffer on the trip page", () => {
     await userEvent.click(await screen.findByRole("button", { name: "Dismiss publishing Lisbon long weekend" }));
     expect(screen.queryByRole("group", { name: "Publish Lisbon long weekend as a playbook" })).toBeNull();
     // `:focus` asked of what the query found, as SnapshotList.test.tsx does.
-    expect(screen.getByRole("status").matches(":focus")).toBe(true);
+    const note = await screen.findByRole("status");
+    expect(note.matches(":focus")).toBe(true);
+    // Focus lands on something that stays: a note that goes once focus leaves
+    // it is a place a reader cannot come back to.
+    await userEvent.tab();
+    expect(screen.getByRole("status")).toBe(note);
+  });
+
+  it("keeps the offer and says so when the dismissal fails to save", async () => {
+    updatePreferencesMock.mockResolvedValue({ ok: false, error: { status: 0, message: "Couldn't save. Try again." } });
+    renderOffer(true);
+    await userEvent.click(await screen.findByRole("button", { name: "Dismiss publishing Lisbon long weekend" }));
+    expect((await screen.findByRole("alert")).textContent).toBe("Couldn't save. Try again.");
+    expect(screen.getByRole("group", { name: "Publish Lisbon long weekend as a playbook" })).toBeTruthy();
   });
 
   // The page reads the trip's end off its last day: a trip whose first day is
