@@ -199,6 +199,7 @@ const PREFERENCE_DEFAULTS: UserPreferences = {
   avatar: null,
   color: null,
   publicDisplayName: false,
+  dismissedPublishOffers: [],
 };
 
 type UserRow = typeof users.$inferSelect;
@@ -232,6 +233,7 @@ function toPreferences(row: UserRow): UserPreferences {
     avatar: row.avatar,
     color: row.color,
     publicDisplayName: row.publicDisplayName,
+    dismissedPublishOffers: row.dismissedPublishOffers,
   });
   if (parsed.success) return parsed.data;
   console.error("users preference columns failed UserPreferences parse", {
@@ -246,6 +248,7 @@ function toPreferences(row: UserRow): UserPreferences {
     avatar: AvatarKey.safeParse(row.avatar).data ?? null,
     color: PersonColor.safeParse(row.color).data ?? null,
     publicDisplayName: row.publicDisplayName,
+    dismissedPublishOffers: UserPreferences.shape.dismissedPublishOffers.safeParse(row.dismissedPublishOffers).data ?? [],
   };
 }
 
@@ -305,6 +308,7 @@ export async function writePreferences(
       ...("avatar" in patch ? { avatar: patch.avatar } : {}),
       ...("color" in patch ? { color: patch.color } : {}),
       ...("publicDisplayName" in patch ? { publicDisplayName: patch.publicDisplayName } : {}),
+      ...(patch.dismissedPublishOffers !== undefined ? { dismissedPublishOffers: patch.dismissedPublishOffers } : {}),
       updatedAt: now,
     })
     .where(eq(users.id, userId))

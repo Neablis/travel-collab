@@ -1,4 +1,24 @@
 import type { TripSummary } from "@tc/contracts";
+import { localTodayIso } from "./today";
+
+/**
+ * **Is this trip over?** — its last day is before the reader's today (M50
+ * decision 7, the offer to publish it as a Playbook).
+ *
+ * **The READER's calendar, not the trip's.** A trip carries calendar dates and
+ * no zone, so the only zone there is to read is the reader's own: the trip is
+ * over once their calendar has passed its last day. On the last day itself it
+ * is not, however late. `localTodayIso`, never a UTC date: west of Greenwich
+ * that says tomorrow from the evening onwards and would offer to publish a
+ * trip on its own last night.
+ *
+ * `endDate` null — undated, or dated with no days — is never over: its end is
+ * unknown, and the offer is about days that were lived.
+ */
+export function tripHasEnded({ endDate }: Pick<TripSummary, "endDate">, now: Date): boolean {
+  // ISO calendar dates compare correctly as strings.
+  return endDate !== null && endDate < localTodayIso(now);
+}
 
 /**
  * **Home's trips in the order Home shows them: the "Next trip" hero first,

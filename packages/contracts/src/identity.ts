@@ -133,6 +133,15 @@ export const UserPreferences = z.object({
    * surfaces fall back to the sign-in name's short form.
    */
   publicDisplayName: z.boolean().default(false),
+  /**
+   * M50 decision 7. The trips whose *"Turn these days into a playbook?"* this
+   * person dismissed, so it stays dismissed on every device. A patch sends the
+   * whole list.
+   *
+   * Optional rather than defaulted: absent reads as none dismissed, and every
+   * reader and fixture written before the field still type-checks.
+   */
+  dismissedPublishOffers: z.array(z.string().uuid()).max(1000).optional(),
 });
 export type UserPreferences = z.infer<typeof UserPreferences>;
 
