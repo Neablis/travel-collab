@@ -104,7 +104,10 @@ test.describe("the front door, signed out (M42)", () => {
       landing.getByRole("region", { name: "The trip starts before the trip." }).getByRole("list", { name: "Day 7 timeline" }),
     ).toBeVisible();
     await expect(landing.getByRole("region", { name: "Relive someone’s perfect day." }).getByRole("link", { name: PLAYBOOK })).toBeVisible();
-    await expect(landing.getByRole("region", { name: "How you’ll remember it." }).getByText("Check in at Gora Kadan")).toBeVisible();
+    // The day's stop, not the words that name it too (M50 part 9).
+    await expect(
+      landing.getByRole("region", { name: "How you’ll remember it." }).getByRole("listitem").filter({ hasText: "Check in at Gora Kadan" }),
+    ).toBeVisible();
     // Hydration has run once the hero's pills answer a click.
     await landing.getByRole("button", { name: "Day 7" }).click();
     await expect(landing.getByRole("button", { name: "Day 7" })).toHaveAttribute("aria-pressed", "true");

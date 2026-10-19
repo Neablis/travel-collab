@@ -56,6 +56,56 @@
     ],
     "namedTags": []
   },
+  "shelf": {
+    "savedDayId": "95742081-a970-48b2-8779-34d5104c94ca",
+    "ownerId": "dev-nadia",
+    "ownerDisplayName": "Nadia",
+    "name": "Railay: the first longtail, Phra Nang before the crowd, and back after dark",
+    "cities": [
+      "Krabi"
+    ],
+    "matchedCities": [],
+    "stopCount": 8,
+    "dayCount": 1,
+    "window": {
+      "start": "08:15",
+      "end": "21:25"
+    },
+    "preview": [
+      {
+        "title": "Longtail from Ao Nang beach to Railay West",
+        "start": "08:15"
+      },
+      {
+        "title": "Phra Nang Cave Beach and the fertility shrine",
+        "start": "09:00"
+      },
+      {
+        "title": "Railay viewpoint, and the lagoon if it has not rained",
+        "start": "10:35"
+      }
+    ],
+    "totalCost": null,
+    "adds": 5,
+    "rating": null,
+    "reviewCount": 0,
+    "visibility": "public",
+    "authorKind": "ai",
+    "sourceTripName": "Andaman, twelve days and one bag",
+    "createdAt": "2026-02-14T09:00:00.000Z",
+    "publishedAt": "2026-02-14T09:00:00.000Z",
+    "isMine": false,
+    "cover": null,
+    "description": "Food & outdoors",
+    "tags": [
+      "meal",
+      "outdoors",
+      "drinks",
+      "beach",
+      "tour"
+    ],
+    "namedTags": []
+  },
   "memory": [
     [
       {
@@ -105,5 +155,114 @@
         "text": "Nobody was in a hurry. Priya says it was the best night of the trip, and nobody argued."
       }
     ]
-  ]
+  ],
+  "page": {
+    "day": {
+      "kind": "itinerary-day",
+      "dayId": "00000000-0000-4000-8000-000000000006",
+      "cities": [
+        "Tokyo",
+        "Hakone"
+      ],
+      "window": "8:20 am – 8:30 pm",
+      "cost": null,
+      "ordinal": 6,
+      "date": null,
+      "activities": [
+        {
+          "title": "Romancecar to Hakone-Yumoto",
+          "timeWindow": "8:20 am – 9:55 am",
+          "cost": null
+        },
+        {
+          "title": "Hakone Open-Air Museum",
+          "timeWindow": "10:30 am – 12:30 pm",
+          "cost": null
+        },
+        {
+          "title": "Lunch at Bakery & Table",
+          "timeWindow": "1 pm – 2 pm",
+          "cost": null
+        },
+        {
+          "title": "Check in at Gora Kadan",
+          "timeWindow": "4:40 pm – 5:10 pm",
+          "cost": null
+        },
+        {
+          "title": "Kaiseki dinner at the ryokan",
+          "timeWindow": "6:30 pm – 8:30 pm",
+          "cost": null
+        }
+      ]
+    },
+    "sun": {
+      "kind": "sun",
+      "view": "graphic",
+      "axis": {
+        "startMinute": 300,
+        "endMinute": 1080,
+        "ticks": [
+          {
+            "minute": 360,
+            "label": "6a"
+          },
+          {
+            "minute": 540,
+            "label": "9a"
+          },
+          {
+            "minute": 720,
+            "label": "noon"
+          },
+          {
+            "minute": 900,
+            "label": "3p"
+          },
+          {
+            "minute": 1080,
+            "label": "6p"
+          }
+        ]
+      },
+      "rows": [
+        {
+          "key": "5",
+          "label": "Day 6",
+          "city": "Tokyo",
+          "goldenMorningEndMinute": 365,
+          "goldenEveningStartMinute": 1021,
+          "state": "normal",
+          "words": null,
+          "sunriseMinute": 331,
+          "sunsetMinute": 1054,
+          "sunrise": "5:31 am",
+          "sunset": "5:34 pm",
+          "daylight": "12h 3m"
+        }
+      ],
+      "summary": "Sunrise and sunset for 1 day."
+    },
+    "people": {
+      "kind": "trip-people",
+      "stack": [
+        {
+          "name": "Priya",
+          "avatar": "camera",
+          "color": "ochre"
+        },
+        {
+          "name": "Jonah",
+          "avatar": "bike",
+          "color": "clay"
+        },
+        {
+          "name": "Mei",
+          "avatar": "sailboat",
+          "color": "rose"
+        }
+      ],
+      "sentence": "Priya, Jonah and Mei are going with Sam."
+    }
+  }
 }
