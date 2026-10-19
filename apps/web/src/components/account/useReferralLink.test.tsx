@@ -88,6 +88,17 @@ describe("useReferralLink", () => {
     expect(writeText).toHaveBeenLastCalledWith(`${window.location.origin}/signup?code=MINTED234`);
   });
 
+  // The pending mint is shared, so if a failed one stayed held every retry
+  // would read its failure again and never ask the server.
+  it("mints again on a copy after a failed mint", async () => {
+    const fetchMock = serve({ earnsReward: true, mint: 500 });
+    const { result } = renderHook(() => useReferralLink());
+    await waitFor(() => expect(result.current.earns).toBe(true));
+    await act(() => result.current.copy());
+    await act(() => result.current.copy());
+    expect(posts(fetchMock)).toHaveLength(2);
+  });
+
   it("says the codes are all out when the server refuses at the cap, and copies nothing", async () => {
     serve({ earnsReward: true, mint: 409 });
     const { result } = renderHook(() => useReferralLink());

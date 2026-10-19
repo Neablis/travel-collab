@@ -31,8 +31,13 @@ export function ReferralNudge({ className }: { className?: string }) {
         <Input readOnly aria-label="Referral link" value={referral.link} onFocus={(e) => e.target.select()} />
       ) : null}
       {/* Mounted before it has anything to say, so a screen reader announces
-          what lands in it: the button's name does not change on failure. */}
-      <div role="status">
+          what lands in it: the button's name does not change, copied or not.
+          Pulled up by the gap while empty, so the idle row stays last. */}
+      <div role="status" className="empty:-mt-1.5">
+        {referral.status === "copied" ? <span className="sr-only">Link copied.</span> : null}
+        {referral.status === "denied" ? (
+          <span className="sr-only">Couldn&apos;t copy it. The link is in the box below.</span>
+        ) : null}
         {referral.status === "full" ? (
           <Text as="span" className="text-xs text-slate">
             You hold as many unused codes as you can. They are under{" "}
