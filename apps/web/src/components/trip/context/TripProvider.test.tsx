@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import { describe, expect, it, vi, beforeEach, afterEach, type MockInstance } from "vitest";
 import { tripDetailFixture, historyFixture } from "@tc/factories";
@@ -38,7 +38,11 @@ vi.mock("@/lib/apiClient", async (orig) => {
 });
 
 import { TripProvider, useTrip } from "./TripProvider";
-import { POLL_INTERVAL_MS } from "./broadcast";
+import { beginWrite, clearQueryCache, endWrite } from "@/lib/queryCache";
+import { tripKeys } from "@/lib/queryKeys";
+import { useTripSeed } from "./tripSeed";
+import { tripFirstDataFixture } from "@/test-support/tripFirstData";
+import { headSeqOf, POLL_INTERVAL_MS } from "./broadcast";
 
 const accessAs = (myRole: "owner" | "editor" | "viewer") => ({
   ok: true as const,
@@ -170,6 +174,236 @@ describe("TripProvider confirmedSeq", () => {
     const head = { ...before.entries[0]!, batchId: "9a0c4e1f-5b9c-4d8f-9f5b-4d3c7e0f9a99", fromSeq: 3, toSeq: 3 };
     resolveSend({ ok: true, value: { detail: twoDayDetail(), history: { ...before, entries: [head, ...before.entries] } } });
     await waitFor(() => expect(screen.getByTestId("confirmedSeq").textContent).toBe("3"));
+  });
+});
+
+// The trip page's first data (`server/tripFirstData.ts`): with it the provider
+// starts from the server's answer — ready on its first render, so the board is
+// in the server's HTML — and makes none of `load`'s three reads. Without it,
+// or with an answer this document has already adopted (a page the router
+// replayed on Back), it reads as before.
+describe("TripProvider — the server's first data", () => {
+  function StatusProbe() {
+    const { status, activeTrip, myRole } = useTrip();
+    return (
+      <span data-testid="first">
+        {status}:{activeTrip?.name ?? "none"}:{myRole ?? "none"}
+      </span>
+    );
+  }
+  const settle = () => act(async () => {
+    await new Promise((r) => setTimeout(r, 10));
+  });
+  const reads = () => [fetchTripDetailMock, fetchTripHistoryMock, fetchTripAccessMock].map((m) => m.mock.calls.length);
+
+  it("is ready on its first render and reads nothing on mount", async () => {
+    const first = tripFirstDataFixture();
+    render(
+      <TripProvider tripId={first.trip.trip.tripId} initial={first}>
+        <StatusProbe />
+      </TripProvider>,
+    );
+    expect(screen.getByTestId("first").textContent).toBe("ready:Rome 2027:owner");
+    await settle();
+    expect(reads()).toEqual([0, 0, 0]);
+  });
+
+  // A write that landed after the server read the seed — KI-5's `pagehide`
+  // flush, a reload straight after an edit — is caught by one events read from
+  // the seed's head, and the trip is read again.
+  it("reads the trip again when the log has moved past the seed", async () => {
+    const first = tripFirstDataFixture();
+    const seedHead = headSeqOf(first.history.history);
+    fetchTripEventsMock.mockResolvedValue({ ok: true, value: { headSeq: seedHead + 1, events: [], resync: false } });
+    render(
+      <TripProvider tripId={first.trip.trip.tripId} initial={first}>
+        <StatusProbe />
+      </TripProvider>,
+    );
+    await waitFor(() => expect(fetchTripDetailMock).toHaveBeenCalledTimes(1));
+    expect(fetchTripEventsMock).toHaveBeenCalledWith(first.trip.trip.tripId, seedHead);
+  });
+
+  it("reads nothing more when the log is where the seed left it", async () => {
+    const first = tripFirstDataFixture();
+    const seedHead = headSeqOf(first.history.history);
+    fetchTripEventsMock.mockResolvedValue({ ok: true, value: { headSeq: seedHead, events: [], resync: false } });
+    render(
+      <TripProvider tripId={first.trip.trip.tripId} initial={first}>
+        <StatusProbe />
+      </TripProvider>,
+    );
+    await waitFor(() => expect(fetchTripEventsMock).toHaveBeenCalledWith(first.trip.trip.tripId, seedHead));
+    await settle();
+    expect(reads()).toEqual([0, 0, 0]);
+  });
+
+  // A command of yours confirmed while the catch-up read is out has moved the
+  // head itself: answering with that head is not news, and re-reading for it
+  // could briefly undo a second edit.
+  it("does not count your own confirmed command as news", async () => {
+    const first = tripFirstDataFixture();
+    const seedHead = headSeqOf(first.history.history);
+    let answer: (value: unknown) => void = () => {};
+    fetchTripEventsMock.mockReturnValue(new Promise((resolve) => (answer = resolve)));
+    const before = first.history.history;
+    const head = { ...before.entries[0]!, batchId: "9a0c4e1f-5b9c-4d8f-9f5b-4d3c7e0f9a99", fromSeq: seedHead + 1, toSeq: seedHead + 1 };
+    sendTripCommandMock.mockResolvedValue({
+      ok: true,
+      value: { detail: first.trip.trip, history: { ...before, entries: [head, ...before.entries] } },
+    });
+    render(
+      <TripProvider tripId={first.trip.trip.tripId} initial={first}>
+        <SeedProbe />
+      </TripProvider>,
+    );
+    await waitFor(() => expect(fetchTripEventsMock).toHaveBeenCalled());
+    fireEvent.click(screen.getByRole("button", { name: "add-day" }));
+    await waitFor(() => expect(screen.getByTestId("seed").textContent).toBe("none"));
+    await act(async () => answer({ ok: true, value: { headSeq: seedHead + 1, events: [], resync: false } }));
+    await settle();
+    expect(fetchTripDetailMock).not.toHaveBeenCalled();
+  });
+
+  it("does not read the trip again once unmounted", async () => {
+    const first = tripFirstDataFixture();
+    const seedHead = headSeqOf(first.history.history);
+    let answer: (value: unknown) => void = () => {};
+    fetchTripEventsMock.mockReturnValue(new Promise((resolve) => (answer = resolve)));
+    const { unmount } = render(
+      <TripProvider tripId={first.trip.trip.tripId} initial={first}>
+        <StatusProbe />
+      </TripProvider>,
+    );
+    await waitFor(() => expect(fetchTripEventsMock).toHaveBeenCalled());
+    unmount();
+    await act(async () => answer({ ok: true, value: { headSeq: seedHead + 5, events: [], resync: false } }));
+    await settle();
+    expect(fetchTripDetailMock).not.toHaveBeenCalled();
+  });
+
+  it("reads all three on mount without it", async () => {
+    render(
+      <TripProvider tripId="x">
+        <StatusProbe />
+      </TripProvider>,
+    );
+    expect(screen.getByTestId("first").textContent).toBe("loading:none:none");
+    await waitFor(() => expect(screen.getByTestId("first").textContent).toBe("ready:Rome 2027:owner"));
+    expect(reads()).toEqual([1, 1, 1]);
+  });
+
+  // A write to the trip still open at mount (the previous board's last edit,
+  // KI-5's unmount flush): the server may have read before it landed, and the
+  // cache may store nothing under an open write scope. The seed is refused and
+  // the provider reads for itself, as it did before first data existed.
+  it("reads for itself when a write to the trip is still open", async () => {
+    const first = tripFirstDataFixture();
+    const tripId = first.trip.trip.tripId;
+    beginWrite(tripKeys.all(tripId));
+    render(
+      <TripProvider tripId={tripId} initial={first}>
+        <StatusProbe />
+      </TripProvider>,
+    );
+    expect(screen.getByTestId("first").textContent).toBe("loading:none:none");
+    await waitFor(() => expect(reads()).toEqual([1, 1, 1]));
+    endWrite(tripKeys.all(tripId));
+  });
+
+  // A write that opens after the seeded render but before the provider's own
+  // effect — a child's effect runs first — is caught by the mount's
+  // `writesSettled` re-read: once it closes, the trip is read again.
+  it("re-reads once a write opened during its mount has closed", async () => {
+    const first = tripFirstDataFixture();
+    const tripId = first.trip.trip.tripId;
+    function OpensAWrite() {
+      useEffect(() => beginWrite(tripKeys.all(tripId)), []);
+      return null;
+    }
+    render(
+      <TripProvider tripId={tripId} initial={first}>
+        <StatusProbe />
+        <OpensAWrite />
+      </TripProvider>,
+    );
+    expect(screen.getByTestId("first").textContent).toBe("ready:Rome 2027:owner");
+    await settle();
+    expect(reads()[0]).toBe(0);
+    act(() => endWrite(tripKeys.all(tripId)));
+    await waitFor(() => expect(fetchTripDetailMock).toHaveBeenCalledTimes(1));
+  });
+
+  // The seed is offered to readers that mount later (the Overview lens on a
+  // tab switch) only while the trip is still what the server sent. After a
+  // command of yours is confirmed, or a co-traveller's change arrives, a new
+  // reader must start from its own read, not from the trip as it was.
+  function SeedProbe() {
+    const { dispatch, tripId } = useTrip();
+    return (
+      <div>
+        <span data-testid="seed">{useTripSeed() === null ? "none" : "seeded"}</span>
+        <button onClick={() => void dispatch({ type: "AddDay", tripId, dayId: "d-new" } as never)}>add-day</button>
+      </div>
+    );
+  }
+
+  it("withdraws the seed once a command of yours is confirmed", async () => {
+    const first = tripFirstDataFixture();
+    const before = first.history.history;
+    const head = { ...before.entries[0]!, batchId: "9a0c4e1f-5b9c-4d8f-9f5b-4d3c7e0f9a99", fromSeq: 3, toSeq: 3 };
+    sendTripCommandMock.mockResolvedValue({
+      ok: true,
+      value: { detail: first.trip.trip, history: { ...before, entries: [head, ...before.entries] } },
+    });
+    render(
+      <TripProvider tripId={first.trip.trip.tripId} initial={first}>
+        <SeedProbe />
+      </TripProvider>,
+    );
+    expect(screen.getByTestId("seed").textContent).toBe("seeded");
+    fireEvent.click(screen.getByRole("button", { name: "add-day" }));
+    await waitFor(() => expect(sendTripCommandMock).toHaveBeenCalled());
+    await waitFor(() => expect(screen.getByTestId("seed").textContent).toBe("none"));
+  });
+
+  it("withdraws the seed once a co-traveller's change arrives", async () => {
+    const listening = vi.spyOn(document, "addEventListener");
+    try {
+      const first = tripFirstDataFixture();
+      render(
+        <TripProvider tripId={first.trip.trip.tripId} initial={first}>
+          <SeedProbe />
+        </TripProvider>,
+      );
+      expect(screen.getByTestId("seed").textContent).toBe("seeded");
+      await waitFor(() => expect(listening).toHaveBeenCalledWith("visibilitychange", expect.any(Function)));
+      fetchTripEventsMock.mockResolvedValue({ ok: true, value: { headSeq: 99, events: [], resync: false } });
+      becomeVisible();
+      await waitFor(() => expect(screen.getByTestId("seed").textContent).toBe("none"));
+    } finally {
+      listening.mockRestore();
+    }
+  });
+
+  it("reads for itself when handed an answer it has already adopted", async () => {
+    const first = tripFirstDataFixture();
+    const tripId = first.trip.trip.tripId;
+    const { unmount } = render(
+      <TripProvider tripId={tripId} initial={first}>
+        <StatusProbe />
+      </TripProvider>,
+    );
+    await settle();
+    unmount();
+    clearQueryCache();
+    render(
+      <TripProvider tripId={tripId} initial={first}>
+        <StatusProbe />
+      </TripProvider>,
+    );
+    expect(screen.getByTestId("first").textContent).toBe("loading:none:none");
+    await waitFor(() => expect(reads()).toEqual([1, 1, 1]));
   });
 });
 

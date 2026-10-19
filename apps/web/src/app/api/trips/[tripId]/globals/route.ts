@@ -1,8 +1,6 @@
-import { TripGlobals } from "@tc/contracts";
 import { requireTripAccess } from "@/server/access/trip-access";
 import { auth } from "@/server/auth";
-import { buildTripGlobals } from "@/server/tripGlobals";
-import { readPreferences } from "@/server/users";
+import { tripGlobalsView } from "@/server/tripViews";
 
 // The trip's addressable collections (ADR-037 open question 4).
 //
@@ -24,8 +22,5 @@ export async function GET(_request: Request, { params }: { params: Promise<{ tri
   // `demo-visitor` there, and still has a home.
   // Nobody signed in has none, and costs no query.
   const session = await auth();
-  const reader = session?.user?.id ? await readPreferences(session.user.id) : undefined;
-  // Contract-honest response, matching the detail route next door: validate
-  // against the schema before returning rather than trusting the builder.
-  return Response.json({ globals: TripGlobals.parse(buildTripGlobals(access.detail, reader)) });
+  return Response.json(await tripGlobalsView(access, session?.user?.id));
 }

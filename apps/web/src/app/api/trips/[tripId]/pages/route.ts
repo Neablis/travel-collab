@@ -1,7 +1,8 @@
 import { CreatePageInput, serializePageDoc } from "@tc/contracts";
 import { randomUUID } from "node:crypto";
 import { guard } from "@/server/pages-guard";
-import { MAX_PAGE_BODY_BYTES, listPageEntries } from "@/server/pages";
+import { MAX_PAGE_BODY_BYTES } from "@/server/pages";
+import { tripPagesView } from "@/server/tripViews";
 import { executePageCommand } from "@/server/pageCommands";
 import { readBody } from "@/server/readBody";
 
@@ -10,16 +11,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ tripId:
   // A viewer may read the Notebook; only an editor may add to it.
   const g = await guard(tripId, "viewer", { allowDemo: true });
   if ("error" in g) return g.error;
-  // `viewerId` rides along so the index's provenance line can say "Yours"
-  // truthfully. `actorId` alone only proves a PERSON wrote a notebook, not that
-  // the reader did — so on a shared trip every collaborator's notebook was
-  // labelled "Yours" (Copilot, PR #126; it was filed as KI-20260903 on the
-  // assumption this needed a `users` join, and it does not — the guard already
-  // resolved the reader).
-  // `listPageEntries`, not `listPages`: each row carries what the notebook says
-  // (ADR-056), which a link card and the index print. The public API stays on
-  // `listPages`, whose rows are `PageSummary` exactly.
-  return Response.json({ pages: await listPageEntries(tripId), viewerId: g.userId });
+  // `viewerId` rides along, for the index's "Yours" (`tripPagesView`).
+  return Response.json(await tripPagesView(tripId, g));
 }
 
 export async function POST(req: Request, { params }: { params: Promise<{ tripId: string }> }) {

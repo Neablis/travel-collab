@@ -35,7 +35,8 @@ import {
   OverviewLensFallback,
   PlanLensSkeleton,
 } from "@/components/lenses/LensSkeletons";
-import { useIsAbovePhone, useIsPhone, useIsTabletWidth } from "@/lib/useIsPhone";
+import { useIsAbovePhone, useIsPhone, useIsPhoneKnown, useIsTabletWidth } from "@/lib/useIsPhone";
+import { useHydrated } from "@/lib/useHydrated";
 import { Heading } from "@/components/ui/heading";
 import { Text } from "@/components/ui/text";
 import { buttonVariants } from "@/components/ui/button";
@@ -46,6 +47,7 @@ import { PageContainer } from "@/components/ui/page-container";
 import { TripHeader } from "@/components/trip/TripHeader";
 import { TripHeaderSkeleton } from "@/components/trip/TripHeaderSkeleton";
 import { useTripCover } from "@/components/trip/cover/useTripCover";
+import { useTripSeed } from "@/components/trip/context/tripSeed";
 import { usePhoneAskEntry } from "@/components/nav/phoneAsk";
 import { AddSavedDayButton } from "@/components/trip/AddSavedDayButton";
 import { useBoardSuggestions } from "./SuggestionActions";
@@ -101,9 +103,12 @@ import { whenIdle } from "@/lib/whenIdle";
 // trip read rather than after it, and each placeholder (`LensSkeletons.tsx`)
 // holds its view's height while it arrives.
 //
-// `ssr` is left at its default: none of these renders on the server anyway,
-// since this screen draws its header skeleton until `TripProvider` answers on
-// the client. The rack rides with Plan, the only view that mounts it.
+// `ssr` is left at its default: none of these renders on the server anyway.
+// With the trip sent from the server (PR 486) the board's header does, but its
+// lens is the view's placeholder until hydration (`LensPlaceholder`); without
+// it, this screen draws its header skeleton until `TripProvider` answers on
+// the client. The rack's code rides with Plan; Calendar mounts the rack too
+// (`lensAcceptsDrops`), and loads it as it needs it.
 const MapLens = dynamic(() => import("@/components/lenses/MapLens").then((m) => m.MapLens), {
   loading: () => <MapLensSkeleton />,
 });
@@ -114,7 +119,14 @@ const OverviewLens = dynamic(() => import("@/components/lenses/OverviewLens").th
   loading: () => <OverviewLensFallback />,
 });
 const Board = dynamic(() => import("./Board").then((m) => m.Board), { loading: () => <PlanLensSkeleton /> });
-const UnscheduledRack = dynamic(() => import("@/components/trip/UnscheduledRack").then((m) => m.UnscheduledRack));
+// **A `loading`, even an empty one, is what gives a `next/dynamic` its own
+// Suspense boundary** in the app router (`lazy-dynamic/loadable`). Without
+// one, the rack's dock — mounted only once hydrated — suspended to the route's
+// boundary (`(board)/loading.tsx`) while its chunk loaded, and React hid the
+// whole server-rendered board behind the loading skeleton (PR 486 e2e).
+const UnscheduledRack = dynamic(() => import("@/components/trip/UnscheduledRack").then((m) => m.UnscheduledRack), {
+  loading: () => null,
+});
 
 /** Each view's modules, asked for as soon as it is the view (see above). */
 const LENS_MODULES: Record<View, () => Promise<unknown>> = {
@@ -137,8 +149,12 @@ const LENS_MODULES: Record<View, () => Promise<unknown>> = {
 // there yet, and focus fell to <body>.
 const loadAssistantRail = () => import("@/components/assistant/AssistantRail");
 const AssistantRail = lazy(() => loadAssistantRail().then((m) => ({ default: m.AssistantRail })));
-const ActivityEditorSheet = dynamic(() =>
-  import("@/components/trip/editor/ActivityEditorSheet").then((m) => m.ActivityEditorSheet),
+// `loading` for the rack's reason (above): opened by a tap on Add stop or ⌘K
+// before the idle preload has fetched it, an editor with no boundary of its
+// own suspended to the route's and hid the board.
+const ActivityEditorSheet = dynamic(
+  () => import("@/components/trip/editor/ActivityEditorSheet").then((m) => m.ActivityEditorSheet),
+  { loading: () => null },
 );
 const ON_REQUEST_MODULES = [loadAssistantRail, () => import("@/components/trip/editor/ActivityEditorSheet")];
 
@@ -275,10 +291,23 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // runs alongside `TripProvider`'s own, a failed one settles too (no band),
   // and a phone never reads it, so the cost is the slower of two parallel
   // reads, on desktop only. `undefined` from `useIsAbovePhone` is hydration,
-  // when the trip is still loading anyway.
+  // when the trip is still loading anyway — unless the server sent the trip
+  // with the page (`useTripSeed`). Then the cover came with it, there is
+  // nothing to wait for at any width, and the header is in the first HTML: the
+  // band is kept off a phone by CSS (`TripCoverBanner`), not by this gate.
   const abovePhone = useIsAbovePhone();
-  const { settled: coverSettled } = useTripCover(tripId, abovePhone === true && !isDemoTripId(tripId));
-  const headerReady = abovePhone !== undefined && coverSettled;
+  const seed = useTripSeed();
+  // **The server's HTML is the board's shape, not a live board** (PR 486
+  // e2e). With the trip sent from the server the header and the cover band
+  // render there, but until hydration a tap on them is dead, and a phone's
+  // lens would be drawn in its desktop form (`useIsPhone` is `false` there).
+  // So until then the column is `inert` — a tap lands nowhere, focus cannot
+  // enter it, and Playwright waits — and the lens is its skeleton. The lens
+  // mounts once the page is `live` (below), from the seeded cache, with no
+  // request.
+  const hydrated = useHydrated();
+  const { settled: coverSettled } = useTripCover(tripId, abovePhone === true && !isDemoTripId(tripId), seed?.cover);
+  const headerReady = (abovePhone !== undefined || seed !== null) && coverSettled;
   const boardRenders = status === "ready" && trip !== null && activeTrip !== null && headerReady;
   // ⌘K's *Ask: <text>* (M45 D6): opens the rail and hands it the words, which
   // it sends through its own gate and `submitAssistantAsk`'s refusals. Dropped
@@ -448,7 +477,12 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // last list, and another trip's never shows. None on the demo trip, which
   // has no Notebooks menu either.
   const router = useRouter();
-  const [read, setRead] = useState<{ tripId: string; pages: readonly PageSummary[] } | null>(null);
+  // From the server's answer when there is one, so the server render and the
+  // hydrating one offer the same notebooks; the read below then finds the
+  // cache `TripProvider` primed and sends nothing.
+  const [read, setRead] = useState<{ tripId: string; pages: readonly PageSummary[] } | null>(() =>
+    seed === null ? null : { tripId, pages: seed.pages.pages },
+  );
   const notebooks = read !== null && read.tripId === tripId ? read.pages : [];
   useEffect(() => {
     if (isDemoTripId(tripId)) return;
@@ -511,6 +545,15 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // which-button-did-you-press flag would not: rotating a 411x852 phone into
   // landscape crosses 768px with the panel already open.
   const isPhone = useIsPhone();
+  // **Live once hydrated AND once the width is known** (PR 486 e2e,
+  // m26-phone-plan). `useIsPhone` corrects in an effect, after the render that
+  // hydration triggers, so a lens mounted on that render drew a phone's Plan in
+  // its desktop form for a frame. `useIsPhoneKnown` asks the same media query
+  // without the effect, so the lens and the rack wait until the two agree.
+  // The column's `inert` does not: the header is drawn right at hydration
+  // and is live from then (PR 486 e2e, m39-phone-conflicts).
+  const isPhoneKnown = useIsPhoneKnown();
+  const widthKnown = isPhoneKnown !== undefined && isPhoneKnown === isPhone;
   // SPEC §9's "and the user picks" (M26 link 10a). Per surface and per
   // device — see `useAssistantShape` for why neither is one global setting.
   const [assistantShape, chooseAssistantShape] = useAssistantShape("board");
@@ -609,6 +652,26 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
     defaultedPhoneDay.current = true;
     setFocusedDay(0);
   }, [isPhone, focusedDay, activeTrip, setFocusedDay]);
+  // **Live once hydrated, once the width is known, and on a phone once a day
+  // is focused** (PR 486 e2e, m26-phone-plan). The arrival day above draws a
+  // card that moves the page; with the lens mounted before it, the page moved
+  // under a reader already looking at the river.
+  //
+  // **And live for good once live** (PR 486 review): every condition here can
+  // turn false again for a commit — a rotation across 768px re-renders
+  // `useIsPhoneKnown` before `useIsPhone` follows, and clearing the focused day
+  // empties it — and each would unmount the lens and the rack under the
+  // reader. The gate is for the first mount only.
+  //
+  // Not before the trip is here: these run above the loading return, and with
+  // no trip there is no arrival day to wait for yet (the unseeded path —
+  // `/demo/<slug>`, or a refused seed — would latch on its loading render).
+  // Latched during render rather than in an effect, so it costs no extra commit.
+  const awaitsPhoneDay = isPhone && focusedDay === null && activeTrip !== null && activeTrip.days.length > 0;
+  const firstMountReady = hydrated && widthKnown && activeTrip !== null && !awaitsPhoneDay;
+  const [wentLive, setWentLive] = useState(false);
+  if (firstMountReady && !wentLive) setWentLive(true);
+  const live = wentLive || firstMountReady;
 
   const searchParams = useSearchParams();
   /** **A link card to a notebook** from a board with no notebook route — `/demo/<slug>`, an invite's look (`linkHref`). */
@@ -1415,6 +1478,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
           // carries no role or accessible name to reach it by — it is a
           // styling seam, which is exactly the case `data-testid` is for here.
           data-testid="trip-board-content"
+          inert={hydrated ? undefined : true}
           // The rack is `position: fixed`, so it is outside normal flow and
           // reserves no space: the day columns' own 24px bottom padding was
           // measured against the viewport, not against the bar sitting on
@@ -1537,7 +1601,9 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
             </PageContainer>
           )}
           <div inert={preview.seq !== null ? true : undefined}>
-            {isFullLens ? (
+            {!live ? (
+              <LensPlaceholder view={view} dayChips={view === "Plan" && !pinsDayRail ? dayChips : null} />
+            ) : isFullLens ? (
               // px-0: Task 2.3 makes the Map lens genuinely full-bleed
               // ("mapwrap" in the handoff) — the default px-6 gutter would
               // leave the rail's 16px inset reading as ~40px instead.
@@ -1813,8 +1879,13 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
           from the Map and Calendar too (W35), and the bar is where those edits
           wait. Outside the `inert` wrapper's reach for the same reason the
           header's controls are: discarding or sending is not an edit to the
-          version being previewed. */}
-      {draft !== null ? (
+          version being previewed.
+
+          Both only once hydrated (PR 486 review): they sit outside the
+          column that is `inert` until then, so drawn in the server's HTML
+          they were dead controls, and a phone, whose rack is a row on the
+          board rather than this dock, saw the desktop dock until hydration. */}
+      {!live ? null : draft !== null ? (
         <div ref={rackWrapperRef}>
           <SuggestionTray draft={draft} />
         </div>
@@ -1826,5 +1897,32 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
         </div>
       )}
     </>
+  );
+}
+
+/**
+ * A view's skeleton, for the server's HTML and the hydrating render, where the
+ * lens itself is not drawn (`TripBoardScreen`'s `hydrated`): the frame each
+ * view has while its own code loads — its container, Plan's day chips above
+ * its columns — with that view's placeholder in it, so nothing moves when the
+ * lens replaces it.
+ */
+function LensPlaceholder({ view, dayChips }: { view: View; dayChips: React.ReactNode }) {
+  if (view === "Map") {
+    return (
+      <PageContainer width="full" className="px-0">
+        <div data-testid="lens-placeholder">
+          <MapLensSkeleton />
+        </div>
+      </PageContainer>
+    );
+  }
+  return (
+    <PageContainer width={view === "Plan" ? "full" : "content"}>
+      <div data-testid="lens-placeholder">
+        {dayChips !== null && <div className="pt-2.5">{dayChips}</div>}
+        {view === "Overview" ? <OverviewLensFallback /> : view === "Calendar" ? <CalendarLensSkeleton /> : <PlanLensSkeleton />}
+      </div>
+    </PageContainer>
   );
 }

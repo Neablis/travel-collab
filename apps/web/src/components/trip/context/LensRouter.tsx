@@ -1,6 +1,6 @@
 "use client";
 import { createContext, useContext, useMemo } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { TRIP_VIEWS, type TripView } from "@tc/contracts";
 import { isDemoBoardPath } from "@/lib/demoTrip";
 
@@ -105,17 +105,28 @@ export const useLens = () => {
 
 export function LensRouter({ children }: { children: React.ReactNode }) {
   const params = useSearchParams();
-  const router = useRouter();
   const pathname = usePathname();
 
   const value = useMemo<LensCtx>(() => {
     const view = resolveView(params, landingView(pathname));
-    // `scroll: false` is load-bearing for the day-sync contract's clause 3
+    // **A tab change is not a navigation** (PR 486 review). It used to be
+    // `router.replace(url, { scroll: false })`, and on this dynamic page a
+    // router navigation, even one that changes only the query, fetches the
+    // page from the server again: since the trip page reads its first data
+    // there, that re-ran every read for an answer the provider throws away,
+    // and the old tab stayed up until it came back. `history.replaceState`
+    // asks the server nothing, and Next (>= 14.1; its `app-router` patches
+    // the method) moves `useSearchParams` and `usePathname` with it.
+    //
+    // **`null` for the state, never `window.history.state`.** Next's patch
+    // treats a state carrying its own keys (`__NA`) as its own call and skips
+    // the sync, so the view would never change. It copies those keys over itself.
+    //
+    // It does not scroll, which keeps the day-sync contract's clause 3
     // ("changing the tab jumps to the selected day" — see `FocusProvider`'s
-    // header), not just a nicety: Next's default scrolls the window to the top
-    // on a navigation, and it would land AFTER the newly-mounted view has
-    // scrolled itself to the selected day, undoing it. The view owns where the
-    // page sits after a tab change; the router leaves it alone.
+    // header): the newly-mounted view scrolls itself to the selected day, and
+    // nothing scrolls the window to the top after it. The view owns where the
+    // page sits after a tab change.
     return {
       view,
       dayScope: dayScopeFor(view),
@@ -131,10 +142,10 @@ export function LensRouter({ children }: { children: React.ReactNode }) {
         // A notebook followed from a link card (`?page=`, `OverviewLens`) is
         // the Overview tab's; picking a tab — Overview included — leaves it.
         n.delete("page");
-        router.replace(`${pathname}?${n.toString()}`, { scroll: false });
+        window.history.replaceState(null, "", `${pathname}?${n.toString()}`);
       }, // one direction: click -> URL -> derive
     };
-  }, [params, router, pathname]);
+  }, [params, pathname]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

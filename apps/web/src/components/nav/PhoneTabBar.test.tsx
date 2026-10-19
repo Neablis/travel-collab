@@ -1,5 +1,5 @@
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // The failure mode this file exists for: PhoneTabBar's selected tab is derived
 // from the route, and SPEC §13 / DRIFT build-check 4 say it must stay that way
@@ -154,6 +154,53 @@ describe("PhoneTabBar", () => {
     expect(hrefOf("Plan")).toBe("/trips/t1?view=Plan");
     expect(hrefOf("Map")).toBe("/trips/t1?view=Map");
     expect(hrefOf("Notebook")).toBe("/trips/t1/pages");
+  });
+
+  // PR 486 review: a view tab on the trip's own path writes the URL natively
+  // (Next syncs it into `useSearchParams`) rather than navigating, which would
+  // fetch the trip page from the server again. A tab to another path still
+  // navigates as a link.
+  describe("a view tab on the trip's own path", () => {
+    // The address bar as well as the mocked hooks: the handler compares the
+    // tab with the URL it would replace.
+    const at = (path: string) => {
+      window.history.replaceState(null, "", path);
+      renderAt(path);
+    };
+    let pushed: ReturnType<typeof vi.spyOn>;
+    beforeEach(() => {
+      pushed = vi.spyOn(window.history, "pushState").mockImplementation(() => {});
+    });
+    afterEach(() => {
+      pushed.mockRestore();
+      window.history.replaceState(null, "", "/");
+    });
+
+    it("switches the view without a navigation", () => {
+      at("/trips/t1?view=Overview");
+      const plan = fireEvent.click(screen.getByRole("link", { name: "Plan" }));
+      expect(plan).toBe(false);
+      expect(pushed).toHaveBeenCalledWith(null, "", "/trips/t1?view=Plan");
+    });
+
+    it("writes no second entry when the tab is re-tapped", () => {
+      at("/trips/t1?view=Plan");
+      fireEvent.click(screen.getByRole("link", { name: "Plan" }));
+      expect(pushed).not.toHaveBeenCalled();
+    });
+
+    // A new tab or window is the link's to open, not this handler's.
+    it.each([
+      ["a ctrl-click", { ctrlKey: true }],
+      ["a cmd-click", { metaKey: true }],
+      ["a shift-click", { shiftKey: true }],
+      ["a middle click", { button: 1 }],
+    ])("leaves %s to the link", (_what, init) => {
+      at("/trips/t1?view=Overview");
+      const plan = fireEvent.click(screen.getByRole("link", { name: "Plan" }), init);
+      expect(plan).toBe(true);
+      expect(pushed).not.toHaveBeenCalled();
+    });
   });
 
   // The Plan tab must never point at a read-only view: it exists to reach the

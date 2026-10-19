@@ -145,7 +145,12 @@ test("passes against the checked-in config, and every rejection names the rule t
   // for the same read and still may not import `@tc/domain`. The page fixtures
   // moved with the pages, from `(app)/playbooks` to `playbooks/live`, and the
   // cached copy's layout replaced "a layout under playbooks" as the shut one.
-  assert.equal(stdout.trim().split("\n").length, 70,`the wall's assertion count changed:\n${stdout}`);
+  //
+  // **70 → 76 on 2026-10-18**: the trip board's `page.tsx` may import
+  // `@/server/*` to send the board's first reads with the page, still may not
+  // import `@tc/domain` or build an Auth.js instance, and a helper beside it,
+  // its `loading.tsx` and a notebook page under the trip get no exemption.
+  assert.equal(stdout.trim().split("\n").length, 76,`the wall's assertion count changed:\n${stdout}`);
 });
 
 // THE REGRESSION THIS ENTRY EXISTS FOR. Both fixtures below trip a second, unrelated rule

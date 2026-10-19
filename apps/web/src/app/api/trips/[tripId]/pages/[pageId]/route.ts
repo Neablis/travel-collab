@@ -4,6 +4,7 @@ import { isUuid } from "@/server/ids";
 import { MAX_PAGE_BODY_BYTES, getPage } from "@/server/pages";
 import { executePageCommand } from "@/server/pageCommands";
 import { readBody } from "@/server/readBody";
+import { tripPageView } from "@/server/tripViews";
 
 // `pages.id` is a uuid column, so `getPage("not-a-uuid")` is not a miss — it is
 // `22P02` out of the driver, and all three handlers here answered 500 instead
@@ -21,10 +22,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ tripId:
   const { tripId, pageId } = await params;
   const g = await guard(tripId, "viewer", { allowDemo: true });
   if ("error" in g) return g.error;
-  if (!isUuid(pageId)) return notFound();
-  const page = await getPage(pageId);
-  if (!page || page.tripId !== tripId) return notFound();
-  return Response.json({ page });
+  const view = await tripPageView(tripId, pageId);
+  return view === null ? notFound() : Response.json(view);
 }
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ tripId: string; pageId: string }> }) {

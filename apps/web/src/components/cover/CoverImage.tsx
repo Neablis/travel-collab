@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { preload } from "react-dom";
 import type { TripCover } from "@tc/contracts";
 import { cn } from "@/lib/cn";
 
@@ -24,6 +25,17 @@ const WIDTHS = [400, 800, 1200, 1600] as const;
 export function coverSrc(raw: string, width: number): string {
   return `${raw}${raw.includes("?") ? "&" : "?"}w=${width}&q=80&fm=jpg&fit=crop`;
 }
+
+/**
+ * A transparent 1px GIF, inline: what a phone's `<source>` picks instead of the
+ * photo when `notOnPhone` is set, so it requests nothing.
+ */
+const BLANK = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
+
+/** The phone line, as `lib/useIsPhone.ts` and Tailwind's `md:` draw it: below 768px. */
+const PHONE_MEDIA = "(max-width: 767px)";
+/** Its complement: where a `notOnPhone` photo is shown, and so preloaded. */
+const ABOVE_PHONE_MEDIA = "(min-width: 768px)";
 
 /**
  * The image's alt text: Unsplash's description, else who took it (plan rule
@@ -61,6 +73,7 @@ export function CoverImage({
   veil,
   eager = false,
   priority = false,
+  notOnPhone = false,
   children,
 }: {
   photo: CoverPhoto;
@@ -72,21 +85,52 @@ export function CoverImage({
   eager?: boolean;
   /** Eager and `fetchpriority="high"`: the page's largest image. */
   priority?: boolean;
+  /**
+   * The box is hidden on a phone, so a phone must not download the photo
+   * either: a hidden `<img>` is still fetched, and an eager one first. Wraps
+   * it in a `<picture>` whose phone `<source>` is a blank inline GIF. The
+   * caller still hides the box (`max-md:hidden`).
+   *
+   * React preloads an eager `<img>` itself, but not one inside a `<picture>`
+   * (its source may differ), so a `priority` photo here is preloaded by hand,
+   * with the media query that keeps a phone from fetching it.
+   */
+  notOnPhone?: boolean;
   children?: ReactNode;
 }) {
+  const srcSet = WIDTHS.map((w) => `${coverSrc(photo.urls.raw, w)} ${w}w`).join(", ");
+  if (notOnPhone && priority) {
+    preload(photo.urls.regular, {
+      as: "image",
+      imageSrcSet: srcSet,
+      imageSizes: sizes,
+      fetchPriority: "high",
+      media: ABOVE_PHONE_MEDIA,
+    });
+  }
+  const img = (
+    // eslint-disable-next-line @next/next/no-img-element -- hotlinked from Unsplash's CDN by its guidelines (D3); next/image would proxy it
+    <img
+      src={photo.urls.regular}
+      srcSet={srcSet}
+      sizes={sizes}
+      alt={coverAlt(photo)}
+      loading={eager || priority ? "eager" : "lazy"}
+      fetchPriority={priority ? "high" : undefined}
+      decoding="async"
+      className="absolute inset-0 size-full object-cover"
+    />
+  );
   return (
     <div className={cn("relative overflow-hidden bg-moss", className)}>
-      {/* eslint-disable-next-line @next/next/no-img-element -- hotlinked from Unsplash's CDN by its guidelines (D3); next/image would proxy it */}
-      <img
-        src={photo.urls.regular}
-        srcSet={WIDTHS.map((w) => `${coverSrc(photo.urls.raw, w)} ${w}w`).join(", ")}
-        sizes={sizes}
-        alt={coverAlt(photo)}
-        loading={eager || priority ? "eager" : "lazy"}
-        fetchPriority={priority ? "high" : undefined}
-        decoding="async"
-        className="absolute inset-0 size-full object-cover"
-      />
+      {notOnPhone ? (
+        <picture>
+          <source media={PHONE_MEDIA} srcSet={BLANK} />
+          {img}
+        </picture>
+      ) : (
+        img
+      )}
       {veil !== undefined && <div aria-hidden className={cn("absolute inset-0", VEIL_CLASS[veil])} />}
       {children}
     </div>

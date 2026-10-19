@@ -38,11 +38,15 @@ export const COVER_BAND = { BAND: "h-96", EXPOSED: "h-60", OVERLAP: "md:-mt-36 m
  *
  * From 768px up only. A phone keeps its one-row pinned header and gets no
  * band: a photo above it would push the plan down on the screen that has least
- * room for it, and the cover is a tap away in Trip settings. Decided by the
- * caller in JS (`TripHeader`'s `useIsAbovePhone`), not here by a CSS `hidden`:
- * hidden, it still cost a phone the cover read and a full-width download
- * (PR #384 review). Outside the sticky header, so it scrolls away and the
- * pinned stack (`--sticky-stack-height`) does not grow.
+ * room for it, and the cover is a tap away in Trip settings. Hidden by CSS
+ * here, and that alone once cost a phone the cover read and a full-width
+ * download (PR 384 review), so neither depends on it: the read is the caller's
+ * (`TripHeader` reads only from 768px up, or takes the cover the server sent),
+ * and the photo is in a `<picture>` whose phone source is blank (`notOnPhone`).
+ * CSS rather than the caller's `useIsAbovePhone` alone, because that is unknown
+ * until hydration and the band is in the server's HTML. Outside the sticky
+ * header, so it scrolls away and the pinned stack (`--sticky-stack-height`)
+ * does not grow.
  *
  * It never pushes the board down after it paints: the board holds its header
  * skeleton until the cover read has answered (`TripBoardScreen`), so the band
@@ -69,7 +73,7 @@ export function TripCoverBanner({
   sentinelRef?: Ref<HTMLDivElement>;
 }) {
   return (
-    <CoverImage photo={cover} priority sizes="100vw" className={cn(COVER_BAND.BAND, "shrink-0")}>
+    <CoverImage photo={cover} priority notOnPhone sizes="100vw" className={cn(COVER_BAND.BAND, "shrink-0 max-md:hidden")}>
       <div aria-hidden className="cover-veil-trip absolute inset-0" />
       {onChangeCover !== undefined && (
         <Button

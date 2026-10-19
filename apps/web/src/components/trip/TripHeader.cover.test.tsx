@@ -29,6 +29,9 @@ import { TripHeader } from "./TripHeader";
 import { cachedRead } from "@/lib/queryCache";
 import { coverKeys } from "@/lib/queryKeys";
 import { setViewportMatches } from "../../../vitest.setup";
+import { tripFirstDataFixture } from "@/test-support/tripFirstData";
+import { renderToStaticMarkup } from "react-dom/server";
+import { TripCoverBanner } from "./cover/TripCoverBanner";
 
 
 
@@ -188,7 +191,7 @@ describe("TripHeader — the cover band", () => {
       await renderHeader();
       await waitFor(() => expect(band()).not.toBeNull());
       const header = screen.getByRole("banner", { name: "Trip" });
-      const seeThrough = () => header.classList.contains("bg-transparent");
+      const seeThrough = () => header.classList.contains("md:bg-transparent");
 
       expect(seeThrough()).toBe(true);
       // The header's top line scrolls above the header's sticky `top` (0 in jsdom).
@@ -200,6 +203,58 @@ describe("TripHeader — the cover band", () => {
     } finally {
       vi.unstubAllGlobals();
     }
+  });
+
+  // The trip page's first data (`server/tripFirstData.ts`): a cover the server
+  // sent is drawn on the first render — the server's HTML has the band — and
+  // read from nowhere. On a phone the band is still in the page, so the server
+  // and the hydrating render agree, but CSS hides it and its `<picture>` gives
+  // a phone a blank source instead of the photo.
+  describe("with the server's first data", () => {
+    const coverReads = () => {
+      const seen = { count: 0 };
+      server.events.on("request:start", ({ request }) => {
+        if (request.method === "GET" && new URL(request.url).pathname === `/api/trips/${TRIP}/cover`) seen.count++;
+      });
+      return seen;
+    };
+    const renderSeeded = (alt: string) =>
+      render(
+        <TripProvider tripId={TRIP} initial={tripFirstDataFixture({ cover: tripCoverFactory.build({ alt }) })}>
+          <EditorHost>
+            <TripHeader tripId={TRIP} />
+          </EditorHost>
+        </TripProvider>,
+      );
+
+    it("draws the band on its first render, and reads no cover", async () => {
+      const reads = coverReads();
+      renderSeeded("Seeded roofs");
+      expect(screen.getByRole("img", { name: "Seeded roofs" })).toBeTruthy();
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(reads.count).toBe(0);
+      server.events.removeAllListeners();
+    });
+
+    it("keeps the band off a phone by CSS, with a blank phone source, and reads no cover", async () => {
+      setViewportMatches({ "(max-width: 767px)": true });
+      const reads = coverReads();
+      renderSeeded("Phone roofs");
+      expect(screen.getByRole("img", { name: "Phone roofs" })).toBeTruthy();
+      // The band as the server's HTML carries it: hidden below 768px, and a
+      // phone's `<source>` that is a blank inline GIF, so the photo is never
+      // fetched there.
+      // React's own preload of an eager image is lost inside a `<picture>`, so
+      // the banner preloads it for desktop only: a phone fetches nothing.
+      const html = renderToStaticMarkup(<TripCoverBanner cover={tripCoverFactory.build()} />);
+      expect(html).toMatch(/^<link rel="preload" as="image"[^>]* media="\(min-width: 768px\)"[^>]*\/>/);
+      expect(html.match(/<link /g)).toHaveLength(1);
+      expect(html).toMatch(/\/><div class="[^"]*\bmax-md:hidden\b/);
+      expect(html).toMatch(/<picture><source media="\(max-width: 767px\)" srcSet="data:image\/gif;base64,[^"]+"\/><img /);
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(reads.count).toBe(0);
+      server.events.removeAllListeners();
+    });
   });
 
   it("gives a reader the band but no way to change it, and no Add cover", async () => {

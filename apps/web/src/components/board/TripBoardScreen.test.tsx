@@ -1,5 +1,9 @@
 import { useSyncExternalStore, type ComponentProps } from "react";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { followHistory } from "@/test-support/nextHistory";
+import { renderToStaticMarkup, renderToString } from "react-dom/server";
+import { hydrateRoot } from "react-dom/client";
+import { tripFirstDataFixture } from "@/test-support/tripFirstData";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
@@ -114,6 +118,7 @@ const replaceSpy = vi.fn((url: string) => {
   listeners.forEach((l) => l());
 });
 const pushSpy = vi.fn();
+let restoreHistory: () => void = () => {};
 vi.mock("next/navigation", () => ({
   useSearchParams: () =>
     useSyncExternalStore(
@@ -121,6 +126,8 @@ vi.mock("next/navigation", () => ({
         listeners.add(onStoreChange);
         return () => listeners.delete(onStoreChange);
       },
+      () => search,
+      // The server's snapshot too, for the suite that renders on the server.
       () => search,
     ),
   usePathname: () => "/trips/x",
@@ -187,12 +194,17 @@ beforeEach(() => {
   // below, and by `context.test.tsx`.
   search = new URLSearchParams("view=Plan");
   replaceSpy.mockClear();
+  // A tab writes the URL through `history.replaceState`, which Next syncs into
+  // the search params (`LensRouter.setView`, PR 486); routed to the same spy,
+  // so a test reads every URL change in one place.
+  restoreHistory = followHistory((url) => replaceSpy(url));
   askAssistantMock.mockReset();
   applyProposalMock.mockReset();
   mapLensProps.mockClear();
   setViewportMatches({ "(min-width: 1180px)": true });
 });
 afterEach(() => {
+  restoreHistory();
   server.resetHandlers();
   cleanup();
   listeners.clear();
@@ -3412,5 +3424,73 @@ describe("⌘K runs the trip page's own actions", () => {
     await waitFor(() => expect(log.textContent).toContain("I didn't open that notebook, because you have a stop open for editing."));
     expect(pushSpy).not.toHaveBeenCalled();
     expect(screen.getByRole("dialog", { name: "Add a stop" })).toBeTruthy();
+  });
+});
+
+// PR 486 e2e: with the trip sent from the server, the board's HTML arrives
+// before its code. Until hydration its controls answer nothing, and a phone's
+// lens would be drawn in its desktop form (`useIsPhone` is `false` there). So
+// the server's board is `inert` and its lens is the view's skeleton; at
+// hydration the lens mounts from the seeded cache, with no request, and the
+// column comes alive.
+describe("TripBoardScreen — the server's first data before and after hydration", () => {
+  const seededTree = (first: ReturnType<typeof tripFirstDataFixture>) => (
+    <TripProvider tripId={first.trip.trip.tripId} initial={first}>
+      <FocusProvider>
+        <EditorHost>
+          <LensRouter>
+            <TripBoardScreen tripId={first.trip.trip.tripId} />
+          </LensRouter>
+        </EditorHost>
+      </FocusProvider>
+    </TripProvider>
+  );
+
+  // A trip with a day, so Plan has day chips and columns to draw.
+  const withADay = () => tripFirstDataFixture({ trip: costedTripDetailFixture() });
+
+  it("renders the header on the server, inert, with the view's placeholder and nothing live outside it", () => {
+    const html = renderToStaticMarkup(seededTree(withADay()));
+    expect(html).toMatch(/<div[^>]*data-testid="trip-board-content"[^>]*inert=""/);
+    expect(html).toContain("Rome 2027");
+    // The lens is its placeholder — Plan's frame, chips above its columns.
+    expect(html).toContain('data-testid="lens-placeholder"');
+    expect(html).toContain('aria-label="Loading the plan"');
+    expect(html).toContain('aria-label="Days"');
+    // The rack's dock is outside the inert column, so it is not drawn at all.
+    expect(html).not.toContain('data-testid="rack-dock"');
+  });
+
+  it("mounts the lens at hydration with no trip read, and is no longer inert", async () => {
+    const first = withADay();
+    server.use(...makeTripHandlers(first.trip.trip));
+    const reads: string[] = [];
+    const onRequest = ({ request }: { request: Request }) => {
+      const path = new URL(request.url).pathname;
+      if (request.method === "GET" && /^\/api\/trips\/[^/]+(\/(history|access|cover|globals|pages))?$/.test(path)) reads.push(path);
+    };
+    server.events.on("request:start", onRequest);
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    // `renderToString`, not static markup: hydration needs its text markers.
+    container.innerHTML = renderToString(seededTree(first));
+    const mismatches: unknown[] = [];
+    let root: ReturnType<typeof hydrateRoot> | undefined;
+    try {
+      await act(async () => {
+        root = hydrateRoot(container, seededTree(first), { onRecoverableError: (error) => mismatches.push(error) });
+      });
+      // Plan's own columns, where the server drew the placeholder.
+      await waitFor(() => expect(within(container).getAllByTestId("day-column").length).toBeGreaterThan(0));
+      expect(within(container).queryByTestId("lens-placeholder")).toBeNull();
+      expect(within(container).getByTestId("rack-dock")).toBeTruthy();
+      expect(mismatches).toEqual([]);
+      expect(within(container).getByTestId("trip-board-content").hasAttribute("inert")).toBe(false);
+      expect(reads).toEqual([]);
+    } finally {
+      server.events.removeListener("request:start", onRequest);
+      act(() => root?.unmount());
+      document.body.removeChild(container);
+    }
   });
 });

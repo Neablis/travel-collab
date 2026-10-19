@@ -3,11 +3,12 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import type { PageDoc, PageSummary, TripDetail, TripGlobals } from "@tc/contracts";
-import { isOverviewPage } from "@tc/pages";
-import { fetchPage, fetchPages } from "@/lib/pagesClient";
+import type { Page, PageDoc, PageSummary, TripDetail, TripGlobals } from "@tc/contracts";
+import { fetchPage, fetchPages, type NotebookList } from "@/lib/pagesClient";
+import { pickOverviewPage } from "@/lib/overviewPage";
+import { useTripSeed } from "@/components/trip/context/tripSeed";
 import { fetchTripGlobals } from "@/lib/apiClient";
-import { DEDUPE, cachedRead, invalidate } from "@/lib/queryCache";
+import { DEDUPE, cachedRead, invalidate, peekCached } from "@/lib/queryCache";
 import { tripKeys } from "@/lib/queryKeys";
 import { inspectStoredPageDoc } from "@/components/pages/editor/storedPageDoc";
 import { PageEditor } from "@/components/pages/editor/PageEditor";
@@ -19,6 +20,29 @@ import { Text } from "@/components/ui/text";
 import { cn } from "@/lib/cn";
 import { PeopleProvider } from "@/components/pages/people";
 import { useIsPhone } from "@/lib/useIsPhone";
+
+type OverviewState =
+  | { status: "loading" }
+  | { status: "error"; message: string }
+  | { status: "ready"; page: PageSummary; doc: PageDoc }
+  | { status: "unreadable"; page: PageSummary };
+
+// ADR-038 decision 4: whoever mounts `PageEditor` has already been told
+// the document is mountable. A page someone has edited into a shape this
+// build cannot parse must not white-screen the trip's landing tab.
+//
+// `unsupported` mounts here even though the Notebook route refuses it,
+// and the difference is decision 4's own: `unsupported` means the
+// document parsed and carries a node this build's EDITOR cannot mount.
+// This tab does not mount an editor — `editable={false}` — so the node
+// renders as decision 3's inert placeholder and the rest of the page is
+// readable, which is the whole point of a read-only presentation.
+function stateFor(summary: PageSummary, page: Page): OverviewState {
+  const inspected = inspectStoredPageDoc(page.content);
+  return inspected.status === "unreadable"
+    ? { status: "unreadable", page: summary }
+    : { status: "ready", page: summary, doc: inspected.doc };
+}
 
 // SPEC §25: **Overview IS a notebook page.**
 //
@@ -114,18 +138,31 @@ export function OverviewLens({
   // the first paint, so a phone sees the desktop form for a frame — the same
   // first-paint trade every `useIsPhone` mount makes.
   const isPhone = useIsPhone();
-  const [globals, setGlobals] = useState<TripGlobals | null>(null);
+  // **What the server sent with the page, or the cache it was primed into**
+  // (`useTripSeed`): the first render starts from it, so the letter is drawn
+  // without a request. This lens mounts only after hydration (the board shows
+  // its placeholder until then), so that first render is a client one.
+  // The effects below still run their reads; the cache answers them. Without
+  // a seed nothing is painted from the cache, whose entries can be any age:
+  // the lens waits for its reads, as it always did.
+  const seed = useTripSeed();
+  const [globals, setGlobals] = useState<TripGlobals | null>(() =>
+    seed === null ? null : (peekCached<TripGlobals>(tripKeys.globals(tripId)) ?? seed.globals),
+  );
   // Whether the FIRST globals read has answered, either way. The letter waits
   // on it (see `body`): its widgets read places and zones from the globals,
   // and mounting the editor before them drew those widgets twice, the second
   // time at a different height, under the reader's eyes.
-  const [globalsSettled, setGlobalsSettled] = useState(false);
-  const [state, setState] = useState<
-    | { status: "loading" }
-    | { status: "error"; message: string }
-    | { status: "ready"; page: PageSummary; doc: PageDoc }
-    | { status: "unreadable"; page: PageSummary }
-  >({ status: "loading" });
+  const [globalsSettled, setGlobalsSettled] = useState(globals !== null);
+  const [state, setState] = useState<OverviewState>(() => {
+    if (seed === null) return { status: "loading" };
+    const list = peekCached<NotebookList>(tripKeys.pages(tripId)) ?? seed.pages;
+    const pick = pickOverviewPage(list.pages, linkedPageId);
+    if (!pick.ok) return { status: "loading" };
+    const sent = seed.overview?.id === pick.page.id ? seed.overview : undefined;
+    const page = peekCached<Page>(tripKeys.page(tripId, pick.page.id)) ?? sent;
+    return page === undefined ? { status: "loading" } : stateFor(pick.page, page);
+  });
 
   // Read through the cache, because this component is UNMOUNTED whenever you
   // leave the tab — `TripBoardScreen` renders it as `{view === "Overview" &&
@@ -184,19 +221,11 @@ export function OverviewLens({
       });
       if (!live) return;
       if (!list.ok) return setState({ status: "error", message: "Couldn't load this trip's Overview." });
-      const summary = list.value.pages.find((p: PageSummary) =>
-        linkedPageId === null ? isOverviewPage(p.context) : p.id === linkedPageId,
-      );
-      // A linked notebook that has since been deleted, or a hand-edited URL.
-      if (summary === undefined && linkedPageId !== null) {
-        return setState({ status: "error", message: "This notebook is not in this trip." });
-      }
-      // A trip whose Overview is genuinely absent: every trip seeded since
-      // 2026-09-12 has one, and a trip that was seeded BEFORE it has the two
-      // older prose pages instead and will never be re-seeded (`listPages`
-      // seeds only into a trip with zero pages). That is a real state and it
-      // gets a real answer rather than a spinner that never resolves.
-      if (summary === undefined) return setState({ status: "error", message: "This trip has no Overview page." });
+      // The pick the server makes too (`lib/overviewPage.ts`), with its two
+      // misses: a linked notebook gone, and a trip with no Overview.
+      const pick = pickOverviewPage(list.value.pages, linkedPageId);
+      if (!pick.ok) return setState({ status: "error", message: pick.message });
+      const summary = pick.page;
       const page = await cachedRead(
         tripKeys.page(tripId, summary.id),
         () => fetchPage(tripId, summary.id),
@@ -204,22 +233,7 @@ export function OverviewLens({
       );
       if (!live) return;
       if (!page.ok) return setState({ status: "error", message: "Couldn't load this trip's Overview." });
-      // ADR-038 decision 4: whoever mounts `PageEditor` has already been told
-      // the document is mountable. A page someone has edited into a shape this
-      // build cannot parse must not white-screen the trip's landing tab.
-      //
-      // `unsupported` mounts here even though the Notebook route refuses it,
-      // and the difference is decision 4's own: `unsupported` means the
-      // document parsed and carries a node this build's EDITOR cannot mount.
-      // This tab does not mount an editor — `editable={false}` — so the node
-      // renders as decision 3's inert placeholder and the rest of the page is
-      // readable, which is the whole point of a read-only presentation.
-      const inspected = inspectStoredPageDoc(page.value.content);
-      setState(
-        inspected.status === "unreadable"
-          ? { status: "unreadable", page: summary }
-          : { status: "ready", page: summary, doc: inspected.doc },
-      );
+      setState(stateFor(summary, page.value));
     })();
     return () => {
       live = false;

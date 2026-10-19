@@ -156,10 +156,16 @@ it, the reader's preferences through `server/accountPreferences.ts`, so
 `src/app/playbooks/live/layout.tsx`, both through `server/servedSession.ts`,
 on the console's terms; never a JWT claim (ADR-045 rule 2). Five fixtures.
 
-And **`src/app/(app)/page.tsx`** (Mitchell's decision of 2026-10-18): Home
+And **`src/app/(app)/home/page.tsx`** (Mitchell's decision of 2026-10-18): Home
 reads `server/listedTrips.ts`, the `/api/trips` body, so the next-trip hero
 and the grid are in the first HTML. That file only; `HomeScreen` stays UI.
 Four fixtures.
+
+And **`src/app/(app)/trips/[tripId]/(board)/page.tsx`** (Mitchell's decision of
+2026-10-18): it reads the board's first answers in-process
+(`server/tripFirstData.ts`) after one `requireTripAccess`, through the GET
+routes' own builders, so the board is in the first HTML. Page file only, on the
+console's terms; the board stays UI. Six fixtures.
 
 The UI/server lint wall is CI-enforced and is our escape hatch: if serverless
 stops fitting (likely at Phase 2 realtime), `src/server` extracts into a

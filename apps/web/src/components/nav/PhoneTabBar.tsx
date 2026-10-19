@@ -384,6 +384,23 @@ function PhoneTabBarView({
             // the previous page happened to be at. Raised by Copilot on
             // PR #143.
             scroll={href.startsWith(`${pathname}?`) ? false : undefined}
+            // **A same-path view switch is not a navigation** (PR 486 review),
+            // for `LensRouter.setView`'s reason: through the router it fetches
+            // the trip page from the server again — every first-data read, for
+            // an answer nothing uses. Written natively instead, which Next
+            // syncs into `useSearchParams`; `pushState` because the Link it
+            // replaces pushed, and `null` state for the reason `setView` says.
+            // A modified or non-primary click is left to the Link (a new tab).
+            onClick={
+              href.startsWith(`${pathname}?`)
+                ? (event) => {
+                    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+                    event.preventDefault();
+                    // Re-tapping the tab you are on writes no second entry.
+                    if (`${window.location.pathname}${window.location.search}` !== href) window.history.pushState(null, "", href);
+                  }
+                : undefined
+            }
             aria-current={isActive ? "page" : undefined}
             className={cn(TAB_CLASS, isActive ? "font-semibold text-brand" : "font-normal text-slate")}
           >

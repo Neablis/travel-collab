@@ -341,19 +341,45 @@ here two days later.
 
 - **The trip page renders its first data on the server (found by PR 481's audit, 2026-10-18).**
   The biggest load-time item that pass left out: it was larger than a cleanup.
-  `app/(app)/trips/[tripId]/(board)/page.tsx` passes only `tripId`, so the board draws a skeleton
-  until hydration and then waits on chained client reads before the cover, the LCP image, can
-  start: detail, history, access and the cover read, then Overview's `fetchPages` → `fetchPage`.
-  - **The shape:** `Promise.all` the access check, detail, cover and the overview page in
-    `page.tsx`, and pass them down as `initial*` props seeding `cachedRead`, the way
-    `useLibraryRead`'s `initial` already works. Draw the header and cover band on the server,
-    with CSS breakpoints instead of the `useIsAbovePhone()` gate.
-  - **Same pattern, smaller:** `/s/[token]` (`SharedTripScreen` fetches in an effect), the
-    `/playbooks/profile/[userId]` and `/playbooks/board` pages (`useLibraryRead` without
-    `initial`), and `/demo/[slug]` (static shell, then six API reads; build the demo's
-    `TripDetail` at build time).
+  - **The trip page itself: done in PR 486 (part 1).** `(board)/page.tsx` reads the board's first
+    answers in-process (`server/tripFirstData.ts`) after one `requireTripAccess`, with the GET
+    routes' own view builders (`server/tripViews.ts`), and `TripProvider`'s `initial` seeds the
+    query cache in the browser. The header and cover band draw on the server, the band hidden on
+    a phone by CSS and a `<picture>` whose phone source is blank. Measured in PR 486.
+  - **Same pattern, smaller (what is left of this entry):** `/s/[token]` (`SharedTripScreen`
+    fetches in an effect), the `/playbooks/profile/[userId]` and `/playbooks/board` pages
+    (`useLibraryRead` without `initial`), and `/demo/[slug]` (static shell, then six API reads;
+    build the demo's `TripDetail` at build time).
   - **Measure first and after:** the Vercel Real Experience Score and Sentry, which PR 481 had no
     access to. Its numbers came from a local production build.
+
+- **The Overview document is in the first HTML (found by PR 486, 2026-10-18).** On a phone the
+  trip page's LCP element is a `<p>` of the Overview notebook. Since PR 486 the first HTML holds
+  the trip's header and the lens's skeleton, but no lens: the board is `inert` and every lens is
+  its placeholder until hydration (so no tap lands on a dead control, and a phone sees no lens in
+  its desktop form — only, at `?view=Plan`, the placeholder's day chips in the body, which move
+  into the pinned header once the phone hook corrects), and the lens's chunk loads after it. The paragraph then waits on the
+  editor too: `PageEditor` creates TipTap with `immediatelyRender: false`. It needs a static
+  server render of the document — TipTap's static renderer or `generateHTML`, a new dependency,
+  or a second renderer — swapped for the editor once the editor exists. Mitchell deferred it on
+  2026-10-18, out of the trip page's first-data stack. Measured in PR 486.
+  - **What PR 486 measured** (Lighthouse 12, mobile, local production build, median of 5,
+    devtools throttling): LCP 10.70s on main, 8.11s with the PR. Under Lighthouse's default
+    simulated throttling LCP is about 7.7s for every variant, because Lantern charges all
+    JavaScript evaluation before the paint. A throwaway prototype that put the Overview's
+    paragraphs in the server HTML, in the editor's own classes, moved the observed (unthrottled)
+    LCP to the first paint but not the simulated one — so a static render's lab value has to be
+    judged under devtools throttling. LCP's remaining ~8s is main-thread render delay, not
+    network: React hydrating the board in the framework chunk, about 2.7s of scripting at 4x.
+  - **A phone's first HTML is the desktop form until hydration.** `useIsPhone` is `false` on
+    the server and on the first client render, so `TripHeader` (its one-row phone header) is
+    drawn in its desktop form in the server HTML and shifts when the hook corrects after
+    hydration. Before PR 486 it did not render until the provider had loaded, by which time the
+    hook had. The lenses no longer do this, being placeholders until hydration, except that
+    Plan's placeholder draws its day chips in the body, where a phone pins them in the header
+    after hydration. Accepted for
+    part 1; the fix is the same breakpoint in CSS (`max-md:`) wherever the form is only a
+    restyle.
 
 - **Trip requests stop re-reading the whole trip (found by PR 481's audit, 2026-10-18).** Every
   `/api/trips/[tripId]/**` request runs `requireTripAccess`, which reads and Zod-parses the whole
@@ -408,24 +434,6 @@ here two days later.
   - `@sentry/nextjs` / `@sentry/profiling-node` 10 → 11.
   - `@atlaskit/pragmatic-drag-and-drop` 3 → 4, together with auto-scroll ≥3.2.1, which
     `dependabot.yml` pins until this migration (`check-singletons`).
-
-- **The signed-in app moves from `/` to `/home` (decided by Mitchell, 2026-10-18, PR 485's
-  session).** *Built on `claude/vibrant-wright-5rblus` (ADR-078); delete this entry when it
-  merges, keeping the "Coordinate with" line below if Home's trip list is still client-fetched.* `/` becomes only the static landing, with no edge `auth()` in front of it and no
-  `private, no-store`. Measured first: the landing is already a Vercel CDN hit behind the
-  rewrite. The edge check costs about 17ms (a 15-sample median TTFB of 216ms for `/` against 200ms
-  for `/welcome`). He chose the move knowing that number.
-  - **To settle before building:** what a signed-in visitor landing on `/` sees, without an auth
-    check (a non-HttpOnly hint cookie read by a tiny inline redirect, or a header link); what
-    `/welcome` becomes; `manifest.ts`'s `start_url`; and the SEO pass's D9, which made `/` the
-    indexed homepage.
-  - **Every "go home":** the sign-in default `callbackUrl`, AppHeader, `PhoneTabBar`, the
-    palette, post-leave and post-delete navigation, invite admission, and email templates.
-    `e2e/m15-front-door.spec.ts` and every spec that `goto("/")`s signed in.
-  - **Coordinate with** *The trip page renders its first data on the server* above, and with
-    server-rendering Home's trip list (signed-in Home scored 56 on Lighthouse mobile on a local
-    production build, LCP 6.2s, because it fetches `/api/trips` after hydration and its server
-    response took 720ms).
 
 - **Facts from PR 485's Lighthouse pass, kept so they are not measured again (2026-10-18).**
   - **"Legacy JavaScript" is Next's own `polyfill-module`** (`Array.prototype.at`, `flat`,
