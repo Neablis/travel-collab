@@ -428,6 +428,13 @@
       "when": 1792393649601,
       "tag": "0060_users_signup_ref",
       "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
+      "when": 1792419246911,
+      "tag": "0061_users_dismissed_publish_offers",
+      "breakpoints": true
     }
   ]
 }

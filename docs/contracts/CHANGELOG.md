@@ -13,6 +13,21 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-10-19 — Dismissing the offer to publish a trip that is over (M50 part 7)
+- **Added** (`packages/contracts/src/identity.ts`): `UserPreferences.dismissedPublishOffers`,
+  `string[]` of trip uuids (at most `MAX_DISMISSED_PUBLISH_OFFERS`, 1000, also
+  exported), `.optional()`. The trips whose *"Turn these days into a
+  playbook?"* this person dismissed. A patch sends the whole list, oldest
+  first; a full list drops its oldest. `UpdateUserPreferences` takes it as it
+  takes every field.
+- Why: M50 decision 7. A dismissal holds for that person and that trip on every
+  device, so it is stored on the account (`users.dismissed_publish_offers`,
+  migration `0061`) rather than in the browser.
+- Consumers updated: `apps/web` (`server/users.ts` reads and writes it,
+  `PreferencesProvider`'s `usePublishOfferDismissals`, `PublishTripOffer`).
+- Breaking? no. Optional, so an older reader and every fixture written before it
+  still parse and type-check; absent reads as none dismissed.
+
 ## 2026-10-18 — Home's budget lines come in the trips list
 - **Added** (`packages/contracts/src/trip.ts`): `ListedTripSummary.spend`,
   `{ totalMinor, budgetMinor: nullable, currency } | null`, `.default(null)`.

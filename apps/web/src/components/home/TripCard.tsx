@@ -16,6 +16,7 @@ import { CoverCredit } from "@/components/cover/CoverCredit";
 import { CoverImage } from "@/components/cover/CoverImage";
 import { UnplannedTripSteps, isUnplanned, tripDateRange, tripMetaLine } from "./UnplannedTrip";
 import { useCreatedLabel } from "@/lib/useCreatedLabel";
+import { PublishTripOffer, viewerKeepsDays } from "@/components/trip/PublishTripOffer";
 
 export type TripCardProps = {
   trip: TripSummary;
@@ -246,6 +247,9 @@ export function TripCard({ trip, menuSlot, plannedOfBudget, viewerId, unreadChat
           </div>
         )}
       </div>
+
+      {/* M50 decision 7, once the trip is over. */}
+      <PublishTripOffer trip={trip} canPublish={viewerKeepsDays(trip.members, viewerId)} />
 
       <div className="mt-auto flex items-center justify-between pt-1">
         <div

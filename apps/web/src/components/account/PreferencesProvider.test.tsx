@@ -1,18 +1,20 @@
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { UpdateUserPreferences, UserPreferences } from "@tc/contracts";
+import { MAX_DISMISSED_PUBLISH_OFFERS, type UpdateUserPreferences, type UserPreferences } from "@tc/contracts";
 
 // Each PATCH is held open until the test releases it, which is the only way to
 // get two saves genuinely in flight at once — the condition the ordering rule
 // below exists for, and one that cannot be reproduced by awaiting them in turn.
-const pending: Array<{ patch: UpdateUserPreferences; settle: (value: UserPreferences) => void }> = [];
+const pending: Array<{ patch: UpdateUserPreferences; settle: (value: UserPreferences) => void; fail: () => void }> = [];
 
 const preferencesRead = vi.fn();
 // What the mocked endpoint answers for the name; one test sets it to tell a
 // fetched read from the defaults.
 let fetchedName: string | null = null;
+// One test makes the read fail, as a layout read and a mount fetch both can.
+let readFails = false;
 vi.mock("@/lib/apiClient", () => ({
-  fetchPreferences: async () => (preferencesRead(), {
+  fetchPreferences: async () => (preferencesRead(), readFails ? { ok: false as const, error: { status: 500, message: "down" } } : {
     ok: true as const,
     value: {
       preferences: { displayName: fetchedName, homeAirport: null, distanceUnit: "km", timeFormat: "12h", avatar: null, color: null, publicDisplayName: false } satisfies UserPreferences,
@@ -21,11 +23,15 @@ vi.mock("@/lib/apiClient", () => ({
   }),
   updatePreferences: (patch: UpdateUserPreferences) =>
     new Promise((resolve) => {
-      pending.push({ patch, settle: (value) => resolve({ ok: true as const, value }) });
+      pending.push({
+        patch,
+        settle: (value) => resolve({ ok: true as const, value }),
+        fail: () => resolve({ ok: false as const, error: { status: 500, message: "down" } }),
+      });
     }),
 }));
 
-const { PreferencesProvider, useAccountPreferences, useIsAdmin } = await import("./PreferencesProvider");
+const { PreferencesProvider, useAccountPreferences, useIsAdmin, usePublishOfferDismissals } = await import("./PreferencesProvider");
 
 /** Renders the live preferences and exposes `save` to the test. */
 let save: (patch: UpdateUserPreferences) => Promise<unknown>;
@@ -45,6 +51,7 @@ beforeEach(() => {
   pending.length = 0;
   preferencesRead.mockClear();
   fetchedName = null;
+  readFails = false;
 });
 afterEach(cleanup);
 
@@ -173,5 +180,88 @@ describe("PreferencesProvider", () => {
     await waitFor(() => expect(preferencesRead).toHaveBeenCalledTimes(1));
     // The fetched name, not the defaults' "—" and not the late read's "Sam".
     await waitFor(() => expect(screen.getByTestId("name").textContent).toBe("Fetched"));
+  });
+});
+
+// M50 decision 7's dismissals. Each Dismiss is a save of the whole list, so
+// what matters is what each PATCH carries.
+describe("usePublishOfferDismissals", () => {
+  let dismiss: ((tripId: string) => Promise<unknown>) | undefined;
+  function DismissProbe() {
+    const dismissals = usePublishOfferDismissals();
+    dismiss = dismissals?.dismiss;
+    return (
+      <div>
+        <span data-testid="loaded">{useAccountPreferences().loaded ? "loaded" : "loading"}</span>
+        <span data-testid="dismissed">{dismissals === null ? "unknown" : dismissals.dismissed.join(",")}</span>
+      </div>
+    );
+  }
+  const served = (dismissedPublishOffers: string[]) => ({
+    preferences: { displayName: null, homeAirport: null, distanceUnit: "km" as const, timeFormat: "12h" as const, avatar: null, color: null, publicDisplayName: false, dismissedPublishOffers },
+    defaultColor: null,
+    isAdmin: false,
+  });
+
+  // Two cards on Home, dismissed faster than the first save answers.
+  it("carries an earlier dismissal whose save has not answered into the next", async () => {
+    render(
+      <PreferencesProvider initialRead={served(["x"])}>
+        <DismissProbe />
+      </PreferencesProvider>,
+    );
+    void dismiss!("a");
+    void dismiss!("b");
+    await waitFor(() => expect(pending).toHaveLength(2));
+    expect(pending[1]!.patch).toEqual({ dismissedPublishOffers: ["x", "a", "b"] });
+  });
+
+  // A failed Dismiss leaves its offer up with the error. Carried into the next
+  // trip's save, it would be stored anyway and the offer would vanish unasked.
+  it("does not store a dismissal whose save failed with a later one", async () => {
+    render(
+      <PreferencesProvider initialRead={served([])}>
+        <DismissProbe />
+      </PreferencesProvider>,
+    );
+    const first = dismiss!("a");
+    await waitFor(() => expect(pending).toHaveLength(1));
+    pending[0]!.fail();
+    await first;
+    void dismiss!("b");
+    await waitFor(() => expect(pending).toHaveLength(2));
+    expect(pending[1]!.patch).toEqual({ dismissedPublishOffers: ["b"] });
+  });
+
+  // Not knowing the stored list is not the same as an empty one: offering
+  // again, and a Dismiss that would replace the list with one id, both follow
+  // from reading it as empty.
+  it("answers unknown, with no way to dismiss, after a failed read", async () => {
+    readFails = true;
+    render(
+      <PreferencesProvider>
+        <DismissProbe />
+      </PreferencesProvider>,
+    );
+    await waitFor(() => expect(screen.getByTestId("loaded").textContent).toBe("loaded"));
+    expect(screen.getByTestId("dismissed").textContent).toBe("unknown");
+    expect(dismiss).toBeUndefined();
+  });
+
+  // The contract caps the list, and ids of trips since deleted are never
+  // pruned. A full list makes room rather than having every Dismiss refused.
+  it("drops the oldest dismissal when the list is full", async () => {
+    const full = Array.from({ length: MAX_DISMISSED_PUBLISH_OFFERS }, (_, i) => `t${i}`);
+    render(
+      <PreferencesProvider initialRead={served(full)}>
+        <DismissProbe />
+      </PreferencesProvider>,
+    );
+    void dismiss!("new");
+    await waitFor(() => expect(pending).toHaveLength(1));
+    const sent = pending[0]!.patch.dismissedPublishOffers!;
+    expect(sent).toHaveLength(MAX_DISMISSED_PUBLISH_OFFERS);
+    expect(sent[0]).toBe("t1");
+    expect(sent.at(-1)).toBe("new");
   });
 });

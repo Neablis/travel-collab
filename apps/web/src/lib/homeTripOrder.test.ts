@@ -1,7 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { TripSummary } from "@tc/contracts";
 import { tripSummaryFactory, uuidFrom } from "@tc/factories";
-import { orderHomeTrips } from "./homeTripOrder";
+import { orderHomeTrips, tripHasEnded } from "./homeTripOrder";
 
 // KI-034: Home's hero is `orderHomeTrips(...)[0]`. Each list below is given in
 // the server's order (newest-created first), which is the tie-break.
@@ -79,5 +79,34 @@ describe("orderHomeTrips", () => {
     const list = [trip("undated", null), trip("upcoming", "2027-01-01")];
     orderHomeTrips(list, TODAY);
     expect(names(list)).toEqual(["undated", "upcoming"]);
+  });
+});
+
+describe("tripHasEnded", () => {
+  // The reader's own calendar, so the zone is pinned to one west of UTC: in
+  // UTC a local date and a UTC date agree and the edge below proves nothing.
+  const zone = process.env.TZ;
+  beforeAll(() => {
+    process.env.TZ = "America/Los_Angeles";
+  });
+  afterAll(() => {
+    process.env.TZ = zone;
+  });
+
+  it("is over from the day after the last day, not on it", () => {
+    const ending = trip("ending", "2026-09-20", TODAY);
+    expect(tripHasEnded(ending, new Date(2026, 8, 24, 12))).toBe(false);
+    expect(tripHasEnded(ending, new Date(2026, 8, 25, 0, 1))).toBe(true);
+  });
+
+  it("reads the reader's date, not UTC's, late on the last day", () => {
+    // 20:00 on the 24th in Los Angeles is already the 25th in UTC.
+    const ending = trip("ending", "2026-09-20", TODAY);
+    expect(tripHasEnded(ending, new Date("2026-09-25T03:00:00Z"))).toBe(false);
+  });
+
+  it("never ends a trip with no last day", () => {
+    expect(tripHasEnded(trip("undated", null), new Date(2030, 0, 1))).toBe(false);
+    expect(tripHasEnded(trip("dated, no days", "2020-01-01", null), new Date(2030, 0, 1))).toBe(false);
   });
 });

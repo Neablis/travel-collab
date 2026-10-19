@@ -112,6 +112,7 @@ describe("users repository", () => {
       avatar: null,
       color: null,
       publicDisplayName: false,
+      dismissedPublishOffers: [],
       // M20's columns. A first sign-in holds the live `free` version — read
       // from the committed plan file by `upsertUser`, NOT left to the column's
       // `DEFAULT 1`, which is what makes "a new account gets v2" true the day
@@ -171,6 +172,7 @@ describe("account preferences (M17)", () => {
       avatar: null,
       color: null,
       publicDisplayName: false,
+      dismissedPublishOffers: [],
     });
   });
 
@@ -186,6 +188,7 @@ describe("account preferences (M17)", () => {
       avatar: null,
       color: null,
       publicDisplayName: false,
+      dismissedPublishOffers: [],
     });
   });
 
@@ -208,6 +211,7 @@ describe("account preferences (M17)", () => {
       avatar: null,
       color: null,
       publicDisplayName: false,
+      dismissedPublishOffers: [],
     });
     expect(await readPreferences(id)).toEqual(written);
   });
@@ -229,6 +233,7 @@ describe("account preferences (M17)", () => {
       avatar: null,
       color: null,
       publicDisplayName: false,
+      dismissedPublishOffers: [],
     });
 
     await writePreferences(id, { displayName: null });
@@ -240,6 +245,7 @@ describe("account preferences (M17)", () => {
       avatar: null,
       color: null,
       publicDisplayName: false,
+      dismissedPublishOffers: [],
     });
   });
 
@@ -282,6 +288,7 @@ describe("account preferences (M17)", () => {
       avatar: null,
       color: null,
       publicDisplayName: false,
+      dismissedPublishOffers: [],
     });
     // And the provider's own field still refreshes, so this is not passing
     // because the upsert stopped writing anything.
@@ -355,6 +362,7 @@ describe("recordSignIn (the Auth.js signIn callback)", () => {
       avatar: null,
       color: null,
       publicDisplayName: false,
+      dismissedPublishOffers: [],
     });
   });
 
