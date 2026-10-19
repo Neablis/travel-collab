@@ -1923,6 +1923,55 @@ html[data-look="ledger"] .shadow-raised {
     );
   }
 
+  /* Paper grain on the landing's surfaces (M50 part 5): the spreads, the photo
+     slot and the closing moment, so the front door reads as paper rather than
+     a flat fill. The noise is an SVG filter, black at a low alpha and
+     multiplied, so it darkens whatever paper the look supplies instead of
+     carrying a colour of its own, and so works under `paper` and `ledger`
+     alike. Drawn under the content: `isolation` keeps the `z-index: -1` layer
+     inside the element, above its own background. The element supplies
+     `position: relative`, which the call sites set as a utility.
+
+     The alpha is held by the copy that sits on the grain, slate at 11 to
+     13px, which must keep 4.5:1 where the noise is darkest. At full noise the
+     layer darkens the ground by opacity x 0.55, and the slate ratios at
+     flat / mean noise / peak are:
+       paper look, 0.12:  paper 5.63 / 5.24 / 4.86, moss 5.31 / 4.94 / 4.59
+       ledger look, 0.08: paper 5.53 / 5.27 / 5.02, moss 5.01 / 4.78 / 4.55
+     Ledger takes the lighter grain because its cream moss starts darker; at
+     0.40 the spread copy there fell to 2.99:1 (PR 500's review).
+
+     A texture is translucency, so it goes under
+     `prefers-reduced-transparency`, and it goes in print, where it would come
+     out as smudge. */
+  .landing-grain {
+    isolation: isolate;
+  }
+  .landing-grain::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    border-radius: inherit;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .55 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
+    mix-blend-mode: multiply;
+    opacity: 0.12;
+  }
+  html[data-look="ledger"] .landing-grain::before {
+    opacity: 0.08;
+  }
+  @media (prefers-reduced-transparency: reduce) {
+    .landing-grain::before {
+      display: none;
+    }
+  }
+  @media print {
+    .landing-grain::before {
+      display: none;
+    }
+  }
+
   /* Notebook page prose (KI-44 / design-sync audit A3). `.tc-page-editor`
      wraps TipTap's contenteditable, and ProseMirror renders its schema as
      BARE elements — the seeded Trip Overview page emits literally

@@ -83,6 +83,13 @@ export const PersonColor = z.enum([
 export type PersonColor = z.infer<typeof PersonColor>;
 
 /**
+ * The most trips `UserPreferences.dismissedPublishOffers` holds. Ids of trips
+ * since deleted or left are never pruned, so the list only grows; at the cap
+ * the client drops the oldest rather than have every Dismiss refused.
+ */
+export const MAX_DISMISSED_PUBLISH_OFFERS = 1000;
+
+/**
  * What a person has set about themselves, as read back.
  *
  * Every field is present in the DTO — an absent field would make a reader
@@ -133,6 +140,15 @@ export const UserPreferences = z.object({
    * surfaces fall back to the sign-in name's short form.
    */
   publicDisplayName: z.boolean().default(false),
+  /**
+   * M50 decision 7. The trips whose *"Turn these days into a playbook?"* this
+   * person dismissed, so it stays dismissed on every device. A patch sends the
+   * whole list, oldest first; a client with a full list drops the oldest.
+   *
+   * Optional rather than defaulted: absent reads as none dismissed, and every
+   * reader and fixture written before the field still type-checks.
+   */
+  dismissedPublishOffers: z.array(z.string().uuid()).max(MAX_DISMISSED_PUBLISH_OFFERS).optional(),
 });
 export type UserPreferences = z.infer<typeof UserPreferences>;
 

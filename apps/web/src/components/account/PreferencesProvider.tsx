@@ -1,7 +1,14 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import type { DistanceUnit, PersonColor, TimeFormat, UpdateUserPreferences, UserPreferences } from "@tc/contracts";
+import {
+  MAX_DISMISSED_PUBLISH_OFFERS,
+  type DistanceUnit,
+  type PersonColor,
+  type TimeFormat,
+  type UpdateUserPreferences,
+  type UserPreferences,
+} from "@tc/contracts";
 import { fetchPreferences, updatePreferences, type AccountPreferencesRead, type ApiResult } from "@/lib/apiClient";
 
 /**
@@ -72,6 +79,14 @@ type PreferencesValue = {
    * older than the field. See `useShownColor`.
    */
   defaultColor: PersonColor | null;
+  /**
+   * Whether `preferences` is the account's, from a read or a save, rather than
+   * `DEFAULTS` standing in for one that failed or was never made. See
+   * `usePublishOfferDismissals`.
+   */
+  known: boolean;
+  /** Add one trip to `dismissedPublishOffers`; see `usePublishOfferDismissals`. */
+  dismissPublishOffer: (tripId: string) => Promise<ApiResult<UserPreferences>>;
 };
 
 const Context = createContext<PreferencesValue | null>(null);
@@ -99,6 +114,7 @@ export function PreferencesProvider({
   const [isAdmin, setIsAdmin] = useState(initialRead?.isAdmin ?? false);
   const [defaultColor, setDefaultColor] = useState<PersonColor | null>(initialRead?.defaultColor ?? null);
   const [loaded, setLoaded] = useState(noSessionCookie || initialRead !== undefined);
+  const [known, setKnown] = useState(initialRead !== undefined);
   // Settled at mount, like the state above. Re-derived per render, a read that
   // arrives later (a `router.refresh()` while the provider's own fetch is in
   // flight) would flip it, cancel that fetch, and leave the defaults in place.
@@ -118,6 +134,7 @@ export function PreferencesProvider({
         setPreferences(result.value.preferences);
         setIsAdmin(result.value.isAdmin);
         setDefaultColor(result.value.defaultColor);
+        setKnown(true);
       }
       setLoaded(true);
     });
@@ -155,13 +172,37 @@ export function PreferencesProvider({
       // screen until the next reload and make the client look like it had
       // disagreed.
       setPreferences(result.value);
+      setKnown(true);
     }
     return result;
   }, []);
 
+  // Every trip dismissed since mount. A Dismiss sends the whole list, built
+  // from the last adopted answer, and that answer lags any save still in
+  // flight: two quick Dismisses would each send the stored list plus their
+  // own trip, and the second would store without the first. Carried into
+  // every later patch, an earlier dismissal survives whichever answer lands.
+  const dismissedHere = useRef<string[]>([]);
+  const stored = preferences.dismissedPublishOffers;
+  const dismissPublishOffer = useCallback(
+    async (tripId: string) => {
+      dismissedHere.current = [...dismissedHere.current, tripId];
+      const all = [...new Set([...(stored ?? []), ...dismissedHere.current])];
+      // Oldest first, so a full list loses the trip dismissed longest ago.
+      const result = await save({ dismissedPublishOffers: all.slice(-MAX_DISMISSED_PUBLISH_OFFERS) });
+      // A failed one keeps its offer up with the error; carried on, the next
+      // trip's save would store it and the offer would vanish unasked.
+      // Overlapping saves can still store it, via a later save sent first;
+      // accepted, as the reader did ask to dismiss that trip.
+      if (!result.ok) dismissedHere.current = dismissedHere.current.filter((id) => id !== tripId);
+      return result;
+    },
+    [save, stored],
+  );
+
   const value = useMemo(
-    () => ({ preferences, loaded, save, isAdmin, defaultColor }),
-    [preferences, loaded, save, isAdmin, defaultColor],
+    () => ({ preferences, loaded, save, isAdmin, defaultColor, known, dismissPublishOffer }),
+    [preferences, loaded, save, isAdmin, defaultColor, known, dismissPublishOffer],
   );
   return <Context.Provider value={value}>{children}</Context.Provider>;
 }
@@ -215,6 +256,26 @@ export function useIsAdmin(): boolean {
 export function useShownColor(): PersonColor | null {
   const value = useContext(Context);
   return value?.preferences.color ?? value?.defaultColor ?? null;
+}
+
+/**
+ * The trips whose publish-as-a-Playbook offer this person dismissed (M50
+ * decision 7), and how to dismiss one more. Stored on the account, so a
+ * dismissal on the phone holds on the laptop.
+ *
+ * `null` outside a provider, until the first read lands, and after one that
+ * failed: without the list the offer cannot know whether it was already
+ * dismissed, and showing it again to someone who said no is the worse mistake.
+ * Nor can a Dismiss be offered then, since it would store a list of one in
+ * place of the one it could not read.
+ */
+export function usePublishOfferDismissals(): {
+  dismissed: readonly string[];
+  dismiss: (tripId: string) => Promise<ApiResult<UserPreferences>>;
+} | null {
+  const value = useContext(Context);
+  if (value === null || !value.known) return null;
+  return { dismissed: value.preferences.dismissedPublishOffers ?? [], dismiss: value.dismissPublishOffer };
 }
 
 /** The common case, named for what the call sites are asking. */

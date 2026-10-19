@@ -54,7 +54,7 @@ function llmsTxt(origin: string): string {
     "",
     "## Getting a token",
     "",
-    `- [Developers](${at("/developers")}): how a person gets in (an invite code or a trip invite link), signs in, and mints a token — scopes, lifetime, and where the secret is shown`,
+    `- [Developers](${at("/developers")}): how to sign up, sign in, and mint a token — scopes, lifetime, and where the secret is shown`,
     "",
     "## Scopes",
     "",

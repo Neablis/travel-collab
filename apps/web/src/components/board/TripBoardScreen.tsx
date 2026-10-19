@@ -157,6 +157,11 @@ const ActivityEditorSheet = dynamic(
   { loading: () => null },
 );
 const ON_REQUEST_MODULES = [loadAssistantRail, () => import("@/components/trip/editor/ActivityEditorSheet")];
+// The offer to publish a trip that is over (M50 decision 7) brings the Keep
+// dialog with it, and most trips are not over: it loads with the screen rather
+// than in it. `loading` for the rack's reason.
+const loadPublishOffer = () => import("@/components/trip/PublishTripOffer");
+const TripPageOffer = dynamic(() => loadPublishOffer().then((m) => m.TripPageOffer), { loading: () => null });
 
 /**
  * Every module this screen loads on demand, all at once. For a caller that
@@ -165,7 +170,7 @@ const ON_REQUEST_MODULES = [loadAssistantRail, () => import("@/components/trip/e
  * one-second `findBy` and time out on a loaded machine.
  */
 export function preloadTripBoardModules(): Promise<unknown> {
-  return Promise.all([...Object.values(LENS_MODULES), ...ON_REQUEST_MODULES].map((load) => load()));
+  return Promise.all([...Object.values(LENS_MODULES), ...ON_REQUEST_MODULES, loadPublishOffer].map((load) => load()));
 }
 
 // What the rail SAYS when an ask fails. Branches on the server's `code`, not
@@ -1598,6 +1603,17 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
           {error !== null && (
             <PageContainer width="full">
               <p role="alert">{error}</p>
+            </PageContainer>
+          )}
+          {/* M50 decision 7, at the top of a trip that is over, on whichever
+              view the trip opened on (Overview, for most). Gated as the Keep
+              pennant is (`Board`'s `readOnly` and `suggesting` below), and not
+              over a past version, which is not the trip anyone would publish.
+              `empty:hidden`: the offer renders nothing on most trips, and its
+              padding should not stand in for it. */}
+          {live && preview.seq === null && (
+            <PageContainer width={boardUsesFullWidth ? "full" : "content"} className="pt-3 empty:hidden">
+              <TripPageOffer trip={activeTrip} canPublish={canEditBoard && boardMode !== "suggest"} />
             </PageContainer>
           )}
           <div inert={preview.seq !== null ? true : undefined}>

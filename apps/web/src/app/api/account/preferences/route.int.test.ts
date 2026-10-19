@@ -49,6 +49,7 @@ describe("GET /api/account/preferences", () => {
       avatar: null,
       color: null,
       publicDisplayName: false,
+      dismissedPublishOffers: [],
     });
   });
 
@@ -65,6 +66,7 @@ describe("GET /api/account/preferences", () => {
       avatar: null,
       color: null,
       publicDisplayName: false,
+      dismissedPublishOffers: [],
     });
   });
 });
@@ -100,6 +102,7 @@ describe("PATCH /api/account/preferences", () => {
       avatar: null,
       color: null,
       publicDisplayName: false,
+      dismissedPublishOffers: [],
     });
   });
 
@@ -153,6 +156,7 @@ describe("PATCH /api/account/preferences", () => {
       avatar: null,
       color: null,
       publicDisplayName: false,
+      dismissedPublishOffers: [],
     });
   });
 
@@ -168,6 +172,21 @@ describe("PATCH /api/account/preferences", () => {
 
     const cleared = (await (await patch({ avatar: null, color: null })).json()) as Body;
     expect(cleared.preferences).toMatchObject({ avatar: null, color: null, publicDisplayName: true });
+  });
+
+  // M50 decision 7: a dismissed publish offer stays dismissed on every device,
+  // so it is stored, and a later patch of something else leaves it alone.
+  it("stores the trips whose publish offer was dismissed, and keeps them through other patches", async () => {
+    currentUserId = await seedUser();
+    const tripId = randomUUID();
+    const res = await patch({ dismissedPublishOffers: [tripId] });
+    expect(res.status).toBe(200);
+    await patch({ distanceUnit: "mi" });
+    expect(((await (await GET()).json()) as Body).preferences).toMatchObject({
+      distanceUnit: "mi",
+      dismissedPublishOffers: [tripId],
+    });
+    expect((await patch({ dismissedPublishOffers: ["not-a-trip"] })).status).toBe(400);
   });
 
   it("400s an avatar or colour that is not in the fixed set", async () => {

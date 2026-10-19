@@ -51,7 +51,7 @@ describe("LandingScreen", () => {
   it("leads with the product claim", () => {
     render(<LandingScreen />);
     expect(
-      within(screen.getByTestId("desktop-landing")).getByRole("heading", { name: "Put the best day on repeat." }),
+      within(screen.getByTestId("desktop-landing")).getByRole("heading", { name: "Plan the trip together." }),
     ).toBeDefined();
   });
 
@@ -62,7 +62,7 @@ describe("LandingScreen", () => {
 
   it("sends every primary call to action to sign-up", () => {
     render(<LandingScreen />);
-    // "Start a trip" is asked three times — header, hero and closing CTA band —
+    // "Start a trip" is asked three times — header, hero and the closing moment —
     // so this enumerates all three rather than loosening the assertion to the
     // first match.
     const startTrip = within(screen.getByTestId("desktop-landing")).getAllByRole("link", { name: "Start a trip" });
@@ -83,6 +83,24 @@ describe("LandingScreen", () => {
     const finished = within(screen.getByTestId("desktop-landing")).getByRole("link", { name: "See a finished one" });
     expect(peek.getAttribute("href")).toBe("/demo");
     expect(finished.getAttribute("href")).toBe("/demo");
+  });
+
+  // M50 part 5: the page ends on a line from a trip notebook, not on a SaaS
+  // call-to-action band, and the ask after it is to bring the group. The quote
+  // is the last paragraph of the Hakone page the Notebook block shows, read
+  // from the same snapshot, so it is a day somebody wrote down, not a
+  // testimonial, and a regenerated page cannot leave it behind.
+  it("closes on a notebook page's words, then asks to bring everyone", () => {
+    render(<LandingScreen />);
+    const closing = within(
+      within(screen.getByTestId("desktop-landing")).getByRole("region", { name: "Start the plan, then bring everyone." }),
+    );
+    const lastParagraph = LANDING_FEATURES.memory.at(-1)!.map((seg) => seg.text).join("");
+    expect(closing.getByRole("blockquote").textContent).toBe(`“${lastParagraph}”`);
+    expect(closing.getByRole("blockquote").textContent).toMatch(/best night of the trip, and nobody argued/);
+    expect(closing.getByRole("link", { name: "Start a trip" }).getAttribute("href")).toBe("/signup");
+    expect(closing.getByRole("link", { name: "See a finished one" }).getAttribute("href")).toBe("/demo");
+    expect(screen.queryByText("Start the plan, then send the link.")).toBeNull();
   });
 
   // SPEC §14: the front door runs on nothing. Since the hero's Timeline and

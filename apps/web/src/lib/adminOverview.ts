@@ -94,6 +94,14 @@ export interface AdminTierSeriesRow {
   points: { weekStart: string; accounts: number }[];
 }
 
+/** Mirrors `SignupsByRefRow` (M50 decision 14, ADR-079); `ref` null is a direct signup. */
+export interface AdminSignupsByRefRow {
+  ref: string | null;
+  last7Days: number;
+  last30Days: number;
+  allTime: number;
+}
+
 /** Mirrors `AdminGrantRow`. */
 export interface AdminGrantRow {
   id: string;

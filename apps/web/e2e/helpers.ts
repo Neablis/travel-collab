@@ -597,8 +597,15 @@ export async function stranger(browser: Browser): Promise<Page> {
 /**
  * alice keeps a day with one stop in `city` — and one more in each of
  * `alsoIn`, for a multi-city card — and publishes it. Returns its id.
+ * `countryCode` puts every stop in that country, which is what a country page lists by.
  */
-export async function publishedDay(page: Page, city: string, name: string, alsoIn: string[] = []): Promise<string> {
+export async function publishedDay(
+  page: Page,
+  city: string,
+  name: string,
+  alsoIn: string[] = [],
+  countryCode?: string,
+): Promise<string> {
   const post = async (path: string, data?: unknown) => {
     const res = await page.request.post(path, data === undefined ? undefined : { data });
     expect(res.ok(), `${path} -> ${res.status()}`).toBe(true);
@@ -616,7 +623,7 @@ export async function publishedDay(page: Page, city: string, name: string, alsoI
       dayId,
       title: `Stop in ${where}`,
       timeWindow: { start: `${String(9 + i).padStart(2, "0")}:00`, end: `${String(10 + i).padStart(2, "0")}:00` },
-      location: { name: `Somewhere in ${where}`, city: where },
+      location: { name: `Somewhere in ${where}`, city: where, ...(countryCode === undefined ? {} : { countryCode }) },
     });
   }
   const kept = await post("/api/saved-days", { name, tripId, dayIds: [dayId] });

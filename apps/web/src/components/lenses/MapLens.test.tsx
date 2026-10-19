@@ -608,7 +608,7 @@ describe("MapLens", () => {
     // that says what would make a stop appear, and a way to the surface that
     // adds one. It replaced a single muted line that named the absence and not
     // the way out of it.
-    expect(screen.getByRole("heading", { name: "Nothing to map yet" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "No pins on this map yet" })).toBeTruthy();
     expect(screen.getByRole("link", { name: "Go to Plan" })).toBeTruthy();
     // eslint-disable-next-line testing-library/no-container, testing-library/no-node-access -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     expect(container.querySelector(".map-lens-canvas")).toBeNull();

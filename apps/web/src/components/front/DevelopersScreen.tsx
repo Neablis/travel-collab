@@ -117,8 +117,8 @@ export function DevelopersScreen() {
           <ol className="flex flex-col gap-6">
             <Step n={1} title="Create your account">
               <Text className="text-pretty">
-                Go to <InlineLink href="/signup">Create an account</InlineLink> and continue with Google —
-                anyone can sign up. If somebody sent you an invite code, paste it into{" "}
+                Go to <InlineLink href="/signup">Create an account</InlineLink> and continue with Google.
+                Anyone can sign up. If somebody sent you an invite code, paste it into{" "}
                 <em>Invite code</em> so they get the credit; otherwise leave it empty. Already have an
                 account? <InlineLink href="/signin">Sign in</InlineLink>.
               </Text>
@@ -127,7 +127,7 @@ export function DevelopersScreen() {
               <Text className="text-pretty">
                 API tokens are on the Premium plan. On any other plan the API tokens section shows an
                 upgrade prompt instead of the form, and a token stops working if its owner&rsquo;s plan
-                no longer includes the API — restarting the subscription turns it back on.
+                no longer includes the API. Restarting the subscription turns it back on.
               </Text>
             </Step>
             <Step n={3} title="Make a token">
@@ -137,7 +137,7 @@ export function DevelopersScreen() {
                 30 days, 90 days or a year. Every token expires.
               </Text>
               <Text className="text-pretty">
-                <strong>The secret is shown once.</strong> Copy it then — nothing can show it again. Lose
+                <strong>The secret is shown once.</strong> Copy it then, because nothing can show it again. Lose
                 it and you revoke it and make another. Tokens start with <Code>{API_TOKEN_PREFIX}</Code>.
               </Text>
             </Step>
@@ -154,7 +154,7 @@ export function DevelopersScreen() {
               <Text variant="secondary" className="text-pretty">
                 Collections take <Code>?limit=</Code> (1–200) and an opaque <Code>?cursor=</Code>; read{" "}
                 <Code>nextCursor</Code> until it is <Code>null</Code>. Every error is{" "}
-                <Code>{`{ "error": { "code", "message", "details" } }`}</Code> — read the{" "}
+                <Code>{`{ "error": { "code", "message", "details" } }`}</Code>. Read the{" "}
                 <Code>code</Code>.
               </Text>
             </Step>

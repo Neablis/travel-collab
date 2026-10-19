@@ -73,12 +73,37 @@ export function cityChips(day: Pick<DiscoverDay, "cities" | "matchedCities">): {
   return { shown: ordered.slice(0, MAX_CITY_CHIPS), hidden: ordered.slice(MAX_CITY_CHIPS) };
 }
 
+/** How much of the grid a card takes: two columns, or one. */
+export type CardSize = "wide" | "standard";
+
+/**
+ * **The size of the card at `index` on a Discover page** (M50 part 6): wide
+ * for the first and every fifth after it. Five is the one rhythm that leaves
+ * no hole in either grid: on three columns a wide card and one beside it, then
+ * a row of three; on two, a wide row, then two pairs.
+ */
+export function editorialSize(index: number): CardSize {
+  return index % 5 === 0 ? "wide" : "standard";
+}
+
 /**
  * `origin` is where this card is being rendered, and it rides both links out of
  * it so the page they open knows the way back. A profile renders these cards
  * too, so "the day came from Discover" is not something the card may assume.
  */
-export function DiscoverCard({ day, origin }: { day: DiscoverDay; origin: BackOrigin }) {
+export function DiscoverCard({
+  day,
+  origin,
+  size = "standard",
+  headingLevel = 2,
+}: {
+  day: DiscoverDay;
+  origin: BackOrigin;
+  size?: CardSize;
+  /** 3 under a page that heads its list of cards, as Discover's results are. */
+  headingLevel?: 2 | 3;
+}) {
+  const wide = size === "wide";
   const clock = useTimeFormat();
   const descriptionId = useId();
   const line = matchLine(day);
@@ -161,12 +186,14 @@ export function DiscoverCard({ day, origin }: { day: DiscoverDay; origin: BackOr
       )}
 
       <div>
-        {/* **h2, styled as the h4 it used to be.** Every screen that lists
-            these cards (Discover, a place's playbooks, a profile) puts them
-            straight under its h1, so an h4 skipped two levels and axe failed
-            `/playbooks` on heading-order. The level is structure; `text-md
-            font-medium` keeps the card title the size it was. */}
-        <Heading level={2} className="text-md font-medium leading-snug">
+        {/* **One level under what heads the list, styled as the h4 it used to
+            be.** A place's playbooks and a profile put these cards straight
+            under their h1, so an h4 skipped two levels and axe failed
+            `/playbooks` on heading-order; Discover heads its results with an
+            h2 (M50 part 6) and passes 3. The level is structure; `text-md
+            font-medium` keeps the card title the size it was, and a wide
+            card's takes the card-title step up from `sm`, where it is wide. */}
+        <Heading level={headingLevel} className={cn("text-md font-medium leading-snug", wide && "sm:text-lg")}>
           {/* §13.1's phone floor on the card's ROW ACTION — this title link is
               the only way into the day, so it is the target (M26 link 14's
               sweep, found by the census in the full e2e lane where seeded
@@ -283,7 +310,12 @@ export function DiscoverCard({ day, origin }: { day: DiscoverDay; origin: BackOr
       as="li"
       data-testid="discover-card"
       data-saved-day-id={day.savedDayId}
-      className={cn("flex flex-col rounded-lg", cover === null ? "gap-3 p-4" : "overflow-hidden p-0")}
+      data-size={size}
+      className={cn(
+        "flex flex-col rounded-lg",
+        wide && "sm:col-span-2",
+        cover === null ? "gap-3 p-4" : "overflow-hidden p-0",
+      )}
     >
       {cover === null ? (
         <>
@@ -308,8 +340,12 @@ export function DiscoverCard({ day, origin }: { day: DiscoverDay; origin: BackOr
           <CoverImage
             photo={cover}
             veil="strip"
-            sizes="(min-width: 1024px) 360px, (min-width: 640px) 50vw, 100vw"
-            className="flex min-h-37.5 shrink-0 flex-col justify-end"
+            sizes={
+              wide
+                ? "(min-width: 1024px) 740px, 100vw"
+                : "(min-width: 1024px) 360px, (min-width: 640px) 50vw, 100vw"
+            }
+            className={cn("flex min-h-37.5 shrink-0 flex-col justify-end", wide && "sm:min-h-56")}
           >
             {/* `py-3`: a chip's phone hit area reaches 12px past it either
                 way (`-my-3` on `min-h-11`), and the photo clips what passes

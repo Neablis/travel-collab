@@ -818,70 +818,95 @@ test.describe("responsive (trip header on a phone)", () => {
 test.describe("responsive (narrow viewport, signed out)", () => {
   test.use({ storageState: { cookies: [], origins: [] } });
 
-  test("the landing feature cards stack below 1024px and sit two by two above it", async ({ page }) => {
-    // Measures the CARD ROOTS, not the eyebrow text inside them, and throws
+  test("the landing feature blocks stack below 1024px and run spread, wide beside narrow, spread above it", async ({ page }) => {
+    // Measures the BLOCK ROOTS, not the eyebrow text inside them, and throws
     // rather than substituting a sentinel when a box is missing. The first
-    // version of this mapped a missing box to -1, which made the stacked
-    // assertion (`new Set(xs).size === 1`) pass on [-1, -1, -1] — green whether
-    // or not the cards rendered at all (CodeRabbit, PR #58). Both axes are
-    // asserted too: cards drawn on top of each other share an x and a y and
-    // would otherwise satisfy either check alone.
+    // version of this mapped a missing box to -1, which made a stacked
+    // assertion pass on [-1, -1, -1] — green whether or not the cards rendered
+    // at all (CodeRabbit, PR 58).
     //
-    // Four cards in page order since the 2026-09-28 retro (DRIFT D21), and the
-    // order is asserted rather than sorted away: Playbooks leading is the
-    // retro's whole argument.
+    // Four blocks in page order since the 2026-09-28 retro (DRIFT D21), and
+    // the order is asserted rather than sorted away: Playbooks leading is the
+    // retro's whole argument. Since M50 part 5 they are not four equal cards:
+    // two full-bleed spreads with a wide card and a narrow one between them,
+    // which `LandingFeatureBlocks.test.tsx` holds as a sequence and this
+    // measures.
     //
-    // Each card is a region named by its title (M42 part 9), which is how a
+    // Each block is a region named by its title (M42 part 9), which is how a
     // reader reaches one, so that is how they are found — in the desktop tree,
     // since the phone front door is in the DOM too.
-    const cardBoxes = async () => {
+    const blockBoxes = async () => {
       const landing = page.getByTestId("desktop-landing");
       const boxes = await Promise.all(
         ["Relive someone’s perfect day.", "The trip starts before the trip.", "Too excited to sleep.", "How you’ll remember it."].map(
           async (title) => {
             const r = await landing.getByRole("region", { name: title }).boundingBox();
-            return r === null ? null : { x: Math.round(r.x), y: Math.round(r.y), width: Math.round(r.width) };
+            return r === null
+              ? null
+              : { x: Math.round(r.x), y: Math.round(r.y), width: Math.round(r.width), height: Math.round(r.height) };
           },
         ),
       );
       const found = boxes.filter((b) => b !== null);
       // eslint-disable-next-line playwright/no-conditional-in-test -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
       if (found.length !== 4) {
-        throw new Error(`expected 4 landing feature cards, measured ${found.length}`);
+        throw new Error(`expected 4 landing feature blocks, measured ${found.length}`);
       }
-      return found as { x: number; y: number; width: number }[];
+      return found as { x: number; y: number; width: number; height: number }[];
     };
 
-    // 900px: one column — same x, y strictly increasing in page order.
+    // 900px: one column — each block wholly below the one before it.
     await page.setViewportSize({ width: 900, height: 900 });
     await page.goto("/");
-    const stacked = await cardBoxes();
-    expect(new Set(stacked.map((b) => b.x)).size).toBe(1);
-    const stackedY = stacked.map((b) => b.y);
-    expect(stackedY).toEqual([...stackedY].sort((a, b) => a - b));
-    expect(new Set(stackedY).size).toBe(4);
-
-    // 1280px: two by two — Playbooks and Together on the first row, Countdown
-    // and Notebook on the second, left column before right. Below the lg
-    // breakpoint the borrowed Day 2 card has no room for its stop rows, which
-    // is why this grid is lg: and not md: (CodeRabbit, #58).
-    await page.setViewportSize({ width: 1280, height: 900 });
-    const [playbooks, together, countdown, notebook] = await cardBoxes();
-
-    // Every card is a card's width in both layouts (M42 part 9): held to
-    // 480px, so a stacked card on a wide tablet does not span it either. This
-    // replaces "a stacked card is wider than a two-up column", which the cap
-    // made untrue on purpose; the x and y checks still tell the layouts apart.
-    for (const box of [...stacked, playbooks!, together!, countdown!, notebook!]) {
-      expect(box.width).toBeLessThanOrEqual(480);
+    const stacked = await blockBoxes();
+    for (let i = 1; i < stacked.length; i++) {
+      expect(stacked[i]!.y).toBeGreaterThanOrEqual(stacked[i - 1]!.y + stacked[i - 1]!.height);
+    }
+    // Stacked, Together and Countdown still hold the M42 cap, centred,
+    // rather than running the page's width.
+    const stackedViewport = page.viewportSize()!.width;
+    for (const card of [stacked[1]!, stacked[2]!]) {
+      expect(card.width).toBeLessThanOrEqual(480);
+      expect(Math.abs(card.x - (stackedViewport - card.x - card.width))).toBeLessThanOrEqual(2);
     }
 
-    expect(together!.y).toBe(playbooks!.y);
-    expect(notebook!.y).toBe(countdown!.y);
-    expect(countdown!.y).toBeGreaterThan(playbooks!.y);
-    expect(countdown!.x).toBe(playbooks!.x);
-    expect(notebook!.x).toBe(together!.x);
-    expect(together!.x).toBeGreaterThan(playbooks!.x);
+    // 1280px: Playbooks spread edge to edge, then Together and Countdown on
+    // one row, Together the wider, then the Notebook spread edge to edge.
+    // Below the lg breakpoint the borrowed Day 2 card has no room for its stop
+    // rows, which is why the row is lg: and not md: (CodeRabbit, PR 58).
+    await page.setViewportSize({ width: 1280, height: 900 });
+    const [playbooks, together, countdown, notebook] = await blockBoxes();
+    const viewport = page.viewportSize()!.width;
+
+    for (const spread of [playbooks!, notebook!]) {
+      expect(spread.x).toBe(0);
+      expect(spread.width).toBeGreaterThanOrEqual(viewport - 20);
+    }
+    expect(together!.y).toBeGreaterThan(playbooks!.y);
+    expect(countdown!.y).toBe(together!.y);
+    expect(countdown!.x).toBeGreaterThanOrEqual(together!.x + together!.width);
+    expect(together!.width).toBeGreaterThan(countdown!.width);
+    expect(notebook!.y).toBeGreaterThan(together!.y);
+    // The row is a pair of cards, each a card's width (the M42 cap, 480px)
+    // and centred between the spreads, not two shares of the page's width.
+    for (const card of [together!, countdown!]) expect(card.width).toBeLessThanOrEqual(480);
+    expect(Math.abs(together!.x - (viewport - countdown!.x - countdown!.width))).toBeLessThanOrEqual(2);
+
+    // The spreads face each other: Playbooks' copy on the left with the photo
+    // slot under it, Notebook's mirrored to the right. The slot shows only
+    // where the spread is two columns.
+    const desktop = page.getByTestId("desktop-landing");
+    const centre = viewport / 2;
+    const playbooksHeading = (await desktop.getByRole("heading", { name: "Relive someone’s perfect day." }).boundingBox())!;
+    const notebookHeading = (await desktop.getByRole("heading", { name: "How you’ll remember it." }).boundingBox())!;
+    expect(playbooksHeading.x + playbooksHeading.width).toBeLessThan(centre);
+    expect(notebookHeading.x).toBeGreaterThan(centre);
+    const slot = desktop.getByRole("region", { name: "Relive someone’s perfect day." }).locator("[data-photo-slot]");
+    await expect(slot).toBeVisible();
+    const slotBox = (await slot.boundingBox())!;
+    expect(slotBox.x + slotBox.width).toBeLessThan(centre);
+    await page.setViewportSize({ width: 900, height: 900 });
+    await expect(slot).toBeHidden();
   });
 
   // Every visible piece of the hero art must sit inside the viewport at phone
@@ -894,7 +919,7 @@ test.describe("responsive (narrow viewport, signed out)", () => {
       await page.setViewportSize({ width, height: 900 });
       await page.goto("/");
       await expect(
-        page.getByRole("heading", { name: "Put the best day on repeat." }),
+        page.getByRole("heading", { name: "Plan the trip together." }),
       ).toBeVisible();
 
       const offenders = await page.evaluate(() => {
@@ -980,7 +1005,7 @@ test.describe("responsive (narrow viewport, signed out)", () => {
       // it is also the thing most able to push the page sideways: four
       // absolutely-positioned claims translating horizontally under a headline.
       await expect(
-        page.getByRole("heading", { name: "Put the best day on repeat." }),
+        page.getByRole("heading", { name: "Plan the trip together." }),
       ).toBeVisible();
       await expect(page.getByTestId("phone-front-door")).toBeVisible();
       await expect(page.getByTestId("front-door-claim").first()).toBeVisible();

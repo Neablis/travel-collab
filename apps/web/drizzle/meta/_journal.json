@@ -421,6 +421,20 @@
       "when": 1792333198656,
       "tag": "0059_drop_users_stripe_customer_id",
       "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1792393649601,
+      "tag": "0060_users_signup_ref",
+      "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
+      "when": 1792419246911,
+      "tag": "0061_users_dismissed_publish_offers",
+      "breakpoints": true
     }
   ]
 }

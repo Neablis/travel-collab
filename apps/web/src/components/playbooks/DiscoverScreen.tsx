@@ -28,7 +28,7 @@ import {
 } from "./discoverFilters";
 import { PlaceSearch, type PlacePick } from "./PlaceSearch";
 import { DISCOVER_URL_DEFAULTS, discoverQueryString, type DiscoverUrlState } from "./discoverUrl";
-import { DiscoverCard } from "./DiscoverCard";
+import { DiscoverCard, editorialSize } from "./DiscoverCard";
 import { LibraryMoved, SyncFailure } from "./ReadStates";
 import { useLibraryRead } from "./useLibraryRead";
 import { PlaybookAskButton, PlaybookAssistant } from "@/components/assistant/BeyondTripAssistant";
@@ -59,6 +59,47 @@ const SORTS: readonly { value: DiscoverSort; label: string }[] = [
   { value: "most-reviewed", label: "Most reviewed" },
   { value: "newest", label: "Newest" },
 ];
+
+/**
+ * **The title over the results, as a person would write it** (M50 part 6).
+ * Your own lists are named for whose they are; the library's for what its
+ * sort puts first, since that is what the order says about the days.
+ */
+function collectionTitle(scope: DiscoverScope, sort: DiscoverSort): string {
+  if (scope === "yours") return "Days you kept from your trips";
+  if (scope === "saved") return "Days you have taken into a trip";
+  switch (sort) {
+    case "most-added":
+      return "The days people keep adding to their trips";
+    case "highest-rated":
+      return "Rated best by the people who went";
+    case "most-reviewed":
+      return "The days with the most said about them";
+    case "newest":
+      return "Just shared";
+  }
+}
+
+/**
+ * **Why the list is empty, in the empty state's words** (M50 part 6): a read
+ * that failed, a place with nothing in it yet, or questions no day answers.
+ * Only the last has filters to drop, and only a failure blames the read.
+ */
+function emptyCopy(failed: boolean, { scope, narrowed }: AskedFor): { title: string; body: string } {
+  if (failed) return { title: "The library did not load", body: "Retry above, and the search you set up is still here." };
+  if (narrowed) return { title: "No day fits all of that", body: "Try fewer filters, or search everywhere below." };
+  switch (scope) {
+    case "everyone":
+      return { title: "Nothing has been shared yet", body: "A day someone shares from their trip shows up here." };
+    case "yours":
+      return { title: "You have not kept a day yet", body: "Keep a day from one of your trips and it shows up here." };
+    case "saved":
+      return {
+        title: "You have not taken a day into a trip yet",
+        body: "Add a day from the library to one of your trips and it shows up here.",
+      };
+  }
+}
 
 /** How many skeleton cards stand in while the first read is in flight. */
 const SKELETON_COUNT = 6;
@@ -129,8 +170,16 @@ function FilterMenu({
   );
 }
 
-/** A Discover answer, and which search it answers (`DiscoverScreen`'s `searchKey`). */
-type Answer = DiscoverResponse & { forSearch: string };
+/**
+ * What a list on screen was asked for: the place, the order, and whether any
+ * question or place narrowed it. The results' title and the empty state are
+ * worded from this, so they describe the days shown rather than the tab just
+ * clicked.
+ */
+type AskedFor = { scope: DiscoverScope; sort: DiscoverSort; narrowed: boolean };
+
+/** A Discover answer, which search it answers (`DiscoverScreen`'s `searchKey`), and what that search asked. */
+type Answer = DiscoverResponse & { forSearch: string; askedFor: AskedFor };
 
 /**
  * One of the pager's two ways on: a link a crawler can follow, or, with a
@@ -234,11 +283,14 @@ export function DiscoverScreen({
   // loads, or after it fails, the answer on screen is the last search's, and
   // its `nextCursor` is no next page of this one.
   const searchKey = JSON.stringify([cities, countries, scope, sort, budget, length, rating, tag, after]);
-  const [seedKey] = useState(searchKey);
+  const narrowed = cities.length > 0 || countries.length > 0 || activeFilterCount({ rating, budget, length, tag }) > 0;
+  const [seed] = useState<{ key: string; askedFor: AskedFor }>({ key: searchKey, askedFor: { scope, sort, narrowed } });
   const read = useCallback(async (): Promise<ApiResult<Answer>> => {
     const result = await searchPlaybooks({ cities, countries, scope, sort, budget, length, rating, tag, after });
-    return result.ok ? { ok: true, value: { ...result.value, forSearch: searchKey } } : result;
-  }, [cities, countries, scope, sort, budget, length, rating, tag, after, searchKey]);
+    return result.ok
+      ? { ok: true, value: { ...result.value, forSearch: searchKey, askedFor: { scope, sort, narrowed } } }
+      : result;
+  }, [cities, countries, scope, sort, budget, length, rating, tag, after, searchKey, narrowed]);
   // The search as a query string, for the pager's links: the search, then where in it.
   const search = { cities, countries, scope, sort, length, rating, tag };
   // The budget band is not in the URL (`discoverUrl.ts`), so a page link would
@@ -275,7 +327,11 @@ export function DiscoverScreen({
     (value: DiscoverResponse) => value.days.map((d) => `${d.savedDayId}:${d.adds}`).join(","),
     [],
   );
-  const feed = useLibraryRead(read, signature, initialData && { ...initialData, forSearch: seedKey });
+  const feed = useLibraryRead(
+    read,
+    signature,
+    initialData && { ...initialData, forSearch: seed.key, askedFor: seed.askedFor },
+  );
   // The answer to the search on screen, or null while it is still the last one's.
   const answer = feed.data?.forSearch === searchKey ? feed.data : null;
 
@@ -363,6 +419,9 @@ export function DiscoverScreen({
 
   const days = feed.data?.days ?? [];
   const siblings = feed.data?.siblings ?? [];
+  // What the days on screen were asked for. With nothing read yet there are no
+  // days, and the empty state speaks for the search as it stands.
+  const shown: AskedFor = feed.data?.askedFor ?? { scope, sort, narrowed };
 
   return (
     <div className="flex flex-col gap-5">
@@ -788,42 +847,51 @@ export function DiscoverScreen({
            together"). */
         <EmptyState
           level={2}
-          title={feed.error !== null ? "Nothing to show yet" : "No days match"}
-          body={
-            scope === "saved"
-              ? "Days you take into a trip show up here. Nothing yet."
-              : "Nothing in the library matches all of these at once."
-          }
+          {...emptyCopy(feed.error !== null, shown)}
           action={
+            // Only where something narrowed the list: with nothing asked there
+            // is nothing to drop, and a failed read's Retry is the banner's.
+            //
             // **Keeps the scope**, which `{ ...NO_FILTERS, sort }` did not:
             // it reset `scope` to `everyone`, so somebody looking at *Saved*
             // and finding nothing was moved to a different place without
             // asking. §33.2 forbids it — a place is never reset by a control
             // about questions. Places go, because they are a question asked in
             // the search card.
-            <Button
-              variant="primary"
-              onClick={() => setFilters(() => ({ ...NO_FILTERS, scope, sort }))}
-              data-testid="discover-search-everywhere"
-            >
-              Search everywhere
-            </Button>
+            feed.error === null && shown.narrowed ? (
+              <Button
+                variant="primary"
+                onClick={() => setFilters(() => ({ ...NO_FILTERS, scope, sort }))}
+                data-testid="discover-search-everywhere"
+              >
+                Search everywhere
+              </Button>
+            ) : undefined
           }
         />
       ) : (
-        <ul
-          ref={results}
-          // Focusable by script only: where a page turned in place leaves focus.
-          // Named, so a screen reader landing here hears where it is.
-          tabIndex={-1}
-          aria-label="Results"
-          className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-3"
-          data-testid="discover-results"
-        >
-          {days.map((day) => (
-            <DiscoverCard key={day.savedDayId} day={day} origin={{ from: "playbooks" }} />
-          ))}
-        </ul>
+        <>
+          <Heading level={2}>{collectionTitle(shown.scope, shown.sort)}</Heading>
+          <ul
+            ref={results}
+            // Focusable by script only: where a page turned in place leaves focus.
+            // Named, so a screen reader landing here hears where it is.
+            tabIndex={-1}
+            aria-label="Results"
+            className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-3"
+            data-testid="discover-results"
+          >
+            {days.map((day, index) => (
+              <DiscoverCard
+                key={day.savedDayId}
+                day={day}
+                origin={{ from: "playbooks" }}
+                size={editorialSize(index)}
+                headingLevel={3}
+              />
+            ))}
+          </ul>
+        </>
       )}
 
       {/* The pager (M42 part 5), real links so a crawler follows them. Keyset

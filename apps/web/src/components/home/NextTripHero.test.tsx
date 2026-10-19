@@ -15,6 +15,9 @@ vi.mock("@/lib/apiClient", async (orig) => {
   };
 });
 
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
+
+import { PreferencesProvider } from "@/components/account/PreferencesProvider";
 import { NextTripHero } from "./NextTripHero";
 
 afterEach(() => {
@@ -937,5 +940,20 @@ describe("NextTripHero — what kind of trip", () => {
 
     render(<NextTripHero trip={tripSummaryFixture({ description: null })} />);
     expect(screen.getByRole("link", { name: "Japan: Tokyo to Kyoto", description: "" })).toBeTruthy();
+  });
+});
+
+// M50 decision 7: when every trip is over, the hero is one of them, and it
+// offers its days as a Playbook like any card does.
+describe("NextTripHero — a trip that is over", () => {
+  it("offers to publish it to someone who could keep its days", async () => {
+    fetchTripDetailMock.mockResolvedValue({ ok: true, value: tripDetailWithDays("6e9a2c9e-3f7a-4b6e-9d3f-2b1a5c8d7e6f") });
+    const preferences = { displayName: null, homeAirport: null, distanceUnit: "km" as const, timeFormat: "12h" as const, avatar: null, color: null, publicDisplayName: false, dismissedPublishOffers: [] };
+    render(
+      <PreferencesProvider initialRead={{ preferences, defaultColor: null, isAdmin: false }}>
+        <NextTripHero trip={tripSummaryFixture({ startDate: "2020-05-01", endDate: "2020-05-02" })} viewerId="dev-alice" />
+      </PreferencesProvider>,
+    );
+    expect(await screen.findByRole("group", { name: "Publish Japan: Tokyo to Kyoto as a playbook" })).toBeTruthy();
   });
 });

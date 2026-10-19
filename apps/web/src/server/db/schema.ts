@@ -85,6 +85,10 @@ export const users = pgTable("users", {
   avatar: text("avatar").$type<AvatarKey>(),
   color: text("color").$type<PersonColor>(),
   publicDisplayName: boolean("public_display_name").notNull().default(false),
+  // M50 decision 7: trips whose publish-as-a-Playbook offer this person
+  // dismissed. A column beside the other preferences rather than a table: it
+  // is read with them, and nothing asks "who dismissed this trip".
+  dismissedPublishOffers: text("dismissed_publish_offers").array().notNull().default(sql`'{}'::text[]`),
   // M20 link 2 — WHAT THIS ACCOUNT HOLDS. The Entitlements module's second
   // store (ADR-045 rule 1): the committed plan file says what a plan *is*,
   // these two columns say which one this account *has*.
@@ -122,6 +126,11 @@ export const users = pgTable("users", {
   // and read by `server/billing/testMode.ts` behind `requireAdminApi`, and in
   // no payload, session or page props the account itself can read.
   stripeTestMode: boolean("stripe_test_mode").notNull().default(false),
+  // **The channel that first brought this account** (ADR-079): the
+  // `caesura_ref` cookie's value, written once when `recordSignIn` creates the
+  // row and never after. Null is a direct signup, or one that came before
+  // attribution existed.
+  signupRef: text("signup_ref"),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).notNull(),
 });

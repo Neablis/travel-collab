@@ -159,6 +159,22 @@ describe("NotebookScreen", () => {
     expect(within(list).queryByText(/Trip-wide|Day \d/)).toBeNull();
   });
 
+  // M50 part 6: the empty list speaks to who is reading it.
+  it("says the trip has no notebooks yet, and points a writer at the templates", async () => {
+    server.use(...makePagesHandlers([]));
+    render(<NotebookScreen tripId={TRIP_ID} />);
+    const list = await screen.findByRole("region", { name: "Your notebooks" });
+    expect(await within(list).findByRole("heading", { level: 3, name: "Nothing written down yet" })).toBeTruthy();
+    expect(within(list).getByText("Pick a template below, or start a blank one and write it your way.")).toBeTruthy();
+  });
+
+  it("tells a reader nobody has started a notebook, since the templates are not theirs", async () => {
+    accessRole = "viewer";
+    server.use(...makePagesHandlers([]));
+    render(<NotebookScreen tripId={TRIP_ID} />);
+    expect(await screen.findByText("No one on this trip has started a notebook.")).toBeTruthy();
+  });
+
   it("creates a new page via the client and navigates to it", async () => {
     const onCreate = vi.fn();
     server.use(...makePagesHandlers([], { onCreate }));

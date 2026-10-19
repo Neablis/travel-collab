@@ -76,7 +76,7 @@ describe("LandingHeroArt when the real panels fail to load", () => {
     // only the map's suggestion, on the board, has one.
     expect(desktop.queryByText("Accept")).toBeNull();
 
-    expect(desktop.getByRole("heading", { name: "Put the best day on repeat." })).toBeDefined();
+    expect(desktop.getByRole("heading", { name: "Plan the trip together." })).toBeDefined();
   });
 
   // The eager prefetch (desktop only) meets the same failure with no view

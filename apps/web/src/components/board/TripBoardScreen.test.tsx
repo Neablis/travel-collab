@@ -15,6 +15,7 @@ import { TripProvider } from "@/components/trip/context/TripProvider";
 import { EditorHost, useEditor } from "@/components/trip/context/EditorHost";
 import { FocusProvider } from "@/components/trip/context/FocusProvider";
 import { LensRouter } from "@/components/trip/context/LensRouter";
+import { PreferencesProvider } from "@/components/account/PreferencesProvider";
 import { PhoneAskTab } from "@/components/nav/PhoneTabBar";
 import { usePhoneAsk } from "@/components/nav/phoneAsk";
 import { useBoardFocus } from "@/components/chat/boardFocus";
@@ -102,6 +103,21 @@ vi.mock("@/components/lenses/MapLens", async (orig) => {
     MapLens: (props: ComponentProps<typeof actual.MapLens>) => {
       mapLensProps(props);
       return <actual.MapLens {...props} />;
+    },
+  };
+});
+
+// The same pass-through for the publish offer (M50 decision 7), so a test can
+// wait for the screen to have decided who it is offered to, rather than
+// reading an absent offer before the screen got that far.
+const tripPageOfferProps = vi.fn();
+vi.mock("@/components/trip/PublishTripOffer", async (orig) => {
+  const actual = await orig<typeof import("@/components/trip/PublishTripOffer")>();
+  return {
+    ...actual,
+    TripPageOffer: (props: ComponentProps<typeof actual.TripPageOffer>) => {
+      tripPageOfferProps(props);
+      return <actual.TripPageOffer {...props} />;
     },
   };
 });
@@ -393,7 +409,7 @@ describe("TripBoardScreen", () => {
     expect(screen.getByTestId("one-more-day-column")).toBeTruthy();
 
     fireEvent.click(screen.getByRole("tab", { name: "Map" }));
-    expect(await screen.findByRole("heading", { name: "Nothing to map yet" })).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "No pins on this map yet" })).toBeTruthy();
 
     fireEvent.click(screen.getByRole("tab", { name: "Calendar" }));
     expect(await screen.findByText("Set a start date to see the calendar.")).toBeTruthy();
@@ -3492,5 +3508,53 @@ describe("TripBoardScreen — the server's first data before and after hydration
       act(() => root?.unmount());
       document.body.removeChild(container);
     }
+  });
+});
+
+// M50 decision 7: *"the top of the trip page"*, which is Overview for anyone
+// arriving at a trip, and only for whoever the board lets keep a day.
+describe("TripBoardScreen — the offer to publish a trip that is over", () => {
+  const preferences = { displayName: null, homeAirport: null, distanceUnit: "km" as const, timeFormat: "12h" as const, avatar: null, color: null, publicDisplayName: false, dismissedPublishOffers: [] };
+  function renderOver(myRole: "owner" | "viewer" | "suggester") {
+    search = new URLSearchParams("");
+    const fixture = tripDetailFixture({
+      startDate: "2020-05-01",
+      days: [{ dayId: "71111111-1111-4111-8111-111111111111", activityIds: [], date: "2020-05-01", costSubtotal: 0 }],
+    });
+    server.use(...makeChatHandlers({ viewerId: "dev-alice", messages: [] }).handlers, ...makeTripHandlers(fixture, { myRole }));
+    render(
+      <PreferencesProvider initialRead={{ preferences, defaultColor: null, isAdmin: false }}>
+        <TripProvider tripId={fixture.tripId}>
+          <FocusProvider>
+            <EditorHost>
+              <LensRouter>
+                <TripBoardScreen tripId={fixture.tripId} />
+              </LensRouter>
+            </EditorHost>
+          </FocusProvider>
+        </TripProvider>
+      </PreferencesProvider>,
+    );
+  }
+  const offer = { name: "Publish Rome 2027 as a playbook" };
+
+  it("is at the top of the Overview an editor lands on", async () => {
+    renderOver("owner");
+    expect(await screen.findByRole("group", offer)).toBeTruthy();
+    expect(screen.getByRole("tab", { name: "Overview" }).getAttribute("aria-selected")).toBe("true");
+  });
+
+  it.each([
+    ["viewer", "Viewer"],
+    ["suggester", "Suggester"],
+  ] as const)("is not offered to a %s", async (role, badge) => {
+    tripPageOfferProps.mockClear();
+    renderOver(role);
+    // Witness: the role has been read and the offer mounted, so its gate has
+    // been decided with the role in hand.
+    expect(await screen.findByText(badge)).toBeTruthy();
+    await waitFor(() => expect(tripPageOfferProps).toHaveBeenCalled());
+    expect(tripPageOfferProps).not.toHaveBeenCalledWith(expect.objectContaining({ canPublish: true }));
+    expect(screen.queryByRole("group", offer)).toBeNull();
   });
 });

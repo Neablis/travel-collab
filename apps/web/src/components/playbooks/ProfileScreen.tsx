@@ -71,8 +71,8 @@ export function ProfileScreen({ userId, back }: { userId: string; back: BackTarg
         // being duplicated here, so there is one control and not two.
         <EmptyState
           level={2}
-          title="This profile could not be loaded"
-          body="Nothing has been shown yet. Retry above, or go back to Discover."
+          title="This profile did not load"
+          body="Retry above, or find their days on Discover."
         />
       ) : (
         <>
@@ -142,8 +142,8 @@ export function ProfileScreen({ userId, back }: { userId: string; back: BackTarg
           {feed.data.days.length === 0 ? (
             <EmptyState
               level={2}
-              title="Nothing shared yet"
-              body="This person has not published any days. A private day never appears here — not even to its own author."
+              title="No shared days yet"
+              body="Days they publish show up here. A private day never does, not even for its author."
             />
           ) : (
             <ul className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-3" data-testid="profile-days">
