@@ -7,6 +7,7 @@ import { Button, type buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Popover } from "@/components/ui/popover";
 import { Text } from "@/components/ui/text";
+import { ReferralNudge } from "@/components/account/ReferralNudge";
 import {
   createTripShare,
   fetchTripShares,
@@ -199,6 +200,8 @@ export function ShareButton({
             {error}
           </Text>
         )}
+
+        <ReferralNudge />
       </div>
     </Popover>
   );
