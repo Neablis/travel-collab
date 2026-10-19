@@ -46,10 +46,10 @@ describe("recordSignIn copies the first-touch ref onto a new account (ADR-079)",
 
   it("never changes an existing account, and leaves its cookie alone", async () => {
     const id = `ref-${randomUUID()}`;
-    await recordSignIn(signInAs(id), noAdmission(), refJar(null));
-    const jar = refJar("showhn");
+    await recordSignIn(signInAs(id), noAdmission(), refJar("showhn"));
+    const jar = refJar("other");
     await recordSignIn(signInAs(id), noAdmission(), jar);
-    expect(await signupRefOf(id)).toBeNull();
+    expect(await signupRefOf(id)).toBe("showhn");
     expect(jar.cleared).toBe(false);
   });
 

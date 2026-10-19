@@ -137,10 +137,10 @@ describe("proxy", () => {
     });
 
     // A launch link can open a playbook, which is matched for its own reason.
-    // `ref` is a query key the library does not ignore, so it reads live.
+    // No playbook page reads `ref`, so it still gets the cached copy.
     it("banks it beside a guarded route's own answer", () => {
       const res = handle(request("/playbooks/board?ref=showhn", { session: false, hint: false }));
-      expect(res.headers.get("x-middleware-rewrite")).toBe("https://caesura.test/playbooks/live/board?ref=showhn");
+      expect(res.headers.get("x-middleware-rewrite")).toBe("https://caesura.test/playbooks/cached/board?ref=showhn");
       expect(refSetCookie(res)).toMatch(/^caesura_ref=showhn;/);
     });
   });

@@ -26,6 +26,11 @@ describe("playbooksReaderFor", () => {
     expect(playbooksReaderFor(false, "/playbooks", query("?_rsc=1x2y&utm_source=x&utm_campaign=y&fbclid=z&gclid=w"))).toBe("cached");
   });
 
+  // A launch link (ADR-079) is the traffic spike the cached copy exists for.
+  it("ignores a launch link's ref", () => {
+    expect(playbooksReaderFor(false, "/playbooks", query("?ref=x"))).toBe("cached");
+  });
+
   it("is live when a read parameter rides with an ignored one", () => {
     expect(playbooksReaderFor(false, "/playbooks", query("?utm_source=x&city=Kyoto"))).toBe("live");
   });
