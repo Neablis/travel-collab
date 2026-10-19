@@ -82,6 +82,9 @@ promise one.
     specific, no filler."* Mitchell chose it over the guarded alternative (*"a well-travelled
     friend… never claim you went somewhere yourself"*), knowing it may invite invented first-person
     visits. No eval case for that unless he asks.
+18. **Migration 0060 ships inside PR 496, not in a PR of its own.** Mitchell dispatches
+    `migrate-production` right after 496 merges and accepts that sign-in is down from that deploy
+    until the migration finishes. Part 7's migration renumbers to 0061 after 496 merges.
 
 ## Scope
 
