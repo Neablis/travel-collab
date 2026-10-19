@@ -14,14 +14,19 @@ import { ChartErrorBoundary } from "@/components/ui/chart";
 //
 // One import shared by every panel, not one each: under vitest's module mock
 // two concurrent imports of the same module can resolve to different modules
-// (the real one among them), and in a browser it is one chunk anyway.
+// (the real one among them), and in a browser it is one chunk anyway. A failed
+// import is forgotten, as the hero's is.
 let panels: Promise<typeof import("./LandingFeaturePanels")> | undefined;
-const loadPanels = () => (panels ??= import("./LandingFeaturePanels"));
+export const loadFeaturePanels = () =>
+  (panels ??= import("./LandingFeaturePanels").catch((e: unknown) => {
+    panels = undefined;
+    throw e;
+  }));
 const PANELS = {
-  together: lazy(() => loadPanels().then((m) => ({ default: m.TogetherPanel }))),
-  playbook: lazy(() => loadPanels().then((m) => ({ default: m.PlaybookPanel }))),
-  "playbook-compact": lazy(() => loadPanels().then((m) => ({ default: m.CompactPlaybookPanel }))),
-  notebook: lazy(() => loadPanels().then((m) => ({ default: m.MemoryPanel }))),
+  together: lazy(() => loadFeaturePanels().then((m) => ({ default: m.TogetherPanel }))),
+  playbook: lazy(() => loadFeaturePanels().then((m) => ({ default: m.PlaybookPanel }))),
+  "playbook-compact": lazy(() => loadFeaturePanels().then((m) => ({ default: m.CompactPlaybookPanel }))),
+  notebook: lazy(() => loadFeaturePanels().then((m) => ({ default: m.MemoryPanel }))),
 };
 
 /** The real `panel`, with `children` — its drawing — while it loads or if it cannot. */
