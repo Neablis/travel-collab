@@ -536,4 +536,28 @@ describe("KeepDayDialog, publishing a whole trip", () => {
     expect(publishSavedDayMock).toHaveBeenCalledTimes(2);
     expect(onPublished).toHaveBeenCalledTimes(1);
   });
+
+  // The failure says the trip is kept. Closing the dialog on that and trying
+  // again later must publish that keep, not make a second one; and the keep
+  // can no longer be edited, so what is published is what the reader saw.
+  it("publishes the same keep after closing on a failed publish and reopening", async () => {
+    publishSavedDayMock
+      .mockResolvedValueOnce({ ok: false, error: { status: 500, message: "Try again." } })
+      .mockResolvedValueOnce({ ok: true, value: { savedDayId: "s1", name: "Kyoto" } });
+    const dialog = (open: boolean) => (
+      <KeepDayDialog open={open} onOpenChange={vi.fn()} tripId={tripId} dayId={DAY_1} tripName="Kyoto" days={tripDays} publish={{ onPublished: vi.fn() }} />
+    );
+    const { rerender } = render(dialog(true));
+    await userEvent.click(screen.getByRole("button", { name: "Save & publish" }));
+    expect(await screen.findByText(/Try again\./)).toBeTruthy();
+    rerender(dialog(false));
+    rerender(dialog(true));
+
+    const cells = within(screen.getByRole("group", { name: "Days to keep" })).getAllByRole("button");
+    expect(cells.every((cell) => (cell as HTMLButtonElement).disabled)).toBe(true);
+    expect((screen.getByLabelText("Name") as HTMLInputElement).readOnly).toBe(true);
+    await userEvent.click(screen.getByRole("button", { name: "Save & publish" }));
+    expect(createSavedDayMock).toHaveBeenCalledTimes(1);
+    expect(publishSavedDayMock).toHaveBeenLastCalledWith("s1");
+  });
 });

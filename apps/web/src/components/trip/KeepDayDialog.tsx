@@ -284,8 +284,12 @@ export function KeepDayDialog({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // The keep a failed publish left behind, so pressing again publishes it
-  // rather than keeping the trip a second time.
+  // rather than keeping the trip a second time. It outlives a close: the
+  // failure said the trip is kept, so a reopen is a retry, not a fresh start.
+  // From then on the name and the days are fixed, so what is published is the
+  // keep the reader was told about.
   const [keptId, setKeptId] = useState<string | null>(null);
+  const locked = keptId !== null;
   const publishing = publish !== undefined;
 
   // **Selection is kept in TRIP ORDER, never click order.** The array's order
@@ -313,6 +317,10 @@ export function KeepDayDialog({
   // Reset on every open, so a dialog reopened on a different day does not offer
   // the previous day's selection or its name.
   useEffect(() => {
+    if (open && locked) {
+      setError(null);
+      return;
+    }
     if (open) {
       // Publishing a trip is about all of it, so every day arrives ticked and
       // the strip is open to untick one.
@@ -320,10 +328,10 @@ export function KeepDayDialog({
       setShowDays(publishing);
       setNameTouched(false);
       setError(null);
-      setKeptId(null);
     }
     // `days` is left out on purpose: a board re-render while the dialog is open
-    // must not undo the reader's unticking.
+    // must not undo the reader's unticking. `locked` is read only as of the
+    // open.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, dayId, publishing]);
 
@@ -444,6 +452,7 @@ export function KeepDayDialog({
             <Input
               id={nameId}
               autoFocus
+              readOnly={locked}
               value={name}
               onChange={(e) => {
                 setNameTouched(true);
@@ -534,6 +543,7 @@ export function KeepDayDialog({
                 label="Days to keep"
                 count={days.length}
                 columns={2}
+                selectable={() => !locked}
                 pressed={pressedAt}
                 onPick={(index) => toggle(days[index]!.dayId)}
                 onDragCommit={replaceWithSpan}

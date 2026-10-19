@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import type { TripMember, TripSummary } from "@tc/contracts";
+import type { TripDetail, TripMember, TripSummary } from "@tc/contracts";
 import { Button } from "@/components/ui/button";
 import { Text } from "@/components/ui/text";
 import { usePublishOfferDismissals } from "@/components/account/PreferencesProvider";
@@ -57,7 +57,23 @@ export function PublishTripOffer({
   const dismissals = usePublishOfferDismissals();
   // Hidden at once on Dismiss; the stored list catches up when the save lands.
   const [dismissedHere, setDismissedHere] = useState(false);
+  // Dismiss unmounts the button that has focus, which would drop it to `body`
+  // and send a keyboard reader back to the top of Home. Focus moves to a note
+  // in the offer's place instead, so Tab carries on from here; the note goes
+  // once focus leaves it.
+  const [noteShown, setNoteShown] = useState(false);
+  const note = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    if (noteShown) note.current?.focus();
+  }, [noteShown]);
 
+  if (noteShown) {
+    return (
+      <span ref={note} tabIndex={-1} role="status" className="sr-only" onBlur={() => setNoteShown(false)}>
+        {`Won't offer to publish ${trip.name} again.`}
+      </span>
+    );
+  }
   if (
     !canPublish ||
     now === null ||
@@ -74,14 +90,47 @@ export function PublishTripOffer({
       days={days}
       onDismiss={() => {
         setDismissedHere(true);
+        setNoteShown(true);
         dismissals.dismiss(trip.tripId);
       }}
+      // Published, the trip is not offered again: a second yes would make a
+      // second public Playbook of the same trip.
+      onPublished={() => dismissals.dismiss(trip.tripId)}
+    />
+  );
+}
+
+/**
+ * The offer at the top of the trip page, for the trip the page has loaded. Its
+ * end is its last day's date, as the summary's `endDate` is on Home.
+ *
+ * @param trip - The trip on the page
+ * @param canPublish - Whether this reader may keep the trip's days: the board's
+ *   gate for the Keep pennant, so a viewer and a suggester are not offered it
+ */
+export function TripPageOffer({ trip, canPublish }: { trip: TripDetail; canPublish: boolean }) {
+  const days = useMemo(() => keepCandidatesFor(trip), [trip]);
+  return (
+    <PublishTripOffer
+      trip={{ tripId: trip.tripId, name: trip.name, endDate: trip.days.at(-1)?.date ?? null }}
+      canPublish={canPublish}
+      days={days}
     />
   );
 }
 
 /** The visible half, apart so the router is only asked for once there is an offer. */
-function Offer({ trip, days, onDismiss }: { trip: OfferTrip; days?: KeepDayCandidate[]; onDismiss: () => void }) {
+function Offer({
+  trip,
+  days,
+  onDismiss,
+  onPublished,
+}: {
+  trip: OfferTrip;
+  days?: KeepDayCandidate[];
+  onDismiss: () => void;
+  onPublished: () => void;
+}) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [read, setRead] = useState<KeepDayCandidate[] | null>(null);
@@ -111,16 +160,25 @@ function Offer({ trip, days, onDismiss }: { trip: OfferTrip; days?: KeepDayCandi
   return (
     <div
       role="group"
-      aria-label="Publish this trip"
+      // Named for the trip: on Home every card carries one, and a list of
+      // identical "Dismiss" / "Publish" pairs says nothing about which is which.
+      aria-label={`Publish ${trip.name} as a playbook`}
       className="flex flex-wrap items-center gap-2 rounded-md border border-hairline bg-paper px-3 py-2"
     >
       <Text as="span" className="mr-auto text-sm">
         Turn these days into a playbook?
       </Text>
-      <Button type="button" size="sm" variant="ghost" onClick={onDismiss}>
+      <Button type="button" size="sm" variant="ghost" aria-label={`Dismiss publishing ${trip.name}`} onClick={onDismiss}>
         Dismiss
       </Button>
-      <Button type="button" size="sm" variant="primary" disabled={busy} onClick={() => void start()}>
+      <Button
+        type="button"
+        size="sm"
+        variant="primary"
+        aria-label={`Publish ${trip.name}`}
+        disabled={busy}
+        onClick={() => void start()}
+      >
         Publish
       </Button>
       {error !== null && (
@@ -136,7 +194,12 @@ function Offer({ trip, days, onDismiss }: { trip: OfferTrip; days?: KeepDayCandi
           dayId={candidates[0]!.dayId}
           tripName={trip.name}
           days={candidates}
-          publish={{ onPublished: (day) => router.push(dayPath(day)) }}
+          publish={{
+            onPublished: (day) => {
+              onPublished();
+              router.push(dayPath(day));
+            },
+          }}
         />
       )}
     </div>

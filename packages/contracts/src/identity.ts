@@ -91,6 +91,13 @@ export type PersonColor = z.infer<typeof PersonColor>;
  * be unset because the storage layer defaults them, so a reader never has to
  * pick a fallback.
  */
+/**
+ * The most trips `UserPreferences.dismissedPublishOffers` holds. Ids of trips
+ * since deleted or left are never pruned, so the list only grows; at the cap
+ * the client drops the oldest rather than have every Dismiss refused.
+ */
+export const MAX_DISMISSED_PUBLISH_OFFERS = 1000;
+
 export const UserPreferences = z.object({
   /**
    * The name this person chose, distinct from `users.name`, which the sign-in
@@ -136,12 +143,12 @@ export const UserPreferences = z.object({
   /**
    * M50 decision 7. The trips whose *"Turn these days into a playbook?"* this
    * person dismissed, so it stays dismissed on every device. A patch sends the
-   * whole list.
+   * whole list, oldest first; a client with a full list drops the oldest.
    *
    * Optional rather than defaulted: absent reads as none dismissed, and every
    * reader and fixture written before the field still type-checks.
    */
-  dismissedPublishOffers: z.array(z.string().uuid()).max(1000).optional(),
+  dismissedPublishOffers: z.array(z.string().uuid()).max(MAX_DISMISSED_PUBLISH_OFFERS).optional(),
 });
 export type UserPreferences = z.infer<typeof UserPreferences>;
 

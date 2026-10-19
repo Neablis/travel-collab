@@ -424,10 +424,10 @@ describe("TripCard — publish a trip that is over", () => {
   // Waits for the first offer, which is also the witness that today has been
   // read: before that no card offers anything.
   const offeredOn = async () => {
-    await screen.findAllByRole("group", { name: "Publish this trip" });
+    await screen.findAllByRole("group", { name: / as a playbook$/ });
     return screen
       .getAllByTestId("trip-card")
-      .filter((card) => within(card).queryByRole("group", { name: "Publish this trip" }) !== null)
+      .filter((card) => within(card).queryByRole("group", { name: / as a playbook$/ }) !== null)
       .map((card) => within(card).getByRole("heading").textContent);
   };
 
@@ -448,8 +448,8 @@ describe("TripCard — publish a trip that is over", () => {
     renderCards([gone, kept], [gone.tripId]);
     expect(await offeredOn()).toEqual(["Kept"]);
 
-    await userEvent.click(screen.getByRole("button", { name: "Dismiss" }));
-    expect(screen.queryByRole("group", { name: "Publish this trip" })).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Dismiss publishing Kept" }));
+    expect(screen.queryByRole("group", { name: / as a playbook$/ })).toBeNull();
     expect(updatePreferencesMock).toHaveBeenCalledWith({ dismissedPublishOffers: [gone.tripId, kept.tripId] });
   });
 });

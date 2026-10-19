@@ -26,7 +26,6 @@ import { badgeableConflictSubjects, overlapsForDay, type Overlap } from "@/compo
 import { dayAccents } from "@/lib/dayAccent";
 import { KeepDayFlag } from "@/components/trip/KeepDayFlag";
 import { keepCandidatesFor } from "@/components/trip/KeepDayDialog";
-import { PublishTripOffer } from "@/components/trip/PublishTripOffer";
 import { Column, DAY_COLUMN_WIDTH_PX } from "./Column";
 import { GhostDayColumn } from "./GhostDayColumn";
 import type { BoardSuggestions, RiverGestures } from "./DayRiver";
@@ -945,14 +944,6 @@ export function Board({
     // columns sat flush against the header (same gap TimelineLens's rows
     // needed above their own first row).
     <div className="flex flex-col gap-3 pt-3">
-      {/* M50 decision 7, at the top of a trip that is over, to whoever the
-          Keep pennant below is drawn for. The summary's `endDate` is the last
-          day's date, so it is read off the days here. */}
-      <PublishTripOffer
-        trip={{ tripId: trip.tripId, name: trip.name, endDate: trip.days.at(-1)?.date ?? null }}
-        canPublish={!readOnly && !suggesting}
-        days={keepCandidates}
-      />
       <ConflictBanner
         conflicts={trip.conflicts}
         dismissedConflictIds={trip.dismissedConflictIds}

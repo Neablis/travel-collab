@@ -2,20 +2,23 @@ import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { UserPreferences } from "@tc/contracts";
+import { tripDetailFixture } from "@tc/factories";
 import { PreferencesProvider } from "@/components/account/PreferencesProvider";
 import type { KeepDayCandidate } from "./KeepDayDialog";
 
 const createSavedDayMock = vi.fn();
 const publishSavedDayMock = vi.fn();
+const updatePreferencesMock = vi.fn();
 vi.mock("@/lib/apiClient", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/apiClient")>()),
   createSavedDay: (...args: unknown[]) => createSavedDayMock(...args),
   publishSavedDay: (...args: unknown[]) => publishSavedDayMock(...args),
+  updatePreferences: (...args: unknown[]) => updatePreferencesMock(...args),
 }));
 const push = vi.fn();
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
 
-import { PublishTripOffer } from "./PublishTripOffer";
+import { PublishTripOffer, TripPageOffer } from "./PublishTripOffer";
 
 afterEach(cleanup);
 
@@ -71,23 +74,58 @@ describe("PublishTripOffer on the trip page", () => {
   it("publishes the whole trip and lands on its public page", async () => {
     createSavedDayMock.mockResolvedValue({ ok: true, value: { savedDayId, name: "Lisbon long weekend" } });
     publishSavedDayMock.mockResolvedValue({ ok: true, value: { savedDayId, name: "Lisbon long weekend" } });
+    updatePreferencesMock.mockResolvedValue({ ok: true, value: { ...preferences, dismissedPublishOffers: [tripId] } });
     renderOffer(true);
-    await userEvent.click(await screen.findByRole("button", { name: "Publish" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Publish Lisbon long weekend" }));
     await userEvent.click(screen.getByRole("button", { name: "Save & publish" }));
 
     expect(createSavedDayMock).toHaveBeenCalledWith({ name: "Lisbon long weekend", tripId, dayIds: ["d1", "d2"] });
     expect(push).toHaveBeenCalledWith(`/playbooks/day/lisbon-long-weekend-${savedDayId}`);
+    // Published, it is not offered again: a second yes would be a second
+    // public page of the same trip.
+    expect(updatePreferencesMock).toHaveBeenCalledWith({ dismissedPublishOffers: [tripId] });
+  });
+
+  // On Home every card carries one, so each control says whose trip it is,
+  // and Dismiss does not drop focus back to the top of the page.
+  it("names the trip on its controls, and keeps focus in place on Dismiss", async () => {
+    updatePreferencesMock.mockResolvedValue({ ok: true, value: { ...preferences, dismissedPublishOffers: [tripId] } });
+    renderOffer(true);
+    await userEvent.click(await screen.findByRole("button", { name: "Dismiss publishing Lisbon long weekend" }));
+    expect(screen.queryByRole("group", { name: "Publish Lisbon long weekend as a playbook" })).toBeNull();
+    // `:focus` asked of what the query found, as SnapshotList.test.tsx does.
+    expect(screen.getByRole("status").matches(":focus")).toBe(true);
+  });
+
+  // The page reads the trip's end off its last day: a trip whose first day is
+  // past but whose last is still to come is not over.
+  it("is offered once the trip's last day, not its first, has passed", async () => {
+    const dated = (dates: string[]) =>
+      tripDetailFixture({ days: dates.map((date, i) => ({ dayId: `d${i}`, activityIds: [], date, costSubtotal: 0 })) });
+    const { rerender } = render(
+      <PreferencesProvider initialRead={{ preferences, defaultColor: null, isAdmin: false }}>
+        <TripPageOffer trip={dated(["2020-05-01", "2020-05-02"])} canPublish />
+      </PreferencesProvider>,
+    );
+    // Witness: today has been read and the offer shows for a trip all past.
+    expect(await screen.findByRole("group", { name: /^Publish Rome 2027/ })).toBeTruthy();
+    rerender(
+      <PreferencesProvider initialRead={{ preferences, defaultColor: null, isAdmin: false }}>
+        <TripPageOffer trip={dated(["2020-05-01", "2999-05-02"])} canPublish />
+      </PreferencesProvider>,
+    );
+    expect(screen.queryByRole("group", { name: /^Publish Rome 2027/ })).toBeNull();
   });
 
   it("is not offered to someone the board does not let keep a day", async () => {
     const { rerender } = renderOffer(true);
     // Witness: today has been read, and the trip is over.
-    expect(await screen.findByRole("group", { name: "Publish this trip" })).toBeTruthy();
+    expect(await screen.findByRole("group", { name: "Publish Lisbon long weekend as a playbook" })).toBeTruthy();
     rerender(
       <PreferencesProvider initialRead={{ preferences, defaultColor: null, isAdmin: false }}>
         <PublishTripOffer trip={{ tripId, name: "Lisbon long weekend", endDate: "2020-05-02" }} canPublish={false} days={days} />
       </PreferencesProvider>,
     );
-    expect(screen.queryByRole("group", { name: "Publish this trip" })).toBeNull();
+    expect(screen.queryByRole("group", { name: "Publish Lisbon long weekend as a playbook" })).toBeNull();
   });
 });
