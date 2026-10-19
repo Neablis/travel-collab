@@ -892,21 +892,37 @@ test.describe("responsive (narrow viewport, signed out)", () => {
     for (const card of [together!, countdown!]) expect(card.width).toBeLessThanOrEqual(480);
     expect(Math.abs(together!.x - (viewport - countdown!.x - countdown!.width))).toBeLessThanOrEqual(2);
 
-    // The spreads face each other: Playbooks' copy on the left with the photo
-    // slot under it, Notebook's mirrored to the right. The slot shows only
-    // where the spread is two columns.
+    // The spreads face each other: Playbooks' copy on the left with the
+    // shelf's second day under it and Mitchell's on the right, Notebook's
+    // mirrored. There is no empty photo mat any more (M50 part 9, Mitchell's
+    // walk of production): two real cards, at every width.
     const desktop = page.getByTestId("desktop-landing");
     const centre = viewport / 2;
     const playbooksHeading = (await desktop.getByRole("heading", { name: "Relive someone’s perfect day." }).boundingBox())!;
     const notebookHeading = (await desktop.getByRole("heading", { name: "How you’ll remember it." }).boundingBox())!;
     expect(playbooksHeading.x + playbooksHeading.width).toBeLessThan(centre);
     expect(notebookHeading.x).toBeGreaterThan(centre);
-    const slot = desktop.getByRole("region", { name: "Relive someone’s perfect day." }).locator("[data-photo-slot]");
-    await expect(slot).toBeVisible();
-    const slotBox = (await slot.boundingBox())!;
-    expect(slotBox.x + slotBox.width).toBeLessThan(centre);
+    const shelf = desktop.getByRole("region", { name: "Relive someone’s perfect day." });
+    await expect(shelf.locator("[data-photo-slot]")).toHaveCount(0);
+    const railay = shelf.getByRole("link", { name: /^Railay: the first longtail/ });
+    const hanoi = shelf.getByRole("link", { name: /^Hanoi in 4 days/ });
+    await expect(railay).toBeVisible();
+    await expect(hanoi).toBeVisible();
+    const railayBox = (await railay.boundingBox())!;
+    expect(railayBox.x + railayBox.width).toBeLessThan(centre);
+    expect((await hanoi.boundingBox())!.x).toBeGreaterThan(centre);
+
+    // The notebook's frame is filled by its page, with no dead space under
+    // it: the frame's own padding, and no more (the frame used to hold a
+    // 430px floor over half that much page).
+    const notebookRegion = desktop.getByRole("region", { name: "How you’ll remember it." });
+    const notebookFrame = (await notebookRegion.getByTestId("spread-frame").boundingBox())!;
+    const notebookPage = (await notebookRegion.getByTestId("notebook-page").boundingBox())!;
+    expect(notebookFrame.y + notebookFrame.height - (notebookPage.y + notebookPage.height)).toBeLessThanOrEqual(24);
+
     await page.setViewportSize({ width: 900, height: 900 });
-    await expect(slot).toBeHidden();
+    await expect(railay).toBeVisible();
+    await expect(hanoi).toBeVisible();
   });
 
   // Every visible piece of the hero art must sit inside the viewport at phone
