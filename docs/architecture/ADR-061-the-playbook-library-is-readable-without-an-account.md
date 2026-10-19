@@ -71,7 +71,17 @@ saw only the site card.
    Yours/Saved scopes, no Report, no review composer and no tab bar. **Add to a trip** is the
    exception and stays. It is the thing the page exists to sell, so it opens a sign-in or
    sign-up prompt and banks a same-origin marker. When the reader returns signed in, the add
-   dialog opens. The marker only opens the dialog and never adds anything.
+   dialog opens. ~~The marker only opens the dialog and never adds anything.~~
+
+   > **Amended 2026-10-19 (M50 decision 5, PR 497).** The marker now carries an intent. With
+   > `"new-trip"`, the return creates a trip named for the day and adds the day to it, with no
+   > dialog, and lands on the trip. A marker with no intent, or one it does not know, is cleared
+   > and ignored. The marker is still read and cleared before anything is sent, so it is spent
+   > once. It is still only a hint: the create and the insert are the reader's own requests,
+   > under the reader's own permissions, and the insert takes only a day they can read. So a
+   > forged marker can at most give its reader a trip holding a public day. If the add fails
+   > for any reason but the day having gone, the add dialog opens with the error, on the trip
+   > already made.
 6. **Previews, with the generic card on any miss.** Day, profile and city cards follow spec
    2026-09-27 §2.2. A private, moderated or unknown day, an author with nothing shared, or a
    city with no published days all draw the generic Playbooks card. So the routes cannot

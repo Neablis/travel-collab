@@ -41,7 +41,7 @@ import {
 } from "@/lib/apiClient";
 import type { SharedDayView } from "@/lib/sharedDayView";
 import { takePlaybookAdd } from "@/lib/pendingPlaybookAdd";
-import { addDayToNewTrip } from "@/lib/addDayToNewTrip";
+import { addDayToNewTrip, type NewTripLatch } from "@/lib/addDayToNewTrip";
 import { cn } from "@/lib/cn";
 import { cityPath, dayPath, daySegment, namedTagPath } from "@/lib/playbookUrls";
 import { dayLength, savedDayFacts, DAY_LENGTH_LABELS } from "@/lib/savedDayFacts";
@@ -236,6 +236,10 @@ export function SharedDayScreen({
   const reviewEntitled = useEntitled("playbook.review", user != null);
 
   const [adding, setAdding] = useState(false);
+  // The return from signing up, while it makes the trip, and what it hands
+  // the dialog if that fails.
+  const [makingTrip, setMakingTrip] = useState(false);
+  const [retrying, setRetrying] = useState<{ tripId: string | null; error: string } | null>(null);
   const [signingIn, setSigningIn] = useState(false);
   const [withdrawn, setWithdrawn] = useState(false);
   // §33.1: **`All days` is the default and opening any Playbook resets to it.**
@@ -310,13 +314,25 @@ export function SharedDayScreen({
     redeemedFor.current = savedDayId;
     // Taken (and so cleared) for the author too — it is spent either way.
     if (takePlaybookAdd(savedDayId) !== "new-trip" || readerIsAuthor) return;
-    void addDayToNewTrip({ savedDayId, dayName }, { current: null }).then((result) => {
+    const latch: { current: NewTripLatch | null } = { current: null };
+    setMakingTrip(true);
+    void addDayToNewTrip({ savedDayId, dayName }, latch).then((result) => {
+      setMakingTrip(false);
       if (result.ok) router.push(`/trips/${result.value.tripId}`);
       // Withdrawn while they were signing up: the page's own banner says so.
       else if (result.error.status === 404) setWithdrawn(true);
       // Anything else, and the dialog they would otherwise have had to find
-      // is the way to try again.
-      else setAdding(true);
+      // is the way to try again — on the trip already made, if one was.
+      else {
+        const made = latch.current;
+        setRetrying({
+          tripId: made?.tripId ?? null,
+          error: made
+            ? `We made the trip but could not add the day to it: ${result.error.message}`
+            : `We could not make the trip: ${result.error.message}`,
+        });
+        setAdding(true);
+      }
     });
   }, [dayName, user, readerIsAuthor, savedDayId, router]);
 
@@ -861,6 +877,8 @@ export function SharedDayScreen({
               <Button
                 variant="primary"
                 className="mt-1 w-full justify-center"
+                // A press now would be a second trip beside the one being made.
+                disabled={makingTrip}
                 onClick={() => {
                   // Shown to a reader with no account too, and it asks them to
                   // sign in rather than vanishing (ADR-061, the share page's shape).
@@ -869,6 +887,7 @@ export function SharedDayScreen({
                     return;
                   }
                   setWithdrawn(false);
+                  setRetrying(null);
                   setAdding(true);
                 }}
               >
@@ -877,11 +896,13 @@ export function SharedDayScreen({
                     three days said the same thing as the one that moves one.
                     A reader with no account has no trip to add to: theirs
                     makes one (M50 decision 5). */}
-                {signedOut
-                  ? "Make this your trip"
-                  : day.dayCount > 1
-                    ? `Add all ${day.dayCount} days to a trip`
-                    : "Add to a trip"}
+                {makingTrip
+                  ? "Making your trip…"
+                  : signedOut
+                    ? "Make this your trip"
+                    : day.dayCount > 1
+                      ? `Add all ${day.dayCount} days to a trip`
+                      : "Add to a trip"}
               </Button>
               {/* The page's assistant (M45 D9), which can press that button
                   for you on a trip and day you name. Drawn only for an
@@ -1009,7 +1030,11 @@ export function SharedDayScreen({
 
       <AddToTripDialog
         open={adding}
-        onOpenChange={setAdding}
+        onOpenChange={(open) => {
+          setAdding(open);
+          if (!open) setRetrying(null);
+        }}
+        retrying={retrying}
         savedDayId={day.savedDayId}
         dayName={day.name}
         dayCount={day.dayCount}

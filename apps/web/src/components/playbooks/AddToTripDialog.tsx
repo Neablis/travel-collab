@@ -48,6 +48,7 @@ export function AddToTripDialog({
   dayName,
   dayCount,
   onConflict,
+  retrying = null,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -66,6 +67,13 @@ export function AddToTripDialog({
   dayCount: number;
   /** Raised when the day itself has gone — the page above says so, not a modal. */
   onConflict: () => void;
+  /**
+   * The day page's return from signing up failed to make its trip: this
+   * opening says why, and starts on the trip if it was made before the add
+   * failed, so pressing Add fills it rather than leaving it empty beside a
+   * second one.
+   */
+  retrying?: { tripId: string | null; error: string } | null;
 }) {
   const router = useRouter();
   const tripFieldId = useId();
@@ -89,7 +97,7 @@ export function AddToTripDialog({
     // Cleared on success: a retry that worked must not leave the previous
     // failure sitting next to a fresh, correct list (the fix PeopleSection,
     // ShareButton and SavedDaysDialog all took).
-    setError(null);
+    setError(retrying?.error ?? null);
     setTrips(result.value);
     // Kept only if the refreshed list still HAS it. This dialog stays mounted
     // between openings, so a trip deleted in another tab while it was closed
@@ -100,12 +108,15 @@ export function AddToTripDialog({
     // No trips at all now falls through to the new-trip branch. It used to be a
     // dead end — "start one from Your trips, then come back for this day" — which
     // sent the one reader most likely to want this day away from it.
+    const kept = (id: string) => id === NEW_TRIP || result.value.some((trip) => trip.tripId === id);
     setTripId((current) =>
-      current === NEW_TRIP || result.value.some((trip) => trip.tripId === current)
-        ? current
-        : (result.value[0]?.tripId ?? NEW_TRIP),
+      retrying?.tripId && kept(retrying.tripId)
+        ? retrying.tripId
+        : kept(current)
+          ? current
+          : (result.value[0]?.tripId ?? NEW_TRIP),
     );
-  }, []);
+  }, [retrying]);
 
   useEffect(() => {
     if (open) {

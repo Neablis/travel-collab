@@ -1381,6 +1381,39 @@ describe("back from signing in to add", () => {
     expect(pushMock).not.toHaveBeenCalled();
   });
 
+  it("shows the trip being made, and takes no second press while it is", async () => {
+    session = { id: "dev-bob" };
+    let finish: (value: unknown) => void = () => {};
+    insertSavedDayMock.mockReturnValue(new Promise((resolve) => (finish = resolve)));
+    rememberPlaybookAdd(DAY_ID);
+    renderDay();
+
+    const button = await screen.findByRole("button", { name: "Making your trip…" });
+    expect((button as HTMLButtonElement).disabled).toBe(true);
+    await act(async () => finish(ok({ detail: {}, history: {} })));
+    expect(pushMock).toHaveBeenCalledWith(`/trips/${NEW_TRIP_ID}`);
+  });
+
+  it("opens the dialog on the trip it made, saying why, when the add fails another way", async () => {
+    session = { id: "dev-bob" };
+    fetchTripsMock.mockResolvedValue(
+      ok([
+        { tripId: TRIP_ID, name: "Japan", status: "active", members: [{ userId: "u", role: "owner", name: null, email: null }], createdAt: "2026-01-01T00:00:00.000Z" },
+        { tripId: NEW_TRIP_ID, name: savedDay().name, status: "active", members: [{ userId: "u", role: "owner", name: null, email: null }], createdAt: "2026-01-02T00:00:00.000Z" },
+      ]),
+    );
+    insertSavedDayMock.mockResolvedValue({ ok: false, error: { status: 500, message: "Server error" } });
+    rememberPlaybookAdd(DAY_ID);
+    renderDay();
+
+    const picker = (await screen.findByLabelText("Which trip")) as HTMLSelectElement;
+    await waitFor(() => expect(picker.value).toBe(NEW_TRIP_ID));
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByText(/could not add the day to it.*Server error/)).toBeTruthy();
+    expect(pushMock).not.toHaveBeenCalled();
+    expect(createTripMock).toHaveBeenCalledTimes(1);
+  });
+
   it("does nothing for a marker banked on another day", async () => {
     session = { id: "dev-bob" };
     rememberPlaybookAdd("aa000000-0000-4000-8000-0000000000ff");
