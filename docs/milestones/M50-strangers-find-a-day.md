@@ -52,7 +52,7 @@ promise one.
    page. Dismissing hides the offer for that trip, for that person.
 8. **Referral nudge:** one line in the Share and Invite dialogs, *"Bring someone in, get a
    month"*, with a ready referral link, shown **only** to accounts that can earn the reward
-   (`canRefer`, a paid plan). Free and trial accounts see nothing new; who earns is unchanged.
+   (`earnsReward`, a paid plan). Free and trial accounts see nothing new; who earns is unchanged.
 9. **The copy fixes carry through everywhere the text lives**: the site meta description, the OG
    image's alt text and its regenerated PNG, and the design handoff in `.design-sync/` so a sync
    does not revert them.
@@ -86,9 +86,22 @@ promise one.
     `migrate-production` right after 496 merges and accepts that sign-in is down from that deploy
     until the migration finishes. Part 7's migration renumbers to 0061 after 496 merges.
 
+**Settled by Mitchell at his production walk of `/` (2026-10-19), adding part 9:**
+
+19. **Part 9 exists because of the walk.** Two defects on the landing: the playbooks spread held an
+    empty grained mat (`PhotoSlot`), and the notebook spread was a thin strip and two paragraphs.
+    The empty slot becomes a second real playbook card; the notebook becomes a lived-in diary page
+    built from the notebook's real read-only widgets (`ItineraryDayBlock` between the diary's
+    prose, `TripPeopleBlock`, `SunBlock`). Part 9, PR 503.
+20. **The second card is Railay** (`content/playbooks/thailand-beaches.json`), credited to Nadia,
+    with no *Sample* badge and no invented rating: it reads *"No reviews yet"*. The section's copy
+    is unchanged.
+21. **Part 9 merges as a stopgap.** The landing gets a fuller redesign after M50, its own milestone
+    starting from a design review (`docs/candidates.md`, *The front door tells the story*).
+
 ## Scope
 
-Eight parts, each its own PR on `main` (the plan has the files):
+Nine parts, each its own PR on `main` (the plan has the files; part 9 came from the walk):
 
 1. Copy fixes, end to end (decisions 3, 9–13), including the assistant's tone line.
 2. First-touch `?ref=` attribution and the signups-per-channel report (6, 14). Migration `0060`.
@@ -99,6 +112,7 @@ Eight parts, each its own PR on `main` (the plan has the files):
 6. Empty states with their own words, and Discover with editorial sizing and collection titles.
 7. Publish a lived trip as a playbook (7).
 8. The referral nudge in Share and Invite (8).
+9. The landing's playbook shelf and a lived-in notebook page, from Mitchell's walk (19–21).
 
 ## Out of scope
 
