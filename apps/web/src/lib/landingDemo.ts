@@ -57,3 +57,9 @@ export type LandingFeatures = {
 // tsc checks, and by the verify step, which holds this file to its output.
 export const LANDING_DEMO = snapshot as unknown as LandingDemo;
 export const LANDING_FEATURES = features as unknown as LandingFeatures;
+
+/**
+ * The closing quote on both front doors (M50 part 5): the Notebook page's last
+ * paragraph, read here so that a regenerated page changes the quote with it.
+ */
+export const LANDING_CLOSING_QUOTE = (LANDING_FEATURES.memory.at(-1) ?? []).map((seg) => seg.text).join("");

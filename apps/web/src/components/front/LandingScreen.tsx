@@ -10,6 +10,7 @@ import { LandingFeatureBlocks } from "@/components/front/LandingFeatureBlocks";
 import { LandingPricing } from "@/components/front/LandingPricing";
 import { LeaveLandingIfSignedIn } from "@/components/front/LeaveLandingIfSignedIn";
 import { DEMO_PATH } from "@/lib/demoTrip";
+import { LANDING_CLOSING_QUOTE } from "@/lib/landingDemo";
 import { cn } from "@/lib/cn";
 
 // Every string here is transcribed from the design source
@@ -140,7 +141,7 @@ export function LandingScreen() {
   return (
     <>
       <LeaveLandingIfSignedIn />
-      <PhoneFrontDoor />
+      <PhoneFrontDoor closingQuote={LANDING_CLOSING_QUOTE} />
       <div data-testid="desktop-landing" className="hidden min-h-screen flex-col bg-paper text-ink md:flex">
       <FrontDoorHeader
         actions={
@@ -284,8 +285,8 @@ export function LandingScreen() {
         {/* **The closing moment** (M50 part 5), where `dc.html:5371` draws a
             moss call-to-action band, which is the SaaS template's ending.
             The page ends instead on a line somebody wrote in a trip notebook:
-            the real Hakone page the Notebook spread shows
-            (`landingFeatures.generated.json`), words from a day rather than a
+            the last paragraph of the Hakone page the Notebook spread shows
+            (`LANDING_CLOSING_QUOTE`), words from a day rather than a
             testimonial. Then the ask, which is to bring the group, and the
             same two ways in the hero offers. */}
         <section
@@ -296,8 +297,7 @@ export function LandingScreen() {
             <figure className="flex flex-col gap-3.5">
               <blockquote>
                 <Text as="p" className="font-display text-2xl leading-snug tracking-tight text-pretty">
-                  &ldquo;Nobody was in a hurry. Priya says it was the best night of the trip, and nobody
-                  argued.&rdquo;
+                  &ldquo;{LANDING_CLOSING_QUOTE}&rdquo;
                 </Text>
               </blockquote>
               <figcaption>

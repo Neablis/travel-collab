@@ -29,9 +29,11 @@ describe("LandingFeatureBlocks", () => {
   // (Playbooks) first, the mechanics riding along after it. Each block is a
   // region named by its title, which is also how the tests below find one.
   //
-  // And in M50 part 5's widths, because four equal cards were the template:
-  // a full-bleed spread, a wide card beside a narrow one, a spread again.
-  // `responsive.spec.ts` measures the same sequence in a browser.
+  // And with M50 part 5's shape named on each: a full-bleed spread, a wide
+  // card beside a narrow one, a spread again. These are labels, not the
+  // layout: `m42-demo-trips.spec.ts` exempts the spreads from the card width
+  // cap by `data-layout="spread"`, and `responsive.spec.ts` measures the
+  // shapes themselves in a browser.
   it("puts the blocks in the retro's order, as spread, wide, narrow, spread", () => {
     render(<LandingFeatureBlocks />);
     expect(

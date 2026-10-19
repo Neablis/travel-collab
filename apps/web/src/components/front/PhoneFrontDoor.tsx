@@ -254,8 +254,12 @@ const CLAIMS: readonly { label: string; body: string; example?: ReactNode }[] = 
   },
 ];
 
-/** The phone's front door (SPEC §28): a pinned scroll sequence, not the desktop landing at a narrower width. */
-export function PhoneFrontDoor() {
+/**
+ * The phone's front door (SPEC §28): a pinned scroll sequence, not the desktop landing at a narrower width.
+ * `closingQuote` comes from the server's `LandingScreen` (`LANDING_CLOSING_QUOTE`) rather than an import
+ * here, so the generated snapshot stays out of this client component's first-load chunk.
+ */
+export function PhoneFrontDoor({ closingQuote }: { closingQuote: string }) {
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const pinRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<SVGSVGElement | null>(null);
@@ -552,7 +556,7 @@ export function PhoneFrontDoor() {
           <figure className="flex flex-col gap-2.5 pb-4">
             <blockquote>
               <Text as="p" className="font-display text-xl leading-snug tracking-tight text-pretty">
-                &ldquo;Nobody was in a hurry. Priya says it was the best night of the trip, and nobody argued.&rdquo;
+                &ldquo;{closingQuote}&rdquo;
               </Text>
             </blockquote>
             <figcaption>

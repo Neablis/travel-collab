@@ -20,7 +20,8 @@ import { LandingFeaturePanel } from "./LandingFeaturePanel";
 // shape. Playbooks and Notebook are full-bleed spreads, copy on one side and
 // the app on the other, mirrored; Together and Countdown sit between them as a
 // wide card beside a narrow one. Each block names its shape in `data-layout`,
-// which is what `LandingFeatureBlocks.test.tsx` holds the sequence to.
+// which `m42-demo-trips.spec.ts` reads to exempt the spreads from the card
+// width cap; `responsive.spec.ts` measures the shapes.
 //
 // **Three of the four show the app itself** (M42 part 9): Together is the
 // board's read-only river, Playbooks a Discover card, Notebook a notebook page
@@ -84,10 +85,9 @@ const NAME_CHIP = "flex-none rounded-full px-1.5 py-0.5 text-3xs font-semibold t
 // A block's body: the panel, or its drawing, under the block's heading.
 const BODY = "flex min-h-0 flex-1 flex-col justify-between gap-2.5 px-4.5 pb-4.5";
 
-// A card in the row between the spreads. Its width is the column's, which
-// `lg:col-span-*` sets at the call site: the row is the one place two blocks
-// sit side by side, and unequal on purpose.
-const BLOCK = "flex h-full w-full min-h-107.5 flex-col overflow-hidden rounded-lg p-0";
+// A card in the row between the spreads. Its width is set at the call site:
+// the row is the one place two blocks sit side by side, and unequal on purpose.
+const BLOCK = "flex w-full min-h-107.5 flex-col overflow-hidden rounded-lg p-0";
 
 // The page's own width, which the spreads' backgrounds run past.
 const PAGE = "mx-auto w-full max-w-285 px-7";
@@ -407,11 +407,14 @@ export function LandingFeatureBlocks(): React.ReactElement {
         </LandingFeaturePanel>
       </Spread>
 
-      {/* Wide beside narrow from `lg`, 7 of 12 columns to 5: the river needs
-          the room and the countdown is one number. One column below `lg`. */}
-      <div className={cn(PAGE, "grid gap-4.5 lg:grid-cols-12")}>
+      {/* Wide beside narrow from `lg`, a centred pair: the river needs the
+          room and the countdown is one number. Each stays a card's width,
+          480px at most (Mitchell's M42 preview: cards, not halves of the page),
+          so the row does not stretch with the screen the way the spreads do.
+          One column below `lg`. */}
+      <div className={cn(PAGE, "flex flex-col gap-4.5 lg:flex-row lg:items-stretch lg:justify-center")}>
         {/* Together — `dc.html:2018-2093` */}
-        <Card as="section" aria-labelledby="landing-together" data-layout="wide" className={cn(BLOCK, "lg:col-span-7")}>
+        <Card as="section" aria-labelledby="landing-together" data-layout="wide" className={cn(BLOCK, "lg:w-120")}>
           <BlockHead id="landing-together" eyebrow="Together" title="The trip starts before the trip.">
             One plan your whole group can touch. Drag a stop and everyone sees it move. Suggest a change
             and the planners say yes. Argue about Pontocho now, thank yourselves in Kyoto.
@@ -425,7 +428,7 @@ export function LandingFeatureBlocks(): React.ReactElement {
         </Card>
 
         {/* Countdown — new in the 2026-09-28 retro; no design artboard yet. */}
-        <Card as="section" aria-labelledby="landing-countdown" data-layout="narrow" className={cn(BLOCK, "lg:col-span-5")}>
+        <Card as="section" aria-labelledby="landing-countdown" data-layout="narrow" className={cn(BLOCK, "lg:w-100")}>
           <BlockHead id="landing-countdown" eyebrow="Countdown" title="Too excited to sleep.">
             Every trip gets a living countdown, shared with the whole group. One month. One week. Wheels
             up tomorrow. Sleep if you can.

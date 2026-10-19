@@ -1,7 +1,7 @@
 import { cleanup, render, screen, within, fireEvent } from "@testing-library/react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { LANDING_FEATURES } from "@/lib/landingDemo";
+import { LANDING_CLOSING_QUOTE, LANDING_FEATURES } from "@/lib/landingDemo";
 import { PhoneFrontDoor } from "./PhoneFrontDoor";
 
 // The three real cards are `lazy()`-loaded; loaded here first so a cold
@@ -50,7 +50,7 @@ describe("the phone front door (SPEC §28)", () => {
   // `renderToStaticMarkup` runs no effects, which is exactly the state the
   // trap lives in.
   it("carries the rest state in the server-rendered markup, before any effect runs", () => {
-    const html = renderToStaticMarkup(<PhoneFrontDoor />);
+    const html = renderToStaticMarkup(<PhoneFrontDoor closingQuote={LANDING_CLOSING_QUOTE} />);
     const claimStyles = [...html.matchAll(/data-testid="front-door-claim"[^>]*style="([^"]*)"/g)].map((m) => m[1]!);
     expect(claimStyles).toHaveLength(4);
     expect(claimStyles[0]).toContain("opacity:1");
@@ -58,7 +58,7 @@ describe("the phone front door (SPEC §28)", () => {
   });
 
   it("also paints the rest state on mount, so a client-only render is not stacked either", () => {
-    render(<PhoneFrontDoor />);
+    render(<PhoneFrontDoor closingQuote={LANDING_CLOSING_QUOTE} />);
     expect(opacities()).toEqual([1, 0, 0, 0]);
   });
 
@@ -71,7 +71,7 @@ describe("the phone front door (SPEC §28)", () => {
   // Asserted against what is PAINTED rather than against an index, so the two
   // cannot drift: whatever the effect made visible is exactly what is exposed.
   it("exposes only the claims that are actually on screen", () => {
-    render(<PhoneFrontDoor />);
+    render(<PhoneFrontDoor closingQuote={LANDING_CLOSING_QUOTE} />);
     const exposed = () =>
       screen.getAllByTestId("front-door-claim").map((el) => el.getAttribute("aria-hidden") !== "true");
 
@@ -89,7 +89,7 @@ describe("the phone front door (SPEC §28)", () => {
   // focus nor hit-testing for it, so the attribute is held here and the
   // behaviour in `m42-demo-trips.spec.ts`.
   it("puts only the claims on screen within reach of a tap or a tab", () => {
-    render(<PhoneFrontDoor />);
+    render(<PhoneFrontDoor closingQuote={LANDING_CLOSING_QUOTE} />);
     const reachable = () => screen.getAllByTestId("front-door-claim").map((el) => !el.hasAttribute("inert"));
 
     expect(reachable()).toEqual([true, false, false, false]);
@@ -103,7 +103,7 @@ describe("the phone front door (SPEC §28)", () => {
   // authored opacity has to: Next ships the server's HTML and hydration is a
   // tick later, so a page read in that gap would announce all four.
   it("carries the hidden state in the server-rendered markup too", () => {
-    const html = renderToStaticMarkup(<PhoneFrontDoor />);
+    const html = renderToStaticMarkup(<PhoneFrontDoor closingQuote={LANDING_CLOSING_QUOTE} />);
     const claims = [...html.matchAll(/data-testid="front-door-claim"([^>]*)>/g)].map((m) => m[1]!);
     expect(claims).toHaveLength(4);
     expect(claims[0]).not.toContain('aria-hidden="true"');
@@ -119,7 +119,7 @@ describe("the phone front door (SPEC §28)", () => {
   // puts a later claim up and the first one away, and it STAYS there, because
   // nothing here is on a timer.
   it("advances the sequence by scroll position, and holds wherever it stops", () => {
-    render(<PhoneFrontDoor />);
+    render(<PhoneFrontDoor closingQuote={LANDING_CLOSING_QUOTE} />);
     scrollTo(0.4);
     const stopped = opacities();
     expect(stopped[0]).toBeLessThan(1);
@@ -143,7 +143,7 @@ describe("the phone front door (SPEC §28)", () => {
   // rendered — and the existing sample at `0.4` sat comfortably inside a
   // segment where it could never have noticed.
   it("always has a claim on screen through every transition", () => {
-    render(<PhoneFrontDoor />);
+    render(<PhoneFrontDoor closingQuote={LANDING_CLOSING_QUOTE} />);
     // **A dense sweep rather than named boundaries.** The first version sampled
     // 0.25 / 0.5 / 0.75 and a hair either side, which was right when the four
     // claims divided the whole pin — and silently wrong the moment they were
@@ -180,7 +180,7 @@ describe("the phone front door (SPEC §28)", () => {
   // for", which is what a reader experiences, and compared between the first
   // and the last — the two the old arithmetic separated most.
   it("gives the last claim as much of the scroll as the first", () => {
-    render(<PhoneFrontDoor />);
+    render(<PhoneFrontDoor closingQuote={LANDING_CLOSING_QUOTE} />);
     const held = [0, 0, 0, 0];
     for (let p = 0; p <= 0.92; p += 0.005) {
       scrollTo(p);
@@ -212,7 +212,7 @@ describe("the phone front door (SPEC §28)", () => {
   // it go together — so the pin never releases onto a line of type floating
   // over a background that has already gone.
   it("clears the map and the last claim together at the end of the pin", () => {
-    render(<PhoneFrontDoor />);
+    render(<PhoneFrontDoor closingQuote={LANDING_CLOSING_QUOTE} />);
     scrollTo(1);
     const map = screen.getByTestId("front-door-map");
     expect(Number(map.style.opacity)).toBe(0);
@@ -226,7 +226,7 @@ describe("the phone front door (SPEC §28)", () => {
   // axe at phone width on `/`: no `main` landmark, and the headline, claims
   // and call to action outside every landmark.
   it("holds its content in a main landmark, between the banner and the footer", () => {
-    render(<PhoneFrontDoor />);
+    render(<PhoneFrontDoor closingQuote={LANDING_CLOSING_QUOTE} />);
     const main = within(screen.getByTestId("phone-front-door")).getByRole("main");
     expect(within(main).getByRole("heading", { level: 1, name: "Plan the trip together." })).toBeTruthy();
     expect(within(main).getByRole("link", { name: "Start a trip" })).toBeTruthy();
@@ -253,12 +253,12 @@ describe("the phone front door (SPEC §28)", () => {
 
     it("scrolls its own scroller when the page is opened at #pricing", () => {
       window.history.replaceState(null, "", "#pricing");
-      render(<PhoneFrontDoor />);
+      render(<PhoneFrontDoor closingQuote={LANDING_CLOSING_QUOTE} />);
       expect(scrolled.map(({ el }) => el)).toEqual([screen.getByTestId("phone-front-door")]);
     });
 
     it("lands the section just under the sticky bar when the hash changes to #pricing", () => {
-      render(<PhoneFrontDoor />);
+      render(<PhoneFrontDoor closingQuote={LANDING_CLOSING_QUOTE} />);
       const door = screen.getByTestId("phone-front-door");
       const pricing = within(door).getByRole("region", { name: "Pricing" });
       // jsdom lays nothing out, so the geometry the effect reads is given here.
@@ -277,7 +277,7 @@ describe("the phone front door (SPEC §28)", () => {
     // the specifics to `/plans`. One line each, one way through to the rest —
     // and no second sign-up button, because "Start a trip" sits just above.
     it("summarises the plans and sends the specifics to /plans", () => {
-      render(<PhoneFrontDoor />);
+      render(<PhoneFrontDoor closingQuote={LANDING_CLOSING_QUOTE} />);
       const door = within(screen.getByTestId("phone-front-door"));
       const pricing = within(door.getByRole("region", { name: "Pricing" }));
       expect(pricing.queryByRole("table")).toBeNull();
@@ -294,7 +294,7 @@ describe("the phone front door (SPEC §28)", () => {
   // scrolls under it, and a clear bar shows that content through its links
   // and takes the taps aimed at it.
   it("puts the header on paper once the pin releases, and only then", () => {
-    render(<PhoneFrontDoor />);
+    render(<PhoneFrontDoor closingQuote={LANDING_CLOSING_QUOTE} />);
     const header = within(screen.getByTestId("phone-front-door")).getByRole("banner");
     expect(header.hasAttribute("data-solid")).toBe(false);
     scrollTo(0.97);
@@ -306,7 +306,7 @@ describe("the phone front door (SPEC §28)", () => {
   });
 
   it("links the playbook library from the header", () => {
-    render(<PhoneFrontDoor />);
+    render(<PhoneFrontDoor closingQuote={LANDING_CLOSING_QUOTE} />);
     const playbooks = within(screen.getByTestId("phone-front-door")).getByRole("link", { name: "Playbooks" });
     expect(playbooks.getAttribute("href")).toBe("/playbooks");
   });
@@ -315,7 +315,7 @@ describe("the phone front door (SPEC §28)", () => {
     // *"Missing the top of page signing CTA"*. There was no header at all, so a
     // returning visitor on a phone had no way into their own account.
     it("offers a way in for somebody who already has an account", () => {
-      render(<PhoneFrontDoor />);
+      render(<PhoneFrontDoor closingQuote={LANDING_CLOSING_QUOTE} />);
       const signIn = within(screen.getByTestId("phone-front-door")).getByRole("link", { name: "Sign in" });
       expect(signIn.getAttribute("href")).toBe("/signin");
       // **SPEC §13.1's 44px floor is NOT asserted here**, and the test-quality
@@ -336,7 +336,7 @@ describe("the phone front door (SPEC §28)", () => {
     // river, Discover card and notebook page, at phone size. Found with
     // `hidden`, because every claim but the first starts out unannounced.
     it("draws the example under every claim, three of them the product's own", async () => {
-      render(<PhoneFrontDoor />);
+      render(<PhoneFrontDoor closingQuote={LANDING_CLOSING_QUOTE} />);
       const claims = screen.getAllByTestId("front-door-claim");
       // Playbooks: a real day from the library, as Discover shows it.
       expect(
@@ -362,7 +362,7 @@ describe("the phone front door (SPEC §28)", () => {
     // spent on dinner."* The card used to be a day's spend and its receipts;
     // "How you'll remember it" is not a total.
     it("remembers the trip in the notebook without a price in it", async () => {
-      render(<PhoneFrontDoor />);
+      render(<PhoneFrontDoor closingQuote={LANDING_CLOSING_QUOTE} />);
       const notebook = screen.getAllByTestId("front-door-claim")[3]!;
       expect(await within(notebook).findByText("Check in at Gora Kadan")).toBeTruthy();
       expect(within(notebook).getByText("How you'll remember it.")).toBeTruthy();
@@ -373,7 +373,7 @@ describe("the phone front door (SPEC §28)", () => {
     // preference: the `Together` claim ran the design's headline and its card's
     // caption together into one sentence, because the card was not built.
     it("keeps the Together headline to the headline", () => {
-      render(<PhoneFrontDoor />);
+      render(<PhoneFrontDoor closingQuote={LANDING_CLOSING_QUOTE} />);
       const claims = screen.getAllByTestId("front-door-claim");
       expect(within(claims[1]!).getByText("The trip starts before the trip.")).toBeTruthy();
     });
@@ -385,7 +385,7 @@ describe("the phone front door (SPEC §28)", () => {
     // refuses arbitrary Tailwind values), so the class IS the handle here —
     // there is no role or label standing in for "this has a background".
     it("puts every claim on its plate, and the map under its veil", () => {
-      const html = renderToStaticMarkup(<PhoneFrontDoor />);
+      const html = renderToStaticMarkup(<PhoneFrontDoor closingQuote={LANDING_CLOSING_QUOTE} />);
       expect([...html.matchAll(/front-door-plate/g)]).toHaveLength(4);
       expect(html).toContain("front-door-veil");
     });
@@ -394,7 +394,7 @@ describe("the phone front door (SPEC §28)", () => {
   // M50 part 5, the desktop's closing moment at phone width: a notebook
   // page's words, then the ask to bring the group.
   it("puts the call to action on the paper after the pin, under a notebook page's words", () => {
-    render(<PhoneFrontDoor />);
+    render(<PhoneFrontDoor closingQuote={LANDING_CLOSING_QUOTE} />);
     const cta = within(
       within(screen.getByTestId("phone-front-door")).getByRole("region", { name: "Start the plan, then bring everyone." }),
     );
@@ -404,7 +404,7 @@ describe("the phone front door (SPEC §28)", () => {
   });
 
   it("ends on the same footer as the desktop landing", () => {
-    render(<PhoneFrontDoor />);
+    render(<PhoneFrontDoor closingQuote={LANDING_CLOSING_QUOTE} />);
     const footer = within(within(screen.getByTestId("phone-front-door")).getByRole("contentinfo"));
     expect(footer.getByRole("link", { name: "mitchell@demarcosoftware.com" }).getAttribute("href")).toBe(
       "mailto:mitchell@demarcosoftware.com",

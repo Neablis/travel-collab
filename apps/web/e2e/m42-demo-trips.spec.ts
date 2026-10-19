@@ -117,17 +117,22 @@ test.describe("the front door, signed out (M42)", () => {
   });
 
   // Mitchell, on the preview: the feature cards read as cards, not as halves
-  // of the page. At 1440px each is at most 480px wide, and the pair of
-  // columns sits in the middle of the page.
+  // of the page. At 1440px each card is at most 480px wide, and the row of
+  // them sits in the middle of the page. The two spreads are exempt, and only
+  // they: their ground running edge to edge is M50 part 5's decision, so the
+  // test first holds that they are the blocks marked `data-layout="spread"`.
   test("the landing's feature cards keep a card's width and sit centred on a wide screen", async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto("/");
     const landing = page.getByTestId("desktop-landing");
-    const titles = ["Relive someone’s perfect day.", "The trip starts before the trip.", "Too excited to sleep.", "How you’ll remember it."];
+    for (const title of ["Relive someone’s perfect day.", "How you’ll remember it."]) {
+      await expect(landing.getByRole("region", { name: title })).toHaveAttribute("data-layout", "spread");
+    }
     const boxes = [];
-    for (const title of titles) {
+    for (const title of ["The trip starts before the trip.", "Too excited to sleep."]) {
       const card = landing.getByRole("region", { name: title });
       await expect(card).toBeVisible();
+      await expect(card).not.toHaveAttribute("data-layout", "spread");
       boxes.push((await card.boundingBox())!);
     }
     for (const box of boxes) expect(box.width).toBeLessThanOrEqual(480);

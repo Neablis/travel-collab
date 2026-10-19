@@ -87,13 +87,16 @@ describe("LandingScreen", () => {
 
   // M50 part 5: the page ends on a line from a trip notebook, not on a SaaS
   // call-to-action band, and the ask after it is to bring the group. The quote
-  // is the real Hakone page the Notebook block shows, so it is a day somebody
-  // wrote down, not a testimonial.
+  // is the last paragraph of the Hakone page the Notebook block shows, read
+  // from the same snapshot, so it is a day somebody wrote down, not a
+  // testimonial, and a regenerated page cannot leave it behind.
   it("closes on a notebook page's words, then asks to bring everyone", () => {
     render(<LandingScreen />);
     const closing = within(
       within(screen.getByTestId("desktop-landing")).getByRole("region", { name: "Start the plan, then bring everyone." }),
     );
+    const lastParagraph = LANDING_FEATURES.memory.at(-1)!.map((seg) => seg.text).join("");
+    expect(closing.getByRole("blockquote").textContent).toBe(`“${lastParagraph}”`);
     expect(closing.getByRole("blockquote").textContent).toMatch(/best night of the trip, and nobody argued/);
     expect(closing.getByRole("link", { name: "Start a trip" }).getAttribute("href")).toBe("/signup");
     expect(closing.getByRole("link", { name: "See a finished one" }).getAttribute("href")).toBe("/demo");

@@ -877,9 +877,29 @@ test.describe("responsive (narrow viewport, signed out)", () => {
     }
     expect(together!.y).toBeGreaterThan(playbooks!.y);
     expect(countdown!.y).toBe(together!.y);
-    expect(countdown!.x).toBeGreaterThan(together!.x);
+    expect(countdown!.x).toBeGreaterThanOrEqual(together!.x + together!.width);
     expect(together!.width).toBeGreaterThan(countdown!.width);
     expect(notebook!.y).toBeGreaterThan(together!.y);
+    // The row is a pair of cards, each a card's width (the M42 cap, 480px)
+    // and centred between the spreads, not two shares of the page's width.
+    for (const card of [together!, countdown!]) expect(card.width).toBeLessThanOrEqual(480);
+    expect(Math.abs(together!.x - (viewport - countdown!.x - countdown!.width))).toBeLessThanOrEqual(2);
+
+    // The spreads face each other: Playbooks' copy on the left with the photo
+    // slot under it, Notebook's mirrored to the right. The slot shows only
+    // where the spread is two columns.
+    const desktop = page.getByTestId("desktop-landing");
+    const centre = viewport / 2;
+    const playbooksHeading = (await desktop.getByRole("heading", { name: "Relive someone’s perfect day." }).boundingBox())!;
+    const notebookHeading = (await desktop.getByRole("heading", { name: "How you’ll remember it." }).boundingBox())!;
+    expect(playbooksHeading.x + playbooksHeading.width).toBeLessThan(centre);
+    expect(notebookHeading.x).toBeGreaterThan(centre);
+    const slot = desktop.getByRole("region", { name: "Relive someone’s perfect day." }).locator("[data-photo-slot]");
+    await expect(slot).toBeVisible();
+    const slotBox = (await slot.boundingBox())!;
+    expect(slotBox.x + slotBox.width).toBeLessThan(centre);
+    await page.setViewportSize({ width: 900, height: 900 });
+    await expect(slot).toBeHidden();
   });
 
   // Every visible piece of the hero art must sit inside the viewport at phone
