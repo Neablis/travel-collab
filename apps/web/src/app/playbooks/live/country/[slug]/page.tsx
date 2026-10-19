@@ -1,4 +1,8 @@
+import { JsonLd } from "@/components/JsonLd";
 import { PlaceDaysList } from "@/components/playbooks/PlaceDaysList";
+import { deploymentOrigin } from "@/lib/deploymentOrigin";
+import { placeItemListJsonLd } from "@/lib/jsonLd";
+import { placeIndexable } from "@/lib/playbookUrls";
 import { placeListing, placeMetadata, type PlaceRouteProps } from "@/server/placePage";
 import { libraryProps, type LibraryRoute } from "@/lib/playbooksPageReader";
 
@@ -11,10 +15,12 @@ export async function generateMetadata(route: LibraryRoute<PlaceRouteProps>) {
 // kind, in `server/placePage.ts`. The slug is the English name of the ISO code.
 /** `/playbooks/country/<slug>`: that country's published days, paged by `?page=N`, or a 404. */
 export default async function CountryPage(route: LibraryRoute<PlaceRouteProps>) {
-  const props = await libraryProps(route);
+  const listing = await placeListing("country", await libraryProps(route));
   return (
     <main className="mx-auto max-w-6xl px-6 py-8">
-      <PlaceDaysList {...await placeListing("country", props)} />
+      {/* As on the city page: only an indexable page lists its days to a crawler. */}
+      {placeIndexable({ days: listing.total }) && <JsonLd data={placeItemListJsonLd(listing.days, deploymentOrigin())} />}
+      <PlaceDaysList {...listing} />
     </main>
   );
 }
