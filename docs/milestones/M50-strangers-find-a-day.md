@@ -108,7 +108,8 @@ Eight parts, each its own PR on `main` (the plan has the files):
       `showhn` on the account; a second `?ref=` does not overwrite the first; a malformed ref is
       dropped; `/` stays static (its response headers in the PR). Integration test seen red.
 - [ ] **Report:** the console's Users tab and `pnpm signups-by-ref` show signups per channel.
-- [ ] **JSON-LD:** every city and country page emits one `ItemList` of its playbook days, with
+- [ ] **JSON-LD:** every indexable city and country page (`placeIndexable`; thinner ones are
+      `noindex` and emit none) carries one `ItemList` of the days it shows, with
       absolute URLs, validated by the seo spec; the cached `[copy]` twins carry it too.
 - [ ] **One step:** signed out, *Add to a trip* → sign up → lands on `/trips/<new>` with the day
       in it, no dialog. The existing `public-playbooks.spec.ts` path is updated and green in CI.
