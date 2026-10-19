@@ -4,8 +4,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SavedStop } from "@tc/contracts";
 
 const createSavedDayMock = vi.fn();
+const publishSavedDayMock = vi.fn();
 vi.mock("@/lib/apiClient", () => ({
   createSavedDay: (...args: unknown[]) => createSavedDayMock(...args),
+  publishSavedDay: (...args: unknown[]) => publishSavedDayMock(...args),
 }));
 
 import { KeepDayDialog, type KeepDayCandidate } from "./KeepDayDialog";
@@ -83,6 +85,7 @@ async function openPicker() {
 
 afterEach(cleanup);
 beforeEach(() => {
+  publishSavedDayMock.mockReset();
   createSavedDayMock.mockReset().mockResolvedValue({
     ok: true,
     value: { savedDayId: "s1", name: "Day 3 of Kyoto" },
@@ -479,5 +482,58 @@ describe("KeepDayDialog — click and drag across days", () => {
 
     expect(pressed()).toEqual([false, false, true]);
     expect(screen.getByRole("button", { name: "Keep this day" })).toBeTruthy();
+  });
+});
+
+// M50 decision 7: a trip that is over is offered as a Playbook. The dialog opens
+// on every day with the trip's name, and its one action keeps and publishes.
+describe("KeepDayDialog, publishing a whole trip", () => {
+  function renderPublish() {
+    const onPublished = vi.fn();
+    render(
+      <KeepDayDialog
+        open
+        onOpenChange={vi.fn()}
+        tripId={tripId}
+        dayId={DAY_1}
+        tripName="Kyoto"
+        days={tripDays}
+        publish={{ onPublished }}
+      />,
+    );
+    return { onPublished };
+  }
+
+  it("opens with every day picked and the trip's name", () => {
+    renderPublish();
+    expect((screen.getByLabelText("Name") as HTMLInputElement).value).toBe("Kyoto");
+    const cells = within(screen.getByRole("group", { name: "Days to keep" })).getAllByRole("button");
+    expect(cells.map((cell) => cell.getAttribute("aria-pressed"))).toEqual(["true", "true", "true"]);
+  });
+
+  it("saves every day, publishes what it saved, and hands back the public day", async () => {
+    const published = { savedDayId: "s1", name: "Kyoto", visibility: "public" };
+    publishSavedDayMock.mockResolvedValue({ ok: true, value: published });
+    const { onPublished } = renderPublish();
+    await userEvent.click(screen.getByRole("button", { name: "Save & publish" }));
+
+    expect(createSavedDayMock).toHaveBeenCalledWith({ name: "Kyoto", tripId, dayIds: [DAY_1, DAY_2, dayId] });
+    expect(publishSavedDayMock).toHaveBeenCalledWith("s1");
+    expect(onPublished).toHaveBeenCalledWith(published);
+  });
+
+  it("does not keep it twice when only the publish failed", async () => {
+    publishSavedDayMock
+      .mockResolvedValueOnce({ ok: false, error: { status: 500, message: "Try again." } })
+      .mockResolvedValueOnce({ ok: true, value: { savedDayId: "s1", name: "Kyoto" } });
+    const { onPublished } = renderPublish();
+    await userEvent.click(screen.getByRole("button", { name: "Save & publish" }));
+    expect(await screen.findByText(/Try again\./)).toBeTruthy();
+    expect(onPublished).not.toHaveBeenCalled();
+
+    await userEvent.click(screen.getByRole("button", { name: "Save & publish" }));
+    expect(createSavedDayMock).toHaveBeenCalledTimes(1);
+    expect(publishSavedDayMock).toHaveBeenCalledTimes(2);
+    expect(onPublished).toHaveBeenCalledTimes(1);
   });
 });

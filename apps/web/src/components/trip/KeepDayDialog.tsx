@@ -1,15 +1,16 @@
 "use client";
 
 import { useEffect, useId, useState } from "react";
-import type { SavedStop, TimeFormat } from "@tc/contracts";
+import type { SavedDay, SavedStop, TimeFormat, TripDetail } from "@tc/contracts";
 import { Dialog } from "@/components/ui/dialog";
 import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { DayGrid, dragSpan, type DayGridDrag } from "@/components/ui/day-grid";
 import { Text } from "@/components/ui/text";
-import { createSavedDay } from "@/lib/apiClient";
-import { isDroppedFromPlaybook } from "@/lib/savedStops";
+import { createSavedDay, publishSavedDay } from "@/lib/apiClient";
+import { cityFor } from "@/lib/dayChips";
+import { isDroppedFromPlaybook, stopsForDay } from "@/lib/savedStops";
 import { submitOnEnter } from "@/lib/submitOnEnter";
 import { toClockLabel, toClockRange } from "@/lib/time";
 import { useTimeFormat } from "@/components/account/PreferencesProvider";
@@ -92,6 +93,22 @@ export type KeepDayCandidate = {
   city: string | null;
   stops: SavedStop[];
 };
+
+/**
+ * Every day of the trip as the picker needs it (M23 link 4), in one pass over
+ * the trip. The board's pennants and the publish offer both open the dialog
+ * from this.
+ */
+export function keepCandidatesFor(trip: TripDetail): KeepDayCandidate[] {
+  return trip.days.map((day) => ({
+    dayId: day.dayId,
+    date: day.date,
+    // The same derivation as the day's chip, so the picker's `Day N · City`
+    // (§35.7) never names a different city than the chip above it.
+    city: cityFor(day, trip.activities),
+    stops: stopsForDay(trip, day.dayId) ?? [],
+  }));
+}
 
 /**
  * What is about to be kept, stated before the button acts (M23 link 4).
@@ -233,6 +250,7 @@ export function KeepDayDialog({
   tripName,
   days,
   onSaved,
+  publish,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -244,6 +262,14 @@ export function KeepDayDialog({
   days: KeepDayCandidate[];
   /** Called once the keep lands, with how many days went into it. */
   onSaved?: (dayCount: number) => void;
+  /**
+   * **Keep the whole trip and publish it** (M50 decision 7), the offer on a
+   * trip that is over. The dialog opens on every day with the trip's name, and
+   * its action is *Save & publish*: the keep, then the publish, then
+   * `onPublished` with the public day. Same two calls a person makes by hand
+   * from the shared-day page, in the same order.
+   */
+  publish?: { onPublished: (day: SavedDay) => void };
 }) {
   const clock = useTimeFormat();
   const nameId = useId();
@@ -257,6 +283,10 @@ export function KeepDayDialog({
   const [showDays, setShowDays] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // The keep a failed publish left behind, so pressing again publishes it
+  // rather than keeping the trip a second time.
+  const [keptId, setKeptId] = useState<string | null>(null);
+  const publishing = publish !== undefined;
 
   // **Selection is kept in TRIP ORDER, never click order.** The array's order
   // becomes each stop's `dayIndex` (`stopsForDays`), so it decides what the
@@ -284,19 +314,26 @@ export function KeepDayDialog({
   // the previous day's selection or its name.
   useEffect(() => {
     if (open) {
-      setSelectedIds([dayId]);
-      setShowDays(false);
+      // Publishing a trip is about all of it, so every day arrives ticked and
+      // the strip is open to untick one.
+      setSelectedIds(publishing ? days.map((d) => d.dayId) : [dayId]);
+      setShowDays(publishing);
       setNameTouched(false);
       setError(null);
+      setKeptId(null);
     }
-  }, [open, dayId]);
+    // `days` is left out on purpose: a board re-render while the dialog is open
+    // must not undo the reader's unticking.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, dayId, publishing]);
 
   // The name follows the selection until the reader types. `nameTouched` is the
-  // whole of that rule: after it flips, nothing here writes to `name` again.
+  // whole of that rule: after it flips, nothing here writes to `name` again. A
+  // whole trip is offered under its own name.
   useEffect(() => {
     if (!open || nameTouched) return;
-    setName(defaultName(days.filter((d) => selectedIds.includes(d.dayId)), days, tripName));
-  }, [open, nameTouched, selectedIds, days, tripName]);
+    setName(publishing ? tripName : defaultName(days.filter((d) => selectedIds.includes(d.dayId)), days, tripName));
+  }, [open, nameTouched, selectedIds, days, tripName, publishing]);
 
   // Nothing to save is the WHOLE selection being empty — one blank day among
   // three is a rest day and is perfectly keepable. `saveDay` draws the same
@@ -338,15 +375,32 @@ export function KeepDayDialog({
     }
     setBusy(true);
     setError(null);
-    // Trip order, from `selected` — see the note where it is derived.
-    const result = await createSavedDay({ name: trimmed, tripId, dayIds: selected.map((d) => d.dayId) });
+    let savedDayId = keptId;
+    if (savedDayId === null) {
+      // Trip order, from `selected` — see the note where it is derived.
+      const result = await createSavedDay({ name: trimmed, tripId, dayIds: selected.map((d) => d.dayId) });
+      if (!result.ok) {
+        setBusy(false);
+        setError(result.error.message);
+        return;
+      }
+      savedDayId = result.value.savedDayId;
+    }
+    if (publish === undefined) {
+      setBusy(false);
+      onOpenChange(false);
+      onSaved?.(selected.length);
+      return;
+    }
+    const published = await publishSavedDay(savedDayId);
     setBusy(false);
-    if (!result.ok) {
-      setError(result.error.message);
+    if (!published.ok) {
+      setKeptId(savedDayId);
+      setError(`Kept in your Playbooks, but not published yet. ${published.error.message}`);
       return;
     }
     onOpenChange(false);
-    onSaved?.(selected.length);
+    publish.onPublished(published.value);
   }
 
   return (
@@ -535,7 +589,7 @@ export function KeepDayDialog({
               disabled={busy || nothingToSave}
               onClick={() => void save()}
             >
-              {selected.length > 1 ? `Keep ${selected.length} days` : "Keep this day"}
+              {publishing ? "Save & publish" : selected.length > 1 ? `Keep ${selected.length} days` : "Keep this day"}
             </Button>
           </div>
         </div>
@@ -563,7 +617,9 @@ export function KeepDayDialog({
             </Text>
           )}
           <Text as="span" className="text-xs text-slate">
-            Saved days are private to you. Add one to any trip you can edit.
+            {publishing
+              ? "Published, it is a public Playbook anyone can find and read. You can unpublish it later."
+              : "Saved days are private to you. Add one to any trip you can edit."}
           </Text>
         </div>
       </div>

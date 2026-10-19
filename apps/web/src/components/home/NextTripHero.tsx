@@ -38,6 +38,7 @@ import { needsBooking } from "@/lib/needsBooking";
 import { tripSpend, plannedOfBudgetLine } from "@/lib/cost";
 import { cn } from "@/lib/cn";
 import { useCreatedLabel } from "@/lib/useCreatedLabel";
+import { PublishTripOffer, viewerKeepsDays } from "@/components/trip/PublishTripOffer";
 
 export type NextTripHeroProps = {
   trip: TripSummary;
@@ -376,6 +377,9 @@ export function NextTripHero({ trip, menuSlot, viewerId, unreadChat = 0 }: NextT
                 </div>
               )}
             </div>
+
+            {/* M50 decision 7: the hero is a trip that is over when every trip is. */}
+            <PublishTripOffer trip={trip} canPublish={viewerKeepsDays(trip.members, viewerId)} />
 
             {cover === null && travellerStack}
 

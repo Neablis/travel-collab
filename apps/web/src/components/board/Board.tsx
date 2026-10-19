@@ -13,7 +13,7 @@ import { Toast } from "@/components/ui/toast";
 import { useTimeFormat } from "@/components/account/PreferencesProvider";
 import { toClockLabel } from "@/lib/time";
 import { useEditor } from "@/components/trip/context/EditorHost";
-import { chipModel, cityFor } from "@/lib/dayChips";
+import { chipModel } from "@/lib/dayChips";
 import { centralDayIndex, READING_LINE, stepDay } from "@/components/trip/centralDay";
 import { classifyDaySwipe, isDaySwipeExempt, type SwipePoint } from "./daySwipe";
 import { DAY_CHANGE_TRANSITION_MS, dayChangeTransition } from "./dayTransition";
@@ -24,8 +24,9 @@ import {
 } from "@/components/trip/context/FocusProvider";
 import { badgeableConflictSubjects, overlapsForDay, type Overlap } from "@/components/lenses/overlapData";
 import { dayAccents } from "@/lib/dayAccent";
-import { stopsForDay } from "@/lib/savedStops";
 import { KeepDayFlag } from "@/components/trip/KeepDayFlag";
+import { keepCandidatesFor } from "@/components/trip/KeepDayDialog";
+import { PublishTripOffer } from "@/components/trip/PublishTripOffer";
 import { Column, DAY_COLUMN_WIDTH_PX } from "./Column";
 import { GhostDayColumn } from "./GhostDayColumn";
 import type { BoardSuggestions, RiverGestures } from "./DayRiver";
@@ -761,18 +762,7 @@ export function Board({
    * `stopsForDay` per flag, which is N passes over every activity to build N
    * copies of the same list.
    */
-  const keepCandidates = useMemo(
-    () =>
-      trip.days.map((day) => ({
-        dayId: day.dayId,
-        date: day.date,
-        // The same derivation as the day's chip, so the picker's `Day N ·
-        // City` (§35.7) never names a different city than the chip above it.
-        city: cityFor(day, trip.activities),
-        stops: stopsForDay(trip, day.dayId) ?? [],
-      })),
-    [trip],
-  );
+  const keepCandidates = useMemo(() => keepCandidatesFor(trip), [trip]);
 
   // The monitor reads `trip` and `callbacks` through a ref rather than closing
   // over them, so its effect below can have an empty dependency list and
@@ -955,6 +945,14 @@ export function Board({
     // columns sat flush against the header (same gap TimelineLens's rows
     // needed above their own first row).
     <div className="flex flex-col gap-3 pt-3">
+      {/* M50 decision 7, at the top of a trip that is over, to whoever the
+          Keep pennant below is drawn for. The summary's `endDate` is the last
+          day's date, so it is read off the days here. */}
+      <PublishTripOffer
+        trip={{ tripId: trip.tripId, name: trip.name, endDate: trip.days.at(-1)?.date ?? null }}
+        canPublish={!readOnly && !suggesting}
+        days={keepCandidates}
+      />
       <ConflictBanner
         conflicts={trip.conflicts}
         dismissedConflictIds={trip.dismissedConflictIds}

@@ -2,9 +2,18 @@ import { act, cleanup, render, screen, within } from "@testing-library/react";
 import { hydrateRoot, type Root } from "react-dom/client";
 import { renderToString } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { TripSummary } from "@tc/contracts";
+import userEvent from "@testing-library/user-event";
+import type { TripSummary, UserPreferences } from "@tc/contracts";
 import { tripCoverFactory, tripSummaryFactory, tripSummaryMemberFactory } from "@tc/factories";
+import { PreferencesProvider } from "@/components/account/PreferencesProvider";
 import { TripCard } from "./TripCard";
+
+const updatePreferencesMock = vi.fn();
+vi.mock("@/lib/apiClient", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/apiClient")>()),
+  updatePreferences: (...args: unknown[]) => updatePreferencesMock(...args),
+}));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
 
 afterEach(() => {
   cleanup();
@@ -378,5 +387,69 @@ describe("TripCard — unread chat", () => {
     // Witness: the card rendered.
     expect(screen.getByRole("heading", { name: "Iceland Ring Road" })).toBeTruthy();
     expect(screen.queryByRole("img", { name: /unread/ })).toBeNull();
+  });
+});
+
+// M50 decision 7: once a trip is over, its card offers to publish its days, to
+// the people who could keep them, until they dismiss it.
+describe("TripCard — publish a trip that is over", () => {
+  const preferences = (dismissedPublishOffers: string[]): UserPreferences => ({
+    displayName: null,
+    homeAirport: null,
+    distanceUnit: "km",
+    timeFormat: "12h",
+    avatar: null,
+    color: null,
+    publicDisplayName: false,
+    dismissedPublishOffers,
+  });
+  let n = 0;
+  const trip = (name: string, endDate: string | null, role: "owner" | "viewer" | "suggester" = "owner") =>
+    tripSummaryFixture({
+      tripId: `6e9a2c9e-3f7a-4b6e-9d3f-${String(++n).padStart(12, "0")}`,
+      name,
+      startDate: endDate,
+      endDate,
+      members: [tripSummaryMemberFactory.build({ userId: "dev-alice", role })],
+    });
+  function renderCards(trips: TripSummary[], dismissed: string[] = []) {
+    return render(
+      <PreferencesProvider initialRead={{ preferences: preferences(dismissed), defaultColor: null, isAdmin: false }}>
+        {trips.map((t) => (
+          <TripCard key={t.tripId} trip={t} viewerId="dev-alice" />
+        ))}
+      </PreferencesProvider>,
+    );
+  }
+  // Waits for the first offer, which is also the witness that today has been
+  // read: before that no card offers anything.
+  const offeredOn = async () => {
+    await screen.findAllByRole("group", { name: "Publish this trip" });
+    return screen
+      .getAllByTestId("trip-card")
+      .filter((card) => within(card).queryByRole("group", { name: "Publish this trip" }) !== null)
+      .map((card) => within(card).getByRole("heading").textContent);
+  };
+
+  it("offers it on a trip that ended, and not on one still to come or undated", async () => {
+    renderCards([trip("Lisbon", "2020-05-03"), trip("Later", "2999-01-01"), trip("Someday", null)]);
+    expect(await offeredOn()).toEqual(["Lisbon"]);
+  });
+
+  it("offers it only to someone who could keep the days", async () => {
+    renderCards([trip("Mine", "2020-05-03"), trip("Shown to me", "2020-05-03", "viewer"), trip("Suggesting", "2020-05-03", "suggester")]);
+    expect(await offeredOn()).toEqual(["Mine"]);
+  });
+
+  it("stays dismissed, and dismissing stores the trip with those already dismissed", async () => {
+    const gone = trip("Gone", "2020-05-03");
+    const kept = trip("Kept", "2020-05-03");
+    updatePreferencesMock.mockResolvedValue({ ok: true, value: preferences([gone.tripId, kept.tripId]) });
+    renderCards([gone, kept], [gone.tripId]);
+    expect(await offeredOn()).toEqual(["Kept"]);
+
+    await userEvent.click(screen.getByRole("button", { name: "Dismiss" }));
+    expect(screen.queryByRole("group", { name: "Publish this trip" })).toBeNull();
+    expect(updatePreferencesMock).toHaveBeenCalledWith({ dismissedPublishOffers: [gone.tripId, kept.tripId] });
   });
 });

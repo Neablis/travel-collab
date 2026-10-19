@@ -1,0 +1,93 @@
+import { cleanup, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import type { UserPreferences } from "@tc/contracts";
+import { PreferencesProvider } from "@/components/account/PreferencesProvider";
+import type { KeepDayCandidate } from "./KeepDayDialog";
+
+const createSavedDayMock = vi.fn();
+const publishSavedDayMock = vi.fn();
+vi.mock("@/lib/apiClient", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/apiClient")>()),
+  createSavedDay: (...args: unknown[]) => createSavedDayMock(...args),
+  publishSavedDay: (...args: unknown[]) => publishSavedDayMock(...args),
+}));
+const push = vi.fn();
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
+
+import { PublishTripOffer } from "./PublishTripOffer";
+
+afterEach(cleanup);
+
+const preferences: UserPreferences = {
+  displayName: null,
+  homeAirport: null,
+  distanceUnit: "km",
+  timeFormat: "12h",
+  avatar: null,
+  color: null,
+  publicDisplayName: false,
+  dismissedPublishOffers: [],
+};
+
+const tripId = "6e9a2c9e-3f7a-4b6e-9d3f-2b1a5c8d7e6f";
+const savedDayId = "8b1f3c2a-1d4e-4f5a-9b6c-7d8e9f0a1b2c";
+const days: KeepDayCandidate[] = [
+  { dayId: "d1", date: "2020-05-01", city: "Lisbon", stops: [] },
+  {
+    dayId: "d2",
+    date: "2020-05-02",
+    city: "Sintra",
+    stops: [
+      {
+        title: "Pena Palace",
+        timeWindow: null,
+        location: null,
+        notes: null,
+        anchors: [],
+        kind: "planned",
+        tags: [],
+        cost: null,
+        dayIndex: 0,
+        mode: null,
+        endLocation: null,
+        pendingReason: null,
+      },
+    ],
+  },
+];
+
+function renderOffer(canPublish: boolean) {
+  return render(
+    <PreferencesProvider initialRead={{ preferences, defaultColor: null, isAdmin: false }}>
+      <PublishTripOffer trip={{ tripId, name: "Lisbon long weekend", endDate: "2020-05-02" }} canPublish={canPublish} days={days} />
+    </PreferencesProvider>,
+  );
+}
+
+// M50 decision 7, at the top of the trip page: the board passes the gate its
+// Keep pennant uses, and the days it already has.
+describe("PublishTripOffer on the trip page", () => {
+  it("publishes the whole trip and lands on its public page", async () => {
+    createSavedDayMock.mockResolvedValue({ ok: true, value: { savedDayId, name: "Lisbon long weekend" } });
+    publishSavedDayMock.mockResolvedValue({ ok: true, value: { savedDayId, name: "Lisbon long weekend" } });
+    renderOffer(true);
+    await userEvent.click(await screen.findByRole("button", { name: "Publish" }));
+    await userEvent.click(screen.getByRole("button", { name: "Save & publish" }));
+
+    expect(createSavedDayMock).toHaveBeenCalledWith({ name: "Lisbon long weekend", tripId, dayIds: ["d1", "d2"] });
+    expect(push).toHaveBeenCalledWith(`/playbooks/day/lisbon-long-weekend-${savedDayId}`);
+  });
+
+  it("is not offered to someone the board does not let keep a day", async () => {
+    const { rerender } = renderOffer(true);
+    // Witness: today has been read, and the trip is over.
+    expect(await screen.findByRole("group", { name: "Publish this trip" })).toBeTruthy();
+    rerender(
+      <PreferencesProvider initialRead={{ preferences, defaultColor: null, isAdmin: false }}>
+        <PublishTripOffer trip={{ tripId, name: "Lisbon long weekend", endDate: "2020-05-02" }} canPublish={false} days={days} />
+      </PreferencesProvider>,
+    );
+    expect(screen.queryByRole("group", { name: "Publish this trip" })).toBeNull();
+  });
+});

@@ -217,6 +217,34 @@ export function useShownColor(): PersonColor | null {
   return value?.preferences.color ?? value?.defaultColor ?? null;
 }
 
+/**
+ * The trips whose publish-as-a-Playbook offer this person dismissed (M50
+ * decision 7), and how to dismiss one more. Stored on the account, so a
+ * dismissal on the phone holds on the laptop.
+ *
+ * `null` outside a provider and until the first read lands: without the list
+ * the offer cannot know whether it was already dismissed, and showing it again
+ * to someone who said no is the worse mistake.
+ */
+export function usePublishOfferDismissals(): {
+  dismissed: readonly string[];
+  dismiss: (tripId: string) => void;
+} | null {
+  const value = useContext(Context);
+  const dismissed = value?.preferences.dismissedPublishOffers;
+  const save = value?.save;
+  const dismiss = useCallback(
+    (tripId: string) => {
+      // The whole list, as the contract asks: the read this was built from is
+      // at most one save old, since every save adopts the server's answer.
+      if (save !== undefined) void save({ dismissedPublishOffers: [...(dismissed ?? []), tripId] });
+    },
+    [save, dismissed],
+  );
+  if (value === null || !value.loaded) return null;
+  return { dismissed: dismissed ?? [], dismiss };
+}
+
 /** The common case, named for what the call sites are asking. */
 export function useDistanceUnit(): DistanceUnit {
   return usePreferences().distanceUnit;
