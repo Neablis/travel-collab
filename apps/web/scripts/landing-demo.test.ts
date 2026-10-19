@@ -1,7 +1,9 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
-import { buildLandingDemo, buildLandingFeatures, CARDS_PATH, FEATURES_PATH, serializeLandingDemo, snapshotPath } from "./landing-demo";
-import { demoTripCards } from "@/server/demoTrip";
+import { buildLandingDemo, buildLandingFeatures, CARDS_PATH, demoPersonasOf, FEATURES_PATH, serializeLandingDemo, snapshotPath } from "./landing-demo";
+import { personasOf } from "@/components/pages/people";
+import { demoTripBySlug } from "@/lib/demoTrip";
+import { demoTripCards, demoTripMembers } from "@/server/demoTrip";
 
 // `pnpm landing:verify`, inside `pnpm test` — where the fixture's own check
 // (`seed:verify`) and the content lint already run in CI. The front door draws
@@ -61,6 +63,20 @@ describe("the landing's feature blocks", () => {
     const fresh = serializeLandingDemo(buildLandingFeatures());
     expect(JSON.parse(committed)).toEqual(JSON.parse(fresh));
     expect(committed).toBe(fresh);
+  });
+});
+
+// The script restates the board's `personasOf`, which it cannot load. Held to
+// the original here, so a naming rule changed there cannot leave the notebook
+// page's people on the old one while `landing:verify` compares the script
+// with itself. `colorShifted` is the board's alone: a widget persona has none.
+describe("the landing's people", () => {
+  it("are the board's personas for the demo trip", () => {
+    const { tripId } = demoTripBySlug("japan")!;
+    const board = Object.fromEntries(
+      Object.entries(personasOf(demoTripMembers(tripId))).map(([userId, { colorShifted: _shifted, ...persona }]) => [userId, persona]),
+    );
+    expect(demoPersonasOf(tripId)).toEqual(board);
   });
 });
 

@@ -115,12 +115,16 @@ export function MemoryPanel(): React.ReactElement {
  * between the notebook's own block widgets — the day's stops at their times,
  * its daylight — and signed by who was there. Read-only payloads drawn by the
  * blocks directly, not through the editor's dispatcher, so `/` stays static.
+ *
+ * Signed with the people widget's chips and not its sentence: that is the
+ * trip's "Who's going", future tense ("are going with Sam"), and this page is
+ * about a day already lived.
  */
 export function NotebookPagePanel(): React.ReactElement {
   const [opening, ...rest] = LANDING_FEATURES.memory;
   const { day, sun, people } = LANDING_FEATURES.page;
   return (
-    <div className={PAGE}>
+    <div data-testid="notebook-page" className={PAGE}>
       <TripStripBlock payload={LANDING_DEMO.notebook.strip} accents={LANDING_ACCENTS} />
       {opening && <Paragraph segs={opening} />}
       <ItineraryDayBlock payload={day} />
@@ -128,7 +132,7 @@ export function NotebookPagePanel(): React.ReactElement {
       {rest.map((segs, i) => (
         <Paragraph key={i} segs={segs} />
       ))}
-      <TripPeopleBlock payload={people} />
+      <TripPeopleBlock payload={{ ...people, sentence: "" }} />
     </div>
   );
 }

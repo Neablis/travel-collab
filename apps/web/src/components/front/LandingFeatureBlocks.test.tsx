@@ -133,17 +133,22 @@ describe("LandingFeatureBlocks", () => {
     expect(stops.getAllByRole("listitem")).toHaveLength(5);
     expect(stops.getByText("Kaiseki dinner at the ryokan")).toBeDefined();
     expect(notebook.getByRole("table", { name: /^Sunrise and sunset for 1 day/ })).toBeDefined();
-    expect(notebook.getByText(/are going with Sam\.$/)).toBeDefined();
+    // Who was there, as the widget's chips. Not its sentence: that is the
+    // trip's "Who's going", future tense, under a page about a day gone by.
+    expect(["Priya", "Jonah", "Mei"].map((name) => notebook.getByTitle(name).title)).toEqual(["Priya", "Jonah", "Mei"]);
+    expect(notebook.queryByText(/are going with/)).toBeNull();
   });
 
-  // Mitchell, 2026-10-11: the front door's example day carries a rating, seeded
-  // into the landing's snapshot only, rather than "No reviews yet".
-  it("rates the playbook as its reviews would", async () => {
+  // Mitchell, 2026-10-11: the front door's example day, his own, carries a
+  // rating seeded into the landing's snapshot only. That ruling is his day's
+  // alone (2026-10-19): Railay has no reviews, so its card says so rather than
+  // print a number nobody gave it. Railay stands first, under the copy.
+  it("rates Mitchell's playbook as its reviews would, and invents none for Railay", async () => {
     render(<LandingFeatureBlocks />);
     const playbooks = within(screen.getByRole("region", { name: PLAYBOOKS }));
     await playbooks.findByRole("link", { name: LANDING_FEATURES.playbook.name });
-    expect(playbooks.getByText("4.7 · 23 reviews")).toBeDefined();
-    expect(playbooks.queryByText("No reviews yet")).toBeNull();
+    await playbooks.findByRole("link", { name: RAILAY });
+    expect(playbooks.getAllByTestId("card-rating").map((line) => line.textContent)).toEqual(["No reviews yet", "★ 4.7 · 23 reviews"]);
   });
 
   // Mitchell, 2026-10-11: *"it should be more nostalgic than how much you

@@ -108,7 +108,7 @@ function undatedDemo(slug: string) {
     activities: Object.fromEntries(Object.entries(folded.activities).map(([id, activity]) => [id, { ...activity, cost: null }])),
   };
   const globals = buildTripGlobals(trip);
-  const ctx: WidgetContext = { trip, page: { tripId: demo.tripId }, user: null, globals, today: null, personas: personasOf(demo.tripId) };
+  const ctx: WidgetContext = { trip, page: { tripId: demo.tripId }, user: null, globals, today: null, personas: demoPersonasOf(demo.tripId) };
   // The sun is arithmetic on a place and a DATE, so it alone resolves against
   // the fold's fixed dates. What it prints carries none (a clock time, a length
   // of day), so nothing in the snapshot names a day that will pass.
@@ -121,9 +121,10 @@ function undatedDemo(slug: string) {
  * (`components/pages/people.tsx`) gives the board: `displayNameFor` with no
  * email, the member's own avatar and colour, and `travellerIds` for who is
  * going. That module is a client one this script cannot load, so the rule is
- * restated here rather than imported.
+ * restated here rather than imported, and `landing-demo.test.ts` holds the
+ * copy to the original.
  */
-function personasOf(tripId: string): NonNullable<WidgetContext["personas"]> {
+export function demoPersonasOf(tripId: string): NonNullable<WidgetContext["personas"]> {
   const members = demoTripMembers(tripId);
   const going = new Set(travellerIds(members));
   return Object.fromEntries(
@@ -265,12 +266,17 @@ function landingCard(row: DiscoverRow): DiscoverDay {
  * empty photo mat stood). A library playbook, read from the bundle the
  * production import reads and resolved by the same `resolvePlaybook`, so its
  * id is the one the library serves and its card links to a day that exists.
- * Its adds are the bundle's own ledger; its rating is seeded as Hanoi's is,
- * for the landing only, so neither card on the front door says "No reviews yet".
+ * Its adds are the bundle's own ledger. It has no reviews, and its card says
+ * so: the seeded rating is Mitchell's ruling for his own Hanoi day alone
+ * (2026-10-19), never a number invented for somebody else's.
+ *
+ * The card is a frozen copy of a row the content import owns, re-derived from
+ * the bundle file only, so `landing:verify` cannot see the production row
+ * change: hidden by a moderator, renamed or pruned away, or given a cover by
+ * its author. Check the row on production's Discover when regenerating.
  */
 const SHELF_BUNDLE_PATH = new URL("../../../content/playbooks/thailand-beaches.json", import.meta.url);
 const SHELF_KEY = "railay-limestone-and-sunset";
-const SHELF_SEED = { rating: 4.8, reviewCount: 17 };
 
 function shelfPlaybook(): DiscoverDay {
   const bundle = parseBundle(JSON.parse(readFileSync(SHELF_BUNDLE_PATH, "utf8")));
@@ -292,8 +298,8 @@ function shelfPlaybook(): DiscoverDay {
     author_kind: day.authorKind,
     day_count: day.dayCount,
     adds: day.addedBy.length,
-    rating: SHELF_SEED.rating,
-    review_count: SHELF_SEED.reviewCount,
+    rating: null,
+    review_count: 0,
     source_trip_name: day.sourceTripName,
     created_at: day.keptOn,
     published_at: day.keptOn,

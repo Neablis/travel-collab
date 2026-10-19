@@ -913,11 +913,12 @@ test.describe("responsive (narrow viewport, signed out)", () => {
     expect((await hanoi.boundingBox())!.x).toBeGreaterThan(centre);
 
     // The notebook's frame is filled by its page, with no dead space under
-    // the last widget: the page's own padding and the frame's, and no more
-    // (the frame used to hold a 430px floor over half that much page).
-    const notebookFrame = (await desktop.getByTestId("spread-frame-landing-notebook").boundingBox())!;
-    const signature = (await desktop.getByRole("region", { name: "How you’ll remember it." }).getByText(/are going with Sam\.$/).boundingBox())!;
-    expect(notebookFrame.y + notebookFrame.height - (signature.y + signature.height)).toBeLessThanOrEqual(48);
+    // it: the frame's own padding, and no more (the frame used to hold a
+    // 430px floor over half that much page).
+    const notebookRegion = desktop.getByRole("region", { name: "How you’ll remember it." });
+    const notebookFrame = (await notebookRegion.getByTestId("spread-frame").boundingBox())!;
+    const notebookPage = (await notebookRegion.getByTestId("notebook-page").boundingBox())!;
+    expect(notebookFrame.y + notebookFrame.height - (notebookPage.y + notebookPage.height)).toBeLessThanOrEqual(24);
 
     await page.setViewportSize({ width: 900, height: 900 });
     await expect(railay).toBeVisible();

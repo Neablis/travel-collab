@@ -176,7 +176,7 @@ function Spread({ id, eyebrow, title, intro, aside, mirrored = false, children }
           </BlockHead>
           {aside}
         </div>
-        <Card data-testid={`spread-frame-${id}`} className="flex w-full flex-col overflow-hidden rounded-lg p-0 pt-4.5">
+        <Card data-testid="spread-frame" data-spread={id} className="flex w-full flex-col overflow-hidden rounded-lg p-0 pt-4.5">
           <div className={BODY}>{children}</div>
         </Card>
       </div>
