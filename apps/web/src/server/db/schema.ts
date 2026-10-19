@@ -122,6 +122,11 @@ export const users = pgTable("users", {
   // and read by `server/billing/testMode.ts` behind `requireAdminApi`, and in
   // no payload, session or page props the account itself can read.
   stripeTestMode: boolean("stripe_test_mode").notNull().default(false),
+  // **The channel that first brought this account** (ADR-079): the
+  // `caesura_ref` cookie's value, written once when `recordSignIn` creates the
+  // row and never after. Null is a direct signup, or one that came before
+  // attribution existed.
+  signupRef: text("signup_ref"),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).notNull(),
 });
