@@ -81,8 +81,11 @@ describe("ShareButton", () => {
   it("reads nothing until the panel is opened", async () => {
     render(<ShareButton tripId={tripId} />);
     expect(fetchTripSharesMock).not.toHaveBeenCalled();
+    // The referral nudge reads on mount, so it must live inside the panel.
+    expect(referralsFetch).not.toHaveBeenCalled();
     await openPanel();
     await waitFor(() => expect(fetchTripSharesMock).toHaveBeenCalledWith(tripId));
+    await waitFor(() => expect(referralsFetch).toHaveBeenCalledTimes(1));
   });
 
   it("says which history point each link is pinned to", async () => {

@@ -70,6 +70,24 @@ describe("useReferralLink", () => {
     expect(writeText).toHaveBeenCalledWith(`${window.location.origin}/signup?code=MINTED234`);
   });
 
+  // A second click before the first mint has answered would see no unredeemed
+  // code either, and spend a second slot under the cap.
+  it("mints once when copy is pressed twice before the mint answers", async () => {
+    const fetchMock = serve({ earnsReward: true });
+    let answerMint: (res: Response) => void = () => {};
+    const { result } = renderHook(() => useReferralLink());
+    await waitFor(() => expect(result.current.earns).toBe(true));
+    fetchMock.mockImplementationOnce(() => new Promise<Response>((resolve) => (answerMint = resolve)));
+    await act(async () => {
+      const first = result.current.copy();
+      const second = result.current.copy();
+      answerMint(new Response(JSON.stringify({ code: "MINTED234" }), { status: 201 }));
+      await Promise.all([first, second]);
+    });
+    expect(posts(fetchMock)).toHaveLength(1);
+    expect(writeText).toHaveBeenLastCalledWith(`${window.location.origin}/signup?code=MINTED234`);
+  });
+
   it("says the codes are all out when the server refuses at the cap, and copies nothing", async () => {
     serve({ earnsReward: true, mint: 409 });
     const { result } = renderHook(() => useReferralLink());

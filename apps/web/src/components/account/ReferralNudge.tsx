@@ -30,20 +30,24 @@ export function ReferralNudge({ className }: { className?: string }) {
       {referral.status === "denied" && referral.link !== null ? (
         <Input readOnly aria-label="Referral link" value={referral.link} onFocus={(e) => e.target.select()} />
       ) : null}
-      {referral.status === "full" ? (
-        <Text as="span" className="text-xs text-slate">
-          You hold as many unused codes as you can. They are under{" "}
-          <Link href="/account?tab=plan" className="underline">
-            Account, Plan
-          </Link>
-          .
-        </Text>
-      ) : null}
-      {referral.status === "failed" ? (
-        <Text as="span" className="text-xs text-danger-ink">
-          Couldn&apos;t make a link just now.
-        </Text>
-      ) : null}
+      {/* Mounted before it has anything to say, so a screen reader announces
+          what lands in it: the button's name does not change on failure. */}
+      <div role="status">
+        {referral.status === "full" ? (
+          <Text as="span" className="text-xs text-slate">
+            You hold as many unused codes as you can. They are under{" "}
+            <Link href="/account?tab=plan" className="underline">
+              Account, Plan
+            </Link>
+            .
+          </Text>
+        ) : null}
+        {referral.status === "failed" ? (
+          <Text as="span" className="text-xs text-danger-ink">
+            Couldn&apos;t make a link just now.
+          </Text>
+        ) : null}
+      </div>
     </div>
   );
 }

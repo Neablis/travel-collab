@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 /**
  * **The referral link, in one place** (M50 part 8). Account › Plan had the
@@ -57,6 +57,9 @@ export function useReferralLink(): ReferralLinkState {
   const [body, setBody] = useState<ReferralsBody | null>(null);
   const [status, setStatus] = useState<ReferralLinkState["status"]>("idle");
   const [link, setLink] = useState<string | null>(null);
+  // `unredeemed` only changes once the mint has answered and re-rendered, so a
+  // second click before then would mint again: it waits on this one instead.
+  const minting = useRef<ReturnType<typeof mintReferralCode> | null>(null);
 
   useEffect(() => {
     let live = true;
@@ -75,7 +78,8 @@ export function useReferralLink(): ReferralLinkState {
   const copy = useCallback(async () => {
     let code = unredeemed;
     if (code === null) {
-      const minted = await mintReferralCode();
+      minting.current ??= mintReferralCode().finally(() => (minting.current = null));
+      const minted = await minting.current;
       if (!minted.ok) {
         setStatus(minted.full ? "full" : "failed");
         return;
