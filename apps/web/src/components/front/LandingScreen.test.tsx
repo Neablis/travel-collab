@@ -51,7 +51,7 @@ describe("LandingScreen", () => {
   it("leads with the product claim", () => {
     render(<LandingScreen />);
     expect(
-      within(screen.getByTestId("desktop-landing")).getByRole("heading", { name: "Put the best day on repeat." }),
+      within(screen.getByTestId("desktop-landing")).getByRole("heading", { name: "Plan the trip together." }),
     ).toBeDefined();
   });
 

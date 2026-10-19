@@ -3,6 +3,7 @@
 import { type ReactNode, useEffect, useRef } from "react";
 import Link from "next/link";
 import { BrandMark } from "@/components/BrandMark";
+import { Badge } from "@/components/ui/badge";
 import { LandingFeaturePanel } from "@/components/front/LandingFeaturePanel";
 import { LandingPricing } from "@/components/front/LandingPricing";
 import { buttonVariants } from "@/components/ui/button";
@@ -143,9 +144,13 @@ const CLAIMS: readonly { label: string; body: string; example?: ReactNode }[] = 
               4.8 ★
             </DataText>
           </span>
-          <Text as="span" className="text-xs text-slate">
-            6 stops · Relived 214 times
-          </Text>
+          {/* A drawing's number, not a real day's (M50 decision 13). */}
+          <span className="flex items-center gap-2">
+            <Text as="span" className="text-xs text-slate">
+              6 stops · Relived 214 times
+            </Text>
+            <Badge variant="neutral" className="flex-none px-1.5 text-3xs tracking-wider uppercase">Sample</Badge>
+          </span>
           <span className="flex items-center gap-2 rounded-lg bg-moss px-2.5 py-2">
             <Text as="span" className="text-xs text-ink">
               Dropping in as Day 2 — times shift to fit.
@@ -490,7 +495,7 @@ export function PhoneFrontDoor() {
                   headline as the document's one <h1>; CSS shows one tree per
                   breakpoint, and a crawler reads both. */}
               <Heading level={2} aria-level={1} className="mt-2 text-3xl">
-                Put the best day on repeat.
+                Plan the trip together.
               </Heading>
             </div>
 

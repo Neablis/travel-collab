@@ -33,9 +33,18 @@ import { cn } from "@/lib/cn";
 // otherwise take the whole front door down the moment a panel was shown. Each
 // panel has its own boundary whose fallback is the art `Suspense` shows while
 // loading (`SpendByDayBlock` and its chart, same shape).
-const loadPanels = () => import("./LandingHeroPanels");
-const TimelinePanel = lazy(() => loadPanels().then((m) => ({ default: m.TimelinePanel })));
-const NotebookPanel = lazy(() => loadPanels().then((m) => ({ default: m.NotebookPanel })));
+// One import shared by both, as `LandingFeaturePanel.tsx` does and for its reason,
+// and forgotten when it fails, so a blip during the prefetch is retried by the
+// view that next asks rather than kept for the session.
+let panels: Promise<typeof import("./LandingHeroPanels")> | undefined;
+/** The one import of the hero's real Timeline and Notebook panels both share; a failed one is dropped so the next caller retries. */
+export const loadHeroPanels = () =>
+  (panels ??= import("./LandingHeroPanels").catch((e: unknown) => {
+    panels = undefined;
+    throw e;
+  }));
+const TimelinePanel = lazy(() => loadHeroPanels().then((m) => ({ default: m.TimelinePanel })));
+const NotebookPanel = lazy(() => loadHeroPanels().then((m) => ({ default: m.NotebookPanel })));
 
 const ROTATE_MS = 10_000;
 const VIEW_COUNT = 3;
@@ -180,7 +189,7 @@ export function LandingHeroArt(): React.ReactElement {
   // boundary shows the static art.
   useEffect(() => {
     if (typeof window.matchMedia !== "function" || !window.matchMedia("(min-width: 768px)").matches) return;
-    loadPanels().catch(() => {});
+    loadHeroPanels().catch(() => {});
   }, []);
 
   useEffect(() => {

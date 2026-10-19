@@ -220,10 +220,10 @@ describe("AuthScreen", () => {
   // M11a link 6. Three refusals, three next actions — a shared message would
   // be a dead end for two of the three people who see it, so each is asserted
   // on a phrase only it contains, and on NOT being the generic fallback.
-  it("tells someone with no invite at all where to get one", () => {
+  it("tells someone with no invite at all that they no longer need one", () => {
     searchParams = new URLSearchParams("error=MISSING_INVITE_CODE");
     render(<AuthScreen mode="signin" devLoginEnabled={false} googleAvailable />);
-    expect(screen.getByText(/Caesura is invite-only while it is small/)).toBeDefined();
+    expect(screen.getByText(/Invite codes are no longer required/)).toBeDefined();
     expect(screen.queryByText(/Something went wrong signing you in/)).toBeNull();
     expect(screen.queryByText("MISSING_INVITE_CODE")).toBeNull();
   });
@@ -232,11 +232,11 @@ describe("AuthScreen", () => {
   // line joining two instructions with an em dash, which buried the second one.
   // The paragraph split is the fix, so it is the thing worth pinning: asserting
   // only on the words would still pass if they collapsed back into one block.
-  it("breaks the missing-invite refusal into why-shut and what-to-do paragraphs", () => {
+  it("breaks the missing-invite refusal into why and what-to-do paragraphs", () => {
     searchParams = new URLSearchParams("error=MISSING_INVITE_CODE");
     render(<AuthScreen mode="signin" devLoginEnabled={false} googleAvailable />);
 
-    const why = screen.getByText(/we are requiring invite codes at this time/);
+    const why = screen.getByText(/Invite codes are no longer required/);
     const what = screen.getByText(/Follow Create an account below/);
 
     expect(why.tagName).toBe("P");
@@ -264,6 +264,35 @@ describe("AuthScreen", () => {
     expect(screen.queryByText("SPENT_INVITE_CODE")).toBeNull();
   });
 
+  // M50 decision 12. Signup is open, so a refusal that still says the door is
+  // shut sends away someone who could have walked in. The three keys stay
+  // (the `AdmissionRefusal` contract is unchanged); each now says a code is
+  // optional and only earns referral credit, and none joins two thoughts with
+  // an em dash.
+  it.each(["MISSING_INVITE_CODE", "INVALID_INVITE_CODE", "SPENT_INVITE_CODE"])(
+    "tells someone refused with %s that they can sign up without a code",
+    (code) => {
+      searchParams = new URLSearchParams({ error: code });
+      render(<AuthScreen mode="signin" devLoginEnabled={false} googleAvailable />);
+      const status = screen.getByRole("status").textContent ?? "";
+      expect(status).toMatch(/referral credit/);
+      expect(status).not.toMatch(/invite-only|requiring invite codes/i);
+      expect(status).not.toContain("—");
+    },
+  );
+
+  // SPEC §14's copy rule, on the auth screens (the landing's own guard is in
+  // LandingScreen.test.tsx): no "open source", and no claim that Caesura is
+  // invite-only now that anyone can sign up.
+  it.each([
+    ["signup", ""],
+    ["signin", "error=MISSING_INVITE_CODE"],
+  ] as const)("never calls Caesura open source or invite-only in %s mode (%j)", (mode, query) => {
+    searchParams = new URLSearchParams(query);
+    render(<AuthScreen mode={mode} devLoginEnabled={false} googleAvailable />);
+    expect(screen.queryAllByText(/open[ -]source|invite-only/i).map((el) => el.textContent)).toEqual([]);
+  });
+
   // The refusals are a closed set (`AdmissionRefusal` in @tc/contracts) and
   // `errorMessage` parses the param against it rather than indexing a map, so
   // nothing that merely *looks* like one of ours gets our copy: wrong case, a
@@ -280,7 +309,7 @@ describe("AuthScreen", () => {
     searchParams = new URLSearchParams({ error: code });
     render(<AuthScreen mode="signin" devLoginEnabled={false} googleAvailable />);
     expect(screen.getByText(/Something went wrong signing you in/)).toBeDefined();
-    expect(screen.queryByText(/Caesura is invite-only while it is small/)).toBeNull();
+    expect(screen.queryByText(/Invite codes are no longer required/)).toBeNull();
   });
 
   // Adding the admission map must not have cost the Auth.js codes their
@@ -545,7 +574,7 @@ describe("AuthScreen", () => {
   // Google works, so it stays even when Google is unavailable.
   it("keeps the generic terms footnote in signup mode even when Google is unavailable", () => {
     render(<AuthScreen mode="signup" devLoginEnabled={false} googleAvailable={false} />);
-    expect(screen.getByText(/By continuing you agree to the terms/)).toBeDefined();
+    expect(screen.getByText("By continuing you agree to the terms and the privacy notice.")).toBeDefined();
   });
 
   it("still runs the dev-login form when Google is unavailable but dev login is enabled", async () => {

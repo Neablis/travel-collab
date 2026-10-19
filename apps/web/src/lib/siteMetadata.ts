@@ -19,7 +19,7 @@ export const SITE_NAME = "Caesura";
 // The landing hero (LandingScreen.tsx), headline + the sub's first sentence,
 // joined.
 export const SITE_DESCRIPTION =
-  "Put the best day on repeat. Caesura is a trip planner built on playbooks: " +
+  "Plan the trip together. Caesura is a trip planner built on playbooks: " +
   "real days from real trips, saved by the people who lived them.";
 
 // The committed card next to the root layout (src/app/opengraph-image.png —
@@ -34,7 +34,7 @@ const OG_IMAGE = {
   url: "/opengraph-image.png",
   width: 1200,
   height: 630,
-  alt: "Caesura — put the best day on repeat. A day-column trip board beside the wordmark.",
+  alt: "Caesura. Plan the trip together. A day-column trip board beside the wordmark.",
 };
 
 /** Robots metadata for a page that must stay out of every index and pass no links. */

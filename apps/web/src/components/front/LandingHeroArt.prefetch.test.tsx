@@ -1,4 +1,4 @@
-import { act, cleanup, render } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setViewportMatches } from "../../../vitest.setup";
 
@@ -43,5 +43,32 @@ describe("LandingHeroArt's prefetch of the real panels", () => {
     setViewportMatches({ "(min-width: 768px)": true });
     await renderHero();
     expect(imported).toBe(1);
+  });
+
+  // A blip during the prefetch must not pin both views to the static art for
+  // the session: the view that later asks for its panel imports it again.
+  it("tries again for a view that is shown after a failed prefetch", async () => {
+    vi.resetModules();
+    let attempts = 0;
+    vi.doMock("./LandingHeroPanels", () => {
+      attempts += 1;
+      if (attempts === 1) return Promise.reject(new Error("Failed to fetch dynamically imported module"));
+      return { TimelinePanel: () => <ol aria-label="Real timeline" />, NotebookPanel: () => null };
+    });
+    setViewportMatches({ "(min-width: 768px)": true });
+    await renderHero();
+    expect(attempts).toBe(1);
+
+    fireEvent.click(screen.getByRole("button", { name: "Day 7" }));
+    expect(await screen.findByRole("list", { name: "Real timeline" })).toBeDefined();
+  });
+
+  // Both panels' lazies share one import: two concurrent imports of a mocked
+  // module can resolve to the real one under vitest (`LandingFeaturePanel.tsx`).
+  it("hands every caller the same import", async () => {
+    const { loadHeroPanels } = await import("./LandingHeroArt");
+    const first = loadHeroPanels();
+    expect(loadHeroPanels()).toBe(first);
+    await first;
   });
 });

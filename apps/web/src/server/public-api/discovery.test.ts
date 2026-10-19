@@ -111,4 +111,8 @@ describe("/llms.txt", () => {
     expect(text).toContain("Authorization: Bearer tc_");
     for (const scope of API_SCOPES) expect(text, scope).toContain(`- [${scope}](`);
   });
+
+  it("does not send an agent looking for an invite: anyone can sign up (M50)", async () => {
+    expect((await read()).text).not.toContain("invite code");
+  });
 });

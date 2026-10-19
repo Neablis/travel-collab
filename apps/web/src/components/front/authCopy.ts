@@ -56,8 +56,7 @@ export const AUTH_COPY: Record<AuthMode, AuthCopy> = {
     swapPrompt: "Already planning a trip here?",
     swapCta: "Sign in",
     swapHref: "/signin",
-    footnote:
-      "By continuing you agree to the terms and the privacy notice. Caesura is open source — you can read exactly what it stores.",
+    footnote: "By continuing you agree to the terms and the privacy notice.",
   },
   signin: {
     title: "Welcome back",
@@ -123,18 +122,20 @@ const ERROR_MESSAGES: Record<string, string> = {
 // with, because this is the front door's failure state — a dead end here is a
 // person who never comes back. The "Create an account" they point at is this
 // screen's own swap CTA (`AUTH_COPY.signin.swapCta`), so the instruction stays
-// true as long as the screen does.
+// true as long as the screen does. Since M50 (decision 12) each also says the
+// code is optional and only earns referral credit: telling someone the door is
+// shut when it is open is the dead end this copy exists to avoid.
 const ADMISSION_MESSAGES: Record<AdmissionRefusal, string> = {
   // Two paragraphs, split on the blank line by `Banner`'s caller. One dense
-  // line was doing two jobs — saying why the door is shut, then what to do
-  // about it — and the em dash that joined the two instructions hid the second
-  // one inside the first (2026-09-06 preview feedback, finding 2).
+  // line was doing two jobs — saying why, then what to do about it — and the
+  // em dash that joined the two instructions hid the second one inside the
+  // first (2026-09-06 preview feedback, finding 2).
   MISSING_INVITE_CODE:
-    "Caesura is invite-only while it is small, so we are requiring invite codes at this time.\n\nFollow Create an account below and enter your invite code. If someone invited you to their trip, open that invite link instead and it admits you on its own.",
+    "Invite codes are no longer required, so you do not need one to join.\n\nFollow Create an account below to sign up. A code only earns referral credit for whoever shared it, so leave it empty if you have none.",
   INVALID_INVITE_CODE:
-    "That invite code is not one of ours. Check it for a typo or a stray space and try again under Create an account — if it still will not take, ask whoever invited you for a fresh one.",
+    "That invite code is not one of ours. You do not need one: follow Create an account below and sign up with the code left empty. A code only earns referral credit for whoever shared it.",
   SPENT_INVITE_CODE:
-    "That invite code has already been used, and each one works only once. Ask whoever invited you for a new code — or open the trip invite link they sent you, which admits you without a code at all.",
+    "That invite code has already been used, and each one works only once. You do not need one: follow Create an account below and sign up with the code left empty. A code only earns referral credit for whoever shared it.",
 };
 
 const FALLBACK =

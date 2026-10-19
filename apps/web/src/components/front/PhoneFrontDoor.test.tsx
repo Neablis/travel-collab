@@ -228,7 +228,7 @@ describe("the phone front door (SPEC §28)", () => {
   it("holds its content in a main landmark, between the banner and the footer", () => {
     render(<PhoneFrontDoor />);
     const main = within(screen.getByTestId("phone-front-door")).getByRole("main");
-    expect(within(main).getByRole("heading", { level: 1, name: "Put the best day on repeat." })).toBeTruthy();
+    expect(within(main).getByRole("heading", { level: 1, name: "Plan the trip together." })).toBeTruthy();
     expect(within(main).getByRole("link", { name: "Start a trip" })).toBeTruthy();
   });
 
