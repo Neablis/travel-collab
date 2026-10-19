@@ -300,9 +300,10 @@ export function SharedDayScreen({
   );
 
   // **Back from signing in, having pressed Add while signed out**
-  // (`SignInToAddDialog` banked it). Makes a new trip named for the day,
-  // undated, holding it, and goes there — no dialog (M50 decision 5): a reader
-  // who had no account had no trip to pick, so the press was the choice.
+  // (`SignInToAddDialog` banked it). From sign-up, makes a new trip named for
+  // the day, undated, holding it, and goes there — no dialog (M50 decision 5):
+  // a reader who had no account had no trip to pick, so the press was the
+  // choice. From sign-in, opens the add dialog: that account may have the trip.
   //
   // Single-use, because a second pass would be a second trip: the marker is
   // read-and-cleared before anything is sent, so a remount finds nothing, and
@@ -327,7 +328,12 @@ export function SharedDayScreen({
     if (dayName === null || !user || redeemedFor.current === savedDayId) return;
     redeemedFor.current = savedDayId;
     // Taken (and so cleared) for the author too — it is spent either way.
-    if (takePlaybookAdd(savedDayId) !== "new-trip" || readerIsAuthor) return;
+    const intent = takePlaybookAdd(savedDayId);
+    if (intent === null || readerIsAuthor) return;
+    if (intent === "choose-trip") {
+      setAdding(true);
+      return;
+    }
     const latch: { current: NewTripLatch | null } = { current: null };
     setMakingTrip(true);
     void addDayToNewTrip({ savedDayId, dayName }, latch).then((result) => {

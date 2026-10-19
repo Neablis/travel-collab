@@ -73,10 +73,12 @@ saw only the site card.
    sign-up prompt and banks a same-origin marker. ~~When the reader returns signed in, the add
    dialog opens.~~ ~~The marker only opens the dialog and never adds anything.~~
 
-   > **Amended 2026-10-19 (M50 decision 5, PR 497).** The marker now carries an intent. With
-   > `"new-trip"`, the return creates a trip named for the day and adds the day to it, with no
-   > dialog, and lands on the trip. A marker with no intent, or one it does not know, is cleared
-   > and ignored. The marker is still read and cleared before anything is sent, so it is spent
+   > **Amended 2026-10-19 (M50 decision 5, PR 497).** The marker now carries an intent, set by
+   > the way in. *Create an account* banks `"new-trip"`: the return creates a trip named for the
+   > day and adds the day to it, with no dialog, and lands on the trip, since a new account has
+   > no trip to choose. *Sign in* banks `"choose-trip"`: the return opens the add dialog and
+   > creates nothing, since an existing account may already have the trip (Mitchell,
+   > 2026-10-19). A marker with no intent, or one it does not know, is cleared and ignored. The marker is still read and cleared before anything is sent, so it is spent
    > once. It is still only a hint: the create and the insert are the reader's own requests,
    > under the reader's own permissions, and the insert takes only a day they can read. So a
    > forged marker can at most give its reader a trip holding a public day. If the add fails

@@ -1262,10 +1262,7 @@ describe("a shared day, read with no account", () => {
     // Opening the dialog is not a request; the click on the way out is.
     expect(window.localStorage.getItem(MARKER)).toBeNull();
     fireEvent.click(signIn);
-    expect(JSON.parse(window.localStorage.getItem(MARKER) ?? "null")).toMatchObject({
-      savedDayId: DAY_ID,
-      intent: "new-trip",
-    });
+    expect(JSON.parse(window.localStorage.getItem(MARKER) ?? "null")).toMatchObject({ savedDayId: DAY_ID });
   });
 
   it("offers no Report and no review form, and still lists what people said", async () => {
@@ -1337,6 +1334,39 @@ describe("a shared day, read with no account", () => {
 
 describe("back from signing in to add", () => {
   const MARKER = "pending_playbook_add";
+
+  // The whole round trip through the real dialog: signed out, press the way in,
+  // then the same day again with an account.
+  async function returnThrough(link: "Sign in" | "Create an account") {
+    session = null;
+    renderDay();
+    await userEvent.click(await screen.findByRole("button", { name: "Make this your trip" }));
+    const prompt = await screen.findByRole("dialog", { name: "Sign in to add this day" });
+    fireEvent.click(within(prompt).getByRole("link", { name: link }));
+    cleanup();
+    session = { id: "dev-bob" };
+    renderDay();
+  }
+
+  // Mitchell, 2026-10-19: only a new account has no trip to choose, so only
+  // sign-up skips the choice.
+  it("goes straight to a new trip after creating an account", async () => {
+    await returnThrough("Create an account");
+
+    await waitFor(() => expect(pushMock).toHaveBeenCalledWith(`/trips/${NEW_TRIP_ID}`));
+    expect(insertSavedDayMock).toHaveBeenCalledWith(NEW_TRIP_ID, DAY_ID);
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("opens the add dialog after signing in, and makes no trip", async () => {
+    await returnThrough("Sign in");
+
+    expect(await screen.findByLabelText("Which trip")).toBeTruthy();
+    expect(createTripMock).not.toHaveBeenCalled();
+    expect(insertSavedDayMock).not.toHaveBeenCalled();
+    // Spent like the other: a reload must not open it again.
+    expect(window.localStorage.getItem(MARKER)).toBeNull();
+  });
 
   // M50 decision 5: the press before signing up was the choice, so the return
   // makes the trip rather than asking again which one.
