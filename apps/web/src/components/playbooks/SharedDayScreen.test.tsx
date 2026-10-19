@@ -1384,6 +1384,22 @@ describe("back from signing in to add", () => {
     expect(window.localStorage.getItem(MARKER)).toBeNull();
   });
 
+  // A press while the list is read would open the dialog, and the empty list
+  // would then make a trip beside the one the dialog can start: two trips.
+  it("holds the add button, and announces nothing, while the trip list is read", async () => {
+    let answer: (value: unknown) => void = () => {};
+    fetchTripsMock.mockReturnValue(new Promise((resolve) => (answer = resolve)));
+    await returnThrough("Create an account");
+
+    await waitFor(() => expect(fetchTripsMock).toHaveBeenCalled());
+    const add = (await screen.findByRole("button", { name: "Add to a trip" })) as HTMLButtonElement;
+    expect(add.disabled).toBe(true);
+    expect(screen.queryByText("Making your trip from this day…")).toBeNull();
+    await act(async () => answer(ok([])));
+
+    await waitFor(() => expect(pushMock).toHaveBeenCalledWith(`/trips/${NEW_TRIP_ID}`));
+  });
+
   // A failed read is not proof of no trips: writing on it could give an
   // account that has trips a duplicate.
   it("opens the dialog on a new trip, and makes none, when the trip list cannot be read", async () => {

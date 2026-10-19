@@ -240,6 +240,9 @@ export function SharedDayScreen({
   // The return from signing up, while it makes the trip, and what it hands
   // the dialog if that fails.
   const [makingTrip, setMakingTrip] = useState(false);
+  // Before that, while it reads whether the account has trips. Holds the Add
+  // button but announces nothing: the answer may be the dialog, not a trip.
+  const [checkingTrips, setCheckingTrips] = useState(false);
   const [retrying, setRetrying] = useState<{ tripId: string | null; error: string } | null>(null);
   // The return from signing up found the account already had trips, so it asks,
   // starting where the press pointed.
@@ -344,7 +347,8 @@ export function SharedDayScreen({
     }
     const latch: { current: NewTripLatch | null } = { current: null };
     void (async () => {
-      const trips = await fetchTrips();
+      setCheckingTrips(true);
+      const trips = await fetchTrips().finally(() => setCheckingTrips(false));
       // Gone before the check came back: nothing was made, and nothing should be.
       if (!mounted.current) return;
       // A failed read is not proof of no trips, so it asks rather than writes.
@@ -928,7 +932,7 @@ export function SharedDayScreen({
                 variant="primary"
                 className="mt-1 w-full justify-center"
                 // A press now would be a second trip beside the one being made.
-                disabled={makingTrip}
+                disabled={makingTrip || checkingTrips}
                 onClick={() => {
                   // Shown to a reader with no account too, and it asks them to
                   // sign in rather than vanishing (ADR-061, the share page's shape).
