@@ -33,7 +33,9 @@ import { cn } from "@/lib/cn";
 // otherwise take the whole front door down the moment a panel was shown. Each
 // panel has its own boundary whose fallback is the art `Suspense` shows while
 // loading (`SpendByDayBlock` and its chart, same shape).
-const loadPanels = () => import("./LandingHeroPanels");
+// One import shared by both, as `LandingFeaturePanel.tsx` does and for its reason.
+let panels: Promise<typeof import("./LandingHeroPanels")> | undefined;
+const loadPanels = () => (panels ??= import("./LandingHeroPanels"));
 const TimelinePanel = lazy(() => loadPanels().then((m) => ({ default: m.TimelinePanel })));
 const NotebookPanel = lazy(() => loadPanels().then((m) => ({ default: m.NotebookPanel })));
 

@@ -11,7 +11,12 @@ import { ChartErrorBoundary } from "@/components/ui/chart";
 // client-side render shows meanwhile, and stays if the load fails: `Suspense`
 // does not catch a rejected `lazy` import, and nothing above the landing but
 // `app/global-error.tsx` would.
-const loadPanels = () => import("./LandingFeaturePanels");
+//
+// One import shared by every panel, not one each: under vitest's module mock
+// two concurrent imports of the same module can resolve to different modules
+// (the real one among them), and in a browser it is one chunk anyway.
+let panels: Promise<typeof import("./LandingFeaturePanels")> | undefined;
+const loadPanels = () => (panels ??= import("./LandingFeaturePanels"));
 const PANELS = {
   together: lazy(() => loadPanels().then((m) => ({ default: m.TogetherPanel }))),
   playbook: lazy(() => loadPanels().then((m) => ({ default: m.PlaybookPanel }))),
