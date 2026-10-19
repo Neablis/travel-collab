@@ -196,7 +196,7 @@ Placement notes (decided 2026-07-07):
   questions stay open — start-only trip dates, first-run vs. the four-step
   wizard, and whether the landing copy may sell M11/M12 — see the review's §8.
 
-Current milestone: M50 — A stranger can find a day, make it their trip, and bring people in
+Current milestone: M49 — A cover can come from anywhere, and be framed where y…
 
 ### Archived decision notes
 
