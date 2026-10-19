@@ -264,6 +264,8 @@ dispatched workflow. Details: `docs/guidelines/content-bundles.md`.
   `/invite/*`, picks the library's cached or live copy on `/playbooks/*` (ADR-077), and deletes the `tc_signed_in`
   hint on a signed-out request. The app shell (`SessionUserProvider`) is the hint's only setter; the static `/`
   reads it to send a signed-in browser to `/home` (ADR-078). Every API route authenticates itself.
+- **Signup attribution**: any page with `?ref=` enters the proxy only to bank a first-touch `caesura_ref` cookie
+  (no `auth()`); `recordSignIn` copies it to a new account's `users.signup_ref` (ADR-079).
 - **Roles**: `viewer < suggester < editor < owner`, one rank table in `src/server/accessPolicy.ts`, with an
   exhaustive minimum role per command. Planning and history commands need `editor`; delete/restore need `owner`.
 - **The owner is not a membership row.** It comes from `TripCreated.createdBy` in the log.
