@@ -18,6 +18,7 @@ import {
   lapsedSentence,
   pastDueSentence,
 } from "@/lib/planCopy";
+import { mintReferralCode, referralLink } from "./useReferralLink";
 
 // **The Plan section the design puts at the top of Account settings**
 // (handoff `SPEC.md` §17.4, amended by §29).
@@ -156,11 +157,6 @@ function PlanSectionSkeleton() {
   );
 }
 
-/** The signup URL that arrives with `code` already in the invite-code field. */
-function referralLink(code: string): string {
-  return `${window.location.origin}/signup?code=${encodeURIComponent(code)}`;
-}
-
 /**
  * **This took an `onNavigate` prop until M26 link 1, and it is gone.**
  *
@@ -201,11 +197,9 @@ export function PlanSection() {
   }, []);
 
   async function mintCode() {
-    // eslint-disable-next-line no-restricted-globals -- an app API call with no client helper yet; moves onto the client with the collapse still open in KI-2026-09-05-q
-    const res = await fetch("/api/account/referrals", { method: "POST" });
-    if (!res.ok) return;
-    const body = (await res.json()) as { code: string };
-    setPlan((current) => (current === null ? current : { ...current, referralCode: body.code }));
+    const minted = await mintReferralCode();
+    if (!minted.ok) return;
+    setPlan((current) => (current === null ? current : { ...current, referralCode: minted.code }));
   }
 
   /**

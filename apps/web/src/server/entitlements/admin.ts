@@ -833,6 +833,37 @@ export interface AdminUsers {
   tiers: TierSeriesRow[];
   /** The week `now` falls in: a tier whose newest row is older reads *as of* that row, not *now*. */
   thisWeek: string;
+  /** *Signups by channel* (M50 decision 14, ADR-079). */
+  signups: SignupsByRefRow[];
+}
+
+/** One channel's signups (ADR-079): accounts whose `signup_ref` is `ref`, by when they were created. */
+export interface SignupsByRefRow {
+  /** `null` is a direct signup, which the console and the script print as *direct*. */
+  ref: string | null;
+  last7Days: number;
+  last30Days: number;
+  allTime: number;
+}
+
+/**
+ * **Signups per channel** (M50 decision 14): every account grouped by the
+ * channel that first brought it, most signups first. `scripts/signups-by-ref.mjs`
+ * asks the same question from a terminal.
+ */
+export async function signupsByRef(now: Date = new Date()): Promise<SignupsByRefRow[]> {
+  const since = (days: number) => new Date(now.getTime() - days * 24 * 60 * 60 * 1000).toISOString();
+  const allTime = sql<number>`count(*)::int`;
+  return db
+    .select({
+      ref: users.signupRef,
+      last7Days: sql<number>`(count(*) filter (where ${users.createdAt} >= ${since(7)}))::int`,
+      last30Days: sql<number>`(count(*) filter (where ${users.createdAt} >= ${since(30)}))::int`,
+      allTime,
+    })
+    .from(users)
+    .groupBy(users.signupRef)
+    .orderBy(desc(allTime), asc(users.signupRef));
 }
 
 /** Everything the console reads, in one call — what `GET /api/admin/overview` answers. */
@@ -913,7 +944,7 @@ export async function adminUsers(
 ): Promise<AdminUsers> {
   const { trailing, holders } = await sharedReads(now);
   const underwater = await underwaterReport(TRAILING_WINDOW_DAYS, trailing, holders, now);
-  const [table, revenue, tiers] = await Promise.all([
+  const [table, revenue, tiers, signups] = await Promise.all([
     adminAccountsPage(
       view,
       now,
@@ -922,8 +953,9 @@ export async function adminUsers(
     ),
     revenueSummary(TRAILING_WINDOW_DAYS, trailing, now),
     tierSeries(26, now),
+    signupsByRef(now),
   ]);
-  return { table, windowDays: TRAILING_WINDOW_DAYS, revenue, tiers, thisWeek: weekStartOf(now) };
+  return { table, windowDays: TRAILING_WINDOW_DAYS, revenue, tiers, thisWeek: weekStartOf(now), signups };
 }
 
 /**

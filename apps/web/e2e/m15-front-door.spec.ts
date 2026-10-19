@@ -21,7 +21,7 @@ test("landing → sign in → first trip → sign out", async ({ page }) => {
   await page.goto("/");
   await expect(page).toHaveURL(/\/$/);
   await expect(
-    page.getByRole("heading", { name: "Put the best day on repeat." }),
+    page.getByRole("heading", { name: "Plan the trip together." }),
   ).toBeVisible();
 
   // SPEC §14's copy rules: no "free" on the page at all (the retro's "Free
@@ -116,7 +116,7 @@ test("landing → sign in → first trip → sign out", async ({ page }) => {
   // To the landing, and it stays there: sign-out took the signed-in hint
   // with it, so the landing's script has nothing to send it to Home on.
   await expect(page).toHaveURL(/\/$/);
-  await expect(page.getByRole("heading", { name: "Put the best day on repeat." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Plan the trip together." })).toBeVisible();
 });
 
 // ADR-078: Home moved from `/` to `/home`, and `/` became a static page that

@@ -1,5 +1,6 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { CoverCandidate, SavedDay, SavedDayReviewsResponse, SavedStop } from "@tc/contracts";
 import { tripCoverFactory } from "@tc/factories";
@@ -66,7 +67,7 @@ vi.mock("maplibre-gl", () => {
 });
 
 import { SharedDayScreen, ledgerLabel } from "./SharedDayScreen";
-import { rememberPlaybookAdd } from "@/lib/pendingPlaybookAdd";
+import { pendingPlaybookAddDay, rememberPlaybookAdd } from "@/lib/pendingPlaybookAdd";
 import { holdReview } from "./reviewQueue";
 
 const DAY_ID = "aa000000-0000-4000-8000-000000000001";
@@ -1240,13 +1241,15 @@ describe("deleting your own day", () => {
 describe("a shared day, read with no account", () => {
   const MARKER = "pending_playbook_add";
 
-  it("asks them to sign in from Add, both ways back to this day, and banks the add first", async () => {
+  it("asks them to sign in from Make this your trip, both ways back to this day, and banks the add first", async () => {
     session = null;
     renderDay();
-    await userEvent.click(await screen.findByRole("button", { name: "Add to a trip" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Make this your trip" }));
 
     const dialog = await screen.findByRole("dialog", { name: "Sign in to add this day" });
-    const back = encodeURIComponent(`/playbooks/day/${DAY_ID}`);
+    // The slugged path, the one the day answers 200 on: the bare id costs the
+    // return a 308 on the way back.
+    const back = encodeURIComponent(`/playbooks/day/kyoto-temples-on-foot-${DAY_ID}`);
     const signIn = within(dialog).getByRole("link", { name: "Sign in" });
     expect(signIn.getAttribute("href")).toBe(`/signin?callbackUrl=${back}`);
     expect(within(dialog).getByRole("link", { name: "Create an account" }).getAttribute("href")).toBe(
@@ -1330,25 +1333,255 @@ describe("a shared day, read with no account", () => {
 });
 
 describe("back from signing in to add", () => {
-  it("opens the add dialog for a live marker on this day, and adds nothing by itself", async () => {
+  const MARKER = "pending_playbook_add";
+
+  // A new account: no trips yet. A test about an account that has some says so.
+  beforeEach(() => {
+    fetchTripsMock.mockResolvedValue(ok([]));
+  });
+
+  // The whole round trip through the real dialog: signed out, press the way in,
+  // then the same day again with an account.
+  async function returnThrough(link: "Sign in" | "Create an account") {
+    session = null;
+    renderDay();
+    await userEvent.click(await screen.findByRole("button", { name: "Make this your trip" }));
+    const prompt = await screen.findByRole("dialog", { name: "Sign in to add this day" });
+    fireEvent.click(within(prompt).getByRole("link", { name: link }));
+    cleanup();
+    session = { id: "dev-bob" };
+    renderDay();
+  }
+
+  // Mitchell, 2026-10-19: only a new account has no trip to choose, so only
+  // sign-up skips the choice.
+  it("goes straight to a new trip after creating an account", async () => {
+    await returnThrough("Create an account");
+
+    await waitFor(() => expect(pushMock).toHaveBeenCalledWith(`/trips/${NEW_TRIP_ID}`));
+    expect(insertSavedDayMock).toHaveBeenCalledWith(NEW_TRIP_ID, DAY_ID);
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  // Decision 15: the sign-up page links to Sign in, so the link pressed here is
+  // not proof the account is new. One with trips is asked, starting on a new one.
+  it("opens the dialog on a new trip, and makes none, for an account that already has trips", async () => {
+    let answer: (value: unknown) => void = () => {};
+    fetchTripsMock.mockReturnValue(new Promise((resolve) => (answer = resolve)));
+    await returnThrough("Create an account");
+
+    // While the list is read, no trip is being made, so none is announced.
+    await waitFor(() => expect(fetchTripsMock).toHaveBeenCalled());
+    expect(screen.queryByText("Making your trip from this day…")).toBeNull();
+    await act(async () =>
+      answer(ok([{ tripId: TRIP_ID, name: "Japan", status: "active", members: [{ userId: "u", role: "owner", name: null, email: null }], createdAt: "2026-01-01T00:00:00.000Z" }])),
+    );
+
+    const picker = (await screen.findByLabelText("Which trip")) as HTMLSelectElement;
+    await waitFor(() => expect(picker.value).toBe("new"));
+    expect(createTripMock).not.toHaveBeenCalled();
+    expect(pushMock).not.toHaveBeenCalled();
+    expect(window.localStorage.getItem(MARKER)).toBeNull();
+    // The hold ends with the read: closing the dialog leaves Add pressable.
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect((screen.getByRole("button", { name: "Add to a trip" }) as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  // A press while the list is read would open the dialog, and the empty list
+  // would then make a trip beside the one the dialog can start: two trips.
+  it("holds the add button, and announces nothing, while the trip list is read", async () => {
+    let answer: (value: unknown) => void = () => {};
+    fetchTripsMock.mockReturnValue(new Promise((resolve) => (answer = resolve)));
+    await returnThrough("Create an account");
+
+    await waitFor(() => expect(fetchTripsMock).toHaveBeenCalled());
+    const add = (await screen.findByRole("button", { name: "Add to a trip" })) as HTMLButtonElement;
+    expect(add.disabled).toBe(true);
+    expect(screen.queryByText("Making your trip from this day…")).toBeNull();
+    await act(async () => answer(ok([])));
+
+    await waitFor(() => expect(pushMock).toHaveBeenCalledWith(`/trips/${NEW_TRIP_ID}`));
+  });
+
+  // A failed read is not proof of no trips: writing on it could give an
+  // account that has trips a duplicate.
+  it("opens the dialog on a new trip, and makes none, when the trip list cannot be read", async () => {
+    fetchTripsMock.mockResolvedValue({ ok: false, error: { status: 500, message: "x" } });
+    await returnThrough("Create an account");
+
+    const picker = (await screen.findByLabelText("Which trip")) as HTMLSelectElement;
+    await waitFor(() => expect(picker.value).toBe("new"));
+    expect(createTripMock).not.toHaveBeenCalled();
+    expect(pushMock).not.toHaveBeenCalled();
+    // A failed read ends the hold too.
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect((screen.getByRole("button", { name: "Add to a trip" }) as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  // Banked by the build before decision 5, where the marker only opened the
+  // dialog. The trip list bounces the reader to the day; the day must open it.
+  it("opens the add dialog for a marker banked with no intent, after the trip list's bounce", async () => {
+    session = { id: "dev-bob" };
+    window.localStorage.setItem(MARKER, JSON.stringify({ savedDayId: DAY_ID, at: Date.now() }));
+    expect(pendingPlaybookAddDay()).toBe(DAY_ID);
+    renderDay();
+
+    expect(await screen.findByLabelText("Which trip")).toBeTruthy();
+    expect(createTripMock).not.toHaveBeenCalled();
+    expect(window.localStorage.getItem(MARKER)).toBeNull();
+  });
+
+  it("opens the add dialog after signing in, and makes no trip", async () => {
+    await returnThrough("Sign in");
+
+    expect(await screen.findByLabelText("Which trip")).toBeTruthy();
+    expect(createTripMock).not.toHaveBeenCalled();
+    expect(insertSavedDayMock).not.toHaveBeenCalled();
+    // Spent like the other: a reload must not open it again.
+    expect(window.localStorage.getItem(MARKER)).toBeNull();
+  });
+
+  // M50 decision 5: the press before signing up was the choice, so the return
+  // makes the trip rather than asking again which one.
+  it("makes a new trip named for the day, undated, holding it, and opens no dialog", async () => {
     session = { id: "dev-bob" };
     rememberPlaybookAdd(DAY_ID);
     renderDay();
 
-    expect(await screen.findByLabelText("Which trip")).toBeTruthy();
-    expect(insertSavedDayMock).not.toHaveBeenCalled();
-    // Spent: a reload must not open it again.
-    expect(window.localStorage.getItem("pending_playbook_add")).toBeNull();
+    await waitFor(() => expect(pushMock).toHaveBeenCalledWith(`/trips/${NEW_TRIP_ID}`));
+    expect(createTripMock).toHaveBeenCalledWith({ name: savedDay().name });
+    expect(sendTripCommandBatchMock).not.toHaveBeenCalled();
+    expect(insertSavedDayMock).toHaveBeenCalledWith(NEW_TRIP_ID, DAY_ID);
+    expect(screen.queryByRole("dialog")).toBeNull();
+    // Spent: a reload must not make a second trip.
+    expect(window.localStorage.getItem(MARKER)).toBeNull();
   });
 
-  it("does not open for a marker banked on another day", async () => {
+  it("makes one trip, not two, under StrictMode and across a remount", async () => {
+    session = { id: "dev-bob" };
+    rememberPlaybookAdd(DAY_ID);
+    const view = render(
+      <StrictMode>
+        <SharedDayScreen savedDayId={DAY_ID} backHref="/playbooks" backLabel="Discover" />
+      </StrictMode>,
+    );
+    await waitFor(() => expect(pushMock).toHaveBeenCalledTimes(1));
+    view.unmount();
+    renderDay();
+    expect(await screen.findByRole("button", { name: "Add to a trip" })).toBeTruthy();
+
+    expect(createTripMock).toHaveBeenCalledTimes(1);
+    expect(insertSavedDayMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("says the day was withdrawn when it went while they were signing up", async () => {
+    session = { id: "dev-bob" };
+    insertSavedDayMock.mockResolvedValue({ ok: false, error: { status: 404, message: "gone" } });
+    rememberPlaybookAdd(DAY_ID);
+    renderDay();
+
+    expect(await screen.findByTestId("day-withdrawn")).toBeTruthy();
+    expect(pushMock).not.toHaveBeenCalled();
+  });
+
+  it("shows the trip being made, and takes no second press while it is", async () => {
+    session = { id: "dev-bob" };
+    let finish: (value: unknown) => void = () => {};
+    insertSavedDayMock.mockReturnValue(new Promise((resolve) => (finish = resolve)));
+    rememberPlaybookAdd(DAY_ID);
+    renderDay();
+
+    const button = await screen.findByRole("button", { name: "Making your trip…" });
+    expect((button as HTMLButtonElement).disabled).toBe(true);
+    await act(async () => finish(ok({ detail: {}, history: {} })));
+    expect(pushMock).toHaveBeenCalledWith(`/trips/${NEW_TRIP_ID}`);
+  });
+
+  it("opens the dialog on the trip it made, saying why, when the add fails another way", async () => {
+    session = { id: "dev-bob" };
+    // None on return, then the one it made beside an older one.
+    fetchTripsMock.mockResolvedValueOnce(ok([])).mockResolvedValue(
+      ok([
+        { tripId: TRIP_ID, name: "Japan", status: "active", members: [{ userId: "u", role: "owner", name: null, email: null }], createdAt: "2026-01-01T00:00:00.000Z" },
+        { tripId: NEW_TRIP_ID, name: savedDay().name, status: "active", members: [{ userId: "u", role: "owner", name: null, email: null }], createdAt: "2026-01-02T00:00:00.000Z" },
+      ]),
+    );
+    insertSavedDayMock.mockResolvedValue({ ok: false, error: { status: 500, message: "Server error" } });
+    rememberPlaybookAdd(DAY_ID);
+    renderDay();
+
+    const picker = (await screen.findByLabelText("Which trip")) as HTMLSelectElement;
+    await waitFor(() => expect(picker.value).toBe(NEW_TRIP_ID));
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByText(/could not add the day to it.*Server error/)).toBeTruthy();
+    expect(pushMock).not.toHaveBeenCalled();
+    expect(createTripMock).toHaveBeenCalledTimes(1);
+  });
+
+  // On a phone the rail, and so the button's label, stacks after the whole
+  // day: the reader at the top would see nothing change. And a disabled
+  // button's new label is not announced.
+  it("says the trip is being made out loud, and above the rail", async () => {
+    session = { id: "dev-bob" };
+    insertSavedDayMock.mockReturnValue(new Promise(() => {}));
+    rememberPlaybookAdd(DAY_ID);
+    renderDay();
+
+    await screen.findByRole("button", { name: "Making your trip…" });
+    const statuses = await screen.findAllByRole("status");
+    expect(statuses.some((s) => s.textContent === "Making your trip from this day…")).toBe(true);
+    expect(within(screen.getByRole("complementary")).queryByText("Making your trip from this day…")).toBeNull();
+  });
+
+  it("does not pull a reader who has gone elsewhere back to the trip", async () => {
+    session = { id: "dev-bob" };
+    let finish: (value: unknown) => void = () => {};
+    insertSavedDayMock.mockReturnValue(new Promise((resolve) => (finish = resolve)));
+    rememberPlaybookAdd(DAY_ID);
+    const view = renderDay();
+
+    await screen.findByRole("button", { name: "Making your trip…" });
+    // A city or tag link is another route, so this page unmounts.
+    view.unmount();
+    await act(async () => finish(ok({ detail: {}, history: {} })));
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 0)));
+    expect(insertSavedDayMock).toHaveBeenCalledTimes(1);
+    expect(pushMock).not.toHaveBeenCalled();
+  });
+
+  it("tells them about the empty trip it made when the day went while they signed up", async () => {
+    session = { id: "dev-bob" };
+    insertSavedDayMock.mockResolvedValue({ ok: false, error: { status: 404, message: "gone" } });
+    rememberPlaybookAdd(DAY_ID);
+    renderDay();
+
+    const banner = await screen.findByTestId("day-withdrawn");
+    expect(within(banner).getByText(/already made a trip for it.*empty, in Your trips/)).toBeTruthy();
+  });
+
+  it("offers a new trip again, saying why, when the trip could not be made", async () => {
+    session = { id: "dev-bob" };
+    createTripMock.mockResolvedValue({ ok: false, error: { status: 500, message: "Server error" } });
+    rememberPlaybookAdd(DAY_ID);
+    renderDay();
+
+    const picker = (await screen.findByLabelText("Which trip")) as HTMLSelectElement;
+    const dialog = screen.getByRole("dialog");
+    await waitFor(() => expect(within(dialog).getByText(/could not make the trip.*Server error/)).toBeTruthy());
+    // Not the reader's first trip: one press of Add would put the day there.
+    expect(picker.value).toBe("new");
+    expect(insertSavedDayMock).not.toHaveBeenCalled();
+  });
+
+  it("does nothing for a marker banked on another day", async () => {
     session = { id: "dev-bob" };
     rememberPlaybookAdd("aa000000-0000-4000-8000-0000000000ff");
     renderDay();
 
     expect(await screen.findByRole("button", { name: "Add to a trip" })).toBeTruthy();
     // The marker is read once the day has loaded; wait for that to have happened.
-    await waitFor(() => expect(window.localStorage.getItem("pending_playbook_add")).toBeNull());
+    await waitFor(() => expect(window.localStorage.getItem(MARKER)).toBeNull());
+    expect(createTripMock).not.toHaveBeenCalled();
     expect(screen.queryByLabelText("Which trip")).toBeNull();
   });
 
@@ -1357,9 +1590,9 @@ describe("back from signing in to add", () => {
     rememberPlaybookAdd(DAY_ID);
     renderDay();
 
-    expect(await screen.findByRole("button", { name: "Add to a trip" })).toBeTruthy();
-    expect(screen.queryByLabelText("Which trip")).toBeNull();
-    expect(window.localStorage.getItem("pending_playbook_add")).not.toBeNull();
+    expect(await screen.findByRole("button", { name: "Make this your trip" })).toBeTruthy();
+    expect(createTripMock).not.toHaveBeenCalled();
+    expect(window.localStorage.getItem(MARKER)).not.toBeNull();
   });
 });
 

@@ -16,6 +16,10 @@ import { mintReferralCode } from "./entitlements/referrals";
 // file — `recordSignIn` sends a welcome on every first sign-in — and asserted
 // on only by the "welcome email" block below.
 vi.mock("./email/send", () => ({ sendEmail: vi.fn(async () => ({ sent: true, id: null })) }));
+// The `caesura_ref` cookie is read from `next/headers` when no jar is passed,
+// and there is no request here: an empty jar makes every sign-in in this file a
+// direct one. What a ref does is `users.signupRef.int.test.ts`'s.
+vi.mock("next/headers", () => ({ cookies: async () => ({ get: () => undefined, delete: () => undefined }) }));
 
 // No beforeEach truncation: every test mints its own id, same isolation
 // strategy as the sibling suites (see eventStore.int.test.ts and
@@ -123,6 +127,8 @@ describe("users repository", () => {
       // M47's switch: a first sign-in buys live. On would hand every new
       // account a free-plan switch (ADR-076 §6).
       stripeTestMode: false,
+      // M50's column: a sign-in that brought no channel is direct (ADR-079).
+      signupRef: null,
       createdAt: "2026-08-27 10:00:00+00",
       updatedAt: "2026-08-27 10:00:00+00",
     });

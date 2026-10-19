@@ -27,6 +27,13 @@ describe("DevelopersScreen", () => {
     expect(screen.getByRole("link", { name: "Create an account" }).getAttribute("href")).toBe("/signup");
   });
 
+  // M50: the steps are read by a person setting up an agent, often pasted
+  // into one, and a sentence spliced with an em dash reads as two half-thoughts.
+  it("writes the getting-started steps without em dashes", () => {
+    render(<DevelopersScreen />);
+    expect(screen.getByRole("region", { name: "From nothing to a first call" }).textContent).not.toContain("—");
+  });
+
   it("links the reference, the OpenAPI document, the api-catalog and llms.txt", () => {
     render(<DevelopersScreen />);
     const reference = within(screen.getByRole("region", { name: "The reference" }));

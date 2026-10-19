@@ -7,9 +7,9 @@
         "read_day"
       ],
       "toolChars": 2123,
-      "instructionChars": 2027,
-      "totalChars": 4150,
-      "approxTokens": 1254
+      "instructionChars": 2094,
+      "totalChars": 4217,
+      "approxTokens": 1274
     },
     "trip · question": {
       "tools": [
@@ -23,9 +23,9 @@
         "request_change_tools"
       ],
       "toolChars": 7474,
-      "instructionChars": 2624,
-      "totalChars": 10098,
-      "approxTokens": 3051
+      "instructionChars": 2691,
+      "totalChars": 10165,
+      "approxTokens": 3071
     },
     "trip · edit": {
       "tools": [
@@ -51,9 +51,9 @@
         "go_to"
       ],
       "toolChars": 22628,
-      "instructionChars": 4138,
-      "totalChars": 26766,
-      "approxTokens": 8086
+      "instructionChars": 4205,
+      "totalChars": 26833,
+      "approxTokens": 8107
     },
     "trip · plan": {
       "tools": [
@@ -76,9 +76,9 @@
         "go_to"
       ],
       "toolChars": 21569,
-      "instructionChars": 4445,
-      "totalChars": 26014,
-      "approxTokens": 7859
+      "instructionChars": 4512,
+      "totalChars": 26081,
+      "approxTokens": 7879
     },
     "trip · unsure": {
       "tools": [
@@ -104,9 +104,9 @@
         "go_to"
       ],
       "toolChars": 22628,
-      "instructionChars": 4138,
-      "totalChars": 26766,
-      "approxTokens": 8086
+      "instructionChars": 4205,
+      "totalChars": 26833,
+      "approxTokens": 8107
     },
     "page · compose": {
       "tools": [

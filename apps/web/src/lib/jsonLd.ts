@@ -1,3 +1,4 @@
+import { dayPath } from "./playbookUrls";
 import { SITE_DESCRIPTION, SITE_NAME } from "./siteMetadata";
 
 // Structured data for the pages a search engine indexes (SEO pass, Part 4).
@@ -78,6 +79,25 @@ export function dayJsonLd(input: DayJsonLdInput): JsonLdNode[] {
     })),
   };
   return [trip, breadcrumb];
+}
+
+/**
+ * A city or country page's days as an `ItemList` of links, the summary-page
+ * shape Google reads a list from: each `ListItem` carries only a `url` (the
+ * day's canonical one) and a `name`, since the day describes itself there.
+ * Positions count from 1 on every page, as the list on that page does.
+ */
+export function placeItemListJsonLd(days: readonly { savedDayId: string; name: string }[], origin: string): JsonLdNode {
+  return {
+    "@context": CONTEXT,
+    "@type": "ItemList",
+    itemListElement: days.map((day, i) => ({
+      "@type": "ListItem",
+      position: i + 1,
+      url: `${origin}${dayPath(day)}`,
+      name: day.name,
+    })),
+  };
 }
 
 /** JSON for a `<script>` body: `<` is escaped, so a day named `</script>` cannot end the element. */

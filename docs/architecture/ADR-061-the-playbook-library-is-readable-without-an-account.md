@@ -70,8 +70,25 @@ saw only the site card.
 5. **Signed-out readers do not see controls they could only fail at** (ADR-031). That means no
    Yours/Saved scopes, no Report, no review composer and no tab bar. **Add to a trip** is the
    exception and stays. It is the thing the page exists to sell, so it opens a sign-in or
-   sign-up prompt and banks a same-origin marker. When the reader returns signed in, the add
-   dialog opens. The marker only opens the dialog and never adds anything.
+   sign-up prompt and banks a same-origin marker. ~~When the reader returns signed in, the add
+   dialog opens.~~ ~~The marker only opens the dialog and never adds anything.~~
+
+   > **Amended 2026-10-19 (M50 decision 5, PR 497).** The marker now carries an intent, set by
+   > the way in. *Create an account* banks `"new-trip"`: if the account has no trips, the return
+   > creates a trip named for the day and adds the day to it, with no dialog, and lands on the
+   > trip, since a new account has no trip to choose. The trip list is read first because the
+   > link pressed does not prove the account is new: the sign-up page links to Sign in, so an
+   > existing account can come back with `"new-trip"`. An account with trips, or a failed read,
+   > gets the add dialog opened on *Start a new trip* (M50 decision 15). *Sign in* banks
+   > `"choose-trip"`: the return opens the add dialog and creates nothing, since an existing
+   > account may already have the trip (Mitchell, 2026-10-19). A marker with no intent is the
+   > shape banked before this amendment and reads as `"choose-trip"`, which is what it meant
+   > then; one with an intent it does not know is cleared and ignored. The marker is still read
+   > and cleared before anything is sent, so it is spent once. It is still only a hint: the create and the insert are the reader's own requests,
+   > under the reader's own permissions, and the insert takes only a day they can read. So a
+   > forged marker can at most give its reader a trip holding a public day. If the add fails
+   > for any reason but the day having gone, the add dialog opens with the error, on the trip
+   > already made.
 6. **Previews, with the generic card on any miss.** Day, profile and city cards follow spec
    2026-09-27 §2.2. A private, moderated or unknown day, an author with nothing shared, or a
    city with no published days all draw the generic Playbooks card. So the routes cannot

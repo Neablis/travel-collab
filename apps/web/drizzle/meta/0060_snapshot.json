@@ -1,5 +1,5 @@
 {
-  "id": "5f227b13-9887-4b64-958c-db22219762a4",
+  "id": "bdf11708-e982-42fa-bbe3-00f93d854fa1",
   "prevId": "af2b7c6a-4b19-472a-9489-f51ff87bd516",
   "version": "7",
   "dialect": "postgresql",
@@ -3501,13 +3501,6 @@
           "notNull": true,
           "default": false
         },
-        "dismissed_publish_offers": {
-          "name": "dismissed_publish_offers",
-          "type": "text[]",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'{}'::text[]"
-        },
         "plan_id": {
           "name": "plan_id",
           "type": "text",
@@ -3542,6 +3535,12 @@
           "primaryKey": false,
           "notNull": true,
           "default": false
+        },
+        "signup_ref": {
+          "name": "signup_ref",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         },
         "created_at": {
           "name": "created_at",

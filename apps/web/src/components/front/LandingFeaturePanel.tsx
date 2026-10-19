@@ -11,12 +11,23 @@ import { ChartErrorBoundary } from "@/components/ui/chart";
 // client-side render shows meanwhile, and stays if the load fails: `Suspense`
 // does not catch a rejected `lazy` import, and nothing above the landing but
 // `app/global-error.tsx` would.
-const loadPanels = () => import("./LandingFeaturePanels");
+//
+// One import shared by every panel, not one each: under vitest's module mock
+// two concurrent imports of the same module can resolve to different modules
+// (the real one among them), and in a browser it is one chunk anyway. A failed
+// import is forgotten, as the hero's is.
+let panels: Promise<typeof import("./LandingFeaturePanels")> | undefined;
+/** The one import of the real feature panels every caller shares; a failed one is dropped so the next caller retries. */
+export const loadFeaturePanels = () =>
+  (panels ??= import("./LandingFeaturePanels").catch((e: unknown) => {
+    panels = undefined;
+    throw e;
+  }));
 const PANELS = {
-  together: lazy(() => loadPanels().then((m) => ({ default: m.TogetherPanel }))),
-  playbook: lazy(() => loadPanels().then((m) => ({ default: m.PlaybookPanel }))),
-  "playbook-compact": lazy(() => loadPanels().then((m) => ({ default: m.CompactPlaybookPanel }))),
-  notebook: lazy(() => loadPanels().then((m) => ({ default: m.MemoryPanel }))),
+  together: lazy(() => loadFeaturePanels().then((m) => ({ default: m.TogetherPanel }))),
+  playbook: lazy(() => loadFeaturePanels().then((m) => ({ default: m.PlaybookPanel }))),
+  "playbook-compact": lazy(() => loadFeaturePanels().then((m) => ({ default: m.CompactPlaybookPanel }))),
+  notebook: lazy(() => loadFeaturePanels().then((m) => ({ default: m.MemoryPanel }))),
 };
 
 /** The real `panel`, with `children` — its drawing — while it loads or if it cannot. */

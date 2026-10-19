@@ -15,6 +15,7 @@
     "milestones": "node scripts/milestones.mjs",
     "milestone": "node scripts/milestone.mjs",
     "surface": "node scripts/surface-size.mjs",
+    "signups-by-ref": "node --env-file-if-exists=apps/web/.env.local scripts/signups-by-ref.mjs",
     "arch": "depcruise --ignore-known --output-type err apps/web/src packages/*/src",
     "arch:baseline": "node scripts/arch-baseline.mjs",
     "arch:graph": "depcruise --collapse '^(packages/[^/]+|apps/web/src/server/[^/]+|apps/web/src/components/[^/]+|apps/web/src/[^/]+)' --output-type mermaid apps/web/src packages/*/src",

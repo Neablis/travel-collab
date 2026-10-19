@@ -170,6 +170,8 @@ function PlaybooksArt(): React.ReactElement {
             </span>
             <span aria-hidden className="pointer-events-none size-0.75 rounded-full bg-border-strong" />
             <Text as="span" variant="secondary" className="text-2xs">Relived 214 times</Text>
+            {/* A drawing's number, not a real day's (M50 decision 13). */}
+            <Badge variant="neutral" className="flex-none px-1.5 text-3xs tracking-wider uppercase">Sample</Badge>
           </div>
         </div>
         <Text as="span" variant="secondary" className="ml-auto flex-none text-2xs">Malee</Text>

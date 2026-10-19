@@ -225,7 +225,7 @@ export function LandingScreen() {
               </DataText>
 
               <Heading level={1} className="text-4xl text-pretty">
-                Put the best day on repeat.
+                Plan the trip together.
               </Heading>
 
               <Text as="p" variant="secondary" className="max-w-115 text-md text-pretty">

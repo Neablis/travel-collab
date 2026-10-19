@@ -1,4 +1,5 @@
 import { eq } from "drizzle-orm";
+import { cookies } from "next/headers";
 import {
   AvatarKey,
   DistanceUnit,
@@ -21,6 +22,7 @@ import { invalidateAuthor } from "./libraryCache";
 import { offerTrial } from "./entitlements/grants";
 import { rewardReferrer } from "./entitlements/referrals";
 import { isDevLoginEnabled } from "@/lib/devLogin";
+import { SIGNUP_REF_COOKIE, normalizeSignupRef } from "@/lib/signupRef";
 import { isBootstrapAdmin } from "@/lib/adminBootstrap";
 import { deploymentOrigin } from "@/lib/deploymentOrigin";
 import { sendEmail } from "./email/send";
@@ -138,9 +140,13 @@ export function normalizeIdentity(payload: SignInPayload | null | undefined): Si
  * SQL `DEFAULT 1` is a floor for a row inserted by hand; passing
  * `livePlanVersion("free")` here is what makes the gate box's *"a new account
  * gets v2"* true the day `free@v2` is published.
+ *
+ * `signupRef` is INSERT-only for the same reason (ADR-079): the channel that
+ * brought an account is written when the row is made and never by a later
+ * sign-in, a racing one included.
  */
 export async function upsertUser(
-  identity: SignInIdentity,
+  identity: SignInIdentity & { signupRef?: string | null },
   now: string = new Date().toISOString(),
 ): Promise<void> {
   const free = livePlanVersion("free");
@@ -352,6 +358,24 @@ async function hasUserRow(id: string): Promise<boolean> {
   return found.length > 0;
 }
 
+/** The `caesura_ref` cookie as `recordSignIn` sees it: a seam, like `PendingAdmission`, so the integration suite needs no request. */
+export type SignupRefJar = {
+  read(): Promise<string | null>;
+  clear(): Promise<void>;
+};
+
+/** The real cookie jar; mutable in the Auth.js route handler, as `cookiePendingAdmission` explains. */
+export function cookieSignupRef(): SignupRefJar {
+  return {
+    async read() {
+      return (await cookies()).get(SIGNUP_REF_COOKIE)?.value ?? null;
+    },
+    async clear() {
+      (await cookies()).delete({ name: SIGNUP_REF_COOKIE, path: "/" });
+    },
+  };
+}
+
 /**
  * Auth.js `signIn` callback. Wired in `server/auth.ts`; deliberately fail-closed
  * on every path, because the point of the table is that no session can exist
@@ -371,10 +395,15 @@ async function hasUserRow(id: string): Promise<boolean> {
  * The `pending_admission` cookie is cleared unconditionally, before either
  * answer is returned: an admission credential must not outlive the sign-in that
  * used it, and that includes a sign-in that turned out not to need it.
+ *
+ * A brand-new account also takes the `caesura_ref` channel (ADR-079), and that
+ * cookie is cleared once copied. A returning account's is neither read nor
+ * cleared: it changes nothing here.
  */
 export async function recordSignIn(
   payload: SignInPayload,
   pending: PendingAdmission = cookiePendingAdmission(),
+  signupRefJar: SignupRefJar = cookieSignupRef(),
 ): Promise<boolean | string> {
   // Refused here means refused before the gate is consulted and before any row
   // exists — including a payload carrying no account, which after 2026-09-05
@@ -434,7 +463,11 @@ export async function recordSignIn(
   // than be masked by whatever this throws.
   await pending.clear();
 
-  await upsertUser(identity);
+  // Re-validated, not trusted: the cookie is the browser's to edit. Cleared
+  // after the row exists, so a failed insert leaves it for the next attempt.
+  const signupRef = returning ? null : normalizeSignupRef(await signupRefJar.read());
+  await upsertUser({ ...identity, signupRef });
+  if (!returning) await signupRefJar.clear();
   // **The one-week `plus` trial, offered exactly once ever** (M20 link 2,
   // Mitchell 2026-09-13). Only for an account that had no row before this
   // sign-in — `returning` was read above, before `upsertUser` created one.

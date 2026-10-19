@@ -894,7 +894,7 @@ test.describe("responsive (narrow viewport, signed out)", () => {
       await page.setViewportSize({ width, height: 900 });
       await page.goto("/");
       await expect(
-        page.getByRole("heading", { name: "Put the best day on repeat." }),
+        page.getByRole("heading", { name: "Plan the trip together." }),
       ).toBeVisible();
 
       const offenders = await page.evaluate(() => {
@@ -980,7 +980,7 @@ test.describe("responsive (narrow viewport, signed out)", () => {
       // it is also the thing most able to push the page sideways: four
       // absolutely-positioned claims translating horizontally under a headline.
       await expect(
-        page.getByRole("heading", { name: "Put the best day on repeat." }),
+        page.getByRole("heading", { name: "Plan the trip together." }),
       ).toBeVisible();
       await expect(page.getByTestId("phone-front-door")).toBeVisible();
       await expect(page.getByTestId("front-door-claim").first()).toBeVisible();

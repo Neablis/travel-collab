@@ -27,6 +27,7 @@ import type {
   AdminAccountsPage as UiAdminAccountsPage,
   AdminGrantRow as UiAdminGrantRow,
   AdminOverview as UiAdminOverview,
+  AdminSignupsByRefRow as UiAdminSignupsByRefRow,
   AdminTierSeriesRow as UiAdminTierSeriesRow,
 } from "@/lib/adminOverview";
 import type { AdminAiModelsReport as UiAiModelsReport } from "@/lib/adminAiModels";
@@ -37,6 +38,7 @@ import type {
   AdminAccountsPage as ServerAdminAccountsPage,
   AdminGrantRow as ServerAdminGrantRow,
   AdminOverview as ServerAdminOverview,
+  SignupsByRefRow as ServerSignupsByRefRow,
 } from "./admin";
 import type { AccountCost as ServerAccountCost } from "./usage";
 import type { AiModelsReport as ServerAiModelsReport } from "./aiModels";
@@ -82,6 +84,8 @@ const aiModels: AssertEquals<UiAiModelsReport, ServerAiModelsReport> = true;
 const notebooks: AssertEquals<UiNotebooksReport, ServerNotebooksReport> = true;
 // M47 part 4: the Users tab's accounts by tier, week by week.
 const tierSeries: AssertEquals<UiAdminTierSeriesRow, ServerTierSeriesRow> = true;
+// M50 part 2: the Users tab's signups by channel.
+const signups: AssertEquals<UiAdminSignupsByRefRow, ServerSignupsByRefRow> = true;
 
 // M36 link 3's account page. The whole detail is pinned, and its parts too, so
 // a mismatch names the part rather than only the outermost type.
@@ -93,7 +97,7 @@ const grantRecord: AssertEquals<UiAdminAccountGrantRecord, ServerAdminAccountGra
 
 describe("the console's wire shape", () => {
   it("is byte-identical on both sides of the lint wall", () => {
-    const checks = [overview, account, grant, accountsPage, filterIds, cost, aiModels, notebooks, tierSeries, detail, accountPlan, assistant, turn, grantRecord];
+    const checks = [overview, account, grant, accountsPage, filterIds, cost, aiModels, notebooks, tierSeries, signups, detail, accountPlan, assistant, turn, grantRecord];
     expect(checks).toEqual(Array.from({ length: checks.length }, () => true));
   });
 });

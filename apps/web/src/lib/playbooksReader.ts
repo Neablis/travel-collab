@@ -21,10 +21,10 @@
 // the cached copy is the page they were already shown, from a cache.
 export type PlaybooksReader = "live" | "cached";
 
-// Nothing a playbook page reads: Next's own `_rsc`, and the campaign tags a
-// shared link picks up on its way through a feed. A URL carrying only these is
-// still the plain page.
-const IGNORED_PARAM = /^(?:_rsc|utm_[a-z_]+|fbclid|gclid)$/;
+// Nothing a playbook page reads: Next's own `_rsc`, a launch link's `ref`
+// (ADR-079), and the campaign tags a shared link picks up on its way through a
+// feed. A URL carrying only these is still the plain page.
+const IGNORED_PARAM = /^(?:_rsc|utm_[a-z_]+|fbclid|gclid|ref)$/;
 
 // A day segment that can be a canonical one: a slug, then a lower-case id
 // (`daySegment`). Anything else — a bare id, an upper-cased id, a doubled

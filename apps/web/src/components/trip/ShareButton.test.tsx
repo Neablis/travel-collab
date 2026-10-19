@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TripShare } from "@tc/contracts";
@@ -30,8 +30,23 @@ const share: TripShare = {
 
 const writeText = vi.fn().mockResolvedValue(undefined);
 
-afterEach(cleanup);
+// `GET /api/account/referrals`, which the referral nudge reads while it is
+// on screen. Nothing else in this suite goes through `fetch`.
+const referralsFetch = vi.fn();
+function earnsReward(earns: boolean) {
+  referralsFetch.mockImplementation(
+    async () => new Response(JSON.stringify({ codes: [], earnsReward: earns }), { status: 200 }),
+  );
+}
+
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
 beforeEach(() => {
+  referralsFetch.mockReset();
+  earnsReward(false);
+  vi.stubGlobal("fetch", referralsFetch);
   fetchTripSharesMock.mockReset().mockResolvedValue({ ok: true, value: [share] });
   createTripShareMock.mockReset().mockResolvedValue({ ok: true, value: { ...share, token: "fresh" } });
   revokeTripShareMock.mockReset().mockResolvedValue({ ok: true, value: { ...share, revokedAt: "now" } });
@@ -66,8 +81,11 @@ describe("ShareButton", () => {
   it("reads nothing until the panel is opened", async () => {
     render(<ShareButton tripId={tripId} />);
     expect(fetchTripSharesMock).not.toHaveBeenCalled();
+    // The referral nudge reads on mount, so it must live inside the panel.
+    expect(referralsFetch).not.toHaveBeenCalled();
     await openPanel();
     await waitFor(() => expect(fetchTripSharesMock).toHaveBeenCalledWith(tripId));
+    await waitFor(() => expect(referralsFetch).toHaveBeenCalledTimes(1));
   });
 
   it("says which history point each link is pinned to", async () => {
@@ -157,5 +175,25 @@ describe("ShareButton", () => {
     await openPanel();
     await userEvent.click(screen.getByRole("button", { name: "Create a share link" }));
     expect(await screen.findByText("forbidden")).toBeTruthy();
+  });
+
+  // M50 decision 8: someone already sharing a trip is told a referral pays a
+  // month, and only when it would.
+  it("offers a referral link to an account that earns the reward", async () => {
+    earnsReward(true);
+    render(<ShareButton tripId={tripId} />);
+    await openPanel();
+    expect(await screen.findByRole("button", { name: "Copy referral link" })).toBeTruthy();
+  });
+
+  it("offers nothing new to an account that earns nothing", async () => {
+    render(<ShareButton tripId={tripId} />);
+    await openPanel();
+    await waitFor(() => expect(referralsFetch).toHaveBeenCalledWith("/api/account/referrals"));
+    // Let the answer land before asserting that it changed nothing.
+    await act(async () => {
+      await referralsFetch.mock.results[0]?.value;
+    });
+    expect(screen.queryByRole("button", { name: "Copy referral link" })).toBeNull();
   });
 });

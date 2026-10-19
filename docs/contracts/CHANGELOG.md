@@ -22,7 +22,7 @@ Format:
   takes every field.
 - Why: M50 decision 7. A dismissal holds for that person and that trip on every
   device, so it is stored on the account (`users.dismissed_publish_offers`,
-  migration `0060`) rather than in the browser.
+  migration `0061`) rather than in the browser.
 - Consumers updated: `apps/web` (`server/users.ts` reads and writes it,
   `PreferencesProvider`'s `usePublishOfferDismissals`, `PublishTripOffer`).
 - Breaking? no. Optional, so an older reader and every fixture written before it
