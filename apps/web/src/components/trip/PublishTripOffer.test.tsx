@@ -110,6 +110,16 @@ describe("PublishTripOffer on the trip page", () => {
     expect(screen.getByRole("group", { name: "Publish Lisbon long weekend as a playbook" })).toBeTruthy();
   });
 
+  // A Publish pressed while the dismissal saves would open the Keep dialog,
+  // and the save landing would unmount it in the middle of the edit.
+  it("lets neither control be pressed while the dismissal saves", async () => {
+    updatePreferencesMock.mockReturnValue(new Promise(() => {}));
+    renderOffer(true);
+    await userEvent.click(await screen.findByRole("button", { name: "Dismiss publishing Lisbon long weekend" }));
+    expect(screen.getByRole("button", { name: "Publish Lisbon long weekend" }).hasAttribute("disabled")).toBe(true);
+    expect(screen.getByRole("button", { name: "Dismiss publishing Lisbon long weekend" }).hasAttribute("disabled")).toBe(true);
+  });
+
   // The page reads the trip's end off its last day: a trip whose first day is
   // past but whose last is still to come is not over.
   it("is offered once the trip's last day, not its first, has passed", async () => {

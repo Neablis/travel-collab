@@ -133,6 +133,9 @@ function Offer({
   const [open, setOpen] = useState(false);
   const [read, setRead] = useState<KeepDayCandidate[] | null>(null);
   const [busy, setBusy] = useState(false);
+  // While the dismissal saves, a Publish would open the Keep dialog only for
+  // the save landing to unmount it mid-edit.
+  const [dismissing, setDismissing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const candidates = days ?? read;
 
@@ -157,7 +160,9 @@ function Offer({
 
   async function dismiss() {
     setError(null);
+    setDismissing(true);
     const result = await onDismiss();
+    setDismissing(false);
     if (!result.ok) setError(result.error.message);
   }
 
@@ -172,7 +177,14 @@ function Offer({
       <Text as="span" className="mr-auto text-sm">
         Turn these days into a playbook?
       </Text>
-      <Button type="button" size="sm" variant="ghost" aria-label={`Dismiss publishing ${trip.name}`} onClick={() => void dismiss()}>
+      <Button
+        type="button"
+        size="sm"
+        variant="ghost"
+        aria-label={`Dismiss publishing ${trip.name}`}
+        disabled={dismissing}
+        onClick={() => void dismiss()}
+      >
         Dismiss
       </Button>
       <Button
@@ -180,7 +192,7 @@ function Offer({
         size="sm"
         variant="primary"
         aria-label={`Publish ${trip.name}`}
-        disabled={busy}
+        disabled={busy || dismissing}
         onClick={() => void start()}
       >
         Publish

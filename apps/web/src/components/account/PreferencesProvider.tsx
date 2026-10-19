@@ -185,11 +185,15 @@ export function PreferencesProvider({
   const dismissedHere = useRef<string[]>([]);
   const stored = preferences.dismissedPublishOffers;
   const dismissPublishOffer = useCallback(
-    (tripId: string) => {
+    async (tripId: string) => {
       dismissedHere.current = [...dismissedHere.current, tripId];
       const all = [...new Set([...(stored ?? []), ...dismissedHere.current])];
       // Oldest first, so a full list loses the trip dismissed longest ago.
-      return save({ dismissedPublishOffers: all.slice(-MAX_DISMISSED_PUBLISH_OFFERS) });
+      const result = await save({ dismissedPublishOffers: all.slice(-MAX_DISMISSED_PUBLISH_OFFERS) });
+      // A failed one keeps its offer up with the error; carried on, the next
+      // trip's save would store it and the offer would vanish unasked.
+      if (!result.ok) dismissedHere.current = dismissedHere.current.filter((id) => id !== tripId);
+      return result;
     },
     [save, stored],
   );

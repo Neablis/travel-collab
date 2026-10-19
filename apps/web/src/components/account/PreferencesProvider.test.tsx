@@ -5,7 +5,7 @@ import { MAX_DISMISSED_PUBLISH_OFFERS, type UpdateUserPreferences, type UserPref
 // Each PATCH is held open until the test releases it, which is the only way to
 // get two saves genuinely in flight at once — the condition the ordering rule
 // below exists for, and one that cannot be reproduced by awaiting them in turn.
-const pending: Array<{ patch: UpdateUserPreferences; settle: (value: UserPreferences) => void }> = [];
+const pending: Array<{ patch: UpdateUserPreferences; settle: (value: UserPreferences) => void; fail: () => void }> = [];
 
 const preferencesRead = vi.fn();
 // What the mocked endpoint answers for the name; one test sets it to tell a
@@ -23,7 +23,11 @@ vi.mock("@/lib/apiClient", () => ({
   }),
   updatePreferences: (patch: UpdateUserPreferences) =>
     new Promise((resolve) => {
-      pending.push({ patch, settle: (value) => resolve({ ok: true as const, value }) });
+      pending.push({
+        patch,
+        settle: (value) => resolve({ ok: true as const, value }),
+        fail: () => resolve({ ok: false as const, error: { status: 500, message: "down" } }),
+      });
     }),
 }));
 
@@ -182,7 +186,7 @@ describe("PreferencesProvider", () => {
 // M50 decision 7's dismissals. Each Dismiss is a save of the whole list, so
 // what matters is what each PATCH carries.
 describe("usePublishOfferDismissals", () => {
-  let dismiss: ((tripId: string) => void) | undefined;
+  let dismiss: ((tripId: string) => Promise<unknown>) | undefined;
   function DismissProbe() {
     const dismissals = usePublishOfferDismissals();
     dismiss = dismissals?.dismiss;
@@ -206,10 +210,27 @@ describe("usePublishOfferDismissals", () => {
         <DismissProbe />
       </PreferencesProvider>,
     );
-    dismiss!("a");
-    dismiss!("b");
+    void dismiss!("a");
+    void dismiss!("b");
     await waitFor(() => expect(pending).toHaveLength(2));
     expect(pending[1]!.patch).toEqual({ dismissedPublishOffers: ["x", "a", "b"] });
+  });
+
+  // A failed Dismiss leaves its offer up with the error. Carried into the next
+  // trip's save, it would be stored anyway and the offer would vanish unasked.
+  it("does not store a dismissal whose save failed with a later one", async () => {
+    render(
+      <PreferencesProvider initialRead={served([])}>
+        <DismissProbe />
+      </PreferencesProvider>,
+    );
+    const first = dismiss!("a");
+    await waitFor(() => expect(pending).toHaveLength(1));
+    pending[0]!.fail();
+    await first;
+    void dismiss!("b");
+    await waitFor(() => expect(pending).toHaveLength(2));
+    expect(pending[1]!.patch).toEqual({ dismissedPublishOffers: ["b"] });
   });
 
   // Not knowing the stored list is not the same as an empty one: offering
@@ -236,7 +257,7 @@ describe("usePublishOfferDismissals", () => {
         <DismissProbe />
       </PreferencesProvider>,
     );
-    dismiss!("new");
+    void dismiss!("new");
     await waitFor(() => expect(pending).toHaveLength(1));
     const sent = pending[0]!.patch.dismissedPublishOffers!;
     expect(sent).toHaveLength(MAX_DISMISSED_PUBLISH_OFFERS);
