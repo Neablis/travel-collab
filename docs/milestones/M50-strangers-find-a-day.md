@@ -70,6 +70,16 @@ promise one.
 14. **Signups per channel** is a table on the operator console's Users tab (channel, signups in
     the last 7 and 30 days, all time), plus a `pnpm signups-by-ref` script for the terminal.
 
+**Settled by Mitchell during the build (2026-10-19):**
+
+15. **Only a new sign-up goes straight to a new trip.** An existing account that signs in from a
+    playbook day returns to the day with the add-to-trip dialog open (an existing trip, or start a
+    new one). Part 4, PR 497.
+16. **The tone line reaches every assistant prompt**: trip turns, the account-wide assistant and
+    the playbook page, with the context-budget baseline regenerated and offline evals only.
+    Part 1, PR 494. Its wording is still open with Mitchell; it stays as decision 10 has it until
+    he answers.
+
 ## Scope
 
 Eight parts, each its own PR on `main` (the plan has the files):
