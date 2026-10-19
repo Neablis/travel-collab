@@ -67,6 +67,8 @@ describe("LandingHeroArt's prefetch of the real panels", () => {
   // module can resolve to the real one under vitest (`LandingFeaturePanel.tsx`).
   it("hands every caller the same import", async () => {
     const { loadHeroPanels } = await import("./LandingHeroArt");
-    expect(loadHeroPanels()).toBe(loadHeroPanels());
+    const first = loadHeroPanels();
+    expect(loadHeroPanels()).toBe(first);
+    await first;
   });
 });

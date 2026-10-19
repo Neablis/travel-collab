@@ -37,6 +37,7 @@ import { cn } from "@/lib/cn";
 // and forgotten when it fails, so a blip during the prefetch is retried by the
 // view that next asks rather than kept for the session.
 let panels: Promise<typeof import("./LandingHeroPanels")> | undefined;
+/** The one import of the hero's real Timeline and Notebook panels both share; a failed one is dropped so the next caller retries. */
 export const loadHeroPanels = () =>
   (panels ??= import("./LandingHeroPanels").catch((e: unknown) => {
     panels = undefined;

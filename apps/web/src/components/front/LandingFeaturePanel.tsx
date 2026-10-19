@@ -17,6 +17,7 @@ import { ChartErrorBoundary } from "@/components/ui/chart";
 // (the real one among them), and in a browser it is one chunk anyway. A failed
 // import is forgotten, as the hero's is.
 let panels: Promise<typeof import("./LandingFeaturePanels")> | undefined;
+/** The one import of the real feature panels every caller shares; a failed one is dropped so the next caller retries. */
 export const loadFeaturePanels = () =>
   (panels ??= import("./LandingFeaturePanels").catch((e: unknown) => {
     panels = undefined;

@@ -5,7 +5,9 @@ import { loadFeaturePanels } from "./LandingFeaturePanel";
 // module can resolve to the real one under vitest, which made
 // `LandingFeatureBlocks.failed.test.tsx` fail only sometimes.
 describe("loadFeaturePanels", () => {
-  it("hands every caller the same import", () => {
-    expect(loadFeaturePanels()).toBe(loadFeaturePanels());
+  it("hands every caller the same import", async () => {
+    const first = loadFeaturePanels();
+    expect(loadFeaturePanels()).toBe(first);
+    await first;
   });
 });
