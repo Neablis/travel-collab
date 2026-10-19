@@ -20,6 +20,16 @@ vi.mock("next-auth", () => ({
 const { default: proxy, config } = await import("./proxy");
 const handle = proxy as unknown as (req: NextRequest) => Response;
 
+// The matcher as Next itself compiles it, transport forms and all. Vercel
+// matches a route source case-insensitively, hence the flag. Next exports
+// `getMiddlewareMatchers` at runtime but leaves it out of its `.d.ts`.
+const { getMiddlewareMatchers } = (await import("next/dist/build/analysis/get-page-static-info")) as unknown as {
+  getMiddlewareMatchers: (matchers: (typeof config.matcher)[number][], nextConfig: object) => { regexp: string }[];
+};
+function nextMatches(entries: typeof config.matcher, pathname: string): boolean {
+  return getMiddlewareMatchers([...entries], {}).some((m) => new RegExp(m.regexp, "i").test(pathname));
+}
+
 function request(
   path: string,
   { session, hint, dest, ref }: { session: boolean; hint: boolean; dest?: string; ref?: string },
@@ -96,9 +106,12 @@ describe("proxy", () => {
 
   // ADR-079: a launch link's `?ref=` is banked for signup, first touch only.
   describe("a ?ref= link", () => {
-    it("is matched on any path by a query condition, so / without one stays unmatched", () => {
-      expect(config.matcher).toContainEqual(expect.objectContaining({ has: [{ type: "query", key: "ref" }] }));
+    it("is matched on any page by a query condition, never under /api or /_next", () => {
+      const refEntry = config.matcher.filter((entry) => typeof entry !== "string");
+      expect(refEntry).toEqual([expect.objectContaining({ has: [{ type: "query", key: "ref" }] })]);
       expect(config.matcher).not.toContain("/");
+      for (const page of ["/", "/signin", "/places/kyoto"]) expect(nextMatches(refEntry, page)).toBe(true);
+      for (const other of ["/api/trips", "/_next/static/chunk.js"]) expect(nextMatches(refEntry, other)).toBe(false);
     });
 
     it("banks the channel on the landing, without auth() or a rewrite, on a response no CDN keeps", () => {
@@ -125,6 +138,25 @@ describe("proxy", () => {
         expect(authCalls.count).toBe(1);
       },
     );
+
+    // Next lets a path entry in by any case and in its transport forms, so
+    // the ref branch must not read those as unguarded.
+    it.each(["/Trips/x?ref=a", "/HOME?ref=a", "/home.segments/_tree.segment.rsc?ref=a"])(
+      "still sends %s, which a path entry matches, through auth()",
+      (path) => {
+        const { pathname } = new URL(path, "https://caesura.test");
+        expect(nextMatches(config.matcher.filter((entry) => typeof entry === "string"), pathname)).toBe(true);
+        authCalls.count = 0;
+        handle(request(path, { session: false, hint: false }));
+        expect(authCalls.count).toBe(1);
+      },
+    );
+
+    it("answers a path that only shares a guarded prefix without auth()", () => {
+      authCalls.count = 0;
+      handle(request("/homeless?ref=a", { session: false, hint: false }));
+      expect(authCalls.count).toBe(0);
+    });
 
     it("keeps the first channel: a later ref does not overwrite it", () => {
       const res = handle(request("/?ref=other", { session: false, hint: false, ref: "showhn" }));

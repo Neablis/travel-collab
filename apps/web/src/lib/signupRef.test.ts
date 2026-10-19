@@ -16,6 +16,8 @@ describe("normalizeSignupRef", () => {
     ["punctuation", "showhn;"],
     ["an underscore", "show_hn"],
     ["33 characters", "a".repeat(33)],
+    // The signups-by-channel console and script label the no-channel row `direct`.
+    ["the reserved label", "Direct"],
   ])("drops %s", (_label, raw) => {
     expect(normalizeSignupRef(raw)).toBeNull();
   });

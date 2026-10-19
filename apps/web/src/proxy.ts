@@ -1,3 +1,4 @@
+import { getPathMatch } from "next/dist/shared/lib/router/utils/path-match";
 import { NextResponse, type NextRequest } from "next/server";
 import NextAuth, { type NextAuthRequest } from "next-auth";
 import { authConfig } from "@/lib/authConfig";
@@ -110,18 +111,27 @@ function bankSignupRef(req: NextRequest, response: NextResponse): NextResponse {
 }
 
 /**
- * Is this path one of the matcher's own string entries, which need `auth()`?
- * Read from `config.matcher` rather than listed again, so a route added there
- * cannot be skipped past `auth()` by a second list that was not updated.
- * Only the two shapes the list uses: an exact path, and `<prefix>/:path*`.
+ * Could one of the matcher's string entries, which need `auth()`, have let
+ * this path in? Read from `config.matcher` rather than listed again, so a
+ * route added there cannot be skipped past `auth()` by a second list that was
+ * not updated.
+ *
+ * It fails closed: the ref branch skips `auth()`, so only a path proven to be
+ * matched by none of them may take it. Each entry is compiled by Next's own
+ * path-to-regexp wrapper, case-insensitive as Vercel matches it, and loosened
+ * to any `.` suffix, which covers the `.rsc` and `.segments/…` transport forms
+ * Next adds to every entry (`getMiddlewareMatchers`). Matching more than Next
+ * only costs an `auth()` the request did not need.
  */
 function isGuardedPath(pathname: string): boolean {
-  return config.matcher.some((entry) => {
-    if (typeof entry !== "string") return false;
-    const prefix = entry.endsWith("/:path*") ? entry.slice(0, -"/:path*".length) : null;
-    return prefix === null ? pathname === entry : pathname === prefix || pathname.startsWith(`${prefix}/`);
-  });
+  guardedEntries ??= config.matcher.flatMap((entry) =>
+    typeof entry === "string" ? [getPathMatch(entry, { regexModifier: (source) => source.replace(/\$$/, "(?:\\..*)?$") })] : [],
+  );
+  return guardedEntries.some((matches) => matches(pathname) !== false);
 }
+// Compiled on first use: `config` is declared below, so it is not there yet
+// while this module's top level runs.
+let guardedEntries: ReturnType<typeof getPathMatch>[] | undefined;
 
 // What the request gets before a stale hint is taken off it.
 function route(req: NextAuthRequest): NextResponse {

@@ -14,6 +14,10 @@ export const SIGNUP_REF_MAX_AGE_SECONDS = 30 * 24 * 60 * 60;
 
 const SIGNUP_REF_PATTERN = /^[a-z0-9-]{1,32}$/;
 
+// What the signups-by-channel console and script call an account with no
+// channel; a channel by that name would be counted as a second "direct" row.
+const NO_CHANNEL_LABEL = "direct";
+
 /**
  * The channel label in a `?ref=` value, lowercased, or `null` when it is not
  * one. Anyone can write the link, so anything outside the pattern is dropped
@@ -21,7 +25,7 @@ const SIGNUP_REF_PATTERN = /^[a-z0-9-]{1,32}$/;
  */
 export function normalizeSignupRef(raw: string | null | undefined): string | null {
   const ref = (raw ?? "").toLowerCase();
-  return SIGNUP_REF_PATTERN.test(ref) ? ref : null;
+  return SIGNUP_REF_PATTERN.test(ref) && ref !== NO_CHANNEL_LABEL ? ref : null;
 }
 
 /**
