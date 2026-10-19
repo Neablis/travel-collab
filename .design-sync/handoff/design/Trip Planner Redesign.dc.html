@@ -5365,18 +5365,20 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
         </div>
       </div>
 
-      <div style="width: 100%; max-width: 1140px; padding: 56px 28px 78px;">
-        <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 20px; background: var(--color-moss); border: 1px solid var(--color-hairline); border-radius: 16px; padding: 30px 32px;">
-          <div style="display: flex; flex-direction: column; gap: 6px;">
-            <span style="font-family: var(--font-next-display); font-size: clamp(20px, 2vw, 26px); font-weight: 600; letter-spacing: -0.015em; color: var(--color-ink);">Start the plan, then send the link.</span>
-            <span style="font-size: 14px; color: var(--color-slate); text-wrap: pretty;">A trip takes about a minute to set up. Everything after that is easier with company.</span>
-          </div>
-          <div style="display: flex; flex-wrap: wrap; gap: 10px;">
+      <!-- The closing moment (M50 part 5): a line from the Hakone notebook page, then the ask. Not a moss call-to-action band. -->
+      <section style="width: 100%; border-top: 1px solid var(--color-hairline); background: var(--color-paper); margin-top: 56px;">
+        <div style="margin: 0 auto; max-width: 800px; padding: 78px 28px; display: flex; flex-direction: column; align-items: center; gap: 28px; text-align: center;">
+          <figure style="margin: 0; display: flex; flex-direction: column; gap: 14px;">
+            <blockquote style="margin: 0; font-family: var(--font-next-display); font-size: 24px; line-height: 1.375; letter-spacing: -0.015em; color: var(--color-ink); text-wrap: pretty;">&ldquo;Nobody was in a hurry. Priya says it was the best night of the trip, and nobody argued.&rdquo;</blockquote>
+            <figcaption style="font-family: var(--font-next-mono); font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-slate);">The trip notebook · Day six, Hakone</figcaption>
+          </figure>
+          <span style="font-family: var(--font-next-display); font-size: 20px; font-weight: 600; letter-spacing: -0.015em; color: var(--color-ink);">Start the plan, then bring everyone.</span>
+          <div style="display: flex; flex-wrap: wrap; justify-content: center; gap: 10px;">
             <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,44px" variant="primary" onClick="{{ goSignup }}">Start a trip</x-import>
             <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,44px" variant="ghost" onClick="{{ peekTrip }}">See a finished one</x-import>
           </div>
         </div>
-      </div>
+      </section>
     </main>
   </div>
 </sc-if>

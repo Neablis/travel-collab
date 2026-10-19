@@ -13,8 +13,15 @@ import { LandingFeaturePanel } from "./LandingFeaturePanel";
 // are Mitchell's retro of 2026-09-28 (DRIFT D21,
 // `docs/design-feedback/2026-09-28-landing-retro-copy.md`), which the design
 // file does not carry yet. Each block's title is the section's <h2> — there is
-// no heading above the grid any more. The section padding belongs to
-// `LandingScreen.tsx`; this file renders the grid and nothing else.
+// no heading above the blocks any more. The vertical padding belongs to
+// `LandingScreen.tsx`; this file renders the blocks and nothing else.
+//
+// **Not a grid of four equal cards** (M50 part 5): that was the template's
+// shape. Playbooks and Notebook are full-bleed spreads, copy on one side and
+// the app on the other, mirrored; Together and Countdown sit between them as a
+// wide card beside a narrow one. Each block names its shape in `data-layout`,
+// which `m42-demo-trips.spec.ts` reads to exempt the spreads from the card
+// width cap; `responsive.spec.ts` measures the shapes.
 //
 // **Three of the four show the app itself** (M42 part 9): Together is the
 // board's read-only river, Playbooks a Discover card, Notebook a notebook page
@@ -78,13 +85,13 @@ const NAME_CHIP = "flex-none rounded-full px-1.5 py-0.5 text-3xs font-semibold t
 // A block's body: the panel, or its drawing, under the block's heading.
 const BODY = "flex min-h-0 flex-1 flex-col justify-between gap-2.5 px-4.5 pb-4.5";
 
-// **A card's width, not a column's** (M42 part 9; Mitchell, on the preview:
-// the cards looked very wide). Each block is held to 480px and centred, and
-// the grid to two of them and the gap between, 978px, centred on the page,
-// so the pair sits together in the middle rather than across the 1140px page.
-// Stacked, below `lg`, each card keeps the same cap and is centred, so a wide
-// tablet does not stretch one either.
-const BLOCK = "flex h-full w-full max-w-120 min-h-107.5 flex-col justify-self-center overflow-hidden rounded-lg p-0";
+// A card in the row between the spreads. Capped and centred at every width, so
+// stacked below `lg` it is still a card; its `lg` width is set at the call site:
+// the row is the one place two blocks sit side by side, and unequal on purpose.
+const BLOCK = "flex w-full max-w-120 self-center lg:self-stretch min-h-107.5 flex-col overflow-hidden rounded-lg p-0";
+
+// The page's own width, which the spreads' backgrounds run past.
+const PAGE = "mx-auto w-full max-w-285 px-7";
 
 // The design draws the timeline as `grid-template-columns: 40px 18px 1fr`, which
 // Tailwind can't name; a flex row with fixed leading columns is the same layout
@@ -120,17 +127,75 @@ function TravelGap({ children }: { children: React.ReactNode }) {
 
 // `id` names the block's section by its title: each block is a region a reader
 // can jump to, and the one a test finds by name.
-function BlockHead({ id, eyebrow, title, children }: { id: string; eyebrow: string; title: string; children: React.ReactNode }) {
+function BlockHead({ id, eyebrow, title, className, headingClassName, children }: {
+  id: string;
+  eyebrow: string;
+  title: string;
+  className?: string;
+  headingClassName?: string;
+  children: React.ReactNode;
+}) {
   return (
-    <div className="flex flex-col gap-1.75 p-4.5 pb-3">
+    <div className={cn("flex flex-col gap-1.75 p-4.5 pb-3", className)}>
       <DataText className="text-2xs tracking-widest text-brand-pressed uppercase">{eyebrow}</DataText>
-      <Heading level={2} id={id}>
+      <Heading level={2} id={id} className={headingClassName}>
         {title}
       </Heading>
       <Text as="p" variant="secondary" className="leading-normal text-pretty">
         {children}
       </Text>
     </div>
+  );
+}
+
+/**
+ * A full-bleed spread: the block's ground runs the page's whole width, its copy
+ * on one side and the app on the other. `mirrored` puts the copy on the right,
+ * so the two spreads face each other across the row between them. `aside` is
+ * whatever stands under the copy.
+ */
+function Spread({ id, eyebrow, title, intro, aside, mirrored = false, children }: {
+  id: string;
+  eyebrow: string;
+  title: string;
+  intro: React.ReactNode;
+  aside?: React.ReactNode;
+  mirrored?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <section
+      aria-labelledby={id}
+      data-layout="spread"
+      className="landing-grain relative w-full border-y border-hairline bg-moss"
+    >
+      <div className={cn(PAGE, "grid items-center gap-10 py-13.5 lg:grid-cols-2")}>
+        <div className={cn("flex flex-col gap-6", mirrored && "lg:order-last")}>
+          <BlockHead id={id} eyebrow={eyebrow} title={title} className="p-0" headingClassName="text-3xl">
+            {intro}
+          </BlockHead>
+          {aside}
+        </div>
+        <Card className="flex min-h-107.5 w-full flex-col overflow-hidden rounded-lg p-0 pt-4.5">
+          <div className={BODY}>{children}</div>
+        </Card>
+      </div>
+    </section>
+  );
+}
+
+// **The slot for a real photo** (M50 part 5): a day somebody actually had,
+// which no fixture can stand in for. Held open as a mat of grained paper at a
+// photo's proportions, so the spread already balances and a photo drops in
+// without moving anything. Decorative until then, and only where the spread is
+// two columns: stacked, an empty mat would be a gap in the page.
+function PhotoSlot(): React.ReactElement {
+  return (
+    <div
+      aria-hidden
+      data-photo-slot
+      className="landing-grain relative hidden aspect-4/3 w-full rounded-lg border border-hairline bg-paper lg:block"
+    />
   );
 }
 
@@ -324,118 +389,127 @@ function NotebookArt(): React.ReactElement {
 
 export function LandingFeatureBlocks(): React.ReactElement {
   return (
-    // Two columns from `lg`, not three or four. Four at the old three-column
-    // width would squeeze the Playbooks card's borrowed Day 2 to nothing: at
-    // three columns it already had only 137px of the ~300px card after the two
-    // fixed 62px jungle days (CodeRabbit, PR #58), and a quarter-width card
-    // leaves it none. One column below `lg`. 978px is two 480px blocks and
-    // the 18px gap (see `BLOCK`).
-    <div className="mx-auto grid w-full max-w-244.5 gap-4.5 lg:grid-cols-2">
-      {/* Playbooks — `dc.html:2138-2198` */}
-      <Card as="section" aria-labelledby="landing-playbooks" className={BLOCK}>
-        <BlockHead id="landing-playbooks" eyebrow="Playbooks" title="Relive someone’s perfect day.">
-          Every playbook is a day that actually happened, saved by the person who lived it, in the order
-          it happened. The sunrise, the alley, the swim. Drop it into your trip and it&rsquo;s yours now.
-        </BlockHead>
+    <div className="flex w-full flex-col gap-13.5">
+      {/* Playbooks — `dc.html:2138-2198`. The lead, so it holds the photo. */}
+      <Spread
+        id="landing-playbooks"
+        eyebrow="Playbooks"
+        title="Relive someone’s perfect day."
+        aside={<PhotoSlot />}
+        intro={
+          <>
+            Every playbook is a day that actually happened, saved by the person who lived it, in the order
+            it happened. The sunrise, the alley, the swim. Drop it into your trip and it&rsquo;s yours now.
+          </>
+        }
+      >
+        <LandingFeaturePanel panel="playbook">
+          <PlaybooksArt />
+        </LandingFeaturePanel>
+      </Spread>
 
-        <div className={BODY}>
-          <LandingFeaturePanel panel="playbook">
-            <PlaybooksArt />
-          </LandingFeaturePanel>
-        </div>
-      </Card>
+      {/* Wide beside narrow from `lg`, a centred pair: the river needs the
+          room and the countdown is one number. Each stays a card's width,
+          480px at most (Mitchell's M42 preview: cards, not halves of the page),
+          so the row does not stretch with the screen the way the spreads do.
+          One column below `lg`. */}
+      <div className={cn(PAGE, "flex flex-col gap-4.5 lg:flex-row lg:items-stretch lg:justify-center")}>
+        {/* Together — `dc.html:2018-2093` */}
+        <Card as="section" aria-labelledby="landing-together" data-layout="wide" className={cn(BLOCK, "lg:w-120")}>
+          <BlockHead id="landing-together" eyebrow="Together" title="The trip starts before the trip.">
+            One plan your whole group can touch. Drag a stop and everyone sees it move. Suggest a change
+            and the planners say yes. Argue about Pontocho now, thank yourselves in Kyoto.
+          </BlockHead>
 
-      {/* Together — `dc.html:2018-2093` */}
-      <Card as="section" aria-labelledby="landing-together" className={BLOCK}>
-        <BlockHead id="landing-together" eyebrow="Together" title="The trip starts before the trip.">
-          One plan your whole group can touch. Drag a stop and everyone sees it move. Suggest a change
-          and the planners say yes. Argue about Pontocho now, thank yourselves in Kyoto.
-        </BlockHead>
+          <div className={BODY}>
+            <LandingFeaturePanel panel="together">
+              <TogetherArt />
+            </LandingFeaturePanel>
+          </div>
+        </Card>
 
-        <div className={BODY}>
-          <LandingFeaturePanel panel="together">
-            <TogetherArt />
-          </LandingFeaturePanel>
-        </div>
-      </Card>
+        {/* Countdown — new in the 2026-09-28 retro; no design artboard yet. */}
+        <Card as="section" aria-labelledby="landing-countdown" data-layout="narrow" className={cn(BLOCK, "lg:w-100")}>
+          <BlockHead id="landing-countdown" eyebrow="Countdown" title="Too excited to sleep.">
+            Every trip gets a living countdown, shared with the whole group. One month. One week. Wheels
+            up tomorrow. Sleep if you can.
+          </BlockHead>
 
-      {/* Countdown — new in the 2026-09-28 retro; no design artboard yet. */}
-      <Card as="section" aria-labelledby="landing-countdown" className={BLOCK}>
-        <BlockHead id="landing-countdown" eyebrow="Countdown" title="Too excited to sleep.">
-          Every trip gets a living countdown, shared with the whole group. One month. One week. Wheels
-          up tomorrow. Sleep if you can.
-        </BlockHead>
-
-        <div className="flex min-h-0 flex-1 flex-col justify-between gap-2.5 px-4.5 pb-4.5">
-          <div className="flex items-center gap-2">
-            <DataText className="text-3xs tracking-wider uppercase">Kyoto · Apr 4</DataText>
-            <div className="ml-auto flex">
-              {CREW.map((initials) => (
-                <span
-                  key={initials}
-                  className="-ml-1.5 grid size-5.25 place-items-center rounded-full border-2 border-surface bg-brand-tint text-3xs font-semibold text-brand-pressed"
-                >
-                  {initials}
-                </span>
-              ))}
+          <div className="flex min-h-0 flex-1 flex-col justify-between gap-2.5 px-4.5 pb-4.5">
+            <div className="flex items-center gap-2">
+              <DataText className="text-3xs tracking-wider uppercase">Kyoto · Apr 4</DataText>
+              <div className="ml-auto flex">
+                {CREW.map((initials) => (
+                  <span
+                    key={initials}
+                    className="-ml-1.5 grid size-5.25 place-items-center rounded-full border-2 border-surface bg-brand-tint text-3xs font-semibold text-brand-pressed"
+                  >
+                    {initials}
+                  </span>
+                ))}
+              </div>
             </div>
-          </div>
 
-          <div className="flex flex-col items-center gap-1 rounded-md border border-hairline bg-paper px-3.75 py-5">
-            <DataText className="text-4xl font-semibold text-ink">1</DataText>
-            <DataText className="text-2xs tracking-widest uppercase">day to go</DataText>
-            <Text as="span" className="pt-1.5 font-display text-lg font-semibold">
-              Wheels up tomorrow.
-            </Text>
-          </div>
-
-          <ol className="flex items-center gap-1.5">
-            {COUNTDOWN_STEPS.map(({ label, done }) => (
-              <li key={label} className="flex min-w-0 flex-1 flex-col gap-1">
-                <span
-                  aria-hidden
-                  className={cn("pointer-events-none h-1 rounded-full", done ? "bg-brand" : "bg-brand-tint")}
-                />
-                <DataText className={cn("truncate text-3xs tracking-wider uppercase", done ? null : "text-brand-pressed")}>
-                  {label}
-                </DataText>
-              </li>
-            ))}
-          </ol>
-
-          <div className="flex items-start gap-2 rounded-md bg-moss px-2.75 py-2.25">
-            <span className="grid size-5 flex-none place-items-center rounded-full bg-brand-tint text-3xs font-semibold text-brand-pressed">
-              PR
-            </span>
-            {/* A change somebody made, in the past tense: there is no chat to
-                quote and no Accept on a countdown, and the app has no live
-                presence (ADR-049 polls) — Mitchell, 2026-10-11. */}
-            <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-              <Text as="span" className="text-xs">
-                Moved the meet-up at Kyoto station to 6:40 am.
+            <div className="flex flex-col items-center gap-1 rounded-md border border-hairline bg-paper px-3.75 py-5">
+              <DataText className="text-4xl font-semibold text-ink">1</DataText>
+              <DataText className="text-2xs tracking-widest uppercase">day to go</DataText>
+              <Text as="span" className="pt-1.5 font-display text-lg font-semibold">
+                Wheels up tomorrow.
               </Text>
-              <DataText className="text-3xs tracking-wider uppercase">Priya · 1:12 am</DataText>
+            </div>
+
+            <ol className="flex items-center gap-1.5">
+              {COUNTDOWN_STEPS.map(({ label, done }) => (
+                <li key={label} className="flex min-w-0 flex-1 flex-col gap-1">
+                  <span
+                    aria-hidden
+                    className={cn("pointer-events-none h-1 rounded-full", done ? "bg-brand" : "bg-brand-tint")}
+                  />
+                  <DataText className={cn("truncate text-3xs tracking-wider uppercase", done ? null : "text-brand-pressed")}>
+                    {label}
+                  </DataText>
+                </li>
+              ))}
+            </ol>
+
+            <div className="flex items-start gap-2 rounded-md bg-moss px-2.75 py-2.25">
+              <span className="grid size-5 flex-none place-items-center rounded-full bg-brand-tint text-3xs font-semibold text-brand-pressed">
+                PR
+              </span>
+              {/* A change somebody made, in the past tense: there is no chat to
+                  quote and no Accept on a countdown, and the app has no live
+                  presence (ADR-049 polls) — Mitchell, 2026-10-11. */}
+              <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                <Text as="span" className="text-xs">
+                  Moved the meet-up at Kyoto station to 6:40 am.
+                </Text>
+                <DataText className="text-3xs tracking-wider uppercase">Priya · 1:12 am</DataText>
+              </div>
             </div>
           </div>
-        </div>
-      </Card>
+        </Card>
+      </div>
 
-      {/* Notebook — `dc.html:2095-2136`'s frame. The page in it is a memory
-          rather than the design's cost table (Mitchell, 2026-10-11: *"it
-          should be more nostalgic than how much you spent on dinner"*), and
-          the phone's Notebook claim is the same page. */}
-      <Card as="section" aria-labelledby="landing-notebook" className={BLOCK}>
-        <BlockHead id="landing-notebook" eyebrow="Notebook" title="How you’ll remember it.">
-          Pages that read like the letter home, written by everyone who was there. Before the trip
-          it&rsquo;s a promise. After, it&rsquo;s the keepsake.
-        </BlockHead>
-
-        <div className={BODY}>
-          <LandingFeaturePanel panel="notebook">
-            <NotebookArt />
-          </LandingFeaturePanel>
-        </div>
-      </Card>
+      {/* Notebook — `dc.html:2095-2136`'s frame, mirrored against Playbooks.
+          The page in it is a memory rather than the design's cost table
+          (Mitchell, 2026-10-11: *"it should be more nostalgic than how much you
+          spent on dinner"*), and the phone's Notebook claim is the same page. */}
+      <Spread
+        id="landing-notebook"
+        eyebrow="Notebook"
+        title="How you’ll remember it."
+        mirrored
+        intro={
+          <>
+            Pages that read like the letter home, written by everyone who was there. Before the trip
+            it&rsquo;s a promise. After, it&rsquo;s the keepsake.
+          </>
+        }
+      >
+        <LandingFeaturePanel panel="notebook">
+          <NotebookArt />
+        </LandingFeaturePanel>
+      </Spread>
     </div>
   );
 }

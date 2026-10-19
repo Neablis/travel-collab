@@ -1,6 +1,7 @@
 import { UNBUILT_SOCIAL } from "@/test-support/unbuiltSocial";
 import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi, type MockInstance } from "vitest";
+import { LANDING_CLOSING_QUOTE } from "@/lib/landingDemo";
 import { LandingFeatureBlocks } from "./LandingFeatureBlocks";
 import { PhoneFrontDoor } from "./PhoneFrontDoor";
 
@@ -66,7 +67,7 @@ describe("PhoneFrontDoor when the real panels fail to load", () => {
   // number, not a real day's, and is labelled so.
   it("labels the Playbooks drawing's count a sample", async () => {
     const logged = vi.spyOn(console, "error").mockImplementation(() => {});
-    render(<PhoneFrontDoor />);
+    render(<PhoneFrontDoor closingQuote={LANDING_CLOSING_QUOTE} />);
     await landedRejection(logged);
     const playbooks = within(screen.getAllByTestId("front-door-claim")[0]!);
     expect(playbooks.getByText(/Relived 214 times/)).toBeDefined();
