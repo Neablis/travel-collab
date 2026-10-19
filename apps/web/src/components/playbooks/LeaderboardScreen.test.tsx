@@ -112,7 +112,7 @@ describe("the leaderboard", () => {
   it("stops pretending to load when the first read failed, and offers one Retry", async () => {
     fetchLeaderboardMock.mockResolvedValue({ ok: false, error: { status: 0, message: "Network error" } });
     render(<LeaderboardScreen />);
-    await screen.findByText("The board could not be loaded");
+    await screen.findByText("The board did not load");
     expect(screen.queryByTestId("board-skeleton")).toBeNull();
     // Exactly one, and it is the banner's — a second Retry elsewhere on a page
     // that failed its first read would be two answers to the same question.
