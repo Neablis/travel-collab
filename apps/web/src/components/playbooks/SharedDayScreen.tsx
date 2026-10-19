@@ -41,6 +41,7 @@ import {
 } from "@/lib/apiClient";
 import type { SharedDayView } from "@/lib/sharedDayView";
 import { takePlaybookAdd } from "@/lib/pendingPlaybookAdd";
+import { addDayToNewTrip } from "@/lib/addDayToNewTrip";
 import { cn } from "@/lib/cn";
 import { cityPath, dayPath, daySegment, namedTagPath } from "@/lib/playbookUrls";
 import { dayLength, savedDayFacts, DAY_LENGTH_LABELS } from "@/lib/savedDayFacts";
@@ -69,9 +70,10 @@ import { useDayReviews } from "./useDayReviews";
 //
 // **Readable without an account** (ADR-061). A reader with no account sees
 // everything a reader sees, and none of what only an account can do: no Report
-// on the day or on a review, no review form. *Add to a trip* stays and asks them
-// to sign in. All of it keys on a CONFIRMED signed-out session (`null`), never
-// on `undefined`, so a signed-in reader never watches their controls arrive.
+// on the day or on a review, no review form. The add button stays, reads *Make
+// this your trip*, and asks them to sign in. All of it keys on a CONFIRMED
+// signed-out session (`null`), never on `undefined`, so a signed-in reader
+// never watches their controls arrive.
 
 const MONTHS = [
   "January", "February", "March", "April", "May", "June",
@@ -291,24 +293,32 @@ export function SharedDayScreen({
   );
 
   // **Back from signing in, having pressed Add while signed out**
-  // (`SignInToAddDialog` banked it). Opens the add dialog and adds nothing:
-  // which trip it goes into is still the reader's click, so a marker that
-  // somehow is not theirs can do no more than open a dialog.
+  // (`SignInToAddDialog` banked it). Makes a new trip named for the day,
+  // undated, holding it, and goes there — no dialog (M50 decision 5): a reader
+  // who had no account had no trip to pick, so the press was the choice.
   //
-  // Once per day per mount — a ref, like `DemoBanner`'s. StrictMode runs this
-  // twice; read-and-clear already makes the second pass find nothing, and the
-  // ref is the cheaper guard. Waits for the day (an add dialog over a skeleton
-  // has nothing to name) and for a signed-in reader; the author is left out,
-  // since a day of their own is not what they went to sign in for.
+  // Single-use, because a second pass would be a second trip: the marker is
+  // read-and-cleared before anything is sent, so a remount finds nothing, and
+  // the ref keeps StrictMode's double effect to one read. Waits for the day
+  // (`dayName` names the trip) and for a signed-in reader; the author is left
+  // out, since a day of their own is not what they went to sign in for.
   const redeemedFor = useRef<string | null>(null);
-  const dayLoaded = feed.data !== null;
+  const dayName = feed.data?.day.name ?? null;
   const readerIsAuthor = feed.data?.isAuthor === true;
   useEffect(() => {
-    if (!dayLoaded || !user || redeemedFor.current === savedDayId) return;
+    if (dayName === null || !user || redeemedFor.current === savedDayId) return;
     redeemedFor.current = savedDayId;
     // Taken (and so cleared) for the author too — it is spent either way.
-    if (takePlaybookAdd(savedDayId) && !readerIsAuthor) setAdding(true);
-  }, [dayLoaded, user, readerIsAuthor, savedDayId]);
+    if (takePlaybookAdd(savedDayId) !== "new-trip" || readerIsAuthor) return;
+    void addDayToNewTrip({ savedDayId, dayName }, { current: null }).then((result) => {
+      if (result.ok) router.push(`/trips/${result.value.tripId}`);
+      // Withdrawn while they were signing up: the page's own banner says so.
+      else if (result.error.status === 404) setWithdrawn(true);
+      // Anything else, and the dialog they would otherwise have had to find
+      // is the way to try again.
+      else setAdding(true);
+    });
+  }, [dayName, user, readerIsAuthor, savedDayId, router]);
 
   // Read again while the server is still pinning — silently, because the
   // stops gaining coordinates is not "the library moved" (the signature above
@@ -864,8 +874,14 @@ export function SharedDayScreen({
               >
                 {/* §33.1: **`Add all N days to a trip`** — the count only
                     surfaced inside the dialog before, so the button that moves
-                    three days said the same thing as the one that moves one. */}
-                {day.dayCount > 1 ? `Add all ${day.dayCount} days to a trip` : "Add to a trip"}
+                    three days said the same thing as the one that moves one.
+                    A reader with no account has no trip to add to: theirs
+                    makes one (M50 decision 5). */}
+                {signedOut
+                  ? "Make this your trip"
+                  : day.dayCount > 1
+                    ? `Add all ${day.dayCount} days to a trip`
+                    : "Add to a trip"}
               </Button>
               {/* The page's assistant (M45 D9), which can press that button
                   for you on a trip and day you name. Drawn only for an
@@ -989,7 +1005,7 @@ export function SharedDayScreen({
         </Dialog>
       )}
 
-      <SignInToAddDialog open={signingIn} onOpenChange={setSigningIn} savedDayId={day.savedDayId} />
+      <SignInToAddDialog open={signingIn} onOpenChange={setSigningIn} day={day} />
 
       <AddToTripDialog
         open={adding}

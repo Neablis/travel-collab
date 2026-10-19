@@ -9,7 +9,8 @@ import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Text } from "@/components/ui/text";
-import { createTrip, fetchTrips, insertSavedDay, sendTripCommandBatch } from "@/lib/apiClient";
+import { addDayToNewTrip, type NewTripLatch } from "@/lib/addDayToNewTrip";
+import { fetchTrips, insertSavedDay } from "@/lib/apiClient";
 
 // The select's second branch. A trip id is always a uuid, so this cannot
 // collide with one.
@@ -37,28 +38,9 @@ const NEW_TRIP = "new";
 // always had. That is the conflict state for this flow: it is reported here, in
 // place, and the caller refreshes rather than a modal being thrown at anyone.
 //
-// **The second branch: start a new trip with this day as day 1** (Mitchell,
-// 2026-09-08 — "do smallest possible... For name same thing, just use name of
-// the day for trip."). Three facts make the two- or three-call sequence below
-// correct, and each cost a read to establish:
-//
-//   1. A freshly created trip has `days: []` and `startDate: null`
-//      (`packages/domain/src/trip/evolve.ts`), so the insert's `AddDay` lands
-//      the playbook day as day 1. Nothing extra makes it "first".
-//   2. The date goes on with `SetTripStartDate`, never `SetTripDates`. The
-//      latter reconciles day COUNT (`decide.ts`) and would mint an empty day 1,
-//      pushing the playbook day to day 2.
-//   3. **The start date is OPTIONAL** (Mitchell, 2026-09-08 — "no make that
-//      field optional now"). It was required, and it was a correctness
-//      requirement rather than a preference: `addCounts()` refused a
-//      leaderboard add against an undated trip, so an insert that overtook the
-//      date under-credited the author silently and forever. That clause was
-//      dropped the same day and the add now counts either way, which leaves the
-//      field nothing to guarantee. Blank means **no `SetTripStartDate` is sent
-//      at all** — the trip is simply created undated, which is a supported
-//      state everywhere (`evolve.ts` genesis is `startDate: null`, and
-//      `deriveDayDates` renders an undated trip as ordinals). Blank is NOT
-//      `SetTripStartDate` with an empty date.
+// **The second branch: start a new trip with this day as day 1.** The
+// sequence is `addDayToNewTrip`'s, shared with the day page's return from
+// signing up; this dialog only adds the optional start date.
 export function AddToTripDialog({
   open,
   onOpenChange,
@@ -93,16 +75,8 @@ export function AddToTripDialog({
   const [startDate, setStartDate] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // How far the new-trip branch got, so a retry resumes rather than restarts —
-  // `NewTripWizard`'s latch (CodeRabbit, PR #32), which exists because a failure
-  // at a later step used to mint a second trip on every attempt.
-  //
-  // `datedAs` is the half that latch does not have: re-sending the same
-  // `SetTripStartDate` is rejected as a no-op (`okUnlessNoOp`, `decide.ts`), so
-  // a retry after a failed insert must SKIP step 2 rather than repeat it, or the
-  // user is stuck behind "This change would have no effect." Storing the date
-  // rather than a boolean means changing it before retrying still re-sends.
-  const newTrip = useRef<{ tripId: string; datedAs: string | null } | null>(null);
+  // How far the new-trip branch got (`NewTripLatch`), so a retry resumes.
+  const newTrip = useRef<NewTripLatch | null>(null);
 
   const creatingTrip = tripId === NEW_TRIP;
 
@@ -147,43 +121,11 @@ export function AddToTripDialog({
     setBusy(true);
     setError(null);
 
-    let target = tripId;
-    if (creatingTrip) {
-      let latched = newTrip.current;
-      if (latched === null) {
-        // The day's own name, verbatim: both `SavedDay.name` and `CreateTrip.name`
-        // are min 1 / max 200, so it always fits and nothing is truncated.
-        const created = await createTrip({ name: dayName });
-        if (!created.ok) {
-          setBusy(false);
-          setError(created.error.message);
-          return;
-        }
-        latched = { tripId: created.value.tripId, datedAs: null };
-        newTrip.current = latched;
-      }
-      // Blank skips step 2 outright rather than sending an empty date. The
-      // latch keeps `datedAs: null` for that case, which is what makes the
-      // retry path work: submit blank, fail at the insert, type a date, retry —
-      // `null !== "2027-04-01"` so the command goes out on the second attempt,
-      // where a boolean latch would have swallowed it. Going the other way
-      // (dated, then cleared, then retried) deliberately leaves the date on:
-      // this dialog has no business un-dating a trip the user already dated.
-      if (startDate !== "" && latched.datedAs !== startDate) {
-        const dated = await sendTripCommandBatch(latched.tripId, [
-          { type: "SetTripStartDate", tripId: latched.tripId, startDate },
-        ]);
-        if (!dated.ok) {
-          setBusy(false);
-          setError(dated.error.message);
-          return;
-        }
-        newTrip.current = { ...latched, datedAs: startDate };
-      }
-      target = latched.tripId;
-    }
-
-    const result = await insertSavedDay(target, savedDayId);
+    const result = creatingTrip
+      ? await addDayToNewTrip({ savedDayId, dayName, startDate }, newTrip)
+      : await insertSavedDay(tripId, savedDayId).then((inserted) =>
+          inserted.ok ? { ok: true as const, value: { tripId } } : inserted,
+        );
     setBusy(false);
     if (!result.ok) {
       // 404 means the day is gone or was withdrawn while this was open — a
@@ -203,7 +145,7 @@ export function AddToTripDialog({
     // feed them to — the trip's own load is the next thing that happens either
     // way, so navigating is the honest move rather than holding an outcome
     // nothing will apply.
-    router.push(`/trips/${target}`);
+    router.push(`/trips/${result.value.tripId}`);
   }
 
   return (

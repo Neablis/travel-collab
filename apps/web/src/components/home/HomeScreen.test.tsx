@@ -1191,7 +1191,7 @@ describe("Home finishing a demo clone", () => {
 
   // ADR-061: a reader with no account pressed *Add* on a Playbook, and the
   // sign-up that followed lost its callbackUrl and landed here. The list sends
-  // them back to the day; the day page spends the marker and opens its dialog.
+  // them back to the day; the day page spends the marker and makes the trip.
   it("sends somebody back to the Playbook they pressed Add on, and leaves the marker for it", async () => {
     const day = "bb000000-0000-4000-8000-000000000001";
     rememberPlaybookAdd(day);

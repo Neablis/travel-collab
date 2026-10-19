@@ -6,8 +6,8 @@ import { forget, publishedDay, stranger } from "./helpers";
 
 // ADR-061: the playbook library is readable without an account. alice
 // publishes a day, a stranger with no cookies opens its link, browses, and
-// presses Add — which asks them to sign in or make an account, and opens the
-// add dialog once they come back signed in.
+// presses Make this your trip — which asks them to sign in or make an account,
+// and once they have, lands them on a new trip holding the day (M50 decision 5).
 //
 // The city is minted per run for `m11b-playbooks.spec.ts`'s reason: the
 // published library is global and cumulative across runs.
@@ -38,7 +38,7 @@ function prefetchesOf(page: Page): () => Promise<void> {
   return () => expect.poll(() => inFlight.size, { message: "prefetches still in flight" }).toBe(0);
 }
 
-test("a stranger opens a shared playbook, browses, and is asked to sign in to add it", async ({ page, browser }) => {
+test("a stranger opens a shared playbook, signs up from it, and lands on a trip holding it", async ({ page, browser }) => {
   test.slow();
   const city = mint("Lisbone2e");
   const dayName = `Tiles and tarts ${randomUUID().slice(0, 8)}`;
@@ -70,11 +70,12 @@ test("a stranger opens a shared playbook, browses, and is asked to sign in to ad
     await expect(header.getByRole("link", { name: "Create an account" })).toBeVisible();
     await expect(visitor.getByRole("button", { name: /^Report/ })).toHaveCount(0);
 
-    // Add asks them to sign in or sign up, and both come back here.
-    await visitor.getByRole("button", { name: "Add to a trip" }).click();
+    // The button asks them to sign in or sign up, and both come back here, to
+    // the slugged URL the page is on now rather than the bare id's 308.
+    await visitor.getByRole("button", { name: "Make this your trip" }).click();
     const prompt = visitor.getByRole("dialog", { name: "Sign in to add this day" });
     await expect(prompt).toBeVisible();
-    const back = encodeURIComponent(`/playbooks/day/${savedDayId}`);
+    const back = encodeURIComponent(new URL(visitor.url()).pathname);
     await expect(prompt.getByRole("link", { name: "Sign in" })).toHaveAttribute("href", `/signin?callbackUrl=${back}`);
     await expect(prompt.getByRole("link", { name: "Create an account" })).toHaveAttribute(
       "href",
@@ -88,17 +89,21 @@ test("a stranger opens a shared playbook, browses, and is asked to sign in to ad
     await expect(visitor.getByTestId("discover-card").filter({ hasText: dayName })).toBeVisible();
     await expect(visitor.getByRole("tab", { name: "Yours" })).toHaveCount(0);
 
-    // Making the account brings them back to the day with the add dialog open.
+    // Making the account brings them back through the day to a new trip named
+    // for it, undated, with the day as its one day — and no dialog on the way.
     await visitor.goto(`/playbooks/day/${savedDayId}`);
-    await visitor.getByRole("button", { name: "Add to a trip" }).click();
+    await visitor.getByRole("button", { name: "Make this your trip" }).click();
     await settled();
     await visitor.getByRole("dialog", { name: "Sign in to add this day" }).getByRole("link", { name: "Create an account" }).click();
     await expect(visitor).toHaveURL(/\/signup\?callbackUrl=/);
     await visitor.getByLabel("Invite code").fill(E2E_SUPER_CODE);
     await visitor.fill('input[name="username"]', mint("pubreader"));
     await visitor.getByRole("button", { name: /sign in with dev login/i }).click();
-    await expect(visitor).toHaveURL(new RegExp(`/playbooks/day/[a-z0-9-]*${savedDayId}$`));
-    await expect(visitor.getByRole("dialog", { name: `Add “${dayName}” to a trip` })).toBeVisible();
+    await expect(visitor).toHaveURL(/\/trips\/[0-9a-f-]{36}$/);
+    await expect(visitor.getByRole("heading", { name: dayName, level: 1 })).toBeVisible();
+    await visitor.getByRole("tab", { name: "Plan" }).click();
+    await expect(visitor.getByTestId("day-column")).toHaveCount(1);
+    await expect(visitor.getByTestId("day-column").getByText(`Stop in ${city}`)).toBeVisible();
 
     await settled();
     await visitor.context().close();

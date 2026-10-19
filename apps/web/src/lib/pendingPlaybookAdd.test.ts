@@ -34,49 +34,51 @@ afterEach(() => {
 
 describe("the pending playbook-add marker", () => {
   it("is not set until somebody presses Add", () => {
-    expect(takePlaybookAdd(DAY, NOW)).toBe(false);
+    expect(takePlaybookAdd(DAY, NOW)).toBeNull();
   });
 
   it("is redeemed once, on the day it was banked on", () => {
     rememberPlaybookAdd(DAY, NOW);
-    expect(takePlaybookAdd(DAY, NOW)).toBe(true);
+    expect(takePlaybookAdd(DAY, NOW)).toBe("new-trip");
     // Read-and-clear: the redeeming effect runs twice under StrictMode, and a
-    // second dialog-open is what "once" has to rule out.
-    expect(takePlaybookAdd(DAY, NOW)).toBe(false);
+    // second trip is what "once" has to rule out.
+    expect(takePlaybookAdd(DAY, NOW)).toBeNull();
   });
 
   it("does not open on another day, and is spent by looking", () => {
     rememberPlaybookAdd(DAY, NOW);
-    expect(takePlaybookAdd(OTHER_DAY, NOW)).toBe(false);
+    expect(takePlaybookAdd(OTHER_DAY, NOW)).toBeNull();
     // Spent even though it was not this page's: the reader went somewhere else
     // on their own, and the day they banked must not ambush them later.
-    expect(takePlaybookAdd(DAY, NOW)).toBe(false);
+    expect(takePlaybookAdd(DAY, NOW)).toBeNull();
   });
 
   it("is still live at the edge of its window", () => {
     rememberPlaybookAdd(DAY, NOW);
-    expect(takePlaybookAdd(DAY, NOW + PENDING_PLAYBOOK_ADD_MAX_AGE_MS)).toBe(true);
+    expect(takePlaybookAdd(DAY, NOW + PENDING_PLAYBOOK_ADD_MAX_AGE_MS)).toBe("new-trip");
   });
 
   it("expires a moment later, and clears itself", () => {
     rememberPlaybookAdd(DAY, NOW);
-    expect(takePlaybookAdd(DAY, NOW + PENDING_PLAYBOOK_ADD_MAX_AGE_MS + 1)).toBe(false);
+    expect(takePlaybookAdd(DAY, NOW + PENDING_PLAYBOOK_ADD_MAX_AGE_MS + 1)).toBeNull();
     expect(store.size).toBe(0);
   });
 
   it("treats a marker from the future as nothing", () => {
     rememberPlaybookAdd(DAY, NOW + 1);
-    expect(takePlaybookAdd(DAY, NOW)).toBe(false);
+    expect(takePlaybookAdd(DAY, NOW)).toBeNull();
   });
 
   it.each([
     ["not JSON", "yesterday"],
     ["the demo marker's shape", String(NOW)],
     ["no time", JSON.stringify({ savedDayId: DAY })],
-    ["a time that is not a number", JSON.stringify({ savedDayId: DAY, at: "now" })],
+    ["a time that is not a number", JSON.stringify({ savedDayId: DAY, intent: "new-trip", at: "now" })],
+    ["no intent", JSON.stringify({ savedDayId: DAY, at: NOW })],
+    ["an intent it does not know", JSON.stringify({ savedDayId: DAY, intent: "open-dialog", at: NOW })],
   ])("treats a corrupted value (%s) as nothing", (_label, raw) => {
     store.set("pending_playbook_add", raw);
-    expect(takePlaybookAdd(DAY, NOW)).toBe(false);
+    expect(takePlaybookAdd(DAY, NOW)).toBeNull();
     expect(store.size).toBe(0);
   });
 
@@ -86,7 +88,7 @@ describe("the pending playbook-add marker", () => {
     };
     vi.stubGlobal("window", { localStorage: { getItem: denied, setItem: denied, removeItem: denied } });
     expect(() => rememberPlaybookAdd(DAY, NOW)).not.toThrow();
-    expect(takePlaybookAdd(DAY, NOW)).toBe(false);
+    expect(takePlaybookAdd(DAY, NOW)).toBeNull();
   });
 });
 
@@ -94,7 +96,7 @@ describe("peeking at the waiting day", () => {
   it("names a live marker's day and leaves it for the day page to spend", () => {
     rememberPlaybookAdd(DAY, NOW);
     expect(pendingPlaybookAddDay(NOW + 1000)).toBe(DAY);
-    expect(takePlaybookAdd(DAY, NOW + 2000)).toBe(true);
+    expect(takePlaybookAdd(DAY, NOW + 2000)).toBe("new-trip");
   });
 
   it("names nothing once the marker has expired", () => {
