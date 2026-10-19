@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import NextAuth, { type NextAuthRequest } from "next-auth";
 import { authConfig } from "@/lib/authConfig";
 import {
@@ -8,6 +8,7 @@ import {
 } from "@/lib/pendingAdmission";
 import { playbooksReaderFor, playbooksRoute } from "@/lib/playbooksReader";
 import { SIGNED_IN_HINT_COOKIE } from "@/lib/sessionHint";
+import { SIGNUP_REF_COOKIE, normalizeSignupRef, signupRefCookieOptions } from "@/lib/signupRef";
 
 // This file was `src/middleware.ts` until the Next 16 upgrade, which
 // deprecated the `middleware` file convention in favour of `proxy` (the
@@ -27,8 +28,9 @@ import { SIGNED_IN_HINT_COOKIE } from "@/lib/sessionHint";
 // instance is safe to construct in the Edge runtime.
 const { auth } = NextAuth(authConfig);
 
-// Every route this file matches is one a signed-out visitor should not be
-// shown as-is. History, because the reasons are still the reasons:
+// Every route this file matches by path is one a signed-out visitor should not
+// be shown as-is; the one matched by query instead, `?ref=`, only banks a
+// cookie (ADR-079, below). History, because the reasons are still the reasons:
 //
 // CodeRabbit (PR 56, finding 1): the matcher used to be scoped to exactly
 // `/`, so a signed-out visitor hitting `/trips/:tripId`, or the notebook
@@ -52,15 +54,14 @@ const { auth } = NextAuth(authConfig);
 // cannot read a session. The app shell sets that hint (`SessionUserProvider`);
 // this file only takes it away (below).
 //
-// Exported directly as Auth.js v5's wrapper (`auth((req) => ...)`) rather
-// than composed with other logic — there's nothing else this route needs.
+// The path-matched routes run inside Auth.js v5's wrapper (`auth((req) => ...)`);
+// a request matched only for its `?ref=` is answered before it (`proxy`).
 // `req.auth` is populated by the wrapper from the session JWT; no database
 // read happens here (this project uses JWT sessions with no adapter — see
 // server/auth.ts), which is the configuration Auth.js v5's docs call out as
 // the one that works reliably in the Edge runtime.
-/** The request seam: the library picks its copy, an invite banks its token, anything else matched goes to sign-in, and a signed-out request sheds the signed-in hint. */
-export default auth((req) => {
-  const response = route(req);
+const guarded = auth((req) => {
+  const response = bankSignupRef(req, route(req));
   // ADR-078: **this file only ever deletes the hint; it never sets it.** The
   // app shell sets it from the browser once it knows a session user
   // (`SessionUserProvider`), and every matched page a signed-in person reads —
@@ -79,6 +80,48 @@ export default auth((req) => {
   }
   return response;
 });
+
+/** The request seam: the library picks its copy, an invite banks its token, anything else matched goes to sign-in, a signed-out request sheds the signed-in hint, and a `?ref=` link banks its channel. */
+export default function proxy(...args: Parameters<typeof guarded>) {
+  const [req] = args;
+  // ADR-079: a path matched only by the `?ref=` entry (the landing, a place
+  // page) gets its cookie and nothing else. No `auth()`: the ref is not about
+  // a session, and paying for one there would undo what ADR-078 bought.
+  if (!isGuardedPath(req.nextUrl.pathname)) return bankSignupRef(req, NextResponse.next());
+  return guarded(...args);
+}
+
+/**
+ * Bank a `?ref=` channel in `caesura_ref` for `recordSignIn` to copy (ADR-079).
+ * **First touch**: a cookie already there is kept, so the channel credited is
+ * the one that first brought this browser, not the last link it followed. A
+ * value that is not a channel label is dropped.
+ *
+ * A response that sets it is `private, no-store`: a CDN keeping it would hand
+ * this visitor's `Set-Cookie` to the next one.
+ */
+function bankSignupRef(req: NextRequest, response: NextResponse): NextResponse {
+  if (req.cookies.has(SIGNUP_REF_COOKIE)) return response;
+  const ref = normalizeSignupRef(req.nextUrl.searchParams.get("ref"));
+  if (ref === null) return response;
+  response.cookies.set(SIGNUP_REF_COOKIE, ref, signupRefCookieOptions(req.headers.get("host")));
+  response.headers.set("Cache-Control", "private, no-store");
+  return response;
+}
+
+/**
+ * Is this path one of the matcher's own string entries, which need `auth()`?
+ * Read from `config.matcher` rather than listed again, so a route added there
+ * cannot be skipped past `auth()` by a second list that was not updated.
+ * Only the two shapes the list uses: an exact path, and `<prefix>/:path*`.
+ */
+function isGuardedPath(pathname: string): boolean {
+  return config.matcher.some((entry) => {
+    if (typeof entry !== "string") return false;
+    const prefix = entry.endsWith("/:path*") ? entry.slice(0, -"/:path*".length) : null;
+    return prefix === null ? pathname === entry : pathname === prefix || pathname.startsWith(`${prefix}/`);
+  });
+}
 
 // What the request gets before a stale hint is taken off it.
 function route(req: NextAuthRequest): NextResponse {
@@ -176,6 +219,17 @@ function tripInviteToken(pathname: string): string | null {
 //     `/playbooks` renders without this file. As on every other matched
 //     route, a signed-out request sheds a stale signed-in hint (ADR-078), the
 //     cached copy included; the live copy's shell is what sets it.
+//   - any page with a `ref` query parameter (ADR-079), `/` included, to bank
+//     the channel a launch link names. A `has` condition rather than a path,
+//     so a request for `/` without one still never enters this file and the
+//     landing stays static (ADR-078). Not `/api` or `/_next`: no launch link
+//     points there.
 export const config = {
-  matcher: ["/home", "/trips/:path*", "/invite/:path*", "/playbooks/:path*"],
+  matcher: [
+    "/home",
+    "/trips/:path*",
+    "/invite/:path*",
+    "/playbooks/:path*",
+    { source: "/((?!api/|_next/).*)", has: [{ type: "query", key: "ref" }] },
+  ],
 };

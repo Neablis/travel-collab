@@ -8,6 +8,7 @@ import { ConsoleTabs } from "@/components/admin/ConsoleTabs";
 import { resolveConsoleTab, type ConsoleTab } from "@/components/admin/consoleTab";
 import { TierPanel } from "@/components/admin/TierPanel";
 import { TierGrowthCharts } from "@/components/admin/TierGrowthCharts";
+import { SignupsByRefTable } from "@/components/admin/SignupsByRefTable";
 import { RevenueStaleBanner, RevenueStrip } from "@/components/admin/RevenueStrip";
 import { UnderwaterPanel } from "@/components/admin/UnderwaterPanel";
 import { PriceCheckPanel, PriceCheckPending } from "@/components/admin/PriceCheckPanel";
@@ -165,6 +166,9 @@ export default async function AdminPage({
             who is in it. */}
         <Panel title="Accounts by tier">
           <TierGrowthCharts tiers={users.tiers} thisWeek={users.thisWeek} />
+        </Panel>
+        <Panel title="Signups by channel">
+          <SignupsByRefTable rows={users.signups} />
         </Panel>
         <Panel title="Accounts">
           {/* **One page, read for the view in the URL** (D2, M36 perf pass):
