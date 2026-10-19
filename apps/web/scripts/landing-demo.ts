@@ -272,8 +272,9 @@ function landingCard(row: DiscoverRow): DiscoverDay {
  *
  * The card is a frozen copy of a row the content import owns, re-derived from
  * the bundle file only, so `landing:verify` cannot see the production row
- * change: hidden by a moderator, renamed or pruned away, or given a cover by
- * its author. Check the row on production's Discover when regenerating.
+ * change: hidden by a moderator, renamed or pruned away, given a cover by
+ * its author, or reviewed (its card says "No reviews yet"). Check the row on
+ * production's Discover when regenerating.
  */
 const SHELF_BUNDLE_PATH = new URL("../../../content/playbooks/thailand-beaches.json", import.meta.url);
 const SHELF_KEY = "railay-limestone-and-sunset";

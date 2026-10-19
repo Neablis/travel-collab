@@ -82,6 +82,8 @@ export function CompactPlaybookPanel(): React.ReactElement {
   );
 }
 
+const PEOPLE_NAMES = new Intl.ListFormat("en", { type: "conjunction" });
+
 const PAGE = "flex flex-col gap-3 rounded-md border border-hairline bg-paper px-3.75 py-3.5";
 
 /** One of the page's paragraphs: the author's words with the widgets' values in them. */
@@ -118,7 +120,9 @@ export function MemoryPanel(): React.ReactElement {
  *
  * Signed with the people widget's chips and not its sentence: that is the
  * trip's "Who's going", future tense ("are going with Sam"), and this page is
- * about a day already lived.
+ * about a day already lived. The chips are decorative (`PersonChip`), so
+ * their names are said beside them, to a screen reader only: printing them
+ * would be copy nobody ruled on.
  */
 export function NotebookPagePanel(): React.ReactElement {
   const [opening, ...rest] = LANDING_FEATURES.memory;
@@ -133,6 +137,7 @@ export function NotebookPagePanel(): React.ReactElement {
         <Paragraph key={i} segs={segs} />
       ))}
       <TripPeopleBlock payload={{ ...people, sentence: "" }} />
+      <span className="sr-only">{PEOPLE_NAMES.format(people.stack.map((person) => person.name))}</span>
     </div>
   );
 }

@@ -135,7 +135,8 @@ describe("LandingFeatureBlocks", () => {
     expect(notebook.getByRole("table", { name: /^Sunrise and sunset for 1 day/ })).toBeDefined();
     // Who was there, as the widget's chips. Not its sentence: that is the
     // trip's "Who's going", future tense, under a page about a day gone by.
-    expect(["Priya", "Jonah", "Mei"].map((name) => notebook.getByTitle(name).title)).toEqual(["Priya", "Jonah", "Mei"]);
+    // The chips are `aria-hidden`, so their names are read from text, not titles.
+    expect(notebook.getByText("Priya, Jonah, and Mei")).toBeDefined();
     expect(notebook.queryByText(/are going with/)).toBeNull();
   });
 
