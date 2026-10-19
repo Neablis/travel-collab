@@ -343,18 +343,19 @@ export function SharedDayScreen({
       return;
     }
     const latch: { current: NewTripLatch | null } = { current: null };
-    setMakingTrip(true);
     void (async () => {
       const trips = await fetchTrips();
       // Gone before the check came back: nothing was made, and nothing should be.
       if (!mounted.current) return;
       // A failed read is not proof of no trips, so it asks rather than writes.
       if (!trips.ok || trips.value.length > 0) {
-        setMakingTrip(false);
         setStartOnNewTrip(true);
         setAdding(true);
         return;
       }
+      // Only now: announced before the check, an account with trips would be
+      // told a trip was being made and then asked which one.
+      setMakingTrip(true);
       const result = await addDayToNewTrip({ savedDayId, dayName }, latch);
       if (!mounted.current) return;
       setMakingTrip(false);

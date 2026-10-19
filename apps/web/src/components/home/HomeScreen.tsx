@@ -348,8 +348,9 @@ export function HomeScreen({ initialTrips = null, initialToday = null }: HomeScr
 
   // Back to the Playbook somebody pressed *Add* on before they had an account
   // (ADR-061). Same reason as the demo copy above: this is where a sign-up
-  // that lost its `callbackUrl` lands. The day page spends the marker and
-  // makes the new trip (M50 decision 5); this only takes them there. After the demo copy,
+  // that lost its `callbackUrl` lands. The day page spends the marker: a new
+  // account gets a new trip, one with trips the add dialog (M50 decisions 5
+  // and 15); this only takes them there. After the demo copy,
   // which wins if both were somehow banked. Gated on the list for the demo
   // copy's reason, and so on mount too when the server sent it.
   const playbookReturnAttempted = useRef(false);

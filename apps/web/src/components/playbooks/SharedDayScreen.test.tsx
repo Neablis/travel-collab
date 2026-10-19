@@ -1366,16 +1366,34 @@ describe("back from signing in to add", () => {
   // Decision 15: the sign-up page links to Sign in, so the link pressed here is
   // not proof the account is new. One with trips is asked, starting on a new one.
   it("opens the dialog on a new trip, and makes none, for an account that already has trips", async () => {
-    fetchTripsMock.mockResolvedValue(
-      ok([{ tripId: TRIP_ID, name: "Japan", status: "active", members: [{ userId: "u", role: "owner", name: null, email: null }], createdAt: "2026-01-01T00:00:00.000Z" }]),
-    );
+    let answer: (value: unknown) => void = () => {};
+    fetchTripsMock.mockReturnValue(new Promise((resolve) => (answer = resolve)));
     await returnThrough("Create an account");
+
+    // While the list is read, no trip is being made, so none is announced.
+    await waitFor(() => expect(fetchTripsMock).toHaveBeenCalled());
+    expect(screen.queryByText("Making your trip from this day…")).toBeNull();
+    await act(async () =>
+      answer(ok([{ tripId: TRIP_ID, name: "Japan", status: "active", members: [{ userId: "u", role: "owner", name: null, email: null }], createdAt: "2026-01-01T00:00:00.000Z" }])),
+    );
 
     const picker = (await screen.findByLabelText("Which trip")) as HTMLSelectElement;
     await waitFor(() => expect(picker.value).toBe("new"));
     expect(createTripMock).not.toHaveBeenCalled();
     expect(pushMock).not.toHaveBeenCalled();
     expect(window.localStorage.getItem(MARKER)).toBeNull();
+  });
+
+  // A failed read is not proof of no trips: writing on it could give an
+  // account that has trips a duplicate.
+  it("opens the dialog on a new trip, and makes none, when the trip list cannot be read", async () => {
+    fetchTripsMock.mockResolvedValue({ ok: false, error: { status: 500, message: "x" } });
+    await returnThrough("Create an account");
+
+    const picker = (await screen.findByLabelText("Which trip")) as HTMLSelectElement;
+    await waitFor(() => expect(picker.value).toBe("new"));
+    expect(createTripMock).not.toHaveBeenCalled();
+    expect(pushMock).not.toHaveBeenCalled();
   });
 
   // Banked by the build before decision 5, where the marker only opened the
