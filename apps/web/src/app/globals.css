@@ -1923,6 +1923,47 @@ html[data-look="ledger"] .shadow-raised {
     );
   }
 
+  /* Paper grain on the landing's surfaces (M50 part 5): the spreads, the photo
+     slot and the closing moment, so the front door reads as paper rather than
+     a flat fill. The noise is an SVG filter, black at a low alpha and
+     multiplied, so it darkens whatever paper the look supplies instead of
+     carrying a colour of its own, and so works under `paper` and `ledger`
+     alike. Drawn under the content: `isolation` keeps the `z-index: -1` layer
+     inside the element, above its own background. The element supplies
+     `position: relative`, which the call sites set as a utility.
+
+     Ledger's cream takes the grain a little harder, the way its city colour
+     does (§28). A texture is translucency, so it goes under
+     `prefers-reduced-transparency`, and it goes on paper, where it would print
+     as smudge. */
+  .landing-grain {
+    isolation: isolate;
+  }
+  .landing-grain::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    border-radius: inherit;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .55 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
+    mix-blend-mode: multiply;
+    opacity: 0.28;
+  }
+  html[data-look="ledger"] .landing-grain::before {
+    opacity: 0.4;
+  }
+  @media (prefers-reduced-transparency: reduce) {
+    .landing-grain::before {
+      display: none;
+    }
+  }
+  @media print {
+    .landing-grain::before {
+      display: none;
+    }
+  }
+
   /* Notebook page prose (KI-44 / design-sync audit A3). `.tc-page-editor`
      wraps TipTap's contenteditable, and ProseMirror renders its schema as
      BARE elements — the seeded Trip Overview page emits literally

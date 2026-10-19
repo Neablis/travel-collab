@@ -28,13 +28,21 @@ describe("LandingFeatureBlocks", () => {
   // In page order, because the retro's order is the argument: the feeling
   // (Playbooks) first, the mechanics riding along after it. Each block is a
   // region named by its title, which is also how the tests below find one.
-  it("puts the blocks in the retro's order", () => {
+  //
+  // And in M50 part 5's widths, because four equal cards were the template:
+  // a full-bleed spread, a wide card beside a narrow one, a spread again.
+  // `responsive.spec.ts` measures the same sequence in a browser.
+  it("puts the blocks in the retro's order, as spread, wide, narrow, spread", () => {
     render(<LandingFeatureBlocks />);
-    expect(screen.getAllByRole("region").map((region) => within(region).getAllByRole("heading")[0]?.textContent)).toEqual([
-      PLAYBOOKS,
-      TOGETHER,
-      COUNTDOWN,
-      NOTEBOOK,
+    expect(
+      screen
+        .getAllByRole("region")
+        .map((region) => [within(region).getAllByRole("heading")[0]?.textContent, region.getAttribute("data-layout")]),
+    ).toEqual([
+      [PLAYBOOKS, "spread"],
+      [TOGETHER, "wide"],
+      [COUNTDOWN, "narrow"],
+      [NOTEBOOK, "spread"],
     ]);
   });
 

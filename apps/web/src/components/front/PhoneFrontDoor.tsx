@@ -542,14 +542,28 @@ export function PhoneFrontDoor() {
 
         {/* Empty paper. §28: "then the map clears out and the call to action
             arrives on empty paper" — so this sits AFTER the pin, in ordinary
-            flow, with nothing behind it. */}
-        <section className="flex min-h-dvh flex-col justify-center gap-4 bg-paper px-6">
-          <Heading level={2} className="text-2xl">
-            Start the plan, then send the link.
+            flow, with nothing behind it but the paper's own grain. It is the
+            desktop's closing moment (M50 part 5, `LandingScreen.tsx`): a line
+            from the Hakone notebook page, then the ask. */}
+        <section
+          aria-labelledby="front-door-closing"
+          className="landing-grain relative flex min-h-dvh flex-col justify-center gap-4 bg-paper px-6"
+        >
+          <figure className="flex flex-col gap-2.5 pb-4">
+            <blockquote>
+              <Text as="p" className="font-display text-xl leading-snug tracking-tight text-pretty">
+                &ldquo;Nobody was in a hurry. Priya says it was the best night of the trip, and nobody argued.&rdquo;
+              </Text>
+            </blockquote>
+            <figcaption>
+              <Text variant="muted" className="uppercase tracking-widest">
+                The trip notebook · Day six, Hakone
+              </Text>
+            </figcaption>
+          </figure>
+          <Heading level={2} id="front-door-closing" className="text-2xl">
+            Start the plan, then bring everyone.
           </Heading>
-          <Text variant="secondary">
-            A trip takes about a minute to set up. Everything after that is easier with company.
-          </Text>
           <Link
             href="/signup"
             className={cn(buttonVariants({ variant: "primary", size: "touch" }), "justify-center no-underline")}

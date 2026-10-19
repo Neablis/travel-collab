@@ -391,9 +391,14 @@ describe("the phone front door (SPEC §28)", () => {
     });
   });
 
-  it("puts the call to action on the paper after the pin, not over the map", () => {
+  // M50 part 5, the desktop's closing moment at phone width: a notebook
+  // page's words, then the ask to bring the group.
+  it("puts the call to action on the paper after the pin, under a notebook page's words", () => {
     render(<PhoneFrontDoor />);
-    const cta = within(screen.getByTestId("phone-front-door"));
+    const cta = within(
+      within(screen.getByTestId("phone-front-door")).getByRole("region", { name: "Start the plan, then bring everyone." }),
+    );
+    expect(cta.getByRole("blockquote").textContent).toMatch(/best night of the trip, and nobody argued/);
     expect(cta.getByRole("link", { name: "Start a trip" }).getAttribute("href")).toBe("/signup");
     expect(cta.getByRole("link", { name: "Look around a real trip" }).getAttribute("href")).toBe("/demo");
   });

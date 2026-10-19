@@ -267,40 +267,57 @@ export function LandingScreen() {
 
         {/* No section heading over the blocks any more: the retro gives each
             block its own, and "Planning is the trip, three times over" had
-            stopped being true the day Countdown made it four. */}
-        <div className="mx-auto w-full max-w-285 px-7 pt-13.5 pb-2.5">
+            stopped being true the day Countdown made it four. Full width,
+            because the spreads' ground runs edge to edge; each block keeps
+            to the page's width inside it. */}
+        <div className="w-full pt-13.5 pb-2.5">
           <LandingFeatureBlocks />
         </div>
 
-        {/* Straight before the closing band, so its "Start a trip" is the
+        {/* Straight before the closing moment, so its "Start a trip" is the
             call to action under the prices. The `pricing` id lives here and
             only here; the phone front door scrolls to its own copy itself. */}
         <div className="mx-auto w-full max-w-285 px-7 pt-14">
           <LandingPricing id="pricing" />
         </div>
 
-        <div className="mx-auto w-full max-w-285 px-7 pt-14 pb-19.5">
-          <div className="flex flex-wrap items-center justify-between gap-5 rounded-2xl border border-hairline bg-moss p-7.5">
-            <div className="flex flex-col gap-1.5">
-              <Text as="span" className="font-display text-xl font-semibold tracking-tight">
-                Start the plan, then send the link.
-              </Text>
-              <Text as="span" variant="secondary" className="text-base text-pretty">
-                A trip takes about a minute to set up. Everything after that is easier with company.
-              </Text>
-            </div>
-            {/* `items-center`: the two buttons sit on the band's vertical
-                centre, level with the heading and body beside them (Mitchell,
-                on the preview). */}
-            <div className="flex flex-wrap items-center gap-2.5">
+        {/* **The closing moment** (M50 part 5), where `dc.html:5371` draws a
+            moss call-to-action band, which is the SaaS template's ending.
+            The page ends instead on a line somebody wrote in a trip notebook:
+            the real Hakone page the Notebook spread shows
+            (`landingFeatures.generated.json`), words from a day rather than a
+            testimonial. Then the ask, which is to bring the group, and the
+            same two ways in the hero offers. */}
+        <section
+          aria-labelledby="landing-closing"
+          className="landing-grain relative mt-14 w-full border-t border-hairline bg-paper"
+        >
+          <div className="mx-auto flex w-full max-w-200 flex-col items-center gap-7 px-7 pt-19.5 pb-19.5 text-center">
+            <figure className="flex flex-col gap-3.5">
+              <blockquote>
+                <Text as="p" className="font-display text-2xl leading-snug tracking-tight text-pretty">
+                  &ldquo;Nobody was in a hurry. Priya says it was the best night of the trip, and nobody
+                  argued.&rdquo;
+                </Text>
+              </blockquote>
+              <figcaption>
+                <DataText className="text-2xs tracking-widest uppercase">The trip notebook · Day six, Hakone</DataText>
+              </figcaption>
+            </figure>
+
+            <Heading level={2} id="landing-closing" className="text-xl">
+              Start the plan, then bring everyone.
+            </Heading>
+
+            <div className="flex flex-wrap items-center justify-center gap-2.5">
               <Link href="/signup" className={cn(buttonVariants({ variant: "primary" }), "no-underline")}>
                 Start a trip
               </Link>
-              {/* The closing CTA band asks the same thing the hero does
-                  (`dc.html:1880`, `:2211`), so it now goes to the same place.
-                  The two ids this replaced existed only because `Preview`
-                  writes its id to `data-preview-id` and two shells could not
-                  share one; two links to one href have no such problem. */}
+              {/* The same place as the hero's second button (`dc.html:1880`,
+                  `:2211`). The two ids this replaced existed only because
+                  `Preview` writes its id to `data-preview-id` and two shells
+                  could not share one; two links to one href have no such
+                  problem. */}
               <Link
                 href={DEMO_PATH}
                 className={cn(buttonVariants({ variant: "ghost" }), "no-underline")}
@@ -309,7 +326,7 @@ export function LandingScreen() {
               </Link>
             </div>
           </div>
-        </div>
+        </section>
       </main>
 
       {/* Minimal and boring on purpose. Privacy and Terms are plain text, not
