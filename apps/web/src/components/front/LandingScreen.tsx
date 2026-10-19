@@ -300,6 +300,7 @@ export function LandingScreen() {
                   &ldquo;{LANDING_CLOSING_QUOTE}&rdquo;
                 </Text>
               </blockquote>
+              {/* A literal, as on the phone: it names the day `scripts/landing-demo.ts` writes ("Day six, ") and changes with it. */}
               <figcaption>
                 <DataText className="text-2xs tracking-widest uppercase">The trip notebook · Day six, Hakone</DataText>
               </figcaption>

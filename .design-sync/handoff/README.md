@@ -324,11 +324,11 @@ against the milestone link that owns the screen before writing code
 | `/account` | `isAccountRoute` · line 3220 | §12, §34 | Three tabs in `?tab=`; was a Sheet until M26 link 1 |
 | `/admin` | `isAdminRoute` · line 3620 | §17 | Operator console. The artboard also draws M21's strip — read M20 link 7's split note |
 | `/` | `isDeskLanding` · line 5004 | §14, §17 | The landing page; `isPhoneLanding` is its phone artboard. §17.1 is the pricing block |
-| `/signin` | `isSignin` · line 5417 | §14, §28 | Inside the `isAuth` block |
-| `/signup` | `isSignup` · line 5414 | §14, §28 | Inside the `isAuth` block |
+| `/signin` | `isSignin` · line 5419 | §14, §28 | Inside the `isAuth` block |
+| `/signup` | `isSignup` · line 5416 | §14, §28 | Inside the `isAuth` block |
 | `/demo/[slug]` | `isTrip` · line 1873 | §27 | No artboard of its own — the trip surface in `readOnly` (§27); one per demo trip (M42 D1) |
 | `/s/[token]` | `isTrip` · line 1873 | §27 | No artboard of its own — the trip surface in `readOnly` (§27) |
-| `/invite/[token]` | `isInvite` · line 5425 | §35 | §35.6: `valid`, `revoked`, `member` (M27 D9 — no `expired`) |
+| `/invite/[token]` | `isInvite` · line 5427 | §35 | §35.6: `valid`, `revoked`, `member` (M27 D9 — no `expired`) |
 | `/invite/[token]/look` | `isTrip` · line 1873 | §27, §35 | No artboard of its own — the trip surface in `readOnly`, §35.6's invite banner (M27 D12) |
 
 <!-- ROUTE-ARTBOARD-INDEX:END -->

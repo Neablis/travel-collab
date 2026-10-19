@@ -85,9 +85,10 @@ const NAME_CHIP = "flex-none rounded-full px-1.5 py-0.5 text-3xs font-semibold t
 // A block's body: the panel, or its drawing, under the block's heading.
 const BODY = "flex min-h-0 flex-1 flex-col justify-between gap-2.5 px-4.5 pb-4.5";
 
-// A card in the row between the spreads. Its width is set at the call site:
+// A card in the row between the spreads. Capped and centred at every width, so
+// stacked below `lg` it is still a card; its `lg` width is set at the call site:
 // the row is the one place two blocks sit side by side, and unequal on purpose.
-const BLOCK = "flex w-full min-h-107.5 flex-col overflow-hidden rounded-lg p-0";
+const BLOCK = "flex w-full max-w-120 self-center lg:self-stretch min-h-107.5 flex-col overflow-hidden rounded-lg p-0";
 
 // The page's own width, which the spreads' backgrounds run past.
 const PAGE = "mx-auto w-full max-w-285 px-7";

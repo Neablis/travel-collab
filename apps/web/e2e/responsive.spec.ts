@@ -862,6 +862,13 @@ test.describe("responsive (narrow viewport, signed out)", () => {
     for (let i = 1; i < stacked.length; i++) {
       expect(stacked[i]!.y).toBeGreaterThanOrEqual(stacked[i - 1]!.y + stacked[i - 1]!.height);
     }
+    // Stacked, Together and Countdown still hold the M42 cap, centred,
+    // rather than running the page's width.
+    const stackedViewport = page.viewportSize()!.width;
+    for (const card of [stacked[1]!, stacked[2]!]) {
+      expect(card.width).toBeLessThanOrEqual(480);
+      expect(Math.abs(card.x - (stackedViewport - card.x - card.width))).toBeLessThanOrEqual(2);
+    }
 
     // 1280px: Playbooks spread edge to edge, then Together and Countdown on
     // one row, Together the wider, then the Notebook spread edge to edge.

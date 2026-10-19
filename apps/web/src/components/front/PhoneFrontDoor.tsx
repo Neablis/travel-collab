@@ -559,6 +559,7 @@ export function PhoneFrontDoor({ closingQuote }: { closingQuote: string }) {
                 &ldquo;{closingQuote}&rdquo;
               </Text>
             </blockquote>
+            {/* A literal, as on the desktop: it names the day `scripts/landing-demo.ts` writes ("Day six, ") and changes with it. */}
             <figcaption>
               <Text variant="muted" className="uppercase tracking-widest">
                 The trip notebook · Day six, Hakone
