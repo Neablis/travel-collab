@@ -27,7 +27,9 @@ const PANELS = {
   together: lazy(() => loadFeaturePanels().then((m) => ({ default: m.TogetherPanel }))),
   playbook: lazy(() => loadFeaturePanels().then((m) => ({ default: m.PlaybookPanel }))),
   "playbook-compact": lazy(() => loadFeaturePanels().then((m) => ({ default: m.CompactPlaybookPanel }))),
+  "playbook-shelf": lazy(() => loadFeaturePanels().then((m) => ({ default: m.ShelfPlaybookPanel }))),
   notebook: lazy(() => loadFeaturePanels().then((m) => ({ default: m.MemoryPanel }))),
+  "notebook-page": lazy(() => loadFeaturePanels().then((m) => ({ default: m.NotebookPagePanel }))),
 };
 
 /** The real `panel`, with `children` — its drawing — while it loads or if it cannot. */

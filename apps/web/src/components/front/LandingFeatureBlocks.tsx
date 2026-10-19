@@ -176,26 +176,11 @@ function Spread({ id, eyebrow, title, intro, aside, mirrored = false, children }
           </BlockHead>
           {aside}
         </div>
-        <Card className="flex min-h-107.5 w-full flex-col overflow-hidden rounded-lg p-0 pt-4.5">
+        <Card data-testid={`spread-frame-${id}`} className="flex w-full flex-col overflow-hidden rounded-lg p-0 pt-4.5">
           <div className={BODY}>{children}</div>
         </Card>
       </div>
     </section>
-  );
-}
-
-// **The slot for a real photo** (M50 part 5): a day somebody actually had,
-// which no fixture can stand in for. Held open as a mat of grained paper at a
-// photo's proportions, so the spread already balances and a photo drops in
-// without moving anything. Decorative until then, and only where the spread is
-// two columns: stacked, an empty mat would be a gap in the page.
-function PhotoSlot(): React.ReactElement {
-  return (
-    <div
-      aria-hidden
-      data-photo-slot
-      className="landing-grain relative hidden aspect-4/3 w-full rounded-lg border border-hairline bg-paper lg:block"
-    />
   );
 }
 
@@ -390,12 +375,16 @@ function NotebookArt(): React.ReactElement {
 export function LandingFeatureBlocks(): React.ReactElement {
   return (
     <div className="flex w-full flex-col gap-13.5">
-      {/* Playbooks — `dc.html:2138-2198`. The lead, so it holds the photo. */}
+      {/* Playbooks — `dc.html:2138-2198`. A shelf of two real days (M50 part
+          9): the second stands under the copy, where an empty photo mat stood
+          until Mitchell's walk of production. It has no drawing: the server's
+          HTML carries it, and a client render that has not loaded it yet
+          shows the spread with one card rather than a picture of a second. */}
       <Spread
         id="landing-playbooks"
         eyebrow="Playbooks"
         title="Relive someone’s perfect day."
-        aside={<PhotoSlot />}
+        aside={<LandingFeaturePanel panel="playbook-shelf">{null}</LandingFeaturePanel>}
         intro={
           <>
             Every playbook is a day that actually happened, saved by the person who lived it, in the order
@@ -506,7 +495,7 @@ export function LandingFeatureBlocks(): React.ReactElement {
           </>
         }
       >
-        <LandingFeaturePanel panel="notebook">
+        <LandingFeaturePanel panel="notebook-page">
           <NotebookArt />
         </LandingFeaturePanel>
       </Spread>

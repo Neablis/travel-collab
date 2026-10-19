@@ -1,5 +1,5 @@
 import type { ActivityView } from "@tc/contracts";
-import type { ItineraryDayPayload, Seg, TripStripPayload } from "@tc/pages";
+import type { ItineraryDayPayload, Seg, SunPayload, TripPeoplePayload, TripStripPayload } from "@tc/pages";
 import type { AccentFamily } from "@/lib/dayAccent";
 import type { DiscoverDay } from "@/lib/playbooks";
 import snapshot from "./landingDemo.generated.json";
@@ -42,14 +42,22 @@ export type LandingDemo = {
 
 /**
  * The feature blocks' slice (M42 part 9), written by the same script and held
- * by the same verify step: the Playbooks block's card, and the Notebook block's
- * page as segments.
+ * by the same verify step: the Playbooks block's cards, and the Notebook block's
+ * page as segments and the blocks beside them.
  */
 export type LandingFeatures = {
   /** Mitchell's published Hanoi playbook (`scripts/landing-day.json`), read through Discover's own `toDiscoverDay`. */
   playbook: DiscoverDay;
+  /** The shelf's second day (M50 part 9): a library playbook from `content/playbooks/`, read the same way. */
+  shelf: DiscoverDay;
   /** The page's paragraphs: the author's words and the widgets' resolved values. */
   memory: Seg[][];
+  /** The page's block widgets (M50 part 9): the day it remembers, that day's daylight, and who was there. */
+  page: {
+    day: ItineraryDayPayload;
+    sun: SunPayload;
+    people: TripPeoplePayload;
+  };
 };
 
 // Through `unknown` because JSON infers `kind: string` where the payloads say

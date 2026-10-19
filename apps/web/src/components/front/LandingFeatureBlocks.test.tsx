@@ -18,6 +18,8 @@ const PLAYBOOKS = "Relive someone’s perfect day.";
 const TOGETHER = "The trip starts before the trip.";
 const COUNTDOWN = "Too excited to sleep.";
 const NOTEBOOK = "How you’ll remember it.";
+// The shelf's second day, from `content/playbooks/thailand-beaches.json`.
+const RAILAY = "Railay: the first longtail, Phra Nang before the crowd, and back after dark";
 
 describe("LandingFeatureBlocks", () => {
   it.each(["Playbooks", "Together", "Countdown", "Notebook"])("names the %s block", (eyebrow) => {
@@ -83,15 +85,21 @@ describe("LandingFeatureBlocks", () => {
   // photographer's credit (Unsplash's guidelines). Its tags are plain chips —
   // a landing card sends nobody into tag pages, which Discover's card links
   // for the tags its description names — so its ways out are its cities, the
-  // day, the credit and its author.
+  // day, the credit and its author. The shelf's second day stands first in
+  // the reading order, under the copy, and has no cover to credit.
   it("shows Mitchell's playbook as Discover draws it, with its cover, description and tags", async () => {
     render(<LandingFeatureBlocks />);
     const playbooks = within(screen.getByRole("region", { name: PLAYBOOKS }));
     await playbooks.findByRole("link", { name: LANDING_FEATURES.playbook.name });
+    await playbooks.findByRole("link", { name: RAILAY });
     expect(playbooks.getByRole("img", { name: "a group of people walking down a train track" })).toBeDefined();
     expect(playbooks.getByText("Outdoors & food")).toBeDefined();
-    expect(playbooks.getByText("Outdoors")).toBeDefined();
+    // Both days carry the tag, each card its own chip.
+    expect(playbooks.getAllByText("Outdoors")).toHaveLength(2);
     expect(playbooks.getAllByRole("link").map((link) => link.textContent)).toEqual([
+      "Krabi",
+      RAILAY,
+      "Nadia",
       "Hanoi",
       "Ninh Bình",
       "Tam Cốc",
@@ -101,6 +109,31 @@ describe("LandingFeatureBlocks", () => {
       "Neablis",
     ]);
     expect(playbooks.getByText("Added to 12 trips")).toBeDefined();
+  });
+
+  // Mitchell's walk of production (M50 part 9): the spread held an empty mat
+  // where a photo was to go. It is a shelf of two real days instead, each as
+  // Discover draws it; the second is a bundled playbook the library serves, at
+  // the id the importer gives it, so its link opens the day in production.
+  it("shelves a second real playbook beside Mitchell's", async () => {
+    render(<LandingFeatureBlocks />);
+    const playbooks = within(screen.getByRole("region", { name: PLAYBOOKS }));
+    const railay = await playbooks.findByRole("link", { name: RAILAY });
+    expect(railay.getAttribute("href")).toMatch(/^\/playbooks\/day\/railay-[a-z0-9-]+-95742081-a970-48b2-8779-34d5104c94ca/);
+    expect(playbooks.getByRole("link", { name: LANDING_FEATURES.playbook.name })).toBeDefined();
+  });
+
+  // The same walk: the notebook page was a strip and two paragraphs in a frame
+  // twice their height. It is a diary page now, drawn by the notebook's own
+  // widgets: the day's stops with their times, its daylight, and who was there.
+  it("fills the notebook page with the day's stops, its daylight and the people on it", async () => {
+    render(<LandingFeatureBlocks />);
+    const notebook = within(screen.getByRole("region", { name: NOTEBOOK }));
+    const stops = within(await notebook.findByRole("list"));
+    expect(stops.getAllByRole("listitem")).toHaveLength(5);
+    expect(stops.getByText("Kaiseki dinner at the ryokan")).toBeDefined();
+    expect(notebook.getByRole("table", { name: /^Sunrise and sunset for 1 day/ })).toBeDefined();
+    expect(notebook.getByText(/are going with Sam\.$/)).toBeDefined();
   });
 
   // Mitchell, 2026-10-11: the front door's example day carries a rating, seeded
@@ -122,7 +155,8 @@ describe("LandingFeatureBlocks", () => {
   it("remembers the day in the notebook, with no price in any block", async () => {
     render(<LandingFeatureBlocks />);
     const notebook = within(screen.getByRole("region", { name: NOTEBOOK }));
-    expect(await notebook.findByText("Check in at Gora Kadan")).toBeDefined();
+    // Once in the words, as the widget the author wrote, and once as the day's stop.
+    expect(await notebook.findAllByText("Check in at Gora Kadan")).toHaveLength(2);
     expect(notebook.getByText(/best night of the trip/)).toBeDefined();
     await within(screen.getByRole("region", { name: PLAYBOOKS })).findByRole("link", { name: LANDING_FEATURES.playbook.name });
     await within(screen.getByRole("region", { name: TOGETHER })).findByRole("list", { name: "Day 7 timeline" });

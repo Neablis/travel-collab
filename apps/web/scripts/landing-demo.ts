@@ -35,15 +35,16 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import type { DiscoverDay } from "@/lib/playbooks";
-import { SavedStop, TripCover, type PageParagraphNode, type TripDetail } from "@tc/contracts";
+import { SavedStop, TripCover, travellerIds, type PageParagraphNode, type TripDetail } from "@tc/contracts";
 import { z } from "zod";
-import { REFERENCE_START_DATE } from "@tc/fixtures";
+import { parseBundle, REFERENCE_START_DATE, resolvePlaybook } from "@tc/fixtures";
 import { renderMacro, type BlockPayload, type Seg, type WidgetContext } from "@tc/pages";
 import { cityAccents } from "@/components/pages/cityAccents";
 import { DEMO_TRIPS, demoTripBySlug } from "@/lib/demoTrip";
+import { displayNameFor } from "@/lib/displayName";
 import type { LandingDemo, LandingFeatures } from "@/lib/landingDemo";
-import { demoTripCards, demoTripDetailFor } from "@/server/demoTrip";
-import { toDiscoverDay } from "@/server/discoverDay";
+import { demoTripCards, demoTripDetailFor, demoTripMembers } from "@/server/demoTrip";
+import { toDiscoverDay, type DiscoverRow } from "@/server/discoverDay";
 import { savedDayCities } from "@/server/savedDayCities";
 import { buildTripGlobals } from "@/server/tripGlobals";
 
@@ -107,8 +108,35 @@ function undatedDemo(slug: string) {
     activities: Object.fromEntries(Object.entries(folded.activities).map(([id, activity]) => [id, { ...activity, cost: null }])),
   };
   const globals = buildTripGlobals(trip);
-  const ctx: WidgetContext = { trip, page: { tripId: demo.tripId }, user: null, globals, today: null };
-  return { trip, globals, ctx };
+  const ctx: WidgetContext = { trip, page: { tripId: demo.tripId }, user: null, globals, today: null, personas: personasOf(demo.tripId) };
+  // The sun is arithmetic on a place and a DATE, so it alone resolves against
+  // the fold's fixed dates. What it prints carries none (a clock time, a length
+  // of day), so nothing in the snapshot names a day that will pass.
+  const dated: WidgetContext = { ...ctx, trip: { ...trip, days: folded.days }, globals: buildTripGlobals({ ...trip, days: folded.days }) };
+  return { trip, globals, ctx, dated };
+}
+
+/**
+ * The demo's people as `trip.people` draws them, by the rule `personasOf`
+ * (`components/pages/people.tsx`) gives the board: `displayNameFor` with no
+ * email, the member's own avatar and colour, and `travellerIds` for who is
+ * going. That module is a client one this script cannot load, so the rule is
+ * restated here rather than imported.
+ */
+function personasOf(tripId: string): NonNullable<WidgetContext["personas"]> {
+  const members = demoTripMembers(tripId);
+  const going = new Set(travellerIds(members));
+  return Object.fromEntries(
+    members.map((m) => [
+      m.userId,
+      {
+        name: displayNameFor({ userId: m.userId, displayName: m.displayName, name: m.name, email: null }),
+        avatar: m.avatar,
+        color: m.color,
+        travelling: going.has(m.userId),
+      },
+    ]),
+  );
 }
 
 /** Demo `slug`'s slice, folded and resolved exactly as `/demo/<slug>` and a notebook would, with no calendar dates. */
@@ -193,7 +221,7 @@ export const FEATURES_PATH = fileURLToPath(new URL("../src/lib/landingFeatures.g
  */
 function landingPlaybook(): DiscoverDay {
   const day = LandingDay.parse(JSON.parse(readFileSync(LANDING_DAY_PATH, "utf8")));
-  const card = toDiscoverDay(
+  const card = landingCard(
     {
       id: day.savedDayId,
       owner_id: day.ownerId,
@@ -214,18 +242,64 @@ function landingPlaybook(): DiscoverDay {
       cover: day.cover,
       matched_count: 0,
     },
-    [],
-    null,
   );
-  if (card === null) throw new Error(`landing demo: ${day.name} does not read as a Discover card`);
   if (JSON.stringify(card.cities) !== JSON.stringify(day.cities) || card.description !== day.description) {
     throw new Error(`landing demo: ${day.name} now reads as ${card.description} in ${card.cities.join(", ")}, not as production drew it`);
   }
+  return card;
+}
+
+/** A library row as the landing's cards draw it: Discover's own card, read signed out. */
+function landingCard(row: DiscoverRow): DiscoverDay {
+  const card = toDiscoverDay(row, [], null);
+  if (card === null) throw new Error(`landing demo: ${row.name} does not read as a Discover card`);
   // No price on the landing outside its plans (Mitchell, 2026-10-11): the
   // blocks sell the day, not what it cost. And no tag that links: a
   // front-door card sends nobody into tag pages, which may not be indexed, so
   // its chips stay text, as a private day's do.
   return { ...card, totalCost: null, namedTags: [] };
+}
+
+/**
+ * The shelf's second day (M50 part 9, Mitchell's walk: two real days where an
+ * empty photo mat stood). A library playbook, read from the bundle the
+ * production import reads and resolved by the same `resolvePlaybook`, so its
+ * id is the one the library serves and its card links to a day that exists.
+ * Its adds are the bundle's own ledger; its rating is seeded as Hanoi's is,
+ * for the landing only, so neither card on the front door says "No reviews yet".
+ */
+const SHELF_BUNDLE_PATH = new URL("../../../content/playbooks/thailand-beaches.json", import.meta.url);
+const SHELF_KEY = "railay-limestone-and-sunset";
+const SHELF_SEED = { rating: 4.8, reviewCount: 17 };
+
+function shelfPlaybook(): DiscoverDay {
+  const bundle = parseBundle(JSON.parse(readFileSync(SHELF_BUNDLE_PATH, "utf8")));
+  const playbook = bundle.playbooks.find((p) => p.key === SHELF_KEY);
+  if (playbook === undefined) throw new Error(`landing demo: ${bundle.bundle.id} no longer holds ${SHELF_KEY}`);
+  const day = resolvePlaybook(bundle.bundle.id, playbook, bundle.bundle.origin);
+  // The import stamps a day with `keptOn`, or the moment it ran; only the
+  // first is reproducible.
+  if (day.keptOn === undefined) throw new Error(`landing demo: ${SHELF_KEY} has no keptOn date to stamp it with`);
+  return landingCard({
+    id: day.savedDayId,
+    owner_id: day.ownerId,
+    owner_display_name: null,
+    owner_name: null,
+    name: day.name,
+    stops: day.stops,
+    cities: savedDayCities(day.stops),
+    visibility: day.visibility,
+    author_kind: day.authorKind,
+    day_count: day.dayCount,
+    adds: day.addedBy.length,
+    rating: SHELF_SEED.rating,
+    review_count: SHELF_SEED.reviewCount,
+    source_trip_name: day.sourceTripName,
+    created_at: day.keptOn,
+    published_at: day.keptOn,
+    cover: null,
+    matched_count: 0,
+  });
 }
 
 const MEMORY_DAY = { kind: "index", index: 5 };
@@ -273,12 +347,20 @@ function resolveParagraph(ctx: WidgetContext, paragraph: PageParagraphNode): Seg
   });
 }
 
-/** The Playbooks block's card and the Notebook block's page, both from content the product ships. */
+/** The Playbooks block's cards and the Notebook block's page, all from content the product ships. */
 export function buildLandingFeatures(): LandingFeatures {
-  const { ctx } = undatedDemo("japan");
+  const { ctx, dated } = undatedDemo("japan");
   return {
     playbook: landingPlaybook(),
+    shelf: shelfPlaybook(),
     memory: MEMORY_PAGE.map((paragraph) => resolveParagraph(ctx, paragraph)),
+    // The page's widgets beside its words (M50 part 9): the day it is about,
+    // that day's daylight, and who was there.
+    page: {
+      day: resolveBlock(ctx, "day.detail", { day: MEMORY_DAY }, "itinerary-day"),
+      sun: resolveBlock(dated, "day.sun", { day: MEMORY_DAY }, "sun"),
+      people: resolveBlock(ctx, "trip.people", {}, "trip-people"),
+    },
   };
 }
 
