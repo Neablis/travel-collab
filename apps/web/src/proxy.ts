@@ -16,8 +16,8 @@ import { SIGNUP_REF_COOKIE, normalizeSignupRef, signupRefCookieOptions } from "@
 // build warns and points at `npx @next/codemod middleware-to-proxy`; that
 // codemod only rewrites a named `middleware` export, so this rename was done
 // by hand). Nothing about the behaviour below changes — same request seam,
-// same matcher semantics, same Edge runtime. Only the filename and the words
-// for it moved.
+// same matcher semantics. Only the filename and the words for it moved, and
+// the runtime: Next 16 builds a `proxy` file for Node only, never Edge.
 //
 // M15 (ADR-024, superseding ADR-023): this builds its own lightweight
 // Auth.js instance from the shared edge-safe config in `@/lib/authConfig`,
@@ -25,8 +25,8 @@ import { SIGNUP_REF_COOKIE, normalizeSignupRef, signupRefCookieOptions } from "@
 // v5's own documented split-config pattern for edge-compatible request
 // interception — it depends on configuration (data), not on the server's
 // auth instance or any server internal, so it needs no lint-wall exemption.
-// `authConfig` has no `@/server/*` imports and nothing Node-only, so this
-// instance is safe to construct in the Edge runtime.
+// `authConfig` has no `@/server/*` imports and no database, so this instance
+// stays cheap to construct in front of every matched request.
 const { auth } = NextAuth(authConfig);
 
 // Every route this file matches by path is one a signed-out visitor should not
@@ -48,7 +48,7 @@ const { auth } = NextAuth(authConfig);
 //
 // ADR-078: `/` is NOT matched. It was — a signed-out `/` was rewritten to the
 // landing and a signed-in one served Home, so `/` was two pages and answered
-// `private, no-store`, and every visit to the bare domain paid for an edge
+// `private, no-store`, and every visit to the bare domain paid for a proxy
 // `auth()`. Home moved to `/home` (`HOME_PATH`), `/` became a static page, and
 // the one thing it still needs to know — "is this browser signed in?" — it
 // learns from a hint cookie read by an inline script, because a static page
@@ -59,8 +59,7 @@ const { auth } = NextAuth(authConfig);
 // a request matched only for its `?ref=` is answered before it (`proxy`).
 // `req.auth` is populated by the wrapper from the session JWT; no database
 // read happens here (this project uses JWT sessions with no adapter — see
-// server/auth.ts), which is the configuration Auth.js v5's docs call out as
-// the one that works reliably in the Edge runtime.
+// server/auth.ts), so the check costs no round trip.
 const guarded = auth((req) => {
   const response = bankSignupRef(req, route(req));
   // ADR-078: **this file only ever deletes the hint; it never sets it.** The
@@ -180,8 +179,8 @@ function route(req: NextAuthRequest): NextResponse {
  * anything else this file matches.
  *
  * **Stores, never validates** — deliberately (ADR-024, and the milestone's own
- * trap list). This runs in the Edge runtime with no database, so whether the
- * token names a pending invite is not a question that can be asked here;
+ * trap list). This runs before every matched request with no database, so
+ * whether the token names a pending invite is not a question asked here;
  * `server/admission.ts` owns that, reached from `recordSignIn`. Importing it
  * from this file would fail lint and would be wrong before it failed.
  *

@@ -2,8 +2,9 @@
 // `proxy.ts` writes it from a `?ref=` link and `recordSignIn` copies it onto a
 // new account, so its name, its bound and its life are written down once, here.
 //
-// Plain data and string functions only: `proxy.ts` runs in the Edge runtime
-// (ADR-024), so nothing it imports may reach the database or Node.
+// Plain data and string functions only: `proxy.ts` runs before every request
+// it matches, so it stays light and nothing it imports may reach the database
+// (ADR-024).
 import { pendingAdmissionCookieOptions, type PendingAdmissionCookieOptions } from "./pendingAdmission";
 
 export const SIGNUP_REF_COOKIE = "caesura_ref";
