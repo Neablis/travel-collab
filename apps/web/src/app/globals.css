@@ -2102,23 +2102,104 @@ html[data-look="ledger"] .shadow-raised {
   .landing-sea-story {
     z-index: 2;
   }
-  /* A lit day is ringed inside its mat (the prototype's `.ring`). */
-  .landing-sea-lit::after {
-    content: "";
+  /* A lit day sits over the scrim, so it carries its own veil, which the
+     scroll darkens with the sea while its moment is a ghost and clears as the
+     moment rises; and its ring inside its mat (the prototype's `.veil` and
+     `.ring`), which shows as the moment rises. `LandingSea` writes both
+     opacities; the markup's rest state is lit. */
+  .landing-sea-veil,
+  .landing-sea-ring {
     position: absolute;
     inset: 0;
     border-radius: inherit;
+    pointer-events: none;
+  }
+  .landing-sea-veil {
+    background: var(--color-ink);
+    opacity: 0;
+  }
+  .landing-sea-ring {
     box-shadow:
       inset 0 0 0 3px var(--color-surface),
       inset 0 0 0 6px var(--color-brand);
-    pointer-events: none;
   }
   /* A moment holding focus is drawn risen, whatever the scroll has painted:
      a browser that scrolls a focused door only to the screen's edge would
-     otherwise leave it faded and lowered. */
+     otherwise leave it faded and lowered. A lit day under the pointer or
+     holding focus is drawn lit. */
   [data-moment]:focus-within > [data-testid="moment-panel"] {
     opacity: 1 !important;
     transform: none !important;
+  }
+  .landing-sea-lit:is(:hover, :focus-within) > .landing-sea-veil {
+    opacity: 0 !important;
+  }
+  .landing-sea-lit:is(:hover, :focus-within) > .landing-sea-ring {
+    opacity: 1 !important;
+  }
+  /* A background card under the pointer rises over the scrim to full colour,
+     as a lit day does, and sinks back under it when the pointer leaves
+     (Mitchell's walk of PR 510 at 7260011). Its veil starts and ends at the
+     scrim's darkness (`--veil`, which `LandingSea` hands the card as the
+     pointer enters), so neither edge of the fade jumps. Hover only: the
+     background is out of the tab order. Every card would run the sinking
+     animation as it mounts, so only a card the pointer has entered
+     (`data-lifted`) carries it. */
+  .landing-sea-cell[data-lifted] {
+    animation: sea-sink 0.25s ease-out;
+  }
+  .landing-sea-cell[data-lifted]::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    border-radius: inherit;
+    background: var(--color-ink);
+    opacity: 0;
+    pointer-events: none;
+    animation: sea-veil 0.25s ease-out;
+  }
+  .landing-sea-cell[data-lifted]:hover {
+    z-index: 2;
+    animation: none;
+  }
+  .landing-sea-cell[data-lifted]:hover::before {
+    animation: sea-unveil 0.25s ease-out;
+  }
+  @keyframes sea-sink {
+    from,
+    to {
+      z-index: 2;
+    }
+  }
+  @keyframes sea-veil {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: var(--veil, 0);
+    }
+  }
+  @keyframes sea-unveil {
+    from {
+      opacity: var(--veil, 0);
+    }
+    to {
+      opacity: 0;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .landing-sea-cell[data-lifted],
+    .landing-sea-cell[data-lifted]::before {
+      animation: none;
+    }
+  }
+  /* The closing cell is the grid's full width; its words keep to a centred
+     track as wide as the prototype's (1280px), which the cell sets, not they. */
+  .landing-sea-closing {
+    display: grid;
+    grid-template-columns: minmax(0, 80rem);
+    justify-content: center;
   }
   /* A card on the sea fills the box its cell gives it and keeps what fits.
      Its parts are one column that wraps, so a part with no room left moves

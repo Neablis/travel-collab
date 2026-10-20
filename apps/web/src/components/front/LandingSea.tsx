@@ -17,10 +17,11 @@ type SeaDoor = SeaCell & { href: string | null };
 // coloured mat, packed edge to edge on one grid of square units. The moments,
 // the pricing and the closing cell are larger cells of the same grid, each a
 // whole number of units (Mitchell's walk of PR 510). The first screen is all
-// colour; scrolling dims it into ground, and four moments rise out of it,
-// each the real component telling one step (find a day, make it your trip,
-// the crew on it, the notebook afterwards), with a screen of sea between them
-// and two or three days lit, apart, around each.
+// colour; scrolling dims it into ground, and four moments rise out of it from
+// a ghost of themselves and sink back as they leave, each the real component
+// telling one step (find a day, make it your trip, everyone on the plan, the
+// notebook afterwards), with a screen of sea between them and two or three
+// days lit around each, touching it and apart from one another.
 //
 // **The grid decides every size** (Mitchell, on PR 510: *"the parent controls
 // the size, and the content just fills that component using the flow rules
@@ -187,15 +188,22 @@ export function layoutSea({ cols, unit, viewport }: SeaMetrics): SeaLayout {
   const inset = Math.round(cols * 0.1);
 
   const stories = {} as Record<StoryId, SeaArea>;
-  let row = Math.max(FIRST_SCREEN_ROWS, heroEnd + opening);
-  for (const story of STORIES) {
+  // Room above the first moment for a day it lights there.
+  let row = Math.max(FIRST_SCREEN_ROWS + LIT_SIZE, heroEnd + opening);
+  STORIES.forEach((story, i) => {
     const w = story.extra === null ? cols : Math.min(cols, base + story.extra);
     const h = Math.max(2, Math.ceil((story.height + GAP) / step));
     const at = story.align === "left" ? inset : story.align === "right" ? cols - w - inset : Math.floor((cols - w) / 2);
     stories[story.id] = { row, col: Math.min(Math.max(0, at), cols - w), w, h };
-    row += h + screen;
-  }
-  const rows = row - screen;
+    // A screen of plain sea between one moment's lit days and the next
+    // one's, which may sit below the one and above the other (Mitchell's
+    // walk of PR 510 at 7260011): no day reads as the wrong moment's, and
+    // one moment has faded out before the next fades in.
+    const next = STORIES[i + 1];
+    row += h + screen + (story.id in LIT ? LIT_SIZE : 0) + (next !== undefined && next.id in LIT ? LIT_SIZE : 0);
+  });
+  const closing = stories.closing;
+  const rows = closing.row + closing.h;
 
   const taken = Array.from({ length: rows }, () => new Array<boolean>(cols).fill(false));
   const free = ({ row: r, col: c, w, h }: SeaArea) => {
@@ -208,40 +216,40 @@ export function layoutSea({ cols, unit, viewport }: SeaMetrics): SeaLayout {
   };
   for (const at of Object.values(stories)) take(at);
 
-  // Lit days apart: one beside the moment, one above it towards its other
-  // end, one below past its near end, each nudged to the nearest free spot
-  // that touches no other day the same moment lights.
+  // Lit days apart, and each touching its moment along an edge (Mitchell's
+  // walk of PR 510 at 7260011: *"always be touching the banner element"*):
+  // one beside it, one along its top towards its other end, one along its
+  // foot at its near end, each moved along the moment's edges to the
+  // nearest spot that is free and touches no other day the moment lights.
   const lit: SeaLayout["lit"] = [];
   for (const [moment, days] of Object.entries(LIT) as [MomentId, (typeof LIT)[MomentId]][]) {
     const box = stories[moment];
     const right = box.col + box.w + LIT_SIZE <= cols;
     const near = right ? box.col + box.w : box.col - LIT_SIZE;
-    const far = right ? box.col - 1 : box.col + box.w - 1;
     const spots = [
       [box.row + 1, near],
-      [box.row - LIT_SIZE - 1, far],
-      [box.row + box.h + 1, right ? near + 1 : near - 1],
+      [box.row - LIT_SIZE, right ? box.col : box.col + box.w - LIT_SIZE],
+      [box.row + box.h, right ? box.col + box.w - LIT_SIZE : box.col],
     ] as const;
+    // Every spot that shares an edge with the moment.
+    const edges: SeaArea[] = [];
+    for (let c = box.col - LIT_SIZE + 1; c < box.col + box.w; c++) {
+      edges.push({ row: box.row - LIT_SIZE, col: c, w: LIT_SIZE, h: LIT_SIZE }, { row: box.row + box.h, col: c, w: LIT_SIZE, h: LIT_SIZE });
+    }
+    for (let r = box.row - LIT_SIZE + 1; r < box.row + box.h; r++) {
+      edges.push({ row: r, col: box.col - LIT_SIZE, w: LIT_SIZE, h: LIT_SIZE }, { row: r, col: box.col + box.w, w: LIT_SIZE, h: LIT_SIZE });
+    }
     const mine: SeaArea[] = [];
     const apart = (at: SeaArea) =>
       mine.every((other) => at.row > other.row + other.h || other.row > at.row + at.h || at.col > other.col + other.w || other.col > at.col + at.w);
     days.forEach(({ cell, door }, i) => {
       const [r, c] = spots[i]!;
-      // Outwards ring by ring: on a narrow grid a wide moment leaves its
-      // spots little room, and the nearest free one may be a few rows off.
-      for (let d = 0; d <= rows; d++) {
-        for (let dr = -d; dr <= d; dr++) {
-          for (let dc = -d; dc <= d; dc++) {
-            if (Math.max(Math.abs(dr), Math.abs(dc)) !== d) continue;
-            const at = { row: r + dr, col: c + dc, w: LIT_SIZE, h: LIT_SIZE };
-            if (!free(at) || !apart(at)) continue;
-            take(at);
-            mine.push(at);
-            lit.push({ moment, cell, door, at });
-            return;
-          }
-        }
-      }
+      const distance = (at: SeaArea) => Math.abs(at.row - r) + Math.abs(at.col - c);
+      const at = edges.filter((spot) => free(spot) && apart(spot)).sort((a, b) => distance(a) - distance(b))[0];
+      if (at === undefined) return;
+      take(at);
+      mine.push(at);
+      lit.push({ moment, cell, door, at });
     });
   }
 
@@ -277,11 +285,17 @@ const place = (at: SeaArea) => ({ gridRow: `${at.row + 1} / span ${at.h}`, gridC
 // colorful background a tad longer before fading out"*).
 const HOLD = 0.6;
 const FADE = 0.8;
-// A moment rises as its middle comes up the bottom 40% of the screen, from
-// 28px down, and is settled from there on (Mitchell, on PR 510: it no longer
-// fades out once it has passed the middle).
-const RISE = 0.4;
+// A moment is wholly risen while its middle is within 15% of a screen of the
+// screen's own, and sinks back to its ghost over the next 35%, so it fades in
+// as it comes up the screen and out as it leaves at the top (Mitchell's walk
+// of PR 510 at 7260011). The ghost is the real panel, faint: never gone, and
+// never a cover over it.
+const RISEN = 0.15;
+const RISE = 0.35;
 const RISE_PX = 28;
+const GHOST = 0.22;
+/** How dark the scrim is at its darkest (`.landing-sea-scrim`), which a lit day's veil matches. */
+const SCRIM = 0.55;
 
 const clamp = (n: number) => Math.min(1, Math.max(0, n));
 
@@ -290,11 +304,21 @@ export function seaDim(scrollY: number, viewport: number): number {
   return clamp((scrollY - HOLD * viewport) / (FADE * viewport));
 }
 
-/** A moment `height` tall whose top is `top` px down a `viewport`-tall screen: how risen, and how far below its place. */
-export function momentRise(top: number, height: number, viewport: number): { opacity: number; dy: number } {
-  const middle = top + Math.min(height, viewport) / 2;
-  const t = clamp((viewport - middle) / (RISE * viewport));
-  return { opacity: t, dy: Math.round((1 - t) * RISE_PX) };
+/**
+ * A moment `height` tall whose top is `top` px down a `viewport`-tall screen:
+ * how risen, 0 to 1 (`lift`), its panel's opacity, and how far below its place.
+ */
+export function momentRise(top: number, height: number, viewport: number): { opacity: number; dy: number; lift: number } {
+  // Where its middle may be for it to be at the screen's middle: one place,
+  // or for a moment taller than the screen, a stretch.
+  const half = Math.min(height, viewport) / 2;
+  const centre = viewport / 2;
+  const off = Math.max(0, top + half - centre, centre - (top + height - half)) / viewport;
+  const lift = clamp((RISEN + RISE - off) / RISE);
+  // Wholly off the screen it is drawn at nothing, which no one can tell from
+  // a ghost, and which an accessibility checker does not read as faint text.
+  const seen = top < viewport && top + height > 0;
+  return { opacity: seen ? GHOST + (1 - GHOST) * lift : 0, dy: Math.round((1 - lift) * RISE_PX), lift };
 }
 
 /** A number as a style value, `1` rather than `1.000`, so the authored rest state and a painted one read alike. */
@@ -359,6 +383,13 @@ function Cell({ cell, at, background, litFor }: { cell: SeaDoor; at?: SeaArea; b
         compact={compact}
         className={cn("mx-1.5 mb-1.5 min-h-0 flex-1", compact && "gap-2 p-3")}
       />
+      {/* A lit day rises and sinks with its moment: the veil dims it with the sea, the ring marks it lit. */}
+      {litFor !== undefined && (
+        <>
+          <span aria-hidden data-testid="lit-veil" className="landing-sea-veil" />
+          <span aria-hidden className="landing-sea-ring" />
+        </>
+      )}
     </div>
   );
 }
@@ -386,12 +417,14 @@ function Band({ from, to, cells }: { from: number; to: number; cells: SeaLayout[
 }
 
 /**
- * A moment risen out of the sea: a cell of the grid on its region's mat, and
- * over the mat its panel, the heading and the real component, which the
- * scroll raises (`data-rise`). Its rest state is risen, since a moment is
- * never on the first screen.
+ * A moment risen out of the sea: a cell of the grid holding its panel, the
+ * heading and the real component, which the scroll raises from a ghost of
+ * itself (`data-rise`). Nothing lies under or over the panel: a stamp of the
+ * heading in white on the region's mat showed through the rising panel as
+ * white on white (Mitchell's walk of PR 510 at 7260011). Its rest state in
+ * the markup is risen, since a moment is never on the first screen.
  */
-function Moment({ id, heading, region, at, children }: { id: MomentId; heading: string; region: string; at: SeaArea; children: ReactNode }) {
+function Moment({ id, heading, at, children }: { id: MomentId; heading: string; at: SeaArea; children: ReactNode }) {
   return (
     <section
       aria-labelledby={id}
@@ -399,13 +432,8 @@ function Moment({ id, heading, region, at, children }: { id: MomentId; heading: 
       data-testid="sea-story"
       // eslint-disable-next-line no-restricted-syntax -- the moment's area on the sea's grid, computed by `layoutSea`
       style={place(at)}
-      className={cn("landing-sea-story relative rounded-2xl", SEA_REGIONS[region]!.mat)}
+      className="landing-sea-story relative rounded-2xl"
     >
-      {/* What shows of the moment before it has risen: its mat and its words (the prototype's stamp). */}
-      <div aria-hidden className="absolute inset-0 flex flex-col justify-end gap-1 p-5 text-person-on">
-        <span className="font-mono text-2xs tracking-widest uppercase">{SEA_REGIONS[region]!.label}</span>
-        <span className="font-display text-2xl leading-tight">{heading}</span>
-      </div>
       <div
         data-rise
         data-testid="moment-panel"
@@ -420,14 +448,22 @@ function Moment({ id, heading, region, at, children }: { id: MomentId; heading: 
   );
 }
 
-/** A story cell that does not rise: the pricing, the closing cell. It fills its area; what it holds fills it. */
-function Story({ at, children }: { at: SeaArea; children: ReactNode }) {
+/**
+ * A story cell that does not rise: the pricing, the closing cell. It fills its
+ * area; what it holds fills it. The closing cell is the grid's full width, so
+ * it holds its words to a centred track (`.landing-sea-closing`) rather than
+ * leave them to cap their own width.
+ */
+function Story({ at, closing = false, children }: { at: SeaArea; closing?: boolean; children: ReactNode }) {
   return (
     <div
       data-testid="sea-story"
       // eslint-disable-next-line no-restricted-syntax -- the cell's area on the sea's grid, computed by `layoutSea`
       style={place(at)}
-      className="landing-sea-story flex min-h-0 flex-col overflow-hidden rounded-2xl bg-paper p-7 shadow-lifted"
+      className={cn(
+        "landing-sea-story min-h-0 overflow-hidden rounded-2xl bg-paper p-7 shadow-lifted",
+        closing ? "landing-sea-closing" : "flex flex-col",
+      )}
     >
       {children}
     </div>
@@ -473,29 +509,48 @@ export function LandingSea({ hero, pricing, closing }: { hero?: ReactNode; prici
     if (root === null || scrim === null) return;
     // Read live in `paint`, as the board reads it: the preference can change mid-session.
     const motion = window.matchMedia?.("(prefers-reduced-motion: reduce)");
+    let dim = 0;
     const paint = () => {
       const still = motion?.matches ?? false;
       const viewport = window.innerHeight;
+      dim = seaDim(window.scrollY, viewport);
       // On the scrim, its one reader, which holds no card: set on an ancestor
       // of the cells, this inherited property restyled every mounted card on
       // every scroll event, 115ms a frame with 650 mounted (PR 510 r4).
-      scrim.style.setProperty("--sea-dim", styleNumber(seaDim(window.scrollY, viewport)));
+      scrim.style.setProperty("--sea-dim", styleNumber(dim));
       for (const moment of root.querySelectorAll<HTMLElement>("[data-moment]")) {
         const box = moment.getBoundingClientRect();
-        const { opacity, dy } = momentRise(box.top, box.height, viewport);
+        const { opacity, dy, lift } = momentRise(box.top, box.height, viewport);
         const panel = moment.querySelector<HTMLElement>("[data-rise]")!;
         panel.style.opacity = styleNumber(opacity);
         panel.style.transform = still || dy === 0 ? "" : `translate3d(0,${dy}px,0)`;
+        // Its two or three lit days with it, on their veil and ring alone,
+        // which hold no card: no card is restyled.
+        for (const cell of root.querySelectorAll<HTMLElement>(`[data-lit-for="${moment.getAttribute("aria-labelledby")}"]`)) {
+          cell.querySelector<HTMLElement>(".landing-sea-veil")!.style.opacity = styleNumber(SCRIM * dim * (1 - lift));
+          cell.querySelector<HTMLElement>(".landing-sea-ring")!.style.opacity = styleNumber(lift);
+        }
       }
+    };
+    // A background card the pointer is on rises out of the sea, as a lit
+    // one does (Mitchell's walk of PR 510 at 7260011). CSS runs it; this
+    // hands it, once per entry and on that one card, how dark the sea is now.
+    const surface = (event: PointerEvent) => {
+      const cell = (event.target as Element).closest<HTMLElement>(".landing-sea-cell[aria-hidden]:not([data-lit-for])");
+      if (cell === null || cell.contains(event.relatedTarget as Node | null)) return;
+      cell.style.setProperty("--veil", styleNumber(SCRIM * dim));
+      cell.dataset.lifted = "";
     };
     // Once on mount too: a restored scroll position paints before the first
     // scroll event, or the page would jump on it.
     paint();
     window.addEventListener("scroll", paint, { passive: true });
     window.addEventListener("resize", paint, { passive: true });
+    root.addEventListener("pointerover", surface, { passive: true });
     return () => {
       window.removeEventListener("scroll", paint);
       window.removeEventListener("resize", paint);
+      root.removeEventListener("pointerover", surface);
     };
   }, []);
 
@@ -509,7 +564,7 @@ export function LandingSea({ hero, pricing, closing }: { hero?: ReactNode; prici
       .map(({ cell, door, at }) => <Cell key={cell.day.savedDayId} cell={cell} at={at} background={!door} litFor={moment} />);
   const moments: Record<MomentId, ReactNode> = {
     "sea-find": (
-      <Moment key="sea-find" id="sea-find" heading="Find a day worth borrowing." region="thailand-beaches" at={stories["sea-find"]}>
+      <Moment key="sea-find" id="sea-find" heading="Find a day worth borrowing." at={stories["sea-find"]}>
         <LandingFeaturePanel panel="find-a-day">{PANEL_PENDING}</LandingFeaturePanel>
       </Moment>
     ),
@@ -518,7 +573,6 @@ export function LandingSea({ hero, pricing, closing }: { hero?: ReactNode; prici
         key="sea-make"
         id="sea-make"
         heading="Start a trip using someone else’s Thailand day, or add it to an existing plan."
-        region="thailand-beaches"
         at={stories["sea-make"]}
       >
         <Link href={RAILAY.href} prefetch={false} className={cn(buttonVariants({ variant: "primary" }), "self-start no-underline")}>
@@ -527,12 +581,12 @@ export function LandingSea({ hero, pricing, closing }: { hero?: ReactNode; prici
       </Moment>
     ),
     "sea-crew": (
-      <Moment key="sea-crew" id="sea-crew" heading="Plan the rest with the crew." region="greek-islands" at={stories["sea-crew"]}>
+      <Moment key="sea-crew" id="sea-crew" heading="Everyone going, one plan." at={stories["sea-crew"]}>
         <LandingFeaturePanel panel="crew">{PANEL_PENDING}</LandingFeaturePanel>
       </Moment>
     ),
     "sea-notebook": (
-      <Moment key="sea-notebook" id="sea-notebook" heading="Keep the notebook afterwards." region="japan" at={stories["sea-notebook"]}>
+      <Moment key="sea-notebook" id="sea-notebook" heading="Keep the notebook afterwards." at={stories["sea-notebook"]}>
         <LandingFeaturePanel panel="notebook-page">{PANEL_PENDING}</LandingFeaturePanel>
       </Moment>
     ),
@@ -559,7 +613,7 @@ export function LandingSea({ hero, pricing, closing }: { hero?: ReactNode; prici
       ),
     })),
     { row: stories.pricing.row, order: 1, node: <Story key="pricing" at={stories.pricing}>{pricing}</Story> },
-    { row: stories.closing.row, order: 1, node: <Story key="closing" at={stories.closing}>{closing}</Story> },
+    { row: stories.closing.row, order: 1, node: <Story key="closing" at={stories.closing} closing>{closing}</Story> },
   ].sort((a, b) => a.row - b.row || a.order - b.order);
 
   return (

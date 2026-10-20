@@ -1,3 +1,4 @@
+import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "./fixtures/test";
 
 // M42's front door, walked by somebody with no account: the `/demo` picker,
@@ -108,10 +109,10 @@ test.describe("the front door, signed out (M42)", () => {
     // attached by an effect, ever moves `--sea-dim` off its authored 0.
     await page.evaluate(() => window.scrollTo(0, window.innerHeight));
     await expect
-      .poll(() => landing.getByTestId("landing-sea").evaluate((sea: HTMLElement) => sea.style.getPropertyValue("--sea-dim")))
+      .poll(() => landing.getByTestId("sea-scrim").evaluate((scrim: HTMLElement) => scrim.style.getPropertyValue("--sea-dim")))
       .not.toBe("0");
     await expect(landing.getByRole("region", { name: "Find a day worth borrowing." }).getByRole("link", { name: RAILAY }).first()).toBeVisible();
-    await expect(landing.getByRole("region", { name: "Plan the rest with the crew." }).getByRole("list", { name: "Day 2 timeline" })).toBeVisible();
+    await expect(landing.getByRole("region", { name: "Everyone going, one plan." }).getByRole("list", { name: "Day 2 timeline" })).toBeVisible();
     // The day's stop, not the words that name it too (M50 part 9).
     await expect(
       landing.getByRole("region", { name: "Keep the notebook afterwards." }).getByRole("listitem").filter({ hasText: "Check in at Gora Kadan" }),
@@ -156,7 +157,7 @@ test.describe("the front door, signed out (M42)", () => {
       const sea = page.getByTestId("desktop-landing").getByTestId("landing-sea");
       // Packed for this width: the server's HTML is packed for six columns.
       await expect(sea.getByTestId("sea-grid")).toHaveAttribute("data-cols", String(cols));
-      await expect(sea.getByRole("region", { name: "Plan the rest with the crew." }).getByRole("list", { name: "Day 2 timeline" })).toBeAttached();
+      await expect(sea.getByRole("region", { name: "Everyone going, one plan." }).getByRole("list", { name: "Day 2 timeline" })).toBeAttached();
       await expect(sea.getByTestId("notebook-page")).toBeAttached();
       const stories = sea.getByTestId("sea-story");
       await expect(stories).toHaveCount(6);
@@ -210,6 +211,59 @@ test.describe("the front door, signed out (M42)", () => {
       expect(doors.filter((door) => door.cut)).toEqual([]);
     });
   }
+
+  // Mitchell's walk of PR 510 at 7260011: the make moment read "white text on
+  // white background". Risen at the screen's middle, every word on it passes
+  // the contrast check.
+  test("the make moment's words pass a contrast check once it has risen", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto("/");
+    const make = page.getByTestId("desktop-landing").getByRole("region", { name: /^Start a trip using someone else’s Thailand day/ });
+    await make.evaluate((moment) => {
+      const box = moment.getBoundingClientRect();
+      window.scrollBy(0, box.top + box.height / 2 - window.innerHeight / 2);
+    });
+    await expect(make.getByTestId("moment-panel")).toHaveCSS("opacity", "1");
+    const { violations } = await new AxeBuilder({ page }).include('[aria-labelledby="sea-make"]').withRules(["color-contrast"]).analyze();
+    expect(violations.flatMap((violation) => violation.nodes.map((node) => node.target.join(" ")))).toEqual([]);
+  });
+
+  // Mitchell's walk of PR 510 at 7260011: a background card under the pointer
+  // rises out of the dimmed sea to full colour, as a lit day does, and sinks
+  // back when the pointer leaves. Above the scrim with no veil of its own is
+  // full colour; under it is dimmed.
+  test("a background card rises to full colour under the pointer, and sinks back after", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto("/");
+    const sea = page.getByTestId("desktop-landing").getByTestId("landing-sea");
+    const scrim = sea.getByTestId("sea-scrim");
+    await page.evaluate(() => window.scrollTo(0, window.innerHeight * 2));
+    await expect.poll(() => scrim.evaluate((el: HTMLElement) => el.style.getPropertyValue("--sea-dim"))).toBe("1");
+    // By test id: the background is out of the accessibility tree.
+    const background = sea.locator('[data-testid="sea-cell"][aria-hidden="true"]:not([data-lit-for])');
+    // Polled: the cells two screens down mount once the reader is near them.
+    const onScreen = () =>
+      background.evaluateAll((cells) =>
+        cells.findIndex((cell) => {
+          const box = cell.getBoundingClientRect();
+          return box.top > 80 && box.bottom < window.innerHeight - 20;
+        }),
+      );
+    await expect.poll(onScreen).toBeGreaterThanOrEqual(0);
+    const card = background.nth(await onScreen());
+    const settled = () =>
+      card.evaluate(async (cell) => {
+        await Promise.all(cell.getAnimations({ subtree: true }).map((animation) => animation.finished));
+        return { z: Number(getComputedStyle(cell).zIndex), veil: getComputedStyle(cell, "::before").opacity };
+      });
+    const under = Number(await scrim.evaluate((el) => getComputedStyle(el).zIndex));
+    await card.hover();
+    const risen = await settled();
+    expect(risen.z).toBeGreaterThan(under);
+    expect(risen.veil).toBe("0");
+    await page.mouse.move(2, 2);
+    expect((await settled()).z).toBeNaN();
+  });
 
   // The phone's claims are the same components, the Discover card in its
   // compact form so it fits a short phone (390×664): below the headline and

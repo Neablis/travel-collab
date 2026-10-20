@@ -4,7 +4,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { LANDING_FEATURES } from "@/lib/landingDemo";
 import { LANDING_SEA } from "@/lib/landingSea";
 import { dayPath, parseDaySegment } from "@/lib/playbookUrls";
-import { FIRST_SCREEN, FIRST_SCREEN_ROWS, LandingSea, SEA_REGIONS, layoutSea, momentRise, seaDim } from "./LandingSea";
+import { FIRST_SCREEN, FIRST_SCREEN_ROWS, LandingSea, SEA_REGIONS, layoutSea, momentRise, seaDim, type SeaArea } from "./LandingSea";
 
 // The real moment panels resolve from the warm module cache, for the reason
 // `LandingScreen.test.tsx` gives.
@@ -172,7 +172,7 @@ describe("the sea's moments", () => {
   it("puts the crew on the Greek trip's borrowed Day 2, with the Greek days lit around it", async () => {
     const screens = watchScreens();
     render(<LandingSea />);
-    const region = screen.getByRole("region", { name: "Plan the rest with the crew." });
+    const region = screen.getByRole("region", { name: "Everyone going, one plan." });
     screens.near(region);
     const crew = within(region);
     const river = await crew.findByRole("list", { name: "Day 2 timeline" });
@@ -189,6 +189,14 @@ describe("the sea's moments", () => {
     expect(lit.map((cell) => cell.getAttribute("data-region"))).toEqual(lit.map(() => "greek-islands"));
     // Elena's Naxos day, the one the crew borrowed, among them.
     expect(lit.map((cell) => within(cell).getByRole("heading").textContent)).toContainEqual(expect.stringMatching(/^Naxos/));
+  });
+
+  // Mitchell's walk of PR 510 at 7260011: "i dont like crew here". The names
+  // on each stop carry the together; the heading leads with the shared plan.
+  it("says who is going without the word crew", () => {
+    render(<LandingSea />);
+    const region = screen.getByRole("region", { name: "Everyone going, one plan." });
+    expect(region.textContent).not.toMatch(/crew/i);
   });
 
   it("keeps the notebook afterwards, with the Japan days lit around it", async () => {
@@ -215,11 +223,21 @@ describe("the rise and the dim", () => {
     expect(seaDim(2000, 1000)).toBe(1);
   });
 
-  it("raises a moment as it comes up the screen, and keeps it risen past the middle", () => {
-    expect(momentRise(1000, 400, 1000)).toEqual({ opacity: 0, dy: expect.any(Number) });
-    expect(momentRise(1000, 400, 1000).dy).toBeGreaterThan(0);
-    expect(momentRise(200, 400, 1000)).toEqual({ opacity: 1, dy: 0 });
-    expect(momentRise(-900, 400, 1000)).toEqual({ opacity: 1, dy: 0 });
+  // Mitchell's walk of PR 510 at 7260011: a moment at rest is "a ghostly
+  // faded out version of the full thing", which fades in as it enters and
+  // out again as it leaves, at the top edge as at the bottom.
+  it("raises a moment from its ghost as it comes up the screen, and lowers it again as it leaves at the top", () => {
+    const below = momentRise(950, 400, 1000);
+    expect(below.opacity).toBeGreaterThan(0);
+    expect(below.opacity).toBeLessThan(1);
+    expect(below.dy).toBeGreaterThan(0);
+    expect(momentRise(300, 400, 1000)).toEqual({ opacity: 1, dy: 0, lift: 1 });
+    const leaving = momentRise(-150, 400, 1000);
+    expect(leaving.opacity).toBeGreaterThan(below.opacity);
+    expect(leaving.opacity).toBeLessThan(1);
+    expect(momentRise(-350, 400, 1000).opacity).toBe(below.opacity);
+    // Wholly off the screen, at either edge, it is not drawn at all.
+    expect([momentRise(1000, 400, 1000).opacity, momentRise(-400, 400, 1000).opacity]).toEqual([0, 0]);
   });
 
   it("starts from the rest state in the markup, and follows the scroll", () => {
@@ -233,8 +251,8 @@ describe("the rise and the dim", () => {
     render(<LandingSea />);
     const scrim = screen.getByTestId("sea-scrim");
 
-    const moment = screen.getByRole("region", { name: "Plan the rest with the crew." });
-    vi.spyOn(moment, "getBoundingClientRect").mockReturnValue({ top: window.innerHeight, height: 400 } as DOMRect);
+    const moment = screen.getByRole("region", { name: "Everyone going, one plan." });
+    vi.spyOn(moment, "getBoundingClientRect").mockReturnValue({ top: window.innerHeight - 40, height: 400 } as DOMRect);
     vi.spyOn(window, "scrollY", "get").mockReturnValue(window.innerHeight * 3);
     fireEvent.scroll(window);
     expect(scrim.style.getPropertyValue("--sea-dim")).toBe("1");
@@ -245,7 +263,13 @@ describe("the rise and the dim", () => {
     for (const ancestor of [screen.getByTestId("landing-sea"), screen.getByTestId("sea-grid")]) {
       expect(ancestor.style.getPropertyValue("--sea-dim")).toBe("");
     }
-    expect(within(moment).getByTestId("moment-panel").style.opacity).toBe("0");
+    // A ghost of the real panel with nothing laid over it: no stamp of the
+    // heading in white on the region's mat, which read as a colour cover.
+    const ghost = Number(within(moment).getByTestId("moment-panel").style.opacity);
+    expect(ghost).toBeGreaterThan(0);
+    expect(ghost).toBeLessThan(1);
+    expect(within(moment).getAllByText("Everyone going, one plan.")).toHaveLength(1);
+    expect(moment.className.split(" ")).not.toContain(SEA_REGIONS["greek-islands"]!.mat);
   });
 });
 
@@ -259,11 +283,15 @@ type Area = NonNullable<ReturnType<typeof areaOf>>;
 /** Whether two areas share a grid cell, or with `margin` 1, touch along an edge or at a corner. */
 const meet = (a: Area, b: Area, margin = 0) =>
   a.row < b.row + b.h + margin && b.row < a.row + a.h + margin && a.col < b.col + b.w + margin && b.col < a.col + a.w + margin;
+/** Whether two areas that do not overlap share a stretch of edge, not just a corner. */
+const touch = (a: SeaArea, b: SeaArea) =>
+  ((a.row + a.h === b.row || b.row + b.h === a.row) && a.col < b.col + b.w && b.col < a.col + a.w) ||
+  ((a.col + a.w === b.col || b.col + b.w === a.col) && a.row < b.row + b.h && b.row < a.row + a.h);
 
 const MOMENTS = [
   "Find a day worth borrowing.",
   "Start a trip using someone else’s Thailand day, or add it to an existing plan.",
-  "Plan the rest with the crew.",
+  "Everyone going, one plan.",
   "Keep the notebook afterwards.",
 ];
 
@@ -287,7 +315,7 @@ describe("the sea's grid", () => {
     const screens = watchScreens();
     render(<LandingSea />);
     screens.nearAll();
-    expect(areaOf(screen.getByRole("region", { name: "Plan the rest with the crew." }))).not.toBeNull();
+    expect(areaOf(screen.getByRole("region", { name: "Everyone going, one plan." }))).not.toBeNull();
     const placed = [...screen.getAllByTestId("sea-story"), ...screen.getAllByTestId("sea-cell")]
       .map((el) => areaOf(el))
       .filter((area) => area !== null);
@@ -313,6 +341,20 @@ describe("the sea's grid", () => {
           for (let r = at.row; r < at.row + at.h; r++) for (let c = at.col; c < at.col + at.w; c++) taken[r]![c]! += 1;
         }
         // The rows above are the first screen's, which CSS packs around the hero.
+        // Every lit day shares an edge with its own moment, never rows off
+        // (Mitchell's walk of PR 510 at 7260011).
+        const loose = layout.lit.filter(({ moment, at }) => !touch(at, layout.stories[moment])).map(({ moment, at }) => `${moment} ${at.row},${at.col}`);
+        expect({ cols, viewport, loose }).toEqual({ cols, viewport, loose: [] });
+        // And a screen of plain sea between one story with its days and the
+        // next, so no day reads as the wrong moment's, and one fades out
+        // before the next fades in.
+        const screenRows = Math.floor((viewport - 56) / (170 + 8));
+        const groups = Object.entries(layout.stories).map(([id, at]) => {
+          const areas = [at, ...layout.lit.filter((lit) => lit.moment === id).map((lit) => lit.at)];
+          return { top: Math.min(...areas.map((a) => a.row)), foot: Math.max(...areas.map((a) => a.row + a.h)) };
+        });
+        const short = groups.slice(1).map((group, i) => group.top - groups[i]!.foot).filter((gap) => gap < screenRows);
+        expect({ cols, viewport, short }).toEqual({ cols, viewport, short: [] });
         const packed = taken.slice(FIRST_SCREEN_ROWS).flat();
         expect({ cols, viewport, holes: packed.filter((n) => n === 0).length, overlaps: packed.filter((n) => n > 1).length }).toEqual({
           cols,
@@ -338,14 +380,26 @@ describe("the sea's grid", () => {
     }
   });
 
-  it("draws 'Find a day worth borrowing.' as a cell of the grid, which stays risen once past the middle", () => {
+  it("draws 'Find a day worth borrowing.' as a cell of the grid, risen at the screen's middle, its lit days with it", () => {
     render(<LandingSea />);
     const find = screen.getByRole("region", { name: "Find a day worth borrowing." });
     expect(areaOf(find)).not.toBeNull();
-    // Its middle a quarter of a screen above the screen's own: passed, and settled.
-    vi.spyOn(find, "getBoundingClientRect").mockReturnValue({ top: -window.innerHeight / 2, height: window.innerHeight / 2 } as DOMRect);
+    const panel = within(find).getByTestId("moment-panel");
+    const veils = () =>
+      litCells()
+        .filter((cell) => cell.getAttribute("data-lit-for") === "sea-find")
+        .map((cell) => Number(within(cell).getByTestId("lit-veil").style.opacity));
+    vi.spyOn(window, "scrollY", "get").mockReturnValue(window.innerHeight * 3);
+    // Its middle at the screen's: risen, and its days lit.
+    vi.spyOn(find, "getBoundingClientRect").mockReturnValue({ top: window.innerHeight / 4, height: window.innerHeight / 2 } as DOMRect);
     fireEvent.scroll(window);
-    expect(within(find).getByTestId("moment-panel").style.opacity).toBe("1");
+    expect(panel.style.opacity).toBe("1");
+    expect(veils()).toEqual([0, 0]);
+    // All but gone past the top: a ghost again, and its days dimmed with the sea.
+    vi.spyOn(find, "getBoundingClientRect").mockReturnValue({ top: 40 - window.innerHeight / 2, height: window.innerHeight / 2 } as DOMRect);
+    fireEvent.scroll(window);
+    expect(Number(panel.style.opacity)).toBeLessThan(1);
+    expect(veils().map((veil) => veil > 0)).toEqual([true, true]);
   });
 
   it("lights two or three days around each moment, apart from one another, and tabs through them down the page", () => {

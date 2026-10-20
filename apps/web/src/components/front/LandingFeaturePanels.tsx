@@ -8,6 +8,7 @@ import { TripStripBlock } from "@/components/pages/blocks/TripStripBlock";
 import { FixedPeopleProvider } from "@/components/pages/people";
 import { Segs } from "@/components/pages/WidgetSegs";
 import { DataText } from "@/components/ui/data-text";
+import { PersonChip } from "@/components/ui/person-chip";
 import { Text } from "@/components/ui/text";
 import { cn } from "@/lib/cn";
 import { LANDING_DEMO, LANDING_FEATURES } from "@/lib/landingDemo";
@@ -60,7 +61,7 @@ const { crew } = LANDING_FEATURES;
 const CREW_ACCENTS = snapshotAccents(crew.accents);
 // Sixteen hours of Naxos in about 500px; a short stop keeps the board's floor
 // height. The moment's cell is whole rows of the sea (760px declared in
-// `LandingSea`'s STORIES), five at 1440: 868px, past decision 10's "about
+// `LandingSea`'s STORIES), five at 1440: 877px, past decision 10's "about
 // 600", with the river ending short of the cell's foot.
 const CREW_PX_PER_HOUR = 32;
 
@@ -105,14 +106,12 @@ export function CompactPlaybookPanel(): React.ReactElement {
   );
 }
 
-const PEOPLE_NAMES = new Intl.ListFormat("en", { type: "conjunction" });
-
 const PAGE = "flex flex-col gap-3 rounded-md border border-hairline bg-paper px-3.75 py-3.5";
 
 /** One of the page's paragraphs: the author's words with the widgets' values in them. */
-function Paragraph({ segs }: { segs: (typeof LANDING_FEATURES.memory)[number] }): React.ReactElement {
+function Paragraph({ segs, className = "text-sm" }: { segs: (typeof LANDING_FEATURES.memory)[number]; className?: string }): React.ReactElement {
   return (
-    <Text as="p" className="text-sm leading-relaxed text-pretty">
+    <Text as="p" className={cn("leading-relaxed text-pretty", className)}>
       <Segs segs={segs} accents={LANDING_ACCENTS} />
     </Text>
   );
@@ -136,37 +135,47 @@ export function MemoryPanel(): React.ReactElement {
 
 /**
  * Notebook: the same page as a notebook holds it once somebody has lived the
- * day (M50 part 9, Mitchell's walk: the frame was mostly empty). The words
- * between the notebook's own block widgets — the day's stops at their times,
- * its daylight — and signed by who was there. Read-only payloads drawn by the
- * blocks directly, not through the editor's dispatcher, so `/` stays static.
+ * day (M50 part 9, Mitchell's walk: the frame was mostly empty), laid as the
+ * C2 prototype's notebook moment (Mitchell's walk of PR 510 at 7260011: *"too
+ * spare, and not real"*). The trip's strip, the author's words at reading
+ * size with the day's cities and stops in them, then the notebook's own block
+ * widgets — the day's stops at their times beside its daylight — and signed
+ * by who was there. Read-only payloads drawn by the blocks directly, not
+ * through the editor's dispatcher, so `/` stays static.
  *
- * Signed with the people widget's chips and not its sentence: that is the
- * trip's "Who's going", future tense ("are going with Sam"), and this page is
- * about a day already lived. The chips are decorative (`PersonChip`), so
- * their names are said beside them, to a screen reader only: printing them
- * would be copy nobody ruled on.
+ * Signed with the people widget's chips, each named as the prototype names
+ * them, and not its sentence: that is the trip's "Who's going", future tense
+ * ("are going with Sam"), and this page is about a day already lived.
  */
 export function NotebookPagePanel(): React.ReactElement {
   const [opening, ...rest] = LANDING_FEATURES.memory;
   const { day, sun, people } = LANDING_FEATURES.page;
   return (
-    // Filling its moment; the day's stops beside its daylight once the page is
-    // wide enough for both (the prototype's `.cols`).
-    <div data-testid="notebook-page" className={cn(PAGE, "@container min-h-0 flex-1")}>
+    // Filling its moment: the day's stops beside its daylight and the rest of
+    // the words once the page is wide enough for both (the prototype's
+    // `.cols`), and the names at the page's foot.
+    <div data-testid="notebook-page" className={cn(PAGE, "@container min-h-0 flex-1 gap-4 px-5 py-5")}>
       <TripStripBlock payload={LANDING_DEMO.notebook.strip} accents={LANDING_ACCENTS} />
-      {opening && <Paragraph segs={opening} />}
-      <div className="grid gap-4 @2xl:grid-cols-2">
+      {opening && <Paragraph segs={opening} className="text-md" />}
+      <div className="grid items-start gap-5 @2xl:grid-cols-2">
         <ItineraryDayBlock payload={day} />
-        <div className="flex min-w-0 flex-col gap-3">
+        <div className="flex min-w-0 flex-col gap-4">
           <SunBlock payload={sun} accents={LANDING_ACCENTS} />
           {rest.map((segs, i) => (
-            <Paragraph key={i} segs={segs} />
+            <Paragraph key={i} segs={segs} className="text-md" />
           ))}
-          <TripPeopleBlock payload={{ ...people, sentence: "" }} />
-          <span className="sr-only">{PEOPLE_NAMES.format(people.stack.map((person) => person.name))}</span>
         </div>
       </div>
+      <ul className="mt-auto flex flex-wrap gap-2">
+        {people.stack.map((person) => (
+          <li key={person.name} className="flex items-center gap-1.5 rounded-full border border-hairline bg-surface py-0.5 pr-3 pl-0.5">
+            <PersonChip name={person.name} avatar={person.avatar} color={person.color} size="md" />
+            <Text as="span" className="text-sm font-medium">
+              {person.name}
+            </Text>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

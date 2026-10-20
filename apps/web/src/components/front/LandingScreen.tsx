@@ -126,7 +126,7 @@ export function LandingScreen() {
           // be the CTA to signup/find a day to start with"*), laid as the
           // prototype's last cell: the ask large and left, over its buttons.
           closing={
-            <section aria-labelledby="landing-closing" className="mx-auto flex w-full max-w-7xl flex-1 flex-col justify-center gap-7 px-7">
+            <section aria-labelledby="landing-closing" className="flex min-w-0 flex-col justify-center gap-7 px-7">
               <Heading level={2} id="landing-closing" className="text-4xl text-pretty">
                 Start the plan, then bring everyone.
               </Heading>
