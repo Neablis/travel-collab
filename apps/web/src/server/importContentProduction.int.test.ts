@@ -195,7 +195,7 @@ describe("importBundles — two runs at once", () => {
         },
       ],
     });
-    const options = { prune: false, skipTrips: false, skipPlaybooks: false };
+    const options = { prune: false, skipTrips: false, skipPlaybooks: false, lock: true };
 
     const runs = await Promise.allSettled([
       importBundles([bundle], owner, options),
@@ -205,6 +205,32 @@ describe("importBundles — two runs at once", () => {
     expect(runs.map((r) => (r.status === "rejected" ? String(r.reason) : "ok"))).toEqual(["ok", "ok"]);
     expect((await getTripDetail(tripIdFor(id, "bangkok")))?.days).toHaveLength(2);
     expect(await db.select().from(savedDays).where(eq(savedDays.id, playbookIdFor(id, "day")))).toHaveLength(1);
+  });
+});
+
+// PR 509 review r2: the lock's transaction sits idle for the whole run, so the
+// server can end its session (an idle-in-transaction timeout, a restart). With
+// no listener on that client, node-postgres's 'error' event was unhandled and
+// killed the process between writes; the run must fail as a caught error.
+describe("importBundles — the lock's session lost mid-run", () => {
+  it("rejects with the reason instead of crashing the process", async () => {
+    const bundles = Array.from({ length: 6 }, () => bundleWith(`lost-${randomUUID().slice(0, 8)}`, locationFactory.build()));
+    const options = { prune: false, skipTrips: false, skipPlaybooks: false, lock: true };
+
+    const run = importBundles(bundles, owner, options);
+    // Whoever holds the advisory lock is the lock's own connection: end it.
+    let terminated = false;
+    for (let i = 0; i < 400 && !terminated; i++) {
+      const { rows } = await db.$client.query(
+        `select pg_terminate_backend(pid) as ok from pg_locks
+          where locktype = 'advisory' and granted and database = (select oid from pg_database where datname = current_database())`,
+      );
+      terminated = rows.length > 0;
+      if (!terminated) await new Promise((r) => setTimeout(r, 5));
+    }
+
+    expect(terminated).toBe(true);
+    await expect(run).rejects.toThrow(/lost the import lock/);
   });
 });
 

@@ -16,7 +16,7 @@ describe("the Vercel build's database steps", () => {
     const steps = buildSteps({ VERCEL_ENV: "preview", PREVIEW_DB_IS_DISPOSABLE: "true" });
     expect(steps.run).toEqual([
       "pnpm drizzle-kit migrate",
-      expect.stringMatching(/scripts\/import-content-production\.ts$/),
+      expect.stringMatching(/scripts\/import-content-production\.ts --lock$/),
     ]);
   });
 

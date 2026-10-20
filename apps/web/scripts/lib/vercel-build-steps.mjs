@@ -26,7 +26,8 @@ export function buildSteps(environment) {
   return {
     run: [
       "pnpm drizzle-kit migrate",
-      "node --import ./scripts/lib/ts-resolve-register.mjs scripts/import-content-production.ts",
+      // --lock: every open PR's preview imports into this one database.
+      "node --import ./scripts/lib/ts-resolve-register.mjs scripts/import-content-production.ts --lock",
     ],
   };
 }
