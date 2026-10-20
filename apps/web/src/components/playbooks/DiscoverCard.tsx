@@ -54,6 +54,8 @@ export function ratingLine(day: Pick<DiscoverDay, "rating" | "reviewCount">): st
 
 /** At most this many city chips on a card; the rest become one "+N more". */
 export const MAX_CITY_CHIPS = 3;
+/** On a compact card, a one-column cell of the landing's sea: as many as one row holds beside the count. */
+export const COMPACT_CITY_CHIPS = 2;
 
 /**
  * **Which cities a card draws as chips, and how many it only counts**
@@ -66,11 +68,14 @@ export const MAX_CITY_CHIPS = 3;
  * the one folded into the count — a matched chip is the card's answer to the
  * search. Otherwise the day's own order is kept.
  */
-export function cityChips(day: Pick<DiscoverDay, "cities" | "matchedCities">): { shown: string[]; hidden: string[] } {
+export function cityChips(
+  day: Pick<DiscoverDay, "cities" | "matchedCities">,
+  max = MAX_CITY_CHIPS,
+): { shown: string[]; hidden: string[] } {
   const matched = day.cities.filter((city) => day.matchedCities.includes(city));
   const rest = day.cities.filter((city) => !day.matchedCities.includes(city));
   const ordered = [...matched, ...rest];
-  return { shown: ordered.slice(0, MAX_CITY_CHIPS), hidden: ordered.slice(MAX_CITY_CHIPS) };
+  return { shown: ordered.slice(0, max), hidden: ordered.slice(max) };
 }
 
 /** How much of the grid a card takes: two columns, or one. */
@@ -109,6 +114,7 @@ export function DiscoverCard({
   origin,
   size = "standard",
   headingLevel = 2,
+  compact = false,
   className,
 }: {
   /** Without the dates, which the card never draws and the landing's snapshot leaves out. */
@@ -117,6 +123,11 @@ export function DiscoverCard({
   size?: CardSize;
   /** 3 under a page that heads its list of cards, as Discover's results are. */
   headingLevel?: 2 | 3;
+  /**
+   * A one-column cell of the landing's sea (Mitchell's walk of PR 510): two
+   * city chips and the count, so the row they share does not wrap.
+   */
+  compact?: boolean;
   className?: string;
 }) {
   const wide = size === "wide";
@@ -126,7 +137,7 @@ export function DiscoverCard({
   const rated = ratingLine(day);
   const sea = origin.from === "sea" ? origin : null;
   const back = origin.from === "sea" ? "" : backQuery(origin);
-  const chips = cityChips(day);
+  const chips = cityChips(day, compact ? COMPACT_CITY_CHIPS : MAX_CITY_CHIPS);
   const { cover } = day;
   // `dc.html:2610-2626`: the cities lead, with the card's own marks at the far
   // end of the same row; then the title, with the facts line directly under
@@ -139,7 +150,12 @@ export function DiscoverCard({
   // cities look like a mistake rather than the offer.
   const chipRow = (
     <div className="flex flex-wrap items-start gap-2">
-      <ul className="flex flex-wrap gap-x-1.5 gap-y-6 md:gap-y-1.5" data-testid="city-chips">
+      {/* On the sea a card is the size of its cell, so its chips keep to the
+          one row there is room for; anywhere else they wrap. */}
+      <ul
+        className={cn("flex flex-wrap gap-x-1.5", sea === null ? "gap-y-6 md:gap-y-1.5" : "landing-one-row")}
+        data-testid="city-chips"
+      >
         {chips.shown.map((city) => {
           const matched = day.matchedCities.includes(city);
           const href = cityPath(city);
@@ -152,6 +168,10 @@ export function DiscoverCard({
                 matched
                   ? "bg-brand-tint text-brand-pressed"
                   : "border border-hairline bg-surface text-slate",
+                // On the sea a name longer than its cell is wide keeps to one
+                // line and ends in an ellipsis, rather than wrapping inside
+                // the chip under its one-row clamp.
+                sea !== null && "truncate",
               )}
             >
               {city}
@@ -164,7 +184,7 @@ export function DiscoverCard({
           // the 24px `min-h-11` adds, and `md:` releases it. A named group,
           // because the hover belongs to the chip, not to the card.
           return (
-            <li key={city} className="flex">
+            <li key={city} className={cn("flex", sea !== null && "min-w-0 max-w-full")}>
               {href === null || sea !== null ? (
                 chip
               ) : (
@@ -202,7 +222,10 @@ export function DiscoverCard({
         </Text>
       )}
 
-      <div>
+      {/* On the sea the title, its facts and the tags are each a part of the
+          card's wrapping column, so a small cell keeps the title and drops
+          the facts rather than losing both. */}
+      <div className={cn(sea !== null && "contents")}>
         {/* **One level under what heads the list, styled as the h4 it used to
             be.** A place's playbooks and a profile put these cards straight
             under their h1, so an h4 skipped two levels and axe failed
@@ -210,7 +233,12 @@ export function DiscoverCard({
             h2 (M50 part 6) and passes 3. The level is structure; `text-md
             font-medium` keeps the card title the size it was, and a wide
             card's takes the card-title step up from `sm`, where it is wide. */}
-        <Heading level={headingLevel} className={cn("text-md font-medium leading-snug", wide && "sm:text-lg")}>
+        {/* On the sea, three lines and an ellipsis at a word, so a long
+            title never runs off a cell's foot. */}
+        <Heading
+          level={headingLevel}
+          className={cn("text-md font-medium leading-snug", wide && "sm:text-lg", sea !== null && "line-clamp-3")}
+        >
           {/* §13.1's phone floor on the card's ROW ACTION — this title link is
               the only way into the day, so it is the target (M26 link 14's
               sweep, found by the census in the full e2e lane where seeded
@@ -224,7 +252,10 @@ export function DiscoverCard({
               href={sea === null ? `${dayPath(day)}${back}` : sea.href}
               prefetch={sea === null ? undefined : false}
               tabIndex={sea?.background ? -1 : undefined}
-              className={cn("inline-flex items-center hover:underline", PHONE_TOUCH, sea !== null && "landing-sea-door")}
+              // Inline on the sea, where the heading clamps its lines: an
+              // inline-flex box is one atom, which no clamp can break. The sea
+              // is desktop-only, so it needs no phone floor.
+              className={cn("hover:underline", sea === null ? cn("inline-flex items-center", PHONE_TOUCH) : "landing-sea-door")}
               // On the link, where focus lands, so the kind of day is heard with its name.
               aria-describedby={day.description === null ? undefined : descriptionId}
             >
@@ -264,13 +295,19 @@ export function DiscoverCard({
           worked out by the server from the stops. Each chip is the way to its
           tag's page (M42 D10). */}
       {(day.description !== null || day.tags.length > 0) && (
-        <div className="flex flex-col gap-1.5">
+        <div className={cn("flex flex-col gap-1.5", sea !== null && "contents")}>
           {day.description !== null && (
             <Text variant="secondary" id={descriptionId}>
               {day.description}
             </Text>
           )}
-          <StopTagChips activityId={day.savedDayId} tags={day.tags} focusedTag={null} hrefOf={sea === null ? namedTagPath(day.namedTags) : undefined} />
+          {sea === null ? (
+            <StopTagChips activityId={day.savedDayId} tags={day.tags} focusedTag={null} hrefOf={namedTagPath(day.namedTags)} />
+          ) : (
+            <div className="landing-one-row flex">
+              <StopTagChips activityId={day.savedDayId} tags={day.tags} focusedTag={null} />
+            </div>
+          )}
         </div>
       )}
 
@@ -336,7 +373,8 @@ export function DiscoverCard({
   return (
     <Card
       raised
-      as="li"
+      // On the sea a card is its cell's content, not an item of a list.
+      as={sea === null ? "li" : "div"}
       data-testid="discover-card"
       aria-hidden={sea?.background || undefined}
       data-saved-day-id={day.savedDayId}
@@ -345,7 +383,7 @@ export function DiscoverCard({
         "flex flex-col rounded-lg",
         wide && "sm:col-span-2",
         cover === null ? "gap-3 p-4" : "overflow-hidden p-0",
-        sea !== null && "landing-sea-cell relative",
+        sea !== null && "landing-sea-card relative",
         className,
       )}
     >

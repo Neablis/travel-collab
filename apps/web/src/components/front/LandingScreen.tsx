@@ -79,75 +79,69 @@ export function LandingScreen() {
 
       <main className="flex flex-1 flex-col">
         <LandingSea
+          // The first screen's middle cell, on paper over a sea that is all
+          // colour: the cards behind are the noise, the headline the one
+          // quiet thing. It fills the cell the grid gives it.
           hero={
-            // On paper over the sea's first screen, which is all colour: the
-            // cards behind are the noise, the headline the one quiet thing.
-            <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center p-7">
-              <div className="pointer-events-auto flex max-w-xl flex-col gap-5.5 rounded-lg border border-hairline bg-paper p-9 shadow-raised">
-                <DataText size="xs" className="text-2xs tracking-widest uppercase">
-                  Days worth reliving
-                </DataText>
+            <div className="flex flex-col gap-5.5">
+              <DataText size="xs" className="text-2xs tracking-widest uppercase">
+                Days worth reliving
+              </DataText>
 
-                <Heading level={1} className="text-4xl text-pretty">
-                  Plan the trip together.
-                </Heading>
+              <Heading level={1} className="text-4xl text-pretty">
+                Plan the trip together.
+              </Heading>
 
-                <Text as="p" variant="secondary" className="text-md text-pretty">
-                  Caesura is a trip planner built on playbooks: real days from real trips, saved by the people
-                  who lived them. Borrow a perfect day in Kyoto, plan the rest with your group, and relive it
-                  all when you&rsquo;re home.
-                </Text>
+              <Text as="p" variant="secondary" className="max-w-prose text-md text-pretty">
+                Caesura is a trip planner built on playbooks: real days from real trips, saved by the people
+                who lived them. Borrow a perfect day in Kyoto, plan the rest with your group, and relive it
+                all when you&rsquo;re home.
+              </Text>
 
-                <div className="flex flex-wrap items-center gap-2.5 pt-0.5">
-                  <Link href="/signup" className={cn(buttonVariants({ variant: "primary" }), "no-underline")}>
-                    Start a trip
-                  </Link>
-                  {/* A plain link, not a fetch: `/demo` picks a demo, and each
-                      `/demo/<slug>` is the real trip board, read-only, folded in
-                      memory (ADR-031), so it works on every deploy and a fresh
-                      clone, and a data-model change still cannot break the
-                      front door. */}
-                  <Link href={DEMO_PATH} className={cn(buttonVariants({ variant: "secondary" }), "no-underline")}>
-                    Look around a real trip
-                  </Link>
-                </div>
-
-                <Text as="p" variant="muted">
-                  Invite the group with a link, nothing to install.
-                </Text>
+              <div className="flex flex-wrap items-center gap-2.5 pt-0.5">
+                <Link href="/signup" className={cn(buttonVariants({ variant: "primary" }), "no-underline")}>
+                  Start a trip
+                </Link>
+                {/* A plain link, not a fetch: `/demo` picks a demo, and each
+                    `/demo/<slug>` is the real trip board, read-only, folded in
+                    memory (ADR-031), so it works on every deploy and a fresh
+                    clone, and a data-model change still cannot break the
+                    front door. */}
+                <Link href={DEMO_PATH} className={cn(buttonVariants({ variant: "secondary" }), "no-underline")}>
+                  Look around a real trip
+                </Link>
               </div>
+
+              <Text as="p" variant="muted">
+                Invite the group with a link, nothing to install.
+              </Text>
             </div>
           }
-        >
-          {/* Second to last, so its prices sit just above the ask (M51
-              decision 10). The `pricing` id lives here and only here; the
-              phone front door scrolls to its own copy itself. */}
-          <div className="rounded-lg border border-hairline bg-paper p-7 shadow-raised">
-            <LandingPricing id="pricing" />
-          </div>
+          // Second to last, so its prices sit just above the ask (M51
+          // decision 10). The `pricing` id lives here and only here; the
+          // phone front door scrolls to its own copy itself.
+          pricing={<LandingPricing id="pricing" />}
+          // **The closing cell**, the page's last: the full width of the
+          // grid and the two ways in (Mitchell, on C2: *"the last page should
+          // be the CTA to signup/find a day to start with"*), laid as the
+          // prototype's last cell: the ask large and left, over its buttons.
+          closing={
+            <section aria-labelledby="landing-closing" className="mx-auto flex w-full max-w-7xl flex-1 flex-col justify-center gap-7 px-7">
+              <Heading level={2} id="landing-closing" className="text-4xl text-pretty">
+                Start the plan, then bring everyone.
+              </Heading>
 
-          {/* **The closing cell**, the page's last: full width, a cell of the
-              sea like any other, and the two ways in (Mitchell, on C2: *"the
-              last page should be the CTA to signup/find a day to start
-              with"*). */}
-          <section
-            aria-labelledby="landing-closing"
-            className="landing-grain relative flex flex-col items-center gap-7 rounded-lg border border-hairline bg-paper px-7 py-19.5 text-center shadow-raised"
-          >
-            <Heading level={2} id="landing-closing" className="text-xl">
-              Start the plan, then bring everyone.
-            </Heading>
-
-            <div className="flex flex-wrap items-center justify-center gap-2.5">
-              <Link href="/signup" className={cn(buttonVariants({ variant: "primary" }), "no-underline")}>
-                Start a trip
-              </Link>
-              <Link href="/playbooks" className={cn(buttonVariants({ variant: "secondary" }), "no-underline")}>
-                Find a day to start with
-              </Link>
-            </div>
-          </section>
-        </LandingSea>
+              <div className="flex flex-wrap items-center gap-2.5">
+                <Link href="/signup" className={cn(buttonVariants({ variant: "primary" }), "no-underline")}>
+                  Start a trip
+                </Link>
+                <Link href="/playbooks" className={cn(buttonVariants({ variant: "secondary" }), "no-underline")}>
+                  Find a day to start with
+                </Link>
+              </div>
+            </section>
+          }
+        />
       </main>
 
       {/* Minimal and boring on purpose. Privacy and Terms are plain text, not

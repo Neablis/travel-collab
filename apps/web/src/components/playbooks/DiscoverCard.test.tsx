@@ -324,4 +324,20 @@ describe("a Discover card on the front door's sea", () => {
     const door = linkProps.find((props) => props.href === "/playbooks/day/kyoto-temples");
     expect(door?.prefetch).toBe(false);
   });
+
+  // Mitchell's walk of PR 510: a one-column cell's chips ran to two and three
+  // rows and pushed the title off the card's foot. A compact card draws the
+  // chips one row holds and counts the rest.
+  it("draws a small cell's cities on one row: two chips, and the rest counted", () => {
+    render(
+      <DiscoverCard
+        day={day({ cities: ["Kyoto", "Uji", "Nara", "Osaka"] })}
+        origin={{ from: "sea", href: "/playbooks/day/kyoto-temples" }}
+        compact
+      />,
+    );
+    const chips = within(screen.getByTestId("city-chips"));
+    expect(chips.getAllByText(/^(Kyoto|Uji|Nara|Osaka)$/)).toHaveLength(2);
+    expect(chips.getByTestId("city-chips-more").textContent).toBe("+2 more");
+  });
 });

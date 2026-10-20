@@ -826,7 +826,7 @@ test.describe("responsive (narrow viewport, signed out)", () => {
       await page.setViewportSize({ width, height: 1000 });
       await page.goto("/");
       // By test id: the background is hidden from the accessibility tree.
-      const firstScreen = page.getByTestId("desktop-landing").getByTestId("sea-band").first();
+      const firstScreen = page.getByTestId("desktop-landing").getByTestId("sea-grid");
       await expect(firstScreen.getByTestId("discover-card").first()).toBeVisible();
       const box = (await firstScreen.boundingBox())!;
       const viewport = await page.evaluate(() => document.documentElement.clientWidth);
@@ -837,6 +837,28 @@ test.describe("responsive (narrow viewport, signed out)", () => {
         els.map((el) => el.getBoundingClientRect().right),
       );
       expect(Math.max(...cards)).toBeGreaterThanOrEqual(viewport - 32);
+    });
+
+    // The grid sizes every cell, and the card fills what its cell gives it
+    // (Mitchell, on PR 510): the card's box is the cell's, less the mat around
+    // it, 22px of region strip on top and 6px on the other three sides. A card
+    // that sized itself, or scaled to fit, would not land on it.
+    test(`every card on the first screen fills its cell at ${width}px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 1000 });
+      await page.goto("/");
+      const cells = page.getByTestId("desktop-landing").getByTestId("sea-cell");
+      await expect(cells.first()).toBeVisible();
+      const misfits = await cells.evaluateAll((els) =>
+        els
+          .filter((cell) => cell.getBoundingClientRect().bottom <= window.innerHeight)
+          .map((cell) => {
+            const box = cell.getBoundingClientRect();
+            const card = cell.querySelector("[data-testid=discover-card]")!.getBoundingClientRect();
+            return [card.left - box.left, card.top - box.top, box.right - card.right, box.bottom - card.bottom].map(Math.round);
+          })
+          .filter((inset) => inset.join() !== "6,22,6,6"),
+      );
+      expect(misfits).toEqual([]);
     });
   }
 

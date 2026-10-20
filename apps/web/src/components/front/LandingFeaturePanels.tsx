@@ -9,6 +9,7 @@ import { FixedPeopleProvider } from "@/components/pages/people";
 import { Segs } from "@/components/pages/WidgetSegs";
 import { DataText } from "@/components/ui/data-text";
 import { Text } from "@/components/ui/text";
+import { cn } from "@/lib/cn";
 import { LANDING_DEMO, LANDING_FEATURES } from "@/lib/landingDemo";
 import { dayPath } from "@/lib/playbookUrls";
 import { LANDING_ACCENTS, LANDING_RIVER_CITY, LANDING_RIVER_TITLE, LandingRiver, snapshotAccents } from "./LandingRiver";
@@ -40,26 +41,18 @@ export function TogetherPanel(): React.ReactElement {
 }
 
 /**
- * The sea's first moment: the Railay day as a big card, and the same day again
- * as a small one beside it (Mitchell, on C2: *"I love the bigger card on the
- * left, and the smaller detacted card being the same trip"*). Both open the
- * day's canonical page, as every cell of the sea does. The small one is a
- * background card: the same door again would be a second tab stop and a
- * second reading of one name.
+ * The sea's first moment: the Railay day as a big card, filling the moment.
+ * The same day again as a small card is a cell of the sea beside it, as the
+ * C2 prototype draws it (Mitchell, on C2: *"I love the bigger card on the
+ * left, and the smaller detacted card being the same trip"*). The big one
+ * opens the day's canonical page, as every cell of the sea does.
  */
 export function FindADayPanel(): React.ReactElement {
   const { shelf } = LANDING_FEATURES;
-  const origin = { from: "sea", href: dayPath(shelf) } as const;
   return (
-    <ul className="flex items-start gap-3">
-      <DiscoverCard day={shelf} origin={origin} size="wide" headingLevel={3} className="flex-2" />
-      <DiscoverCard
-        day={{ ...shelf, cities: [], preview: [], tags: [] }}
-        origin={{ ...origin, background: true }}
-        headingLevel={3}
-        className="flex-1"
-      />
-    </ul>
+    <div className="landing-sea-cell flex min-h-0 flex-1 flex-col">
+      <DiscoverCard day={shelf} origin={{ from: "sea", href: dayPath(shelf) }} size="wide" headingLevel={3} className="min-h-0 flex-1" />
+    </div>
   );
 }
 
@@ -77,7 +70,8 @@ const CREW_PX_PER_HOUR = 32;
 export function CrewPanel(): React.ReactElement {
   return (
     <FixedPeopleProvider personas={crew.personas}>
-      <div className={SURFACE}>
+      {/* Filling its moment, whose height the sea's grid gives it. */}
+      <div className={cn(SURFACE, "flex min-h-0 flex-1 flex-col")}>
         <div className="flex flex-col gap-2 border-b border-hairline px-3.5 py-2.5">
           <div className="flex items-center gap-2.5">
             <Text as="span" className="font-display font-semibold">
@@ -155,16 +149,22 @@ export function NotebookPagePanel(): React.ReactElement {
   const [opening, ...rest] = LANDING_FEATURES.memory;
   const { day, sun, people } = LANDING_FEATURES.page;
   return (
-    <div data-testid="notebook-page" className={PAGE}>
+    // Filling its moment; the day's stops beside its daylight once the page is
+    // wide enough for both (the prototype's `.cols`).
+    <div data-testid="notebook-page" className={cn(PAGE, "@container min-h-0 flex-1")}>
       <TripStripBlock payload={LANDING_DEMO.notebook.strip} accents={LANDING_ACCENTS} />
       {opening && <Paragraph segs={opening} />}
-      <ItineraryDayBlock payload={day} />
-      <SunBlock payload={sun} accents={LANDING_ACCENTS} />
-      {rest.map((segs, i) => (
-        <Paragraph key={i} segs={segs} />
-      ))}
-      <TripPeopleBlock payload={{ ...people, sentence: "" }} />
-      <span className="sr-only">{PEOPLE_NAMES.format(people.stack.map((person) => person.name))}</span>
+      <div className="grid gap-4 @2xl:grid-cols-2">
+        <ItineraryDayBlock payload={day} />
+        <div className="flex min-w-0 flex-col gap-3">
+          <SunBlock payload={sun} accents={LANDING_ACCENTS} />
+          {rest.map((segs, i) => (
+            <Paragraph key={i} segs={segs} />
+          ))}
+          <TripPeopleBlock payload={{ ...people, sentence: "" }} />
+          <span className="sr-only">{PEOPLE_NAMES.format(people.stack.map((person) => person.name))}</span>
+        </div>
+      </div>
     </div>
   );
 }

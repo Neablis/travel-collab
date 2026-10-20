@@ -84,6 +84,21 @@
   --color-person-teal: #17707a;
   --color-person-on: #ffffff;
 
+  /* The landing sea's region mats (M51, the C2 prototype), past the eight
+     person colours above, which the other regions reuse. Each carries white
+     mono caps, so each is as dark as the person colours are. */
+  --color-mat-rust: #9a5a2a;
+  --color-mat-navy: #2d5a8c;
+  --color-mat-berry: #963a5a;
+  --color-mat-amber: #8a6212;
+  --color-mat-violet: #6c3f78;
+  --color-mat-night: #1f2a40;
+  --color-mat-fern: #4f6a35;
+  --color-mat-leaf: #4a6b34;
+  --color-mat-brick: #8c3b2f;
+  /* The pricing ladder's middle step (the prototype's `.s1`). */
+  --color-mat-ladder: #1d2a44;
+
   /* ADR-070's nine new activity tags (design-system.md "Tag colours"). The
      original four keep their semantic families. Each tag has a solid (its
      spend-chart series, ≥3:1 on surface, validated as one categorical palette
@@ -1905,61 +1920,232 @@ html[data-look="ledger"] .shadow-raised {
     }
   }
 
-  /* The front door's sea of notebooks (M51, `LandingSea.tsx`): Discover cards
-     packed edge to edge at every width, as many columns as fit, each cell as
-     many columns and rows as the snapshot's size gives it, `dense` so a big
-     cell leaves no hole. Fixed rows, so a card is cut at its cell's foot
-     rather than stretching the grid: the sea is ground, and a card's title
-     and facts lead. Here because a `grid-cols-[repeat(…)]` is an arbitrary
-     Tailwind value, which the colour wall refuses. */
-  .landing-sea-grid {
-    display: grid;
-    /* No column wider than the list: a moment's side is narrower than 15rem
-       up to about 1200px, and a lit cell cut at its right edge is a tab stop
-       out of sight. */
-    grid-template-columns: repeat(auto-fill, minmax(min(15rem, 100%), 1fr));
-    grid-auto-rows: 12rem;
-    grid-auto-flow: dense;
-    gap: 0.75rem;
-    overflow: hidden;
-    /* Room for a cell's hover ring at the band's edge, which the overflow would cut. */
-    padding: 0.25rem;
+  /* The front door's sea of notebooks (M51, `LandingSea.tsx`), laid as the
+     C2 prototype lays it: one grid of square units edge to edge, every cell
+     and every moment a whole number of them. About one column per 180px and
+     at least six (`round((width - 32px) / 180px)`, the prototype's rule),
+     set here so the first screen is right before any script runs;
+     `LandingSea` reads `--cols` back to pack the rest. Here because
+     `grid-cols-[repeat(…)]` is an arbitrary Tailwind value, which the colour
+     wall refuses. */
+  .landing-sea {
+    container-type: inline-size;
+    --sea-gap: 0.5rem;
+    --sea-pad: 1rem;
+    --cols: 6;
+    /* The hero: the prototype's base width plus one, centred; three rows
+       where a unit is tall enough for it, four where one is not. */
+    --hero-span: 5;
+    --hero-start: 1;
+    --hero-rows: 4;
   }
-  /* A moment's lit days: narrower columns, so a 1440 side (about 360px) holds
-     two and the moment stays about as tall as its middle. `auto-fit`, so at
-     3440 the lit row spreads across the side rather than leaving empty tracks. */
-  .landing-sea-lit {
-    grid-template-columns: repeat(auto-fit, minmax(min(9.5rem, 100%), 1fr));
-  }
-  /* A moment from lg up: the heading over the middle column's content, the
-     sides spanning every row, so the heading can come first in the DOM. The
-     two `1fr` rows centre a middle shorter than its sides ("Make this your
-     trip" beside two rows of Thai days) rather than leaving the gap under it. */
-  @media (min-width: 1024px) {
-    .landing-sea-moment {
-      grid-template-columns: minmax(0, 1fr) 42rem minmax(0, 1fr);
-      grid-template-rows: 1fr auto auto 1fr;
+  @media (min-width: 1202px) {
+    .landing-sea {
+      --cols: 7;
+      --hero-span: 5;
+      --hero-start: 2;
+      --hero-rows: 4;
     }
+  }
+  @media (min-width: 1382px) {
+    .landing-sea {
+      --cols: 8;
+      --hero-span: 5;
+      --hero-start: 2;
+      --hero-rows: 3;
+    }
+  }
+  @media (min-width: 1562px) {
+    .landing-sea {
+      --cols: 9;
+      --hero-span: 5;
+      --hero-start: 3;
+      --hero-rows: 3;
+    }
+  }
+  @media (min-width: 1742px) {
+    .landing-sea {
+      --cols: 10;
+      --hero-span: 5;
+      --hero-start: 3;
+      --hero-rows: 3;
+    }
+  }
+  @media (min-width: 1922px) {
+    .landing-sea {
+      --cols: 11;
+      --hero-span: 5;
+      --hero-start: 4;
+      --hero-rows: 3;
+    }
+  }
+  @media (min-width: 2102px) {
+    .landing-sea {
+      --cols: 12;
+      --hero-span: 6;
+      --hero-start: 4;
+      --hero-rows: 3;
+    }
+  }
+  @media (min-width: 2282px) {
+    .landing-sea {
+      --cols: 13;
+      --hero-span: 6;
+      --hero-start: 4;
+      --hero-rows: 3;
+    }
+  }
+  @media (min-width: 2462px) {
+    .landing-sea {
+      --cols: 14;
+      --hero-span: 6;
+      --hero-start: 5;
+      --hero-rows: 3;
+    }
+  }
+  @media (min-width: 2642px) {
+    .landing-sea {
+      --cols: 15;
+      --hero-span: 6;
+      --hero-start: 5;
+      --hero-rows: 3;
+    }
+  }
+  @media (min-width: 2822px) {
+    .landing-sea {
+      --cols: 16;
+      --hero-span: 7;
+      --hero-start: 5;
+      --hero-rows: 3;
+    }
+  }
+  @media (min-width: 3002px) {
+    .landing-sea {
+      --cols: 17;
+      --hero-span: 7;
+      --hero-start: 6;
+      --hero-rows: 3;
+    }
+  }
+  @media (min-width: 3182px) {
+    .landing-sea {
+      --cols: 18;
+      --hero-span: 7;
+      --hero-start: 6;
+      --hero-rows: 3;
+    }
+  }
+  @media (min-width: 3362px) {
+    .landing-sea {
+      --cols: 19;
+      --hero-span: 7;
+      --hero-start: 7;
+      --hero-rows: 3;
+    }
+  }
+  @media (min-width: 3542px) {
+    .landing-sea {
+      --cols: 20;
+      --hero-span: 7;
+      --hero-start: 7;
+      --hero-rows: 3;
+    }
+  }
+  .landing-sea-grid {
+    --unit: calc((100cqw - 2 * var(--sea-pad) - (var(--cols) - 1) * var(--sea-gap)) / var(--cols));
+    position: relative;
+    display: grid;
+    grid-template-columns: repeat(var(--cols), minmax(0, 1fr));
+    grid-auto-rows: var(--unit);
+    grid-auto-flow: row dense;
+    gap: var(--sea-gap);
+    padding: var(--sea-gap) var(--sea-pad);
+    /* Exactly the packed rows (`--sea-rows`, from `LandingSea`): a first
+       screen's cell that found no room above the packed grid falls past its
+       last row, and is clipped there. */
+    height: calc(var(--sea-rows) * (var(--unit) + var(--sea-gap)) + var(--sea-gap));
+    overflow: clip;
+  }
+  .landing-sea-hero {
+    grid-row: 2 / span var(--hero-rows);
+    grid-column: var(--hero-start) / span var(--hero-span);
+    z-index: 2;
+  }
+  /* A cell's region strip: mono caps over the card, white on the region's
+     mat (the prototype's `.ml`). */
+  .landing-sea-label {
+    flex: none;
+    height: 1.375rem;
+    padding: 0 0.625rem;
+    line-height: 1.375rem;
+    font-family: var(--font-mono);
+    font-size: var(--text-3xs);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--color-person-on);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  /* The sea dimming into ground as the reader scrolls: one veil over the
+     background and under the moments and their lit days. Its opacity is the
+     one value the scroll writes (`--sea-dim`, 0 to 1, on the sea's root). */
+  .landing-sea-scrim {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    background: var(--color-ink);
+    opacity: calc(0.55 * var(--sea-dim, 0));
+  }
+  .landing-sea-lit,
+  .landing-sea-story {
+    z-index: 2;
+  }
+  /* A lit day is ringed inside its mat (the prototype's `.ring`). */
+  .landing-sea-lit::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    box-shadow:
+      inset 0 0 0 3px var(--color-surface),
+      inset 0 0 0 6px var(--color-brand);
+    pointer-events: none;
   }
   /* A moment holding focus is drawn risen, whatever the scroll has painted:
      a browser that scrolls a focused door only to the screen's edge would
      otherwise leave it faded and lowered. */
-  [data-moment]:focus-within {
+  [data-moment]:focus-within > [data-testid="moment-panel"] {
     opacity: 1 !important;
     transform: none !important;
   }
-  /* One screen of sea, mounted or not, so a band's cells arriving moves
-     nothing (decision 10: one screen between moments). */
-  .landing-sea-band {
-    height: 100svh;
+  /* A card on the sea fills the box its cell gives it and keeps what fits.
+     Its parts are one column that wraps, so a part with no room left moves
+     to a second column, which the card clips whole: nothing is cut through
+     a line, and the card never grows its cell. */
+  .landing-sea-card {
+    flex-wrap: wrap;
+    /* Wider than the card's padding, so no part of the second column shows.
+       Important because the card's own `gap-*` utility sets it too, and the
+       utilities layer outranks this one whatever the specificity. */
+    column-gap: 2.5rem !important;
+    overflow: hidden;
   }
-  /* The sea dimming into ground as the reader scrolls: `--sea-dim` is the
-     one value the scroll writes, on the sea's root, from 0 to 1. */
-  .landing-sea-dim {
-    opacity: calc(1 - 0.75 * var(--sea-dim, 0));
+  .landing-sea-card > *,
+  .landing-sea-card > .contents > * {
+    width: 100%;
+  }
+  /* One row of chips: a chip with no room wraps to a second row a whole row
+     below the first, which is clipped. */
+  .landing-one-row {
+    flex-wrap: wrap;
+    row-gap: 1.5rem;
+    max-height: 1.5rem;
+    overflow: hidden;
   }
   /* A linked cell is a door: its title link covers the whole card, and the
-     card rings when the link is hovered or focused. */
+     cell rings when the link is hovered or focused. */
   .landing-sea-door::after {
     content: "";
     position: absolute;

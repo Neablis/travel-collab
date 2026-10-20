@@ -34,11 +34,11 @@ describe("the pricing ladder", () => {
     render(<LandingPricing />);
     const summary = within(screen.getByTestId("plan-summary"));
     expect(summary.getByText("Every trip you want, as many days as you like — and share any of it with a link.")).toBeDefined();
-    const lines = summary.getAllByTestId("plan-step").map((line) => line.textContent);
-    expect(lines).toEqual([
-      "Everything in Free, and your personal AI trip assistant.",
-      "Everything in Plus, and bring the whole crew in; only you need it.",
-    ]);
+    // Each step as the C2 prototype sets it: the step it adds to, then what it adds.
+    const steps = summary.getAllByTestId("plan-step").map((line) => line.textContent);
+    expect(steps).toEqual(["+ Everything in Free, and", "+ Everything in Plus, and"]);
+    const adds = summary.getAllByTestId("plan-adds").map((line) => line.textContent);
+    expect(adds).toEqual(["Your personal AI trip assistant.", "Bring the whole crew in. Only you need it."]);
     expect(screen.getByRole("region", { name: "Pricing" }).textContent).not.toMatch(/!/);
   });
 });
