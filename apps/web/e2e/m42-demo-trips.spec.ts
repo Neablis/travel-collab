@@ -20,8 +20,11 @@ const DEMOS = [
   { slug: "thailand-andaman", name: "Thailand: Bangkok → Krabi → Koh Lanta", description: "Food & beach", days: "10 days" },
 ];
 
-/** The Playbooks block's day, Mitchell's Hanoi playbook (`scripts/landing-day.json`). */
+/** The phone's Playbooks claim, Mitchell's Hanoi playbook (`scripts/landing-day.json`). */
 const PLAYBOOK = /^Hanoi in 4 days/;
+
+/** The sea's first moment, the Railay day from `content/playbooks/thailand-beaches.json`. */
+const RAILAY = /^Railay: the first longtail/;
 
 test.describe("the front door, signed out (M42)", () => {
   test.use({ storageState: { cookies: [], origins: [] } });
@@ -85,12 +88,12 @@ test.describe("the front door, signed out (M42)", () => {
     await expect(pricing.getByTestId("plan-summary")).toContainText(/Free.*\/ month.*\/ month/);
   });
 
-  // Part 9: the feature blocks are the app's own river, Discover card and
+  // M51: the sea's moments are the app's own Discover card, river and
   // notebook page, from the committed snapshots — server-rendered, so they
   // hydrate rather than swap in. A hydration mismatch shows up as React's
   // minified errors in a production build (418, 423, 425) or as an uncaught
   // page error, so both are listened for.
-  test("the landing's feature blocks show the app itself, and hydrate cleanly", async ({ page }) => {
+  test("the sea's moments show the app itself, and hydrate cleanly", async ({ page }) => {
     const hydration: string[] = [];
     page.on("console", (message) => {
       if (message.type() === "error" && /hydrat|Minified React error #(418|423|425)/i.test(message.text())) {
@@ -98,51 +101,43 @@ test.describe("the front door, signed out (M42)", () => {
       }
     });
     page.on("pageerror", (error) => hydration.push(error.message));
-    await page.goto("/");
-    const landing = page.getByTestId("desktop-landing");
-    await expect(
-      landing.getByRole("region", { name: "The trip starts before the trip." }).getByRole("list", { name: "Day 7 timeline" }),
-    ).toBeVisible();
-    await expect(landing.getByRole("region", { name: "Relive someone’s perfect day." }).getByRole("link", { name: PLAYBOOK })).toBeVisible();
-    // The day's stop, not the words that name it too (M50 part 9).
-    await expect(
-      landing.getByRole("region", { name: "How you’ll remember it." }).getByRole("listitem").filter({ hasText: "Check in at Gora Kadan" }),
-    ).toBeVisible();
-    // Hydration has run once the hero's pills answer a click.
-    await landing.getByRole("button", { name: "Day 7" }).click();
-    await expect(landing.getByRole("button", { name: "Day 7" })).toHaveAttribute("aria-pressed", "true");
-    expect(hydration).toEqual([]);
-    // The Playbooks card's cover is Unsplash's CDN, not its API: nothing on
-    // the landing asks Unsplash anything (`LandingScreen.test.tsx`'s fetch spy;
-    // in a browser the CSP's `connect-src` would refuse it before a request).
-    const cover = landing.getByRole("region", { name: "Relive someone’s perfect day." }).getByRole("img", { name: "a group of people walking down a train track" });
-    expect(await cover.getAttribute("src")).toMatch(/^https:\/\/images\.unsplash\.com\//);
-  });
-
-  // Mitchell, on the preview: the feature cards read as cards, not as halves
-  // of the page. At 1440px each card is at most 480px wide, and the row of
-  // them sits in the middle of the page. The two spreads are exempt, and only
-  // they: their ground running edge to edge is M50 part 5's decision, so the
-  // test first holds that they are the blocks marked `data-layout="spread"`.
-  test("the landing's feature cards keep a card's width and sit centred on a wide screen", async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto("/");
     const landing = page.getByTestId("desktop-landing");
-    for (const title of ["Relive someone’s perfect day.", "How you’ll remember it."]) {
-      await expect(landing.getByRole("region", { name: title })).toHaveAttribute("data-layout", "spread");
-    }
-    const boxes = [];
-    for (const title of ["The trip starts before the trip.", "Too excited to sleep."]) {
-      const card = landing.getByRole("region", { name: title });
-      await expect(card).toBeVisible();
-      await expect(card).not.toHaveAttribute("data-layout", "spread");
-      boxes.push((await card.boundingBox())!);
-    }
-    for (const box of boxes) expect(box.width).toBeLessThanOrEqual(480);
-    const left = Math.min(...boxes.map((b) => b.x));
-    const right = Math.max(...boxes.map((b) => b.x + b.width));
-    const pageWidth = await page.evaluate(() => document.documentElement.clientWidth);
-    expect(Math.abs(left - (pageWidth - right))).toBeLessThanOrEqual(2);
+    await expect(landing.getByRole("region", { name: "Find a day worth borrowing." }).getByRole("link", { name: RAILAY }).first()).toBeVisible();
+    await expect(landing.getByRole("region", { name: "Plan the rest with the crew." }).getByRole("list", { name: "Day 2 timeline" })).toBeVisible();
+    // The day's stop, not the words that name it too (M50 part 9).
+    await expect(
+      landing.getByRole("region", { name: "Keep the notebook afterwards." }).getByRole("listitem").filter({ hasText: "Check in at Gora Kadan" }),
+    ).toBeVisible();
+    expect(hydration).toEqual([]);
+  });
+
+  // Decision 10: a linked cell is a door to its day's canonical page, with
+  // nothing after the path (ADR-063's cache serves only a query-less one), and
+  // the Japan cells, whose days exist only in the dev fixtures, open nothing.
+  // The e2e database imports no `content/`, so the day page itself is not
+  // asserted: the door is, by where it goes.
+  test("every sea cell opens its day's canonical page, and the Japan cells none", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto("/");
+    const sea = page.getByTestId("desktop-landing").getByTestId("landing-sea");
+    const notebook = sea.getByRole("region", { name: "Keep the notebook afterwards." });
+    await notebook.scrollIntoViewIfNeeded();
+    await expect(notebook.getByRole("heading", { name: "Kyoto temples on foot" })).toBeVisible();
+    await expect(notebook.getByRole("link", { name: "Kyoto temples on foot" })).toHaveCount(0);
+
+    const hrefs = (await sea.getByRole("link").evaluateAll((links) => links.map((link) => link.getAttribute("href") ?? "")))
+      .filter((href) => href.startsWith("/playbooks/"));
+    expect(hrefs.length).toBeGreaterThan(48);
+    for (const href of hrefs) expect(href).toMatch(/^\/playbooks\/day\/[a-z0-9-]+$/);
+
+    const find = sea.getByRole("region", { name: "Find a day worth borrowing." });
+    await find.scrollIntoViewIfNeeded();
+    const door = find.getByRole("link", { name: RAILAY }).first();
+    const href = (await door.getAttribute("href"))!;
+    await door.click();
+    await expect(page).toHaveURL(new URL(href, page.url()).href);
   });
 
   // The phone's claims are the same components, the Discover card in its

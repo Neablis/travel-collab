@@ -41,9 +41,14 @@ test("landing → sign in → first trip → sign out", async ({ page }) => {
   // **Except the plan's name and price in the plan summary** (M42 D3, SPEC
   // §17.1: "The `Free` plan name is not that claim") — the same rule as
   // `LandingScreen.test.tsx`. Every exempt element also matches the page-wide
-  // pattern, so equal counts mean no "free" anywhere else.
+  // pattern, so equal counts mean no "free" anywhere else. And except the
+  // sea's cards (M51), which are days people wrote ("the free museum"), not
+  // the page selling itself. Polled, because the sea mounts cards as it goes.
   const planNames = page.getByTestId("plan-summary").getByText(/^free$/i);
-  await expect(page.getByText(/\bfree\b/i)).toHaveCount(await planNames.count());
+  const days = page.getByTestId("discover-card").getByText(/\bfree\b/i);
+  await expect
+    .poll(async () => (await page.getByText(/\bfree\b/i).count()) - (await planNames.count()) - (await days.count()))
+    .toBe(0);
   await expect(page.getByText(/Free and open source/)).toHaveCount(0);
 
   // M11 link 4 built the real thing, so this is a link now, not a Preview

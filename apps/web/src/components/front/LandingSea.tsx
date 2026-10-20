@@ -115,13 +115,25 @@ function useNear<T extends Element>(initial: boolean) {
  * moments and the calls to action without walking 148 cards, and a reader
  * after a particular day has the library itself.
  */
-function Cell({ cell, background, headingLevel }: { cell: SeaDoor; background: boolean; headingLevel: 2 | 3 }) {
+function Cell({
+  cell,
+  background,
+  headingLevel,
+  narrow = false,
+}: {
+  cell: SeaDoor;
+  background: boolean;
+  headingLevel: 2 | 3;
+  /** Beside a moment, where a side may be one column wide: rows only, or a wide cell opens a sliver of a second column. */
+  narrow?: boolean;
+}) {
+  const span = narrow ? SPAN[cell.size].replace(/col-span-\d ?/, "") : SPAN[cell.size];
   return (
     <DiscoverCard
       day={cell.day}
       origin={{ from: "sea", href: cell.href, background }}
       headingLevel={headingLevel}
-      className={cn("overflow-hidden", SPAN[cell.size], background && "landing-sea-dim")}
+      className={cn("overflow-hidden", span, background && "landing-sea-dim")}
     />
   );
 }
@@ -147,10 +159,10 @@ function Side({ lit, fill, near }: { lit: SeaDoor[]; fill: SeaDoor[]; near: bool
   return (
     <div className="relative hidden min-w-0 flex-1 lg:block">
       <ul aria-label="Days from the library" className="landing-sea-grid absolute inset-0">
-        {near && lit.map((cell) => <Cell key={cell.day.savedDayId} cell={cell} background={false} headingLevel={3} />)}
+        {near && lit.map((cell) => <Cell key={cell.day.savedDayId} cell={cell} background={false} headingLevel={3} narrow />)}
         {near &&
           fill.map((cell, i) => (
-            <Cell key={`${cell.day.savedDayId}-${i}`} cell={cell} background headingLevel={3} />
+            <Cell key={`${cell.day.savedDayId}-${i}`} cell={cell} background headingLevel={3} narrow />
           ))}
       </ul>
     </div>

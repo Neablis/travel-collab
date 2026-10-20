@@ -76,7 +76,7 @@ test.describe("responsive (narrow viewport)", () => {
     // of being overlaid." Checked at both a wide (1280px) and a narrow
     // (1100px, below the 1179px breakpoint that used to gate overlay vs.
     // column) width — 1280 is not this project's default viewport, so it's
-    // set explicitly here, the same pattern the landing-card and hero-art
+    // set explicitly here, the same pattern the landing
     // tests in this file already use to check more than one width from a
     // single narrow-project test.
     for (const width of [1280, 1100] as const) {
@@ -500,8 +500,6 @@ test.describe("responsive (Home hero below 1024px, fresh account)", () => {
   });
 });
 
-// The landing page is the one surface a signed-out phone actually reaches, and
-// its feature grid is breakpoint-gated — the class of thing KI-19 says the
 // Mitchell, 2026-08-30 design pass, on a 411px Android: "map view pretty
 // broken on mobile, maybe remove legend on mobile, and figure out a different
 // static location for the days, have less info and make that where you scroll
@@ -509,7 +507,7 @@ test.describe("responsive (Home hero below 1024px, fresh account)", () => {
 //
 // Here rather than in the "phone" project because that project is scoped to
 // m16-mobile-assistant.spec.ts, and this file already owns the
-// set-your-own-width pattern (the hero-art and money-figure tests below do
+// set-your-own-width pattern (the landing and money-figure tests below do
 // the same). The width is his: 411px.
 test.describe("responsive (Map lens on a phone)", () => {
   test("swaps the rail, focus card and legend for one day strip, and keeps map jumping", async ({ page }) => {
@@ -813,196 +811,37 @@ test.describe("responsive (trip header on a phone)", () => {
   });
 });
 
-// 1280px default viewport will not exercise. Own describe, because the front
-// door needs the signed-out state and the narrow project supplies alice's.
+// The landing page, at the widths the 1280px default viewport will not
+// exercise. Own describe, because the front door needs the signed-out state
+// and the narrow project supplies alice's.
 test.describe("responsive (narrow viewport, signed out)", () => {
   test.use({ storageState: { cookies: [], origins: [] } });
 
-  test("the landing feature blocks stack below 1024px and run spread, wide beside narrow, spread above it", async ({ page }) => {
-    // Measures the BLOCK ROOTS, not the eyebrow text inside them, and throws
-    // rather than substituting a sentinel when a box is missing. The first
-    // version of this mapped a missing box to -1, which made a stacked
-    // assertion pass on [-1, -1, -1] — green whether or not the cards rendered
-    // at all (CodeRabbit, PR 58).
-    //
-    // Four blocks in page order since the 2026-09-28 retro (DRIFT D21), and
-    // the order is asserted rather than sorted away: Playbooks leading is the
-    // retro's whole argument. Since M50 part 5 they are not four equal cards:
-    // two full-bleed spreads with a wide card and a narrow one between them,
-    // which `LandingFeatureBlocks.test.tsx` holds as a sequence and this
-    // measures.
-    //
-    // Each block is a region named by its title (M42 part 9), which is how a
-    // reader reaches one, so that is how they are found — in the desktop tree,
-    // since the phone front door is in the DOM too.
-    const blockBoxes = async () => {
-      const landing = page.getByTestId("desktop-landing");
-      const boxes = await Promise.all(
-        ["Relive someone’s perfect day.", "The trip starts before the trip.", "Too excited to sleep.", "How you’ll remember it."].map(
-          async (title) => {
-            const r = await landing.getByRole("region", { name: title }).boundingBox();
-            return r === null
-              ? null
-              : { x: Math.round(r.x), y: Math.round(r.y), width: Math.round(r.width), height: Math.round(r.height) };
-          },
-        ),
-      );
-      const found = boxes.filter((b) => b !== null);
-      // eslint-disable-next-line playwright/no-conditional-in-test -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
-      if (found.length !== 4) {
-        throw new Error(`expected 4 landing feature blocks, measured ${found.length}`);
-      }
-      return found as { x: number; y: number; width: number; height: number }[];
-    };
-
-    // 900px: one column — each block wholly below the one before it.
-    await page.setViewportSize({ width: 900, height: 900 });
-    await page.goto("/");
-    const stacked = await blockBoxes();
-    for (let i = 1; i < stacked.length; i++) {
-      expect(stacked[i]!.y).toBeGreaterThanOrEqual(stacked[i - 1]!.y + stacked[i - 1]!.height);
-    }
-    // Stacked, Together and Countdown still hold the M42 cap, centred,
-    // rather than running the page's width.
-    const stackedViewport = page.viewportSize()!.width;
-    for (const card of [stacked[1]!, stacked[2]!]) {
-      expect(card.width).toBeLessThanOrEqual(480);
-      expect(Math.abs(card.x - (stackedViewport - card.x - card.width))).toBeLessThanOrEqual(2);
-    }
-
-    // 1280px: Playbooks spread edge to edge, then Together and Countdown on
-    // one row, Together the wider, then the Notebook spread edge to edge.
-    // Below the lg breakpoint the borrowed Day 2 card has no room for its stop
-    // rows, which is why the row is lg: and not md: (CodeRabbit, PR 58).
-    await page.setViewportSize({ width: 1280, height: 900 });
-    const [playbooks, together, countdown, notebook] = await blockBoxes();
-    const viewport = page.viewportSize()!.width;
-
-    for (const spread of [playbooks!, notebook!]) {
-      expect(spread.x).toBe(0);
-      expect(spread.width).toBeGreaterThanOrEqual(viewport - 20);
-    }
-    expect(together!.y).toBeGreaterThan(playbooks!.y);
-    expect(countdown!.y).toBe(together!.y);
-    expect(countdown!.x).toBeGreaterThanOrEqual(together!.x + together!.width);
-    expect(together!.width).toBeGreaterThan(countdown!.width);
-    expect(notebook!.y).toBeGreaterThan(together!.y);
-    // The row is a pair of cards, each a card's width (the M42 cap, 480px)
-    // and centred between the spreads, not two shares of the page's width.
-    for (const card of [together!, countdown!]) expect(card.width).toBeLessThanOrEqual(480);
-    expect(Math.abs(together!.x - (viewport - countdown!.x - countdown!.width))).toBeLessThanOrEqual(2);
-
-    // The spreads face each other: Playbooks' copy on the left with the
-    // shelf's second day under it and Mitchell's on the right, Notebook's
-    // mirrored. There is no empty photo mat any more (M50 part 9, Mitchell's
-    // walk of production): two real cards, at every width.
-    const desktop = page.getByTestId("desktop-landing");
-    const centre = viewport / 2;
-    const playbooksHeading = (await desktop.getByRole("heading", { name: "Relive someone’s perfect day." }).boundingBox())!;
-    const notebookHeading = (await desktop.getByRole("heading", { name: "How you’ll remember it." }).boundingBox())!;
-    expect(playbooksHeading.x + playbooksHeading.width).toBeLessThan(centre);
-    expect(notebookHeading.x).toBeGreaterThan(centre);
-    const shelf = desktop.getByRole("region", { name: "Relive someone’s perfect day." });
-    await expect(shelf.locator("[data-photo-slot]")).toHaveCount(0);
-    const railay = shelf.getByRole("link", { name: /^Railay: the first longtail/ });
-    const hanoi = shelf.getByRole("link", { name: /^Hanoi in 4 days/ });
-    await expect(railay).toBeVisible();
-    await expect(hanoi).toBeVisible();
-    const railayBox = (await railay.boundingBox())!;
-    expect(railayBox.x + railayBox.width).toBeLessThan(centre);
-    expect((await hanoi.boundingBox())!.x).toBeGreaterThan(centre);
-
-    // The notebook's frame is filled by its page, with no dead space under
-    // it: the frame's own padding, and no more (the frame used to hold a
-    // 430px floor over half that much page).
-    const notebookRegion = desktop.getByRole("region", { name: "How you’ll remember it." });
-    const notebookFrame = (await notebookRegion.getByTestId("spread-frame").boundingBox())!;
-    const notebookPage = (await notebookRegion.getByTestId("notebook-page").boundingBox())!;
-    expect(notebookFrame.y + notebookFrame.height - (notebookPage.y + notebookPage.height)).toBeLessThanOrEqual(24);
-
-    await page.setViewportSize({ width: 900, height: 900 });
-    await expect(railay).toBeVisible();
-    await expect(hanoi).toBeVisible();
-  });
-
-  // Every visible piece of the hero art must sit inside the viewport at phone
-  // widths. This is deliberately NOT covered by the sideways-scroll test below:
-  // the art's fragments are absolutely positioned and centred on their
-  // coordinates, so they clip on the LEFT, and left overflow is clipped rather
-  // than scrolled — `scrollWidth` never notices (CodeRabbit, PR #58).
-  for (const width of [402, 375, 320]) {
-    test(`the hero art stays inside the viewport at ${width}px`, async ({ page }) => {
-      await page.setViewportSize({ width, height: 900 });
+  // M51: the desktop front door is a sea of days edge to edge, because a
+  // band held to 1140px left two-thirds of a 3440px screen empty (Mitchell's
+  // walk after M50). The first screen is cells from the server's HTML, so
+  // they are measured as they arrive, at both widths the gate names.
+  for (const width of [1440, 3440]) {
+    test(`the sea runs edge to edge at ${width}px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 1000 });
       await page.goto("/");
-      await expect(
-        page.getByRole("heading", { name: "Plan the trip together." }),
-      ).toBeVisible();
-
-      const offenders = await page.evaluate(() => {
-        const art = document.querySelector("div.h-107\\.5");
-        if (!art) throw new Error("hero art container not found");
-        const bad: { text: string; left: number; right: number }[] = [];
-        for (const el of Array.from(art.querySelectorAll("*"))) {
-          // SVG internals report user-space boxes that extend past the <svg>,
-          // which clips its own content — they cannot affect what is visible.
-          if (el.closest("svg")) continue;
-          const r = el.getBoundingClientRect();
-          if (r.width === 0 && r.height === 0) continue;
-          if (r.left < -0.5 || r.right > window.innerWidth + 0.5) {
-            bad.push({
-              text: (el.textContent ?? "").trim().slice(0, 40),
-              left: Math.round(r.left),
-              right: Math.round(r.right),
-            });
-          }
-        }
-        return bad;
-      });
-
-      expect(offenders, `clipped at ${width}px: ${JSON.stringify(offenders)}`).toEqual([]);
+      const firstScreen = page.getByTestId("desktop-landing").getByRole("list", { name: "Days from the library" }).first();
+      await expect(firstScreen.getByTestId("discover-card").first()).toBeVisible();
+      const box = (await firstScreen.boundingBox())!;
+      const viewport = await page.evaluate(() => document.documentElement.clientWidth);
+      expect(box.x).toBeLessThanOrEqual(16);
+      expect(viewport - (box.x + box.width)).toBeLessThanOrEqual(16);
+      // Cells to the right edge, not one column stretched across it.
+      const cards = await firstScreen.getByTestId("discover-card").evaluateAll((els) =>
+        els.map((el) => el.getBoundingClientRect().right),
+      );
+      expect(Math.max(...cards)).toBeGreaterThanOrEqual(viewport - 32);
     });
   }
 
-  // The other half of the label gating: `hidden lg:inline` that never turned
-  // back on would satisfy the three clipping tests above perfectly, by showing
-  // nothing anywhere. This is what stops the phone fix from quietly costing the
-  // desktop composition its place names.
-  test("the hero art keeps its map labels at desktop width", async ({ page }) => {
-    // Scoped to the art: the Together feature block's timeline names the same
-    // two stops ("Fushimi Inari, early", "Nishiki Market"), so an unscoped
-    // getByText matches twice and trips Playwright's strict mode.
-    const art = page.locator("div.h-107\\.5");
-
-    await page.setViewportSize({ width: 1280, height: 900 });
-    await page.goto("/");
-    await expect(art.getByText("Fushimi Inari")).toBeVisible();
-    await expect(art.getByText("Nishiki Market")).toBeVisible();
-    await expect(art.getByText("Ryokan · unconfirmed")).toBeVisible();
-
-    // ...and drops them on a narrow one, which is the fix itself.
-    //
-    // **800px, not 375px, and SPEC §28 is why.** The labels are gated at `lg`
-    // (1024px) but the whole desktop landing is now gated at `md` (768px) —
-    // below that, `PhoneFrontDoor` replaces it and this art is not on screen at
-    // all. Measuring the label gating at 375px therefore measured nothing: every
-    // assertion below would pass with `hidden lg:inline` deleted, because the
-    // art's own container is `display: none` there. 800px is inside the band
-    // where the desktop composition still renders and the labels are meant to
-    // be off, which is the only width where this claim is testable.
-    await page.setViewportSize({ width: 800, height: 900 });
-    await expect(art.getByText("Fushimi Inari")).toBeHidden();
-    await expect(art.getByText("Nishiki Market")).toBeHidden();
-    await expect(art.getByText("Ryokan · unconfirmed")).toBeHidden();
-
-    // The numbered pins it hangs off stay — the map is still a map.
-    await expect(art.getByText("1", { exact: true })).toBeVisible();
-    await expect(art.getByText("3", { exact: true })).toBeVisible();
-  });
-
-  // The front door is the one surface a phone actually reaches signed out, and
-  // the hero art is a stack of absolutely-positioned fragments at percentage
-  // offsets with `whitespace-nowrap` labels — the shape that silently pushes a
-  // page sideways. 402px is the width docs/STATUS.md's design audit walks.
+  // The front door is the one surface a phone actually reaches signed out,
+  // and the shape that silently pushes a page sideways is something laid out
+  // past the edge. 402px is the width docs/STATUS.md's design audit walks.
   for (const width of [402, 360]) {
     test(`the landing does not scroll sideways at ${width}px`, async ({ page }) => {
       await page.setViewportSize({ width, height: 900 });
@@ -1197,8 +1036,7 @@ test.describe("responsive (narrow viewport, first trip)", () => {
   test("the conversation and both other routes stay visible and operable below sm", async ({ page }) => {
     // Set before signing in, matching this file's own pattern for a
     // breakpoint below the narrow project's own 1100px — 375px is a real
-    // phone width already used elsewhere in this file (the hero-art and
-    // sideways-scroll tests), comfortably below the 640px `sm` this grid
+    // phone width, comfortably below the 640px `sm` this grid
     // reflows at.
     await page.setViewportSize({ width: 375, height: 800 });
     await signInAsDevUser(page, freshUsername());
