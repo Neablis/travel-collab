@@ -7745,58 +7745,6 @@
       "size": "2x2",
       "group": "italy-skiing",
       "href": "/playbooks/day/cortina-with-an-instructor-ra-valles-at-opening-cinque-torri-a427d03e-89ed-46dc-8f92-e86ce43714ea"
-    },
-    {
-      "day": {
-        "savedDayId": "8516f759-5cde-4cfa-8fdf-ae557280717a",
-        "ownerId": "dev-carlos",
-        "ownerDisplayName": "Carlos",
-        "name": "Machu Picchu done properly: the 04:20 queue and Huayna Picchu",
-        "cities": [
-          "Aguas Calientes",
-          "Machu Picchu"
-        ],
-        "matchedCities": [],
-        "stopCount": 8,
-        "dayCount": 1,
-        "window": {
-          "start": "04:20",
-          "end": "16:20"
-        },
-        "preview": [
-          {
-            "title": "Get in the bus queue on Avenida Hermanos Ayar",
-            "start": "04:20"
-          },
-          {
-            "title": "First bus up the Hiram Bingham switchbacks",
-            "start": "05:30"
-          },
-          {
-            "title": "Hire a licensed guide at the control gate",
-            "start": "06:05"
-          }
-        ],
-        "totalCost": null,
-        "adds": 5,
-        "rating": 4.7,
-        "reviewCount": 30,
-        "visibility": "public",
-        "authorKind": "ai",
-        "isMine": false,
-        "cover": null,
-        "description": "A bit of everything",
-        "tags": [
-          "meal",
-          "outdoors",
-          "sight",
-          "tour"
-        ],
-        "namedTags": []
-      },
-      "size": "1x3",
-      "group": "andes-patagonia",
-      "href": "/playbooks/day/m51-part8-bogus-href-for-the-red-run"
     }
   ],
   "japan": [
