@@ -40,6 +40,10 @@ import { AddToTripForm, NEW_TRIP } from "./AddToTripForm";
 // of that trip's days rather than after the last: `startingAt`, the server's
 // merge (ADR-050), which places its stops among that day's by time. The fields
 // are `AddToTripForm`; this component reads the trips and days and does the add.
+// A fixed sentence, not the server's text: what the reader needs is that the
+// append still works.
+const DAYS_UNREAD = "This trip's days could not be read; the day can still go after the last one.";
+
 export function AddToTripDialog({
   open,
   onOpenChange,
@@ -55,12 +59,12 @@ export function AddToTripDialog({
   savedDayId: string;
   dayName: string;
   /**
-   * How many days this Playbook will append (M23 link 4).
+   * How many days this Playbook adds to the trip (M23 link 4).
    *
    * **The rule this exists for: a surface states the count it is acting on
    * BEFORE it acts.** This dialog is the surface that actually performs the
-   * append, so it is the sharpest instance of it — "add to trip" quietly
-   * appending three days when somebody expected one is the exact failure link 4
+   * add, so it is the sharpest instance of it — "add to trip" quietly
+   * adding three days when somebody expected one is the exact failure link 4
    * was written to prevent, and every word below was singular until a walk of
    * the preview caught it.
    */
@@ -80,17 +84,29 @@ export function AddToTripDialog({
   const router = useRouter();
   const [trips, setTrips] = useState<TripSummary[] | null>(null);
   const [tripId, setTripId] = useState("");
-  const [startingAt, setStartingAt] = useState("");
+  // Keyed by the trip it was picked on, like `days`: a pick made while the
+  // trip list is still loading survives that list keeping the trip, and is
+  // dropped if the list moves to another one.
+  const [pick, setPick] = useState<{ tripId: string; dayId: string } | null>(null);
   const [startDate, setStartDate] = useState("");
   // The chosen trip's days, keyed by the trip they were read for so a slow
-  // answer for the previous choice is never offered under the new one.
-  const [days, setDays] = useState<{ tripId: string; days: { dayId: string; label: string }[] } | null>(null);
+  // answer for the previous choice is never offered under the new one. A
+  // failed read is kept the same way, so its sentence does not follow the
+  // reader to a trip whose days did load.
+  const [days, setDays] = useState<{
+    tripId: string;
+    days: { dayId: string; label: string }[];
+    failed?: boolean;
+  } | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // How far the new-trip branch got (`NewTripLatch`), so a retry resumes.
   const newTrip = useRef<NewTripLatch | null>(null);
 
   const creatingTrip = tripId === NEW_TRIP;
+  const startingAt = pick?.tripId === tripId ? pick.dayId : "";
+  const tripDays = days?.tripId === tripId ? days : null;
+  const shownError = [error, tripDays?.failed ? DAYS_UNREAD : null].filter((s) => s !== null).join(" ") || null;
 
   const load = useCallback(async () => {
     const result = await fetchTrips();
@@ -124,7 +140,6 @@ export function AddToTripDialog({
             ? current
             : (result.value[0]?.tripId ?? NEW_TRIP),
     );
-    setStartingAt("");
   }, [retrying, startOnNewTrip]);
 
   useEffect(() => {
@@ -133,6 +148,10 @@ export function AddToTripDialog({
       // NOT let the next opening add a second day to the trip minted for the
       // last one.
       newTrip.current = null;
+      // Nor may it offer the last opening's days, or its pick: the trip may
+      // have changed while this was closed, and a removed day's id would post.
+      setDays(null);
+      setPick(null);
       void load();
     }
   }, [open, load]);
@@ -144,8 +163,7 @@ export function AddToTripDialog({
       if (!current) return;
       if (!result.ok) {
         // The append needs no days, so it stays on offer; the reason is said.
-        setError(result.error.message);
-        setDays({ tripId, days: [] });
+        setDays({ tripId, days: [], failed: true });
         return;
       }
       const { startDate: start, days: tripDays } = result.value;
@@ -201,14 +219,14 @@ export function AddToTripDialog({
         dayName={dayName}
         dayCount={dayCount}
         trips={trips}
-        days={days?.tripId === tripId ? days.days : null}
+        days={tripDays?.days ?? null}
         value={{ tripId, startingAt, startDate }}
         onChange={(next) => {
           setTripId(next.tripId);
-          setStartingAt(next.startingAt);
+          setPick({ tripId: next.tripId, dayId: next.startingAt });
           setStartDate(next.startDate);
         }}
-        error={error}
+        error={shownError}
       />
 
       <DialogFooter>

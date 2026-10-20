@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -60,17 +60,21 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 
-function renderDialog(dayCount: number) {
-  render(
+function dialog(dayCount: number, open = true) {
+  return (
     <AddToTripDialog
-      open
+      open={open}
       onOpenChange={vi.fn()}
       savedDayId={SAVED_DAY_ID}
       dayName="Three in Kansai"
       dayCount={dayCount}
       onConflict={vi.fn()}
-    />,
+    />
   );
+}
+
+function renderDialog(dayCount: number) {
+  return render(dialog(dayCount));
 }
 
 describe("a multi-day Playbook", () => {
@@ -142,5 +146,73 @@ describe("which day of the trip", () => {
     expect(screen.getByLabelText("Which day")).toHaveProperty("value", "");
     await userEvent.click(screen.getByRole("button", { name: "Add to trip" }));
     expect(insertSavedDayMock).toHaveBeenCalledWith(TRIP_ID, SAVED_DAY_ID, {});
+  });
+});
+
+const OTHER_TRIP_ID = "7f0b3d0f-4a8b-4c7f-8e4a-3c2b6d9e8f70";
+
+describe("a trip whose days cannot be read", () => {
+  // The failure belongs to the trip it was read for: a reader who moves to a
+  // trip whose days did load must not see it beside a working list.
+  it("says so on that trip, and not on the next one", async () => {
+    fetchTripsMock.mockResolvedValue({
+      ok: true,
+      value: [TRIP_ID, OTHER_TRIP_ID].map((tripId, i) => ({
+        tripId,
+        name: i === 0 ? "Japan" : "Peru",
+        status: "active",
+        members: [{ userId: "u", role: "owner", name: null, email: null }],
+        createdAt: "2026-01-01T00:00:00.000Z",
+      })),
+    });
+    const peru = fetchTripDetailMock.getMockImplementation();
+    fetchTripDetailMock.mockImplementation((tripId: string) =>
+      tripId === TRIP_ID ? Promise.resolve({ ok: false, error: { status: 500, message: "boom" } }) : peru?.(tripId),
+    );
+    renderDialog(1);
+    await waitFor(() => expect(screen.getByLabelText("Which day")).toHaveProperty("disabled", false));
+
+    await userEvent.selectOptions(screen.getByLabelText("Which trip"), "Peru");
+    await screen.findByRole("option", { name: "Day 4" });
+    expect(screen.queryByText(/boom|could not be read/)).toBeNull();
+
+    await userEvent.selectOptions(screen.getByLabelText("Which trip"), "Japan");
+    expect(await screen.findByText(/This trip's days could not be read/)).toBeTruthy();
+  });
+});
+
+// The dialog stays mounted between openings, so whatever it read last time is
+// still in its state when it opens again.
+describe("opening the dialog again", () => {
+  async function openCloseReopen() {
+    const view = renderDialog(1);
+    await screen.findByRole("option", { name: "Day 4" });
+    view.rerender(dialog(1, false));
+    return view;
+  }
+
+  it("does not offer the days the last opening read", async () => {
+    const view = await openCloseReopen();
+    fetchTripDetailMock.mockReturnValue(new Promise(() => {}));
+    view.rerender(dialog(1));
+    expect(await screen.findByLabelText("Which day")).toHaveProperty("disabled", true);
+    expect(screen.queryByRole("option", { name: "Day 4" })).toBeNull();
+  });
+
+  // The trip is kept from the last opening, so its days can arrive before the
+  // trip list does; a day picked in that window is still the one added.
+  it("keeps a day picked before the trip list arrives", async () => {
+    const view = await openCloseReopen();
+    let release: () => void = () => {};
+    const trips = await fetchTripsMock();
+    fetchTripsMock.mockReturnValue(new Promise((resolve) => (release = () => resolve(trips))));
+    view.rerender(dialog(1));
+    await screen.findByRole("option", { name: "Day 4" });
+    await userEvent.selectOptions(screen.getByLabelText("Which day"), "Day 4");
+
+    await act(async () => release());
+    expect(screen.getByLabelText("Which day")).toHaveProperty("value", DAY_IDS[3]);
+    await userEvent.click(screen.getByRole("button", { name: "Add to trip" }));
+    expect(insertSavedDayMock).toHaveBeenCalledWith(TRIP_ID, SAVED_DAY_ID, { startingAt: DAY_IDS[3] });
   });
 });
