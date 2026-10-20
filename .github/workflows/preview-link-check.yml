@@ -22,9 +22,13 @@ permissions:
 
 jobs:
   sea-links:
-    if: ${{ github.event.deployment_status.state == 'success' && github.event.deployment.environment == 'Preview' }}
+    # Only Vercel's own deployments: the bypass secret goes to `environment_url`,
+    # so a status anyone else posted could name a host that collects it.
+    if: ${{ github.event.deployment_status.state == 'success' && github.event.deployment.environment == 'Preview' && github.event.deployment_status.creator.login == 'vercel[bot]' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # Room for a preview that answers nothing: the script's per-request
+    # timeout is sized to finish inside this and still name every href.
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
         with:
@@ -39,6 +43,6 @@ jobs:
       - name: Request every sea link on the preview
         env:
           PREVIEW_URL: ${{ github.event.deployment_status.environment_url }}
-          # Deployment Protection answers 401 to anything without it.
+          # Without it, Deployment Protection 302s every request to Vercel's sign-in.
           VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
         run: node scripts/check-preview-links.mjs

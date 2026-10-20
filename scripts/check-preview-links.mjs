@@ -30,29 +30,45 @@ async function status(url, bypass, timeoutMs) {
   }
 }
 
-/** `[{ href, reason }]` for every href that did not answer 200; a request with no response is retried once. */
-export async function checkLinks({ baseUrl, hrefs, bypass, timeoutMs = 30_000 }) {
-  const results = new Array(hrefs.length);
+/** The failure reason for one href, or `null` when it answered 200; a request with no response is retried once. */
+async function check(href, base, bypass, timeoutMs) {
+  // The bypass secret opens every protected deployment, so it goes to the
+  // preview's own host and nowhere else. The sea's hrefs are root-relative;
+  // an absolute one, or a protocol-relative `//host`, is a bug in the sea.
+  const url = new URL(href, base);
+  if (URL.canParse(href) || url.origin !== base.origin) return "not a path on the preview";
+  const answer = (await status(url, bypass, timeoutMs)) ?? (await status(url, bypass, timeoutMs));
+  if (answer === 200) return null;
+  return answer === null ? "no response, twice" : `HTTP ${answer}`;
+}
+
+/**
+ * `[{ href, reason }]` for every href that did not answer 200. The 15 s
+ * default keeps a preview that answers nothing (148 hrefs, 8 at a time, two
+ * tries each: about 9.5 min) inside the job's 15 min, so the hrefs still get
+ * named.
+ */
+export async function checkLinks({ baseUrl, hrefs, bypass, timeoutMs = 15_000 }) {
+  const base = new URL(baseUrl);
+  const reasons = new Array(hrefs.length);
   let next = 0;
   async function worker() {
     while (next < hrefs.length) {
       const index = next++;
-      const url = new URL(hrefs[index], baseUrl);
-      results[index] = (await status(url, bypass, timeoutMs)) ?? (await status(url, bypass, timeoutMs));
+      reasons[index] = await check(hrefs[index], base, bypass, timeoutMs);
     }
   }
   await Promise.all(Array.from({ length: Math.min(CONCURRENCY, hrefs.length) }, worker));
-  return hrefs.flatMap((href, index) =>
-    results[index] === 200 ? [] : [{ href, reason: results[index] === null ? "no response, twice" : `HTTP ${results[index]}` }],
-  );
+  return hrefs.flatMap((href, index) => (reasons[index] === null ? [] : [{ href, reason: reasons[index] }]));
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   const baseUrl = process.env.PREVIEW_URL;
   const bypass = process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
   if (!baseUrl) throw new Error("PREVIEW_URL is not set");
-  // Without the header every request is a 401 from Deployment Protection,
-  // which would read as 148 broken links rather than one missing secret.
+  // Without the header Deployment Protection answers every request with a 302
+  // to Vercel's sign-in (`environments-and-deploys.md`), which would read as
+  // 148 broken links rather than one missing secret.
   if (!bypass) {
     console.error("::error::VERCEL_AUTOMATION_BYPASS_SECRET is empty, so the preview cannot be reached past Deployment Protection.");
     process.exit(1);
