@@ -1,6 +1,6 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
-import { JAPAN_SAVED_DAYS, parseBundle, playbookIdFor, resolvePlaybook, STARTER_SAVED_DAYS } from "@tc/fixtures";
+import { JAPAN_SAVED_DAYS, parseBundle, playbookIdFor } from "@tc/fixtures";
 import {
   buildLandingDemo,
   buildLandingFeatures,
@@ -13,9 +13,11 @@ import {
   serializeLandingDemo,
   snapshotPath,
 } from "./landing-demo";
+import { bundleFiles, CONTENT_DIR, contentDays } from "./lib/content-bundles";
 import { personasOf } from "@/components/pages/people";
 import { ratingLine } from "@/components/playbooks/DiscoverCard";
 import { demoTripBySlug } from "@/lib/demoTrip";
+import { LANDING_SEA } from "@/lib/landingSea";
 import { dayPath } from "@/lib/playbookUrls";
 import { demoTripCards, demoTripMembers } from "@/server/demoTrip";
 
@@ -116,11 +118,6 @@ const PLAYBOOKS_DIR = new URL("../../../content/playbooks/", import.meta.url);
 const BUNDLES = readdirSync(PLAYBOOKS_DIR)
   .filter((file) => file.endsWith(".json"))
   .map((file) => parseBundle(JSON.parse(readFileSync(new URL(file, PLAYBOOKS_DIR), "utf8"))));
-// Everything the content import reads, which is every bundle under `content/`.
-const CONTENT_DIR = new URL("../../../content/", import.meta.url);
-const CONTENT = readdirSync(CONTENT_DIR, { recursive: true, encoding: "utf8" })
-  .filter((file) => file.endsWith(".json") && !file.split("/").at(-1)!.startsWith("."))
-  .map((file) => parseBundle(JSON.parse(readFileSync(new URL(file, CONTENT_DIR), "utf8"))));
 const SIZES = ["1x1", "2x1", "1x2", "2x2", "3x1", "1x3"];
 
 describe("the landing's sea", () => {
@@ -130,28 +127,6 @@ describe("the landing's sea", () => {
     const published = BUNDLES.flatMap((b) => b.playbooks.filter((p) => p.visibility === "public").map((p) => playbookIdFor(b.bundle.id, p.key)));
     expect(sea.cells.map((cell) => cell.day.savedDayId).sort()).toEqual([...published].sort());
     expect(sea.cells.every((cell) => cell.day.visibility === "public")).toBe(true);
-  });
-
-  // Mitchell, 2026-10-20: whatever links somewhere links to a real day in the
-  // database of the deployment that serves it. A content bundle's day is one
-  // everywhere: its id derives from (bundle, key), and every seed path imports
-  // all of `content/` (`db:reseed` locally and on preview,
-  // `import-content-production.yml` in production). A dev fixture day exists
-  // only where dev-login seeded it, never in production.
-  it("links only days the content import writes, at the path it serves them on", () => {
-    const imported = new Map(
-      CONTENT.flatMap((b) =>
-        b.playbooks.map((p) => {
-          const day = resolvePlaybook(b.bundle.id, p, b.bundle.origin);
-          return [day.savedDayId, dayPath(day)] as const;
-        }),
-      ),
-    );
-    const fixtureDays = new Set([...JAPAN_SAVED_DAYS, ...STARTER_SAVED_DAYS].map((day) => day.savedDayId));
-    const linked = [...sea.cells, ...sea.japan].filter((cell) => cell.href !== null);
-    expect(linked.length).toBeGreaterThan(0);
-    const wrong = linked.filter((cell) => fixtureDays.has(cell.day.savedDayId) || cell.href !== imported.get(cell.day.savedDayId));
-    expect(wrong.map((cell) => cell.href)).toEqual([]);
   });
 
   it("gives each cell a grid size", () => {
@@ -181,6 +156,35 @@ describe("the landing's sea", () => {
   it("holds the demo seed's public Japan days around the notebook", () => {
     expect(sea.japan.map((cell) => cell.day.savedDayId)).toEqual(JAPAN_SAVED_DAYS.filter((d) => d.visibility === "public").map((d) => d.savedDayId));
     expect(sea.japan.every((cell) => SIZES.includes(cell.size))).toBe(true);
+  });
+});
+
+// The links stay real (M51 gate), and Mitchell, 2026-10-20: whatever links
+// somewhere links to a real day in the database of the deployment that serves
+// it. Every href the landing draws from its snapshot must open a public day the
+// content import writes, which every preview build and
+// `import-content-production.yml` import from `content/`. Asked of the
+// importers' own reader and id derivation, not a model of them. A Japan cell is
+// a demo-seed day, which no deployment's library holds, so it carries no link.
+describe("the sea's links, as the landing draws them", () => {
+  const written = new Map(
+    bundleFiles(CONTENT_DIR)
+      .flatMap((file) => contentDays(parseBundle(JSON.parse(readFileSync(file, "utf8")))))
+      .map((day) => [day.savedDayId, day]),
+  );
+
+  it("each open a public day the content import writes, at its canonical path", () => {
+    expect(LANDING_SEA.cells.length).toBeGreaterThan(0);
+    const broken = LANDING_SEA.cells.filter((cell) => {
+      const day = written.get(cell.day.savedDayId);
+      return day === undefined || day.visibility !== "public" || cell.href !== dayPath(day);
+    });
+    expect(broken.map((cell) => cell.href)).toEqual([]);
+  });
+
+  it("give no Japan cell a link", () => {
+    expect(LANDING_SEA.japan.length).toBeGreaterThan(0);
+    expect(LANDING_SEA.japan.filter((cell) => cell.href !== null)).toEqual([]);
   });
 });
 

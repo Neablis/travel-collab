@@ -32,7 +32,7 @@
 // "it imports" are one code path with the writes switched off, which is the
 // only version of that promise worth making.
 
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { BatchableCommand } from "@tc/contracts";
@@ -45,6 +45,7 @@ import {
   type ContentBundleV1,
   type Finding,
 } from "@tc/fixtures";
+import { bundleFiles, CONTENT_DIR } from "./lib/content-bundles.ts";
 import { api, batch, BASE_URL, cmd, createTrip, devSignIn, SEED_PREFIX, type DistributiveOmit } from "./lib/seed-session.ts";
 
 const REPO_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
@@ -73,7 +74,7 @@ function resolveDir(value: string): string {
 }
 
 function parseArgs(argv: string[]): Options {
-  const options: Options = { dir: join(REPO_ROOT, "content"), dryRun: false, tripId: null };
+  const options: Options = { dir: CONTENT_DIR, dryRun: false, tripId: null };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     // pnpm forwards script arguments after a bare `--`, and the documented
@@ -90,31 +91,6 @@ function parseArgs(argv: string[]): Options {
 }
 
 // ---- reading -----------------------------------------------------------
-
-/**
- * Every `*.json` under `dir`, at any depth, in a stable order — **skipping
- * dot-files and dot-directories.**
- *
- * That exclusion is not tidiness. `content/` is a working directory as well as
- * a source of truth: `scripts/geocode-content.py` writes its resume cache and
- * its review file there, and the moment it did, this function tried to parse
- * `.geocode-review.json` as a bundle and the whole import refused. A stray
- * `.DS_Store.json` would have done the same. A tool's own scratch state living
- * beside the content it works on is normal; treating it as content is the bug.
- */
-function bundleFiles(dir: string): string[] {
-  let entries: string[];
-  try {
-    entries = readdirSync(dir).sort();
-  } catch {
-    return [];
-  }
-  return entries.flatMap((entry) => {
-    if (entry.startsWith(".")) return [];
-    const path = join(dir, entry);
-    return statSync(path).isDirectory() ? bundleFiles(path) : path.endsWith(".json") ? [path] : [];
-  });
-}
 
 /** Today, `YYYY-MM-DD`. The one clock read in the whole import. */
 const today = (): string => new Date().toISOString().slice(0, 10);

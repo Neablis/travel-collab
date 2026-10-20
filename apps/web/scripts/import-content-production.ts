@@ -57,8 +57,8 @@
  * bundle, minus what it now declares" is answerable. Only rows with that column
  * set are ever considered, so a day a person saved cannot be caught by it.
  */
-import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { existsSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { and, eq, inArray, isNotNull, notInArray } from "drizzle-orm";
 import {
@@ -66,7 +66,6 @@ import {
   bundleTripCommandGroups,
   lintBundle,
   parseBundle,
-  resolvePlaybook,
   tripIdFor,
   type BundleTrip,
   type ContentBundleV1,
@@ -85,6 +84,7 @@ import { executePageCommand } from "@/server/pageCommands";
 import { users } from "@/server/db/schema";
 import { getTripDetail } from "@/server/projections";
 import { planBundleLocationReconcile, type PlannedLocationUpdate } from "@/server/bundleLocationReconcile";
+import { bundleFiles, CONTENT_DIR, contentDays } from "./lib/content-bundles.ts";
 
 const REPO_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
 
@@ -131,7 +131,7 @@ type Options = {
 
 function parseArgs(argv: string[]): Options {
   const o: Options = {
-    dir: join(REPO_ROOT, "content"),
+    dir: CONTENT_DIR,
     dryRun: false,
     prune: false,
     skipTrips: false,
@@ -154,24 +154,9 @@ function parseArgs(argv: string[]): Options {
   return o;
 }
 
-/** Dot-files are a tool's scratch state, never content (the geocoder writes there). */
-function bundleFiles(dir: string): string[] {
-  let entries: string[];
-  try {
-    entries = readdirSync(dir).sort();
-  } catch {
-    return [];
-  }
-  return entries.flatMap((entry) => {
-    if (entry.startsWith(".")) return [];
-    const path = join(dir, entry);
-    return statSync(path).isDirectory() ? bundleFiles(path) : path.endsWith(".json") ? [path] : [];
-  });
-}
-
 /** Playbook days for one bundle, in one transaction, plus any prune. */
 export async function importPlaybooks(bundle: ContentBundleV1, prune: boolean) {
-  const resolved = bundle.playbooks.map((p) => resolvePlaybook(bundle.bundle.id, p, bundle.bundle.origin));
+  const resolved = contentDays(bundle);
   const ids = resolved.map((d) => d.savedDayId);
   let pruned = 0;
 
