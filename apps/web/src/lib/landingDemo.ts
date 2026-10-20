@@ -44,20 +44,20 @@ export type LandingDemo = {
 };
 
 /**
- * The crew moment's trip (M51 decision 10): Athens to Santorini, planned by
- * four people, with Elena's Naxos day borrowed as its Day 3. Folded by the
+ * The crew moment's trip (M51 decision 10): Paros to Santorini, planned by
+ * four people, with Elena's Naxos day borrowed as its Day 2. Folded by the
  * real decider from the Greek bundle's days, undated and unpriced.
  */
 export type LandingCrew = {
   name: string;
   currency: string;
   accents: Record<string, AccentFamily>;
-  /** Day 3, its stops booked by and shared among the crew. */
+  /** Day 2, its stops booked by and shared among the crew. */
   river: LandingRiverDay;
   /** The crew, for `FixedPeopleProvider`. */
   personas: Record<string, Persona>;
   people: TripPeoplePayload;
-  /** The library day Day 3 came from, and its canonical page. */
+  /** The library day Day 2 came from, and its canonical page. */
   borrowed: { savedDayId: string; href: string };
 };
 

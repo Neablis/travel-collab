@@ -404,7 +404,10 @@ function seaCell(day: DiscoverDay, group: string): SeaCell {
 
 /**
  * Every public library day as a sea cell, in an order shuffled by id so no
- * country runs in a block, each linked to the page production serves it at.
+ * country runs in a block, each linked to its day page. The link holds in
+ * every deployment because the id derives from (bundle, key) and every seed
+ * path imports `content/`: `db:reseed` locally and on preview,
+ * `import-content-production.yml` in production.
  * The day's `keptOn` goes in as the stamp only because the card needs one;
  * `seaCell` takes the dates off again.
  */
@@ -471,32 +474,32 @@ const CREW_LOOKS: Record<(typeof CREW)[number], { avatar: AvatarKey | null; colo
 };
 
 /**
- * Athens to Santorini in four days, every one a Greek library day: Hydra out
- * of Piraeus, Paros on the way across, Elena's Naxos day as Day 3, and the
- * caldera walk. The trip is what the crew built by borrowing; Day 3 is the one
- * the moment draws.
+ * Paros to Santorini in three days, every one a Greek library day: Paros,
+ * Elena's Naxos day as Day 2, and the caldera walk (Mitchell, 2026-10-20: three
+ * days, Naxos as Day 2). The library has no Athens day to start from. The trip
+ * is what the crew built by borrowing; Day 2 is the one the moment draws.
  */
 const CREW_BUNDLE_PATH = new URL("../../../content/playbooks/greek-islands.json", import.meta.url);
-const CREW_DAYS = [
-  "hydra-car-free-coast-path",
-  "paros-antiparos-cave-and-soros",
-  "naxos-zas-marble-villages-and-plaka",
-  "santorini-caldera-walk-and-skaros-sunset",
-] as const;
-const CREW_RIVER_INDEX = 2;
+const CREW_DAYS = ["paros-antiparos-cave-and-soros", "naxos-zas-marble-villages-and-plaka", "santorini-caldera-walk-and-skaros-sunset"] as const;
+const CREW_RIVER_INDEX = 1;
+const CREW_TRIP_NAME = "Paros to Santorini";
 const CREW_TRIP_ID = "00000000-0000-4000-80c0-000000000000";
 const CREW_ACTOR_ID = "00000000-0000-4000-8000-00000000a000";
 
+/** What somebody books ahead: a table, a ticket or a tour, never a drive or a spring. */
+const BOOKED_TAGS: ReadonlySet<string> = new Set(["meal", "ticketed", "tour"]);
+
 /**
  * Who booked a stop and who is on it, so the crew's names reach the river. A
- * pending stop is not booked yet. Otherwise the crew take turns booking down
- * the day, and every third booked stop leaves one of them out, so a stop with
- * fewer than all four is something the river shows too.
+ * pending stop is not booked yet, and neither is a transit leg or anything
+ * nobody books; the crew take turns booking the rest down the day, `bookings`
+ * being how many they have booked so far. Every third stop leaves one of them
+ * out, so a stop with fewer than all four is something the river shows too.
  */
-function crewOnStop(command: Extract<TripCommand, { type: "AddActivity" }>, turn: number): TripCommand {
-  const booker = CREW[turn % CREW.length]!;
+function crewOnStop(command: Extract<TripCommand, { type: "AddActivity" }>, turn: number, bookings: number): TripCommand {
+  const booked = command.kind !== "transit" && (command.tags ?? []).some((tag) => BOOKED_TAGS.has(tag));
   const participants = turn % 3 === 2 ? CREW.filter((_, i) => i !== (turn + 1) % CREW.length) : [];
-  return { ...command, bookedBy: booker, participants };
+  return { ...command, bookedBy: booked ? CREW[bookings % CREW.length]! : null, participants };
 }
 
 /** The crew's trip folded by the real decider, as `/demo` folds its trips, undated and unpriced. */
@@ -511,8 +514,8 @@ function crewTrip(): { trip: TripDetail; members: TripMemberProfile[]; borrowed:
   const groups = bundleTripCommandGroups(
     bundle.bundle.id,
     {
-      key: "athens-to-santorini",
-      name: "Athens to Santorini",
+      key: "paros-to-santorini",
+      name: CREW_TRIP_NAME,
       // No price: the front door sells the day (Mitchell, 2026-10-11).
       days: playbooks.map((p) => ({ stops: (p.stops ?? p.days!.flatMap((d) => d.stops)).map(({ cost: _cost, ...stop }) => stop) })),
       backlog: [],
@@ -520,14 +523,17 @@ function crewTrip(): { trip: TripDetail; members: TripMemberProfile[]; borrowed:
     { tripId: CREW_TRIP_ID, today: REFERENCE_START_DATE, mintId: () => `00000000-0000-4000-80c0-${String(++n).padStart(12, "0")}` },
   );
   const ctx = { actorId: CREW_ACTOR_ID };
-  const genesis = decideCreateTrip(null, { type: "CreateTrip", tripId: CREW_TRIP_ID, name: "Athens to Santorini", forkedFrom: null }, ctx);
+  const genesis = decideCreateTrip(null, { type: "CreateTrip", tripId: CREW_TRIP_ID, name: CREW_TRIP_NAME, forkedFrom: null }, ctx);
   if (!genesis.ok) throw new Error(`landing demo: CreateTrip rejected — ${genesis.rejection.message}`);
   let state: TripState | null = null;
   for (const event of genesis.events) state = evolveTrip(state, event);
   for (const group of groups) {
     let turn = 0;
+    let bookings = 0;
     for (const command of group) {
-      const decision = decideTripCommand(state, command.type === "AddActivity" && command.kind !== "pending" ? crewOnStop(command, turn++) : command, ctx);
+      const crewed = command.type === "AddActivity" && command.kind !== "pending" ? crewOnStop(command, turn++, bookings) : command;
+      if (crewed.type === "AddActivity" && crewed.bookedBy) bookings++;
+      const decision = decideTripCommand(state, crewed, ctx);
       if (!decision.ok) throw new Error(`landing demo: ${command.type} rejected — ${decision.rejection.message}`);
       for (const event of decision.events) state = evolveTrip(state, event);
     }
@@ -552,7 +558,7 @@ function crewTrip(): { trip: TripDetail; members: TripMemberProfile[]; borrowed:
   return { trip, members, borrowed: resolvePlaybook(bundle.bundle.id, playbooks[CREW_RIVER_INDEX]!, bundle.bundle.origin) };
 }
 
-/** The crew moment's slice: Day 3 on the river, who is on it, and the day it was borrowed from. */
+/** The crew moment's slice: Day 2 on the river, who is on it, and the day it was borrowed from. */
 function buildLandingCrew(): LandingCrew {
   const { trip, members, borrowed } = crewTrip();
   const globals = buildTripGlobals(trip);
@@ -562,9 +568,9 @@ function buildLandingCrew(): LandingCrew {
   const shifted = new Map(members.map((m) => [m.userId, m.colorShifted]));
   const accents = cityAccents(trip);
   const day = trip.days[CREW_RIVER_INDEX]!;
-  if (conflictsOn(trip, CREW_RIVER_INDEX).length > 0) throw new Error("landing demo: the crew's Day 3 has conflicts the moment does not draw");
+  if (conflictsOn(trip, CREW_RIVER_INDEX).length > 0) throw new Error("landing demo: the crew's Day 2 has conflicts the moment does not draw");
   const city = globals.days[CREW_RIVER_INDEX]!.cities.at(-1);
-  if (city === undefined) throw new Error("landing demo: the crew's Day 3 names no city");
+  if (city === undefined) throw new Error("landing demo: the crew's Day 2 names no city");
   return {
     name: trip.name,
     currency: trip.currency,
