@@ -10,6 +10,11 @@ import { fetchTripDetail, fetchTrips, insertSavedDay } from "@/lib/apiClient";
 import { dayLabel } from "@/lib/dates";
 import { AddToTripForm, NEW_TRIP } from "./AddToTripForm";
 
+// A fixed sentence, not the server's text: what the reader needs is that the
+// append still works. Counted, because a Playbook can add several days (M23 link 4).
+const daysUnread = (dayCount: number) =>
+  `This trip's days could not be read; ${dayCount === 1 ? "the day" : "the days"} can still go after the last one.`;
+
 // "Add to a trip", from a day you are looking at (M11b link 6).
 //
 // **The shape mismatch this bridges.** `SavedDaysDialog` is *fixed trip, choose
@@ -40,9 +45,6 @@ import { AddToTripForm, NEW_TRIP } from "./AddToTripForm";
 // of that trip's days rather than after the last: `startingAt`, the server's
 // merge (ADR-050), which places its stops among that day's by time. The fields
 // are `AddToTripForm`; this component reads the trips and days and does the add.
-// A fixed sentence, not the server's text: what the reader needs is that the
-// append still works.
-const DAYS_UNREAD = "This trip's days could not be read; the day can still go after the last one.";
 
 export function AddToTripDialog({
   open,
@@ -106,7 +108,7 @@ export function AddToTripDialog({
   const creatingTrip = tripId === NEW_TRIP;
   const startingAt = pick?.tripId === tripId ? pick.dayId : "";
   const tripDays = days?.tripId === tripId ? days : null;
-  const shownError = [error, tripDays?.failed ? DAYS_UNREAD : null].filter((s) => s !== null).join(" ") || null;
+  const shownError = [error, tripDays?.failed ? daysUnread(dayCount) : null].filter((s) => s !== null).join(" ") || null;
 
   const load = useCallback(async () => {
     const result = await fetchTrips();

@@ -179,6 +179,12 @@ describe("a trip whose days cannot be read", () => {
     await userEvent.selectOptions(screen.getByLabelText("Which trip"), "Japan");
     expect(await screen.findByText(/This trip's days could not be read/)).toBeTruthy();
   });
+
+  it("counts the days a multi-day Playbook would still append", async () => {
+    fetchTripDetailMock.mockResolvedValue({ ok: false, error: { status: 500, message: "boom" } });
+    renderDialog(3);
+    expect(await screen.findByText(/the days can still go after the last one/)).toBeTruthy();
+  });
 });
 
 // The dialog stays mounted between openings, so whatever it read last time is
