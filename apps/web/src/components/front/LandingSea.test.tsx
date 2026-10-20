@@ -133,6 +133,13 @@ describe("the sea's moments", { timeout: 30_000 }, () => {
     const river = await crew.findByRole("list", { name: "Day 2 timeline" });
     expect(within(river).getAllByRole("listitem").length).toBe(LANDING_FEATURES.crew.river.activityIds.length);
     expect(crew.getByText(LANDING_FEATURES.crew.people.sentence)).toBeDefined();
+    // Each stop names the crew member who added it (M51 decision 8a), not
+    // nobody and not an id's handle.
+    const adders = within(river)
+      .getAllByText(/, added by /)
+      .map((said) => /, added by (\w+)/.exec(said.textContent!)![1]);
+    expect(adders).toHaveLength(LANDING_FEATURES.crew.river.activityIds.length);
+    expect(adders.filter((name) => !Object.keys(LANDING_FEATURES.crew.personas).includes(name!))).toEqual([]);
     const lit = LANDING_SEA.cells.filter((cell) => cell.group === "greek-islands");
     expect(crew.getAllByTestId("discover-card").map((card) => card.getAttribute("data-saved-day-id"))).toEqual(
       expect.arrayContaining(lit.map((cell) => cell.day.savedDayId)),

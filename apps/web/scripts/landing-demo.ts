@@ -47,7 +47,7 @@ import {
   type TripDetail,
   type TripMemberProfile,
 } from "@tc/contracts";
-import { decideCreateTrip, decideTripCommand, evolveTrip, tripDetailFromState, type TripState } from "@tc/domain";
+import { decideCreateTrip, decideTripCommand, evolveTripEnvelope, tripDetailFromState, type TripState } from "@tc/domain";
 import { z } from "zod";
 import {
   bundleTripCommandGroups,
@@ -495,7 +495,6 @@ const CREW_DAYS = ["paros-antiparos-cave-and-soros", "naxos-zas-marble-villages-
 const CREW_RIVER_INDEX = 1;
 const CREW_TRIP_NAME = "Paros to Santorini";
 const CREW_TRIP_ID = "00000000-0000-4000-80c0-000000000000";
-const CREW_ACTOR_ID = "00000000-0000-4000-8000-00000000a000";
 
 /** What somebody books ahead: a table, a ticket or a tour, never a drive or a spring. */
 const BOOKED_TAGS: ReadonlySet<string> = new Set(["meal", "ticketed", "tour"]);
@@ -533,20 +532,25 @@ function crewTrip(): { trip: TripDetail; members: TripMemberProfile[]; borrowed:
     },
     { tripId: CREW_TRIP_ID, today: REFERENCE_START_DATE, mintId: () => `00000000-0000-4000-80c0-${String(++n).padStart(12, "0")}` },
   );
-  const ctx = { actorId: CREW_ACTOR_ID };
-  const genesis = decideCreateTrip(null, { type: "CreateTrip", tripId: CREW_TRIP_ID, name: CREW_TRIP_NAME, forkedFrom: null }, ctx);
+  // Maeve owns the trip; the crew take turns adding its stops, so each stop
+  // names one of them. Folded with the envelope's actor, as `/demo` folds
+  // (`server/demoTrip.ts`), because only that fold writes a stop's `addedBy`.
+  const owner = { actorId: CREW[0] as string };
+  const genesis = decideCreateTrip(null, { type: "CreateTrip", tripId: CREW_TRIP_ID, name: CREW_TRIP_NAME, forkedFrom: null }, owner);
   if (!genesis.ok) throw new Error(`landing demo: CreateTrip rejected — ${genesis.rejection.message}`);
   let state: TripState | null = null;
-  for (const event of genesis.events) state = evolveTrip(state, event);
+  for (const event of genesis.events) state = evolveTripEnvelope(state, event, owner);
+  let adds = 0;
   for (const group of groups) {
     let turn = 0;
     let bookings = 0;
     for (const command of group) {
       const crewed = command.type === "AddActivity" && command.kind !== "pending" ? crewOnStop(command, turn++, bookings) : command;
       if (crewed.type === "AddActivity" && crewed.bookedBy) bookings++;
+      const ctx = crewed.type === "AddActivity" ? { actorId: CREW[adds++ % CREW.length] as string } : owner;
       const decision = decideTripCommand(state, crewed, ctx);
       if (!decision.ok) throw new Error(`landing demo: ${command.type} rejected — ${decision.rejection.message}`);
-      for (const event of decision.events) state = evolveTrip(state, event);
+      for (const event of decision.events) state = evolveTripEnvelope(state, event, ctx);
     }
   }
   if (state === null) throw new Error("landing demo: the crew trip folded to nothing");
