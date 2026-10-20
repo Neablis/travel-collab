@@ -489,7 +489,7 @@ if setup_out="$(pnpm run setup 2>&1)"; then
   esac
 else
   echo "session-start: 'pnpm run setup' did not succeed; apps/web/.env.local may be missing," >&2
-  echo "session-start: which breaks 'pnpm dev', 'db:*' and 'test:e2e'. Run 'pnpm setup' by hand." >&2
+  echo "session-start: which breaks 'pnpm dev', 'db:*' and 'test:e2e'. Run 'pnpm run setup' by hand." >&2
 fi
 
 print_state_digest

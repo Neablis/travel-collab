@@ -21,18 +21,23 @@ general setup.
 
 ## Where the work is right now
 
-**M48 — A planned trip starts from trips that already exist — is the current milestone**
-(`docs/milestones/M48-plans-start-from-examples.md`), since M47's gate closed on 2026-10-18. Its
-serving code is already on `main` (PRs 459-467 and 470, built ahead of the order; see below), and
-`RAG_PLAN_RETRIEVAL=1` is live in production from the deploy of `47e8254` (PR 478, 2026-10-18), so
-plan turns now retrieve example days. Gate 4 of 11; Mitchell's walk is ticked. It stays open while
-flag-on plan turns accumulate: production served 1 plan turn in the 30 days before.
+**M50 closed 2026-10-19, gate 11 of 11** (part 0 PR 493). Parts are PRs 494-501 and 503 (part 9,
+from Mitchell's walk), migrations `0060` and `0061`, both applied in production; ADR-079. Five
+boxes are ticked on Mitchell's walk of the landing page (his ruling, option a). Evidence, retro
+and spend are in `docs/milestones/M50-strangers-find-a-day.md`.
 
-**Next action:** M48's work that needs no traffic. (1) Record the example count per plan turn in
-the M31 ledger (a migration and the recorder): today it reaches only the `rag: plan examples` log
-lines, so the ledger box cannot be measured. (2) Paste the baseline (the `ai-usage` skill over
-plan turns before 2026-10-18). (3) The playbook-filter box: capture PR 470's red text and tick it.
-Decisions 1 and 11 and both offline checks' pasted numbers are Mitchell's (M48's file says which).
+**Next action:** plan the homepage-redesign milestone from the top entry of `docs/candidates.md`
+(*The front door tells the story*; Mitchell's 6 Vercel toolbar threads on the PR 503 preview are
+its input). It starts with a design review with sketches, before any code, and that review
+decides *"Free tier!"* against the no-"free" copy rule. The order's current marker
+(M49, set by `pnpm milestone close`) stands until Mitchell schedules the redesign.
+
+**M48 is parked, not closed** (2026-10-19, Mitchell): gate 4 of 11, its open boxes wait on
+flag-on plan turns, which M50's launch should bring. When it resumes, its no-traffic work comes
+first: (1) record the example count per plan turn in the M31 ledger (a migration and the
+recorder); (2) paste the baseline (the `ai-usage` skill over plan turns before 2026-10-18);
+(3) capture PR 470's red text for the playbook-filter box. `RAG_PLAN_RETRIEVAL=1` stays on in
+production. Decisions 1 and 11 and both offline checks' pasted numbers are Mitchell's.
 
 **M47 closed 2026-10-18, gate 7 of 7**, on Mitchell's production test-card walk (ticked on his
 word). Parts are PRs 474, 476, 477 and 475, migrations `0055` to `0057`; part 0 PR 473. Evidence,
@@ -63,8 +68,8 @@ Also merged beside it: `docs/guidelines/building-with-judgment.md` (PR 468).
 **M45 closed 2026-10-13, gate 12 of 12** (part 0 PR 420); evidence and retro in
 `docs/milestones/M45-the-assistant-beyond-one-trip.md`. Accepted gap: KI-2026-10-13-a.
 
-Order: `… M42 ✓ → M45 ✓ → M46 ✓ → M47 ✓ → M48 → M49 → M43 → M44`; the reorder is in
-`docs/milestones/README.md`, *2026-10-12 — reordered and minted*. Earlier closed milestones'
+Order: `… M42 ✓ → M45 ✓ → M46 ✓ → M47 ✓ → M50 ✓ → M48 (parked) → M49 → M43 → M44`; the reorder is in
+`docs/milestones/README.md`, *2026-10-19 — minted: M50, M48 parked*. Earlier closed milestones'
 narrative is in `docs/retros/2026-10-16-status-archive.md` and each milestone's own file.
 
 ## Live rules that the code cannot enforce

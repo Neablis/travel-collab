@@ -33,4 +33,9 @@
 - **Cross-reference:** `docs/guidelines/retiring-a-rule.md`;
   `docs/retros/2026-09-30-retired-rules.md` (the first pass, and the shape to copy); PR 486 (the
   trip board exemption, +346 B); `pnpm milestone close` step 7 (lists the pass at a gate close).
+- **Partial pass, 2026-10-19 (M50 close):** 29,085 B → 28,316 B (83%), so `pnpm surface`
+  no longer marks the file `!!`. Eight narrative and restatement trims only
+  (`docs/retros/2026-10-19-retired-rules.md`). Still open: the exemption paragraphs as a list,
+  the Verification and Testing sections against CLAUDE.md, the stale trip-board sentence, and
+  the 75% target. Those restructure binding text, so they want their own reviewed PR.
 - **First noted:** 2026-10-18, PR 486's final review. Filed 2026-10-19.

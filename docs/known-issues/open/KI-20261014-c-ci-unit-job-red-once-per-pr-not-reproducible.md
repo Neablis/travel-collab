@@ -41,6 +41,18 @@
     `phoneAskContext notebook ask offered: ran 21 assertion(s), expected at least 23`, on PR 481
     at `f2a2cf7` (job 117616266808). The PR didn't touch it, and unit was green on the heads
     before and after. Its floor belongs in the seed-pinning fix below.
+  - **Not a property (M50, 2026-10-19):**
+    `apps/web/src/components/front/LandingFeatureBlocks.failed.test.tsx` failed with *"Unable to
+    find … Pontocho, maybe"*: at `:56` on PR 494, and at `:48` on PR 499 at `b8ae361` (job
+    118018398599), a PR that touched nothing under `components/front/`. Cause, reproduced on
+    `main` at `347695d`: each `lazy()` panel in `LandingFeaturePanel.tsx` (and
+    `LandingHeroArt.tsx:36-38`) called `import("./LandingFeaturePanels")` on its own, and under
+    Vitest's mock the parallel imports loaded the real module. **Fixed by PR 494** (`f1ee2ac`,
+    merged `ad08627`): one memoised import shared by the lazies. Listed here so a later unnamed
+    red is not blamed on it without checking the head contains `ad08627`. Its sibling
+    `LandingHeroArt.failed.test.tsx` has a separate local timeout, KI-2026-10-19-d.
+  - **Also not a property:** `useTripSuggestions.test.tsx:109` on PR 499 at `4c25771`, a focus
+    event fired before its listener exists: KI-2026-10-19-c.
 - **Why every unnamed red was unnamed:** `apps/web/vitest.unit.config.ts` set
   `reporters: ["dot"]`, and naming any reporter drops the `github-actions` one Vitest adds under
   `GITHUB_ACTIONS=true`. The five `packages/*` configs name none, so their failures were always
@@ -77,6 +89,7 @@
     seeds stays the fix.
 - **Cross-reference:** KI-2026-10-13-f (unreadable job logs); KI-2026-10-11-c
   (`suggestions.test.tsx` under full-suite load, the other suspect for the unnamed reds);
+  KI-2026-10-19-c and KI-2026-10-19-d (M50's two non-property reds);
   KI-2026-09-05-p (the optimistic property). Merged here on 2026-10-17 and moved to `resolved/` as
   duplicates: KI-2026-10-05-b, KI-2026-10-11-a, KI-2026-10-12-a, KI-2026-10-12-f.
 - **First noted:** 2026-10-14, during M46's walk changes; the four instances from 2026-10-05 to

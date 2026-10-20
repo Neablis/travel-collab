@@ -34,6 +34,22 @@
 
   Done 2026-10-17 with Mitchell's approval; the redeploy `dpl_EdknDNvmQD5p7zfDw3anh9ooBqLe` went
   READY.
+- **Recurred (M50, 2026-10-19):** part 7 (PR 499) generated its migration before part 2
+  (PR 496) merged with `0060_users_signup_ref`, and its preview applied it to `preview` (Neon
+  project `sweet-firefly-79114130`, branch `br-holy-hill-arelg6wy`) as row 65. Decision 18
+  renumbered it to `0061_users_dismissed_publish_offers` after 496 merged, with a newer `when`,
+  so the next preview build would re-run its `ADD COLUMN` on a column that already existed. Repaired with
+  Mitchell's approval, same recovery:
+
+  ```sql
+  ALTER TABLE users DROP COLUMN dismissed_publish_offers;
+  DELETE FROM drizzle.__drizzle_migrations WHERE id = 65;
+  ```
+
+  PR 499's next preview build then applied `0061` once, as row 66, and the preview went READY.
+  Two milestones in a row: the plan's "the part that merges second regenerates" rule produces
+  this every time that part's preview has already run, so until a fix below lands, the recovery
+  is a standing step of any renumber.
 - **Why not fixed here:** found during M47's close, which is prose-only. Each fix below is a build
   script or infrastructure change.
 - **Fix direction:** any one of these would do. (a) Make `vercel-build-migrate.mjs` print the
@@ -43,4 +59,4 @@
   preview its own Neon branch, so a renumbered migration can only break its own preview. Until
   then: when a part regenerates a migration its preview already applied, do the recovery above
   before the next preview build.
-- **First noted:** 2026-10-17, M47 part 4 (PR 475).
+- **First noted:** 2026-10-17, M47 part 4 (PR 475). Recurred 2026-10-19, M50 part 7 (PR 499).

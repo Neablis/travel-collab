@@ -129,11 +129,11 @@ apps/web             Next.js all-in-one (UI + route handlers/server actions).
 The exempt shell is `src/server/**`, `src/app/api/**`,
 `src/app/.well-known/**/route.ts` — and, since 2026-09-14,
 **`src/app/admin/**`**, which may import `src/server` internals but still may
-not reach `packages/domain` or build an Auth.js instance. M20's gate needs a
-non-admin to get a 404 for the **route**, and `users.is_admin` is a database column
-the edge proxy cannot read under JWT sessions (ADR-025); the console fetching its
-own API over HTTP produced two defects in two days. `scripts/check-lint-wall.mjs`
-lints three fixtures under `src/app/admin`, so the exemption is exactly one hole.
+not reach `packages/domain` or build an Auth.js instance: a non-admin gets a 404
+for the **route**, which the edge proxy cannot decide under JWT sessions (ADR-025,
+M20); fetching its own API over HTTP cost two defects in two days.
+`scripts/check-lint-wall.mjs` lints three fixtures under `src/app/admin`, so
+the exemption is exactly one hole.
 
 Since 2026-10-02 the shell also holds **`src/app/sitemap.ts` and
 `src/app/robots.ts`** (SEO pass, D2): the sitemap lists every published day,
@@ -235,10 +235,8 @@ git's index and refs even with disjoint file sets: in M3 one agent's
 `superpowers:using-git-worktrees`.
 
 Rule: a phase or task branch worked independently of others is not "done"
-until its **PR is open**. A `docs/STATUS.md` on an unmerged branch is read by
-nobody, and only a PR puts the diff in front of conflict detection while it is
-small — M10 Wave 2's Phase 3 sat built and PR-less while Phase 4 merged past it
-(PR #25). Before starting parallel work on the current milestone, check for
+until its **PR is open**: only a PR puts the diff in front of conflict
+detection while it is small (M10 Wave 2, PR 25). Before starting parallel work on the current milestone, check for
 sibling `claude/*` branches (`git ls-remote --heads origin`); a
 finished-but-unmerged one gets a PR, or a recorded reason it is left.
 
@@ -254,12 +252,10 @@ and PR #55 alone spent **315** on work-in-progress.
 
 Classify the change by what it touches, then run **only** that tier.
 
-> **The short version, because it has been misread.** Mid-branch, each fix runs
-> **only its own subset** (Tier 1 or 2; CLAUDE.md rule 4). The full suite runs
-> **once**, when the PR is ready (Tier 3), and CI runs it, not you: the full
-> suite is never run locally (CLAUDE.md rule 1). **Never per part of a stack,
-> per fix, or "to be sure"** — the suggester role ran it on each of three
-> stacked parts and twice more (`docs/retros/2026-10-04-suggester-role-retro.md`, §2).
+> **The short version.** Mid-branch, each fix runs **only its own subset**
+> (Tier 1 or 2). The full suite runs **once**, when the PR is ready (Tier 3),
+> and CI runs it, never you (CLAUDE.md rules 1 and 4). **Never per part of a
+> stack, per fix, or "to be sure"** (`docs/retros/2026-10-04-suggester-role-retro.md`, §2).
 
 **Tier 1 — prose only.** Every path changed **by the whole branch**, not just
 by your latest commit, is under `docs/**`, `.claude/**`, `.agents/**`, or is a
@@ -330,8 +326,7 @@ point: they describe the change, not the ceremony around it.
   it is not yet reviewable as.** Ask before you start: **on the preview, what
   does a person click to see this?** "Nothing yet, and here is the walk that
   will exist when link N lands" is a fine answer written down and a bad one
-  discovered in review — PR #141 opened as "the primitives, not in the picker"
-  and drew *"this is another milestone thats not functionally reviewable"*.
+  discovered in review (PR 141).
 - **A new feature does not owe the public API an endpoint** (Mitchell,
   2026-09-24). Do not add `/api/v1/**` routes, scopes or OpenAPI entries for it
   unless the task is API work (`docs/guidelines/using-the-api.md`, *Features
@@ -379,8 +374,7 @@ run exists for your HEAD first (`github-rest`, *Runs for a head*), then read.
 
 ### Review is ours: a `part-reviewer` after every push
 
-**Decided 2026-10-13 (Mitchell): CodeRabbit is removed, and we do our own
-reviews.** A new `part-reviewer` subagent reviews every push to a milestone
+**We do our own reviews** (Mitchell, 2026-10-13). A `part-reviewer` subagent reviews every push to a milestone
 part (`review-a-part`); any other code PR gets one on its finished head before
 it is handed to Mitchell. Before the riskiest part of a milestone is called
 ready, one extra, fresh `part-reviewer` pass reads its whole diff. A finding is
@@ -391,8 +385,7 @@ Mitchell merges.
 ### Do not watch what cannot run
 
 `--watch` is right only **when checks will exist**. They will not on a
-**Tier 1 PR** — the *whole PR* prose, so only `ci-ok` reports, in under a
-minute (a prose commit on a branch that carries code is not this case) — or on
+**Tier 1 PR** (the *whole PR* prose; only `ci-ok` reports) or on
 a **draft PR**, where `ci.yml`'s `if:` guards skip everything until it is
 marked ready (`github-rest`). If no run exists for your HEAD and none should,
 that is the finished state: say so and move on.
@@ -417,9 +410,8 @@ these out immediately:
   Current milestone) were left unflipped.
 - **A status file restating a known-issue entry rather than pointing at it.**
   `scripts/check-ki-citations.mjs` catches the mechanical half. The judgement
-  half: three status files agreeing is not corroboration when none of their
-  authors opened the entry — a milestone spent three days blocked on a variable
-  that was set all along (`docs/known-issues/README.md`, 2026-09-19).
+  half: files agreeing is not corroboration if none opened the entry
+  (`docs/known-issues/README.md`, 2026-09-19).
 - A phase/task branch sits finished-but-unmerged while other work on the same
   milestone continues (Workstreams' PR-promptness rule).
 
@@ -455,8 +447,7 @@ is the law it expands: invariants only, each one paid for.
 - **Property tests carry a `witness`.** A property that skips every generated
   case still reports ✓. Count the assertions and assert a floor (`witness.ts`,
   duplicated per package). **Measure the floor, don't guess it** — set it near
-  half the observed minimum. A probe once passed 400 runs having asserted
-  **zero** times, and the first guessed floors flapped 3-in-15.
+  half the observed minimum: a probe once passed 400 runs asserting **zero** times.
 - **If a comment asserts an invariant, a test enforces it or the comment is a
   lie with a timer on it.** KI-1, the `evolveTrip` totality hole, and KI-14
   were all the same species: a correct-looking abstraction resting on a stated

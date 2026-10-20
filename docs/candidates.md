@@ -16,6 +16,65 @@ not by anybody remembering. That automation exists because the rule was being
 skipped: M23's entry survived its own gate closing on 2026-09-19 and was still
 here two days later.
 
+- **The front door tells the story: a homepage redesign from Mitchell's 2026-10-19 walk
+  (asked 2026-10-19).** Walking production `/` after M50 part 9 (PR 503, merged as a stopgap),
+  Mitchell said the homepage needs a bigger design review, not more fixes:
+  - **Whole real pages, not lifted widgets.** Tiny app widgets lifted out of their page lose the
+    magic. Show whole real pages; the notebook page (part 9's diary page) is the model.
+  - **One seamless flow on desktop, like mobile.** The desktop's alternating dark/light bands (the
+    "checker") leave dead space on wide screens and flow awkwardly. Make it one continuous ground,
+    each card fading into the next, the way the phone's pinned scroll already does.
+
+  **His six toolbar threads, verbatim** (Vercel preview of PR 503, ultrawide 3440px, code at
+  `6d167a0b`):
+  - *Hero, "Plan the trip together."* (`LandingScreen.tsx:170-267`):
+    > Theres too much deadspace today on the left and right. The plan the trip together section
+    > map view doesnt extend to the left so it looks bad now
+
+    Content is capped at `max-w-285` (1140px, `:222`); `.landing-hero-veil` (`globals.css:1915-1924`)
+    paints the left 30% solid paper; the map art (`LandingHeroArt`) sits in the right column only.
+  - *Playbooks spread, "Relive someone's perfect day."* (`LandingFeatureBlocks.tsx:383-398`):
+    > I dont like the dark/light checker pattern background
+
+    > The goal of this section was to give a high level example of how easy it is to find a day and
+    > slow it into a trip. I think we lost that somewhere, the left feels unrelated to the right
+    > (expecially since its a different trip and theres nothing that connects the right to the left?)
+
+    ("slow" = "slot".) The find-a-day-and-slot-it story survives only in the fallback drawing
+    `PlaybooksArt` (`:207-254`); the live page shows two unrelated Discover cards and no trip.
+  - *Together + Countdown row* (`LandingFeatureBlocks.tsx:405-480`):
+    > These two cards dont relate to each other, but they are next to other like they should, its a
+    > confusing experience.
+  - *Notebook spread, "How you'll remember it."* (`LandingFeatureBlocks.tsx:486-501`), the positive one:
+    > I think i like this one the most, its a real card from notebook, it shows how its used and how
+    > its beneficial
+  - *Pricing* (`LandingScreen.tsx:281-283`, `LandingPricing.tsx:24-54`):
+    > I dont like how pricing is shown today at all, Its very sterile. The goal was it to bring some
+    > excitement
+    >
+    > 1. Free tier! you can still have all the trips you want
+    > 2. Want some help? for 9/month a personal ai assistant will help you put together a perfect trip
+    > 3. Want to bring all your friends along? Only 1 person needs to be premium, and invite the crew to join
+    >
+    > Something kinda like that ^ But really work on that design, its very placeholder
+
+  **Desktop vs mobile today.** Desktop (`LandingScreen.tsx:145-354`) is a stack of bands: moss hero,
+  moss playbooks spread, paper Together/Countdown row, mirrored moss notebook spread, paper pricing,
+  paper closing quote. All held to 1140px (`PAGE`, `LandingFeatureBlocks.tsx:94`) with a 54px gap
+  and a hard `border-y` between islands, so at 3440px about two-thirds of every band is empty.
+  Mobile (`PhoneFrontDoor.tsx`, SPEC §28) is one pinned scroll (`:454-455`): one moss map behind,
+  four claims stacked in one slot and crossfaded by scroll progress with overlapping fades
+  (`EDGE = 0.16`, `:73-90`), never blank, releasing onto the closing quote and pricing.
+
+  **Recurring themes:** wide-screen dead space; kill the checker and the zig-zag; things side by side
+  must relate (or not sit side by side); show the story or outcome, not a specimen; real widgets in
+  their real page; pricing is placeholder and should sell outcomes with energy.
+
+  **Decided so far (Mitchell, 2026-10-19):** it is its own milestone, not more M50 parts, and it
+  starts with a design review with sketches before any code. Open for that review: the pricing
+  pitch's *"Free tier!"* against the landing's no-"free" copy rule (SPEC §14, cited at
+  `LandingScreen.tsx:24-29`). Unplaced; no gate deletes this entry yet.
+
 - **Gesture and keyboard follow-ups left out of M41 (2026-10-10).** Considered while scoping M41
   and left for later, in rough order of value:
   - **Multi-select drag:** shift-click several stops and drag them as one batch.

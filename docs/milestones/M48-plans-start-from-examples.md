@@ -1,6 +1,6 @@
 # M48 — A planned trip starts from trips that already exist
 
-**Status:** **Built ahead of the milestone order, with Mitchell's approval; the gate is not
+**Status:** **Parked 2026-10-19 for M50** (Mitchell): the open boxes wait on plan-turn traffic; it resumes after M50. **Built ahead of the milestone order, with Mitchell's approval; the gate is not
 closed.** It was proposed on 2026-10-11 and placed after M47. The RAG stack merged on
 2026-10-15/16 as PRs 459 to 467 (migration `0054_rag_day_embeddings`), and the Gate 1 eval,
 PR 461, merged last, on 2026-10-17. It is in production behind `RAG_PLAN_RETRIEVAL`.

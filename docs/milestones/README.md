@@ -130,6 +130,7 @@ for collaboration later landing on a product people already want to join.
 | M47 | The operator console shows tiers over time, and paid flows can be tested in production | **Proposed 2026-10-06, scoped 2026-10-17**: all four decisions answered by Mitchell (ADR-076, amending ADR-047; plan `docs/plans/2026-10-17-M47-the-business-over-time.md`, four parts). (This row said *"scoped 2026-10-07: all six decisions answered as recommended"* until 2026-10-10 from a bulk edit; the 2026-10-17 answers are the real ones.) From `docs/candidates.md`; see *2026-10-06 — proposed: M37 to M47*. Weekly tier rollup and chart; Stripe `livemode` beside live: `M47-the-business-over-time.md` |
 | M48 | A planned trip starts from trips that already exist | **Proposed 2026-10-11; serving code merged 2026-10-16** off the row order, with Mitchell's approval (`docs/STATUS.md`), behind a flag, **on in production from 2026-10-17** to gather flag-on numbers: PRs 459-467, migration `0054`, pgvector in Neon (ADR-075). **Current since 2026-10-18**, when M47's gate closed; what is left is the gate's evidence and the ledger box. From a PM brief (Sunny), on Mitchell's ask; see *2026-10-11 — proposed: M48*. A `plan` turn adapts example days Caesura already holds instead of inventing them, measured in dollars per plan turn. Decisions and the remaining gate boxes: `M48-plans-start-from-examples.md` |
 | M49 | A cover can come from anywhere, and be framed where you want it | **Proposed 2026-10-12, not scoped**; decisions 1–3 answered by Mitchell at minting. On his ask; see *2026-10-12 — reordered and minted*. Placed after M48, ahead of M43 and M44. A trip's cover set, read and cleared on the public API from any image URL (referenced, never stored), and a cover's crop repositioned in the API and by drag on the band. Absorbs the *Reposition a cover* candidate: `M49-covers-from-anywhere.md` |
+| M50 | A stranger can find a day, make it their trip, and bring people in | **Closed 2026-10-19, gate 11 of 11**, on part 0, PR 493. **Proposed and scoped 2026-10-19 with Mitchell**, ahead of M48 (parked) and M49. From his go-to-market plan; see *2026-10-19 — minted: M50, M48 parked*. Copy fixes, first-touch `?ref=` attribution (ADR-079, migration `0060`), place-page JSON-LD, one step from a playbook day to a new trip, an editorial landing and empty states, publishing a lived trip, the referral nudge; eight parts (the plan is deleted): `M50-strangers-find-a-day.md` |
 
 - **Restructure (2026-07-28), from the Phase 1 gate review.** The gate had not
   been met and the reason was structural, not cosmetic: a trip cannot be renamed
@@ -195,7 +196,7 @@ Placement notes (decided 2026-07-07):
   questions stay open — start-only trip dates, first-run vs. the four-step
   wizard, and whether the landing copy may sell M11/M12 — see the review's §8.
 
-Current milestone: M48 — A planned trip starts from trips that already exist
+Current milestone: M49 — A cover can come from anywhere, and be framed where y…
 
 ### Archived decision notes
 
@@ -229,6 +230,14 @@ instruction, and they were 56% of this file.
 - **2026-10-06** — M35 closed; M37 is current
 - **2026-08-08, 2026-08-14, 2026-08-25, 2026-08-26** — the superseded reorders and M10's reopened gate, and the placement paragraphs for M26 to M28: *Moved out of README.md on 2026-09-30*, at the end
 - **Current-milestone placements, M14 to M34**: *Moved out of README.md on 2026-10-11*, at the end
+
+### 2026-10-19 — minted: M50, M48 parked
+
+**Asked 2026-10-19.** Mitchell brought a go-to-market plan and asked for its buildable parts as
+*"the next milestone"*. **M50 is minted and current**; it is scoped the same day (ten decisions
+answered, four settled on the recommendation; `M50-strangers-find-a-day.md`). **M48 is parked,
+not closed**: its open boxes wait on plan-turn traffic, which M50's launch is meant to bring; it
+resumes after M50, with its no-traffic items first. Order: M50 → M48 → M49 → M43 → M44.
 
 ### 2026-10-12 — reordered and minted: M43 and M44 go last; M49, covers from anywhere
 
