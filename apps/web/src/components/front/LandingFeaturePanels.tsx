@@ -58,8 +58,10 @@ export function FindADayPanel(): React.ReactElement {
 
 const { crew } = LANDING_FEATURES;
 const CREW_ACCENTS = snapshotAccents(crew.accents);
-// Sixteen hours of Naxos in about 500px, so the moment stays near 600 and the
-// sea shows around it (decision 10); a short stop keeps the board's floor height.
+// Sixteen hours of Naxos in about 500px; a short stop keeps the board's floor
+// height. The moment's cell is whole rows of the sea (760px declared in
+// `LandingSea`'s STORIES), five at 1440: 868px, past decision 10's "about
+// 600", with the river ending short of the cell's foot.
 const CREW_PX_PER_HOUR = 32;
 
 /**

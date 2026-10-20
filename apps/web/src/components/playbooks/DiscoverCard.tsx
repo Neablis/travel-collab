@@ -214,6 +214,49 @@ export function DiscoverCard({
       </span>
     </div>
   );
+  // **One level under what heads the list, styled as the h4 it used to be.**
+  // A place's playbooks and a profile put these cards straight under their
+  // h1, so an h4 skipped two levels and axe failed `/playbooks` on
+  // heading-order; Discover heads its results with an h2 (M50 part 6) and
+  // passes 3. The level is structure; `text-md font-medium` keeps the card
+  // title the size it was, and a wide card's takes the card-title step up
+  // from `sm`, where it is wide. On the sea, three lines and an ellipsis at a
+  // word, so a long title never runs off a cell's foot.
+  const title = (
+    <Heading
+      level={headingLevel}
+      className={cn("text-md font-medium leading-snug", wide && "sm:text-lg", sea !== null && "line-clamp-3")}
+    >
+      {/* §13.1's phone floor on the card's ROW ACTION — this title link is
+          the only way into the day, so it is the target (M26 link 14's
+          sweep, found by the census in the full e2e lane where seeded
+          Playbooks render and an isolated run had none). `inline-flex
+          items-center` so the floor makes the link taller rather than
+          leaving the text at the top of an empty 44px. */}
+      {sea?.href === null ? (
+        day.name
+      ) : (
+        <Link
+          href={sea === null ? `${dayPath(day)}${back}` : sea.href}
+          prefetch={sea === null ? undefined : false}
+          tabIndex={sea?.background ? -1 : undefined}
+          // Inline on the sea, where the heading clamps its lines: an
+          // inline-flex box is one atom, which no clamp can break. The sea
+          // is desktop-only, so it needs no phone floor.
+          className={cn("hover:underline", sea === null ? cn("inline-flex items-center", PHONE_TOUCH) : "landing-sea-door")}
+          // On the link, where focus lands, so the kind of day is heard with its name.
+          aria-describedby={day.description === null ? undefined : descriptionId}
+        >
+          {day.name}
+        </Link>
+      )}
+    </Heading>
+  );
+  // On the sea the title and the chips share one part of the card, which
+  // `.landing-sea-head` lays bottom-up with the title first: a card too short
+  // for both drops the chips and keeps the title (PR 510 r4). The chips still
+  // draw above it. With a cover the chips stand on the photo, as elsewhere.
+  const seaHead = sea !== null && cover === null;
   const body = (
     <>
       {line !== null && (
@@ -226,43 +269,7 @@ export function DiscoverCard({
           card's wrapping column, so a small cell keeps the title and drops
           the facts rather than losing both. */}
       <div className={cn(sea !== null && "contents")}>
-        {/* **One level under what heads the list, styled as the h4 it used to
-            be.** A place's playbooks and a profile put these cards straight
-            under their h1, so an h4 skipped two levels and axe failed
-            `/playbooks` on heading-order; Discover heads its results with an
-            h2 (M50 part 6) and passes 3. The level is structure; `text-md
-            font-medium` keeps the card title the size it was, and a wide
-            card's takes the card-title step up from `sm`, where it is wide. */}
-        {/* On the sea, three lines and an ellipsis at a word, so a long
-            title never runs off a cell's foot. */}
-        <Heading
-          level={headingLevel}
-          className={cn("text-md font-medium leading-snug", wide && "sm:text-lg", sea !== null && "line-clamp-3")}
-        >
-          {/* §13.1's phone floor on the card's ROW ACTION — this title link is
-              the only way into the day, so it is the target (M26 link 14's
-              sweep, found by the census in the full e2e lane where seeded
-              Playbooks render and an isolated run had none). `inline-flex
-              items-center` so the floor makes the link taller rather than
-              leaving the text at the top of an empty 44px. */}
-          {sea?.href === null ? (
-            day.name
-          ) : (
-            <Link
-              href={sea === null ? `${dayPath(day)}${back}` : sea.href}
-              prefetch={sea === null ? undefined : false}
-              tabIndex={sea?.background ? -1 : undefined}
-              // Inline on the sea, where the heading clamps its lines: an
-              // inline-flex box is one atom, which no clamp can break. The sea
-              // is desktop-only, so it needs no phone floor.
-              className={cn("hover:underline", sea === null ? cn("inline-flex items-center", PHONE_TOUCH) : "landing-sea-door")}
-              // On the link, where focus lands, so the kind of day is heard with its name.
-              aria-describedby={day.description === null ? undefined : descriptionId}
-            >
-              {day.name}
-            </Link>
-          )}
-        </Heading>
+        {!seaHead && title}
         <DataText size="xs" className="mt-1 block">
           {/* **The day count leads** (M23 link 4's gate box). It is the number
               that changes whether somebody opens this at all, and it is the
@@ -389,7 +396,14 @@ export function DiscoverCard({
     >
       {cover === null ? (
         <>
-          {chipRow}
+          {seaHead ? (
+            <div className="landing-sea-head">
+              {title}
+              {chipRow}
+            </div>
+          ) : (
+            chipRow
+          )}
           {body}
         </>
       ) : (

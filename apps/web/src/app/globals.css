@@ -2089,7 +2089,7 @@ html[data-look="ledger"] .shadow-raised {
   }
   /* The sea dimming into ground as the reader scrolls: one veil over the
      background and under the moments and their lit days. Its opacity is the
-     one value the scroll writes (`--sea-dim`, 0 to 1, on the sea's root). */
+     one value the scroll writes (`--sea-dim`, 0 to 1, on the scrim itself). */
   .landing-sea-scrim {
     position: absolute;
     inset: 0;
@@ -2133,8 +2133,24 @@ html[data-look="ledger"] .shadow-raised {
     overflow: hidden;
   }
   .landing-sea-card > *,
-  .landing-sea-card > .contents > * {
+  .landing-sea-card > .contents > *,
+  .landing-sea-head > * {
     width: 100%;
+  }
+  /* The card's first part: its title, then its chips, laid upwards from the
+     title. Too tall for the card, it is the only part in the first column
+     and shrinks to it; inside, the chips then wrap to a clipped column of
+     their own, so the title is never the part a short card drops.
+     `flex-end` packs the pair to the top, chips over title. */
+  .landing-sea-head {
+    display: flex;
+    flex-direction: column-reverse;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    row-gap: inherit;
+    column-gap: 2.5rem;
+    min-height: 0;
+    overflow: hidden;
   }
   /* One row of chips: a chip with no room wraps to a second row a whole row
      below the first, which is clipped. */

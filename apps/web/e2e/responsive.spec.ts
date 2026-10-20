@@ -860,6 +860,30 @@ test.describe("responsive (narrow viewport, signed out)", () => {
       );
       expect(misfits).toEqual([]);
     });
+
+    // A card keeps its title above all else: chips and tags drop first. A
+    // card's parts that do not fit move to a second column, which it clips,
+    // so a title moved there leaves a card naming no day (PR 510 r4: Catania
+    // and Marrakech on a one-row cell showed their chips and nothing else).
+    test(`every card on the first screen shows its title at ${width}px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 1000 });
+      await page.goto("/");
+      const cells = page.getByTestId("desktop-landing").getByTestId("sea-cell");
+      await expect(cells.first()).toBeVisible();
+      const untitled = await cells.evaluateAll((els) =>
+        els
+          .filter((cell) => cell.getBoundingClientRect().bottom <= window.innerHeight)
+          .map((cell) => {
+            const card = cell.querySelector("[data-testid=discover-card]")!.getBoundingClientRect();
+            const title = cell.querySelector("h3")!;
+            const box = title.getBoundingClientRect();
+            const inside = box.left >= card.left && box.right <= card.right + 0.5 && box.top >= card.top && box.bottom <= card.bottom + 0.5;
+            return inside ? null : title.textContent;
+          })
+          .filter((name) => name !== null),
+      );
+      expect(untitled).toEqual([]);
+    });
   }
 
   // The front door is the one surface a phone actually reaches signed out,

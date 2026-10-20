@@ -32,8 +32,10 @@ type SeaDoor = SeaCell & { href: string | null };
 // column count is `--cols` (globals.css), the hero is placed by it, and the
 // first screen's cells flow `dense` around the hero. Below it, `layoutSea`
 // packs the rest from the same `--cols`, read back once mounted; the server
-// packs it for six columns, the fewest, which is out of sight at any width
-// until the client has packed it again.
+// packs it for six columns, the fewest. That packing is below the first
+// screen's eight rows, so out of sight until the client packs again, on any
+// screen up to about 1440px tall; on a taller one (a portrait monitor) its
+// rows show, and move, at hydration.
 //
 // **The only module that imports the sea's snapshot.** It is not handed down
 // as a server prop as well, which would put it in the page twice: once in the
@@ -442,6 +444,7 @@ const PANEL_PENDING = <div className="min-h-0 flex-1 rounded-lg border border-ha
  */
 export function LandingSea({ hero, pricing, closing }: { hero?: ReactNode; pricing?: ReactNode; closing?: ReactNode }) {
   const rootRef = useRef<HTMLDivElement>(null);
+  const scrimRef = useRef<HTMLDivElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
   const [metrics, setMetrics] = useState(SERVER_METRICS);
   const layout = useMemo(() => layoutSea(metrics), [metrics]);
@@ -466,13 +469,17 @@ export function LandingSea({ hero, pricing, closing }: { hero?: ReactNode; prici
 
   useEffect(() => {
     const root = rootRef.current;
-    if (root === null) return;
+    const scrim = scrimRef.current;
+    if (root === null || scrim === null) return;
     // Read live in `paint`, as the board reads it: the preference can change mid-session.
     const motion = window.matchMedia?.("(prefers-reduced-motion: reduce)");
     const paint = () => {
       const still = motion?.matches ?? false;
       const viewport = window.innerHeight;
-      root.style.setProperty("--sea-dim", styleNumber(seaDim(window.scrollY, viewport)));
+      // On the scrim, its one reader, which holds no card: set on an ancestor
+      // of the cells, this inherited property restyled every mounted card on
+      // every scroll event, 115ms a frame with 650 mounted (PR 510 r4).
+      scrim.style.setProperty("--sea-dim", styleNumber(seaDim(window.scrollY, viewport)));
       for (const moment of root.querySelectorAll<HTMLElement>("[data-moment]")) {
         const box = moment.getBoundingClientRect();
         const { opacity, dy } = momentRise(box.top, box.height, viewport);
@@ -493,10 +500,13 @@ export function LandingSea({ hero, pricing, closing }: { hero?: ReactNode; prici
   }, []);
 
   const { stories, lit, background, rows } = layout;
+  // In reading order, row then column, so Tab never jumps back up the page:
+  // the packer places them beside, above, then below the moment.
   const litFor = (moment: MomentId) =>
-    lit.filter((day) => day.moment === moment).map(({ cell, door, at }) => (
-      <Cell key={cell.day.savedDayId} cell={cell} at={at} background={!door} litFor={moment} />
-    ));
+    lit
+      .filter((day) => day.moment === moment)
+      .sort((a, b) => a.at.row - b.at.row || a.at.col - b.at.col)
+      .map(({ cell, door, at }) => <Cell key={cell.day.savedDayId} cell={cell} at={at} background={!door} litFor={moment} />);
   const moments: Record<MomentId, ReactNode> = {
     "sea-find": (
       <Moment key="sea-find" id="sea-find" heading="Find a day worth borrowing." region="thailand-beaches" at={stories["sea-find"]}>
@@ -553,13 +563,7 @@ export function LandingSea({ hero, pricing, closing }: { hero?: ReactNode; prici
   ].sort((a, b) => a.row - b.row || a.order - b.order);
 
   return (
-    <div
-      ref={rootRef}
-      data-testid="landing-sea"
-      // eslint-disable-next-line no-restricted-syntax -- not a style but the scroll's one state value, authored at rest (SPEC §28's note 2) where `paint` writes it; `.landing-sea-scrim` reads it.
-      style={{ "--sea-dim": 0 } as React.CSSProperties}
-      className="landing-sea bg-hairline"
-    >
+    <div ref={rootRef} data-testid="landing-sea" className="landing-sea bg-hairline">
       <div
         ref={gridRef}
         data-testid="sea-grid"
@@ -568,7 +572,14 @@ export function LandingSea({ hero, pricing, closing }: { hero?: ReactNode; prici
         style={{ "--sea-rows": rows } as React.CSSProperties}
         className="landing-sea-grid"
       >
-        <div aria-hidden className="landing-sea-scrim" />
+        <div
+          ref={scrimRef}
+          aria-hidden
+          data-testid="sea-scrim"
+          // eslint-disable-next-line no-restricted-syntax -- not a style but the scroll's one state value, authored at rest (SPEC §28's note 2) where `paint` writes it
+          style={{ "--sea-dim": 0 } as React.CSSProperties}
+          className="landing-sea-scrim"
+        />
         {/* First in the DOM, so a screen reader meets the page's h1 first. */}
         <div className="landing-sea-hero flex min-h-0 flex-col justify-center overflow-hidden rounded-2xl bg-paper p-9 shadow-lifted">
           {hero}

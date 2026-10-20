@@ -231,13 +231,20 @@ describe("the rise and the dim", () => {
     expect(html).not.toMatch(/opacity[^>]*data-rise/);
 
     render(<LandingSea />);
-    const sea = screen.getByTestId("landing-sea");
+    const scrim = screen.getByTestId("sea-scrim");
 
     const moment = screen.getByRole("region", { name: "Plan the rest with the crew." });
     vi.spyOn(moment, "getBoundingClientRect").mockReturnValue({ top: window.innerHeight, height: 400 } as DOMRect);
     vi.spyOn(window, "scrollY", "get").mockReturnValue(window.innerHeight * 3);
     fireEvent.scroll(window);
-    expect(sea.style.getPropertyValue("--sea-dim")).toBe("1");
+    expect(scrim.style.getPropertyValue("--sea-dim")).toBe("1");
+    // Written on the scrim, which holds no card: an inherited property set on
+    // an ancestor of the cells restyles every mounted card on every scroll
+    // event (115ms a frame with 650 mounted at 3440, PR 510 r4).
+    expect(within(scrim).queryAllByTestId("sea-cell")).toEqual([]);
+    for (const ancestor of [screen.getByTestId("landing-sea"), screen.getByTestId("sea-grid")]) {
+      expect(ancestor.style.getPropertyValue("--sea-dim")).toBe("");
+    }
     expect(within(moment).getByTestId("moment-panel").style.opacity).toBe("0");
   });
 });
@@ -341,13 +348,16 @@ describe("the sea's grid", () => {
     expect(within(find).getByTestId("moment-panel").style.opacity).toBe("1");
   });
 
-  it("lights two or three days around each moment, apart from one another", () => {
+  it("lights two or three days around each moment, apart from one another, and tabs through them down the page", () => {
     render(<LandingSea />);
     const counts = MOMENTS.map((name) => [name, litAround(name).length] as const);
     expect(counts.filter(([, n]) => n < 2 || n > 3)).toEqual([]);
     for (const name of MOMENTS) {
       const areas = litAround(name).map((cell) => areaOf(cell)!);
       expect(areas.flatMap((a, i) => areas.slice(i + 1).filter((b) => meet(a, b, 1)))).toEqual([]);
+      // In the DOM, and so in Tab order, as the eye reads them: a lit day
+      // above the moment's foot is not reached after one below it (PR 510 r4).
+      expect(areas).toEqual([...areas].sort((a, b) => a.row - b.row || a.col - b.col));
     }
   });
 });
