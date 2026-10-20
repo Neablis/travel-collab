@@ -221,7 +221,7 @@ Four details that are easy to get wrong and were each got wrong once:
   unrecoverable, and two overlapping ones are worse.
 - **`paths-ignore` lists `*.md`, not `**/*.md`.** `**/*.md` would also match
   `.design-sync/**`, and that tree is a **real build input**:
-  `packages/fixtures/src/japan/upstreamDrift.test.ts:30` and
+  `packages/fixtures/src/japan/upstreamDrift.test.ts:33` and
   `apps/web/scripts/geocode-japan-seed.mts:139` both read
   `.design-sync/handoff/data/japan-trip-seed.json`. (This used to cite
   `api/dev/reset-demo-data/route.ts`, which no longer imports it — the rule

@@ -1,4 +1,4 @@
-### KI-2026-10-19-b — AGENTS.md is at 86% of its byte budget and due a retirement pass
+### KI-2026-10-19-b — AGENTS.md is at 86% of its byte budget and due a retirement pass — RESOLVED
 
 - **Severity:** cleanup. Nothing is broken. `pnpm surface --check` passes but marks the file `!!`,
   and `surface-size.test.mjs` fails `static-and-unit` on every PR once the file is inside its
@@ -39,3 +39,12 @@
   the Verification and Testing sections against CLAUDE.md, the stale trip-board sentence, and
   the 75% target. Those restructure binding text, so they want their own reviewed PR.
 - **First noted:** 2026-10-18, PR 486's final review. Filed 2026-10-19.
+- **Resolved, 2026-10-20 (second pass, asked for by Mitchell):** 28,316 B → 24,806 B, 73% of
+  the 34,000 B budget, under the 75% target. The exemption paragraphs are one list (path,
+  decision citation, "on the console's terms", fixture count); the trip-board line now says the
+  board's header and its view's placeholder are in the first HTML, checked against
+  `apps/web/src/server/tripFirstData.ts`; Verification and Testing point at CLAUDE.md rules 1–4
+  and `docs/guidelines/testing.md` instead of restating them; the worktree rule no longer cites
+  the unavailable `superpowers:using-git-worktrees`. Ten cuts, each with its criterion and the
+  verbatim old text, in `docs/retros/2026-10-19-retired-rules.md` §9–18. **Proof:** `pnpm
+  surface` reports the bytes; the branch is Tier 1 (prose only), so nothing else runs.
