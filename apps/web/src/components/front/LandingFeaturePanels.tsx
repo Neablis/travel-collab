@@ -43,7 +43,9 @@ export function TogetherPanel(): React.ReactElement {
  * The sea's first moment: the Railay day as a big card, and the same day again
  * as a small one beside it (Mitchell, on C2: *"I love the bigger card on the
  * left, and the smaller detacted card being the same trip"*). Both open the
- * day's canonical page, as every cell of the sea does.
+ * day's canonical page, as every cell of the sea does. The small one is a
+ * background card: the same door again would be a second tab stop and a
+ * second reading of one name.
  */
 export function FindADayPanel(): React.ReactElement {
   const { shelf } = LANDING_FEATURES;
@@ -53,7 +55,7 @@ export function FindADayPanel(): React.ReactElement {
       <DiscoverCard day={shelf} origin={origin} size="wide" headingLevel={3} className="flex-2" />
       <DiscoverCard
         day={{ ...shelf, cities: [], preview: [], tags: [] }}
-        origin={origin}
+        origin={{ ...origin, background: true }}
         headingLevel={3}
         className="flex-1"
       />

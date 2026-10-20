@@ -1,4 +1,4 @@
-### KI-2026-10-19-d — `LandingHeroArt.failed.test.tsx` times out locally under parallel load
+### KI-2026-10-19-d — `LandingHeroArt.failed.test.tsx` times out locally under parallel load — RESOLVED
 
 - **Severity:** reliability. Local noise; not seen red in CI so far.
 - **Area:** `apps/web/src/components/front/LandingHeroArt.failed.test.tsx:61`
@@ -17,3 +17,9 @@
 - **Cross-reference:** KI-2026-10-14-c (the lazy-import race PR 494 fixed in the sibling
   `LandingFeatureBlocks.failed.test.tsx`).
 - **First noted:** 2026-10-19, local unit runs during M50's build (recorded in the hand-off for the close).
+- **Resolved, 2026-10-20 (M51 part 2, PR 510):** the test is gone with what it tested. PR 510
+  retires `LandingHeroArt.tsx` and its three test files, this one among them, for the desktop
+  sea (`LandingSea.tsx`). The sea's own lazy-panel waits (`LandingSea.test.tsx`) preload
+  `LandingFeaturePanels` in `beforeAll`, the fix this entry proposed, so none of them waits on a
+  cold import. Proof: the file is deleted on the branch, and
+  `pnpm --filter web exec vitest run -c vitest.unit.config.ts src/components/front/LandingSea.test.tsx` passes.

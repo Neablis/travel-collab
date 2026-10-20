@@ -93,8 +93,9 @@ export function editorialSize(index: number): CardSize {
  * card would read the library once per card. `null` is a day this deployment
  * does not hold, which opens nothing (decision 10). The chips and the author
  * are words, not links, so a cell is one door and one tab stop; a
- * `background` cell is no tab stop, so the keyboard reaches the moments
- * without walking the whole library.
+ * `background` cell is no tab stop and hidden from assistive tech, so the
+ * keyboard and a screen reader reach the moments without walking the whole
+ * library. The mouse still opens it.
  */
 export type SeaOrigin = { from: "sea"; href: string | null; background?: boolean };
 
@@ -337,6 +338,7 @@ export function DiscoverCard({
       raised
       as="li"
       data-testid="discover-card"
+      aria-hidden={sea?.background || undefined}
       data-saved-day-id={day.savedDayId}
       data-size={size}
       className={cn(

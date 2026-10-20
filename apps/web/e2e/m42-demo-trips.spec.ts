@@ -122,8 +122,9 @@ test.describe("the front door, signed out (M42)", () => {
   // Decision 10: a linked cell is a door to its day's canonical page, with
   // nothing after the path (ADR-063's cache serves only a query-less one), and
   // the Japan cells, whose days exist only in the dev fixtures, open nothing.
-  // The e2e database imports no `content/`, so the day page itself is not
-  // asserted: the door is, by where it goes.
+  // The e2e database imports no `content/`, so a click would open a 404 and
+  // prove nothing: the door is asserted by where it goes. The background's
+  // doors are out of the accessibility tree, so they are read as anchors.
   test("every sea cell opens its day's canonical page, and the Japan cells none", async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto("/");
@@ -133,24 +134,45 @@ test.describe("the front door, signed out (M42)", () => {
     await expect(notebook.getByRole("heading", { name: "Kyoto temples on foot" })).toBeVisible();
     await expect(notebook.getByRole("link", { name: "Kyoto temples on foot" })).toHaveCount(0);
 
-    const hrefs = (await sea.getByRole("link").evaluateAll((links) => links.map((link) => link.getAttribute("href") ?? "")))
+    const hrefs = (await sea.locator("a").evaluateAll((links) => links.map((link) => link.getAttribute("href") ?? "")))
       .filter((href) => href.startsWith("/playbooks/"));
     expect(hrefs.length).toBeGreaterThan(48);
     for (const href of hrefs) expect(href).toMatch(/^\/playbooks\/day\/[a-z0-9-]+$/);
+  });
 
-    const find = sea.getByRole("region", { name: "Find a day worth borrowing." });
-    await find.scrollIntoViewIfNeeded();
-    const door = find.getByRole("link", { name: RAILAY }).first();
-    const href = (await door.getAttribute("href"))!;
-    await door.click();
-    await expect(page).toHaveURL(new URL(href, page.url()).href);
+  // Decision 10: a moment is compact, so the sea shows around it. Its lit
+  // days sit beside the middle, not in a column twice its height that leaves
+  // blank paper under "Make this your trip" or under the crew's river. Less
+  // than one row of cells (192px) is the most a side may run past it.
+  test("a moment at 1440 is about as tall as what it shows", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto("/");
+    const sea = page.getByTestId("desktop-landing").getByTestId("landing-sea");
+    const make = sea.getByRole("region", { name: /^Start a trip using someone else/ });
+    const crew = sea.getByRole("region", { name: "Plan the rest with the crew." });
+    for (const [moment, last] of [
+      [make, make.getByRole("link", { name: "Make this your trip" })],
+      [crew, crew.getByRole("list", { name: "Day 2 timeline" })],
+    ] as const) {
+      await moment.scrollIntoViewIfNeeded();
+      await expect(last).toBeVisible();
+      await expect(moment.getByTestId("discover-card").first()).toBeAttached();
+      const section = (await moment.boundingBox())!;
+      const shown = (await last.boundingBox())!;
+      expect(section.y + section.height - (shown.y + shown.height)).toBeLessThan(192);
+    }
   });
 
   // A lit cell beside a moment is a tab stop, so it must be drawn whole: one
   // cut off by a clipping box would take focus out of sight and scroll that
-  // box out of place. At 1440, and at 1100, where a side is narrower than a
-  // cell's usual 15rem.
-  for (const width of [1100, 1440]) {
+  // box out of place. At 1440, and at 1100, where a side holds one column and
+  // shows two lit days. The count comes first: the walk proves nothing if no
+  // lit cell is a door. The big Railay card, then the Thai and Greek days a
+  // side shows (Japan's open nothing).
+  for (const [width, doorCount] of [
+    [1100, 1 + 4 + 4],
+    [1440, 1 + 8 + 8],
+  ] as const) {
     test(`every cell a keyboard reaches beside a moment is drawn whole at ${width}`, async ({ page }) => {
       await page.setViewportSize({ width, height: 900 });
       await page.goto("/");
@@ -160,23 +182,25 @@ test.describe("the front door, signed out (M42)", () => {
         await moment.scrollIntoViewIfNeeded();
         await expect(moment.getByTestId("discover-card").first()).toBeAttached();
       }
-      const cut = await moments.evaluateAll((sections) =>
+      const doors = await moments.evaluateAll((sections) =>
         sections.flatMap((section) =>
           [...section.querySelectorAll<HTMLElement>("[data-testid=discover-card]")]
-            .filter((card) => [...card.querySelectorAll("a")].some((link) => link.tabIndex >= 0))
-            .filter((card) => {
+            .filter((card) => card.checkVisibility() && [...card.querySelectorAll("a")].some((link) => link.tabIndex >= 0))
+            .map((card) => {
               const box = card.getBoundingClientRect();
               for (let clip = card.parentElement; clip !== null && clip !== section.parentElement; clip = clip.parentElement) {
                 if (getComputedStyle(clip).overflow === "visible") continue;
                 const edge = clip.getBoundingClientRect();
-                if (box.top < edge.top - 1 || box.bottom > edge.bottom + 1 || box.left < edge.left - 1 || box.right > edge.right + 1) return true;
+                if (box.top < edge.top - 1 || box.bottom > edge.bottom + 1 || box.left < edge.left - 1 || box.right > edge.right + 1) {
+                  return { id: card.getAttribute("data-saved-day-id"), cut: true };
+                }
               }
-              return false;
-            })
-            .map((card) => card.getAttribute("data-saved-day-id")),
+              return { id: card.getAttribute("data-saved-day-id"), cut: false };
+            }),
         ),
       );
-      expect(cut).toEqual([]);
+      expect(doors).toHaveLength(doorCount);
+      expect(doors.filter((door) => door.cut)).toEqual([]);
     });
   }
 

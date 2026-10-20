@@ -1925,6 +1925,29 @@ html[data-look="ledger"] .shadow-raised {
     /* Room for a cell's hover ring at the band's edge, which the overflow would cut. */
     padding: 0.25rem;
   }
+  /* A moment's lit days: narrower columns, so a 1440 side (about 360px) holds
+     two and the moment stays about as tall as its middle. `auto-fit`, so at
+     3440 the lit row spreads across the side rather than leaving empty tracks. */
+  .landing-sea-lit {
+    grid-template-columns: repeat(auto-fit, minmax(min(9.5rem, 100%), 1fr));
+  }
+  /* A moment from lg up: the heading over the middle column's content, the
+     sides spanning every row, so the heading can come first in the DOM. The
+     two `1fr` rows centre a middle shorter than its sides ("Make this your
+     trip" beside two rows of Thai days) rather than leaving the gap under it. */
+  @media (min-width: 1024px) {
+    .landing-sea-moment {
+      grid-template-columns: minmax(0, 1fr) 42rem minmax(0, 1fr);
+      grid-template-rows: 1fr auto auto 1fr;
+    }
+  }
+  /* A moment holding focus is drawn risen, whatever the scroll has painted:
+     a browser that scrolls a focused door only to the screen's edge would
+     otherwise leave it faded and lowered. */
+  [data-moment]:focus-within {
+    opacity: 1 !important;
+    transform: none !important;
+  }
   /* One screen of sea, mounted or not, so a band's cells arriving moves
      nothing (decision 10: one screen between moments). */
   .landing-sea-band {

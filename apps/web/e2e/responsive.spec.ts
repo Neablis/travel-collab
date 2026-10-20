@@ -825,7 +825,8 @@ test.describe("responsive (narrow viewport, signed out)", () => {
     test(`the sea runs edge to edge at ${width}px`, async ({ page }) => {
       await page.setViewportSize({ width, height: 1000 });
       await page.goto("/");
-      const firstScreen = page.getByTestId("desktop-landing").getByRole("list", { name: "Days from the library" }).first();
+      // By test id: the background is hidden from the accessibility tree.
+      const firstScreen = page.getByTestId("desktop-landing").getByTestId("sea-band").first();
       await expect(firstScreen.getByTestId("discover-card").first()).toBeVisible();
       const box = (await firstScreen.boundingBox())!;
       const viewport = await page.evaluate(() => document.documentElement.clientWidth);

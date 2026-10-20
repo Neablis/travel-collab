@@ -61,9 +61,11 @@ const run = (from: number, count: number) =>
 
 /** The background's screens, top to bottom: the first under the headline, then one after each moment. */
 export const SEA_BANDS: Sea["cells"][] = Array.from({ length: 5 }, (_, band) => run(band * BAND_SIZE, BAND_SIZE));
-// A moment's sides are filled from halfway through the band before it, so
-// they do not open on the same days that band just showed.
-const sideFill = (band: number) => run(band * BAND_SIZE + BAND_SIZE / 2, SIDE_SIZE * 2);
+// A moment's sides start after the band below it, so at 3440, where a band
+// shows all 48 of its days, they repeat neither the band just scrolled past
+// nor the next one. The library's 132 background days hold two bands and
+// the 24 cells of a moment's sides without wrapping into either.
+const sideFill = (band: number) => run((band + 2) * BAND_SIZE, SIDE_SIZE * 2);
 
 // How long the first screen holds its colour, then how long the sea takes to
 // dim, in screens of scroll (Mitchell, on C2: *"Keep the initial page
@@ -113,29 +115,22 @@ function useNear<T extends Element>(initial: boolean) {
   return [ref, near] as const;
 }
 
+/** Beside a moment, where a side may be one column wide: rows only, or a wide cell opens a sliver of a second column. */
+const rowsOnly = (cell: SeaDoor) => SPAN[cell.size].replace(/col-span-\d ?/, "");
+
 /**
- * One cell. A background cell is not a tab stop: the keyboard reaches the
- * moments and the calls to action without walking 148 cards, and a reader
- * after a particular day has the library itself.
+ * One cell. A background cell is not a tab stop, nor in the accessibility
+ * tree: the keyboard and a screen reader reach the moments and the calls to
+ * action without walking 148 cards, and a reader after a particular day has
+ * the library itself.
  */
-function Cell({
-  cell,
-  background,
-  headingLevel,
-  narrow = false,
-}: {
-  cell: SeaDoor;
-  background: boolean;
-  headingLevel: 2 | 3;
-  /** Beside a moment, where a side may be one column wide: rows only, or a wide cell opens a sliver of a second column. */
-  narrow?: boolean;
-}) {
-  const span = narrow ? SPAN[cell.size].replace(/col-span-\d ?/, "") : SPAN[cell.size];
+function Cell({ cell, background, span }: { cell: SeaDoor; background: boolean; span: string }) {
+  // h3: a lit day sits under its moment's h2, and a background one is read by nobody.
   return (
     <DiscoverCard
       day={cell.day}
       origin={{ from: "sea", href: cell.href, background }}
-      headingLevel={headingLevel}
+      headingLevel={3}
       className={cn("overflow-hidden", span, background && "landing-sea-dim")}
     />
   );
@@ -144,44 +139,45 @@ function Cell({
 /**
  * A screen of background, its cells mounted once the reader is near it.
  * `children` (the hero) come first in the DOM, so a screen reader meets the
- * page's h1 before 48 card titles; drawn over the cells, they carry their own
- * z-index.
+ * page's h1 first; drawn over the cells, they carry their own z-index.
  */
 function Band({ cells, first, children }: { cells: SeaDoor[]; first: boolean; children?: ReactNode }) {
   const [ref, near] = useNear<HTMLDivElement>(first);
   return (
     <div ref={ref} className="landing-sea-band relative">
       {children}
-      <ul aria-label="Days from the library" className="landing-sea-grid h-full">
-        {near &&
-          cells.map((cell, i) => (
-            <Cell key={`${cell.day.savedDayId}-${i}`} cell={cell} background headingLevel={2} />
-          ))}
+      <ul aria-hidden data-testid="sea-band" className="landing-sea-grid h-full">
+        {near && cells.map((cell, i) => <Cell key={`${cell.day.savedDayId}-${i}`} cell={cell} background span={SPAN[cell.size]} />)}
       </ul>
     </div>
   );
 }
 
+/** The lit cells a side shows at any width; the rest wait for a side wide enough for two columns. */
+const LIT_IN_ONE_COLUMN = 2;
+
 /**
  * A side of a moment: its lit days first, then dimmed background to the edge.
- * The lit days are in flow, so the moment grows to hold them: they are tab
- * stops, and one cut off by the clipped fill below would take focus out of
- * sight. Only the fill is clipped to whatever height is left.
+ * The lit days are doors, so they are in flow and drawn whole, one grid row
+ * each and two to a row once the side is 20rem wide (from about 1360px): a
+ * moment stays about as tall as its middle (decision 10: compact), not a
+ * column of cells twice that. A narrower side shows its first two and hides
+ * the rest outright, so none is a tab stop out of sight. Only the fill is
+ * clipped, to whatever height is left.
  */
-function Side({ lit, fill, near }: { lit: SeaDoor[]; fill: SeaDoor[]; near: boolean }) {
+function Side({ lit, fill, near, className }: { lit: SeaDoor[]; fill: SeaDoor[]; near: boolean; className: string }) {
   return (
-    <div className="hidden min-w-0 flex-1 flex-col gap-1 lg:flex">
+    <div className={cn("@container hidden min-w-0 flex-col gap-1 lg:row-span-4 lg:row-start-1 lg:flex", className)}>
       {lit.length > 0 && (
-        <ul aria-label="Days from the library" className="landing-sea-grid">
-          {near && lit.map((cell) => <Cell key={cell.day.savedDayId} cell={cell} background={false} headingLevel={3} narrow />)}
+        <ul aria-label="Days from the library" className="landing-sea-grid landing-sea-lit">
+          {lit.map((cell, i) => (
+            <Cell key={cell.day.savedDayId} cell={cell} background={false} span={i < LIT_IN_ONE_COLUMN ? "" : "hidden @xs:flex"} />
+          ))}
         </ul>
       )}
       <div className="relative flex-1">
-        <ul aria-label="Days from the library" className="landing-sea-grid absolute inset-0">
-          {near &&
-            fill.map((cell, i) => (
-              <Cell key={`${cell.day.savedDayId}-${i}`} cell={cell} background headingLevel={3} narrow />
-            ))}
+        <ul aria-hidden className="landing-sea-grid absolute inset-0">
+          {near && fill.map((cell, i) => <Cell key={`${cell.day.savedDayId}-${i}`} cell={cell} background span={rowsOnly(cell)} />)}
         </ul>
       </div>
     </div>
@@ -192,6 +188,10 @@ function Side({ lit, fill, near }: { lit: SeaDoor[]; fill: SeaDoor[]; near: bool
  * A moment risen out of the sea: its heading and the real component in the
  * middle, the days it lights on either side. `data-moment` is what the scroll
  * paints; its rest state is risen, since a moment is never on the first screen.
+ *
+ * The heading comes first in the DOM, so a screen reader meets it before the
+ * left side's lit days, and `.landing-sea-moment` places it over the middle.
+ * Tab still runs as the eye does: the left side's doors, the middle, the right's.
  */
 function Moment({
   id,
@@ -207,20 +207,21 @@ function Moment({
   band: number;
   children: ReactNode;
 }) {
+  // Only the fill waits until the reader is near. The lit days are doors: one
+  // mounted only once focus had scrolled to the middle would sit before it in
+  // the DOM, where Tab had already passed.
   const [ref, near] = useNear<HTMLElement>(false);
   const fill = sideFill(band);
   const half = Math.ceil(lit.length / 2);
   return (
-    <section ref={ref} aria-labelledby={id} data-moment className="flex gap-3">
-      <Side lit={lit.slice(0, half)} fill={fill.slice(0, SIDE_SIZE)} near={near} />
-      {/* Centred below lg, where the sides are hidden: there a side would be narrower than one cell. */}
-      <div className="mx-auto flex w-full max-w-2xl shrink-0 flex-col gap-5 py-10">
-        <Heading level={2} id={id} className="text-xl text-pretty">
-          {heading}
-        </Heading>
-        {children}
-      </div>
-      <Side lit={lit.slice(half)} fill={fill.slice(SIDE_SIZE)} near={near} />
+    <section ref={ref} aria-labelledby={id} data-moment className="landing-sea-moment flex flex-col gap-x-3 lg:grid">
+      {/* Centred below lg, where the sides are hidden: there a side would be under 150px wide. */}
+      <Heading level={2} id={id} className="mx-auto w-full max-w-2xl pt-10 text-xl text-pretty lg:col-start-2 lg:row-start-2">
+        {heading}
+      </Heading>
+      <Side lit={lit.slice(0, half)} fill={fill.slice(0, SIDE_SIZE)} near={near} className="lg:col-start-1" />
+      <div className="mx-auto flex w-full max-w-2xl flex-col gap-5 pt-5 pb-10 lg:col-start-2 lg:row-start-3">{children}</div>
+      <Side lit={lit.slice(half)} fill={fill.slice(SIDE_SIZE)} near={near} className="lg:col-start-3" />
     </section>
   );
 }
@@ -242,8 +243,10 @@ export function LandingSea({ hero, children }: { hero?: ReactNode; children?: Re
   useEffect(() => {
     const root = rootRef.current;
     if (root === null) return;
-    const still = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+    // Read live in `paint`, as the board reads it: the preference can change mid-session.
+    const motion = window.matchMedia?.("(prefers-reduced-motion: reduce)");
     const paint = () => {
+      const still = motion?.matches ?? false;
       const viewport = window.innerHeight;
       root.style.setProperty("--sea-dim", styleNumber(seaDim(window.scrollY, viewport)));
       for (const moment of root.querySelectorAll<HTMLElement>("[data-moment]")) {

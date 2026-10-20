@@ -44,6 +44,12 @@ function watchScreens() {
   };
 }
 
+// The days the moments light (Thailand, Greece, Japan), and the names only the background draws.
+const LIT = [...LANDING_SEA.cells.filter((cell) => cell.group === "thailand-beaches" || cell.group === "greek-islands"), ...LANDING_SEA.japan];
+const BACKGROUND_NAMES = [...new Set(SEA_BANDS.flat().map((cell) => cell.day.name))].filter(
+  (name) => !LIT.some((cell) => cell.day.name === name) && name !== LANDING_FEATURES.shelf.name,
+);
+
 const savedDayIds = () => screen.getAllByTestId("discover-card").map((card) => card.getAttribute("data-saved-day-id"));
 
 // A whole sea mounted is some three hundred cards: seconds of jsdom, not a
@@ -53,8 +59,11 @@ const WHOLE_SEA = { timeout: 15_000 };
 describe("the landing's sea", () => {
   // The first screen is what a cold load paints, before any JavaScript: it is
   // in the server's HTML. Everything further down waits until the reader is
-  // within a screen of it, so 148 cards are not 148 mounts.
-  it("puts the first screen in the server's HTML, and no far cell", () => {
+  // within a screen of it, so 148 cards are not 148 mounts. A moment's lit
+  // days are the exception: they are doors, and one mounted only once focus
+  // had scrolled to the moment's button would sit before it in the DOM, where
+  // Tab had already passed.
+  it("puts the first screen and the moments' lit days in the server's HTML, and no far cell", () => {
     const html = renderToString(<LandingSea />);
     const [first, ...rest] = SEA_BANDS;
     const near = new Set(first!.map((cell) => cell.day.savedDayId));
@@ -62,16 +71,24 @@ describe("the landing's sea", () => {
     const far = rest.flat().filter((cell) => !near.has(cell.day.savedDayId));
     expect(far.length).toBeGreaterThan(0);
     for (const cell of far) expect(html).not.toContain(`data-saved-day-id="${cell.day.savedDayId}"`);
-    for (const cell of LANDING_SEA.japan) expect(html).not.toContain(`data-saved-day-id="${cell.day.savedDayId}"`);
+    for (const cell of LIT) expect(html).toContain(`data-saved-day-id="${cell.day.savedDayId}"`);
   });
 
-  // The hero is drawn over the first screen's cards, but a screen reader
-  // reading in order, or jumping by heading, meets it before them.
-  it("reads the hero before the first screen's cards", () => {
+  // The background is ground, not content: a screen reader moving by heading
+  // or by link meets the h1 and then the first moment, not the library's 148
+  // titles, while the moments' lit days stay doors it can open.
+  it("reads the hero, then the moments: no background card is in the accessibility tree", WHOLE_SEA, () => {
+    const screens = watchScreens();
     render(<LandingSea hero={<h1>Plan the trip together.</h1>} />);
-    const headings = within(screen.getByTestId("landing-sea")).getAllByRole("heading");
-    expect(headings.length).toBeGreaterThan(1);
-    expect(headings[0]!.textContent).toBe("Plan the trip together.");
+    screens.nearAll();
+    const sea = within(screen.getByTestId("landing-sea"));
+    const headings = sea.getAllByRole("heading").map((heading) => heading.textContent);
+    expect(headings.slice(0, 2)).toEqual(["Plan the trip together.", "Find a day worth borrowing."]);
+    const exposed = new Set([...headings, ...sea.getAllByRole("link").map((link) => link.textContent)]);
+    expect(BACKGROUND_NAMES.filter((name) => exposed.has(name))).toEqual([]);
+    for (const cell of LIT.filter((cell) => cell.href !== null)) {
+      for (const link of sea.getAllByRole("link", { name: cell.day.name })) expect(link.getAttribute("tabindex")).toBeNull();
+    }
   });
 
   it("mounts a far screen's cells once the reader is near it", WHOLE_SEA, () => {
@@ -92,7 +109,7 @@ describe("the landing's sea", () => {
     render(<LandingSea />);
     screens.nearAll();
     const sea = within(screen.getByTestId("landing-sea"));
-    const dayLinks = sea.getAllByRole("link").filter((link) => link.getAttribute("href")!.startsWith("/playbooks"));
+    const dayLinks = sea.getAllByRole("link", { hidden: true }).filter((link) => link.getAttribute("href")!.startsWith("/playbooks"));
     expect(dayLinks.length).toBeGreaterThan(SEA_BANDS[0]!.length);
     const canonical = new Set(LANDING_SEA.cells.map((cell) => cell.href));
     for (const link of dayLinks) {
@@ -111,7 +128,7 @@ describe("the landing's sea", () => {
     render(<LandingSea />);
     const sea = within(screen.getByTestId("landing-sea"));
     const background = SEA_BANDS[0]![0]!;
-    for (const link of sea.getAllByRole("link", { name: background.day.name })) {
+    for (const link of sea.getAllByRole("link", { name: background.day.name, hidden: true })) {
       expect(link.getAttribute("tabindex")).toBe("-1");
     }
     const find = within(sea.getByRole("region", { name: "Find a day worth borrowing." }));
@@ -122,11 +139,14 @@ describe("the landing's sea", () => {
 });
 
 describe("the sea's moments", () => {
-  it("finds a day: the Railay day as a big card and a small one, both opening its page", async () => {
+  // The small card is the same day again, so it is drawn but is not a second
+  // door: a keyboard or a screen reader meets the Railay day once.
+  it("finds a day: the Railay day as a big card and a small one, one door to its page", async () => {
     render(<LandingSea />);
     const find = within(screen.getByRole("region", { name: "Find a day worth borrowing." }));
     const links = await find.findAllByRole("link", { name: LANDING_FEATURES.shelf.name });
-    expect(links.map((link) => link.getAttribute("href"))).toEqual([dayPath(LANDING_FEATURES.shelf), dayPath(LANDING_FEATURES.shelf)]);
+    expect(links.map((link) => link.getAttribute("href"))).toEqual([dayPath(LANDING_FEATURES.shelf)]);
+    expect(find.getAllByTestId("discover-card")).toHaveLength(2);
   });
 
   it("makes it your trip, under the heading Mitchell gave it", () => {
