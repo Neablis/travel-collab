@@ -20,6 +20,7 @@ export interface AddToTripChoice {
 // The fields of "Add to a trip", and nothing that fetches or navigates: the
 // dialog owns the reads and the insert, and the landing (M51 part 6) draws the
 // same fields over canned trips with its own button. Actions are the caller's.
+/** The fields of "Add to a trip", controlled through `value`/`onChange`; renders no buttons and fetches nothing. */
 export function AddToTripForm({
   dayName,
   dayCount,
