@@ -16,7 +16,7 @@ import { db } from "./db/client";
 import { events, savedDayCovers, savedDays } from "./db/schema";
 import { getTripDetail } from "./projections";
 import { getSavedDayCover, setSavedDayCover } from "./savedDayCovers";
-import { importPlaybooks, importTrips } from "../../scripts/import-content-production";
+import { importBundles, importPlaybooks, importTrips } from "../../scripts/import-content-production";
 
 const owner = "user-content-import";
 
@@ -173,6 +173,64 @@ describe("importPlaybooks — the declared day count (KI-2026-09-24-b)", () => {
       .where(eq(savedDays.id, playbookIdFor(id, "slow")));
     expect((row!.stops as { dayIndex: number }[]).map((s) => s.dayIndex)).toEqual([0, 2]);
     expect(row!.dayCount).toBe(4);
+  });
+});
+
+// PR 509 review: every open PR's preview build imports into one database, so
+// two runs can overlap. Unserialised, the second's insert of a fresh day hits
+// the first's uncommitted row (a duplicate key), and its CreateTrip is refused
+// while the first is still filling the trip.
+describe("importBundles — two runs at once", () => {
+  it("wait for each other: both succeed, and the trip is built once", async () => {
+    const id = `concurrent-${randomUUID().slice(0, 8)}`;
+    const bundle: ContentBundleV1 = parseBundle({
+      ...bundleWith(id, locationFactory.build()),
+      playbooks: [
+        {
+          key: "day",
+          name: "One day",
+          ownerId: owner,
+          sourceTrip: { name: "Bangkok" },
+          days: [{ stops: [{ title: "Wat Pho" }] }],
+        },
+      ],
+    });
+    const options = { prune: false, skipTrips: false, skipPlaybooks: false, lock: true };
+
+    const runs = await Promise.allSettled([
+      importBundles([bundle], owner, options),
+      importBundles([bundle], owner, options),
+    ]);
+
+    expect(runs.map((r) => (r.status === "rejected" ? String(r.reason) : "ok"))).toEqual(["ok", "ok"]);
+    expect((await getTripDetail(tripIdFor(id, "bangkok")))?.days).toHaveLength(2);
+    expect(await db.select().from(savedDays).where(eq(savedDays.id, playbookIdFor(id, "day")))).toHaveLength(1);
+  });
+});
+
+// PR 509 review r2: the lock's transaction sits idle for the whole run, so the
+// server can end its session (an idle-in-transaction timeout, a restart). With
+// no listener on that client, node-postgres's 'error' event was unhandled and
+// killed the process between writes; the run must fail as a caught error.
+describe("importBundles — the lock's session lost mid-run", () => {
+  it("rejects with the reason instead of crashing the process", async () => {
+    const bundles = Array.from({ length: 6 }, () => bundleWith(`lost-${randomUUID().slice(0, 8)}`, locationFactory.build()));
+    const options = { prune: false, skipTrips: false, skipPlaybooks: false, lock: true };
+
+    const run = importBundles(bundles, owner, options);
+    // Whoever holds the advisory lock is the lock's own connection: end it.
+    let terminated = false;
+    for (let i = 0; i < 400 && !terminated; i++) {
+      const { rows } = await db.$client.query(
+        `select pg_terminate_backend(pid) as ok from pg_locks
+          where locktype = 'advisory' and granted and database = (select oid from pg_database where datname = current_database())`,
+      );
+      terminated = rows.length > 0;
+      if (!terminated) await new Promise((r) => setTimeout(r, 5));
+    }
+
+    expect(terminated).toBe(true);
+    await expect(run).rejects.toThrow(/lost the import lock/);
   });
 });
 

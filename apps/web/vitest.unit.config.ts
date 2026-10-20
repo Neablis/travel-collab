@@ -98,6 +98,9 @@ export default defineConfig({
           // same check for the landing's pricing snapshot against the plan file.
           // `scripts/assistant-live-set.test.ts` covers the live set's guard
           // against running on anything but a preview or local deployment.
+          // `scripts/vercel-build-migrate.test.ts` covers what a Vercel build
+          // does to its database: migrate and import on a preview, never prune,
+          // nothing on production.
           // Named file by
           // file, not by a `scripts/**` glob: the other files in `scripts/`
           // are entry points, not test subjects.
@@ -111,6 +114,7 @@ export default defineConfig({
             "scripts/landing-demo.test.ts",
             "scripts/landing-plans.test.ts",
             "scripts/assistant-live-set.test.ts",
+            "scripts/vercel-build-migrate.test.ts",
           ],
           exclude: [...ALWAYS_EXCLUDE, ...JSDOM_TS_FILES],
           setupFiles,

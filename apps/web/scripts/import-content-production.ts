@@ -7,6 +7,8 @@
  *       --prune    remove rows a bundle no longer declares (see below)
  *       --dir      default `content/`
  *       --skip-trips / --skip-playbooks
+ *       --lock     hold the import lock for the run (preview builds; see
+ *                  `importBundles`)
  *
  * --- Why this is not `import-content.ts` ---
  * That script talks HTTP to a dev server and signs in through the dev-login
@@ -57,8 +59,8 @@
  * bundle, minus what it now declares" is answerable. Only rows with that column
  * set are ever considered, so a day a person saved cannot be caught by it.
  */
-import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { existsSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { and, eq, inArray, isNotNull, notInArray } from "drizzle-orm";
 import {
@@ -66,7 +68,6 @@ import {
   bundleTripCommandGroups,
   lintBundle,
   parseBundle,
-  resolvePlaybook,
   tripIdFor,
   type BundleTrip,
   type ContentBundleV1,
@@ -85,6 +86,7 @@ import { executePageCommand } from "@/server/pageCommands";
 import { users } from "@/server/db/schema";
 import { getTripDetail } from "@/server/projections";
 import { planBundleLocationReconcile, type PlannedLocationUpdate } from "@/server/bundleLocationReconcile";
+import { bundleFiles, CONTENT_DIR, contentDays } from "./lib/content-bundles.ts";
 
 const REPO_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
 
@@ -127,15 +129,17 @@ type Options = {
   prune: boolean;
   skipTrips: boolean;
   skipPlaybooks: boolean;
+  lock: boolean;
 };
 
 function parseArgs(argv: string[]): Options {
   const o: Options = {
-    dir: join(REPO_ROOT, "content"),
+    dir: CONTENT_DIR,
     dryRun: false,
     prune: false,
     skipTrips: false,
     skipPlaybooks: false,
+    lock: false,
   };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
@@ -144,6 +148,7 @@ function parseArgs(argv: string[]): Options {
     else if (arg === "--prune") o.prune = true;
     else if (arg === "--skip-trips") o.skipTrips = true;
     else if (arg === "--skip-playbooks") o.skipPlaybooks = true;
+    else if (arg === "--lock") o.lock = true;
     else if (arg === "--dir") {
       const value = argv[++i];
       if (!value) throw new Error("--dir needs a path");
@@ -154,24 +159,9 @@ function parseArgs(argv: string[]): Options {
   return o;
 }
 
-/** Dot-files are a tool's scratch state, never content (the geocoder writes there). */
-function bundleFiles(dir: string): string[] {
-  let entries: string[];
-  try {
-    entries = readdirSync(dir).sort();
-  } catch {
-    return [];
-  }
-  return entries.flatMap((entry) => {
-    if (entry.startsWith(".")) return [];
-    const path = join(dir, entry);
-    return statSync(path).isDirectory() ? bundleFiles(path) : path.endsWith(".json") ? [path] : [];
-  });
-}
-
 /** Playbook days for one bundle, in one transaction, plus any prune. */
 export async function importPlaybooks(bundle: ContentBundleV1, prune: boolean) {
-  const resolved = bundle.playbooks.map((p) => resolvePlaybook(bundle.bundle.id, p, bundle.bundle.origin));
+  const resolved = contentDays(bundle);
   const ids = resolved.map((d) => d.savedDayId);
   let pruned = 0;
 
@@ -414,6 +404,84 @@ export async function importTrips(bundle: ContentBundleV1, ownerId: string, { dr
   };
 }
 
+/**
+ * Every bundle's days and trips; with `lock`, written while this run holds the
+ * import lock.
+ *
+ * Every open PR's preview build imports into one shared database, and two
+ * imports at once corrupt it: the second's delete-and-reinsert of a day trips
+ * over the first's re-insert (a duplicate key, so a red build), and a trip
+ * created for the first time is "resumed" by the second while the first is
+ * still filling it, which throws or doubles its days for good. Per-bundle
+ * transactions cannot prevent the trip case — a trip is many command
+ * transactions — so the lock covers the whole run. Only preview builds pass
+ * `--lock`: production's workflow is already serialised by its concurrency
+ * group, and has no use for the lock's idle connection, which is one more way
+ * for a run to die part-way.
+ *
+ * It is a transaction-scoped advisory lock held by a transaction that stays
+ * open for the run, rather than a session lock, because a preview reaches its
+ * database through a pooler: a session lock could be taken on one server
+ * connection and released on another, and a transaction is pinned to one.
+ * The writes run on other pool connections; the lock's transaction does
+ * nothing but wait, and ending it, however the run ends, releases the lock.
+ * Waiting idle in a transaction is what `idle_in_transaction_session_timeout`
+ * ends, so it is switched off for that transaction. A session the server ends
+ * anyway emits 'error' on a client nobody is querying, which without a listener
+ * is an unhandled event that kills the process between two writes (PR 509
+ * review r2); with one, the run stops before the next bundle and rejects.
+ */
+export async function importBundles(
+  bundles: ContentBundleV1[],
+  ownerId: string,
+  options: Pick<Options, "prune" | "skipTrips" | "skipPlaybooks"> & { lock?: boolean },
+) {
+  const totals = { days: 0, pruned: 0, created: 0, skipped: 0, resumed: 0, reconciled: 0, unmatched: 0 };
+  let lost: Error | undefined;
+  const writeAll = async () => {
+    for (const bundle of bundles) {
+      if (lost) throw lost;
+      if (!options.skipPlaybooks) {
+        const r = await importPlaybooks(bundle, options.prune);
+        totals.days += r.days;
+        totals.pruned += r.pruned;
+      }
+      if (!options.skipTrips) {
+        const r = await importTrips(bundle, ownerId);
+        totals.created += r.created;
+        totals.skipped += r.skipped;
+        totals.resumed += r.resumed;
+        totals.reconciled += r.reconciled;
+        totals.unmatched += r.unmatched.length;
+      }
+    }
+  };
+  if (!options.lock) {
+    await writeAll();
+    return totals;
+  }
+
+  const client = await db.$client.connect();
+  client.on("error", (error) => {
+    lost = new Error(`lost the import lock's session: ${error.message}`, { cause: error });
+  });
+  try {
+    await client.query("begin");
+    await client.query("set local idle_in_transaction_session_timeout = 0");
+    await client.query("select pg_advisory_xact_lock(hashtext('import-content-production'))");
+    await writeAll();
+    if (lost) throw lost;
+    await client.query("commit");
+  } catch (error) {
+    // On a lost session the rollback cannot run, and its failure would hide why.
+    if (!lost) await client.query("rollback").catch(() => {});
+    throw lost ?? error;
+  } finally {
+    client.release(lost);
+  }
+  return totals;
+}
+
 async function main() {
   const options = parseArgs(process.argv.slice(2));
   const named = (process.env.CONTENT_OWNER_ID ?? "").trim();
@@ -480,22 +548,11 @@ async function main() {
     }
   }
 
-  let days = 0, pruned = 0, created = 0, skipped = 0, resumed = 0, reconciled = 0, unmatched = 0;
-  for (const bundle of bundles) {
-    if (!options.skipPlaybooks) {
-      const r = await importPlaybooks(bundle, options.prune);
-      days += r.days;
-      pruned += r.pruned;
-    }
-    if (!options.skipTrips) {
-      const r = await importTrips(bundle, ownerId);
-      created += r.created;
-      skipped += r.skipped;
-      resumed += r.resumed;
-      reconciled += r.reconciled;
-      unmatched += r.unmatched.length;
-    }
-  }
+  const { days, pruned, created, skipped, resumed, reconciled, unmatched } = await importBundles(
+    bundles,
+    ownerId,
+    options,
+  );
 
   console.log(`\n  playbook days written  ${days}`);
   if (options.prune) console.log(`  stale rows pruned      ${pruned}`);
