@@ -179,6 +179,43 @@
         "endLocation": null,
         "pendingReason": "maybe"
       }
+    },
+    "people": {
+      "Sam": {
+        "name": "Sam",
+        "avatar": "mountain",
+        "color": "plum",
+        "travelling": true,
+        "colorShifted": false
+      },
+      "Priya": {
+        "name": "Priya",
+        "avatar": "camera",
+        "color": "ochre",
+        "travelling": true,
+        "colorShifted": true
+      },
+      "Jonah": {
+        "name": "Jonah",
+        "avatar": "bike",
+        "color": "clay",
+        "travelling": true,
+        "colorShifted": false
+      },
+      "Mei": {
+        "name": "Mei",
+        "avatar": "sailboat",
+        "color": "rose",
+        "travelling": true,
+        "colorShifted": false
+      },
+      "Kenji": {
+        "name": "Kenji",
+        "avatar": null,
+        "color": "teal",
+        "travelling": false,
+        "colorShifted": false
+      }
     }
   },
   "notebook": {

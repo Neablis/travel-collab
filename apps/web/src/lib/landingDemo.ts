@@ -1,5 +1,5 @@
-import type { ActivityView } from "@tc/contracts";
-import type { ItineraryDayPayload, Seg, SunPayload, TripPeoplePayload, TripStripPayload } from "@tc/pages";
+import type { ActivityView, TripMemberProfile } from "@tc/contracts";
+import type { ItineraryDayPayload, Seg, SunPayload, TripPeoplePayload, TripStripPayload, WidgetPersona } from "@tc/pages";
 import type { AccentFamily } from "@/lib/dayAccent";
 import type { DiscoverDay } from "@/lib/playbooks";
 import snapshot from "./landingDemo.generated.json";
@@ -32,6 +32,12 @@ export type LandingDemo = {
     city: string;
     activityIds: string[];
     activities: Record<string, ActivityView>;
+    /**
+     * Every member by userId, as the board's `Persona` (spelled from its parts:
+     * `lib` may not import `components`): who the blocks say is going, booked
+     * and added each stop.
+     */
+    people: Record<string, WidgetPersona & Pick<TripMemberProfile, "colorShifted">>;
   };
   /** The notebook panel's widgets, resolved by `@tc/pages` exactly as a notebook resolves them. */
   notebook: {

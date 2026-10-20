@@ -246,7 +246,8 @@ export function japanTripCommandGroups(tripId: string, options: JapanTripOptions
  * actor a stop's `addedBy` names (M51 decision 8a). The export does not say
  * who added what, so the days and the backlog are dealt round the four
  * travellers in turn, and every one of them is seen adding. `null` for the
- * setup: the caller's own actor, the trip's creator.
+ * setup, which adds no stop, so this picks nobody for it: the caller does
+ * (`demoTrip.ts` deals it round its roster like any group it has no adder for).
  */
 export function japanGroupAdders(): (JapanTraveller | null)[] {
   const dealt = Array.from({ length: JAPAN_TRIP_DAY_COUNT + 1 }, (_, i) => JAPAN_TRAVELLERS[i % JAPAN_TRAVELLERS.length]!);

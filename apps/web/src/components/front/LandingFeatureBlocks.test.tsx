@@ -80,6 +80,15 @@ describe("LandingFeatureBlocks", () => {
     expect(river.queryAllByRole("button")).toHaveLength(0);
   });
 
+  // M51 decision 8a, review r1 of PR 508: the landing fetches no people, so the
+  // snapshot carries them, and a stop's adder reads as the demo names them,
+  // not as the handle "Traveler Jonah".
+  it("names who added each stop on the river as the demo's people", async () => {
+    render(<LandingFeatureBlocks />);
+    const river = within(await within(screen.getByRole("region", { name: TOGETHER })).findByRole("list", { name: "Day 7 timeline" }));
+    expect(river.getByText(/^Dinner at Gion Nanba, .*, added by Jonah\b/)).toBeDefined();
+  });
+
   // The card is Discover's, so it says what Discover would: what kind of day
   // it is (M42 D8), its tags, how many trips took it, and its cover with the
   // photographer's credit (Unsplash's guidelines). Its tags are plain chips —

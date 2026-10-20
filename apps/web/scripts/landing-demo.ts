@@ -140,6 +140,16 @@ export function demoPersonasOf(tripId: string): NonNullable<WidgetContext["perso
   );
 }
 
+/**
+ * The people the river's blocks name (M51 decision 8a), as the board's
+ * `PeopleProvider` would hand them down: the widget personas above, plus the
+ * clash shift the board's own carry. The landing may not fetch them.
+ */
+function riverPeopleOf(tripId: string): LandingDemo["river"]["people"] {
+  const personas = demoPersonasOf(tripId);
+  return Object.fromEntries(demoTripMembers(tripId).map((m) => [m.userId, { ...personas[m.userId]!, colorShifted: m.colorShifted }]));
+}
+
 /** Demo `slug`'s slice, folded and resolved exactly as `/demo/<slug>` and a notebook would, with no calendar dates. */
 export function buildLandingDemo(slug: string): LandingDemo {
   const { trip, globals, ctx } = undatedDemo(slug);
@@ -168,6 +178,7 @@ export function buildLandingDemo(slug: string): LandingDemo {
       city,
       activityIds: day.activityIds,
       activities: Object.fromEntries(day.activityIds.map((id) => [id, trip.activities[id]!])),
+      people: riverPeopleOf(ctx.page.tripId),
     },
     notebook: {
       strip: resolveBlock(ctx, "trip.strip", {}, "trip-strip"),

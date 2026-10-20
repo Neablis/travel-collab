@@ -691,6 +691,41 @@ describe("TripBoardScreen", () => {
     expect([...bookedBy.options].map((o) => o.text)).toEqual(["Nobody yet", "Dana", "Sam"]);
   });
 
+  // M51 decision 8a, review r1 of PR 508: a river block names its adder and
+  // booker from the trip's people. Outside `PeopleProvider` it reads the id's
+  // handle ("Traveler u-dana"), on the board and on `/demo`, which mounts it.
+  it("names who booked and who added a stop on the river, from the trip's people", async () => {
+    const fixture = costedTripDetailFixture();
+    fixture.members = [
+      { userId: "u-dana", role: "owner" },
+      { userId: "u-sam", role: "editor" },
+    ];
+    const colosseum = fixture.days[0]!.activityIds[0]!;
+    fixture.activities[colosseum] = { ...fixture.activities[colosseum]!, bookedBy: "u-sam", addedBy: "u-dana" };
+    server.use(...makeTripHandlers(fixture));
+    // The mock's access has no names; these two have chosen theirs.
+    const names: Record<string, string> = { "u-dana": "Dana Okafor", "u-sam": "Sam Reyes" };
+    server.use(
+      http.get("/api/trips/:tripId/access", () =>
+        HttpResponse.json({
+          access: {
+            tripId: fixture.tripId,
+            myRole: "owner",
+            members: fixture.members.map((m) => ({ ...m, name: null, email: null, image: null, displayName: names[m.userId] })),
+            invites: [],
+            collaboratorsEntitled: true,
+            accessRev: "0",
+            viewerId: "u-dana",
+            guests: [],
+          },
+        }),
+      ),
+    );
+    renderScreen(fixture.tripId);
+
+    expect(await screen.findByRole("button", { name: /^Edit Colosseum tour, .*, booked by Sam Reyes, added by Dana Okafor/ })).toBeTruthy();
+  });
+
   // E1 review finding, continued: E2 hasn't wired any UI trigger to
   // openCreate yet (confirmed by review), so create-mode is exercised via a
   // direct useEditor() consumer rendered inside the same provider stack —

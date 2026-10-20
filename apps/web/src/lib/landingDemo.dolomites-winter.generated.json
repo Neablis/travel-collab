@@ -226,6 +226,29 @@
         "endLocation": null,
         "pendingReason": null
       }
+    },
+    "people": {
+      "Ana": {
+        "name": "Ana",
+        "avatar": "compass",
+        "color": "moss",
+        "travelling": true,
+        "colorShifted": false
+      },
+      "Ravi": {
+        "name": "Ravi",
+        "avatar": "plane",
+        "color": "sky",
+        "travelling": true,
+        "colorShifted": false
+      },
+      "Lena": {
+        "name": "Lena",
+        "avatar": "tent",
+        "color": "clay",
+        "travelling": true,
+        "colorShifted": false
+      }
     }
   },
   "notebook": {

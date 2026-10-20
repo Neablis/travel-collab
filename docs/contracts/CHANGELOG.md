@@ -21,7 +21,7 @@ Format:
   1.19.0 (minor: additive).
 - **Derived, not stored in any event.** It is the `actorId` of the `ActivityAdded` envelope,
   which every event has carried since day one (Invariant 6a), so no payload changes and every
-  stop already in the log folds to its adder on the next write or rebuild. The domain folds it in
+  stop already in the log folds to its adder on its trip's next write. The domain folds it in
   `evolveTripEnvelope`, which `foldEnvelopes` (the live write) and `projectTripDetails` (the
   rebuild) both step through; `TripState.addedBy` holds it, and `tripStatesEqual` and the diff
   ignore it, since no event could reconcile it. `ActivitySnapshot` does not carry it
@@ -31,13 +31,16 @@ Format:
   undid**, and an accepted suggestion names the reviewer who accepted it (the envelope's actor;
   the suggester stays in `origin`). Removing a stop drops it.
 - Old documents: a `trip_details.doc` written before this has no key and reads `null` until its
-  trip next changes or projections are rebuilt, which fills it from the log.
+  trip's next write, which folds the whole stream (`commands.ts`) and so fills every stop from the
+  log. Production has no operator rebuild (`rebuildProjections` has only test callers,
+  KI-2026-09-05-j), so a trip nobody edits keeps reading `null`, and its stops draw no adder.
 - Consumers updated: `packages/domain` (`evolve.ts`, `history.ts`, `detail.ts`, `hydrate.ts`,
   `state.ts`), `@tc/factories` (`activityFactory`, legacy fixtures), `@tc/fixtures` (the Japan
-  demo's adders and two `bookedBy` picks), `apps/web` (`RiverBlock` draws it, `demoTrip.ts`
-  folds each demo under its people: Japan's adders, a bundle's dealt round its roster, so no
-  stop names the demo's own actor; the landing snapshots regenerated, every hand-built
-  `ActivityView` in tests).
+  demo's adders and two `bookedBy` picks), `apps/web` (`RiverBlock` draws it, named by the
+  `PeopleProvider` that now wraps the Plan board, and on the landing by the snapshot's new
+  `river.people`; `demoTrip.ts` folds each demo under its people: Japan's adders, a bundle's
+  dealt round its roster, so no stop names the demo's own actor; the landing snapshots
+  regenerated, every hand-built `ActivityView` in tests).
 - Breaking? no. Defaulted, so an older reader and every stored document still parse.
 
 ## 2026-10-19 — Dismissing the offer to publish a trip that is over (M50 part 7)
