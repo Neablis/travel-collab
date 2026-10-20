@@ -170,15 +170,20 @@ export function evolveTrip(state: TripState | null, event: TripEvent): TripState
  * issued it. The add's actor is recorded as the stop's `addedBy`; that is the
  * only use of the envelope. The live fold (`foldEnvelopes`) and the rebuild
  * (`projectTripDetails`) both step through here, so they agree.
+ *
+ * An accepted suggestion credits the person who suggested it, not the
+ * reviewer who is the envelope's actor (Mitchell's call on PR 508). A batch
+ * accept (`suggestions`) has no per-change author, so it keeps the actor.
  */
 export function evolveTripEnvelope(
   state: TripState | null,
   event: TripEvent,
-  envelope: Pick<EventEnvelope, "actorId">,
+  envelope: Pick<EventEnvelope, "actorId"> & Partial<Pick<EventEnvelope, "origin">>,
 ): TripState {
   const next = evolveTrip(state, event);
   if (event.type === "ActivityAdded") {
-    return { ...next, addedBy: { ...next.addedBy, [event.payload.activityId]: envelope.actorId } };
+    const adder = envelope.origin?.kind === "suggestion" ? envelope.origin.authorId : envelope.actorId;
+    return { ...next, addedBy: { ...next.addedBy, [event.payload.activityId]: adder } };
   }
   if (event.type === "ActivityRemoved" && next.addedBy?.[event.payload.activityId] !== undefined) {
     const { [event.payload.activityId]: _gone, ...addedBy } = next.addedBy;

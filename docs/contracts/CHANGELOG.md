@@ -28,8 +28,9 @@ Format:
   (`ActivityViewCoversSnapshot` now excludes it by name).
 - What it names: the actor of the add. The assistant and a public-API key act as their person,
   so their adds name that person. **An undo, redo or revert that re-adds a stop names whoever
-  undid**, and an accepted suggestion names the reviewer who accepted it (the envelope's actor;
-  the suggester stays in `origin`). Removing a stop drops it.
+  undid**. An accepted suggestion names the person who suggested it (`origin.authorId`), not the
+  reviewer who accepted it and is the envelope's actor; a batch accept (`suggestions`) carries no
+  per-change author, so it names the reviewer. Removing a stop drops it.
 - Old documents: a `trip_details.doc` written before this has no key and reads `null` until its
   trip's next write, which folds the whole stream (`commands.ts`) and so fills every stop from the
   log. Production has no operator rebuild (`rebuildProjections` has only test callers,

@@ -98,4 +98,14 @@ describe("addedBy", () => {
     // the rebuild must reach the same document (Invariant 2).
     expect(tripDetailFromState(foldEnvelopes(attributed())!, detail!.createdAt)).toEqual(detail);
   });
+
+  it("is the suggester when a reviewer accepts a suggested stop", () => {
+    const [created, day, , vatican] = stream();
+    const SUGGESTION = "5a9c4e10-5b9c-4d80-9f5b-4d3c7e0f9a84";
+    const CHANGE = "4a9c4e10-5b9c-4d80-9f5b-4d3c7e0f9a85";
+    const accepted = by(vatican!, "dana", { kind: "suggestion", suggestionId: SUGGESTION, changeId: CHANGE, authorId: "sam" });
+    const [detail] = projectTripDetails([created!, day!, accepted]);
+    expect(detail!.activities[A2]!.addedBy).toBe("sam");
+    expect(tripDetailFromState(foldEnvelopes([created!, day!, accepted])!, detail!.createdAt)).toEqual(detail);
+  });
 });
