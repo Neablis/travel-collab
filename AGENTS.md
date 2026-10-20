@@ -19,9 +19,6 @@ one place — `docs/milestones/README.md` ("Current milestone"); do not restate 
 number here (that duplication is how it drifts).
 Current state of the work — blockers, in-flight, next action, local dev recipe:
 `docs/STATUS.md` (read first on a fresh session).
-Design record: `docs/specs/2026-07-07-foundation-design.md` · Decisions:
-`docs/architecture/` · Roadmap: `TODO.md` + `docs/milestones/README.md` ·
-How-to guides: `docs/guidelines/`
 
 Implementation plans are checked out while their work is in flight and deleted
 when it closes — `docs/plans/README.md` says how to retrieve one from history.
@@ -126,46 +123,27 @@ apps/web             Next.js all-in-one (UI + route handlers/server actions).
                      MUST NOT import packages/domain or src/server internals.
 ```
 
-The exempt shell is `src/server/**`, `src/app/api/**`,
-`src/app/.well-known/**/route.ts` — and, since 2026-09-14,
-**`src/app/admin/**`**, which may import `src/server` internals but still may
-not reach `packages/domain` or build an Auth.js instance: a non-admin gets a 404
-for the **route**, which the edge proxy cannot decide under JWT sessions (ADR-025,
-M20); fetching its own API over HTTP cost two defects in two days.
-`scripts/check-lint-wall.mjs` lints three fixtures under `src/app/admin`, so
-the exemption is exactly one hole.
+The exempt shell is `src/server/**`, `src/app/api/**` and
+`src/app/.well-known/**/route.ts`, plus the files below, each **on the
+console's terms**: it may import `src/server` internals, never `packages/domain`
+or an Auth.js instance. `scripts/check-lint-wall.mjs` fixtures each hole (count
+in brackets); `apps/web/eslint.config.mjs` says why.
 
-Since 2026-10-02 the shell also holds **`src/app/sitemap.ts` and
-`src/app/robots.ts`** (SEO pass, D2): the sitemap lists every published day,
-which only the database knows. Console terms; five fixtures in
-`scripts/check-lint-wall.mjs`.
-
-And **`src/app/playbooks/**/page.tsx`** (SEO pass, D5): the public
-library's pages render on the server so a crawler receives the day and a
-missing one answers 404. Page files only, on the console's terms; the screens
-they render still call the API. Seven fixtures hold it there. `live/` holds
-them; `[copy]/` re-exports them as the cached copy `proxy.ts` serves a reader
-with no session and no query (ADR-077).
-
-And **`src/app/(app)/layout.tsx`** (M45, Mitchell's decision 3 of 2026-10-13):
-it resolves the reader's conferred entitlements per request through
-`server/entitlements/resolver.ts` and sends them with the page, so an Ask
-offered only to a plan with the assistant is in the first HTML, and, beside
-it, the reader's preferences through `server/accountPreferences.ts`, so
-`PreferencesProvider` does not fetch them after hydration. That file and
-`src/app/playbooks/live/layout.tsx`, both through `server/servedSession.ts`,
-on the console's terms; never a JWT claim (ADR-045 rule 2). Five fixtures.
-
-And **`src/app/(app)/home/page.tsx`** (Mitchell's decision of 2026-10-18): Home
-reads `server/listedTrips.ts`, the `/api/trips` body, so the next-trip hero
-and the grid are in the first HTML. That file only; `HomeScreen` stays UI.
-Four fixtures.
-
-And **`src/app/(app)/trips/[tripId]/(board)/page.tsx`** (Mitchell's decision of
-2026-10-18): it reads the board's first answers in-process
-(`server/tripFirstData.ts`) after one `requireTripAccess`, through the GET
-routes' own builders, so the board is in the first HTML. Page file only, on the
-console's terms; the board stays UI. Six fixtures.
+- **`src/app/admin/**`** (2026-09-14; ADR-025, M20): a non-admin's 404 is
+  for the **route**, which the edge proxy cannot decide under JWT sessions;
+  fetching its own API cost two defects in two days. [3]
+- **`src/app/sitemap.ts`, `src/app/robots.ts`** (2026-10-02, SEO pass D2). [5]
+- **`src/app/playbooks/**/page.tsx`** (SEO pass D5): page files only; `live/`
+  holds them, `[copy]/` re-exports them as `proxy.ts`'s cached copy (ADR-077). [7]
+- **`src/app/(app)/layout.tsx`, `src/app/playbooks/live/layout.tsx`** (M45,
+  Mitchell's decision 3 of 2026-10-13): entitlements and preferences per
+  request via `server/servedSession.ts`; never a JWT claim (ADR-045 rule 2). [5]
+- **`src/app/(app)/home/page.tsx`** (Mitchell, 2026-10-18): reads
+  `server/listedTrips.ts`; `HomeScreen` stays UI. [4]
+- **`src/app/(app)/trips/[tripId]/(board)/page.tsx`** (Mitchell, 2026-10-18):
+  reads `server/tripFirstData.ts` after one `requireTripAccess`, through the GET
+  routes' own builders, so the board's
+  header and its view's placeholder are in the first HTML; the board stays UI. [6]
 
 The UI/server lint wall is CI-enforced and is our escape hatch: if serverless
 stops fitting (likely at Phase 2 realtime), `src/server` extracts into a
@@ -229,10 +207,9 @@ Rule: a contract change (schema + changelog + all consumers) is its own reviewed
 step before dependent feature work continues.
 
 Rule: parallel implementers each work in their **own git worktree** and merge
-back sequentially — never a shared working tree. Concurrent agents race on
-git's index and refs even with disjoint file sets: in M3 one agent's
-`git reset --soft` silently dropped a sibling's committed work. Isolate via
-`superpowers:using-git-worktrees`.
+back sequentially — never a shared working tree: agents race on git's index
+and refs even with disjoint files (M3 lost committed work to a sibling's
+`git reset --soft`). Use `git worktree add`.
 
 Rule: a phase or task branch worked independently of others is not "done"
 until its **PR is open**: only a PR puts the diff in front of conflict
@@ -250,60 +227,36 @@ and PR #55 alone spent **315** on work-in-progress.
 
 ### Verification scales to the change
 
-Classify the change by what it touches, then run **only** that tier.
+Classify by what the **whole branch** touches (CLAUDE.md rule 4), then run
+**only** that tier. The full suite runs once, on the ready PR, in CI — never
+per part of a stack, per fix, or "to be sure"
+(`docs/retros/2026-10-04-suggester-role-retro.md`, §2).
 
-> **The short version.** Mid-branch, each fix runs **only its own subset**
-> (Tier 1 or 2). The full suite runs **once**, when the PR is ready (Tier 3),
-> and CI runs it, never you (CLAUDE.md rules 1 and 4). **Never per part of a
-> stack, per fix, or "to be sure"** (`docs/retros/2026-10-04-suggester-role-retro.md`, §2).
+**Tier 1 — prose only:** every path under `docs/**`, `.claude/**`, `.agents/**`
+or a root-level `*.md`. Run nothing; `ci.yml`'s `changes` job
+(`scripts/ci-gate.mjs`) skips every real job. It still needs a PR: `ci-ok` is
+required on `main` with no bypass (Mitchell, 2026-10-04, *"no exceptions"*).
+**The trap:** `.design-sync/**` is **not** prose — `upstreamDrift.test.ts` and
+`geocode-japan-seed.mts` read its `handoff/data/japan-trip-seed.json` — so it is
+Tier 2 even when only its markdown moved. To classify (nothing printed means
+Tier 1):
 
-**Tier 1 — prose only.** Every path changed **by the whole branch**, not just
-by your latest commit, is under `docs/**`, `.claude/**`, `.agents/**`, or is a
-root-level `*.md` (`README`, `AGENTS`, `CLAUDE`, `TODO`).
+```
+git diff --name-only origin/main...HEAD | grep -vE '^(docs/|\.claude/|\.agents/)|^[A-Za-z]+\.md$'
+```
 
-> Run nothing. No `pnpm check`, no test lane, no typecheck, no e2e, no browser.
-> `.github/workflows/ci.yml`'s `changes` job (`scripts/ci-gate.mjs`) already
-> excludes exactly these paths: every real job skips, `ci-ok` passes in under a
-> minute, and there is nothing to wait on — see *Do not watch what cannot run*
-> below.
->
-> **The trap:** `.design-sync/**` is **not** prose. It is a real build input —
-> `packages/fixtures/src/japan/upstreamDrift.test.ts:30` and
-> `apps/web/scripts/geocode-japan-seed.mts:139` both read
-> `.design-sync/handoff/data/japan-trip-seed.json` — so a change there is Tier 2
-> even when only its markdown moved. `ci.yml` gets this right by
-> listing `*.md` rather than `**/*.md`; classify the same way.
->
-> **A Tier 1 branch still needs a PR:** `ci-ok` is a required check on `main`
-> with no bypass (Mitchell, 2026-10-04, *"no exceptions"*). To classify, in one
-> command:
->
-> ```
-> git diff --name-only origin/main...HEAD | grep -vE '^(docs/|\.claude/|\.agents/)|^[A-Za-z]+\.md$'
-> ```
->
-> Nothing printed means Tier 1. Anything printed means Tier 2.
+**Tier 2 — code, mid-branch:** the `minimal-check-subset` skill's output **and
+nothing more** — typically the package's typecheck, its lint and the test files
+covering what you touched. For `packages/contracts/src` the consumers span
+packages, so the subset is `pnpm typecheck` across every package. Record the
+subset in the PR body.
 
-**Tier 2 — code, mid-branch.** Any change that is not Tier 1, before the branch
-is ready.
-
-> Run the `minimal-check-subset` skill's output **and nothing more** —
-> typically `pnpm --filter <pkg> typecheck`, that package's lint, and the
-> specific test files covering what you touched. "Narrowest sufficient" is not
-> "smallest": for `packages/contracts/src` the consumers span packages, so
-> the subset is `pnpm typecheck` across every package; CI runs the full suite.
-> Record the subset in the PR body.
-
-**Tier 3 — final review.** The branch is finished and its PR is ready (a
-milestone part opens ready; `build-a-part`).
-
-> This is the single full-suite run a branch pays for: `pnpm check`, plus
-> `pnpm --filter web test:e2e:ci-like` if a user flow changed, and
-> `pnpm seed:verify` if a contract field or fixture changed. **CI pays it, on
-> the PR; it is not run locally.** A ready PR is when `ci.yml` starts paying
-> attention, so read its run on the real head. A milestone part pays it on its
-> own PR to `main`; any other stack pays it once, on the top part
-> (`docs/guidelines/stacked-prs.md` §5).
+**Tier 3 — final review**, the PR ready (a milestone part opens ready;
+`build-a-part`): `pnpm check`, plus `pnpm --filter web test:e2e:ci-like` if a
+user flow changed and `pnpm seed:verify` if a contract field or fixture did.
+**CI pays it on the PR**; read its run on the real head. A milestone part pays
+it on its own PR; any other stack once, on the top part
+(`docs/guidelines/stacked-prs.md` §5).
 
 A mid-branch full-suite run is a judgment call to justify, not a reflex. If you
 genuinely need one — you are chasing a failure whose blast radius you cannot
@@ -359,9 +312,8 @@ PR subscribes the session, a subagent's PR included: call
 about 60 minutes ahead while any PR is in CI or review and about 4 hours while
 everything waits on Mitchell. On each, run `pnpm -s pr-digest` once (what
 changed on every open PR since the last check-in), act on the whole batch, and
-re-arm. Stop re-arming when nothing is open. A wake re-reads the whole context:
-M42's 190 GitHub wakes cost $57, 141 of them for nothing
-(`docs/retros/2026-10-12-m42-token-spend-retro.md`). A check-in batches them.
+re-arm. Stop re-arming when nothing is open. M42's 190 GitHub wakes cost $57,
+141 of them for nothing (`docs/retros/2026-10-12-m42-token-spend-retro.md`).
 
 **Locally**, one blocking command: `gh pr checks <n> --watch --fail-fast`.
 Hand-polling is a reliable time sink. In a cloud session that command is
@@ -384,11 +336,9 @@ Mitchell merges.
 
 ### Do not watch what cannot run
 
-`--watch` is right only **when checks will exist**. They will not on a
-**Tier 1 PR** (the *whole PR* prose; only `ci-ok` reports) or on
-a **draft PR**, where `ci.yml`'s `if:` guards skip everything until it is
-marked ready (`github-rest`). If no run exists for your HEAD and none should,
-that is the finished state: say so and move on.
+`--watch` only **when checks will exist**: not on a Tier 1 PR (only `ci-ok`)
+or a draft (`ci.yml` skips until ready). No run for your HEAD, when none
+should exist, is the finished state: say so and move on.
 
 ## Milestone discipline and drift detection
 
@@ -422,20 +372,15 @@ locator ladder, the testid contract, and four copy-pasteable examples. Read it
 before writing a test; the `write-a-test` skill walks it as steps. What follows
 is the law it expands: invariants only, each one paid for.
 
-- **Red first: a test is not done until it has been seen to fail** (CLAUDE.md
-  rule 3 carries the procedure and the 2026-09-02 incident). Put the source edit
-  and the real failure text in the PR. `witness` does it mechanically for
-  property tests; for everything else it is manual and there is no substitute.
-- **Test count is a cost, not a score.** A PR that adds tests without covering a
-  *new* failure mode made the suite slower and nothing else.
-- **Prove it at one layer.** Name the layer that owns each claim and do not
-  re-prove it above. The same rule proven four times costs four maintenance
-  sites and catches one bug.
-- **Never assert presentation.** Classes, tag names, DOM structure and prose
-  copy are not contracts — roles, labels, values and behaviour are. Enforced:
-  `toHaveClass` outside `src/components/ui/**` fails lint, as does reaching past
-  the query layer into nodes.
-- **No test may sleep** (`playwright/no-wait-for-timeout` plus `no-restricted-properties` on `waitForTimeout`, which catches pages not named `page`; both fixtured in `scripts/check-lint-wall.mjs`), and **data comes from
+- **CLAUDE.md rules 1–3 bind every test:** red first, with the source edit and
+  failure text in the PR; an e2e verdict only from `ci-like`; grep
+  `docs/known-issues/` before calling a failure environmental.
+- **Test count is a cost, not a score**, and **prove it at one layer**: name the
+  layer that owns each claim and do not re-prove it above.
+- **Never assert presentation** — roles, labels, values and behaviour are
+  contracts; classes, tags, DOM structure and copy are not (lint-enforced,
+  `testing.md` §4).
+- **No test may sleep** (lint-enforced), and **data comes from
   `@tc/factories`**, never a hand-built rollup — **except in `packages/domain`,
   where it cannot**: `packages/factories` depends on `@tc/domain`, so importing
   it into a domain test is an import cycle and an invariant breach. Domain tests
@@ -444,10 +389,8 @@ is the law it expands: invariants only, each one paid for.
   (fast-check) for reducers and the conflict engine. `fast-check` is also
   available in `@tc/pages` and `apps/web` — a claim of the form "for ALL
   inputs" gets a property test wherever it lives, not just in the domain.
-- **Property tests carry a `witness`.** A property that skips every generated
-  case still reports ✓. Count the assertions and assert a floor (`witness.ts`,
-  duplicated per package). **Measure the floor, don't guess it** — set it near
-  half the observed minimum: a probe once passed 400 runs asserting **zero** times.
+- **Property tests carry a `witness`** with a measured floor (`testing.md` §3):
+  a probe once passed 400 runs asserting **zero** times.
 - **If a comment asserts an invariant, a test enforces it or the comment is a
   lie with a timer on it.** KI-1, the `evolveTrip` totality hole, and KI-14
   were all the same species: a correct-looking abstraction resting on a stated
@@ -458,10 +401,7 @@ is the law it expands: invariants only, each one paid for.
   event-store guarantees (ordering, optimistic concurrency, rebuild) have a
   dedicated suite.
 - **E2E** (Playwright): one happy-path script per milestone, kept green forever
-  after its gate. A verdict comes only from `pnpm --filter web test:e2e:ci-like`
-  (CLAUDE.md rule 1).
-- **Grep `docs/known-issues/` before calling any failure environmental, flaky
-  or infra** (CLAUDE.md rule 2) — those conclusions end the investigation.
+  after its gate.
 
 ## Conventions
 
