@@ -172,8 +172,10 @@ export function evolveTrip(state: TripState | null, event: TripEvent): TripState
  * (`projectTripDetails`) both step through here, so they agree.
  *
  * An accepted suggestion credits the person who suggested it, not the
- * reviewer who is the envelope's actor (Mitchell's call on PR 508). A batch
- * accept (`suggestions`) has no per-change author, so it keeps the actor.
+ * reviewer who is the envelope's actor (Mitchell's call on PR 508). So does a
+ * batch accept (`suggestions`) whose changes all have one author. A batch
+ * mixing authors does not say which change made which stop, so it keeps the
+ * actor (KI-2026-10-20-b).
  */
 export function evolveTripEnvelope(
   state: TripState | null,
@@ -182,7 +184,11 @@ export function evolveTripEnvelope(
 ): TripState {
   const next = evolveTrip(state, event);
   if (event.type === "ActivityAdded") {
-    const adder = envelope.origin?.kind === "suggestion" ? envelope.origin.authorId : envelope.actorId;
+    const origin = envelope.origin;
+    const adder =
+      origin?.kind === "suggestion" ? origin.authorId
+      : origin?.kind === "suggestions" && origin.authorIds.length === 1 ? origin.authorIds[0]!
+      : envelope.actorId;
     return { ...next, addedBy: { ...next.addedBy, [event.payload.activityId]: adder } };
   }
   if (event.type === "ActivityRemoved" && next.addedBy?.[event.payload.activityId] !== undefined) {

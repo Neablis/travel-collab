@@ -108,4 +108,30 @@ describe("addedBy", () => {
     expect(detail!.activities[A2]!.addedBy).toBe("sam");
     expect(tripDetailFromState(foldEnvelopes([created!, day!, accepted])!, detail!.createdAt)).toEqual(detail);
   });
+
+  // "Accept all" writes one `suggestions` origin for the whole batch.
+  const batch = (authorIds: string[]): EventEnvelope["origin"] => ({
+    kind: "suggestions",
+    changes: [{ suggestionId: "5a9c4e10-5b9c-4d80-9f5b-4d3c7e0f9a84", changeId: "4a9c4e10-5b9c-4d80-9f5b-4d3c7e0f9a85" }],
+    authorIds,
+  });
+
+  it("is the suggester when a reviewer accepts a batch from one suggester", () => {
+    const [created, day, colosseum, vatican] = stream();
+    const events = [created!, day!, by(colosseum!, "dana", batch(["sam"])), by(vatican!, "dana", batch(["sam"]))];
+    const [detail] = projectTripDetails(events);
+    expect(detail!.activities[A1]!.addedBy).toBe("sam");
+    expect(detail!.activities[A2]!.addedBy).toBe("sam");
+    expect(tripDetailFromState(foldEnvelopes(events)!, detail!.createdAt)).toEqual(detail);
+  });
+
+  // KI-2026-10-20-b: the batch origin does not say which change made which
+  // stop, so a mixed batch can only name the reviewer.
+  it("is the reviewer when a batch mixes suggesters", () => {
+    const [created, day, colosseum] = stream();
+    const events = [created!, day!, by(colosseum!, "dana", batch(["sam", "ana"]))];
+    const [detail] = projectTripDetails(events);
+    expect(detail!.activities[A1]!.addedBy).toBe("dana");
+    expect(tripDetailFromState(foldEnvelopes(events)!, detail!.createdAt)).toEqual(detail);
+  });
 });

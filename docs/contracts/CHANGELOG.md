@@ -29,8 +29,10 @@ Format:
 - What it names: the actor of the add. The assistant and a public-API key act as their person,
   so their adds name that person. **An undo, redo or revert that re-adds a stop names whoever
   undid**. An accepted suggestion names the person who suggested it (`origin.authorId`), not the
-  reviewer who accepted it and is the envelope's actor; a batch accept (`suggestions`) carries no
-  per-change author, so it names the reviewer. Removing a stop drops it.
+  reviewer who accepted it and is the envelope's actor. A batch accept (`suggestions`) whose
+  changes all come from one suggester names that suggester (`origin.authorIds[0]`); only a batch
+  mixing suggesters names the reviewer, since its origin does not say which change made which stop
+  (KI-2026-10-20-b). Removing a stop drops it.
 - Old documents: a `trip_details.doc` written before this has no key and reads `null` until its
   trip's next write, which folds the whole stream (`commands.ts`) and so fills every stop from the
   log. Production has no operator rebuild (`rebuildProjections` has only test callers,
