@@ -1,6 +1,7 @@
-import type { ActivityView, TripMemberProfile } from "@tc/contracts";
-import type { ItineraryDayPayload, Seg, SunPayload, TripPeoplePayload, TripStripPayload, WidgetPersona } from "@tc/pages";
+import type { ActivityView } from "@tc/contracts";
+import type { ItineraryDayPayload, Seg, SunPayload, TripPeoplePayload, TripStripPayload } from "@tc/pages";
 import type { AccentFamily } from "@/lib/dayAccent";
+import type { Persona } from "@/lib/persona";
 import type { DiscoverDay } from "@/lib/playbooks";
 import snapshot from "./landingDemo.generated.json";
 import features from "./landingFeatures.generated.json";
@@ -21,29 +22,47 @@ import features from "./landingFeatures.generated.json";
 // against the trip with its dates removed, so the blocks print the undated
 // forms they already have ("Day 5 · Tokyo · 5 stops").
 
+/** One day of a trip, as `DayRiver` takes it. */
+export type LandingRiverDay = {
+  dayId: string;
+  ordinal: number;
+  city: string;
+  activityIds: string[];
+  activities: Record<string, ActivityView>;
+};
+
 export type LandingDemo = {
   currency: string;
   /** Each day's colour family by `dayId`, as `cityAccents` answers it on the board. */
   accents: Record<string, AccentFamily>;
   /** One day of the trip, as `DayRiver` takes it. */
-  river: {
-    dayId: string;
-    ordinal: number;
-    city: string;
-    activityIds: string[];
-    activities: Record<string, ActivityView>;
-    /**
-     * Every member by userId, as the board's `Persona` (spelled from its parts:
-     * `lib` may not import `components`): who the blocks say is going, booked
-     * and added each stop.
-     */
-    people: Record<string, WidgetPersona & Pick<TripMemberProfile, "colorShifted">>;
+  river: LandingRiverDay & {
+    /** Every member by userId: who the blocks say is going, booked and added each stop. */
+    people: Record<string, Persona>;
   };
   /** The notebook panel's widgets, resolved by `@tc/pages` exactly as a notebook resolves them. */
   notebook: {
     strip: TripStripPayload;
     day: ItineraryDayPayload;
   };
+};
+
+/**
+ * The crew moment's trip (M51 decision 10): Paros to Santorini, planned by
+ * four people, with Elena's Naxos day borrowed as its Day 2. Folded by the
+ * real decider from the Greek bundle's days, undated and unpriced.
+ */
+export type LandingCrew = {
+  name: string;
+  currency: string;
+  accents: Record<string, AccentFamily>;
+  /** Day 2, its stops booked by and shared among the crew. */
+  river: LandingRiverDay;
+  /** The crew, for `FixedPeopleProvider`. */
+  personas: Record<string, Persona>;
+  people: TripPeoplePayload;
+  /** The library day Day 2 came from, and its canonical page. */
+  borrowed: { savedDayId: string; href: string };
 };
 
 /**
@@ -56,6 +75,7 @@ export type LandingFeatures = {
   playbook: DiscoverDay;
   /** The shelf's second day (M50 part 9): a library playbook from `content/playbooks/`, read the same way. */
   shelf: DiscoverDay;
+  crew: LandingCrew;
   /** The page's paragraphs: the author's words and the widgets' resolved values. */
   memory: Seg[][];
   /** The page's block widgets (M50 part 9): the day it remembers, that day's daylight, and who was there. */
