@@ -1,20 +1,19 @@
 "use client";
 
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { TripSummary } from "@tc/contracts";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogFooter } from "@/components/ui/dialog";
-import { FormField } from "@/components/ui/form-field";
-import { Input } from "@/components/ui/input";
-import { NativeSelect } from "@/components/ui/native-select";
-import { Text } from "@/components/ui/text";
 import { addDayToNewTrip, type NewTripLatch } from "@/lib/addDayToNewTrip";
-import { fetchTrips, insertSavedDay } from "@/lib/apiClient";
+import { fetchTripDetail, fetchTrips, insertSavedDay } from "@/lib/apiClient";
+import { dayLabel } from "@/lib/dates";
+import { AddToTripForm, NEW_TRIP } from "./AddToTripForm";
 
-// The select's second branch. A trip id is always a uuid, so this cannot
-// collide with one.
-const NEW_TRIP = "new";
+// A fixed sentence, not the server's text: what the reader needs is that the
+// append still works. Counted, because a Playbook can add several days (M23 link 4).
+const daysUnread = (dayCount: number) =>
+  `This trip's days could not be read; ${dayCount === 1 ? "the day" : "the days"} can still go after the last one.`;
 
 // "Add to a trip", from a day you are looking at (M11b link 6).
 //
@@ -41,6 +40,12 @@ const NEW_TRIP = "new";
 // **The second branch: start a new trip with this day as day 1.** The
 // sequence is `addDayToNewTrip`'s, shared with the day page's return from
 // signing up; this dialog only adds the optional start date.
+//
+// **Which day (M51 decision 8c).** On an existing trip the day can land on one
+// of that trip's days rather than after the last: `startingAt`, the server's
+// merge (ADR-050), which places its stops among that day's by time. The fields
+// are `AddToTripForm`; this component reads the trips and days and does the add.
+
 export function AddToTripDialog({
   open,
   onOpenChange,
@@ -56,12 +61,12 @@ export function AddToTripDialog({
   savedDayId: string;
   dayName: string;
   /**
-   * How many days this Playbook will append (M23 link 4).
+   * How many days this Playbook adds to the trip (M23 link 4).
    *
    * **The rule this exists for: a surface states the count it is acting on
    * BEFORE it acts.** This dialog is the surface that actually performs the
-   * append, so it is the sharpest instance of it — "add to trip" quietly
-   * appending three days when somebody expected one is the exact failure link 4
+   * add, so it is the sharpest instance of it — "add to trip" quietly
+   * adding three days when somebody expected one is the exact failure link 4
    * was written to prevent, and every word below was singular until a walk of
    * the preview caught it.
    */
@@ -79,17 +84,31 @@ export function AddToTripDialog({
   startOnNewTrip?: boolean;
 }) {
   const router = useRouter();
-  const tripFieldId = useId();
-  const startDateFieldId = useId();
   const [trips, setTrips] = useState<TripSummary[] | null>(null);
   const [tripId, setTripId] = useState("");
+  // Keyed by the trip it was picked on, like `days`: a pick made while the
+  // trip list is still loading survives that list keeping the trip, and is
+  // dropped if the list moves to another one.
+  const [pick, setPick] = useState<{ tripId: string; dayId: string } | null>(null);
   const [startDate, setStartDate] = useState("");
+  // The chosen trip's days, keyed by the trip they were read for so a slow
+  // answer for the previous choice is never offered under the new one. A
+  // failed read is kept the same way, so its sentence does not follow the
+  // reader to a trip whose days did load.
+  const [days, setDays] = useState<{
+    tripId: string;
+    days: { dayId: string; label: string }[];
+    failed?: boolean;
+  } | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // How far the new-trip branch got (`NewTripLatch`), so a retry resumes.
   const newTrip = useRef<NewTripLatch | null>(null);
 
   const creatingTrip = tripId === NEW_TRIP;
+  const startingAt = pick?.tripId === tripId ? pick.dayId : "";
+  const tripDays = days?.tripId === tripId ? days : null;
+  const shownError = [error, tripDays?.failed ? daysUnread(dayCount) : null].filter((s) => s !== null).join(" ") || null;
 
   const load = useCallback(async () => {
     const result = await fetchTrips();
@@ -131,9 +150,31 @@ export function AddToTripDialog({
       // NOT let the next opening add a second day to the trip minted for the
       // last one.
       newTrip.current = null;
+      // Nor may it offer the last opening's days, or its pick: the trip may
+      // have changed while this was closed, and a removed day's id would post.
+      setDays(null);
+      setPick(null);
       void load();
     }
   }, [open, load]);
+
+  useEffect(() => {
+    if (!open || tripId === "" || tripId === NEW_TRIP) return;
+    let current = true;
+    void fetchTripDetail(tripId).then((result) => {
+      if (!current) return;
+      if (!result.ok) {
+        // The append needs no days, so it stays on offer; the reason is said.
+        setDays({ tripId, days: [], failed: true });
+        return;
+      }
+      const { startDate: start, days: tripDays } = result.value;
+      setDays({ tripId, days: tripDays.map((d, i) => ({ dayId: d.dayId, label: dayLabel(start, i) })) });
+    });
+    return () => {
+      current = false;
+    };
+  }, [open, tripId]);
 
   async function add() {
     setBusy(true);
@@ -141,7 +182,7 @@ export function AddToTripDialog({
 
     const result = creatingTrip
       ? await addDayToNewTrip({ savedDayId, dayName, startDate }, newTrip)
-      : await insertSavedDay(tripId, savedDayId).then((inserted) =>
+      : await insertSavedDay(tripId, savedDayId, startingAt === "" ? {} : { startingAt }).then((inserted) =>
           inserted.ok ? { ok: true as const, value: { tripId } } : inserted,
         );
     setBusy(false);
@@ -176,55 +217,19 @@ export function AddToTripDialog({
           : `Add “${dayName}” (${dayCount} days) to a trip`
       }
     >
-      <div className="flex flex-col gap-3.5">
-        <FormField id={tripFieldId} label="Which trip">
-          <NativeSelect
-            id={tripFieldId}
-            value={tripId}
-            disabled={trips === null}
-            onChange={(e) => setTripId(e.target.value)}
-          >
-            {(trips ?? []).map((trip) => (
-              <option key={trip.tripId} value={trip.tripId}>
-                {trip.name}
-              </option>
-            ))}
-            <option value={NEW_TRIP}>Start a new trip</option>
-          </NativeSelect>
-        </FormField>
-
-        {creatingTrip && (
-          <FormField
-            id={startDateFieldId}
-            label="Start date"
-            hint={
-              dayCount === 1
-                ? `Optional. The trip is named “${dayName}”, and this day is day 1.`
-                : `Optional. The trip is named “${dayName}”, and its ${dayCount} days become days 1–${dayCount}.`
-            }
-          >
-            <Input
-              id={startDateFieldId}
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-            />
-          </FormField>
-        )}
-
-        <Text variant="secondary">
-          {dayCount === 1
-            ? "The day is appended at the end, keeping its order and gaps."
-            : `All ${dayCount} days are appended at the end, in order, keeping each day's own order and gaps.`}{" "}
-          It is one history entry, so one undo takes the whole thing back out.
-        </Text>
-
-        {error !== null && (
-          <Text as="span" className="text-xs text-danger-ink">
-            {error}
-          </Text>
-        )}
-      </div>
+      <AddToTripForm
+        dayName={dayName}
+        dayCount={dayCount}
+        trips={trips}
+        days={tripDays?.days ?? null}
+        value={{ tripId, startingAt, startDate }}
+        onChange={(next) => {
+          setTripId(next.tripId);
+          setPick({ tripId: next.tripId, dayId: next.startingAt });
+          setStartDate(next.startDate);
+        }}
+        error={shownError}
+      />
 
       <DialogFooter>
         <Button variant="ghost" onClick={() => onOpenChange(false)}>

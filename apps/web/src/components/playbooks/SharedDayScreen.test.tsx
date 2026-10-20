@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { CoverCandidate, SavedDay, SavedDayReviewsResponse, SavedStop } from "@tc/contracts";
-import { tripCoverFactory } from "@tc/factories";
+import { tripCoverFactory, tripDetailFixture } from "@tc/factories";
 import type { PublicProfileResponse } from "@/lib/playbooks";
 
 const fetchSavedDayMock = vi.fn();
@@ -11,6 +11,8 @@ const fetchPublicProfileMock = vi.fn();
 const publishMock = vi.fn();
 const unpublishMock = vi.fn();
 const fetchTripsMock = vi.fn();
+// The add dialog reads the chosen trip's days for its "Which day" picker (M51 part 5).
+const fetchTripDetailMock = vi.fn();
 const insertSavedDayMock = vi.fn();
 const createTripMock = vi.fn();
 const sendTripCommandBatchMock = vi.fn();
@@ -30,6 +32,7 @@ vi.mock("@/lib/apiClient", () => ({
   publishSavedDay: (...a: unknown[]) => publishMock(...a),
   unpublishSavedDay: (...a: unknown[]) => unpublishMock(...a),
   fetchTrips: (...a: unknown[]) => fetchTripsMock(...a),
+  fetchTripDetail: (...a: unknown[]) => fetchTripDetailMock(...a),
   insertSavedDay: (...a: unknown[]) => insertSavedDayMock(...a),
   createTrip: (...a: unknown[]) => createTripMock(...a),
   sendTripCommandBatch: (...a: unknown[]) => sendTripCommandBatchMock(...a),
@@ -133,6 +136,7 @@ beforeEach(() => {
   fetchPublicProfileMock.mockReset().mockResolvedValue(ok(profile()));
   publishMock.mockReset().mockResolvedValue(ok(savedDay({ visibility: "public" })));
   unpublishMock.mockReset().mockResolvedValue(ok(savedDay({ visibility: "private" })));
+  fetchTripDetailMock.mockReset().mockResolvedValue({ ok: true, value: tripDetailFixture() });
   fetchTripsMock.mockReset().mockResolvedValue(
     ok([{ tripId: TRIP_ID, name: "Japan", status: "active", members: [{ userId: "u", role: "owner", name: null, email: null }], createdAt: "2026-01-01T00:00:00.000Z" }]),
   );
@@ -903,7 +907,7 @@ describe("a shared day", () => {
     await userEvent.click(await screen.findByRole("button", { name: "Add to a trip" }));
     await screen.findByLabelText("Which trip");
     await userEvent.click(screen.getByRole("button", { name: "Add to trip" }));
-    await waitFor(() => expect(insertSavedDayMock).toHaveBeenCalledWith(TRIP_ID, DAY_ID));
+    await waitFor(() => expect(insertSavedDayMock).toHaveBeenCalledWith(TRIP_ID, DAY_ID, {}));
     await waitFor(() => expect(pushMock).toHaveBeenCalledWith(`/trips/${TRIP_ID}`));
   });
 
@@ -927,7 +931,7 @@ describe("a shared day", () => {
     expect((select as HTMLSelectElement).value).toBe(OTHER_TRIP);
 
     await userEvent.click(screen.getByRole("button", { name: "Add to trip" }));
-    await waitFor(() => expect(insertSavedDayMock).toHaveBeenCalledWith(OTHER_TRIP, DAY_ID));
+    await waitFor(() => expect(insertSavedDayMock).toHaveBeenCalledWith(OTHER_TRIP, DAY_ID, {}));
   });
 
   // Project rule 6, the conflict half for this route: the author withdrew the
