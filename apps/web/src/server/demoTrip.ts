@@ -5,6 +5,7 @@ import {
   decideTripCommand,
   describeByTags,
   evolveTrip,
+  evolveTripEnvelope,
   foldEnvelopes,
   tripDetailFromState,
   type TripState,
@@ -14,6 +15,7 @@ import {
   deterministicMintId,
   JAPAN_DEMO_ROSTER,
   JAPAN_TRIP_NAME,
+  japanGroupAdders,
   japanTripCommandGroups,
   parseBundle,
   type JapanRosterEntry,
@@ -149,6 +151,12 @@ type DemoSource = {
   name: string;
   roster: readonly JapanRosterEntry[];
   groups: (tripId: string, startDate: string) => TripCommand[][];
+  /**
+   * Who sends each group, index for index, so a stop's `addedBy` names one of
+   * the people (M51 decision 8a). Absent, or `null` for a group, is dealt
+   * round the roster instead.
+   */
+  adders?: readonly (string | null)[];
 };
 
 function sourceFor(ordinal: number, slug: string): DemoSource {
@@ -161,6 +169,7 @@ function sourceFor(ordinal: number, slug: string): DemoSource {
       // fixture says are going rather than everyone on every stop.
       groups: (tripId, startDate) =>
         japanTripCommandGroups(tripId, { startDate, mintId: deterministicMintId(), travellerId: (name) => name }),
+      adders: japanGroupAdders(),
     };
   }
   const found = BUNDLE_TRIPS.get(slug);
@@ -237,7 +246,7 @@ function buildDemo(tripId: string, startDate: string): Demo {
   // a new instance must not present the same change as a different one.
   const batchId = (n: number) => `00000000-0000-4000-800${ordinal.toString(16)}-b${String(n).padStart(11, "0")}`;
 
-  const append = (events: readonly { type: string; version: number; payload: unknown }[], batch: number) => {
+  const append = (events: readonly { type: string; version: number; payload: unknown }[], batch: number, actorId = DEMO_ACTOR_ID) => {
     for (const event of events) {
       envelopes.push({
         streamId: tripId,
@@ -245,7 +254,7 @@ function buildDemo(tripId: string, startDate: string): Demo {
         type: event.type,
         version: event.version,
         payload: event.payload,
-        actorId: DEMO_ACTOR_ID,
+        actorId,
         occurredAt: occurredAtFor(batch),
         batchId: batchId(batch),
         origin: { kind: "user" },
@@ -261,13 +270,17 @@ function buildDemo(tripId: string, startDate: string): Demo {
   for (const event of genesis.events) state = evolveTrip(state, event);
 
   groups.forEach((group, i) => {
+    // Never the demo's own actor, who is on no roster: the board would name
+    // a stranger as the stop's adder.
+    const actorId = source.adders?.[i] ?? source.roster[i % source.roster.length]!.name;
     for (const command of group) {
-      const decision = decideTripCommand(state, command, ctx);
+      const decision = decideTripCommand(state, command, { actorId });
       if (!decision.ok) {
         throw new Error(`demo trip: ${command.type} rejected — ${decision.rejection.message}`);
       }
-      append(decision.events, i + 1);
-      for (const event of decision.events) state = evolveTrip(state, event);
+      append(decision.events, i + 1, actorId);
+      // With the envelope's actor, so the detail's `addedBy` is the fold's.
+      for (const event of decision.events) state = evolveTripEnvelope(state, event, { actorId });
     }
   });
   if (state === null) throw new Error("demo trip: the fixture produced no events");

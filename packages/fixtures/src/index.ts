@@ -34,6 +34,7 @@ export {
   addDays,
   buildNotes,
   deterministicMintId,
+  japanGroupAdders,
   japanTripCommands,
   japanTripCommandGroups,
   locationName,

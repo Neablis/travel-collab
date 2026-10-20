@@ -28,6 +28,11 @@ export type TripState = {
   // Optional, and absent reads as empty: a state built before M41 has none.
   parkedFrom?: Record<string, string>;
   activities: Record<string, ActivityState>;
+  // M51 decision 8a: activityId → the actor of the envelope that added it.
+  // Only a fold over envelopes (`evolveTripEnvelope`) writes it, since a bare
+  // event names no actor. Attribution, not planning state: equality and the
+  // diff ignore it, as no event could reconcile it. Absent reads as empty.
+  addedBy?: Record<string, string>;
   dismissedConflictIds: string[]; // sorted; content-derived conflict ids the user dismissed
   currency: string; // ISO-4217; defaults to "USD"
   budget: Money | null; // defaults to null

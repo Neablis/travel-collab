@@ -377,7 +377,7 @@ function NoDayGroup({ editable, children }: { editable: boolean; children: React
 function RackCard({ item, onEdit }: { item: RackItem; onEdit?: (activityId: string) => void }) {
   const clock = useTimeFormat();
   const personas = usePersonas();
-  const parker = item.bookedBy === null ? undefined : personas?.[item.bookedBy];
+  const booker = item.bookedBy === null ? undefined : personas?.[item.bookedBy];
   const ref = useRef<HTMLDivElement>(null);
   const [dragging, setDragging] = useState(false);
 
@@ -482,23 +482,24 @@ function RackCard({ item, onEdit }: { item: RackItem; onEdit?: (activityId: stri
         </div>
         {/* Which day it left (M41 D6), the half of the provenance line M13
             could not model. Its own line, so it reads with or without the
-            "Parked by" below. */}
+            "Booked by" below. */}
         {item.from !== null && (
           <div
             className="pointer-events-none relative text-slate"
-            // eslint-disable-next-line no-restricted-syntax -- 11.5px provenance line is below Tailwind's text-xs (12px) floor, matching "Parked by"
+            // eslint-disable-next-line no-restricted-syntax -- 11.5px provenance line is below Tailwind's text-xs (12px) floor, matching "Booked by"
             style={{ fontSize: "11.5px" }}
           >
             From {item.from}
           </div>
         )}
-        {/* M13 link 5: who parked the stop. */}
+        {/* M13 link 5: who booked the stop — "Booked by" since M51 (decision
+            8b), the word the river's blocks use for the same field. */}
         {item.bookedBy !== null && (
           <div className="pointer-events-none relative flex items-center gap-1.5">
             {/* Their chip once the members land (M38); nothing before, or for
                 someone who has left, rather than the initials of a handle. */}
-            {parker !== undefined && (
-              <PersonChip name={parker.name} avatar={parker.avatar} color={parker.color} size="xs" />
+            {booker !== undefined && (
+              <PersonChip name={booker.name} avatar={booker.avatar} color={booker.color} size="xs" />
             )}
             <span
               className="text-slate"
@@ -508,7 +509,7 @@ function RackCard({ item, onEdit }: { item: RackItem; onEdit?: (activityId: stri
               {/* Named from the trip's members (M38 part 3; this printed the raw
                   id). Before they land, or for someone who has left, the id's
                   handle — never the id itself. */}
-              Parked by {parker?.name ?? displayNameFor({ userId: item.bookedBy })}
+              Booked by {booker?.name ?? displayNameFor({ userId: item.bookedBy })}
             </span>
           </div>
         )}

@@ -52,6 +52,11 @@ export function hydrate(detail: TripDetail): TripState {
         },
       ]),
     ),
+    // `?? null` for the unparsed-document reason above: a doc written before
+    // M51 has no `addedBy` key.
+    addedBy: Object.fromEntries(
+      Object.entries(detail.activities).flatMap(([id, a]) => (a.addedBy ?? null) === null ? [] : [[id, a.addedBy!]]),
+    ),
     dismissedConflictIds: [...detail.dismissedConflictIds],
     currency: detail.currency,
     budget: detail.budget,

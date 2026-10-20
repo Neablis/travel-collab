@@ -301,6 +301,7 @@ describe("getTripDetail parses the stored document", () => {
       for (const activity of Object.values(activities)) {
         delete activity.kind;
         delete activity.tags;
+        delete activity.addedBy;
       }
       delete doc.forkedFrom;
     });
@@ -313,7 +314,23 @@ describe("getTripDetail parses the stored document", () => {
     // otherwise — the defaults exist only inside a parse.
     expect(activities[0]!.kind).toBe("planned");
     expect(activities[0]!.tags).toEqual([]);
+    expect(activities[0]!.addedBy).toBeNull();
     expect(detail!.forkedFrom).toBeNull();
+  });
+
+  // M51 decision 8a: who added a stop is the add's envelope actor, so a rebuild
+  // from the log names them as the live write did, and a doc stored before the
+  // field existed gets it back from that rebuild (above, it reads as null).
+  it("names who added each stop, live and on a rebuild", async () => {
+    const tripId = await seedDay();
+    const adders = async () => Object.values((await getTripDetail(tripId))!.activities).map((a) => [a.title, a.addedBy]);
+    expect(await adders()).toEqual([["Ramen", actor]]);
+
+    await rewriteDoc(tripId, (doc) => {
+      for (const activity of Object.values(doc.activities as Record<string, Record<string, unknown>>)) delete activity.addedBy;
+    });
+    await rebuildProjections();
+    expect(await adders()).toEqual([["Ramen", actor]]);
   });
 
   // M28 (ADR-054): `idea`, `hold` and `booked` are retired, and every trip

@@ -23,7 +23,7 @@ function tripOf(days: Array<Array<{ start: string; end: string } | null>>): Trip
       const id = `d${d}a${i}`;
       activities[id] = {
         activityId: id, title: id, timeWindow, location: null, notes: null, anchors: [], kind: "planned",
-        tags: [], cost: null, bookedBy: null, participants: [], mode: null, endLocation: null, pendingReason: null,
+        tags: [], cost: null, bookedBy: null, participants: [], addedBy: null, mode: null, endLocation: null, pendingReason: null,
       };
       return id;
     });

@@ -4,6 +4,7 @@ import type { Overlap } from "@/components/lenses/overlapData";
 import { DayRiver } from "@/components/board/DayRiver";
 import { riverAxis } from "@/components/board/riverLayout";
 import type { CityAccents } from "@/components/pages/cityAccents";
+import { FixedPeopleProvider } from "@/components/pages/people";
 import { LANDING_DEMO } from "@/lib/landingDemo";
 
 // The snapshot's day on the board's own read-only river, as the hero's Timeline
@@ -49,23 +50,27 @@ export const LANDING_RIVER_CITY = river.city;
 
 /** The snapshot's day on the board's read-only river, at a scale that fits the whole day in ~240px. */
 export function LandingRiver(): React.ReactElement {
+  // The snapshot's people, since the landing reads no access: without them a
+  // block calls its adder by the id's handle (M51 decision 8a).
   return (
-    <DayRiver
-      title={LANDING_RIVER_TITLE}
-      dayId={river.dayId}
-      axis={RIVER_AXIS}
-      activityIds={river.activityIds}
-      activities={river.activities}
-      accent={LANDING_ACCENTS.ofDayId(river.dayId)}
-      conflictIds={NO_CONFLICTS}
-      overlaps={NO_OVERLAPS}
-      overlapPartners={NO_PARTNERS}
-      currency={currency}
-      onEditActivity={nothing}
-      onRemoveActivity={nothing}
-      onDismissOverlap={nothing}
-      focusedTag={null}
-      readOnly
-    />
+    <FixedPeopleProvider personas={river.people}>
+      <DayRiver
+        title={LANDING_RIVER_TITLE}
+        dayId={river.dayId}
+        axis={RIVER_AXIS}
+        activityIds={river.activityIds}
+        activities={river.activities}
+        accent={LANDING_ACCENTS.ofDayId(river.dayId)}
+        conflictIds={NO_CONFLICTS}
+        overlaps={NO_OVERLAPS}
+        overlapPartners={NO_PARTNERS}
+        currency={currency}
+        onEditActivity={nothing}
+        onRemoveActivity={nothing}
+        onDismissOverlap={nothing}
+        focusedTag={null}
+        readOnly
+      />
+    </FixedPeopleProvider>
   );
 }

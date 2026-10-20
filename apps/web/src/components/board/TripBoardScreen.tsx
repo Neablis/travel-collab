@@ -1393,7 +1393,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // phone the row at the end of the day (M39 D6), where it covers nothing and
   // so publishes no `--rack-height`.
   const unscheduledRack = (placement: "dock" | "row") => (
-    // Names a card's "Parked by" (M38), from the same cached access
+    // Names a card's "Booked by" (M38), from the same cached access
     // read as the editor's provider above — no second request.
     <PeopleProvider tripId={tripId}>
       <UnscheduledRack
@@ -1657,81 +1657,86 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
                     A phone pins it in the header instead (`pinsDayRail`). */}
                 {view === "Plan" && !pinsDayRail && <div className="pt-2.5">{dayChips}</div>}
                 {view === "Plan" && (
-                  <Board
-                    trip={activeTrip}
-                    focusedDay={focusedDay}
-                    onDrawn={setPlanDrawn}
-                    // **One day at a time on a phone** — M26 link 13, SPEC
-                    // §13.4. `useIsPhone` is the right tool here for the same
-                    // reason it is on `NewTripWizard`'s sheet and the wrong one
-                    // for chrome: this is a discrete layout swap CSS cannot make
-                    // (a count of columns, not a width), and it starts `false`
-                    // so a phone paints the desktop row for one frame before
-                    // the effect corrects. That frame is a scrolling row of
-                    // 268px columns rather than a wrong control, and it is the
-                    // same first-frame cost `DayChips` already pays one row up.
-                    oneDay={isPhone}
-                    // A viewer's board, and the demo's, show the plan and offer
-                    // nothing that changes it (ADR-031). `readOnly` comes from
-                    // the provider's own gate — the same flag that already
-                    // refuses the command — so the controls and the refusal can
-                    // never disagree about who may edit. The same reasoning
-                    // reached here independently from the M11 side
-                    // (docs/reviews/2026-08-28-m11-pr71-review.md §5): the point
-                    // is the difference between an inert board and one whose
-                    // cards move and snap back.
-                    //
-                    // A suggester's board is live: its edits are held as a
-                    // draft by that same provider (W8).
-                    readOnly={!canEditBoard}
-                    suggesting={boardMode === "suggest"}
-                    // `inert` above does not reach Board's document paste
-                    // listener, so the preview is said out loud (PR 397).
-                    previewing={preview.seq !== null}
-                    // Focus is a view state, not a command, so it is threaded
-                    // past the read-only gate deliberately: a viewer's board
-                    // and `/demo`'s signed-out reader both get the whole
-                    // behaviour. Nothing here reaches `dispatch`.
-                    focusedTag={focusedTag}
-                    onToggleTag={toggleFocusedTag}
-                    // Scrolling the columns moves the header's selected day
-                    // too (Mitchell, 2026-09-01), but as a reading position
-                    // rather than a pick — and a day picked anywhere else
-                    // scrolls its column into view here. See the day-sync
-                    // contract in `FocusProvider`.
-                    sync={columnsSync}
-                    // The insert half of the keep-a-day loop, which SPEC §24
-                    // deleted along with `TimelineLens` — `EndOfTrip` was its
-                    // only mount. Passed from here rather than imported inside
-                    // `Board` because it reads `useTrip()` and `Board` is
-                    // props-only; this screen is inside the provider.
-                    addSavedDay={<AddSavedDayButton />}
-                    // A suggester's bar stays fixed where the rack was (below).
-                    endOfDay={rackIsRow ? unscheduledRack("row") : undefined}
-                    suggestions={suggestions}
-                    callbacks={{
-                      // "columns", for the same reason the chips row names
-                      // itself above: at any width where more than about two
-                      // columns fit, the first and last day can never sit on
-                      // this row's centre reading line, so clicking their
-                      // header must not be undone by this row's own spy.
-                      onSelectDay: (index: number | null) => setFocusedDay(index, "columns"),
-                      onMove: moveActivity,
-                      onUnschedule: unscheduleActivity,
-                      onPlace: placeActivity,
-                      onAnyTime: anyTimeActivity,
-                      onRevealAnyTime: revealAnyTime,
-                      onRetime: retimeActivity,
-                      onMoveDay: moveDay,
-                      onCopy: copyActivity,
-                      onDragStart: () => onRackEvent({ type: "dragStart" }),
-                      onDragEnd: () => onRackEvent({ type: "dragEnd" }),
-                      onAddDay: addDay,
-                      onRemoveDay: removeDay,
-                      onRemoveActivity: removeActivity,
-                      onDismissConflict: (conflictId) => void dispatch({ type: "DismissConflict", tripId, conflictId }),
-                    }}
-                  />
+                  // Names who is going, who booked and who added each stop on the
+                  // river (M51 decision 8a), from the same cached access read as the
+                  // rack and the editor: no second request.
+                  <PeopleProvider tripId={tripId}>
+                    <Board
+                      trip={activeTrip}
+                      focusedDay={focusedDay}
+                      onDrawn={setPlanDrawn}
+                      // **One day at a time on a phone** — M26 link 13, SPEC
+                      // §13.4. `useIsPhone` is the right tool here for the same
+                      // reason it is on `NewTripWizard`'s sheet and the wrong one
+                      // for chrome: this is a discrete layout swap CSS cannot make
+                      // (a count of columns, not a width), and it starts `false`
+                      // so a phone paints the desktop row for one frame before
+                      // the effect corrects. That frame is a scrolling row of
+                      // 268px columns rather than a wrong control, and it is the
+                      // same first-frame cost `DayChips` already pays one row up.
+                      oneDay={isPhone}
+                      // A viewer's board, and the demo's, show the plan and offer
+                      // nothing that changes it (ADR-031). `readOnly` comes from
+                      // the provider's own gate — the same flag that already
+                      // refuses the command — so the controls and the refusal can
+                      // never disagree about who may edit. The same reasoning
+                      // reached here independently from the M11 side
+                      // (docs/reviews/2026-08-28-m11-pr71-review.md §5): the point
+                      // is the difference between an inert board and one whose
+                      // cards move and snap back.
+                      //
+                      // A suggester's board is live: its edits are held as a
+                      // draft by that same provider (W8).
+                      readOnly={!canEditBoard}
+                      suggesting={boardMode === "suggest"}
+                      // `inert` above does not reach Board's document paste
+                      // listener, so the preview is said out loud (PR 397).
+                      previewing={preview.seq !== null}
+                      // Focus is a view state, not a command, so it is threaded
+                      // past the read-only gate deliberately: a viewer's board
+                      // and `/demo`'s signed-out reader both get the whole
+                      // behaviour. Nothing here reaches `dispatch`.
+                      focusedTag={focusedTag}
+                      onToggleTag={toggleFocusedTag}
+                      // Scrolling the columns moves the header's selected day
+                      // too (Mitchell, 2026-09-01), but as a reading position
+                      // rather than a pick — and a day picked anywhere else
+                      // scrolls its column into view here. See the day-sync
+                      // contract in `FocusProvider`.
+                      sync={columnsSync}
+                      // The insert half of the keep-a-day loop, which SPEC §24
+                      // deleted along with `TimelineLens` — `EndOfTrip` was its
+                      // only mount. Passed from here rather than imported inside
+                      // `Board` because it reads `useTrip()` and `Board` is
+                      // props-only; this screen is inside the provider.
+                      addSavedDay={<AddSavedDayButton />}
+                      // A suggester's bar stays fixed where the rack was (below).
+                      endOfDay={rackIsRow ? unscheduledRack("row") : undefined}
+                      suggestions={suggestions}
+                      callbacks={{
+                        // "columns", for the same reason the chips row names
+                        // itself above: at any width where more than about two
+                        // columns fit, the first and last day can never sit on
+                        // this row's centre reading line, so clicking their
+                        // header must not be undone by this row's own spy.
+                        onSelectDay: (index: number | null) => setFocusedDay(index, "columns"),
+                        onMove: moveActivity,
+                        onUnschedule: unscheduleActivity,
+                        onPlace: placeActivity,
+                        onAnyTime: anyTimeActivity,
+                        onRevealAnyTime: revealAnyTime,
+                        onRetime: retimeActivity,
+                        onMoveDay: moveDay,
+                        onCopy: copyActivity,
+                        onDragStart: () => onRackEvent({ type: "dragStart" }),
+                        onDragEnd: () => onRackEvent({ type: "dragEnd" }),
+                        onAddDay: addDay,
+                        onRemoveDay: removeDay,
+                        onRemoveActivity: removeActivity,
+                        onDismissConflict: (conflictId) => void dispatch({ type: "DismissConflict", tripId, conflictId }),
+                      }}
+                    />
+                  </PeopleProvider>
                 )}
                 {view === "Overview" && (
                   <OverviewLens

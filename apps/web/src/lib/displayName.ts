@@ -30,7 +30,7 @@
  * People section and the header stack hand over a whole `TripMemberProfile`,
  * which carries it since M38 part 2; `PeopleProvider` (`components/pages/
  * people.tsx`) passes it for every notebook widget, suggestion author, history
- * row and the rack's "Parked by"; and Home's cards hand over a
+ * row and the rack's "Booked by"; and Home's cards hand over a
  * `TripSummaryMember`, which the trips list fills from `users` in the one
  * batched read (M38 part 3). None of those carries an address.
  *

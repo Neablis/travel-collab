@@ -42,6 +42,12 @@ export const ActivityView = z.object({
   // it. Membership is checked where it can be acted on — the command decider.
   bookedBy: z.string().nullable().default(null),
   participants: z.array(z.string()).default([]),
+  // M51 decision 8a: who added the stop. Not a snapshot field and in no
+  // payload: it is the `actorId` of the `ActivityAdded` envelope, so the whole
+  // log already carries it, and an undo or revert that re-adds a stop names
+  // whoever undid. Defaulted for every document written before it; loose like
+  // `bookedBy`, since the person may since have left.
+  addedBy: z.string().nullable().default(null),
   // M24. Defaulted for every document written before them, and — this model's
   // rule again — NOT held to "transit only" on read: a stored contradiction
   // must still render. The decider is where the rule is enforced.
@@ -74,7 +80,9 @@ export type ActivityView = z.infer<typeof ActivityView>;
 type Exact<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
 type AssertTrue<T extends true> = T;
 export type ActivityViewCoversSnapshot = AssertTrue<
-  Exact<keyof ActivitySnapshot, Exclude<keyof ActivityView, "activityId">>
+  // `addedBy` is the log's attribution, not planning state, so no snapshot
+  // carries it.
+  Exact<keyof ActivitySnapshot, Exclude<keyof ActivityView, "activityId" | "addedBy">>
 >;
 
 // The board read model: one document per trip, conflicts included.
