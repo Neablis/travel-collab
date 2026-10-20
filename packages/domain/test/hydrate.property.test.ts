@@ -125,8 +125,13 @@ const arbTripState: fc.Arbitrary<TripState> = fc
           maxLength: s.activityIds.length,
         }),
         fc.array(activity, { minLength: s.activityIds.length, maxLength: s.activityIds.length }),
+        // M51: who added each stop, or nobody (a doc written before it).
+        fc.array(fc.option(fc.string({ minLength: 1, maxLength: 12 }), { nil: null }), {
+          minLength: s.activityIds.length,
+          maxLength: s.activityIds.length,
+        }),
       )
-      .map(([assign, activities]): TripState => {
+      .map(([assign, activities, adderIds]): TripState => {
         const days = s.dayIds.map((dayId) => ({ dayId, activityIds: [] as string[] }));
         const backlog: string[] = [];
         s.activityIds.forEach((id, i) => {
@@ -143,6 +148,7 @@ const arbTripState: fc.Arbitrary<TripState> = fc
           days,
           backlog,
           activities: Object.fromEntries(s.activityIds.map((id, i) => [id, activities[i]!])),
+          addedBy: Object.fromEntries(s.activityIds.flatMap((id, i) => (adderIds[i] == null ? [] : [[id, adderIds[i]!]]))),
           dismissedConflictIds: [...s.dismissed].sort(),
           currency: s.currency,
           budget: s.budget,
@@ -168,6 +174,9 @@ const FLOOR_ROLE = 20;
 // arbitrary observed 77-88 non-null cases per 100; floored near half the
 // observed minimum.
 const FLOOR_LINEAGE = 38;
+// M51 `addedBy`, measured the same way: six runs observed 69-86 cases per
+// 100 with an adder, so the floor is near half the minimum.
+const FLOOR_ADDED_BY = 34;
 
 describe("hydrate", () => {
   it("is the inverse of tripDetailFromState (round-trip)", () => {
@@ -180,6 +189,7 @@ describe("hydrate", () => {
     const tags = witness("hydrate round-trip: non-empty tags");
     const roles = witness("hydrate round-trip: a non-owner member");
     const lineage = witness("hydrate round-trip: a forked trip");
+    const adders = witness("hydrate round-trip: a stop with an adder");
     fc.assert(
       fc.property(arbTripState, (state) => {
         for (const a of Object.values(state.activities)) {
@@ -190,11 +200,16 @@ describe("hydrate", () => {
         if (state.forkedFrom !== null) lineage.tick();
         const roundTripped = hydrate(tripDetailFromState(state, "2027-01-01T00:00:00.000Z"));
         expect(tripStatesEqual(roundTripped, state)).toBe(true);
+        // Attribution is outside `tripStatesEqual` (state.ts says why), so
+        // its round trip is asserted on its own.
+        if (Object.keys(state.addedBy ?? {}).length > 0) adders.tick();
+        expect(roundTripped.addedBy).toEqual(state.addedBy);
       }),
     );
     kinds.atLeast(FLOOR_KIND);
     tags.atLeast(FLOOR_TAGS);
     roles.atLeast(FLOOR_ROLE);
     lineage.atLeast(FLOOR_LINEAGE);
+    adders.atLeast(FLOOR_ADDED_BY);
   });
 });

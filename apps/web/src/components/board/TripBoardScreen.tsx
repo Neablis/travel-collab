@@ -1393,7 +1393,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // phone the row at the end of the day (M39 D6), where it covers nothing and
   // so publishes no `--rack-height`.
   const unscheduledRack = (placement: "dock" | "row") => (
-    // Names a card's "Parked by" (M38), from the same cached access
+    // Names a card's "Booked by" (M38), from the same cached access
     // read as the editor's provider above — no second request.
     <PeopleProvider tripId={tripId}>
       <UnscheduledRack

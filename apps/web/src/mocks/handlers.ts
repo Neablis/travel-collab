@@ -128,6 +128,7 @@ function applyMock(detail: TripDetail, command: TripCommand): TripDetail {
         cost: command.cost ?? null,
         bookedBy: command.bookedBy ?? null,
         participants: command.participants ?? [],
+        addedBy: null,
         mode: command.mode ?? null,
         endLocation: command.endLocation ?? null,
         pendingReason: command.pendingReason ?? null,

@@ -21,6 +21,7 @@ function stop(
     cost: null,
     bookedBy: null,
     participants: [],
+    addedBy: null,
     mode: endLocation ? "train" : null,
     endLocation,
     pendingReason: null,

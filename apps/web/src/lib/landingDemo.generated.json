@@ -50,6 +50,7 @@
         "cost": null,
         "bookedBy": null,
         "participants": [],
+        "addedBy": "Jonah",
         "mode": "train",
         "endLocation": {
           "name": "Kyoto Station, Shimogyō, Kyoto, Japan",
@@ -85,6 +86,7 @@
         "cost": null,
         "bookedBy": null,
         "participants": [],
+        "addedBy": "Jonah",
         "mode": null,
         "endLocation": null,
         "pendingReason": null
@@ -114,6 +116,7 @@
         "cost": null,
         "bookedBy": null,
         "participants": [],
+        "addedBy": "Jonah",
         "mode": null,
         "endLocation": null,
         "pendingReason": null
@@ -142,6 +145,7 @@
         "cost": null,
         "bookedBy": null,
         "participants": [],
+        "addedBy": "Jonah",
         "mode": null,
         "endLocation": null,
         "pendingReason": null
@@ -170,6 +174,7 @@
         "cost": null,
         "bookedBy": null,
         "participants": [],
+        "addedBy": "Jonah",
         "mode": null,
         "endLocation": null,
         "pendingReason": "maybe"

@@ -8,11 +8,14 @@ import { KIND_LABEL } from "@tc/pages";
 import { useTimeFormat } from "@/components/account/PreferencesProvider";
 import type { Overlap } from "@/components/lenses/overlapData";
 import { Badge } from "@/components/ui/badge";
+import { useGuests, usePersonas } from "@/components/pages/people";
 import { Button } from "@/components/ui/button";
 import { DataText } from "@/components/ui/data-text";
+import { PersonChip } from "@/components/ui/person-chip";
 import { TAG_LABEL, tagFocusOpacity } from "@/lib/activityTags";
 import { cn } from "@/lib/cn";
 import type { AccentFamily } from "@/lib/dayAccent";
+import { displayNameFor } from "@/lib/displayName";
 import { formatMoney } from "@/lib/formatMoney";
 import { displayPlace, legRoute } from "@/lib/place";
 import { useIsCoarsePointer } from "@/lib/useIsPhone";
@@ -105,6 +108,22 @@ function riverLook(stop: Pick<ActivityView, "kind" | "mode" | "pendingReason" | 
   }
   return { tone: "planned", title: stop.title, tag: null, kindWord: KIND_LABEL.planned };
 }
+
+/**
+ * What a stop calls a person: their name on the trip, a guest's name, or —
+ * for someone who has left, or before the people land — the id's handle,
+ * never the id. `participants` can hold guest ids, so guests are asked too.
+ */
+function useNameOf(): (id: string) => string {
+  const personas = usePersonas();
+  const guests = useGuests();
+  return (id) => personas?.[id]?.name ?? guests?.find((g) => g.guestId === id)?.name ?? displayNameFor({ userId: id });
+}
+
+// The people line's 20px chips under a tall block's title and time rows, and
+// the 22px tag footer below them, need 81px; a block shorter than this with
+// tags keeps the footer and leaves its people to the accessible name.
+const PEOPLE_WITH_FOOTER_PX = 82;
 
 /**
  * A block's lane on its river: `(100% + gap) / lanes` per lane, less the gap,
@@ -274,6 +293,13 @@ export function RiverBlock({
   const route = legRoute(activity);
   const where = route ?? (activity.location ? displayPlace(activity.location) : null);
   const cost = activity.cost ? formatMoney(activity.cost.amountMinor, currency) : null;
+  // M51 decision 8a. Nobody picked means everyone is going (ADR-060), which
+  // is no news on a stop, so only a pick is drawn.
+  const nameOf = useNameOf();
+  const personas = usePersonas();
+  const going = activity.participants.map((id) => ({ id, name: nameOf(id) }));
+  const bookedBy = activity.bookedBy === null ? null : nameOf(activity.bookedBy);
+  const addedBy = activity.addedBy === null ? null : nameOf(activity.addedBy);
   // Everything the drawn block says is aria-hidden (the block is one button's
   // worth of picture), so the name carries what the card it replaced let a
   // screen reader read: the place and the cost, which a narrow or short block
@@ -286,6 +312,9 @@ export function RiverBlock({
     cost,
     activity.tags.length > 0 ? `tagged ${activity.tags.map((t) => TAG_LABEL[t]).join(" and ")}` : null,
     overlapping ? `overlaps ${overlapPartners.join(" and ")}` : null,
+    going.length > 0 ? `going ${going.map((p) => p.name).join(" and ")}` : null,
+    bookedBy !== null ? `booked by ${bookedBy}` : null,
+    addedBy !== null ? `added by ${addedBy}` : null,
     hasConflict ? "has conflicts" : null,
     suggestion ? (movingTo === undefined ? "has a suggested change" : `suggested to move to ${movingTo}`) : null,
     draft ? "not sent" : null,
@@ -321,6 +350,15 @@ export function RiverBlock({
   // a tall block that has the width has the room.
   const showCost = !narrow && Boolean(activity.cost);
   const showFooter = placement.tier === "tall" && (activity.tags.length > 0 || showCost);
+  // A third line only a tall block, with its row to itself, has room for.
+  const said = [bookedBy !== null ? `Booked by ${bookedBy}` : null, addedBy !== null ? `${addedBy} added this` : null]
+    .filter((part): part is string => part !== null)
+    .join(" · ");
+  const showPeople =
+    placement.tier === "tall" &&
+    !narrow &&
+    (going.length > 0 || said !== "") &&
+    (!showFooter || placement.heightPx >= PEOPLE_WITH_FOOTER_PX);
   // **A shorter block still lets its tags be focused.** SPEC §36.9b draws a
   // block under 70px without them, and at rest it stays that way — but every
   // lodging stop in the demo is a 30-minute check-in, so without this nothing
@@ -493,6 +531,19 @@ export function RiverBlock({
             {narrow && provisionalPill}
             {narrow && tagMark}
             <span className="truncate">{where && !narrow ? `${range} · ${where}` : range}</span>
+          </span>
+        )}
+        {showPeople && (
+          <span aria-hidden className="pointer-events-none relative flex min-w-0 items-center gap-1.5 text-xs text-slate">
+            {going.length > 0 && (
+              <span className="flex shrink-0 -space-x-1">
+                {going.map(({ id, name }) => {
+                  const persona = personas?.[id];
+                  return <PersonChip key={id} name={name} avatar={persona?.avatar ?? null} color={persona?.color ?? null} size="xs" ring title={name} />;
+                })}
+              </span>
+            )}
+            {said !== "" && <span className="truncate">{said}</span>}
           </span>
         )}
         {showFooter && (

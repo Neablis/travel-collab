@@ -13,6 +13,33 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-10-20 — Who added a stop (M51 part 4; public API 1.19.0)
+- **Added** (`packages/contracts/src/detail.ts`): `ActivityView.addedBy`, `string | null`,
+  `.default(null)`, beside `bookedBy` and `participants`. The id of whoever added the stop, which
+  the board draws as *"Sam added this"* (M51 decision 8a). On `TripDetail` and so in every
+  response that carries one, `/v1` included: `openapi.json` regenerated, `info.version` 1.18.0 →
+  1.19.0 (minor: additive).
+- **Derived, not stored in any event.** It is the `actorId` of the `ActivityAdded` envelope,
+  which every event has carried since day one (Invariant 6a), so no payload changes and every
+  stop already in the log folds to its adder on the next write or rebuild. The domain folds it in
+  `evolveTripEnvelope`, which `foldEnvelopes` (the live write) and `projectTripDetails` (the
+  rebuild) both step through; `TripState.addedBy` holds it, and `tripStatesEqual` and the diff
+  ignore it, since no event could reconcile it. `ActivitySnapshot` does not carry it
+  (`ActivityViewCoversSnapshot` now excludes it by name).
+- What it names: the actor of the add. The assistant and a public-API key act as their person,
+  so their adds name that person. **An undo, redo or revert that re-adds a stop names whoever
+  undid**, and an accepted suggestion names the reviewer who accepted it (the envelope's actor;
+  the suggester stays in `origin`). Removing a stop drops it.
+- Old documents: a `trip_details.doc` written before this has no key and reads `null` until its
+  trip next changes or projections are rebuilt, which fills it from the log.
+- Consumers updated: `packages/domain` (`evolve.ts`, `history.ts`, `detail.ts`, `hydrate.ts`,
+  `state.ts`), `@tc/factories` (`activityFactory`, legacy fixtures), `@tc/fixtures` (the Japan
+  demo's adders and two `bookedBy` picks), `apps/web` (`RiverBlock` draws it, `demoTrip.ts`
+  folds each demo under its people: Japan's adders, a bundle's dealt round its roster, so no
+  stop names the demo's own actor; the landing snapshots regenerated, every hand-built
+  `ActivityView` in tests).
+- Breaking? no. Defaulted, so an older reader and every stored document still parse.
+
 ## 2026-10-19 — Dismissing the offer to publish a trip that is over (M50 part 7)
 - **Added** (`packages/contracts/src/identity.ts`): `UserPreferences.dismissedPublishOffers`,
   `string[]` of trip uuids (at most `MAX_DISMISSED_PUBLISH_OFFERS`, 1000, also

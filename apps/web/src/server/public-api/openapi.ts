@@ -40,8 +40,8 @@ import { IDEMPOTENCY_KEY_MAX_LENGTH, REPLAYED_HEADER } from "./idempotency";
  * fingerprint the failure printed into `API_FINGERPRINT`, and add a line to
  * `docs/contracts/CHANGELOG.md`. Change both constants in the same diff.
  */
-export const API_VERSION = "1.18.0";
-export const API_FINGERPRINT = "f3d3758b11844398bd92fb689e5f5d547a5008a0c0e342e683cafe1f7bb3baf7";
+export const API_VERSION = "1.19.0";
+export const API_FINGERPRINT = "e1c21b6bf57040d4155a717b2a8fe178db8f88a09c23112dd0a65a614a23cb32";
 
 /**
  * sha256 of the document with `info.version` left out, keys sorted at every

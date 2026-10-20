@@ -1,4 +1,4 @@
-import type { TripEvent } from "@tc/contracts";
+import type { EventEnvelope, TripEvent } from "@tc/contracts";
 import type { TripState } from "./state";
 
 // Off every list, and so off `parkedFrom` too: a stop that is not parked has
@@ -163,4 +163,27 @@ export function evolveTrip(state: TripState | null, event: TripEvent): TripState
     case "TripRestored":
       return { ...state, status: "active" };
   }
+}
+
+/**
+ * `evolveTrip` for an event read from the log, where the envelope says who
+ * issued it. The add's actor is recorded as the stop's `addedBy`; that is the
+ * only use of the envelope. The live fold (`foldEnvelopes`) and the rebuild
+ * (`projectTripDetails`) both step through here, so they agree.
+ */
+export function evolveTripEnvelope(
+  state: TripState | null,
+  event: TripEvent,
+  envelope: Pick<EventEnvelope, "actorId">,
+): TripState {
+  const next = evolveTrip(state, event);
+  if (event.type === "ActivityAdded") {
+    return { ...next, addedBy: { ...next.addedBy, [event.payload.activityId]: envelope.actorId } };
+  }
+  if (event.type === "ActivityRemoved" && next.addedBy?.[event.payload.activityId] !== undefined) {
+    const { [event.payload.activityId]: _gone, ...addedBy } = next.addedBy;
+    void _gone;
+    return { ...next, addedBy };
+  }
+  return next;
 }

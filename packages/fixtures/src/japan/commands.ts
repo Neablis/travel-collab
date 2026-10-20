@@ -15,11 +15,12 @@ import {
   JAPAN_TRIP_CURRENCY,
   JAPAN_TRIP_DAY_COUNT,
   JAPAN_STOPS,
+  JAPAN_TRAVELLERS,
   type JapanBacklogItem,
   type JapanStop,
   type JapanTraveller,
 } from "./trip.ts";
-import { participantsOf } from "./participants.ts";
+import { bookedByOf, participantsOf } from "./participants.ts";
 
 /** Mints a fresh uuid. Injectable so the verifier can be deterministic. */
 export type MintId = () => string;
@@ -140,7 +141,8 @@ function placeOf(row: JapanStop | JapanBacklogItem): Location {
  *
  * `who` is folded into `notes` as the export wrote it, and becomes
  * `participants` only when the caller says who the travellers are on this trip
- * (`JapanTripOptions.travellerId`). `tags`/`cost`/`participants` are omitted
+ * (`JapanTripOptions.travellerId`), as `BOOKED_BY_PICKS` becomes `bookedBy`.
+ * `tags`/`cost`/`participants`/`bookedBy` are omitted
  * entirely when empty so the emitted command matches what a real user's action
  * would have produced.
  */
@@ -155,6 +157,7 @@ function addActivity(
 ): TripCommand {
   const notes = buildNotes(row.note, row.who);
   const participants = travellerId ? participantsOf(row).map(travellerId) : [];
+  const booker = travellerId ? bookedByOf(row) : null;
   const end = row.endsAt === undefined ? undefined : JAPAN_STOPS.find((s) => s.id === row.endsAt);
   // A dangling reference is a fixture bug, and a leg silently missing its
   // destination would pass every count below it — so it throws.
@@ -174,6 +177,7 @@ function addActivity(
     ...(row.tags.length > 0 ? { tags: row.tags as ActivityTag[] } : {}),
     ...(costUsd !== null ? { cost: { amountMinor: costUsd * 100, currency: JAPAN_TRIP_CURRENCY } } : {}),
     ...(participants.length > 0 ? { participants } : {}),
+    ...(booker !== null && travellerId ? { bookedBy: travellerId(booker) } : {}),
     ...(notes ? { notes } : {}),
   };
 }
@@ -235,6 +239,18 @@ export function japanTripCommandGroups(tripId: string, options: JapanTripOptions
   const backlog = JAPAN_BACKLOG.map((item) => addActivity(tripId, mintId(), item, undefined, undefined, null, travellerId));
 
   return [setup, ...days, backlog];
+}
+
+/**
+ * Who sends each of `japanTripCommandGroups`' groups, index for index: the
+ * actor a stop's `addedBy` names (M51 decision 8a). The export does not say
+ * who added what, so the days and the backlog are dealt round the four
+ * travellers in turn, and every one of them is seen adding. `null` for the
+ * setup: the caller's own actor, the trip's creator.
+ */
+export function japanGroupAdders(): (JapanTraveller | null)[] {
+  const dealt = Array.from({ length: JAPAN_TRIP_DAY_COUNT + 1 }, (_, i) => JAPAN_TRAVELLERS[i % JAPAN_TRAVELLERS.length]!);
+  return [null, ...dealt];
 }
 
 /**

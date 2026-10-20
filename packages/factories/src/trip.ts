@@ -91,6 +91,8 @@ export const activityFactory = Factory.define<ActivityView, ActivityTransient>(
     // attribution test pass for the wrong reason.
     bookedBy: null,
     participants: [],
+    // M51, unattributed for the same reason as `bookedBy`.
+    addedBy: null,
     // M24. No travel leg by default, for the same reason: `kind` is "planned",
     // and only a transit stop may carry one.
     mode: null,
