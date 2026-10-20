@@ -73,7 +73,42 @@ here two days later.
   **Decided so far (Mitchell, 2026-10-19):** it is its own milestone, not more M50 parts, and it
   starts with a design review with sketches before any code. Open for that review: the pricing
   pitch's *"Free tier!"* against the landing's no-"free" copy rule (SPEC §14, cited at
-  `LandingScreen.tsx:24-29`). Unplaced; no gate deletes this entry yet.
+  `LandingScreen.tsx:24-29`). The design review settled it on 2026-10-20: no "Free tier!", and
+  no exclamation marks (M51 decision 6).
+  *Placed 2026-10-20 → `docs/milestones/M51-the-front-door-tells-the-story.md` (scoped). M51's gate deletes this entry at close.*
+
+- **The book motif across the app: the trip notebook as a bound book, with a page flip
+  (asked 2026-10-20).** Direction B2 of M51's design review: the landing as a real bound book
+  (cloth spine with head-band and stitching, board edges, a stacked fore-edge, a hardback cover),
+  whose pages turn to tell the borrowed-day story (*"Her day 3 becomes your day 1"*). Motion
+  prototype: https://claude.ai/artifact/1nbkRFcYQN4jM2UgVi5J5T. Mitchell, round 1: *"the notebook
+  design is maybe the most ambitious and the one that is currently resonating with me the
+  most"*. **Why it waits**, verbatim: *"i love the book motif but i am not commited to rewriting
+  rest of app right now"*. It only works if the app's notebooks become books too, which is a
+  rewrite of the notebook surfaces, so M51 took C2 instead. His open comments on the prototype go
+  with it:
+  - *"Its not obvious these are books. I dont mind them being single pages, and the page turn will
+    probably still look fine, but they need to be clearly a book for this to work"* (phone).
+  - *"Can we try a different color than the dark blue that can accent the dark green of the rest
+    of the colors? Also any ideas for some more texture to the cover? right now it feels too
+    flat"*.
+  - *"the cost page should be the second to last page, the last page should be the CTA to
+    signup/find a day to start with. Also try out making them top to bottom rather than left to
+    right"*.
+  - *"use the camera, bike, boat emoji on the chips on the cards, and drop them from the top"*.
+
+  Open: whether the notebook screen itself adopts the book (spine, page turn) before the landing
+  does, and how a book reads on a phone. Unplaced; no gate deletes this entry yet.
+
+- **Real reviews replace the landing's sample ratings (asked 2026-10-20).** M51 gives the
+  landing's sea of day cards sample ratings in `ratingLine`'s format (*★ 4.8 · 37 reviews*, about
+  one in nine *"No reviews yet"*). That reverses M50 part 9's no-invented-rating call for the
+  landing only. Mitchell, verbatim: *"just add the sample ratings, and we will re-address as
+  reviews come in and use the real trips then"*. **What reopens it:** library days with real
+  reviews in production. Then the build-time snapshot (`apps/web/scripts/landing-demo.ts`, the
+  sea's generator from M51 part 1) takes each day's real rating and count at generation time, and
+  the sample values go. Open: the threshold for showing a real count, and whether the sea prefers
+  well-reviewed days. Unplaced; no gate deletes this entry yet.
 
 - **Gesture and keyboard follow-ups left out of M41 (2026-10-10).** Considered while scoping M41
   and left for later, in rough order of value:

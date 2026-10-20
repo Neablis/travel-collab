@@ -21,16 +21,21 @@ general setup.
 
 ## Where the work is right now
 
+**M51 — The front door tells the story — is the current milestone**
+(`docs/milestones/M51-the-front-door-tells-the-story.md`), minted and scoped with Mitchell on
+2026-10-20 after a design review of the homepage; he chose C2, the sea of notebooks. It is placed
+ahead of M49, which waits. Plan: `docs/plans/2026-10-20-M51-front-door.md`, six parts on `main`
+(branches `claude/m51-part<K>-…`). Part 0 is the draft PR on `claude/m51-front-door-plan`, and it
+merges last. KI-2026-10-20-a (the Railay coordinates) is fixed by part 1.
+
+**Next action:** build parts 1 (the sea's data), 4 (names on stops) and 5 (pick a day) in
+parallel. Part 2 (the desktop sea) starts when part 1 merges; parts 3 and 6 start after part 2
+(part 6 also after part 5).
+
 **M50 closed 2026-10-19, gate 11 of 11** (part 0 PR 493). Parts are PRs 494-501 and 503 (part 9,
 from Mitchell's walk), migrations `0060` and `0061`, both applied in production; ADR-079. Five
 boxes are ticked on Mitchell's walk of the landing page (his ruling, option a). Evidence, retro
 and spend are in `docs/milestones/M50-strangers-find-a-day.md`.
-
-**Next action:** plan the homepage-redesign milestone from the top entry of `docs/candidates.md`
-(*The front door tells the story*; Mitchell's 6 Vercel toolbar threads on the PR 503 preview are
-its input). It starts with a design review with sketches, before any code, and that review
-decides *"Free tier!"* against the no-"free" copy rule. The order's current marker
-(M49, set by `pnpm milestone close`) stands until Mitchell schedules the redesign.
 
 **M48 is parked, not closed** (2026-10-19, Mitchell): gate 4 of 11, its open boxes wait on
 flag-on plan turns, which M50's launch should bring. When it resumes, its no-traffic work comes
@@ -68,8 +73,8 @@ Also merged beside it: `docs/guidelines/building-with-judgment.md` (PR 468).
 **M45 closed 2026-10-13, gate 12 of 12** (part 0 PR 420); evidence and retro in
 `docs/milestones/M45-the-assistant-beyond-one-trip.md`. Accepted gap: KI-2026-10-13-a.
 
-Order: `… M42 ✓ → M45 ✓ → M46 ✓ → M47 ✓ → M50 ✓ → M48 (parked) → M49 → M43 → M44`; the reorder is in
-`docs/milestones/README.md`, *2026-10-19 — minted: M50, M48 parked*. Earlier closed milestones'
+Order: `… M42 ✓ → M45 ✓ → M46 ✓ → M47 ✓ → M50 ✓ → M51 → M48 (parked) → M49 → M43 → M44`; the reorder is in
+`docs/milestones/README.md`, *2026-10-20 — minted: M51, ahead of M49*. Earlier closed milestones'
 narrative is in `docs/retros/2026-10-16-status-archive.md` and each milestone's own file.
 
 ## Live rules that the code cannot enforce
