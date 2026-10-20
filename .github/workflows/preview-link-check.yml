@@ -1,0 +1,44 @@
+name: preview-link-check
+
+# Every link the landing sea draws must open a real day on the PR's preview
+# (M51, "The links stay real"). The preview build seeds `content/`
+# (`apps/web/scripts/vercel-build-migrate.mjs`); this requests every
+# `cells[].href` in `landingSea.generated.json` against the built preview and
+# fails, naming each href, on anything but a 200.
+#
+# `deployment_status` because the preview's URL only exists once Vercel has
+# built it, and Vercel reports that as a GitHub deployment. The workflow file
+# is read from the deployed sha, so a PR checks its own preview with its own
+# copy of this file. Not a required check: `ci-ok` stays the only one.
+on:
+  deployment_status:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.deployment.sha }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  sea-links:
+    if: ${{ github.event.deployment_status.state == 'success' && github.event.deployment.environment == 'Preview' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: |
+            .nvmrc
+            scripts/check-preview-links.mjs
+            apps/web/src/lib/landingSea.generated.json
+          sparse-checkout-cone-mode: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+      - name: Request every sea link on the preview
+        env:
+          PREVIEW_URL: ${{ github.event.deployment_status.environment_url }}
+          # Deployment Protection answers 401 to anything without it.
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+        run: node scripts/check-preview-links.mjs
