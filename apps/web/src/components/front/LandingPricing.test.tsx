@@ -36,8 +36,8 @@ describe("the pricing ladder", () => {
     expect(summary.getByText("Every trip you want, as many days as you like — and share any of it with a link.")).toBeDefined();
     const lines = summary.getAllByTestId("plan-step").map((line) => line.textContent);
     expect(lines).toEqual([
-      "Everything in free, and your personal AI trip assistant.",
-      "Everything in plus, and bring the whole crew in; only you need it.",
+      "Everything in Free, and your personal AI trip assistant.",
+      "Everything in Plus, and bring the whole crew in; only you need it.",
     ]);
     expect(screen.getByRole("region", { name: "Pricing" }).textContent).not.toMatch(/!/);
   });

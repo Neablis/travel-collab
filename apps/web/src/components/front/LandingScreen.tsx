@@ -82,7 +82,7 @@ export function LandingScreen() {
           hero={
             // On paper over the sea's first screen, which is all colour: the
             // cards behind are the noise, the headline the one quiet thing.
-            <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-7">
+            <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center p-7">
               <div className="pointer-events-auto flex max-w-xl flex-col gap-5.5 rounded-lg border border-hairline bg-paper p-9 shadow-raised">
                 <DataText size="xs" className="text-2xs tracking-widest uppercase">
                   Days worth reliving

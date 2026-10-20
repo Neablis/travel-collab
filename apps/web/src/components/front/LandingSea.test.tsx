@@ -18,7 +18,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-/** An `IntersectionObserver` the test drives: `near(i)` reports the i-th observed screen near. */
+/** An `IntersectionObserver` the test drives: `near(el)` reports one observed element near, `nearAll()` every one. */
 function watchScreens() {
   const watched: { el: Element; callback: IntersectionObserverCallback; observer: IntersectionObserver }[] = [];
   vi.stubGlobal(
@@ -34,18 +34,23 @@ function watchScreens() {
       disconnect() {}
     },
   );
+  const report = (which: typeof watched) =>
+    act(() => {
+      for (const w of which) w.callback([{ isIntersecting: true, target: w.el } as never], w.observer);
+    });
   return {
-    nearAll: () =>
-      act(() => {
-        for (const w of watched) w.callback([{ isIntersecting: true, target: w.el } as never], w.observer);
-      }),
+    near: (el: Element) => report(watched.filter((w) => w.el === el)),
+    nearAll: () => report(watched),
   };
 }
 
 const savedDayIds = () => screen.getAllByTestId("discover-card").map((card) => card.getAttribute("data-saved-day-id"));
 
-// A whole sea mounted is some three hundred cards: seconds of jsdom, not a hang.
-describe("the landing's sea", { timeout: 30_000 }, () => {
+// A whole sea mounted is some three hundred cards: seconds of jsdom, not a
+// hang, so only the two tests that need every screen mount them all.
+const WHOLE_SEA = { timeout: 15_000 };
+
+describe("the landing's sea", () => {
   // The first screen is what a cold load paints, before any JavaScript: it is
   // in the server's HTML. Everything further down waits until the reader is
   // within a screen of it, so 148 cards are not 148 mounts.
@@ -60,7 +65,16 @@ describe("the landing's sea", { timeout: 30_000 }, () => {
     for (const cell of LANDING_SEA.japan) expect(html).not.toContain(`data-saved-day-id="${cell.day.savedDayId}"`);
   });
 
-  it("mounts a far screen's cells once the reader is near it", () => {
+  // The hero is drawn over the first screen's cards, but a screen reader
+  // reading in order, or jumping by heading, meets it before them.
+  it("reads the hero before the first screen's cards", () => {
+    render(<LandingSea hero={<h1>Plan the trip together.</h1>} />);
+    const headings = within(screen.getByTestId("landing-sea")).getAllByRole("heading");
+    expect(headings.length).toBeGreaterThan(1);
+    expect(headings[0]!.textContent).toBe("Plan the trip together.");
+  });
+
+  it("mounts a far screen's cells once the reader is near it", WHOLE_SEA, () => {
     const screens = watchScreens();
     render(<LandingSea />);
     const far = SEA_BANDS.at(-1)!.find((cell) => !SEA_BANDS[0]!.includes(cell))!;
@@ -73,7 +87,7 @@ describe("the landing's sea", { timeout: 30_000 }, () => {
   // a prefetch of every card would read the library 148 times. So each linked
   // cell opens its canonical day page with nothing after it, and the Japan
   // cells, whose days live only in the dev fixtures, open nothing (decision 10).
-  it("links every cell to its canonical day page, with no query, and the Japan cells nowhere", () => {
+  it("links every cell to its canonical day page, with no query, and the Japan cells nowhere", WHOLE_SEA, () => {
     const screens = watchScreens();
     render(<LandingSea />);
     screens.nearAll();
@@ -93,23 +107,21 @@ describe("the landing's sea", { timeout: 30_000 }, () => {
     }
   });
 
-  it("lets a keyboard skip the background, but not the moments", () => {
-    const screens = watchScreens();
+  it("lets a keyboard skip the background, but not the moments", async () => {
     render(<LandingSea />);
-    screens.nearAll();
     const sea = within(screen.getByTestId("landing-sea"));
-    const background = SEA_BANDS[1]![0]!;
+    const background = SEA_BANDS[0]![0]!;
     for (const link of sea.getAllByRole("link", { name: background.day.name })) {
       expect(link.getAttribute("tabindex")).toBe("-1");
     }
     const find = within(sea.getByRole("region", { name: "Find a day worth borrowing." }));
-    for (const link of find.getAllByRole("link", { name: LANDING_FEATURES.shelf.name })) {
+    for (const link of await find.findAllByRole("link", { name: LANDING_FEATURES.shelf.name })) {
       expect(link.getAttribute("tabindex")).toBeNull();
     }
   });
 });
 
-describe("the sea's moments", { timeout: 30_000 }, () => {
+describe("the sea's moments", () => {
   it("finds a day: the Railay day as a big card and a small one, both opening its page", async () => {
     render(<LandingSea />);
     const find = within(screen.getByRole("region", { name: "Find a day worth borrowing." }));
@@ -128,8 +140,9 @@ describe("the sea's moments", { timeout: 30_000 }, () => {
   it("puts the crew on the Greek trip's borrowed Day 2, with the Greek days lit around it", async () => {
     const screens = watchScreens();
     render(<LandingSea />);
-    screens.nearAll();
-    const crew = within(screen.getByRole("region", { name: "Plan the rest with the crew." }));
+    const region = screen.getByRole("region", { name: "Plan the rest with the crew." });
+    screens.near(region);
+    const crew = within(region);
     const river = await crew.findByRole("list", { name: "Day 2 timeline" });
     expect(within(river).getAllByRole("listitem").length).toBe(LANDING_FEATURES.crew.river.activityIds.length);
     expect(crew.getByText(LANDING_FEATURES.crew.people.sentence)).toBeDefined();
@@ -149,8 +162,9 @@ describe("the sea's moments", { timeout: 30_000 }, () => {
   it("keeps the notebook afterwards, with the Japan days lit around it", async () => {
     const screens = watchScreens();
     render(<LandingSea />);
-    screens.nearAll();
-    const notebook = within(screen.getByRole("region", { name: "Keep the notebook afterwards." }));
+    const region = screen.getByRole("region", { name: "Keep the notebook afterwards." });
+    screens.near(region);
+    const notebook = within(region);
     expect(await notebook.findByTestId("notebook-page")).toBeDefined();
     for (const cell of LANDING_SEA.japan) expect(notebook.getByRole("heading", { name: cell.day.name })).toBeDefined();
   });
@@ -175,9 +189,15 @@ describe("the rise and the dim", () => {
   });
 
   it("starts from the rest state in the markup, and follows the scroll", () => {
+    // The server's HTML, which no effect has painted: the sea undimmed and
+    // every moment risen, with no opacity of its own.
+    const html = renderToString(<LandingSea />);
+    expect(html).toContain("--sea-dim:0");
+    expect(html).not.toMatch(/data-moment[^>]*opacity/);
+    expect(html).not.toMatch(/opacity[^>]*data-moment/);
+
     render(<LandingSea />);
     const sea = screen.getByTestId("landing-sea");
-    expect(sea.style.getPropertyValue("--sea-dim")).toBe("0");
 
     const moment = screen.getByRole("region", { name: "Plan the rest with the crew." });
     vi.spyOn(moment, "getBoundingClientRect").mockReturnValue({ top: window.innerHeight } as DOMRect);

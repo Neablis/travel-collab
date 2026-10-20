@@ -104,6 +104,12 @@ test.describe("the front door, signed out (M42)", () => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto("/");
     const landing = page.getByTestId("desktop-landing");
+    // Hydrated before `hydration` is read: only the sea's scroll listener,
+    // attached by an effect, ever moves `--sea-dim` off its authored 0.
+    await page.evaluate(() => window.scrollTo(0, window.innerHeight));
+    await expect
+      .poll(() => landing.getByTestId("landing-sea").evaluate((sea: HTMLElement) => sea.style.getPropertyValue("--sea-dim")))
+      .not.toBe("0");
     await expect(landing.getByRole("region", { name: "Find a day worth borrowing." }).getByRole("link", { name: RAILAY }).first()).toBeVisible();
     await expect(landing.getByRole("region", { name: "Plan the rest with the crew." }).getByRole("list", { name: "Day 2 timeline" })).toBeVisible();
     // The day's stop, not the words that name it too (M50 part 9).
@@ -139,6 +145,40 @@ test.describe("the front door, signed out (M42)", () => {
     await door.click();
     await expect(page).toHaveURL(new URL(href, page.url()).href);
   });
+
+  // A lit cell beside a moment is a tab stop, so it must be drawn whole: one
+  // cut off by a clipping box would take focus out of sight and scroll that
+  // box out of place. At 1440, and at 1100, where a side is narrower than a
+  // cell's usual 15rem.
+  for (const width of [1100, 1440]) {
+    test(`every cell a keyboard reaches beside a moment is drawn whole at ${width}`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto("/");
+      const moments = page.getByTestId("desktop-landing").locator("[data-moment]");
+      await expect(moments).toHaveCount(4);
+      for (const moment of await moments.all()) {
+        await moment.scrollIntoViewIfNeeded();
+        await expect(moment.getByTestId("discover-card").first()).toBeAttached();
+      }
+      const cut = await moments.evaluateAll((sections) =>
+        sections.flatMap((section) =>
+          [...section.querySelectorAll<HTMLElement>("[data-testid=discover-card]")]
+            .filter((card) => [...card.querySelectorAll("a")].some((link) => link.tabIndex >= 0))
+            .filter((card) => {
+              const box = card.getBoundingClientRect();
+              for (let clip = card.parentElement; clip !== null && clip !== section.parentElement; clip = clip.parentElement) {
+                if (getComputedStyle(clip).overflow === "visible") continue;
+                const edge = clip.getBoundingClientRect();
+                if (box.top < edge.top - 1 || box.bottom > edge.bottom + 1 || box.left < edge.left - 1 || box.right > edge.right + 1) return true;
+              }
+              return false;
+            })
+            .map((card) => card.getAttribute("data-saved-day-id")),
+        ),
+      );
+      expect(cut).toEqual([]);
+    });
+  }
 
   // The phone's claims are the same components, the Discover card in its
   // compact form so it fits a short phone (390×664): below the headline and

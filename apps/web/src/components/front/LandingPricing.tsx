@@ -43,6 +43,9 @@ const ADDS: [entitlement: string, words: string][] = [
 /** Decision 6's line for the plan that holds no other: no "free" in it, which only the plan's name may say (SPEC §14). */
 const FIRST_STEP = "Every trip you want, as many days as you like — and share any of it with a link.";
 
+/** A plan's name as the page says it, "Free" rather than its id: in the text itself, not by CSS, which a screen reader and a copy do not see. */
+const planName = (choice: AccountPlanChoice) => choice.planId.charAt(0).toUpperCase() + choice.planId.slice(1);
+
 /** What `choice` grants that `base` does not, in words; "more" for a grant nobody has written words for. */
 function adds(choice: AccountPlanChoice, base: AccountPlanChoice): string {
   const extra = choice.entitlements.filter((entitlement) => !base.entitlements.includes(entitlement));
@@ -69,8 +72,8 @@ export function LandingPricing({ id, ref }: { id?: string; ref?: Ref<HTMLElement
       <div className="grid grid-cols-1 gap-3 md:grid-cols-3" data-testid="plan-summary">
         {ladder(LANDING_PLANS).map(({ choice, base }) => (
           <div key={choice.planId} className="flex flex-col gap-1.5 rounded-lg border border-hairline bg-surface p-4">
-            <Text as="span" className="font-semibold text-ink capitalize">
-              {choice.planId}
+            <Text as="span" className="font-semibold text-ink">
+              {planName(choice)}
             </Text>
             <Text as="span" className="text-lg font-semibold text-ink">
               {planPrice(choice)}
@@ -81,7 +84,7 @@ export function LandingPricing({ id, ref }: { id?: string; ref?: Ref<HTMLElement
               </Text>
             ) : (
               <Text as="span" variant="secondary" data-testid="plan-step">
-                Everything in <span className="capitalize">{base.planId}</span>, and {adds(choice, base)}.
+                Everything in <span>{planName(base)}</span>, and {adds(choice, base)}.
               </Text>
             )}
           </div>

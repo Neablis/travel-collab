@@ -47,10 +47,13 @@ const GREECE = "greek-islands";
 const lit = (group: string) => LANDING_SEA.cells.filter((cell) => cell.group === group);
 const BACKGROUND = LANDING_SEA.cells.filter((cell) => cell.group !== THAILAND && cell.group !== GREECE);
 
-// Enough cells to fill a screen of a 3440px monitor, which is more than the
+// Enough cells to fill a screen of a 3440×1440 monitor, which is more than the
 // library divided by five: a wide band repeats days a band or two apart, which
 // a reader scrolling dimmed ground does not notice, where a half-empty band
-// would be the dead space this milestone exists to remove.
+// would be the dead space this milestone exists to remove. A taller screen at
+// 1x (3840×2160) shows about 80 cells' worth, so its bands end some 40% short;
+// 1440 and 3440 are the gate's widths, and a bigger band is cards mounted and
+// never seen at 1440.
 const BAND_SIZE = 48;
 const SIDE_SIZE = 12;
 const run = (from: number, count: number) =>
@@ -138,33 +141,49 @@ function Cell({
   );
 }
 
-/** A screen of background, its cells mounted once the reader is near it. */
+/**
+ * A screen of background, its cells mounted once the reader is near it.
+ * `children` (the hero) come first in the DOM, so a screen reader meets the
+ * page's h1 before 48 card titles; drawn over the cells, they carry their own
+ * z-index.
+ */
 function Band({ cells, first, children }: { cells: SeaDoor[]; first: boolean; children?: ReactNode }) {
   const [ref, near] = useNear<HTMLDivElement>(first);
   return (
     <div ref={ref} className="landing-sea-band relative">
+      {children}
       <ul aria-label="Days from the library" className="landing-sea-grid h-full">
         {near &&
           cells.map((cell, i) => (
             <Cell key={`${cell.day.savedDayId}-${i}`} cell={cell} background headingLevel={2} />
           ))}
       </ul>
-      {children}
     </div>
   );
 }
 
-/** A side of a moment: its lit days first, then dimmed background to the edge. */
+/**
+ * A side of a moment: its lit days first, then dimmed background to the edge.
+ * The lit days are in flow, so the moment grows to hold them: they are tab
+ * stops, and one cut off by the clipped fill below would take focus out of
+ * sight. Only the fill is clipped to whatever height is left.
+ */
 function Side({ lit, fill, near }: { lit: SeaDoor[]; fill: SeaDoor[]; near: boolean }) {
   return (
-    <div className="relative hidden min-w-0 flex-1 lg:block">
-      <ul aria-label="Days from the library" className="landing-sea-grid absolute inset-0">
-        {near && lit.map((cell) => <Cell key={cell.day.savedDayId} cell={cell} background={false} headingLevel={3} narrow />)}
-        {near &&
-          fill.map((cell, i) => (
-            <Cell key={`${cell.day.savedDayId}-${i}`} cell={cell} background headingLevel={3} narrow />
-          ))}
-      </ul>
+    <div className="hidden min-w-0 flex-1 flex-col gap-1 lg:flex">
+      {lit.length > 0 && (
+        <ul aria-label="Days from the library" className="landing-sea-grid">
+          {near && lit.map((cell) => <Cell key={cell.day.savedDayId} cell={cell} background={false} headingLevel={3} narrow />)}
+        </ul>
+      )}
+      <div className="relative flex-1">
+        <ul aria-label="Days from the library" className="landing-sea-grid absolute inset-0">
+          {near &&
+            fill.map((cell, i) => (
+              <Cell key={`${cell.day.savedDayId}-${i}`} cell={cell} background headingLevel={3} narrow />
+            ))}
+        </ul>
+      </div>
     </div>
   );
 }
@@ -194,7 +213,8 @@ function Moment({
   return (
     <section ref={ref} aria-labelledby={id} data-moment className="flex gap-3">
       <Side lit={lit.slice(0, half)} fill={fill.slice(0, SIDE_SIZE)} near={near} />
-      <div className="flex w-full max-w-2xl shrink-0 flex-col gap-5 py-10">
+      {/* Centred below lg, where the sides are hidden: there a side would be narrower than one cell. */}
+      <div className="mx-auto flex w-full max-w-2xl shrink-0 flex-col gap-5 py-10">
         <Heading level={2} id={id} className="text-xl text-pretty">
           {heading}
         </Heading>
