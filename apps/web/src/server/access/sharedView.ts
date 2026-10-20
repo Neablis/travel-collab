@@ -6,6 +6,10 @@ import type { SharedTripView } from "@tc/contracts";
  * a spread-and-delete: a new `TripDetail` field must be opted IN to the public
  * surface, never leak into it because someone added it upstream (ADR-027).
  *
+ * Each stop's `addedBy`, `bookedBy` and `participants` are emptied for the
+ * reason `members` is dropped: they are actor ids, and actor ids identify real
+ * people. The page draws none of them, and its totals are priced before this.
+ *
  * Its own module, and a pure one, because it has two callers with very
  * different needs: `shares.ts`, which reads a real share out of Postgres, and
  * `demoTrip.ts`, whose whole point is that it never opens a connection
@@ -40,7 +44,12 @@ export function toSharedView(
     budget: at.budget,
     days: at.days,
     backlog: at.backlog,
-    activities: at.activities,
+    activities: Object.fromEntries(
+      Object.entries(at.activities).map(([id, activity]) => [
+        id,
+        { ...activity, addedBy: null, bookedBy: null, participants: [] },
+      ]),
+    ),
     unscheduledCostSubtotal: at.unscheduledCostSubtotal,
     tripCostTotal: at.tripCostTotal,
     travellerCount,

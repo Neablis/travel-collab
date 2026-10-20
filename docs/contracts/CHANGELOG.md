@@ -40,7 +40,10 @@ Format:
   `PeopleProvider` that now wraps the Plan board, and on the landing by the snapshot's new
   `river.people`; `demoTrip.ts` folds each demo under its people: Japan's adders, a bundle's
   dealt round its roster, so no stop names the demo's own actor; the landing snapshots
-  regenerated, every hand-built `ActivityView` in tests).
+  regenerated, every hand-built `ActivityView` in tests); `SharedTripView` (`toSharedView`, the
+  public share read) nulls it, and with it each stop's `bookedBy` and `participants`, which
+  leaked to link holders already: all three are actor ids, which the view exists not to serve
+  (`share.ts`, beside `members`). `shares.int.test.ts` now shares a stop carrying all three.
 - Breaking? no. Defaulted, so an older reader and every stored document still parse.
 
 ## 2026-10-19 — Dismissing the offer to publish a trip that is over (M50 part 7)
