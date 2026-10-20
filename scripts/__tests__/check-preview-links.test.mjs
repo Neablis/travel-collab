@@ -12,10 +12,10 @@ import { checkLinks } from "../check-preview-links.mjs";
 
 const BYPASS = "test-bypass";
 
-/** A stub preview: `routes` maps a path to a status, or to "drop" to close the socket unanswered. */
+/** A stub preview: `routes` maps a path to a status, "drop" to close the socket unanswered, or a list of those, one per hit. */
 async function stubPreview(routes) {
-  // Maps, not objects keyed by `req.url`: CodeQL reads that as remote property
-  // injection, even in a test.
+  // Maps, and no function to call, keyed by `req.url`: CodeQL reads either as
+  // remote property injection or a dynamic call, even in a test.
   const table = new Map(Object.entries(routes));
   const hits = new Map();
   const server = createServer((req, res) => {
@@ -23,7 +23,7 @@ async function stubPreview(routes) {
     hits.set(req.url, hit);
     if (req.headers["x-vercel-protection-bypass"] !== BYPASS) return res.writeHead(401).end();
     const route = table.get(req.url);
-    const answer = route instanceof Function ? route(hit) : route;
+    const answer = Array.isArray(route) ? route[hit - 1] : route;
     if (answer === "drop") return req.socket.destroy();
     res.writeHead(answer ?? 404).end();
   });
@@ -45,7 +45,7 @@ test("names each href that 404s or never answers, and passes the rest", async (t
 });
 
 test("retries once when a request gets no response, and only then", async (t) => {
-  const preview = await stubPreview({ "/flaky": (hit) => (hit === 1 ? "drop" : 200), "/missing": 404 });
+  const preview = await stubPreview({ "/flaky": ["drop", 200], "/missing": 404 });
   t.after(preview.close);
   const failures = await checkLinks({ baseUrl: preview.baseUrl, hrefs: ["/flaky", "/missing"], bypass: BYPASS });
   assert.deepEqual(failures.map((failure) => failure.href), ["/missing"]);
