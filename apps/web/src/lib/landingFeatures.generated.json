@@ -106,6 +106,312 @@
     ],
     "namedTags": []
   },
+  "crew": {
+    "name": "Paros to Santorini",
+    "currency": "USD",
+    "accents": {
+      "00000000-0000-4000-80c0-000000000001": "warning",
+      "00000000-0000-4000-80c0-000000000002": "danger",
+      "00000000-0000-4000-80c0-000000000003": "success"
+    },
+    "river": {
+      "dayId": "00000000-0000-4000-80c0-000000000002",
+      "ordinal": 2,
+      "city": "Naxos Town",
+      "activityIds": [
+        "00000000-0000-4000-80c0-000000000012",
+        "00000000-0000-4000-80c0-000000000013",
+        "00000000-0000-4000-80c0-000000000014",
+        "00000000-0000-4000-80c0-000000000015",
+        "00000000-0000-4000-80c0-000000000016",
+        "00000000-0000-4000-80c0-000000000017",
+        "00000000-0000-4000-80c0-000000000018",
+        "00000000-0000-4000-80c0-000000000019"
+      ],
+      "activities": {
+        "00000000-0000-4000-80c0-000000000012": {
+          "activityId": "00000000-0000-4000-80c0-000000000012",
+          "title": "Drive up to Filoti and park by the square",
+          "timeWindow": {
+            "start": "06:45",
+            "end": "07:30"
+          },
+          "location": {
+            "name": "Filoti main square",
+            "countryCode": "GR",
+            "city": "Filoti",
+            "area": "Village square"
+          },
+          "notes": "Day rate for a small car — Naxos is the one Cycladic island where a car beats a quad, because the mountain road is long and cold at 07:00. The trail starts on the steps opposite Taverna Baboulas on the square. You can also drive on to the tiny Aria Spring car park and save 40 minutes of road walking, but it holds six cars and fills by 08:00.",
+          "anchors": [],
+          "kind": "transit",
+          "tags": [],
+          "cost": null,
+          "bookedBy": null,
+          "participants": [],
+          "mode": null,
+          "endLocation": null,
+          "pendingReason": null
+        },
+        "00000000-0000-4000-80c0-000000000013": {
+          "activityId": "00000000-0000-4000-80c0-000000000013",
+          "title": "Fill both bottles at the Aria Spring",
+          "timeWindow": {
+            "start": "07:35",
+            "end": "08:05"
+          },
+          "location": {
+            "name": "Aria Spring",
+            "countryCode": "GR",
+            "city": "Filoti",
+            "area": "Aria"
+          },
+          "notes": "A stone well under a plane tree, running cold straight out of the mountain and safe to drink. It is the last water on the route in both directions — two litres each, and it is also the best-placed drink on the whole descent.",
+          "anchors": [],
+          "kind": "planned",
+          "tags": [
+            "outdoors"
+          ],
+          "cost": null,
+          "bookedBy": null,
+          "participants": [],
+          "mode": null,
+          "endLocation": null,
+          "pendingReason": null
+        },
+        "00000000-0000-4000-80c0-000000000014": {
+          "activityId": "00000000-0000-4000-80c0-000000000014",
+          "title": "Zas Cave and the push to 1,003 m",
+          "timeWindow": {
+            "start": "08:10",
+            "end": "11:00"
+          },
+          "location": {
+            "name": "Mount Zas summit",
+            "countryCode": "GR",
+            "city": "Filoti",
+            "area": "Mount Zas"
+          },
+          "notes": "The cave where Zeus was supposedly hidden is twenty minutes above the spring and worth the detour; take a torch, it goes back further than it looks. From there the route is cairns rather than signs and the last half hour is loose scree — if the cloud is down on the summit the cairns are genuinely hard to follow, so turn round rather than guess.",
+          "anchors": [],
+          "kind": "planned",
+          "tags": [
+            "outdoors"
+          ],
+          "cost": null,
+          "bookedBy": null,
+          "participants": [
+            "Maeve",
+            "Tomas",
+            "Ruth"
+          ],
+          "mode": null,
+          "endLocation": null,
+          "pendingReason": null
+        },
+        "00000000-0000-4000-80c0-000000000015": {
+          "activityId": "00000000-0000-4000-80c0-000000000015",
+          "title": "Down the Agia Marina side to close the loop",
+          "timeWindow": {
+            "start": "11:05",
+            "end": "12:30"
+          },
+          "location": {
+            "name": "Agia Marina chapel",
+            "lat": 37.044701,
+            "lng": 25.507188,
+            "countryCode": "GR",
+            "city": "Filoti",
+            "area": "Agia Marina"
+          },
+          "notes": "Retracing your steps is faster; the loop down past the Agia Marina chapel and back along the contour to Filoti is the better half of the walk and costs about 40 extra minutes. Roughly 12.8 km all in.",
+          "anchors": [],
+          "kind": "transit",
+          "tags": [
+            "outdoors"
+          ],
+          "cost": null,
+          "bookedBy": null,
+          "participants": [],
+          "mode": null,
+          "endLocation": null,
+          "pendingReason": null
+        },
+        "00000000-0000-4000-80c0-000000000016": {
+          "activityId": "00000000-0000-4000-80c0-000000000016",
+          "title": "Lunch at Lefteris in Apeiranthos",
+          "timeWindow": {
+            "start": "13:00",
+            "end": "14:30"
+          },
+          "location": {
+            "name": "Lefteris",
+            "lat": 37.071792,
+            "lng": 25.519616,
+            "countryCode": "GR",
+            "city": "Apeiranthos",
+            "area": "Marble village",
+            "precision": "city"
+          },
+          "notes": "Apeiranthos is entirely paved in marble and has five small museums nobody visits. Ask for the goat in lemon and take the back terrace — it looks straight down the valley you spent the morning walking out of, which is the only way to make sense of the shape of the island.",
+          "anchors": [],
+          "kind": "planned",
+          "tags": [
+            "meal"
+          ],
+          "cost": null,
+          "bookedBy": "Maeve",
+          "participants": [],
+          "mode": null,
+          "endLocation": null,
+          "pendingReason": null
+        },
+        "00000000-0000-4000-80c0-000000000017": {
+          "activityId": "00000000-0000-4000-80c0-000000000017",
+          "title": "Citron tasting at the Vallindras distillery, Halki",
+          "timeWindow": {
+            "start": "14:45",
+            "end": "15:30"
+          },
+          "location": {
+            "name": "Vallindras Distillery",
+            "lat": 37.063013,
+            "lng": 25.482285,
+            "countryCode": "GR",
+            "city": "Halki",
+            "area": "Halki village"
+          },
+          "notes": "Fifteen minutes, free, and still using the copper stills from 1896. Three strengths of kitron: green is the sweet one people like on the day, yellow is the one worth carrying home. Skip it if you are driving the mountain road afterwards.",
+          "anchors": [],
+          "kind": "pending",
+          "tags": [
+            "drinks"
+          ],
+          "cost": null,
+          "bookedBy": null,
+          "participants": [],
+          "mode": null,
+          "endLocation": null,
+          "pendingReason": null
+        },
+        "00000000-0000-4000-80c0-000000000018": {
+          "activityId": "00000000-0000-4000-80c0-000000000018",
+          "title": "Plaka Beach, ten minutes south of the last sunbed",
+          "timeWindow": {
+            "start": "16:15",
+            "end": "18:30"
+          },
+          "location": {
+            "name": "Plaka Beach",
+            "countryCode": "GR",
+            "city": "Plaka",
+            "area": "Southern dunes"
+          },
+          "notes": "A pair of beds and an umbrella at the beach clubs at the north end runs about what is priced here. Walk ten minutes south past the last row instead and it is empty sand and dune all the way to Kastraki for nothing — this cost is the version where you give in, and it is fine either way.",
+          "anchors": [],
+          "kind": "pending",
+          "tags": [
+            "beach"
+          ],
+          "cost": null,
+          "bookedBy": null,
+          "participants": [],
+          "mode": null,
+          "endLocation": null,
+          "pendingReason": null
+        },
+        "00000000-0000-4000-80c0-000000000019": {
+          "activityId": "00000000-0000-4000-80c0-000000000019",
+          "title": "The Portara at sunset, dinner in the old market after",
+          "timeWindow": {
+            "start": "19:15",
+            "end": "21:45"
+          },
+          "location": {
+            "name": "Portara and the Kastro lanes",
+            "lat": 36.870658,
+            "lng": 25.521091,
+            "countryCode": "GR",
+            "city": "Naxos Town",
+            "area": "Palatia and Kastro",
+            "precision": "city"
+          },
+          "notes": "The marble door frame on the islet is a five-minute causeway walk from the port and is the one sunset on Naxos worth planning around. Then go up into the Kastro rather than eating on the waterfront — the port tavernas have the view and the village ones have the food. Book, because the good ones inside the walls have eight tables.",
+          "anchors": [],
+          "kind": "planned",
+          "tags": [
+            "meal",
+            "sight"
+          ],
+          "cost": null,
+          "bookedBy": "Tomas",
+          "participants": [
+            "Maeve",
+            "Tomas",
+            "Kenji"
+          ],
+          "mode": null,
+          "endLocation": null,
+          "pendingReason": null
+        }
+      }
+    },
+    "personas": {
+      "Maeve": {
+        "name": "Maeve",
+        "avatar": "sailboat",
+        "color": "sky",
+        "travelling": true,
+        "colorShifted": false
+      },
+      "Tomas": {
+        "name": "Tomas",
+        "avatar": "bike",
+        "color": "ochre",
+        "travelling": true,
+        "colorShifted": false
+      },
+      "Ruth": {
+        "name": "Ruth",
+        "avatar": "camera",
+        "color": "rose",
+        "travelling": true,
+        "colorShifted": false
+      },
+      "Kenji": {
+        "name": "Kenji",
+        "avatar": null,
+        "color": "teal",
+        "travelling": true,
+        "colorShifted": false
+      }
+    },
+    "people": {
+      "kind": "trip-people",
+      "stack": [
+        {
+          "name": "Tomas",
+          "avatar": "bike",
+          "color": "ochre"
+        },
+        {
+          "name": "Ruth",
+          "avatar": "camera",
+          "color": "rose"
+        },
+        {
+          "name": "Kenji",
+          "avatar": null,
+          "color": "teal"
+        }
+      ],
+      "sentence": "Tomas, Ruth and Kenji are going with Maeve."
+    },
+    "borrowed": {
+      "savedDayId": "0fe810f9-755b-4b38-8692-e08788eb980a",
+      "href": "/playbooks/day/naxos-up-zas-at-dawn-the-marble-villages-and-plaka-for-the-s-0fe810f9-755b-4b38-8692-e08788eb980a"
+    }
+  },
   "memory": [
     [
       {

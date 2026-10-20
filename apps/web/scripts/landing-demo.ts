@@ -5,7 +5,8 @@
 // today; every other demo's is `src/lib/landingDemo.<slug>.generated.json`
 // (M42 D2); the cards are `src/lib/demoTripCards.generated.json` (D1); the
 // landing's Playbooks card and Notebook page are
-// `src/lib/landingFeatures.generated.json` (M42 part 9).
+// `src/lib/landingFeatures.generated.json` (M42 part 9); the sea of every
+// public library day is `src/lib/landingSea.generated.json` (M51).
 //
 //   pnpm --filter web landing:generate   # rewrite the snapshots
 //   pnpm landing:verify                  # the drift check CI runs (also inside `pnpm test`)
@@ -32,17 +33,42 @@
 // Run with `node --import ./scripts/lib/ts-resolve-register.mjs`, which lets
 // Node follow `src/**`'s extensionless imports and the `@/` alias.
 
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import type { DiscoverDay } from "@/lib/playbooks";
-import { SavedStop, TripCover, travellerIds, type PageParagraphNode, type TripDetail } from "@tc/contracts";
+import {
+  SavedStop,
+  TripCover,
+  travellerIds,
+  type AvatarKey,
+  type PageParagraphNode,
+  type PersonColor,
+  type TripCommand,
+  type TripDetail,
+  type TripMemberProfile,
+} from "@tc/contracts";
+import { decideCreateTrip, decideTripCommand, evolveTrip, tripDetailFromState, type TripState } from "@tc/domain";
 import { z } from "zod";
-import { parseBundle, REFERENCE_START_DATE, resolvePlaybook } from "@tc/fixtures";
+import {
+  bundleTripCommandGroups,
+  JAPAN_SAVED_DAYS,
+  JAPAN_SOURCE_TRIP,
+  parseBundle,
+  REFERENCE_START_DATE,
+  resolvePlaybook,
+  type ContentBundleV1,
+  type ResolvedPlaybook,
+} from "@tc/fixtures";
 import { renderMacro, type BlockPayload, type Seg, type WidgetContext } from "@tc/pages";
 import { cityAccents } from "@/components/pages/cityAccents";
 import { DEMO_TRIPS, demoTripBySlug } from "@/lib/demoTrip";
 import { displayNameFor } from "@/lib/displayName";
-import type { LandingDemo, LandingFeatures } from "@/lib/landingDemo";
+import type { LandingCrew, LandingDemo, LandingFeatures } from "@/lib/landingDemo";
+import type { LandingSea, SeaCell, SeaCellSize, SeaDay } from "@/lib/landingSea";
+import { dayPath } from "@/lib/playbookUrls";
+import { overlayMembers } from "@/server/access/overlay";
+import { withTripColors } from "@/server/access/personaColors";
+import { serverConflictContext } from "@/server/conflictContext";
 import { demoTripCards, demoTripDetailFor, demoTripMembers } from "@/server/demoTrip";
 import { toDiscoverDay, type DiscoverRow } from "@/server/discoverDay";
 import { savedDayCities } from "@/server/savedDayCities";
@@ -125,7 +151,10 @@ function undatedDemo(slug: string) {
  * copy to the original.
  */
 export function demoPersonasOf(tripId: string): NonNullable<WidgetContext["personas"]> {
-  const members = demoTripMembers(tripId);
+  return personasOfMembers(demoTripMembers(tripId));
+}
+
+function personasOfMembers(members: readonly TripMemberProfile[]): NonNullable<WidgetContext["personas"]> {
   const going = new Set(travellerIds(members));
   return Object.fromEntries(
     members.map((m) => [
@@ -266,9 +295,10 @@ function landingCard(row: DiscoverRow): DiscoverDay {
  * empty photo mat stood). A library playbook, read from the bundle the
  * production import reads and resolved by the same `resolvePlaybook`, so its
  * id is the one the library serves and its card links to a day that exists.
- * Its adds are the bundle's own ledger. It has no reviews, and its card says
- * so: the seeded rating is Mitchell's ruling for his own Hanoi day alone
- * (2026-10-19), never a number invented for somebody else's.
+ * Its adds are the bundle's own ledger. It has no reviews, and this card says
+ * so (M50 decision 20). The same day's cell in the sea carries a sample
+ * rating, which M51 decision 9 allows the sea alone; the moment that raises
+ * this day out of the sea draws one of the two.
  *
  * The card is a frozen copy of a row the content import owns, re-derived from
  * the bundle file only, so `landing:verify` cannot see the production row
@@ -287,6 +317,15 @@ function shelfPlaybook(): DiscoverDay {
   // The import stamps a day with `keptOn`, or the moment it ran; only the
   // first is reproducible.
   if (day.keptOn === undefined) throw new Error(`landing demo: ${SHELF_KEY} has no keptOn date to stamp it with`);
+  return libraryCard(day, null, day.keptOn);
+}
+
+/**
+ * A resolved library day as Discover's card, read signed out, with the rating
+ * the caller gives it. The import owns the row, so its cover is none and its
+ * adds are the bundle's own ledger.
+ */
+function libraryCard(day: ResolvedPlaybook, rated: { rating: number; reviewCount: number } | null, stampedOn: string): DiscoverDay {
   return landingCard({
     id: day.savedDayId,
     owner_id: day.ownerId,
@@ -299,14 +338,254 @@ function shelfPlaybook(): DiscoverDay {
     author_kind: day.authorKind,
     day_count: day.dayCount,
     adds: day.addedBy.length,
-    rating: null,
-    review_count: 0,
+    rating: rated?.rating ?? null,
+    review_count: rated?.reviewCount ?? 0,
     source_trip_name: day.sourceTripName,
-    created_at: day.keptOn,
-    published_at: day.keptOn,
+    created_at: stampedOn,
+    published_at: stampedOn,
     cover: null,
     matched_count: 0,
   });
+}
+
+// ---------------------------------------------------------------------------
+// The sea (M51)
+// ---------------------------------------------------------------------------
+
+/** Every bundle the production import reads for the library. */
+const PLAYBOOKS_DIR = new URL("../../../content/playbooks/", import.meta.url);
+
+function libraryBundles(): ContentBundleV1[] {
+  return readdirSync(PLAYBOOKS_DIR)
+    .filter((file) => file.endsWith(".json"))
+    .sort()
+    .map((file) => parseBundle(JSON.parse(readFileSync(new URL(file, PLAYBOOKS_DIR), "utf8"))));
+}
+
+/**
+ * FNV-1a over `text`: the sea's one source of variety. A day's size, rating
+ * and place come from its own id, so regenerating moves nothing, and a day
+ * added to a bundle does not reshuffle the others.
+ */
+function hashOf(text: string): number {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 0x01000193) >>> 0;
+  return h;
+}
+
+/** Half the cells single, the rest spread over the five larger shapes, the long ones rarest. */
+const SIZE_WHEEL: readonly SeaCellSize[] = [
+  ...Array<SeaCellSize>(10).fill("1x1"),
+  ...Array<SeaCellSize>(3).fill("2x1"),
+  ...Array<SeaCellSize>(3).fill("1x2"),
+  ...Array<SeaCellSize>(2).fill("2x2"),
+  "3x1",
+  "1x3",
+];
+
+/**
+ * The sample rating a sea card shows (decision 9, Mitchell 2026-10-20: *"just
+ * add the sample ratings, and we will re-address as reviews come in"*): 4.0
+ * to 4.9 over 3 to 60 reviews, and one card in nine with none, as a library
+ * really reads. For the landing only; nothing writes it anywhere.
+ */
+function sampleRating(savedDayId: string): { rating: number; reviewCount: number } | null {
+  const h = hashOf(`rating:${savedDayId}`);
+  if (h % 9 === 0) return null;
+  return { rating: 4 + (Math.floor(h / 9) % 10) / 10, reviewCount: 3 + (Math.floor(h / 90) % 58) };
+}
+
+/** The card without what `SeaDay` leaves out. */
+const seaDayOf = ({ createdAt: _created, publishedAt: _published, sourceTripName: _source, ...drawn }: DiscoverDay): SeaDay => drawn;
+
+function seaCell(day: DiscoverDay, group: string): SeaCell {
+  return { day: seaDayOf(day), size: SIZE_WHEEL[hashOf(`size:${day.savedDayId}`) % SIZE_WHEEL.length]!, group };
+}
+
+/**
+ * Every public library day as a sea cell, in an order shuffled by id so no
+ * country runs in a block, each linked to its day page. The link holds in
+ * every deployment because the id derives from (bundle, key) and every seed
+ * path imports `content/`: `db:reseed` locally and on preview,
+ * `import-content-production.yml` in production.
+ * The day's `keptOn` goes in as the stamp only because the card needs one;
+ * `seaCell` takes the dates off again.
+ */
+function librarySea(): LandingSea["cells"] {
+  return libraryBundles()
+    .flatMap((bundle) =>
+      bundle.playbooks
+        .filter((playbook) => playbook.visibility === "public")
+        .map((playbook) => {
+          const day = resolvePlaybook(bundle.bundle.id, playbook, bundle.bundle.origin);
+          const card = libraryCard(day, sampleRating(day.savedDayId), day.keptOn ?? REFERENCE_START_DATE);
+          return { ...seaCell(card, bundle.bundle.id), href: dayPath(card) };
+        }),
+    )
+    .sort((a, b) => hashOf(`order:${a.day.savedDayId}`) - hashOf(`order:${b.day.savedDayId}`));
+}
+
+/**
+ * The cluster around the notebook (decision 10): the demo seed's public Japan
+ * days, since no Japan bundle is in the library. They are seeded by
+ * `api/dev/saved-days` alone, which 404s in production, so production has no
+ * page for them and their cells carry no link.
+ */
+function japanCluster(): LandingSea["japan"] {
+  return JAPAN_SAVED_DAYS.filter((day) => day.visibility === "public").map((day) => {
+    const card = libraryCard(
+      {
+        ...day,
+        dayCount: 1,
+        authorKind: "human",
+        sourceTripId: JAPAN_SOURCE_TRIP.id,
+        sourceTripName: JAPAN_SOURCE_TRIP.name,
+      },
+      sampleRating(day.savedDayId),
+      REFERENCE_START_DATE,
+    );
+    return { ...seaCell(card, "japan"), href: null };
+  });
+}
+
+/** Where the sea is committed. */
+export const SEA_PATH = fileURLToPath(new URL("../src/lib/landingSea.generated.json", import.meta.url));
+
+/** The sea: every public library day, and the Japan cluster. */
+export function buildLandingSea(): LandingSea {
+  return { cells: librarySea(), japan: japanCluster() };
+}
+
+// ---------------------------------------------------------------------------
+// The crew moment's trip (M51 decision 10)
+// ---------------------------------------------------------------------------
+
+/**
+ * The crew who plan the Greek trip, ids as their names as `/demo`'s are
+ * (`server/demoTrip.ts`, `membersOf`): four library authors, so the names are
+ * people the sea already credits. Four colours, so no clash shifts one.
+ */
+export const CREW = ["Maeve", "Tomas", "Ruth", "Kenji"] as const;
+const CREW_LOOKS: Record<(typeof CREW)[number], { avatar: AvatarKey | null; color: PersonColor }> = {
+  Maeve: { avatar: "sailboat", color: "sky" },
+  Tomas: { avatar: "bike", color: "ochre" },
+  Ruth: { avatar: "camera", color: "rose" },
+  Kenji: { avatar: null, color: "teal" },
+};
+
+/**
+ * Paros to Santorini in three days, every one a Greek library day: Paros,
+ * Elena's Naxos day as Day 2, and the caldera walk (Mitchell, 2026-10-20: three
+ * days, Naxos as Day 2). The library has no Athens day to start from. The trip
+ * is what the crew built by borrowing; Day 2 is the one the moment draws.
+ */
+const CREW_BUNDLE_PATH = new URL("../../../content/playbooks/greek-islands.json", import.meta.url);
+const CREW_DAYS = ["paros-antiparos-cave-and-soros", "naxos-zas-marble-villages-and-plaka", "santorini-caldera-walk-and-skaros-sunset"] as const;
+const CREW_RIVER_INDEX = 1;
+const CREW_TRIP_NAME = "Paros to Santorini";
+const CREW_TRIP_ID = "00000000-0000-4000-80c0-000000000000";
+const CREW_ACTOR_ID = "00000000-0000-4000-8000-00000000a000";
+
+/** What somebody books ahead: a table, a ticket or a tour, never a drive or a spring. */
+const BOOKED_TAGS: ReadonlySet<string> = new Set(["meal", "ticketed", "tour"]);
+
+/**
+ * Who booked a stop and who is on it, so the crew's names reach the river. A
+ * pending stop is not booked yet, and neither is a transit leg or anything
+ * nobody books; the crew take turns booking the rest down the day, `bookings`
+ * being how many they have booked so far. Every third stop leaves one of them
+ * out, so a stop with fewer than all four is something the river shows too.
+ */
+function crewOnStop(command: Extract<TripCommand, { type: "AddActivity" }>, turn: number, bookings: number): TripCommand {
+  const booked = command.kind !== "transit" && (command.tags ?? []).some((tag) => BOOKED_TAGS.has(tag));
+  const participants = turn % 3 === 2 ? CREW.filter((_, i) => i !== (turn + 1) % CREW.length) : [];
+  return { ...command, bookedBy: booked ? CREW[bookings % CREW.length]! : null, participants };
+}
+
+/** The crew's trip folded by the real decider, as `/demo` folds its trips, undated and unpriced. */
+function crewTrip(): { trip: TripDetail; members: TripMemberProfile[]; borrowed: ResolvedPlaybook } {
+  const bundle = parseBundle(JSON.parse(readFileSync(CREW_BUNDLE_PATH, "utf8")));
+  const playbooks = CREW_DAYS.map((key) => {
+    const found = bundle.playbooks.find((p) => p.key === key);
+    if (found === undefined) throw new Error(`landing demo: ${bundle.bundle.id} no longer holds ${key}`);
+    return found;
+  });
+  let n = 0;
+  const groups = bundleTripCommandGroups(
+    bundle.bundle.id,
+    {
+      key: "paros-to-santorini",
+      name: CREW_TRIP_NAME,
+      // No price: the front door sells the day (Mitchell, 2026-10-11).
+      days: playbooks.map((p) => ({ stops: (p.stops ?? p.days!.flatMap((d) => d.stops)).map(({ cost: _cost, ...stop }) => stop) })),
+      backlog: [],
+    },
+    { tripId: CREW_TRIP_ID, today: REFERENCE_START_DATE, mintId: () => `00000000-0000-4000-80c0-${String(++n).padStart(12, "0")}` },
+  );
+  const ctx = { actorId: CREW_ACTOR_ID };
+  const genesis = decideCreateTrip(null, { type: "CreateTrip", tripId: CREW_TRIP_ID, name: CREW_TRIP_NAME, forkedFrom: null }, ctx);
+  if (!genesis.ok) throw new Error(`landing demo: CreateTrip rejected — ${genesis.rejection.message}`);
+  let state: TripState | null = null;
+  for (const event of genesis.events) state = evolveTrip(state, event);
+  for (const group of groups) {
+    let turn = 0;
+    let bookings = 0;
+    for (const command of group) {
+      const crewed = command.type === "AddActivity" && command.kind !== "pending" ? crewOnStop(command, turn++, bookings) : command;
+      if (crewed.type === "AddActivity" && crewed.bookedBy) bookings++;
+      const decision = decideTripCommand(state, crewed, ctx);
+      if (!decision.ok) throw new Error(`landing demo: ${command.type} rejected — ${decision.rejection.message}`);
+      for (const event of decision.events) state = evolveTrip(state, event);
+    }
+  }
+  if (state === null) throw new Error("landing demo: the crew trip folded to nothing");
+  const members = withTripColors(
+    CREW.map((name, i) => ({
+      userId: name,
+      role: i === 0 ? ("owner" as const) : ("editor" as const),
+      travelling: true,
+      name,
+      email: null,
+      image: null,
+      displayName: null,
+      ...CREW_LOOKS[name],
+    })),
+  );
+  const trip = overlayMembers(
+    tripDetailFromState(state, `${REFERENCE_START_DATE}T00:00:00.000Z`, serverConflictContext()),
+    members.map(({ userId, role, travelling }) => ({ userId, role, travelling })),
+  );
+  return { trip, members, borrowed: resolvePlaybook(bundle.bundle.id, playbooks[CREW_RIVER_INDEX]!, bundle.bundle.origin) };
+}
+
+/** The crew moment's slice: Day 2 on the river, who is on it, and the day it was borrowed from. */
+function buildLandingCrew(): LandingCrew {
+  const { trip, members, borrowed } = crewTrip();
+  const globals = buildTripGlobals(trip);
+  const personas = personasOfMembers(members);
+  const ctx: WidgetContext = { trip, page: { tripId: trip.tripId }, user: null, globals, today: null, personas };
+  // The board's persona carries the clash shift a widget's does not.
+  const shifted = new Map(members.map((m) => [m.userId, m.colorShifted]));
+  const accents = cityAccents(trip);
+  const day = trip.days[CREW_RIVER_INDEX]!;
+  if (conflictsOn(trip, CREW_RIVER_INDEX).length > 0) throw new Error("landing demo: the crew's Day 2 has conflicts the moment does not draw");
+  const city = globals.days[CREW_RIVER_INDEX]!.cities.at(-1);
+  if (city === undefined) throw new Error("landing demo: the crew's Day 2 names no city");
+  return {
+    name: trip.name,
+    currency: trip.currency,
+    accents: Object.fromEntries(trip.days.map((d) => [d.dayId, accents.ofDayId(d.dayId)])),
+    river: {
+      dayId: day.dayId,
+      ordinal: CREW_RIVER_INDEX + 1,
+      city,
+      activityIds: day.activityIds,
+      activities: Object.fromEntries(day.activityIds.map((id) => [id, trip.activities[id]!])),
+    },
+    personas: Object.fromEntries(Object.entries(personas).map(([id, persona]) => [id, { ...persona, colorShifted: shifted.get(id) ?? false }])),
+    people: resolveBlock(ctx, "trip.people", {}, "trip-people"),
+    borrowed: { savedDayId: borrowed.savedDayId, href: dayPath(borrowed) },
+  };
 }
 
 const MEMORY_DAY = { kind: "index", index: 5 };
@@ -360,6 +639,7 @@ export function buildLandingFeatures(): LandingFeatures {
   return {
     playbook: landingPlaybook(),
     shelf: shelfPlaybook(),
+    crew: buildLandingCrew(),
     memory: MEMORY_PAGE.map((paragraph) => resolveParagraph(ctx, paragraph)),
     // The page's widgets beside its words (M50 part 9): the day it is about,
     // that day's daylight, and who was there.
@@ -385,6 +665,7 @@ export function generatedFiles(): { path: string; fresh: string }[] {
     ...DEMO_TRIPS.map(({ slug }) => ({ path: snapshotPath(slug), fresh: serializeLandingDemo(buildLandingDemo(slug)) })),
     { path: CARDS_PATH, fresh: serializeLandingDemo(demoTripCards()) },
     { path: FEATURES_PATH, fresh: serializeLandingDemo(buildLandingFeatures()) },
+    { path: SEA_PATH, fresh: serializeLandingDemo(buildLandingSea()) },
   ];
 }
 
