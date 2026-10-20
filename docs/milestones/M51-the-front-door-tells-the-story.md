@@ -4,7 +4,7 @@
 M49 (decision 7). It comes from the top entry of `docs/candidates.md`, *The front door tells the
 story*, which M50's walk filed on 2026-10-19 (M50 decision 21). The design review settled every
 decision below before any code. The build plan is `docs/plans/2026-10-20-M51-front-door.md`,
-six parts on `main`. Part 0 is this file, the plan and the gate tracker. No ADR: the one contract
+seven parts on `main`. Part 0 is this file, the plan and the gate tracker. No ADR: the one contract
 change (`addedBy`, part 4) is an additive read-model field, recorded in
 `docs/contracts/CHANGELOG.md` by that part.
 
@@ -79,7 +79,7 @@ it, the notebook afterwards). Then the sea dims back behind them.
    - **(c) A borrowed day lands on a chosen existing day.** `AddToTripDialog` gets a day picker
      over the server's existing `startingAt` merge (ADR-050). It does **not** insert a new day
      mid-trip: no `beforeDayId`, no contract change.
-9. **Sample ratings on the sea's cards.** *"just add the sample ratings, and we will re-address as
+9. **Sample ratings on the sea's cards**, Mitchell's call: *"just add the sample ratings, and we will re-address as
    reviews come in and use the real trips then"*. They use `ratingLine`'s format
    (*★ 4.8 · 37 reviews*), with about one card in nine reading *"No reviews yet"*. This reverses
    M50 part 9's no-invented-rating call (M50 decision 20) **for the landing only**. The candidate
@@ -94,11 +94,11 @@ it, the notebook afterwards). Then the sea dims back behind them.
     - The **Japan notebook example** is surrounded by Japan day cards that light up with it and
       are clickable (*"have example japan notebooks around it that also turn on, and are clickable
       to start days from"*).
-    - The **crew example** uses a different country and trip: Greece, Athens → Naxos → Santorini,
-      with the crew Maeve, Tomas, Ruth and Kenji, and Elena's Naxos day as day 3. It is compact
-      (about 600px), so the sea shows around it, with Greek day cards lit around it (*"Use a
-      different notebook, country and trip for this example… Maybe squish this down, do less
-      days"*).
+    - The **crew example** uses a different country and trip: Greece, three days, Paros → Naxos →
+      Santorini, with the crew Maeve, Tomas, Ruth and Kenji, and Elena's Naxos day as Day 2
+      (trimmed from four days in part 1's review, PR 507). It is compact (about 600px), so the sea
+      shows around it, with Greek day cards lit around it (*"Use a different notebook, country and
+      trip for this example… Maybe squish this down, do less days"*).
     - **River blocks are never squished**: they have a floor height (*"Is the top and bottom
       pending event spose to be squished?"*).
     - There is **one screen of sea between highlighted cells** (*"maybe shorten it so just as the
@@ -110,14 +110,20 @@ it, the notebook afterwards). Then the sea dims back behind them.
       existing plan."*, with no "Nadia".
     - The **colourful first screen holds longer** before it dims (*"Keep the initial page colorful
       background a tad longer before fading out"*).
-    - **Every sea cell is a link** to its real day page (`dayPath`, `/playbooks/day/<slug>-…`),
-      with a hover and focus ring.
+    - **Links go only to real days.** Mitchell, after part 0 was written: *"every card on the home
+      page doesnt need to be a real day, and all data that links somewhere needs to link to a real
+      day that exists in the DB of the app that its part of, preview needs to link to seeded
+      preview, prod needs to link to real prod days"*. So a linked cell goes to its real day page
+      (`dayPath`, `/playbooks/day/<slug>-…`) with a hover and focus ring, and it must resolve in
+      that environment's DB; unlinked cells are allowed. The Japan cells stay unlinked: Japan days
+      exist only in the dev fixtures. Previews get the library days from part 7.
 11. **Phone keeps the tiled sea** with the same rise and fade (*"Could we keep the tiled
     background, and the embedded cards from the elements as i suggested in the mobile
     version?"*).
 12. **Other findings.** The Railay viewpoint's coordinates are about 4.2 km north of the real
     viewpoint, and the trip file copies them twice, once onto a dinner stop: KI-2026-10-20-a,
-    fixed in part 1. The redesign resolves KI-2026-10-19-d, KI-2026-10-19-h and KI-2026-10-19-i.
+    fixed in part 1. No source could be read for them, so part 1 left all three Railay stops
+    unpinned (no coordinate); re-pinning them needs the geocoder. The redesign resolves KI-2026-10-19-d, KI-2026-10-19-h and KI-2026-10-19-i.
 
 **The comments behind them, verbatim** (typos kept). The ones quoted in decisions 3–11 are not
 repeated here.
@@ -153,12 +159,12 @@ repeated here.
 
 ## Scope
 
-Six parts, each its own PR on `main` (the plan has the files, entry points, tests and preview
+Seven parts, each its own PR on `main` (the plan has the files, entry points, tests and preview
 walks):
 
 1. **The sea's data.** All 148 public library days as `DiscoverCard` props with sample ratings,
    cell sizes and `dayPath` links. The Greece and Japan clusters and the moments' data, under
-   `landing:verify`. The Railay coordinates are fixed in content.
+   `landing:verify`. The wrong Railay pins are removed from content.
 2. **The desktop sea.** Full bleed, mounting only near-screen cells, moments that rise while the
    sea dims, clickable cells, pricing ladder second to last, closing cell last. It rewrites the
    tests that pin today's desktop landing.
@@ -169,8 +175,14 @@ walks):
    (decision 8c).
 6. **Make it your trip.** The landing's moment drives the real signup → trip-from-day flow
    (decision 10).
+7. **Seed content on previews.** Preview builds import `content/` after migrating, so the sea's
+   links resolve on previews (decision 10's links ruling). It adds the checks that keep them
+   real (Mitchell: *"We might also want a test or ci check that we dont introduce changes to
+   frontend that will break this"*): a CI unit test against the importer's own slug/id code, and
+   a CI step that requests every sea link on the PR's preview.
 
-Order: 1, 4 and 5 start at once; 2 waits on 1; 3 and 6 wait on 2 (6 on 5 as well). The crew
+Order: 1, 4, 5 and 7 start at once; 2 waits on 1; 3 and 6 wait on 2 (6 on 5 as well). 7 is
+independent of 2–6. The crew
 moment's names wait on 4.
 
 ## Out of scope
@@ -188,18 +200,26 @@ moment's names wait on 4.
       `DiscoverCard` props, each with a cell size, a canonical `dayPath` href that round-trips
       through `parseDaySegment`, and a sample rating in `ratingLine`'s format (about one in nine
       *"No reviews yet"*). It carries no calendar date. `landing:verify` covers it. The Greece crew
-      trip and the Japan cluster come from it. The Railay viewpoint and dinner stop carry corrected
-      coordinates in both content files, and KI-2026-10-20-a is in `resolved/`. Test seen red.
+      trip and the Japan cluster come from it. The Railay viewpoint (both content files) and dinner
+      stop lose the wrong pin and carry none until the geocoder re-pins them, and KI-2026-10-20-a
+      is in `resolved/`. Test seen red.
 - [ ] **The desktop sea:** at 1440 and 3440 the sea runs edge to edge with no dead side margins.
       The first screen of cells is in the server-rendered HTML. Only near-screen cells mount. The
       moments rise and the sea dims, with one screen of sea between them and the first screen held
       longer. Pricing is second to last, and the full-width closing cell is the last element. `/`
       stays static (ADR-078) and the landing makes no request (`LandingScreen.test.tsx`'s fetch
       spy). Tests seen red.
-- [ ] **Every cell is a door:** each sea cell links to its canonical day page, with no `?from=`
-      and with prefetch off. It shows a hover and focus ring. Keyboard focus reaches the moments
+- [ ] **Every linked cell is a door:** each linked cell goes to its canonical day page, with no
+      `?from=` and with prefetch off, and resolves to a real day in that environment's DB: seeded
+      library days on previews (part 7), production days on production. Unlinked cells (the Japan
+      cluster) are allowed. A linked cell shows a hover and focus ring. Keyboard focus reaches the moments
       and the CTAs without tabbing through every background card. `a11y.spec.ts` (axe) passes on
       `/`.
+- [ ] **The links stay real:** a CI unit test checks that every href the landing sea renders
+      resolves to a day the content importer creates from `content/`, using the importer's own
+      slug/id code, not a copy (this settles PR 507's minor at `landing-demo.test.ts:141`), and
+      that the Japan cells render no link. A CI step against the PR's Vercel preview, after part 7
+      seeds it, requests every sea link and fails on any non-200. Both seen red.
 - [ ] **Pricing ladder:** Free → Plus $9/mo → Premium $19/mo, with decision 6's copy. "Free"
       appears only as the plan name, and the page has no exclamation mark. Each *"Everything in X,
       and…"* line is computed from entitlement sets, never from price or order
@@ -243,6 +263,8 @@ A retro is appended at gate close. `pnpm milestone close M51` deletes the placed
   it already is for the demo snapshots.
 - **The ladder implies nesting.** Premium ⊇ Plus must never be read from price
   (`accountPlan.ts`). The pricing component computes each "Everything in" line per pair.
+- **Previews have no library days today.** 147 of 148 sea links 404 on a preview; production
+  returns 200 for 148 of 148 (import run 2026-10-11). Part 7 closes this for previews.
 - **e2e has no library days.** The test DB runs no `content:import`, so clicking a sea cell in
   e2e would 404. e2e asserts the hrefs and seeds the one day it follows through
   `api/dev/saved-days`.
