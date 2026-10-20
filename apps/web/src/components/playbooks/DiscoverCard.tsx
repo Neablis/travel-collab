@@ -87,6 +87,18 @@ export function editorialSize(index: number): CardSize {
 }
 
 /**
+ * **A card on the front door's sea** (M51). Its one link is `href`, the day's
+ * canonical page, with no query and no prefetch: ADR-063's cache serves a
+ * signed-out day page only to a query-less URL, and a sea prefetching every
+ * card would read the library once per card. `null` is a day this deployment
+ * does not hold, which opens nothing (decision 10). The chips and the author
+ * are words, not links, so a cell is one door and one tab stop; a
+ * `background` cell is no tab stop, so the keyboard reaches the moments
+ * without walking the whole library.
+ */
+export type SeaOrigin = { from: "sea"; href: string | null; background?: boolean };
+
+/**
  * `origin` is where this card is being rendered, and it rides both links out of
  * it so the page they open knows the way back. A profile renders these cards
  * too, so "the day came from Discover" is not something the card may assume.
@@ -96,19 +108,23 @@ export function DiscoverCard({
   origin,
   size = "standard",
   headingLevel = 2,
+  className,
 }: {
-  day: DiscoverDay;
-  origin: BackOrigin;
+  /** Without the dates, which the card never draws and the landing's snapshot leaves out. */
+  day: Omit<DiscoverDay, "createdAt" | "publishedAt" | "sourceTripName">;
+  origin: BackOrigin | SeaOrigin;
   size?: CardSize;
   /** 3 under a page that heads its list of cards, as Discover's results are. */
   headingLevel?: 2 | 3;
+  className?: string;
 }) {
   const wide = size === "wide";
   const clock = useTimeFormat();
   const descriptionId = useId();
   const line = matchLine(day);
   const rated = ratingLine(day);
-  const back = backQuery(origin);
+  const sea = origin.from === "sea" ? origin : null;
+  const back = origin.from === "sea" ? "" : backQuery(origin);
   const chips = cityChips(day);
   const { cover } = day;
   // `dc.html:2610-2626`: the cities lead, with the card's own marks at the far
@@ -148,7 +164,7 @@ export function DiscoverCard({
           // because the hover belongs to the chip, not to the card.
           return (
             <li key={city} className="flex">
-              {href === null ? (
+              {href === null || sea !== null ? (
                 chip
               ) : (
                 <Link
@@ -200,14 +216,20 @@ export function DiscoverCard({
               Playbooks render and an isolated run had none). `inline-flex
               items-center` so the floor makes the link taller rather than
               leaving the text at the top of an empty 44px. */}
-          <Link
-            href={`${dayPath(day)}${back}`}
-            className={cn("inline-flex items-center hover:underline", PHONE_TOUCH)}
-            // On the link, where focus lands, so the kind of day is heard with its name.
-            aria-describedby={day.description === null ? undefined : descriptionId}
-          >
-            {day.name}
-          </Link>
+          {sea?.href === null ? (
+            day.name
+          ) : (
+            <Link
+              href={sea === null ? `${dayPath(day)}${back}` : sea.href}
+              prefetch={sea === null ? undefined : false}
+              tabIndex={sea?.background ? -1 : undefined}
+              className={cn("inline-flex items-center hover:underline", PHONE_TOUCH, sea !== null && "landing-sea-door")}
+              // On the link, where focus lands, so the kind of day is heard with its name.
+              aria-describedby={day.description === null ? undefined : descriptionId}
+            >
+              {day.name}
+            </Link>
+          )}
         </Heading>
         <DataText size="xs" className="mt-1 block">
           {/* **The day count leads** (M23 link 4's gate box). It is the number
@@ -247,7 +269,7 @@ export function DiscoverCard({
               {day.description}
             </Text>
           )}
-          <StopTagChips activityId={day.savedDayId} tags={day.tags} focusedTag={null} hrefOf={namedTagPath(day.namedTags)} />
+          <StopTagChips activityId={day.savedDayId} tags={day.tags} focusedTag={null} hrefOf={sea === null ? namedTagPath(day.namedTags) : undefined} />
         </div>
       )}
 
@@ -292,12 +314,18 @@ export function DiscoverCard({
         {/* The only place this card names a person, and the name is the
             server's (`publicNameFor`, Mitchell 2026-10-02) — never derived
             from `ownerId` here. */}
-        <Link
-          href={`/playbooks/profile/${encodeURIComponent(day.ownerId)}${back}`}
-          className={cn("inline-flex items-center text-xs text-slate hover:underline", PHONE_TOUCH)}
-        >
-          {day.ownerDisplayName}
-        </Link>
+        {sea === null ? (
+          <Link
+            href={`/playbooks/profile/${encodeURIComponent(day.ownerId)}${back}`}
+            className={cn("inline-flex items-center text-xs text-slate hover:underline", PHONE_TOUCH)}
+          >
+            {day.ownerDisplayName}
+          </Link>
+        ) : (
+          <Text as="span" className="text-xs text-slate">
+            {day.ownerDisplayName}
+          </Text>
+        )}
         <Text as="span" variant="muted" className="text-xs">
           Added to {day.adds} trip{day.adds === 1 ? "" : "s"}
         </Text>
@@ -315,6 +343,8 @@ export function DiscoverCard({
         "flex flex-col rounded-lg",
         wide && "sm:col-span-2",
         cover === null ? "gap-3 p-4" : "overflow-hidden p-0",
+        sea !== null && "landing-sea-cell relative",
+        className,
       )}
     >
       {cover === null ? (

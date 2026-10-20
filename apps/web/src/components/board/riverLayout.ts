@@ -39,8 +39,8 @@ export type RiverAxis = {
   heightPx: number;
   /**
    * Pixels an hour, when not the board's 44. The board never sets it; the
-   * landing hero does, to fit a whole day into a fixed-height picture
-   * (`LandingHeroPanels.tsx`). Carried on the axis rather than passed beside
+   * landing does, to fit a whole day into a fixed-height panel
+   * (`LandingRiver.tsx`). Carried on the axis rather than passed beside
    * it so every function that turns minutes into pixels — layout, ticks, the
    * gesture outline and its inverse — reads one scale and cannot disagree.
    */

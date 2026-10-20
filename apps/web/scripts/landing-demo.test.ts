@@ -134,9 +134,9 @@ describe("the landing's sea", () => {
 
   // Mitchell, 2026-10-20: whatever links somewhere links to a real day in the
   // database of the deployment that serves it. A content bundle's day is one
-  // everywhere: its id derives from (bundle, key), and every seed path imports
-  // all of `content/` (`db:reseed` locally and on preview,
-  // `import-content-production.yml` in production). A dev fixture day exists
+  // wherever `content/` is imported: its id derives from (bundle, key), and
+  // `db:reseed` imports it locally, `import-content-production.yml` in
+  // production. Previews import none until M51 part 7. A dev fixture day exists
   // only where dev-login seeded it, never in production.
   it("links only days the content import writes, at the path it serves them on", () => {
     const imported = new Map(

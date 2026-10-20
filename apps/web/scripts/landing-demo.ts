@@ -404,10 +404,10 @@ function seaCell(day: DiscoverDay, group: string): SeaCell {
 
 /**
  * Every public library day as a sea cell, in an order shuffled by id so no
- * country runs in a block, each linked to its day page. The link holds in
- * every deployment because the id derives from (bundle, key) and every seed
- * path imports `content/`: `db:reseed` locally and on preview,
- * `import-content-production.yml` in production.
+ * country runs in a block, each linked to its day page. The id derives from
+ * (bundle, key), so the link holds wherever `content/` is imported: `db:reseed`
+ * locally, `import-content-production.yml` in production. A preview build
+ * imports no content yet, so there these links 404 until M51 part 7 seeds it.
  * The day's `keptOn` goes in as the stamp only because the card needs one;
  * `seaCell` takes the dates off again.
  */

@@ -1905,22 +1905,44 @@ html[data-look="ledger"] .shadow-raised {
     }
   }
 
-  /* Landing hero veil (`dc.html:1871`): a 97deg wash that fades the paper
-     background out across the decorative map so the headline column keeps
-     full contrast while the art dissolves toward the right edge. Five colour
-     stops, two of them `color-mix()` — no utility class can express that, and
-     the colour wall bans the bracket value that could. Same named-class
-     escape hatch `.hero-grid` and `.unscheduled-rack` use. Sits in the
-     components layer because nothing overrides it with a utility. */
-  .landing-hero-veil {
-    background: linear-gradient(
-      97deg,
-      var(--color-paper) 0%,
-      var(--color-paper) 30%,
-      color-mix(in srgb, var(--color-paper) 74%, transparent) 44%,
-      color-mix(in srgb, var(--color-paper) 20%, transparent) 60%,
-      transparent 74%
-    );
+  /* The front door's sea of notebooks (M51, `LandingSea.tsx`): Discover cards
+     packed edge to edge at every width, as many columns as fit, each cell as
+     many columns and rows as the snapshot's size gives it, `dense` so a big
+     cell leaves no hole. Fixed rows, so a card is cut at its cell's foot
+     rather than stretching the grid: the sea is ground, and a card's title
+     and facts lead. Here because a `grid-cols-[repeat(…)]` is an arbitrary
+     Tailwind value, which the colour wall refuses. */
+  .landing-sea-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+    grid-auto-rows: 12rem;
+    grid-auto-flow: dense;
+    gap: 0.75rem;
+    overflow: hidden;
+    /* Room for a cell's hover ring at the band's edge, which the overflow would cut. */
+    padding: 0.25rem;
+  }
+  /* One screen of sea, mounted or not, so a band's cells arriving moves
+     nothing (decision 10: one screen between moments). */
+  .landing-sea-band {
+    height: 100svh;
+  }
+  /* The sea dimming into ground as the reader scrolls: `--sea-dim` is the
+     one value the scroll writes, on the sea's root, from 0 to 1. */
+  .landing-sea-dim {
+    opacity: calc(1 - 0.75 * var(--sea-dim, 0));
+  }
+  /* A linked cell is a door: its title link covers the whole card, and the
+     card rings when the link is hovered or focused. */
+  .landing-sea-door::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+  }
+  .landing-sea-cell:has(.landing-sea-door:hover),
+  .landing-sea-cell:has(.landing-sea-door:focus-visible) {
+    outline: 2px solid var(--color-brand);
+    outline-offset: 2px;
   }
 
   /* Paper grain on the landing's surfaces (M50 part 5): the spreads, the photo

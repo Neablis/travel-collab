@@ -98,8 +98,6 @@
   "apps/web/src/components/board/activityDuration.ts::closestDurationLabel",
   "apps/web/src/components/board/activityDuration.ts::durationMinutes",
   "apps/web/src/components/front/FrontDoorHeader.tsx::FrontDoorHeader",
-  "apps/web/src/components/front/LandingFeatureBlocks.tsx::LandingFeatureBlocks",
-  "apps/web/src/components/front/LandingHeroArt.tsx::LandingHeroArt",
   "apps/web/src/components/front/authCopy.ts::errorMessage",
   "apps/web/src/components/home/ImportTripButton.tsx::ImportTripButton",
   "apps/web/src/components/home/NewTripWizard.tsx::NewTripConversation",

@@ -629,7 +629,7 @@ export function Board({
       dayChangeTransition(prev, focusedDay, {
         oneDay,
         dayCount: trip.days.length,
-        // Read live: the preference can change mid-session (LandingHeroArt
+        // Read live: the preference can change mid-session (LandingSea
         // reads it the same way). Guarded for pre-render, where there is no
         // window — and no transition anyway, since prev starts null.
         reducedMotion:

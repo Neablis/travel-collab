@@ -5,22 +5,20 @@ import { ItineraryDayBlock } from "@/components/pages/blocks/ItineraryDayBlock";
 import { SunBlock } from "@/components/pages/blocks/SunBlock";
 import { TripPeopleBlock } from "@/components/pages/blocks/TripPeopleBlock";
 import { TripStripBlock } from "@/components/pages/blocks/TripStripBlock";
+import { FixedPeopleProvider } from "@/components/pages/people";
 import { Segs } from "@/components/pages/WidgetSegs";
 import { DataText } from "@/components/ui/data-text";
 import { Text } from "@/components/ui/text";
 import { LANDING_DEMO, LANDING_FEATURES } from "@/lib/landingDemo";
-import { LANDING_ACCENTS, LANDING_RIVER_CITY, LANDING_RIVER_TITLE, LandingRiver } from "./LandingRiver";
+import { dayPath } from "@/lib/playbookUrls";
+import { LANDING_ACCENTS, LANDING_RIVER_CITY, LANDING_RIVER_TITLE, LandingRiver, snapshotAccents } from "./LandingRiver";
 
-// The landing's Together, Playbooks and Notebook blocks, and the phone's claims
-// under the same three headings, drawn by the product's own components (M42
-// part 9) from the committed snapshots (`lib/landingDemo.ts`). Countdown is
-// not here: `NextTripHero` fetches its trip and reads the clock, and the
-// landing does neither (SPEC §14), so it stays a drawing.
+// The sea's moments (M51) and the phone's claims, drawn by the product's own
+// components (M42 part 9) from the committed snapshots (`lib/landingDemo.ts`).
 //
-// Loaded lazily by `LandingFeaturePanel`, as `LandingHeroPanels` is by the
-// hero, which keeps the river's drag-and-drop and `@tc/pages` out of
-// the landing's first load. Each panel carries its own surface, so a block and
-// a phone claim can hold the same one.
+// Loaded lazily by `LandingFeaturePanel`, which keeps the river's
+// drag-and-drop and `@tc/pages` out of the landing's first load. Each panel
+// carries its own surface, so a moment and a phone claim can hold the same one.
 
 const SURFACE = "overflow-hidden rounded-lg border border-hairline bg-surface";
 
@@ -42,29 +40,56 @@ export function TogetherPanel(): React.ReactElement {
 }
 
 /**
- * Playbooks: Mitchell's Hanoi playbook as Discover draws it, its cover photo
- * and the photographer's credit leading. Signed out, so its links
- * lead into the open library (ADR-061), and its tags are plain chips — a
- * landing card sends nobody into tag pages.
+ * The sea's first moment: the Railay day as a big card, and the same day again
+ * as a small one beside it (Mitchell, on C2: *"I love the bigger card on the
+ * left, and the smaller detacted card being the same trip"*). Both open the
+ * day's canonical page, as every cell of the sea does.
  */
-export function PlaybookPanel(): React.ReactElement {
+export function FindADayPanel(): React.ReactElement {
+  const { shelf } = LANDING_FEATURES;
+  const origin = { from: "sea", href: dayPath(shelf) } as const;
   return (
-    <ul className="flex flex-col">
-      <DiscoverCard day={LANDING_FEATURES.playbook} origin={{ from: "playbooks" }} />
+    <ul className="flex items-start gap-3">
+      <DiscoverCard day={shelf} origin={origin} size="wide" headingLevel={3} className="flex-2" />
+      <DiscoverCard
+        day={{ ...shelf, cities: [], preview: [], tags: [] }}
+        origin={origin}
+        headingLevel={3}
+        className="flex-1"
+      />
     </ul>
   );
 }
 
+const { crew } = LANDING_FEATURES;
+const CREW_ACCENTS = snapshotAccents(crew.accents);
+// Sixteen hours of Naxos in about 500px, so the moment stays near 600 and the
+// sea shows around it (decision 10); a short stop keeps the board's floor height.
+const CREW_PX_PER_HOUR = 32;
+
 /**
- * The shelf's second day (M50 part 9): a library playbook beside Mitchell's,
- * drawn by the same card from the same snapshot, so the spread reads as days
- * to borrow rather than one.
+ * The crew moment: the Greek trip's Day 2, Elena's borrowed Naxos day, on the
+ * board's read-only river, under who is going. Inside the crew's own people,
+ * so the stops name them as a trip's board does.
  */
-export function ShelfPlaybookPanel(): React.ReactElement {
+export function CrewPanel(): React.ReactElement {
   return (
-    <ul className="flex flex-col">
-      <DiscoverCard day={LANDING_FEATURES.shelf} origin={{ from: "playbooks" }} />
-    </ul>
+    <FixedPeopleProvider personas={crew.personas}>
+      <div className={SURFACE}>
+        <div className="flex flex-col gap-2 border-b border-hairline px-3.5 py-2.5">
+          <div className="flex items-center gap-2.5">
+            <Text as="span" className="font-display font-semibold">
+              {`${crew.name} · Day ${crew.river.ordinal} · ${crew.river.city}`}
+            </Text>
+            <DataText className="ml-auto text-2xs tracking-wider uppercase">Timeline</DataText>
+          </div>
+          <TripPeopleBlock payload={crew.people} />
+        </div>
+        <div className="px-3.5 py-3">
+          <LandingRiver day={crew.river} dayAccents={CREW_ACCENTS} dayCurrency={crew.currency} pxPerHour={CREW_PX_PER_HOUR} />
+        </div>
+      </div>
+    </FixedPeopleProvider>
   );
 }
 
