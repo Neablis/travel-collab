@@ -14,12 +14,16 @@ const BYPASS = "test-bypass";
 
 /** A stub preview: `routes` maps a path to a status, or to "drop" to close the socket unanswered. */
 async function stubPreview(routes) {
-  const hits = {};
+  // Maps, not objects keyed by `req.url`: CodeQL reads that as remote property
+  // injection, even in a test.
+  const table = new Map(Object.entries(routes));
+  const hits = new Map();
   const server = createServer((req, res) => {
-    hits[req.url] = (hits[req.url] ?? 0) + 1;
+    const hit = (hits.get(req.url) ?? 0) + 1;
+    hits.set(req.url, hit);
     if (req.headers["x-vercel-protection-bypass"] !== BYPASS) return res.writeHead(401).end();
-    const route = routes[req.url];
-    const answer = typeof route === "function" ? route(hits[req.url]) : route;
+    const route = table.get(req.url);
+    const answer = route instanceof Function ? route(hit) : route;
     if (answer === "drop") return req.socket.destroy();
     res.writeHead(answer ?? 404).end();
   });
@@ -45,5 +49,5 @@ test("retries once when a request gets no response, and only then", async (t) =>
   t.after(preview.close);
   const failures = await checkLinks({ baseUrl: preview.baseUrl, hrefs: ["/flaky", "/missing"], bypass: BYPASS });
   assert.deepEqual(failures.map((failure) => failure.href), ["/missing"]);
-  assert.deepEqual(preview.hits, { "/flaky": 2, "/missing": 1 });
+  assert.deepEqual(Object.fromEntries(preview.hits), { "/flaky": 2, "/missing": 1 });
 });
