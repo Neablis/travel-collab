@@ -46,6 +46,31 @@ export const PARTICIPANT_PICKS: Record<string, { going: JapanTraveller[]; why: s
   },
 };
 
+/**
+ * Who booked a stop (M51 decision 8a, "Booked by"). Two, each one of the pair
+ * the pick above sends, so `/demo` shows the field on a stop with the room to
+ * draw it (the museum's two hours) and on one without (Kichi Kichi's 90 minutes).
+ */
+export const BOOKED_BY_PICKS: Record<string, { by: JapanTraveller; why: string }> = {
+  "d6-s2-hakone-open-air-museum": {
+    by: "Priya",
+    why: "Timed tickets for the museum pair, bought with the Hakone Free Pass the night before.",
+  },
+  "d9-s5-dinner-at-kichi-kichi": {
+    by: "Sam",
+    why: "The two seats the late-night pair got, booked the minute the counter's calendar opened.",
+  },
+};
+
+/** Who booked `row`, or nobody. A booker who is not going is a fixture bug, so it throws. */
+export function bookedByOf(row: JapanStop | JapanBacklogItem): JapanTraveller | null {
+  const pick = BOOKED_BY_PICKS[row.id];
+  if (pick === undefined) return null;
+  const going = participantsOf(row);
+  if (going.length > 0 && !going.includes(pick.by)) throw new Error(`${row.id}: booked by ${pick.by}, who is not going`);
+  return pick.by;
+}
+
 /** The export names a traveller "Sam K"; the roster, and so a member id, is "Sam". */
 function travellerNamed(exportName: string): JapanTraveller {
   const first = exportName.split(" ")[0];

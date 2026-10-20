@@ -357,6 +357,17 @@ describe("the phone front door (SPEC §28)", () => {
       expect(within(claims[3]!).queryByText("Sam, Priya, Dana, Marcus · Apr 9")).toBeNull();
     });
 
+    // M51 decision 8a, review r1 of PR 508: the landing fetches no people, so the
+    // snapshot carries them, and a stop's adder reads as the demo names them,
+    // not as the handle "Traveler Jonah". Moved here from the retired desktop
+    // blocks' test, since the phone's Together claim now draws the demo river.
+    it("names who added each stop on the river as the demo's people", async () => {
+      render(<PhoneFrontDoor closingQuote={LANDING_CLOSING_QUOTE} />);
+      const together = screen.getAllByTestId("front-door-claim")[1]!;
+      const river = within(await within(together).findByRole("list", { name: "Day 7 timeline", hidden: true }));
+      expect(river.getByText(/^Dinner at Gion Nanba, .*, added by Jonah\b/)).toBeDefined();
+    });
+
     // Mitchell, 2026-10-11: *"it should be more nostalgic than how much you
     // spent on dinner."* The card used to be a day's spend and its receipts;
     // "How you'll remember it" is not a total.

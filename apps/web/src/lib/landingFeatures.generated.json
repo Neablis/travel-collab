@@ -149,6 +149,7 @@
           "cost": null,
           "bookedBy": null,
           "participants": [],
+          "addedBy": null,
           "mode": null,
           "endLocation": null,
           "pendingReason": null
@@ -175,6 +176,7 @@
           "cost": null,
           "bookedBy": null,
           "participants": [],
+          "addedBy": null,
           "mode": null,
           "endLocation": null,
           "pendingReason": null
@@ -205,6 +207,7 @@
             "Tomas",
             "Ruth"
           ],
+          "addedBy": null,
           "mode": null,
           "endLocation": null,
           "pendingReason": null
@@ -233,6 +236,7 @@
           "cost": null,
           "bookedBy": null,
           "participants": [],
+          "addedBy": null,
           "mode": null,
           "endLocation": null,
           "pendingReason": null
@@ -262,6 +266,7 @@
           "cost": null,
           "bookedBy": "Maeve",
           "participants": [],
+          "addedBy": null,
           "mode": null,
           "endLocation": null,
           "pendingReason": null
@@ -290,6 +295,7 @@
           "cost": null,
           "bookedBy": null,
           "participants": [],
+          "addedBy": null,
           "mode": null,
           "endLocation": null,
           "pendingReason": null
@@ -316,6 +322,7 @@
           "cost": null,
           "bookedBy": null,
           "participants": [],
+          "addedBy": null,
           "mode": null,
           "endLocation": null,
           "pendingReason": null
@@ -350,6 +357,7 @@
             "Tomas",
             "Kenji"
           ],
+          "addedBy": null,
           "mode": null,
           "endLocation": null,
           "pendingReason": null

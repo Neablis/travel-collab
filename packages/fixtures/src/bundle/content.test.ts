@@ -28,8 +28,8 @@ const CONTENT_DIR = fileURLToPath(new URL("../../../../content/", import.meta.ur
  *
  * `content/` is a working directory too — `scripts/geocode-content.py` keeps
  * its resume cache and review file there — and a tool's scratch state is not
- * content. Mirrors `bundleFiles` in `apps/web/scripts/import-content.ts`, which
- * is where this was found the hard way.
+ * content. Mirrors `bundleFiles` in `apps/web/scripts/lib/content-bundles.ts`,
+ * the importers' reader, which is where this was found the hard way.
  */
 function bundleFiles(dir: string): string[] {
   let entries: string[];

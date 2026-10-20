@@ -436,7 +436,9 @@ attempt, three times over.
 
 `pnpm content:import` talks to a dev server through the dev-login route, which
 fails closed to a 404 in production. Production goes through a dispatched
-workflow instead, in up to three steps from `main`:
+workflow instead, in up to three steps from `main`. Previews import
+automatically on every build (without `--prune`; see
+`environments-and-deploys.md`); production never does:
 
 1. **`migrate-production`** — `confirm: migrate`. Only when a migration is
    pending; `source_bundle` (0018) is one.

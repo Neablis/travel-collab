@@ -50,6 +50,7 @@
         "cost": null,
         "bookedBy": null,
         "participants": [],
+        "addedBy": "Jonah",
         "mode": "train",
         "endLocation": {
           "name": "Kyoto Station, Shimogyō, Kyoto, Japan",
@@ -85,6 +86,7 @@
         "cost": null,
         "bookedBy": null,
         "participants": [],
+        "addedBy": "Jonah",
         "mode": null,
         "endLocation": null,
         "pendingReason": null
@@ -114,6 +116,7 @@
         "cost": null,
         "bookedBy": null,
         "participants": [],
+        "addedBy": "Jonah",
         "mode": null,
         "endLocation": null,
         "pendingReason": null
@@ -142,6 +145,7 @@
         "cost": null,
         "bookedBy": null,
         "participants": [],
+        "addedBy": "Jonah",
         "mode": null,
         "endLocation": null,
         "pendingReason": null
@@ -170,9 +174,47 @@
         "cost": null,
         "bookedBy": null,
         "participants": [],
+        "addedBy": "Jonah",
         "mode": null,
         "endLocation": null,
         "pendingReason": "maybe"
+      }
+    },
+    "people": {
+      "Sam": {
+        "name": "Sam",
+        "avatar": "mountain",
+        "color": "plum",
+        "travelling": true,
+        "colorShifted": false
+      },
+      "Priya": {
+        "name": "Priya",
+        "avatar": "camera",
+        "color": "ochre",
+        "travelling": true,
+        "colorShifted": true
+      },
+      "Jonah": {
+        "name": "Jonah",
+        "avatar": "bike",
+        "color": "clay",
+        "travelling": true,
+        "colorShifted": false
+      },
+      "Mei": {
+        "name": "Mei",
+        "avatar": "sailboat",
+        "color": "rose",
+        "travelling": true,
+        "colorShifted": false
+      },
+      "Kenji": {
+        "name": "Kenji",
+        "avatar": null,
+        "color": "teal",
+        "travelling": false,
+        "colorShifted": false
       }
     }
   },

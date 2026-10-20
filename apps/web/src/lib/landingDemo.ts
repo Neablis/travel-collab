@@ -35,7 +35,11 @@ export type LandingDemo = {
   currency: string;
   /** Each day's colour family by `dayId`, as `cityAccents` answers it on the board. */
   accents: Record<string, AccentFamily>;
-  river: LandingRiverDay;
+  /** One day of the trip, as `DayRiver` takes it. */
+  river: LandingRiverDay & {
+    /** Every member by userId: who the blocks say is going, booked and added each stop. */
+    people: Record<string, Persona>;
+  };
   /** The notebook panel's widgets, resolved by `@tc/pages` exactly as a notebook resolves them. */
   notebook: {
     strip: TripStripPayload;

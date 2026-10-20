@@ -36,7 +36,7 @@ import { deterministicMintId, japanTripCommands } from "./commands.ts";
 import { COORDINATE_OVERRIDES } from "./coordinateOverrides.ts";
 import { COORDINATE_GAPS } from "./coordinateGaps.ts";
 import coordinatesOverlay from "./coordinates.json" with { type: "json" };
-import { PARTICIPANT_PICKS } from "./participants.ts";
+import { BOOKED_BY_PICKS, PARTICIPANT_PICKS } from "./participants.ts";
 import { JAPAN_SAVED_DAYS } from "./savedDays.ts";
 import {
   JAPAN_BACKLOG,
@@ -392,6 +392,9 @@ export function verifyJapanTrip(startDate: string = REFERENCE_START_DATE): Japan
   // And for the participant picks: one naming no row narrows nobody's stop.
   for (const id of Object.keys(PARTICIPANT_PICKS)) {
     if (!rowIds.has(id)) staleOverrides.push(`${id} has a participant pick but no stop or backlog item has that id`);
+  }
+  for (const id of Object.keys(BOOKED_BY_PICKS)) {
+    if (!rowIds.has(id)) staleOverrides.push(`${id} has a booked-by pick but no stop or backlog item has that id`);
   }
   // A stop cannot be both "the overlay proposes something else" and "the
   // overlay has nothing". Listing it twice means one of the two is a lie.

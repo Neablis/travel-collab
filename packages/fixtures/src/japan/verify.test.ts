@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import { ActivityKind, ActivityTag } from "@tc/contracts";
 import { diffAgainstExpectations, JAPAN_TRIP_EXPECTATIONS } from "./expectations.ts";
 import { JAPAN_SAVED_DAYS } from "./savedDays.ts";
-import { japanTripCommands } from "./commands.ts";
+import { japanGroupAdders, japanTripCommandGroups, japanTripCommands } from "./commands.ts";
+import { JAPAN_TRAVELLERS } from "./trip.ts";
 import { deterministicMintId, formatReport, REFERENCE_START_DATE, verifyJapanTrip } from "./verify.ts";
 
 describe("the canonical Japan fixture", () => {
@@ -27,6 +28,21 @@ describe("the canonical Japan fixture", () => {
       mintId: deterministicMintId(),
     });
     expect(a).toEqual(b);
+  });
+
+  // M51 decision 8a: `/demo` is where a stop's names are seen first, so its
+  // stops are added by all four travellers and two say who booked them.
+  it("says who added each group of stops and who booked two of them", () => {
+    const groups = japanTripCommandGroups("00000000-0000-4000-8000-00000000f000", {
+      startDate: REFERENCE_START_DATE,
+      mintId: deterministicMintId(),
+      travellerId: (name) => name,
+    });
+    const adders = japanGroupAdders();
+    expect(adders).toHaveLength(groups.length);
+    expect(new Set(adders)).toEqual(new Set([null, ...JAPAN_TRAVELLERS]));
+    const booked = groups.flat().flatMap((c) => (c.type === "AddActivity" && c.bookedBy ? [[c.title, c.bookedBy]] : []));
+    expect(booked).toEqual([["Hakone Open-Air Museum", "Priya"], ["Dinner at Kichi Kichi", "Sam"]]);
   });
 
   // A guard on the guard. `diffAgainstExpectations` reports findings rather

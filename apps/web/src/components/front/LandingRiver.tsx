@@ -4,6 +4,7 @@ import type { Overlap } from "@/components/lenses/overlapData";
 import { DayRiver } from "@/components/board/DayRiver";
 import { riverAxis } from "@/components/board/riverLayout";
 import type { CityAccents } from "@/components/pages/cityAccents";
+import { FixedPeopleProvider, type Persona } from "@/components/pages/people";
 import type { AccentFamily } from "@/lib/dayAccent";
 import { LANDING_DEMO, type LandingRiverDay } from "@/lib/landingDemo";
 
@@ -45,11 +46,13 @@ export const LANDING_RIVER_CITY = river.city;
 /** A snapshot's day on the board's read-only river; the demo trip's Day 7 unless told otherwise. */
 export function LandingRiver({
   day = river,
+  people = river.people,
   dayAccents = LANDING_ACCENTS,
   dayCurrency = currency,
   pxPerHour = DEMO_PX_PER_HOUR,
 }: {
   day?: LandingRiverDay;
+  people?: Readonly<Record<string, Persona>>;
   dayAccents?: CityAccents;
   dayCurrency?: string;
   pxPerHour?: number;
@@ -58,23 +61,27 @@ export function LandingRiver({
     day.activityIds.map((id) => day.activities[id]?.timeWindow ?? null),
     pxPerHour,
   );
+  // The snapshot's people, since the landing reads no access: without them a
+  // block calls its adder by the id's handle (M51 decision 8a).
   return (
-    <DayRiver
-      title={`Day ${day.ordinal}`}
-      dayId={day.dayId}
-      axis={axis}
-      activityIds={day.activityIds}
-      activities={day.activities}
-      accent={dayAccents.ofDayId(day.dayId)}
-      conflictIds={NO_CONFLICTS}
-      overlaps={NO_OVERLAPS}
-      overlapPartners={NO_PARTNERS}
-      currency={dayCurrency}
-      onEditActivity={nothing}
-      onRemoveActivity={nothing}
-      onDismissOverlap={nothing}
-      focusedTag={null}
-      readOnly
-    />
+    <FixedPeopleProvider personas={people}>
+      <DayRiver
+        title={`Day ${day.ordinal}`}
+        dayId={day.dayId}
+        axis={axis}
+        activityIds={day.activityIds}
+        activities={day.activities}
+        accent={dayAccents.ofDayId(day.dayId)}
+        conflictIds={NO_CONFLICTS}
+        overlaps={NO_OVERLAPS}
+        overlapPartners={NO_PARTNERS}
+        currency={dayCurrency}
+        onEditActivity={nothing}
+        onRemoveActivity={nothing}
+        onDismissOverlap={nothing}
+        focusedTag={null}
+        readOnly
+      />
+    </FixedPeopleProvider>
   );
 }

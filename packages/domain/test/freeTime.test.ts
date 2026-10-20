@@ -19,6 +19,7 @@ function activity(id: string, timeWindow: { start: string; end: string } | null)
     cost: null,
     bookedBy: null,
     participants: [],
+    addedBy: null,
     mode: null,
     endLocation: null,
     pendingReason: null,

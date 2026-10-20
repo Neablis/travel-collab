@@ -4,7 +4,7 @@ import { TripEvent, type EventEnvelope, type TripDetail,
 import { detectConflicts, DEFAULT_CONFLICT_CONTEXT, overBudgetConflicts, sortConflicts, type ConflictContext } from "./conflicts";
 import { rollupCosts } from "./costs";
 import { deriveDayDates } from "./dates";
-import { evolveTrip } from "./evolve";
+import { evolveTripEnvelope } from "./evolve";
 import type { TripState } from "./state";
 
 // The single state → document definition. The live pipeline and the rebuild
@@ -50,6 +50,7 @@ export function tripDetailFromState(
           cost: a.cost,
           bookedBy: a.bookedBy,
           participants: a.participants,
+          addedBy: state.addedBy?.[id] ?? null,
           mode: a.mode,
           endLocation: a.endLocation,
           pendingReason: a.pendingReason,
@@ -105,7 +106,7 @@ export function projectTripDetails(
     if (isPageEventType(env.type)) continue;
     const event = TripEvent.parse({ type: env.type, version: env.version, payload: env.payload });
     const entry = streams.get(env.streamId) ?? { state: null, createdAt: env.occurredAt };
-    entry.state = evolveTrip(entry.state, event);
+    entry.state = evolveTripEnvelope(entry.state, event, env);
     streams.set(env.streamId, entry);
   }
   const details: TripDetail[] = [];

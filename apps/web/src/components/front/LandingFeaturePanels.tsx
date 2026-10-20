@@ -86,7 +86,7 @@ export function CrewPanel(): React.ReactElement {
           <TripPeopleBlock payload={crew.people} />
         </div>
         <div className="px-3.5 py-3">
-          <LandingRiver day={crew.river} dayAccents={CREW_ACCENTS} dayCurrency={crew.currency} pxPerHour={CREW_PX_PER_HOUR} />
+          <LandingRiver day={crew.river} people={crew.personas} dayAccents={CREW_ACCENTS} dayCurrency={crew.currency} pxPerHour={CREW_PX_PER_HOUR} />
         </div>
       </div>
     </FixedPeopleProvider>

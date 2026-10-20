@@ -162,6 +162,17 @@ describe("the demo trip's travellers", () => {
     expect(members.map((m) => m.userId)).toEqual(demoTripMembers(DEMO_TRIP_ID).map((m) => m.name));
   });
 
+  // M51 decision 8a: the board names who added a stop and who booked it, and
+  // `/demo` is where a visitor first sees it. The adders are the envelopes'
+  // actors, so the preview's replay must say the same as the board.
+  it("added the stops, and two of them booked one", () => {
+    const detail = demoTripDetail(DEMO_TRIP_ID);
+    const stops = Object.values(detail.activities);
+    expect(new Set(stops.map((a) => a.addedBy))).toEqual(new Set(["Sam", "Priya", "Jonah", "Mei"]));
+    expect(stops.find((a) => a.title === "Hakone Open-Air Museum")).toMatchObject({ bookedBy: "Priya", participants: ["Priya", "Mei"] });
+    expect(demoTripDetailAt(DEMO_TRIP_ID, demoTripHeadSeq(DEMO_TRIP_ID))?.activities).toEqual(detail.activities);
+  });
+
   // The roster's one member not travelling is on no stop, so every total is
   // the four travellers' (ADR-060's per-person price, counted over travellers).
   // Counting him would price each everyone-stop for five.

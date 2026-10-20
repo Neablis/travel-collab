@@ -71,8 +71,8 @@ describe("SavedStop", () => {
   //    days it is on, and a trip activity has no equivalent — its day is
   //    `day.activityIds`, a relationship the trip owns.
   //
-  // 2. **`bookedBy` and `participants` are OMITTED (M13 link 5).** They are
-  //    user ids of the ORIGINATING trip's members, and a saved day is
+  // 2. **`bookedBy`, `participants` and `addedBy` are OMITTED (M13 link 5,
+  //    M51 part 4).** They are user ids of the ORIGINATING trip's members, and a saved day is
   //    publishable — `visibility` flips to `"public"` and the library serves it
   //    to strangers. Copying attribution in would publish those ids, and it
   //    would be meaningless on the other end besides: when somebody inserts
@@ -80,7 +80,7 @@ describe("SavedStop", () => {
   //    not a plan they can act on. `stopsForDay` already hand-enumerates the
   //    fields it copies, so the omission is enforced there as well as asserted
   //    here.
-  const ATTRIBUTION = ["bookedBy", "participants"];
+  const ATTRIBUTION = ["addedBy", "bookedBy", "participants"];
   it("carries the same planning fields an ActivityView does, plus dayIndex, minus attribution", () => {
     const viewKeys = Object.keys(ActivityView.shape).filter(
       (k) => k !== "activityId" && !ATTRIBUTION.includes(k),
