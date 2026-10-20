@@ -140,6 +140,11 @@ Rules (ADR-004 + M1 retro):
   is disposable must not migrate, and a red build is the cheap failure here.
   `VERCEL_ENV=preview` alone was the only check until 2026-09-06, which is how
   migrations 0015-0018 were applied to production by preview builds.
+  After migrating, a preview build also imports `content/` through
+  `import-content-production.ts`, never with `--prune`, into the preview
+  database that every open PR shares, so the last build to run wins a day's
+  content. A bundle or import error fails that build. Two builds importing at
+  once wait for each other on the importer's advisory lock.
 - Resetting the preview branch (or local db):
   `DATABASE_URL=<preview pooled url> pnpm --filter web db:reset`
   — see the header of `apps/web/scripts/db-reset.mjs`. For local dev, `pnpm

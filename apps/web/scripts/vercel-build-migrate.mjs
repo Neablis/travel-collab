@@ -34,52 +34,15 @@
 // which writes the database directly: `import-content.ts` talks HTTP to a
 // running app, and none is running yet. It never gets `--prune`, because every
 // open PR's preview shares this one database, and pruning to one branch's
-// `content/` would delete the days another branch added.
+// `content/` would delete the days another branch added. Two builds importing
+// at once wait for each other on the importer's run lock (`importBundles`).
+//
+// **Why there is no "am I the command?" guard.** It once acted only when
+// `argv[1]` matched this file's URL; Node realpaths the URL and not `argv[1]`,
+// so a symlink in the build path skipped every step, the refusal included, and
+// the build stayed green (PR 509 review). The logic lives in
+// `lib/vercel-build-steps.mjs` so the test can import it instead.
 import { execSync } from "node:child_process";
-import { resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { runBuildSteps } from "./lib/vercel-build-steps.mjs";
 
-/**
- * What this build does to its database, decided from the environment alone so
- * the decision can be tested without running a build: skip it, refuse it, or
- * run these commands in order.
- */
-export function buildSteps(environment) {
-  const env = environment.VERCEL_ENV ?? "unset";
-  if (env !== "preview") return { skip: `[vercel-build-migrate] skipped (VERCEL_ENV=${env})` };
-  if (environment.PREVIEW_DB_IS_DISPOSABLE !== "true") {
-    return {
-      refuse:
-        "[vercel-build-migrate] REFUSING to migrate: PREVIEW_DB_IS_DISPOSABLE is not " +
-        `"true" (got ${JSON.stringify(environment.PREVIEW_DB_IS_DISPOSABLE ?? null)}).\n` +
-        "\n" +
-        "This build would run drizzle-kit migrate against whatever DATABASE_URL it\n" +
-        "was given, and nothing here can prove that is a disposable preview branch.\n" +
-        "\n" +
-        "To fix: point the Preview scope's DATABASE_URL at a preview branch, then set\n" +
-        "PREVIEW_DB_IS_DISPOSABLE=true on the Preview scope ONLY. Never set it on\n" +
-        "Production — production is migrated by dispatching migrate-production.",
-    };
-  }
-  return {
-    run: [
-      "pnpm drizzle-kit migrate",
-      "node --import ./scripts/lib/ts-resolve-register.mjs scripts/import-content-production.ts",
-    ],
-  };
-}
-
-// Only as the command, so the test can import `buildSteps` without migrating.
-const invokedDirectly =
-  process.argv[1] !== undefined && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
-if (invokedDirectly) {
-  const steps = buildSteps(process.env);
-  if ("skip" in steps) {
-    console.log(steps.skip);
-  } else if ("refuse" in steps) {
-    console.error(steps.refuse);
-    process.exit(1);
-  } else {
-    for (const command of steps.run) execSync(command, { stdio: "inherit" });
-  }
-}
+process.exitCode = runBuildSteps(process.env, (command) => execSync(command, { stdio: "inherit" }));

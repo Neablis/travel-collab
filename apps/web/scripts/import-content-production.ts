@@ -60,7 +60,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { and, eq, inArray, isNotNull, notInArray } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, notInArray, sql } from "drizzle-orm";
 import {
   bundleActivityCommands,
   bundleTripCommandGroups,
@@ -399,6 +399,51 @@ export async function importTrips(bundle: ContentBundleV1, ownerId: string, { dr
   };
 }
 
+/**
+ * Every bundle's days and trips, written while this run holds the import lock.
+ *
+ * Every open PR's preview build imports into one shared database, and two
+ * imports at once corrupt it: the second's delete-and-reinsert of a day trips
+ * over the first's re-insert (a duplicate key, so a red build), and a trip
+ * created for the first time is "resumed" by the second while the first is
+ * still filling it, which throws or doubles its days for good. Per-bundle
+ * transactions cannot prevent the trip case — a trip is many command
+ * transactions — so the lock covers the whole run.
+ *
+ * It is a transaction-scoped advisory lock held by a transaction that stays
+ * open for the run, rather than a session lock, because a preview reaches its
+ * database through a pooler: a session lock could be taken on one server
+ * connection and released on another, and a transaction is pinned to one.
+ * The writes run on other pool connections; the lock's transaction does
+ * nothing but wait, and ending it, however the run ends, releases the lock.
+ */
+export async function importBundles(
+  bundles: ContentBundleV1[],
+  ownerId: string,
+  options: Pick<Options, "prune" | "skipTrips" | "skipPlaybooks">,
+) {
+  const totals = { days: 0, pruned: 0, created: 0, skipped: 0, resumed: 0, reconciled: 0, unmatched: 0 };
+  await db.transaction(async (lock) => {
+    await lock.execute(sql`select pg_advisory_xact_lock(hashtext('import-content-production'))`);
+    for (const bundle of bundles) {
+      if (!options.skipPlaybooks) {
+        const r = await importPlaybooks(bundle, options.prune);
+        totals.days += r.days;
+        totals.pruned += r.pruned;
+      }
+      if (!options.skipTrips) {
+        const r = await importTrips(bundle, ownerId);
+        totals.created += r.created;
+        totals.skipped += r.skipped;
+        totals.resumed += r.resumed;
+        totals.reconciled += r.reconciled;
+        totals.unmatched += r.unmatched.length;
+      }
+    }
+  });
+  return totals;
+}
+
 async function main() {
   const options = parseArgs(process.argv.slice(2));
   const named = (process.env.CONTENT_OWNER_ID ?? "").trim();
@@ -465,22 +510,11 @@ async function main() {
     }
   }
 
-  let days = 0, pruned = 0, created = 0, skipped = 0, resumed = 0, reconciled = 0, unmatched = 0;
-  for (const bundle of bundles) {
-    if (!options.skipPlaybooks) {
-      const r = await importPlaybooks(bundle, options.prune);
-      days += r.days;
-      pruned += r.pruned;
-    }
-    if (!options.skipTrips) {
-      const r = await importTrips(bundle, ownerId);
-      created += r.created;
-      skipped += r.skipped;
-      resumed += r.resumed;
-      reconciled += r.reconciled;
-      unmatched += r.unmatched.length;
-    }
-  }
+  const { days, pruned, created, skipped, resumed, reconciled, unmatched } = await importBundles(
+    bundles,
+    ownerId,
+    options,
+  );
 
   console.log(`\n  playbook days written  ${days}`);
   if (options.prune) console.log(`  stale rows pruned      ${pruned}`);
