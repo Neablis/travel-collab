@@ -2,14 +2,20 @@ import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { tripDetailFixture } from "@tc/factories";
+
 const fetchTripsMock = vi.fn();
+const fetchTripDetailMock = vi.fn();
+const insertSavedDayMock = vi.fn();
+const pushMock = vi.fn();
 vi.mock("@/lib/apiClient", () => ({
   fetchTrips: (...a: unknown[]) => fetchTripsMock(...a),
+  fetchTripDetail: (...a: unknown[]) => fetchTripDetailMock(...a),
   createTrip: vi.fn(),
-  insertSavedDay: vi.fn(),
+  insertSavedDay: (...a: unknown[]) => insertSavedDayMock(...a),
   sendTripCommandBatch: vi.fn(),
 }));
-vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: pushMock }) }));
 
 import { AddToTripDialog } from "./AddToTripDialog";
 
@@ -25,6 +31,9 @@ import { AddToTripDialog } from "./AddToTripDialog";
 // cheaper than a third walk, and it is the thing that would have caught it.
 
 const TRIP_ID = "6e9a2c9e-3f7a-4b6e-9d3f-2b1a5c8d7e6f";
+const SAVED_DAY_ID = "aa000000-0000-4000-8000-000000000001";
+// The trip's five days, in order: Day 4 is DAY_IDS[3].
+const DAY_IDS = [1, 2, 3, 4, 5].map((n) => `bb000000-0000-4000-8000-00000000000${n}`);
 
 beforeEach(() => {
   fetchTripsMock.mockReset().mockResolvedValue({
@@ -39,6 +48,15 @@ beforeEach(() => {
       },
     ],
   });
+  fetchTripDetailMock.mockReset().mockResolvedValue({
+    ok: true,
+    value: tripDetailFixture({
+      tripId: TRIP_ID,
+      days: DAY_IDS.map((dayId) => ({ dayId, activityIds: [], date: null, costSubtotal: 0 })),
+    }),
+  });
+  insertSavedDayMock.mockReset().mockResolvedValue({ ok: true, value: {} });
+  pushMock.mockReset();
 });
 afterEach(cleanup);
 
@@ -47,7 +65,7 @@ function renderDialog(dayCount: number) {
     <AddToTripDialog
       open
       onOpenChange={vi.fn()}
-      savedDayId="aa000000-0000-4000-8000-000000000001"
+      savedDayId={SAVED_DAY_ID}
       dayName="Three in Kansai"
       dayCount={dayCount}
       onConflict={vi.fn()}
@@ -102,5 +120,27 @@ describe("a one-day Playbook", () => {
     expect(await screen.findByLabelText("Start date")).toBeTruthy();
     expect(screen.getByText(/and this day is day 1\./)).toBeTruthy();
     expect(screen.queryByText(/days become days/)).toBeNull();
+  });
+});
+
+// M51 decision 8c: a borrowed day lands on a CHOSEN existing day, through the
+// server's `startingAt` merge (ADR-050), and the default is still the append.
+describe("which day of the trip", () => {
+  it("posts the chosen day's id as startingAt", async () => {
+    renderDialog(1);
+    const which = await screen.findByLabelText("Which day");
+    await screen.findByRole("option", { name: "Day 4" });
+    await userEvent.selectOptions(which, "Day 4");
+    await userEvent.click(screen.getByRole("button", { name: "Add to trip" }));
+    expect(insertSavedDayMock).toHaveBeenCalledWith(TRIP_ID, SAVED_DAY_ID, { startingAt: DAY_IDS[3] });
+    expect(pushMock).toHaveBeenCalledWith(`/trips/${TRIP_ID}`);
+  });
+
+  it("appends after the last day when no day is chosen", async () => {
+    renderDialog(1);
+    await screen.findByRole("option", { name: "Day 4" });
+    expect(screen.getByLabelText("Which day")).toHaveProperty("value", "");
+    await userEvent.click(screen.getByRole("button", { name: "Add to trip" }));
+    expect(insertSavedDayMock).toHaveBeenCalledWith(TRIP_ID, SAVED_DAY_ID, {});
   });
 });

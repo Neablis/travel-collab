@@ -337,6 +337,44 @@ test("a shared day can start a new trip, as day 1, and the add still counts", as
   await bob.context().close();
 });
 
+// M51 decision 8c: a borrowed day lands on a CHOSEN day of an existing trip,
+// through the server's `startingAt` merge (ADR-050), rather than after the last.
+// The target has three days and its own stop on the third, so "it landed on Day
+// 2" is told apart from both the append and the first day.
+test("a day added onto Day 2 of a trip lands its stops on Day 2", async ({ page }) => {
+  test.slow();
+
+  const city = mintCity("Ontoe2e");
+  const dayName = `Onto a chosen day ${randomUUID().slice(0, 8)}`;
+  const source = await tripWithCities(page, e2eTripName("Onto source"), [city]);
+  const savedDayId = await keepDay(page, source.tripId, source.dayId, dayName);
+  const target = await tripWithCities(page, e2eTripName("Onto target"), [mintCity("Already")], { dated: true });
+  const read = await page.request.get(`/api/trips/${target.tripId}`);
+  const { days } = ((await read.json()) as { trip: { days: { dayId: string }[] } }).trip;
+  expect(days).toHaveLength(3);
+
+  await page.goto(`/playbooks/day/${savedDayId}`);
+  await page.getByRole("button", { name: "Add to a trip" }).click();
+  await page.getByLabel("Which trip").selectOption(target.tripId);
+  const whichDay = page.getByLabel("Which day", { exact: true });
+  await expect(whichDay.getByRole("option", { name: /^Day 2/ })).toBeAttached();
+  await whichDay.selectOption(days[1]!.dayId);
+  const [insert] = await Promise.all([
+    page.waitForRequest((r) => r.url().includes(`/api/trips/${target.tripId}/saved-days/${savedDayId}`)),
+    page.waitForURL(`**/trips/${target.tripId}`),
+    page.getByRole("button", { name: "Add to trip" }).click(),
+  ]);
+  expect(insert.postDataJSON()).toEqual({ startingAt: days[1]!.dayId });
+
+  // Still three days: merged onto one, not a fourth appended.
+  await page.getByRole("tab", { name: "Plan" }).click();
+  const columns = page.getByTestId("day-column");
+  await expect(columns).toHaveCount(3);
+  await expect(columns.nth(1).getByText(`Stop in ${city}`)).toBeVisible();
+
+  await forgetDay(page, savedDayId);
+});
+
 // The exit gate names FOUR states for city search against the REAL endpoint.
 // Two of them (results, no matches) are ordinary answers; the fourth needs the
 // endpoint to fail, which is what `page.route` is for. The dropdown it replaced
