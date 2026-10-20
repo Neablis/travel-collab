@@ -124,6 +124,10 @@ it, the notebook afterwards). Then the sea dims back behind them.
     viewpoint, and the trip file copies them twice, once onto a dinner stop: KI-2026-10-20-a,
     fixed in part 1. No source could be read for them, so part 1 left all three Railay stops
     unpinned (no coordinate); re-pinning them needs the geocoder. The redesign resolves KI-2026-10-19-d, KI-2026-10-19-h and KI-2026-10-19-i.
+13. **The parent sizes, the component fills.** Mitchell, on his walk of PR 510: a card or block
+    never sets its own outer size, measures its parent or scales itself; the grid decides, and
+    content that does not fit clamps, wraps or shows one row. Recorded in
+    `docs/guidelines/building-from-the-design.md`.
 
 **The comments behind them, verbatim** (typos kept). The ones quoted in decisions 3–11 are not
 repeated here.

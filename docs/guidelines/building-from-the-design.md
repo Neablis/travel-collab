@@ -104,6 +104,23 @@ file's own CSS variables, which are not always the same set.
 
 ---
 
+## The parent sizes, the component fills
+
+A component (a card, a panel, a block) **never sets its own outer width or
+height, never measures its parent, and never transform-scales itself to fit.**
+It fills the box it is given. The grid or wrapper decides the size: a sea cell's
+span in whole grid units, a column's track. Content that does not fit is the
+component's own flow problem: clamp it, wrap it, or show what fits on one row.
+It never grows outward to make room.
+
+> Mitchell, 2026-10-20, on his walk of PR 510: *"never have the react components
+> like the cards or elements assume there parent container, they always fill up
+> all the space they are given, if we are hard coding or creating grid cards, the
+> parent controls the size, and the content just fills that component using the
+> flow rules given it"*
+
+---
+
 ## What a gate owes when a milestone owns a surface
 
 **A milestone's exit gate can be written entirely from the server's behaviour
