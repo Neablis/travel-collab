@@ -1,7 +1,7 @@
 import type { ActivityView } from "@tc/contracts";
 import type { ItineraryDayPayload, Seg, SunPayload, TripPeoplePayload, TripStripPayload } from "@tc/pages";
-import type { Persona } from "@/components/pages/people";
 import type { AccentFamily } from "@/lib/dayAccent";
+import type { Persona } from "@/lib/persona";
 import type { DiscoverDay } from "@/lib/playbooks";
 import snapshot from "./landingDemo.generated.json";
 import features from "./landingFeatures.generated.json";
