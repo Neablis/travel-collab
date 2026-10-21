@@ -242,7 +242,10 @@ describe("the sea's moments", () => {
     expect(log.textContent).toContain(LANDING_FEATURES.assistant.ask);
     expect(log.textContent).toContain(LANDING_FEATURES.assistant.answer);
     const river = moment.getByRole("list", { name: "Day 1 timeline" });
-    const ghosts = within(river).getAllByRole("button", { name: /^Suggested: / });
+    // PR 514 r2: a ghost that is a button does nothing when a screen reader
+    // presses it; the river draws it as a picture and the list decides it.
+    expect(within(river).queryAllByRole("button", { name: /^Suggested: / })).toEqual([]);
+    const ghosts = within(river).getAllByRole("img", { name: /^Suggested: / });
     expect(ghosts.length).toBeGreaterThanOrEqual(2);
     for (const ghost of ghosts) {
       const description = ghost.getAttribute("aria-label")!.slice("Suggested: ".length);
@@ -304,17 +307,17 @@ describe("the sea's moments", () => {
       vi.stubGlobal("fetch", fetch);
       const { moment, river } = await assistantMoment();
       await userEvent.click(moment.getByRole("button", { name: `Accept: ${first.description}` }));
-      expect(river.queryByRole("button", { name: `Suggested: ${first.description}` })).toBeNull();
+      expect(river.queryByRole("img", { name: `Suggested: ${first.description}` })).toBeNull();
       expect(river.getByTestId(`activity-card-${first.activityId}`).textContent).toContain(first.activity!.title);
       expect(moment.queryByRole("button", { name: `Accept: ${first.description}` })).toBeNull();
-      expect(river.getByRole("button", { name: `Suggested: ${second.description}` })).toBeDefined();
+      expect(river.getByRole("img", { name: `Suggested: ${second.description}` })).toBeDefined();
       expect(fetch).not.toHaveBeenCalled();
     });
 
     it("dismissing one takes it off the river", async () => {
       const { moment, river } = await assistantMoment();
       await userEvent.click(moment.getByRole("button", { name: `Dismiss: ${second.description}` }));
-      expect(river.queryByRole("button", { name: `Suggested: ${second.description}` })).toBeNull();
+      expect(river.queryByRole("img", { name: `Suggested: ${second.description}` })).toBeNull();
       expect(river.queryByTestId(`activity-card-${second.activityId}`)).toBeNull();
       expect(moment.queryByRole("button", { name: `Dismiss: ${second.description}` })).toBeNull();
     });
@@ -326,9 +329,35 @@ describe("the sea's moments", () => {
       await userEvent.click(moment.getByRole("button", { name: "Show the suggestions again" }));
       expect(river.queryByTestId(`activity-card-${first.activityId}`)).toBeNull();
       for (const ghost of [first, second]) {
-        expect(river.getByRole("button", { name: `Suggested: ${ghost.description}` })).toBeDefined();
+        expect(river.getByRole("img", { name: `Suggested: ${ghost.description}` })).toBeDefined();
         expect(moment.getByRole("button", { name: `Accept: ${ghost.description}` })).toBeDefined();
       }
+    });
+
+    // PR 514 r2: the button that held focus leaves the page with its
+    // decision, so focus must go somewhere useful, never to the body, and the
+    // decision is said politely.
+    it("moves focus to what is left after each decision, and says what happened", async () => {
+      const { moment } = await assistantMoment();
+      const status = moment.getByRole("status");
+      const press = async (name: string) => {
+        act(() => moment.getByRole("button", { name }).focus());
+        await userEvent.keyboard("{Enter}");
+      };
+      // By `:focus` on the button found: the test-quality wall bans `activeElement`.
+      const focused = () => {
+        const button = moment.getAllByRole("button").find((each) => each.matches(":focus"));
+        return button?.getAttribute("aria-label") ?? button?.textContent ?? "nothing";
+      };
+      await press(`Accept: ${first.description}`);
+      expect(focused()).toBe(`Accept: ${second.description}`);
+      expect(status.textContent).toBe(`Accepted: ${first.activity!.title} is on Day 1.`);
+      await press(`Dismiss: ${second.description}`);
+      expect(focused()).toBe("Show the suggestions again");
+      expect(status.textContent).toBe(`Dismissed: ${second.activity!.title}.`);
+      await press("Show the suggestions again");
+      expect(focused()).toBe(`Accept: ${first.description}`);
+      expect(status.textContent).toBe("The suggestions are back.");
     });
   });
 

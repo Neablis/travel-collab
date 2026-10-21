@@ -1,6 +1,6 @@
 "use client";
 
-import { cloneElement, useEffect, useRef, useState, type ReactElement } from "react";
+import { useEffect, useRef, useState, type ComponentProps, type ReactElement } from "react";
 import { Transcript, type AssistantTurn } from "@/components/assistant/Transcript";
 import type { BoardSuggestions } from "@/components/board/DayRiver";
 import { ReviewButtons } from "@/components/board/ReviewButtons";
@@ -11,7 +11,7 @@ import { TripPeopleBlock } from "@/components/pages/blocks/TripPeopleBlock";
 import { TripStripBlock } from "@/components/pages/blocks/TripStripBlock";
 import { FixedPeopleProvider } from "@/components/pages/people";
 import { Segs } from "@/components/pages/WidgetSegs";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { DataText } from "@/components/ui/data-text";
 import { Heading } from "@/components/ui/heading";
 import { Text } from "@/components/ui/text";
@@ -78,12 +78,15 @@ const ASSISTANT_TURNS: AssistantTurn[] = [
 const ASSISTANT_EXAMPLE = { review: "Accept or dismiss each below. It is an example, so nothing is saved." };
 type AssistantGhost = (typeof assistant.ghosts)[number];
 type Decision = "accepted" | "dismissed";
+/** `focusNext`'s mark for the reset button, which no change id is. */
+const RESET = Symbol("reset");
 
 /**
  * The pending ghosts on the river as the board lays them, each wrapped as the
  * board wraps one, but in no popover: here its Accept and Dismiss are listed
- * beside the day, so the ghost is a picture of one, with no tab stop and no
- * hover or pointer promising a popover.
+ * beside the day, so the ghost is a picture of one: drawn as the board's
+ * button but not a button, which a screen reader could press to no effect
+ * (PR 514 r2), and with no hover or pointer promising a popover.
  */
 function assistantSuggestions(pending: readonly AssistantGhost[]): BoardSuggestions {
   return {
@@ -91,8 +94,12 @@ function assistantSuggestions(pending: readonly AssistantGhost[]): BoardSuggesti
     stops: new Map(),
     newDays: [],
     review: (_ghosts, trigger) => {
-      const ghost = trigger as ReactElement<{ tabIndex?: number; className?: string }>;
-      return cloneElement(ghost, { tabIndex: -1, className: cn(ghost.props.className, "pointer-events-none") });
+      const { variant, className, children, "aria-label": label } = (trigger as ReactElement<ComponentProps<typeof Button>>).props;
+      return (
+        <div role="img" aria-label={label} className={cn(buttonVariants({ variant }), className, "pointer-events-none")}>
+          {children}
+        </div>
+      );
     },
     actions: () => null,
   };
@@ -124,24 +131,27 @@ function withAccepted(accepted: readonly AssistantGhost[]): typeof assistant.riv
 export function AssistantPanel(): React.ReactElement {
   const [decided, setDecided] = useState<Readonly<Record<string, Decision>>>({});
   const [said, setSaid] = useState("");
-  // Where focus goes once the button that held it has left the page.
-  const focusNext = useRef<"reset" | "first" | null>(null);
+  // Where focus goes once the button that held it has left the page: the next
+  // pending suggestion's Accept (a change id), or the reset when none is left.
+  const focusNext = useRef<string | typeof RESET | null>(null);
   const resetRef = useRef<HTMLButtonElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
   useEffect(() => {
-    if (focusNext.current === "reset") resetRef.current?.focus();
-    if (focusNext.current === "first") listRef.current?.querySelector("button")?.focus();
+    if (focusNext.current === RESET) resetRef.current?.focus();
+    else if (focusNext.current !== null) listRef.current?.querySelector<HTMLElement>(`[data-change-id="${focusNext.current}"] button`)?.focus();
     focusNext.current = null;
   }, [decided]);
   const pending = assistant.ghosts.filter((ghost) => decided[ghost.changeId] === undefined);
 
   function decide(ghost: AssistantGhost, decision: Decision) {
-    focusNext.current = "reset";
+    const at = pending.indexOf(ghost);
+    const left = pending.filter((other) => other !== ghost);
+    focusNext.current = (left[at] ?? left[at - 1])?.changeId ?? RESET;
     setDecided((was) => ({ ...was, [ghost.changeId]: decision }));
     setSaid(decision === "accepted" ? `Accepted: ${ghost.activity?.title} is on Day 1.` : `Dismissed: ${ghost.activity?.title}.`);
   }
   function reset() {
-    focusNext.current = "first";
+    focusNext.current = assistant.ghosts[0]!.changeId;
     setDecided({});
     setSaid("The suggestions are back.");
   }
@@ -153,7 +163,7 @@ export function AssistantPanel(): React.ReactElement {
         {pending.length > 0 && (
           <ul ref={listRef} aria-label="Suggested changes" className="m-0 flex list-none flex-col gap-3 p-0">
             {pending.map((ghost) => (
-              <li key={ghost.changeId} className="flex flex-col gap-1.5">
+              <li key={ghost.changeId} data-change-id={ghost.changeId} className="flex flex-col gap-1.5">
                 {/* Pending, so not the change's own "Added …" sentence, which reads as done. */}
                 <Text as="span" className="text-sm text-ink">
                   {`Suggested: ${ghost.activity?.title}`}
