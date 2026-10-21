@@ -5,118 +5,29 @@ import { Heading } from "@/components/ui/heading";
 import { Text } from "@/components/ui/text";
 import { DataText } from "@/components/ui/data-text";
 import { FrontDoorHeader } from "@/components/front/FrontDoorHeader";
-import { LandingHeroArt } from "@/components/front/LandingHeroArt";
-import { LandingFeatureBlocks } from "@/components/front/LandingFeatureBlocks";
 import { LandingPricing } from "@/components/front/LandingPricing";
+import { LandingSea } from "@/components/front/LandingSea";
 import { LeaveLandingIfSignedIn } from "@/components/front/LeaveLandingIfSignedIn";
 import { DEMO_PATH } from "@/lib/demoTrip";
 import { LANDING_CLOSING_QUOTE } from "@/lib/landingDemo";
 import { cn } from "@/lib/cn";
 
-// Every string here is transcribed from the design source
-// `.design-sync/handoff/design/Trip Planner Redesign.dc.html:1840-2214`.
-//
-// **Except the words.** The copy is Mitchell's retro of 2026-09-28
-// (`docs/design-feedback/2026-09-28-landing-retro-copy.md`, DRIFT D21): same
-// page, new temperature — it sells the feeling of a day worth reliving and
-// lets the mechanics ride along. The design file still carries the old words.
+// The words are Mitchell's retro of 2026-09-28
+// (`docs/design-feedback/2026-09-28-landing-retro-copy.md`, DRIFT D21): it
+// sells the feeling of a day worth reliving and lets the mechanics ride
+// along. The ground they sit on is M51's sea of notebooks (`LandingSea.tsx`).
 //
 // SPEC §14's copy rules hold: no "free", no "open source", no "no credit
 // card" — Caesura is a product for groups, not a tool. The retro briefly put
 // "Free during early access" under the hero and the closing CTA; Mitchell took
 // it back out on the preview (2026-09-28): "there will always be a free" tier,
 // so a line implying free ends with early access promised the wrong thing.
-// `LandingScreen.test.tsx` guards all three.
+// And no exclamation mark anywhere (M51 decision 6: *"makes user feel like its
+// a scam"*). `LandingScreen.test.tsx` guards them.
 //
 // The page runs on nothing (SPEC §14): no session, no fetch, no backend, every
-// value a fixture in this file. A data-model change must never be able to break
+// value a committed snapshot. A data-model change must never be able to break
 // the front door.
-
-// `dc.html:1861-1866` — the hero's decorative contour grid. Kept as data
-// because six near-identical <path> elements read as noise inline.
-// The hero's fake map: the Kamo river where it runs through central Kyoto,
-// with its bridges.
-//
-// Two rounds of feedback got here. First: "Could we create a more real 'Fake'
-// Map background that better reflects Kyoto? ... this just looks like a random
-// river." What was there then was six lines, every one skewed slightly
-// off-axis, plus one thick curve — a meandering line on empty ground can only
-// read as a river, so that is what it read as.
-//
-// The first answer was a city-wide Heian-kyō lattice, on the reasoning that
-// the 794 grid is what makes Kyoto legible from above. Mitchell's follow-up
-// corrected it: "more what i meant as iconic section in kyoto thats
-// recognizable — the river with the bridges." A whole-city grid is an
-// abstraction of anywhere gridded; what is recognisable is a *place*. So this
-// is zoomed in on one: the Kamo, the Takase canal running parallel a block
-// west, the bridges crossing at the big east-west streets, and the grid
-// stopping dead at both banks.
-//
-// The bridges are the load-bearing detail. An east-west street that simply
-// runs across a river reads as a line drawn over a line; one that stops at the
-// bank everywhere *except* where a heavier bar carries it over is what makes
-// the water look like water. That is why the rows below are drawn as two
-// segments with hardcoded endpoints rather than as full-width lines.
-//
-// Style stays as asked — hairlines and tokens, no labels, no landmarks, no
-// illustration. Mitchell sent an illustrated tourist map as a reference for
-// the *idea* and said explicitly it is not the style he wants.
-//
-// Geometry is in the SVG's own 0-160 x 0-100 space, and placed against one
-// constraint that is easy to miss: `xMidYMid slice` crops rather than
-// stretches, so a tall narrow viewport sees only a slice. Measured at
-// 402x1014 the visible band is x 60-100 — a quarter of the width, centred.
-// The river, the canal and the bridges all sit inside it, because on a phone
-// they are the whole subject.
-
-// The river, leaning south-west as the real Kamo does. Taking it as a function
-// of a horizontal offset gives the centreline and both banks from one shape,
-// so they cannot drift apart when the curve is tuned. (A true parallel offset
-// would be a different curve; over a lean this gentle a horizontal shift is
-// within a fraction of a unit of it, and this is scenery.)
-const kamoAt = (dx: number) =>
-  `M${79 + dx} -6 C ${77 + dx} 24, ${75 + dx} 50, ${73 + dx} 78 S ${71 + dx} 96, ${70 + dx} 106`;
-const KAMO = kamoAt(0);
-// Half the channel width, in user units — how far each bank sits from centre.
-const KAMO_HALF_WIDTH = 2.6;
-
-// The Takase canal, a block west and parallel. Kyoto has two waterways
-// through this stretch, not one, and the narrow second one is a large part of
-// why the area looks like itself — so it is drawn in `info` rather than the
-// river's `info-tint`: at tint weight and 0.6 units wide it was invisible.
-const TAKASE = "M70 -6 C 68 24, 66 50, 64 78 S 62 96, 61 106";
-
-// East-west streets, as (y, centre-of-river-at-that-y) pairs. The centre is
-// sampled off KAMO so each row stops exactly at the bank.
-const CROSS_STREETS = [
-  { y: 10, cx: 77.7 },
-  { y: 20, cx: 76.9 },
-  { y: 30, cx: 76.1 },
-  { y: 40, cx: 75.3 },
-  { y: 50, cx: 74.5 },
-  { y: 60, cx: 73.7 },
-  { y: 70, cx: 72.9 },
-  { y: 80, cx: 72.1 },
-  { y: 90, cx: 71.3 },
-] as const;
-
-// Which of those cross the water. Three, spaced out, the way Sanjō, Shijō and
-// Gojō are — not every street gets a bridge, and that is the point.
-const BRIDGE_ROWS = new Set([20, 50, 80]);
-
-// North-south streets, which run parallel to the river and so never need to
-// stop for it. Kept clear of the channel on both sides: the west bank sits at
-// x 67.8 at its furthest and the east bank at 81.2, so 60 and 90 are the
-// innermost safe columns.
-const NORTH_SOUTH = [10, 20, 30, 40, 50, 60, 90, 100, 110, 120, 130, 140, 150] as const;
-
-// Blocks, on the grid rather than scattered over it, and only on the west
-// bank — the built-up side.
-const HERO_PLOTS = [
-  { x: 30, y: 20, width: 20, height: 20, opacity: 0.5 },
-  { x: 40, y: 60, width: 20, height: 10, opacity: 0.4 },
-  { x: 10, y: 40, width: 10, height: 20, opacity: 0.45 },
-] as const;
 
 // SPEC §28 gives the phone a different front door — a pinned scroll sequence,
 // not this page at a narrower width — so both are rendered and the breakpoint
@@ -124,19 +35,19 @@ const HERO_PLOTS = [
 //
 // **CSS, not `useIsPhone`.** This is the first paint of the first page an
 // unauthenticated visitor sees, and `useIsPhone` starts `false` on the server
-// and corrects in an effect: a JS-gated switch would render the desktop hero at
+// and corrects in an effect: a JS-gated switch would render the desktop page at
 // 390px for one paint on every cold load, which is the one place in the product
 // where a flash is most visible and least forgivable.
 //
 // **The cost, stated honestly: both trees are in the DOM, and they DO share
-// names** — the headline, "Continue with Google" and "Look around a real trip"
-// all appear twice. That is not an accessibility problem, because `hidden`
+// names** — the headline, "Start a trip" and "Look around a real trip" all
+// appear twice. That is not an accessibility problem, because `hidden`
 // resolves to `display: none` and a `display: none` subtree is not in the
 // accessibility tree at all: a real browser at either width exposes exactly
 // one. It IS a test problem, because jsdom applies no media queries and sees
-// both — so the tests below scope themselves to one tree by testid rather than
+// both — so the tests scope themselves to one tree by testid rather than
 // querying the screen.
-/** The landing page at `/`: the desktop tree and the phone front door, one shown per breakpoint. */
+/** The landing page at `/`: the desktop sea and the phone front door, one shown per breakpoint. */
 export function LandingScreen() {
   return (
     <>
@@ -166,70 +77,22 @@ export function LandingScreen() {
         }
       />
 
-      <main className="flex flex-1 flex-col items-center">
-        <section className="relative w-full overflow-hidden border-b border-hairline bg-moss">
-          {/* Decorative only, and `pointer-events-none` on every layer is what
-              keeps the day pills inside LandingHeroArt clickable (DRIFT §2). */}
-          <svg
-            viewBox="0 0 160 100"
-            preserveAspectRatio="xMidYMid slice"
-            aria-hidden
-            className="pointer-events-none absolute inset-0 h-full w-full"
-          >
-            {/* The water first, so everything else reads as sitting on it,
-                then its two banks — without an edge it is a pale column
-                rather than a river. */}
-            <path d={KAMO} strokeWidth={KAMO_HALF_WIDTH * 2} className="fill-none stroke-info-tint" />
-            <path d={kamoAt(-KAMO_HALF_WIDTH)} strokeWidth="0.35" className="fill-none stroke-info" />
-            <path d={kamoAt(KAMO_HALF_WIDTH)} strokeWidth="0.35" className="fill-none stroke-info" />
-
-            {NORTH_SOUTH.map((x) => (
-              <path key={`ns${x}`} d={`M${x} -6 V 106`} strokeWidth="0.55" className="fill-none stroke-hairline" />
-            ))}
-
-            {/* Each cross street in two pieces, stopping at the banks. */}
-            {CROSS_STREETS.map(({ y, cx }) => (
-              <g key={`ew${y}`} className="fill-none stroke-hairline">
-                <path d={`M-6 ${y} H ${cx - KAMO_HALF_WIDTH}`} strokeWidth="0.55" />
-                <path d={`M${cx + KAMO_HALF_WIDTH} ${y} H 166`} strokeWidth="0.55" />
-              </g>
-            ))}
-
-            <path d={TAKASE} strokeWidth="0.6" className="fill-none stroke-info" />
-
-            {HERO_PLOTS.map((plot) => (
-              <rect key={`${plot.x}-${plot.y}`} {...plot} className="fill-surface" />
-            ))}
-
-            {/* The bridges, last so they sit over the water rather than under
-                it. Only a step heavier than a street and in the same family as
-                one: they are a street continuing, not a separate object, and
-                heavy enough to be darker than the water — at `border-strong`
-                they were lighter than it and read as three gaps, not three
-                crossings. Each overhangs the bank by 2 units so it lands on
-                solid ground instead of stopping at the edge. */}
-            {CROSS_STREETS.filter(({ y }) => BRIDGE_ROWS.has(y)).map(({ y, cx }) => (
-              <path
-                key={`bridge${y}`}
-                d={`M${cx - KAMO_HALF_WIDTH - 2} ${y} H ${cx + KAMO_HALF_WIDTH + 2}`}
-                strokeWidth="0.9"
-                className="fill-none stroke-slate"
-              />
-            ))}
-          </svg>
-          <div className="landing-hero-veil pointer-events-none absolute inset-0" />
-
-          <div className="relative mx-auto grid w-full max-w-285 items-center gap-12 px-7 pt-13.5 pb-17 lg:grid-cols-2">
+      <main className="flex flex-1 flex-col">
+        <LandingSea
+          // The first screen's middle cell, on paper over a sea that is all
+          // colour: the cards behind are the noise, the headline the one
+          // quiet thing. It fills the cell the grid gives it.
+          hero={
             <div className="flex flex-col gap-5.5">
               <DataText size="xs" className="text-2xs tracking-widest uppercase">
                 Days worth reliving
               </DataText>
 
-              <Heading level={1} className="text-4xl text-pretty">
+              <Heading level={1} className="text-5xl text-pretty">
                 Plan the trip together.
               </Heading>
 
-              <Text as="p" variant="secondary" className="max-w-115 text-md text-pretty">
+              <Text as="p" variant="secondary" className="max-w-prose text-md text-pretty">
                 Caesura is a trip planner built on playbooks: real days from real trips, saved by the people
                 who lived them. Borrow a perfect day in Kyoto, plan the rest with your group, and relive it
                 all when you&rsquo;re home.
@@ -239,20 +102,12 @@ export function LandingScreen() {
                 <Link href="/signup" className={cn(buttonVariants({ variant: "primary" }), "no-underline")}>
                   Start a trip
                 </Link>
-                {/* Real as of M11 link 4, and still a plain link: SPEC §14
-                    says this page runs on nothing — no session, no fetch, no
-                    backend — so the CTA does not go looking for a trip to
-                    peek at. `/demo` picks a demo, and each `/demo/<slug>` is the real trip board, read-only, running
-                    the real lenses against a fixture or bundle folded in memory
-                    (ADR-031, superseding ADR-027's `DEMO_SHARE_TOKEN`). So
-                    this link works on every deploy, every preview branch and
-                    a fresh clone, and a data-model change still cannot break
-                    the front door — which is the rule this shell was parked
-                    behind. */}
-                <Link
-                  href={DEMO_PATH}
-                  className={cn(buttonVariants({ variant: "secondary" }), "no-underline")}
-                >
+                {/* A plain link, not a fetch: `/demo` picks a demo, and each
+                    `/demo/<slug>` is the real trip board, read-only, folded in
+                    memory (ADR-031), so it works on every deploy and a fresh
+                    clone, and a data-model change still cannot break the
+                    front door. */}
+                <Link href={DEMO_PATH} className={cn(buttonVariants({ variant: "secondary" }), "no-underline")}>
                   Look around a real trip
                 </Link>
               </div>
@@ -261,73 +116,32 @@ export function LandingScreen() {
                 Invite the group with a link, nothing to install.
               </Text>
             </div>
+          }
+          // Second to last, so its prices sit just above the ask (M51
+          // decision 10). The `pricing` id lives here and only here; the
+          // phone front door scrolls to its own copy itself.
+          pricing={<LandingPricing id="pricing" />}
+          // **The closing cell**, the page's last: the full width of the
+          // grid and the two ways in (Mitchell, on C2: *"the last page should
+          // be the CTA to signup/find a day to start with"*), laid as the
+          // prototype's last cell: the ask large and left, over its buttons.
+          closing={
+            <section aria-labelledby="landing-closing" className="flex min-w-0 flex-col justify-center gap-7 px-7">
+              <Heading level={2} id="landing-closing" className="text-4xl text-pretty">
+                Start the plan, then bring everyone.
+              </Heading>
 
-            <LandingHeroArt />
-          </div>
-        </section>
-
-        {/* No section heading over the blocks any more: the retro gives each
-            block its own, and "Planning is the trip, three times over" had
-            stopped being true the day Countdown made it four. Full width,
-            because the spreads' ground runs edge to edge; each block keeps
-            to the page's width inside it. */}
-        <div className="w-full pt-13.5 pb-2.5">
-          <LandingFeatureBlocks />
-        </div>
-
-        {/* Straight before the closing moment, so its "Start a trip" is the
-            call to action under the prices. The `pricing` id lives here and
-            only here; the phone front door scrolls to its own copy itself. */}
-        <div className="mx-auto w-full max-w-285 px-7 pt-14">
-          <LandingPricing id="pricing" />
-        </div>
-
-        {/* **The closing moment** (M50 part 5), where `dc.html:5371` draws a
-            moss call-to-action band, which is the SaaS template's ending.
-            The page ends instead on a line somebody wrote in a trip notebook:
-            the last paragraph of the Hakone page the Notebook spread shows
-            (`LANDING_CLOSING_QUOTE`), words from a day rather than a
-            testimonial. Then the ask, which is to bring the group, and the
-            same two ways in the hero offers. */}
-        <section
-          aria-labelledby="landing-closing"
-          className="landing-grain relative mt-14 w-full border-t border-hairline bg-paper"
-        >
-          <div className="mx-auto flex w-full max-w-200 flex-col items-center gap-7 px-7 pt-19.5 pb-19.5 text-center">
-            <figure className="flex flex-col gap-3.5">
-              <blockquote>
-                <Text as="p" className="font-display text-2xl leading-snug tracking-tight text-pretty">
-                  &ldquo;{LANDING_CLOSING_QUOTE}&rdquo;
-                </Text>
-              </blockquote>
-              {/* A literal, as on the phone: it names the day `scripts/landing-demo.ts` writes ("Day six, ") and changes with it. */}
-              <figcaption>
-                <DataText className="text-2xs tracking-widest uppercase">The trip notebook · Day six, Hakone</DataText>
-              </figcaption>
-            </figure>
-
-            <Heading level={2} id="landing-closing" className="text-xl">
-              Start the plan, then bring everyone.
-            </Heading>
-
-            <div className="flex flex-wrap items-center justify-center gap-2.5">
-              <Link href="/signup" className={cn(buttonVariants({ variant: "primary" }), "no-underline")}>
-                Start a trip
-              </Link>
-              {/* The same place as the hero's second button (`dc.html:1880`,
-                  `:2211`). The two ids this replaced existed only because
-                  `Preview` writes its id to `data-preview-id` and two shells
-                  could not share one; two links to one href have no such
-                  problem. */}
-              <Link
-                href={DEMO_PATH}
-                className={cn(buttonVariants({ variant: "ghost" }), "no-underline")}
-              >
-                See a finished one
-              </Link>
-            </div>
-          </div>
-        </section>
+              <div className="flex flex-wrap items-center gap-2.5">
+                <Link href="/signup" className={cn(buttonVariants({ variant: "primary" }), "no-underline")}>
+                  Start a trip
+                </Link>
+                <Link href="/playbooks" className={cn(buttonVariants({ variant: "secondary" }), "no-underline")}>
+                  Find a day to start with
+                </Link>
+              </div>
+            </section>
+          }
+        />
       </main>
 
       {/* Minimal and boring on purpose. Privacy and Terms are plain text, not
@@ -335,7 +149,7 @@ export function LandingScreen() {
           than no link. Developers is a link because `/developers` exists: it
           is where a person setting up an agent learns how to get a token. */}
       <footer className="border-t border-hairline">
-        <div className="mx-auto flex w-full max-w-285 flex-wrap items-center gap-x-2 gap-y-1 px-7 py-6">
+        <div className="flex w-full flex-wrap items-center gap-x-2 gap-y-1 px-7 py-6">
           <Text as="span" variant="muted">&copy; 2026 Caesura</Text>
           <Text as="span" variant="muted" aria-hidden>&middot;</Text>
           <Text as="span" variant="muted">Privacy</Text>

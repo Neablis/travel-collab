@@ -1,0 +1,313 @@
+{
+  "$schema": "travel-collab/content-bundle/v1",
+  "bundle": {
+    "id": "3-days-in-rome-emperors-gladiators-the-layers-beneath",
+    "name": "3 days in Rome: emperors, gladiators & the layers beneath",
+    "origin": "human",
+    "sources": [],
+    "generatedAt": "2026-10-21T04:13:32.936Z"
+  },
+  "trips": [],
+  "playbooks": [
+    {
+      "key": "3-days-in-rome-emperors-gladiators-the-layers-beneath",
+      "name": "3 days in Rome: emperors, gladiators & the layers beneath",
+      "summary": "Rome as a city built on top of itself: the Colosseum and Forum, the Pantheon and the baroque piazzas, then out past the walls to the Baths of Caracalla and the catacombs under the Appian Way. Ancient history you can walk through, with Trastevere and Testaccio dinners to recover in.",
+      "ownerId": "dev-marco",
+      "visibility": "public",
+      "origin": "human",
+      "sourceTrip": {
+        "name": "3 days in Rome: emperors, gladiators & the layers beneath"
+      },
+      "addedBy": [],
+      "version": 1,
+      "days": [
+        {
+          "stops": [
+            {
+              "title": "The Colosseum, arena floor first",
+              "timeWindow": {
+                "start": "09:00",
+                "end": "11:30"
+              },
+              "location": {
+                "name": "Colosseum",
+                "lat": 41.89004,
+                "lng": 12.49423,
+                "countryCode": "IT",
+                "city": "Rome"
+              },
+              "notes": "Book the first timed entry and enter through the arena floor if you can — standing where the gladiators stood changes the scale of the place entirely. The hypogeum tour underneath is worth the extra ticket: the lifts and trapdoors that made the spectacles work.",
+              "kind": "planned",
+              "tags": [
+                "ticketed"
+              ]
+            },
+            {
+              "title": "The Roman Forum",
+              "timeWindow": {
+                "start": "11:30",
+                "end": "13:30"
+              },
+              "location": {
+                "name": "Foro Romano",
+                "lat": 41.89251,
+                "lng": 12.48417,
+                "countryCode": "IT",
+                "city": "Rome"
+              },
+              "notes": "Walk the Via Sacra the way triumphs did: past the Curia where the Senate met, the rostra where Cicero spoke, and the Temple of Vesta where the sacred flame burned. The Forum rewards slow looking — every ruin is a building with a biography, and the audio guide earns its keep here.",
+              "kind": "planned",
+              "tags": [
+                "ticketed",
+                "sight"
+              ]
+            },
+            {
+              "title": "Palatine Hill",
+              "timeWindow": {
+                "start": "13:30",
+                "end": "15:00"
+              },
+              "location": {
+                "name": "Palatino",
+                "lat": 41.88785,
+                "lng": 12.48981,
+                "countryCode": "IT",
+                "city": "Rome"
+              },
+              "notes": "The hill where Rome began — Romulus's hut, Augustus's house, and the palace complex that gave us the word 'palace'. Climb to the viewpoint over the Forum and the Circus Maximus: the best single panorama of ancient Rome, and the quietest corner of the whole archaeological park.",
+              "kind": "planned",
+              "tags": [
+                "sight"
+              ]
+            },
+            {
+              "title": "Dinner at Armando al Pantheon",
+              "timeWindow": {
+                "start": "19:30",
+                "end": "21:30"
+              },
+              "location": {
+                "name": "Armando al Pantheon",
+                "lat": 41.89905,
+                "lng": 12.47622,
+                "countryCode": "IT",
+                "city": "Rome"
+              },
+              "notes": "The classic dinner after a day in the ruins: a family-run room steps from the Pantheon, famous for its cacio e pepe and its refusal to rush anyone. Book ahead — it is small, beloved, and the waiters remember you on the second visit.",
+              "kind": "planned",
+              "tags": [
+                "meal"
+              ]
+            }
+          ]
+        },
+        {
+          "stops": [
+            {
+              "title": "The Pantheon",
+              "timeWindow": {
+                "start": "09:00",
+                "end": "10:00"
+              },
+              "location": {
+                "name": "Pantheon",
+                "lat": 41.89863,
+                "lng": 12.47686,
+                "countryCode": "IT",
+                "city": "Rome"
+              },
+              "notes": "Two thousand years old and still the largest unreinforced concrete dome in the world. Stand under the oculus and watch the shaft of light move across the floor — on a rainy day, the rain falls straight through it and drains away. Free entry, but go early before the tour groups.",
+              "kind": "planned",
+              "tags": [
+                "sight"
+              ]
+            },
+            {
+              "title": "Piazza Navona",
+              "timeWindow": {
+                "start": "10:00",
+                "end": "11:00"
+              },
+              "location": {
+                "name": "Piazza Navona",
+                "lat": 41.89781,
+                "lng": 12.47319,
+                "countryCode": "IT",
+                "city": "Rome"
+              },
+              "notes": "Built over Domitian's stadium — the piazza keeps the racetrack's shape, and the fountains are Bernini at his most theatrical. The Four Rivers Fountain repays ten quiet minutes: the Nile with his veiled head, the Ganges with his oar, and the whole baroque argument in stone.",
+              "kind": "planned",
+              "tags": [
+                "sight"
+              ]
+            },
+            {
+              "title": "Largo di Torre Argentina",
+              "timeWindow": {
+                "start": "11:00",
+                "end": "12:00"
+              },
+              "location": {
+                "name": "Largo di Torre Argentina",
+                "lat": 41.89607,
+                "lng": 12.4768,
+                "countryCode": "IT",
+                "city": "Rome"
+              },
+              "notes": "The sunken republican temples where Julius Caesar was assassinated — and now a cat sanctuary, because Rome is like that. The walkway at street level lets you look down into the ruins, and the cats sunning themselves on 2,000-year-old columns are the most Roman sight in the city.",
+              "kind": "planned",
+              "tags": [
+                "sight"
+              ]
+            },
+            {
+              "title": "Pizza bianca at Forno Campo de' Fiori",
+              "timeWindow": {
+                "start": "12:00",
+                "end": "13:00"
+              },
+              "location": {
+                "name": "Forno Campo de' Fiori",
+                "lat": 41.89565,
+                "lng": 12.47179,
+                "countryCode": "IT",
+                "city": "Rome"
+              },
+              "notes": "Lunch the Roman way: pizza bianca stuffed with mortadella from the legendary bakery on Campo de' Fiori, eaten standing in the morning market crowd. The market itself is worth a wander first — flowers, artichokes, and the statue of Giordano Bruno watching over it all.",
+              "kind": "planned",
+              "tags": [
+                "meal"
+              ]
+            },
+            {
+              "title": "Trajan's Column and the Imperial Fora",
+              "timeWindow": {
+                "start": "14:00",
+                "end": "15:30"
+              },
+              "location": {
+                "name": "Via dei Fori Imperiali & Foro Traiano",
+                "lat": 41.89544,
+                "lng": 12.48345,
+                "countryCode": "IT",
+                "city": "Rome"
+              },
+              "notes": "Trajan's Column tells the story of a war in a spiral comic strip 30 metres tall — Dacians, legions, and the emperor himself appearing 59 times. The Markets of Trajan next door are the world's oldest shopping mall, and the museum inside explains how the whole imperial forum machine worked.",
+              "kind": "planned",
+              "tags": [
+                "museum",
+                "sight"
+              ]
+            },
+            {
+              "title": "Dinner in Trastevere at Da Augusto",
+              "timeWindow": {
+                "start": "19:30",
+                "end": "21:30"
+              },
+              "location": {
+                "name": "Trattoria da Augusto",
+                "lat": 41.89046,
+                "lng": 12.4703,
+                "countryCode": "IT",
+                "city": "Rome"
+              },
+              "notes": "Trastevere's no-frills institution: check the handwritten menu, pay cash (famously no cards), and eat what the kitchen made today — artichokes, oxtail, whatever is in season. The line is part of the experience; the wait is never as long as it looks.",
+              "kind": "planned",
+              "tags": [
+                "meal"
+              ]
+            }
+          ]
+        },
+        {
+          "stops": [
+            {
+              "title": "The Baths of Caracalla",
+              "timeWindow": {
+                "start": "09:30",
+                "end": "11:30"
+              },
+              "location": {
+                "name": "Terme di Caracalla",
+                "lat": 41.88061,
+                "lng": 12.49246,
+                "countryCode": "IT",
+                "city": "Rome"
+              },
+              "notes": "The greatest baths of the ancient world, still vast enough to get lost in: the frigidarium's vaults, the mosaics underfoot, and the scale of a building that held 1,600 bathers at once. Come early for the light through the broken roofs, and bring water — there is almost no shade.",
+              "kind": "planned",
+              "tags": [
+                "ticketed",
+                "sight"
+              ]
+            },
+            {
+              "title": "Lunch at Mercato Testaccio",
+              "timeWindow": {
+                "start": "12:00",
+                "end": "13:30"
+              },
+              "location": {
+                "name": "Mercato Testaccio",
+                "lat": 41.87759,
+                "lng": 12.47329,
+                "countryCode": "IT",
+                "city": "Rome"
+              },
+              "notes": "Lunch where Romans lunch: the Testaccio market's food boxes serve tripe, supplì, and trapizzino to workers and regulars, in the neighbourhood that fed the city for centuries. Eat at a counter, then walk off lunch past the old slaughterhouse and the Protestant Cemetery's pyramid.",
+              "kind": "planned",
+              "tags": [
+                "meal",
+                "shopping"
+              ]
+            },
+            {
+              "title": "Circus Maximus",
+              "timeWindow": {
+                "start": "14:00",
+                "end": "14:45"
+              },
+              "location": {
+                "name": "Via del Circo Massimo",
+                "lat": 41.88539,
+                "lng": 12.48509,
+                "countryCode": "IT",
+                "city": "Rome"
+              },
+              "notes": "The chariot-racing track that held 250,000 spectators is now a long grassy hollow — walk its length to feel the scale, then climb the Palatine side for the view down the spine. It is the emptiest big space in central Rome, and the best place to imagine the roar.",
+              "kind": "planned",
+              "tags": [
+                "sight"
+              ]
+            },
+            {
+              "title": "The Appian Way and the Catacombs",
+              "timeWindow": {
+                "start": "15:30",
+                "end": "17:30"
+              },
+              "location": {
+                "name": "Via Appia Antica & Catacombe di San Callisto",
+                "lat": 41.86636,
+                "lng": 12.50361,
+                "countryCode": "IT",
+                "city": "Rome"
+              },
+              "notes": "End on the Appian Way, the queen of Roman roads: umbrella pines, basalt paving stones worn by two millennia of wheels, and below ground the Catacombs of San Callisto — 20km of tunnels where half a million early Christians were buried. Take the guided tour; the tunnels are not a place to improvise.",
+              "kind": "planned",
+              "tags": [
+                "ticketed",
+                "tour"
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "notebooks": [],
+  "activities": []
+}
