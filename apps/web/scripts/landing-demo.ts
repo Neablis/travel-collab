@@ -350,8 +350,8 @@ const ASSISTANT_DAYS = 2;
  * about them that the bundle does not say.
  */
 const ASSISTANT_STOPS = [
-  { title: "Lunch at Mercato Testaccio", timeWindow: { start: "15:15", end: "16:30" } },
-  { title: "Circus Maximus", timeWindow: { start: "18:00", end: "19:00" } },
+  { title: "Lunch at Mercato Testaccio", timeWindow: { start: "15:15", end: "16:45" } },
+  { title: "Circus Maximus", timeWindow: { start: "17:30", end: "19:00" } },
 ] as const;
 const ASSISTANT_ASK = "Day 1 has nothing between Palatine Hill and dinner. Can you fit in a late lunch and somewhere for sunset?";
 const ASSISTANT_ANSWER =

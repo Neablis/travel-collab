@@ -63,8 +63,10 @@ export function FindADayPanel(): React.ReactElement {
 const { assistant } = LANDING_FEATURES;
 const ASSISTANT_ACCENTS = snapshotAccents({ [assistant.river.dayId]: assistant.accent });
 // Day 1 from nine to half past nine at night beside the conversation, in the
-// moment's four rows at 1440.
-const ASSISTANT_PX_PER_HOUR = 29;
+// moment's four rows at 1440. At the crew's 29px an hour a ghost's title and
+// its "Suggested" badge did not fit its block, and were clipped; at 34 the
+// assistant's 90-minute stops hold both.
+const ASSISTANT_PX_PER_HOUR = 34;
 const ASSISTANT_TURNS: AssistantTurn[] = [
   { id: "ask", role: "user", text: assistant.ask },
   { id: "answer", role: "assistant", text: assistant.answer, tools: [], pending: false, suggested: assistant.suggested },

@@ -258,7 +258,7 @@
           "title": "Lunch at Mercato Testaccio",
           "timeWindow": {
             "start": "15:15",
-            "end": "16:30"
+            "end": "16:45"
           },
           "location": {
             "name": "Mercato Testaccio",
@@ -298,7 +298,7 @@
           "activityId": "00000000-0000-4000-80d0-000000000008",
           "title": "Circus Maximus",
           "timeWindow": {
-            "start": "18:00",
+            "start": "17:30",
             "end": "19:00"
           },
           "location": {
