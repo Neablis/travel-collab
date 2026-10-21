@@ -3,7 +3,8 @@
 import { useState } from "react";
 import type { AssistantSuggested } from "@tc/contracts";
 import { useAcceptAll } from "@/components/trip/context/useAcceptAll";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/cn";
 
 /**
  * What the chat says for a turn whose changes went on the board (ADR-067),
@@ -29,21 +30,21 @@ export function suggestedWords({ changeCount, snapshotName }: AssistantSuggested
 export function SuggestedNote({
   suggested,
   hint,
-  acceptAll,
+  still = false,
 }: {
   suggested: AssistantSuggested;
   /** Where to review them, where there is no trip header to point at: said in place of both sentences that point at it. */
   hint?: string | undefined;
   /**
-   * *Accept all* for a conversation shown rather than had (the front door's,
-   * M51), whose page decides what it does: in place of the trip's, which is
-   * not there. Absent once nothing is left to accept.
+   * A picture of the note, for a conversation shown rather than had (the front
+   * door's, M51): *Accept all* drawn as the button looks, but not one, since
+   * there is no trip to accept into.
    */
-  acceptAll?: (() => void) | undefined;
+  still?: boolean;
 }) {
   const accept = useAcceptAll();
   const [accepted, setAccepted] = useState(false);
-  const offer = acceptAll !== undefined || (accept !== null && !accepted && (accept.acceptable.length > 0 || accept.accepting));
+  const offer = still || (accept !== null && !accepted && (accept.acceptable.length > 0 || accept.accepting));
   return (
     <div role="group" aria-label="Suggestions on the board" className="rounded-a-card border border-brand bg-brand-tint p-3">
       <p className="text-a-chat font-semibold text-pretty text-brand-pressed">{suggestedWords(suggested)}</p>
@@ -66,17 +67,21 @@ export function SuggestedNote({
               : "Open the suggestions in the trip header to review them, and accept or dismiss each.")}
         </p>
       )}
-      {offer && (
-        <Button
-          variant="primary"
-          size="sm"
-          className="mt-2"
-          disabled={accept?.accepting}
-          onClick={acceptAll ?? (() => void accept?.acceptAll().then((ok) => ok && setAccepted(true)))}
-        >
-          {accept?.accepting ? "Accepting…" : "Accept all"}
-        </Button>
-      )}
+      {offer &&
+        (still ? (
+          // Out of hit-testing too, so its hover colour never shows.
+          <span className={cn(buttonVariants({ variant: "primary", size: "sm" }), "pointer-events-none mt-2 cursor-default")}>Accept all</span>
+        ) : (
+          <Button
+            variant="primary"
+            size="sm"
+            className="mt-2"
+            disabled={accept?.accepting}
+            onClick={() => void accept?.acceptAll().then((ok) => ok && setAccepted(true))}
+          >
+            {accept?.accepting ? "Accepting…" : "Accept all"}
+          </Button>
+        ))}
       {accept?.refusal != null && (
         <p role="alert" className="pt-1 text-a-note text-pretty text-danger-ink">
           {accept.refusal}

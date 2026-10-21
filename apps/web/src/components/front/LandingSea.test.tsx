@@ -7,7 +7,6 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { playbookIdFor } from "@tc/fixtures";
 import { haversineKm } from "@/lib/geo";
 import { LANDING_FEATURES } from "@/lib/landingDemo";
-import type { Ghost as SuggestionGhost } from "@/lib/suggestionOverlay";
 import { LANDING_SEA, SEA_ACCENTS, SEA_DAYS } from "@/lib/landingSea";
 import { dayPath, parseDaySegment } from "@/lib/playbookUrls";
 import { FIRST_SCREEN, FIRST_SCREEN_ROWS, HERO, LandingSea, SEA_REGIONS, firstScreenAccents, layoutSea, momentRise, seaDim, type SeaArea } from "./LandingSea";
@@ -234,25 +233,21 @@ describe("the sea's moments", () => {
   // two dropdowns that dont work"; make it "a example of a fake AI bot
   // assistant and the approve ghost changes ui we built". The real transcript
   // asks for more of the Rome trip's Day 1, and the real river draws the
-  // answer as ghost stops.
+  // answer as ghost stops. A picture of them, hidden from a screen reader,
+  // which hears the figure's name instead, so these read it as drawn.
   it("asks the assistant for more of Rome's Day 1, and draws its answer as ghost stops", async () => {
     render(<LandingSea />);
     const moment = within(screen.getByRole("region", { name: ASSISTANT }));
-    const log = await moment.findByRole("log", { name: "Conversation" });
+    const log = await moment.findByRole("log", { name: "Conversation", hidden: true });
     expect(log.textContent).toContain(LANDING_FEATURES.assistant.ask);
     expect(log.textContent).toContain(LANDING_FEATURES.assistant.answer);
-    const river = moment.getByRole("list", { name: "Day 1 timeline" });
-    // PR 514 r2: a ghost that is a button does nothing when a screen reader
-    // presses it; the river draws it as a picture.
-    expect(within(river).queryAllByRole("button", { name: /^Suggested: / })).toEqual([]);
-    const ghosts = within(river).getAllByRole("img", { name: /^Suggested: / });
+    const river = moment.getByRole("list", { name: "Day 1 timeline", hidden: true });
+    const ghosts = within(river).getAllByRole("img", { name: /^Suggested: /, hidden: true });
     expect(ghosts.map((ghost) => ghost.getAttribute("aria-label"))).toEqual(
       LANDING_FEATURES.assistant.ghosts.map((ghost) => `Suggested: ${ghost.description}`),
     );
-    // PR 514 r1: the note pointed at a trip header this page has not got, and
-    // a live region read the whole answer out a second time.
-    expect(moment.getByRole("group", { name: "Suggestions on the board" }).textContent).not.toMatch(/trip header/);
-    expect(moment.queryAllByRole("status").filter((status) => status.textContent!.includes(LANDING_FEATURES.assistant.answer))).toEqual([]);
+    // PR 514 r1: the note pointed at a trip header this page has not got.
+    expect(moment.getByRole("group", { name: "Suggestions on the board", hidden: true }).textContent).not.toMatch(/trip header/);
   });
 
   // Mitchell's walk of PR 514, beside a screenshot of the real panel: "Show
@@ -263,26 +258,14 @@ describe("the sea's moments", () => {
     async function assistantMoment() {
       render(<LandingSea />);
       const moment = within(screen.getByRole("region", { name: ASSISTANT }));
-      await moment.findByRole("log", { name: "Conversation" });
+      await moment.findByRole("log", { name: "Conversation", hidden: true });
       return moment;
     }
 
-    it("opens on Ask, looking at the trip, and its Chat tab switches to the trip's empty chat and back", async () => {
-      const moment = await assistantMoment();
-      const tabs = within(moment.getByRole("tablist", { name: "Chat or Ask" }));
-      expect(tabs.getByRole("tab", { name: "Ask" }).getAttribute("aria-selected")).toBe("true");
-      expect(moment.getByRole("tabpanel").textContent).toContain(LANDING_FEATURES.assistant.ask);
-      await userEvent.click(tabs.getByRole("tab", { name: "Chat" }));
-      expect(moment.queryByRole("log", { name: "Conversation" })).toBeNull();
-      expect(moment.getByRole("tabpanel").textContent).toMatch(/^No messages yet/);
-      await userEvent.click(tabs.getByRole("tab", { name: "Ask" }));
-      expect(moment.getByRole("log", { name: "Conversation" })).toBeDefined();
-    });
-
     it("shows the turn's steps, open, as the tools the answer used", async () => {
       const moment = await assistantMoment();
-      const steps = within(moment.getByRole("log", { name: "Conversation" }))
-        .getAllByRole("listitem")
+      const steps = within(moment.getByRole("log", { name: "Conversation", hidden: true }))
+        .getAllByRole("listitem", { hidden: true })
         .map((step) => step.textContent);
       expect(steps.length).toBeGreaterThanOrEqual(3);
       expect(steps).toEqual(expect.arrayContaining(["Read the trip", "Checked day 1", "Drafted a change"]));
@@ -290,16 +273,16 @@ describe("the sea's moments", () => {
 
     it("sums the turn up in the app's own note, with Accept all", async () => {
       const moment = await assistantMoment();
-      const note = within(moment.getByRole("group", { name: "Suggestions on the board" }));
-      expect(note.getByRole("button", { name: "Accept all" })).toBeDefined();
       const { changeCount } = LANDING_FEATURES.assistant.suggested;
-      expect(moment.getByRole("group", { name: "Suggestions on the board" }).textContent).toContain(`I put ${changeCount} suggestions on the board`);
+      const note = moment.getByRole("group", { name: "Suggestions on the board", hidden: true }).textContent;
+      expect(note).toContain(`I put ${changeCount} suggestions on the board`);
+      expect(note).toMatch(/Accept all$/);
     });
 
     it("stacks what is being added over the day: each stop's time, title and day", async () => {
       const moment = await assistantMoment();
-      const items = within(moment.getByRole("list", { name: "Suggestions being added" }))
-        .getAllByRole("listitem")
+      const items = within(moment.getByRole("list", { name: "Suggestions being added", hidden: true }))
+        .getAllByRole("listitem", { hidden: true })
         .map((item) => item.textContent);
       expect(items).toHaveLength(LANDING_FEATURES.assistant.ghosts.length);
       LANDING_FEATURES.assistant.ghosts.forEach((ghost, i) => {
@@ -309,18 +292,50 @@ describe("the sea's moments", () => {
       });
     });
 
-    it("opens one ghost's review as the board's popover does: its sentence, then Accept, Dismiss and Withdraw", async () => {
+    it("opens the last ghost's review as the board's popover does: its sentence over Accept, Dismiss and Withdraw", async () => {
       const moment = await assistantMoment();
-      const reviews = moment.getAllByRole("group", { name: "Review this suggestion" });
+      const reviews = moment.getAllByRole("group", { name: "Review this suggestion", hidden: true });
       expect(reviews).toHaveLength(1);
-      const review = within(reviews[0]!);
-      const ghost = LANDING_FEATURES.assistant.ghosts.find((each) => reviews[0]!.textContent!.includes(each.description));
-      expect(ghost).toBeDefined();
-      expect(review.getAllByRole("button").map((button) => button.getAttribute("aria-label"))).toEqual([
-        `Accept: ${ghost!.description}`,
-        `Dismiss: ${ghost!.description}`,
-        `Withdraw: ${ghost!.description}`,
-      ]);
+      expect(reviews[0]!.textContent).toBe(`${LANDING_FEATURES.assistant.ghosts.at(-1)!.description}AcceptDismissWithdraw`);
+    });
+  });
+
+  // Mitchell's walk of PR 514: "I don't think it makes sense for the assistant
+  // preview buttons to be clickable". A still picture of the real UI: one
+  // figure to a screen reader, never a list of buttons that do nothing.
+  describe("the assistant moment is a picture", () => {
+    it("reads as one named example, with nothing inside it in the accessibility tree", async () => {
+      render(<LandingSea />);
+      const moment = within(screen.getByRole("region", { name: ASSISTANT }));
+      const figure = await moment.findByRole("figure", { name: /^An example: / });
+      for (const role of ["button", "tab", "tablist", "log", "group", "list", "img", "status"] as const) {
+        expect(within(figure).queryAllByRole(role), role).toEqual([]);
+      }
+    });
+
+    it("draws no control: not a button, a tab or a link, hidden or not", async () => {
+      render(<LandingSea />);
+      const moment = within(screen.getByRole("region", { name: ASSISTANT }));
+      await moment.findByRole("log", { name: "Conversation", hidden: true });
+      const controls = (["button", "tab", "tablist", "link", "checkbox", "menuitem", "textbox"] as const).flatMap((role) =>
+        moment.queryAllByRole(role, { hidden: true }).map((control) => `${role}: ${control.getAttribute("aria-label") ?? control.textContent}`),
+      );
+      expect(controls).toEqual([]);
+    });
+
+    it("puts nothing of the moment in the tab order", WHOLE_SEA, async () => {
+      render(<LandingSea />);
+      const region = screen.getByRole("region", { name: ASSISTANT });
+      await within(region).findByRole("log", { name: "Conversation", hidden: true });
+      // Every stop Tab lands on inside the moment, once round the whole sea
+      // (Tab wraps, so the count only needs to be past the sea's stops).
+      const stops = new Set<string>();
+      region.addEventListener("focusin", (event) => {
+        const at = event.target as HTMLElement;
+        stops.add(at.getAttribute("aria-label") ?? at.textContent ?? at.tagName);
+      });
+      for (let i = 0; i < 60; i++) await userEvent.tab();
+      expect([...stops]).toEqual([]);
     });
   });
 
@@ -356,140 +371,10 @@ describe("the sea's moments", () => {
     expect(shared).toEqual([]);
   });
 
-  // Mitchell, 2026-10-21: the old moment was "two dropdowns that dont work".
-  // The example's buttons work, on the page alone (ADR-078: `/` fetches
-  // nothing), and a reset brings the suggestions back. The review is open on
-  // the last ghost still pending, so it hangs below the day's suggestions
-  // rather than over the next one.
-  describe("the assistant's suggestions, decided on the page", () => {
-    const [first, second] = LANDING_FEATURES.assistant.ghosts as [SuggestionGhost, SuggestionGhost];
-    async function assistantMoment() {
-      render(<LandingSea />);
-      const moment = within(screen.getByRole("region", { name: ASSISTANT }));
-      const river = within(await moment.findByRole("list", { name: "Day 1 timeline" }));
-      return { moment, river };
-    }
-
-    it("accepting one makes it a planned stop on the river, and opens the next", async () => {
-      const fetch = vi.fn();
-      vi.stubGlobal("fetch", fetch);
-      const { moment, river } = await assistantMoment();
-      await userEvent.click(moment.getByRole("button", { name: `Accept: ${second.description}` }));
-      expect(river.queryByRole("img", { name: `Suggested: ${second.description}` })).toBeNull();
-      expect(river.getByTestId(`activity-card-${second.activityId}`).textContent).toContain(second.activity!.title);
-      expect(moment.queryByRole("button", { name: `Accept: ${second.description}` })).toBeNull();
-      expect(river.getByRole("img", { name: `Suggested: ${first.description}` })).toBeDefined();
-      expect(moment.getByRole("button", { name: `Accept: ${first.description}` })).toBeDefined();
-      expect(fetch).not.toHaveBeenCalled();
-    });
-
-    it("dismissing one takes it off the river", async () => {
-      const { moment, river } = await assistantMoment();
-      await userEvent.click(moment.getByRole("button", { name: `Dismiss: ${second.description}` }));
-      expect(river.queryByRole("img", { name: `Suggested: ${second.description}` })).toBeNull();
-      expect(river.queryByTestId(`activity-card-${second.activityId}`)).toBeNull();
-      expect(moment.queryByRole("button", { name: `Dismiss: ${second.description}` })).toBeNull();
-    });
-
-    // Nobody here wrote it to take it back, so the example's Withdraw does what Dismiss does.
-    it("withdrawing one takes it off the river, as dismissing does", async () => {
-      const { moment, river } = await assistantMoment();
-      await userEvent.click(moment.getByRole("button", { name: `Withdraw: ${second.description}` }));
-      expect(river.queryByRole("img", { name: `Suggested: ${second.description}` })).toBeNull();
-      expect(river.queryByTestId(`activity-card-${second.activityId}`)).toBeNull();
-      expect(moment.getByRole("status").textContent).toBe(`Withdrawn: ${second.activity!.title}.`);
-    });
-
-    it("Accept all makes every suggestion a planned stop, and the reset brings them back", async () => {
-      const fetch = vi.fn();
-      vi.stubGlobal("fetch", fetch);
-      const { moment, river } = await assistantMoment();
-      await userEvent.click(moment.getByRole("button", { name: "Accept all" }));
-      expect(river.queryAllByRole("img", { name: /^Suggested: / })).toEqual([]);
-      for (const ghost of [first, second]) {
-        expect(river.getByTestId(`activity-card-${ghost.activityId}`).textContent).toContain(ghost.activity!.title);
-      }
-      expect(moment.queryByRole("button", { name: "Accept all" })).toBeNull();
-      expect(moment.queryByRole("list", { name: "Suggestions being added" })).toBeNull();
-      expect(moment.getByRole("status").textContent).toBe(`Accepted all: ${first.activity!.title} and ${second.activity!.title} are on Day 1.`);
-      await userEvent.click(moment.getByRole("button", { name: "Show the suggestions again" }));
-      expect(river.getAllByRole("img", { name: /^Suggested: / })).toHaveLength(2);
-      expect(moment.getByRole("button", { name: "Accept all" })).toBeDefined();
-      expect(fetch).not.toHaveBeenCalled();
-    });
-
-    it("brings both back from the reset", async () => {
-      const { moment, river } = await assistantMoment();
-      await userEvent.click(moment.getByRole("button", { name: `Accept: ${second.description}` }));
-      await userEvent.click(moment.getByRole("button", { name: `Dismiss: ${first.description}` }));
-      await userEvent.click(moment.getByRole("button", { name: "Show the suggestions again" }));
-      expect(river.queryByTestId(`activity-card-${second.activityId}`)).toBeNull();
-      for (const ghost of [first, second]) {
-        expect(river.getByRole("img", { name: `Suggested: ${ghost.description}` })).toBeDefined();
-      }
-      expect(moment.getByRole("button", { name: `Accept: ${second.description}` })).toBeDefined();
-    });
-
-    // PR 514 r2: the button that held focus leaves the page with its
-    // decision, so focus must go somewhere useful, never to the body, and the
-    // decision is said politely.
-    it("moves focus to what is left after each decision, and says what happened", async () => {
-      const { moment } = await assistantMoment();
-      const status = moment.getByRole("status");
-      const press = async (name: string) => {
-        act(() => moment.getByRole("button", { name }).focus());
-        await userEvent.keyboard("{Enter}");
-      };
-      // By `:focus` on the button found: the test-quality wall bans `activeElement`.
-      const focused = () => {
-        const button = moment.getAllByRole("button").find((each) => each.matches(":focus"));
-        return button?.getAttribute("aria-label") ?? button?.textContent ?? "nothing";
-      };
-      await press(`Accept: ${second.description}`);
-      expect(focused()).toBe(`Accept: ${first.description}`);
-      expect(status.textContent).toBe(`Accepted: ${second.activity!.title} is on Day 1.`);
-      await press(`Dismiss: ${first.description}`);
-      expect(focused()).toBe("Show the suggestions again");
-      expect(status.textContent).toBe(`Dismissed: ${first.activity!.title}.`);
-      await press("Show the suggestions again");
-      expect(focused()).toBe(`Accept: ${second.description}`);
-      expect(status.textContent).toBe("The suggestions are back.");
-      await press("Accept all");
-      expect(focused()).toBe("Show the suggestions again");
-    });
-  });
-
-  // The example's controls are real, so Tab reaches them, and nothing else in
-  // the moment: not its ghosts, which the open review decides (PR 510 r6:
-  // seven tab stops that did nothing).
-  it("puts only the assistant's working controls in the tab order", WHOLE_SEA, async () => {
-    render(<LandingSea />);
-    const region = screen.getByRole("region", { name: ASSISTANT });
-    await within(region).findByRole("log", { name: "Conversation" });
-    // Every stop Tab lands on inside the moment, once round the whole sea
-    // (Tab wraps, so the count only needs to be past the sea's stops).
-    const stops = new Set<string>();
-    region.addEventListener("focusin", (event) => {
-      const at = event.target as HTMLElement;
-      stops.add(at.getAttribute("aria-label") ?? at.textContent ?? at.tagName);
-    });
-    for (let i = 0; i < 60; i++) await userEvent.tab();
-    const open = LANDING_FEATURES.assistant.ghosts.at(-1)!;
-    expect([...stops]).toEqual([
-      "Ask",
-      // Its text, the disclosure's caret included.
-      "Hide how it got there⌃",
-      "Accept all",
-      `Accept: ${open.description}`,
-      `Dismiss: ${open.description}`,
-      `Withdraw: ${open.description}`,
-    ]);
-  });
-
   // Mitchell, 2026-10-21: M51 drops "Make this your trip" and the onboarding behind it.
   it("offers no Make this your trip anywhere in the sea", async () => {
     render(<LandingSea />);
-    await within(screen.getByRole("region", { name: ASSISTANT })).findByRole("log", { name: "Conversation" });
+    await within(screen.getByRole("region", { name: ASSISTANT })).findByRole("log", { name: "Conversation", hidden: true });
     const sea = within(screen.getByTestId("landing-sea"));
     const named = { name: /make this your trip/i };
     expect([...sea.queryAllByRole("link", named), ...sea.queryAllByRole("button", named)]).toEqual([]);

@@ -5,12 +5,13 @@ import type { ResolveSuggestionChangeInput, SuggestionVia } from "@tc/contracts"
 import { useSessionUser } from "@/components/account/useSessionUser";
 import { usePeopleRecheck, usePersonas } from "@/components/pages/people";
 import { useTrip } from "@/components/trip/context/TripProvider";
+import { Button } from "@/components/ui/button";
 import { PersonChip } from "@/components/ui/person-chip";
 import { Popover } from "@/components/ui/popover";
 import { Text } from "@/components/ui/text";
 import type { Ghost } from "@/lib/suggestionOverlay";
 import type { BoardSuggestions } from "./DayRiver";
-import { ReviewButtons, SuggestionReviewList } from "./ReviewButtons";
+import { SuggestionReviewList } from "./SuggestionReviewList";
 
 /**
  * Accept, Dismiss and Withdraw for one pending change (spec §2.4, §2.7).
@@ -53,16 +54,28 @@ export function SuggestionActions({ ghost, stale = false }: { ghost: Ghost; stal
         </Text>
       )}
       <div className="flex flex-wrap gap-1.5">
-        <ReviewButtons
-          description={ghost.description}
-          accept={
-            !reviewer || stale
-              ? null
-              : { onClick: () => void run("accept"), disabled: busy || hint !== null, describedBy: hint === null ? undefined : hintId }
-          }
-          dismiss={reviewer ? { onClick: () => void run("dismiss"), disabled: busy } : null}
-          withdraw={author ? { onClick: () => void run("withdraw"), disabled: busy } : null}
-        />
+        {reviewer && !stale && (
+          <Button
+            variant="primary"
+            size="sm"
+            disabled={busy || hint !== null}
+            aria-describedby={hint === null ? undefined : hintId}
+            aria-label={`Accept: ${ghost.description}`}
+            onClick={() => void run("accept")}
+          >
+            Accept
+          </Button>
+        )}
+        {reviewer && (
+          <Button variant="secondary" size="sm" disabled={busy} aria-label={`Dismiss: ${ghost.description}`} onClick={() => void run("dismiss")}>
+            Dismiss
+          </Button>
+        )}
+        {author && (
+          <Button variant="secondary" size="sm" disabled={busy} aria-label={`Withdraw: ${ghost.description}`} onClick={() => void run("withdraw")}>
+            Withdraw
+          </Button>
+        )}
       </div>
       {reviewer && !stale && hint !== null && (
         <Text as="span" id={hintId} className="text-xs text-slate">

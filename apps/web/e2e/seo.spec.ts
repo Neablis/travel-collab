@@ -229,33 +229,35 @@ test("a day's head: name and first city in the title, the facts line, a slugged 
   }
 });
 
-// A 404 body with what belongs to the REQUEST taken out, so two of them can be
-// compared for what they say about the day. Three things, each measured on a
-// production build (2026-10-02) and nothing else:
-//  - Sentry's `sentry-trace` and `baggage` metas: a random trace id per request.
-//  - The path that was asked for, which Next echoes into its router state.
-//  - The ORDER of the rows in Next's flight payload. They are written as they
-//    resolve, so the order follows timing: the rows are compared as a sorted
-//    list, across the `<script>` chunks they are cut into.
-// Where those chunks are interleaved into the HTML is NOT normalised, and it
-// follows byte counts: growing the root layout by 84 bytes turned this red with
-// no privacy change (KI-2026-10-18-e). Read that before chasing a leak here.
-function comparable(body: string, segment: string): string {
-  return body
+// A 404 body as what it says, so two of them can be compared for what they
+// tell a visitor, with what belongs to the REQUEST taken out: Sentry's
+// `sentry-trace` and `baggage` metas (a random trace id per request) and the
+// path that was asked for, which Next echoes back. Two halves:
+//  - The HTML with every `<script>` taken out, compared as it is.
+//  - Every string in Next's flight payload, where the page's metadata streams
+//    (its <title> among them), as a sorted set. Not the payload's bytes: its
+//    rows are numbered and inlined as they resolve and cut into chunks as
+//    bytes flush, so two 404s that say the same thing differ there by timing
+//    and by the size of anything upstream (KI-2026-10-18-e: 84 bytes in the
+//    root layout, or a shorter asked-for path, turned that red with no privacy
+//    change). A `$` string is a reference to a row, so it is numbering too.
+const FLIGHT_CHUNK = /<script>self\.__next_f\.push\(\[1,("(?:[^"\\]|\\.)*")\]\)<\/script>/g;
+function said(body: string, segment: string): string {
+  const asked = body
     .replace(/<meta name="(?:sentry-trace|baggage)" content="[^"]*"\/>/g, "")
     .split(segment)
-    .join("<asked>")
-    .split('"])</script><script>self.__next_f.push([1,"')
-    .join("")
-    .split("\\n")
-    .sort()
-    .join("\n");
+    .join("<asked>");
+  const payload = [...asked.matchAll(FLIGHT_CHUNK)].map(([, chunk]) => JSON.parse(chunk!) as string).join("");
+  const strings = new Set((payload.match(/"(?:[^"\\]|\\.)*"/g) ?? []).filter((string) => !string.startsWith('"$')));
+  return `${asked.replace(/<script\b[^>]*>[\s\S]*?<\/script>/g, "")}\n\n${[...strings].sort().join("\n")}`;
 }
 
 test("a private day and an unknown one are the same 404 with the same body", async ({ page, browser }) => {
   test.slow();
   const name = `Kept back ${randomUUID().slice(0, 8)}`;
-  const savedDayId = await publishedDay(page, `Seoe2e${randomUUID().slice(0, 6)}`, name);
+  // Unique, and in the day's one stop's title and place.
+  const city = `Seoe2e${randomUUID().slice(0, 6)}`;
+  const savedDayId = await publishedDay(page, city, name);
   await page.request.delete(`/api/saved-days/${savedDayId}/publish`);
   try {
     const visitor = await stranger(browser);
@@ -275,17 +277,20 @@ test("a private day and an unknown one are the same 404 with the same body", asy
       // 404, and in particular never a redirect: that would say the id exists.
       expect(response.status(), which).toBe(404);
       expect(response.headers().location, which).toBeUndefined();
+      // The whole body, flight payload and all: neither the day's name nor
+      // anything on it.
       const body = await response.text();
       expect(body, which).not.toContain(name);
-      bodies[which] = comparable(body, segment);
+      expect(body, which).not.toContain(city);
+      // Nor the name as a slug: with the asked-for segment taken out, no
+      // answer may spell it, least of all the one that was asked by bare id.
+      expect(body.split(segment).join("<asked>"), which).not.toContain(slug);
+      bodies[which] = said(body, segment);
     }
-    // Nor the name as a slug: with the asked-for segment taken out, no answer
-    // may spell it, least of all the one that was asked by bare id.
-    for (const which of Object.keys(asked)) expect(bodies[which], which).not.toContain(slug);
-    // Each hidden day against the unknown one asked the same way. The URL's
-    // shape picks which copy answers (`lib/playbooksReader.ts`: a bare id is
-    // answered live, a slugged one cached), and the two copies' 404s differ in
-    // Next's own payload. Existence never picks the copy, so this is the claim.
+    // Each hidden day against the unknown one asked the same way, page for
+    // page. The URL's shape picks which copy answers (`lib/playbooksReader.ts`:
+    // a bare id is answered live, a slugged one cached). Existence never picks
+    // the copy, so this is the claim.
     expect(bodies.hidden, "hidden").toBe(bodies.unknown);
     expect(bodies.hiddenSlugged, "hiddenSlugged").toBe(bodies.unknownSlugged);
     expect(bodies.junk, "junk").toBe(bodies.unknown);

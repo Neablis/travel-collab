@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/cn";
 import type { AssistantSuggested } from "@tc/contracts";
 import { CommandCard, ProposalCard, type PaletteOffer, type ProposalState, type ProposalUndo } from "./ProposalCard";
 import { SuggestedNote, suggestedWords } from "./SuggestedNote";
@@ -155,30 +156,36 @@ function announcementFor(turns: readonly AssistantTurn[], chat: boolean): string
  * of the 2026-08-29 branch review, and `aria-expanded` on a real button is
  * already the whole announcement a screen reader needs here.
  */
-function ToolSteps({ tools, startOpen = false }: { tools: readonly ToolNote[]; startOpen?: boolean }) {
-  const [open, setOpen] = useState(startOpen);
+function ToolSteps({ tools, still = false }: { tools: readonly ToolNote[]; still?: boolean }) {
+  const [open, setOpen] = useState(still);
   const last = tools[tools.length - 1];
   if (last === undefined) return null;
 
+  const summary = (
+    <>
+      <span>
+        {open
+          ? "Hide how it got there"
+          : `${tools.length} ${tools.length === 1 ? "step" : "steps"} · ${last.label}`}
+      </span>
+      <span aria-hidden>{open ? "⌃" : "⌄"}</span>
+    </>
+  );
+  // `h-auto` undoes `sm`'s fixed height so a wrapped summary grows instead of
+  // spilling; `px-0` keeps the label flush with the list it reveals, so
+  // expanding does not shift the text sideways.
+  const look = "h-auto w-full justify-between gap-2 px-0 text-left text-xs font-normal";
   return (
     <div className="rounded-md border border-hairline px-2.5 py-1.5">
-      <Button
-        variant="ghost"
-        size="sm"
-        aria-expanded={open}
-        onClick={() => setOpen((wasOpen) => !wasOpen)}
-        // `h-auto` undoes `sm`'s fixed height so a wrapped summary grows
-        // instead of spilling; `px-0` keeps the label flush with the list it
-        // reveals, so expanding does not shift the text sideways.
-        className="h-auto w-full justify-between gap-2 px-0 text-left text-xs font-normal"
-      >
-        <span>
-          {open
-            ? "Hide how it got there"
-            : `${tools.length} ${tools.length === 1 ? "step" : "steps"} · ${last.label}`}
-        </span>
-        <span aria-hidden>{open ? "⌃" : "⌄"}</span>
-      </Button>
+      {still ? (
+        // A picture of the disclosure, standing open: no button, and out of
+        // hit-testing so its hover colour never shows.
+        <span className={cn(buttonVariants({ variant: "ghost", size: "sm" }), look, "pointer-events-none cursor-default")}>{summary}</span>
+      ) : (
+        <Button variant="ghost" size="sm" aria-expanded={open} onClick={() => setOpen((wasOpen) => !wasOpen)} className={look}>
+          {summary}
+        </Button>
+      )}
       {open && (
         <ul className="mt-1.5 flex flex-col gap-0.5">
           {tools.map((tool) => (
@@ -301,15 +308,15 @@ export function Transcript({
    */
   look?: "prose" | "chat";
   /**
-   * A conversation shown, not had: the front door's canned example (M51). It
-   * says where its suggestions are decided, since no trip header is on that
-   * page, with the page's own Accept all while any are left; it opens each
-   * turn's steps, since showing how the answer got there is the point of it
-   * (Mitchell's walk of PR 514: *"Show the thinking steps a bit more"*); and
-   * it announces nothing, since nobody asked and a screen reader already
-   * reads the answer in the log.
+   * A conversation shown, not had: the front door's canned example (M51), a
+   * picture whose controls are drawn but not there (Mitchell's walk of PR
+   * 514: *"I don't think it makes sense for the assistant preview buttons to
+   * be clickable"*). It says where its suggestions are decided, since no trip
+   * header is on that page; it draws each turn's steps standing open, since
+   * showing how the answer got there is the point of it (*"Show the thinking
+   * steps a bit more"*); and it announces nothing, since nobody asked.
    */
-  example?: { review: string; acceptAll?: (() => void) | undefined } | null;
+  example?: { review: string } | null;
 }) {
   const chat = look === "chat";
   return (
@@ -388,7 +395,7 @@ export function Transcript({
             {chat && <CassMark show={startsRun(turns, index)} />}
             <div className={chat ? "flex min-w-0 max-w-a-asst flex-col gap-1" : "contents"}>
             {chat && startsRun(turns, index) && <CassName />}
-            <ToolSteps tools={turn.tools} startOpen={example !== null} />
+            <ToolSteps tools={turn.tools} still={example !== null} />
             {turn.text !== "" && (
               // `whitespace-pre-wrap`: the answer arrives as one text part
               // whose deltas concatenate with their spacing intact. Rendering
@@ -413,7 +420,7 @@ export function Transcript({
                 {...(onUndoProposal === undefined ? {} : { onUndo: () => onUndoProposal(turn.id) })}
               />
             )}
-            {turn.suggested != null && <SuggestedNote suggested={turn.suggested} hint={example?.review} acceptAll={example?.acceptAll} />}
+            {turn.suggested != null && <SuggestedNote suggested={turn.suggested} hint={example?.review} still={example !== null} />}
             {/* Its own decision and its own handler, held beside the palette
                 registry, so no surface has to wire an Approve for it. */}
             {turn.offers?.map((offer) => <CommandCard key={offer.key} offer={offer} touch={touch} />)}

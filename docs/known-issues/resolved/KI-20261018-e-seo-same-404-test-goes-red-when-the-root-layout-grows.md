@@ -1,4 +1,4 @@
-### KI-2026-10-18-e — The seo "same 404" test goes red when the root layout's HTML grows, with no privacy change
+### KI-2026-10-18-e — The seo "same 404" test goes red when the root layout's HTML grows, with no privacy change — RESOLVED
 
 - **Severity:** reliability. Nothing leaks. But the test that guards "a private day and an unknown
   one look the same" fails on an unrelated edit, and the next person to see it red will either
@@ -25,5 +25,18 @@
   root layout's head and watching the test stay green, then planting a real difference (the day's
   name in one body) and watching it go red.
 - **Cross-reference:** ADR-078 (the landing is static and Home lives at `/home`).
+- **Fix:** PR 514 (M51 part 6), whose landing changes moved the chunk boundaries and turned the
+  `junk` case red 2 of 2. Sorting the payload's rows, as the fix direction said, was not enough:
+  the `junk` and `unknown` payloads differ in their rows themselves, which are numbered and inlined
+  in the order they resolve. `said()` now compares the HTML with every `<script>` taken out as it
+  is, and the payload as the sorted set of its strings, less the `$` references to rows. The raw
+  body is still checked for the day's name, its city (on its one stop) and its slug.
+- **Proof:** `pnpm --filter web test:e2e:ci-like e2e/seo.spec.ts`: red at d310130 (`Error: junk`,
+  `- Expected - 32 + Received + 31`, the rows renumbered), green after, and 6 of 6 with
+  `--repeat-each=6`. Two temporary leaks in the live day page's `generateMetadata`, each reverted:
+  the private day's name as the 404's title failed `Error: hidden`, `Expected substring: not "Kept
+  back …"`; a title that differed only when the day exists (`A playbook.` for `A playbook`)
+  failed `Error: hidden` with `- "A playbook — Caesura"` / `+ "A playbook. — Caesura"`, which the
+  HTML-only half alone let pass, since the 404's metadata streams in the payload.
 - **First noted:** 2026-10-18, PR 490 (measured by its implementer; the mechanism confirmed in
   review, `seo.spec.ts` green 8 of 8 on its head with the layout unchanged).

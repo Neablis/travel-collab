@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState, type ComponentProps, type ReactElement } from "react";
+import type { ComponentProps, ReactElement } from "react";
 import { useTimeFormat } from "@/components/account/PreferencesProvider";
 import { Transcript, toolNoteLabel, type AssistantTurn } from "@/components/assistant/Transcript";
 import { BrandMark } from "@/components/BrandMark";
 import type { BoardSuggestions } from "@/components/board/DayRiver";
-import { ReviewButtons, SuggestionReviewList } from "@/components/board/ReviewButtons";
+import { SuggestionReviewList } from "@/components/board/SuggestionReviewList";
 import { DiscoverCard } from "@/components/playbooks/DiscoverCard";
 import { ItineraryDayBlock } from "@/components/pages/blocks/ItineraryDayBlock";
 import { SunBlock } from "@/components/pages/blocks/SunBlock";
@@ -18,7 +18,6 @@ import { DataText } from "@/components/ui/data-text";
 import { Heading } from "@/components/ui/heading";
 import { POPOVER_SURFACE } from "@/components/ui/popover";
 import { Text } from "@/components/ui/text";
-import { UnderlineTabs, tabId, tabPanelId } from "@/components/ui/underline-tabs";
 import { cn } from "@/lib/cn";
 import { LANDING_DEMO, LANDING_FEATURES } from "@/lib/landingDemo";
 import { dayPath } from "@/lib/playbookUrls";
@@ -99,226 +98,164 @@ const ASSISTANT_TURNS: AssistantTurn[] = [
   },
 ];
 /** The note's pointer: the board's suggestions chip is not on this page; the day's open suggestion is. */
-const ASSISTANT_REVIEW = "Accept them all here, or decide each on the day. It is an example, so nothing is saved.";
+const ASSISTANT_REVIEW = "Accept them all here, or decide each on the day.";
 const ASSISTANT_DAY = `Day ${assistant.river.ordinal}`;
 type AssistantGhost = (typeof assistant.ghosts)[number];
-type Decision = "accepted" | "dismissed";
-/** `focusNext`'s marks: the open suggestion's first button, or the reset. */
-type FocusTarget = "review" | "reset";
+/**
+ * A button as the app draws it, as a picture: a `span`, so nothing to press,
+ * focus or announce, and out of hit-testing with the arrow cursor, so it shows
+ * no hover colour and no hand (Mitchell's walk of PR 514: *"I don't think it
+ * makes sense for the assistant preview buttons to be clickable"*).
+ */
+const still = (variant: "primary" | "secondary") => cn(buttonVariants({ variant, size: "sm" }), "pointer-events-none cursor-default");
 
 /**
- * The pending ghosts on the river as the board lays them, each wrapped as the
- * board wraps one. A ghost is a picture of the board's button, not a button,
- * which a screen reader could press to no effect (PR 514 r2). One of them,
- * `open`, stands with its popover open beneath it, as the board's shows once
- * a ghost is pressed (Mitchell's walk of PR 514: *"Include the overview on one
- * of the items for accept/dismiss/withdraw"*): its sentence over Accept,
- * Dismiss and Withdraw. Drawn in the river rather than in a portal, so it
- * rises, fades and scrolls with the moment.
+ * The open popover, as the board draws one standing open below its ghost, over
+ * the stops after it: the change's sentence over Accept, Dismiss and Withdraw.
  */
-function assistantSuggestions(pending: readonly AssistantGhost[], open: AssistantGhost | undefined, review: (ghost: AssistantGhost) => React.ReactNode): BoardSuggestions {
-  return {
-    days: new Map([[assistant.river.dayId, pending]]),
-    stops: new Map(),
-    newDays: [],
-    review: (ghosts, trigger) => {
-      const { variant, className, children, "aria-label": label } = (trigger as ReactElement<ComponentProps<typeof Button>>).props;
-      return (
-        <>
-          <div role="img" aria-label={label} className={cn(buttonVariants({ variant }), className, "pointer-events-none")}>
-            {children}
+function StillReview({ ghost }: { ghost: AssistantGhost }): React.ReactElement {
+  return (
+    <div role="group" aria-label="Review this suggestion" className={cn(POPOVER_SURFACE, "relative z-10 mt-1.5")}>
+      <SuggestionReviewList
+        ghosts={[ghost]}
+        actions={() => (
+          <div className="flex flex-wrap gap-1.5">
+            <span className={still("primary")}>Accept</span>
+            <span className={still("secondary")}>Dismiss</span>
+            <span className={still("secondary")}>Withdraw</span>
           </div>
-          {ghosts[0] === open && open !== undefined && review(open)}
-        </>
-      );
-    },
-    actions: () => null,
-  };
+        )}
+      />
+    </div>
+  );
 }
 
-/** The demo day with the accepted ghosts as planned stops on it, as accepting one on the board makes it. */
-function withAccepted(accepted: readonly AssistantGhost[]): typeof assistant.river {
-  if (accepted.length === 0) return assistant.river;
-  return {
-    ...assistant.river,
-    activityIds: [...assistant.river.activityIds, ...accepted.map((ghost) => ghost.activity!.activityId)],
-    activities: { ...assistant.river.activities, ...Object.fromEntries(accepted.map((ghost) => [ghost.activity!.activityId, ghost.activity!])) },
-  };
-}
+/**
+ * The ghosts on the river as the board lays them, each wrapped as the board
+ * wraps one, a picture of its button rather than a button. The last, so its
+ * popover hangs below the day's suggestions rather than over the next one,
+ * stands with that popover open (Mitchell's walk of PR 514: *"Include the
+ * overview on one of the items for accept/dismiss/withdraw"*). Drawn in the
+ * river rather than in a portal, so it rises, fades and scrolls with the
+ * moment.
+ */
+const ASSISTANT_SUGGESTIONS: BoardSuggestions = {
+  days: new Map([[assistant.river.dayId, assistant.ghosts]]),
+  stops: new Map(),
+  newDays: [],
+  review: (ghosts, trigger) => {
+    const { variant, className, children, "aria-label": label } = (trigger as ReactElement<ComponentProps<typeof Button>>).props;
+    const open = assistant.ghosts.at(-1);
+    return (
+      <>
+        <div role="img" aria-label={label} className={cn(buttonVariants({ variant }), className, "pointer-events-none cursor-default")}>
+          {children}
+        </div>
+        {open !== undefined && ghosts[0] === open && <StillReview ghost={open} />}
+      </>
+    );
+  },
+  actions: () => null,
+};
 
-/** "A and B", as the status says the stops Accept all took. */
-const AND = new Intl.ListFormat("en", { type: "conjunction" });
+/** The rail's two tabs, as `AssistantRail` names them, with Ask selected. */
+const RAIL_TABS = [
+  { label: "Chat", selected: false },
+  { label: "Ask", selected: true },
+];
 
 /**
  * The assistant moment (Mitchell, 2026-10-21: *"make it about the ai
  * assistant, since that feature isnt really talked about right now … a
  * example of a fake AI bot assistant and the approve ghost changes ui we
  * built"*), drawn as the app draws its assistant (his walk of PR 514, beside a
- * screenshot of the real panel): the panel's head, its Ask tab and the line
- * saying what it is looking at; the app's own transcript, asking for more of
- * the Rome trip's Day 1, with the steps the turn took open beneath it, the
- * answer, and the note of the suggestion it stored (ADR-067) with *Accept
- * all*. Beside it, the day under a stack of what is being added, and the
- * board's own river drawing the same stops as ghosts, one with its popover
- * open.
+ * screenshot of the real panel): the panel's head, its Chat and Ask tabs on
+ * Ask, and the line saying what it is looking at; the app's own transcript,
+ * asking for more of the Rome trip's Day 1, with the steps the turn took open
+ * beneath it, the answer, and the note of the suggestion it stored (ADR-067)
+ * with *Accept all*. Beside it, the day under a stack of what is being added,
+ * and the board's own river drawing the same stops as ghosts, one with its
+ * popover open.
  *
- * Every button works (PR 514 r1, after Mitchell's *"two dropdowns that dont
- * work"*): Accept makes the ghost a planned stop on the river, Dismiss takes
- * it off, Withdraw does what Dismiss does, since nobody here wrote it, Accept
- * all takes every one, and a reset brings them back. Canned
- * (`landingFeatures.generated.json`) and decided in this component's state
- * alone, so `/` fetches nothing (ADR-078); the group says it is an example.
+ * A still picture of all that, not a working copy: every control is drawn and
+ * none is there, so a screen reader hears one figure, named for what it shows,
+ * and Tab passes it by. Canned (`landingFeatures.generated.json`), so `/`
+ * fetches nothing (ADR-078).
  */
 export function AssistantPanel(): React.ReactElement {
-  const [decided, setDecided] = useState<Readonly<Record<string, Decision>>>({});
-  const [said, setSaid] = useState("");
-  const [tab, setTab] = useState<RailTab>("ask");
   const clock = useTimeFormat();
-  // Where focus goes once the button that held it has left the page: the
-  // suggestion opened next, or the reset when none is left.
-  const focusNext = useRef<FocusTarget | null>(null);
-  const resetRef = useRef<HTMLButtonElement>(null);
-  const reviewRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (focusNext.current === "reset") resetRef.current?.focus();
-    else if (focusNext.current === "review") reviewRef.current?.querySelector<HTMLElement>("button")?.focus();
-    focusNext.current = null;
-  }, [decided]);
-  const pending = assistant.ghosts.filter((ghost) => decided[ghost.changeId] === undefined);
-  // The last one pending, so its popover hangs below the day's suggestions
-  // rather than over the next one.
-  const open = pending.at(-1);
-
-  function decide(ghost: AssistantGhost, decision: Decision, said: string) {
-    focusNext.current = pending.length > 1 ? "review" : "reset";
-    setDecided((was) => ({ ...was, [ghost.changeId]: decision }));
-    setSaid(said);
-  }
-  function acceptAll() {
-    focusNext.current = "reset";
-    setDecided((was) => ({ ...was, ...Object.fromEntries(pending.map((ghost) => [ghost.changeId, "accepted" as const])) }));
-    const titles = AND.format(pending.map((ghost) => ghost.activity!.title));
-    setSaid(`Accepted all: ${titles} ${pending.length === 1 ? "is" : "are"} on ${ASSISTANT_DAY}.`);
-  }
-  function reset() {
-    focusNext.current = "review";
-    setDecided({});
-    setSaid("The suggestions are back.");
-  }
-  const review = (ghost: AssistantGhost) => {
-    const title = ghost.activity!.title;
-    return (
-      // The popover's own panel, standing open below its ghost as the board
-      // aligns one, over the stops after it.
-      <div ref={reviewRef} role="group" aria-label="Review this suggestion" className={cn(POPOVER_SURFACE, "relative z-10 mt-1.5")}>
-        <SuggestionReviewList
-          ghosts={[ghost]}
-          actions={() => (
-            <div className="flex flex-wrap gap-1.5">
-              <ReviewButtons
-                description={ghost.description}
-                accept={{ onClick: () => decide(ghost, "accepted", `Accepted: ${title} is on ${ASSISTANT_DAY}.`) }}
-                dismiss={{ onClick: () => decide(ghost, "dismissed", `Dismissed: ${title}.`) }}
-                withdraw={{ onClick: () => decide(ghost, "dismissed", `Withdrawn: ${title}.`) }}
-              />
-            </div>
-          )}
-        />
-      </div>
-    );
-  };
-
   return (
-    <div role="group" aria-label="An example: the assistant suggests two stops for Day 1" className="grid min-h-0 flex-1 grid-cols-2 gap-5">
-      {/* The panel as the trip's rail draws it: its head, its Chat and Ask
-          tabs, and on Ask the line saying what it looks at, then the
-          conversation. Chat is the people's, and this example has none, so it
-          says what the rail's says with no messages. */}
-      <div className={cn(SURFACE, "flex min-h-0 min-w-0 flex-col")}>
-        <div className="shrink-0 border-b border-hairline px-4 py-3">
-          <div className="flex items-center gap-2">
-            <BrandMark size={24} />
-            <Text as="span" className="text-md font-semibold">
-              {tab === "chat" ? "Chat" : "Assistant"}
-            </Text>
-          </div>
-          <UnderlineTabs aria-label="Chat or Ask" idPrefix={RAIL_TABS_ID} value={tab} onValueChange={setTab} options={RAIL_TABS} hasPanel className="mt-2" />
-          {tab === "ask" && <div className="mt-2 rounded-sm bg-paper px-2.5 py-1.5 text-xs text-slate">{`Looking at ${assistant.trip}`}</div>}
-        </div>
-        <div
-          role="tabpanel"
-          id={tabPanelId(RAIL_TABS_ID, tab)}
-          aria-labelledby={tabId(RAIL_TABS_ID, tab)}
-          className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-hidden px-4 py-3.5"
-        >
-          {tab === "chat" ? (
-            <p className="text-sm leading-relaxed text-slate">No messages yet. Say hello to the people on this trip.</p>
-          ) : (
-            <Transcript turns={ASSISTANT_TURNS} example={{ review: ASSISTANT_REVIEW, acceptAll: pending.length > 0 ? acceptAll : undefined }} />
-          )}
-        </div>
-        <p role="status" className="sr-only">
-          {said}
-        </p>
-      </div>
-      <div className={cn(SURFACE, "flex min-h-0 min-w-0 flex-col")}>
-        <div className="flex items-center gap-2.5 border-b border-hairline px-3.5 py-2.5">
-          <Text as="span" className="font-display font-semibold">
-            {`${assistant.trip} · ${ASSISTANT_DAY} · ${assistant.river.city}`}
-          </Text>
-          <DataText className="ml-auto text-2xs tracking-wider uppercase">Timeline</DataText>
-        </div>
-        {/* The stack of what is being added, over the day that shows them
-            (Mitchell's walk of PR 514: *"Stack the changes with a simple
-            overview of whats being added"*). */}
-        {/* The reset is here, beside what it brings back, so either tab reaches it. */}
-        <div className="flex flex-col gap-1.5 border-b border-hairline bg-brand-tint px-3.5 py-2.5">
-          {pending.length > 0 && (
-            <>
-              <Text as="span" className="text-xs font-semibold text-brand-pressed uppercase">
-                Being added
+    <figure aria-label="An example: the assistant suggests two stops for Day 1" className="grid min-h-0 flex-1">
+      <div aria-hidden className="grid min-h-0 grid-cols-2 gap-5">
+        <div className={cn(SURFACE, "flex min-h-0 min-w-0 flex-col")}>
+          <div className="shrink-0 border-b border-hairline px-4 py-3">
+            <div className="flex items-center gap-2">
+              <BrandMark size={24} />
+              <Text as="span" className="text-md font-semibold">
+                Assistant
               </Text>
-              <ul aria-label="Suggestions being added" className="m-0 flex list-none flex-col gap-1 p-0">
-                {pending.map((ghost) => (
-                  <li key={ghost.changeId} className="flex items-baseline gap-2 text-sm text-ink">
-                    <DataText className="w-30 shrink-0 text-xs">
-                      {toClockRange(ghost.activity!.timeWindow!.start, ghost.activity!.timeWindow!.end, clock)}
-                    </DataText>
-                    <span className="min-w-0 flex-1 truncate font-semibold">{ghost.activity!.title}</span>
-                    <span className="shrink-0 text-xs text-slate">{ASSISTANT_DAY}</span>
-                  </li>
-                ))}
-              </ul>
-            </>
-          )}
-          {pending.length < assistant.ghosts.length && (
-            <Button ref={resetRef} variant="secondary" size="sm" className="self-start" onClick={reset}>
-              Show the suggestions again
-            </Button>
-          )}
+            </div>
+            {/* `UnderlineTabs`' look, drawn: `-mb-px` sets the selected edge on the base line. */}
+            <div className="mt-2 flex items-stretch gap-5.5 border-b border-hairline">
+              {RAIL_TABS.map(({ label, selected }) => (
+                <span
+                  key={label}
+                  className={cn(
+                    "-mb-px inline-flex min-h-11 items-center border-b-2 px-px text-base fine:min-h-10",
+                    selected ? "border-brand font-semibold text-ink" : "border-transparent font-medium text-slate",
+                  )}
+                >
+                  {label}
+                </span>
+              ))}
+            </div>
+            <div className="mt-2 rounded-sm bg-paper px-2.5 py-1.5 text-xs text-slate">{`Looking at ${assistant.trip}`}</div>
+          </div>
+          <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-hidden px-4 py-3.5">
+            <Transcript turns={ASSISTANT_TURNS} example={{ review: ASSISTANT_REVIEW }} />
+          </div>
         </div>
-        <div className="px-3.5 py-3">
-          <LandingRiver
-            day={withAccepted(assistant.ghosts.filter((ghost) => decided[ghost.changeId] === "accepted"))}
-            people={{}}
-            dayAccents={ASSISTANT_ACCENTS}
-            dayCurrency={assistant.currency}
-            pxPerHour={ASSISTANT_PX_PER_HOUR}
-            suggestions={assistantSuggestions(pending, open, review)}
-          />
+        <div className={cn(SURFACE, "flex min-h-0 min-w-0 flex-col")}>
+          <div className="flex items-center gap-2.5 border-b border-hairline px-3.5 py-2.5">
+            <Text as="span" className="font-display font-semibold">
+              {`${assistant.trip} · ${ASSISTANT_DAY} · ${assistant.river.city}`}
+            </Text>
+            <DataText className="ml-auto text-2xs tracking-wider uppercase">Timeline</DataText>
+          </div>
+          {/* The stack of what is being added, over the day that shows them
+              (Mitchell's walk of PR 514: *"Stack the changes with a simple
+              overview of whats being added"*). */}
+          <div className="flex flex-col gap-1.5 border-b border-hairline bg-brand-tint px-3.5 py-2.5">
+            <Text as="span" className="text-xs font-semibold text-brand-pressed uppercase">
+              Being added
+            </Text>
+            <ul aria-label="Suggestions being added" className="m-0 flex list-none flex-col gap-1 p-0">
+              {assistant.ghosts.map((ghost) => (
+                <li key={ghost.changeId} className="flex items-baseline gap-2 text-sm text-ink">
+                  <DataText className="w-30 shrink-0 text-xs">
+                    {toClockRange(ghost.activity!.timeWindow!.start, ghost.activity!.timeWindow!.end, clock)}
+                  </DataText>
+                  <span className="min-w-0 flex-1 truncate font-semibold">{ghost.activity!.title}</span>
+                  <span className="shrink-0 text-xs text-slate">{ASSISTANT_DAY}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div className="px-3.5 py-3">
+            <LandingRiver
+              day={assistant.river}
+              people={{}}
+              dayAccents={ASSISTANT_ACCENTS}
+              dayCurrency={assistant.currency}
+              pxPerHour={ASSISTANT_PX_PER_HOUR}
+              suggestions={ASSISTANT_SUGGESTIONS}
+            />
+          </div>
         </div>
       </div>
-    </div>
+    </figure>
   );
 }
-
-/** The rail's two tabs, as `AssistantRail` names them. */
-type RailTab = "chat" | "ask";
-const RAIL_TABS_ID = "landing-assistant";
-const RAIL_TABS: { value: RailTab; label: string }[] = [
-  { value: "chat", label: "Chat" },
-  { value: "ask", label: "Ask" },
-];
 
 const { crew } = LANDING_FEATURES;
 const CREW_ACCENTS = snapshotAccents(crew.accents);

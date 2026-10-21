@@ -233,13 +233,19 @@ test.describe("the front door, signed out (M42)", () => {
 
   // Mitchell's walk of PR 510 at 7260011: the second moment read "white text
   // on white background". The assistant's worked example (M51 part 6), risen at
-  // the screen's middle, passes axe at the product's WCAG level, every impact:
-  // its conversation, its ghost stops and its working Accept and Dismiss.
-  test("the assistant moment passes axe once it has risen", async ({ page }) => {
+  // the screen's middle, passes axe at the product's WCAG level, every impact.
+  // And it is a picture (his walk of PR 514: "I don't think it makes sense for
+  // the assistant preview buttons to be clickable"): nothing in it shows the
+  // pointer a control would.
+  test("the assistant moment passes axe once it has risen, and points at nothing", async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto("/");
     const ask = page.getByTestId("desktop-landing").getByRole("region", { name: "Ask for more, keep what fits." });
-    await expect(ask.getByRole("log", { name: "Conversation" })).toBeAttached();
+    await expect(ask.getByRole("log", { name: "Conversation", includeHidden: true })).toBeAttached();
+    const pointing = await ask.getByTestId("moment-panel").evaluate((panel) =>
+      [...panel.querySelectorAll("*")].filter((el) => getComputedStyle(el).cursor === "pointer").map((el) => el.getAttribute("aria-label") ?? el.textContent),
+    );
+    expect(pointing).toEqual([]);
     await ask.evaluate((moment) => {
       const box = moment.getBoundingClientRect();
       window.scrollBy(0, box.top + box.height / 2 - window.innerHeight / 2);
