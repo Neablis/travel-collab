@@ -2,11 +2,12 @@ import { cache, type ComponentProps } from "react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import type { PlaceDaysList } from "@/components/playbooks/PlaceDaysList";
-import { PLACE_PAGE_SIZE, placeIndexable, placePagePath, placePath } from "@/lib/playbookUrls";
+import { PLACE_PAGE_SIZE, countryCityPath, placeIndexable, placePagePath, placePath } from "@/lib/playbookUrls";
+import { latticeNav } from "@/lib/latticeNav";
 import { NOINDEX_FOLLOW, pageMetadata } from "@/lib/siteMetadata";
 import type { PlacePage } from "./playbooks";
 // Cached for a day, and cleared on publish (ADR-063).
-import { placeFor, publishedDaysPage } from "./publicLibrary";
+import { countryCityFor, placeFor, publishedCountryCityPages, publishedDaysPage, publishedTagPages } from "./publicLibrary";
 
 // The city and country pages (SEO pass, D6): one page over two kinds of place.
 // Here rather than in either page file because a page file is not a module
@@ -85,6 +86,7 @@ export async function placeListing(
   const { page, data } = await resolve(kind, props);
   if (data === null) notFound();
   const { name, days: total } = data.place;
+  const [tags, countryCities] = await Promise.all([publishedTagPages(), publishedCountryCityPages()]);
   return {
     heading: `${name} playbooks`,
     summary: total === 1 ? `1 day a traveler planned in ${name}.` : `${total} days other travelers planned in ${name}.`,
@@ -92,5 +94,78 @@ export async function placeListing(
     days: data.days,
     total,
     page,
+    nav: latticeNav(kind === "city" ? { city: data.place } : { country: data.place }, { tags, countryCities }),
+  };
+}
+
+// The country×city page: one city's days inside one country — the city page
+// over the country's days, in the same shape as the place pages above, so it
+// is counted, paged and indexed the way they are, and drawn by the same list.
+
+/** What a country×city route hands its page: the country's `[slug]`, the city's `[citySlug]`, and `?page=`. */
+export type CountryCityRouteProps = {
+  params: Promise<{ slug: string; citySlug: string }>;
+  searchParams: Promise<{ page?: string | string[] }>;
+};
+
+// Read once per request for the metadata and the page. A pair no published
+// day matches, and a page past its end, are a 404.
+const countryCityLoad = cache(async (countrySlug: string, citySlug: string, page: number) => {
+  const pair = await countryCityFor(countrySlug, citySlug);
+  if (pair === null || (page - 1) * PLACE_PAGE_SIZE >= pair.days) return null;
+  const { days } = await publishedDaysPage(
+    { countries: pair.country.countries, citiesWithin: pair.city.cities },
+    { limit: PLACE_PAGE_SIZE, offset: (page - 1) * PLACE_PAGE_SIZE },
+  );
+  return days.length === 0 ? null : { pair, days };
+});
+
+async function resolveCountryCity({ params, searchParams }: CountryCityRouteProps) {
+  const [{ slug, citySlug }, { page: raw }] = await Promise.all([params, searchParams]);
+  const page = pageOf(raw);
+  return { page, data: await countryCityLoad(slug, citySlug, page) };
+}
+
+/** Metadata for a country×city page: its name and count, its card, self-canonical per page. */
+export async function countryCityMetadata(props: CountryCityRouteProps): Promise<Metadata> {
+  const { page, data } = await resolveCountryCity(props);
+  if (data === null) return {};
+  const { pair } = data;
+  const heading = `${pair.city.name} playbooks in ${pair.country.name}`;
+  return pageMetadata({
+    title: page === 1 ? heading : `${heading}, page ${page}`,
+    description:
+      pair.days === 1
+        ? `1 day a traveler planned in ${pair.city.name}, ${pair.country.name}. Open it and drop it into your trip.`
+        : `${pair.days} days other travelers planned in ${pair.city.name}, ${pair.country.name}. Find one and drop it into your trip.`,
+    // The city card, as its city page draws: the pair is one city's days.
+    image: {
+      url: `/api/og/playbooks/city/${encodeURIComponent(pair.city.name)}`,
+      alt: heading,
+    },
+    canonical: placePagePath(countryCityPath(pair.country.slug, pair.city.slug), page),
+    // The sitemap's predicate over the same count: a thin pair page opens
+    // and passes its links on, and stays out of the index.
+    ...(placeIndexable(pair) ? {} : { robots: NOINDEX_FOLLOW }),
+  });
+}
+
+/** A country×city page's list, or a 404 for a pair nobody published in and a page past its end. */
+export async function countryCityListing(props: CountryCityRouteProps): Promise<ComponentProps<typeof PlaceDaysList>> {
+  const { page, data } = await resolveCountryCity(props);
+  if (data === null) notFound();
+  const { pair } = data;
+  const [tags, countryCities] = await Promise.all([publishedTagPages(), publishedCountryCityPages()]);
+  return {
+    heading: `${pair.city.name} playbooks in ${pair.country.name}`,
+    summary:
+      pair.days === 1
+        ? `1 day a traveler planned in ${pair.city.name}, ${pair.country.name}.`
+        : `${pair.days} days other travelers planned in ${pair.city.name}, ${pair.country.name}.`,
+    path: countryCityPath(pair.country.slug, pair.city.slug),
+    days: data.days,
+    total: pair.days,
+    page,
+    nav: latticeNav({ country: pair.country, city: pair.city }, { tags, countryCities }),
   };
 }

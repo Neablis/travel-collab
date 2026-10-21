@@ -2,10 +2,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const sitemapDays = vi.fn();
 const publishedTagPages = vi.fn();
+const publishedCountryCityPages = vi.fn();
 vi.mock("@/server/playbooks", () => ({
   sitemapDays: () => sitemapDays(),
   publishedPlaces: async () => [],
   publishedTagPages: () => publishedTagPages(),
+  publishedCountryCityPages: () => publishedCountryCityPages(),
 }));
 
 import { DEMO_TRIPS } from "@/lib/demoTrip";
@@ -15,6 +17,7 @@ import sitemap from "./sitemap";
 beforeEach(() => {
   sitemapDays.mockReset().mockResolvedValue([]);
   publishedTagPages.mockReset().mockResolvedValue([]);
+  publishedCountryCityPages.mockReset().mockResolvedValue([]);
 });
 
 describe("sitemap.xml", () => {
@@ -56,5 +59,30 @@ describe("sitemap.xml", () => {
       .map((entry) => new URL(entry.url).pathname)
       .filter((path) => path.startsWith("/playbooks/tag/") || path.startsWith("/playbooks/city/"));
     expect(tagged).toEqual(["/playbooks/tag/nightlife", "/playbooks/city/kyoto/meal"]);
+  });
+
+  // The lattice's new scopes hold to the same threshold: a country×tag, a
+  // country×city and a country×city×tag page are listed from three days up.
+  it("lists country-scoped tag and country×city pages only from three days up", async () => {
+    const italy = { slug: "italy", name: "Italy", countries: ["IT"] };
+    const rome = { slug: "rome", name: "Rome", cities: ["Rome"] };
+    publishedTagPages.mockResolvedValue([
+      { tag: "meal", city: null, country: italy, days: 3 },
+      { tag: "beach", city: null, country: italy, days: 2 },
+      { tag: "meal", city: rome, country: italy, days: 3 },
+      { tag: "museum", city: rome, country: italy, days: 2 },
+    ]);
+    publishedCountryCityPages.mockResolvedValue([
+      { country: italy, city: rome, days: 3 },
+      { country: italy, city: { slug: "milan", name: "Milan", cities: ["Milan"] }, days: 2 },
+    ]);
+    const lattice = (await sitemap())
+      .map((entry) => new URL(entry.url).pathname)
+      .filter((path) => path.startsWith("/playbooks/country/"));
+    expect(lattice).toEqual([
+      "/playbooks/country/italy/city/rome",
+      "/playbooks/country/italy/tag/meal",
+      "/playbooks/country/italy/city/rome/tag/meal",
+    ]);
   });
 });

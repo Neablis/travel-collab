@@ -108,11 +108,32 @@ export function countrySlug(code: string): string | null {
 // The tag's key, never its label: ADR-070 never renames a key and may relabel
 // one (`meal` reads Food), and a URL has no redirect behind it to survive that.
 /**
- * A tag page's path, page one: `/playbooks/tag/<tag>`, or
- * `/playbooks/city/<slug>/<tag>` for that tag in one city's page.
+ * A tag page's path, page one: `/playbooks/tag/<tag>` for the whole library,
+ * `/playbooks/city/<slug>/<tag>` for that tag in one city's page, and the
+ * country forms — `/playbooks/country/<slug>/tag/<tag>`, and
+ * `/playbooks/country/<country>/city/<city>/tag/<tag>` for a city inside its
+ * country. One convention throughout: singular `tag`, with a `/tag/` segment
+ * wherever the tag follows a place — except the legacy city form, whose bare
+ * tag (`/playbooks/city/<slug>/<tag>`) predates this rule and stays exactly
+ * as is, since it is already indexed. A `/city/` segment only where the
+ * country scope needs it to tell a city slug from a tag. A new dimension
+ * after this one takes its own literal segment the same way (`/cost/`, ...),
+ * never a bare position: tag is the last bare dimension.
  */
-export function tagPath(tag: ActivityTagDescribed, citySlug: string | null = null): string {
+export function tagPath(
+  tag: ActivityTagDescribed,
+  citySlug: string | null = null,
+  countryPageSlug: string | null = null,
+): string {
+  if (countryPageSlug !== null && citySlug !== null)
+    return `/playbooks/country/${countryPageSlug}/city/${citySlug}/tag/${tag}`;
+  if (countryPageSlug !== null) return `/playbooks/country/${countryPageSlug}/tag/${tag}`;
   return citySlug === null ? `/playbooks/tag/${tag}` : `/playbooks/city/${citySlug}/${tag}`;
+}
+
+/** A country×city page's path, page one: `/playbooks/country/<country>/city/<city>`. */
+export function countryCityPath(countryPageSlug: string, citySlug: string): string {
+  return `/playbooks/country/${countryPageSlug}/city/${citySlug}`;
 }
 
 /**
