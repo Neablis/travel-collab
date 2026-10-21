@@ -1208,6 +1208,36 @@ test.describe("responsive (narrow viewport, signed out)", () => {
     const header = scroller.getByRole("banner");
     await expect.poll(() => header.evaluate((el) => getComputedStyle(el).backgroundColor)).not.toBe("rgba(0, 0, 0, 0)");
   });
+
+  // PR 516's review: the server packs the phone's sea for an 844px screen,
+  // and a shorter one packs it again once mounted, moving pricing up. A hash
+  // answered against the server's layout landed 366px past the heading at
+  // 390x664, the usual phone with its browser's toolbars showing.
+  for (const { width, height } of [
+    { width: 390, height: 664 },
+    { width: 360, height: 640 },
+    { width: 390, height: 844 },
+    { width: 430, height: 932 },
+  ]) {
+    test(`/#pricing lands the pricing heading just under the phone's sticky bar at ${width}x${height}`, async ({ page }) => {
+      await page.setViewportSize({ width, height });
+      await page.goto("/#pricing");
+      const door = page.getByTestId("phone-front-door");
+      const bar = door.getByRole("banner");
+      // The section opens on its "Pricing · Free → Plus" line, the heading it is named by.
+      const heading = door.getByRole("region", { name: "Pricing" });
+      await expect(heading).toBeVisible();
+      const below = async () => (await heading.boundingBox())!.y - ((await bar.boundingBox())!.y + (await bar.boundingBox())!.height);
+      // One poll for both bounds: the first read can come before the scroll,
+      // thousands of px down, and a lower bound met then proves nothing.
+      await expect
+        .poll(async () => {
+          const px = Math.round(await below());
+          return px >= 0 && px <= 8 ? "just under the bar" : px;
+        }, "the pricing heading's top, less the sticky bar's foot, in px")
+        .toBe("just under the bar");
+    });
+  }
 });
 
 // `FirstTripStart` (Mitchell, 2026-09-01 — see its own file header) is the

@@ -732,6 +732,16 @@ function Story({ at, closing = false, inset, children }: { at: SeaArea; closing?
 /** Held to the moment's room while its real panel's chunk loads, so the page does not jump when it lands. */
 const PANEL_PENDING = <div className="min-h-0 flex-1 rounded-lg border border-hairline bg-surface" />;
 
+/** What `grid` measures in a screen `viewport` tall, or null while it is not laid out (the hidden tree, or jsdom). */
+export function measureSea(grid: HTMLElement, viewport: number): SeaMetrics | null {
+  const cols = Number.parseInt(getComputedStyle(grid).getPropertyValue("--cols"), 10);
+  if (!(cols > 0) || grid.clientWidth === 0) return null;
+  return { cols, unit: (grid.clientWidth - 2 * PAD - (cols - 1) * GAP) / cols, viewport };
+}
+
+/** Whether a sea packed for `was` is the one `now` packs: the same columns and screen, the unit within half a px. */
+export const packedFor = (was: SeaMetrics, now: SeaMetrics) => was.cols === now.cols && Math.abs(was.unit - now.unit) < 0.5 && was.viewport === now.viewport;
+
 /**
  * The grid's columns as CSS chose them (`--cols`), its unit, and how tall the
  * screen it scrolls in is (`viewport`): `server` until mounted. React state,
@@ -745,11 +755,8 @@ export function useSeaMetrics(gridRef: RefObject<HTMLElement | null>, server: Se
     const grid = gridRef.current;
     if (grid === null) return;
     const measure = () => {
-      const cols = Number.parseInt(getComputedStyle(grid).getPropertyValue("--cols"), 10);
-      if (!(cols > 0) || grid.clientWidth === 0) return;
-      const unit = (grid.clientWidth - 2 * PAD - (cols - 1) * GAP) / cols;
-      const tall = viewportOf.current();
-      setMetrics((was) => (was.cols === cols && Math.abs(was.unit - unit) < 0.5 && was.viewport === tall ? was : { cols, unit, viewport: tall }));
+      const now = measureSea(grid, viewportOf.current());
+      if (now !== null) setMetrics((was) => (packedFor(was, now) ? was : now));
     };
     measure();
     window.addEventListener("resize", measure, { passive: true });
@@ -791,7 +798,8 @@ const MOMENTS: { id: MomentId; heading: string; panel: ComponentProps<typeof Lan
  * the page: each band of background where it starts, each moment followed by
  * the days it lights, then the pricing and the closing cell. `root` is the
  * scroller the bands watch, `eager` the rows mounted at once (the first
- * screen, where the packer lays it), `inset` a story's padding on a phone.
+ * screen, where the packer lays it), `inset` a story's padding on a phone,
+ * `aboveFirst` the phone's lit days above a moment placed before it.
  */
 export function SeaPlaced({
   layout,
@@ -801,6 +809,7 @@ export function SeaPlaced({
   root,
   eager = 0,
   inset,
+  aboveFirst = false,
 }: {
   layout: SeaLayout;
   firstRows: number;
@@ -809,13 +818,15 @@ export function SeaPlaced({
   root?: RefObject<Element | null>;
   eager?: number;
   inset?: string;
+  aboveFirst?: boolean;
 }) {
   const { stories, lit, background, rows } = layout;
-  // In reading order, row then column, so Tab never jumps back up the page:
-  // the packer places them beside, above, then below the moment.
-  const litFor = (moment: MomentId) =>
+  // In reading order, row then column: the packer places them beside, above,
+  // then below the moment. With `aboveFirst`, the days wholly above it come
+  // before it, so Tab never jumps back up the page (PR 516's review).
+  const litFor = (moment: MomentId, above: boolean | null) =>
     lit
-      .filter((day) => day.moment === moment)
+      .filter((day) => day.moment === moment && (above === null || day.at.row + day.at.h <= stories[moment].row === above))
       .sort((a, b) => a.at.row - b.at.row || a.at.col - b.at.col)
       .map(({ cell, at }) => <Cell key={cell.day.savedDayId} cell={cell} at={at} background={false} litFor={moment} />);
   const bands = Array.from({ length: Math.ceil((rows - firstRows) / 6) }, (_, i) => {
@@ -831,10 +842,11 @@ export function SeaPlaced({
       order: 1,
       node: (
         <Fragment key={id}>
+          {aboveFirst && litFor(id, true)}
           <Moment id={id} heading={heading} at={stories[id]} bleed={bleed} inset={inset}>
             <LandingFeaturePanel panel={panel}>{PANEL_PENDING}</LandingFeaturePanel>
           </Moment>
-          {litFor(id)}
+          {litFor(id, aboveFirst ? false : null)}
         </Fragment>
       ),
     })),

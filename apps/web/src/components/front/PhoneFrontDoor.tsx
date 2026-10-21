@@ -1,10 +1,23 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
 import { BrandMark } from "@/components/BrandMark";
 import { LandingPricing } from "@/components/front/LandingPricing";
-import { GAP, PAD, SeaPlaced, layoutSea, paintMoments, place, seaDim, styleNumber, useSeaMetrics, type SeaShape } from "@/components/front/LandingSea";
+import {
+  GAP,
+  PAD,
+  SeaPlaced,
+  layoutSea,
+  measureSea,
+  packedFor,
+  paintMoments,
+  place,
+  seaDim,
+  styleNumber,
+  useSeaMetrics,
+  type SeaShape,
+} from "@/components/front/LandingSea";
 import { buttonVariants } from "@/components/ui/button";
 import { DataText } from "@/components/ui/data-text";
 import { Heading } from "@/components/ui/heading";
@@ -76,22 +89,37 @@ export function PhoneFrontDoor() {
   // nothing moves. On a wide screen this tree is the hidden one, every rect in
   // it is zero and the scroll goes nowhere, so the two never fight.
   //
-  // **Only this scroller moves, to just under the sticky bar**, and it lands
-  // the pricing's cell, not the words inside its padding. `scrollIntoView`
+  // **Only this scroller moves, and its "Pricing" line lands just under the
+  // sticky bar**, the cell's padding scrolled under it. `scrollIntoView`
   // scrolls every ancestor: on a 390px phone it moved the window 374px as
   // well and took the bar with it.
+  const toPricing = useCallback(() => {
+    const scroller = scrollerRef.current;
+    const pricing = pricingRef.current;
+    if (window.location.hash !== "#pricing" || scroller === null || pricing === null) return;
+    const below = pricing.getBoundingClientRect().top - scroller.getBoundingClientRect().top;
+    scroller.scrollTo({ top: scroller.scrollTop + below - (headerRef.current?.offsetHeight ?? 0) });
+  }, []);
   useEffect(() => {
-    const toPricing = () => {
-      const scroller = scrollerRef.current;
-      const pricing = pricingRef.current?.closest(".landing-sea-story");
-      if (window.location.hash !== "#pricing" || scroller === null || pricing == null) return;
-      const below = pricing.getBoundingClientRect().top - scroller.getBoundingClientRect().top;
-      scroller.scrollTo({ top: scroller.scrollTop + below - (headerRef.current?.offsetHeight ?? 0) });
-    };
-    toPricing();
     window.addEventListener("hashchange", toPricing);
     return () => window.removeEventListener("hashchange", toPricing);
-  }, []);
+  }, [toPricing]);
+  // **A page opened at `#pricing` waits for the sea packed for this screen.**
+  // The server packs for 844px; a shorter phone, which is most of them with a
+  // browser's toolbars showing, packs again once mounted and moves pricing up
+  // by rows (366px at 390x664). Answered against the server's layout, the
+  // hash landed past the whole Free step. Once only: a later re-pack, as a
+  // toolbar folds away mid-scroll, does not pull the reader back.
+  const opened = useRef(false);
+  useEffect(() => {
+    const grid = gridRef.current;
+    if (opened.current || grid === null || scrollerRef.current === null) return;
+    // Not yet laid out (the hidden tree, or jsdom): nothing will re-pack it.
+    const now = measureSea(grid, scrollerRef.current.clientHeight);
+    if (now !== null && !packedFor(metrics, now)) return;
+    opened.current = true;
+    toPricing();
+  }, [metrics, toPricing]);
 
   useEffect(() => {
     const scroller = scrollerRef.current;
@@ -205,6 +233,7 @@ export function PhoneFrontDoor() {
               root={scrollerRef}
               eager={FIRST_SCREEN_ROWS}
               inset={INSET}
+              aboveFirst
               pricing={<LandingPricing ref={pricingRef} />}
               closing={
                 <section aria-labelledby="front-door-closing" className="flex min-w-0 flex-col justify-center gap-5">

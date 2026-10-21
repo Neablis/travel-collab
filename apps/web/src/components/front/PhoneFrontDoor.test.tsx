@@ -190,6 +190,18 @@ describe("the phone sea", () => {
     const doors = main.getAllByRole("link").filter((link) => link.getAttribute("href")!.startsWith("/playbooks/day/"));
     expect(doors.filter((door) => !find.contains(door) && !lit.some((cell) => cell.contains(door)))).toEqual([]);
   });
+
+  // WCAG 2.4.3, PR 516's review: each moment lights a day above it and one
+  // below, and Tab meets them as the eye does, never jumping back up the page.
+  it("tabs through the moments and their lit days from the top of the sea down", async () => {
+    render(<PhoneFrontDoor />);
+    const sea = within(screen.getByTestId("phone-sea"));
+    expect(await within(screen.getByRole("region", { name: MOMENTS[0]! })).findAllByRole("link")).not.toEqual([]);
+    const placed = [screen.getByTestId("sea-hero"), ...sea.getAllByTestId("sea-story"), ...sea.getAllByTestId("sea-cell").filter((cell) => cell.hasAttribute("data-lit-for"))];
+    const rows = sea.getAllByRole("link").map((link) => areaOf(placed.find((item) => item.contains(link))!)!.row);
+    expect(rows.length).toBeGreaterThan(8);
+    expect(rows).toEqual([...rows].sort((a, b) => a - b));
+  });
 });
 
 // The shell the pinned sequence had, kept: its own scroller under a sticky
@@ -230,13 +242,13 @@ describe("the phone front door's shell", () => {
     });
 
     // Pricing is a cell of the sea, second to last as on the desktop (M51
-    // decision 10), and the hash lands that cell just under the sticky bar.
-    it("lands the sea's pricing cell just under the sticky bar when the hash changes to #pricing", () => {
+    // decision 10), and the hash lands its "Pricing" line just under the
+    // sticky bar (PR 516's review).
+    it("lands the sea's pricing just under the sticky bar when the hash changes to #pricing", () => {
       render(<PhoneFrontDoor />);
       const door = screen.getByTestId("phone-front-door");
       const stories = within(screen.getByTestId("phone-sea")).getAllByTestId("sea-story");
-      const pricing = stories.at(-2)!;
-      expect(within(pricing).getByRole("region", { name: "Pricing" })).toBeDefined();
+      const pricing = within(stories.at(-2)!).getByRole("region", { name: "Pricing" });
       door.scrollTop = 100;
       vi.spyOn(door, "getBoundingClientRect").mockReturnValue({ top: 0 } as DOMRect);
       vi.spyOn(pricing, "getBoundingClientRect").mockReturnValue({ top: 5000 } as DOMRect);
