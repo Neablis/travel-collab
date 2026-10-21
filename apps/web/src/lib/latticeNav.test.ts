@@ -30,7 +30,7 @@ describe("latticeNav", () => {
     const nav = latticeNav({ country: ITALY, city: ROME, tag: "meal" }, lattice);
     expect(nav.parents.map((link) => link.href)).toEqual([
       "/playbooks/country/italy/city/rome",
-      "/playbooks/country/italy/meal",
+      "/playbooks/country/italy/tag/meal",
       "/playbooks/city/rome/meal",
     ]);
     expect(nav.children).toEqual([]);
@@ -40,15 +40,15 @@ describe("latticeNav", () => {
     const pair = latticeNav({ country: ITALY, city: ROME }, lattice);
     expect(pair.parents.map((link) => link.href)).toEqual(["/playbooks/country/italy", "/playbooks/city/rome"]);
     expect(pair.children.map((link) => link.href)).toEqual([
-      "/playbooks/country/italy/city/rome/meal",
-      "/playbooks/country/italy/city/rome/museum",
+      "/playbooks/country/italy/city/rome/tag/meal",
+      "/playbooks/country/italy/city/rome/tag/museum",
     ]);
 
     const country = latticeNav({ country: ITALY }, lattice);
     expect(country.parents).toEqual([]);
     expect(country.children.map((link) => link.href)).toEqual([
       "/playbooks/country/italy/city/rome",
-      "/playbooks/country/italy/meal",
+      "/playbooks/country/italy/tag/meal",
       "/playbooks/country/italy/city/milan",
     ]);
   });
@@ -92,6 +92,6 @@ describe("latticeNav", () => {
     // A global tag page's refinements are its countries' tag pages.
     const nav = latticeNav({ tag: "meal" }, many);
     expect(nav.children).toHaveLength(12);
-    expect(nav.children[0]?.href).toBe("/playbooks/country/country-0/meal");
+    expect(nav.children[0]?.href).toBe("/playbooks/country/country-0/tag/meal");
   });
 });

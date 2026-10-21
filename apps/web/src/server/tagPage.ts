@@ -14,9 +14,9 @@ import type { TagPage } from "./playbooks";
 import { publishedCountryCityPages, publishedDaysPage, publishedTagPages, tagPageFor } from "./publicLibrary";
 
 // The tag pages (M42 D10): `/playbooks/tag/<tag>`, and the same tag in one
-// city's page, `/playbooks/city/<slug>/<tag>` — and now the country forms of
-// both: `/playbooks/country/<slug>/<tag>`, and a city inside its country,
-// `/playbooks/country/<slug>/city/<city>/<tag>`. A city or country page over a
+// city's page, `/playbooks/city/<slug>/<tag>` — and now the country forms:
+// `/playbooks/country/<slug>/tag/<tag>`, and a city inside its country,
+// `/playbooks/country/<slug>/city/<city>/tag/<tag>`. A city or country page over a
 // tag instead of a place, so it is read, counted, paged and indexed the way
 // `placePage.ts` does those, and drawn by the same list.
 

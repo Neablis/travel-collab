@@ -110,11 +110,15 @@ export function countrySlug(code: string): string | null {
 /**
  * A tag page's path, page one: `/playbooks/tag/<tag>` for the whole library,
  * `/playbooks/city/<slug>/<tag>` for that tag in one city's page, and the
- * country forms of both — `/playbooks/country/<slug>/<tag>`, and
- * `/playbooks/country/<country>/city/<city>/<tag>` for a city inside its
- * country. One convention throughout: singular `tag`, the tag bare under its
- * place, and a `/city/` segment only where the country scope needs it to tell
- * a city slug from a tag.
+ * country forms — `/playbooks/country/<slug>/tag/<tag>`, and
+ * `/playbooks/country/<country>/city/<city>/tag/<tag>` for a city inside its
+ * country. One convention throughout: singular `tag`, with a `/tag/` segment
+ * wherever the tag follows a place — except the legacy city form, whose bare
+ * tag (`/playbooks/city/<slug>/<tag>`) predates this rule and stays exactly
+ * as is, since it is already indexed. A `/city/` segment only where the
+ * country scope needs it to tell a city slug from a tag. A new dimension
+ * after this one takes its own literal segment the same way (`/cost/`, ...),
+ * never a bare position: tag is the last bare dimension.
  */
 export function tagPath(
   tag: ActivityTagDescribed,
@@ -122,8 +126,8 @@ export function tagPath(
   countryPageSlug: string | null = null,
 ): string {
   if (countryPageSlug !== null && citySlug !== null)
-    return `/playbooks/country/${countryPageSlug}/city/${citySlug}/${tag}`;
-  if (countryPageSlug !== null) return `/playbooks/country/${countryPageSlug}/${tag}`;
+    return `/playbooks/country/${countryPageSlug}/city/${citySlug}/tag/${tag}`;
+  if (countryPageSlug !== null) return `/playbooks/country/${countryPageSlug}/tag/${tag}`;
   return citySlug === null ? `/playbooks/tag/${tag}` : `/playbooks/city/${citySlug}/${tag}`;
 }
 

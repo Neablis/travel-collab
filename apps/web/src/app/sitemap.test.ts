@@ -81,8 +81,8 @@ describe("sitemap.xml", () => {
       .filter((path) => path.startsWith("/playbooks/country/"));
     expect(lattice).toEqual([
       "/playbooks/country/italy/city/rome",
-      "/playbooks/country/italy/meal",
-      "/playbooks/country/italy/city/rome/meal",
+      "/playbooks/country/italy/tag/meal",
+      "/playbooks/country/italy/city/rome/tag/meal",
     ]);
   });
 });

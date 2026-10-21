@@ -148,8 +148,8 @@ describe("place URLs", () => {
   it("builds every lattice node's path from the one tag convention", () => {
     expect(tagPath("meal")).toBe("/playbooks/tag/meal");
     expect(tagPath("meal", "kyoto")).toBe("/playbooks/city/kyoto/meal");
-    expect(tagPath("meal", null, "japan")).toBe("/playbooks/country/japan/meal");
-    expect(tagPath("meal", "kyoto", "japan")).toBe("/playbooks/country/japan/city/kyoto/meal");
+    expect(tagPath("meal", null, "japan")).toBe("/playbooks/country/japan/tag/meal");
+    expect(tagPath("meal", "kyoto", "japan")).toBe("/playbooks/country/japan/city/kyoto/tag/meal");
     expect(countryCityPath("japan", "kyoto")).toBe("/playbooks/country/japan/city/kyoto");
   });
 });

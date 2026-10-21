@@ -125,7 +125,7 @@ describe("the SEO lattice", () => {
       page: 1,
     });
     expect(pair.nav?.parents.map((link) => link.href)).toEqual(["/playbooks/country/nauru", `/playbooks/city/${rome}`]);
-    expect(pair.nav?.children.map((link) => link.href)).toEqual([`/playbooks/country/nauru/city/${rome}/meal`]);
+    expect(pair.nav?.children.map((link) => link.href)).toEqual([`/playbooks/country/nauru/city/${rome}/tag/meal`]);
 
     // The country×city×tag listing is the same count, under its own heading.
     const tagged = await countryTagListing({
@@ -134,13 +134,13 @@ describe("the SEO lattice", () => {
     });
     expect(tagged).toMatchObject({
       heading: `${ROME} food playbooks in Nauru`,
-      path: `/playbooks/country/nauru/city/${rome}/meal`,
+      path: `/playbooks/country/nauru/city/${rome}/tag/meal`,
       total: 4,
       page: 1,
     });
     expect(tagged.nav?.parents.map((link) => link.href)).toEqual([
       `/playbooks/country/nauru/city/${rome}`,
-      "/playbooks/country/nauru/meal",
+      "/playbooks/country/nauru/tag/meal",
       `/playbooks/city/${rome}/meal`,
     ]);
 
@@ -152,14 +152,14 @@ describe("the SEO lattice", () => {
     });
     expect(countryTag).toMatchObject({
       heading: "Food playbooks in Nauru",
-      path: "/playbooks/country/nauru/meal",
+      path: "/playbooks/country/nauru/tag/meal",
       total: 5,
       page: 1,
     });
     expect(countryTag.nav?.parents.map((link) => link.href)).toEqual(["/playbooks/country/nauru", "/playbooks/tag/meal"]);
     expect(countryTag.nav?.children.map((link) => link.href)).toEqual([
-      `/playbooks/country/nauru/city/${rome}/meal`,
-      `/playbooks/country/nauru/city/${milan}/meal`,
+      `/playbooks/country/nauru/city/${rome}/tag/meal`,
+      `/playbooks/country/nauru/city/${milan}/tag/meal`,
     ]);
 
     // And the bare city page links down to its countries, not just its tags:
