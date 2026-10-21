@@ -131,7 +131,8 @@ describe("GET /api/trips/:id/cover/search", () => {
   });
 
   it("429s once the person's Unsplash search quota is spent", async () => {
-    vi.stubEnv("UNSPLASH_SEARCH_RATE_LIMIT_PER_USER_HOURLY", "2");
+    // The paid ceiling: the owner is entitled (`entitleAccounts` above).
+    vi.stubEnv("UNSPLASH_SEARCH_RATE_LIMIT_PAID_PER_USER_HOURLY", "2");
     const tripId = await seedTrip();
     expect((await search(tripId)).status).toBe(200);
     expect((await search(tripId)).status).toBe(200);
@@ -143,7 +144,7 @@ describe("GET /api/trips/:id/cover/search", () => {
   // PR #352 review: picks once shared the search quota, so ten searches left
   // the person unable to keep what they found.
   it("still takes a pick once the person's searches are spent", async () => {
-    vi.stubEnv("UNSPLASH_SEARCH_RATE_LIMIT_PER_USER_HOURLY", "2");
+    vi.stubEnv("UNSPLASH_SEARCH_RATE_LIMIT_PAID_PER_USER_HOURLY", "2");
     const tripId = await seedTrip();
     const [first] = await candidates(tripId);
     expect((await search(tripId)).status).toBe(200);
