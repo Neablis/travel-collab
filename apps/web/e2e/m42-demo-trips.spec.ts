@@ -234,7 +234,7 @@ test.describe("the front door, signed out (M42)", () => {
   // Mitchell's walk of PR 510 at 7260011: the second moment read "white text
   // on white background". The assistant's worked example (M51 part 6), risen at
   // the screen's middle, passes axe at the product's WCAG level, every impact:
-  // its conversation, its ghost stops and its inert Accept and Dismiss.
+  // its conversation, its ghost stops and its working Accept and Dismiss.
   test("the assistant moment passes axe once it has risen", async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto("/");

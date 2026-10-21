@@ -1,6 +1,6 @@
 "use client";
 
-import { cloneElement, type ReactElement } from "react";
+import { cloneElement, useEffect, useRef, useState, type ReactElement } from "react";
 import { Transcript, type AssistantTurn } from "@/components/assistant/Transcript";
 import type { BoardSuggestions } from "@/components/board/DayRiver";
 import { ReviewButtons } from "@/components/board/ReviewButtons";
@@ -11,6 +11,7 @@ import { TripPeopleBlock } from "@/components/pages/blocks/TripPeopleBlock";
 import { TripStripBlock } from "@/components/pages/blocks/TripStripBlock";
 import { FixedPeopleProvider } from "@/components/pages/people";
 import { Segs } from "@/components/pages/WidgetSegs";
+import { Button } from "@/components/ui/button";
 import { DataText } from "@/components/ui/data-text";
 import { Heading } from "@/components/ui/heading";
 import { Text } from "@/components/ui/text";
@@ -62,30 +63,50 @@ export function FindADayPanel(): React.ReactElement {
 
 const { assistant } = LANDING_FEATURES;
 const ASSISTANT_ACCENTS = snapshotAccents({ [assistant.river.dayId]: assistant.accent });
-// Day 1 from nine to half past nine at night beside the conversation, in the
-// moment's four rows at 1440. At the crew's 29px an hour a ghost's title and
-// its "Suggested" badge did not fit its block, and were clipped; at 34 the
-// assistant's 90-minute stops hold both.
-const ASSISTANT_PX_PER_HOUR = 34;
+// Day 1's axis, nine to ten at night, filling its panel: the moment is at
+// least the 690px `LandingSea`'s STORIES declares, which less its heading,
+// the panel's head and padding leaves some 525px for thirteen hours. Whole
+// rows can only make the moment taller, so the day never runs past its foot.
+// (At the crew's 29px an hour a ghost's title and "Suggested" badge were
+// clipped; at 40 a 90-minute stop holds both.)
+const ASSISTANT_PX_PER_HOUR = 40;
 const ASSISTANT_TURNS: AssistantTurn[] = [
   { id: "ask", role: "user", text: assistant.ask },
   { id: "answer", role: "assistant", text: assistant.answer, tools: [], pending: false, suggested: assistant.suggested },
 ];
-const nothing = () => {};
-/** No tab stops: the example decides nothing (PR 510 r6: seven stops in the make moment that did nothing). */
-const INERT = -1;
+/** The note's pointer: the board's suggestions chip is not on this page; the Accept and Dismiss under the note are. */
+const ASSISTANT_EXAMPLE = { review: "Accept or dismiss each below. It is an example, so nothing is saved." };
+type AssistantGhost = (typeof assistant.ghosts)[number];
+type Decision = "accepted" | "dismissed";
+
 /**
- * The ghosts on the river as the board lays them, each wrapped as the board
- * wraps one, but in no popover: here its Accept and Dismiss are listed beside
- * the day, where they can be seen without a click the example cannot take.
+ * The pending ghosts on the river as the board lays them, each wrapped as the
+ * board wraps one, but in no popover: here its Accept and Dismiss are listed
+ * beside the day, so the ghost is a picture of one, with no tab stop and no
+ * hover or pointer promising a popover.
  */
-const ASSISTANT_SUGGESTIONS: BoardSuggestions = {
-  days: new Map([[assistant.river.dayId, assistant.ghosts]]),
-  stops: new Map(),
-  newDays: [],
-  review: (_ghosts, trigger) => cloneElement(trigger as ReactElement<{ tabIndex?: number }>, { tabIndex: INERT }),
-  actions: () => null,
-};
+function assistantSuggestions(pending: readonly AssistantGhost[]): BoardSuggestions {
+  return {
+    days: new Map([[assistant.river.dayId, pending]]),
+    stops: new Map(),
+    newDays: [],
+    review: (_ghosts, trigger) => {
+      const ghost = trigger as ReactElement<{ tabIndex?: number; className?: string }>;
+      return cloneElement(ghost, { tabIndex: -1, className: cn(ghost.props.className, "pointer-events-none") });
+    },
+    actions: () => null,
+  };
+}
+
+/** The demo day with the accepted ghosts as planned stops on it, as accepting one on the board makes it. */
+function withAccepted(accepted: readonly AssistantGhost[]): typeof assistant.river {
+  if (accepted.length === 0) return assistant.river;
+  return {
+    ...assistant.river,
+    activityIds: [...assistant.river.activityIds, ...accepted.map((ghost) => ghost.activity!.activityId)],
+    activities: { ...assistant.river.activities, ...Object.fromEntries(accepted.map((ghost) => [ghost.activity!.activityId, ghost.activity!])) },
+  };
+}
 
 /**
  * The assistant moment (Mitchell, 2026-10-21: *"make it about the ai
@@ -94,27 +115,68 @@ const ASSISTANT_SUGGESTIONS: BoardSuggestions = {
  * built"*). The app's own transcript, asking for more of the Rome trip's Day 1
  * and answering with stops it put on the board as a suggestion (ADR-067); the
  * board's own river drawing them as ghosts; and the reviewer's Accept and
- * Dismiss for each. Canned (`landingFeatures.generated.json`), so `/` fetches
- * nothing, and inert: every control is out of the tab order and does nothing,
- * and the group says it is an example.
+ * Dismiss for each, which work (PR 514 r1, after Mitchell's *"two dropdowns
+ * that dont work"*): Accept makes the ghost a planned stop on the river,
+ * Dismiss takes it off, and a reset brings both back. Canned
+ * (`landingFeatures.generated.json`) and decided in this component's state
+ * alone, so `/` fetches nothing (ADR-078); the group says it is an example.
  */
 export function AssistantPanel(): React.ReactElement {
+  const [decided, setDecided] = useState<Readonly<Record<string, Decision>>>({});
+  const [said, setSaid] = useState("");
+  // Where focus goes once the button that held it has left the page.
+  const focusNext = useRef<"reset" | "first" | null>(null);
+  const resetRef = useRef<HTMLButtonElement>(null);
+  const listRef = useRef<HTMLUListElement>(null);
+  useEffect(() => {
+    if (focusNext.current === "reset") resetRef.current?.focus();
+    if (focusNext.current === "first") listRef.current?.querySelector("button")?.focus();
+    focusNext.current = null;
+  }, [decided]);
+  const pending = assistant.ghosts.filter((ghost) => decided[ghost.changeId] === undefined);
+
+  function decide(ghost: AssistantGhost, decision: Decision) {
+    focusNext.current = "reset";
+    setDecided((was) => ({ ...was, [ghost.changeId]: decision }));
+    setSaid(decision === "accepted" ? `Accepted: ${ghost.activity?.title} is on Day 1.` : `Dismissed: ${ghost.activity?.title}.`);
+  }
+  function reset() {
+    focusNext.current = "first";
+    setDecided({});
+    setSaid("The suggestions are back.");
+  }
+
   return (
     <div role="group" aria-label="An example: the assistant suggests two stops for Day 1" className="grid min-h-0 flex-1 grid-cols-2 gap-5">
       <div className="flex min-h-0 min-w-0 flex-col gap-4">
-        <Transcript turns={ASSISTANT_TURNS} />
-        <ul aria-label="Suggested changes" className="m-0 flex list-none flex-col gap-3 p-0">
-          {assistant.ghosts.map((ghost) => (
-            <li key={ghost.changeId} className="flex flex-col gap-1.5">
-              <Text as="span" className="text-sm text-ink">
-                {ghost.description}
-              </Text>
-              <div className="flex flex-wrap gap-1.5">
-                <ReviewButtons description={ghost.description} accept={{ onClick: nothing }} dismiss={{ onClick: nothing }} tabIndex={INERT} />
-              </div>
-            </li>
-          ))}
-        </ul>
+        <Transcript turns={ASSISTANT_TURNS} example={ASSISTANT_EXAMPLE} />
+        {pending.length > 0 && (
+          <ul ref={listRef} aria-label="Suggested changes" className="m-0 flex list-none flex-col gap-3 p-0">
+            {pending.map((ghost) => (
+              <li key={ghost.changeId} className="flex flex-col gap-1.5">
+                {/* Pending, so not the change's own "Added …" sentence, which reads as done. */}
+                <Text as="span" className="text-sm text-ink">
+                  {`Suggested: ${ghost.activity?.title}`}
+                </Text>
+                <div className="flex flex-wrap gap-1.5">
+                  <ReviewButtons
+                    description={ghost.description}
+                    accept={{ onClick: () => decide(ghost, "accepted") }}
+                    dismiss={{ onClick: () => decide(ghost, "dismissed") }}
+                  />
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+        {pending.length < assistant.ghosts.length && (
+          <Button ref={resetRef} variant="secondary" size="sm" className="self-start" onClick={reset}>
+            Show the suggestions again
+          </Button>
+        )}
+        <p role="status" className="sr-only">
+          {said}
+        </p>
       </div>
       <div className={cn(SURFACE, "flex min-h-0 min-w-0 flex-col")}>
         <div className="flex items-center gap-2.5 border-b border-hairline px-3.5 py-2.5">
@@ -125,12 +187,12 @@ export function AssistantPanel(): React.ReactElement {
         </div>
         <div className="px-3.5 py-3">
           <LandingRiver
-            day={assistant.river}
+            day={withAccepted(assistant.ghosts.filter((ghost) => decided[ghost.changeId] === "accepted"))}
             people={{}}
             dayAccents={ASSISTANT_ACCENTS}
             dayCurrency={assistant.currency}
             pxPerHour={ASSISTANT_PX_PER_HOUR}
-            suggestions={ASSISTANT_SUGGESTIONS}
+            suggestions={assistantSuggestions(pending)}
           />
         </div>
       </div>

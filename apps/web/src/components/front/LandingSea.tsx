@@ -106,7 +106,8 @@ const SPAN: Record<SeaCellSize, string> = {
 // his Florence, Amalfi and Bologna ones (his fourth walk: *"use these rome days
 // for the card and the accent cards around it"*); the assistant works on a trip
 // borrowed from that Rome playbook, and lights three other Italian cities'
-// days, Rome's among them; the crew's river is Elena's Naxos day, and it lights
+// days, none of them Rome's, whose Forum and Testaccio are the moment's own
+// stops (PR 514 r1); the crew's river is Elena's Naxos day, and it lights
 // three other Greek ones; the notebook lights the demo's three Japan days.
 const GREECE = SEA_DAYS.filter((cell) => cell.group === "greek-islands");
 const dayOf = (group: string) => SEA_DAYS.find((cell) => cell.group === group)!;
@@ -117,7 +118,7 @@ const ITALY = [
   dayOf("3-days-on-the-amalfi-coast-cliff-towns-lemon-groves-the-path-of-the-gods"),
   dayOf("3-days-in-bologna-tortellini-mortadella-market-mornings"),
 ];
-const ITALIAN_CITIES = ["Rome:", "Naples:", "Venice:"].map((name) => SEA_DAYS.find((cell) => cell.group === "italy-cities" && cell.day.name.startsWith(name))!);
+const ITALIAN_CITIES = ["Naples:", "Venice:", "Sicily's east:"].map((name) => SEA_DAYS.find((cell) => cell.group === "italy-cities" && cell.day.name.startsWith(name))!);
 const NAXOS = GREECE.find((cell) => cell.day.name.startsWith("Naxos"))!;
 const GREEK = GREECE.filter((cell) => cell !== NAXOS);
 
@@ -278,13 +279,14 @@ const SERVER_METRICS: SeaMetrics = { cols: 6, unit: (1100 - 2 * PAD - 5 * GAP) /
 // columns, five from 12, six from 16), or the full width, how tall its
 // content is drawn in px, which sets its rows, and where it sits. The crew's
 // 680px is four rows at 1440 (Mitchell's third walk: *"Cut it one row
-// shorter"*), as is the assistant's 600, which holds its conversation beside
-// the day from nine to half past nine. The pricing's
+// shorter"*), as is the assistant's 690, which its day from nine to ten
+// fills (PR 514 r1: at 600, four rows left the river 90px short of its
+// panel's foot). The pricing's
 // 480 is three rows at every unit, one fewer than it had (his fourth: *"Too
 // much dead space, shrink the whole container down 1 row"*).
 const STORIES: { id: StoryId; extra: number | null; height: number; align: "left" | "right" | "center" }[] = [
   { id: "sea-find", extra: 1, height: 480, align: "left" },
-  { id: "sea-assistant", extra: 1, height: 600, align: "right" },
+  { id: "sea-assistant", extra: 1, height: 690, align: "right" },
   { id: "sea-crew", extra: 1, height: 680, align: "center" },
   { id: "sea-notebook", extra: 2, height: 640, align: "left" },
   { id: "pricing", extra: 2, height: 480, align: "center" },

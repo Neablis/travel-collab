@@ -1,11 +1,13 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderToString } from "react-dom/server";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { playbookIdFor } from "@tc/fixtures";
+import { haversineKm } from "@/lib/geo";
 import { LANDING_FEATURES } from "@/lib/landingDemo";
+import type { Ghost as SuggestionGhost } from "@/lib/suggestionOverlay";
 import { LANDING_SEA, SEA_ACCENTS, SEA_DAYS } from "@/lib/landingSea";
 import { dayPath, parseDaySegment } from "@/lib/playbookUrls";
 import { FIRST_SCREEN, FIRST_SCREEN_ROWS, HERO, LandingSea, SEA_REGIONS, firstScreenAccents, layoutSea, momentRise, seaDim, type SeaArea } from "./LandingSea";
@@ -60,6 +62,26 @@ const backgroundNames = (lit: Set<string>) =>
   [...new Set(FIRST_DAYS.filter((cell) => !lit.has(cell.day.savedDayId)).map((cell) => cell.day.name))].filter(
     (name) => name !== LANDING_FEATURES.shelf.name,
   );
+
+type Place = { lat?: number; lng?: number };
+type BundleStop = { title: string; location?: Place };
+/** Every playbook in the checked-in content, by the id the sea's cards carry, with its bundle and every stop. */
+const PLAYBOOKS = readdirSync(resolve(__dirname, "../../../../../content/playbooks"))
+  .filter((file) => file.endsWith(".json"))
+  .flatMap((file) => {
+    const doc = JSON.parse(readFileSync(resolve(__dirname, "../../../../../content/playbooks", file), "utf8")) as {
+      bundle: { id: string };
+      playbooks: { key: string; stops?: BundleStop[]; days?: { stops: BundleStop[] }[] }[];
+    };
+    return doc.playbooks.map((playbook) => ({
+      id: playbookIdFor(doc.bundle.id, playbook.key),
+      bundle: doc.bundle.id,
+      stops: playbook.stops ?? playbook.days!.flatMap((day) => day.stops),
+    }));
+  });
+/** How far apart two places are, or Infinity where either has no coordinates. */
+const metres = (a: Place | null | undefined, b: Place | null | undefined) =>
+  a?.lat === undefined || a.lng === undefined || b?.lat === undefined || b.lng === undefined ? Infinity : haversineKm({ lat: a.lat, lng: a.lng }, { lat: b.lat, lng: b.lng }) * 1000;
 
 /** The assistant moment's heading. */
 const ASSISTANT = "Ask for more, keep what fits.";
@@ -227,13 +249,93 @@ describe("the sea's moments", () => {
       expect(moment.getByRole("button", { name: `Accept: ${description}` })).toBeDefined();
       expect(moment.getByRole("button", { name: `Dismiss: ${description}` })).toBeDefined();
     }
-    const lit = litCells().filter((cell) => cell.getAttribute("data-lit-for") === "sea-assistant");
-    expect(lit.map((cell) => cell.getAttribute("data-region"))).toEqual(lit.map(() => "italy-cities"));
+    // PR 514 r1: the note pointed at a trip header this page has not got, and
+    // a live region read the whole answer out a second time.
+    expect(moment.getByRole("group", { name: "Suggestions on the board" }).textContent).not.toMatch(/trip header/);
+    expect(moment.queryAllByRole("status").filter((status) => status.textContent!.includes(LANDING_FEATURES.assistant.answer))).toEqual([]);
   });
 
-  // The example decides nothing, so a keyboard passes over all of it (PR 510
-  // r6: seven tab stops in the make moment that did nothing).
-  it("keeps the assistant's example out of the tab order", WHOLE_SEA, async () => {
+  // PR 514 r1: a test that read only each lit day's region passed with none lit.
+  it("lights three other Italian cities' days beside the assistant", () => {
+    render(<LandingSea />);
+    const lit = litCells().filter((cell) => cell.getAttribute("data-lit-for") === "sea-assistant");
+    expect(lit.map((cell) => cell.getAttribute("data-region"))).toEqual(["italy-cities", "italy-cities", "italy-cities"]);
+    const city = (id: string) => SEA_DAYS.find((cell) => cell.day.savedDayId === id)!.day.name.split(":")[0];
+    expect(lit.map((cell) => city(dayOf(cell))).sort()).toEqual(["Naples", "Sicily's east", "Venice"]);
+  });
+
+  // Mitchell's third walk of PR 510, "The banner to left is the same activity
+  // to right", which PR 514 r1 found again: the lit Rome day's Forum and
+  // Testaccio beside the moment's own. A venue within 250m is the same one.
+  it("lights no day beside the assistant that shares a stop or a playbook with its trip", () => {
+    render(<LandingSea />);
+    const { river, ghosts } = LANDING_FEATURES.assistant;
+    const own = [...river.activityIds.map((id) => river.activities[id]!), ...ghosts.map((ghost) => ghost.activity!)];
+    const lit = litCells()
+      .filter((cell) => cell.getAttribute("data-lit-for") === "sea-assistant")
+      .map(dayOf);
+    expect(lit).toHaveLength(3);
+    const borrowed = PLAYBOOKS.filter((day) => day.bundle === PLAYBOOKS.find((of) => of.id === LANDING_FEATURES.shelf.savedDayId)!.bundle);
+    expect(lit.filter((id) => borrowed.some((day) => day.id === id))).toEqual([]);
+    const shared = lit.flatMap((id) =>
+      PLAYBOOKS.find((day) => day.id === id)!.stops.flatMap((stop) =>
+        own
+          .filter((mine) => mine.title === stop.title || metres(mine.location, stop.location) < 250)
+          .map((mine) => `${stop.title} ~ ${mine.title}`),
+      ),
+    );
+    expect(shared).toEqual([]);
+  });
+
+  // Mitchell, 2026-10-21: the old moment was "two dropdowns that dont work".
+  // The example's Accept and Dismiss work, on the page alone (ADR-078: `/`
+  // fetches nothing), and a reset brings the suggestions back.
+  describe("the assistant's suggestions, decided on the page", () => {
+    const [first, second] = LANDING_FEATURES.assistant.ghosts as [SuggestionGhost, SuggestionGhost];
+    async function assistantMoment() {
+      render(<LandingSea />);
+      const moment = within(screen.getByRole("region", { name: ASSISTANT }));
+      const river = within(await moment.findByRole("list", { name: "Day 1 timeline" }));
+      return { moment, river };
+    }
+
+    it("accepting one makes it a planned stop on the river", async () => {
+      const fetch = vi.fn();
+      vi.stubGlobal("fetch", fetch);
+      const { moment, river } = await assistantMoment();
+      await userEvent.click(moment.getByRole("button", { name: `Accept: ${first.description}` }));
+      expect(river.queryByRole("button", { name: `Suggested: ${first.description}` })).toBeNull();
+      expect(river.getByTestId(`activity-card-${first.activityId}`).textContent).toContain(first.activity!.title);
+      expect(moment.queryByRole("button", { name: `Accept: ${first.description}` })).toBeNull();
+      expect(river.getByRole("button", { name: `Suggested: ${second.description}` })).toBeDefined();
+      expect(fetch).not.toHaveBeenCalled();
+    });
+
+    it("dismissing one takes it off the river", async () => {
+      const { moment, river } = await assistantMoment();
+      await userEvent.click(moment.getByRole("button", { name: `Dismiss: ${second.description}` }));
+      expect(river.queryByRole("button", { name: `Suggested: ${second.description}` })).toBeNull();
+      expect(river.queryByTestId(`activity-card-${second.activityId}`)).toBeNull();
+      expect(moment.queryByRole("button", { name: `Dismiss: ${second.description}` })).toBeNull();
+    });
+
+    it("brings both back from the reset", async () => {
+      const { moment, river } = await assistantMoment();
+      await userEvent.click(moment.getByRole("button", { name: `Accept: ${first.description}` }));
+      await userEvent.click(moment.getByRole("button", { name: `Dismiss: ${second.description}` }));
+      await userEvent.click(moment.getByRole("button", { name: "Show the suggestions again" }));
+      expect(river.queryByTestId(`activity-card-${first.activityId}`)).toBeNull();
+      for (const ghost of [first, second]) {
+        expect(river.getByRole("button", { name: `Suggested: ${ghost.description}` })).toBeDefined();
+        expect(moment.getByRole("button", { name: `Accept: ${ghost.description}` })).toBeDefined();
+      }
+    });
+  });
+
+  // The example's Accept and Dismiss are real now, so Tab reaches them, and
+  // nothing else in the moment: not its ghosts, which the list beside them
+  // decides, nor the transcript (PR 510 r6: seven tab stops that did nothing).
+  it("puts only the assistant's Accept and Dismiss in the tab order", WHOLE_SEA, async () => {
     render(<LandingSea />);
     const region = screen.getByRole("region", { name: ASSISTANT });
     await within(region).findByRole("log", { name: "Conversation" });
@@ -245,7 +347,9 @@ describe("the sea's moments", () => {
       stops.add(at.getAttribute("aria-label") ?? at.textContent ?? at.tagName);
     });
     for (let i = 0; i < 60; i++) await userEvent.tab();
-    expect([...stops]).toEqual([]);
+    expect([...stops]).toEqual(
+      LANDING_FEATURES.assistant.ghosts.flatMap((ghost) => [`Accept: ${ghost.description}`, `Dismiss: ${ghost.description}`]),
+    );
   });
 
   // Mitchell, 2026-10-21: M51 drops "Make this your trip" and the onboarding behind it.

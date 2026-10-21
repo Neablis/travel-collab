@@ -26,7 +26,14 @@ export function suggestedWords({ changeCount, snapshotName }: AssistantSuggested
  * dismissing any, stays in the header's suggestions chip. A skipped snapshot
  * is said too, in the server's own sentence.
  */
-export function SuggestedNote({ suggested }: { suggested: AssistantSuggested }) {
+export function SuggestedNote({
+  suggested,
+  hint = "Open the suggestions in the trip header to review them, and accept or dismiss each.",
+}: {
+  suggested: AssistantSuggested;
+  /** Where to review them, where there is no trip header to point at. */
+  hint?: string | undefined;
+}) {
   const accept = useAcceptAll();
   const [accepted, setAccepted] = useState(false);
   const offer = accept !== null && !accepted && (accept.acceptable.length > 0 || accept.accepting);
@@ -48,7 +55,7 @@ export function SuggestedNote({ suggested }: { suggested: AssistantSuggested }) 
         <p className="pt-0.5 text-a-note text-pretty text-brand-pressed">
           {offer
             ? "Accept them all here, or open the suggestions in the trip header to pick some or dismiss them."
-            : "Open the suggestions in the trip header to review them, and accept or dismiss each."}
+            : hint}
         </p>
       )}
       {offer && (

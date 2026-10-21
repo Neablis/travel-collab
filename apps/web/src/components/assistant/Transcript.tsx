@@ -253,6 +253,7 @@ export function Transcript({
   touch = false,
   renderTurnFooter,
   look = "prose",
+  example = null,
 }: {
   turns: AssistantTurn[];
   /** Commits the turn's proposal as one atomic batch. Keyed by turn id. */
@@ -299,6 +300,13 @@ export function Transcript({
    * other two surfaces.
    */
   look?: "prose" | "chat";
+  /**
+   * A conversation shown, not had: the front door's canned example (M51). It
+   * says where its suggestions are decided, since no trip header is on that
+   * page, and it announces nothing, since nobody asked and a screen reader
+   * already reads the answer in the log.
+   */
+  example?: { review: string } | null;
 }) {
   const chat = look === "chat";
   return (
@@ -402,7 +410,7 @@ export function Transcript({
                 {...(onUndoProposal === undefined ? {} : { onUndo: () => onUndoProposal(turn.id) })}
               />
             )}
-            {turn.suggested != null && <SuggestedNote suggested={turn.suggested} />}
+            {turn.suggested != null && <SuggestedNote suggested={turn.suggested} hint={example?.review} />}
             {/* Its own decision and its own handler, held beside the palette
                 registry, so no surface has to wire an Approve for it. */}
             {turn.offers?.map((offer) => <CommandCard key={offer.key} offer={offer} touch={touch} />)}
@@ -423,9 +431,11 @@ export function Transcript({
       </div>
       {/* The one live region. `sr-only` because everything it says is already
           on screen — its job is timing, not content a sighted user is missing. */}
-      <p role="status" aria-atomic className="sr-only">
-        {announcementFor(turns, chat)}
-      </p>
+      {example === null && (
+        <p role="status" aria-atomic className="sr-only">
+          {announcementFor(turns, chat)}
+        </p>
+      )}
     </>
   );
 }
