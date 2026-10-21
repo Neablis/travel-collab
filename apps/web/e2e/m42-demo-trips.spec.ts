@@ -1,3 +1,4 @@
+import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "./fixtures/test";
 
 // M42's front door, walked by somebody with no account: the `/demo` picker,
@@ -20,8 +21,11 @@ const DEMOS = [
   { slug: "thailand-andaman", name: "Thailand: Bangkok → Krabi → Koh Lanta", description: "Food & beach", days: "10 days" },
 ];
 
-/** The Playbooks block's day, Mitchell's Hanoi playbook (`scripts/landing-day.json`). */
+/** The phone's Playbooks claim, Mitchell's Hanoi playbook (`scripts/landing-day.json`). */
 const PLAYBOOK = /^Hanoi in 4 days/;
+
+/** The sea's first moment's banner, the Rome playbook `scripts/landing-demo.ts` names in `content/playbooks/`. */
+const BANNER = /^3 days in Rome: emperors, gladiators/;
 
 test.describe("the front door, signed out (M42)", () => {
   test.use({ storageState: { cookies: [], origins: [] } });
@@ -85,12 +89,12 @@ test.describe("the front door, signed out (M42)", () => {
     await expect(pricing.getByTestId("plan-summary")).toContainText(/Free.*\/ month.*\/ month/);
   });
 
-  // Part 9: the feature blocks are the app's own river, Discover card and
+  // M51: the sea's moments are the app's own Discover card, river and
   // notebook page, from the committed snapshots — server-rendered, so they
   // hydrate rather than swap in. A hydration mismatch shows up as React's
   // minified errors in a production build (418, 423, 425) or as an uncaught
   // page error, so both are listened for.
-  test("the landing's feature blocks show the app itself, and hydrate cleanly", async ({ page }) => {
+  test("the sea's moments show the app itself, and hydrate cleanly", async ({ page }) => {
     const hydration: string[] = [];
     page.on("console", (message) => {
       if (message.type() === "error" && /hydrat|Minified React error #(418|423|425)/i.test(message.text())) {
@@ -98,51 +102,186 @@ test.describe("the front door, signed out (M42)", () => {
       }
     });
     page.on("pageerror", (error) => hydration.push(error.message));
-    await page.goto("/");
-    const landing = page.getByTestId("desktop-landing");
-    await expect(
-      landing.getByRole("region", { name: "The trip starts before the trip." }).getByRole("list", { name: "Day 7 timeline" }),
-    ).toBeVisible();
-    await expect(landing.getByRole("region", { name: "Relive someone’s perfect day." }).getByRole("link", { name: PLAYBOOK })).toBeVisible();
-    // The day's stop, not the words that name it too (M50 part 9).
-    await expect(
-      landing.getByRole("region", { name: "How you’ll remember it." }).getByRole("listitem").filter({ hasText: "Check in at Gora Kadan" }),
-    ).toBeVisible();
-    // Hydration has run once the hero's pills answer a click.
-    await landing.getByRole("button", { name: "Day 7" }).click();
-    await expect(landing.getByRole("button", { name: "Day 7" })).toHaveAttribute("aria-pressed", "true");
-    expect(hydration).toEqual([]);
-    // The Playbooks card's cover is Unsplash's CDN, not its API: nothing on
-    // the landing asks Unsplash anything (`LandingScreen.test.tsx`'s fetch spy;
-    // in a browser the CSP's `connect-src` would refuse it before a request).
-    const cover = landing.getByRole("region", { name: "Relive someone’s perfect day." }).getByRole("img", { name: "a group of people walking down a train track" });
-    expect(await cover.getAttribute("src")).toMatch(/^https:\/\/images\.unsplash\.com\//);
-  });
-
-  // Mitchell, on the preview: the feature cards read as cards, not as halves
-  // of the page. At 1440px each card is at most 480px wide, and the row of
-  // them sits in the middle of the page. The two spreads are exempt, and only
-  // they: their ground running edge to edge is M50 part 5's decision, so the
-  // test first holds that they are the blocks marked `data-layout="spread"`.
-  test("the landing's feature cards keep a card's width and sit centred on a wide screen", async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto("/");
     const landing = page.getByTestId("desktop-landing");
-    for (const title of ["Relive someone’s perfect day.", "How you’ll remember it."]) {
-      await expect(landing.getByRole("region", { name: title })).toHaveAttribute("data-layout", "spread");
-    }
-    const boxes = [];
-    for (const title of ["The trip starts before the trip.", "Too excited to sleep."]) {
-      const card = landing.getByRole("region", { name: title });
-      await expect(card).toBeVisible();
-      await expect(card).not.toHaveAttribute("data-layout", "spread");
-      boxes.push((await card.boundingBox())!);
-    }
-    for (const box of boxes) expect(box.width).toBeLessThanOrEqual(480);
-    const left = Math.min(...boxes.map((b) => b.x));
-    const right = Math.max(...boxes.map((b) => b.x + b.width));
-    const pageWidth = await page.evaluate(() => document.documentElement.clientWidth);
-    expect(Math.abs(left - (pageWidth - right))).toBeLessThanOrEqual(2);
+    // Hydrated before `hydration` is read: only the sea's scroll listener,
+    // attached by an effect, ever moves `--sea-dim` off its authored 0.
+    await page.evaluate(() => window.scrollTo(0, window.innerHeight));
+    await expect
+      .poll(() => landing.getByTestId("sea-scrim").evaluate((scrim: HTMLElement) => scrim.style.getPropertyValue("--sea-dim")))
+      .not.toBe("0");
+    await expect(landing.getByRole("region", { name: "Find a day worth borrowing." }).getByRole("link", { name: BANNER }).first()).toBeVisible();
+    await expect(landing.getByRole("region", { name: "Everyone going, one plan." }).getByRole("list", { name: "Day 2 timeline" })).toBeVisible();
+    // The day's stop, not the words that name it too (M50 part 9).
+    await expect(
+      landing.getByRole("region", { name: "Keep the notebook afterwards." }).getByRole("listitem").filter({ hasText: "Check in at Gora Kadan" }),
+    ).toBeVisible();
+    expect(hydration).toEqual([]);
+  });
+
+  // Decision 10: a linked cell is a door to its day's canonical page, with
+  // nothing after the path (ADR-063's cache serves only a query-less one), and
+  // the Japan cells, whose days exist only in the dev fixtures, open nothing.
+  // An accent opens its country, city or tag page (Mitchell's third walk).
+  // The e2e database imports no `content/`, so a click would open a 404 and
+  // prove nothing: the door is asserted by where it goes. The background's
+  // doors are out of the accessibility tree, so they are read as anchors.
+  test("every sea cell opens its day's canonical page, and the Japan cells none", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto("/");
+    const sea = page.getByTestId("desktop-landing").getByTestId("landing-sea");
+    // The Japan days are lit around the notebook, in cells of their own.
+    const kyoto = sea.locator('[data-lit-for="sea-notebook"]').filter({ has: page.getByRole("heading", { name: "Kyoto temples on foot" }) });
+    await kyoto.scrollIntoViewIfNeeded();
+    await expect(kyoto).toBeVisible();
+    await expect(sea.getByRole("link", { name: "Kyoto temples on foot" })).toHaveCount(0);
+
+    const hrefs = (await sea.locator("a").evaluateAll((links) => links.map((link) => link.getAttribute("href") ?? "")))
+      .filter((href) => href.startsWith("/playbooks/"));
+    expect(hrefs.length).toBeGreaterThan(48);
+    for (const href of hrefs) expect(href).toMatch(/^\/playbooks\/(day|country|city|tag)\/[a-z0-9-]+$/);
+    // By test id: an accent is background, out of the accessibility tree.
+    const accents = await sea.getByTestId("sea-accent").locator("a").evaluateAll((links) => links.map((link) => link.getAttribute("href")));
+    expect(accents.length).toBeGreaterThan(0);
+    for (const href of accents) expect(href).toMatch(/^\/playbooks\/(country|city|tag)\/[a-z0-9-]+$/);
+  });
+
+  // The sea's grid decides every cell's size, and what a cell holds fills it
+  // (Mitchell's walk of PR 510): a moment's panel, its river, its notebook
+  // page and the pricing are drawn whole inside the cell they are given, with
+  // nothing clipped at a foot, at the gate's widths. `sr-only` is clipped by
+  // design and is not looked at. The notebook's page is the one exception
+  // (Mitchell's third walk: *"dont be afraid to make it too long, but clip it
+  // at bottom so it fades out at the real edge"*): it runs on past its cell
+  // and fades out at the cell's own foot, which the cell keeps.
+  for (const [width, height, cols] of [
+    [1440, 900, 8],
+    [3440, 1440, 19],
+  ] as const) {
+    test(`every story cell holds what it shows at ${width}`, async ({ page }) => {
+      await page.setViewportSize({ width, height });
+      await page.goto("/");
+      const sea = page.getByTestId("desktop-landing").getByTestId("landing-sea");
+      // Packed for this width: the server's HTML is packed for six columns.
+      await expect(sea.getByTestId("sea-grid")).toHaveAttribute("data-cols", String(cols));
+      await expect(sea.getByRole("region", { name: "Everyone going, one plan." }).getByRole("list", { name: "Day 2 timeline" })).toBeAttached();
+      await expect(sea.getByTestId("notebook-page")).toBeAttached();
+      const stories = sea.getByTestId("sea-story");
+      await expect(stories).toHaveCount(6);
+      const clipped = await stories.evaluateAll((cells) =>
+        cells.flatMap((cell) =>
+          [cell, ...cell.querySelectorAll<HTMLElement>("*")]
+            .filter((el) => !el.classList.contains("sr-only") && getComputedStyle(el).overflowY !== "visible")
+            .filter((el) => !el.closest(".landing-sea-fade"))
+            .filter((el) => el.scrollHeight - el.clientHeight > 1)
+            .map((el) => `${cell.getAttribute("aria-labelledby") ?? cell.textContent!.slice(0, 24)}: ${el.tagName} ${el.scrollHeight - el.clientHeight}px`),
+        ),
+      );
+      expect(clipped).toEqual([]);
+      const notebook = await sea.getByTestId("notebook-page").evaluate((page) => {
+        // The panel, which fills the cell and carries the rise.
+        const cell = page.closest("[data-rise]")!.getBoundingClientRect();
+        return {
+          overflows: page.scrollHeight - page.clientHeight > 100,
+          masked: getComputedStyle(page).maskImage.startsWith("linear-gradient"),
+          atTheFoot: Math.abs(page.getBoundingClientRect().bottom - cell.bottom) <= 1,
+        };
+      });
+      expect(notebook).toEqual({ overflows: true, masked: true, atTheFoot: true });
+    });
+  }
+
+  // A lit day is a tab stop, so it must be drawn whole: one cut off by a
+  // clipping box would take focus out of sight and scroll that box out of
+  // place. At 1440, and at 1100, where the grid is six columns. The count
+  // comes first: the walk proves nothing if no lit cell is a door. The big
+  // banner card, then the Italian, Thai and Greek days lit around the moments
+  // (Japan's open nothing).
+  for (const [width, cols] of [
+    [1100, 6],
+    [1440, 8],
+  ] as const) {
+    test(`every lit day a keyboard reaches is drawn whole at ${width}`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto("/");
+      const sea = page.getByTestId("desktop-landing").getByTestId("landing-sea");
+      await expect(sea.getByTestId("sea-grid")).toHaveAttribute("data-cols", String(cols));
+      await expect(sea.locator("[data-moment]")).toHaveCount(4);
+      await expect(sea.getByRole("region", { name: "Find a day worth borrowing." }).getByRole("link", { name: BANNER })).toBeAttached();
+      const doors = await sea.locator("[data-moment], [data-lit-for]").evaluateAll((cells) =>
+        cells.flatMap((cell) =>
+          [...cell.querySelectorAll<HTMLElement>("[data-testid=discover-card]")]
+            .filter((card) => [...card.querySelectorAll("a")].some((link) => link.tabIndex >= 0))
+            .map((card) => {
+              const box = card.getBoundingClientRect();
+              for (let clip = card.parentElement; clip !== null && clip.dataset.testid !== "landing-sea"; clip = clip.parentElement) {
+                if (getComputedStyle(clip).overflow === "visible") continue;
+                const edge = clip.getBoundingClientRect();
+                if (box.top < edge.top - 1 || box.bottom > edge.bottom + 1 || box.left < edge.left - 1 || box.right > edge.right + 1) {
+                  return { id: card.getAttribute("data-saved-day-id"), cut: true };
+                }
+              }
+              return { id: card.getAttribute("data-saved-day-id"), cut: false };
+            }),
+        ),
+      );
+      expect(doors).toHaveLength(1 + 3 + 3 + 3);
+      expect(doors.filter((door) => door.cut)).toEqual([]);
+    });
+  }
+
+  // Mitchell's walk of PR 510 at 7260011: the make moment read "white text on
+  // white background". Risen at the screen's middle, every word on it passes
+  // the contrast check.
+  test("the make moment's words pass a contrast check once it has risen", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto("/");
+    const make = page.getByTestId("desktop-landing").getByRole("region", { name: /^Start a trip using someone else’s Thailand day/ });
+    await make.evaluate((moment) => {
+      const box = moment.getBoundingClientRect();
+      window.scrollBy(0, box.top + box.height / 2 - window.innerHeight / 2);
+    });
+    await expect(make.getByTestId("moment-panel")).toHaveCSS("opacity", "1");
+    const { violations } = await new AxeBuilder({ page }).include('[aria-labelledby="sea-make"]').withRules(["color-contrast"]).analyze();
+    expect(violations.flatMap((violation) => violation.nodes.map((node) => node.target.join(" ")))).toEqual([]);
+  });
+
+  // Mitchell's walk of PR 510 at 7260011: a background card under the pointer
+  // rises out of the dimmed sea to full colour, as a lit day does, and sinks
+  // back when the pointer leaves. Above the scrim with no veil of its own is
+  // full colour; under it is dimmed.
+  test("a background card rises to full colour under the pointer, and sinks back after", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto("/");
+    const sea = page.getByTestId("desktop-landing").getByTestId("landing-sea");
+    const scrim = sea.getByTestId("sea-scrim");
+    await page.evaluate(() => window.scrollTo(0, window.innerHeight * 2));
+    await expect.poll(() => scrim.evaluate((el: HTMLElement) => el.style.getPropertyValue("--sea-dim"))).toBe("1");
+    // By test id: the background is out of the accessibility tree.
+    const background = sea.locator('[data-testid="sea-cell"][aria-hidden="true"]:not([data-lit-for])');
+    // Polled: the cells two screens down mount once the reader is near them.
+    const onScreen = () =>
+      background.evaluateAll((cells) =>
+        cells.findIndex((cell) => {
+          const box = cell.getBoundingClientRect();
+          return box.top > 80 && box.bottom < window.innerHeight - 20;
+        }),
+      );
+    await expect.poll(onScreen).toBeGreaterThanOrEqual(0);
+    const card = background.nth(await onScreen());
+    const settled = () =>
+      card.evaluate(async (cell) => {
+        await Promise.all(cell.getAnimations({ subtree: true }).map((animation) => animation.finished));
+        return { z: Number(getComputedStyle(cell).zIndex), veil: getComputedStyle(cell, "::before").opacity };
+      });
+    const under = Number(await scrim.evaluate((el) => getComputedStyle(el).zIndex));
+    await card.hover();
+    const risen = await settled();
+    expect(risen.z).toBeGreaterThan(under);
+    expect(risen.veil).toBe("0");
+    await page.mouse.move(2, 2);
+    expect((await settled()).z).toBeNaN();
   });
 
   // The phone's claims are the same components, the Discover card in its

@@ -76,7 +76,7 @@ test.describe("responsive (narrow viewport)", () => {
     // of being overlaid." Checked at both a wide (1280px) and a narrow
     // (1100px, below the 1179px breakpoint that used to gate overlay vs.
     // column) width — 1280 is not this project's default viewport, so it's
-    // set explicitly here, the same pattern the landing-card and hero-art
+    // set explicitly here, the same pattern the landing
     // tests in this file already use to check more than one width from a
     // single narrow-project test.
     for (const width of [1280, 1100] as const) {
@@ -500,8 +500,6 @@ test.describe("responsive (Home hero below 1024px, fresh account)", () => {
   });
 });
 
-// The landing page is the one surface a signed-out phone actually reaches, and
-// its feature grid is breakpoint-gated — the class of thing KI-19 says the
 // Mitchell, 2026-08-30 design pass, on a 411px Android: "map view pretty
 // broken on mobile, maybe remove legend on mobile, and figure out a different
 // static location for the days, have less info and make that where you scroll
@@ -509,7 +507,7 @@ test.describe("responsive (Home hero below 1024px, fresh account)", () => {
 //
 // Here rather than in the "phone" project because that project is scoped to
 // m16-mobile-assistant.spec.ts, and this file already owns the
-// set-your-own-width pattern (the hero-art and money-figure tests below do
+// set-your-own-width pattern (the landing and money-figure tests below do
 // the same). The width is his: 411px.
 test.describe("responsive (Map lens on a phone)", () => {
   test("swaps the rail, focus card and legend for one day strip, and keeps map jumping", async ({ page }) => {
@@ -813,196 +811,289 @@ test.describe("responsive (trip header on a phone)", () => {
   });
 });
 
-// 1280px default viewport will not exercise. Own describe, because the front
-// door needs the signed-out state and the narrow project supplies alice's.
+// The landing page, at the widths the 1280px default viewport will not
+// exercise. Own describe, because the front door needs the signed-out state
+// and the narrow project supplies alice's.
 test.describe("responsive (narrow viewport, signed out)", () => {
   test.use({ storageState: { cookies: [], origins: [] } });
 
-  test("the landing feature blocks stack below 1024px and run spread, wide beside narrow, spread above it", async ({ page }) => {
-    // Measures the BLOCK ROOTS, not the eyebrow text inside them, and throws
-    // rather than substituting a sentinel when a box is missing. The first
-    // version of this mapped a missing box to -1, which made a stacked
-    // assertion pass on [-1, -1, -1] — green whether or not the cards rendered
-    // at all (CodeRabbit, PR 58).
-    //
-    // Four blocks in page order since the 2026-09-28 retro (DRIFT D21), and
-    // the order is asserted rather than sorted away: Playbooks leading is the
-    // retro's whole argument. Since M50 part 5 they are not four equal cards:
-    // two full-bleed spreads with a wide card and a narrow one between them,
-    // which `LandingFeatureBlocks.test.tsx` holds as a sequence and this
-    // measures.
-    //
-    // Each block is a region named by its title (M42 part 9), which is how a
-    // reader reaches one, so that is how they are found — in the desktop tree,
-    // since the phone front door is in the DOM too.
-    const blockBoxes = async () => {
-      const landing = page.getByTestId("desktop-landing");
-      const boxes = await Promise.all(
-        ["Relive someone’s perfect day.", "The trip starts before the trip.", "Too excited to sleep.", "How you’ll remember it."].map(
-          async (title) => {
-            const r = await landing.getByRole("region", { name: title }).boundingBox();
-            return r === null
-              ? null
-              : { x: Math.round(r.x), y: Math.round(r.y), width: Math.round(r.width), height: Math.round(r.height) };
-          },
-        ),
-      );
-      const found = boxes.filter((b) => b !== null);
-      // eslint-disable-next-line playwright/no-conditional-in-test -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
-      if (found.length !== 4) {
-        throw new Error(`expected 4 landing feature blocks, measured ${found.length}`);
-      }
-      return found as { x: number; y: number; width: number; height: number }[];
-    };
-
-    // 900px: one column — each block wholly below the one before it.
-    await page.setViewportSize({ width: 900, height: 900 });
-    await page.goto("/");
-    const stacked = await blockBoxes();
-    for (let i = 1; i < stacked.length; i++) {
-      expect(stacked[i]!.y).toBeGreaterThanOrEqual(stacked[i - 1]!.y + stacked[i - 1]!.height);
-    }
-    // Stacked, Together and Countdown still hold the M42 cap, centred,
-    // rather than running the page's width.
-    const stackedViewport = page.viewportSize()!.width;
-    for (const card of [stacked[1]!, stacked[2]!]) {
-      expect(card.width).toBeLessThanOrEqual(480);
-      expect(Math.abs(card.x - (stackedViewport - card.x - card.width))).toBeLessThanOrEqual(2);
-    }
-
-    // 1280px: Playbooks spread edge to edge, then Together and Countdown on
-    // one row, Together the wider, then the Notebook spread edge to edge.
-    // Below the lg breakpoint the borrowed Day 2 card has no room for its stop
-    // rows, which is why the row is lg: and not md: (CodeRabbit, PR 58).
-    await page.setViewportSize({ width: 1280, height: 900 });
-    const [playbooks, together, countdown, notebook] = await blockBoxes();
-    const viewport = page.viewportSize()!.width;
-
-    for (const spread of [playbooks!, notebook!]) {
-      expect(spread.x).toBe(0);
-      expect(spread.width).toBeGreaterThanOrEqual(viewport - 20);
-    }
-    expect(together!.y).toBeGreaterThan(playbooks!.y);
-    expect(countdown!.y).toBe(together!.y);
-    expect(countdown!.x).toBeGreaterThanOrEqual(together!.x + together!.width);
-    expect(together!.width).toBeGreaterThan(countdown!.width);
-    expect(notebook!.y).toBeGreaterThan(together!.y);
-    // The row is a pair of cards, each a card's width (the M42 cap, 480px)
-    // and centred between the spreads, not two shares of the page's width.
-    for (const card of [together!, countdown!]) expect(card.width).toBeLessThanOrEqual(480);
-    expect(Math.abs(together!.x - (viewport - countdown!.x - countdown!.width))).toBeLessThanOrEqual(2);
-
-    // The spreads face each other: Playbooks' copy on the left with the
-    // shelf's second day under it and Mitchell's on the right, Notebook's
-    // mirrored. There is no empty photo mat any more (M50 part 9, Mitchell's
-    // walk of production): two real cards, at every width.
-    const desktop = page.getByTestId("desktop-landing");
-    const centre = viewport / 2;
-    const playbooksHeading = (await desktop.getByRole("heading", { name: "Relive someone’s perfect day." }).boundingBox())!;
-    const notebookHeading = (await desktop.getByRole("heading", { name: "How you’ll remember it." }).boundingBox())!;
-    expect(playbooksHeading.x + playbooksHeading.width).toBeLessThan(centre);
-    expect(notebookHeading.x).toBeGreaterThan(centre);
-    const shelf = desktop.getByRole("region", { name: "Relive someone’s perfect day." });
-    await expect(shelf.locator("[data-photo-slot]")).toHaveCount(0);
-    const railay = shelf.getByRole("link", { name: /^Railay: the first longtail/ });
-    const hanoi = shelf.getByRole("link", { name: /^Hanoi in 4 days/ });
-    await expect(railay).toBeVisible();
-    await expect(hanoi).toBeVisible();
-    const railayBox = (await railay.boundingBox())!;
-    expect(railayBox.x + railayBox.width).toBeLessThan(centre);
-    expect((await hanoi.boundingBox())!.x).toBeGreaterThan(centre);
-
-    // The notebook's frame is filled by its page, with no dead space under
-    // it: the frame's own padding, and no more (the frame used to hold a
-    // 430px floor over half that much page).
-    const notebookRegion = desktop.getByRole("region", { name: "How you’ll remember it." });
-    const notebookFrame = (await notebookRegion.getByTestId("spread-frame").boundingBox())!;
-    const notebookPage = (await notebookRegion.getByTestId("notebook-page").boundingBox())!;
-    expect(notebookFrame.y + notebookFrame.height - (notebookPage.y + notebookPage.height)).toBeLessThanOrEqual(24);
-
-    await page.setViewportSize({ width: 900, height: 900 });
-    await expect(railay).toBeVisible();
-    await expect(hanoi).toBeVisible();
-  });
-
-  // Every visible piece of the hero art must sit inside the viewport at phone
-  // widths. This is deliberately NOT covered by the sideways-scroll test below:
-  // the art's fragments are absolutely positioned and centred on their
-  // coordinates, so they clip on the LEFT, and left overflow is clipped rather
-  // than scrolled — `scrollWidth` never notices (CodeRabbit, PR #58).
-  for (const width of [402, 375, 320]) {
-    test(`the hero art stays inside the viewport at ${width}px`, async ({ page }) => {
-      await page.setViewportSize({ width, height: 900 });
+  // M51: the desktop front door is a sea of days edge to edge, because a
+  // band held to 1140px left two-thirds of a 3440px screen empty (Mitchell's
+  // walk after M50). The first screen is cells from the server's HTML, so
+  // they are measured as they arrive, at both widths the gate names.
+  for (const width of [1440, 3440]) {
+    test(`the sea runs edge to edge at ${width}px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 1000 });
       await page.goto("/");
-      await expect(
-        page.getByRole("heading", { name: "Plan the trip together." }),
-      ).toBeVisible();
+      // By test id: the background is hidden from the accessibility tree.
+      const firstScreen = page.getByTestId("desktop-landing").getByTestId("sea-grid");
+      await expect(firstScreen.getByTestId("discover-card").first()).toBeVisible();
+      const box = (await firstScreen.boundingBox())!;
+      const viewport = await page.evaluate(() => document.documentElement.clientWidth);
+      expect(box.x).toBeLessThanOrEqual(16);
+      expect(viewport - (box.x + box.width)).toBeLessThanOrEqual(16);
+      // Cells to the right edge, not one column stretched across it.
+      const cards = await firstScreen.getByTestId("discover-card").evaluateAll((els) =>
+        els.map((el) => el.getBoundingClientRect().right),
+      );
+      expect(Math.max(...cards)).toBeGreaterThanOrEqual(viewport - 32);
+    });
 
-      const offenders = await page.evaluate(() => {
-        const art = document.querySelector("div.h-107\\.5");
-        if (!art) throw new Error("hero art container not found");
-        const bad: { text: string; left: number; right: number }[] = [];
-        for (const el of Array.from(art.querySelectorAll("*"))) {
-          // SVG internals report user-space boxes that extend past the <svg>,
-          // which clips its own content — they cannot affect what is visible.
-          if (el.closest("svg")) continue;
-          const r = el.getBoundingClientRect();
-          if (r.width === 0 && r.height === 0) continue;
-          if (r.left < -0.5 || r.right > window.innerWidth + 0.5) {
-            bad.push({
-              text: (el.textContent ?? "").trim().slice(0, 40),
-              left: Math.round(r.left),
-              right: Math.round(r.right),
-            });
-          }
-        }
-        return bad;
+    // The grid sizes every cell, and the card fills what its cell gives it
+    // (Mitchell, on PR 510): the card's box is the cell's, less the mat around
+    // it, 22px of region strip on top and 6px on the other three sides. A card
+    // that sized itself, or scaled to fit, would not land on it.
+    test(`every card on the first screen fills its cell at ${width}px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 1000 });
+      await page.goto("/");
+      const cells = page.getByTestId("desktop-landing").getByTestId("sea-cell");
+      await expect(cells.first()).toBeVisible();
+      const misfits = await cells.evaluateAll((els) =>
+        els
+          .filter((cell) => cell.getBoundingClientRect().bottom <= window.innerHeight)
+          .map((cell) => {
+            const box = cell.getBoundingClientRect();
+            const card = cell.querySelector("[data-testid=discover-card]")!.getBoundingClientRect();
+            return [card.left - box.left, card.top - box.top, box.right - card.right, box.bottom - card.bottom].map(Math.round);
+          })
+          .filter((inset) => inset.join() !== "6,22,6,6"),
+      );
+      expect(misfits).toEqual([]);
+    });
+
+    // A card keeps its title above all else: chips and tags drop first. A
+    // card's parts that do not fit move to a second column, which it clips,
+    // so a title moved there leaves a card naming no day (PR 510 r4: Catania
+    // and Marrakech on a one-row cell showed their chips and nothing else).
+    test(`every card on the first screen shows its title at ${width}px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 1000 });
+      await page.goto("/");
+      const cells = page.getByTestId("desktop-landing").getByTestId("sea-cell");
+      await expect(cells.first()).toBeVisible();
+      const untitled = await cells.evaluateAll((els) =>
+        els
+          .filter((cell) => cell.getBoundingClientRect().bottom <= window.innerHeight)
+          .map((cell) => {
+            const card = cell.querySelector("[data-testid=discover-card]")!.getBoundingClientRect();
+            const title = cell.querySelector("h3")!;
+            const box = title.getBoundingClientRect();
+            const inside = box.left >= card.left && box.right <= card.right + 0.5 && box.top >= card.top && box.bottom <= card.bottom + 0.5;
+            return inside ? null : title.textContent;
+          })
+          .filter((name) => name !== null),
+      );
+      expect(untitled).toEqual([]);
+    });
+
+    // Mitchell's third walk of PR 510: *"For the primary header for the app,
+    // maybe give it a little more standout?"*, and his fourth: *"The border
+    // makes this wider than the other components … then add a drop shadow"*.
+    // Its frame is its border, inside the grid area every other cell keeps
+    // to; the lift is the designs' drop shadow (the prototype's `.ex .ff`);
+    // the headline is larger than the closing's `text-4xl` (58px at most).
+    // Computed in the browser, because a utility class on the same element
+    // silently won over the CSS (PR 510 r6).
+    test(`the hero stands off the sea on the grid's lines at ${width}px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 1000 });
+      await page.goto("/");
+      const hero = page.getByTestId("desktop-landing").getByTestId("sea-hero");
+      const headline = hero.getByRole("heading", { level: 1, name: "Plan the trip together." });
+      await expect(headline).toBeVisible();
+      const { box, area, shadow, border } = await hero.evaluate((el) => {
+        const grid = el.parentElement!;
+        const css = getComputedStyle(grid);
+        const [cols, start, span, rows] = ["--cols", "--hero-start", "--hero-span", "--hero-rows"].map((name) =>
+          Number.parseFloat(css.getPropertyValue(name)),
+        ) as [number, number, number, number];
+        const g = grid.getBoundingClientRect();
+        const unit = (g.width - 32 - (cols - 1) * 8) / cols;
+        const r = el.getBoundingClientRect();
+        // From the grid's second row, past its 8px top padding and 16px sides.
+        const area = [g.left + 16 + (start - 1) * (unit + 8), g.top + 8 + unit + 8, span * unit + (span - 1) * 8, rows * unit + (rows - 1) * 8];
+        const style = getComputedStyle(el);
+        return { box: [r.left, r.top, r.width, r.height].map(Math.round), area: area.map(Math.round), shadow: style.boxShadow, border: style.borderTopWidth };
       });
+      expect(box).toEqual(area);
+      // Nothing outside the box but the drop shadow: no ring spread into the gap.
+      expect(shadow).toBe("rgba(21, 29, 46, 0.35) 0px 30px 80px 0px");
+      expect(border).not.toBe("0px");
+      expect(await headline.evaluate((el) => Number.parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThan(58);
+    });
 
-      expect(offenders, `clipped at ${width}px: ${JSON.stringify(offenders)}`).toEqual([]);
+    // Mitchell, walking PR 510 after it merged: the find moment's Rome banner
+    // *"still only shows a few of the activities, it doesnt fill the card"*.
+    // It drew three because three were all it was sent (M51 part 9 lifts the
+    // cap); with room for them, it draws every one of day one's four.
+    test(`the find moment's banner shows more than three stop rows at ${width}px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 1000 });
+      await page.goto("/");
+      const banner = page.getByTestId("desktop-landing").getByRole("region", { name: "Find a day worth borrowing." }).getByTestId("discover-card");
+      await expect(banner.getByTestId("preview-title").first()).toBeVisible();
+      const shown = await banner.evaluate((card) => {
+        const box = card.getBoundingClientRect();
+        return [...card.querySelectorAll("[data-testid=discover-preview] li")].filter((row) => {
+          const r = row.getBoundingClientRect();
+          return r.right <= box.right + 0.5 && r.bottom <= box.bottom + 0.5;
+        }).length;
+      });
+      expect(shown).toBeGreaterThan(3);
+    });
+
+    // Mitchell's fourth walk of PR 510: *"show activities up till they dont
+    // fit rather than just render the first 3"*. A card lays its parts in one
+    // wrapping column and clips the second, so it drops parts from the first
+    // that does not fit. Only its title and its facts come before its stops:
+    // where a card drops its stops with room left for one row, the part it
+    // dropped first is one of those two, and never the stops as a block, nor
+    // a description or a rating ahead of them. The second half reads the DOM,
+    // not the computed order: there the description, tags and rating come
+    // before the rows, and only `order-1` lays them after, so a card that
+    // drops a row may show nothing the DOM puts ahead of its rows but its
+    // title and facts (PR 510 r8: sorted by computed order, the check passed
+    // with `order-1` gone).
+    test(`every card on the first screen shows the stop rows it has room for at ${width}px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 1000 });
+      await page.goto("/");
+      const cards = page.getByTestId("desktop-landing").getByTestId("sea-grid").getByTestId("discover-card");
+      await expect(cards.first()).toBeVisible();
+      const ahead = await cards.evaluateAll((els) =>
+        els
+          .filter((card) => card.getBoundingClientRect().bottom <= window.innerHeight)
+          .flatMap((card) => {
+            const right = card.getBoundingClientRect().right + 0.5;
+            const rows = [...card.querySelectorAll("[data-testid=discover-preview] li")];
+            if (rows.length === 0 || rows.every((row) => row.getBoundingClientRect().right <= right)) return [];
+            const items = (el: Element): Element[] =>
+              [...el.children].flatMap((child) => (getComputedStyle(child).display === "contents" ? items(child) : [child]));
+            const before = items(card).slice(0, items(card).indexOf(rows[0]!));
+            const wrong = before.filter(
+              (part) => part.getBoundingClientRect().right <= right && !part.matches(".landing-sea-head, h3, [data-testid=card-facts]"),
+            );
+            return [{ card: card.querySelector("h3")!.textContent, wrong: wrong.map((part) => part.textContent!.slice(0, 40)) }];
+          }),
+      );
+      // Not vacuous: first-screen cards do drop rows at both widths.
+      expect(ahead.length, "first-screen cards that drop a stop row").toBeGreaterThan(0);
+      expect(ahead.filter(({ wrong }) => wrong.length > 0)).toEqual([]);
+      const roomy = await cards.evaluateAll((els) =>
+        els
+          .filter((card) => card.getBoundingClientRect().bottom <= window.innerHeight)
+          .flatMap((card) => {
+            const box = card.getBoundingClientRect();
+            // The card's parts, its flex items, in the order it lays them.
+            const items = (el: Element): Element[] =>
+              [...el.children].flatMap((child) => (getComputedStyle(child).display === "contents" ? items(child) : [child]));
+            const parts = items(card)
+              .map((part, i) => ({ part, i, order: Number(getComputedStyle(part).order) }))
+              .sort((a, b) => a.order - b.order || a.i - b.i)
+              .map(({ part }) => part);
+            const shown = (el: Element) => el.getBoundingClientRect().right <= box.right + 0.5;
+            const row = card.querySelector("[data-testid=discover-preview] li");
+            const dropped = parts.find((part) => !shown(part));
+            if (row === null || shown(row) || dropped === undefined) return [];
+            if (dropped.matches(".landing-sea-head, h3, [data-testid=card-facts]")) return [];
+            const style = getComputedStyle(card);
+            const last = Math.max(...parts.filter(shown).map((part) => part.getBoundingClientRect().bottom));
+            const room = box.bottom - Number.parseFloat(style.paddingBottom) - Number.parseFloat(style.rowGap) - last;
+            return room >= row.getBoundingClientRect().height ? [`${card.querySelector("h3")!.textContent}: ${Math.round(room)}px free`] : [];
+          }),
+      );
+      expect(roomy).toEqual([]);
+    });
+
+    // "never two touching" (Mitchell's third walk: accents *"spread out"*):
+    // the first screen's accents, which CSS packs `dense`, and the packed
+    // background's below them. At 3440×1271, France sat on Mexico (PR 510 r6).
+    test(`no two accents touch at ${width}px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: width === 3440 ? 1271 : 900 });
+      await page.goto("/");
+      const grid = page.getByTestId("desktop-landing").getByTestId("sea-grid");
+      await expect(grid.getByTestId("sea-accent").first()).toBeAttached();
+      // Packed again for the columns CSS chose, not the server's six.
+      await expect
+        .poll(() => grid.evaluate((el) => el.getAttribute("data-cols") === getComputedStyle(el).getPropertyValue("--cols").trim()))
+        .toBe(true);
+      const touching = await grid.evaluate((el) => {
+        const foot = el.getBoundingClientRect().bottom;
+        // Past the grid's foot is a first-screen cell that found no room, and is clipped.
+        const boxes = [...el.querySelectorAll("[data-testid=sea-accent]")]
+          .map((accent) => ({ name: accent.textContent, box: accent.getBoundingClientRect() }))
+          .filter(({ box }) => box.bottom <= foot + 1);
+        // Neighbours are one 8px gap apart, at an edge or a corner.
+        const near = (a: DOMRect, b: DOMRect) =>
+          Math.max(a.left - b.right, b.left - a.right) < 12 && Math.max(a.top - b.bottom, b.top - a.bottom) < 12;
+        return boxes.flatMap((a, i) => boxes.slice(i + 1).filter((b) => near(a.box, b.box)).map((b) => `${a.name} / ${b.name}`));
+      });
+      expect(touching).toEqual([]);
+    });
+
+  }
+
+  // Mitchell's fourth walk of PR 510, at 1304×822: *"Too much dead space,
+  // shrink the whole container down 1 row, then take up the extra space at
+  // the bottom of free, plus and premium"*. Three rows, not four; each step
+  // reaches the ladder's foot with nothing it holds cut off, and it is still
+  // a ladder.
+  for (const [width, height] of [
+    [1304, 822],
+    [1440, 900],
+    [3440, 1271],
+  ] as const) {
+    test(`the pricing is three rows, its steps filling them, at ${width}px`, async ({ page }) => {
+      await page.setViewportSize({ width, height });
+      await page.goto("/");
+      const pricing = page.getByTestId("desktop-landing").getByRole("region", { name: "Pricing" });
+      await pricing.scrollIntoViewIfNeeded();
+      await expect(pricing.getByTestId("plan-step").first()).toBeVisible();
+      const { rows, steps } = await pricing.evaluate((el) => {
+        const ladder = el.querySelector("[data-testid=plan-ladder]")!;
+        const foot = ladder.getBoundingClientRect().bottom;
+        return {
+          rows: el.closest<HTMLElement>("[data-testid=sea-story]")!.style.gridRow,
+          steps: [...ladder.children].map((step) => ({
+            top: step.getBoundingClientRect().top,
+            toFoot: Math.round(foot - step.getBoundingClientRect().bottom),
+            cut: step.scrollHeight > step.clientHeight + 1,
+          })),
+        };
+      });
+      expect(rows).toMatch(/span 3$/);
+      expect(steps.map(({ toFoot, cut }) => ({ toFoot, cut }))).toEqual(steps.map(() => ({ toFoot: 0, cut: false })));
+      const [free, plus, premium] = steps.map(({ top }) => top) as [number, number, number];
+      expect(free).toBeGreaterThan(plus);
+      expect(plus).toBeGreaterThan(premium);
     });
   }
 
-  // The other half of the label gating: `hidden lg:inline` that never turned
-  // back on would satisfy the three clipping tests above perfectly, by showing
-  // nothing anywhere. This is what stops the phone fix from quietly costing the
-  // desktop composition its place names.
-  test("the hero art keeps its map labels at desktop width", async ({ page }) => {
-    // Scoped to the art: the Together feature block's timeline names the same
-    // two stops ("Fushimi Inari, early", "Nishiki Market"), so an unscoped
-    // getByText matches twice and trips Playwright's strict mode.
-    const art = page.locator("div.h-107\\.5");
+  // A name is never cut mid-word (PR 510 r6: "Switzerlan"; r7: "Switzerlan /
+  // d" at 1650 and 3100): where the browser has no hyphenation dictionary,
+  // as Linux Chromium has none, it is sized so its longest word fits one
+  // line. Counted in line boxes, because `overflow-wrap: anywhere` breaks a
+  // word inside its box rather than overflow it, which no scroll width sees.
+  for (const width of [1440, 1650, 3100, 3440]) {
+    test(`no accent's name breaks inside a word at ${width}px`, async ({ page }) => {
+      // A screen tall enough that every band of the sea is near, and mounted.
+      await page.setViewportSize({ width, height: 8000 });
+      await page.goto("/");
+      const names = page.getByTestId("desktop-landing").getByTestId("sea-accent").locator(".landing-sea-stamp-name");
+      // Every accent once over, the longest one-word name with them.
+      await expect.poll(() => names.count()).toBeGreaterThan(34);
+      expect(await names.allTextContents()).toContain("Switzerland");
+      const broken = await names.evaluateAll((els) =>
+        els.flatMap((name) => {
+          const range = document.createRange();
+          range.selectNodeContents(name);
+          const lines = new Set([...range.getClientRects()].map((rect) => Math.round(rect.top))).size;
+          return lines > name.textContent!.split(" ").length ? [`${name.textContent} in ${lines} lines`] : [];
+        }),
+      );
+      expect(broken).toEqual([]);
+    });
+  }
 
-    await page.setViewportSize({ width: 1280, height: 900 });
-    await page.goto("/");
-    await expect(art.getByText("Fushimi Inari")).toBeVisible();
-    await expect(art.getByText("Nishiki Market")).toBeVisible();
-    await expect(art.getByText("Ryokan · unconfirmed")).toBeVisible();
-
-    // ...and drops them on a narrow one, which is the fix itself.
-    //
-    // **800px, not 375px, and SPEC §28 is why.** The labels are gated at `lg`
-    // (1024px) but the whole desktop landing is now gated at `md` (768px) —
-    // below that, `PhoneFrontDoor` replaces it and this art is not on screen at
-    // all. Measuring the label gating at 375px therefore measured nothing: every
-    // assertion below would pass with `hidden lg:inline` deleted, because the
-    // art's own container is `display: none` there. 800px is inside the band
-    // where the desktop composition still renders and the labels are meant to
-    // be off, which is the only width where this claim is testable.
-    await page.setViewportSize({ width: 800, height: 900 });
-    await expect(art.getByText("Fushimi Inari")).toBeHidden();
-    await expect(art.getByText("Nishiki Market")).toBeHidden();
-    await expect(art.getByText("Ryokan · unconfirmed")).toBeHidden();
-
-    // The numbered pins it hangs off stay — the map is still a map.
-    await expect(art.getByText("1", { exact: true })).toBeVisible();
-    await expect(art.getByText("3", { exact: true })).toBeVisible();
-  });
-
-  // The front door is the one surface a phone actually reaches signed out, and
-  // the hero art is a stack of absolutely-positioned fragments at percentage
-  // offsets with `whitespace-nowrap` labels — the shape that silently pushes a
-  // page sideways. 402px is the width docs/STATUS.md's design audit walks.
+  // The front door is the one surface a phone actually reaches signed out,
+  // and the shape that silently pushes a page sideways is something laid out
+  // past the edge. 402px is the width docs/STATUS.md's design audit walks.
   for (const width of [402, 360]) {
     test(`the landing does not scroll sideways at ${width}px`, async ({ page }) => {
       await page.setViewportSize({ width, height: 900 });
@@ -1197,8 +1288,7 @@ test.describe("responsive (narrow viewport, first trip)", () => {
   test("the conversation and both other routes stay visible and operable below sm", async ({ page }) => {
     // Set before signing in, matching this file's own pattern for a
     // breakpoint below the narrow project's own 1100px — 375px is a real
-    // phone width already used elsewhere in this file (the hero-art and
-    // sideways-scroll tests), comfortably below the 640px `sm` this grid
+    // phone width, comfortably below the 640px `sm` this grid
     // reflows at.
     await page.setViewportSize({ width: 375, height: 800 });
     await signInAsDevUser(page, freshUsername());

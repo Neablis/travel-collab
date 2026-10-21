@@ -61,7 +61,7 @@ optically larger).
   (`p-[13px]`) are banned by lint — if a spacing need doesn't fit the grid, the
   design is wrong, not the grid. A **half-step on the scale is not an arbitrary
   value**: `size-5.5` (22px) is house style here (`NotebooksMenu`,
-  `LandingHeroArt`), compiles from the spacing scale like any other utility, and
+  `CoverPicker`), compiles from the spacing scale like any other utility, and
   is unrelated to the bracketed `[13px]` form the wall bans.
 - **The `.design-sync` styling rules do not bind `apps/web`.** SPEC §11's "do not
   use arbitrary Tailwind values here — this page loads the precompiled

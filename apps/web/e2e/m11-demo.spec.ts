@@ -32,11 +32,11 @@ function freshDemoUsername(): string {
 test.describe("the demo trip", () => {
   test.use({ storageState: { cookies: [], origins: [] } });
 
-  test("both landing CTAs open the real board, read-only, with no account", async ({ page }) => {
+  // One CTA since M51: the closing cell asks for a sign-up or a day to start
+  // from, and the hero keeps the way into a finished trip.
+  test("the landing's CTA opens the real board, read-only, with no account", async ({ page }) => {
     await page.goto("/");
-    for (const name of ["Look around a real trip", "See a finished one"]) {
-      await expect(page.getByRole("link", { name })).toHaveAttribute("href", "/demo");
-    }
+    await expect(page.getByRole("link", { name: "Look around a real trip" })).toHaveAttribute("href", "/demo");
     await page.getByRole("link", { name: "Look around a real trip" }).click();
     await expect(page).toHaveURL(/\/demo$/);
     // The picker (M42 D1); Japan is one card on it.

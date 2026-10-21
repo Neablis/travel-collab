@@ -52,7 +52,7 @@ describe("the axis's scale", () => {
     ]);
   });
 
-  // The landing hero's river (`LandingHeroPanels.tsx`) draws a whole day in a
+  // The landing's river (`LandingRiver.tsx`) draws a whole day in a
   // fixed-height picture. Every conversion reads the axis's own scale, so the
   // height, the ticks and each block agree at 20px an hour as they do at 44.
   it("is the axis's own px-an-hour when it carries one, everywhere", () => {

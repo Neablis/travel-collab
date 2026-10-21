@@ -5,7 +5,7 @@ import { LANDING_CLOSING_QUOTE, LANDING_FEATURES } from "@/lib/landingDemo";
 import { PhoneFrontDoor } from "./PhoneFrontDoor";
 
 // The three real cards are `lazy()`-loaded; loaded here first so a cold
-// worker's transform does not outrun `findBy*` (`LandingHeroArt.test.tsx`).
+// worker's transform does not outrun `findBy*` (`LandingScreen.test.tsx`).
 beforeAll(async () => {
   await import("./LandingFeaturePanels");
 });
@@ -281,9 +281,8 @@ describe("the phone front door (SPEC §28)", () => {
       const door = within(screen.getByTestId("phone-front-door"));
       const pricing = within(door.getByRole("region", { name: "Pricing" }));
       expect(pricing.queryByRole("table")).toBeNull();
-      expect(pricing.getByText("Unlimited planned trips")).toBeTruthy();
-      expect(pricing.getByText("AI tools to help plan the trip")).toBeTruthy();
-      expect(pricing.getByText("Invite all your friends to come along")).toBeTruthy();
+      // The ladder's words are `LandingPricing.test.tsx`'s; this holds that the phone has them.
+      expect(pricing.getAllByTestId("plan-step")).toHaveLength(2);
       expect(pricing.getByRole("link", { name: "Compare plans" }).getAttribute("href")).toBe("/signin?callbackUrl=%2Fplans");
       expect(door.queryByRole("link", { name: "Sign up" })).toBeNull();
     });
@@ -356,6 +355,17 @@ describe("the phone front door (SPEC §28)", () => {
       expect(await within(claims[3]!).findByRole("img", { name: /^Days 1–3 Tokyo/, hidden: true })).toBeTruthy();
       expect(within(claims[3]!).getByText(/best night of the trip/)).toBeTruthy();
       expect(within(claims[3]!).queryByText("Sam, Priya, Dana, Marcus · Apr 9")).toBeNull();
+    });
+
+    // M51 decision 8a, review r1 of PR 508: the landing fetches no people, so the
+    // snapshot carries them, and a stop's adder reads as the demo names them,
+    // not as the handle "Traveler Jonah". Moved here from the retired desktop
+    // blocks' test, since the phone's Together claim now draws the demo river.
+    it("names who added each stop on the river as the demo's people", async () => {
+      render(<PhoneFrontDoor closingQuote={LANDING_CLOSING_QUOTE} />);
+      const together = screen.getAllByTestId("front-door-claim")[1]!;
+      const river = within(await within(together).findByRole("list", { name: "Day 7 timeline", hidden: true }));
+      expect(river.getByText(/^Dinner at Gion Nanba, .*, added by Jonah\b/)).toBeDefined();
     });
 
     // Mitchell, 2026-10-11: *"it should be more nostalgic than how much you

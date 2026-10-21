@@ -1,0 +1,272 @@
+{
+  "$schema": "travel-collab/content-bundle/v1",
+  "bundle": {
+    "id": "3-days-on-the-amalfi-coast-cliff-towns-lemon-groves-the-path-of-the-gods",
+    "name": "3 days on the Amalfi Coast: cliff towns, lemon groves & the Path of the Gods",
+    "origin": "human",
+    "sources": [],
+    "generatedAt": "2026-10-21T04:13:35.192Z"
+  },
+  "trips": [],
+  "playbooks": [
+    {
+      "key": "3-days-on-the-amalfi-coast-cliff-towns-lemon-groves-the-path-of-the-gods",
+      "name": "3 days on the Amalfi Coast: cliff towns, lemon groves & the Path of the Gods",
+      "summary": "Skip the drive-the-coast-in-a-day blur. Base in Positano, hike the Path of the Gods above the sea, spend an afternoon in garden-perched Ravello, and finish in working Amalfi town with its paper museum and lemon valleys.",
+      "ownerId": "dev-elena",
+      "visibility": "public",
+      "origin": "human",
+      "sourceTrip": {
+        "name": "3 days on the Amalfi Coast: cliff towns, lemon groves & the Path of the Gods"
+      },
+      "addedBy": [],
+      "version": 1,
+      "days": [
+        {
+          "stops": [
+            {
+              "title": "Morning on Spiaggia Grande",
+              "timeWindow": {
+                "start": "09:00",
+                "end": "11:00"
+              },
+              "location": {
+                "name": "Spiaggia Grande",
+                "lat": 40.6278,
+                "lng": 14.48677,
+                "countryCode": "IT",
+                "city": "Positano"
+              },
+              "notes": "Positano's main beach before the crowds thicken: rent a lounger at the far end, swim while the water is still calm, and watch the town wake up above you — pastel houses stacked like a card trick. The free strip is at the western end if you'd rather not pay.",
+              "kind": "planned",
+              "tags": [
+                "beach"
+              ]
+            },
+            {
+              "title": "Church of Santa Maria Assunta",
+              "timeWindow": {
+                "start": "11:00",
+                "end": "12:00"
+              },
+              "location": {
+                "name": "Chiesa di Santa Maria Assunta",
+                "lat": 40.62853,
+                "lng": 14.48685,
+                "countryCode": "IT",
+                "city": "Positano"
+              },
+              "notes": "The majolica-tiled dome is Positano's landmark, visible from every boat coming in. Step inside for the 13th-century Byzantine Black Madonna, then wander the lanes behind the church — the quietest, prettiest part of town, full of linen shops and lemon soap.",
+              "kind": "planned",
+              "tags": [
+                "sight"
+              ]
+            },
+            {
+              "title": "Aperitivo at Franco's Bar",
+              "timeWindow": {
+                "start": "17:30",
+                "end": "19:00"
+              },
+              "location": {
+                "name": "Franco's Bar",
+                "lat": 40.62884,
+                "lng": 14.48751,
+                "countryCode": "IT",
+                "city": "Positano"
+              },
+              "notes": "The aperitivo terrace at Le Sirenuse, and the best seat on the coast at golden hour: the whole vertical town lit up, boats coming home, the sun dropping behind the headland. Drinks are pricey and the view pays for itself; dress up a little.",
+              "kind": "planned",
+              "tags": [
+                "drinks"
+              ]
+            },
+            {
+              "title": "Dinner on the beach at Chez Black",
+              "timeWindow": {
+                "start": "19:30",
+                "end": "21:30"
+              },
+              "location": {
+                "name": "Chez Black",
+                "lat": 40.628,
+                "lng": 14.48684,
+                "countryCode": "IT",
+                "city": "Positano"
+              },
+              "notes": "Right on the sand at Spiaggia Grande, run by the same family since 1967: grilled catch of the day, spaghetti alle vongole, and tables practically in the water. Book ahead and ask for a front-row table; the sound of the waves is the entertainment.",
+              "kind": "planned",
+              "tags": [
+                "meal"
+              ]
+            }
+          ]
+        },
+        {
+          "stops": [
+            {
+              "title": "Hike the Path of the Gods from Bomerano",
+              "timeWindow": {
+                "start": "09:00",
+                "end": "13:00"
+              },
+              "location": {
+                "name": "Sentiero degli Dei, Bomerano trailhead",
+                "lat": 40.62507,
+                "lng": 14.54565,
+                "countryCode": "IT",
+                "city": "Agerola"
+              },
+              "notes": "The coast's great walk: Bomerano to Nocelle, about 7km along a cliff path high above the sea, with Capri floating on the horizon. Start early, carry water, wear real shoes — the path is rocky and exposed — and finish with lunch in Nocelle or a bus back down to Positano.",
+              "kind": "planned",
+              "tags": [
+                "outdoors"
+              ]
+            },
+            {
+              "title": "Lunch at Trattoria Cumpa' Cosimo",
+              "timeWindow": {
+                "start": "13:30",
+                "end": "15:00"
+              },
+              "location": {
+                "name": "Trattoria Pizzeria Cumpa Cosimo",
+                "lat": 40.65058,
+                "lng": 14.61135,
+                "countryCode": "IT",
+                "city": "Ravello"
+              },
+              "notes": "Ravello's beloved family trattoria on Via Roma: handmade pasta, garden vegetables, and the kind of welcome that makes you stay for dessert. The portions are generous and the prices are Ravello's kindest — a necessary correction after Positano.",
+              "kind": "planned",
+              "tags": [
+                "meal"
+              ]
+            },
+            {
+              "title": "Terrace of Infinity at Villa Cimbrone",
+              "timeWindow": {
+                "start": "15:00",
+                "end": "16:30"
+              },
+              "location": {
+                "name": "Villa Cimbrone",
+                "lat": 40.64425,
+                "lng": 14.61118,
+                "countryCode": "IT",
+                "city": "Ravello"
+              },
+              "notes": "Walk the Avenue of Immensity to the Terrace of Infinity, where marble busts gaze out over a sheer drop to the sea — Gore Vidal called it the most beautiful view in the world. The gardens alone are worth the ticket; go late in the day when the tour groups thin out.",
+              "kind": "planned",
+              "tags": [
+                "sight"
+              ]
+            },
+            {
+              "title": "Villa Rufolo and its hanging gardens",
+              "timeWindow": {
+                "start": "16:30",
+                "end": "18:00"
+              },
+              "location": {
+                "name": "Villa Rufolo",
+                "lat": 40.6492,
+                "lng": 14.61142,
+                "countryCode": "IT",
+                "city": "Ravello"
+              },
+              "notes": "The villa that inspired Wagner's Parsifal garden: Moorish cloisters, a tower with the coast laid out below, and summer concerts in the gardens if your dates line up. Pair it with Cimbrone and you have the two great garden views of the coast in one afternoon.",
+              "kind": "planned",
+              "tags": [
+                "museum",
+                "sight"
+              ]
+            }
+          ]
+        },
+        {
+          "stops": [
+            {
+              "title": "Amalfi Cathedral and the Cloister of Paradise",
+              "timeWindow": {
+                "start": "09:30",
+                "end": "11:00"
+              },
+              "location": {
+                "name": "Chiesa Cattedrale",
+                "lat": 40.6345,
+                "lng": 14.6026,
+                "countryCode": "IT",
+                "city": "Amalfi"
+              },
+              "notes": "Climb the grand staircase to the striped Byzantine facade, then duck into the 13th-century Cloister of Paradise — white arches, palm trees, and the bones of Amalfi's maritime republic. The crypt below holds the relics of St Andrew, patron of the town.",
+              "kind": "planned",
+              "tags": [
+                "sight"
+              ]
+            },
+            {
+              "title": "The Paper Museum",
+              "timeWindow": {
+                "start": "11:00",
+                "end": "12:00"
+              },
+              "location": {
+                "name": "Amalfi Museo della Carta",
+                "lat": 40.63971,
+                "lng": 14.59967,
+                "countryCode": "IT",
+                "city": "Amalfi"
+              },
+              "notes": "Amalfi made paper before anywhere else in Europe, and this working museum in an old mill still runs its 13th-century presses: watch cotton rag become a sheet you can take home. The guided tour is short, hands-on, and the best hour of context on the whole coast.",
+              "kind": "planned",
+              "tags": [
+                "museum"
+              ]
+            },
+            {
+              "title": "Lemon walk in the Valle dei Mulini",
+              "timeWindow": {
+                "start": "12:00",
+                "end": "13:30"
+              },
+              "location": {
+                "name": "La Valle dei Mulini",
+                "lat": 40.64111,
+                "lng": 14.59747,
+                "countryCode": "IT",
+                "city": "Amalfi"
+              },
+              "notes": "Follow the old mill valley behind Amalfi up through terraced lemon groves — the giant Amalfi lemons grow here under chestnut pergolas, and the air smells of citrus and stone. Several groves run guided walks with tastings; go with one rather than wandering the private terraces alone.",
+              "kind": "planned",
+              "tags": [
+                "outdoors",
+                "tour"
+              ]
+            },
+            {
+              "title": "Lemon granita on Piazza del Duomo",
+              "timeWindow": {
+                "start": "13:30",
+                "end": "14:00"
+              },
+              "location": {
+                "name": "La Bottega del Limone",
+                "lat": 40.6342,
+                "lng": 14.60276,
+                "countryCode": "IT",
+                "city": "Amalfi"
+              },
+              "notes": "Finish where Amalfi finishes: a lemon granita on the cathedral square, made from the valley's lemons you just walked through. The square is the town's living room — fishermen, schoolkids, and everyone you have seen all week passing through.",
+              "kind": "planned",
+              "tags": [
+                "meal"
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "notebooks": [],
+  "activities": []
+}

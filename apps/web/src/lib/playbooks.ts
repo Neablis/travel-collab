@@ -268,8 +268,9 @@ export function inBudgetBand(band: BudgetBand, amountMinor: number | null): bool
  * How many of day one's stops a Discover card is sent. The card draws the
  * rows that fit, whole (Mitchell, 2026-10-21: not just the design's
  * `dc.html:5795` `slice(0, 3)`): on the landing sea, the room its cell leaves;
- * anywhere else, the room three rows took, so the card keeps its height
- * (`DiscoverCard`). This is a bound on the payload rather than the row count.
+ * anywhere else, the room its grid row leaves, never fewer than three, and
+ * the rows never make a card taller (`DiscoverCard`). This is a bound on the
+ * payload rather than the row count.
  * Twelve is more than any card has room for (no public library day has more
  * than eight stops), while a page of 24 cards stays ~20 KB at typical title
  * lengths, and a 200-item public-API page at most ~0.5 MB with every title at

@@ -40,7 +40,8 @@ async function newcomer(browser: Browser, prefix: string): Promise<Page> {
 /**
  * Keeps and publishes a day of `stops` stops (one by default) in `city` as the
  * page's user, returning its id. Built through the command API and the saved-days routes, the same
- * way `m11b-playbooks.spec.ts` builds its days.
+ * way `m11b-playbooks.spec.ts` builds its days. `long` names every stop past
+ * the first like a real library stop, long enough to wrap a card's row.
  */
 async function publishDay(
   page: Page,
@@ -48,6 +49,7 @@ async function publishDay(
   city: string,
   countryCode?: string,
   stops = 1,
+  long = false,
 ): Promise<string> {
   const post = async (path: string, data: unknown) => {
     const res = await page.request.post(path, { data });
@@ -65,7 +67,7 @@ async function publishDay(
       tripId,
       activityId: randomUUID(),
       dayId,
-      title: i === 0 ? `Stop in ${city}` : `Stop ${i + 1}`,
+      title: i === 0 ? `Stop in ${city}` : long ? `Stop ${i + 1}: get in the bus queue on Avenida Hermanos Ayar` : `Stop ${i + 1}`,
       timeWindow: { start: `${hour}:00`, end: `${hour}:30` },
       // `countryCode` is what `countriesOfStops` reads when the day is kept, and
       // so what `saved_days.countries` — and a `?country=` search — holds.
@@ -233,11 +235,24 @@ test("the search box tells the country Mexico from a city that starts the same w
   for (const id of ids) await forget(page, id);
 });
 
-// M51 part 9: a card is sent up to twelve of day one's stops, and draws the
-// rows that fit the space three took, whole, without growing (Mitchell,
-// 2026-10-21: "list activities until they run out of room"). At phone width,
-// one column, where nothing stretches a card to a neighbour's height.
-test("a card with eight stops is as tall as one with three, and shows whole rows", async ({ page }) => {
+/** How many of a card's stop rows it shows, after asserting that none is cut through. */
+async function rowsShown(card: ReturnType<Page["getByTestId"]>): Promise<number> {
+  const preview = card.getByTestId("discover-preview");
+  const list = (await preview.boundingBox())!;
+  const rows = await Promise.all((await preview.getByRole("listitem").all()).map((row) => row.boundingBox()));
+  const placed = rows.map((box) => placement(box!, list));
+  // Whole rows, in the day's order: the shown ones lead and the rest are
+  // wholly past the list's edge.
+  expect(placed.join(",")).toMatch(/^shown(,shown)*(,clipped)*$/);
+  return placed.filter((place) => place === "shown").length;
+}
+
+// M51 part 9: a card is sent up to twelve of day one's stops and draws the
+// rows its cell has room for, whole (Mitchell, 2026-10-21: "list activities
+// until they run out of room"; option b). At phone width, one column, nothing
+// stretches a card, so a card holds the three rows it always did, even when
+// the titles are long, and the rows past them do not make it taller.
+test("a card with eight stops is as tall as one with three, and shows three whole stop rows", async ({ page }) => {
   test.slow();
   await page.setViewportSize({ width: 390, height: 900 });
 
@@ -246,7 +261,7 @@ test("a card with eight stops is as tall as one with three, and shows whole rows
   // Names of one length, so the titles wrap alike and only the stops differ.
   const three = `Three stops ${tag}`;
   const eight = `Eight stops ${tag}`;
-  const ids = [await publishDay(page, three, city, undefined, 3), await publishDay(page, eight, city, undefined, 8)];
+  const ids = [await publishDay(page, three, city, undefined, 3, true), await publishDay(page, eight, city, undefined, 8, true)];
 
   await page.goto(`/playbooks?city=${encodeURIComponent(city)}`);
   const card = (name: string) => page.getByTestId("discover-card").filter({ hasText: name });
@@ -255,13 +270,40 @@ test("a card with eight stops is as tall as one with three, and shows whole rows
   const short = await card(three).boundingBox();
   const long = await card(eight).boundingBox();
   expect(Math.abs(long!.height - short!.height), `heights ${long!.height} and ${short!.height}`).toBeLessThan(1);
+  expect(await rowsShown(card(three))).toBe(3);
+  expect(await rowsShown(card(eight))).toBe(3);
 
-  // Whole rows: each row lies wholly inside the list's box or wholly past its
-  // edge, and the ones inside are the three that fit.
-  const preview = card(eight).getByTestId("discover-preview");
-  const list = (await preview.boundingBox())!;
-  const rows = await Promise.all((await preview.getByRole("listitem").all()).map((row) => row.boundingBox()));
-  expect(rows.map((box) => placement(box!, list))).toEqual([...Array(3).fill("shown"), ...Array(5).fill("clipped")]);
+  for (const id of ids) await forget(page, id);
+});
+
+// Option b's grid half: cards in a row share its height, which the tallest
+// card's other parts set, and a card with room to spare spends it on more
+// rows rather than on blank space above its footer. Newest first, so the
+// short-titled day is the wide card and the long-titled one stands beside it.
+test("in a grid row, the card with the shorter title shows more stop rows, at the same height", async ({ page }) => {
+  test.slow();
+  await page.setViewportSize({ width: 1280, height: 900 });
+
+  const city = mint("Rowgride2e");
+  const tag = randomUUID().slice(0, 8);
+  const longName = `Long ${tag}: a whole day of markets, ruins, a long lunch by the river and the slow bus home over the pass`;
+  const shortName = `Short ${tag}`;
+  const ids = [await publishDay(page, longName, city, undefined, 8, true)];
+  ids.push(await publishDay(page, shortName, city, undefined, 8, true));
+
+  await page.goto(`/playbooks?city=${encodeURIComponent(city)}&sort=newest`);
+  const card = (name: string) => page.getByTestId("discover-card").filter({ hasText: name });
+  await expect(card(longName).getByTestId("preview-title")).toHaveCount(8);
+  await expect(card(shortName).getByTestId("preview-title")).toHaveCount(8);
+
+  const tall = (await card(longName).boundingBox())!;
+  const short = (await card(shortName).boundingBox())!;
+  expect(Math.abs(tall.y - short.y), "one grid row").toBeLessThan(1);
+  expect(Math.abs(tall.height - short.height), `heights ${tall.height} and ${short.height}`).toBeLessThan(1);
+  const fromLong = await rowsShown(card(longName));
+  const fromShort = await rowsShown(card(shortName));
+  expect(fromLong).toBeGreaterThanOrEqual(3);
+  expect(fromShort, `rows shown: ${fromShort} beside ${fromLong}`).toBeGreaterThan(fromLong);
 
   for (const id of ids) await forget(page, id);
 });

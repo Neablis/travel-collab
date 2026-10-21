@@ -25,9 +25,12 @@ Format:
   at its 200-character limit stays near 0.5 MB.
 - Consumers updated: `apps/web` (`server/discoverDay.ts` slices by the constant; the landing sea and
   features snapshots regenerated, so their cards carry day one's whole list). `DiscoverCard` off
-  the sea now clips its stop rows to the room three one-line rows took, whole rows only, so a
-  Discover, tag, city, country or profile card, and the landing's feature panels, keep their height
-  and show the rows that fit. The landing sea's own layout is PR 510's.
+  the sea (Discover, tag, city, country and profile; Mitchell's option b): a card in a grid row is
+  as tall as the row, which its other parts and room for three one-line rows set; the stop list
+  fills what is left and draws the whole rows that fit, so a card beside a taller neighbour shows
+  more than three. A title keeps to one line there, so three always fit; a lone card on a phone
+  shows three, as before. The landing sea's own layout is PR 510's, and its cards, the find
+  moment's banner included, now show every row their cell holds.
 - Breaking? no, **minor**: the shape and every field are unchanged, and a response may now hold
   more items than before, as a new enum value on a response may (`using-the-api.md`, *minor for
   anything additive*). A caller that assumed at most three rows, or that validates responses

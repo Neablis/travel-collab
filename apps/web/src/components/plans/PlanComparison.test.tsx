@@ -2,28 +2,9 @@ import { cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { LANDING_PLANS } from "@/lib/landingPlans";
 import { ENTITLEMENT_LABEL } from "@/lib/planCopy";
-import { PlanComparison, planBullets, planPitch } from "./PlanComparison";
+import { PlanComparison, planBullets } from "./PlanComparison";
 
 afterEach(cleanup);
-
-describe("planPitch", () => {
-  // Mitchell, 2026-10-11: the front door says one thing per plan. Each line is
-  // read off what the plan grants, so it has to say something different for
-  // every plan the landing shows, and say nothing the copy rules refuse.
-  it("gives every published plan its own line, and none of them says free", () => {
-    const lines = LANDING_PLANS.map(planPitch);
-    expect(new Set(lines).size).toBe(LANDING_PLANS.length);
-    for (const line of lines) expect(line).not.toMatch(/\bfree\b/i);
-  });
-
-  it("says what each plan is actually for", () => {
-    expect(Object.fromEntries(LANDING_PLANS.map((choice) => [choice.planId, planPitch(choice)]))).toEqual({
-      free: "Unlimited planned trips",
-      plus: "AI tools to help plan the trip",
-      premium: "Invite all your friends to come along",
-    });
-  });
-});
 
 describe("PlanComparison", () => {
   // Mitchell, 2026-10-11: on a phone every plan is readable without a sideways

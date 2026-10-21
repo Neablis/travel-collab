@@ -41,9 +41,23 @@ test("landing → sign in → first trip → sign out", async ({ page }) => {
   // **Except the plan's name and price in the plan summary** (M42 D3, SPEC
   // §17.1: "The `Free` plan name is not that claim") — the same rule as
   // `LandingScreen.test.tsx`. Every exempt element also matches the page-wide
-  // pattern, so equal counts mean no "free" anywhere else.
-  const planNames = page.getByTestId("plan-summary").getByText(/^free$/i);
-  await expect(page.getByText(/\bfree\b/i)).toHaveCount(await planNames.count());
+  // pattern, so equal counts mean no "free" anywhere else. And except the
+  // sea's cards (M51), which are days people wrote ("the free museum"), not
+  // the page selling itself. Read in one pass over the DOM, because the sea
+  // mounts cards as it goes, and counts taken one after another can each see
+  // a different page.
+  const free = await page.evaluate(() => {
+    const said: string[] = [];
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    for (let node = walker.nextNode(); node !== null; node = walker.nextNode()) {
+      const el = node.parentElement!;
+      if (!/\bfree\b/i.test(node.textContent ?? "") || el.closest("script, style, [data-testid=discover-card]")) continue;
+      if (el.closest("[data-testid=plan-summary]") && /^free$/i.test(el.textContent!.trim())) continue;
+      said.push(node.textContent!);
+    }
+    return said;
+  });
+  expect(free).toEqual([]);
   await expect(page.getByText(/Free and open source/)).toHaveCount(0);
 
   // M11 link 4 built the real thing, so this is a link now, not a Preview
