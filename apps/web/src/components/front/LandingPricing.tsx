@@ -119,13 +119,9 @@ function adds(choice: AccountPlanChoice, base: AccountPlanChoice) {
 
 // The ladder's steps by their place on it, not by plan: a paper step, then
 // ink, then the brand, each taller than the one before (the prototype's
-// `.s0`, `.s1`, `.s2`). The heights are rows of the ladder's own grid, which
-// the ladder sizes; a step fills what it is given.
-const STEP = [
-  "border border-hairline bg-surface text-ink md:row-start-3",
-  "bg-mat-ladder text-person-on md:row-start-2",
-  "bg-brand text-person-on md:row-start-1",
-];
+// `.s0`, `.s1`, `.s2`). The ladder sizes them (`.landing-ladder`): each
+// fills it to its foot, the last full height, the others a rise lower.
+const STEP = ["border border-hairline bg-surface text-ink", "bg-mat-ladder text-person-on", "bg-brand text-person-on"];
 const STEP_MARK = ["", "bg-surface/15", "bg-surface/15"];
 
 /**
@@ -143,8 +139,8 @@ const STEP_MARK = ["", "bg-surface/15", "bg-surface/15"];
 export function LandingPricing({ id, ref }: { id?: string; ref?: Ref<HTMLElement> }) {
   const steps = ladder(LANDING_PLANS);
   return (
-    <section id={id} ref={ref} aria-label="Pricing" className="flex min-h-0 flex-1 flex-col gap-4">
-      <div className="flex min-h-0 flex-1 flex-col gap-4" data-testid="plan-summary">
+    <section id={id} ref={ref} aria-label="Pricing" className="landing-pricing flex min-h-0 flex-1 flex-col gap-4 md:grid">
+      <div className="flex min-h-0 flex-1 flex-col gap-4 md:contents" data-testid="plan-summary">
         <DataText size="xs" className="text-2xs tracking-widest uppercase">
           Pricing ·{" "}
           {steps.map(({ choice }, i) => (
@@ -157,13 +153,13 @@ export function LandingPricing({ id, ref }: { id?: string; ref?: Ref<HTMLElement
         <Heading level={2} className="text-2xl text-pretty">
           Start on <span>{planName(steps[0]!.choice)}</span>. Add more when you want it.
         </Heading>
-        <div className="grid min-h-0 flex-1 grid-cols-1 gap-3.5 md:grid-cols-3 md:grid-rows-6">
+        <div data-testid="plan-ladder" className="landing-ladder grid min-h-0 flex-1 grid-cols-1 gap-3.5 md:grid-cols-3">
           {steps.map(({ choice, base }, i) => {
             const step = base === null ? null : adds(choice, base);
             return (
               <div
                 key={choice.planId}
-                className={cn("flex min-w-0 flex-col gap-3 overflow-hidden rounded-xl p-5.5 md:row-end-7", STEP[Math.min(i, STEP.length - 1)])}
+                className={cn("flex min-w-0 flex-col gap-3 overflow-hidden rounded-xl p-5.5", STEP[Math.min(i, STEP.length - 1)])}
               >
                 <span className="font-mono text-xs tracking-widest uppercase">{planName(choice)}</span>
                 <span className="font-display text-3xl leading-none font-bold">
@@ -196,7 +192,7 @@ export function LandingPricing({ id, ref }: { id?: string; ref?: Ref<HTMLElement
           signed-out visitor to an account route. */}
       <Link
         href={`/signin?callbackUrl=${encodeURIComponent("/plans")}`}
-        className={cn(buttonVariants({ variant: "secondary", size: "sm" }), PHONE_TOUCH, "self-start no-underline")}
+        className={cn(buttonVariants({ variant: "secondary", size: "sm" }), PHONE_TOUCH, "self-start no-underline md:self-end")}
       >
         Compare plans
       </Link>

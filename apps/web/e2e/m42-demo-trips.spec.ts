@@ -24,7 +24,7 @@ const DEMOS = [
 /** The phone's Playbooks claim, Mitchell's Hanoi playbook (`scripts/landing-day.json`). */
 const PLAYBOOK = /^Hanoi in 4 days/;
 
-/** The sea's first moment's banner, the richest day in `content/playbooks/thailand-beaches.json` (`richestDay`). */
+/** The sea's first moment's banner, the day `scripts/landing-demo.ts` names in `content/playbooks/thailand-beaches.json`. */
 const BANNER = /^Phi Phi on your own boat/;
 
 test.describe("the front door, signed out (M42)", () => {

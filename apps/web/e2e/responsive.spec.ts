@@ -886,22 +886,76 @@ test.describe("responsive (narrow viewport, signed out)", () => {
     });
 
     // Mitchell's third walk of PR 510: *"For the primary header for the app,
-    // maybe give it a little more standout?"*. A paper frame and an ink ring
-    // in the gap that no sea cell has, and a headline larger than the
-    // closing's `text-4xl` (58px at most). Computed in the browser, because a
-    // utility class on the same element silently won over both (PR 510 r6).
-    test(`the hero stands off the sea at ${width}px`, async ({ page }) => {
+    // maybe give it a little more standout?"*, and his fourth: *"The border
+    // makes this wider than the other components … then add a drop shadow"*.
+    // Its frame is its border, inside the grid area every other cell keeps
+    // to; the lift is the designs' drop shadow (the prototype's `.ex .ff`);
+    // the headline is larger than the closing's `text-4xl` (58px at most).
+    // Computed in the browser, because a utility class on the same element
+    // silently won over the CSS (PR 510 r6).
+    test(`the hero stands off the sea on the grid's lines at ${width}px`, async ({ page }) => {
       await page.setViewportSize({ width, height: 1000 });
       await page.goto("/");
       const hero = page.getByTestId("desktop-landing").getByTestId("sea-hero");
       const headline = hero.getByRole("heading", { level: 1, name: "Plan the trip together." });
       await expect(headline).toBeVisible();
-      const cell = page.getByTestId("desktop-landing").getByTestId("sea-cell").first();
-      const shadow = (el: Element) => getComputedStyle(el).boxShadow;
-      const [heroShadow, cellShadow] = [await hero.evaluate(shadow), await cell.evaluate(shadow)];
-      expect(heroShadow).not.toBe(cellShadow);
-      expect(heroShadow).toMatch(/0px 0px 0px 6px/);
+      const { box, area, shadow, border } = await hero.evaluate((el) => {
+        const grid = el.parentElement!;
+        const css = getComputedStyle(grid);
+        const [cols, start, span, rows] = ["--cols", "--hero-start", "--hero-span", "--hero-rows"].map((name) =>
+          Number.parseFloat(css.getPropertyValue(name)),
+        ) as [number, number, number, number];
+        const g = grid.getBoundingClientRect();
+        const unit = (g.width - 32 - (cols - 1) * 8) / cols;
+        const r = el.getBoundingClientRect();
+        // From the grid's second row, past its 8px top padding and 16px sides.
+        const area = [g.left + 16 + (start - 1) * (unit + 8), g.top + 8 + unit + 8, span * unit + (span - 1) * 8, rows * unit + (rows - 1) * 8];
+        const style = getComputedStyle(el);
+        return { box: [r.left, r.top, r.width, r.height].map(Math.round), area: area.map(Math.round), shadow: style.boxShadow, border: style.borderTopWidth };
+      });
+      expect(box).toEqual(area);
+      // Nothing outside the box but the drop shadow: no ring spread into the gap.
+      expect(shadow).toBe("rgba(21, 29, 46, 0.35) 0px 30px 80px 0px");
+      expect(border).not.toBe("0px");
       expect(await headline.evaluate((el) => Number.parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThan(58);
+    });
+
+    // Mitchell's fourth walk of PR 510: *"show activities up till they dont
+    // fit rather than just render the first 3"*. A card lays its parts in one
+    // wrapping column and clips the second, so it drops parts from the first
+    // that does not fit. Only its title and its facts come before its stops:
+    // where a card drops its stops with room left for one row, the part it
+    // dropped first is one of those two, and never the stops as a block, nor
+    // a description or a rating ahead of them.
+    test(`every card on the first screen shows the stop rows it has room for at ${width}px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 1000 });
+      await page.goto("/");
+      const cards = page.getByTestId("desktop-landing").getByTestId("sea-grid").getByTestId("discover-card");
+      await expect(cards.first()).toBeVisible();
+      const roomy = await cards.evaluateAll((els) =>
+        els
+          .filter((card) => card.getBoundingClientRect().bottom <= window.innerHeight)
+          .flatMap((card) => {
+            const box = card.getBoundingClientRect();
+            // The card's parts, its flex items, in the order it lays them.
+            const items = (el: Element): Element[] =>
+              [...el.children].flatMap((child) => (getComputedStyle(child).display === "contents" ? items(child) : [child]));
+            const parts = items(card)
+              .map((part, i) => ({ part, i, order: Number(getComputedStyle(part).order) }))
+              .sort((a, b) => a.order - b.order || a.i - b.i)
+              .map(({ part }) => part);
+            const shown = (el: Element) => el.getBoundingClientRect().right <= box.right + 0.5;
+            const row = card.querySelector("[data-testid=discover-preview] li");
+            const dropped = parts.find((part) => !shown(part));
+            if (row === null || shown(row) || dropped === undefined) return [];
+            if (dropped.matches(".landing-sea-head, h3, [data-testid=card-facts]")) return [];
+            const style = getComputedStyle(card);
+            const last = Math.max(...parts.filter(shown).map((part) => part.getBoundingClientRect().bottom));
+            const room = box.bottom - Number.parseFloat(style.paddingBottom) - Number.parseFloat(style.rowGap) - last;
+            return room >= row.getBoundingClientRect().height ? [`${card.querySelector("h3")!.textContent}: ${Math.round(room)}px free`] : [];
+          }),
+      );
+      expect(roomy).toEqual([]);
     });
 
     // "never two touching" (Mitchell's third walk: accents *"spread out"*):
@@ -930,25 +984,67 @@ test.describe("responsive (narrow viewport, signed out)", () => {
       expect(touching).toEqual([]);
     });
 
-    // A name is never cut mid-word (PR 510 r6: "Switzerlan"): where the
-    // browser has no hyphenation dictionary, as Linux Chromium has none, it
-    // still fits its cell.
-    test(`every accent's name fits its cell at ${width}px`, async ({ page }) => {
+  }
+
+  // Mitchell's fourth walk of PR 510, at 1304×822: *"Too much dead space,
+  // shrink the whole container down 1 row, then take up the extra space at
+  // the bottom of free, plus and premium"*. Three rows, not four; each step
+  // reaches the ladder's foot with nothing it holds cut off, and it is still
+  // a ladder.
+  for (const [width, height] of [
+    [1304, 822],
+    [1440, 900],
+    [3440, 1271],
+  ] as const) {
+    test(`the pricing is three rows, its steps filling them, at ${width}px`, async ({ page }) => {
+      await page.setViewportSize({ width, height });
+      await page.goto("/");
+      const pricing = page.getByTestId("desktop-landing").getByRole("region", { name: "Pricing" });
+      await pricing.scrollIntoViewIfNeeded();
+      await expect(pricing.getByTestId("plan-step").first()).toBeVisible();
+      const { rows, steps } = await pricing.evaluate((el) => {
+        const ladder = el.querySelector("[data-testid=plan-ladder]")!;
+        const foot = ladder.getBoundingClientRect().bottom;
+        return {
+          rows: el.closest<HTMLElement>("[data-testid=sea-story]")!.style.gridRow,
+          steps: [...ladder.children].map((step) => ({
+            top: step.getBoundingClientRect().top,
+            toFoot: Math.round(foot - step.getBoundingClientRect().bottom),
+            cut: step.scrollHeight > step.clientHeight + 1,
+          })),
+        };
+      });
+      expect(rows).toMatch(/span 3$/);
+      expect(steps.map(({ toFoot, cut }) => ({ toFoot, cut }))).toEqual(steps.map(() => ({ toFoot: 0, cut: false })));
+      const [free, plus, premium] = steps.map(({ top }) => top) as [number, number, number];
+      expect(free).toBeGreaterThan(plus);
+      expect(plus).toBeGreaterThan(premium);
+    });
+  }
+
+  // A name is never cut mid-word (PR 510 r6: "Switzerlan"; r7: "Switzerlan /
+  // d" at 1650 and 3100): where the browser has no hyphenation dictionary,
+  // as Linux Chromium has none, it is sized so its longest word fits one
+  // line. Counted in line boxes, because `overflow-wrap: anywhere` breaks a
+  // word inside its box rather than overflow it, which no scroll width sees.
+  for (const width of [1440, 1650, 3100, 3440]) {
+    test(`no accent's name breaks inside a word at ${width}px`, async ({ page }) => {
       // A screen tall enough that every band of the sea is near, and mounted.
       await page.setViewportSize({ width, height: 8000 });
       await page.goto("/");
-      const accents = page.getByTestId("desktop-landing").getByTestId("sea-accent");
+      const names = page.getByTestId("desktop-landing").getByTestId("sea-accent").locator(".landing-sea-stamp-name");
       // Every accent once over, the longest one-word name with them.
-      await expect.poll(() => accents.count()).toBeGreaterThan(34);
-      expect(await accents.allTextContents()).toContain("CountrySwitzerland");
-      const clipped = await accents.evaluateAll((els) =>
-        els.flatMap((accent) => {
-          const stamp = accent.querySelector(".landing-sea-stamp")!;
-          const name = accent.querySelector(".landing-sea-stamp-name")!;
-          return stamp.scrollWidth > stamp.clientWidth || name.scrollWidth > name.clientWidth ? [name.textContent] : [];
+      await expect.poll(() => names.count()).toBeGreaterThan(34);
+      expect(await names.allTextContents()).toContain("Switzerland");
+      const broken = await names.evaluateAll((els) =>
+        els.flatMap((name) => {
+          const range = document.createRange();
+          range.selectNodeContents(name);
+          const lines = new Set([...range.getClientRects()].map((rect) => Math.round(rect.top))).size;
+          return lines > name.textContent!.split(" ").length ? [`${name.textContent} in ${lines} lines`] : [];
         }),
       );
-      expect(clipped).toEqual([]);
+      expect(broken).toEqual([]);
     });
   }
 

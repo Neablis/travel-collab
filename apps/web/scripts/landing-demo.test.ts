@@ -220,24 +220,15 @@ describe("the sea's links, as the landing draws them", () => {
   });
 });
 
-// Mitchell's third walk of PR 510: the find moment's banner "has no reviews,
-// and is only 3 activities during the day, not the most aww inspiring
-// example". It is the Thailand day the rule picks: rated 4.5 or more, with no
-// such day holding more stops, or as many and more reviews; and it draws the
-// rating its own cell in the sea draws.
+// The find moment's banner is a day named by its key, not ranked (Mitchell's
+// fourth walk of PR 510: *"Let the rule go"*). It is a day of the sea, and it
+// draws the rating its own cell in the sea draws.
 describe("the find moment's banner", () => {
-  it("is the richest Thailand day in the sea", () => {
+  it("is a day of the sea, rated as its cell is", () => {
     const { shelf } = LANDING_FEATURES;
-    const thailand = SEA_DAYS.filter((cell) => cell.group === "thailand-beaches");
-    expect(shelf.rating ?? 0).toBeGreaterThanOrEqual(4.5);
-    expect(shelf.reviewCount).toBeGreaterThan(0);
-    const richer = thailand
-      .filter(({ day }) => (day.rating ?? 0) >= 4.5)
-      .filter(({ day }) => day.stopCount > shelf.stopCount || (day.stopCount === shelf.stopCount && day.reviewCount > shelf.reviewCount))
-      .map(({ day }) => day.name);
-    expect(richer).toEqual([]);
-    const own = thailand.find((cell) => cell.day.savedDayId === shelf.savedDayId)!;
-    expect({ rating: own.day.rating, reviews: own.day.reviewCount }).toEqual({ rating: shelf.rating, reviews: shelf.reviewCount });
+    const own = SEA_DAYS.find((cell) => cell.day.savedDayId === shelf.savedDayId);
+    expect(own?.day.name).toBe(shelf.name);
+    expect({ rating: own?.day.rating, reviews: own?.day.reviewCount }).toEqual({ rating: shelf.rating, reviews: shelf.reviewCount });
   });
 });
 

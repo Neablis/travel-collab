@@ -2073,18 +2073,20 @@ html[data-look="ledger"] .shadow-raised {
     overflow: clip;
   }
   /* The hero stands off the full-colour sea around it (Mitchell's third walk
-     of PR 510: *"maybe give it a little more standout"*): a paper frame and an
-     ink rule inside the grid's gap, and a deep shadow; its headline is
-     `text-5xl`. The cells around it keep their colour. No `shadow-*` utility
-     on the element: one would win over this from the utilities layer. */
+     of PR 510: *"maybe give it a little more standout"*): an ink rule, and
+     the designs' lifted drop shadow (the C2 prototype's `.ex .ff`, which no
+     token holds: `--shadow-lifted` is the lighter tier); its headline is
+     `text-5xl`. The rule is its border, inside its grid area, so its edge is
+     on the grid's lines like every other cell's (his fourth walk: *"The
+     border makes this wider than the other components"*). No `shadow-*`
+     utility on the element: one would win over this from the utilities
+     layer. */
   .landing-sea-hero {
     grid-row: 2 / span var(--hero-rows);
     grid-column: var(--hero-start) / span var(--hero-span);
     z-index: 2;
-    box-shadow:
-      0 0 0 0.1875rem var(--color-paper),
-      0 0 0 0.375rem var(--color-ink),
-      0 1.5rem 4rem -0.5rem color-mix(in srgb, var(--color-ink) 55%, transparent);
+    border: 0.1875rem solid var(--color-ink);
+    box-shadow: 0 1.875rem 5rem rgb(21 29 46 / 0.35);
   }
   /* A cell's region strip: mono caps over the card, white on the region's
      mat (the prototype's `.ml`). */
@@ -2216,6 +2218,45 @@ html[data-look="ledger"] .shadow-raised {
     grid-template-columns: minmax(0, 80rem);
     justify-content: center;
   }
+  /* The pricing's ladder (`LandingPricing`), from `md` where its steps stand
+     side by side: one row the ladder's height, each step standing on its
+     foot and filling it, Premium full height and each step before it one
+     rise lower. A step's rise gives way before what it holds is cut: it is
+     at least its content tall, up to the whole ladder (Mitchell's fourth
+     walk of PR 510: *"shrink the whole container down 1 row, then take up
+     the extra space at the bottom of free, plus and premium"*). */
+  @media (width >= 48rem) {
+    /* *Compare plans* beside the heading, not under the ladder, so the
+       ladder has the room it took: three rows hold Plus's picture whole.
+       The section is `md:grid` and the summary `md:contents` by utility,
+       which the utilities layer would otherwise win over. */
+    .landing-pricing {
+      grid-template-columns: minmax(0, 1fr) auto;
+      grid-template-rows: auto auto minmax(0, 1fr);
+    }
+    .landing-pricing > [data-testid="plan-summary"] > :not(.landing-ladder) {
+      grid-column: 1;
+    }
+    .landing-pricing > a {
+      grid-row: 1 / span 2;
+      grid-column: 2;
+    }
+    .landing-ladder {
+      grid-column: 1 / -1;
+      grid-template-rows: minmax(0, 1fr);
+    }
+    .landing-ladder > * {
+      align-self: end;
+      min-height: calc(100% - var(--rise, 0rem));
+      max-height: 100%;
+    }
+    .landing-ladder > :nth-last-child(2) {
+      --rise: 5.75rem;
+    }
+    .landing-ladder > :nth-last-child(3) {
+      --rise: 11.5rem;
+    }
+  }
   /* A card on the sea fills the box its cell gives it and keeps what fits.
      Its parts are one column that wraps, so a part with no room left moves
      to a second column, which the card clips whole: nothing is cut through
@@ -2232,6 +2273,11 @@ html[data-look="ledger"] .shadow-raised {
   .landing-sea-card > .contents > *,
   .landing-sea-head > * {
     width: 100%;
+  }
+  /* A card's stop rows, each a part of its column (`DiscoverCard`), as close
+     as the list holds them anywhere else: 6px apart, not the card's gap. */
+  .landing-sea-rows > li + li {
+    margin-top: -0.375rem;
   }
   /* The card's first part: its title, then its chips, laid upwards from the
      title. Too tall for the card, it is the only part in the first column
@@ -2286,9 +2332,11 @@ html[data-look="ledger"] .shadow-raised {
     /* As large as the cell allows its longest word (`--word` characters, at
        most 0.6em each in the display faces) on one line, so a name is never
        cut mid-word where the browser has no hyphenation dictionary (PR 510
-       r6: "Switzerlan" on Linux Chromium). Breaking anywhere is the last
+       r6: "Switzerlan" on Linux Chromium). Half a character spare: at
+       exactly 0.6em a word measured a tenth of a pixel over its box and broke
+       (r7: "Switzerlan / d" at 1650 and 3100). Breaking anywhere is the last
        resort, for a face wider than that. */
-    font-size: min(clamp(0.875rem, 1.6vw, 1.625rem), 100cqi / (0.6 * var(--word, 1)));
+    font-size: min(clamp(0.875rem, 1.6vw, 1.625rem), 100cqi / (0.6 * var(--word, 1) + 0.3));
     line-height: 1.05;
     letter-spacing: -0.02em;
     overflow-wrap: anywhere;

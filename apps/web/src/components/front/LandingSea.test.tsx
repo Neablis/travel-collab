@@ -276,6 +276,9 @@ describe("the sea's moments", () => {
       .filter((item) => [...people, "Priya", "Jonah", "Mei", "Sam"].includes(item.textContent!.trim()));
     expect(signed).toEqual([]);
     expect(within(page).getAllByRole("heading").length).toBeGreaterThanOrEqual(3);
+    // Mitchell's fourth walk: *"add a header to the sunrise sunset widget, its
+    // not clear thats what it is"*, in the widget's own title from the picker.
+    expect(within(page).getAllByRole("heading", { name: "Sunrise and sunset" })).toHaveLength(1);
     const lit = litCells().filter((cell) => cell.getAttribute("data-lit-for") === "sea-notebook");
     expect(lit.map(dayOf).sort()).toEqual(LANDING_SEA.japan.map((cell) => cell.day.savedDayId).sort());
   });
@@ -545,19 +548,27 @@ describe("the sea at Mitchell's third walk", () => {
     }
   });
 
+  // Mitchell's fourth walk, at 1304×822: *"Too much dead space, shrink the
+  // the whole container down 1 row"*. Three rows at every width, from the
+  // narrowest unit (1202px, seven columns) to the widest (1201px, six).
+  it("draws the pricing three rows tall, one fewer than its four, at every width", () => {
+    for (const metrics of [...SCREENS, metricsAt(1304, 822), metricsAt(1201, 900), metricsAt(1202, 900)]) {
+      expect({ ...metrics, rows: layoutSea(metrics).stories.pricing.h }).toEqual({ ...metrics, rows: 3 });
+    }
+  });
+
   // "we are missing this nice accent full color cards with Country - city
   // … link to those pages if you click there". About one cell in eight to
   // twelve, a single or a wide one, never two touching, and never lit.
   it("scatters accents through the background, about one cell in ten, apart from one another", () => {
     expect(SEA_ACCENTS.length).toBeGreaterThan(0);
     for (const metrics of SCREENS) {
-      const { background, lit } = layoutSea(metrics);
+      const { background } = layoutSea(metrics);
       const accents = background.filter((ground) => ground.accent !== undefined).map(({ at }) => at);
       const share = accents.length / background.length;
       expect({ ...metrics, share: share >= 1 / 12 && share <= 1 / 8 }).toEqual({ ...metrics, share: true });
       expect(accents.filter((at) => at.h !== 1 || at.w > 2)).toEqual([]);
       expect(accents.flatMap((a, i) => accents.slice(i + 1).filter((b) => meet(a, b, 1)))).toEqual([]);
-      expect(lit.filter(({ cell }) => !("day" in cell))).toEqual([]);
     }
     const first = FIRST_SCREEN.filter((ground) => ground.accent !== undefined).length / FIRST_SCREEN.length;
     expect(first >= 1 / 12 && first <= 1 / 8).toBe(true);

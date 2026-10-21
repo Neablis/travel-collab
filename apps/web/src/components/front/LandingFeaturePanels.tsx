@@ -175,7 +175,7 @@ export function MemoryPanel(): React.ReactElement {
  */
 export function NotebookPagePanel(): React.ReactElement {
   const [opening, ...rest] = LANDING_FEATURES.memory;
-  const { day, sun, journal } = LANDING_FEATURES.page;
+  const { day, sun, sunTitle, journal } = LANDING_FEATURES.page;
   return (
     <div data-testid="notebook-page" className={cn(PAGE, "landing-sea-fade @container min-h-0 flex-1 gap-4 overflow-hidden rounded-b-none border-b-0 px-5 pt-5")}>
       <TripStripBlock payload={LANDING_DEMO.notebook.strip} accents={LANDING_ACCENTS} />
@@ -187,7 +187,14 @@ export function NotebookPagePanel(): React.ReactElement {
       <div className="grid items-start gap-5 @2xl:grid-cols-2">
         <ItineraryDayBlock payload={day} />
         <div className="flex min-w-0 flex-col gap-4">
-          <SunBlock payload={sun} accents={LANDING_ACCENTS} />
+          {/* Headed with the widget's own title, since its ribbon alone does
+              not say what it is (Mitchell's fourth walk of PR 510). */}
+          <section className="flex flex-col gap-2">
+            <Heading level={4} className="text-sm font-semibold">
+              {sunTitle}
+            </Heading>
+            <SunBlock payload={sun} accents={LANDING_ACCENTS} />
+          </section>
           {rest.map((segs, i) => (
             <Paragraph key={i} segs={segs} className="text-md" />
           ))}

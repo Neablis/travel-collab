@@ -60,7 +60,7 @@ import {
   type ContentBundleV1,
   type ResolvedPlaybook,
 } from "@tc/fixtures";
-import { renderMacro, type BlockPayload, type Seg, type WidgetContext } from "@tc/pages";
+import { getMacro, renderMacro, type BlockPayload, type Seg, type WidgetContext } from "@tc/pages";
 import { cityAccents } from "@/components/pages/cityAccents";
 import { TAG_LABEL } from "@/lib/activityTags";
 import { dayLabel } from "@/lib/dates";
@@ -68,7 +68,6 @@ import { DEMO_TRIPS, demoTripBySlug } from "@/lib/demoTrip";
 import { displayNameFor } from "@/lib/displayName";
 import type { LandingCrew, LandingDemo, LandingFeatures } from "@/lib/landingDemo";
 import type { LandingSea, SeaAccent, SeaCell, SeaCellSize, SeaDay, SeaDayCell } from "@/lib/landingSea";
-import { richestDay } from "@/lib/richestDay";
 import { countryName } from "@/lib/place";
 import { cityPath, countrySlug, dayPath, placeIndexable, placePath, tagPath } from "@/lib/playbookUrls";
 import { overlayMembers } from "@/server/access/overlay";
@@ -308,9 +307,11 @@ function landingCard(row: DiscoverRow): DiscoverDay {
 }
 
 /**
- * The find moment's banner: the richest Thailand day by `richestDay`'s rule
- * (Mitchell's third walk of PR 510: *"not the most aww inspiring example to
- * pick from for a banner tile"*). A library playbook, read from the bundle the
+ * The find moment's banner: a day named by its key, not ranked by a rule
+ * (Mitchell's fourth walk of PR 510: *"Let the rule go, i never said to make
+ * it a rule, use the italy days i suggested"*). His Italy days are in
+ * production only, so until `content/` holds them it is the Phi Phi day, the
+ * one the banner already showed. A library playbook, read from the bundle the
  * production import reads and resolved by the same `resolvePlaybook`, so its
  * id is the one the library serves and its card links to a day that exists.
  * Its adds are the bundle's own ledger, and its rating the sample one its
@@ -335,8 +336,12 @@ function thailandCards(): { key: string; day: DiscoverDay; resolved: ResolvedPla
     });
 }
 
+const SHELF_KEY = "phi-phi-private-longtail";
+
 function shelfPlaybook(): DiscoverDay {
-  return richestDay(thailandCards()).day;
+  const shelf = thailandCards().find(({ key }) => key === SHELF_KEY);
+  if (shelf === undefined) throw new Error(`landing demo: thailand-beaches no longer holds ${SHELF_KEY}`);
+  return shelf.day;
 }
 
 /**
@@ -794,6 +799,8 @@ export function buildLandingFeatures(): LandingFeatures {
     page: {
       day: resolveBlock(ctx, "day.detail", { day: MEMORY_DAY }, "itinerary-day"),
       sun: resolveBlock(dated, "day.sun", { day: MEMORY_DAY }, "sun"),
+      // The widget's own title, as the notebook's widget picker names it.
+      sunTitle: getMacro("day.sun")!.title,
       journal: JOURNAL.map(({ heading, paragraphs }) => ({
         heading,
         paragraphs: paragraphs.map((words) => resolveParagraph(ctx, { type: "paragraph", content: [text(words)] })),

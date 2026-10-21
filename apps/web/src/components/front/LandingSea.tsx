@@ -8,7 +8,6 @@ import { buttonVariants } from "@/components/ui/button";
 import { Heading } from "@/components/ui/heading";
 import { cn } from "@/lib/cn";
 import { LANDING_SEA, SEA_ACCENTS, SEA_DAYS, type SeaAccent, type SeaCell, type SeaCellSize } from "@/lib/landingSea";
-import { richestDay } from "@/lib/richestDay";
 
 /** A cell as the sea draws it: linked to its day page, or (a Japan day) to nothing. */
 type SeaDoor = SeaCell & { href: string | null };
@@ -99,14 +98,15 @@ const SPAN: Record<SeaCellSize, string> = {
 // The days each moment lights: two or three, never a whole region (Mitchell,
 // on PR 510: *"maybe like 2-3, not 6"*), and never the moment's own day
 // (Mitchell's third walk: *"The banner to left is the same activity to
-// right"*). Find a day raises the richest Thai day and lights two more; make
-// it your trip shows the Railay day and lights three others; the crew's river
-// is Elena's Naxos day, and it lights three other Greek ones; the notebook
-// lights the demo's three Japan days.
+// right"*). Each is a day named here, not ranked (Mitchell's fourth walk:
+// *"Let the rule go"*). Find a day raises the Phi Phi day and lights two more;
+// make it your trip shows the Railay day and lights three others; the crew's
+// river is Elena's Naxos day, and it lights three other Greek ones; the
+// notebook lights the demo's three Japan days.
 const THAILAND = SEA_DAYS.filter((cell) => cell.group === "thailand-beaches");
 const GREECE = SEA_DAYS.filter((cell) => cell.group === "greek-islands");
-/** The find moment's banner, by the rule the generator gives `LANDING_FEATURES.shelf`. */
-const BANNER = richestDay(THAILAND);
+/** The find moment's banner, the day the generator names as `LANDING_FEATURES.shelf`. */
+const BANNER = THAILAND.find((cell) => cell.day.name.startsWith("Phi Phi"))!;
 /** The Railay day's page, where the day is added to a trip; part 6 makes this the onboarding itself. */
 const RAILAY = THAILAND.find((cell) => cell.day.name.startsWith("Railay"))!;
 const NAXOS = GREECE.find((cell) => cell.day.name.startsWith("Naxos"))!;
@@ -270,13 +270,15 @@ const SERVER_METRICS: SeaMetrics = { cols: 6, unit: (1100 - 2 * PAD - 5 * GAP) /
 // columns, five from 12, six from 16), or the full width, how tall its
 // content is drawn in px, which sets its rows, and where it sits. The crew's
 // 680px is four rows at 1440 (Mitchell's third walk: *"Cut it one row
-// shorter"*); the make moment's 440 holds its worked example.
+// shorter"*); the make moment's 440 holds its worked example. The pricing's
+// 480 is three rows at every unit, one fewer than it had (his fourth: *"Too
+// much dead space, shrink the whole container down 1 row"*).
 const STORIES: { id: StoryId; extra: number | null; height: number; align: "left" | "right" | "center" }[] = [
   { id: "sea-find", extra: 1, height: 480, align: "left" },
   { id: "sea-make", extra: 1, height: 440, align: "right" },
   { id: "sea-crew", extra: 1, height: 680, align: "center" },
   { id: "sea-notebook", extra: 2, height: 640, align: "left" },
-  { id: "pricing", extra: 2, height: 620, align: "center" },
+  { id: "pricing", extra: 2, height: 480, align: "center" },
   { id: "closing", extra: null, height: 380, align: "center" },
 ];
 const LIT_SIZE = 2;

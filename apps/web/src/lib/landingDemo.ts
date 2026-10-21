@@ -73,7 +73,7 @@ export type LandingCrew = {
 export type LandingFeatures = {
   /** Mitchell's published Hanoi playbook (`scripts/landing-day.json`), read through Discover's own `toDiscoverDay`. */
   playbook: DiscoverDay;
-  /** The find moment's banner: the richest Thailand day in `content/playbooks/` by `richestDay`, read the same way. */
+  /** The find moment's banner: the day `scripts/landing-demo.ts` names by its key in `content/playbooks/`. */
   shelf: DiscoverDay;
   /** The make-it-your-trip moment's worked example: the Railay day, and the Thailand demo trip as a trip the reader has. */
   make: {
@@ -88,6 +88,8 @@ export type LandingFeatures = {
   page: {
     day: ItineraryDayPayload;
     sun: SunPayload;
+    /** The sun widget's title, as the widget picker names it: the page heads the widget with it. */
+    sunTitle: string;
     journal: { heading: string; paragraphs: Seg[][] }[];
   };
 };

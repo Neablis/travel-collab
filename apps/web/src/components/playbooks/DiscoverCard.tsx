@@ -257,6 +257,12 @@ export function DiscoverCard({
   // for both drops the chips and keeps the title (PR 510 r4). The chips still
   // draw above it. With a cover the chips stand on the photo, as elsewhere.
   const seaHead = sea !== null && cover === null;
+  // On the sea the stop rows come straight after the facts and the rest
+  // after them: a part that does not fit takes every part after it to the
+  // clipped column, so a long description left no room for any stop
+  // (Mitchell's fourth walk of PR 510: *"show activities up till they dont
+  // fit"*).
+  const late = sea !== null ? "order-1" : undefined;
   const body = (
     <>
       {line !== null && (
@@ -270,7 +276,7 @@ export function DiscoverCard({
           the facts rather than losing both. */}
       <div className={cn(sea !== null && "contents")}>
         {!seaHead && title}
-        <DataText size="xs" className="mt-1 block">
+        <DataText size="xs" className="mt-1 block" data-testid="card-facts">
           {/* **The day count leads** (M23 link 4's gate box). It is the number
               that changes whether somebody opens this at all, and it is the
               number "Add to trip" is about to act on — the rule being that a
@@ -304,14 +310,14 @@ export function DiscoverCard({
       {(day.description !== null || day.tags.length > 0) && (
         <div className={cn("flex flex-col gap-1.5", sea !== null && "contents")}>
           {day.description !== null && (
-            <Text variant="secondary" id={descriptionId}>
+            <Text variant="secondary" id={descriptionId} className={late}>
               {day.description}
             </Text>
           )}
           {sea === null ? (
             <StopTagChips activityId={day.savedDayId} tags={day.tags} focusedTag={null} hrefOf={namedTagPath(day.namedTags)} />
           ) : (
-            <div className="landing-one-row flex">
+            <div className={cn("landing-one-row flex", late)}>
               <StopTagChips activityId={day.savedDayId} tags={day.tags} focusedTag={null} />
             </div>
           )}
@@ -323,7 +329,7 @@ export function DiscoverCard({
           empty stars or a zero. One star glyph and the number, not the
           artboard's five partially-filled stars — the number is the claim, and
           five glyphs restate it at a precision nobody reads off a card. */}
-      <Text as="span" variant="muted" className="text-xs" data-testid="card-rating">
+      <Text as="span" variant="muted" className={cn("text-xs", late)} data-testid="card-rating">
         {rated === null ? (
           "No reviews yet"
         ) : (
@@ -339,9 +345,12 @@ export function DiscoverCard({
       {/* `dc.html:2644-2651`: day one's first stops, time then title — the
           same rows on a multi-day Playbook, which says "3 days" on the line
           above instead (M27 link 10). The time column is the shared-day
-          list's 62px, so a card and the page it opens line up. */}
+          list's 62px, so a card and the page it opens line up. On the sea
+          each row is a part of the card's wrapping column, so a card shows
+          the rows it has room for and clips the rest whole (Mitchell's
+          fourth walk of PR 510: *"show activities up till they dont fit"*). */}
       {day.preview.length > 0 && (
-        <ul className="flex flex-col gap-1.5" data-testid="discover-preview">
+        <ul className={cn("flex flex-col gap-1.5", sea !== null && "landing-sea-rows contents")} data-testid="discover-preview">
           {day.preview.map((stop, i) => (
             <li key={i} className="flex gap-2.5 text-sm">
               <DataText size="xs" className="w-15.5 shrink-0 pt-0.5 text-2xs" data-testid="preview-time">
@@ -355,7 +364,7 @@ export function DiscoverCard({
         </ul>
       )}
 
-      <div className="mt-auto flex flex-wrap items-center justify-between gap-2 border-t border-hairline pt-3">
+      <div className={cn("mt-auto flex flex-wrap items-center justify-between gap-2 border-t border-hairline pt-3", late)}>
         {/* The only place this card names a person, and the name is the
             server's (`publicNameFor`, Mitchell 2026-10-02) — never derived
             from `ownerId` here. */}
