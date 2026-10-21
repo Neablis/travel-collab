@@ -258,6 +258,27 @@ test.describe("the front door, signed out (M42)", () => {
     expect(violations.map((violation) => ({ id: violation.id, targets: violation.nodes.map((node) => node.target.join(" ")) }))).toEqual([]);
   });
 
+  // At 1100 the grid is six columns and the river's lane some 250px: the open
+  // review popover is the lane's width, not the app's 320 (PR 514's fourth
+  // review), and the moment's columns hold what they draw, clipping nothing.
+  test("the assistant moment holds its open popover and its transcript at 1100", async ({ page }) => {
+    await page.setViewportSize({ width: 1100, height: 900 });
+    await page.goto("/");
+    const ask = page.getByTestId("desktop-landing").getByRole("region", { name: "Ask for more, keep what fits." });
+    await expect(page.getByTestId("sea-grid")).toHaveAttribute("data-cols", "6");
+    const river = ask.getByRole("list", { name: /timeline$/, includeHidden: true });
+    const popover = ask.getByRole("group", { name: "Review this suggestion", includeHidden: true });
+    const [lane, open] = [(await river.boundingBox())!, (await popover.boundingBox())!];
+    expect({ left: open.x >= lane.x - 1, right: open.x + open.width <= lane.x + lane.width + 1 }).toEqual({ left: true, right: true });
+    const clipped = await ask.getByTestId("moment-panel").evaluate((panel) =>
+      [...panel.querySelectorAll<HTMLElement>("*")]
+        .filter((el) => !el.classList.contains("sr-only") && !el.classList.contains("truncate") && getComputedStyle(el).overflow !== "visible")
+        .filter((el) => el.scrollHeight - el.clientHeight > 1 || el.scrollWidth - el.clientWidth > 1)
+        .map((el) => `${el.tagName} ${el.scrollWidth - el.clientWidth}x${el.scrollHeight - el.clientHeight}px`),
+    );
+    expect(clipped).toEqual([]);
+  });
+
   // Mitchell's walk of PR 510 at 7260011: a background card under the pointer
   // rises out of the dimmed sea to full colour, as a lit day does, and sinks
   // back when the pointer leaves. Above the scrim with no veil of its own is

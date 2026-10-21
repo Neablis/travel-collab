@@ -240,8 +240,12 @@ test("a day's head: name and first city in the title, the facts line, a slugged 
 //    bytes flush, so two 404s that say the same thing differ there by timing
 //    and by the size of anything upstream (KI-2026-10-18-e: 84 bytes in the
 //    root layout, or a shorter asked-for path, turned that red with no privacy
-//    change). A `$` string is a reference to a row, so it is numbering too.
+//    change). A reference to a row (`"$1"`, `"$L1a"`, `"$@2"`) is numbering
+//    too, and comes out; a `$` string that carries a value (a date as `"$D…"`,
+//    a bigint, a symbol, an escaped `"$$…"`) stays in, or a leaked one would
+//    pass.
 const FLIGHT_PUSH = "self.__next_f.push(";
+const ROW_REFERENCE = /^"\$[A-Z@]?[0-9a-f]+"$/;
 function said(body: string, segment: string): string {
   const asked = body
     .replace(/<meta name="(?:sentry-trace|baggage)" content="[^"]*"\/>/g, "")
@@ -266,7 +270,7 @@ function said(body: string, segment: string): string {
     at = end + "</script>".length;
   }
   html += asked.slice(at);
-  const strings = new Set((payload.match(/"(?:[^"\\]|\\.)*"/g) ?? []).filter((string) => !string.startsWith('"$')));
+  const strings = new Set((payload.match(/"(?:[^"\\]|\\.)*"/g) ?? []).filter((string) => !ROW_REFERENCE.test(string)));
   return `${html}\n\n${[...strings].sort().join("\n")}`;
 }
 

@@ -112,10 +112,12 @@ const still = (variant: "primary" | "secondary") => cn(buttonVariants({ variant,
 /**
  * The open popover, as the board draws one standing open below its ghost, over
  * the stops after it: the change's sentence over Accept, Dismiss and Withdraw.
+ * As wide as the lane, not the app's portalled 320px: at 1100 the lane is some
+ * 250px and the river's surface would cut the rest off.
  */
 function StillReview({ ghost }: { ghost: AssistantGhost }): React.ReactElement {
   return (
-    <div role="group" aria-label="Review this suggestion" className={cn(POPOVER_SURFACE, "relative z-10 mt-1.5")}>
+    <div role="group" aria-label="Review this suggestion" className={cn(POPOVER_SURFACE, "relative z-10 mt-1.5 w-full")}>
       <SuggestionReviewList
         ghosts={[ghost]}
         actions={() => (

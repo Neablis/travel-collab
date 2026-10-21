@@ -313,9 +313,9 @@ export function Transcript({
    * picture whose controls are drawn but not there (Mitchell's walk of PR
    * 514: *"I don't think it makes sense for the assistant preview buttons to
    * be clickable"*). It says where its suggestions are decided, since no trip
-   * header is on that page; it draws each turn's steps standing open, since
-   * showing how the answer got there is the point of it (*"Show the thinking
-   * steps a bit more"*); and it announces nothing, since nobody asked.
+   * header is on that page; it draws each turn's steps closed, as their
+   * one-line summary, so the moment keeps to its frame (*"Unexpand the 'Hide
+   * how it got there'"*); and it announces nothing, since nobody asked.
    */
   example?: { review: string } | null;
 }) {
