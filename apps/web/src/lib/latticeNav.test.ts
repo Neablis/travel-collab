@@ -16,6 +16,9 @@ const lattice: LatticeData = {
   countryCities: [
     { country: { slug: "italy", name: "Italy" }, city: { slug: "rome", name: "Rome" }, days: 6 },
     { country: { slug: "italy", name: "Italy" }, city: { slug: "milan", name: "Milan" }, days: 1 },
+    // Rome is also a city in the United States: the city page must link down
+    // to both country×city pages, not just to its tags.
+    { country: { slug: "united-states", name: "United States" }, city: { slug: "rome", name: "Rome" }, days: 2 },
   ],
 };
 
@@ -50,6 +53,15 @@ describe("latticeNav", () => {
     ]);
   });
 
+  it("refines a city by its tags and by the countries it sits in", () => {
+    const nav = latticeNav({ city: ROME }, lattice);
+    expect(nav.parents).toEqual([]);
+    expect(nav.children.map((link) => link.href)).toEqual([
+      "/playbooks/country/italy/city/rome",
+      "/playbooks/city/rome/meal",
+      "/playbooks/country/united-states/city/rome",
+    ]);
+  });
   it("caps refinements at twelve, most days first", () => {
     const many: LatticeData = {
       tags: Array.from({ length: 15 }, (_, i) => ({

@@ -136,9 +136,17 @@ export function latticeNav(node: LatticeNode, lattice: LatticeData): LatticeNav 
         .map((page) => countryCityChild(page)),
     ];
   } else if (city !== null) {
-    children = lattice.tags
-      .filter((page) => page.city?.slug === city.slug && page.country === null)
-      .map((page) => tagChild(page, page.tag));
+    children = [
+      ...lattice.tags
+        .filter((page) => page.city?.slug === city.slug && page.country === null)
+        .map((page) => tagChild(page, page.tag)),
+      // And the countries the city sits in: a city page is where a name
+      // that exists in two countries (Cambridge, Springfield) disambiguates,
+      // so its country×city pages are refinements exactly like its tags.
+      ...lattice.countryCities
+        .filter((page) => page.city.slug === city.slug)
+        .map((page) => countryCityChild(page)),
+    ];
   } else if (tag !== null) {
     children = [
       ...lattice.tags

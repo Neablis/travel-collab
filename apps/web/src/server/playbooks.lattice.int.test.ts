@@ -7,7 +7,7 @@ import { db } from "./db/client";
 import { savedDays } from "./db/schema";
 import { publishedCountryCityPages, publishedDaysPage, publishedTagPages } from "./playbooks";
 import { countryCityFor, tagPageFor } from "./publicLibrary";
-import { countryCityListing } from "./placePage";
+import { countryCityListing, placeListing } from "./placePage";
 import { countryTagListing } from "./tagPage";
 import { newSavedDayRow } from "./savedDays";
 
@@ -142,6 +142,37 @@ describe("the SEO lattice", () => {
       `/playbooks/country/nauru/city/${rome}`,
       "/playbooks/country/nauru/meal",
       `/playbooks/city/${rome}/meal`,
+    ]);
+
+    // The country×tag listing is the country count, not the global tag count:
+    // a dropped `countries` filter here would list 6, not 5.
+    const countryTag = await countryTagListing({
+      params: Promise.resolve({ slug: "nauru", tag: "meal" }),
+      searchParams: Promise.resolve({}),
+    });
+    expect(countryTag).toMatchObject({
+      heading: "Food playbooks in Nauru",
+      path: "/playbooks/country/nauru/meal",
+      total: 5,
+      page: 1,
+    });
+    expect(countryTag.nav?.parents.map((link) => link.href)).toEqual(["/playbooks/country/nauru", "/playbooks/tag/meal"]);
+    expect(countryTag.nav?.children.map((link) => link.href)).toEqual([
+      `/playbooks/country/nauru/city/${rome}/meal`,
+      `/playbooks/country/nauru/city/${milan}/meal`,
+    ]);
+
+    // And the bare city page links down to its countries, not just its tags:
+    // the city is where a name in two countries disambiguates.
+    const city = await placeListing("city", {
+      params: Promise.resolve({ slug: rome }),
+      searchParams: Promise.resolve({}),
+    });
+    expect(city.nav?.parents).toEqual([]);
+    expect(city.nav?.children.map((link) => link.href)).toEqual([
+      `/playbooks/city/${rome}/meal`,
+      `/playbooks/country/nauru/city/${rome}`,
+      `/playbooks/country/kiribati/city/${rome}`,
     ]);
   });
 });
