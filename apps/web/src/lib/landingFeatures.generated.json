@@ -25,6 +25,18 @@
       {
         "title": "Bánh mì at Bánh Mì 25",
         "start": "11:00"
+      },
+      {
+        "title": "Đồng Xuân Market wander",
+        "start": "12:30"
+      },
+      {
+        "title": "Egg coffee at Cà Phê Giảng",
+        "start": "15:00"
+      },
+      {
+        "title": "Evening at St. Joseph's Cathedral",
+        "start": "17:30"
       }
     ],
     "totalCost": null,
@@ -70,16 +82,28 @@
     "window": null,
     "preview": [
       {
-        "title": "The Colosseum, arena floor first",
+        "title": "The Pantheon",
         "start": "09:00"
       },
       {
-        "title": "The Roman Forum",
-        "start": "11:30"
+        "title": "Piazza Navona",
+        "start": "10:00"
       },
       {
-        "title": "Palatine Hill",
-        "start": "13:30"
+        "title": "Largo di Torre Argentina",
+        "start": "11:00"
+      },
+      {
+        "title": "Pizza bianca at Forno Campo de' Fiori",
+        "start": "12:00"
+      },
+      {
+        "title": "Trajan's Column and the Imperial Fora",
+        "start": "14:00"
+      },
+      {
+        "title": "Dinner in Trastevere at Da Augusto",
+        "start": "19:30"
       }
     ],
     "totalCost": null,

@@ -8,6 +8,7 @@ import { executeTripCommand } from "./commands";
 import { getTripDetail } from "./projections";
 import { getSavedDay, insertSavedDay, saveDay, setSavedDayVisibility } from "./savedDays";
 import { discoverDays } from "./playbooks";
+import { DISCOVER_PREVIEW_STOPS } from "@/lib/playbooks";
 
 // M23 — a Playbook is a sequence of days. The gate boxes that can only be
 // answered against a real database live here: both read boundaries over a
@@ -347,8 +348,9 @@ describe("Discover's length filter", () => {
 });
 
 // M27 link 10: the card's stop rows (`dc.html:2645`, built at `dc.html:5795`).
-// Day one's first three stops, for a multi-day Playbook exactly as for a
-// one-day one — the card is the same card either way.
+// Day one's stops up to `DISCOVER_PREVIEW_STOPS`, for a multi-day Playbook
+// exactly as for a one-day one — the card is the same card either way. The
+// card shows as many as fit (M51 part 9), so the data carries more than three.
 describe("a Discover card's stop preview", () => {
   async function cardFor(stopsPerDay: string[][]) {
     const { tripId, dayIds } = await tripWith(stopsPerDay);
@@ -360,17 +362,25 @@ describe("a Discover card's stop preview", () => {
     return found.days.find((d) => d.savedDayId === saved.value.savedDayId)!;
   }
 
-  it("is day one's first three stops, start and title, and nothing from day two", async () => {
-    const card = await cardFor([["A1", "A2", "A3", "A4"], ["B1"]]);
+  it("is every one of day one's stops past three, start and title, and nothing from day two", async () => {
+    const card = await cardFor([["A1", "A2", "A3", "A4", "A5"], ["B1"]]);
     expect(card.dayCount).toBe(2);
-    expect(card.stopCount).toBe(5);
+    expect(card.stopCount).toBe(6);
     expect(card.preview).toEqual([
       { title: "A1", start: "08:00" },
       { title: "A2", start: "09:00" },
       { title: "A3", start: "10:00" },
+      { title: "A4", start: "11:00" },
+      { title: "A5", start: "12:00" },
     ]);
-    // Short of three on day one, it stops there rather than topping up.
+    // Short of the cap on day one, it stops there rather than topping up.
     expect((await cardFor([["A1"], ["B1", "B2"]])).preview).toEqual([{ title: "A1", start: "08:00" }]);
+  });
+
+  it("stops at the cap on a day longer than it", async () => {
+    const titles = Array.from({ length: DISCOVER_PREVIEW_STOPS + 1 }, (_, i) => `A${i + 1}`);
+    const card = await cardFor([titles]);
+    expect(card.preview.map((stop) => stop.title)).toEqual(titles.slice(0, DISCOVER_PREVIEW_STOPS));
   });
 
   // A gap in `dayIndex` is an empty day (ADR-048 decision 2). Previewing the

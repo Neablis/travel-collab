@@ -43,6 +43,11 @@ const SLUGS = [
     .map((trip) => trip.key),
 ];
 
+// A month only with a day or a year beside it: the sea's stop titles name
+// places like "Sierra Mar", which a bare month word would call a date.
+const MONTH = "(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)";
+const CALENDAR_DATE = new RegExp(`\\d{4}-\\d{2}-\\d{2}|\\b${MONTH}\\.? (\\d{1,2}|\\d{4})\\b|\\b\\d{1,2} ${MONTH}\\b`);
+
 // The sea (M51) is held the same way: the generator's output, byte for byte,
 // with no calendar date in it.
 const SNAPSHOTS = [
@@ -64,7 +69,16 @@ describe.each(SNAPSHOTS)("the landing's $name snapshot", ({ path, fresh: build }
   // The spec's other promise about the file (§3.2): no calendar dates, because
   // `/demo/<slug>` moves its dates and a frozen one would go stale.
   it("carries no calendar date", () => {
-    expect(readFileSync(path, "utf8")).not.toMatch(/\d{4}-\d{2}-\d{2}|\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\b/);
+    expect(readFileSync(path, "utf8")).not.toMatch(CALENDAR_DATE);
+  });
+});
+
+describe("the calendar-date guard", () => {
+  it.each(["2026-10-21", "Oct 21", "Oct. 21", "21 Oct", "Tue 21 Oct", "Oct 2026", "Mar. 2027"])("catches %s", (text) => {
+    expect(text).toMatch(CALENDAR_DATE);
+  });
+  it.each(["Sierra Mar", "Dinner at Sierra Mar", "Sierra Mar, Big Sur"])("lets the place name %s through", (text) => {
+    expect(text).not.toMatch(CALENDAR_DATE);
   });
 });
 
@@ -229,6 +243,16 @@ describe("the find moment's banner", () => {
     const own = SEA_DAYS.find((cell) => cell.day.savedDayId === shelf.savedDayId);
     expect(own?.day.name).toBe(shelf.name);
     expect({ rating: own?.day.rating, reviews: own?.day.reviewCount }).toEqual({ rating: shelf.rating, reviews: shelf.reviewCount });
+  });
+
+  // Mitchell, 2026-10-21: *"use day 2 for the banner"*. Its six stops fill
+  // the wide card, where day one's four left room.
+  it("previews Rome's day 2, and links to the Rome playbook", () => {
+    const rome = "3-days-in-rome-emperors-gladiators-the-layers-beneath";
+    const playbook = BUNDLES.find((b) => b.bundle.id === rome)!.playbooks.find((p) => p.key === rome)!;
+    const { shelf } = LANDING_FEATURES;
+    expect(shelf.savedDayId).toBe(playbookIdFor(rome, rome));
+    expect(shelf.preview.map((stop) => stop.title)).toEqual(playbook.days![1]!.stops.map((stop) => stop.title));
   });
 });
 

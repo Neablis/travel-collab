@@ -78,6 +78,16 @@ export function cityChips(
   return { shown: ordered.slice(0, max), hidden: ordered.slice(max) };
 }
 
+/**
+ * **The stop list's least height off the sea, by how many rows it has**: a
+ * one-line row is 18.2px (`text-sm`, 13px × 1.4) and rows are 6px apart, so
+ * 20, 44 and 68px hold one, two and three whole rows, and the fourth needs
+ * 90.8. A day of fewer than three stops reserves only what it draws, so a card
+ * is taller than it was when it drew three at most only by the floor's
+ * rounding: 1.4px over three one-line rows (68 against 66.6), 1.6 over two.
+ */
+const PREVIEW_FLOOR = ["", "min-h-5", "min-h-11", "min-h-17"] as const;
+
 /** How much of the grid a card takes: two columns, or one. */
 export type CardSize = "wide" | "standard";
 
@@ -348,15 +358,32 @@ export function DiscoverCard({
           list's 62px, so a card and the page it opens line up. On the sea
           each row is a part of the card's wrapping column, so a card shows
           the rows it has room for and clips the rest whole (Mitchell's
-          fourth walk of PR 510: *"show activities up till they dont fit"*). */}
+          fourth walk of PR 510: *"show activities up till they dont fit"*).
+
+          Off the sea the list fills what its grid cell leaves (M51 part 9,
+          Mitchell's option b): `contain-size` keeps the rows out of the
+          card's height, so a card is as tall as its other parts and the room
+          for three rows, and a row stretched by a taller neighbour hands the
+          spare to more rows. One line a title, so a row is one line-height
+          and the floor (`PREVIEW_FLOOR`) always holds three; the column
+          wraps, and the second column, past the card's edge, is clipped
+          whole, so no row is cut through. */}
       {day.preview.length > 0 && (
-        <ul className={cn("flex flex-col gap-1.5", sea !== null && "landing-sea-rows contents")} data-testid="discover-preview">
+        <ul
+          className={cn(
+            "flex flex-col gap-1.5",
+            sea !== null
+              ? "landing-sea-rows contents"
+              : cn("flex-1 flex-wrap gap-x-10 overflow-hidden contain-size", PREVIEW_FLOOR[Math.min(day.preview.length, 3)]),
+          )}
+          data-testid="discover-preview"
+        >
           {day.preview.map((stop, i) => (
-            <li key={i} className="flex gap-2.5 text-sm">
+            <li key={i} className={cn("flex gap-2.5 text-sm", sea === null && "w-full")}>
               <DataText size="xs" className="w-15.5 shrink-0 pt-0.5 text-2xs" data-testid="preview-time">
                 {stop.start !== null ? toClockLabel(stop.start, clock) : ""}
               </DataText>
-              <span className="text-ink" data-testid="preview-title">
+              <span className={cn("text-ink", sea === null && "min-w-0 truncate")} data-testid="preview-title">
                 {stop.title}
               </span>
             </li>
