@@ -5,19 +5,18 @@ import Link from "next/link";
 import { BrandMark } from "@/components/BrandMark";
 import { LandingPricing } from "@/components/front/LandingPricing";
 import {
-  GAP,
-  PAD,
   SeaPlaced,
   layoutSea,
   measureSea,
   packedFor,
   paintMoments,
-  place,
   seaDim,
   styleNumber,
+  useMomentTops,
   useSeaMetrics,
   type SeaShape,
 } from "@/components/front/LandingSea";
+import { GAP, PAD, place } from "@/components/front/LandingSeaCells";
 import { buttonVariants } from "@/components/ui/button";
 import { DataText } from "@/components/ui/data-text";
 import { Heading } from "@/components/ui/heading";
@@ -82,6 +81,12 @@ export function PhoneFrontDoor() {
   const gridRef = useRef<HTMLDivElement | null>(null);
   const metrics = useSeaMetrics(gridRef, SERVER_METRICS, () => scrollerRef.current?.clientHeight ?? window.innerHeight);
   const layout = useMemo(() => layoutSea(metrics, PHONE_SEA), [metrics]);
+  // The moments' places down this scroller, as the desktop caches its own
+  // down the window: read per pack and resize, never on scroll.
+  const [tops, refreshTops] = useMomentTops(rootRef, layout, () => {
+    const scroller = scrollerRef.current;
+    return scroller === null ? 0 : scroller.scrollTop - scroller.getBoundingClientRect().top;
+  });
 
   // **`#pricing` is answered here, not by the browser.** The id belongs to the
   // desktop landing's section, since two elements cannot share it, and the
@@ -133,18 +138,25 @@ export function PhoneFrontDoor() {
       if (viewport === 0) return;
       const dim = seaDim(scroller.scrollTop, viewport);
       scrim.style.setProperty("--sea-dim", styleNumber(dim));
-      paintMoments(root, { viewport, top: scroller.getBoundingClientRect().top, dim, still: motion?.matches ?? false });
+      const top = scroller.getBoundingClientRect().top;
+      paintMoments(root, { viewport, scroll: scroller.scrollTop, top, dim, still: motion?.matches ?? false, tops: tops.current });
+    };
+    const onResize = () => {
+      refreshTops();
+      paint();
     };
     // Once on mount too: a restored scroll position paints before the first
-    // scroll event, or the page would jump on it.
+    // scroll event, or the page would jump on it. The scroll listener needs
+    // no gate on the breakpoint, as the desktop's does: it is on this
+    // scroller, which cannot scroll while it is `display: none`.
     paint();
     scroller.addEventListener("scroll", paint, { passive: true });
-    window.addEventListener("resize", paint, { passive: true });
+    window.addEventListener("resize", onResize, { passive: true });
     return () => {
       scroller.removeEventListener("scroll", paint);
-      window.removeEventListener("resize", paint);
+      window.removeEventListener("resize", onResize);
     };
-  }, []);
+  }, [tops, refreshTops]);
 
   return (
     <div ref={scrollerRef} className="h-dvh overflow-y-auto overflow-x-hidden md:hidden" data-testid="phone-front-door">
@@ -230,6 +242,7 @@ export function PhoneFrontDoor() {
             <SeaPlaced
               layout={layout}
               firstRows={PHONE_SEA.firstRows}
+              unit={metrics.unit}
               root={scrollerRef}
               eager={FIRST_SCREEN_ROWS}
               inset={INSET}

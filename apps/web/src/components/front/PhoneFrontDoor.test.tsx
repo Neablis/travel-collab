@@ -134,6 +134,9 @@ describe("the phone sea", () => {
     const at = (top: number) => {
       vi.spyOn(moment, "getBoundingClientRect").mockReturnValue({ top, height: 500 } as DOMRect);
       scrollTo(4000);
+      // Places are read on resize, not on scroll: the mocked rect only
+      // reaches the paint through a resize.
+      fireEvent.resize(window);
       return Number(panel.style.opacity);
     };
     // Coming up from the scroller's foot: a ghost of the real panel.
@@ -150,6 +153,18 @@ describe("the phone sea", () => {
     expect(screen.getByTestId("sea-scrim").style.getPropertyValue("--sea-dim")).toBe("1");
     scrollTo(0);
     expect(screen.getByTestId("sea-scrim").style.getPropertyValue("--sea-dim")).toBe("0");
+  });
+
+  // PR 517's cache, on the phone's scroller: a read per moment on every
+  // scroll event forced a layout per moment after the last one's writes.
+  it("paints a scroll from the moments' cached places, without reading them again", () => {
+    render(<PhoneFrontDoor />);
+    const moment = screen.getByRole("region", { name: "Everyone going, one plan." });
+    const rect = vi.spyOn(moment, "getBoundingClientRect");
+    scrollTo(4000);
+    // The scroll painted: the sea dimmed.
+    expect(screen.getByTestId("sea-scrim").style.getPropertyValue("--sea-dim")).toBe("1");
+    expect(rect).not.toHaveBeenCalled();
   });
 
   // iOS momentum scroll stutters inside an `overflow-y-auto` scroller with

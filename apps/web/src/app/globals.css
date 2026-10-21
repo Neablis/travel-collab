@@ -2006,10 +2006,12 @@ html[data-look="ledger"] .shadow-raised {
     grid-auto-flow: row dense;
     gap: var(--sea-gap);
     padding: var(--sea-gap) var(--sea-pad);
-    /* Exactly the packed rows (`--sea-rows`, from `LandingSea`): a first
-       screen's cell that found no room above the packed grid falls past its
-       last row, and is clipped there. */
-    height: calc(var(--sea-rows) * (var(--unit) + var(--sea-gap)) + var(--sea-gap));
+    /* Exactly the packed rows (`--sea-rows`, from `LandingSea`), floored at
+       the server pack's rows (`--sea-rows-floor`): a repack that packs
+       shorter rearranges cells within the container instead of pulling the
+       footer up. A first screen's cell that found no room above the packed
+       grid falls past its last row, and is clipped there. */
+    height: calc(max(var(--sea-rows), var(--sea-rows-floor, var(--sea-rows))) * (var(--unit) + var(--sea-gap)) + var(--sea-gap));
     overflow: clip;
   }
   /* The hero stands off the full-colour sea around it (Mitchell's third walk
