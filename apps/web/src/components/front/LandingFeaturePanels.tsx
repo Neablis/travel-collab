@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+import { AddToTripForm, NEW_TRIP, type AddToTripChoice } from "@/components/playbooks/AddToTripForm";
 import { DiscoverCard } from "@/components/playbooks/DiscoverCard";
 import { ItineraryDayBlock } from "@/components/pages/blocks/ItineraryDayBlock";
 import { SunBlock } from "@/components/pages/blocks/SunBlock";
@@ -8,7 +10,7 @@ import { TripStripBlock } from "@/components/pages/blocks/TripStripBlock";
 import { FixedPeopleProvider } from "@/components/pages/people";
 import { Segs } from "@/components/pages/WidgetSegs";
 import { DataText } from "@/components/ui/data-text";
-import { PersonChip } from "@/components/ui/person-chip";
+import { Heading } from "@/components/ui/heading";
 import { Text } from "@/components/ui/text";
 import { cn } from "@/lib/cn";
 import { LANDING_DEMO, LANDING_FEATURES } from "@/lib/landingDemo";
@@ -42,11 +44,10 @@ export function TogetherPanel(): React.ReactElement {
 }
 
 /**
- * The sea's first moment: the Railay day as a big card, filling the moment.
- * The same day again as a small card is a cell of the sea beside it, as the
- * C2 prototype draws it (Mitchell, on C2: *"I love the bigger card on the
- * left, and the smaller detacted card being the same trip"*). The big one
- * opens the day's canonical page, as every cell of the sea does.
+ * The sea's first moment: the richest Thailand day as a big card, filling the
+ * moment, and opening the day's canonical page, as every cell of the sea does.
+ * The days lit beside it are other Thai days, not this one again (Mitchell's
+ * third walk of PR 510).
  */
 export function FindADayPanel(): React.ReactElement {
   const { shelf } = LANDING_FEATURES;
@@ -57,13 +58,35 @@ export function FindADayPanel(): React.ReactElement {
   );
 }
 
+/**
+ * The make-it-your-trip moment's worked example (Mitchell's third walk of PR
+ * 510: *"too empty, it should have an example thats relevent"*): "Add to a
+ * trip"'s own fields for the Railay day, twice, as a new trip and as a day of
+ * the Thailand trip a reader already has, each landing it on Day 1. Canned
+ * trips and no button: the fields fetch nothing, and the moment's own link is
+ * the way in.
+ */
+export function MakeTripPanel(): React.ReactElement {
+  const { day, trip, days } = LANDING_FEATURES.make;
+  const [fresh, setFresh] = useState<AddToTripChoice>({ tripId: NEW_TRIP, startingAt: "", startDate: "" });
+  const [existing, setExisting] = useState<AddToTripChoice>({ tripId: trip.tripId, startingAt: days[0]!.dayId, startDate: "" });
+  return (
+    <div className="@container min-h-0 flex-1 overflow-hidden">
+      <div className="grid gap-5 @xl:grid-cols-2">
+        <AddToTripForm dayName={day.name} dayCount={day.dayCount} trips={[trip]} days={days} value={fresh} onChange={setFresh} />
+        <AddToTripForm dayName={day.name} dayCount={day.dayCount} trips={[trip]} days={days} value={existing} onChange={setExisting} />
+      </div>
+    </div>
+  );
+}
+
 const { crew } = LANDING_FEATURES;
 const CREW_ACCENTS = snapshotAccents(crew.accents);
-// Sixteen hours of Naxos in about 500px; a short stop keeps the board's floor
-// height. The moment's cell is whole rows of the sea (760px declared in
-// `LandingSea`'s STORIES), five at 1440: 877px, past decision 10's "about
-// 600", with the river ending short of the cell's foot.
-const CREW_PX_PER_HOUR = 32;
+// Sixteen hours of Naxos in under 480px; a short stop keeps the board's floor
+// height. The moment's cell is whole rows of the sea (680px declared in
+// `LandingSea`'s STORIES), four at 1440: 700px (Mitchell's third walk of PR
+// 510: *"Cut it one row shorter"*), and 32px an hour ran 18px past its foot.
+const CREW_PX_PER_HOUR = 29;
 
 /**
  * The crew moment: the Greek trip's Day 2, Elena's borrowed Naxos day, on the
@@ -134,29 +157,31 @@ export function MemoryPanel(): React.ReactElement {
 }
 
 /**
- * Notebook: the same page as a notebook holds it once somebody has lived the
- * day (M50 part 9, Mitchell's walk: the frame was mostly empty), laid as the
- * C2 prototype's notebook moment (Mitchell's walk of PR 510 at 7260011: *"too
- * spare, and not real"*). The trip's strip, the author's words at reading
- * size with the day's cities and stops in them, then the notebook's own block
- * widgets — the day's stops at their times beside its daylight — and signed
- * by who was there. Read-only payloads drawn by the blocks directly, not
- * through the editor's dispatcher, so `/` stays static.
+ * Notebook: a page as a notebook holds it once somebody has lived the day
+ * (M50 part 9), written the way a real one is (Mitchell's third walk of PR
+ * 510: *"too fake, not lived in enough … dont be afraid to make it too
+ * long"*): the trip's strip, the page's title, the author's words at reading
+ * size with the day's cities and stops in them, the notebook's own block
+ * widgets — the day's stops at their times beside its daylight — then what
+ * they would tell the next people and what they would change, under headings.
+ * Read-only payloads drawn by the blocks directly, not through the editor's
+ * dispatcher, so `/` stays static.
  *
- * Signed with the people widget's chips, each named as the prototype names
- * them, and not its sentence: that is the trip's "Who's going", future tense
- * ("are going with Sam"), and this page is about a day already lived.
+ * Longer than its cell, and never growing it (the parent sizes, the component
+ * fills): the page runs on past the cell's foot and fades out at that edge
+ * (`.landing-sea-fade`).
  */
 export function NotebookPagePanel(): React.ReactElement {
   const [opening, ...rest] = LANDING_FEATURES.memory;
-  const { day, sun, people } = LANDING_FEATURES.page;
+  const { day, sun, journal } = LANDING_FEATURES.page;
   return (
-    // Filling its moment: the day's stops beside its daylight and the rest of
-    // the words once the page is wide enough for both (the prototype's
-    // `.cols`), and the names at the page's foot.
-    <div data-testid="notebook-page" className={cn(PAGE, "@container min-h-0 flex-1 gap-4 px-5 py-5")}>
+    <div data-testid="notebook-page" className={cn(PAGE, "landing-sea-fade @container min-h-0 flex-1 gap-4 overflow-hidden rounded-b-none border-b-0 px-5 pt-5")}>
       <TripStripBlock payload={LANDING_DEMO.notebook.strip} accents={LANDING_ACCENTS} />
+      <Heading level={3} className="text-2xl">
+        {`Day ${day.ordinal} · ${day.cities.at(-1)}`}
+      </Heading>
       {opening && <Paragraph segs={opening} className="text-md" />}
+      {/* The day's stops beside its daylight once the page is wide enough for both (the prototype's `.cols`). */}
       <div className="grid items-start gap-5 @2xl:grid-cols-2">
         <ItineraryDayBlock payload={day} />
         <div className="flex min-w-0 flex-col gap-4">
@@ -166,16 +191,16 @@ export function NotebookPagePanel(): React.ReactElement {
           ))}
         </div>
       </div>
-      <ul className="mt-auto flex flex-wrap gap-2">
-        {people.stack.map((person) => (
-          <li key={person.name} className="flex items-center gap-1.5 rounded-full border border-hairline bg-surface py-0.5 pr-3 pl-0.5">
-            <PersonChip name={person.name} avatar={person.avatar} color={person.color} size="md" />
-            <Text as="span" className="text-sm font-medium">
-              {person.name}
-            </Text>
-          </li>
-        ))}
-      </ul>
+      {journal.map(({ heading, paragraphs }) => (
+        <section key={heading} className="flex flex-col gap-3">
+          <Heading level={4} className="text-lg">
+            {heading}
+          </Heading>
+          {paragraphs.map((segs, i) => (
+            <Paragraph key={i} segs={segs} className="text-md" />
+          ))}
+        </section>
+      ))}
     </div>
   );
 }

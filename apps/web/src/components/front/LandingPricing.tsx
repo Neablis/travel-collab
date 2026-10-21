@@ -42,14 +42,38 @@ const CREW = Object.values(LANDING_DEMO.river.people).filter((person) => person.
 const [OWNER, ...ALONG] = CREW;
 const NAMES = new Intl.ListFormat("en", { type: "conjunction" });
 
-/** The assistant at work, as the step that adds it pictures it (the prototype's `.bub`). */
+/**
+ * The assistant at work, as the step that adds it pictures it, drawn in the
+ * assistant's own chat look (`Transcript`'s `look="chat"`) on its panel's
+ * paper, so it reads as Cass at a glance (Mitchell's third walk of PR 510:
+ * *"we can look more at how the real ai agent chat look"*): the reader's turn
+ * a right-hand bubble, Cass's answer under its mark and name. The classes are
+ * the transcript's; its component holds a live thread this picture has not.
+ */
 function Assistant(): ReactNode {
   return (
-    <div className="flex flex-col gap-2 text-sm">
-      <span className="ml-6 self-end rounded-lg bg-surface/15 px-2.5 py-2">Fill day 9 in Kyoto with something slow.</span>
-      <span className="mr-6 rounded-lg bg-surface px-2.5 py-2 text-ink">
-        Philosopher’s Path in the morning, then tea at Ippodo. Add to Day 9?
-      </span>
+    <div className="flex flex-col gap-a-turn-chat rounded-lg bg-surface p-3 text-ink">
+      <p className="max-w-a-you self-end rounded-a-bubble border border-hairline bg-moss px-a-bubble-x py-a-bubble-y text-right text-a-chat leading-a-you text-ink">
+        Fill day 9 in Kyoto with something slow.
+      </p>
+      <div className="flex gap-2">
+        <span className="flex w-a-mark shrink-0 justify-center pt-px">
+          <span aria-hidden className="relative grid size-a-mark place-items-center rounded-full bg-brand">
+            <span className="flex h-3.25 gap-0.75">
+              <span className="w-0.75 rounded-a-bar bg-surface" />
+              <span className="w-0.75 rounded-a-bar bg-surface" />
+            </span>
+            <span className="absolute -right-px -bottom-px size-2.25 rounded-full border-2 border-surface bg-success" />
+          </span>
+        </span>
+        <div className="flex min-w-0 max-w-a-asst flex-col gap-1">
+          <span className="flex items-baseline gap-1.75">
+            <span className="text-sm font-semibold text-ink">Cass</span>
+            <span className="text-xs text-slate">Trip planner</span>
+          </span>
+          <p className="text-base leading-a-asst text-a-asst-ink">Philosopher’s Path in the morning, then tea at Ippodo. Add to Day 9?</p>
+        </div>
+      </div>
     </div>
   );
 }

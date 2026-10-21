@@ -26,6 +26,7 @@ export const loadFeaturePanels = () =>
 const PANELS = {
   together: lazy(() => loadFeaturePanels().then((m) => ({ default: m.TogetherPanel }))),
   "find-a-day": lazy(() => loadFeaturePanels().then((m) => ({ default: m.FindADayPanel }))),
+  "make-a-trip": lazy(() => loadFeaturePanels().then((m) => ({ default: m.MakeTripPanel }))),
   crew: lazy(() => loadFeaturePanels().then((m) => ({ default: m.CrewPanel }))),
   "playbook-compact": lazy(() => loadFeaturePanels().then((m) => ({ default: m.CompactPlaybookPanel }))),
   notebook: lazy(() => loadFeaturePanels().then((m) => ({ default: m.MemoryPanel }))),

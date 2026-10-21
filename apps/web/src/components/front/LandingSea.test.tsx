@@ -2,9 +2,12 @@ import { act, cleanup, fireEvent, render, screen, within } from "@testing-librar
 import { renderToString } from "react-dom/server";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { LANDING_FEATURES } from "@/lib/landingDemo";
-import { LANDING_SEA } from "@/lib/landingSea";
+import { LANDING_SEA, SEA_ACCENTS, SEA_DAYS } from "@/lib/landingSea";
 import { dayPath, parseDaySegment } from "@/lib/playbookUrls";
 import { FIRST_SCREEN, FIRST_SCREEN_ROWS, LandingSea, SEA_REGIONS, layoutSea, momentRise, seaDim, type SeaArea } from "./LandingSea";
+
+/** The first screen's days, without its accents. */
+const FIRST_DAYS = FIRST_SCREEN.flatMap((ground) => (ground.cell === undefined ? [] : [ground.cell]));
 
 // The real moment panels resolve from the warm module cache, for the reason
 // `LandingScreen.test.tsx` gives.
@@ -48,9 +51,9 @@ const savedDayIds = () => screen.getAllByTestId("discover-card").map((card) => c
 /** The cells the moments light, as rendered: always mounted, wherever the reader is. */
 const litCells = () => screen.getAllByTestId("sea-cell").filter((cell) => cell.hasAttribute("data-lit-for"));
 const dayOf = (cell: HTMLElement) => within(cell).getByTestId("discover-card").getAttribute("data-saved-day-id")!;
-/** The background's days, which no moment lights and the Railay day is not among. */
+/** The background's days, which no moment lights or raises. */
 const backgroundNames = (lit: Set<string>) =>
-  [...new Set(FIRST_SCREEN.filter((cell) => !lit.has(cell.day.savedDayId)).map((cell) => cell.day.name))].filter(
+  [...new Set(FIRST_DAYS.filter((cell) => !lit.has(cell.day.savedDayId)).map((cell) => cell.day.name))].filter(
     (name) => name !== LANDING_FEATURES.shelf.name,
   );
 
@@ -70,9 +73,9 @@ describe("the landing's sea", () => {
     render(<LandingSea />);
     const lit = new Set(litCells().map(dayOf));
     expect(lit.size).toBeGreaterThan(0);
-    const near = new Set([...FIRST_SCREEN.map((cell) => cell.day.savedDayId), ...lit]);
+    const near = new Set([...FIRST_DAYS.map((cell) => cell.day.savedDayId), ...lit]);
     for (const id of near) expect(html).toContain(`data-saved-day-id="${id}"`);
-    const far = LANDING_SEA.cells.filter((cell) => !near.has(cell.day.savedDayId));
+    const far = SEA_DAYS.filter((cell) => !near.has(cell.day.savedDayId));
     expect(far.length).toBeGreaterThan(0);
     for (const cell of far) expect(html).not.toContain(`data-saved-day-id="${cell.day.savedDayId}"`);
   });
@@ -90,9 +93,9 @@ describe("the landing's sea", () => {
     const exposed = new Set([...headings, ...sea.getAllByRole("link").map((link) => link.textContent)]);
     const lit = litCells();
     expect(backgroundNames(new Set(lit.map(dayOf))).filter((name) => exposed.has(name))).toEqual([]);
-    // The lit days that are doors are tab stops; the Railay day's small card is the one that is not.
+    // Every lit day is a door, and a tab stop.
     const doors = lit.filter((cell) => cell.getAttribute("aria-hidden") === null);
-    expect(doors.length).toBe(lit.length - 1);
+    expect(doors.length).toBe(lit.length);
     for (const cell of doors) {
       for (const link of within(cell).queryAllByRole("link")) expect(link.getAttribute("tabindex")).toBeNull();
     }
@@ -102,7 +105,7 @@ describe("the landing's sea", () => {
     const screens = watchScreens();
     render(<LandingSea />);
     const before = screen.getAllByTestId("sea-cell").length;
-    const known = new Set([...FIRST_SCREEN.map((cell) => cell.day.savedDayId), ...litCells().map(dayOf)]);
+    const known = new Set([...FIRST_DAYS.map((cell) => cell.day.savedDayId), ...litCells().map(dayOf), LANDING_FEATURES.shelf.savedDayId]);
     const far = () => savedDayIds().filter((id) => !known.has(id!));
     expect(far()).toEqual([]);
     screens.nearAll();
@@ -119,9 +122,9 @@ describe("the landing's sea", () => {
     render(<LandingSea />);
     screens.nearAll();
     const sea = within(screen.getByTestId("landing-sea"));
-    const dayLinks = sea.getAllByRole("link", { hidden: true }).filter((link) => link.getAttribute("href")!.startsWith("/playbooks"));
-    expect(dayLinks.length).toBeGreaterThan(FIRST_SCREEN.length);
-    const canonical = new Set(LANDING_SEA.cells.map((cell) => cell.href));
+    const dayLinks = sea.getAllByRole("link", { hidden: true }).filter((link) => link.getAttribute("href")!.startsWith("/playbooks/day/"));
+    expect(dayLinks.length).toBeGreaterThan(FIRST_DAYS.length);
+    const canonical = new Set(SEA_DAYS.map((cell) => cell.href));
     for (const link of dayLinks) {
       const href = link.getAttribute("href")!;
       expect(href).toMatch(/^\/playbooks\/day\/[^?#]+$/);
@@ -137,7 +140,7 @@ describe("the landing's sea", () => {
   it("lets a keyboard skip the background, but not the moments", async () => {
     render(<LandingSea />);
     const sea = within(screen.getByTestId("landing-sea"));
-    const background = FIRST_SCREEN[0]!;
+    const background = FIRST_DAYS[0]!;
     for (const link of sea.getAllByRole("link", { name: background.day.name, hidden: true })) {
       expect(link.getAttribute("tabindex")).toBe("-1");
     }
@@ -149,24 +152,55 @@ describe("the landing's sea", () => {
 });
 
 describe("the sea's moments", () => {
-  // The small card is the same day again, so it is drawn but is not a second
-  // door: a keyboard or a screen reader meets the Railay day once.
-  it("finds a day: the Railay day as a big card and a small one beside it, one door to its page", async () => {
+  it("finds a day: the banner day as a big card, one door to its page", async () => {
     render(<LandingSea />);
     const find = within(screen.getByRole("region", { name: "Find a day worth borrowing." }));
     expect(await find.findAllByRole("link", { name: LANDING_FEATURES.shelf.name })).toHaveLength(1);
     const links = screen.getAllByRole("link", { name: LANDING_FEATURES.shelf.name });
     expect(links.map((link) => link.getAttribute("href"))).toEqual([dayPath(LANDING_FEATURES.shelf)]);
-    const small = litCells().filter((cell) => cell.getAttribute("data-lit-for") === "sea-find" && dayOf(cell) === LANDING_FEATURES.shelf.savedDayId);
-    expect(small).toHaveLength(1);
   });
 
-  it("makes it your trip, under the heading Mitchell gave it", () => {
+  // Mitchell's third walk of PR 510: "The banner to left is the same activity
+  // to right, use different activities". A lit day is another day of the
+  // moment's region, never the one the moment itself shows, nor one named
+  // like it; and no day is lit for two moments.
+  it("lights no moment with its own day again", () => {
+    render(<LandingSea />);
+    const make = screen.getByRole("region", { name: /^Start a trip using someone else’s Thailand day/ });
+    const railay = parseDaySegment(within(make).getByRole("link", { name: "Make this your trip" }).getAttribute("href")!.slice("/playbooks/day/".length)).id;
+    const own: Record<string, string> = {
+      "sea-find": LANDING_FEATURES.shelf.savedDayId,
+      "sea-make": railay!,
+      "sea-crew": LANDING_FEATURES.crew.borrowed.savedDayId,
+    };
+    const nameOf = (id: string) => SEA_DAYS.find((cell) => cell.day.savedDayId === id)!.day.name;
+    const repeats = litCells()
+      .filter((cell) => own[cell.getAttribute("data-lit-for")!] !== undefined)
+      .map((cell) => ({ moment: cell.getAttribute("data-lit-for")!, id: dayOf(cell) }))
+      .filter(({ moment, id }) => id === own[moment] || nameOf(id) === nameOf(own[moment]!));
+    expect(repeats).toEqual([]);
+    const ids = litCells().map(dayOf);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  // Mitchell's third walk of PR 510: "This card is still too empty". The
+  // make moment shows "Add to a trip"'s own fields for the Railay day, as a
+  // new trip and as Day 1 of a trip the reader has.
+  it("makes it your trip, under the heading Mitchell gave it, with the add-to-trip choice worked through", async () => {
     render(<LandingSea />);
     const make = within(
       screen.getByRole("region", { name: "Start a trip using someone else’s Thailand day, or add it to an existing plan." }),
     );
-    expect(make.getByRole("link", { name: "Make this your trip" }).getAttribute("href")).toBe(dayPath(LANDING_FEATURES.shelf));
+    const href = make.getByRole("link", { name: "Make this your trip" }).getAttribute("href")!;
+    expect(SEA_DAYS.find((cell) => cell.href === href)!.day.name).toMatch(/^Railay/);
+    const trips = await make.findAllByRole("combobox", { name: "Which trip" });
+    expect(trips.map((select) => (select as HTMLSelectElement).selectedOptions[0]!.textContent)).toEqual([
+      "Start a new trip",
+      LANDING_FEATURES.make.trip.name,
+    ]);
+    expect((make.getByRole("combobox", { name: "Which day" }) as HTMLSelectElement).selectedOptions[0]!.textContent).toBe("Day 1");
+    expect(make.getByText(/this day is day 1/)).toBeDefined();
+    expect(make.getByText(/The day lands on Day 1/)).toBeDefined();
   });
 
   it("puts the crew on the Greek trip's borrowed Day 2, with the Greek days lit around it", async () => {
@@ -187,25 +221,42 @@ describe("the sea's moments", () => {
     expect(adders.filter((name) => !Object.keys(LANDING_FEATURES.crew.personas).includes(name!))).toEqual([]);
     const lit = litCells().filter((cell) => cell.getAttribute("data-lit-for") === "sea-crew");
     expect(lit.map((cell) => cell.getAttribute("data-region"))).toEqual(lit.map(() => "greek-islands"));
-    // Elena's Naxos day, the one the crew borrowed, among them.
-    expect(lit.map((cell) => within(cell).getByRole("heading").textContent)).toContainEqual(expect.stringMatching(/^Naxos/));
   });
 
   // Mitchell's walk of PR 510 at 7260011: "i dont like crew here". The names
   // on each stop carry the together; the heading leads with the shared plan.
-  it("says who is going without the word crew", () => {
+  // Read once the real panel has landed, and in its labels as well as its
+  // text (PR 510 r5: the placeholder alone passed).
+  it("says who is going without the word crew", async () => {
+    const screens = watchScreens();
     render(<LandingSea />);
     const region = screen.getByRole("region", { name: "Everyone going, one plan." });
+    screens.near(region);
+    await within(region).findByRole("list", { name: "Day 2 timeline" });
     expect(region.textContent).not.toMatch(/crew/i);
+    const labels = [region, ...within(region).queryAllByLabelText(/./)].flatMap((el) =>
+      ["aria-label", "aria-description", "title"].map((name) => el.getAttribute(name) ?? ""),
+    );
+    expect(labels.filter((label) => /crew/i.test(label))).toEqual([]);
   });
 
-  it("keeps the notebook afterwards, with the Japan days lit around it", async () => {
+  // Mitchell's third walk of PR 510: "looks too fake, not lived in enough …
+  // clip it at bottom so it fades out at the real edge", and "the 3 people
+  // going as icons at bottom doesnt make sense". The page runs past its cell
+  // under a fade, and no list of names signs it.
+  it("keeps the notebook afterwards, a long page faded out at the cell's foot, with the Japan days lit around it", async () => {
     const screens = watchScreens();
     render(<LandingSea />);
     const region = screen.getByRole("region", { name: "Keep the notebook afterwards." });
     screens.near(region);
-    const notebook = within(region);
-    expect(await notebook.findByTestId("notebook-page")).toBeDefined();
+    const page = await within(region).findByTestId("notebook-page");
+    expect(page.className.split(" ")).toEqual(expect.arrayContaining(["landing-sea-fade", "overflow-hidden"]));
+    const people = Object.values(LANDING_FEATURES.crew.personas).map((persona) => persona.name);
+    const signed = within(page)
+      .queryAllByRole("listitem")
+      .filter((item) => [...people, "Priya", "Jonah", "Mei", "Sam"].includes(item.textContent!.trim()));
+    expect(signed).toEqual([]);
+    expect(within(page).getAllByRole("heading").length).toBeGreaterThanOrEqual(3);
     const lit = litCells().filter((cell) => cell.getAttribute("data-lit-for") === "sea-notebook");
     expect(lit.map(dayOf).sort()).toEqual(LANDING_SEA.japan.map((cell) => cell.day.savedDayId).sort());
   });
@@ -345,16 +396,13 @@ describe("the sea's grid", () => {
         // (Mitchell's walk of PR 510 at 7260011).
         const loose = layout.lit.filter(({ moment, at }) => !touch(at, layout.stories[moment])).map(({ moment, at }) => `${moment} ${at.row},${at.col}`);
         expect({ cols, viewport, loose }).toEqual({ cols, viewport, loose: [] });
-        // And a screen of plain sea between one story with its days and the
-        // next, so no day reads as the wrong moment's, and one fades out
-        // before the next fades in.
-        const screenRows = Math.floor((viewport - 56) / (170 + 8));
-        const groups = Object.entries(layout.stories).map(([id, at]) => {
-          const areas = [at, ...layout.lit.filter((lit) => lit.moment === id).map((lit) => lit.at)];
-          return { top: Math.min(...areas.map((a) => a.row)), foot: Math.max(...areas.map((a) => a.row + a.h)) };
-        });
-        const short = groups.slice(1).map((group, i) => group.top - groups[i]!.foot).filter((gap) => gap < screenRows);
-        expect({ cols, viewport, short }).toEqual({ cols, viewport, short: [] });
+        // And no story or lit day touches another story's group, so no day
+        // reads as the wrong moment's.
+        const groups = Object.entries(layout.stories).map(([id, at]) => [at, ...layout.lit.filter((lit) => lit.moment === id).map((lit) => lit.at)]);
+        const touching = groups.flatMap((group, i) =>
+          groups.slice(i + 1).flatMap((other) => group.flatMap((a) => other.filter((b) => meet(a, b, 1)).map((b) => `${a.row},${a.col} ${b.row},${b.col}`))),
+        );
+        expect({ cols, viewport, touching }).toEqual({ cols, viewport, touching: [] });
         const packed = taken.slice(FIRST_SCREEN_ROWS).flat();
         expect({ cols, viewport, holes: packed.filter((n) => n === 0).length, overlaps: packed.filter((n) => n > 1).length }).toEqual({
           cols,
@@ -412,6 +460,104 @@ describe("the sea's grid", () => {
       // In the DOM, and so in Tab order, as the eye reads them: a lit day
       // above the moment's foot is not reached after one below it (PR 510 r4).
       expect(areas).toEqual([...areas].sort((a, b) => a.row - b.row || a.col - b.col));
+    }
+  });
+});
+
+// Mitchell's third walk of PR 510, at 8a5c8fa, on 3440×1271 and 1718×1270.
+describe("the sea at Mitchell's third walk", () => {
+  /** The grid at a window this wide and tall, as `LandingSea` measures it: about one column per 180px. */
+  const metricsAt = (width: number, viewport: number) => {
+    const cols = Math.max(6, Math.round((width - 32) / 180));
+    return { cols, unit: (width - 32 - (cols - 1) * 8) / cols, viewport };
+  };
+  const SCREENS = [metricsAt(1440, 900), metricsAt(1718, 1270), metricsAt(3440, 1271), metricsAt(3440, 1440), metricsAt(1100, 900)];
+  const ORDER = ["sea-find", "sea-make", "sea-crew", "sea-notebook"] as const;
+
+  // "you should just be seeing the last fading out when the next scrolls
+  // in": as the next moment comes onto the screen at its foot, the last is
+  // past the screen's middle and part way sunk, neither risen nor gone.
+  // Not at six columns (1100px): there a four-row moment has room for two
+  // lit days beside it, and its third, below it, holds the next a row back.
+  it("brings each moment onto the screen while the last is still fading out", () => {
+    for (const metrics of SCREENS.filter(({ cols }) => cols > 6)) {
+      const layout = layoutSea(metrics);
+      const step = metrics.unit + 8;
+      const height = (at: SeaArea) => at.h * step - 8;
+      const late = ORDER.slice(1).flatMap((id, i) => {
+        const [last, next] = [layout.stories[ORDER[i]!], layout.stories[id]];
+        // Scrolled so the next moment's top is one pixel onto the screen.
+        const top = (last.row - next.row) * step + metrics.viewport - 1;
+        const { lift } = momentRise(top, height(last), metrics.viewport);
+        const sinking = top + height(last) / 2 < metrics.viewport / 2;
+        return sinking && lift > 0 && lift < 1 ? [] : [`${ORDER[i]} at ${lift.toFixed(2)} as ${id} comes in`];
+      });
+      expect({ ...metrics, late }).toEqual({ ...metrics, late: [] });
+    }
+  });
+
+  // "For the ultra wide display, can we try to always keep at least one
+  // section in the middle? So for "Start a trip" its slightly too far to
+  // left by 2 squares".
+  it("centres every story on an ultra-wide grid", () => {
+    for (let cols = 14; cols <= 20; cols++) {
+      const { stories } = layoutSea({ cols, unit: 175, viewport: 1271 });
+      const off = Object.entries(stories)
+        .filter(([, at]) => 2 * at.col + at.w !== cols)
+        .map(([id, at]) => `${id} at ${at.col}+${at.w}`);
+      expect({ cols, off }).toEqual({ cols, off: [] });
+    }
+  });
+
+  // "Two many of these 1x3, use 1x3 very sparringly, they look a bit ugly".
+  it("draws one cell in forty at most as a column three tall", () => {
+    for (const metrics of SCREENS) {
+      const shapes = layoutSea(metrics).background.map(({ at }) => `${at.w}x${at.h}`);
+      const tall = shapes.filter((shape) => shape === "1x3").length;
+      expect({ ...metrics, capped: tall <= shapes.length / 40 }).toEqual({ ...metrics, capped: true });
+    }
+  });
+
+  // "This card is too tall, Cut it one row shorter": four rows at 1440,
+  // with or without a scrollbar taking its 15px.
+  it("draws the crew moment four rows tall at 1440", () => {
+    for (const width of [1440, 1425]) {
+      expect({ width, rows: layoutSea(metricsAt(width, 900)).stories["sea-crew"].h }).toEqual({ width, rows: 4 });
+    }
+  });
+
+  // "we are missing this nice accent full color cards with Country - city
+  // … link to those pages if you click there". About one cell in eight to
+  // twelve, a single or a wide one, never two touching, and never lit.
+  it("scatters accents through the background, about one cell in ten, apart from one another", () => {
+    expect(SEA_ACCENTS.length).toBeGreaterThan(0);
+    for (const metrics of SCREENS) {
+      const { background, lit } = layoutSea(metrics);
+      const accents = background.filter((ground) => ground.accent !== undefined).map(({ at }) => at);
+      const share = accents.length / background.length;
+      expect({ ...metrics, share: share >= 1 / 12 && share <= 1 / 8 }).toEqual({ ...metrics, share: true });
+      expect(accents.filter((at) => at.h !== 1 || at.w > 2)).toEqual([]);
+      expect(accents.flatMap((a, i) => accents.slice(i + 1).filter((b) => meet(a, b, 1)))).toEqual([]);
+      expect(lit.filter(({ cell }) => !("day" in cell))).toEqual([]);
+    }
+    const first = FIRST_SCREEN.filter((ground) => ground.accent !== undefined).length / FIRST_SCREEN.length;
+    expect(first >= 1 / 12 && first <= 1 / 8).toBe(true);
+  });
+
+  it("links every accent to its page, out of the tab order like the background around it", WHOLE_SEA, () => {
+    const screens = watchScreens();
+    render(<LandingSea />);
+    screens.nearAll();
+    const accents = screen.getAllByTestId("sea-accent");
+    expect(accents.length).toBeGreaterThan(0);
+    const pages = new Set(SEA_ACCENTS.map((accent) => accent.href));
+    for (const accent of accents) {
+      expect(accent.getAttribute("aria-hidden")).toBe("true");
+      expect(accent.hasAttribute("data-lit-for")).toBe(false);
+      const link = within(accent).getByRole("link", { hidden: true });
+      expect(link.getAttribute("tabindex")).toBe("-1");
+      expect(link.getAttribute("href")).toMatch(/^\/playbooks\/(country|city|tag)\/[a-z0-9-]+$/);
+      expect(pages.has(link.getAttribute("href")!)).toBe(true);
     }
   });
 });

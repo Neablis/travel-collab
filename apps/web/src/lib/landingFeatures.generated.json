@@ -57,54 +57,105 @@
     "namedTags": []
   },
   "shelf": {
-    "savedDayId": "95742081-a970-48b2-8779-34d5104c94ca",
-    "ownerId": "dev-nadia",
-    "ownerDisplayName": "Nadia",
-    "name": "Railay: the first longtail, Phra Nang before the crowd, and back after dark",
+    "savedDayId": "111ab643-9eea-4c20-894a-994586dd7c72",
+    "ownerId": "dev-priya",
+    "ownerDisplayName": "Priya",
+    "name": "Phi Phi on your own boat: viewpoint at six, Pileh before the fleet, Bamboo after it",
     "cities": [
-      "Krabi"
+      "Ko Phi Phi"
     ],
     "matchedCities": [],
     "stopCount": 8,
     "dayCount": 1,
     "window": {
-      "start": "08:15",
-      "end": "21:25"
+      "start": "06:15",
+      "end": "19:45"
     },
     "preview": [
       {
-        "title": "Longtail from Ao Nang beach to Railay West",
-        "start": "08:15"
+        "title": "Viewpoint 1, 2 and 3 before sunrise",
+        "start": "06:15"
       },
       {
-        "title": "Phra Nang Cave Beach and the fertility shrine",
-        "start": "09:00"
+        "title": "Breakfast in Tonsai village",
+        "start": "07:35"
       },
       {
-        "title": "Railay viewpoint, and the lagoon if it has not rained",
-        "start": "10:35"
+        "title": "Private longtail leaves Tonsai Bay",
+        "start": "08:45"
       }
     ],
     "totalCost": null,
-    "adds": 5,
-    "rating": null,
-    "reviewCount": 0,
+    "adds": 4,
+    "rating": 4.6,
+    "reviewCount": 54,
     "visibility": "public",
     "authorKind": "ai",
     "sourceTripName": "Andaman, twelve days and one bag",
-    "createdAt": "2026-02-14T09:00:00.000Z",
-    "publishedAt": "2026-02-14T09:00:00.000Z",
+    "createdAt": "2025-07-12T09:15:00.000Z",
+    "publishedAt": "2025-07-12T09:15:00.000Z",
     "isMine": false,
     "cover": null,
-    "description": "Food & outdoors",
+    "description": "Beach & outdoors",
     "tags": [
-      "meal",
-      "outdoors",
-      "drinks",
       "beach",
+      "outdoors",
+      "meal",
       "tour"
     ],
     "namedTags": []
+  },
+  "make": {
+    "day": {
+      "name": "Railay: the first longtail, Phra Nang before the crowd, and back after dark",
+      "dayCount": 1
+    },
+    "trip": {
+      "tripId": "00000000-0000-4000-8000-00000000d004",
+      "name": "Thailand: Bangkok → Krabi → Koh Lanta"
+    },
+    "days": [
+      {
+        "dayId": "00000000-0000-4000-8004-000000000001",
+        "label": "Day 1"
+      },
+      {
+        "dayId": "00000000-0000-4000-8004-000000000002",
+        "label": "Day 2"
+      },
+      {
+        "dayId": "00000000-0000-4000-8004-000000000003",
+        "label": "Day 3"
+      },
+      {
+        "dayId": "00000000-0000-4000-8004-000000000004",
+        "label": "Day 4"
+      },
+      {
+        "dayId": "00000000-0000-4000-8004-000000000005",
+        "label": "Day 5"
+      },
+      {
+        "dayId": "00000000-0000-4000-8004-000000000006",
+        "label": "Day 6"
+      },
+      {
+        "dayId": "00000000-0000-4000-8004-000000000007",
+        "label": "Day 7"
+      },
+      {
+        "dayId": "00000000-0000-4000-8004-000000000008",
+        "label": "Day 8"
+      },
+      {
+        "dayId": "00000000-0000-4000-8004-000000000009",
+        "label": "Day 9"
+      },
+      {
+        "dayId": "00000000-0000-4000-8004-000000000010",
+        "label": "Day 10"
+      }
+    ]
   },
   "crew": {
     "name": "Paros to Santorini",
@@ -557,26 +608,53 @@
       ],
       "summary": "Sunrise and sunset for 1 day."
     },
-    "people": {
-      "kind": "trip-people",
-      "stack": [
-        {
-          "name": "Priya",
-          "avatar": "camera",
-          "color": "ochre"
-        },
-        {
-          "name": "Jonah",
-          "avatar": "bike",
-          "color": "clay"
-        },
-        {
-          "name": "Mei",
-          "avatar": "sailboat",
-          "color": "rose"
-        }
-      ],
-      "sentence": "Priya, Jonah and Mei are going with Sam."
-    }
+    "journal": [
+      {
+        "heading": "What we would tell the next lot",
+        "paragraphs": [
+          [
+            {
+              "kind": "text",
+              "text": "The Romancecar fills up from Shinjuku. Book the front seats the day before, not on the platform: Jonah got the last two, and we sat in them in shifts."
+            }
+          ],
+          [
+            {
+              "kind": "text",
+              "text": "Give the Open-Air Museum the whole morning. Take your shoes off for the foot bath halfway round, and leave the Picasso pavilion for last, when the groups have gone to lunch."
+            }
+          ],
+          [
+            {
+              "kind": "text",
+              "text": "At Bakery & Table, go up to the counter over the lake, not the tables inside. Mei went back for a second curry bread and nobody blamed her."
+            }
+          ],
+          [
+            {
+              "kind": "text",
+              "text": "At Gora Kadan ask for the late bath. The outdoor one is quiet after nine, and the steam comes up off the trees."
+            }
+          ]
+        ]
+      },
+      {
+        "heading": "Next time",
+        "paragraphs": [
+          [
+            {
+              "kind": "text",
+              "text": "Two nights, not one. The ropeway and Owakudani were on the list, and we never left the ryokan."
+            }
+          ],
+          [
+            {
+              "kind": "text",
+              "text": "Sam wants to walk the old Tokaido path down to Hatajuku. Priya wants the same room again. Both can be true."
+            }
+          ]
+        ]
+      }
+    ]
   }
 }

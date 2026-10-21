@@ -1,6 +1,7 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 import { JAPAN_SAVED_DAYS, parseBundle, playbookIdFor } from "@tc/fixtures";
+import { describeByTags } from "@tc/domain";
 import {
   buildLandingDemo,
   buildLandingFeatures,
@@ -17,8 +18,11 @@ import { bundleFiles, CONTENT_DIR, contentDays } from "./lib/content-bundles";
 import { personasOf } from "@/components/pages/people";
 import { ratingLine } from "@/components/playbooks/DiscoverCard";
 import { demoTripBySlug } from "@/lib/demoTrip";
-import { LANDING_SEA } from "@/lib/landingSea";
-import { dayPath } from "@/lib/playbookUrls";
+import { LANDING_SEA, SEA_ACCENTS, SEA_DAYS, type SeaDayCell } from "@/lib/landingSea";
+import { LANDING_FEATURES } from "@/lib/landingDemo";
+import { countrySlug, dayPath, MIN_INDEXED_PLACE_DAYS, slugify } from "@/lib/playbookUrls";
+import { savedDayCities } from "@/server/savedDayCities";
+import { savedDayCountries } from "@/server/savedDayCountries";
 import { demoTripCards, demoTripMembers } from "@/server/demoTrip";
 
 // `pnpm landing:verify`, inside `pnpm test` — where the fixture's own check
@@ -122,22 +126,23 @@ const SIZES = ["1x1", "2x1", "1x2", "2x2", "3x1", "1x3"];
 
 describe("the landing's sea", () => {
   const sea = buildLandingSea();
+  const days = sea.cells.filter((cell): cell is SeaDayCell => "day" in cell);
 
   it("holds every public library day, once", () => {
     const published = BUNDLES.flatMap((b) => b.playbooks.filter((p) => p.visibility === "public").map((p) => playbookIdFor(b.bundle.id, p.key)));
-    expect(sea.cells.map((cell) => cell.day.savedDayId).sort()).toEqual([...published].sort());
-    expect(sea.cells.every((cell) => cell.day.visibility === "public")).toBe(true);
+    expect(days.map((cell) => cell.day.savedDayId).sort()).toEqual([...published].sort());
+    expect(days.every((cell) => cell.day.visibility === "public")).toBe(true);
   });
 
   it("gives each cell a grid size", () => {
-    expect(sea.cells.filter((cell) => !SIZES.includes(cell.size))).toEqual([]);
-    expect(new Set(sea.cells.map((cell) => cell.size)).size).toBe(SIZES.length);
+    expect(days.filter((cell) => !SIZES.includes(cell.size))).toEqual([]);
+    expect(new Set(days.map((cell) => cell.size)).size).toBe(SIZES.length);
   });
 
   // Decision 9: sample ratings in the card's own format, about one in nine
   // with none, so the sea does not read as a wall of identical claims.
   it("gives about one card in nine no reviews, and the rest a rating", () => {
-    const lines = sea.cells.map((cell) => ratingLine(cell.day));
+    const lines = days.map((cell) => ratingLine(cell.day));
     expect(lines.filter((line) => line !== null && !/^[1-5]\.\d · \d+ reviews$/.test(line))).toEqual([]);
     const unrated = lines.filter((line) => line === null).length / lines.length;
     expect(unrated).toBeGreaterThan(1 / 14);
@@ -145,7 +150,7 @@ describe("the landing's sea", () => {
   });
 
   it("draws no price, no tag link and no date", () => {
-    for (const { day } of sea.cells) {
+    for (const { day } of days) {
       expect(day).toMatchObject({ totalCost: null, namedTags: [] });
       expect(day).not.toHaveProperty("createdAt");
       expect(day).not.toHaveProperty("publishedAt");
@@ -174,8 +179,8 @@ describe("the sea's links, as the landing draws them", () => {
   );
 
   it("each open a public day the content import writes, at its canonical path", () => {
-    expect(LANDING_SEA.cells.length).toBeGreaterThan(0);
-    const broken = LANDING_SEA.cells.filter((cell) => {
+    expect(SEA_DAYS.length).toBeGreaterThan(0);
+    const broken = SEA_DAYS.filter((cell) => {
       const day = written.get(cell.day.savedDayId);
       return day === undefined || day.visibility !== "public" || cell.href !== dayPath(day);
     });
@@ -185,6 +190,54 @@ describe("the sea's links, as the landing draws them", () => {
   it("give no Japan cell a link", () => {
     expect(LANDING_SEA.japan.length).toBeGreaterThan(0);
     expect(LANDING_SEA.japan.filter((cell) => cell.href !== null)).toEqual([]);
+  });
+
+  // Mitchell's third walk of PR 510: accents "link to those pages if you
+  // click there", and Mitchell, 2026-10-20, whatever links somewhere links to
+  // something real. Each accent's page lists at least `MIN_INDEXED_PLACE_DAYS`
+  // public days the content import writes, counted by the routes' own slugs:
+  // a city or country over the day's places, a tag over the days whose
+  // description names it (ADR-070 §4).
+  it("put each accent on a country, city or tag page the content import fills with days", () => {
+    const pages = new Map<string, Set<string>>();
+    const add = (href: string | null, id: string) => {
+      if (href !== null) pages.set(href, (pages.get(href) ?? new Set()).add(id));
+    };
+    for (const day of [...written.values()].filter((d) => d.visibility === "public")) {
+      for (const city of savedDayCities(day.stops)) add(`/playbooks/city/${slugify(city)}`, day.savedDayId);
+      for (const code of savedDayCountries(day.stops)) {
+        const slug = countrySlug(code);
+        add(slug === null ? null : `/playbooks/country/${slug}`, day.savedDayId);
+      }
+      for (const tag of describeByTags(day.stops)?.named ?? []) add(`/playbooks/tag/${tag}`, day.savedDayId);
+    }
+    expect(SEA_ACCENTS.length).toBeGreaterThan(0);
+    const thin = SEA_ACCENTS.filter(
+      (accent) => !accent.href.startsWith(`/playbooks/${accent.kind}/`) || (pages.get(accent.href)?.size ?? 0) < MIN_INDEXED_PLACE_DAYS,
+    );
+    expect(thin.map((accent) => accent.href)).toEqual([]);
+    expect(new Set(SEA_ACCENTS.map((accent) => accent.kind))).toEqual(new Set(["country", "city", "tag"]));
+  });
+});
+
+// Mitchell's third walk of PR 510: the find moment's banner "has no reviews,
+// and is only 3 activities during the day, not the most aww inspiring
+// example". It is the Thailand day the rule picks: rated 4.5 or more, with no
+// such day holding more stops, or as many and more reviews; and it draws the
+// rating its own cell in the sea draws.
+describe("the find moment's banner", () => {
+  it("is the richest Thailand day in the sea", () => {
+    const { shelf } = LANDING_FEATURES;
+    const thailand = SEA_DAYS.filter((cell) => cell.group === "thailand-beaches");
+    expect(shelf.rating ?? 0).toBeGreaterThanOrEqual(4.5);
+    expect(shelf.reviewCount).toBeGreaterThan(0);
+    const richer = thailand
+      .filter(({ day }) => (day.rating ?? 0) >= 4.5)
+      .filter(({ day }) => day.stopCount > shelf.stopCount || (day.stopCount === shelf.stopCount && day.reviewCount > shelf.reviewCount))
+      .map(({ day }) => day.name);
+    expect(richer).toEqual([]);
+    const own = thailand.find((cell) => cell.day.savedDayId === shelf.savedDayId)!;
+    expect({ rating: own.day.rating, reviews: own.day.reviewCount }).toEqual({ rating: shelf.rating, reviews: shelf.reviewCount });
   });
 });
 

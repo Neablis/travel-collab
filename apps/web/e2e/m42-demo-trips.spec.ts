@@ -24,8 +24,8 @@ const DEMOS = [
 /** The phone's Playbooks claim, Mitchell's Hanoi playbook (`scripts/landing-day.json`). */
 const PLAYBOOK = /^Hanoi in 4 days/;
 
-/** The sea's first moment, the Railay day from `content/playbooks/thailand-beaches.json`. */
-const RAILAY = /^Railay: the first longtail/;
+/** The sea's first moment's banner, the richest day in `content/playbooks/thailand-beaches.json` (`richestDay`). */
+const BANNER = /^Phi Phi on your own boat/;
 
 test.describe("the front door, signed out (M42)", () => {
   test.use({ storageState: { cookies: [], origins: [] } });
@@ -111,7 +111,7 @@ test.describe("the front door, signed out (M42)", () => {
     await expect
       .poll(() => landing.getByTestId("sea-scrim").evaluate((scrim: HTMLElement) => scrim.style.getPropertyValue("--sea-dim")))
       .not.toBe("0");
-    await expect(landing.getByRole("region", { name: "Find a day worth borrowing." }).getByRole("link", { name: RAILAY }).first()).toBeVisible();
+    await expect(landing.getByRole("region", { name: "Find a day worth borrowing." }).getByRole("link", { name: BANNER }).first()).toBeVisible();
     await expect(landing.getByRole("region", { name: "Everyone going, one plan." }).getByRole("list", { name: "Day 2 timeline" })).toBeVisible();
     // The day's stop, not the words that name it too (M50 part 9).
     await expect(
@@ -123,6 +123,7 @@ test.describe("the front door, signed out (M42)", () => {
   // Decision 10: a linked cell is a door to its day's canonical page, with
   // nothing after the path (ADR-063's cache serves only a query-less one), and
   // the Japan cells, whose days exist only in the dev fixtures, open nothing.
+  // An accent opens its country, city or tag page (Mitchell's third walk).
   // The e2e database imports no `content/`, so a click would open a 404 and
   // prove nothing: the door is asserted by where it goes. The background's
   // doors are out of the accessibility tree, so they are read as anchors.
@@ -139,14 +140,21 @@ test.describe("the front door, signed out (M42)", () => {
     const hrefs = (await sea.locator("a").evaluateAll((links) => links.map((link) => link.getAttribute("href") ?? "")))
       .filter((href) => href.startsWith("/playbooks/"));
     expect(hrefs.length).toBeGreaterThan(48);
-    for (const href of hrefs) expect(href).toMatch(/^\/playbooks\/day\/[a-z0-9-]+$/);
+    for (const href of hrefs) expect(href).toMatch(/^\/playbooks\/(day|country|city|tag)\/[a-z0-9-]+$/);
+    // By test id: an accent is background, out of the accessibility tree.
+    const accents = await sea.getByTestId("sea-accent").locator("a").evaluateAll((links) => links.map((link) => link.getAttribute("href")));
+    expect(accents.length).toBeGreaterThan(0);
+    for (const href of accents) expect(href).toMatch(/^\/playbooks\/(country|city|tag)\/[a-z0-9-]+$/);
   });
 
   // The sea's grid decides every cell's size, and what a cell holds fills it
   // (Mitchell's walk of PR 510): a moment's panel, its river, its notebook
   // page and the pricing are drawn whole inside the cell they are given, with
   // nothing clipped at a foot, at the gate's widths. `sr-only` is clipped by
-  // design and is not looked at.
+  // design and is not looked at. The notebook's page is the one exception
+  // (Mitchell's third walk: *"dont be afraid to make it too long, but clip it
+  // at bottom so it fades out at the real edge"*): it runs on past its cell
+  // and fades out at the cell's own foot, which the cell keeps.
   for (const [width, height, cols] of [
     [1440, 900, 8],
     [3440, 1440, 19],
@@ -165,11 +173,22 @@ test.describe("the front door, signed out (M42)", () => {
         cells.flatMap((cell) =>
           [cell, ...cell.querySelectorAll<HTMLElement>("*")]
             .filter((el) => !el.classList.contains("sr-only") && getComputedStyle(el).overflowY !== "visible")
+            .filter((el) => !el.closest(".landing-sea-fade"))
             .filter((el) => el.scrollHeight - el.clientHeight > 1)
             .map((el) => `${cell.getAttribute("aria-labelledby") ?? cell.textContent!.slice(0, 24)}: ${el.tagName} ${el.scrollHeight - el.clientHeight}px`),
         ),
       );
       expect(clipped).toEqual([]);
+      const notebook = await sea.getByTestId("notebook-page").evaluate((page) => {
+        // The panel, which fills the cell and carries the rise.
+        const cell = page.closest("[data-rise]")!.getBoundingClientRect();
+        return {
+          overflows: page.scrollHeight - page.clientHeight > 100,
+          masked: getComputedStyle(page).maskImage.startsWith("linear-gradient"),
+          atTheFoot: Math.abs(page.getBoundingClientRect().bottom - cell.bottom) <= 1,
+        };
+      });
+      expect(notebook).toEqual({ overflows: true, masked: true, atTheFoot: true });
     });
   }
 
@@ -177,8 +196,8 @@ test.describe("the front door, signed out (M42)", () => {
   // clipping box would take focus out of sight and scroll that box out of
   // place. At 1440, and at 1100, where the grid is six columns. The count
   // comes first: the walk proves nothing if no lit cell is a door. The big
-  // Railay card, then the Thai and Greek days lit around the moments (the
-  // Railay day's small card is not a door, and Japan's open nothing).
+  // banner card, then the Thai and Greek days lit around the moments (Japan's
+  // open nothing).
   for (const [width, cols] of [
     [1100, 6],
     [1440, 8],
@@ -189,7 +208,7 @@ test.describe("the front door, signed out (M42)", () => {
       const sea = page.getByTestId("desktop-landing").getByTestId("landing-sea");
       await expect(sea.getByTestId("sea-grid")).toHaveAttribute("data-cols", String(cols));
       await expect(sea.locator("[data-moment]")).toHaveCount(4);
-      await expect(sea.getByRole("region", { name: "Find a day worth borrowing." }).getByRole("link", { name: RAILAY })).toBeAttached();
+      await expect(sea.getByRole("region", { name: "Find a day worth borrowing." }).getByRole("link", { name: BANNER })).toBeAttached();
       const doors = await sea.locator("[data-moment], [data-lit-for]").evaluateAll((cells) =>
         cells.flatMap((cell) =>
           [...cell.querySelectorAll<HTMLElement>("[data-testid=discover-card]")]
@@ -207,7 +226,7 @@ test.describe("the front door, signed out (M42)", () => {
             }),
         ),
       );
-      expect(doors).toHaveLength(1 + 1 + 3 + 3);
+      expect(doors).toHaveLength(1 + 2 + 3 + 3);
       expect(doors.filter((door) => door.cut)).toEqual([]);
     });
   }

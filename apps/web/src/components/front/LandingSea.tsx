@@ -7,10 +7,13 @@ import { DiscoverCard } from "@/components/playbooks/DiscoverCard";
 import { buttonVariants } from "@/components/ui/button";
 import { Heading } from "@/components/ui/heading";
 import { cn } from "@/lib/cn";
-import { LANDING_SEA, type SeaCell, type SeaCellSize } from "@/lib/landingSea";
+import { LANDING_SEA, SEA_ACCENTS, SEA_DAYS, type SeaAccent, type SeaCell, type SeaCellSize } from "@/lib/landingSea";
+import { richestDay } from "@/lib/richestDay";
 
 /** A cell as the sea draws it: linked to its day page, or (a Japan day) to nothing. */
 type SeaDoor = SeaCell & { href: string | null };
+/** What a background cell holds: a day, or an accent. */
+type Ground = { cell: SeaDoor; accent?: never } | { accent: SeaAccent; cell?: never };
 
 // The desktop front door's sea of notebooks (M51, the C2 prototype): every
 // public day in the library as the Discover card it is, each on its region's
@@ -20,8 +23,10 @@ type SeaDoor = SeaCell & { href: string | null };
 // colour; scrolling dims it into ground, and four moments rise out of it from
 // a ghost of themselves and sink back as they leave, each the real component
 // telling one step (find a day, make it your trip, everyone on the plan, the
-// notebook afterwards), with a screen of sea between them and two or three
-// days lit around each, touching it and apart from one another.
+// notebook afterwards), each coming in as the last fades out, with two or
+// three days lit around each, touching it and apart from one another. Here
+// and there an accent, a cell of colour naming a country, a city or a kind of
+// day, opens the library's page for it.
 //
 // **The grid decides every size** (Mitchell, on PR 510: *"the parent controls
 // the size, and the content just fills that component using the flow rules
@@ -92,32 +97,48 @@ const SPAN: Record<SeaCellSize, string> = {
 };
 
 // The days each moment lights: two or three, never a whole region (Mitchell,
-// on PR 510: *"maybe like 2-3, not 6"*). Find a day lights the Railay day's
-// small card, the same day again and so not a second door, and one more Thai
-// day; make it your trip three Thai days; the crew Elena's Naxos day and two
-// more Greek ones; the notebook the demo's three Japan days.
-const THAILAND = LANDING_SEA.cells.filter((cell) => cell.group === "thailand-beaches");
-const GREECE = LANDING_SEA.cells.filter((cell) => cell.group === "greek-islands");
+// on PR 510: *"maybe like 2-3, not 6"*), and never the moment's own day
+// (Mitchell's third walk: *"The banner to left is the same activity to
+// right"*). Find a day raises the richest Thai day and lights two more; make
+// it your trip shows the Railay day and lights three others; the crew's river
+// is Elena's Naxos day, and it lights three other Greek ones; the notebook
+// lights the demo's three Japan days.
+const THAILAND = SEA_DAYS.filter((cell) => cell.group === "thailand-beaches");
+const GREECE = SEA_DAYS.filter((cell) => cell.group === "greek-islands");
+/** The find moment's banner, by the rule the generator gives `LANDING_FEATURES.shelf`. */
+const BANNER = richestDay(THAILAND);
 /** The Railay day's page, where the day is added to a trip; part 6 makes this the onboarding itself. */
 const RAILAY = THAILAND.find((cell) => cell.day.name.startsWith("Railay"))!;
 const NAXOS = GREECE.find((cell) => cell.day.name.startsWith("Naxos"))!;
-const THAI = THAILAND.filter((cell) => cell !== RAILAY);
+const THAI = THAILAND.filter((cell) => cell !== BANNER && cell !== RAILAY);
 const GREEK = GREECE.filter((cell) => cell !== NAXOS);
 
 export type MomentId = "sea-find" | "sea-make" | "sea-crew" | "sea-notebook";
 type StoryId = MomentId | "pricing" | "closing";
 
-const door = (cell: SeaDoor) => ({ cell, door: true });
-const LIT: Record<MomentId, { cell: SeaDoor; door: boolean }[]> = {
-  "sea-find": [{ cell: RAILAY, door: false }, door(THAI[0]!)],
-  "sea-make": THAI.slice(1, 4).map(door),
-  "sea-crew": [NAXOS, ...GREEK.slice(0, 2)].map(door),
-  "sea-notebook": LANDING_SEA.japan.map(door),
+/** Each moment's own day, which none of its lit days repeats; the notebook's are the Japan demo's, which the sea does not hold. */
+export const MOMENT_DAY: Record<MomentId, string | null> = {
+  "sea-find": BANNER.day.savedDayId,
+  "sea-make": RAILAY.day.savedDayId,
+  "sea-crew": NAXOS.day.savedDayId,
+  "sea-notebook": null,
+};
+const LIT: Record<MomentId, SeaDoor[]> = {
+  "sea-find": THAI.slice(0, 2),
+  "sea-make": THAI.slice(2, 5),
+  "sea-crew": GREEK.slice(0, 3),
+  "sea-notebook": LANDING_SEA.japan,
 };
 
-const litIds = new Set(Object.values(LIT).flatMap((lit) => lit.map(({ cell }) => cell.day.savedDayId)));
-/** The background: every library day no moment lights, in the snapshot's shuffled order. */
-const POOL = LANDING_SEA.cells.filter((cell) => !litIds.has(cell.day.savedDayId));
+/** The days a moment raises or lights, which the background leaves out so none shows twice beside its moment. */
+const shown = new Set([...Object.values(MOMENT_DAY), ...Object.values(LIT).flatMap((lit) => lit.map((cell) => cell.day.savedDayId))]);
+/** The background: every library day no moment shows, in the snapshot's shuffled order. */
+const POOL = SEA_DAYS.filter((cell) => !shown.has(cell.day.savedDayId));
+
+// One accent to about every ten cells of background (Mitchell's third walk:
+// *"we are missing this nice accent full color cards"*), and never two
+// touching, so they read as a scattering and not a band.
+const ACCENT_EVERY = 10;
 
 // Enough cells to fill the first screen's eight rows at 20 columns around the
 // hero (about 140 units), the last of them single units, so `dense` fills the
@@ -125,11 +146,20 @@ const POOL = LANDING_SEA.cells.filter((cell) => !litIds.has(cell.day.savedDayId)
 // above the packed grid and are clipped past its foot.
 const FIRST_SCREEN_SIZED = 56;
 const FIRST_SCREEN_SINGLE = 36;
-/** The first screen's cells, in the server's HTML, in the order CSS packs them. */
-export const FIRST_SCREEN: SeaDoor[] = [
-  ...POOL.slice(0, FIRST_SCREEN_SIZED),
-  ...POOL.slice(FIRST_SCREEN_SIZED, FIRST_SCREEN_SIZED + FIRST_SCREEN_SINGLE).map((cell) => ({ ...cell, size: "1x1" as const })),
-];
+/** The first screen's cells, in the server's HTML, in the order CSS packs them: an accent in each run of ten. */
+export const FIRST_SCREEN: Ground[] = Array.from({ length: FIRST_SCREEN_SIZED + FIRST_SCREEN_SINGLE }, (_, i): Ground => {
+  const accents = Math.floor((i + 1) / ACCENT_EVERY);
+  const single = i >= FIRST_SCREEN_SIZED;
+  if ((i + 1) % ACCENT_EVERY === 0) {
+    const accent = SEA_ACCENTS[(accents - 1) % SEA_ACCENTS.length]!;
+    return { accent: single ? { ...accent, size: "1x1" } : accent };
+  }
+  const cell = POOL[i - accents]!;
+  return { cell: single ? { ...cell, size: "1x1" } : cell };
+});
+/** How many of the pool's days and accents the first screen has used, where the packer below it carries on. */
+const FIRST_SCREEN_ACCENTS = FIRST_SCREEN.filter((ground) => ground.accent !== undefined).length;
+const FIRST_SCREEN_DAYS = FIRST_SCREEN.length - FIRST_SCREEN_ACCENTS;
 
 /** An area of the sea's grid in whole units: 0-based row and column, and how many of each it spans. */
 export type SeaArea = { row: number; col: number; w: number; h: number };
@@ -137,17 +167,15 @@ export type SeaMetrics = { cols: number; unit: number; viewport: number };
 export type SeaLayout = {
   rows: number;
   stories: Record<StoryId, SeaArea>;
-  lit: { moment: MomentId; cell: SeaDoor; door: boolean; at: SeaArea }[];
-  background: { cell: SeaDoor; at: SeaArea }[];
+  lit: { moment: MomentId; cell: SeaDoor; at: SeaArea }[];
+  background: (Ground & { at: SeaArea })[];
 };
 
 /** The first screen's rows, which CSS packs: eight 180px units cover a 1440px-tall screen under the header. */
 export const FIRST_SCREEN_ROWS = 8;
-// The grid's gap and side padding in px (`--sea-gap`, `--sea-pad`), and the
-// header's height, which a screen of sea is measured under.
+// The grid's gap and side padding in px (`--sea-gap`, `--sea-pad`).
 const GAP = 8;
 const PAD = 16;
-const HEADER = 56;
 /**
  * What the server packs for: the fewest columns CSS ever draws, at 1100×900.
  * Never more: an area past the real last column would open columns the grid
@@ -157,121 +185,163 @@ const SERVER_METRICS: SeaMetrics = { cols: 6, unit: (1100 - 2 * PAD - 5 * GAP) /
 
 // Each story cell in page order: its width past the prototype's base (four
 // columns, five from 12, six from 16), or the full width, how tall its
-// content is drawn in px, which sets its rows, and where it sits.
+// content is drawn in px, which sets its rows, and where it sits. The crew's
+// 680px is four rows at 1440 (Mitchell's third walk: *"Cut it one row
+// shorter"*); the make moment's 440 holds its worked example.
 const STORIES: { id: StoryId; extra: number | null; height: number; align: "left" | "right" | "center" }[] = [
   { id: "sea-find", extra: 1, height: 480, align: "left" },
-  { id: "sea-make", extra: 1, height: 230, align: "right" },
-  { id: "sea-crew", extra: 1, height: 760, align: "center" },
+  { id: "sea-make", extra: 1, height: 440, align: "right" },
+  { id: "sea-crew", extra: 1, height: 680, align: "center" },
   { id: "sea-notebook", extra: 2, height: 640, align: "left" },
   { id: "pricing", extra: 2, height: 620, align: "center" },
   { id: "closing", extra: null, height: 380, align: "center" },
 ];
 const LIT_SIZE = 2;
+/** From this many columns, an ultra-wide screen, every story is centred (Mitchell's third walk: *"always keep at least one section in the middle"*). */
+const WIDE = 14;
+/**
+ * How far below a story's middle the next one starts, in screens: when the
+ * next comes in at the screen's foot, the last is a quarter of a screen from
+ * the top, fading out (Mitchell's third walk: *"you should just be seeing the
+ * last fading out when the next scrolls in"*).
+ */
+const NEXT_AT = 0.75;
+
+/** Whether two areas share a unit, or with `margin` 1, touch at an edge or a corner. */
+const meet = (a: SeaArea, b: SeaArea, margin = 0) =>
+  a.row < b.row + b.h + margin && b.row < a.row + a.h + margin && a.col < b.col + b.w + margin && b.col < a.col + a.w + margin;
 
 /**
  * **The sea below the first screen, packed** (the prototype's layout): the
- * story cells a screen of sea apart, the days each moment lights scattered
- * around it, and every unit left a library day, each as big as the snapshot
- * sizes it or as big as still fits. Pure and whole: every area is whole units,
- * no two overlap, and no unit from the first screen's foot to the last row is
- * left empty.
+ * story cells in page order, each the next as soon as the last is fading, the
+ * days each moment lights around it, and every unit left a library day or an
+ * accent, each as big as the snapshot sizes it or as big as still fits. Pure
+ * and whole: every area is whole units, no two overlap, and no unit from the
+ * first screen's foot to the last row is left empty.
  */
 export function layoutSea({ cols, unit, viewport }: SeaMetrics): SeaLayout {
   const step = unit + GAP;
-  // A screen of sea between stories, and a longer stretch after the hero, so
-  // the colourful first screen holds before it dims (the prototype's G, G0).
-  const screen = Math.max(2, Math.floor((viewport - HEADER) / step));
+  // A longer stretch after the hero, so the colourful first screen holds
+  // before it dims (the prototype's G0).
   const opening = Math.max(3, Math.ceil((1.35 * viewport) / step));
   const base = cols >= 16 ? 6 : cols >= 12 ? 5 : 4;
   // The hero starts at the second row and is `--hero-rows` tall (globals.css).
   const heroEnd = 1 + (cols < 8 ? 4 : 3);
   const inset = Math.round(cols * 0.1);
 
-  const stories = {} as Record<StoryId, SeaArea>;
-  // Room above the first moment for a day it lights there.
-  let row = Math.max(FIRST_SCREEN_ROWS + LIT_SIZE, heroEnd + opening);
-  STORIES.forEach((story, i) => {
-    const w = story.extra === null ? cols : Math.min(cols, base + story.extra);
-    const h = Math.max(2, Math.ceil((story.height + GAP) / step));
-    const at = story.align === "left" ? inset : story.align === "right" ? cols - w - inset : Math.floor((cols - w) / 2);
-    stories[story.id] = { row, col: Math.min(Math.max(0, at), cols - w), w, h };
-    // A screen of plain sea between one moment's lit days and the next
-    // one's, which may sit below the one and above the other (Mitchell's
-    // walk of PR 510 at 7260011): no day reads as the wrong moment's, and
-    // one moment has faded out before the next fades in.
-    const next = STORIES[i + 1];
-    row += h + screen + (story.id in LIT ? LIT_SIZE : 0) + (next !== undefined && next.id in LIT ? LIT_SIZE : 0);
-  });
-  const closing = stories.closing;
-  const rows = closing.row + closing.h;
-
-  const taken = Array.from({ length: rows }, () => new Array<boolean>(cols).fill(false));
+  // Rows are added as the stories reach them.
+  const taken: boolean[][] = [];
+  const rowAt = (r: number) => (taken[r] ??= new Array<boolean>(cols).fill(false));
   const free = ({ row: r, col: c, w, h }: SeaArea) => {
-    if (r < FIRST_SCREEN_ROWS || c < 0 || r + h > rows || c + w > cols) return false;
-    for (let y = r; y < r + h; y++) for (let x = c; x < c + w; x++) if (taken[y]![x]) return false;
+    if (r < FIRST_SCREEN_ROWS || c < 0 || c + w > cols) return false;
+    for (let y = r; y < r + h; y++) for (let x = c; x < c + w; x++) if (rowAt(y)[x]) return false;
     return true;
   };
   const take = ({ row: r, col: c, w, h }: SeaArea) => {
-    for (let y = r; y < r + h; y++) for (let x = c; x < c + w; x++) taken[y]![x] = true;
+    for (let y = r; y < r + h; y++) for (let x = c; x < c + w; x++) rowAt(y)[x] = true;
   };
-  for (const at of Object.values(stories)) take(at);
 
-  // Lit days apart, and each touching its moment along an edge (Mitchell's
-  // walk of PR 510 at 7260011: *"always be touching the banner element"*):
-  // one beside it, one along its top towards its other end, one along its
-  // foot at its near end, each moved along the moment's edges to the
-  // nearest spot that is free and touches no other day the moment lights.
+  const stories = {} as Record<StoryId, SeaArea>;
   const lit: SeaLayout["lit"] = [];
-  for (const [moment, days] of Object.entries(LIT) as [MomentId, (typeof LIT)[MomentId]][]) {
-    const box = stories[moment];
-    const right = box.col + box.w + LIT_SIZE <= cols;
-    const near = right ? box.col + box.w : box.col - LIT_SIZE;
-    const spots = [
-      [box.row + 1, near],
-      [box.row - LIT_SIZE, right ? box.col : box.col + box.w - LIT_SIZE],
-      [box.row + box.h, right ? box.col + box.w - LIT_SIZE : box.col],
-    ] as const;
-    // Every spot that shares an edge with the moment.
-    const edges: SeaArea[] = [];
-    for (let c = box.col - LIT_SIZE + 1; c < box.col + box.w; c++) {
-      edges.push({ row: box.row - LIT_SIZE, col: c, w: LIT_SIZE, h: LIT_SIZE }, { row: box.row + box.h, col: c, w: LIT_SIZE, h: LIT_SIZE });
+  /** Every story placed so far, with the days it lights: what the next group keeps a unit clear of. */
+  const groups: SeaArea[][] = [];
+  // Room above the first moment for a day it lights there.
+  let row = Math.max(FIRST_SCREEN_ROWS + LIT_SIZE, heroEnd + opening);
+  for (const story of STORIES) {
+    const centred = story.align === "center" || (cols >= WIDE && story.extra !== null);
+    // A moment leaves a lit day's width beside it, so its days need not
+    // stack above and below it and hold the next moment a screen away.
+    let w = story.extra === null ? cols : Math.min(story.id in LIT ? cols - LIT_SIZE : cols, base + story.extra);
+    // Centred to the unit: as many columns spare on each side.
+    if (centred && (cols - w) % 2 === 1) w += w < cols ? 1 : -1;
+    const h = Math.max(2, Math.ceil((story.height + GAP) / step));
+    const at = centred ? (cols - w) / 2 : story.align === "left" ? inset : cols - w - inset;
+    const days = story.id in LIT ? LIT[story.id as MomentId] : [];
+    // Lit days apart, and each touching its moment along an edge (Mitchell's
+    // walk of PR 510 at 7260011: *"always be touching the banner element"*),
+    // clear of the group above, and reaching as few rows past the moment's
+    // own as they can, so the next moment can follow close.
+    const litAround = (box: SeaArea): SeaArea[] => {
+      const edges: SeaArea[] = [];
+      for (let c = box.col - LIT_SIZE + 1; c < box.col + box.w; c++) {
+        edges.push({ row: box.row - LIT_SIZE, col: c, w: LIT_SIZE, h: LIT_SIZE }, { row: box.row + box.h, col: c, w: LIT_SIZE, h: LIT_SIZE });
+      }
+      for (let r = box.row - LIT_SIZE + 1; r < box.row + box.h; r++) {
+        edges.push({ row: r, col: box.col - LIT_SIZE, w: LIT_SIZE, h: LIT_SIZE }, { row: r, col: box.col + box.w, w: LIT_SIZE, h: LIT_SIZE });
+      }
+      const past = (at: SeaArea) => Math.max(0, box.row - at.row) + Math.max(0, at.row + at.h - box.row - box.h);
+      // Then the side the story leaves room on, from its top down.
+      const lean = (at: SeaArea) => (story.align === "right" ? at.col : -at.col) * 0.01 + at.row * 0.001;
+      const spots: SeaArea[] = [];
+      for (let i = 0; i < days.length; i++) {
+        const spot = edges
+          .filter((at) => free(at) && spots.every((other) => !meet(at, other, 1)))
+          .filter((at) => groups.every((other) => other.every((area) => !meet(at, area, 1))))
+          .sort((a, b) => past(a) - past(b) || lean(a) - lean(b))[0];
+        if (spot !== undefined) spots.push(spot);
+      }
+      return spots;
+    };
+    // Clear of every group above, by a unit, so no day reads as the wrong
+    // moment's; and lower still while its days do not all find room.
+    let col = Math.min(Math.max(0, at), cols - w);
+    // Against one edge rather than an inset that leaves neither side room for a lit day.
+    if (days.length > 0 && col < LIT_SIZE && cols - col - w < LIT_SIZE) col = story.align === "right" ? cols - w : 0;
+    const box: SeaArea = { row, col, w, h };
+    while (groups.some((group) => group.some((area) => meet(box, area, 1)))) box.row += 1;
+    let spots = litAround(box);
+    for (let tries = 0; spots.length < days.length && tries < 2 * LIT_SIZE + 1; tries++) {
+      box.row += 1;
+      spots = litAround(box);
     }
-    for (let r = box.row - LIT_SIZE + 1; r < box.row + box.h; r++) {
-      edges.push({ row: r, col: box.col - LIT_SIZE, w: LIT_SIZE, h: LIT_SIZE }, { row: r, col: box.col + box.w, w: LIT_SIZE, h: LIT_SIZE });
-    }
-    const mine: SeaArea[] = [];
-    const apart = (at: SeaArea) =>
-      mine.every((other) => at.row > other.row + other.h || other.row > at.row + at.h || at.col > other.col + other.w || other.col > at.col + at.w);
-    days.forEach(({ cell, door }, i) => {
-      const [r, c] = spots[i]!;
-      const distance = (at: SeaArea) => Math.abs(at.row - r) + Math.abs(at.col - c);
-      const at = edges.filter((spot) => free(spot) && apart(spot)).sort((a, b) => distance(a) - distance(b))[0];
-      if (at === undefined) return;
-      take(at);
-      mine.push(at);
-      lit.push({ moment, cell, door, at });
+    stories[story.id] = box;
+    take(box);
+    spots.forEach((spot, i) => {
+      take(spot);
+      lit.push({ moment: story.id as MomentId, cell: days[i]!, at: spot });
     });
+    groups.push([box, ...spots]);
+    // The next story's top, `NEXT_AT` of a screen below the place this one
+    // starts to sink from: its middle, or for one taller than the screen,
+    // half a screen above its foot (`momentRise`).
+    const sinks = box.h * step - Math.min(box.h * step, viewport) / 2;
+    row = box.row + Math.max(box.h + 1, Math.round((sinks + NEXT_AT * viewport) / step));
   }
+  const closing = stories.closing;
+  const rows = closing.row + closing.h;
 
-  // Every unit left, row by row, from where the first screen's cells end.
+  // Every unit left, row by row, from where the first screen's cells end: a
+  // library day, or once ten have gone by, an accent where it touches no
+  // other accent.
   const background: SeaLayout["background"] = [];
-  let next = FIRST_SCREEN.length;
+  const accents: SeaArea[] = [];
+  let days = FIRST_SCREEN_DAYS;
+  let accentsUsed = FIRST_SCREEN_ACCENTS;
+  let since = 0;
+  const largest = (r: number, c: number, [w0, h0]: readonly [number, number]) => {
+    for (let h = Math.min(h0, rows - r); h >= 1; h--) for (let w = w0; w >= 1; w--) if (free({ row: r, col: c, w, h })) return { row: r, col: c, w, h };
+    return { row: r, col: c, w: 1, h: 1 };
+  };
   for (let r = FIRST_SCREEN_ROWS; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
-      if (taken[r]![c]) continue;
-      const cell = POOL[next++ % POOL.length]!;
-      const [w0, h0] = SIZE[cell.size];
-      let at: SeaArea = { row: r, col: c, w: 1, h: 1 };
-      search: for (let h = h0; h >= 1; h--) {
-        for (let w = w0; w >= 1; w--) {
-          if (free({ row: r, col: c, w, h })) {
-            at = { row: r, col: c, w, h };
-            break search;
-          }
+      if (rowAt(r)[c]) continue;
+      if (since >= ACCENT_EVERY - 1 && SEA_ACCENTS.length > 0) {
+        const accent = SEA_ACCENTS[accentsUsed % SEA_ACCENTS.length]!;
+        const at = largest(r, c, SIZE[accent.size]);
+        if (accents.every((other) => !meet(at, other, 1))) {
+          take(at);
+          accents.push(at);
+          background.push({ accent, at });
+          accentsUsed += 1;
+          since = 0;
+          continue;
         }
       }
+      const cell = POOL[days++ % POOL.length]!;
+      const at = largest(r, c, SIZE[cell.size]);
       take(at);
       background.push({ cell, at });
+      since += 1;
     }
   }
   return { rows, stories, lit, background };
@@ -292,7 +362,10 @@ const FADE = 0.8;
 // never a cover over it.
 const RISEN = 0.15;
 const RISE = 0.35;
-const RISE_PX = 28;
+// No further than the grid's gap: a lit day touches its moment's foot across
+// that gap, and a panel lowered past it slid under the day, its rounded foot
+// and shadow lost (PR 510 r5).
+const RISE_PX = GAP;
 const GHOST = 0.22;
 /** How dark the scrim is at its darkest (`.landing-sea-scrim`), which a lit day's veil matches. */
 const SCRIM = 0.55;
@@ -395,6 +468,36 @@ function Cell({ cell, at, background, litFor }: { cell: SeaDoor; at?: SeaArea; b
 }
 
 /**
+ * An accent: the region's colour edge to edge, a small mono line over a place
+ * or a kind of day in large type (the prototype's `.stamp`), opening the
+ * library's page for it. Background, so out of the tab order and the
+ * accessibility tree as a background card is, and lifted under the pointer
+ * as one is.
+ */
+function Accent({ accent, at }: { accent: SeaAccent; at?: SeaArea }) {
+  return (
+    <div
+      data-testid="sea-accent"
+      data-region={accent.group}
+      aria-hidden
+      // eslint-disable-next-line no-restricted-syntax -- the cell's area on the sea's grid, computed by `layoutSea`; a first-screen cell has none, and CSS places it
+      style={at === undefined ? undefined : place(at)}
+      className={cn("landing-sea-cell relative flex min-h-0 min-w-0 flex-col rounded-xl", SEA_REGIONS[accent.group]!.mat, at === undefined && SPAN[accent.size])}
+    >
+      <Link href={accent.href} prefetch={false} tabIndex={-1} className="landing-sea-door landing-sea-stamp no-underline">
+        <span className="landing-sea-stamp-label">{accent.label}</span>
+        <span className="landing-sea-stamp-name">{accent.name}</span>
+      </Link>
+    </div>
+  );
+}
+
+/** A background cell: a day's card, or an accent. */
+function GroundCell({ ground, at }: { ground: Ground; at?: SeaArea }) {
+  return ground.accent !== undefined ? <Accent accent={ground.accent} at={at} /> : <Cell cell={ground.cell} at={at} background />;
+}
+
+/**
  * Rows of background, mounted once the reader is near them. The empty marker
  * spans every column of its rows, so the first screen's cells never flow into
  * them, mounted or not.
@@ -411,7 +514,7 @@ function Band({ from, to, cells }: { from: number; to: number; cells: SeaLayout[
         style={{ gridRow: `${from + 1} / span ${to - from}`, gridColumn: "1 / -1" }}
         className="pointer-events-none"
       />
-      {near && cells.map(({ cell, at }) => <Cell key={`${cell.day.savedDayId}-${at.row}-${at.col}`} cell={cell} at={at} background />)}
+      {near && cells.map(({ at, ...ground }) => <GroundCell key={`${at.row}-${at.col}`} ground={ground} at={at} />)}
     </>
   );
 }
@@ -424,7 +527,20 @@ function Band({ from, to, cells }: { from: number; to: number; cells: SeaLayout[
  * white on white (Mitchell's walk of PR 510 at 7260011). Its rest state in
  * the markup is risen, since a moment is never on the first screen.
  */
-function Moment({ id, heading, at, children }: { id: MomentId; heading: string; at: SeaArea; children: ReactNode }) {
+function Moment({
+  id,
+  heading,
+  at,
+  bleed = false,
+  children,
+}: {
+  id: MomentId;
+  heading: string;
+  at: SeaArea;
+  /** Its content runs to the cell's foot, with no padding under it, for a page that fades out at the cell's real edge. */
+  bleed?: boolean;
+  children: ReactNode;
+}) {
   return (
     <section
       aria-labelledby={id}
@@ -437,7 +553,7 @@ function Moment({ id, heading, at, children }: { id: MomentId; heading: string; 
       <div
         data-rise
         data-testid="moment-panel"
-        className="absolute inset-0 flex flex-col gap-4 overflow-hidden rounded-2xl bg-paper p-7 shadow-lifted"
+        className={cn("absolute inset-0 flex flex-col gap-4 overflow-hidden rounded-2xl bg-paper p-7 shadow-lifted", bleed && "pb-0")}
       >
         <Heading level={2} id={id} className="text-xl text-pretty">
           {heading}
@@ -531,6 +647,9 @@ export function LandingSea({ hero, pricing, closing }: { hero?: ReactNode; prici
           cell.querySelector<HTMLElement>(".landing-sea-ring")!.style.opacity = styleNumber(lift);
         }
       }
+      // The card under the pointer sinks back from the sea as it is now, not
+      // as it was when the pointer came onto it (PR 510 r5): one cell at most.
+      root.querySelector<HTMLElement>(".landing-sea-cell[data-lifted]:hover")?.style.setProperty("--veil", styleNumber(SCRIM * dim));
     };
     // A background card the pointer is on rises out of the sea, as a lit
     // one does (Mitchell's walk of PR 510 at 7260011). CSS runs it; this
@@ -561,7 +680,7 @@ export function LandingSea({ hero, pricing, closing }: { hero?: ReactNode; prici
     lit
       .filter((day) => day.moment === moment)
       .sort((a, b) => a.at.row - b.at.row || a.at.col - b.at.col)
-      .map(({ cell, door, at }) => <Cell key={cell.day.savedDayId} cell={cell} at={at} background={!door} litFor={moment} />);
+      .map(({ cell, at }) => <Cell key={cell.day.savedDayId} cell={cell} at={at} background={false} litFor={moment} />);
   const moments: Record<MomentId, ReactNode> = {
     "sea-find": (
       <Moment key="sea-find" id="sea-find" heading="Find a day worth borrowing." at={stories["sea-find"]}>
@@ -575,6 +694,7 @@ export function LandingSea({ hero, pricing, closing }: { hero?: ReactNode; prici
         heading="Start a trip using someone else’s Thailand day, or add it to an existing plan."
         at={stories["sea-make"]}
       >
+        <LandingFeaturePanel panel="make-a-trip">{PANEL_PENDING}</LandingFeaturePanel>
         <Link href={RAILAY.href} prefetch={false} className={cn(buttonVariants({ variant: "primary" }), "self-start no-underline")}>
           Make this your trip
         </Link>
@@ -586,7 +706,7 @@ export function LandingSea({ hero, pricing, closing }: { hero?: ReactNode; prici
       </Moment>
     ),
     "sea-notebook": (
-      <Moment key="sea-notebook" id="sea-notebook" heading="Keep the notebook afterwards." at={stories["sea-notebook"]}>
+      <Moment key="sea-notebook" id="sea-notebook" heading="Keep the notebook afterwards." at={stories["sea-notebook"]} bleed>
         <LandingFeaturePanel panel="notebook-page">{PANEL_PENDING}</LandingFeaturePanel>
       </Moment>
     ),
@@ -638,8 +758,8 @@ export function LandingSea({ hero, pricing, closing }: { hero?: ReactNode; prici
         <div className="landing-sea-hero flex min-h-0 flex-col justify-center overflow-hidden rounded-2xl bg-paper p-9 shadow-lifted">
           {hero}
         </div>
-        {FIRST_SCREEN.map((cell, i) => (
-          <Cell key={`${cell.day.savedDayId}-${i}`} cell={cell} background />
+        {FIRST_SCREEN.map((ground, i) => (
+          <GroundCell key={i} ground={ground} />
         ))}
         {placed.map(({ node }) => node)}
       </div>

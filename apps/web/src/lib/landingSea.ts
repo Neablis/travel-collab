@@ -23,9 +23,34 @@ export type SeaCell = {
   group: string;
 };
 
+/** A library day on the sea, linked to its canonical day page. */
+export type SeaDayCell = SeaCell & { href: string };
+
+/**
+ * An accent (Mitchell's third walk of PR 510, the C2 prototype's stamp): a
+ * cell of its region's colour with a place or a kind of day in large type,
+ * linked to the library's page for it. A country ("Thailand"), a city under
+ * its country ("United Kingdom", "London"), or an activity tag ("Food").
+ */
+export type SeaAccent = {
+  kind: "country" | "city" | "tag";
+  /** The small mono line: "Country", the city's country, or "Activity". */
+  label: string;
+  name: string;
+  size: "1x1" | "2x1";
+  /** The bundle whose mat it takes: the one holding most of its days. */
+  group: string;
+  /** Its page, `/playbooks/<country|city|tag>/<slug>`, which the content import fills with days. */
+  href: string;
+};
+
 export type LandingSea = {
-  /** Every public library day, in a fixed shuffled order, each linked to its canonical day page. */
-  cells: (SeaCell & { href: string })[];
+  /**
+   * Every public library day, in a fixed shuffled order, each linked to its
+   * canonical day page, then the accents. One list, so the preview's link
+   * check (`scripts/check-preview-links.mjs`) reads every link the sea draws.
+   */
+  cells: (SeaDayCell | SeaAccent)[];
   /**
    * The demo seed's public Japan days, for the cluster around the notebook.
    * Unlinked: production's library holds no such day, so a link would 404.
@@ -37,3 +62,8 @@ export type LandingSea = {
 // `string` where the type names a union. The generator's return type is
 // checked by tsc and the verify step holds this file to it.
 export const LANDING_SEA = sea as unknown as LandingSea;
+
+/** The sea's library days, without its accents. */
+export const SEA_DAYS = LANDING_SEA.cells.filter((cell): cell is SeaDayCell => "day" in cell);
+/** The sea's accents, in the generator's order. */
+export const SEA_ACCENTS = LANDING_SEA.cells.filter((cell): cell is SeaAccent => !("day" in cell));

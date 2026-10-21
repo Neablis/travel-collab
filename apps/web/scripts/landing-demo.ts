@@ -41,13 +41,14 @@ import {
   TripCover,
   travellerIds,
   type AvatarKey,
+  type ActivityTagDescribed,
   type PageParagraphNode,
   type PersonColor,
   type TripCommand,
   type TripDetail,
   type TripMemberProfile,
 } from "@tc/contracts";
-import { decideCreateTrip, decideTripCommand, evolveTripEnvelope, tripDetailFromState, type TripState } from "@tc/domain";
+import { decideCreateTrip, decideTripCommand, describeByTags, evolveTripEnvelope, tripDetailFromState, type TripState } from "@tc/domain";
 import { z } from "zod";
 import {
   bundleTripCommandGroups,
@@ -61,17 +62,22 @@ import {
 } from "@tc/fixtures";
 import { renderMacro, type BlockPayload, type Seg, type WidgetContext } from "@tc/pages";
 import { cityAccents } from "@/components/pages/cityAccents";
+import { TAG_LABEL } from "@/lib/activityTags";
+import { dayLabel } from "@/lib/dates";
 import { DEMO_TRIPS, demoTripBySlug } from "@/lib/demoTrip";
 import { displayNameFor } from "@/lib/displayName";
 import type { LandingCrew, LandingDemo, LandingFeatures } from "@/lib/landingDemo";
-import type { LandingSea, SeaCell, SeaCellSize, SeaDay } from "@/lib/landingSea";
-import { dayPath } from "@/lib/playbookUrls";
+import type { LandingSea, SeaAccent, SeaCell, SeaCellSize, SeaDay, SeaDayCell } from "@/lib/landingSea";
+import { richestDay } from "@/lib/richestDay";
+import { countryName } from "@/lib/place";
+import { cityPath, countrySlug, dayPath, placeIndexable, placePath, tagPath } from "@/lib/playbookUrls";
 import { overlayMembers } from "@/server/access/overlay";
 import { withTripColors } from "@/server/access/personaColors";
 import { serverConflictContext } from "@/server/conflictContext";
 import { demoTripCards, demoTripDetailFor, demoTripMembers } from "@/server/demoTrip";
 import { toDiscoverDay, type DiscoverRow } from "@/server/discoverDay";
 import { savedDayCities } from "@/server/savedDayCities";
+import { savedDayCountries } from "@/server/savedDayCountries";
 import { buildTripGlobals } from "@/server/tripGlobals";
 
 /** Where demo `slug`'s snapshot is committed. Japan's keeps the name it had before there were others. */
@@ -302,33 +308,56 @@ function landingCard(row: DiscoverRow): DiscoverDay {
 }
 
 /**
- * The shelf's second day (M50 part 9, Mitchell's walk: two real days where an
- * empty photo mat stood). A library playbook, read from the bundle the
+ * The find moment's banner: the richest Thailand day by `richestDay`'s rule
+ * (Mitchell's third walk of PR 510: *"not the most aww inspiring example to
+ * pick from for a banner tile"*). A library playbook, read from the bundle the
  * production import reads and resolved by the same `resolvePlaybook`, so its
  * id is the one the library serves and its card links to a day that exists.
- * Its adds are the bundle's own ledger. It has no reviews, and this card says
- * so (M50 decision 20). The same day's cell in the sea carries a sample
- * rating, which M51 decision 9 allows the sea alone; the moment that raises
- * this day out of the sea draws one of the two.
+ * Its adds are the bundle's own ledger, and its rating the sample one its
+ * cell in the sea carries (M51 decision 9), so the two agree.
  *
  * The card is a frozen copy of a row the content import owns, re-derived from
  * the bundle file only, so `landing:verify` cannot see the production row
- * change: hidden by a moderator, renamed or pruned away, given a cover by
- * its author, or reviewed (its card says "No reviews yet"). Check the row on
- * production's Discover when regenerating.
+ * change: hidden by a moderator, renamed or pruned away, or given a cover by
+ * its author. Check the row on production's Discover when regenerating.
  */
 const SHELF_BUNDLE_PATH = new URL("../../../content/playbooks/thailand-beaches.json", import.meta.url);
-const SHELF_KEY = "railay-limestone-and-sunset";
+
+/** The bundle's public days as the sea's cards, each stamped with its `keptOn`, the only reproducible date the import gives a day. */
+function thailandCards(): { key: string; day: DiscoverDay; resolved: ResolvedPlaybook }[] {
+  const bundle = parseBundle(JSON.parse(readFileSync(SHELF_BUNDLE_PATH, "utf8")));
+  return bundle.playbooks
+    .filter((playbook) => playbook.visibility === "public")
+    .map((playbook) => {
+      const resolved = resolvePlaybook(bundle.bundle.id, playbook, bundle.bundle.origin);
+      if (resolved.keptOn === undefined) throw new Error(`landing demo: ${playbook.key} has no keptOn date to stamp it with`);
+      return { key: playbook.key, day: libraryCard(resolved, sampleRating(resolved.savedDayId), resolved.keptOn), resolved };
+    });
+}
 
 function shelfPlaybook(): DiscoverDay {
-  const bundle = parseBundle(JSON.parse(readFileSync(SHELF_BUNDLE_PATH, "utf8")));
-  const playbook = bundle.playbooks.find((p) => p.key === SHELF_KEY);
-  if (playbook === undefined) throw new Error(`landing demo: ${bundle.bundle.id} no longer holds ${SHELF_KEY}`);
-  const day = resolvePlaybook(bundle.bundle.id, playbook, bundle.bundle.origin);
-  // The import stamps a day with `keptOn`, or the moment it ran; only the
-  // first is reproducible.
-  if (day.keptOn === undefined) throw new Error(`landing demo: ${SHELF_KEY} has no keptOn date to stamp it with`);
-  return libraryCard(day, null, day.keptOn);
+  return richestDay(thailandCards()).day;
+}
+
+/**
+ * The make-it-your-trip moment's worked example (Mitchell's third walk of PR
+ * 510: *"it should have an example thats relevent to this feature"*): the
+ * Railay day, and the Thailand demo trip as the trip a reader already has,
+ * its days as "Add to a trip" lists them. Canned: the landing fetches nothing.
+ */
+const MAKE_KEY = "railay-limestone-and-sunset";
+
+function makeExample(): LandingFeatures["make"] {
+  const railay = thailandCards().find(({ key }) => key === MAKE_KEY);
+  if (railay === undefined) throw new Error(`landing demo: thailand-beaches no longer holds ${MAKE_KEY}`);
+  const demo = demoTripBySlug("thailand-andaman")!;
+  const trip = demoTripDetailFor(demo.tripId, REFERENCE_START_DATE);
+  return {
+    day: { name: railay.resolved.name, dayCount: railay.resolved.dayCount },
+    trip: { tripId: demo.tripId, name: trip.name },
+    // Undated, as the landing is: a date would be a claim about a trip on a day that has passed.
+    days: trip.days.map((day, index) => ({ dayId: day.dayId, label: dayLabel(null, index) })),
+  };
 }
 
 /**
@@ -384,15 +413,20 @@ function hashOf(text: string): number {
   return h;
 }
 
-/** Half the cells single, the rest spread over the five larger shapes, the long ones rarest. */
+/** Half the cells single, most of the rest wide or square, the long thin shapes rarest. */
 const SIZE_WHEEL: readonly SeaCellSize[] = [
-  ...Array<SeaCellSize>(10).fill("1x1"),
-  ...Array<SeaCellSize>(3).fill("2x1"),
-  ...Array<SeaCellSize>(3).fill("1x2"),
-  ...Array<SeaCellSize>(2).fill("2x2"),
-  "3x1",
-  "1x3",
+  ...Array<SeaCellSize>(25).fill("1x1"),
+  ...Array<SeaCellSize>(10).fill("2x1"),
+  ...Array<SeaCellSize>(9).fill("2x2"),
+  ...Array<SeaCellSize>(4).fill("1x2"),
+  ...Array<SeaCellSize>(2).fill("3x1"),
 ];
+/**
+ * A column three tall for one card in sixty, chosen by count rather than by
+ * a slot on the wheel, which a few dozen hashes fill unevenly (Mitchell's
+ * third walk of PR 510: *"use 1x3 very sparringly, they look a bit ugly"*).
+ */
+const TALL_SHARE = 60;
 
 /**
  * The sample rating a sea card shows (decision 9, Mitchell 2026-10-20: *"just
@@ -422,8 +456,8 @@ function seaCell(day: DiscoverDay, group: string): SeaCell {
  * The day's `keptOn` goes in as the stamp only because the card needs one;
  * `seaCell` takes the dates off again.
  */
-function librarySea(): LandingSea["cells"] {
-  return libraryBundles()
+function librarySea(): SeaDayCell[] {
+  const cells = libraryBundles()
     .flatMap((bundle) =>
       bundle.playbooks
         .filter((playbook) => playbook.visibility === "public")
@@ -432,7 +466,16 @@ function librarySea(): LandingSea["cells"] {
           const card = libraryCard(day, sampleRating(day.savedDayId), day.keptOn ?? REFERENCE_START_DATE);
           return { ...seaCell(card, bundle.bundle.id), href: dayPath(card) };
         }),
-    )
+    );
+  const tallOrder = (cell: SeaDayCell) => hashOf(`tall:${cell.day.savedDayId}`);
+  const tall = new Set(
+    [...cells]
+      .sort((a, b) => tallOrder(a) - tallOrder(b))
+      .slice(0, Math.floor(cells.length / TALL_SHARE))
+      .map((cell) => cell.day.savedDayId),
+  );
+  return cells
+    .map((cell): SeaDayCell => (tall.has(cell.day.savedDayId) ? { ...cell, size: "1x3" } : cell))
     .sort((a, b) => hashOf(`order:${a.day.savedDayId}`) - hashOf(`order:${b.day.savedDayId}`));
 }
 
@@ -459,12 +502,74 @@ function japanCluster(): LandingSea["japan"] {
   });
 }
 
+/** The value used most, the first in code-point order on a tie, so two builds name a page alike. */
+function mostUsed(uses: ReadonlyMap<string, number>): string | undefined {
+  return [...uses].sort(([a, aUses], [b, bUses]) => bUses - aUses || (a < b ? -1 : a > b ? 1 : 0))[0]?.[0];
+}
+
+/**
+ * The sea's accents (Mitchell's third walk of PR 510: *"this nice accent full
+ * color cards with Country - city"*): every country, city and activity-tag
+ * page that the library's public days fill with `MIN_INDEXED_PLACE_DAYS` or
+ * more, so each opens on days and is indexed. Counted as `publishedPlaces`
+ * and `publishedTagPages` count them, from the rows the content import writes:
+ * a place by its slug over the day's own cities and countries, a tag by the
+ * days whose description names it (ADR-070 §4). Shuffled by path, as the days
+ * are by id.
+ */
+function libraryAccents(): SeaAccent[] {
+  const pages = new Map<
+    string,
+    { kind: SeaAccent["kind"]; days: Set<string>; spellings: Map<string, number>; bundles: Map<string, number>; countries: Map<string, number> }
+  >();
+  const count = (uses: Map<string, number>, value: string) => uses.set(value, (uses.get(value) ?? 0) + 1);
+  for (const bundle of libraryBundles()) {
+    for (const playbook of bundle.playbooks.filter((p) => p.visibility === "public")) {
+      const day = resolvePlaybook(bundle.bundle.id, playbook, bundle.bundle.origin);
+      const countries = [...new Set(savedDayCountries(day.stops))];
+      const touch = (kind: SeaAccent["kind"], href: string | null, spelling: string) => {
+        if (href === null) return;
+        let page = pages.get(href);
+        if (page === undefined) pages.set(href, (page = { kind, days: new Set(), spellings: new Map(), bundles: new Map(), countries: new Map() }));
+        if (page.days.has(day.savedDayId)) return;
+        page.days.add(day.savedDayId);
+        count(page.spellings, spelling);
+        count(page.bundles, bundle.bundle.id);
+        // A city's country, from the days that stop in one country only.
+        if (countries.length === 1) count(page.countries, countries[0]!);
+      };
+      for (const city of savedDayCities(day.stops)) touch("city", cityPath(city), city);
+      for (const code of countries) {
+        const slug = countrySlug(code);
+        touch("country", slug === null ? null : placePath({ kind: "country", slug }), code);
+      }
+      for (const tag of describeByTags(day.stops)?.named ?? []) touch("tag", tagPath(tag), tag);
+    }
+  }
+  return [...pages]
+    .filter(([, page]) => placeIndexable({ days: page.days.size }))
+    .map(([href, page]): SeaAccent => {
+      const spelling = mostUsed(page.spellings)!;
+      const country = mostUsed(page.countries);
+      return {
+        kind: page.kind,
+        label: page.kind === "country" ? "Country" : page.kind === "tag" ? "Activity" : ((country && countryName(country)) ?? "City"),
+        name: page.kind === "country" ? countryName(spelling)! : page.kind === "tag" ? TAG_LABEL[spelling as ActivityTagDescribed] : spelling,
+        // Mostly single, one in four wide (the prototype stamps single cells only).
+        size: hashOf(`accent:${href}`) % 4 === 0 ? "2x1" : "1x1",
+        group: mostUsed(page.bundles)!,
+        href,
+      };
+    })
+    .sort((a, b) => hashOf(`order:${a.href}`) - hashOf(`order:${b.href}`));
+}
+
 /** Where the sea is committed. */
 export const SEA_PATH = fileURLToPath(new URL("../src/lib/landingSea.generated.json", import.meta.url));
 
-/** The sea: every public library day, and the Japan cluster. */
+/** The sea: every public library day, then the accents, and the Japan cluster. */
 export function buildLandingSea(): LandingSea {
-  return { cells: librarySea(), japan: japanCluster() };
+  return { cells: [...librarySea(), ...libraryAccents()], japan: japanCluster() };
 }
 
 // ---------------------------------------------------------------------------
@@ -635,6 +740,33 @@ const MEMORY_PAGE: PageParagraphNode[] = [
   },
 ];
 
+/**
+ * The rest of that page, as the desktop's notebook moment draws it (Mitchell's
+ * third walk of PR 510: *"looks too fake, not lived in enough, also dont be
+ * afraid to make it too long"*): what they would tell the next people to go,
+ * and what they would change, under the headings a notebook page holds. Longer
+ * than its cell on purpose; the moment fades it out at the cell's foot. The
+ * phone's page and the closing quote read `MEMORY_PAGE` alone.
+ */
+const JOURNAL: { heading: string; paragraphs: string[] }[] = [
+  {
+    heading: "What we would tell the next lot",
+    paragraphs: [
+      "The Romancecar fills up from Shinjuku. Book the front seats the day before, not on the platform: Jonah got the last two, and we sat in them in shifts.",
+      "Give the Open-Air Museum the whole morning. Take your shoes off for the foot bath halfway round, and leave the Picasso pavilion for last, when the groups have gone to lunch.",
+      "At Bakery & Table, go up to the counter over the lake, not the tables inside. Mei went back for a second curry bread and nobody blamed her.",
+      "At Gora Kadan ask for the late bath. The outdoor one is quiet after nine, and the steam comes up off the trees.",
+    ],
+  },
+  {
+    heading: "Next time",
+    paragraphs: [
+      "Two nights, not one. The ropeway and Owakudani were on the list, and we never left the ryokan.",
+      "Sam wants to walk the old Tokaido path down to Hatajuku. Priya wants the same room again. Both can be true.",
+    ],
+  },
+];
+
 /** One paragraph's text and widgets as the segments a notebook draws, each widget resolved against Japan. */
 function resolveParagraph(ctx: WidgetContext, paragraph: PageParagraphNode): Seg[] {
   return paragraph.content.flatMap((node): Seg[] => {
@@ -654,14 +786,18 @@ export function buildLandingFeatures(): LandingFeatures {
   return {
     playbook: landingPlaybook(),
     shelf: shelfPlaybook(),
+    make: makeExample(),
     crew: buildLandingCrew(),
     memory: MEMORY_PAGE.map((paragraph) => resolveParagraph(ctx, paragraph)),
-    // The page's widgets beside its words (M50 part 9): the day it is about,
-    // that day's daylight, and who was there.
+    // The page's widgets beside its words (M50 part 9): the day it is about
+    // and that day's daylight; then the rest of what was written.
     page: {
       day: resolveBlock(ctx, "day.detail", { day: MEMORY_DAY }, "itinerary-day"),
       sun: resolveBlock(dated, "day.sun", { day: MEMORY_DAY }, "sun"),
-      people: resolveBlock(ctx, "trip.people", {}, "trip-people"),
+      journal: JOURNAL.map(({ heading, paragraphs }) => ({
+        heading,
+        paragraphs: paragraphs.map((words) => resolveParagraph(ctx, { type: "paragraph", content: [text(words)] })),
+      })),
     },
   };
 }

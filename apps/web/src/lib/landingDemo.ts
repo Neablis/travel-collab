@@ -73,16 +73,22 @@ export type LandingCrew = {
 export type LandingFeatures = {
   /** Mitchell's published Hanoi playbook (`scripts/landing-day.json`), read through Discover's own `toDiscoverDay`. */
   playbook: DiscoverDay;
-  /** The shelf's second day (M50 part 9): a library playbook from `content/playbooks/`, read the same way. */
+  /** The find moment's banner: the richest Thailand day in `content/playbooks/` by `richestDay`, read the same way. */
   shelf: DiscoverDay;
+  /** The make-it-your-trip moment's worked example: the Railay day, and the Thailand demo trip as a trip the reader has. */
+  make: {
+    day: { name: string; dayCount: number };
+    trip: { tripId: string; name: string };
+    days: { dayId: string; label: string }[];
+  };
   crew: LandingCrew;
   /** The page's paragraphs: the author's words and the widgets' resolved values. */
   memory: Seg[][];
-  /** The page's block widgets (M50 part 9): the day it remembers, that day's daylight, and who was there. */
+  /** The page's block widgets (M50 part 9), the day it remembers and that day's daylight, and the rest of the page under its headings. */
   page: {
     day: ItineraryDayPayload;
     sun: SunPayload;
-    people: TripPeoplePayload;
+    journal: { heading: string; paragraphs: Seg[][] }[];
   };
 };
 
