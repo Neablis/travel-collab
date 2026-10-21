@@ -67,6 +67,34 @@ describe("Transcript", () => {
     expect(log.textContent).not.toContain("{");
   });
 
+  // The homepage example (Mitchell, 2026-10-21) draws the steps open, under
+  // the closed-form summary, so the panel fills its frame — a reversal of
+  // the PR 514 walk, which had them closed. The disclosure stays a picture,
+  // not a button, and without `stepsOpen` the list stays hidden.
+  it("draws a shown conversation's steps open under their summary when asked, and closed otherwise", () => {
+    const turns: AssistantTurn[] = [
+      {
+        id: "a1",
+        role: "assistant",
+        text: "Day 3 has 5 stops.",
+        tools: [
+          { id: "t1", label: "Read the trip" },
+          { id: "t2", label: "Checked day 3" },
+        ],
+        pending: false,
+      },
+    ];
+    const { unmount } = render(<Transcript turns={turns} example={{ review: "Accept them all here.", stepsOpen: true }} />);
+    expect(screen.getByText(/2 steps · Checked day 3/)).not.toBeNull();
+    expect(screen.getByText("Read the trip")).not.toBeNull();
+    expect(screen.queryByRole("button", { name: /2 steps · Checked day 3/ })).toBeNull();
+    unmount();
+
+    render(<Transcript turns={turns} example={{ review: "Accept them all here." }} />);
+    expect(screen.getByText(/2 steps · Checked day 3/)).not.toBeNull();
+    expect(screen.queryByText("Read the trip")).toBeNull();
+  });
+
   it("reveals the full list in place, and says how to put it back", async () => {
     const user = userEvent.setup();
     render(
@@ -311,6 +339,7 @@ describe("toolNoteLabel", () => {
     ["read_day", { days: 3 }, "Checked day 3"],
     ["read_day", { days: [8, 9, 10] }, "Checked days 8, 9, 10"],
     ["read_day", {}, "Checked the day you're looking at"],
+    ["read_playbook", {}, "Checked the playbook"],
     ["find_free_time", { day: 2, after: "08:00" }, "Looked for free time on day 2"],
     ["find_free_time", { after: "08:00" }, "Looked for free time"],
   ])("says %s(%j) as a sentence", (toolName, input, expected) => {

@@ -14,7 +14,7 @@ import {
   LIT,
   PAD,
   POOL,
-  SEA_ACCENTS,
+  SEA_ACCENT_ORDER,
   SIZE,
   firstScreenAccents,
   heroAt,
@@ -230,8 +230,8 @@ export function layoutSea({ cols, unit, viewport }: SeaMetrics): SeaLayout {
   for (let r = FIRST_SCREEN_ROWS; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
       if (rowAt(r)[c]) continue;
-      if (since >= ACCENT_EVERY - 1 && SEA_ACCENTS.length > 0) {
-        const accent = SEA_ACCENTS[accentsUsed % SEA_ACCENTS.length]!;
+      if (since >= ACCENT_EVERY - 1 && SEA_ACCENT_ORDER.length > 0) {
+        const accent = SEA_ACCENT_ORDER[accentsUsed % SEA_ACCENT_ORDER.length]!;
         const at = largest(r, c, SIZE[accent.size]);
         if (accents.every((other) => !meet(at, other, 1))) {
           take(at);
@@ -310,6 +310,17 @@ export function momentRise(top: number, height: number, viewport: number): { opa
   return { opacity: seen ? GHOST + (1 - GHOST) * lift : 0, dy: Math.round((1 - lift) * RISE_PX), lift };
 }
 
+/**
+ * The hero's drop shadow at `scrollY`: full while the hero is still on its
+ * place, fading as it scrolls past, gone once it has scrolled a whole hero
+ * height past its place. `heroTop` and `heroHeight` are the hero's document
+ * top and height, as `paint` caches them for the moments. The shadow is the
+ * hero's lift; a hero already scrolled past keeps none of it.
+ */
+export function heroShadow(heroTop: number, heroHeight: number, scrollY: number): number {
+  if (heroHeight <= 0) return 1;
+  return clamp(1 - (scrollY - heroTop) / heroHeight);
+}
 /** A number as a style value, `1` rather than `1.000`, so the authored rest state and a painted one read alike. */
 const styleNumber = (n: number) => String(Number(n.toFixed(3)));
 
@@ -491,6 +502,7 @@ export function LandingSea({
   // between paints; the live read in `paint` is only the fallback for a
   // moment the cache has not seen.
   const topsRef = useRef(new Map<string, { top: number; height: number }>());
+  const heroTopRef = useRef<{ top: number; height: number } | null>(null);
   const refreshTops = useCallback(() => {
     const root = rootRef.current;
     if (root === null) return;
@@ -500,6 +512,13 @@ export function LandingSea({
       next.set(moment.getAttribute("aria-labelledby")!, { top: box.top + window.scrollY, height: box.height });
     }
     topsRef.current = next;
+    // The hero's lift fades on the same scroll as the moments rise, so its
+    // place is cached with theirs and refreshed on the same layout changes.
+    const hero = root.querySelector<HTMLElement>('[data-testid="sea-hero"]');
+    if (hero !== null) {
+      const box = hero.getBoundingClientRect();
+      heroTopRef.current = { top: box.top + window.scrollY, height: box.height };
+    }
   }, []);
 
   // Refresh after every repack, before any paint can use the new places.
@@ -544,6 +563,16 @@ export function LandingSea({
           cell.querySelector<HTMLElement>(".landing-sea-veil")!.style.opacity = styleNumber(SCRIM * dim * (1 - lift));
           cell.querySelector<HTMLElement>(".landing-sea-ring")!.style.opacity = styleNumber(lift);
         }
+      }
+      // The hero's lift fades as it scrolls past, on the same cached place
+      // as the moments: full on its place, gone a hero height past it.
+      const hero = root.querySelector<HTMLElement>('[data-testid="sea-hero"]');
+      if (hero !== null) {
+        const cached = heroTopRef.current;
+        const box = hero.getBoundingClientRect();
+        const top = cached === null ? box.top + window.scrollY : cached.top;
+        const height = cached === null ? box.height : cached.height;
+        hero.style.setProperty("--hero-shadow", styleNumber(heroShadow(top, height, window.scrollY)));
       }
       // The card under the pointer sinks back from the sea as it is now, not
       // as it was when the pointer came onto it (PR 510 r5): one cell at most.

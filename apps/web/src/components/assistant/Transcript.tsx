@@ -81,6 +81,10 @@ export function toolNoteLabel(toolName: string, input: unknown): string {
       if (days === undefined) return "Checked the day you're looking at";
       return days.length === 1 ? `Checked day ${days[0]}` : `Checked days ${days.join(", ")}`;
     }
+    case "read_playbook":
+      // A real tool (`server/assistant/tools/playbook.ts`): reading the
+      // playbook a suggestion comes from, as the homepage example's turn does.
+      return "Checked the playbook";
     case "find_free_time":
       return `Looked for free time${onDay}`;
     default:
@@ -156,7 +160,7 @@ function announcementFor(turns: readonly AssistantTurn[], chat: boolean): string
  * of the 2026-08-29 branch review, and `aria-expanded` on a real button is
  * already the whole announcement a screen reader needs here.
  */
-function ToolSteps({ tools, still = false }: { tools: readonly ToolNote[]; still?: boolean }) {
+function ToolSteps({ tools, still = false, forceOpen = false }: { tools: readonly ToolNote[]; still?: boolean; forceOpen?: boolean }) {
   const [open, setOpen] = useState(false);
   const last = tools[tools.length - 1];
   if (last === undefined) return null;
@@ -180,14 +184,15 @@ function ToolSteps({ tools, still = false }: { tools: readonly ToolNote[]; still
       {still ? (
         // A picture of the disclosure, closed so the moment keeps to its
         // frame: no button, and out of hit-testing so its hover colour never
-        // shows.
+        // shows. `forceOpen` draws the list under the closed-form summary
+        // instead, for a picture that has the frame to fill.
         <span className={cn(buttonVariants({ variant: "ghost", size: "sm" }), look, "pointer-events-none cursor-default")}>{summary}</span>
       ) : (
         <Button variant="ghost" size="sm" aria-expanded={open} onClick={() => setOpen((wasOpen) => !wasOpen)} className={look}>
           {summary}
         </Button>
       )}
-      {open && (
+      {(open || (still && forceOpen)) && (
         <ul className="mt-1.5 flex flex-col gap-0.5">
           {tools.map((tool) => (
             <li key={tool.id} className="text-xs text-slate">
@@ -313,11 +318,14 @@ export function Transcript({
    * picture whose controls are drawn but not there (Mitchell's walk of PR
    * 514: *"I don't think it makes sense for the assistant preview buttons to
    * be clickable"*). It says where its suggestions are decided, since no trip
-   * header is on that page; it draws each turn's steps closed, as their
-   * one-line summary, so the moment keeps to its frame (*"Unexpand the 'Hide
-   * how it got there'"*); and it announces nothing, since nobody asked.
+   * header is on that page; it draws each turn's steps open when `stepsOpen`
+   * is set, so the panel fills its frame and the suggestions land near its
+   * foot (Mitchell, 2026-10-21 — a reversal of the PR 514 walk, which had
+   * them closed: *"Unexpand the 'Hide how it got there'"*); without it the
+   * steps stay closed as their one-line summary, so the moment keeps to its
+   * frame; and it announces nothing, since nobody asked.
    */
-  example?: { review: string } | null;
+  example?: { review: string; stepsOpen?: boolean } | null;
 }) {
   const chat = look === "chat";
   return (
@@ -396,7 +404,7 @@ export function Transcript({
             {chat && <CassMark show={startsRun(turns, index)} />}
             <div className={chat ? "flex min-w-0 max-w-a-asst flex-col gap-1" : "contents"}>
             {chat && startsRun(turns, index) && <CassName />}
-            <ToolSteps tools={turn.tools} still={example !== null} />
+            <ToolSteps tools={turn.tools} still={example !== null} forceOpen={example?.stepsOpen ?? false} />
             {turn.text !== "" && (
               // `whitespace-pre-wrap`: the answer arrives as one text part
               // whose deltas concatenate with their spacing intact. Rendering

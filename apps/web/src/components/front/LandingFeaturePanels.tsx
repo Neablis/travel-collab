@@ -1,12 +1,14 @@
 "use client";
 
 import type { ComponentProps, ReactElement } from "react";
+import Link from "next/link";
 import { useTimeFormat } from "@/components/account/PreferencesProvider";
 import { Transcript, toolNoteLabel, type AssistantTurn } from "@/components/assistant/Transcript";
 import { BrandMark } from "@/components/BrandMark";
 import type { BoardSuggestions } from "@/components/board/DayRiver";
+import { StopTagChips } from "@/components/board/StopTagChips";
 import { SuggestionReviewList } from "@/components/board/SuggestionReviewList";
-import { DiscoverCard } from "@/components/playbooks/DiscoverCard";
+import { DiscoverCard, ratingLine } from "@/components/playbooks/DiscoverCard";
 import { ItineraryDayBlock } from "@/components/pages/blocks/ItineraryDayBlock";
 import { SunBlock } from "@/components/pages/blocks/SunBlock";
 import { TripPeopleBlock } from "@/components/pages/blocks/TripPeopleBlock";
@@ -21,7 +23,7 @@ import { Text } from "@/components/ui/text";
 import { cn } from "@/lib/cn";
 import { LANDING_DEMO, LANDING_FEATURES } from "@/lib/landingDemo";
 import { dayPath } from "@/lib/playbookUrls";
-import { toClockRange } from "@/lib/time";
+import { toClockLabel, toClockRange } from "@/lib/time";
 import { LANDING_ACCENTS, LANDING_RIVER_CITY, LANDING_RIVER_TITLE, LandingRiver, snapshotAccents } from "./LandingRiver";
 
 // The sea's moments (M51) and the phone's claims, drawn by the product's own
@@ -50,17 +52,119 @@ export function TogetherPanel(): React.ReactElement {
   );
 }
 
+// The sea's first moment (M9) is the Rome day as the day page shows it
+// (`SharedDayScreen`), not a repeat of the small cards: the title, its meta
+// line, its tag chips, the warm description, one day's timeline, what people
+// said, and who kept it. The title is the one door into the day, as before.
+// No map: the day page's MapLibre map is an external rate-limited library
+// and stays off the homepage. No transit legs between the timeline's stops:
+// the canned snapshot carries no leg data (the day page computes them), so
+// none are invented here — the rows are times and stop names only. The
+// description is the Rome day's own, as its day page shows it, kept as panel
+// copy because the canned snapshot carries no narrative paragraph; when the
+// snapshot gains one, swap this in for it. The meta line follows the day
+// page's own format, and `keptIn` its wording (Month Year, UTC); it is kept
+// local so the landing bundle does not pull in the day screen.
+const keptIn = (createdAt: string): string => {
+  const at = new Date(createdAt);
+  if (Number.isNaN(at.getTime())) return "Not known";
+  return at.toLocaleString("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
+};
+/** The Rome day's own description, as its day page shows it (see the panel comment). */
+const FIND_A_DAY_BLURB =
+  "Rome as a city built on top of itself: the Colosseum and Forum, the Pantheon and the baroque piazzas, then out past the walls to the Baths of Caracalla and the catacombs under the Appian Way. Ancient history you can walk through, with Trastevere and Testaccio dinners to recover in.";
 /**
- * The sea's first moment: the richest Thailand day as a big card, filling the
- * moment, and opening the day's canonical page, as every cell of the sea does.
- * The days lit beside it are other Thai days, not this one again (Mitchell's
- * third walk of PR 510).
+ * PLACEHOLDER reviews, to be replaced when a better example exists: sample
+ * quotes that make the day read used and real, grounded in its actual stops
+ * (the Colosseum, Testaccio, the Appian Way). These are not real user
+ * reviews. Keep them in this one constant so replacing them is one edit.
+ */
+const SAMPLE_REVIEWS: { name: string; quote: string }[] = [
+  { name: "Elena", quote: "The arena floor first thing was worth every cent — standing where the gladiators stood changes the whole place." },
+  { name: "Tom", quote: "Lunch in Testaccio was the day's best decision. The market stalls, then walking it off past the Pyramid." },
+  { name: "Priya", quote: "The Appian Way walk felt like leaving the city behind. Ancient stones, no crowds, and the catacombs under it." },
+];
+/**
+ * The sea's first moment (M9): the Rome day as the day page shows it, not a
+ * repeat of the small cards. Returns the notebook-style panel: title, meta
+ * line, tag chips, description, one day's timeline, what people said, and
+ * who kept it.
  */
 export function FindADayPanel(): React.ReactElement {
   const { shelf } = LANDING_FEATURES;
+  const clock = useTimeFormat();
+  const rated = ratingLine(shelf);
+  const meta = [
+    shelf.dayCount > 1 ? `${shelf.dayCount} days` : null,
+    `${shelf.stopCount} stops`,
+    `kept in ${keptIn(shelf.createdAt)}`,
+  ]
+    .filter((part) => part !== null)
+    .join(" · ");
   return (
-    <div className="landing-sea-cell flex min-h-0 flex-1 flex-col">
-      <DiscoverCard day={shelf} origin={{ from: "sea", href: dayPath(shelf) }} size="wide" headingLevel={3} className="min-h-0 flex-1" />
+    <div className="landing-sea-cell flex min-h-0 flex-1 flex-col gap-2.5">
+      <Heading level={3} className="text-md font-medium leading-snug">
+        <Link href={dayPath(shelf)} prefetch={false} className="hover:underline">
+          {shelf.name}
+        </Link>
+      </Heading>
+      <DataText size="xs" className="block">
+        {shelf.cities.join(", ")}
+      </DataText>
+      <DataText size="xs" className="block">
+        {meta}
+      </DataText>
+      {shelf.description !== null && <Text variant="secondary">{shelf.description}</Text>}
+      {shelf.tags.length > 0 && <StopTagChips activityId={shelf.savedDayId} tags={shelf.tags} focusedTag={null} />}
+      <Text as="p" className="line-clamp-2 text-sm leading-relaxed text-pretty">
+        {FIND_A_DAY_BLURB}
+      </Text>
+      {/* The canned preview is Day 2's stops (its times and names match the day page's Day 2). */}
+      <div className="flex flex-col gap-1">
+        <DataText size="xs" className="uppercase tracking-wider">
+          Day 2 · {shelf.preview.length} stops
+        </DataText>
+        <ul className="flex flex-col gap-1">
+          {shelf.preview.map((stop, index) => (
+            <li key={index} className="flex items-baseline gap-2.5 text-sm">
+              <DataText size="xs" className="w-15.5 shrink-0 pt-0.5 text-2xs">
+                {stop.start !== null ? toClockLabel(stop.start, clock) : ""}
+              </DataText>
+              <span className="truncate">{stop.title}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <div className="flex items-baseline gap-2">
+          <Heading level={4} className="text-sm font-semibold">
+            What people said
+          </Heading>
+          {rated !== null && (
+            <span className="text-xs">
+              <span aria-hidden className="text-warning">
+                ★
+              </span>{" "}
+              <span className="font-semibold text-ink">{rated}</span>
+            </span>
+          )}
+        </div>
+        <ul className="flex flex-col gap-1.5">
+          {SAMPLE_REVIEWS.map((review) => (
+            <li key={review.name} className="flex flex-col">
+              <Text as="span" className="text-sm leading-snug">
+                “{review.quote}”
+              </Text>
+              <Text as="span" variant="muted" className="text-xs">
+                — {review.name}
+              </Text>
+            </li>
+          ))}
+        </ul>
+        <Text as="span" className="text-xs">
+          By {shelf.ownerDisplayName}
+        </Text>
+      </div>
     </div>
   );
 }
@@ -77,13 +181,15 @@ const ASSISTANT_ACCENTS = snapshotAccents({ [assistant.river.dayId]: assistant.a
 const ASSISTANT_PX_PER_HOUR = 33;
 /**
  * The tools the turn called, worded by the transcript's own `toolNoteLabel`:
- * it read the trip and the day, and drafted one change per stop it suggests.
+ * it read the trip and the day, the borrowed playbook the suggestions come
+ * from, and drafted one change per stop it suggests.
  * Not `find_free_time`, whose note says "free", a word the front door does
  * not use (SPEC §14).
  */
 const ASSISTANT_STEPS: [tool: string, input: unknown][] = [
   ["read_trip", {}],
   ["read_day", { days: [assistant.river.ordinal] }],
+  ["read_playbook", {}],
   ...assistant.ghosts.map((): [string, unknown] => ["AddActivity", {}]),
 ];
 const ASSISTANT_TURNS: AssistantTurn[] = [
@@ -174,7 +280,7 @@ const RAIL_TABS = [
  * screenshot of the real panel): the panel's head, its Chat and Ask tabs on
  * Ask, and the line saying what it is looking at; the app's own transcript,
  * asking for more of the Rome trip's Day 1, with the steps the turn took
- * folded to their one-line summary, the answer, and the note of the suggestion it stored (ADR-067)
+ * open, the answer, and the note of the suggestion it stored (ADR-067)
  * with *Accept all*. Beside it, the day under a stack of what is being added,
  * and the board's own river drawing the same stops as ghosts, one with its
  * popover open.
@@ -214,7 +320,7 @@ export function AssistantPanel(): React.ReactElement {
             <div className="mt-2 rounded-sm bg-paper px-2.5 py-1.5 text-xs text-slate">{`Looking at ${assistant.trip}`}</div>
           </div>
           <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-hidden px-4 py-3.5">
-            <Transcript turns={ASSISTANT_TURNS} example={{ review: ASSISTANT_REVIEW }} />
+            <Transcript turns={ASSISTANT_TURNS} example={{ review: ASSISTANT_REVIEW, stepsOpen: true }} />
           </div>
         </div>
         <div className={cn(SURFACE, "flex min-h-0 min-w-0 flex-col")}>

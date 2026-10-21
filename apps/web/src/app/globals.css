@@ -2075,20 +2075,18 @@ html[data-look="ledger"] .shadow-raised {
     overflow: clip;
   }
   /* The hero stands off the full-colour sea around it (Mitchell's third walk
-     of PR 510: *"maybe give it a little more standout"*): an ink rule, and
-     the designs' lifted drop shadow (the C2 prototype's `.ex .ff`, which no
-     token holds: `--shadow-lifted` is the lighter tier); its headline is
-     `text-5xl`. The rule is its border, inside its grid area, so its edge is
-     on the grid's lines like every other cell's (his fourth walk: *"The
-     border makes this wider than the other components"*). No `shadow-*`
-     utility on the element: one would win over this from the utilities
-     layer. */
+     of PR 510: *"maybe give it a little more standout"*): a lifted drop
+     shadow, not a rule — the ink border made it wider than the other
+     components (his fourth walk). The shadow fades as the hero scrolls past
+     (`--hero-shadow`, which `LandingSea`'s paint writes from 1 to 0 over a
+     hero height past its place), so a hero already scrolled past keeps none
+     of its lift. Its headline is `text-5xl`. No `shadow-*` utility on the
+     element: one would win over this from the utilities layer. */
   .landing-sea-hero {
     grid-row: 2 / span var(--hero-rows);
     grid-column: var(--hero-start) / span var(--hero-span);
     z-index: 2;
-    border: 0.1875rem solid var(--color-ink);
-    box-shadow: 0 1.875rem 5rem rgb(21 29 46 / 0.35);
+    filter: drop-shadow(0 0 0.75rem rgb(0 0 0 / var(--hero-shadow, 1)));
   }
   /* A cell's region strip: mono caps over the card, white on the region's
      mat (the prototype's `.ml`). */

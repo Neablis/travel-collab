@@ -15,6 +15,22 @@ import { LANDING_SEA, SEA_ACCENTS, SEA_DAYS, type SeaAccent, type SeaCell, type 
 // Re-exported for the packer in `LandingSea.tsx`, which places accents among the background days.
 export { SEA_ACCENTS };
 
+/**
+ * The accent rotation the packers draw from, led by Peru: Peru is in the
+ * generated accents, but the rotation only reaches it deep in the background
+ * (row 21–34 at wide widths) and never at 6–8 columns, where the background
+ * runs out before its turn — so no Peru tile rendered there at all. Leading
+ * with it puts one Peru tile on the first screen at every width, in the same
+ * shape and to the same country page as every other country tile, and the
+ * rotation carries on behind it in generated order, so no accent is skipped
+ * or doubled. If Peru ever leaves the generated accents, the order falls back
+ * to the generated one.
+ */
+const PERU_ACCENT = SEA_ACCENTS.find((accent) => accent.kind === "country" && accent.name === "Peru");
+/** The accent order both packers draw from: Peru first, then the generated order without it. */
+export const SEA_ACCENT_ORDER: SeaAccent[] =
+  PERU_ACCENT === undefined ? SEA_ACCENTS : [PERU_ACCENT, ...SEA_ACCENTS.filter((accent) => accent !== PERU_ACCENT)];
+
 type SeaDoor = SeaCell & { href: string | null };
 /** What a background cell holds: a day, or an accent. */
 type Ground = { cell: SeaDoor; accent?: never } | { accent: SeaAccent; cell?: never };
@@ -210,8 +226,8 @@ export const FIRST_SCREEN: Ground[] = [];
   let since = 0;
   for (let i = 0; i < FIRST_SCREEN_SIZED + FIRST_SCREEN_SINGLE; i++) {
     const single = i >= FIRST_SCREEN_SIZED;
-    if (since >= ACCENT_EVERY - 1 && SEA_ACCENTS.length > 0) {
-      const next = SEA_ACCENTS[(i - days) % SEA_ACCENTS.length]!;
+    if (since >= ACCENT_EVERY - 1 && SEA_ACCENT_ORDER.length > 0) {
+      const next = SEA_ACCENT_ORDER[(i - days) % SEA_ACCENT_ORDER.length]!;
       const accent: SeaAccent = single ? { ...next, size: "1x1" } : next;
       const spots = flows.map(({ flow }) => flow.next(SIZE[accent.size]));
       if (spots.every((at, k) => at === null || flows[k]!.accents.every((other) => !meet(at, other, 1)))) {
