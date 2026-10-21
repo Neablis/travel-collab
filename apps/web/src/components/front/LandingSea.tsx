@@ -1,17 +1,38 @@
 "use client";
 
-import { Fragment, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
+import { Fragment, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { LandingFeaturePanel } from "@/components/front/LandingFeaturePanel";
-import { DiscoverCard } from "@/components/playbooks/DiscoverCard";
+import { LandingSeaFirstScreen } from "@/components/front/LandingSeaFirstScreen";
+import {
+  ACCENT_EVERY,
+  Cell,
+  FIRST_SCREEN_ACCENTS,
+  FIRST_SCREEN_DAYS,
+  FIRST_SCREEN_ROWS,
+  GAP,
+  GroundCell,
+  LIT,
+  PAD,
+  POOL,
+  SEA_ACCENTS,
+  SIZE,
+  firstScreenAccents,
+  heroAt,
+  meet,
+  place,
+  type MomentId,
+  type SeaArea,
+  type SeaLayout,
+  type SeaMetrics,
+  type StoryId,
+} from "./LandingSeaCells";
 import { Heading } from "@/components/ui/heading";
 import { cn } from "@/lib/cn";
-import { LANDING_SEA, SEA_ACCENTS, SEA_DAYS, type SeaAccent, type SeaCell, type SeaCellSize } from "@/lib/landingSea";
 
-/** A cell as the sea draws it: linked to its day page, or (a Japan day) to nothing. */
-type SeaDoor = SeaCell & { href: string | null };
-/** What a background cell holds: a day, or an accent. */
-type Ground = { cell: SeaDoor; accent?: never } | { accent: SeaAccent; cell?: never };
+// Re-exported for the tests and any reader that knew these from here before
+// the split; their home is `LandingSeaCells.tsx` now.
+export { FIRST_SCREEN, FIRST_SCREEN_ROWS, HERO, SEA_REGIONS, firstScreenAccents } from "./LandingSeaCells";
+export type { SeaArea } from "./LandingSeaCells";
 
 // The desktop front door's sea of notebooks (M51, the C2 prototype): every
 // public day in the library as the Discover card it is, each on its region's
@@ -39,11 +60,20 @@ type Ground = { cell: SeaDoor; accent?: never } | { accent: SeaAccent; cell?: ne
 // packs it for six columns, the fewest. That packing is below the first
 // screen's eight rows, so out of sight until the client packs again, on any
 // screen up to about 1440px tall; on a taller one (a portrait monitor) its
-// rows show, and move, at hydration.
+// rows show, and move, at hydration — within the container, whose height is
+// floored at the server pack (`--sea-rows-floor`), so the footer does not
+// move with them.
 //
-// **The only module that imports the sea's snapshot.** It is not handed down
-// as a server prop as well, which would put it in the page twice: once in the
-// client chunk and again in the RSC payload.
+// **The first screen is a server component.** The cells and their geometry
+// live in `LandingSeaCells.tsx`, which has no hooks, so `LandingScreen`
+// renders the first screen on the server and passes it in as a prop: it is
+// in the server's HTML and is never hydrated. The packed bands below stay
+// client — their cells depend on the measured column count — and the cards
+// inside every cell still hydrate as client leaves (`DiscoverCard` reads
+// the time-format context), so this split hydrates less, it does not
+// hydrate nothing. The snapshot still ships in the client chunk because
+// the packer needs it; it is not handed down as raw data as well, which
+// would put it in the page twice.
 //
 // The motion follows SPEC §28's notes for the phone's pin: progress is scroll
 // position, not time; no `requestAnimationFrame`, whose callback a hidden
@@ -51,223 +81,6 @@ type Ground = { cell: SeaDoor; accent?: never } | { accent: SeaAccent; cell?: ne
 // the rest state is in the markup, so a cold load paints the first screen as
 // it is meant to look before any script runs.
 
-/** Each region's mat and the name on its strip (the prototype's `MAT` and `REGION`), by the snapshot's bundle. */
-export const SEA_REGIONS: Record<string, { label: string; mat: string }> = {
-  "3-days-in-bologna-tortellini-mortadella-market-mornings": { label: "Italy", mat: "bg-mat-rust" },
-  "3-days-in-florence-renaissance-art-workshops-the-oltrarno": { label: "Italy", mat: "bg-mat-rust" },
-  "3-days-in-rome-emperors-gladiators-the-layers-beneath": { label: "Italy", mat: "bg-mat-rust" },
-  "3-days-on-the-amalfi-coast-cliff-towns-lemon-groves-the-path-of-the-gods": { label: "Italy", mat: "bg-mat-rust" },
-  "alpine-summer": { label: "Alpine summer", mat: "bg-person-sky" },
-  "andes-patagonia": { label: "Andes and Patagonia", mat: "bg-person-clay" },
-  "australia-newzealand": { label: "Australia and NZ", mat: "bg-person-ochre" },
-  "britain-ireland": { label: "Britain and Ireland", mat: "bg-person-slate" },
-  "california-coast-and-wine": { label: "California", mat: "bg-person-rose" },
-  "finger-lakes-upstate-ny": { label: "Upstate New York", mat: "bg-person-moss" },
-  "france-cities": { label: "France", mat: "bg-person-plum" },
-  "greek-islands": { label: "Greek islands", mat: "bg-person-teal" },
-  "italy-cities": { label: "Italy", mat: "bg-mat-rust" },
-  "italy-skiing": { label: "Dolomites and Alps", mat: "bg-mat-navy" },
-  "korea-taiwan-hongkong": { label: "Korea and Taiwan", mat: "bg-mat-berry" },
-  "medinas-and-deserts": { label: "Medinas and deserts", mat: "bg-mat-amber" },
-  "mexico-central-america": { label: "Mexico", mat: "bg-mat-violet" },
-  "nordic-landscapes": { label: "Nordic", mat: "bg-mat-night" },
-  "spain-hiking": { label: "Spain", mat: "bg-mat-fern" },
-  "thailand-beaches": { label: "Thailand", mat: "bg-person-teal" },
-  "turkey-balkans": { label: "Turkey and Balkans", mat: "bg-person-rose" },
-  "us-national-parks": { label: "US parks", mat: "bg-person-clay" },
-  "vietnam-indonesia": { label: "Vietnam and Indonesia", mat: "bg-mat-leaf" },
-  japan: { label: "Japan", mat: "bg-mat-brick" },
-};
-
-/** A cell's footprint as the snapshot sizes it, columns by rows. */
-const SIZE: Record<SeaCellSize, [w: number, h: number]> = {
-  "1x1": [1, 1],
-  "2x1": [2, 1],
-  "1x2": [1, 2],
-  "2x2": [2, 2],
-  "3x1": [3, 1],
-  "1x3": [1, 3],
-};
-/** The same footprint as classes, for the first screen's cells, which CSS places. */
-const SPAN: Record<SeaCellSize, string> = {
-  "1x1": "",
-  "2x1": "col-span-2",
-  "1x2": "row-span-2",
-  "2x2": "col-span-2 row-span-2",
-  "3x1": "col-span-3",
-  "1x3": "row-span-3",
-};
-
-// The days each moment lights: two or three, never a whole region (Mitchell,
-// on PR 510: *"maybe like 2-3, not 6"*), and never the moment's own day
-// (Mitchell's third walk: *"The banner to left is the same activity to
-// right"*). Each is a day named here, not ranked (Mitchell's fourth walk:
-// *"Let the rule go"*). Find a day raises Mitchell's Rome playbook and lights
-// his Florence, Amalfi and Bologna ones (his fourth walk: *"use these rome days
-// for the card and the accent cards around it"*); the assistant works on a trip
-// borrowed from that Rome playbook, and lights three other Italian cities'
-// days, none of them Rome's, whose Forum and Testaccio are the moment's own
-// stops (PR 514 r1); the crew's river is Elena's Naxos day, and it lights
-// three other Greek ones; the notebook lights the demo's three Japan days.
-const GREECE = SEA_DAYS.filter((cell) => cell.group === "greek-islands");
-const dayOf = (group: string) => SEA_DAYS.find((cell) => cell.group === group)!;
-/** The find moment's banner, the day the generator names as `LANDING_FEATURES.shelf`. */
-const BANNER = dayOf("3-days-in-rome-emperors-gladiators-the-layers-beneath");
-const ITALY = [
-  dayOf("3-days-in-florence-renaissance-art-workshops-the-oltrarno"),
-  dayOf("3-days-on-the-amalfi-coast-cliff-towns-lemon-groves-the-path-of-the-gods"),
-  dayOf("3-days-in-bologna-tortellini-mortadella-market-mornings"),
-];
-const ITALIAN_CITIES = ["Naples:", "Venice:", "Sicily's east:"].map((name) => SEA_DAYS.find((cell) => cell.group === "italy-cities" && cell.day.name.startsWith(name))!);
-const NAXOS = GREECE.find((cell) => cell.day.name.startsWith("Naxos"))!;
-const GREEK = GREECE.filter((cell) => cell !== NAXOS);
-
-export type MomentId = "sea-find" | "sea-assistant" | "sea-crew" | "sea-notebook";
-type StoryId = MomentId | "pricing" | "closing";
-
-/** Each moment's own day, which none of its lit days repeats; the notebook's are the Japan demo's, which the sea does not hold. */
-export const MOMENT_DAY: Record<MomentId, string | null> = {
-  "sea-find": BANNER.day.savedDayId,
-  "sea-assistant": BANNER.day.savedDayId,
-  "sea-crew": NAXOS.day.savedDayId,
-  "sea-notebook": null,
-};
-const LIT: Record<MomentId, SeaDoor[]> = {
-  "sea-find": ITALY,
-  "sea-assistant": ITALIAN_CITIES,
-  "sea-crew": GREEK.slice(0, 3),
-  "sea-notebook": LANDING_SEA.japan,
-};
-
-/** The days a moment raises or lights, which the background leaves out so none shows twice beside its moment. */
-const shown = new Set([...Object.values(MOMENT_DAY), ...Object.values(LIT).flatMap((lit) => lit.map((cell) => cell.day.savedDayId))]);
-/** The background: every library day no moment shows, in the snapshot's shuffled order. */
-const POOL = SEA_DAYS.filter((cell) => !shown.has(cell.day.savedDayId));
-
-// One accent to about every ten cells of background (Mitchell's third walk:
-// *"we are missing this nice accent full color cards"*), and never two
-// touching, so they read as a scattering and not a band.
-const ACCENT_EVERY = 10;
-
-// Enough cells to fill the first screen's eight rows at 20 columns around the
-// hero (about 140 units), the last of them single units, so `dense` fills the
-// gaps the bigger ones leave. At a narrower width most of them find no room
-// above the packed grid and are clipped past its foot.
-const FIRST_SCREEN_SIZED = 56;
-const FIRST_SCREEN_SINGLE = 36;
-
-/** An area of the sea's grid in whole units: 0-based row and column, and how many of each it spans. */
-export type SeaArea = { row: number; col: number; w: number; h: number };
-export type SeaMetrics = { cols: number; unit: number; viewport: number };
-export type SeaLayout = {
-  rows: number;
-  stories: Record<StoryId, SeaArea>;
-  lit: { moment: MomentId; cell: SeaDoor; at: SeaArea }[];
-  background: (Ground & { at: SeaArea })[];
-};
-
-/** The first screen's rows, which CSS packs: eight 180px units cover a 1440px-tall screen under the header. */
-export const FIRST_SCREEN_ROWS = 8;
-
-/** Whether two areas share a unit, or with `margin` 1, touch at an edge or a corner. */
-const meet = (a: SeaArea, b: SeaArea, margin = 0) =>
-  a.row < b.row + b.h + margin && b.row < a.row + a.h + margin && a.col < b.col + b.w + margin && b.col < a.col + a.w + margin;
-
-/** The hero at each column count `--cols` takes, as globals.css sets `--hero-start` (1-based), `--hero-span` and `--hero-rows`. */
-export const HERO: Record<number, [start: number, span: number, rows: number]> = {
-  6: [1, 5, 4],
-  7: [2, 5, 4],
-  8: [2, 5, 3],
-  9: [3, 5, 3],
-  10: [3, 5, 3],
-  11: [4, 5, 3],
-  12: [4, 6, 3],
-  13: [4, 6, 3],
-  14: [5, 6, 3],
-  15: [5, 6, 3],
-  16: [5, 7, 3],
-  17: [6, 7, 3],
-  18: [6, 7, 3],
-  19: [7, 7, 3],
-  20: [7, 7, 3],
-};
-const heroAt = (cols: number) => HERO[Math.min(20, Math.max(6, cols))]!;
-
-/**
- * CSS's `row dense` flow over the first screen at this many columns: each
- * cell at the first unit, row by row, where it fits around the hero and the
- * cells before it. Rows below are the packed background's, so a cell with no
- * room in these rows falls past the grid's foot, clipped: `null`.
- */
-function denseFlow(cols: number) {
-  const [start, span, rows] = heroAt(cols);
-  const taken = Array.from({ length: FIRST_SCREEN_ROWS }, (_, r) =>
-    Array.from({ length: cols }, (_, c) => r >= 1 && r < 1 + rows && c >= start - 1 && c < start - 1 + span),
-  );
-  const fits = (r: number, c: number, w: number, h: number) => {
-    for (let y = r; y < r + h; y++) for (let x = c; x < c + w; x++) if (taken[y]![x]) return false;
-    return true;
-  };
-  return {
-    next: ([w, h]: readonly [number, number]): SeaArea | null => {
-      for (let r = 0; r + h <= FIRST_SCREEN_ROWS; r++) for (let c = 0; c + w <= cols; c++) if (fits(r, c, w, h)) return { row: r, col: c, w, h };
-      return null;
-    },
-    take: (at: SeaArea | null) => {
-      if (at !== null) for (let y = at.row; y < at.row + at.h; y++) for (let x = at.col; x < at.col + at.w; x++) taken[y]![x] = true;
-    },
-  };
-}
-
-/** Each column count's first-screen accents, where CSS puts them: what the packed background's keep clear of. */
-const FIRST_ACCENTS: Record<number, SeaArea[]> = {};
-/**
- * The first screen's cells, in the server's HTML, in the order CSS packs them:
- * an accent once ten have gone by, at the first cell where, at every column
- * count, CSS puts it clear of every accent before it. The server cannot know
- * the width, so no other order would hold them apart (PR 510 r6: at 3440,
- * France sat on Mexico).
- */
-export const FIRST_SCREEN: Ground[] = [];
-{
-  const flows = Object.keys(HERO).map((key) => {
-    const cols = Number(key);
-    FIRST_ACCENTS[cols] = [];
-    return { flow: denseFlow(cols), accents: FIRST_ACCENTS[cols] };
-  });
-  let days = 0;
-  let since = 0;
-  for (let i = 0; i < FIRST_SCREEN_SIZED + FIRST_SCREEN_SINGLE; i++) {
-    const single = i >= FIRST_SCREEN_SIZED;
-    if (since >= ACCENT_EVERY - 1 && SEA_ACCENTS.length > 0) {
-      const next = SEA_ACCENTS[(i - days) % SEA_ACCENTS.length]!;
-      const accent: SeaAccent = single ? { ...next, size: "1x1" } : next;
-      const spots = flows.map(({ flow }) => flow.next(SIZE[accent.size]));
-      if (spots.every((at, k) => at === null || flows[k]!.accents.every((other) => !meet(at, other, 1)))) {
-        spots.forEach((at, k) => {
-          flows[k]!.flow.take(at);
-          if (at !== null) flows[k]!.accents.push(at);
-        });
-        FIRST_SCREEN.push({ accent });
-        since = 0;
-        continue;
-      }
-    }
-    const next = POOL[days++]!;
-    const cell: SeaDoor = single ? { ...next, size: "1x1" } : next;
-    for (const { flow } of flows) flow.take(flow.next(SIZE[cell.size]));
-    FIRST_SCREEN.push({ cell });
-    since += 1;
-  }
-}
-/** How many of the pool's days and accents the first screen has used, where the packer below it carries on. */
-const FIRST_SCREEN_ACCENTS = FIRST_SCREEN.filter((ground) => ground.accent !== undefined).length;
-const FIRST_SCREEN_DAYS = FIRST_SCREEN.length - FIRST_SCREEN_ACCENTS;
-/** The first screen's accents at this many columns, where CSS puts them. */
-export const firstScreenAccents = (cols: number): readonly SeaArea[] => FIRST_ACCENTS[Math.min(20, Math.max(6, cols))]!;
-// The grid's gap and side padding in px (`--sea-gap`, `--sea-pad`).
-const GAP = 8;
-const PAD = 16;
 /**
  * What the server packs for: the fewest columns CSS ever draws, at 1100×900.
  * Never more: an area past the real last column would open columns the grid
@@ -439,8 +252,19 @@ export function layoutSea({ cols, unit, viewport }: SeaMetrics): SeaLayout {
   return { rows, stories, lit, background };
 }
 
-/** An area as an inline grid placement, 1-based: geometry the packer computed, which no token can express. */
-const place = (at: SeaArea) => ({ gridRow: `${at.row + 1} / span ${at.h}`, gridColumn: `${at.col + 1} / span ${at.w}` });
+/** The server pack's row count: the grid height's floor, computed once from the same metrics the server renders. */
+const SERVER_ROWS = layoutSea(SERVER_METRICS).rows;
+
+/**
+ * The grid's row floor for a pack of `rows`: the server pack's rows, or the
+ * pack's own rows when taller. The container never shrinks below its first
+ * paint, so a repack that packs shorter rearranges cells within the
+ * container instead of pulling the footer up; a taller pack still grows it
+ * once, which no floor can avoid without clipping real content.
+ */
+export function seaRowsFloor(rows: number): number {
+  return Math.max(SERVER_ROWS, rows);
+}
 
 // How long the first screen holds its colour, then how long the sea takes to
 // dim, in screens of scroll (Mitchell, on C2: *"Keep the initial page
@@ -512,95 +336,24 @@ function useNear<T extends Element>() {
   return [ref, near] as const;
 }
 
-/**
- * One day on its region's mat, under the region's name: the cell decides the
- * size, and the card fills it. A background cell is not a tab stop, nor in
- * the accessibility tree: the keyboard and a screen reader reach the moments
- * and the calls to action without walking the library, and a reader after a
- * particular day has the library itself.
- */
-function Cell({ cell, at, background, litFor }: { cell: SeaDoor; at?: SeaArea; background: boolean; litFor?: MomentId }) {
-  const region = SEA_REGIONS[cell.group]!;
-  const compact = (at === undefined ? SIZE[cell.size][0] : at.w) === 1;
-  return (
-    <div
-      data-testid="sea-cell"
-      data-region={cell.group}
-      data-lit-for={litFor}
-      aria-hidden={background || undefined}
-      // eslint-disable-next-line no-restricted-syntax -- the cell's area on the sea's grid, computed by `layoutSea`; a first-screen cell has none, and CSS places it
-      style={at === undefined ? undefined : place(at)}
-      className={cn(
-        "landing-sea-cell relative flex min-h-0 min-w-0 flex-col rounded-xl",
-        region.mat,
-        at === undefined && SPAN[cell.size],
-        litFor !== undefined && "landing-sea-lit",
-      )}
-    >
-      <span aria-hidden className="landing-sea-label">
-        {region.label}
-      </span>
-      {/* h3: a lit day sits after its moment's h2, and a background one is read by nobody. */}
-      <DiscoverCard
-        day={cell.day}
-        origin={{ from: "sea", href: cell.href, background }}
-        headingLevel={3}
-        compact={compact}
-        className={cn("mx-1.5 mb-1.5 min-h-0 flex-1", compact && "gap-2 p-3")}
-      />
-      {/* A lit day rises and sinks with its moment: the veil dims it with the sea, the ring marks it lit. */}
-      {litFor !== undefined && (
-        <>
-          <span aria-hidden data-testid="lit-veil" className="landing-sea-veil" />
-          <span aria-hidden className="landing-sea-ring" />
-        </>
-      )}
-    </div>
-  );
-}
-
-/**
- * An accent: the region's colour edge to edge, a small mono line over a place
- * or a kind of day in large type (the prototype's `.stamp`), opening the
- * library's page for it. Background, so out of the tab order and the
- * accessibility tree as a background card is, and lifted under the pointer
- * as one is.
- */
-function Accent({ accent, at }: { accent: SeaAccent; at?: SeaArea }) {
-  return (
-    <div
-      data-testid="sea-accent"
-      data-region={accent.group}
-      aria-hidden
-      // eslint-disable-next-line no-restricted-syntax -- the cell's area on the sea's grid, computed by `layoutSea`; a first-screen cell has none, and CSS places it
-      style={at === undefined ? undefined : place(at)}
-      className={cn("landing-sea-cell relative flex min-h-0 min-w-0 flex-col rounded-xl", SEA_REGIONS[accent.group]!.mat, at === undefined && SPAN[accent.size])}
-    >
-      <Link href={accent.href} prefetch={false} tabIndex={-1} className="landing-sea-door landing-sea-stamp no-underline">
-        <span className="landing-sea-stamp-label">{accent.label}</span>
-        <span
-          // eslint-disable-next-line no-restricted-syntax -- the name's longest word in characters, which `.landing-sea-stamp-name` sizes its type to the cell by
-          style={{ "--word": Math.max(...accent.name.split(" ").map((word) => word.length)) } as React.CSSProperties}
-          className="landing-sea-stamp-name"
-        >
-          {accent.name}
-        </span>
-      </Link>
-    </div>
-  );
-}
-
-/** A background cell: a day's card, or an accent. */
-function GroundCell({ ground, at }: { ground: Ground; at?: SeaArea }) {
-  return ground.accent !== undefined ? <Accent accent={ground.accent} at={at} /> : <Cell cell={ground.cell} at={at} background />;
-}
 
 /**
  * Rows of background, mounted once the reader is near them. The empty marker
  * spans every column of its rows, so the first screen's cells never flow into
  * them, mounted or not.
  */
-function Band({ from, to, cells }: { from: number; to: number; cells: SeaLayout["background"] }) {
+function Band({
+  from,
+  to,
+  cells,
+  unit,
+}: {
+  from: number;
+  to: number;
+  cells: SeaLayout["background"];
+  /** The grid's unit in px, for deferred cells' intrinsic sizes. */
+  unit: number;
+}) {
   const [ref, near] = useNear<HTMLDivElement>();
   return (
     <>
@@ -612,7 +365,7 @@ function Band({ from, to, cells }: { from: number; to: number; cells: SeaLayout[
         style={{ gridRow: `${from + 1} / span ${to - from}`, gridColumn: "1 / -1" }}
         className="pointer-events-none"
       />
-      {near && cells.map(({ at, ...ground }) => <GroundCell key={`${at.row}-${at.col}`} ground={ground} at={at} />)}
+      {near && cells.map(({ at, ...ground }) => <GroundCell key={`${at.row}-${at.col}`} ground={ground} at={at} defer unit={unit} />)}
     </>
   );
 }
@@ -690,9 +443,23 @@ const PANEL_PENDING = <div className="min-h-0 flex-1 rounded-lg border border-ha
 /**
  * The sea, from the first screen to the end of the page: `hero` in the first
  * screen's middle, `pricing` and `closing` as its last two cells, the closing
- * one the full width of the grid and the last thing in it.
+ * one the full width of the grid and the last thing in it. `firstScreen` is
+ * the first screen's cells, rendered on the server by `LandingScreen` and
+ * passed in so they are never hydrated; when it is absent (tests, mostly)
+ * the sea renders its own server-shaped copy.
  */
-export function LandingSea({ hero, pricing, closing }: { hero?: ReactNode; pricing?: ReactNode; closing?: ReactNode }) {
+export function LandingSea({
+  hero,
+  pricing,
+  closing,
+  firstScreen,
+}: {
+  hero?: ReactNode;
+  pricing?: ReactNode;
+  closing?: ReactNode;
+  /** The first screen's cells, server-rendered by the page. Absent, the sea renders them itself. */
+  firstScreen?: ReactNode;
+}) {
   const rootRef = useRef<HTMLDivElement>(null);
   const scrimRef = useRef<HTMLDivElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
@@ -717,14 +484,44 @@ export function LandingSea({ hero, pricing, closing }: { hero?: ReactNode; prici
     return () => window.removeEventListener("resize", measure);
   }, []);
 
+  // The moments' document positions, read once per pack and per resize —
+  // never on scroll, where a read after the previous moment's writes forced
+  // a synchronous layout per moment. A moment only moves when the packer
+  // packs again, which is a layout change, so the cache cannot go stale
+  // between paints; the live read in `paint` is only the fallback for a
+  // moment the cache has not seen.
+  const topsRef = useRef(new Map<string, { top: number; height: number }>());
+  const refreshTops = useCallback(() => {
+    const root = rootRef.current;
+    if (root === null) return;
+    const next = new Map<string, { top: number; height: number }>();
+    for (const moment of root.querySelectorAll<HTMLElement>("[data-moment]")) {
+      const box = moment.getBoundingClientRect();
+      next.set(moment.getAttribute("aria-labelledby")!, { top: box.top + window.scrollY, height: box.height });
+    }
+    topsRef.current = next;
+  }, []);
+
+  // Refresh after every repack, before any paint can use the new places.
+  useEffect(() => {
+    refreshTops();
+  }, [layout, refreshTops]);
+
   useEffect(() => {
     const root = rootRef.current;
     const scrim = scrimRef.current;
     if (root === null || scrim === null) return;
     // Read live in `paint`, as the board reads it: the preference can change mid-session.
     const motion = window.matchMedia?.("(prefers-reduced-motion: reduce)");
+    // The sea is `display: none` below the desktop breakpoint (the phone
+    // door is the page there), so a scroll listener on a hidden sea is dead
+    // work on the very devices that can least afford it. The listener lives
+    // only while the sea is displayed; unknown (no `matchMedia`) paints as
+    // before rather than guessing hidden.
+    const desktop = window.matchMedia?.("(min-width: 768px)");
     let dim = 0;
     const paint = () => {
+      if (desktop !== undefined && !desktop.matches) return;
       const still = motion?.matches ?? false;
       const viewport = window.innerHeight;
       dim = seaDim(window.scrollY, viewport);
@@ -733,14 +530,17 @@ export function LandingSea({ hero, pricing, closing }: { hero?: ReactNode; prici
       // every scroll event, 115ms a frame with 650 mounted (PR 510 r4).
       scrim.style.setProperty("--sea-dim", styleNumber(dim));
       for (const moment of root.querySelectorAll<HTMLElement>("[data-moment]")) {
-        const box = moment.getBoundingClientRect();
-        const { opacity, dy, lift } = momentRise(box.top, box.height, viewport);
+        const id = moment.getAttribute("aria-labelledby")!;
+        const cached = topsRef.current.get(id);
+        const top = cached === undefined ? moment.getBoundingClientRect().top : cached.top - window.scrollY;
+        const height = cached === undefined ? moment.getBoundingClientRect().height : cached.height;
+        const { opacity, dy, lift } = momentRise(top, height, viewport);
         const panel = moment.querySelector<HTMLElement>("[data-rise]")!;
         panel.style.opacity = styleNumber(opacity);
         panel.style.transform = still || dy === 0 ? "" : `translate3d(0,${dy}px,0)`;
         // Its two or three lit days with it, on their veil and ring alone,
         // which hold no card: no card is restyled.
-        for (const cell of root.querySelectorAll<HTMLElement>(`[data-lit-for="${moment.getAttribute("aria-labelledby")}"]`)) {
+        for (const cell of root.querySelectorAll<HTMLElement>(`[data-lit-for="${id}"]`)) {
           cell.querySelector<HTMLElement>(".landing-sea-veil")!.style.opacity = styleNumber(SCRIM * dim * (1 - lift));
           cell.querySelector<HTMLElement>(".landing-sea-ring")!.style.opacity = styleNumber(lift);
         }
@@ -758,18 +558,33 @@ export function LandingSea({ hero, pricing, closing }: { hero?: ReactNode; prici
       cell.style.setProperty("--veil", styleNumber(SCRIM * dim));
       cell.dataset.lifted = "";
     };
+    const onResize = () => {
+      refreshTops();
+      paint();
+    };
+    const onDesktop = () => {
+      if (desktop?.matches ?? true) {
+        refreshTops();
+        window.addEventListener("scroll", paint, { passive: true });
+        paint();
+      } else {
+        window.removeEventListener("scroll", paint);
+      }
+    };
     // Once on mount too: a restored scroll position paints before the first
     // scroll event, or the page would jump on it.
     paint();
-    window.addEventListener("scroll", paint, { passive: true });
-    window.addEventListener("resize", paint, { passive: true });
+    if (desktop === undefined || desktop.matches) window.addEventListener("scroll", paint, { passive: true });
+    desktop?.addEventListener("change", onDesktop);
+    window.addEventListener("resize", onResize, { passive: true });
     root.addEventListener("pointerover", surface, { passive: true });
     return () => {
       window.removeEventListener("scroll", paint);
-      window.removeEventListener("resize", paint);
+      desktop?.removeEventListener("change", onDesktop);
+      window.removeEventListener("resize", onResize);
       root.removeEventListener("pointerover", surface);
     };
-  }, []);
+  }, [refreshTops]);
 
   const { stories, lit, background, rows } = layout;
   // In reading order, row then column, so Tab never jumps back up the page:
@@ -808,7 +623,7 @@ export function LandingSea({ hero, pricing, closing }: { hero?: ReactNode; prici
     const from = FIRST_SCREEN_ROWS + i * 6;
     const to = Math.min(rows, from + 6);
     const cells = background.filter(({ at }) => at.row >= from && at.row < to);
-    return { row: from, order: 0, node: <Band key={`band-${i}`} from={from} to={to} cells={cells} /> };
+    return { row: from, order: 0, node: <Band key={`band-${i}`} from={from} to={to} cells={cells} unit={metrics.unit} /> };
   });
   const placed = [
     ...bands,
@@ -832,8 +647,8 @@ export function LandingSea({ hero, pricing, closing }: { hero?: ReactNode; prici
         ref={gridRef}
         data-testid="sea-grid"
         data-cols={metrics.cols}
-        // eslint-disable-next-line no-restricted-syntax -- the packed grid's row count, computed by `layoutSea`, which `.landing-sea-grid` sizes itself to
-        style={{ "--sea-rows": rows } as React.CSSProperties}
+        // eslint-disable-next-line no-restricted-syntax -- the packed grid's row count, computed by `layoutSea`, which `.landing-sea-grid` sizes itself to; the floor is the server pack's rows, so the repack rearranges cells within the container instead of pulling the footer up
+        style={{ "--sea-rows": rows, "--sea-rows-floor": seaRowsFloor(rows) } as React.CSSProperties}
         className="landing-sea-grid"
       >
         <div
@@ -848,9 +663,7 @@ export function LandingSea({ hero, pricing, closing }: { hero?: ReactNode; prici
         <div data-testid="sea-hero" className="landing-sea-hero flex min-h-0 flex-col justify-center overflow-hidden rounded-2xl bg-paper p-9">
           {hero}
         </div>
-        {FIRST_SCREEN.map((ground, i) => (
-          <GroundCell key={i} ground={ground} />
-        ))}
+        {firstScreen ?? <LandingSeaFirstScreen />}
         {placed.map(({ node }) => node)}
       </div>
     </div>

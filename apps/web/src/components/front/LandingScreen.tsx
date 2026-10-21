@@ -7,6 +7,7 @@ import { DataText } from "@/components/ui/data-text";
 import { FrontDoorHeader } from "@/components/front/FrontDoorHeader";
 import { LandingPricing } from "@/components/front/LandingPricing";
 import { LandingSea } from "@/components/front/LandingSea";
+import { LandingSeaFirstScreen } from "@/components/front/LandingSeaFirstScreen";
 import { LeaveLandingIfSignedIn } from "@/components/front/LeaveLandingIfSignedIn";
 import { DEMO_PATH } from "@/lib/demoTrip";
 import { LANDING_CLOSING_QUOTE } from "@/lib/landingDemo";
@@ -79,6 +80,11 @@ export function LandingScreen() {
 
       <main className="flex flex-1 flex-col">
         <LandingSea
+          // Server-rendered, so the first screen's cells are in the HTML
+          // and are never hydrated: the sea takes them as a prop rather
+          // than rendering them from its client tree. The cards inside
+          // still hydrate as client leaves; only the shells do not.
+          firstScreen={<LandingSeaFirstScreen />}
           // The first screen's middle cell, on paper over a sea that is all
           // colour: the cards behind are the noise, the headline the one
           // quiet thing. It fills the cell the grid gives it.

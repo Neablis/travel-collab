@@ -9,7 +9,8 @@ import { haversineKm } from "@/lib/geo";
 import { LANDING_FEATURES } from "@/lib/landingDemo";
 import { LANDING_SEA, SEA_ACCENTS, SEA_DAYS } from "@/lib/landingSea";
 import { dayPath, parseDaySegment } from "@/lib/playbookUrls";
-import { FIRST_SCREEN, FIRST_SCREEN_ROWS, HERO, LandingSea, SEA_REGIONS, firstScreenAccents, layoutSea, momentRise, seaDim, type SeaArea } from "./LandingSea";
+import { FIRST_SCREEN, FIRST_SCREEN_ROWS, HERO, LandingSea, SEA_REGIONS, firstScreenAccents, layoutSea, momentRise, seaDim, seaRowsFloor, type SeaArea } from "./LandingSea";
+import { LandingSeaFirstScreen } from "./LandingSeaFirstScreen";
 
 /** The first screen's days, without its accents. */
 const FIRST_DAYS = FIRST_SCREEN.flatMap((ground) => (ground.cell === undefined ? [] : [ground.cell]));
@@ -53,6 +54,45 @@ function watchScreens() {
 }
 
 const savedDayIds = () => screen.getAllByTestId("discover-card").map((card) => card.getAttribute("data-saved-day-id"));
+
+/**
+ * A `matchMedia` the test drives for the sea's desktop gate: the sea's
+ * scroll listener lives only while `(min-width: 768px)` matches, so paint
+ * tests say so explicitly rather than depending on jsdom's. `set` flips
+ * the match and fires the change listeners, as a resize across the
+ * breakpoint would.
+ */
+function stubDesktop(matches: boolean) {
+  let current = matches;
+  const listeners = new Set<() => void>();
+  const queryList = (query: string, initial: boolean) => ({
+    get matches() {
+      return query === "(min-width: 768px)" ? current : initial;
+    },
+    media: query,
+    addEventListener: (_type: string, fn: () => void) => {
+      listeners.add(fn);
+    },
+    removeEventListener: (_type: string, fn: () => void) => {
+      listeners.delete(fn);
+    },
+    addListener: (fn: () => void) => {
+      listeners.add(fn);
+    },
+    removeListener: (fn: () => void) => {
+      listeners.delete(fn);
+    },
+    dispatchEvent: () => false,
+    onchange: null,
+  });
+  vi.stubGlobal("matchMedia", (query: string) => queryList(query, false));
+  return {
+    set: (next: boolean) => {
+      current = next;
+      for (const fn of [...listeners]) fn();
+    },
+  };
+}
 /** The cells the moments light, as rendered: always mounted, wherever the reader is. */
 const litCells = () => screen.getAllByTestId("sea-cell").filter((cell) => cell.hasAttribute("data-lit-for"));
 const dayOf = (cell: HTMLElement) => within(cell).getByTestId("discover-card").getAttribute("data-saved-day-id")!;
@@ -480,12 +520,17 @@ describe("the rise and the dim", () => {
     expect(html).not.toMatch(/data-rise[^>]*opacity/);
     expect(html).not.toMatch(/opacity[^>]*data-rise/);
 
+    // The sea displayed, so its scroll listener is attached.
+    stubDesktop(true);
     render(<LandingSea />);
     const scrim = screen.getByTestId("sea-scrim");
 
     const moment = screen.getByRole("region", { name: "Everyone going, one plan." });
     vi.spyOn(moment, "getBoundingClientRect").mockReturnValue({ top: window.innerHeight - 40, height: 400 } as DOMRect);
     vi.spyOn(window, "scrollY", "get").mockReturnValue(window.innerHeight * 3);
+    // Positions are read on resize, not on scroll: the mocked rect only
+    // reaches the paint through a resize.
+    fireEvent.resize(window);
     fireEvent.scroll(window);
     expect(scrim.style.getPropertyValue("--sea-dim")).toBe("1");
     // Written on the scrim, which holds no card: an inherited property set on
@@ -503,6 +548,58 @@ describe("the rise and the dim", () => {
     expect(within(moment).getAllByText("Everyone going, one plan.")).toHaveLength(1);
     expect(moment.className.split(" ")).not.toContain(SEA_REGIONS["greek-islands"]!.mat);
   });
+
+  it("does no scroll work while the sea is hidden, and paints again once it is displayed", () => {
+    const desktop = stubDesktop(false);
+    render(<LandingSea />);
+    const scrim = screen.getByTestId("sea-scrim");
+    let scroll = 0;
+    vi.spyOn(window, "scrollY", "get").mockImplementation(() => scroll);
+    scroll = window.innerHeight * 3;
+    // Hidden: no listener, and the mount paint skipped itself.
+    fireEvent.scroll(window);
+    expect(scrim.style.getPropertyValue("--sea-dim")).toBe("0");
+    // Across the breakpoint: the listener attaches and paints at once.
+    desktop.set(true);
+    expect(scrim.style.getPropertyValue("--sea-dim")).toBe("1");
+    // And back below it: the listener detaches, so a scroll paints nothing.
+    scroll = window.innerHeight * 6;
+    desktop.set(false);
+    fireEvent.scroll(window);
+    expect(scrim.style.getPropertyValue("--sea-dim")).toBe("1");
+  });
+
+  it("paints a scroll from cached positions, without reading the moments again", () => {
+    stubDesktop(true);
+    render(<LandingSea />);
+    // The mount already read every moment once (on layout and on resize);
+    // a scroll after it reads none.
+    const moment = screen.getByRole("region", { name: "Everyone going, one plan." });
+    const rect = vi.spyOn(moment, "getBoundingClientRect");
+    fireEvent.scroll(window);
+    expect(rect).not.toHaveBeenCalled();
+  });
+});
+
+it("floors the grid's rows at the server pack, so a shorter repack never pulls the footer up", () => {
+  for (const cols of [6, 7, 8, 10, 12, 16, 20]) {
+    const layout = layoutSea({ cols, unit: 170, viewport: 900 });
+    expect(seaRowsFloor(layout.rows)).toBeGreaterThanOrEqual(layout.rows);
+  }
+  // The floor is one number, not the pack's own rows: a pack shorter than
+  // the server's still renders at the server's height.
+  expect(seaRowsFloor(1)).toBe(seaRowsFloor(2));
+  expect(seaRowsFloor(1)).toBeGreaterThan(0);
+  // And a taller pack still grows: the floor never clips real content.
+  expect(seaRowsFloor(10_000)).toBe(10_000);
+  // Wired to the grid: the server pack's rows are both the rows and the floor.
+  render(<LandingSea />);
+  const grid = screen.getByTestId("sea-grid");
+  expect(grid.style.getPropertyValue("--sea-rows-floor")).toBe(grid.style.getPropertyValue("--sea-rows"));
+});
+
+it("renders the same first screen whether it is passed in or rendered itself", () => {
+  expect(renderToString(<LandingSea firstScreen={<LandingSeaFirstScreen />} />)).toBe(renderToString(<LandingSea />));
 });
 
 /** A grid item's area from its inline placement (`grid-row: 9 / span 2`), or null when it is not placed on the grid. */
@@ -609,7 +706,24 @@ describe("the sea's grid", () => {
     }
   });
 
+  it("defers below-fold background cells, and never a lit day", WHOLE_SEA, () => {
+    const screens = watchScreens();
+    render(<LandingSea />);
+    screens.nearAll();
+    // A band cell: background, placed on the grid by the packer — unlike a
+    // first-screen cell, which CSS places and so carries no placement.
+    const band = screen.getAllByTestId("sea-cell").find((cell) => cell.hasAttribute("aria-hidden") && cell.style.gridRow !== "");
+    expect(band).toBeDefined();
+    expect(band!.style.contentVisibility).toBe("auto");
+    expect(band!.style.containIntrinsicSize).not.toBe("");
+    // A lit day is a tab stop: it is never deferred.
+    for (const cell of litCells()) {
+      expect(cell.style.contentVisibility).toBe("");
+    }
+  });
+
   it("draws 'Find a day worth borrowing.' as a cell of the grid, risen at the screen's middle, its lit days with it", () => {
+    stubDesktop(true);
     render(<LandingSea />);
     const find = screen.getByRole("region", { name: "Find a day worth borrowing." });
     expect(areaOf(find)).not.toBeNull();
@@ -619,13 +733,17 @@ describe("the sea's grid", () => {
         .filter((cell) => cell.getAttribute("data-lit-for") === "sea-find")
         .map((cell) => Number(within(cell).getByTestId("lit-veil").style.opacity));
     vi.spyOn(window, "scrollY", "get").mockReturnValue(window.innerHeight * 3);
-    // Its middle at the screen's: risen, and its days lit.
+    // Its middle at the screen's: risen, and its days lit. Positions are
+    // read on resize, not on scroll, so each mocked rect needs a resize
+    // before the scroll that paints from it.
     vi.spyOn(find, "getBoundingClientRect").mockReturnValue({ top: window.innerHeight / 4, height: window.innerHeight / 2 } as DOMRect);
+    fireEvent.resize(window);
     fireEvent.scroll(window);
     expect(panel.style.opacity).toBe("1");
     expect(veils()).toEqual([0, 0, 0]);
     // All but gone past the top: a ghost again, and its days dimmed with the sea.
     vi.spyOn(find, "getBoundingClientRect").mockReturnValue({ top: 40 - window.innerHeight / 2, height: window.innerHeight / 2 } as DOMRect);
+    fireEvent.resize(window);
     fireEvent.scroll(window);
     expect(Number(panel.style.opacity)).toBeLessThan(1);
     expect(veils().map((veil) => veil > 0)).toEqual([true, true, true]);
