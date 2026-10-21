@@ -155,8 +155,8 @@ function announcementFor(turns: readonly AssistantTurn[], chat: boolean): string
  * of the 2026-08-29 branch review, and `aria-expanded` on a real button is
  * already the whole announcement a screen reader needs here.
  */
-function ToolSteps({ tools }: { tools: readonly ToolNote[] }) {
-  const [open, setOpen] = useState(false);
+function ToolSteps({ tools, startOpen = false }: { tools: readonly ToolNote[]; startOpen?: boolean }) {
+  const [open, setOpen] = useState(startOpen);
   const last = tools[tools.length - 1];
   if (last === undefined) return null;
 
@@ -303,10 +303,13 @@ export function Transcript({
   /**
    * A conversation shown, not had: the front door's canned example (M51). It
    * says where its suggestions are decided, since no trip header is on that
-   * page, and it announces nothing, since nobody asked and a screen reader
-   * already reads the answer in the log.
+   * page, with the page's own Accept all while any are left; it opens each
+   * turn's steps, since showing how the answer got there is the point of it
+   * (Mitchell's walk of PR 514: *"Show the thinking steps a bit more"*); and
+   * it announces nothing, since nobody asked and a screen reader already
+   * reads the answer in the log.
    */
-  example?: { review: string } | null;
+  example?: { review: string; acceptAll?: (() => void) | undefined } | null;
 }) {
   const chat = look === "chat";
   return (
@@ -385,7 +388,7 @@ export function Transcript({
             {chat && <CassMark show={startsRun(turns, index)} />}
             <div className={chat ? "flex min-w-0 max-w-a-asst flex-col gap-1" : "contents"}>
             {chat && startsRun(turns, index) && <CassName />}
-            <ToolSteps tools={turn.tools} />
+            <ToolSteps tools={turn.tools} startOpen={example !== null} />
             {turn.text !== "" && (
               // `whitespace-pre-wrap`: the answer arrives as one text part
               // whose deltas concatenate with their spacing intact. Rendering
@@ -410,7 +413,7 @@ export function Transcript({
                 {...(onUndoProposal === undefined ? {} : { onUndo: () => onUndoProposal(turn.id) })}
               />
             )}
-            {turn.suggested != null && <SuggestedNote suggested={turn.suggested} hint={example?.review} />}
+            {turn.suggested != null && <SuggestedNote suggested={turn.suggested} hint={example?.review} acceptAll={example?.acceptAll} />}
             {/* Its own decision and its own handler, held beside the palette
                 registry, so no surface has to wire an Approve for it. */}
             {turn.offers?.map((offer) => <CommandCard key={offer.key} offer={offer} touch={touch} />)}

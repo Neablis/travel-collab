@@ -38,6 +38,7 @@ import { fileURLToPath } from "node:url";
 import { DISCOVER_PREVIEW_STOPS, type DiscoverDay } from "@/lib/playbooks";
 import {
   SavedStop,
+  SNAPSHOT_NAME_MAX,
   TripCover,
   travellerIds,
   type AvatarKey,
@@ -367,9 +368,15 @@ const ASSISTANT_STOPS = [
   { title: "Lunch at Mercato Testaccio", timeWindow: { start: "15:15", end: "16:45" } },
   { title: "Circus Maximus", timeWindow: { start: "17:30", end: "19:00" } },
 ] as const;
-const ASSISTANT_ASK = "Day 1 has nothing between Palatine Hill and dinner. Can you fit in a late lunch and somewhere for sunset?";
+const ASSISTANT_ASK = "Can you fill the afternoon on Day 1 before dinner?";
 const ASSISTANT_ANSWER =
-  "Nothing is planned from 3 until dinner at 7:30. Both are from the Rome playbook you borrowed: a late lunch at Mercato Testaccio, then the Circus Maximus under the Palatine as the light goes.";
+  "Day 1 is open from Palatine Hill at 3 until dinner at 7:30. Both are from the Rome playbook you borrowed: a late lunch at Mercato Testaccio, then the Circus Maximus under the Palatine as the light goes.";
+/**
+ * The snapshot the turn saved first, named as the server names one
+ * (`snapshotNameFor`): the ask, after "Before: ". Short enough that the server
+ * would not cut it, which the script holds rather than importing the server.
+ */
+const ASSISTANT_SNAPSHOT = `Before: ${ASSISTANT_ASK}`;
 /** Who asked. The suggestion is theirs; the assistant only acted for them (ADR-067 decision 2). */
 const ASSISTANT_READER = "reader";
 
@@ -390,6 +397,7 @@ function buildLandingAssistant(): LandingFeatures["assistant"] {
     if (stop === undefined) throw new Error(`landing demo: ${SHELF_BUNDLE} no longer holds "${title}" past day ${ASSISTANT_DAYS}`);
     return { ...stop, timeWindow };
   });
+  if (ASSISTANT_SNAPSHOT.length > SNAPSHOT_NAME_MAX) throw new Error(`landing demo: the snapshot "${ASSISTANT_SNAPSHOT}" is past the server's ${SNAPSHOT_NAME_MAX} characters`);
   let n = 0;
   // The suggested stops ride at the end of Day 1's group, so they are the
   // importer's own `AddActivity`s; then they come off it as the suggestion.
@@ -459,7 +467,13 @@ function buildLandingAssistant(): LandingFeatures["assistant"] {
     },
     ask: ASSISTANT_ASK,
     answer: ASSISTANT_ANSWER,
-    suggested: { suggestionId: ASSISTANT_SUGGESTION_ID, changeCount: changes.length, snapshotId: null, snapshotName: null, skipped: [] },
+    suggested: {
+      suggestionId: ASSISTANT_SUGGESTION_ID,
+      changeCount: changes.length,
+      snapshotId: "00000000-0000-4000-80d2-000000000000",
+      snapshotName: ASSISTANT_SNAPSHOT,
+      skipped: [],
+    },
     ghosts,
   };
 }

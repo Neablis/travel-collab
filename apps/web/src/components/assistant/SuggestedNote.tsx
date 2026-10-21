@@ -28,15 +28,22 @@ export function suggestedWords({ changeCount, snapshotName }: AssistantSuggested
  */
 export function SuggestedNote({
   suggested,
-  hint = "Open the suggestions in the trip header to review them, and accept or dismiss each.",
+  hint,
+  acceptAll,
 }: {
   suggested: AssistantSuggested;
-  /** Where to review them, where there is no trip header to point at. */
+  /** Where to review them, where there is no trip header to point at: said in place of both sentences that point at it. */
   hint?: string | undefined;
+  /**
+   * *Accept all* for a conversation shown rather than had (the front door's,
+   * M51), whose page decides what it does: in place of the trip's, which is
+   * not there. Absent once nothing is left to accept.
+   */
+  acceptAll?: (() => void) | undefined;
 }) {
   const accept = useAcceptAll();
   const [accepted, setAccepted] = useState(false);
-  const offer = accept !== null && !accepted && (accept.acceptable.length > 0 || accept.accepting);
+  const offer = acceptAll !== undefined || (accept !== null && !accepted && (accept.acceptable.length > 0 || accept.accepting));
   return (
     <div role="group" aria-label="Suggestions on the board" className="rounded-a-card border border-brand bg-brand-tint p-3">
       <p className="text-a-chat font-semibold text-pretty text-brand-pressed">{suggestedWords(suggested)}</p>
@@ -53,9 +60,10 @@ export function SuggestedNote({
         </p>
       ) : (
         <p className="pt-0.5 text-a-note text-pretty text-brand-pressed">
-          {offer
-            ? "Accept them all here, or open the suggestions in the trip header to pick some or dismiss them."
-            : hint}
+          {hint ??
+            (offer
+              ? "Accept them all here, or open the suggestions in the trip header to pick some or dismiss them."
+              : "Open the suggestions in the trip header to review them, and accept or dismiss each.")}
         </p>
       )}
       {offer && (
@@ -63,10 +71,10 @@ export function SuggestedNote({
           variant="primary"
           size="sm"
           className="mt-2"
-          disabled={accept.accepting}
-          onClick={() => void accept.acceptAll().then((ok) => ok && setAccepted(true))}
+          disabled={accept?.accepting}
+          onClick={acceptAll ?? (() => void accept?.acceptAll().then((ok) => ok && setAccepted(true)))}
         >
-          {accept.accepting ? "Accepting…" : "Accept all"}
+          {accept?.accepting ? "Accepting…" : "Accept all"}
         </Button>
       )}
       {accept?.refusal != null && (

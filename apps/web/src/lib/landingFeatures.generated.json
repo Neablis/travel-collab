@@ -257,13 +257,13 @@
         }
       }
     },
-    "ask": "Day 1 has nothing between Palatine Hill and dinner. Can you fit in a late lunch and somewhere for sunset?",
-    "answer": "Nothing is planned from 3 until dinner at 7:30. Both are from the Rome playbook you borrowed: a late lunch at Mercato Testaccio, then the Circus Maximus under the Palatine as the light goes.",
+    "ask": "Can you fill the afternoon on Day 1 before dinner?",
+    "answer": "Day 1 is open from Palatine Hill at 3 until dinner at 7:30. Both are from the Rome playbook you borrowed: a late lunch at Mercato Testaccio, then the Circus Maximus under the Palatine as the light goes.",
     "suggested": {
       "suggestionId": "00000000-0000-4000-80d1-000000000000",
       "changeCount": 2,
-      "snapshotId": null,
-      "snapshotName": null,
+      "snapshotId": "00000000-0000-4000-80d2-000000000000",
+      "snapshotName": "Before: Can you fill the afternoon on Day 1 before dinner?",
       "skipped": []
     },
     "ghosts": [

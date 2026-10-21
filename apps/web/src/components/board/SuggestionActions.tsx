@@ -5,13 +5,12 @@ import type { ResolveSuggestionChangeInput, SuggestionVia } from "@tc/contracts"
 import { useSessionUser } from "@/components/account/useSessionUser";
 import { usePeopleRecheck, usePersonas } from "@/components/pages/people";
 import { useTrip } from "@/components/trip/context/TripProvider";
-import { Button } from "@/components/ui/button";
 import { PersonChip } from "@/components/ui/person-chip";
 import { Popover } from "@/components/ui/popover";
 import { Text } from "@/components/ui/text";
 import type { Ghost } from "@/lib/suggestionOverlay";
 import type { BoardSuggestions } from "./DayRiver";
-import { ReviewButtons } from "./ReviewButtons";
+import { ReviewButtons, SuggestionReviewList } from "./ReviewButtons";
 
 /**
  * Accept, Dismiss and Withdraw for one pending change (spec §2.4, §2.7).
@@ -54,22 +53,16 @@ export function SuggestionActions({ ghost, stale = false }: { ghost: Ghost; stal
         </Text>
       )}
       <div className="flex flex-wrap gap-1.5">
-        {reviewer && (
-          <ReviewButtons
-            description={ghost.description}
-            accept={
-              stale
-                ? null
-                : { onClick: () => void run("accept"), disabled: busy || hint !== null, describedBy: hint === null ? undefined : hintId }
-            }
-            dismiss={{ onClick: () => void run("dismiss"), disabled: busy }}
-          />
-        )}
-        {author && (
-          <Button variant="secondary" size="sm" disabled={busy} aria-label={`Withdraw: ${ghost.description}`} onClick={() => void run("withdraw")}>
-            Withdraw
-          </Button>
-        )}
+        <ReviewButtons
+          description={ghost.description}
+          accept={
+            !reviewer || stale
+              ? null
+              : { onClick: () => void run("accept"), disabled: busy || hint !== null, describedBy: hint === null ? undefined : hintId }
+          }
+          dismiss={reviewer ? { onClick: () => void run("dismiss"), disabled: busy } : null}
+          withdraw={author ? { onClick: () => void run("withdraw"), disabled: busy } : null}
+        />
       </div>
       {reviewer && !stale && hint !== null && (
         <Text as="span" id={hintId} className="text-xs text-slate">
@@ -181,16 +174,7 @@ function SuggestionReview({ ghosts, trigger }: { ghosts: readonly Ghost[]; trigg
   const [open, setOpen] = useState(false);
   return (
     <Popover open={open} onOpenChange={setOpen} trigger={trigger} align="start">
-      <ul aria-label="Suggested changes" className="m-0 flex list-none flex-col gap-3 p-0">
-        {ghosts.map((ghost) => (
-          <li key={ghost.changeId} className="flex flex-col gap-1.5">
-            <Text as="span" className="text-sm text-ink">
-              {ghost.description}
-            </Text>
-            <SuggestionActions ghost={ghost} />
-          </li>
-        ))}
-      </ul>
+      <SuggestionReviewList ghosts={ghosts} actions={(ghost) => <SuggestionActions ghost={ghost} />} />
     </Popover>
   );
 }
