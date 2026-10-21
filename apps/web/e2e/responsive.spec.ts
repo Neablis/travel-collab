@@ -923,8 +923,10 @@ test.describe("responsive (narrow viewport, signed out)", () => {
     // Mitchell, walking PR 510 after it merged: the find moment's Rome banner
     // *"still only shows a few of the activities, it doesnt fill the card"*.
     // It drew three because three were all it was sent (M51 part 9 lifts the
-    // cap); with room for them, it draws every one of day one's four.
-    test(`the find moment's banner shows more than three stop rows at ${width}px`, async ({ page }) => {
+    // cap), and day one has only four; it is day 2's six now (Mitchell,
+    // 2026-10-21), and a row counts only if it is laid out and inside the
+    // card's box on every side, so a hidden row is not counted as shown.
+    test(`the find moment's banner shows more than four stop rows at ${width}px`, async ({ page }) => {
       await page.setViewportSize({ width, height: 1000 });
       await page.goto("/");
       const banner = page.getByTestId("desktop-landing").getByRole("region", { name: "Find a day worth borrowing." }).getByTestId("discover-card");
@@ -933,10 +935,16 @@ test.describe("responsive (narrow viewport, signed out)", () => {
         const box = card.getBoundingClientRect();
         return [...card.querySelectorAll("[data-testid=discover-preview] li")].filter((row) => {
           const r = row.getBoundingClientRect();
-          return r.right <= box.right + 0.5 && r.bottom <= box.bottom + 0.5;
+          return (
+            r.height > 0 &&
+            r.left >= box.left - 0.5 &&
+            r.top >= box.top - 0.5 &&
+            r.right <= box.right + 0.5 &&
+            r.bottom <= box.bottom + 0.5
+          );
         }).length;
       });
-      expect(shown).toBeGreaterThan(3);
+      expect(shown).toBeGreaterThan(4);
     });
 
     // Mitchell's fourth walk of PR 510: *"show activities up till they dont

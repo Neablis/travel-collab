@@ -244,6 +244,16 @@ describe("the find moment's banner", () => {
     expect(own?.day.name).toBe(shelf.name);
     expect({ rating: own?.day.rating, reviews: own?.day.reviewCount }).toEqual({ rating: shelf.rating, reviews: shelf.reviewCount });
   });
+
+  // Mitchell, 2026-10-21: *"use day 2 for the banner"*. Its six stops fill
+  // the wide card, where day one's four left room.
+  it("previews Rome's day 2, and links to the Rome playbook", () => {
+    const rome = "3-days-in-rome-emperors-gladiators-the-layers-beneath";
+    const playbook = BUNDLES.find((b) => b.bundle.id === rome)!.playbooks.find((p) => p.key === rome)!;
+    const { shelf } = LANDING_FEATURES;
+    expect(shelf.savedDayId).toBe(playbookIdFor(rome, rome));
+    expect(shelf.preview.map((stop) => stop.title)).toEqual(playbook.days![1]!.stops.map((stop) => stop.title));
+  });
 });
 
 // The crew moment (decision 10): a Greek trip of three library days, Paros,

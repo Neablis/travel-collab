@@ -82,8 +82,9 @@ export function cityChips(
  * **The stop list's least height off the sea, by how many rows it has**: a
  * one-line row is 18.2px (`text-sm`, 13px × 1.4) and rows are 6px apart, so
  * 20, 44 and 68px hold one, two and three whole rows, and the fourth needs
- * 90.8. A day of fewer than three stops reserves only what it draws, so no
- * card is taller than it was when it drew three at most.
+ * 90.8. A day of fewer than three stops reserves only what it draws, so a card
+ * is taller than it was when it drew three at most only by the floor's
+ * rounding: 1.4px over three one-line rows (68 against 66.6), 1.6 over two.
  */
 const PREVIEW_FLOOR = ["", "min-h-5", "min-h-11", "min-h-17"] as const;
 
