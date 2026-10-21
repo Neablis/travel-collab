@@ -1012,40 +1012,108 @@ function placesOf(published: readonly PublishedDay[]): PlacePage[] {
 
 /**
  * A tag page (M42 D10): the tag, the city page it is narrowed to or null for
- * the whole library, and how many days its description names the tag in.
+ * the whole library, the country page it is narrowed to or null, and how many
+ * days its description names the tag in. A page exists for every combination a
+ * published day matches — the lattice the sitemap lists — never for a
+ * combination nothing matches.
  */
 export type TagPage = {
   tag: DescribedTag;
   city: Pick<PlacePage, "slug" | "name" | "cities"> | null;
+  country: Pick<PlacePage, "slug" | "name" | "countries"> | null;
   /** The number `publishedDaysPage` totals for the tag, which `placeIndexable` reads as for a place. */
   days: number;
 };
 
+/** The city and country pages a set of published days touches, keyed by slug. */
+function placeMaps(published: readonly PublishedDay[]): {
+  cities: Map<string, NonNullable<TagPage["city"]>>;
+  countries: Map<string, NonNullable<TagPage["country"]>>;
+} {
+  const places = placesOf(published);
+  return {
+    cities: new Map(
+      places
+        .filter((place) => place.kind === "city")
+        .map(({ slug, name, cities: spellings }) => [slug, { slug, name, cities: spellings }]),
+    ),
+    countries: new Map(
+      places
+        .filter((place) => place.kind === "country")
+        .map(({ slug, name, countries: codes }) => [slug, { slug, name, countries: codes }]),
+    ),
+  };
+}
+
+/** A day's city slugs and country slugs, each once — the two halves of every lattice node it matches. */
+function latticeSlugs(day: PublishedDay): { cities: Set<string>; countries: Set<string> } {
+  return {
+    // Each slug once, so a day carrying two spellings of a city counts once there.
+    cities: new Set(day.cities.map(slugify).filter((slug) => slug !== "")),
+    countries: new Set(day.countries.map(countrySlug).filter((slug): slug is string => slug !== null)),
+  };
+}
+
 /**
  * Every tag page with a day on it: one per tag a published day's description
- * names (ADR-070 §4), and one per city page and such a tag. A city is its
- * page — every spelling that slugs alike — named as its page names it.
+ * names (ADR-070 §4), and one per city page, country page, and country×city
+ * pair and such a tag. A city is its page — every spelling that slugs alike —
+ * named as its page names it; a country is its page the same way.
  */
 export async function publishedTagPages(): Promise<TagPage[]> {
   const published = await readablePublishedDays();
-  const cities = new Map(
-    placesOf(published)
-      .filter((place) => place.kind === "city")
-      .map(({ slug, name, cities: spellings }) => [slug, { slug, name, cities: spellings }]),
-  );
+  const { cities, countries } = placeMaps(published);
   const counted = new Map<string, TagPage>();
-  const count = (tag: DescribedTag, city: TagPage["city"]) => {
-    const key = `${city?.slug ?? ""}:${tag}`;
+  const count = (tag: DescribedTag, city: TagPage["city"], country: TagPage["country"]) => {
+    const key = `${country?.slug ?? ""}:${city?.slug ?? ""}:${tag}`;
     const page = counted.get(key);
-    if (page === undefined) counted.set(key, { tag, city, days: 1 });
+    if (page === undefined) counted.set(key, { tag, city, country, days: 1 });
     else page.days += 1;
   };
   for (const day of published) {
-    // Each slug once, so a day carrying two spellings of a city counts once there.
-    const slugs = new Set(day.cities.map(slugify).filter((slug) => slug !== ""));
+    const { cities: slugs, countries: countrySlugs } = latticeSlugs(day);
     for (const tag of day.named) {
-      count(tag, null);
-      for (const slug of slugs) count(tag, cities.get(slug)!);
+      count(tag, null, null);
+      for (const slug of slugs) count(tag, cities.get(slug)!, null);
+      for (const slug of countrySlugs) count(tag, null, countries.get(slug)!);
+      for (const slug of slugs) for (const country of countrySlugs) count(tag, cities.get(slug)!, countries.get(country)!);
+    }
+  }
+  return [...counted.values()];
+}
+
+/**
+ * A country×city page: one city's days inside one country — the city page
+ * narrowed to the days that also touch the country, so a city name that
+ * exists in two countries (Cambridge, Springfield) is two pages, not one.
+ */
+export type CountryCityPage = {
+  country: NonNullable<TagPage["country"]>;
+  city: NonNullable<TagPage["city"]>;
+  /** The number `publishedDaysPage` totals for the pair, which `placeIndexable` reads as for a place. */
+  days: number;
+};
+
+/**
+ * Every country×city pair a published day matches: the day's cities include
+ * the city AND its countries include the country. Array-membership on both
+ * sides, not a per-stop pairing — the same rule the listing filter applies,
+ * so the count and the page cannot disagree; a day touching two countries
+ * counts under both, as it is listed under both.
+ */
+export async function publishedCountryCityPages(): Promise<CountryCityPage[]> {
+  const published = await readablePublishedDays();
+  const { cities, countries } = placeMaps(published);
+  const counted = new Map<string, CountryCityPage>();
+  for (const day of published) {
+    const { cities: slugs, countries: countrySlugs } = latticeSlugs(day);
+    for (const slug of slugs) {
+      for (const country of countrySlugs) {
+        const key = `${country}:${slug}`;
+        const page = counted.get(key);
+        if (page === undefined) counted.set(key, { country: countries.get(country)!, city: cities.get(slug)!, days: 1 });
+        else page.days += 1;
+      }
     }
   }
   return [...counted.values()];
@@ -1063,7 +1131,22 @@ export async function publishedTagPages(): Promise<TagPage[]> {
  * holds `orderBy` and `rankKeys` to one order; every page is most-added.
  */
 export async function publishedDaysPage(
-  filter: { cities?: string[]; countries?: string[]; authorId?: string; tag?: DescribedTag; sort?: DiscoverSort },
+  filter: {
+    cities?: string[];
+    countries?: string[];
+    authorId?: string;
+    tag?: DescribedTag;
+    sort?: DiscoverSort;
+    /**
+     * Additionally require the day to touch one of these city spellings —
+     * the AND half of a country×city page, since `matchPredicate` ORs its
+     * places: `countries` alone would list every day in the country, not the
+     * city's days in it. The count side (`publishedCountryCityPages`, and the
+     * country×city tag counts) applies the same membership test, so the two
+     * cannot disagree.
+     */
+    citiesWithin?: string[];
+  },
   page: { limit: number; offset: number },
 ): Promise<{ days: DiscoverDay[]; total: number }> {
   const query: DiscoverQuery = {
@@ -1089,8 +1172,12 @@ export async function publishedDaysPage(
     where ${matchPredicate(query)}
     order by ${orderBy(query.sort)}
   `);
+  const within = filter.citiesWithin === undefined ? null : new Set(filter.citiesWithin);
   const readable = [...rows.rows]
     .map((row) => toDiscoverDay(row, query.cities, null))
-    .filter((day): day is DiscoverDay => day !== null && keeps(query, day));
+    .filter(
+      (day): day is DiscoverDay =>
+        day !== null && keeps(query, day) && (within === null || day.cities.some((city) => within.has(city))),
+    );
   return { days: readable.slice(page.offset, page.offset + page.limit), total: readable.length };
 }

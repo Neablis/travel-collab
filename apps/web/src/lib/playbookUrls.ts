@@ -108,11 +108,28 @@ export function countrySlug(code: string): string | null {
 // The tag's key, never its label: ADR-070 never renames a key and may relabel
 // one (`meal` reads Food), and a URL has no redirect behind it to survive that.
 /**
- * A tag page's path, page one: `/playbooks/tag/<tag>`, or
- * `/playbooks/city/<slug>/<tag>` for that tag in one city's page.
+ * A tag page's path, page one: `/playbooks/tag/<tag>` for the whole library,
+ * `/playbooks/city/<slug>/<tag>` for that tag in one city's page, and the
+ * country forms of both — `/playbooks/country/<slug>/<tag>`, and
+ * `/playbooks/country/<country>/city/<city>/<tag>` for a city inside its
+ * country. One convention throughout: singular `tag`, the tag bare under its
+ * place, and a `/city/` segment only where the country scope needs it to tell
+ * a city slug from a tag.
  */
-export function tagPath(tag: ActivityTagDescribed, citySlug: string | null = null): string {
+export function tagPath(
+  tag: ActivityTagDescribed,
+  citySlug: string | null = null,
+  countryPageSlug: string | null = null,
+): string {
+  if (countryPageSlug !== null && citySlug !== null)
+    return `/playbooks/country/${countryPageSlug}/city/${citySlug}/${tag}`;
+  if (countryPageSlug !== null) return `/playbooks/country/${countryPageSlug}/${tag}`;
   return citySlug === null ? `/playbooks/tag/${tag}` : `/playbooks/city/${citySlug}/${tag}`;
+}
+
+/** A country×city page's path, page one: `/playbooks/country/<country>/city/<city>`. */
+export function countryCityPath(countryPageSlug: string, citySlug: string): string {
+  return `/playbooks/country/${countryPageSlug}/city/${citySlug}`;
 }
 
 /**

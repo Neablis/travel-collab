@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { witness } from "../test-support/witness";
 import {
   cityPath,
+  countryCityPath,
   countrySlug,
   dayPath,
   daySegment,
@@ -12,6 +13,7 @@ import {
   placePagePath,
   placePath,
   slugify,
+  tagPath,
 } from "./playbookUrls";
 
 const ID = "3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b";
@@ -137,5 +139,17 @@ describe("place URLs", () => {
   it("indexes a place from the threshold up, not below it", () => {
     expect(placeIndexable({ days: MIN_INDEXED_PLACE_DAYS - 1 })).toBe(false);
     expect(placeIndexable({ days: MIN_INDEXED_PLACE_DAYS })).toBe(true);
+  });
+
+  // The SEO lattice's canonical scheme: the existing tag convention —
+  // singular `/tag/`, and the tag bare under its place — extended to
+  // country, with `/city/` only where the country scope needs it to tell a
+  // city slug from a tag.
+  it("builds every lattice node's path from the one tag convention", () => {
+    expect(tagPath("meal")).toBe("/playbooks/tag/meal");
+    expect(tagPath("meal", "kyoto")).toBe("/playbooks/city/kyoto/meal");
+    expect(tagPath("meal", null, "japan")).toBe("/playbooks/country/japan/meal");
+    expect(tagPath("meal", "kyoto", "japan")).toBe("/playbooks/country/japan/city/kyoto/meal");
+    expect(countryCityPath("japan", "kyoto")).toBe("/playbooks/country/japan/city/kyoto");
   });
 });

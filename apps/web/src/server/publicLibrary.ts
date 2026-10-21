@@ -118,14 +118,36 @@ export async function placeFor(kind: live.PlacePage["kind"], slug: string): Prom
   return (await publishedPlaces()).find((place) => place.kind === kind && place.slug === slug) ?? null;
 }
 
+/** Every country×city pair with a day on it: `playbooks.ts`'s `publishedCountryCityPages`, cached. */
+export function publishedCountryCityPages(): Promise<live.CountryCityPage[]> {
+  return libraryCached(["country-cities"], [LIBRARY_TAG], live.publishedCountryCityPages);
+}
+
+/** The country×city page for two slugs, or null when no published day matches the pair. */
+export async function countryCityFor(countrySlug: string, citySlug: string): Promise<live.CountryCityPage | null> {
+  return (
+    (await publishedCountryCityPages()).find(
+      (page) => page.country.slug === countrySlug && page.city.slug === citySlug,
+    ) ?? null
+  );
+}
+
 /** Every tag page with a day on it: `playbooks.ts`'s `publishedTagPages`, cached. */
 export function publishedTagPages(): Promise<live.TagPage[]> {
   return libraryCached(["tags"], [LIBRARY_TAG], live.publishedTagPages);
 }
 
-/** The page for a tag, in one city's page or the whole library, or null when no published day is named by it there. */
-export async function tagPageFor(tag: live.TagPage["tag"], citySlug: string | null): Promise<live.TagPage | null> {
-  return (await publishedTagPages()).find((page) => page.tag === tag && (page.city?.slug ?? null) === citySlug) ?? null;
+/** The page for a tag, in one city's page, one country's page, one country×city pair, or the whole library, or null when no published day is named by it there. */
+export async function tagPageFor(
+  tag: live.TagPage["tag"],
+  citySlug: string | null,
+  countrySlug: string | null = null,
+): Promise<live.TagPage | null> {
+  return (
+    (await publishedTagPages()).find(
+      (page) => page.tag === tag && (page.city?.slug ?? null) === citySlug && (page.country?.slug ?? null) === countrySlug,
+    ) ?? null
+  );
 }
 
 /** One page of a place's or an author's published days: `playbooks.ts`'s `publishedDaysPage`, cached. */
