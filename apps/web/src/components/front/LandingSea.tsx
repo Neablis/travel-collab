@@ -146,20 +146,6 @@ const ACCENT_EVERY = 10;
 // above the packed grid and are clipped past its foot.
 const FIRST_SCREEN_SIZED = 56;
 const FIRST_SCREEN_SINGLE = 36;
-/** The first screen's cells, in the server's HTML, in the order CSS packs them: an accent in each run of ten. */
-export const FIRST_SCREEN: Ground[] = Array.from({ length: FIRST_SCREEN_SIZED + FIRST_SCREEN_SINGLE }, (_, i): Ground => {
-  const accents = Math.floor((i + 1) / ACCENT_EVERY);
-  const single = i >= FIRST_SCREEN_SIZED;
-  if ((i + 1) % ACCENT_EVERY === 0) {
-    const accent = SEA_ACCENTS[(accents - 1) % SEA_ACCENTS.length]!;
-    return { accent: single ? { ...accent, size: "1x1" } : accent };
-  }
-  const cell = POOL[i - accents]!;
-  return { cell: single ? { ...cell, size: "1x1" } : cell };
-});
-/** How many of the pool's days and accents the first screen has used, where the packer below it carries on. */
-const FIRST_SCREEN_ACCENTS = FIRST_SCREEN.filter((ground) => ground.accent !== undefined).length;
-const FIRST_SCREEN_DAYS = FIRST_SCREEN.length - FIRST_SCREEN_ACCENTS;
 
 /** An area of the sea's grid in whole units: 0-based row and column, and how many of each it spans. */
 export type SeaArea = { row: number; col: number; w: number; h: number };
@@ -173,6 +159,103 @@ export type SeaLayout = {
 
 /** The first screen's rows, which CSS packs: eight 180px units cover a 1440px-tall screen under the header. */
 export const FIRST_SCREEN_ROWS = 8;
+
+/** Whether two areas share a unit, or with `margin` 1, touch at an edge or a corner. */
+const meet = (a: SeaArea, b: SeaArea, margin = 0) =>
+  a.row < b.row + b.h + margin && b.row < a.row + a.h + margin && a.col < b.col + b.w + margin && b.col < a.col + a.w + margin;
+
+/** The hero at each column count `--cols` takes, as globals.css sets `--hero-start` (1-based), `--hero-span` and `--hero-rows`. */
+export const HERO: Record<number, [start: number, span: number, rows: number]> = {
+  6: [1, 5, 4],
+  7: [2, 5, 4],
+  8: [2, 5, 3],
+  9: [3, 5, 3],
+  10: [3, 5, 3],
+  11: [4, 5, 3],
+  12: [4, 6, 3],
+  13: [4, 6, 3],
+  14: [5, 6, 3],
+  15: [5, 6, 3],
+  16: [5, 7, 3],
+  17: [6, 7, 3],
+  18: [6, 7, 3],
+  19: [7, 7, 3],
+  20: [7, 7, 3],
+};
+const heroAt = (cols: number) => HERO[Math.min(20, Math.max(6, cols))]!;
+
+/**
+ * CSS's `row dense` flow over the first screen at this many columns: each
+ * cell at the first unit, row by row, where it fits around the hero and the
+ * cells before it. Rows below are the packed background's, so a cell with no
+ * room in these rows falls past the grid's foot, clipped: `null`.
+ */
+function denseFlow(cols: number) {
+  const [start, span, rows] = heroAt(cols);
+  const taken = Array.from({ length: FIRST_SCREEN_ROWS }, (_, r) =>
+    Array.from({ length: cols }, (_, c) => r >= 1 && r < 1 + rows && c >= start - 1 && c < start - 1 + span),
+  );
+  const fits = (r: number, c: number, w: number, h: number) => {
+    for (let y = r; y < r + h; y++) for (let x = c; x < c + w; x++) if (taken[y]![x]) return false;
+    return true;
+  };
+  return {
+    next: ([w, h]: readonly [number, number]): SeaArea | null => {
+      for (let r = 0; r + h <= FIRST_SCREEN_ROWS; r++) for (let c = 0; c + w <= cols; c++) if (fits(r, c, w, h)) return { row: r, col: c, w, h };
+      return null;
+    },
+    take: (at: SeaArea | null) => {
+      if (at !== null) for (let y = at.row; y < at.row + at.h; y++) for (let x = at.col; x < at.col + at.w; x++) taken[y]![x] = true;
+    },
+  };
+}
+
+/** Each column count's first-screen accents, where CSS puts them: what the packed background's keep clear of. */
+const FIRST_ACCENTS: Record<number, SeaArea[]> = {};
+/**
+ * The first screen's cells, in the server's HTML, in the order CSS packs them:
+ * an accent once ten have gone by, at the first cell where, at every column
+ * count, CSS puts it clear of every accent before it. The server cannot know
+ * the width, so no other order would hold them apart (PR 510 r6: at 3440,
+ * France sat on Mexico).
+ */
+export const FIRST_SCREEN: Ground[] = [];
+{
+  const flows = Object.keys(HERO).map((key) => {
+    const cols = Number(key);
+    FIRST_ACCENTS[cols] = [];
+    return { flow: denseFlow(cols), accents: FIRST_ACCENTS[cols] };
+  });
+  let days = 0;
+  let since = 0;
+  for (let i = 0; i < FIRST_SCREEN_SIZED + FIRST_SCREEN_SINGLE; i++) {
+    const single = i >= FIRST_SCREEN_SIZED;
+    if (since >= ACCENT_EVERY - 1 && SEA_ACCENTS.length > 0) {
+      const next = SEA_ACCENTS[(i - days) % SEA_ACCENTS.length]!;
+      const accent: SeaAccent = single ? { ...next, size: "1x1" } : next;
+      const spots = flows.map(({ flow }) => flow.next(SIZE[accent.size]));
+      if (spots.every((at, k) => at === null || flows[k]!.accents.every((other) => !meet(at, other, 1)))) {
+        spots.forEach((at, k) => {
+          flows[k]!.flow.take(at);
+          if (at !== null) flows[k]!.accents.push(at);
+        });
+        FIRST_SCREEN.push({ accent });
+        since = 0;
+        continue;
+      }
+    }
+    const next = POOL[days++]!;
+    const cell: SeaDoor = single ? { ...next, size: "1x1" } : next;
+    for (const { flow } of flows) flow.take(flow.next(SIZE[cell.size]));
+    FIRST_SCREEN.push({ cell });
+    since += 1;
+  }
+}
+/** How many of the pool's days and accents the first screen has used, where the packer below it carries on. */
+const FIRST_SCREEN_ACCENTS = FIRST_SCREEN.filter((ground) => ground.accent !== undefined).length;
+const FIRST_SCREEN_DAYS = FIRST_SCREEN.length - FIRST_SCREEN_ACCENTS;
+/** The first screen's accents at this many columns, where CSS puts them. */
+export const firstScreenAccents = (cols: number): readonly SeaArea[] => FIRST_ACCENTS[Math.min(20, Math.max(6, cols))]!;
 // The grid's gap and side padding in px (`--sea-gap`, `--sea-pad`).
 const GAP = 8;
 const PAD = 16;
@@ -207,10 +290,6 @@ const WIDE = 14;
  */
 const NEXT_AT = 0.75;
 
-/** Whether two areas share a unit, or with `margin` 1, touch at an edge or a corner. */
-const meet = (a: SeaArea, b: SeaArea, margin = 0) =>
-  a.row < b.row + b.h + margin && b.row < a.row + a.h + margin && a.col < b.col + b.w + margin && b.col < a.col + a.w + margin;
-
 /**
  * **The sea below the first screen, packed** (the prototype's layout): the
  * story cells in page order, each the next as soon as the last is fading, the
@@ -225,8 +304,8 @@ export function layoutSea({ cols, unit, viewport }: SeaMetrics): SeaLayout {
   // before it dims (the prototype's G0).
   const opening = Math.max(3, Math.ceil((1.35 * viewport) / step));
   const base = cols >= 16 ? 6 : cols >= 12 ? 5 : 4;
-  // The hero starts at the second row and is `--hero-rows` tall (globals.css).
-  const heroEnd = 1 + (cols < 8 ? 4 : 3);
+  // The hero starts at the second row.
+  const heroEnd = 1 + heroAt(cols)[2];
   const inset = Math.round(cols * 0.1);
 
   // Rows are added as the stories reach them.
@@ -312,9 +391,9 @@ export function layoutSea({ cols, unit, viewport }: SeaMetrics): SeaLayout {
 
   // Every unit left, row by row, from where the first screen's cells end: a
   // library day, or once ten have gone by, an accent where it touches no
-  // other accent.
+  // other accent, the first screen's too.
   const background: SeaLayout["background"] = [];
-  const accents: SeaArea[] = [];
+  const accents: SeaArea[] = [...firstScreenAccents(cols)];
   let days = FIRST_SCREEN_DAYS;
   let accentsUsed = FIRST_SCREEN_ACCENTS;
   let since = 0;
@@ -486,7 +565,13 @@ function Accent({ accent, at }: { accent: SeaAccent; at?: SeaArea }) {
     >
       <Link href={accent.href} prefetch={false} tabIndex={-1} className="landing-sea-door landing-sea-stamp no-underline">
         <span className="landing-sea-stamp-label">{accent.label}</span>
-        <span className="landing-sea-stamp-name">{accent.name}</span>
+        <span
+          // eslint-disable-next-line no-restricted-syntax -- the name's longest word in characters, which `.landing-sea-stamp-name` sizes its type to the cell by
+          style={{ "--word": Math.max(...accent.name.split(" ").map((word) => word.length)) } as React.CSSProperties}
+          className="landing-sea-stamp-name"
+        >
+          {accent.name}
+        </span>
       </Link>
     </div>
   );
@@ -755,7 +840,7 @@ export function LandingSea({ hero, pricing, closing }: { hero?: ReactNode; prici
           className="landing-sea-scrim"
         />
         {/* First in the DOM, so a screen reader meets the page's h1 first. */}
-        <div className="landing-sea-hero flex min-h-0 flex-col justify-center overflow-hidden rounded-2xl bg-paper p-9 shadow-lifted">
+        <div data-testid="sea-hero" className="landing-sea-hero flex min-h-0 flex-col justify-center overflow-hidden rounded-2xl bg-paper p-9">
           {hero}
         </div>
         {FIRST_SCREEN.map((ground, i) => (

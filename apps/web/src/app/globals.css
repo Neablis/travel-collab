@@ -179,6 +179,12 @@
   --text-4xl: clamp(38px, 4.6vw, 58px);
   --text-4xl--line-height: 1.03;
   --text-4xl--letter-spacing: -0.022em;
+  /* The desktop sea's hero alone: a size above the closing's `text-4xl`, so
+     the first screen's headline stands off the full-colour sea (Mitchell's
+     third walk of PR 510). */
+  --text-5xl: clamp(44px, 4.4vw, 76px);
+  --text-5xl--line-height: 1.02;
+  --text-5xl--letter-spacing: -0.024em;
 
   /* 4px, for the brand mark's tile and nothing else so far. SPEC §28 states
      the radius directly ("32px tile, 4px radius, 18px strokes") and the scale
@@ -2068,8 +2074,9 @@ html[data-look="ledger"] .shadow-raised {
   }
   /* The hero stands off the full-colour sea around it (Mitchell's third walk
      of PR 510: *"maybe give it a little more standout"*): a paper frame and an
-     ink rule inside the grid's gap, a deep shadow, and a larger headline. The
-     cells around it keep their colour. */
+     ink rule inside the grid's gap, and a deep shadow; its headline is
+     `text-5xl`. The cells around it keep their colour. No `shadow-*` utility
+     on the element: one would win over this from the utilities layer. */
   .landing-sea-hero {
     grid-row: 2 / span var(--hero-rows);
     grid-column: var(--hero-start) / span var(--hero-span);
@@ -2078,9 +2085,6 @@ html[data-look="ledger"] .shadow-raised {
       0 0 0 0.1875rem var(--color-paper),
       0 0 0 0.375rem var(--color-ink),
       0 1.5rem 4rem -0.5rem color-mix(in srgb, var(--color-ink) 55%, transparent);
-  }
-  .landing-sea-hero h1 {
-    font-size: clamp(2.75rem, 4.4vw, 4.75rem);
   }
   /* A cell's region strip: mono caps over the card, white on the region's
      mat (the prototype's `.ml`). */
@@ -2264,6 +2268,8 @@ html[data-look="ledger"] .shadow-raised {
     padding: 0.75rem;
     overflow: hidden;
     color: var(--color-person-on);
+    /* The name's type is sized to this cell (`cqi`). */
+    container-type: inline-size;
   }
   .landing-sea-stamp-label {
     font-family: var(--font-mono);
@@ -2277,10 +2283,15 @@ html[data-look="ledger"] .shadow-raised {
   .landing-sea-stamp-name {
     font-family: var(--font-display);
     font-weight: 500;
-    font-size: clamp(0.875rem, 1.6vw, 1.625rem);
+    /* As large as the cell allows its longest word (`--word` characters, at
+       most 0.6em each in the display faces) on one line, so a name is never
+       cut mid-word where the browser has no hyphenation dictionary (PR 510
+       r6: "Switzerlan" on Linux Chromium). Breaking anywhere is the last
+       resort, for a face wider than that. */
+    font-size: min(clamp(0.875rem, 1.6vw, 1.625rem), 100cqi / (0.6 * var(--word, 1)));
     line-height: 1.05;
     letter-spacing: -0.02em;
-    hyphens: auto;
+    overflow-wrap: anywhere;
   }
   /* Content longer than its cell, faded out at the cell's foot rather than
      cut there: the notebook's page. */

@@ -1,7 +1,6 @@
 "use client";
 
-import { useState } from "react";
-import { AddToTripForm, NEW_TRIP, type AddToTripChoice } from "@/components/playbooks/AddToTripForm";
+import { AddToTripForm } from "@/components/playbooks/AddToTripForm";
 import { DiscoverCard } from "@/components/playbooks/DiscoverCard";
 import { ItineraryDayBlock } from "@/components/pages/blocks/ItineraryDayBlock";
 import { SunBlock } from "@/components/pages/blocks/SunBlock";
@@ -61,22 +60,25 @@ export function FindADayPanel(): React.ReactElement {
 /**
  * The make-it-your-trip moment's worked example (Mitchell's third walk of PR
  * 510: *"too empty, it should have an example thats relevent"*): "Add to a
- * trip"'s own fields for the Railay day, twice, as a new trip and as a day of
- * the Thailand trip a reader already has, each landing it on Day 1. Canned
- * trips and no button: the fields fetch nothing, and the moment's own link is
- * the way in.
+ * trip"'s own fields for the Railay day, landing it on Day 1 of the Thailand
+ * trip a reader already has, with "Start a new trip" one of the choices.
+ * Canned trips, and a disabled fieldset: the fields submit nothing, so they
+ * are no tab stops, while a screen reader still reads them as the example
+ * they are. The moment's own link is the way in.
  */
 export function MakeTripPanel(): React.ReactElement {
   const { day, trip, days } = LANDING_FEATURES.make;
-  const [fresh, setFresh] = useState<AddToTripChoice>({ tripId: NEW_TRIP, startingAt: "", startDate: "" });
-  const [existing, setExisting] = useState<AddToTripChoice>({ tripId: trip.tripId, startingAt: days[0]!.dayId, startDate: "" });
   return (
-    <div className="@container min-h-0 flex-1 overflow-hidden">
-      <div className="grid gap-5 @xl:grid-cols-2">
-        <AddToTripForm dayName={day.name} dayCount={day.dayCount} trips={[trip]} days={days} value={fresh} onChange={setFresh} />
-        <AddToTripForm dayName={day.name} dayCount={day.dayCount} trips={[trip]} days={days} value={existing} onChange={setExisting} />
-      </div>
-    </div>
+    <fieldset disabled aria-label="An example: the day added to a trip" className="min-h-0 flex-1 overflow-hidden">
+      <AddToTripForm
+        dayName={day.name}
+        dayCount={day.dayCount}
+        trips={[trip]}
+        days={days}
+        value={{ tripId: trip.tripId, startingAt: days[0]!.dayId, startDate: "" }}
+        onChange={() => {}}
+      />
+    </fieldset>
   );
 }
 

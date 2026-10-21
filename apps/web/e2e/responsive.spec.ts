@@ -884,6 +884,72 @@ test.describe("responsive (narrow viewport, signed out)", () => {
       );
       expect(untitled).toEqual([]);
     });
+
+    // Mitchell's third walk of PR 510: *"For the primary header for the app,
+    // maybe give it a little more standout?"*. A paper frame and an ink ring
+    // in the gap that no sea cell has, and a headline larger than the
+    // closing's `text-4xl` (58px at most). Computed in the browser, because a
+    // utility class on the same element silently won over both (PR 510 r6).
+    test(`the hero stands off the sea at ${width}px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 1000 });
+      await page.goto("/");
+      const hero = page.getByTestId("desktop-landing").getByTestId("sea-hero");
+      const headline = hero.getByRole("heading", { level: 1, name: "Plan the trip together." });
+      await expect(headline).toBeVisible();
+      const cell = page.getByTestId("desktop-landing").getByTestId("sea-cell").first();
+      const shadow = (el: Element) => getComputedStyle(el).boxShadow;
+      const [heroShadow, cellShadow] = [await hero.evaluate(shadow), await cell.evaluate(shadow)];
+      expect(heroShadow).not.toBe(cellShadow);
+      expect(heroShadow).toMatch(/0px 0px 0px 6px/);
+      expect(await headline.evaluate((el) => Number.parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThan(58);
+    });
+
+    // "never two touching" (Mitchell's third walk: accents *"spread out"*):
+    // the first screen's accents, which CSS packs `dense`, and the packed
+    // background's below them. At 3440×1271, France sat on Mexico (PR 510 r6).
+    test(`no two accents touch at ${width}px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: width === 3440 ? 1271 : 900 });
+      await page.goto("/");
+      const grid = page.getByTestId("desktop-landing").getByTestId("sea-grid");
+      await expect(grid.getByTestId("sea-accent").first()).toBeAttached();
+      // Packed again for the columns CSS chose, not the server's six.
+      await expect
+        .poll(() => grid.evaluate((el) => el.getAttribute("data-cols") === getComputedStyle(el).getPropertyValue("--cols").trim()))
+        .toBe(true);
+      const touching = await grid.evaluate((el) => {
+        const foot = el.getBoundingClientRect().bottom;
+        // Past the grid's foot is a first-screen cell that found no room, and is clipped.
+        const boxes = [...el.querySelectorAll("[data-testid=sea-accent]")]
+          .map((accent) => ({ name: accent.textContent, box: accent.getBoundingClientRect() }))
+          .filter(({ box }) => box.bottom <= foot + 1);
+        // Neighbours are one 8px gap apart, at an edge or a corner.
+        const near = (a: DOMRect, b: DOMRect) =>
+          Math.max(a.left - b.right, b.left - a.right) < 12 && Math.max(a.top - b.bottom, b.top - a.bottom) < 12;
+        return boxes.flatMap((a, i) => boxes.slice(i + 1).filter((b) => near(a.box, b.box)).map((b) => `${a.name} / ${b.name}`));
+      });
+      expect(touching).toEqual([]);
+    });
+
+    // A name is never cut mid-word (PR 510 r6: "Switzerlan"): where the
+    // browser has no hyphenation dictionary, as Linux Chromium has none, it
+    // still fits its cell.
+    test(`every accent's name fits its cell at ${width}px`, async ({ page }) => {
+      // A screen tall enough that every band of the sea is near, and mounted.
+      await page.setViewportSize({ width, height: 8000 });
+      await page.goto("/");
+      const accents = page.getByTestId("desktop-landing").getByTestId("sea-accent");
+      // Every accent once over, the longest one-word name with them.
+      await expect.poll(() => accents.count()).toBeGreaterThan(34);
+      expect(await accents.allTextContents()).toContain("CountrySwitzerland");
+      const clipped = await accents.evaluateAll((els) =>
+        els.flatMap((accent) => {
+          const stamp = accent.querySelector(".landing-sea-stamp")!;
+          const name = accent.querySelector(".landing-sea-stamp-name")!;
+          return stamp.scrollWidth > stamp.clientWidth || name.scrollWidth > name.clientWidth ? [name.textContent] : [];
+        }),
+      );
+      expect(clipped).toEqual([]);
+    });
   }
 
   // The front door is the one surface a phone actually reaches signed out,

@@ -1,10 +1,13 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { renderToString } from "react-dom/server";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { LANDING_FEATURES } from "@/lib/landingDemo";
 import { LANDING_SEA, SEA_ACCENTS, SEA_DAYS } from "@/lib/landingSea";
 import { dayPath, parseDaySegment } from "@/lib/playbookUrls";
-import { FIRST_SCREEN, FIRST_SCREEN_ROWS, LandingSea, SEA_REGIONS, layoutSea, momentRise, seaDim, type SeaArea } from "./LandingSea";
+import { FIRST_SCREEN, FIRST_SCREEN_ROWS, HERO, LandingSea, SEA_REGIONS, firstScreenAccents, layoutSea, momentRise, seaDim, type SeaArea } from "./LandingSea";
 
 /** The first screen's days, without its accents. */
 const FIRST_DAYS = FIRST_SCREEN.flatMap((ground) => (ground.cell === undefined ? [] : [ground.cell]));
@@ -184,8 +187,10 @@ describe("the sea's moments", () => {
   });
 
   // Mitchell's third walk of PR 510: "This card is still too empty". The
-  // make moment shows "Add to a trip"'s own fields for the Railay day, as a
-  // new trip and as Day 1 of a trip the reader has.
+  // make moment shows "Add to a trip"'s own fields for the Railay day, landing
+  // it on Day 1 of a trip the reader has: one "Which trip", one sentence that
+  // agrees with it (PR 510 r6: two forms named alike, and "appended at the
+  // end" under "this day is day 1").
   it("makes it your trip, under the heading Mitchell gave it, with the add-to-trip choice worked through", async () => {
     render(<LandingSea />);
     const make = within(
@@ -194,13 +199,27 @@ describe("the sea's moments", () => {
     const href = make.getByRole("link", { name: "Make this your trip" }).getAttribute("href")!;
     expect(SEA_DAYS.find((cell) => cell.href === href)!.day.name).toMatch(/^Railay/);
     const trips = await make.findAllByRole("combobox", { name: "Which trip" });
-    expect(trips.map((select) => (select as HTMLSelectElement).selectedOptions[0]!.textContent)).toEqual([
-      "Start a new trip",
-      LANDING_FEATURES.make.trip.name,
-    ]);
+    expect(trips.map((select) => (select as HTMLSelectElement).selectedOptions[0]!.textContent)).toEqual([LANDING_FEATURES.make.trip.name]);
     expect((make.getByRole("combobox", { name: "Which day" }) as HTMLSelectElement).selectedOptions[0]!.textContent).toBe("Day 1");
-    expect(make.getByText(/this day is day 1/)).toBeDefined();
     expect(make.getByText(/The day lands on Day 1/)).toBeDefined();
+    expect(make.queryByText(/appended at the end/)).toBeNull();
+  });
+
+  // The example submits nothing, so a keyboard passes over it to the
+  // moment's one way in (PR 510 r6: seven tab stops that did nothing).
+  it("keeps the make moment's worked example out of the tab order", WHOLE_SEA, async () => {
+    render(<LandingSea />);
+    const region = screen.getByRole("region", { name: "Start a trip using someone else’s Thailand day, or add it to an existing plan." });
+    await within(region).findByRole("combobox", { name: "Which day" });
+    // Every stop Tab lands on inside the moment, once round the whole sea
+    // (Tab wraps, so the count only needs to be past the sea's stops).
+    const stops = new Set<string>();
+    region.addEventListener("focusin", (event) => {
+      const at = event.target as HTMLElement;
+      stops.add(at.getAttribute("aria-label") ?? at.textContent ?? at.tagName);
+    });
+    for (let i = 0; i < 60; i++) await userEvent.tab();
+    expect([...stops]).toEqual(["Make this your trip"]);
   });
 
   it("puts the crew on the Greek trip's borrowed Day 2, with the Greek days lit around it", async () => {
@@ -542,6 +561,28 @@ describe("the sea at Mitchell's third walk", () => {
     }
     const first = FIRST_SCREEN.filter((ground) => ground.accent !== undefined).length / FIRST_SCREEN.length;
     expect(first >= 1 / 12 && first <= 1 / 8).toBe(true);
+  });
+
+  // The first screen's accents, which CSS packs, and the background's, which
+  // `layoutSea` packs below them, at every column count (PR 510 r6: at 3440,
+  // France sat on Mexico). responsive.spec.ts checks the browser's packing.
+  it("keeps every accent clear of every other, the first screen's too, at every column count", () => {
+    for (let cols = 6; cols <= 20; cols++) {
+      const below = layoutSea({ cols, unit: 175, viewport: 1271 })
+        .background.filter((ground) => ground.accent !== undefined)
+        .map(({ at }) => at);
+      const accents = [...firstScreenAccents(cols), ...below];
+      const touching = accents.flatMap((a, i) => accents.slice(i + 1).filter((b) => meet(a, b, 1)).map((b) => `${a.row},${a.col} ${b.row},${b.col}`));
+      expect({ cols, touching }).toEqual({ cols, touching: [] });
+    }
+  });
+
+  // `HERO` is the first screen's packing's copy of globals.css's `--hero-*`.
+  it("places the hero where globals.css does, at every column count", () => {
+    const css = readFileSync(resolve(__dirname, "../../app/globals.css"), "utf8");
+    const blocks = [...css.matchAll(/--cols: (\d+);\s*(?:\/\*[^*]*\*\/\s*)?--hero-span: (\d+);\s*--hero-start: (\d+);\s*--hero-rows: (\d+);/g)];
+    const fromCss = Object.fromEntries(blocks.map(([, cols, span, start, rows]) => [Number(cols), [Number(start), Number(span), Number(rows)]]));
+    expect(fromCss).toEqual(HERO);
   });
 
   it("links every accent to its page, out of the tab order like the background around it", WHOLE_SEA, () => {

@@ -88,7 +88,7 @@ export function LandingScreen() {
                 Days worth reliving
               </DataText>
 
-              <Heading level={1} className="text-4xl text-pretty">
+              <Heading level={1} className="text-5xl text-pretty">
                 Plan the trip together.
               </Heading>
 
