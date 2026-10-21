@@ -4,9 +4,10 @@
 M49 (decision 7). It comes from the top entry of `docs/candidates.md`, *The front door tells the
 story*, which M50's walk filed on 2026-10-19 (M50 decision 21). The design review settled every
 decision below before any code. The build plan is `docs/plans/2026-10-20-M51-front-door.md`,
-seven parts on `main`. Part 0 is this file, the plan and the gate tracker. No ADR: the one contract
-change (`addedBy`, part 4) is an additive read-model field, recorded in
-`docs/contracts/CHANGELOG.md` by that part.
+nine parts on `main` (parts 8 and 9 added during the build). Part 0 is this file, the plan and the
+gate tracker. No ADR: the two contract changes are additive, the `addedBy` read-model field
+(part 4) and the public API's preview stop cap, 3 to 12 (part 9, 1.20.0), each recorded in
+`docs/contracts/CHANGELOG.md` by its part.
 
 ## Why this exists
 
@@ -129,6 +130,23 @@ it, the notebook afterwards). Then the sea dims back behind them.
     content that does not fit clamps, wraps or shows one row. Recorded in
     `docs/guidelines/building-from-the-design.md`.
 
+**Answered by Mitchell, 2026-10-21:**
+
+14. **The find moment's banner is his hand-picked Italy days**, not a ranking rule: the Rome day
+    as the banner, with Florence, Amalfi and Bologna lit (*"i never said to make it a rule"*).
+    They come in as content bundles exported from production; the landing links to the import's
+    copies, and his production originals stay.
+15. **The Italy bundle copies are owned by the library's demo owners** (dev-marco, dev-sofia,
+    dev-elena, dev-tomas), not his account.
+16. **Day cards list activities until they run out of room.** On the landing sea the cell sizes
+    them. On playbook list pages it is option (b): cards in a grid row share one height, set by
+    titles and details with room for at least 3 stops, and a card fills any spare height with
+    more stops. No card shows fewer than 3 or grows because of its stops.
+17. **The public API's preview stop cap rises from 3 to 12** (option b, a contract change; part 9,
+    1.20.0).
+18. **The notebook moment's journal prose stays as written**, and the sun widget gets a
+    *"Sunrise and sunset"* heading.
+
 **The comments behind them, verbatim** (typos kept). The ones quoted in decisions 3–11 are not
 repeated here.
 
@@ -163,7 +181,7 @@ repeated here.
 
 ## Scope
 
-Seven parts, each its own PR on `main` (the plan has the files, entry points, tests and preview
+Nine parts, each its own PR on `main` (the plan has the files, entry points, tests and preview
 walks):
 
 1. **The sea's data.** All 148 public library days as `DiscoverCard` props with sample ratings,
@@ -184,10 +202,16 @@ walks):
    real (Mitchell: *"We might also want a test or ci check that we dont introduce changes to
    frontend that will break this"*): a CI unit test against the importer's own slug/id code, and
    a CI step that requests every sea link on the PR's preview.
+8. **The preview link check** (PR 511, merged). Part 7's CI step against the PR's preview, built
+   as its own part: it requests every sea link and fails on any non-200 (*The links stay real*,
+   second half).
+9. **Day previews carry their stops** (PR 513, open). Day cards list stops until they run out of
+   room, and the public API's preview stop cap rises from 3 to 12 (1.20.0; decisions 16 and 17).
+   It waits on part 2 (PR 510) and merges after it.
 
 Order: 1, 4, 5 and 7 start at once; 2 waits on 1; 3 and 6 wait on 2 (6 on 5 as well). 7 is
 independent of 2–6. The crew
-moment's names wait on 4.
+moment's names wait on 4. 8 followed 7; 9 merges after 2.
 
 ## Out of scope
 
