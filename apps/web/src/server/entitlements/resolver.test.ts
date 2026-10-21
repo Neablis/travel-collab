@@ -6,6 +6,7 @@
 import { describe, expect, it } from "vitest";
 import { can } from "./capability";
 import {
+  drawsOnPricedPlan,
   entitlementsLostIfSubscriptionStops,
   mostGenerousCeilings,
   resolveEntitlements,
@@ -194,5 +195,21 @@ describe("what a lapse would take", () => {
   // be reached with a sentence about other people.
   it("is empty for an account that never subscribed", () => {
     expect(entitlementsLostIfSubscriptionStops(resolveEntitlements(FREE, []))).toEqual([]);
+  });
+});
+
+// The Unsplash quotas' per-user tier: free by price, never by plan id.
+describe("drawsOnPricedPlan", () => {
+  const conferring = (yes: boolean) =>
+    ({ row: {}, conferring: yes, pastDueSince: null, graceEndsAt: null, lapsed: !yes }) as never;
+
+  it.each([
+    ["a bare free account", false, resolveEntitlements(FREE, [])],
+    ["a plus subscriber", true, resolveEntitlements(PLUS, [], conferring(true))],
+    ["a free account on a granted plus trial", true, resolveEntitlements(FREE, [grant({ planId: "plus" })])],
+    ["a lapsed plus subscriber", false, resolveEntitlements(PLUS, [], conferring(false))],
+    ["a studio grant, which is not sold at all", true, resolveEntitlements(FREE, [grant({ planId: "studio" })])],
+  ])("counts %s as paying: %s", (_who, expected, account) => {
+    expect(drawsOnPricedPlan(account)).toBe(expected);
   });
 });
