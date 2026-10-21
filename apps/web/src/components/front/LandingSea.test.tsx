@@ -262,13 +262,14 @@ describe("the sea's moments", () => {
       return moment;
     }
 
-    it("shows the turn's steps, open, as the tools the answer used", async () => {
+    // Mitchell, later on the same walk: "Unexpand the 'Hide how it got there'
+    // so nothing goes off the bottom".
+    it("draws the turn's steps closed, as the app's one-line summary of them", async () => {
       const moment = await assistantMoment();
-      const steps = within(moment.getByRole("log", { name: "Conversation", hidden: true }))
-        .getAllByRole("listitem", { hidden: true })
-        .map((step) => step.textContent);
-      expect(steps.length).toBeGreaterThanOrEqual(3);
-      expect(steps).toEqual(expect.arrayContaining(["Read the trip", "Checked day 1", "Drafted a change"]));
+      const log = within(moment.getByRole("log", { name: "Conversation", hidden: true }));
+      expect(log.queryAllByRole("listitem", { hidden: true })).toEqual([]);
+      expect(log.getByText(/^\d+ steps · Drafted a change$/)).toBeDefined();
+      expect(log.queryByText("Hide how it got there")).toBeNull();
     });
 
     it("sums the turn up in the app's own note, with Accept all", async () => {

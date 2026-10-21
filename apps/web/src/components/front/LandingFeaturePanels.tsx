@@ -171,8 +171,8 @@ const RAIL_TABS = [
  * built"*), drawn as the app draws its assistant (his walk of PR 514, beside a
  * screenshot of the real panel): the panel's head, its Chat and Ask tabs on
  * Ask, and the line saying what it is looking at; the app's own transcript,
- * asking for more of the Rome trip's Day 1, with the steps the turn took open
- * beneath it, the answer, and the note of the suggestion it stored (ADR-067)
+ * asking for more of the Rome trip's Day 1, with the steps the turn took
+ * folded to their one-line summary, the answer, and the note of the suggestion it stored (ADR-067)
  * with *Accept all*. Beside it, the day under a stack of what is being added,
  * and the board's own river drawing the same stops as ghosts, one with its
  * popover open.

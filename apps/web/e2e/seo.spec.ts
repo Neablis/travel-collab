@@ -241,15 +241,33 @@ test("a day's head: name and first city in the title, the facts line, a slugged 
 //    and by the size of anything upstream (KI-2026-10-18-e: 84 bytes in the
 //    root layout, or a shorter asked-for path, turned that red with no privacy
 //    change). A `$` string is a reference to a row, so it is numbering too.
-const FLIGHT_CHUNK = /<script>self\.__next_f\.push\(\[1,("(?:[^"\\]|\\.)*")\]\)<\/script>/g;
+const FLIGHT_PUSH = "self.__next_f.push(";
 function said(body: string, segment: string): string {
   const asked = body
     .replace(/<meta name="(?:sentry-trace|baggage)" content="[^"]*"\/>/g, "")
     .split(segment)
     .join("<asked>");
-  const payload = [...asked.matchAll(FLIGHT_CHUNK)].map(([, chunk]) => JSON.parse(chunk!) as string).join("");
+  // Cut on the exact tags the page emits rather than matching elements with a
+  // pattern: every `<script…>` up to its `</script>` comes out of the HTML,
+  // and the inline ones that push a flight chunk (`[1, "<chunk>"]`) give it up.
+  let html = "";
+  let payload = "";
+  let at = 0;
+  for (let open = asked.indexOf("<script", at); open !== -1; open = asked.indexOf("<script", at)) {
+    const start = asked.indexOf(">", open) + 1;
+    const end = asked.indexOf("</script>", start);
+    expect(start > 0 && end !== -1, "a <script> the page closes").toBe(true);
+    html += asked.slice(at, open);
+    const script = asked.slice(start, end);
+    if (script.startsWith(FLIGHT_PUSH)) {
+      const [kind, chunk] = JSON.parse(script.slice(FLIGHT_PUSH.length, -1)) as [number, unknown];
+      if (kind === 1) payload += chunk as string;
+    }
+    at = end + "</script>".length;
+  }
+  html += asked.slice(at);
   const strings = new Set((payload.match(/"(?:[^"\\]|\\.)*"/g) ?? []).filter((string) => !string.startsWith('"$')));
-  return `${asked.replace(/<script\b[^>]*>[\s\S]*?<\/script>/g, "")}\n\n${[...strings].sort().join("\n")}`;
+  return `${html}\n\n${[...strings].sort().join("\n")}`;
 }
 
 test("a private day and an unknown one are the same 404 with the same body", async ({ page, browser }) => {

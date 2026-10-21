@@ -157,7 +157,7 @@ function announcementFor(turns: readonly AssistantTurn[], chat: boolean): string
  * already the whole announcement a screen reader needs here.
  */
 function ToolSteps({ tools, still = false }: { tools: readonly ToolNote[]; still?: boolean }) {
-  const [open, setOpen] = useState(still);
+  const [open, setOpen] = useState(false);
   const last = tools[tools.length - 1];
   if (last === undefined) return null;
 
@@ -178,8 +178,9 @@ function ToolSteps({ tools, still = false }: { tools: readonly ToolNote[]; still
   return (
     <div className="rounded-md border border-hairline px-2.5 py-1.5">
       {still ? (
-        // A picture of the disclosure, standing open: no button, and out of
-        // hit-testing so its hover colour never shows.
+        // A picture of the disclosure, closed so the moment keeps to its
+        // frame: no button, and out of hit-testing so its hover colour never
+        // shows.
         <span className={cn(buttonVariants({ variant: "ghost", size: "sm" }), look, "pointer-events-none cursor-default")}>{summary}</span>
       ) : (
         <Button variant="ghost" size="sm" aria-expanded={open} onClick={() => setOpen((wasOpen) => !wasOpen)} className={look}>
