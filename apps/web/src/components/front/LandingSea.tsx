@@ -54,6 +54,10 @@ type Ground = { cell: SeaDoor; accent?: never } | { accent: SeaAccent; cell?: ne
 
 /** Each region's mat and the name on its strip (the prototype's `MAT` and `REGION`), by the snapshot's bundle. */
 export const SEA_REGIONS: Record<string, { label: string; mat: string }> = {
+  "3-days-in-bologna-tortellini-mortadella-market-mornings": { label: "Italy", mat: "bg-mat-rust" },
+  "3-days-in-florence-renaissance-art-workshops-the-oltrarno": { label: "Italy", mat: "bg-mat-rust" },
+  "3-days-in-rome-emperors-gladiators-the-layers-beneath": { label: "Italy", mat: "bg-mat-rust" },
+  "3-days-on-the-amalfi-coast-cliff-towns-lemon-groves-the-path-of-the-gods": { label: "Italy", mat: "bg-mat-rust" },
   "alpine-summer": { label: "Alpine summer", mat: "bg-person-sky" },
   "andes-patagonia": { label: "Andes and Patagonia", mat: "bg-person-clay" },
   "australia-newzealand": { label: "Australia and NZ", mat: "bg-person-ochre" },
@@ -99,18 +103,26 @@ const SPAN: Record<SeaCellSize, string> = {
 // on PR 510: *"maybe like 2-3, not 6"*), and never the moment's own day
 // (Mitchell's third walk: *"The banner to left is the same activity to
 // right"*). Each is a day named here, not ranked (Mitchell's fourth walk:
-// *"Let the rule go"*). Find a day raises the Phi Phi day and lights two more;
-// make it your trip shows the Railay day and lights three others; the crew's
-// river is Elena's Naxos day, and it lights three other Greek ones; the
-// notebook lights the demo's three Japan days.
+// *"Let the rule go"*). Find a day raises Mitchell's Rome playbook and lights
+// his Florence, Amalfi and Bologna ones (his fourth walk: *"use these rome days
+// for the card and the accent cards around it"*); make it your trip shows the
+// Railay day and lights three other Thai ones; the crew's river is Elena's
+// Naxos day, and it lights three other Greek ones; the notebook lights the
+// demo's three Japan days.
 const THAILAND = SEA_DAYS.filter((cell) => cell.group === "thailand-beaches");
 const GREECE = SEA_DAYS.filter((cell) => cell.group === "greek-islands");
+const dayOf = (group: string) => SEA_DAYS.find((cell) => cell.group === group)!;
 /** The find moment's banner, the day the generator names as `LANDING_FEATURES.shelf`. */
-const BANNER = THAILAND.find((cell) => cell.day.name.startsWith("Phi Phi"))!;
+const BANNER = dayOf("3-days-in-rome-emperors-gladiators-the-layers-beneath");
+const ITALY = [
+  dayOf("3-days-in-florence-renaissance-art-workshops-the-oltrarno"),
+  dayOf("3-days-on-the-amalfi-coast-cliff-towns-lemon-groves-the-path-of-the-gods"),
+  dayOf("3-days-in-bologna-tortellini-mortadella-market-mornings"),
+];
 /** The Railay day's page, where the day is added to a trip; part 6 makes this the onboarding itself. */
 const RAILAY = THAILAND.find((cell) => cell.day.name.startsWith("Railay"))!;
 const NAXOS = GREECE.find((cell) => cell.day.name.startsWith("Naxos"))!;
-const THAI = THAILAND.filter((cell) => cell !== BANNER && cell !== RAILAY);
+const THAI = THAILAND.filter((cell) => cell !== RAILAY);
 const GREEK = GREECE.filter((cell) => cell !== NAXOS);
 
 export type MomentId = "sea-find" | "sea-make" | "sea-crew" | "sea-notebook";
@@ -124,8 +136,8 @@ export const MOMENT_DAY: Record<MomentId, string | null> = {
   "sea-notebook": null,
 };
 const LIT: Record<MomentId, SeaDoor[]> = {
-  "sea-find": THAI.slice(0, 2),
-  "sea-make": THAI.slice(2, 5),
+  "sea-find": ITALY,
+  "sea-make": THAI.slice(0, 3),
   "sea-crew": GREEK.slice(0, 3),
   "sea-notebook": LANDING_SEA.japan,
 };

@@ -24,8 +24,8 @@ const DEMOS = [
 /** The phone's Playbooks claim, Mitchell's Hanoi playbook (`scripts/landing-day.json`). */
 const PLAYBOOK = /^Hanoi in 4 days/;
 
-/** The sea's first moment's banner, the day `scripts/landing-demo.ts` names in `content/playbooks/thailand-beaches.json`. */
-const BANNER = /^Phi Phi on your own boat/;
+/** The sea's first moment's banner, the Rome playbook `scripts/landing-demo.ts` names in `content/playbooks/`. */
+const BANNER = /^3 days in Rome: emperors, gladiators/;
 
 test.describe("the front door, signed out (M42)", () => {
   test.use({ storageState: { cookies: [], origins: [] } });
@@ -196,8 +196,8 @@ test.describe("the front door, signed out (M42)", () => {
   // clipping box would take focus out of sight and scroll that box out of
   // place. At 1440, and at 1100, where the grid is six columns. The count
   // comes first: the walk proves nothing if no lit cell is a door. The big
-  // banner card, then the Thai and Greek days lit around the moments (Japan's
-  // open nothing).
+  // banner card, then the Italian, Thai and Greek days lit around the moments
+  // (Japan's open nothing).
   for (const [width, cols] of [
     [1100, 6],
     [1440, 8],
@@ -226,7 +226,7 @@ test.describe("the front door, signed out (M42)", () => {
             }),
         ),
       );
-      expect(doors).toHaveLength(1 + 2 + 3 + 3);
+      expect(doors).toHaveLength(1 + 3 + 3 + 3);
       expect(doors.filter((door) => door.cut)).toEqual([]);
     });
   }

@@ -57,50 +57,48 @@
     "namedTags": []
   },
   "shelf": {
-    "savedDayId": "111ab643-9eea-4c20-894a-994586dd7c72",
-    "ownerId": "dev-priya",
-    "ownerDisplayName": "Priya",
-    "name": "Phi Phi on your own boat: viewpoint at six, Pileh before the fleet, Bamboo after it",
+    "savedDayId": "a0f7662e-c84d-4a18-8606-a37c5bfa60ea",
+    "ownerId": "dev-marco",
+    "ownerDisplayName": "Marco",
+    "name": "3 days in Rome: emperors, gladiators & the layers beneath",
     "cities": [
-      "Ko Phi Phi"
+      "Rome"
     ],
     "matchedCities": [],
-    "stopCount": 8,
-    "dayCount": 1,
-    "window": {
-      "start": "06:15",
-      "end": "19:45"
-    },
+    "stopCount": 14,
+    "dayCount": 3,
+    "window": null,
     "preview": [
       {
-        "title": "Viewpoint 1, 2 and 3 before sunrise",
-        "start": "06:15"
+        "title": "The Colosseum, arena floor first",
+        "start": "09:00"
       },
       {
-        "title": "Breakfast in Tonsai village",
-        "start": "07:35"
+        "title": "The Roman Forum",
+        "start": "11:30"
       },
       {
-        "title": "Private longtail leaves Tonsai Bay",
-        "start": "08:45"
+        "title": "Palatine Hill",
+        "start": "13:30"
       }
     ],
     "totalCost": null,
-    "adds": 4,
-    "rating": 4.6,
-    "reviewCount": 54,
+    "adds": 0,
+    "rating": 4.7,
+    "reviewCount": 28,
     "visibility": "public",
-    "authorKind": "ai",
-    "sourceTripName": "Andaman, twelve days and one bag",
-    "createdAt": "2025-07-12T09:15:00.000Z",
-    "publishedAt": "2025-07-12T09:15:00.000Z",
+    "authorKind": "human",
+    "sourceTripName": "3 days in Rome: emperors, gladiators & the layers beneath",
+    "createdAt": "2026-09-20T00:00:00.000Z",
+    "publishedAt": "2026-09-20T00:00:00.000Z",
     "isMine": false,
     "cover": null,
-    "description": "Beach & outdoors",
+    "description": "Sightseeing",
     "tags": [
-      "beach",
-      "outdoors",
+      "sight",
       "meal",
+      "museum",
+      "shopping",
       "tour"
     ],
     "namedTags": []

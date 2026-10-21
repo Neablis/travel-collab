@@ -309,24 +309,31 @@ function landingCard(row: DiscoverRow): DiscoverDay {
 /**
  * The find moment's banner: a day named by its key, not ranked by a rule
  * (Mitchell's fourth walk of PR 510: *"Let the rule go, i never said to make
- * it a rule, use the italy days i suggested"*). His Italy days are in
- * production only, so until `content/` holds them it is the Phi Phi day, the
- * one the banner already showed. A library playbook, read from the bundle the
- * production import reads and resolved by the same `resolvePlaybook`, so its
- * id is the one the library serves and its card links to a day that exists.
- * Its adds are the bundle's own ledger, and its rating the sample one its
- * cell in the sea carries (M51 decision 9), so the two agree.
+ * it a rule, use the italy days i suggested"*): his Rome playbook, whose day 1
+ * is the Colosseum, the Forum and the Palatine. His own row is in production
+ * only; this is the bundle copy of his export, whose id the content import
+ * derives, so its card links to a day previews and production both hold once
+ * imported. Drawn as its cell in the sea is, so the two agree.
  *
  * The card is a frozen copy of a row the content import owns, re-derived from
  * the bundle file only, so `landing:verify` cannot see the production row
  * change: hidden by a moderator, renamed or pruned away, or given a cover by
  * its author. Check the row on production's Discover when regenerating.
  */
-const SHELF_BUNDLE_PATH = new URL("../../../content/playbooks/thailand-beaches.json", import.meta.url);
+const SHELF_BUNDLE = "3-days-in-rome-emperors-gladiators-the-layers-beneath";
+
+function shelfPlaybook(): DiscoverDay {
+  const bundle = libraryBundles().find((b) => b.bundle.id === SHELF_BUNDLE);
+  const playbook = bundle?.playbooks.find((p) => p.key === SHELF_BUNDLE);
+  if (bundle === undefined || playbook === undefined) throw new Error(`landing demo: content/playbooks no longer holds ${SHELF_BUNDLE}`);
+  return seaCard(bundle, playbook);
+}
+
+const THAILAND_BUNDLE_PATH = new URL("../../../content/playbooks/thailand-beaches.json", import.meta.url);
 
 /** The bundle's public days as the sea's cards, each stamped with its `keptOn`, the only reproducible date the import gives a day. */
 function thailandCards(): { key: string; day: DiscoverDay; resolved: ResolvedPlaybook }[] {
-  const bundle = parseBundle(JSON.parse(readFileSync(SHELF_BUNDLE_PATH, "utf8")));
+  const bundle = parseBundle(JSON.parse(readFileSync(THAILAND_BUNDLE_PATH, "utf8")));
   return bundle.playbooks
     .filter((playbook) => playbook.visibility === "public")
     .map((playbook) => {
@@ -334,14 +341,6 @@ function thailandCards(): { key: string; day: DiscoverDay; resolved: ResolvedPla
       if (resolved.keptOn === undefined) throw new Error(`landing demo: ${playbook.key} has no keptOn date to stamp it with`);
       return { key: playbook.key, day: libraryCard(resolved, sampleRating(resolved.savedDayId), resolved.keptOn), resolved };
     });
-}
-
-const SHELF_KEY = "phi-phi-private-longtail";
-
-function shelfPlaybook(): DiscoverDay {
-  const shelf = thailandCards().find(({ key }) => key === SHELF_KEY);
-  if (shelf === undefined) throw new Error(`landing demo: thailand-beaches no longer holds ${SHELF_KEY}`);
-  return shelf.day;
 }
 
 /**
@@ -445,6 +444,16 @@ function sampleRating(savedDayId: string): { rating: number; reviewCount: number
   return { rating: 4 + (Math.floor(h / 9) % 10) / 10, reviewCount: 3 + (Math.floor(h / 90) % 58) };
 }
 
+/**
+ * A public library playbook as its sea card, with its sample rating. Its
+ * `keptOn` goes in as the stamp only because the card needs one (an export
+ * carries none, and takes the reference date); `seaCell` takes the dates off.
+ */
+function seaCard(bundle: ContentBundleV1, playbook: ContentBundleV1["playbooks"][number]): DiscoverDay {
+  const day = resolvePlaybook(bundle.bundle.id, playbook, bundle.bundle.origin);
+  return libraryCard(day, sampleRating(day.savedDayId), day.keptOn ?? REFERENCE_START_DATE);
+}
+
 /** The card without what `SeaDay` leaves out. */
 const seaDayOf = ({ createdAt: _created, publishedAt: _published, sourceTripName: _source, ...drawn }: DiscoverDay): SeaDay => drawn;
 
@@ -458,8 +467,6 @@ function seaCell(day: DiscoverDay, group: string): SeaCell {
  * (bundle, key), so the link holds wherever `content/` is imported: `db:reseed`
  * locally, `import-content-production.yml` in production. A preview build
  * imports no content yet, so there these links 404 until M51 part 7 seeds it.
- * The day's `keptOn` goes in as the stamp only because the card needs one;
- * `seaCell` takes the dates off again.
  */
 function librarySea(): SeaDayCell[] {
   const cells = libraryBundles()
@@ -467,8 +474,7 @@ function librarySea(): SeaDayCell[] {
       bundle.playbooks
         .filter((playbook) => playbook.visibility === "public")
         .map((playbook) => {
-          const day = resolvePlaybook(bundle.bundle.id, playbook, bundle.bundle.origin);
-          const card = libraryCard(day, sampleRating(day.savedDayId), day.keptOn ?? REFERENCE_START_DATE);
+          const card = seaCard(bundle, playbook);
           return { ...seaCell(card, bundle.bundle.id), href: dayPath(card) };
         }),
     );

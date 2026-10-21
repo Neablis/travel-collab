@@ -1,0 +1,294 @@
+{
+  "$schema": "travel-collab/content-bundle/v1",
+  "bundle": {
+    "id": "3-days-in-bologna-tortellini-mortadella-market-mornings",
+    "name": "3 days in Bologna: tortellini, mortadella & market mornings",
+    "origin": "human",
+    "sources": [],
+    "generatedAt": "2026-10-21T04:13:36.364Z"
+  },
+  "trips": [],
+  "playbooks": [
+    {
+      "key": "3-days-in-bologna-tortellini-mortadella-market-mornings",
+      "name": "3 days in Bologna: tortellini, mortadella & market mornings",
+      "summary": "Eat your way through Italy's food capital: market crawls in the Quadrilatero, fresh pasta shops, wine at a 500-year-old osteria, and the portico walk up to San Luca. No tasting menus, no tourist traps — just Bologna as Bolognesi eat it.",
+      "ownerId": "dev-tomas",
+      "visibility": "public",
+      "origin": "human",
+      "sourceTrip": {
+        "name": "3 days in Bologna: tortellini, mortadella & market mornings"
+      },
+      "addedBy": [],
+      "version": 1,
+      "days": [
+        {
+          "stops": [
+            {
+              "title": "Breakfast crawl at Mercato di Mezzo",
+              "timeWindow": {
+                "start": "09:00",
+                "end": "11:00"
+              },
+              "location": {
+                "name": "Mercato di Mezzo",
+                "lat": 44.4933,
+                "lng": 11.34477,
+                "countryCode": "IT",
+                "city": "Bologna"
+              },
+              "notes": "Start hungry and graze: mortadella and crescentine at one stall, a coffee standing at another, then a glass of Pignoletto before noon. This covered market sits on the site of Bologna's medieval food market and is the gentlest possible introduction to the Quadrilatero.",
+              "kind": "planned",
+              "tags": [
+                "meal",
+                "shopping"
+              ]
+            },
+            {
+              "title": "Stroll the Quadrilatero food streets",
+              "timeWindow": {
+                "start": "11:00",
+                "end": "12:30"
+              },
+              "location": {
+                "name": "Via Pescherie Vecchie",
+                "lat": 44.49367,
+                "lng": 11.34445,
+                "countryCode": "IT",
+                "city": "Bologna"
+              },
+              "notes": "The medieval market streets, still doing what they have done for centuries: butchers, cheese mongers, fishmongers and pasta makers shoulder to shoulder under the porticoes. Look up at the old shop signs and the hanging mortadellas; buy nothing yet, lunch is next.",
+              "kind": "planned",
+              "tags": [
+                "sight",
+                "shopping"
+              ]
+            },
+            {
+              "title": "Lunch at Tamburini",
+              "timeWindow": {
+                "start": "12:30",
+                "end": "13:30"
+              },
+              "location": {
+                "name": "Tamburini",
+                "lat": 44.49384,
+                "lng": 11.34544,
+                "countryCode": "IT",
+                "city": "Bologna"
+              },
+              "notes": "Bologna's temple of salumi since 1932: a deli counter piled with mortadella, culatello and Parmigiano, with a tiny self-service restaurant upstairs. Order the tagliatelle al ragù and a plate of mixed cured meats; the waiters move fast and so should you.",
+              "kind": "planned",
+              "tags": [
+                "meal"
+              ]
+            },
+            {
+              "title": "Wine at Osteria del Sole",
+              "timeWindow": {
+                "start": "17:00",
+                "end": "18:30"
+              },
+              "location": {
+                "name": "Osteria del Sole",
+                "lat": 44.49382,
+                "lng": 11.34433,
+                "countryCode": "IT",
+                "city": "Bologna"
+              },
+              "notes": "Pouring since 1465 and still gloriously unchanged: no food menu, no fuss, just good cheap wine by the glass and long wooden tables. The tradition is to bring your own snacks — pick up cheese and tigelle from a Quadrilatero shop on the way and eat them here like a local.",
+              "kind": "planned",
+              "tags": [
+                "drinks"
+              ]
+            },
+            {
+              "title": "Evening on Piazza Maggiore",
+              "timeWindow": {
+                "start": "18:30",
+                "end": "19:30"
+              },
+              "location": {
+                "name": "Piazza Maggiore",
+                "lat": 44.49355,
+                "lng": 11.34304,
+                "countryCode": "IT",
+                "city": "Bologna"
+              },
+              "notes": "Digest with a slow lap of Bologna's living room: the Neptune Fountain, the unfinished facade of San Petronio, students and old men arguing under the porticoes. Come back at night if you can — the piazza empties and the brick glows.",
+              "kind": "planned",
+              "tags": [
+                "sight"
+              ]
+            }
+          ]
+        },
+        {
+          "stops": [
+            {
+              "title": "Buy fresh pasta at Sfoglia Rina",
+              "timeWindow": {
+                "start": "09:30",
+                "end": "10:30"
+              },
+              "location": {
+                "name": "Sfoglia Rina",
+                "lat": 44.49315,
+                "lng": 11.34632,
+                "countryCode": "IT",
+                "city": "Bologna"
+              },
+              "notes": "Watch the sfogline roll pasta by hand through the shop window, then buy tortellini and tagliatelle to cook at home — or eat on the spot if they have a table. This is the pasta shop Bolognesi themselves queue for, and the tortellini in brodo is the city's signature dish.",
+              "kind": "planned",
+              "tags": [
+                "shopping"
+              ]
+            },
+            {
+              "title": "Lunch at Osteria dell'Orsa",
+              "timeWindow": {
+                "start": "12:30",
+                "end": "14:00"
+              },
+              "location": {
+                "name": "Osteria dell'Orsa",
+                "lat": 44.49705,
+                "lng": 11.34741,
+                "countryCode": "IT",
+                "city": "Bologna"
+              },
+              "notes": "A student institution with shared tables and honest prices: tortellini in brodo, tagliatelle al ragù, and a carafe of Sangiovese. It fills with university kids at lunch, which is exactly the point — this is Bologna's everyday cooking, not a performance of it.",
+              "kind": "planned",
+              "tags": [
+                "meal"
+              ]
+            },
+            {
+              "title": "Climb the Asinelli Tower",
+              "timeWindow": {
+                "start": "15:00",
+                "end": "16:30"
+              },
+              "location": {
+                "name": "Torre degli Asinelli",
+                "lat": 44.4944,
+                "lng": 11.34643,
+                "countryCode": "IT",
+                "city": "Bologna"
+              },
+              "notes": "498 steps up the tallest leaning tower in Italy, for the red-roof panorama that explains the city: porticoes radiating in every direction, the hills to the south. Book a timed slot ahead; the staircase is narrow, steep and one-way, and worth every step.",
+              "kind": "planned",
+              "tags": [
+                "ticketed",
+                "sight"
+              ]
+            },
+            {
+              "title": "Portico walk to San Luca",
+              "timeWindow": {
+                "start": "17:00",
+                "end": "19:00"
+              },
+              "location": {
+                "name": "Santuario della Madonna di San Luca",
+                "lat": 44.47896,
+                "lng": 11.29772,
+                "countryCode": "IT",
+                "city": "Bologna"
+              },
+              "notes": "The world's longest portico — 666 arches, nearly 4km uphill from Porta Saragozza to the hilltop sanctuary. Walk it in the late afternoon when the light slants through the arches, then watch Bologna turn gold from the terrace. Take the little tourist train back down if your legs object.",
+              "kind": "planned",
+              "tags": [
+                "outdoors",
+                "sight"
+              ]
+            }
+          ]
+        },
+        {
+          "stops": [
+            {
+              "title": "The Anatomical Theatre at the Archiginnasio",
+              "timeWindow": {
+                "start": "09:30",
+                "end": "11:00"
+              },
+              "location": {
+                "name": "Archiginnasio",
+                "lat": 44.49209,
+                "lng": 11.3434,
+                "countryCode": "IT",
+                "city": "Bologna"
+              },
+              "notes": "Bologna's first university building, home of the world's oldest university: a wood-panelled anatomical theatre where medical students watched dissections, ringed by 7,000 student coats of arms. Quiet, strange and beautiful — and almost always uncrowded.",
+              "kind": "planned",
+              "tags": [
+                "museum",
+                "sight"
+              ]
+            },
+            {
+              "title": "Lunch at Trattoria Pizzeria Belle Arti",
+              "timeWindow": {
+                "start": "12:30",
+                "end": "14:00"
+              },
+              "location": {
+                "name": "Trattoria Pizzeria Belle Arti",
+                "lat": 44.49763,
+                "lng": 11.34952,
+                "countryCode": "IT",
+                "city": "Bologna"
+              },
+              "notes": "A university-quarter trattoria on Via Belle Arti: handwritten menu, ragù that has been simmering since morning, and prices that still make sense. Order whatever pasta the kitchen is proudest of today and a plate of friggione if it's on.",
+              "kind": "planned",
+              "tags": [
+                "meal"
+              ]
+            },
+            {
+              "title": "Gelato at Cremeria la Vecchia Stalla",
+              "timeWindow": {
+                "start": "16:00",
+                "end": "16:30"
+              },
+              "location": {
+                "name": "Cremeria la Vecchia Stalla",
+                "lat": 44.49294,
+                "lng": 11.34753,
+                "countryCode": "IT",
+                "city": "Bologna"
+              },
+              "notes": "Bologna takes gelato seriously and this tiny shop on Via Santo Stefano is where locals go: pistachio made from real Bronte nuts, crema, and seasonal fruit flavours that change with the market. Small cup, eaten standing outside, then keep walking.",
+              "kind": "planned",
+              "tags": [
+                "meal"
+              ]
+            },
+            {
+              "title": "Farewell dinner at Ristorante da Cesari",
+              "timeWindow": {
+                "start": "19:30",
+                "end": "21:30"
+              },
+              "location": {
+                "name": "Cesari",
+                "lat": 44.49128,
+                "lng": 11.34086,
+                "countryCode": "IT",
+                "city": "Bologna"
+              },
+              "notes": "The classic last-night table: white tablecloths, proper Bolognese cooking, and a wine list that rewards asking the waiter. Book ahead — it is small and beloved. Order the tortellini in brodo one more time; you will miss it on the plane home.",
+              "kind": "planned",
+              "tags": [
+                "meal"
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "notebooks": [],
+  "activities": []
+}

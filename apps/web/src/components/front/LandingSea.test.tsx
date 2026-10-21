@@ -4,6 +4,7 @@ import { act, cleanup, fireEvent, render, screen, within } from "@testing-librar
 import userEvent from "@testing-library/user-event";
 import { renderToString } from "react-dom/server";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { playbookIdFor } from "@tc/fixtures";
 import { LANDING_FEATURES } from "@/lib/landingDemo";
 import { LANDING_SEA, SEA_ACCENTS, SEA_DAYS } from "@/lib/landingSea";
 import { dayPath, parseDaySegment } from "@/lib/playbookUrls";
@@ -161,6 +162,25 @@ describe("the sea's moments", () => {
     expect(await find.findAllByRole("link", { name: LANDING_FEATURES.shelf.name })).toHaveLength(1);
     const links = screen.getAllByRole("link", { name: LANDING_FEATURES.shelf.name });
     expect(links.map((link) => link.getAttribute("href"))).toEqual([dayPath(LANDING_FEATURES.shelf)]);
+  });
+
+  // Mitchell's fourth walk of PR 510: "Lets use these rome days for the card
+  // and the accent cards around it". The banner is his Rome playbook, the one
+  // whose day 1 is the Colosseum, and the days lit beside it are his
+  // Florence, Amalfi and Bologna ones.
+  it("finds his Rome day, with his Florence, Amalfi and Bologna days lit around it", async () => {
+    render(<LandingSea />);
+    const rome = "3-days-in-rome-emperors-gladiators-the-layers-beneath";
+    const find = within(screen.getByRole("region", { name: "Find a day worth borrowing." }));
+    expect((await find.findByRole("link", { name: LANDING_FEATURES.shelf.name })).getAttribute("href")).toBe(
+      SEA_DAYS.find((cell) => cell.day.savedDayId === playbookIdFor(rome, rome))?.href,
+    );
+    const lit = litCells().filter((cell) => cell.getAttribute("data-lit-for") === "sea-find");
+    expect(lit.map((cell) => cell.getAttribute("data-region")).sort()).toEqual([
+      "3-days-in-bologna-tortellini-mortadella-market-mornings",
+      "3-days-in-florence-renaissance-art-workshops-the-oltrarno",
+      "3-days-on-the-amalfi-coast-cliff-towns-lemon-groves-the-path-of-the-gods",
+    ]);
   });
 
   // Mitchell's third walk of PR 510: "The banner to left is the same activity
@@ -406,7 +426,7 @@ describe("the sea's grid", () => {
       for (const viewport of [800, 1440]) {
         const layout = layoutSea({ cols, unit: 170, viewport });
         // Every day a moment lights finds its place, however narrow the grid.
-        expect({ cols, viewport, lit: layout.lit.length }).toEqual({ cols, viewport, lit: 11 });
+        expect({ cols, viewport, lit: layout.lit.length }).toEqual({ cols, viewport, lit: 12 });
         const taken = Array.from({ length: layout.rows }, () => new Array<number>(cols).fill(0));
         const areas = [...Object.values(layout.stories), ...layout.lit.map((lit) => lit.at), ...layout.background.map((cell) => cell.at)];
         for (const at of areas) {
@@ -464,12 +484,12 @@ describe("the sea's grid", () => {
     vi.spyOn(find, "getBoundingClientRect").mockReturnValue({ top: window.innerHeight / 4, height: window.innerHeight / 2 } as DOMRect);
     fireEvent.scroll(window);
     expect(panel.style.opacity).toBe("1");
-    expect(veils()).toEqual([0, 0]);
+    expect(veils()).toEqual([0, 0, 0]);
     // All but gone past the top: a ghost again, and its days dimmed with the sea.
     vi.spyOn(find, "getBoundingClientRect").mockReturnValue({ top: 40 - window.innerHeight / 2, height: window.innerHeight / 2 } as DOMRect);
     fireEvent.scroll(window);
     expect(Number(panel.style.opacity)).toBeLessThan(1);
-    expect(veils().map((veil) => veil > 0)).toEqual([true, true]);
+    expect(veils().map((veil) => veil > 0)).toEqual([true, true, true]);
   });
 
   it("lights two or three days around each moment, apart from one another, and tabs through them down the page", () => {

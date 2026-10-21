@@ -2219,6 +2219,60 @@
     },
     {
       "day": {
+        "savedDayId": "ef810490-cce7-4cdc-89fc-8e2af6c9b482",
+        "ownerId": "dev-elena",
+        "ownerDisplayName": "Elena",
+        "name": "3 days on the Amalfi Coast: cliff towns, lemon groves & the Path of the Gods",
+        "cities": [
+          "Positano",
+          "Agerola",
+          "Amalfi",
+          "Ravello"
+        ],
+        "matchedCities": [],
+        "stopCount": 12,
+        "dayCount": 3,
+        "window": null,
+        "preview": [
+          {
+            "title": "Morning on Spiaggia Grande",
+            "start": "09:00"
+          },
+          {
+            "title": "Church of Santa Maria Assunta",
+            "start": "11:00"
+          },
+          {
+            "title": "Aperitivo at Franco's Bar",
+            "start": "17:30"
+          }
+        ],
+        "totalCost": null,
+        "adds": 0,
+        "rating": 4.6,
+        "reviewCount": 17,
+        "visibility": "public",
+        "authorKind": "human",
+        "isMine": false,
+        "cover": null,
+        "description": "Sightseeing",
+        "tags": [
+          "sight",
+          "meal",
+          "outdoors",
+          "museum",
+          "drinks",
+          "beach",
+          "tour"
+        ],
+        "namedTags": []
+      },
+      "size": "2x2",
+      "group": "3-days-on-the-amalfi-coast-cliff-towns-lemon-groves-the-path-of-the-gods",
+      "href": "/playbooks/day/3-days-on-the-amalfi-coast-cliff-towns-lemon-groves-the-path-ef810490-cce7-4cdc-89fc-8e2af6c9b482"
+    },
+    {
+      "day": {
         "savedDayId": "132a60b1-8e36-4656-87de-84999fca0a82",
         "ownerId": "dev-maeve",
         "ownerDisplayName": "Maeve",
@@ -4772,6 +4826,55 @@
     },
     {
       "day": {
+        "savedDayId": "a0f7662e-c84d-4a18-8606-a37c5bfa60ea",
+        "ownerId": "dev-marco",
+        "ownerDisplayName": "Marco",
+        "name": "3 days in Rome: emperors, gladiators & the layers beneath",
+        "cities": [
+          "Rome"
+        ],
+        "matchedCities": [],
+        "stopCount": 14,
+        "dayCount": 3,
+        "window": null,
+        "preview": [
+          {
+            "title": "The Colosseum, arena floor first",
+            "start": "09:00"
+          },
+          {
+            "title": "The Roman Forum",
+            "start": "11:30"
+          },
+          {
+            "title": "Palatine Hill",
+            "start": "13:30"
+          }
+        ],
+        "totalCost": null,
+        "adds": 0,
+        "rating": 4.7,
+        "reviewCount": 28,
+        "visibility": "public",
+        "authorKind": "human",
+        "isMine": false,
+        "cover": null,
+        "description": "Sightseeing",
+        "tags": [
+          "sight",
+          "meal",
+          "museum",
+          "shopping",
+          "tour"
+        ],
+        "namedTags": []
+      },
+      "size": "1x1",
+      "group": "3-days-in-rome-emperors-gladiators-the-layers-beneath",
+      "href": "/playbooks/day/3-days-in-rome-emperors-gladiators-the-layers-beneath-a0f7662e-c84d-4a18-8606-a37c5bfa60ea"
+    },
+    {
+      "day": {
         "savedDayId": "4f8d8b02-7c07-405c-8d18-11983fb9cc8a",
         "ownerId": "dev-nadia",
         "ownerDisplayName": "Nadia",
@@ -5237,6 +5340,56 @@
       "size": "2x2",
       "group": "vietnam-indonesia",
       "href": "/playbooks/day/ninh-binh-tam-coc-at-first-light-hang-mua-steps-trang-an-rou-5e136f12-aee7-4600-8b79-bac026c1ff22"
+    },
+    {
+      "day": {
+        "savedDayId": "09976f06-000f-4c28-8b04-60143918322a",
+        "ownerId": "dev-tomas",
+        "ownerDisplayName": "Tomas",
+        "name": "3 days in Bologna: tortellini, mortadella & market mornings",
+        "cities": [
+          "Bologna"
+        ],
+        "matchedCities": [],
+        "stopCount": 13,
+        "dayCount": 3,
+        "window": null,
+        "preview": [
+          {
+            "title": "Breakfast crawl at Mercato di Mezzo",
+            "start": "09:00"
+          },
+          {
+            "title": "Stroll the Quadrilatero food streets",
+            "start": "11:00"
+          },
+          {
+            "title": "Lunch at Tamburini",
+            "start": "12:30"
+          }
+        ],
+        "totalCost": null,
+        "adds": 0,
+        "rating": 4.5,
+        "reviewCount": 55,
+        "visibility": "public",
+        "authorKind": "human",
+        "isMine": false,
+        "cover": null,
+        "description": "Sights & shopping",
+        "tags": [
+          "meal",
+          "sight",
+          "shopping",
+          "outdoors",
+          "drinks",
+          "museum"
+        ],
+        "namedTags": []
+      },
+      "size": "2x1",
+      "group": "3-days-in-bologna-tortellini-mortadella-market-mornings",
+      "href": "/playbooks/day/3-days-in-bologna-tortellini-mortadella-market-mornings-09976f06-000f-4c28-8b04-60143918322a"
     },
     {
       "day": {
@@ -7385,6 +7538,56 @@
     },
     {
       "day": {
+        "savedDayId": "1bdeaad2-cc2f-4520-8a0b-3400e09d8fc2",
+        "ownerId": "dev-sofia",
+        "ownerDisplayName": "Sofia",
+        "name": "3 days in Florence: Renaissance art, workshops & the Oltrarno",
+        "cities": [
+          "Florence"
+        ],
+        "matchedCities": [],
+        "stopCount": 14,
+        "dayCount": 3,
+        "window": null,
+        "preview": [
+          {
+            "title": "The Uffizi, Botticelli first",
+            "start": "09:00"
+          },
+          {
+            "title": "Piazza della Signoria",
+            "start": "12:00"
+          },
+          {
+            "title": "Ponte Vecchio at golden hour",
+            "start": "17:00"
+          }
+        ],
+        "totalCost": null,
+        "adds": 0,
+        "rating": 4.2,
+        "reviewCount": 59,
+        "visibility": "public",
+        "authorKind": "human",
+        "isMine": false,
+        "cover": null,
+        "description": "Sights & museums",
+        "tags": [
+          "sight",
+          "meal",
+          "museum",
+          "shopping",
+          "outdoors",
+          "tour"
+        ],
+        "namedTags": []
+      },
+      "size": "2x1",
+      "group": "3-days-in-florence-renaissance-art-workshops-the-oltrarno",
+      "href": "/playbooks/day/3-days-in-florence-renaissance-art-workshops-the-oltrarno-1bdeaad2-cc2f-4520-8a0b-3400e09d8fc2"
+    },
+    {
+      "day": {
         "savedDayId": "528be27c-1356-407c-84ff-f60e6901b35a",
         "ownerId": "dev-ruth",
         "ownerDisplayName": "Ruth",
@@ -7823,7 +8026,7 @@
       "label": "Activity",
       "name": "Museum",
       "size": "2x1",
-      "group": "britain-ireland",
+      "group": "3-days-in-florence-renaissance-art-workshops-the-oltrarno",
       "href": "/playbooks/tag/museum"
     },
     {
@@ -7951,7 +8154,7 @@
       "label": "Activity",
       "name": "Shopping",
       "size": "2x1",
-      "group": "andes-patagonia",
+      "group": "3-days-in-bologna-tortellini-mortadella-market-mornings",
       "href": "/playbooks/tag/shopping"
     },
     {
