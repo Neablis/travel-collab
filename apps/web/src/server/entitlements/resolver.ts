@@ -176,6 +176,23 @@ export function resolveEntitlements(
 }
 
 /**
+ * **Does this account draw on a plan that is not free**, right now.
+ *
+ * Read off the versions' prices, never their ids (ADR-045 rule 4): a version
+ * priced at zero is free, and anything else — a price, or `null` for a version
+ * not sold at all — is not. Over `conferred` and every grant, as the ceilings
+ * are, so a granted trial counts and a lapsed subscription, which confers
+ * `free`, does not. The Unsplash quotas' per-user tier (`quota.ts`).
+ */
+export function drawsOnPricedPlan(account: AccountEntitlements): boolean {
+  const versions = [
+    account.conferred,
+    ...account.grants.map((grant) => planVersionFromRef(`${grant.planId}@v${grant.planVersion}`)),
+  ];
+  return versions.some((version) => version.price === null || version.price.minor > 0);
+}
+
+/**
  * **What this account would stop conferring if its subscription stopped.**
  *
  * The honest answer to *"what does a lapse take from you"*, and the reason it
