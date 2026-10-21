@@ -110,6 +110,18 @@ here two days later.
   the sample values go. Open: the threshold for showing a real count, and whether the sea prefers
   well-reviewed days. Unplaced; no gate deletes this entry yet.
 
+- **Country + tag playbook pages (asked 2026-10-21).** Mitchell, walking PR 510: *"I actually
+  thought we had /playbooks/country/italy/tags/food but we dont, a nice to have feature would be
+  to have more deeply nested tags / country and use those like we do country / city"*. City + tag
+  exists (`app/playbooks/{[copy],live}/city/[slug]/[tag]/page.tsx`); country has only
+  `country/[slug]`. Mirror city/[slug]/[tag]: `tagPath` (`lib/playbookUrls.ts`), `publishedTagPages`
+  (`server/playbooks.ts`, which counts per city only), `tagPageFor` and `tagPage.ts`, so `sitemap.ts`
+  and `placeIndexable` pick it up; city/tag renders no JSON-LD, so add `placeItemListJsonLd` as
+  `country/[slug]` does. Route: `/playbooks/country/<slug>/<tag>` (tag key, so Food is `meal`), not
+  `/tags/`: one shape with city/tag, and `tagPath` gains a branch, not a new scheme. M51's landing
+  accent cells (PR 510) link to country, city and tag pages and could use it. Unplaced; no gate
+  deletes this entry yet.
+
 - **Gesture and keyboard follow-ups left out of M41 (2026-10-10).** Considered while scoping M41
   and left for later, in rough order of value:
   - **Multi-select drag:** shift-click several stops and drag them as one batch.
