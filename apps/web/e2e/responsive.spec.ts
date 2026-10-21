@@ -1112,51 +1112,63 @@ test.describe("responsive (narrow viewport, signed out)", () => {
       // page rather than somewhere auth sent us; the second witness proves the
       // widest content on it actually rendered, which is what can overflow.
       //
-      // **The second witness is the phone front door's, since SPEC §28.** At
-      // these widths the desktop landing is `display: none` and `PhoneFrontDoor`
-      // is the page, so a desktop feature-card
-      // heading is no longer on screen and this walk waited 30 seconds for
-      // it. The pinned scroll sequence is what this width actually renders, and
-      // it is also the thing most able to push the page sideways: four
-      // absolutely-positioned claims translating horizontally under a headline.
-      await expect(
-        page.getByRole("heading", { name: "Plan the trip together." }),
-      ).toBeVisible();
-      await expect(page.getByTestId("phone-front-door")).toBeVisible();
-      await expect(page.getByTestId("front-door-claim").first()).toBeVisible();
-      const { scrollWidth, clientWidth, widest } = await page.evaluate(() => {
+      // **The second witness is the phone's sea** (M51 decision 11): at these
+      // widths the desktop landing is `display: none` and `PhoneFrontDoor` is
+      // the page, a grid of cards in its own scroller whose bands mount as the
+      // reader nears them. So the walk scrolls the whole page, and measures
+      // the document and the scroller at every half screen: a band that
+      // mounts too wide is found where it mounts.
+      await expect(page.getByRole("heading", { name: "Plan the trip together." })).toBeVisible();
+      const door = page.getByTestId("phone-front-door");
+      const cells = door.getByTestId("phone-sea").getByTestId("sea-cell");
+      await expect(cells.first()).toBeVisible();
+      const before = await cells.count();
+      const worst = await door.evaluate(async (scroller) => {
         const doc = document.documentElement;
-        // Name the worst offender in the failure message — "the page is 40px
-        // too wide" on its own costs an afternoon of bisecting by hand.
-        let widest = "";
-        let worst = 0;
-        for (const el of Array.from(document.body.querySelectorAll("*"))) {
-          const right = el.getBoundingClientRect().right;
-          if (right > worst) {
-            worst = right;
-            widest = `${el.tagName.toLowerCase()}.${(el.className || "").toString().split(" ").slice(0, 3).join(".")} → right=${Math.round(right)}`;
+        let found = { doc: 0, scroller: 0, widest: "" };
+        for (let top = 0; top <= scroller.scrollHeight; top += scroller.clientHeight / 2) {
+          scroller.scrollTop = top;
+          await new Promise((settled) => setTimeout(settled, 100));
+          const over = { doc: doc.scrollWidth - doc.clientWidth, scroller: scroller.scrollWidth - scroller.clientWidth };
+          if (over.doc > found.doc || over.scroller > found.scroller) {
+            // Name the worst offender in the failure message — "the page is
+            // 40px too wide" on its own costs an afternoon of bisecting by hand.
+            // Not one inside a box that clips it, which pushes nothing: a
+            // card's clipped second column is far past the edge by design.
+            const clipped = (el: Element) => {
+              for (let up = el.parentElement; up !== null && up !== scroller; up = up.parentElement) {
+                if (getComputedStyle(up).overflowX !== "visible") return true;
+              }
+              return false;
+            };
+            let widest = "";
+            let right = 0;
+            for (const el of Array.from(scroller.querySelectorAll("*"))) {
+              if (clipped(el)) continue;
+              const edge = el.getBoundingClientRect().right;
+              if (edge > right) {
+                right = edge;
+                widest = `${el.tagName.toLowerCase()}.${(el.className || "").toString().split(" ").slice(0, 3).join(".")} → right=${Math.round(edge)} at ${top}`;
+              }
+            }
+            found = { ...over, widest };
           }
         }
-        return { scrollWidth: doc.scrollWidth, clientWidth: doc.clientWidth, widest };
+        return found;
       });
-      expect(scrollWidth, `widest element: ${widest}`).toBeLessThanOrEqual(clientWidth);
+      expect(await cells.count(), "the walk mounted no band past the first screen").toBeGreaterThan(before);
+      expect({ doc: worst.doc, scroller: worst.scroller }, `widest element: ${worst.widest}`).toEqual({ doc: 0, scroller: 0 });
     });
   }
 
-  // Mitchell, second round on the preview: *"the header with the logo and site
-  // name and sign in button should still be visible"*.
-  //
-  // It scrolled away with the first flick, and the reasoning that put it there
-  // was about the wrong thing: the header sits OUTSIDE the pinned block so it
-  // does not slide with the map, which is still right — but outside the pin is
-  // not the same as scrolling off. `sticky top-0` keeps it over the stage, over
-  // the empty paper the pin releases onto, and over the call to action.
+  // Mitchell, on the old pinned front door: *"the header with the logo and
+  // site name and sign in button should still be visible"*. The sea scrolls
+  // under it in the phone's own scroller, and `sticky top-0` keeps it put.
   //
   // e2e rather than jsdom, because `position: sticky` is layout: jsdom reports
   // every box at its flow position and would pass this with the property
-  // deleted. Red-checked by removing it: the header came back 3840px above the
-  // fold, which is how far off screen it had been all along.
-  test("the phone front door keeps its header on screen through the sequence", async ({ page }) => {
+  // deleted.
+  test("the phone front door keeps its header on screen, on paper over the sea", async ({ page }) => {
     await page.setViewportSize({ width: 411, height: 760 });
     await page.goto("/");
     const signIn = page.getByRole("link", { name: "Sign in" });
@@ -1179,10 +1191,9 @@ test.describe("responsive (narrow viewport, signed out)", () => {
     expect(Math.abs(afterScroll.y - atRest.y), "the header scrolled away with the page").toBeLessThan(2);
     expect(afterScroll.y).toBeLessThan(120);
 
-    // And it is on TOP of the pinned stage, not under it — the stage is also
-    // `sticky top-0` and comes after the header in the document, so without a
-    // stacking order the map paints over the one control this screen offers
-    // somebody who already has an account.
+    // And it is on TOP of the sea: its moments and lit days stand above the
+    // scrim, and without a stacking order one would paint over the one
+    // control this screen offers somebody who already has an account.
     const onTop = await page.evaluate(() => {
       const link = [...document.querySelectorAll("a")].find((a) => a.textContent?.trim() === "Sign in");
       if (!link) return null;
@@ -1192,19 +1203,10 @@ test.describe("responsive (narrow viewport, signed out)", () => {
     });
     expect(onTop, "something is painted over the Sign in link").toBe(true);
 
-    // Clear over the map, paper once the pin releases (Mitchell, 2026-10-11):
-    // past the pin, content scrolls under the bar and must not show through
-    // its links. Read as the painted colour, since that is the claim.
-    const header = page.getByRole("banner");
-    const background = () => header.evaluate((el) => getComputedStyle(el).backgroundColor);
-    await scroller.evaluate((el) => {
-      el.scrollTop = 0;
-    });
-    await expect.poll(background).toBe("rgba(0, 0, 0, 0)");
-    await scroller.evaluate((el) => {
-      el.scrollTop = el.scrollHeight;
-    });
-    await expect.poll(background).not.toBe("rgba(0, 0, 0, 0)");
+    // Paper, not clear: the sea's cards scroll under the bar and must not
+    // show through its links. Read as the painted colour, since that is the claim.
+    const header = scroller.getByRole("banner");
+    await expect.poll(() => header.evaluate((el) => getComputedStyle(el).backgroundColor)).not.toBe("rgba(0, 0, 0, 0)");
   });
 });
 

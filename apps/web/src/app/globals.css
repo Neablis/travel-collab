@@ -507,74 +507,12 @@ html[data-look="ledger"] .shadow-raised {
 
 
 @layer components {
-  /* SPEC §28's phone front door: the pinned block is three viewports tall, and
-     the sticky stage inside it is one — so scrolling it moves `scrollTop`
-     without moving what you are looking at, which is the whole mechanic. Three
-     is the length of the sequence, not a spacing value, so there is no token
-     for it and `h-[300dvh]` is the arbitrary value the colour wall correctly
-     rejects. It lives here, once, the way `.unscheduled-rack`'s own one-off
-     geometry does. */
-  .front-door-pin {
-    /* **900dvh, and it was 300.** Mitchell, on the preview: *"there needs to be
-       more time between the scroll transitions between blocks, right now the
-       last few are almost unreadable"*.
-
-       One of these viewports is the sticky stage, so the height is the sequence
-       plus one: at 300dvh four claims and the clear-out shared TWO screens of
-       scroll — about a third of a screen each, which is a flick of the thumb
-       per claim. At 900 they share eight, so a claim holds for most of a screen
-       and stopping on one is something you can actually do, which is §28's own
-       first note about this block ("you can stop on one").
-
-       Still a count rather than a spacing value, so still no token for it and
-       still an arbitrary Tailwind value the colour wall correctly refuses. */
-    height: 900dvh;
-  }
-
-  /* The paper veil over the front door's map (`dc.html:3401`), and the reason
-     the map reads as ground rather than as a picture: opaque at the top so the
-     headline sits on paper, clear through the middle where the route shows, and
-     opaque again at the foot so the claims are legible over it.
-
-     Here rather than in a class attribute because a `bg-[linear-gradient(…)]` is
-     an arbitrary Tailwind value and the colour wall correctly refuses those —
-     the same reasoning `.front-door-pin` above gives for its own one-off. The
-     stops are the design's; `color-mix` is how a token gets a partial alpha
-     without inventing a second colour for it. */
-  .front-door-veil {
-    background: linear-gradient(
-      180deg,
-      var(--color-paper) 0%,
-      color-mix(in srgb, var(--color-paper) 72%, transparent) 22%,
-      transparent 40%,
-      transparent 52%,
-      var(--color-paper) 86%
-    );
-  }
-
-  /* The plate a claim sits on (`dc.html:3410`). Mitchell, on the preview: *"The
-     mobile homepage styling is missing the background box with gradiant"* — it
-     is what keeps a claim readable while the map moves underneath it, and
-     without it the words sit directly on the route.
-
-     Radial rather than a flat panel on purpose: a rectangle of paper over a map
-     reads as a card, and this has to read as the map fading out around the
-     words. */
-  .front-door-plate {
-    background: radial-gradient(
-      128% 104% at 50% 50%,
-      var(--color-paper) 46%,
-      color-mix(in srgb, var(--color-paper) 72%, transparent) 72%,
-      transparent 100%
-    );
-  }
-
   /* A cover photo's veil (M37): the photo dissolves into whatever is under the
-     words, and the title stands on the fade — the front door's veil, applied
-     to a cover. Stops are the approved canvas's. `strip` is a home card's
-     132px strip, `band` the hero's 236px band, both into the card's surface;
-     `paper` is a playbook day's full-bleed cover, into the page. Classes, not
-     `bg-[linear-gradient(…)]`, for the colour wall's reason given above. */
+     words, and the title stands on the fade. Stops are the approved canvas's.
+     `strip` is a home card's 132px strip, `band` the hero's 236px band, both
+     into the card's surface; `paper` is a playbook day's full-bleed cover,
+     into the page. Classes, not `bg-[linear-gradient(…)]`: an arbitrary
+     Tailwind value, which the colour wall refuses. */
   .cover-veil-strip {
     background: linear-gradient(
       180deg,
@@ -878,10 +816,9 @@ html[data-look="ledger"] .shadow-raised {
      `.below-notebook-toolbar` — the notebook editor's widget column, sticky
      under AppHeader and the editing toolbar under it (60px: `md:py-3` around
      an `h-9` button). It was `top-29`, 116px, with the 56 hard-coded.
-     `.phone-front-door-header` / `.phone-front-door-stage` — the phone front
-     door, which is its own scroller with no AppHeader above it: its sticky
-     header's `pt-6` and the pinned stage's `pt-16`, each plus the inset. The
-     stage's headline clears the header because the two numbers move together.
+     `.phone-front-door-header` — the phone front door, which is its own
+     scroller with no AppHeader above it: its sticky header's `pt-6` plus the
+     inset. The sea starts under it in flow, so its headline clears it.
 
      TripHeader's `--sticky-stack-height` needs no rule: it is measured from
      the header's resolved `top`, which already includes the inset. */
@@ -903,9 +840,6 @@ html[data-look="ledger"] .shadow-raised {
   }
   .phone-front-door-header {
     padding-top: calc(1.5rem + var(--safe-area-top));
-  }
-  .phone-front-door-stage {
-    padding-top: calc(4rem + var(--safe-area-top));
   }
   /* The front door's footer, the end of its own `h-dvh` scroller: `py-5`'s
      bottom half plus the bottom inset (M39 Part 7). Not a top-inset rule —
@@ -2057,6 +1991,12 @@ html[data-look="ledger"] .shadow-raised {
       --hero-rows: 3;
     }
   }
+  /* The phone's sea (`PhoneFrontDoor`): two columns at every phone width, a
+     unit as wide as the desktop's narrowest, so a card fills it as it does
+     there. The packer places its hero, as it places everything else. */
+  .landing-sea.landing-sea-phone {
+    --cols: 2;
+  }
   .landing-sea-grid {
     --unit: calc((100cqw - 2 * var(--sea-pad) - (var(--cols) - 1) * var(--sea-gap)) / var(--cols));
     position: relative;
@@ -2346,6 +2286,12 @@ html[data-look="ledger"] .shadow-raised {
   .landing-sea-fade {
     mask-image: linear-gradient(to bottom, black calc(100% - 7rem), transparent);
   }
+  /* A moment's day on the phone's sea, the assistant's and the crew's, runs
+     on past its cell and fades out at the cell's foot the same way; on the
+     desktop's wider cells it fits whole. */
+  .landing-sea-phone .landing-phone-fade {
+    mask-image: linear-gradient(to bottom, black calc(100% - 5rem), transparent);
+  }
   /* A linked cell is a door: its title link covers the whole card, and the
      cell rings when the link is hovered or focused. */
   .landing-sea-door::after {
@@ -2357,55 +2303,6 @@ html[data-look="ledger"] .shadow-raised {
   .landing-sea-cell:has(.landing-sea-door:focus-visible) {
     outline: 2px solid var(--color-brand);
     outline-offset: 2px;
-  }
-
-  /* Paper grain on the landing's surfaces (M50 part 5): the spreads, the photo
-     slot and the closing moment, so the front door reads as paper rather than
-     a flat fill. The noise is an SVG filter, black at a low alpha and
-     multiplied, so it darkens whatever paper the look supplies instead of
-     carrying a colour of its own, and so works under `paper` and `ledger`
-     alike. Drawn under the content: `isolation` keeps the `z-index: -1` layer
-     inside the element, above its own background. The element supplies
-     `position: relative`, which the call sites set as a utility.
-
-     The alpha is held by the copy that sits on the grain, slate at 11 to
-     13px, which must keep 4.5:1 where the noise is darkest. At full noise the
-     layer darkens the ground by opacity x 0.55, and the slate ratios at
-     flat / mean noise / peak are:
-       paper look, 0.12:  paper 5.63 / 5.24 / 4.86, moss 5.31 / 4.94 / 4.59
-       ledger look, 0.08: paper 5.53 / 5.27 / 5.02, moss 5.01 / 4.78 / 4.55
-     Ledger takes the lighter grain because its cream moss starts darker; at
-     0.40 the spread copy there fell to 2.99:1 (PR 500's review).
-
-     A texture is translucency, so it goes under
-     `prefers-reduced-transparency`, and it goes in print, where it would come
-     out as smudge. */
-  .landing-grain {
-    isolation: isolate;
-  }
-  .landing-grain::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    z-index: -1;
-    pointer-events: none;
-    border-radius: inherit;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .55 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
-    mix-blend-mode: multiply;
-    opacity: 0.12;
-  }
-  html[data-look="ledger"] .landing-grain::before {
-    opacity: 0.08;
-  }
-  @media (prefers-reduced-transparency: reduce) {
-    .landing-grain::before {
-      display: none;
-    }
-  }
-  @media print {
-    .landing-grain::before {
-      display: none;
-    }
   }
 
   /* Notebook page prose (KI-44 / design-sync audit A3). `.tc-page-editor`
