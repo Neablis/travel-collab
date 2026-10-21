@@ -35,7 +35,7 @@
 
 import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import type { DiscoverDay } from "@/lib/playbooks";
+import { DISCOVER_PREVIEW_STOPS, type DiscoverDay } from "@/lib/playbooks";
 import {
   SavedStop,
   TripCover,
@@ -311,11 +311,11 @@ function landingCard(row: DiscoverRow): DiscoverDay {
 /**
  * The find moment's banner: a day named by its key, not ranked by a rule
  * (Mitchell's fourth walk of PR 510: *"Let the rule go, i never said to make
- * it a rule, use the italy days i suggested"*): his Rome playbook, whose day 1
- * is the Colosseum, the Forum and the Palatine. His own row is in production
- * only; this is the bundle copy of his export, whose id the content import
- * derives, so its card links to a day previews and production both hold once
- * imported. Drawn as its cell in the sea is, so the two agree.
+ * it a rule, use the italy days i suggested"*): his Rome playbook. His own
+ * row is in production only; this is the bundle copy of his export, whose id
+ * the content import derives, so its card links to a day previews and
+ * production both hold once imported. Drawn as its cell in the sea is but for
+ * its rows (`SHELF_DAY`), so the two agree on its name and its rating.
  *
  * The card is a frozen copy of a row the content import owns, re-derived from
  * the bundle file only, so `landing:verify` cannot see the production row
@@ -324,11 +324,25 @@ function landingCard(row: DiscoverRow): DiscoverDay {
  */
 const SHELF_BUNDLE = "3-days-in-rome-emperors-gladiators-the-layers-beneath";
 
+/**
+ * The day of it the banner's rows are (Mitchell, 2026-10-21: *"use day 2 for
+ * the banner"*): the Pantheon to Trastevere, six stops to day one's four, so
+ * the wide card is full. Discover previews day one; the banner alone says
+ * another, and still links to the whole playbook, the only page it has.
+ */
+const SHELF_DAY = 2;
+
 function shelfPlaybook(): DiscoverDay {
   const bundle = libraryBundles().find((b) => b.bundle.id === SHELF_BUNDLE);
   const playbook = bundle?.playbooks.find((p) => p.key === SHELF_BUNDLE);
   if (bundle === undefined || playbook === undefined) throw new Error(`landing demo: content/playbooks no longer holds ${SHELF_BUNDLE}`);
-  return seaCard(bundle, playbook);
+  const { stops } = resolvePlaybook(bundle.bundle.id, playbook, bundle.bundle.origin);
+  const preview = stops
+    .filter((stop) => stop.dayIndex === SHELF_DAY - 1)
+    .slice(0, DISCOVER_PREVIEW_STOPS)
+    .map((stop) => ({ title: stop.title, start: stop.timeWindow?.start ?? null }));
+  if (preview.length === 0) throw new Error(`landing demo: ${SHELF_BUNDLE} has no day ${SHELF_DAY}`);
+  return { ...seaCard(bundle, playbook), preview };
 }
 
 // ---------------------------------------------------------------------------
