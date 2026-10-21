@@ -265,13 +265,15 @@ export function inBudgetBand(band: BudgetBand, amountMinor: number | null): bool
 }
 
 /**
- * How many of day one's stops a Discover card is sent. The card draws as many
- * as fit its cell (Mitchell, 2026-10-21: not just the design's
- * `dc.html:5795` `slice(0, 3)`), so this is a bound on the payload rather than
- * the row count. Twelve is more than any card cell has room for (no public
- * library day has more than eight stops), while a page of 24 cards stays ~20 KB at typical
- * title lengths, and a 200-item public-API page at most ~0.5 MB with every
- * title at its 200-character limit.
+ * How many of day one's stops a Discover card is sent. The card draws the
+ * rows that fit, whole (Mitchell, 2026-10-21: not just the design's
+ * `dc.html:5795` `slice(0, 3)`): on the landing sea, the room its cell leaves;
+ * anywhere else, the room three rows took, so the card keeps its height
+ * (`DiscoverCard`). This is a bound on the payload rather than the row count.
+ * Twelve is more than any card has room for (no public library day has more
+ * than eight stops), while a page of 24 cards stays ~20 KB at typical title
+ * lengths, and a 200-item public-API page at most ~0.5 MB with every title at
+ * its 200-character limit.
  */
 export const DISCOVER_PREVIEW_STOPS = 12;
 
@@ -326,8 +328,9 @@ export const DiscoverDay = z.object({
    * The card's stop rows (M27 link 10; `dc.html:2645`, built at `dc.html:5795`):
    * the first `DISCOVER_PREVIEW_STOPS` stops of the Playbook's FIRST day, each
    * as its start time and title — nothing else, because nothing else is drawn.
-   * The card shows those that fit; three until M51 part 9, which widened the
-   * public API's `maxItems` with it (`docs/contracts/CHANGELOG.md`).
+   * The card shows the rows that fit, whole, without growing; three were sent
+   * until M51 part 9, which widened the public API's `maxItems` with it
+   * (`docs/contracts/CHANGELOG.md`).
    *
    * Day one for every Playbook, one day or several — the design's own rule
    * (*"Previews everywhere else show one day — for a multi-day Playbook that is

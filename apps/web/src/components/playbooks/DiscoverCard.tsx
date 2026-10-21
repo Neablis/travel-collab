@@ -272,15 +272,23 @@ export function DiscoverCard({
       {/* `dc.html:2644-2651`: day one's first stops, time then title — the
           same rows on a multi-day Playbook, which says "3 days" on the line
           above instead (M27 link 10). The time column is the shared-day
-          list's 62px, so a card and the page it opens line up. */}
+          list's 62px, so a card and the page it opens line up.
+
+          The rows that fit, whole, in the room three one-line rows took
+          (`max-h-18`: 3 × 20px and two 6px gaps), so a day of eight stops
+          leaves the card the height a day of three gave it (Mitchell,
+          2026-10-21: *"list activities until they run out of room"*). The
+          column wraps, so a row with no room moves to a second column, which
+          the list clips whole; nothing is cut through a line. A title clamps
+          at three lines, which still fits, so no first row can overrun. */}
       {day.preview.length > 0 && (
-        <ul className="flex flex-col gap-1.5" data-testid="discover-preview">
+        <ul className="flex max-h-18 flex-col flex-wrap gap-x-10 gap-y-1.5 overflow-hidden" data-testid="discover-preview">
           {day.preview.map((stop, i) => (
-            <li key={i} className="flex gap-2.5 text-sm">
+            <li key={i} className="flex w-full gap-2.5 text-sm">
               <DataText size="xs" className="w-15.5 shrink-0 pt-0.5 text-2xs" data-testid="preview-time">
                 {stop.start !== null ? toClockLabel(stop.start, clock) : ""}
               </DataText>
-              <span className="text-ink" data-testid="preview-title">
+              <span className="line-clamp-3 min-w-0 text-ink" data-testid="preview-title">
                 {stop.title}
               </span>
             </li>

@@ -38,8 +38,8 @@ async function newcomer(browser: Browser, prefix: string): Promise<Page> {
 }
 
 /**
- * Keeps and publishes a one-stop day in `city` as the page's user, returning
- * its id. Built through the command API and the saved-days routes, the same
+ * Keeps and publishes a day of `stops` stops (one by default) in `city` as the
+ * page's user, returning its id. Built through the command API and the saved-days routes, the same
  * way `m11b-playbooks.spec.ts` builds its days.
  */
 async function publishDay(
@@ -47,6 +47,7 @@ async function publishDay(
   name: string,
   city: string,
   countryCode?: string,
+  stops = 1,
 ): Promise<string> {
   const post = async (path: string, data: unknown) => {
     const res = await page.request.post(path, { data });
@@ -57,17 +58,20 @@ async function publishDay(
   const { tripId } = (await created.json()) as { tripId: string };
   const dayId = randomUUID();
   await post(`/api/trips/${tripId}/commands`, { type: "AddDay", tripId, dayId });
-  await post(`/api/trips/${tripId}/commands`, {
-    type: "AddActivity",
-    tripId,
-    activityId: randomUUID(),
-    dayId,
-    title: `Stop in ${city}`,
-    timeWindow: { start: "09:00", end: "10:00" },
-    // `countryCode` is what `countriesOfStops` reads when the day is kept, and
-    // so what `saved_days.countries` — and a `?country=` search — holds.
-    location: { name: `Somewhere in ${city}`, city, ...(countryCode ? { countryCode } : {}) },
-  });
+  for (let i = 0; i < stops; i++) {
+    const hour = String(9 + i).padStart(2, "0");
+    await post(`/api/trips/${tripId}/commands`, {
+      type: "AddActivity",
+      tripId,
+      activityId: randomUUID(),
+      dayId,
+      title: i === 0 ? `Stop in ${city}` : `Stop ${i + 1}`,
+      timeWindow: { start: `${hour}:00`, end: `${hour}:30` },
+      // `countryCode` is what `countriesOfStops` reads when the day is kept, and
+      // so what `saved_days.countries` — and a `?country=` search — holds.
+      location: { name: `Somewhere in ${city}`, city, ...(countryCode ? { countryCode } : {}) },
+    });
+  }
   const kept = await post("/api/saved-days", { name, tripId, dayIds: [dayId] });
   const { savedDay } = (await kept.json()) as { savedDay: { savedDayId: string } };
   const published = await page.request.post(`/api/saved-days/${savedDay.savedDayId}/publish`);
@@ -85,6 +89,17 @@ async function forget(page: Page, savedDayId: string): Promise<void> {
   await page.request.delete(`/api/saved-days/${savedDayId}/publish`);
   const res = await page.request.delete(`/api/saved-days/${savedDayId}`);
   expect(res.ok(), `forget -> ${res.status()}`).toBe(true);
+}
+
+type Box = { x: number; y: number; width: number; height: number };
+
+/** Where a row sits against its list's box: wholly in it, wholly past its edge, or cut by it. */
+function placement(row: Box, list: Box): "shown" | "clipped" | "cut" {
+  const right = list.x + list.width;
+  const bottom = list.y + list.height;
+  if (row.x >= right || row.y >= bottom) return "clipped";
+  const inside = row.x >= list.x - 0.5 && row.x + row.width <= right + 0.5 && row.y >= list.y - 0.5 && row.y + row.height <= bottom + 0.5;
+  return inside ? "shown" : "cut";
 }
 
 /** The card titles in the order Discover shows them: h3s, under the results' h2 (M50 part 6). */
@@ -214,6 +229,39 @@ test("the search box tells the country Mexico from a city that starts the same w
   await expect(card(inTheCity)).toBeVisible();
   await expect(card(inTheCity).getByTestId("match-line")).toHaveText(`${mexicoCity} matched`);
   await expect(card(elsewhereInMexico)).toHaveCount(0);
+
+  for (const id of ids) await forget(page, id);
+});
+
+// M51 part 9: a card is sent up to twelve of day one's stops, and draws the
+// rows that fit the space three took, whole, without growing (Mitchell,
+// 2026-10-21: "list activities until they run out of room"). At phone width,
+// one column, where nothing stretches a card to a neighbour's height.
+test("a card with eight stops is as tall as one with three, and shows whole rows", async ({ page }) => {
+  test.slow();
+  await page.setViewportSize({ width: 390, height: 900 });
+
+  const city = mint("Rowse2e");
+  const tag = randomUUID().slice(0, 8);
+  // Names of one length, so the titles wrap alike and only the stops differ.
+  const three = `Three stops ${tag}`;
+  const eight = `Eight stops ${tag}`;
+  const ids = [await publishDay(page, three, city, undefined, 3), await publishDay(page, eight, city, undefined, 8)];
+
+  await page.goto(`/playbooks?city=${encodeURIComponent(city)}`);
+  const card = (name: string) => page.getByTestId("discover-card").filter({ hasText: name });
+  await expect(card(eight).getByTestId("preview-title")).toHaveCount(8);
+
+  const short = await card(three).boundingBox();
+  const long = await card(eight).boundingBox();
+  expect(Math.abs(long!.height - short!.height), `heights ${long!.height} and ${short!.height}`).toBeLessThan(1);
+
+  // Whole rows: each row lies wholly inside the list's box or wholly past its
+  // edge, and the ones inside are the three that fit.
+  const preview = card(eight).getByTestId("discover-preview");
+  const list = (await preview.boundingBox())!;
+  const rows = await Promise.all((await preview.getByRole("listitem").all()).map((row) => row.boundingBox()));
+  expect(rows.map((box) => placement(box!, list))).toEqual([...Array(3).fill("shown"), ...Array(5).fill("clipped")]);
 
   for (const id of ids) await forget(page, id);
 });
