@@ -62,6 +62,23 @@ describe("latticeNav", () => {
       "/playbooks/country/united-states/city/rome",
     ]);
   });
+  it("orders tied country×city refinements by country slug, not input order", () => {
+    // Same city, same days, input listed United States first: without a
+    // country tiebreak the output would keep that input order, which no
+    // ORDER BY pins down — the order must be the page's, not the reader's.
+    const tied: LatticeData = {
+      tags: [],
+      countryCities: [
+        { country: { slug: "united-states", name: "United States" }, city: { slug: "cambridge", name: "Cambridge" }, days: 5 },
+        { country: { slug: "united-kingdom", name: "United Kingdom" }, city: { slug: "cambridge", name: "Cambridge" }, days: 5 },
+      ],
+    };
+    const nav = latticeNav({ city: { slug: "cambridge", name: "Cambridge", cities: ["Cambridge"] } }, tied);
+    expect(nav.children.map((link) => link.href)).toEqual([
+      "/playbooks/country/united-kingdom/city/cambridge",
+      "/playbooks/country/united-states/city/cambridge",
+    ]);
+  });
   it("caps refinements at twelve, most days first", () => {
     const many: LatticeData = {
       tags: Array.from({ length: 15 }, (_, i) => ({

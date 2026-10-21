@@ -45,8 +45,8 @@ export type LatticeData = {
 /** How many refinement links one page shows: the sitemap is the complete traversal, this is the way in. */
 const MAX_CHILDREN = 12;
 
-/** A refinement candidate, ordered days-descending, then slug-ascending, before the cap. */
-type Child = { slug: string; days: number; label: string; href: string };
+/** A refinement candidate, ordered days-descending, then slug-ascending, then country-ascending on a slug tie, before the cap. */
+type Child = { slug: string; tiebreak?: string; days: number; label: string; href: string };
 
 const placeLabel = (name: string): string => `${name} playbooks`;
 
@@ -74,14 +74,22 @@ const tagChild = (page: LatticeData["tags"][number], slug: string): Child => ({
 
 const countryCityChild = (page: LatticeData["countryCities"][number]): Child => ({
   slug: page.city.slug,
+  // Two country×city children of one city share the city slug, so a days
+  // tie needs the country slug: without it the order falls back to the
+  // readers' insertion order, which no ORDER BY pins down.
+  tiebreak: page.country.slug,
   days: page.days,
   label: countryCityLabel(page.city, page.country),
   href: countryCityPath(page.country.slug, page.city.slug),
 });
 
-/** Days descending, then the slug ascending: the order is the page's, not the reader's locale. */
+/** Days descending, then the slug ascending, then the country ascending on a slug tie: the order is the page's, not the reader's locale or input order. */
 function byDaysThenSlug(a: Child, b: Child): number {
-  return b.days - a.days || (a.slug < b.slug ? -1 : a.slug > b.slug ? 1 : 0);
+  return (
+    b.days - a.days ||
+    (a.slug < b.slug ? -1 : a.slug > b.slug ? 1 : 0) ||
+    ((a.tiebreak ?? "") < (b.tiebreak ?? "") ? -1 : (a.tiebreak ?? "") > (b.tiebreak ?? "") ? 1 : 0)
+  );
 }
 
 /**
