@@ -13,6 +13,32 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-10-21 — Discover previews carry up to twelve stops (M51 part 9; public API 1.20.0)
+- **Widened** (`apps/web/src/lib/playbooks.ts`, not `packages/contracts`): `DiscoverDay.preview`
+  is day one's first `DISCOVER_PREVIEW_STOPS` stops, now 12 (was 3). On the wire in
+  `GET /v1/discover/playbooks`: `items[].preview` `maxItems` 3 → 12. `openapi.json` regenerated,
+  `info.version` 1.19.0 → 1.20.0.
+- Why: Mitchell, 2026-10-21, walking PR 510. Day cards on the landing sea and the Discover cards
+  list stops until they run out of room, not just three, and he chose to raise the cap everywhere,
+  the public API included, rather than for the app alone. Twelve is a payload bound, not a row
+  count: every public library day today has 8 stops or fewer, and a 200-item page with every title
+  at its 200-character limit stays near 0.5 MB.
+- Consumers updated: `apps/web` (`server/discoverDay.ts` slices by the constant; the landing sea and
+  features snapshots regenerated, so their cards carry day one's whole list). `DiscoverCard` off
+  the sea (Discover, tag, city, country and profile; Mitchell's option b): a card in a grid row is
+  as tall as the row, which its other parts and room for three one-line rows set; the stop list
+  fills what is left and draws the whole rows that fit, so a card beside a taller neighbour shows
+  more than three. A title keeps to one line there, so three always fit; a lone card on a phone
+  shows three, as before. The landing sea's own layout is PR 510's, and its cards, the find
+  moment's banner included, now show every row their cell holds.
+- Breaking? no, **minor**: the shape and every field are unchanged, and a response may now hold
+  more items than before, as a new enum value on a response may (`using-the-api.md`, *minor for
+  anything additive*). A caller that assumed at most three rows, or that validates responses
+  against a cached 1.19.0 document, should re-read the reference when `info.version` moves.
+  The app's own wire has a skew window: a tab loaded before the deploy parses `/api/playbooks`
+  with `.max(3)`, so its Discover search, filters and next page fail until it is reloaded. The
+  same exposure the 1.10.0 `origin` entry accepted; no change in the new bundle reaches an old tab.
+
 ## 2026-10-20 — Who added a stop (M51 part 4; public API 1.19.0)
 - **Added** (`packages/contracts/src/detail.ts`): `ActivityView.addedBy`, `string | null`,
   `.default(null)`, beside `bookedBy` and `participants`. The id of whoever added the stop, which

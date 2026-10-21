@@ -920,18 +920,69 @@ test.describe("responsive (narrow viewport, signed out)", () => {
       expect(await headline.evaluate((el) => Number.parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThan(58);
     });
 
+    // Mitchell, walking PR 510 after it merged: the find moment's Rome banner
+    // *"still only shows a few of the activities, it doesnt fill the card"*.
+    // It drew three because three were all it was sent (M51 part 9 lifts the
+    // cap), and day one has only four; it is day 2's six now (Mitchell,
+    // 2026-10-21), and a row counts only if it is laid out and inside the
+    // card's box on every side, so a hidden row is not counted as shown.
+    test(`the find moment's banner shows more than four stop rows at ${width}px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 1000 });
+      await page.goto("/");
+      const banner = page.getByTestId("desktop-landing").getByRole("region", { name: "Find a day worth borrowing." }).getByTestId("discover-card");
+      await expect(banner.getByTestId("preview-title").first()).toBeVisible();
+      const shown = await banner.evaluate((card) => {
+        const box = card.getBoundingClientRect();
+        return [...card.querySelectorAll("[data-testid=discover-preview] li")].filter((row) => {
+          const r = row.getBoundingClientRect();
+          return (
+            r.height > 0 &&
+            r.left >= box.left - 0.5 &&
+            r.top >= box.top - 0.5 &&
+            r.right <= box.right + 0.5 &&
+            r.bottom <= box.bottom + 0.5
+          );
+        }).length;
+      });
+      expect(shown).toBeGreaterThan(4);
+    });
+
     // Mitchell's fourth walk of PR 510: *"show activities up till they dont
     // fit rather than just render the first 3"*. A card lays its parts in one
     // wrapping column and clips the second, so it drops parts from the first
     // that does not fit. Only its title and its facts come before its stops:
     // where a card drops its stops with room left for one row, the part it
     // dropped first is one of those two, and never the stops as a block, nor
-    // a description or a rating ahead of them.
+    // a description or a rating ahead of them. The second half reads the DOM,
+    // not the computed order: there the description, tags and rating come
+    // before the rows, and only `order-1` lays them after, so a card that
+    // drops a row may show nothing the DOM puts ahead of its rows but its
+    // title and facts (PR 510 r8: sorted by computed order, the check passed
+    // with `order-1` gone).
     test(`every card on the first screen shows the stop rows it has room for at ${width}px`, async ({ page }) => {
       await page.setViewportSize({ width, height: 1000 });
       await page.goto("/");
       const cards = page.getByTestId("desktop-landing").getByTestId("sea-grid").getByTestId("discover-card");
       await expect(cards.first()).toBeVisible();
+      const ahead = await cards.evaluateAll((els) =>
+        els
+          .filter((card) => card.getBoundingClientRect().bottom <= window.innerHeight)
+          .flatMap((card) => {
+            const right = card.getBoundingClientRect().right + 0.5;
+            const rows = [...card.querySelectorAll("[data-testid=discover-preview] li")];
+            if (rows.length === 0 || rows.every((row) => row.getBoundingClientRect().right <= right)) return [];
+            const items = (el: Element): Element[] =>
+              [...el.children].flatMap((child) => (getComputedStyle(child).display === "contents" ? items(child) : [child]));
+            const before = items(card).slice(0, items(card).indexOf(rows[0]!));
+            const wrong = before.filter(
+              (part) => part.getBoundingClientRect().right <= right && !part.matches(".landing-sea-head, h3, [data-testid=card-facts]"),
+            );
+            return [{ card: card.querySelector("h3")!.textContent, wrong: wrong.map((part) => part.textContent!.slice(0, 40)) }];
+          }),
+      );
+      // Not vacuous: first-screen cards do drop rows at both widths.
+      expect(ahead.length, "first-screen cards that drop a stop row").toBeGreaterThan(0);
+      expect(ahead.filter(({ wrong }) => wrong.length > 0)).toEqual([]);
       const roomy = await cards.evaluateAll((els) =>
         els
           .filter((card) => card.getBoundingClientRect().bottom <= window.innerHeight)
