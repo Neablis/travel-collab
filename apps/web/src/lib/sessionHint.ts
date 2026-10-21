@@ -96,8 +96,8 @@ export function hasSignedInHint(cookie: string): boolean {
  * (next.config.ts).
  *
  * A client navigation to `/`, and a back-forward-cache restore of it, are the
- * landing's own effect's (`LeaveLandingIfSignedIn`). **Keep this string as
- * short as it is**: growing the root layout's HTML can turn a seo e2e red
- * (KI-2026-10-18-e).
+ * landing's own effect's (`LeaveLandingIfSignedIn`). Its length no longer
+ * binds: the seo 404 comparison stopped reading flight bytes in PR 514
+ * (KI-2026-10-18-e, resolved), so a `pageshow` check could join it here.
  */
 export const LEAVE_LANDING_IF_SIGNED_IN = `if(location.pathname==="/"&&/(?:^|;\\s*)${SIGNED_IN_HINT_COOKIE}=/.test(document.cookie))location.replace(${JSON.stringify(HOME_PATH)});`;

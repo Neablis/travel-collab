@@ -38,17 +38,20 @@ import { fileURLToPath } from "node:url";
 import { DISCOVER_PREVIEW_STOPS, type DiscoverDay } from "@/lib/playbooks";
 import {
   SavedStop,
+  SNAPSHOT_NAME_MAX,
   TripCover,
   travellerIds,
   type AvatarKey,
   type ActivityTagDescribed,
   type PageParagraphNode,
   type PersonColor,
+  type SuggestionChange,
   type TripCommand,
   type TripDetail,
   type TripMemberProfile,
 } from "@tc/contracts";
-import { decideCreateTrip, decideTripCommand, describeByTags, evolveTripEnvelope, tripDetailFromState, type TripState } from "@tc/domain";
+import { decideCreateTrip, decideTripCommand, describeByTags, evolveTrip, evolveTripEnvelope, tripDetailFromState, type TripState } from "@tc/domain";
+import { predictBatch } from "@tc/domain/predict";
 import { z } from "zod";
 import {
   bundleTripCommandGroups,
@@ -63,13 +66,13 @@ import {
 import { getMacro, renderMacro, type BlockPayload, type Seg, type WidgetContext } from "@tc/pages";
 import { cityAccents } from "@/components/pages/cityAccents";
 import { TAG_LABEL } from "@/lib/activityTags";
-import { dayLabel } from "@/lib/dates";
 import { DEMO_TRIPS, demoTripBySlug } from "@/lib/demoTrip";
 import { displayNameFor } from "@/lib/displayName";
 import type { LandingCrew, LandingDemo, LandingFeatures } from "@/lib/landingDemo";
 import type { LandingSea, SeaAccent, SeaCell, SeaCellSize, SeaDay, SeaDayCell } from "@/lib/landingSea";
 import { countryName } from "@/lib/place";
 import { cityPath, countrySlug, dayPath, placeIndexable, placePath, tagPath } from "@/lib/playbookUrls";
+import { suggestionOverlay } from "@/lib/suggestionOverlay";
 import { overlayMembers } from "@/server/access/overlay";
 import { withTripColors } from "@/server/access/personaColors";
 import { serverConflictContext } from "@/server/conflictContext";
@@ -343,38 +346,135 @@ function shelfPlaybook(): DiscoverDay {
   return { ...seaCard(bundle, playbook), preview };
 }
 
-const THAILAND_BUNDLE_PATH = new URL("../../../content/playbooks/thailand-beaches.json", import.meta.url);
-
-/** The bundle's public days as the sea's cards, each stamped with its `keptOn`, the only reproducible date the import gives a day. */
-function thailandCards(): { key: string; day: DiscoverDay; resolved: ResolvedPlaybook }[] {
-  const bundle = parseBundle(JSON.parse(readFileSync(THAILAND_BUNDLE_PATH, "utf8")));
-  return bundle.playbooks
-    .filter((playbook) => playbook.visibility === "public")
-    .map((playbook) => {
-      const resolved = resolvePlaybook(bundle.bundle.id, playbook, bundle.bundle.origin);
-      if (resolved.keptOn === undefined) throw new Error(`landing demo: ${playbook.key} has no keptOn date to stamp it with`);
-      return { key: playbook.key, day: libraryCard(resolved, sampleRating(resolved.savedDayId), resolved.keptOn), resolved };
-    });
-}
+// ---------------------------------------------------------------------------
+// The assistant moment (M51 part 6)
+// ---------------------------------------------------------------------------
 
 /**
- * The make-it-your-trip moment's worked example (Mitchell's third walk of PR
- * 510: *"it should have an example thats relevent to this feature"*): the
- * Railay day, and the Thailand demo trip as the trip a reader already has,
- * its days as "Add to a trip" lists them. Canned: the landing fetches nothing.
+ * The trip the assistant is asked about: the first two days of the find
+ * moment's Rome playbook, borrowed, so the sea's story runs on from its
+ * banner. Its Day 1 ends at the Palatine at three and picks up at dinner.
  */
-const MAKE_KEY = "railay-limestone-and-sunset";
+const ASSISTANT_TRIP_NAME = "Two days in Rome";
+const ASSISTANT_TRIP_ID = "00000000-0000-4000-80d0-000000000000";
+const ASSISTANT_SUGGESTION_ID = "00000000-0000-4000-80d1-000000000000";
+const ASSISTANT_DAYS = 2;
+/**
+ * What the assistant puts on Day 1: two of the playbook's own places from the
+ * day the trip left out, moved into the gap. Real venues, with nothing said
+ * about them that the bundle does not say.
+ */
+const ASSISTANT_STOPS = [
+  { title: "Lunch at Mercato Testaccio", timeWindow: { start: "15:15", end: "16:45" } },
+  { title: "Circus Maximus", timeWindow: { start: "17:30", end: "19:00" } },
+] as const;
+const ASSISTANT_ASK = "Can you fill the afternoon on Day 1 before dinner?";
+const ASSISTANT_ANSWER =
+  "Day 1 is open from Palatine Hill at 3 until dinner at 7:30. Both are from the Rome playbook you borrowed: a late lunch at Mercato Testaccio, then the Circus Maximus under the Palatine as the light goes.";
+/**
+ * The snapshot the turn saved first, named as the server names one
+ * (`snapshotNameFor`): the ask, after "Before: ". Short enough that the server
+ * would not cut it, which the script holds rather than importing the server.
+ */
+const ASSISTANT_SNAPSHOT = `Before: ${ASSISTANT_ASK}`;
+/** Who asked. The suggestion is theirs; the assistant only acted for them (ADR-067 decision 2). */
+const ASSISTANT_READER = "reader";
 
-function makeExample(): LandingFeatures["make"] {
-  const railay = thailandCards().find(({ key }) => key === MAKE_KEY);
-  if (railay === undefined) throw new Error(`landing demo: thailand-beaches no longer holds ${MAKE_KEY}`);
-  const demo = demoTripBySlug("thailand-andaman")!;
-  const trip = demoTripDetailFor(demo.tripId, REFERENCE_START_DATE);
+/**
+ * The assistant moment's worked example: the trip's Day 1, and the stops an
+ * assistant turn stored on it as one suggestion of one change each, worded as
+ * the server words them (`predictBatch`'s description) and laid on the day by
+ * the board's own overlay. Folded by the real decider, undated and unpriced.
+ */
+function buildLandingAssistant(): LandingFeatures["assistant"] {
+  const bundle = libraryBundles().find((b) => b.bundle.id === SHELF_BUNDLE);
+  const days = bundle?.playbooks.find((p) => p.key === SHELF_BUNDLE)?.days;
+  if (bundle === undefined || days === undefined) throw new Error(`landing demo: content/playbooks no longer holds ${SHELF_BUNDLE}'s days`);
+  // No price: the front door sells the day (Mitchell, 2026-10-11).
+  const unpriced = (stops: (typeof days)[number]["stops"]) => stops.map(({ cost: _cost, ...stop }) => stop);
+  const extra = ASSISTANT_STOPS.map(({ title, timeWindow }) => {
+    const stop = unpriced(days.slice(ASSISTANT_DAYS).flatMap((day) => day.stops)).find((s) => s.title === title);
+    if (stop === undefined) throw new Error(`landing demo: ${SHELF_BUNDLE} no longer holds "${title}" past day ${ASSISTANT_DAYS}`);
+    return { ...stop, timeWindow };
+  });
+  if (ASSISTANT_SNAPSHOT.length > SNAPSHOT_NAME_MAX) throw new Error(`landing demo: the snapshot "${ASSISTANT_SNAPSHOT}" is past the server's ${SNAPSHOT_NAME_MAX} characters`);
+  let n = 0;
+  // The suggested stops ride at the end of Day 1's group, so they are the
+  // importer's own `AddActivity`s; then they come off it as the suggestion.
+  const groups = bundleTripCommandGroups(
+    bundle.bundle.id,
+    {
+      key: "two-days-in-rome",
+      name: ASSISTANT_TRIP_NAME,
+      days: days.slice(0, ASSISTANT_DAYS).map((day, i) => ({ stops: [...unpriced(day.stops), ...(i === 0 ? extra : [])] })),
+      backlog: [],
+    },
+    { tripId: ASSISTANT_TRIP_ID, today: REFERENCE_START_DATE, mintId: () => `00000000-0000-4000-80d0-${String(++n).padStart(12, "0")}` },
+  );
+  const suggested = groups[1]!.splice(-extra.length);
+  // Folded without the envelope: a stop nobody is named as adding says so to nobody.
+  const reader = { actorId: ASSISTANT_READER };
+  const genesis = decideCreateTrip(null, { type: "CreateTrip", tripId: ASSISTANT_TRIP_ID, name: ASSISTANT_TRIP_NAME, forkedFrom: null }, reader);
+  if (!genesis.ok) throw new Error(`landing demo: CreateTrip rejected — ${genesis.rejection.message}`);
+  let state: TripState | null = null;
+  for (const event of genesis.events) state = evolveTrip(state, event);
+  for (const command of groups.flat()) {
+    const decision = decideTripCommand(state, command, reader);
+    if (!decision.ok) throw new Error(`landing demo: ${command.type} rejected — ${decision.rejection.message}`);
+    for (const event of decision.events) state = evolveTrip(state, event);
+  }
+  if (state === null) throw new Error("landing demo: the Rome trip folded to nothing");
+  const createdAt = `${REFERENCE_START_DATE}T00:00:00.000Z`;
+  const trip = tripDetailFromState(state, createdAt, serverConflictContext());
+  if (conflictsOn(trip, 0).length > 0) throw new Error("landing demo: the Rome trip's Day 1 has conflicts the moment does not draw");
+  let predicted = trip;
+  const changes: SuggestionChange[] = suggested.map((command, i) => {
+    if (command.type !== "AddActivity") throw new Error(`landing demo: the assistant's change ${i} is a ${command.type}`);
+    const outcome = predictBatch(predicted, [command], { skipNoOps: true });
+    if (!outcome.ok) throw new Error(`landing demo: the assistant's "${command.title}" does not apply — ${outcome.rejection.message}`);
+    predicted = outcome.detail;
+    return {
+      id: `00000000-0000-4000-80d1-${String(i + 1).padStart(12, "0")}`,
+      suggestionId: ASSISTANT_SUGGESTION_ID,
+      tripId: ASSISTANT_TRIP_ID,
+      authorId: ASSISTANT_READER,
+      note: null,
+      createdAt,
+      commands: [command],
+      description: outcome.description,
+      status: "pending",
+      dependsOn: [],
+      resolvedBy: null,
+      resolvedAt: null,
+      via: "assistant",
+    };
+  });
+  const day = trip.days[0]!;
+  const ghosts = suggestionOverlay(trip, changes).byDay.get(day.dayId) ?? [];
+  if (ghosts.length !== changes.length) throw new Error(`landing demo: ${ghosts.length} of the assistant's ${changes.length} stops land on Day 1`);
+  const city = buildTripGlobals(trip).days[0]!.cities.at(-1);
+  if (city === undefined) throw new Error("landing demo: the Rome trip's Day 1 names no city");
   return {
-    day: { name: railay.resolved.name, dayCount: railay.resolved.dayCount },
-    trip: { tripId: demo.tripId, name: trip.name },
-    // Undated, as the landing is: a date would be a claim about a trip on a day that has passed.
-    days: trip.days.map((day, index) => ({ dayId: day.dayId, label: dayLabel(null, index) })),
+    trip: trip.name,
+    currency: trip.currency,
+    accent: cityAccents(trip).ofDayId(day.dayId),
+    river: {
+      dayId: day.dayId,
+      ordinal: 1,
+      city,
+      activityIds: day.activityIds,
+      activities: Object.fromEntries(day.activityIds.map((id) => [id, trip.activities[id]!])),
+    },
+    ask: ASSISTANT_ASK,
+    answer: ASSISTANT_ANSWER,
+    suggested: {
+      suggestionId: ASSISTANT_SUGGESTION_ID,
+      changeCount: changes.length,
+      snapshotId: "00000000-0000-4000-80d2-000000000000",
+      snapshotName: ASSISTANT_SNAPSHOT,
+      skipped: [],
+    },
+    ghosts,
   };
 }
 
@@ -811,7 +911,7 @@ export function buildLandingFeatures(): LandingFeatures {
   return {
     playbook: landingPlaybook(),
     shelf: shelfPlaybook(),
-    make: makeExample(),
+    assistant: buildLandingAssistant(),
     crew: buildLandingCrew(),
     memory: MEMORY_PAGE.map((paragraph) => resolveParagraph(ctx, paragraph)),
     // The page's widgets beside its words (M50 part 9): the day it is about

@@ -1,7 +1,7 @@
 "use client";
 
 import type { Overlap } from "@/components/lenses/overlapData";
-import { DayRiver } from "@/components/board/DayRiver";
+import { type BoardSuggestions, DayRiver } from "@/components/board/DayRiver";
 import { riverAxis } from "@/components/board/riverLayout";
 import type { CityAccents } from "@/components/pages/cityAccents";
 import { FixedPeopleProvider, type Persona } from "@/components/pages/people";
@@ -50,12 +50,15 @@ export function LandingRiver({
   dayAccents = LANDING_ACCENTS,
   dayCurrency = currency,
   pxPerHour = DEMO_PX_PER_HOUR,
+  suggestions,
 }: {
   day?: LandingRiverDay;
   people?: Readonly<Record<string, Persona>>;
   dayAccents?: CityAccents;
   dayCurrency?: string;
   pxPerHour?: number;
+  /** Ghost stops to draw on the day, as the board draws a pending suggestion's. */
+  suggestions?: BoardSuggestions;
 }): React.ReactElement {
   const axis = riverAxis(
     day.activityIds.map((id) => day.activities[id]?.timeWindow ?? null),
@@ -81,6 +84,7 @@ export function LandingRiver({
         onDismissOverlap={nothing}
         focusedTag={null}
         readOnly
+        suggestions={suggestions}
       />
     </FixedPeopleProvider>
   );

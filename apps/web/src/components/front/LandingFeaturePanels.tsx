@@ -1,6 +1,11 @@
 "use client";
 
-import { AddToTripForm } from "@/components/playbooks/AddToTripForm";
+import type { ComponentProps, ReactElement } from "react";
+import { useTimeFormat } from "@/components/account/PreferencesProvider";
+import { Transcript, toolNoteLabel, type AssistantTurn } from "@/components/assistant/Transcript";
+import { BrandMark } from "@/components/BrandMark";
+import type { BoardSuggestions } from "@/components/board/DayRiver";
+import { SuggestionReviewList } from "@/components/board/SuggestionReviewList";
 import { DiscoverCard } from "@/components/playbooks/DiscoverCard";
 import { ItineraryDayBlock } from "@/components/pages/blocks/ItineraryDayBlock";
 import { SunBlock } from "@/components/pages/blocks/SunBlock";
@@ -8,12 +13,15 @@ import { TripPeopleBlock } from "@/components/pages/blocks/TripPeopleBlock";
 import { TripStripBlock } from "@/components/pages/blocks/TripStripBlock";
 import { FixedPeopleProvider } from "@/components/pages/people";
 import { Segs } from "@/components/pages/WidgetSegs";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { DataText } from "@/components/ui/data-text";
 import { Heading } from "@/components/ui/heading";
+import { POPOVER_SURFACE } from "@/components/ui/popover";
 import { Text } from "@/components/ui/text";
 import { cn } from "@/lib/cn";
 import { LANDING_DEMO, LANDING_FEATURES } from "@/lib/landingDemo";
 import { dayPath } from "@/lib/playbookUrls";
+import { toClockRange } from "@/lib/time";
 import { LANDING_ACCENTS, LANDING_RIVER_CITY, LANDING_RIVER_TITLE, LandingRiver, snapshotAccents } from "./LandingRiver";
 
 // The sea's moments (M51) and the phone's claims, drawn by the product's own
@@ -57,28 +65,197 @@ export function FindADayPanel(): React.ReactElement {
   );
 }
 
+const { assistant } = LANDING_FEATURES;
+const ASSISTANT_ACCENTS = snapshotAccents({ [assistant.river.dayId]: assistant.accent });
+// Day 1's axis, nine to ten at night, filling its panel under the stack of
+// what is being added: the moment is at least the 690px `LandingSea`'s
+// STORIES declares, which less its heading, the panel's head, the stack and
+// padding leaves some 440px for thirteen hours, the open popover inside them.
+// Whole rows can only make the moment taller, so the day never runs past its
+// foot. (At the crew's 29px an hour a ghost's title and "Suggested" badge were
+// clipped; at 33 a 90-minute stop holds both.)
+const ASSISTANT_PX_PER_HOUR = 33;
 /**
- * The make-it-your-trip moment's worked example (Mitchell's third walk of PR
- * 510: *"too empty, it should have an example thats relevent"*): "Add to a
- * trip"'s own fields for the Railay day, landing it on Day 1 of the Thailand
- * trip a reader already has, with "Start a new trip" one of the choices.
- * Canned trips, and a disabled fieldset: the fields submit nothing, so they
- * are no tab stops, while a screen reader still reads them as the example
- * they are. The moment's own link is the way in.
+ * The tools the turn called, worded by the transcript's own `toolNoteLabel`:
+ * it read the trip and the day, and drafted one change per stop it suggests.
+ * Not `find_free_time`, whose note says "free", a word the front door does
+ * not use (SPEC §14).
  */
-export function MakeTripPanel(): React.ReactElement {
-  const { day, trip, days } = LANDING_FEATURES.make;
+const ASSISTANT_STEPS: [tool: string, input: unknown][] = [
+  ["read_trip", {}],
+  ["read_day", { days: [assistant.river.ordinal] }],
+  ...assistant.ghosts.map((): [string, unknown] => ["AddActivity", {}]),
+];
+const ASSISTANT_TURNS: AssistantTurn[] = [
+  { id: "ask", role: "user", text: assistant.ask },
+  {
+    id: "answer",
+    role: "assistant",
+    text: assistant.answer,
+    tools: ASSISTANT_STEPS.map(([tool, input], i) => ({ id: `step-${i}`, label: toolNoteLabel(tool, input) })),
+    pending: false,
+    suggested: assistant.suggested,
+  },
+];
+/** The note's pointer: the board's suggestions chip is not on this page; the day's open suggestion is. */
+const ASSISTANT_REVIEW = "Accept them all here, or decide each on the day.";
+const ASSISTANT_DAY = `Day ${assistant.river.ordinal}`;
+type AssistantGhost = (typeof assistant.ghosts)[number];
+/**
+ * A button as the app draws it, as a picture: a `span`, so nothing to press,
+ * focus or announce, and out of hit-testing with the arrow cursor, so it shows
+ * no hover colour and no hand (Mitchell's walk of PR 514: *"I don't think it
+ * makes sense for the assistant preview buttons to be clickable"*).
+ */
+const still = (variant: "primary" | "secondary") => cn(buttonVariants({ variant, size: "sm" }), "pointer-events-none cursor-default");
+
+/**
+ * The open popover, as the board draws one standing open below its ghost, over
+ * the stops after it: the change's sentence over Accept, Dismiss and Withdraw.
+ * As wide as the lane, not the app's portalled 320px: at 1100 the lane is some
+ * 250px and the river's surface would cut the rest off.
+ */
+function StillReview({ ghost }: { ghost: AssistantGhost }): React.ReactElement {
   return (
-    <fieldset disabled aria-label="An example: the day added to a trip" className="min-h-0 flex-1 overflow-hidden">
-      <AddToTripForm
-        dayName={day.name}
-        dayCount={day.dayCount}
-        trips={[trip]}
-        days={days}
-        value={{ tripId: trip.tripId, startingAt: days[0]!.dayId, startDate: "" }}
-        onChange={() => {}}
+    <div role="group" aria-label="Review this suggestion" className={cn(POPOVER_SURFACE, "relative z-10 mt-1.5 w-full")}>
+      <SuggestionReviewList
+        ghosts={[ghost]}
+        actions={() => (
+          <div className="flex flex-wrap gap-1.5">
+            <span className={still("primary")}>Accept</span>
+            <span className={still("secondary")}>Dismiss</span>
+            <span className={still("secondary")}>Withdraw</span>
+          </div>
+        )}
       />
-    </fieldset>
+    </div>
+  );
+}
+
+/**
+ * The ghosts on the river as the board lays them, each wrapped as the board
+ * wraps one, a picture of its button rather than a button. The last, so its
+ * popover hangs below the day's suggestions rather than over the next one,
+ * stands with that popover open (Mitchell's walk of PR 514: *"Include the
+ * overview on one of the items for accept/dismiss/withdraw"*). Drawn in the
+ * river rather than in a portal, so it rises, fades and scrolls with the
+ * moment.
+ */
+const ASSISTANT_SUGGESTIONS: BoardSuggestions = {
+  days: new Map([[assistant.river.dayId, assistant.ghosts]]),
+  stops: new Map(),
+  newDays: [],
+  review: (ghosts, trigger) => {
+    const { variant, className, children, "aria-label": label } = (trigger as ReactElement<ComponentProps<typeof Button>>).props;
+    const open = assistant.ghosts.at(-1);
+    return (
+      <>
+        <div role="img" aria-label={label} className={cn(buttonVariants({ variant }), className, "pointer-events-none cursor-default")}>
+          {children}
+        </div>
+        {open !== undefined && ghosts[0] === open && <StillReview ghost={open} />}
+      </>
+    );
+  },
+  actions: () => null,
+};
+
+/** The rail's two tabs, as `AssistantRail` names them, with Ask selected. */
+const RAIL_TABS = [
+  { label: "Chat", selected: false },
+  { label: "Ask", selected: true },
+];
+
+/**
+ * The assistant moment (Mitchell, 2026-10-21: *"make it about the ai
+ * assistant, since that feature isnt really talked about right now … a
+ * example of a fake AI bot assistant and the approve ghost changes ui we
+ * built"*), drawn as the app draws its assistant (his walk of PR 514, beside a
+ * screenshot of the real panel): the panel's head, its Chat and Ask tabs on
+ * Ask, and the line saying what it is looking at; the app's own transcript,
+ * asking for more of the Rome trip's Day 1, with the steps the turn took
+ * folded to their one-line summary, the answer, and the note of the suggestion it stored (ADR-067)
+ * with *Accept all*. Beside it, the day under a stack of what is being added,
+ * and the board's own river drawing the same stops as ghosts, one with its
+ * popover open.
+ *
+ * A still picture of all that, not a working copy: every control is drawn and
+ * none is there, so a screen reader hears one figure, named for what it shows,
+ * and Tab passes it by. Canned (`landingFeatures.generated.json`), so `/`
+ * fetches nothing (ADR-078).
+ */
+export function AssistantPanel(): React.ReactElement {
+  const clock = useTimeFormat();
+  return (
+    <figure aria-label="An example: the assistant suggests two stops for Day 1" className="grid min-h-0 flex-1">
+      <div aria-hidden className="grid min-h-0 grid-cols-2 gap-5">
+        <div className={cn(SURFACE, "flex min-h-0 min-w-0 flex-col")}>
+          <div className="shrink-0 border-b border-hairline px-4 py-3">
+            <div className="flex items-center gap-2">
+              <BrandMark size={24} />
+              <Text as="span" className="text-md font-semibold">
+                Assistant
+              </Text>
+            </div>
+            {/* `UnderlineTabs`' look, drawn: `-mb-px` sets the selected edge on the base line. */}
+            <div className="mt-2 flex items-stretch gap-5.5 border-b border-hairline">
+              {RAIL_TABS.map(({ label, selected }) => (
+                <span
+                  key={label}
+                  className={cn(
+                    "-mb-px inline-flex min-h-11 items-center border-b-2 px-px text-base fine:min-h-10",
+                    selected ? "border-brand font-semibold text-ink" : "border-transparent font-medium text-slate",
+                  )}
+                >
+                  {label}
+                </span>
+              ))}
+            </div>
+            <div className="mt-2 rounded-sm bg-paper px-2.5 py-1.5 text-xs text-slate">{`Looking at ${assistant.trip}`}</div>
+          </div>
+          <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-hidden px-4 py-3.5">
+            <Transcript turns={ASSISTANT_TURNS} example={{ review: ASSISTANT_REVIEW }} />
+          </div>
+        </div>
+        <div className={cn(SURFACE, "flex min-h-0 min-w-0 flex-col")}>
+          <div className="flex items-center gap-2.5 border-b border-hairline px-3.5 py-2.5">
+            <Text as="span" className="font-display font-semibold">
+              {`${assistant.trip} · ${ASSISTANT_DAY} · ${assistant.river.city}`}
+            </Text>
+            <DataText className="ml-auto text-2xs tracking-wider uppercase">Timeline</DataText>
+          </div>
+          {/* The stack of what is being added, over the day that shows them
+              (Mitchell's walk of PR 514: *"Stack the changes with a simple
+              overview of whats being added"*). */}
+          <div className="flex flex-col gap-1.5 border-b border-hairline bg-brand-tint px-3.5 py-2.5">
+            <Text as="span" className="text-xs font-semibold text-brand-pressed uppercase">
+              Being added
+            </Text>
+            <ul aria-label="Suggestions being added" className="m-0 flex list-none flex-col gap-1 p-0">
+              {assistant.ghosts.map((ghost) => (
+                <li key={ghost.changeId} className="flex items-baseline gap-2 text-sm text-ink">
+                  <DataText className="w-30 shrink-0 text-xs">
+                    {toClockRange(ghost.activity!.timeWindow!.start, ghost.activity!.timeWindow!.end, clock)}
+                  </DataText>
+                  <span className="min-w-0 flex-1 truncate font-semibold">{ghost.activity!.title}</span>
+                  <span className="shrink-0 text-xs text-slate">{ASSISTANT_DAY}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div className="px-3.5 py-3">
+            <LandingRiver
+              day={assistant.river}
+              people={{}}
+              dayAccents={ASSISTANT_ACCENTS}
+              dayCurrency={assistant.currency}
+              pxPerHour={ASSISTANT_PX_PER_HOUR}
+              suggestions={ASSISTANT_SUGGESTIONS}
+            />
+          </div>
+        </div>
+      </div>
+    </figure>
   );
 }
 

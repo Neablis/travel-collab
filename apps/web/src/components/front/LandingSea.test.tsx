@@ -1,10 +1,11 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderToString } from "react-dom/server";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { playbookIdFor } from "@tc/fixtures";
+import { haversineKm } from "@/lib/geo";
 import { LANDING_FEATURES } from "@/lib/landingDemo";
 import { LANDING_SEA, SEA_ACCENTS, SEA_DAYS } from "@/lib/landingSea";
 import { dayPath, parseDaySegment } from "@/lib/playbookUrls";
@@ -60,6 +61,29 @@ const backgroundNames = (lit: Set<string>) =>
   [...new Set(FIRST_DAYS.filter((cell) => !lit.has(cell.day.savedDayId)).map((cell) => cell.day.name))].filter(
     (name) => name !== LANDING_FEATURES.shelf.name,
   );
+
+type Place = { lat?: number; lng?: number };
+type BundleStop = { title: string; location?: Place };
+/** Every playbook in the checked-in content, by the id the sea's cards carry, with its bundle and every stop. */
+const PLAYBOOKS = readdirSync(resolve(__dirname, "../../../../../content/playbooks"))
+  .filter((file) => file.endsWith(".json"))
+  .flatMap((file) => {
+    const doc = JSON.parse(readFileSync(resolve(__dirname, "../../../../../content/playbooks", file), "utf8")) as {
+      bundle: { id: string };
+      playbooks: { key: string; stops?: BundleStop[]; days?: { stops: BundleStop[] }[] }[];
+    };
+    return doc.playbooks.map((playbook) => ({
+      id: playbookIdFor(doc.bundle.id, playbook.key),
+      bundle: doc.bundle.id,
+      stops: playbook.stops ?? playbook.days!.flatMap((day) => day.stops),
+    }));
+  });
+/** How far apart two places are, or Infinity where either has no coordinates. */
+const metres = (a: Place | null | undefined, b: Place | null | undefined) =>
+  a?.lat === undefined || a.lng === undefined || b?.lat === undefined || b.lng === undefined ? Infinity : haversineKm({ lat: a.lat, lng: a.lng }, { lat: b.lat, lng: b.lng }) * 1000;
+
+/** The assistant moment's heading. */
+const ASSISTANT = "Ask for more, keep what fits.";
 
 // A whole sea mounted is some three hundred cards: seconds of jsdom, not a
 // hang, so only the two tests that need every screen mount them all.
@@ -186,14 +210,13 @@ describe("the sea's moments", () => {
   // Mitchell's third walk of PR 510: "The banner to left is the same activity
   // to right, use different activities". A lit day is another day of the
   // moment's region, never the one the moment itself shows, nor one named
-  // like it; and no day is lit for two moments.
+  // like it; and no day is lit for two moments. The assistant's trip is the
+  // banner's Rome days, borrowed.
   it("lights no moment with its own day again", () => {
     render(<LandingSea />);
-    const make = screen.getByRole("region", { name: /^Start a trip using someone else’s Thailand day/ });
-    const railay = parseDaySegment(within(make).getByRole("link", { name: "Make this your trip" }).getAttribute("href")!.slice("/playbooks/day/".length)).id;
     const own: Record<string, string> = {
       "sea-find": LANDING_FEATURES.shelf.savedDayId,
-      "sea-make": railay!,
+      "sea-assistant": LANDING_FEATURES.shelf.savedDayId,
       "sea-crew": LANDING_FEATURES.crew.borrowed.savedDayId,
     };
     const nameOf = (id: string) => SEA_DAYS.find((cell) => cell.day.savedDayId === id)!.day.name;
@@ -206,40 +229,156 @@ describe("the sea's moments", () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
-  // Mitchell's third walk of PR 510: "This card is still too empty". The
-  // make moment shows "Add to a trip"'s own fields for the Railay day, landing
-  // it on Day 1 of a trip the reader has: one "Which trip", one sentence that
-  // agrees with it (PR 510 r6: two forms named alike, and "appended at the
-  // end" under "this day is day 1").
-  it("makes it your trip, under the heading Mitchell gave it, with the add-to-trip choice worked through", async () => {
+  // Mitchell, 2026-10-21: the make moment was "too empty, and boring ... just
+  // two dropdowns that dont work"; make it "a example of a fake AI bot
+  // assistant and the approve ghost changes ui we built". The real transcript
+  // asks for more of the Rome trip's Day 1, and the real river draws the
+  // answer as ghost stops. A picture of them, hidden from a screen reader,
+  // which hears the figure's name instead, so these read it as drawn.
+  it("asks the assistant for more of Rome's Day 1, and draws its answer as ghost stops", async () => {
     render(<LandingSea />);
-    const make = within(
-      screen.getByRole("region", { name: "Start a trip using someone else’s Thailand day, or add it to an existing plan." }),
+    const moment = within(screen.getByRole("region", { name: ASSISTANT }));
+    const log = await moment.findByRole("log", { name: "Conversation", hidden: true });
+    expect(log.textContent).toContain(LANDING_FEATURES.assistant.ask);
+    expect(log.textContent).toContain(LANDING_FEATURES.assistant.answer);
+    const river = moment.getByRole("list", { name: "Day 1 timeline", hidden: true });
+    const ghosts = within(river).getAllByRole("img", { name: /^Suggested: /, hidden: true });
+    expect(ghosts.map((ghost) => ghost.getAttribute("aria-label"))).toEqual(
+      LANDING_FEATURES.assistant.ghosts.map((ghost) => `Suggested: ${ghost.description}`),
     );
-    const href = make.getByRole("link", { name: "Make this your trip" }).getAttribute("href")!;
-    expect(SEA_DAYS.find((cell) => cell.href === href)!.day.name).toMatch(/^Railay/);
-    const trips = await make.findAllByRole("combobox", { name: "Which trip" });
-    expect(trips.map((select) => (select as HTMLSelectElement).selectedOptions[0]!.textContent)).toEqual([LANDING_FEATURES.make.trip.name]);
-    expect((make.getByRole("combobox", { name: "Which day" }) as HTMLSelectElement).selectedOptions[0]!.textContent).toBe("Day 1");
-    expect(make.getByText(/The day lands on Day 1/)).toBeDefined();
-    expect(make.queryByText(/appended at the end/)).toBeNull();
+    // PR 514 r1: the note pointed at a trip header this page has not got.
+    expect(moment.getByRole("group", { name: "Suggestions on the board", hidden: true }).textContent).not.toMatch(/trip header/);
   });
 
-  // The example submits nothing, so a keyboard passes over it to the
-  // moment's one way in (PR 510 r6: seven tab stops that did nothing).
-  it("keeps the make moment's worked example out of the tab order", WHOLE_SEA, async () => {
-    render(<LandingSea />);
-    const region = screen.getByRole("region", { name: "Start a trip using someone else’s Thailand day, or add it to an existing plan." });
-    await within(region).findByRole("combobox", { name: "Which day" });
-    // Every stop Tab lands on inside the moment, once round the whole sea
-    // (Tab wraps, so the count only needs to be past the sea's stops).
-    const stops = new Set<string>();
-    region.addEventListener("focusin", (event) => {
-      const at = event.target as HTMLElement;
-      stops.add(at.getAttribute("aria-label") ?? at.textContent ?? at.tagName);
+  // Mitchell's walk of PR 514, beside a screenshot of the real panel: "Show
+  // the thinking steps a bit more", "Stack the changes with a simple overview
+  // of whats being added", "Include the overview on one of the items for
+  // accept/dismiss/withdraw".
+  describe("the assistant as the app draws it", () => {
+    async function assistantMoment() {
+      render(<LandingSea />);
+      const moment = within(screen.getByRole("region", { name: ASSISTANT }));
+      await moment.findByRole("log", { name: "Conversation", hidden: true });
+      return moment;
+    }
+
+    // Mitchell, later on the same walk: "Unexpand the 'Hide how it got there'
+    // so nothing goes off the bottom".
+    it("draws the turn's steps closed, as the app's one-line summary of them", async () => {
+      const moment = await assistantMoment();
+      const log = within(moment.getByRole("log", { name: "Conversation", hidden: true }));
+      expect(log.queryAllByRole("listitem", { hidden: true })).toEqual([]);
+      expect(log.getByText(/^\d+ steps · Drafted a change$/)).toBeDefined();
+      expect(log.queryByText("Hide how it got there")).toBeNull();
     });
-    for (let i = 0; i < 60; i++) await userEvent.tab();
-    expect([...stops]).toEqual(["Make this your trip"]);
+
+    it("sums the turn up in the app's own note, with Accept all", async () => {
+      const moment = await assistantMoment();
+      const { changeCount } = LANDING_FEATURES.assistant.suggested;
+      const note = moment.getByRole("group", { name: "Suggestions on the board", hidden: true }).textContent;
+      expect(note).toContain(`I put ${changeCount} suggestions on the board`);
+      expect(note).toMatch(/Accept all$/);
+    });
+
+    it("stacks what is being added over the day: each stop's time, title and day", async () => {
+      const moment = await assistantMoment();
+      const items = within(moment.getByRole("list", { name: "Suggestions being added", hidden: true }))
+        .getAllByRole("listitem", { hidden: true })
+        .map((item) => item.textContent);
+      expect(items).toHaveLength(LANDING_FEATURES.assistant.ghosts.length);
+      LANDING_FEATURES.assistant.ghosts.forEach((ghost, i) => {
+        expect(items[i]).toContain(ghost.activity!.title);
+        expect(items[i]).toContain("Day 1");
+        expect(items[i]).toMatch(/\d(:\d\d)? (am|pm)/);
+      });
+    });
+
+    it("opens the last ghost's review as the board's popover does: its sentence over Accept, Dismiss and Withdraw", async () => {
+      const moment = await assistantMoment();
+      const reviews = moment.getAllByRole("group", { name: "Review this suggestion", hidden: true });
+      expect(reviews).toHaveLength(1);
+      expect(reviews[0]!.textContent).toBe(`${LANDING_FEATURES.assistant.ghosts.at(-1)!.description}AcceptDismissWithdraw`);
+    });
+  });
+
+  // Mitchell's walk of PR 514: "I don't think it makes sense for the assistant
+  // preview buttons to be clickable". A still picture of the real UI: one
+  // figure to a screen reader, never a list of buttons that do nothing.
+  describe("the assistant moment is a picture", () => {
+    it("reads as one named example, with nothing inside it in the accessibility tree", async () => {
+      render(<LandingSea />);
+      const moment = within(screen.getByRole("region", { name: ASSISTANT }));
+      const figure = await moment.findByRole("figure", { name: /^An example: / });
+      for (const role of ["button", "tab", "tablist", "log", "group", "list", "img", "status"] as const) {
+        expect(within(figure).queryAllByRole(role), role).toEqual([]);
+      }
+    });
+
+    it("draws no control: not a button, a tab or a link, hidden or not", async () => {
+      render(<LandingSea />);
+      const moment = within(screen.getByRole("region", { name: ASSISTANT }));
+      await moment.findByRole("log", { name: "Conversation", hidden: true });
+      const controls = (["button", "tab", "tablist", "link", "checkbox", "menuitem", "textbox"] as const).flatMap((role) =>
+        moment.queryAllByRole(role, { hidden: true }).map((control) => `${role}: ${control.getAttribute("aria-label") ?? control.textContent}`),
+      );
+      expect(controls).toEqual([]);
+    });
+
+    it("puts nothing of the moment in the tab order", WHOLE_SEA, async () => {
+      render(<LandingSea />);
+      const region = screen.getByRole("region", { name: ASSISTANT });
+      await within(region).findByRole("log", { name: "Conversation", hidden: true });
+      // Every stop Tab lands on inside the moment, once round the whole sea
+      // (Tab wraps, so the count only needs to be past the sea's stops).
+      const stops = new Set<string>();
+      region.addEventListener("focusin", (event) => {
+        const at = event.target as HTMLElement;
+        stops.add(at.getAttribute("aria-label") ?? at.textContent ?? at.tagName);
+      });
+      for (let i = 0; i < 60; i++) await userEvent.tab();
+      expect([...stops]).toEqual([]);
+    });
+  });
+
+  // PR 514 r1: a test that read only each lit day's region passed with none lit.
+  it("lights three other Italian cities' days beside the assistant", () => {
+    render(<LandingSea />);
+    const lit = litCells().filter((cell) => cell.getAttribute("data-lit-for") === "sea-assistant");
+    expect(lit.map((cell) => cell.getAttribute("data-region"))).toEqual(["italy-cities", "italy-cities", "italy-cities"]);
+    const city = (id: string) => SEA_DAYS.find((cell) => cell.day.savedDayId === id)!.day.name.split(":")[0];
+    expect(lit.map((cell) => city(dayOf(cell))).sort()).toEqual(["Naples", "Sicily's east", "Venice"]);
+  });
+
+  // Mitchell's third walk of PR 510, "The banner to left is the same activity
+  // to right", which PR 514 r1 found again: the lit Rome day's Forum and
+  // Testaccio beside the moment's own. A venue within 250m is the same one.
+  it("lights no day beside the assistant that shares a stop or a playbook with its trip", () => {
+    render(<LandingSea />);
+    const { river, ghosts } = LANDING_FEATURES.assistant;
+    const own = [...river.activityIds.map((id) => river.activities[id]!), ...ghosts.map((ghost) => ghost.activity!)];
+    const lit = litCells()
+      .filter((cell) => cell.getAttribute("data-lit-for") === "sea-assistant")
+      .map(dayOf);
+    expect(lit).toHaveLength(3);
+    const borrowed = PLAYBOOKS.filter((day) => day.bundle === PLAYBOOKS.find((of) => of.id === LANDING_FEATURES.shelf.savedDayId)!.bundle);
+    expect(lit.filter((id) => borrowed.some((day) => day.id === id))).toEqual([]);
+    const shared = lit.flatMap((id) =>
+      PLAYBOOKS.find((day) => day.id === id)!.stops.flatMap((stop) =>
+        own
+          .filter((mine) => mine.title === stop.title || metres(mine.location, stop.location) < 250)
+          .map((mine) => `${stop.title} ~ ${mine.title}`),
+      ),
+    );
+    expect(shared).toEqual([]);
+  });
+
+  // Mitchell, 2026-10-21: M51 drops "Make this your trip" and the onboarding behind it.
+  it("offers no Make this your trip anywhere in the sea", async () => {
+    render(<LandingSea />);
+    await within(screen.getByRole("region", { name: ASSISTANT })).findByRole("log", { name: "Conversation", hidden: true });
+    const sea = within(screen.getByTestId("landing-sea"));
+    const named = { name: /make this your trip/i };
+    expect([...sea.queryAllByRole("link", named), ...sea.queryAllByRole("button", named)]).toEqual([]);
   });
 
   it("puts the crew on the Greek trip's borrowed Day 2, with the Greek days lit around it", async () => {
@@ -383,7 +522,7 @@ const touch = (a: SeaArea, b: SeaArea) =>
 
 const MOMENTS = [
   "Find a day worth borrowing.",
-  "Start a trip using someone else’s Thailand day, or add it to an existing plan.",
+  ASSISTANT,
   "Everyone going, one plan.",
   "Keep the notebook afterwards.",
 ];
@@ -514,7 +653,7 @@ describe("the sea at Mitchell's third walk", () => {
     return { cols, unit: (width - 32 - (cols - 1) * 8) / cols, viewport };
   };
   const SCREENS = [metricsAt(1440, 900), metricsAt(1718, 1270), metricsAt(3440, 1271), metricsAt(3440, 1440), metricsAt(1100, 900)];
-  const ORDER = ["sea-find", "sea-make", "sea-crew", "sea-notebook"] as const;
+  const ORDER = ["sea-find", "sea-assistant", "sea-crew", "sea-notebook"] as const;
 
   // "you should just be seeing the last fading out when the next scrolls
   // in": as the next moment comes onto the screen at its foot, the last is

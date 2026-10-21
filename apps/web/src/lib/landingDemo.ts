@@ -1,8 +1,9 @@
-import type { ActivityView } from "@tc/contracts";
+import type { ActivityView, AssistantSuggested } from "@tc/contracts";
 import type { ItineraryDayPayload, Seg, SunPayload, TripPeoplePayload, TripStripPayload } from "@tc/pages";
 import type { AccentFamily } from "@/lib/dayAccent";
 import type { Persona } from "@/lib/persona";
 import type { DiscoverDay } from "@/lib/playbooks";
+import type { Ghost } from "@/lib/suggestionOverlay";
 import snapshot from "./landingDemo.generated.json";
 import features from "./landingFeatures.generated.json";
 
@@ -75,11 +76,21 @@ export type LandingFeatures = {
   playbook: DiscoverDay;
   /** The find moment's banner: the day `scripts/landing-demo.ts` names by its key in `content/playbooks/`. */
   shelf: DiscoverDay;
-  /** The make-it-your-trip moment's worked example: the Railay day, and the Thailand demo trip as a trip the reader has. */
-  make: {
-    day: { name: string; dayCount: number };
-    trip: { tripId: string; name: string };
-    days: { dayId: string; label: string }[];
+  /**
+   * The assistant moment's worked example (M51 part 6): Day 1 of a trip
+   * borrowed from the find moment's Rome playbook, what the reader asked, what
+   * the assistant said, and the stops its turn stored as a suggestion, as the
+   * board's overlay lays them on the day.
+   */
+  assistant: {
+    trip: string;
+    currency: string;
+    accent: AccentFamily;
+    river: LandingRiverDay;
+    ask: string;
+    answer: string;
+    suggested: AssistantSuggested;
+    ghosts: Ghost[];
   };
   crew: LandingCrew;
   /** The page's paragraphs: the author's words and the widgets' resolved values. */

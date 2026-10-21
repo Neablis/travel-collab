@@ -8,6 +8,12 @@ import { cn } from "@/lib/cn";
 // its onClick, so fireEvent.click drives it (ADR-012 invariant 3). `contentClassName`
 // lets a caller widen the default `w-80` when its content genuinely needs it
 // (e.g. the History popover's entries + preview controls, #16/#17).
+/**
+ * The open panel's look, for a page that draws one standing open as a picture
+ * of it (the front door's assistant moment, M51), with none of its layering.
+ */
+export const POPOVER_SURFACE = "w-80 rounded-lg border border-hairline bg-surface p-3 shadow-overlay";
+
 export function Popover({
   open,
   onOpenChange,
@@ -79,10 +85,7 @@ export function Popover({
           onCloseAutoFocus={onCloseAutoFocus}
           aria-label={label}
           aria-labelledby={label === undefined ? triggerId : undefined}
-          className={cn(
-            "overlay-layer w-80 rounded-lg border border-hairline bg-surface p-3 shadow-overlay",
-            contentClassName,
-          )}
+          className={cn("overlay-layer", POPOVER_SURFACE, contentClassName)}
         >
           {children}
         </RadixPopover.Content>
