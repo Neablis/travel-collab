@@ -59,8 +59,13 @@ describe.each(SNAPSHOTS)("the landing's $name snapshot", ({ path, fresh: build }
 
   // The spec's other promise about the file (§3.2): no calendar dates, because
   // `/demo/<slug>` moves its dates and a frozen one would go stale.
+  // A month only with a day beside it: the sea's stop titles name places like
+  // "Sierra Mar", which a bare month word would call a date.
   it("carries no calendar date", () => {
-    expect(readFileSync(path, "utf8")).not.toMatch(/\d{4}-\d{2}-\d{2}|\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\b/);
+    const month = "(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)";
+    expect(readFileSync(path, "utf8")).not.toMatch(
+      new RegExp(`\\d{4}-\\d{2}-\\d{2}|\\b${month}\\.? \\d{1,2}\\b|\\b\\d{1,2} ${month}\\b`),
+    );
   });
 });
 
