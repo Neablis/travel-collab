@@ -103,55 +103,226 @@
     ],
     "namedTags": []
   },
-  "make": {
-    "day": {
-      "name": "Railay: the first longtail, Phra Nang before the crowd, and back after dark",
-      "dayCount": 1
+  "assistant": {
+    "trip": "Two days in Rome",
+    "currency": "USD",
+    "accent": "info",
+    "river": {
+      "dayId": "00000000-0000-4000-80d0-000000000001",
+      "ordinal": 1,
+      "city": "Rome",
+      "activityIds": [
+        "00000000-0000-4000-80d0-000000000003",
+        "00000000-0000-4000-80d0-000000000004",
+        "00000000-0000-4000-80d0-000000000005",
+        "00000000-0000-4000-80d0-000000000006"
+      ],
+      "activities": {
+        "00000000-0000-4000-80d0-000000000003": {
+          "activityId": "00000000-0000-4000-80d0-000000000003",
+          "title": "The Colosseum, arena floor first",
+          "timeWindow": {
+            "start": "09:00",
+            "end": "11:30"
+          },
+          "location": {
+            "name": "Colosseum",
+            "lat": 41.89004,
+            "lng": 12.49423,
+            "countryCode": "IT",
+            "city": "Rome"
+          },
+          "notes": "Book the first timed entry and enter through the arena floor if you can — standing where the gladiators stood changes the scale of the place entirely. The hypogeum tour underneath is worth the extra ticket: the lifts and trapdoors that made the spectacles work.",
+          "anchors": [],
+          "kind": "planned",
+          "tags": [
+            "ticketed"
+          ],
+          "cost": null,
+          "bookedBy": null,
+          "participants": [],
+          "addedBy": null,
+          "mode": null,
+          "endLocation": null,
+          "pendingReason": null
+        },
+        "00000000-0000-4000-80d0-000000000004": {
+          "activityId": "00000000-0000-4000-80d0-000000000004",
+          "title": "The Roman Forum",
+          "timeWindow": {
+            "start": "11:30",
+            "end": "13:30"
+          },
+          "location": {
+            "name": "Foro Romano",
+            "lat": 41.89251,
+            "lng": 12.48417,
+            "countryCode": "IT",
+            "city": "Rome"
+          },
+          "notes": "Walk the Via Sacra the way triumphs did: past the Curia where the Senate met, the rostra where Cicero spoke, and the Temple of Vesta where the sacred flame burned. The Forum rewards slow looking — every ruin is a building with a biography, and the audio guide earns its keep here.",
+          "anchors": [],
+          "kind": "planned",
+          "tags": [
+            "ticketed",
+            "sight"
+          ],
+          "cost": null,
+          "bookedBy": null,
+          "participants": [],
+          "addedBy": null,
+          "mode": null,
+          "endLocation": null,
+          "pendingReason": null
+        },
+        "00000000-0000-4000-80d0-000000000005": {
+          "activityId": "00000000-0000-4000-80d0-000000000005",
+          "title": "Palatine Hill",
+          "timeWindow": {
+            "start": "13:30",
+            "end": "15:00"
+          },
+          "location": {
+            "name": "Palatino",
+            "lat": 41.88785,
+            "lng": 12.48981,
+            "countryCode": "IT",
+            "city": "Rome"
+          },
+          "notes": "The hill where Rome began — Romulus's hut, Augustus's house, and the palace complex that gave us the word 'palace'. Climb to the viewpoint over the Forum and the Circus Maximus: the best single panorama of ancient Rome, and the quietest corner of the whole archaeological park.",
+          "anchors": [],
+          "kind": "planned",
+          "tags": [
+            "sight"
+          ],
+          "cost": null,
+          "bookedBy": null,
+          "participants": [],
+          "addedBy": null,
+          "mode": null,
+          "endLocation": null,
+          "pendingReason": null
+        },
+        "00000000-0000-4000-80d0-000000000006": {
+          "activityId": "00000000-0000-4000-80d0-000000000006",
+          "title": "Dinner at Armando al Pantheon",
+          "timeWindow": {
+            "start": "19:30",
+            "end": "21:30"
+          },
+          "location": {
+            "name": "Armando al Pantheon",
+            "lat": 41.89905,
+            "lng": 12.47622,
+            "countryCode": "IT",
+            "city": "Rome"
+          },
+          "notes": "The classic dinner after a day in the ruins: a family-run room steps from the Pantheon, famous for its cacio e pepe and its refusal to rush anyone. Book ahead — it is small, beloved, and the waiters remember you on the second visit.",
+          "anchors": [],
+          "kind": "planned",
+          "tags": [
+            "meal"
+          ],
+          "cost": null,
+          "bookedBy": null,
+          "participants": [],
+          "addedBy": null,
+          "mode": null,
+          "endLocation": null,
+          "pendingReason": null
+        }
+      }
     },
-    "trip": {
-      "tripId": "00000000-0000-4000-8000-00000000d004",
-      "name": "Thailand: Bangkok → Krabi → Koh Lanta"
+    "ask": "Day 1 has nothing between Palatine Hill and dinner. Can you fit in a late lunch and somewhere for sunset?",
+    "answer": "Nothing is planned from 3 until dinner at 7:30. Both are from the Rome playbook you borrowed: a late lunch at Mercato Testaccio, then the Circus Maximus under the Palatine as the light goes.",
+    "suggested": {
+      "suggestionId": "00000000-0000-4000-80d1-000000000000",
+      "changeCount": 2,
+      "snapshotId": null,
+      "snapshotName": null,
+      "skipped": []
     },
-    "days": [
+    "ghosts": [
       {
-        "dayId": "00000000-0000-4000-8004-000000000001",
-        "label": "Day 1"
+        "changeId": "00000000-0000-4000-80d1-000000000001",
+        "suggestionId": "00000000-0000-4000-80d1-000000000000",
+        "authorId": "reader",
+        "description": "Added \"Lunch at Mercato Testaccio\" to Day 1",
+        "dependsOn": [],
+        "blockedBy": [],
+        "via": "assistant",
+        "kind": "add",
+        "activityId": "00000000-0000-4000-80d0-000000000007",
+        "activity": {
+          "activityId": "00000000-0000-4000-80d0-000000000007",
+          "title": "Lunch at Mercato Testaccio",
+          "timeWindow": {
+            "start": "15:15",
+            "end": "16:30"
+          },
+          "location": {
+            "name": "Mercato Testaccio",
+            "lat": 41.87759,
+            "lng": 12.47329,
+            "countryCode": "IT",
+            "city": "Rome"
+          },
+          "notes": "Lunch where Romans lunch: the Testaccio market's food boxes serve tripe, supplì, and trapizzino to workers and regulars, in the neighbourhood that fed the city for centuries. Eat at a counter, then walk off lunch past the old slaughterhouse and the Protestant Cemetery's pyramid.",
+          "anchors": [],
+          "kind": "planned",
+          "tags": [
+            "meal",
+            "shopping"
+          ],
+          "cost": null,
+          "bookedBy": null,
+          "participants": [],
+          "addedBy": null,
+          "mode": null,
+          "endLocation": null,
+          "pendingReason": null
+        },
+        "dayId": "00000000-0000-4000-80d0-000000000001"
       },
       {
-        "dayId": "00000000-0000-4000-8004-000000000002",
-        "label": "Day 2"
-      },
-      {
-        "dayId": "00000000-0000-4000-8004-000000000003",
-        "label": "Day 3"
-      },
-      {
-        "dayId": "00000000-0000-4000-8004-000000000004",
-        "label": "Day 4"
-      },
-      {
-        "dayId": "00000000-0000-4000-8004-000000000005",
-        "label": "Day 5"
-      },
-      {
-        "dayId": "00000000-0000-4000-8004-000000000006",
-        "label": "Day 6"
-      },
-      {
-        "dayId": "00000000-0000-4000-8004-000000000007",
-        "label": "Day 7"
-      },
-      {
-        "dayId": "00000000-0000-4000-8004-000000000008",
-        "label": "Day 8"
-      },
-      {
-        "dayId": "00000000-0000-4000-8004-000000000009",
-        "label": "Day 9"
-      },
-      {
-        "dayId": "00000000-0000-4000-8004-000000000010",
-        "label": "Day 10"
+        "changeId": "00000000-0000-4000-80d1-000000000002",
+        "suggestionId": "00000000-0000-4000-80d1-000000000000",
+        "authorId": "reader",
+        "description": "Added \"Circus Maximus\" to Day 1",
+        "dependsOn": [],
+        "blockedBy": [],
+        "via": "assistant",
+        "kind": "add",
+        "activityId": "00000000-0000-4000-80d0-000000000008",
+        "activity": {
+          "activityId": "00000000-0000-4000-80d0-000000000008",
+          "title": "Circus Maximus",
+          "timeWindow": {
+            "start": "18:00",
+            "end": "19:00"
+          },
+          "location": {
+            "name": "Via del Circo Massimo",
+            "lat": 41.88539,
+            "lng": 12.48509,
+            "countryCode": "IT",
+            "city": "Rome"
+          },
+          "notes": "The chariot-racing track that held 250,000 spectators is now a long grassy hollow — walk its length to feel the scale, then climb the Palatine side for the view down the spine. It is the emptiest big space in central Rome, and the best place to imagine the roar.",
+          "anchors": [],
+          "kind": "planned",
+          "tags": [
+            "sight"
+          ],
+          "cost": null,
+          "bookedBy": null,
+          "participants": [],
+          "addedBy": null,
+          "mode": null,
+          "endLocation": null,
+          "pendingReason": null
+        },
+        "dayId": "00000000-0000-4000-80d0-000000000001"
       }
     ]
   },

@@ -11,6 +11,7 @@ import { Popover } from "@/components/ui/popover";
 import { Text } from "@/components/ui/text";
 import type { Ghost } from "@/lib/suggestionOverlay";
 import type { BoardSuggestions } from "./DayRiver";
+import { ReviewButtons } from "./ReviewButtons";
 
 /**
  * Accept, Dismiss and Withdraw for one pending change (spec §2.4, §2.7).
@@ -53,22 +54,16 @@ export function SuggestionActions({ ghost, stale = false }: { ghost: Ghost; stal
         </Text>
       )}
       <div className="flex flex-wrap gap-1.5">
-        {reviewer && !stale && (
-          <Button
-            variant="primary"
-            size="sm"
-            disabled={busy || hint !== null}
-            aria-describedby={hint === null ? undefined : hintId}
-            aria-label={`Accept: ${ghost.description}`}
-            onClick={() => void run("accept")}
-          >
-            Accept
-          </Button>
-        )}
         {reviewer && (
-          <Button variant="secondary" size="sm" disabled={busy} aria-label={`Dismiss: ${ghost.description}`} onClick={() => void run("dismiss")}>
-            Dismiss
-          </Button>
+          <ReviewButtons
+            description={ghost.description}
+            accept={
+              stale
+                ? null
+                : { onClick: () => void run("accept"), disabled: busy || hint !== null, describedBy: hint === null ? undefined : hintId }
+            }
+            dismiss={{ onClick: () => void run("dismiss"), disabled: busy }}
+          />
         )}
         {author && (
           <Button variant="secondary" size="sm" disabled={busy} aria-label={`Withdraw: ${ghost.description}`} onClick={() => void run("withdraw")}>

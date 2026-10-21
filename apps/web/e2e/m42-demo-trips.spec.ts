@@ -231,20 +231,25 @@ test.describe("the front door, signed out (M42)", () => {
     });
   }
 
-  // Mitchell's walk of PR 510 at 7260011: the make moment read "white text on
-  // white background". Risen at the screen's middle, every word on it passes
-  // the contrast check.
-  test("the make moment's words pass a contrast check once it has risen", async ({ page }) => {
+  // Mitchell's walk of PR 510 at 7260011: the second moment read "white text
+  // on white background". The assistant's worked example (M51 part 6), risen at
+  // the screen's middle, passes axe at the product's WCAG level, every impact:
+  // its conversation, its ghost stops and its inert Accept and Dismiss.
+  test("the assistant moment passes axe once it has risen", async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto("/");
-    const make = page.getByTestId("desktop-landing").getByRole("region", { name: /^Start a trip using someone else’s Thailand day/ });
-    await make.evaluate((moment) => {
+    const ask = page.getByTestId("desktop-landing").getByRole("region", { name: "Ask for more, keep what fits." });
+    await expect(ask.getByRole("log", { name: "Conversation" })).toBeAttached();
+    await ask.evaluate((moment) => {
       const box = moment.getBoundingClientRect();
       window.scrollBy(0, box.top + box.height / 2 - window.innerHeight / 2);
     });
-    await expect(make.getByTestId("moment-panel")).toHaveCSS("opacity", "1");
-    const { violations } = await new AxeBuilder({ page }).include('[aria-labelledby="sea-make"]').withRules(["color-contrast"]).analyze();
-    expect(violations.flatMap((violation) => violation.nodes.map((node) => node.target.join(" ")))).toEqual([]);
+    await expect(ask.getByTestId("moment-panel")).toHaveCSS("opacity", "1");
+    const { violations } = await new AxeBuilder({ page })
+      .include('[aria-labelledby="sea-assistant"]')
+      .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
+      .analyze();
+    expect(violations.map((violation) => ({ id: violation.id, targets: violation.nodes.map((node) => node.target.join(" ")) }))).toEqual([]);
   });
 
   // Mitchell's walk of PR 510 at 7260011: a background card under the pointer

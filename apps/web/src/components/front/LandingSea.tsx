@@ -4,7 +4,6 @@ import { Fragment, type ReactNode, useEffect, useMemo, useRef, useState } from "
 import Link from "next/link";
 import { LandingFeaturePanel } from "@/components/front/LandingFeaturePanel";
 import { DiscoverCard } from "@/components/playbooks/DiscoverCard";
-import { buttonVariants } from "@/components/ui/button";
 import { Heading } from "@/components/ui/heading";
 import { cn } from "@/lib/cn";
 import { LANDING_SEA, SEA_ACCENTS, SEA_DAYS, type SeaAccent, type SeaCell, type SeaCellSize } from "@/lib/landingSea";
@@ -21,7 +20,7 @@ type Ground = { cell: SeaDoor; accent?: never } | { accent: SeaAccent; cell?: ne
 // whole number of units (Mitchell's walk of PR 510). The first screen is all
 // colour; scrolling dims it into ground, and four moments rise out of it from
 // a ghost of themselves and sink back as they leave, each the real component
-// telling one step (find a day, make it your trip, everyone on the plan, the
+// telling one step (find a day, ask the assistant, everyone on the plan, the
 // notebook afterwards), each coming in as the last fades out, with two or
 // three days lit around each, touching it and apart from one another. Here
 // and there an accent, a cell of colour naming a country, a city or a kind of
@@ -105,11 +104,10 @@ const SPAN: Record<SeaCellSize, string> = {
 // right"*). Each is a day named here, not ranked (Mitchell's fourth walk:
 // *"Let the rule go"*). Find a day raises Mitchell's Rome playbook and lights
 // his Florence, Amalfi and Bologna ones (his fourth walk: *"use these rome days
-// for the card and the accent cards around it"*); make it your trip shows the
-// Railay day and lights three other Thai ones; the crew's river is Elena's
-// Naxos day, and it lights three other Greek ones; the notebook lights the
-// demo's three Japan days.
-const THAILAND = SEA_DAYS.filter((cell) => cell.group === "thailand-beaches");
+// for the card and the accent cards around it"*); the assistant works on a trip
+// borrowed from that Rome playbook, and lights three other Italian cities'
+// days, Rome's among them; the crew's river is Elena's Naxos day, and it lights
+// three other Greek ones; the notebook lights the demo's three Japan days.
 const GREECE = SEA_DAYS.filter((cell) => cell.group === "greek-islands");
 const dayOf = (group: string) => SEA_DAYS.find((cell) => cell.group === group)!;
 /** The find moment's banner, the day the generator names as `LANDING_FEATURES.shelf`. */
@@ -119,25 +117,23 @@ const ITALY = [
   dayOf("3-days-on-the-amalfi-coast-cliff-towns-lemon-groves-the-path-of-the-gods"),
   dayOf("3-days-in-bologna-tortellini-mortadella-market-mornings"),
 ];
-/** The Railay day's page, where the day is added to a trip; part 6 makes this the onboarding itself. */
-const RAILAY = THAILAND.find((cell) => cell.day.name.startsWith("Railay"))!;
+const ITALIAN_CITIES = ["Rome:", "Naples:", "Venice:"].map((name) => SEA_DAYS.find((cell) => cell.group === "italy-cities" && cell.day.name.startsWith(name))!);
 const NAXOS = GREECE.find((cell) => cell.day.name.startsWith("Naxos"))!;
-const THAI = THAILAND.filter((cell) => cell !== RAILAY);
 const GREEK = GREECE.filter((cell) => cell !== NAXOS);
 
-export type MomentId = "sea-find" | "sea-make" | "sea-crew" | "sea-notebook";
+export type MomentId = "sea-find" | "sea-assistant" | "sea-crew" | "sea-notebook";
 type StoryId = MomentId | "pricing" | "closing";
 
 /** Each moment's own day, which none of its lit days repeats; the notebook's are the Japan demo's, which the sea does not hold. */
 export const MOMENT_DAY: Record<MomentId, string | null> = {
   "sea-find": BANNER.day.savedDayId,
-  "sea-make": RAILAY.day.savedDayId,
+  "sea-assistant": BANNER.day.savedDayId,
   "sea-crew": NAXOS.day.savedDayId,
   "sea-notebook": null,
 };
 const LIT: Record<MomentId, SeaDoor[]> = {
   "sea-find": ITALY,
-  "sea-make": THAI.slice(0, 3),
+  "sea-assistant": ITALIAN_CITIES,
   "sea-crew": GREEK.slice(0, 3),
   "sea-notebook": LANDING_SEA.japan,
 };
@@ -282,12 +278,13 @@ const SERVER_METRICS: SeaMetrics = { cols: 6, unit: (1100 - 2 * PAD - 5 * GAP) /
 // columns, five from 12, six from 16), or the full width, how tall its
 // content is drawn in px, which sets its rows, and where it sits. The crew's
 // 680px is four rows at 1440 (Mitchell's third walk: *"Cut it one row
-// shorter"*); the make moment's 440 holds its worked example. The pricing's
+// shorter"*), as is the assistant's 600, which holds its conversation beside
+// the day from nine to half past nine. The pricing's
 // 480 is three rows at every unit, one fewer than it had (his fourth: *"Too
 // much dead space, shrink the whole container down 1 row"*).
 const STORIES: { id: StoryId; extra: number | null; height: number; align: "left" | "right" | "center" }[] = [
   { id: "sea-find", extra: 1, height: 480, align: "left" },
-  { id: "sea-make", extra: 1, height: 440, align: "right" },
+  { id: "sea-assistant", extra: 1, height: 600, align: "right" },
   { id: "sea-crew", extra: 1, height: 680, align: "center" },
   { id: "sea-notebook", extra: 2, height: 640, align: "left" },
   { id: "pricing", extra: 2, height: 480, align: "center" },
@@ -786,17 +783,9 @@ export function LandingSea({ hero, pricing, closing }: { hero?: ReactNode; prici
         <LandingFeaturePanel panel="find-a-day">{PANEL_PENDING}</LandingFeaturePanel>
       </Moment>
     ),
-    "sea-make": (
-      <Moment
-        key="sea-make"
-        id="sea-make"
-        heading="Start a trip using someone else’s Thailand day, or add it to an existing plan."
-        at={stories["sea-make"]}
-      >
-        <LandingFeaturePanel panel="make-a-trip">{PANEL_PENDING}</LandingFeaturePanel>
-        <Link href={RAILAY.href} prefetch={false} className={cn(buttonVariants({ variant: "primary" }), "self-start no-underline")}>
-          Make this your trip
-        </Link>
+    "sea-assistant": (
+      <Moment key="sea-assistant" id="sea-assistant" heading="Ask for more, keep what fits." at={stories["sea-assistant"]}>
+        <LandingFeaturePanel panel="assistant">{PANEL_PENDING}</LandingFeaturePanel>
       </Moment>
     ),
     "sea-crew": (

@@ -61,6 +61,9 @@ const backgroundNames = (lit: Set<string>) =>
     (name) => name !== LANDING_FEATURES.shelf.name,
   );
 
+/** The assistant moment's heading. */
+const ASSISTANT = "Ask for more, keep what fits.";
+
 // A whole sea mounted is some three hundred cards: seconds of jsdom, not a
 // hang, so only the two tests that need every screen mount them all.
 const WHOLE_SEA = { timeout: 15_000 };
@@ -186,14 +189,13 @@ describe("the sea's moments", () => {
   // Mitchell's third walk of PR 510: "The banner to left is the same activity
   // to right, use different activities". A lit day is another day of the
   // moment's region, never the one the moment itself shows, nor one named
-  // like it; and no day is lit for two moments.
+  // like it; and no day is lit for two moments. The assistant's trip is the
+  // banner's Rome days, borrowed.
   it("lights no moment with its own day again", () => {
     render(<LandingSea />);
-    const make = screen.getByRole("region", { name: /^Start a trip using someone else’s Thailand day/ });
-    const railay = parseDaySegment(within(make).getByRole("link", { name: "Make this your trip" }).getAttribute("href")!.slice("/playbooks/day/".length)).id;
     const own: Record<string, string> = {
       "sea-find": LANDING_FEATURES.shelf.savedDayId,
-      "sea-make": railay!,
+      "sea-assistant": LANDING_FEATURES.shelf.savedDayId,
       "sea-crew": LANDING_FEATURES.crew.borrowed.savedDayId,
     };
     const nameOf = (id: string) => SEA_DAYS.find((cell) => cell.day.savedDayId === id)!.day.name;
@@ -206,31 +208,35 @@ describe("the sea's moments", () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
-  // Mitchell's third walk of PR 510: "This card is still too empty". The
-  // make moment shows "Add to a trip"'s own fields for the Railay day, landing
-  // it on Day 1 of a trip the reader has: one "Which trip", one sentence that
-  // agrees with it (PR 510 r6: two forms named alike, and "appended at the
-  // end" under "this day is day 1").
-  it("makes it your trip, under the heading Mitchell gave it, with the add-to-trip choice worked through", async () => {
+  // Mitchell, 2026-10-21: the make moment was "too empty, and boring ... just
+  // two dropdowns that dont work"; make it "a example of a fake AI bot
+  // assistant and the approve ghost changes ui we built". The real transcript
+  // asks for more of the Rome trip's Day 1, and the real river draws the
+  // answer as ghost stops, each with the reviewer's Accept and Dismiss.
+  it("asks the assistant for more of Rome's Day 1, and draws its answer as ghost stops to accept or dismiss", async () => {
     render(<LandingSea />);
-    const make = within(
-      screen.getByRole("region", { name: "Start a trip using someone else’s Thailand day, or add it to an existing plan." }),
-    );
-    const href = make.getByRole("link", { name: "Make this your trip" }).getAttribute("href")!;
-    expect(SEA_DAYS.find((cell) => cell.href === href)!.day.name).toMatch(/^Railay/);
-    const trips = await make.findAllByRole("combobox", { name: "Which trip" });
-    expect(trips.map((select) => (select as HTMLSelectElement).selectedOptions[0]!.textContent)).toEqual([LANDING_FEATURES.make.trip.name]);
-    expect((make.getByRole("combobox", { name: "Which day" }) as HTMLSelectElement).selectedOptions[0]!.textContent).toBe("Day 1");
-    expect(make.getByText(/The day lands on Day 1/)).toBeDefined();
-    expect(make.queryByText(/appended at the end/)).toBeNull();
+    const moment = within(screen.getByRole("region", { name: ASSISTANT }));
+    const log = await moment.findByRole("log", { name: "Conversation" });
+    expect(log.textContent).toContain(LANDING_FEATURES.assistant.ask);
+    expect(log.textContent).toContain(LANDING_FEATURES.assistant.answer);
+    const river = moment.getByRole("list", { name: "Day 1 timeline" });
+    const ghosts = within(river).getAllByRole("button", { name: /^Suggested: / });
+    expect(ghosts.length).toBeGreaterThanOrEqual(2);
+    for (const ghost of ghosts) {
+      const description = ghost.getAttribute("aria-label")!.slice("Suggested: ".length);
+      expect(moment.getByRole("button", { name: `Accept: ${description}` })).toBeDefined();
+      expect(moment.getByRole("button", { name: `Dismiss: ${description}` })).toBeDefined();
+    }
+    const lit = litCells().filter((cell) => cell.getAttribute("data-lit-for") === "sea-assistant");
+    expect(lit.map((cell) => cell.getAttribute("data-region"))).toEqual(lit.map(() => "italy-cities"));
   });
 
-  // The example submits nothing, so a keyboard passes over it to the
-  // moment's one way in (PR 510 r6: seven tab stops that did nothing).
-  it("keeps the make moment's worked example out of the tab order", WHOLE_SEA, async () => {
+  // The example decides nothing, so a keyboard passes over all of it (PR 510
+  // r6: seven tab stops in the make moment that did nothing).
+  it("keeps the assistant's example out of the tab order", WHOLE_SEA, async () => {
     render(<LandingSea />);
-    const region = screen.getByRole("region", { name: "Start a trip using someone else’s Thailand day, or add it to an existing plan." });
-    await within(region).findByRole("combobox", { name: "Which day" });
+    const region = screen.getByRole("region", { name: ASSISTANT });
+    await within(region).findByRole("log", { name: "Conversation" });
     // Every stop Tab lands on inside the moment, once round the whole sea
     // (Tab wraps, so the count only needs to be past the sea's stops).
     const stops = new Set<string>();
@@ -239,7 +245,16 @@ describe("the sea's moments", () => {
       stops.add(at.getAttribute("aria-label") ?? at.textContent ?? at.tagName);
     });
     for (let i = 0; i < 60; i++) await userEvent.tab();
-    expect([...stops]).toEqual(["Make this your trip"]);
+    expect([...stops]).toEqual([]);
+  });
+
+  // Mitchell, 2026-10-21: M51 drops "Make this your trip" and the onboarding behind it.
+  it("offers no Make this your trip anywhere in the sea", async () => {
+    render(<LandingSea />);
+    await within(screen.getByRole("region", { name: ASSISTANT })).findByRole("log", { name: "Conversation" });
+    const sea = within(screen.getByTestId("landing-sea"));
+    const named = { name: /make this your trip/i };
+    expect([...sea.queryAllByRole("link", named), ...sea.queryAllByRole("button", named)]).toEqual([]);
   });
 
   it("puts the crew on the Greek trip's borrowed Day 2, with the Greek days lit around it", async () => {
@@ -383,7 +398,7 @@ const touch = (a: SeaArea, b: SeaArea) =>
 
 const MOMENTS = [
   "Find a day worth borrowing.",
-  "Start a trip using someone else’s Thailand day, or add it to an existing plan.",
+  ASSISTANT,
   "Everyone going, one plan.",
   "Keep the notebook afterwards.",
 ];
@@ -514,7 +529,7 @@ describe("the sea at Mitchell's third walk", () => {
     return { cols, unit: (width - 32 - (cols - 1) * 8) / cols, viewport };
   };
   const SCREENS = [metricsAt(1440, 900), metricsAt(1718, 1270), metricsAt(3440, 1271), metricsAt(3440, 1440), metricsAt(1100, 900)];
-  const ORDER = ["sea-find", "sea-make", "sea-crew", "sea-notebook"] as const;
+  const ORDER = ["sea-find", "sea-assistant", "sea-crew", "sea-notebook"] as const;
 
   // "you should just be seeing the last fading out when the next scrolls
   // in": as the next moment comes onto the screen at its foot, the last is

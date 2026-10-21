@@ -1,6 +1,9 @@
 "use client";
 
-import { AddToTripForm } from "@/components/playbooks/AddToTripForm";
+import { cloneElement, type ReactElement } from "react";
+import { Transcript, type AssistantTurn } from "@/components/assistant/Transcript";
+import type { BoardSuggestions } from "@/components/board/DayRiver";
+import { ReviewButtons } from "@/components/board/ReviewButtons";
 import { DiscoverCard } from "@/components/playbooks/DiscoverCard";
 import { ItineraryDayBlock } from "@/components/pages/blocks/ItineraryDayBlock";
 import { SunBlock } from "@/components/pages/blocks/SunBlock";
@@ -57,28 +60,79 @@ export function FindADayPanel(): React.ReactElement {
   );
 }
 
+const { assistant } = LANDING_FEATURES;
+const ASSISTANT_ACCENTS = snapshotAccents({ [assistant.river.dayId]: assistant.accent });
+// Day 1 from nine to half past nine at night beside the conversation, in the
+// moment's four rows at 1440.
+const ASSISTANT_PX_PER_HOUR = 29;
+const ASSISTANT_TURNS: AssistantTurn[] = [
+  { id: "ask", role: "user", text: assistant.ask },
+  { id: "answer", role: "assistant", text: assistant.answer, tools: [], pending: false, suggested: assistant.suggested },
+];
+const nothing = () => {};
+/** No tab stops: the example decides nothing (PR 510 r6: seven stops in the make moment that did nothing). */
+const INERT = -1;
 /**
- * The make-it-your-trip moment's worked example (Mitchell's third walk of PR
- * 510: *"too empty, it should have an example thats relevent"*): "Add to a
- * trip"'s own fields for the Railay day, landing it on Day 1 of the Thailand
- * trip a reader already has, with "Start a new trip" one of the choices.
- * Canned trips, and a disabled fieldset: the fields submit nothing, so they
- * are no tab stops, while a screen reader still reads them as the example
- * they are. The moment's own link is the way in.
+ * The ghosts on the river as the board lays them, each wrapped as the board
+ * wraps one, but in no popover: here its Accept and Dismiss are listed beside
+ * the day, where they can be seen without a click the example cannot take.
  */
-export function MakeTripPanel(): React.ReactElement {
-  const { day, trip, days } = LANDING_FEATURES.make;
+const ASSISTANT_SUGGESTIONS: BoardSuggestions = {
+  days: new Map([[assistant.river.dayId, assistant.ghosts]]),
+  stops: new Map(),
+  newDays: [],
+  review: (_ghosts, trigger) => cloneElement(trigger as ReactElement<{ tabIndex?: number }>, { tabIndex: INERT }),
+  actions: () => null,
+};
+
+/**
+ * The assistant moment (Mitchell, 2026-10-21: *"make it about the ai
+ * assistant, since that feature isnt really talked about right now … a
+ * example of a fake AI bot assistant and the approve ghost changes ui we
+ * built"*). The app's own transcript, asking for more of the Rome trip's Day 1
+ * and answering with stops it put on the board as a suggestion (ADR-067); the
+ * board's own river drawing them as ghosts; and the reviewer's Accept and
+ * Dismiss for each. Canned (`landingFeatures.generated.json`), so `/` fetches
+ * nothing, and inert: every control is out of the tab order and does nothing,
+ * and the group says it is an example.
+ */
+export function AssistantPanel(): React.ReactElement {
   return (
-    <fieldset disabled aria-label="An example: the day added to a trip" className="min-h-0 flex-1 overflow-hidden">
-      <AddToTripForm
-        dayName={day.name}
-        dayCount={day.dayCount}
-        trips={[trip]}
-        days={days}
-        value={{ tripId: trip.tripId, startingAt: days[0]!.dayId, startDate: "" }}
-        onChange={() => {}}
-      />
-    </fieldset>
+    <div role="group" aria-label="An example: the assistant suggests two stops for Day 1" className="grid min-h-0 flex-1 grid-cols-2 gap-5">
+      <div className="flex min-h-0 min-w-0 flex-col gap-4">
+        <Transcript turns={ASSISTANT_TURNS} />
+        <ul aria-label="Suggested changes" className="m-0 flex list-none flex-col gap-3 p-0">
+          {assistant.ghosts.map((ghost) => (
+            <li key={ghost.changeId} className="flex flex-col gap-1.5">
+              <Text as="span" className="text-sm text-ink">
+                {ghost.description}
+              </Text>
+              <div className="flex flex-wrap gap-1.5">
+                <ReviewButtons description={ghost.description} accept={{ onClick: nothing }} dismiss={{ onClick: nothing }} tabIndex={INERT} />
+              </div>
+            </li>
+          ))}
+        </ul>
+      </div>
+      <div className={cn(SURFACE, "flex min-h-0 min-w-0 flex-col")}>
+        <div className="flex items-center gap-2.5 border-b border-hairline px-3.5 py-2.5">
+          <Text as="span" className="font-display font-semibold">
+            {`${assistant.trip} · Day ${assistant.river.ordinal} · ${assistant.river.city}`}
+          </Text>
+          <DataText className="ml-auto text-2xs tracking-wider uppercase">Timeline</DataText>
+        </div>
+        <div className="px-3.5 py-3">
+          <LandingRiver
+            day={assistant.river}
+            people={{}}
+            dayAccents={ASSISTANT_ACCENTS}
+            dayCurrency={assistant.currency}
+            pxPerHour={ASSISTANT_PX_PER_HOUR}
+            suggestions={ASSISTANT_SUGGESTIONS}
+          />
+        </div>
+      </div>
+    </div>
   );
 }
 
