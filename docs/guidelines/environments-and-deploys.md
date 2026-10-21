@@ -164,6 +164,9 @@ so only `main` does. Previews come from `.github/workflows/vercel-preview.yml`,
 which asks Vercel's API for one on every push to an open, non-draft pull
 request, and when a PR is opened, reopened or marked ready. Prose-only PRs get
 none: its `paths-ignore` lists the same prose set as `ci.yml`'s `changes` job.
+Once Vercel reports a preview built, `.github/workflows/preview-link-check.yml`
+requests every link the landing sea draws on it, and its `sea-links` job fails
+naming each one that does not answer 200. It is not a required check.
 
 Why: every push to every branch used to build a preview. On 2026-09-24 that
 came to about 130 deployments against the Hobby plan's 100 a day, and Vercel
@@ -204,10 +207,10 @@ tested at all. It can. Pick by who is doing the testing:
 this paragraph said "does not exist yet" for two days after it did). Read the
 value with `vercel env pull`, send it as the `x-vercel-protection-bypass`
 header, and add `x-vercel-set-bypass-cookie: true` if you want the rest of the
-browsing session to carry it. **It is not yet a GitHub Actions repo secret**,
-so a workflow keyed on `deployment_status` still cannot use it — copying it
-across is the remaining step before unattended preview testing works from CI.
-Treat it like `FLAGS_SECRET`: anyone holding it can reach every protected
+browsing session to carry it. **It is also a GitHub Actions repo secret**, so
+a workflow keyed on `deployment_status` can use it:
+`.github/workflows/preview-link-check.yml` does, and its green run on PR 511
+(148 of 148 links answering 200) is the proof. Treat it like `FLAGS_SECRET`: anyone holding it can reach every protected
 deployment this project has.
 
 Either way, `pnpm --filter web walk:preview <url> [path ...]` will drive a real
