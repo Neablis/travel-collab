@@ -1,5 +1,6 @@
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
+import { loadFeaturePanels } from "./LandingFeaturePanel";
 import { dayBlockOverflows, FindADayPanel } from "./LandingFeaturePanels";
 
 afterEach(() => {
@@ -99,5 +100,21 @@ describe("FindADayPanel trims", () => {
     expect(dayBlockOverflows(300, 400)).toBe(false);
     expect(dayBlockOverflows(401, 400)).toBe(false);
     expect(dayBlockOverflows(402, 400)).toBe(true);
+  });
+});
+
+// Test-pruning: moved here from LandingFeaturePanel.test.ts (deleted).
+// Every panel's lazy shares one import: two concurrent imports of a mocked
+// module can resolve to the real one under vitest, which made the feature
+// blocks' failed-load test (retired with the blocks in M51) fail only
+// sometimes. This file already statically imports ./LandingFeaturePanels,
+// so the module tree is warm here and the moved test no longer pays its
+// own cold transform (~3s alone) as a separate file worker. The 15s
+// ceiling is retained as headroom — a ceiling costs nothing when warm.
+describe("loadFeaturePanels", () => {
+  it("hands every caller the same import", { timeout: 15_000 }, async () => {
+    const first = loadFeaturePanels();
+    expect(loadFeaturePanels()).toBe(first);
+    await first;
   });
 });
