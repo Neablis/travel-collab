@@ -245,14 +245,15 @@ describe("the find moment's banner", () => {
     expect({ rating: own?.day.rating, reviews: own?.day.reviewCount }).toEqual({ rating: shelf.rating, reviews: shelf.reviewCount });
   });
 
-  // Mitchell, 2026-10-21: *"use day 2 for the banner"*. Its six stops fill
-  // the wide card, where day one's four left room.
-  it("previews Rome's day 2, and links to the Rome playbook", () => {
+  // Mitchell, 2026-10-21: *"use day 2 for the banner"* first, superseded
+  // by his preview feedback the same evening: day 1, whose four stops fit
+  // the moment where day 2's six did not. The banner previews Day 1 now.
+  it("previews Rome's day 1, and links to the Rome playbook", () => {
     const rome = "3-days-in-rome-emperors-gladiators-the-layers-beneath";
     const playbook = BUNDLES.find((b) => b.bundle.id === rome)!.playbooks.find((p) => p.key === rome)!;
     const { shelf } = LANDING_FEATURES;
     expect(shelf.savedDayId).toBe(playbookIdFor(rome, rome));
-    expect(shelf.preview.map((stop) => stop.title)).toEqual(playbook.days![1]!.stops.map((stop) => stop.title));
+    expect(shelf.preview.map((stop) => stop.title)).toEqual(playbook.days![0]!.stops.map((stop) => stop.title));
   });
 });
 

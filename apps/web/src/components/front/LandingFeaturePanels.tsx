@@ -136,7 +136,7 @@ export function FindADayPanel(): React.ReactElement {
     .filter((part) => part !== null)
     .join(" · ");
   return (
-    <div className="landing-sea-cell flex min-h-0 flex-1 flex-col gap-2">
+    <div data-testid="find-a-day-panel" className="landing-sea-cell flex min-h-0 flex-1 flex-col gap-2">
       <Heading level={3} className="shrink-0 text-md font-medium leading-snug">
         <Link href={dayPath(shelf)} prefetch={false} className="hover:underline">
           {shelf.name}

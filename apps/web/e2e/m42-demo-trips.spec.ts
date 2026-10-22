@@ -334,7 +334,9 @@ test.describe("the front door, signed out (M42)", () => {
     });
     await expect(find.getByTestId("moment-panel")).toHaveCSS("opacity", "1");
     const title = find.getByRole("link", { name: BANNER });
-    const [cell, card] = [(await find.boundingBox())!, (await find.getByTestId("discover-card").boundingBox())!];
+    // The find moment's card is the notebook panel now (Mitchell's homepage
+    // sea tweaks, PR 518), not a DiscoverCard.
+    const [cell, card] = [(await find.boundingBox())!, (await find.getByTestId("find-a-day-panel").boundingBox())!];
     expect(card.y + card.height).toBeLessThanOrEqual(cell.y + cell.height);
     const tapped = await title.evaluate((link) => {
       const r = link.getBoundingClientRect();

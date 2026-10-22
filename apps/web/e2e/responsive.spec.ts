@@ -888,9 +888,11 @@ test.describe("responsive (narrow viewport, signed out)", () => {
     // Mitchell's third walk of PR 510: *"For the primary header for the app,
     // maybe give it a little more standout?"*, and his fourth: *"The border
     // makes this wider than the other components … then add a drop shadow"*.
-    // Its frame is its border, inside the grid area every other cell keeps
-    // to; the lift is the designs' drop shadow (the prototype's `.ex .ff`);
-    // the headline is larger than the closing's `text-4xl` (58px at most).
+    // Mitchell's homepage sea tweak (PR 518) goes further: the border is
+    // gone entirely, and the lift is a CSS drop shadow that fades as the
+    // hero scrolls past — so the box shadow is none and the filter carries
+    // the lift. The headline is larger than the closing's `text-4xl`
+    // (58px at most).
     // Computed in the browser, because a utility class on the same element
     // silently won over the CSS (PR 510 r6).
     test(`the hero stands off the sea on the grid's lines at ${width}px`, async ({ page }) => {
@@ -899,7 +901,7 @@ test.describe("responsive (narrow viewport, signed out)", () => {
       const hero = page.getByTestId("desktop-landing").getByTestId("sea-hero");
       const headline = hero.getByRole("heading", { level: 1, name: "Plan the trip together." });
       await expect(headline).toBeVisible();
-      const { box, area, shadow, border } = await hero.evaluate((el) => {
+      const { box, area, shadow, filter, border } = await hero.evaluate((el) => {
         const grid = el.parentElement!;
         const css = getComputedStyle(grid);
         const [cols, start, span, rows] = ["--cols", "--hero-start", "--hero-span", "--hero-rows"].map((name) =>
@@ -911,29 +913,34 @@ test.describe("responsive (narrow viewport, signed out)", () => {
         // From the grid's second row, past its 8px top padding and 16px sides.
         const area = [g.left + 16 + (start - 1) * (unit + 8), g.top + 8 + unit + 8, span * unit + (span - 1) * 8, rows * unit + (rows - 1) * 8];
         const style = getComputedStyle(el);
-        return { box: [r.left, r.top, r.width, r.height].map(Math.round), area: area.map(Math.round), shadow: style.boxShadow, border: style.borderTopWidth };
+        return { box: [r.left, r.top, r.width, r.height].map(Math.round), area: area.map(Math.round), shadow: style.boxShadow, filter: style.filter, border: style.borderTopWidth };
       });
       expect(box).toEqual(area);
-      // Nothing outside the box but the drop shadow: no ring spread into the gap.
-      expect(shadow).toBe("rgba(21, 29, 46, 0.35) 0px 30px 80px 0px");
-      expect(border).not.toBe("0px");
+      // Nothing outside the box but the drop shadow: no box shadow, no
+      // border, and the filter is the drop shadow.
+      expect(shadow).toBe("none");
+      expect(filter).not.toBe("none");
+      expect(filter).toContain("drop-shadow");
+      expect(border).toBe("0px");
       expect(await headline.evaluate((el) => Number.parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThan(58);
     });
 
-    // Mitchell, walking PR 510 after it merged: the find moment's Rome banner
-    // *"still only shows a few of the activities, it doesnt fill the card"*.
-    // It drew three because three were all it was sent (M51 part 9 lifts the
-    // cap), and day one has only four; it is day 2's six now (Mitchell,
-    // 2026-10-21), and a row counts only if it is laid out and inside the
-    // card's box on every side, so a hidden row is not counted as shown.
-    test(`the find moment's banner shows more than four stop rows at ${width}px`, async ({ page }) => {
+    // The find moment's Rome banner is the notebook panel now (Mitchell's
+    // homepage sea tweaks, PR 518), not a DiscoverCard: its title is the
+    // day's link, its rows are the day block's timeline. Day 2's six rows
+    // (Mitchell, 2026-10-21) gave way to Day 1's four in his preview
+    // feedback the same evening, because four fit the moment where six did
+    // not. A row counts only if it is laid out and inside the panel's box
+    // on every side, so a hidden row is not counted as shown.
+    test(`the find moment's banner shows all four stop rows at ${width}px`, async ({ page }) => {
       await page.setViewportSize({ width, height: 1000 });
       await page.goto("/");
-      const banner = page.getByTestId("desktop-landing").getByRole("region", { name: "Find a day worth borrowing." }).getByTestId("discover-card");
-      await expect(banner.getByTestId("preview-title").first()).toBeVisible();
-      const shown = await banner.evaluate((card) => {
+      const banner = page.getByTestId("desktop-landing").getByRole("region", { name: "Find a day worth borrowing." });
+      await expect(banner.getByRole("link", { name: /^3 days in Rome: emperors, gladiators/ }).first()).toBeVisible();
+      const panel = banner.getByTestId("find-a-day-panel");
+      const shown = await panel.evaluate((card) => {
         const box = card.getBoundingClientRect();
-        return [...card.querySelectorAll("[data-testid=discover-preview] li")].filter((row) => {
+        return [...card.querySelectorAll("[data-testid=find-a-day-timeline] li")].filter((row) => {
           const r = row.getBoundingClientRect();
           return (
             r.height > 0 &&
@@ -944,7 +951,7 @@ test.describe("responsive (narrow viewport, signed out)", () => {
           );
         }).length;
       });
-      expect(shown).toBeGreaterThan(4);
+      expect(shown).toBe(4);
     });
 
     // Mitchell's fourth walk of PR 510: *"show activities up till they dont
