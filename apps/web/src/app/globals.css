@@ -2286,6 +2286,16 @@ html[data-look="ledger"] .shadow-raised {
   .landing-sea-fade {
     mask-image: linear-gradient(to bottom, black calc(100% - 7rem), transparent);
   }
+  /* The find panel's day block, faded at its foot only when its timeline
+     runs past the height the moment leaves it (state-gated in
+     `FindADayPanel`, never always-on): the review stays pinned at the
+     panel's foot while the timeline's last rows dissolve instead of
+     cutting mid-row. Shorter than the notebook page's 7rem fade — only
+     the bottom 32px — because the timeline is four rows, not a page. */
+  .landing-find-day-fade {
+    -webkit-mask-image: linear-gradient(to bottom, black calc(100% - 2rem), transparent);
+    mask-image: linear-gradient(to bottom, black calc(100% - 2rem), transparent);
+  }
   /* A moment's day on the phone's sea, the assistant's and the crew's, runs
      on past its cell and fades out at the cell's foot the same way; on the
      desktop's wider cells it fits whole. */

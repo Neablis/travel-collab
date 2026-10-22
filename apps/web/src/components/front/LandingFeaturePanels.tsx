@@ -1,6 +1,6 @@
 "use client";
 
-import type { ComponentProps, ReactElement } from "react";
+import { useEffect, useRef, useState, type ComponentProps, type ReactElement } from "react";
 import Link from "next/link";
 import { useTimeFormat } from "@/components/account/PreferencesProvider";
 import { Transcript, toolNoteLabel, type AssistantTurn } from "@/components/assistant/Transcript";
@@ -75,15 +75,59 @@ const SAMPLE_REVIEWS: { name: string; quote: string }[] = [
   { name: "Elena", quote: "The arena floor first thing was worth every cent — standing where the gladiators stood changes the whole place." },
 ];
 /**
+ * Whether the find panel's day block overflows the height the moment
+ * leaves it: the timeline earns its bottom fade exactly when its content
+ * runs past that height. The 1px tolerance absorbs subpixel rounding, so
+ * a hairline rounding difference never fades a fitting timeline. Pure so
+ * the rule is unit-testable: jsdom reports no real layout.
+ */
+export function dayBlockOverflows(scrollHeight: number, clientHeight: number): boolean {
+  return scrollHeight > clientHeight + 1;
+}
+
+/**
  * The sea's first moment (M9): the Rome day as the day page shows it, not a
  * repeat of the small cards. Returns the notebook-style panel: title, meta
  * line, tag chips, description, one day's timeline, what people said, and
  * who kept it.
+ *
+ * Layout contract (Mitchell's follow-up to the preview feedback): the
+ * panel is a full-height flex column whose day block is the flexible
+ * middle (`flex-1 min-h-0 overflow-hidden`) and whose reviews block is
+ * pinned at the foot (`mt-auto shrink-0`), so the review is never the
+ * thing that clips. The day block's bottom fade is conditional — it
+ * appears exactly when the timeline overflows its flexed height, never
+ * when the rows fit whole.
  */
 export function FindADayPanel(): React.ReactElement {
   const { shelf } = LANDING_FEATURES;
   const clock = useTimeFormat();
   const rated = ratingLine(shelf);
+  const dayRef = useRef<HTMLDivElement>(null);
+  const [dayOverflows, setDayOverflows] = useState(false);
+  // The fade is state-gated, not always-on: measure the day block's own
+  // overflow (its box is fixed by flex, so a content change alone does not
+  // move it — re-check on viewport resizes, element resizes, and font
+  // loads, the three ways its overflow can change).
+  useEffect(() => {
+    const el = dayRef.current;
+    if (el === null) return;
+    const update = () => {
+      const next = dayBlockOverflows(el.scrollHeight, el.clientHeight);
+      setDayOverflows((prev) => (prev === next ? prev : next));
+    };
+    update();
+    window.addEventListener("resize", update);
+    const ro = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(update);
+    if (ro !== null) ro.observe(el);
+    if (typeof document !== "undefined" && document.fonts !== undefined) {
+      void document.fonts.ready.then(update).catch(() => undefined);
+    }
+    return () => {
+      window.removeEventListener("resize", update);
+      if (ro !== null) ro.disconnect();
+    };
+  }, []);
   const meta = [
     shelf.dayCount > 1 ? `${shelf.dayCount} days` : null,
     `${shelf.stopCount} stops`,
@@ -93,28 +137,32 @@ export function FindADayPanel(): React.ReactElement {
     .join(" · ");
   return (
     <div className="landing-sea-cell flex min-h-0 flex-1 flex-col gap-2">
-      <Heading level={3} className="text-md font-medium leading-snug">
+      <Heading level={3} className="shrink-0 text-md font-medium leading-snug">
         <Link href={dayPath(shelf)} prefetch={false} className="hover:underline">
           {shelf.name}
         </Link>
       </Heading>
-      <DataText size="xs" className="block">
+      <DataText size="xs" className="block shrink-0">
         {shelf.cities.join(", ")}
       </DataText>
-      <DataText size="xs" className="block">
+      <DataText size="xs" className="block shrink-0">
         {meta}
       </DataText>
       {(shelf.description !== null || shelf.tags.length > 0) && (
-        <div className="flex flex-wrap items-center gap-2" data-testid="find-a-day-tags">
+        <div className="flex shrink-0 flex-wrap items-center gap-2" data-testid="find-a-day-tags">
           {shelf.description !== null && <Text variant="secondary">{shelf.description}</Text>}
           {shelf.tags.length > 0 && <StopTagChips activityId={shelf.savedDayId} tags={shelf.tags.slice(0, FIND_A_DAY_TAGS_SHOWN)} focusedTag={null} />}
         </div>
       )}
-      <Text as="p" className="line-clamp-2 text-sm leading-relaxed text-pretty">
+      <Text as="p" className="line-clamp-2 shrink-0 text-sm leading-relaxed text-pretty">
         {FIND_A_DAY_BLURB}
       </Text>
-      {/* The canned preview is Day 1's stops (its times and names match the day page's Day 1; the generator's SHELF_DAY picks it, and Day 1's four stops fit the moment where Day 2's six did not). The rows mirror the day page's stop rows — time gutter, numbered marker, title — tightened to pt-1.5/pb-0.5; no leg lines, because the snapshot carries no leg data and none are invented. The hairline under the day line and the dividers between rows are the day page's own hairline token, as Mitchell's preview feedback asked for. */}
-      <div className="flex flex-col gap-1">
+      {/* The canned preview is Day 1's stops (its times and names match the day page's Day 1; the generator's SHELF_DAY picks it, and Day 1's four stops fit the moment where Day 2's six did not). The rows mirror the day page's stop rows — time gutter, numbered marker, title — tightened to pt-1.5/pb-0.5; no leg lines, because the snapshot carries no leg data and none are invented. The hairline under the day line and the dividers between rows are the day page's own hairline token, as Mitchell's preview feedback asked for. This block is the panel's flexible middle: it takes whatever height the moment leaves after the header, blurb, and footer, and clips the rest — with its bottom fade (`landing-find-day-fade`) applied exactly when its content runs past that height, so the rows dissolve instead of cutting mid-row. */}
+      <div
+        ref={dayRef}
+        data-testid="find-a-day-day"
+        className={cn("flex min-h-0 flex-1 flex-col gap-1 overflow-hidden", dayOverflows && "landing-find-day-fade")}
+      >
         <DataText size="xs" className="uppercase tracking-wider">
           Day 1 · {shelf.preview.length} stops
         </DataText>
@@ -140,7 +188,7 @@ export function FindADayPanel(): React.ReactElement {
           ))}
         </ul>
       </div>
-      <div className="flex flex-col gap-1.5">
+      <div className="mt-auto flex shrink-0 flex-col gap-1.5" data-testid="find-a-day-footer">
         <div className="flex items-baseline gap-2">
           <Heading level={4} className="text-sm font-semibold">
             What people said
