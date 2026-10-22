@@ -230,14 +230,17 @@ export default defineConfig({
       // `.env.local` (`server/external/weather/index.ts`); the real services
       // are walked by hand (`docs/guidelines/external-data-manual-check.md`).
       EXTERNAL_DATA_OFFLINE: "true",
-      // The Unsplash ceilings guard a real key's 50 calls an hour; offline
-      // there is no key to guard. Every cover spec picks as dev-alice, and
-      // the pick quota's defaults (3 a person, 4 a deployment) are spent by
-      // the trip and playbook cover specs together — the fourth pick of a
-      // run answered 429, and a retry made it sooner (PR #354's Tier 3).
+      // The Unsplash ceilings guard a real key's calls; offline there is no
+      // key to guard. Every cover spec picks as dev-alice, and the free pick
+      // ceiling (3 a person) was spent by the trip and playbook cover specs
+      // together — the fourth pick of a run answered 429, and a retry made it
+      // sooner (PR #354's Tier 3). Both tiers, so a seed that changes
+      // dev-alice's plan cannot bring it back.
       UNSPLASH_SEARCH_RATE_LIMIT_PER_USER_HOURLY: "1000",
+      UNSPLASH_SEARCH_RATE_LIMIT_PAID_PER_USER_HOURLY: "1000",
       UNSPLASH_SEARCH_RATE_LIMIT_GLOBAL_HOURLY: "1000",
       UNSPLASH_PICK_RATE_LIMIT_PER_USER_HOURLY: "1000",
+      UNSPLASH_PICK_RATE_LIMIT_PAID_PER_USER_HOURLY: "1000",
       UNSPLASH_PICK_RATE_LIMIT_GLOBAL_HOURLY: "1000",
       // Sentry off: an e2e run must not file its own noise against the shared
       // project, and must not talk to a third party at all. The empty string,

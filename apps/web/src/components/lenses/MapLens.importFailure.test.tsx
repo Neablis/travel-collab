@@ -40,6 +40,7 @@ it("shows the offline panel at once when the map library fails to load, rather t
         cost: null,
         bookedBy: null,
         participants: [],
+        addedBy: null,
         mode: null,
         endLocation: null,
         pendingReason: null,

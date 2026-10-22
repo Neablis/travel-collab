@@ -339,7 +339,7 @@ describe("TripBoardScreen", () => {
     const pastFixture = tripDetailFixture({
       backlog: [ancientId],
       activities: {
-        [ancientId]: { activityId: ancientId, title: "Ancient Rome", timeWindow: null, location: null, notes: null, anchors: [], kind: "planned" as const, tags: [], cost: null , bookedBy: null, participants: [], mode: null, endLocation: null, pendingReason: null},
+        [ancientId]: { activityId: ancientId, title: "Ancient Rome", timeWindow: null, location: null, notes: null, anchors: [], kind: "planned" as const, tags: [], cost: null , bookedBy: null, participants: [], addedBy: null, mode: null, endLocation: null, pendingReason: null},
       },
     });
     const onCommand = vi.fn<(command: TripCommand) => void>();
@@ -495,6 +495,7 @@ describe("TripBoardScreen", () => {
           cost: null,
           bookedBy: null,
           participants: [],
+          addedBy: null,
           mode: null,
           endLocation: null,
           pendingReason: null,
@@ -688,6 +689,41 @@ describe("TripBoardScreen", () => {
     expect(await screen.findByRole("button", { name: "Dana" })).toBeTruthy();
     const bookedBy = screen.getByLabelText("Booked by") as HTMLSelectElement;
     expect([...bookedBy.options].map((o) => o.text)).toEqual(["Nobody yet", "Dana", "Sam"]);
+  });
+
+  // M51 decision 8a, review r1 of PR 508: a river block names its adder and
+  // booker from the trip's people. Outside `PeopleProvider` it reads the id's
+  // handle ("Traveler u-dana"), on the board and on `/demo`, which mounts it.
+  it("names who booked and who added a stop on the river, from the trip's people", async () => {
+    const fixture = costedTripDetailFixture();
+    fixture.members = [
+      { userId: "u-dana", role: "owner" },
+      { userId: "u-sam", role: "editor" },
+    ];
+    const colosseum = fixture.days[0]!.activityIds[0]!;
+    fixture.activities[colosseum] = { ...fixture.activities[colosseum]!, bookedBy: "u-sam", addedBy: "u-dana" };
+    server.use(...makeTripHandlers(fixture));
+    // The mock's access has no names; these two have chosen theirs.
+    const names: Record<string, string> = { "u-dana": "Dana Okafor", "u-sam": "Sam Reyes" };
+    server.use(
+      http.get("/api/trips/:tripId/access", () =>
+        HttpResponse.json({
+          access: {
+            tripId: fixture.tripId,
+            myRole: "owner",
+            members: fixture.members.map((m) => ({ ...m, name: null, email: null, image: null, displayName: names[m.userId] })),
+            invites: [],
+            collaboratorsEntitled: true,
+            accessRev: "0",
+            viewerId: "u-dana",
+            guests: [],
+          },
+        }),
+      ),
+    );
+    renderScreen(fixture.tripId);
+
+    expect(await screen.findByRole("button", { name: /^Edit Colosseum tour, .*, booked by Sam Reyes, added by Dana Okafor/ })).toBeTruthy();
   });
 
   // E1 review finding, continued: E2 hasn't wired any UI trigger to
@@ -2120,6 +2156,7 @@ describe("TripBoardScreen — a day's untimed stops", () => {
     cost: null,
     bookedBy: null,
     participants: [],
+    addedBy: null,
     mode: null,
     endLocation: null,
     pendingReason: null,
@@ -2465,6 +2502,7 @@ describe("TripBoardScreen — approving an assistant proposal", () => {
           cost: null,
           bookedBy: null,
           participants: [],
+          addedBy: null,
           mode: null,
           endLocation: null,
           pendingReason: null,
@@ -2811,8 +2849,8 @@ describe("TripBoardScreen — a viewer's Schedule lens", () => {
       startDate: "2027-06-01",
       days: [{ dayId: DAY, activityIds: [EARLIER, LATER], date: "2027-06-01", costSubtotal: 0 }],
       activities: {
-        [EARLIER]: { activityId: EARLIER, title: "Nezu Museum", timeWindow: { start: "10:30", end: "13:00" }, location: null, notes: null, anchors: [], kind: "planned" as const, tags: [], cost: null , bookedBy: null, participants: [], mode: null, endLocation: null, pendingReason: null},
-        [LATER]: { activityId: LATER, title: "Lunch at Kagari", timeWindow: { start: "12:30", end: "14:00" }, location: null, notes: null, anchors: [], kind: "planned" as const, tags: [], cost: null , bookedBy: null, participants: [], mode: null, endLocation: null, pendingReason: null},
+        [EARLIER]: { activityId: EARLIER, title: "Nezu Museum", timeWindow: { start: "10:30", end: "13:00" }, location: null, notes: null, anchors: [], kind: "planned" as const, tags: [], cost: null , bookedBy: null, participants: [], addedBy: null, mode: null, endLocation: null, pendingReason: null},
+        [LATER]: { activityId: LATER, title: "Lunch at Kagari", timeWindow: { start: "12:30", end: "14:00" }, location: null, notes: null, anchors: [], kind: "planned" as const, tags: [], cost: null , bookedBy: null, participants: [], addedBy: null, mode: null, endLocation: null, pendingReason: null},
       },
       conflicts: [
         {

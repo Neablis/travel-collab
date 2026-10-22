@@ -1,5 +1,6 @@
-// Runs drizzle migrations during the Vercel build — PREVIEW ONLY, and only
-// against a database the operator has explicitly marked disposable.
+// Runs drizzle migrations, then imports `content/`, during the Vercel build —
+// PREVIEW ONLY, and only against a database the operator has explicitly marked
+// disposable.
 // Production is migrated by explicitly dispatching
 // .github/workflows/migrate-production.yml (per ADR-004's "explicit
 // CI/deploy step" rule — a dispatch is more explicit than the post-merge job
@@ -26,25 +27,22 @@
 // the two failure directions are not symmetric. A preview that refuses to
 // migrate is a red build with this message on it. A preview that migrates the
 // wrong database is silent, and stays silent for six weeks.
+//
+// **Why a preview imports content (M51 part 7).** The landing's sea links every
+// library day to its page, and a preview that migrated but imported nothing
+// answered 147 of its 148 links with a 404. The importer is the production one,
+// which writes the database directly: `import-content.ts` talks HTTP to a
+// running app, and none is running yet. It never gets `--prune`, because every
+// open PR's preview shares this one database, and pruning to one branch's
+// `content/` would delete the days another branch added. Two builds importing
+// at once wait for each other on the importer's run lock (`importBundles`).
+//
+// **Why there is no "am I the command?" guard.** It once acted only when
+// `argv[1]` matched this file's URL; Node realpaths the URL and not `argv[1]`,
+// so a symlink in the build path skipped every step, the refusal included, and
+// the build stayed green (PR 509 review). The logic lives in
+// `lib/vercel-build-steps.mjs` so the test can import it instead.
 import { execSync } from "node:child_process";
+import { runBuildSteps } from "./lib/vercel-build-steps.mjs";
 
-const env = process.env.VERCEL_ENV ?? "unset";
-
-if (env !== "preview") {
-  console.log(`[vercel-build-migrate] skipped (VERCEL_ENV=${env})`);
-} else if (process.env.PREVIEW_DB_IS_DISPOSABLE !== "true") {
-  console.error(
-    "[vercel-build-migrate] REFUSING to migrate: PREVIEW_DB_IS_DISPOSABLE is not " +
-      `"true" (got ${JSON.stringify(process.env.PREVIEW_DB_IS_DISPOSABLE ?? null)}).\n` +
-      "\n" +
-      "This build would run drizzle-kit migrate against whatever DATABASE_URL it\n" +
-      "was given, and nothing here can prove that is a disposable preview branch.\n" +
-      "\n" +
-      "To fix: point the Preview scope's DATABASE_URL at a preview branch, then set\n" +
-      "PREVIEW_DB_IS_DISPOSABLE=true on the Preview scope ONLY. Never set it on\n" +
-      "Production — production is migrated by dispatching migrate-production.",
-  );
-  process.exit(1);
-} else {
-  execSync("pnpm drizzle-kit migrate", { stdio: "inherit" });
-}
+process.exitCode = runBuildSteps(process.env, (command) => execSync(command, { stdio: "inherit" }));

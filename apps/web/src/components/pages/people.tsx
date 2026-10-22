@@ -6,6 +6,7 @@ import { fetchTripAccess } from "@/lib/apiClient";
 import { cachedRead, invalidate } from "@/lib/queryCache";
 import { tripKeys } from "@/lib/queryKeys";
 import { displayNameFor } from "@/lib/displayName";
+import type { Persona } from "@/lib/persona";
 
 // What a notebook widget calls each member (`WidgetContext.people`, M19 part 2).
 //
@@ -20,16 +21,7 @@ import { displayNameFor } from "@/lib/displayName";
 // the same way, with `email: null`, and `attribute`'s `account.name` states the
 // rule for a page. A member with no name reads as their handle instead.
 
-/**
- * What a person surface draws for one member (M38): the name to print, the
- * avatar they chose, the colour this trip shows them in — already clash-resolved
- * by the server (D3), so a chip renders it as given — and whether they are going,
- * which is what `trip.people` reads (`WidgetContext.personas`).
- */
-export type Persona = { name: string; travelling: boolean } & Pick<
-  TripMemberProfile,
-  "avatar" | "color" | "colorShifted"
->;
+export type { Persona } from "@/lib/persona";
 
 /** userId → their persona, for every member `TripAccess` lists. */
 export function personasOf(members: readonly TripMemberProfile[]): Readonly<Record<string, Persona>> {

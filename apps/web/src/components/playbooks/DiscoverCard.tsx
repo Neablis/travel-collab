@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 import { useId } from "react";
 import { StopTagChips } from "@/components/board/StopTagChips";
@@ -54,6 +56,8 @@ export function ratingLine(day: Pick<DiscoverDay, "rating" | "reviewCount">): st
 
 /** At most this many city chips on a card; the rest become one "+N more". */
 export const MAX_CITY_CHIPS = 3;
+/** On a compact card, a one-column cell of the landing's sea: as many as one row holds beside the count. */
+export const COMPACT_CITY_CHIPS = 2;
 
 /**
  * **Which cities a card draws as chips, and how many it only counts**
@@ -66,12 +70,25 @@ export const MAX_CITY_CHIPS = 3;
  * the one folded into the count — a matched chip is the card's answer to the
  * search. Otherwise the day's own order is kept.
  */
-export function cityChips(day: Pick<DiscoverDay, "cities" | "matchedCities">): { shown: string[]; hidden: string[] } {
+export function cityChips(
+  day: Pick<DiscoverDay, "cities" | "matchedCities">,
+  max = MAX_CITY_CHIPS,
+): { shown: string[]; hidden: string[] } {
   const matched = day.cities.filter((city) => day.matchedCities.includes(city));
   const rest = day.cities.filter((city) => !day.matchedCities.includes(city));
   const ordered = [...matched, ...rest];
-  return { shown: ordered.slice(0, MAX_CITY_CHIPS), hidden: ordered.slice(MAX_CITY_CHIPS) };
+  return { shown: ordered.slice(0, max), hidden: ordered.slice(max) };
 }
+
+/**
+ * **The stop list's least height off the sea, by how many rows it has**: a
+ * one-line row is 18.2px (`text-sm`, 13px × 1.4) and rows are 6px apart, so
+ * 20, 44 and 68px hold one, two and three whole rows, and the fourth needs
+ * 90.8. A day of fewer than three stops reserves only what it draws, so a card
+ * is taller than it was when it drew three at most only by the floor's
+ * rounding: 1.4px over three one-line rows (68 against 66.6), 1.6 over two.
+ */
+const PREVIEW_FLOOR = ["", "min-h-5", "min-h-11", "min-h-17"] as const;
 
 /** How much of the grid a card takes: two columns, or one. */
 export type CardSize = "wide" | "standard";
@@ -87,6 +104,19 @@ export function editorialSize(index: number): CardSize {
 }
 
 /**
+ * **A card on the front door's sea** (M51). Its one link is `href`, the day's
+ * canonical page, with no query and no prefetch: ADR-063's cache serves a
+ * signed-out day page only to a query-less URL, and a sea prefetching every
+ * card would read the library once per card. `null` is a day this deployment
+ * does not hold, which opens nothing (decision 10). The chips and the author
+ * are words, not links, so a cell is one door and one tab stop; a
+ * `background` cell is no tab stop and hidden from assistive tech, so the
+ * keyboard and a screen reader reach the moments without walking the whole
+ * library. The mouse still opens it.
+ */
+export type SeaOrigin = { from: "sea"; href: string | null; background?: boolean };
+
+/**
  * `origin` is where this card is being rendered, and it rides both links out of
  * it so the page they open knows the way back. A profile renders these cards
  * too, so "the day came from Discover" is not something the card may assume.
@@ -96,20 +126,30 @@ export function DiscoverCard({
   origin,
   size = "standard",
   headingLevel = 2,
+  compact = false,
+  className,
 }: {
-  day: DiscoverDay;
-  origin: BackOrigin;
+  /** Without the dates, which the card never draws and the landing's snapshot leaves out. */
+  day: Omit<DiscoverDay, "createdAt" | "publishedAt" | "sourceTripName">;
+  origin: BackOrigin | SeaOrigin;
   size?: CardSize;
   /** 3 under a page that heads its list of cards, as Discover's results are. */
   headingLevel?: 2 | 3;
+  /**
+   * A one-column cell of the landing's sea (Mitchell's walk of PR 510): two
+   * city chips and the count, so the row they share does not wrap.
+   */
+  compact?: boolean;
+  className?: string;
 }) {
   const wide = size === "wide";
   const clock = useTimeFormat();
   const descriptionId = useId();
   const line = matchLine(day);
   const rated = ratingLine(day);
-  const back = backQuery(origin);
-  const chips = cityChips(day);
+  const sea = origin.from === "sea" ? origin : null;
+  const back = origin.from === "sea" ? "" : backQuery(origin);
+  const chips = cityChips(day, compact ? COMPACT_CITY_CHIPS : MAX_CITY_CHIPS);
   const { cover } = day;
   // `dc.html:2610-2626`: the cities lead, with the card's own marks at the far
   // end of the same row; then the title, with the facts line directly under
@@ -122,7 +162,12 @@ export function DiscoverCard({
   // cities look like a mistake rather than the offer.
   const chipRow = (
     <div className="flex flex-wrap items-start gap-2">
-      <ul className="flex flex-wrap gap-x-1.5 gap-y-6 md:gap-y-1.5" data-testid="city-chips">
+      {/* On the sea a card is the size of its cell, so its chips keep to the
+          one row there is room for; anywhere else they wrap. */}
+      <ul
+        className={cn("flex flex-wrap gap-x-1.5", sea === null ? "gap-y-6 md:gap-y-1.5" : "landing-one-row")}
+        data-testid="city-chips"
+      >
         {chips.shown.map((city) => {
           const matched = day.matchedCities.includes(city);
           const href = cityPath(city);
@@ -135,6 +180,10 @@ export function DiscoverCard({
                 matched
                   ? "bg-brand-tint text-brand-pressed"
                   : "border border-hairline bg-surface text-slate",
+                // On the sea a name longer than its cell is wide keeps to one
+                // line and ends in an ellipsis, rather than wrapping inside
+                // the chip under its one-row clamp.
+                sea !== null && "truncate",
               )}
             >
               {city}
@@ -147,8 +196,8 @@ export function DiscoverCard({
           // the 24px `min-h-11` adds, and `md:` releases it. A named group,
           // because the hover belongs to the chip, not to the card.
           return (
-            <li key={city} className="flex">
-              {href === null ? (
+            <li key={city} className={cn("flex", sea !== null && "min-w-0 max-w-full")}>
+              {href === null || sea !== null ? (
                 chip
               ) : (
                 <Link
@@ -177,6 +226,55 @@ export function DiscoverCard({
       </span>
     </div>
   );
+  // **One level under what heads the list, styled as the h4 it used to be.**
+  // A place's playbooks and a profile put these cards straight under their
+  // h1, so an h4 skipped two levels and axe failed `/playbooks` on
+  // heading-order; Discover heads its results with an h2 (M50 part 6) and
+  // passes 3. The level is structure; `text-md font-medium` keeps the card
+  // title the size it was, and a wide card's takes the card-title step up
+  // from `sm`, where it is wide. On the sea, three lines and an ellipsis at a
+  // word, so a long title never runs off a cell's foot.
+  const title = (
+    <Heading
+      level={headingLevel}
+      className={cn("text-md font-medium leading-snug", wide && "sm:text-lg", sea !== null && "line-clamp-3")}
+    >
+      {/* §13.1's phone floor on the card's ROW ACTION — this title link is
+          the only way into the day, so it is the target (M26 link 14's
+          sweep, found by the census in the full e2e lane where seeded
+          Playbooks render and an isolated run had none). `inline-flex
+          items-center` so the floor makes the link taller rather than
+          leaving the text at the top of an empty 44px. */}
+      {sea?.href === null ? (
+        day.name
+      ) : (
+        <Link
+          href={sea === null ? `${dayPath(day)}${back}` : sea.href}
+          prefetch={sea === null ? undefined : false}
+          tabIndex={sea?.background ? -1 : undefined}
+          // Inline on the sea, where the heading clamps its lines: an
+          // inline-flex box is one atom, which no clamp can break. The sea
+          // is desktop-only, so it needs no phone floor.
+          className={cn("hover:underline", sea === null ? cn("inline-flex items-center", PHONE_TOUCH) : "landing-sea-door")}
+          // On the link, where focus lands, so the kind of day is heard with its name.
+          aria-describedby={day.description === null ? undefined : descriptionId}
+        >
+          {day.name}
+        </Link>
+      )}
+    </Heading>
+  );
+  // On the sea the title and the chips share one part of the card, which
+  // `.landing-sea-head` lays bottom-up with the title first: a card too short
+  // for both drops the chips and keeps the title (PR 510 r4). The chips still
+  // draw above it. With a cover the chips stand on the photo, as elsewhere.
+  const seaHead = sea !== null && cover === null;
+  // On the sea the stop rows come straight after the facts and the rest
+  // after them: a part that does not fit takes every part after it to the
+  // clipped column, so a long description left no room for any stop
+  // (Mitchell's fourth walk of PR 510: *"show activities up till they dont
+  // fit"*).
+  const late = sea !== null ? "order-1" : undefined;
   const body = (
     <>
       {line !== null && (
@@ -185,31 +283,12 @@ export function DiscoverCard({
         </Text>
       )}
 
-      <div>
-        {/* **One level under what heads the list, styled as the h4 it used to
-            be.** A place's playbooks and a profile put these cards straight
-            under their h1, so an h4 skipped two levels and axe failed
-            `/playbooks` on heading-order; Discover heads its results with an
-            h2 (M50 part 6) and passes 3. The level is structure; `text-md
-            font-medium` keeps the card title the size it was, and a wide
-            card's takes the card-title step up from `sm`, where it is wide. */}
-        <Heading level={headingLevel} className={cn("text-md font-medium leading-snug", wide && "sm:text-lg")}>
-          {/* §13.1's phone floor on the card's ROW ACTION — this title link is
-              the only way into the day, so it is the target (M26 link 14's
-              sweep, found by the census in the full e2e lane where seeded
-              Playbooks render and an isolated run had none). `inline-flex
-              items-center` so the floor makes the link taller rather than
-              leaving the text at the top of an empty 44px. */}
-          <Link
-            href={`${dayPath(day)}${back}`}
-            className={cn("inline-flex items-center hover:underline", PHONE_TOUCH)}
-            // On the link, where focus lands, so the kind of day is heard with its name.
-            aria-describedby={day.description === null ? undefined : descriptionId}
-          >
-            {day.name}
-          </Link>
-        </Heading>
-        <DataText size="xs" className="mt-1 block">
+      {/* On the sea the title, its facts and the tags are each a part of the
+          card's wrapping column, so a small cell keeps the title and drops
+          the facts rather than losing both. */}
+      <div className={cn(sea !== null && "contents")}>
+        {!seaHead && title}
+        <DataText size="xs" className="mt-1 block" data-testid="card-facts">
           {/* **The day count leads** (M23 link 4's gate box). It is the number
               that changes whether somebody opens this at all, and it is the
               number "Add to trip" is about to act on — the rule being that a
@@ -241,13 +320,19 @@ export function DiscoverCard({
           worked out by the server from the stops. Each chip is the way to its
           tag's page (M42 D10). */}
       {(day.description !== null || day.tags.length > 0) && (
-        <div className="flex flex-col gap-1.5">
+        <div className={cn("flex flex-col gap-1.5", sea !== null && "contents")}>
           {day.description !== null && (
-            <Text variant="secondary" id={descriptionId}>
+            <Text variant="secondary" id={descriptionId} className={late}>
               {day.description}
             </Text>
           )}
-          <StopTagChips activityId={day.savedDayId} tags={day.tags} focusedTag={null} hrefOf={namedTagPath(day.namedTags)} />
+          {sea === null ? (
+            <StopTagChips activityId={day.savedDayId} tags={day.tags} focusedTag={null} hrefOf={namedTagPath(day.namedTags)} />
+          ) : (
+            <div className={cn("landing-one-row flex", late)}>
+              <StopTagChips activityId={day.savedDayId} tags={day.tags} focusedTag={null} />
+            </div>
+          )}
         </div>
       )}
 
@@ -256,7 +341,7 @@ export function DiscoverCard({
           empty stars or a zero. One star glyph and the number, not the
           artboard's five partially-filled stars — the number is the claim, and
           five glyphs restate it at a precision nobody reads off a card. */}
-      <Text as="span" variant="muted" className="text-xs" data-testid="card-rating">
+      <Text as="span" variant="muted" className={cn("text-xs", late)} data-testid="card-rating">
         {rated === null ? (
           "No reviews yet"
         ) : (
@@ -272,15 +357,35 @@ export function DiscoverCard({
       {/* `dc.html:2644-2651`: day one's first stops, time then title — the
           same rows on a multi-day Playbook, which says "3 days" on the line
           above instead (M27 link 10). The time column is the shared-day
-          list's 62px, so a card and the page it opens line up. */}
+          list's 62px, so a card and the page it opens line up. On the sea
+          each row is a part of the card's wrapping column, so a card shows
+          the rows it has room for and clips the rest whole (Mitchell's
+          fourth walk of PR 510: *"show activities up till they dont fit"*).
+
+          Off the sea the list fills what its grid cell leaves (M51 part 9,
+          Mitchell's option b): `contain-size` keeps the rows out of the
+          card's height, so a card is as tall as its other parts and the room
+          for three rows, and a row stretched by a taller neighbour hands the
+          spare to more rows. One line a title, so a row is one line-height
+          and the floor (`PREVIEW_FLOOR`) always holds three; the column
+          wraps, and the second column, past the card's edge, is clipped
+          whole, so no row is cut through. */}
       {day.preview.length > 0 && (
-        <ul className="flex flex-col gap-1.5" data-testid="discover-preview">
+        <ul
+          className={cn(
+            "flex flex-col gap-1.5",
+            sea !== null
+              ? "landing-sea-rows contents"
+              : cn("flex-1 flex-wrap gap-x-10 overflow-hidden contain-size", PREVIEW_FLOOR[Math.min(day.preview.length, 3)]),
+          )}
+          data-testid="discover-preview"
+        >
           {day.preview.map((stop, i) => (
-            <li key={i} className="flex gap-2.5 text-sm">
+            <li key={i} className={cn("flex gap-2.5 text-sm", sea === null && "w-full")}>
               <DataText size="xs" className="w-15.5 shrink-0 pt-0.5 text-2xs" data-testid="preview-time">
                 {stop.start !== null ? toClockLabel(stop.start, clock) : ""}
               </DataText>
-              <span className="text-ink" data-testid="preview-title">
+              <span className={cn("text-ink", sea === null && "min-w-0 truncate")} data-testid="preview-title">
                 {stop.title}
               </span>
             </li>
@@ -288,16 +393,22 @@ export function DiscoverCard({
         </ul>
       )}
 
-      <div className="mt-auto flex flex-wrap items-center justify-between gap-2 border-t border-hairline pt-3">
+      <div className={cn("mt-auto flex flex-wrap items-center justify-between gap-2 border-t border-hairline pt-3", late)}>
         {/* The only place this card names a person, and the name is the
             server's (`publicNameFor`, Mitchell 2026-10-02) — never derived
             from `ownerId` here. */}
-        <Link
-          href={`/playbooks/profile/${encodeURIComponent(day.ownerId)}${back}`}
-          className={cn("inline-flex items-center text-xs text-slate hover:underline", PHONE_TOUCH)}
-        >
-          {day.ownerDisplayName}
-        </Link>
+        {sea === null ? (
+          <Link
+            href={`/playbooks/profile/${encodeURIComponent(day.ownerId)}${back}`}
+            className={cn("inline-flex items-center text-xs text-slate hover:underline", PHONE_TOUCH)}
+          >
+            {day.ownerDisplayName}
+          </Link>
+        ) : (
+          <Text as="span" className="text-xs text-slate">
+            {day.ownerDisplayName}
+          </Text>
+        )}
         <Text as="span" variant="muted" className="text-xs">
           Added to {day.adds} trip{day.adds === 1 ? "" : "s"}
         </Text>
@@ -307,19 +418,30 @@ export function DiscoverCard({
   return (
     <Card
       raised
-      as="li"
+      // On the sea a card is its cell's content, not an item of a list.
+      as={sea === null ? "li" : "div"}
       data-testid="discover-card"
+      aria-hidden={sea?.background || undefined}
       data-saved-day-id={day.savedDayId}
       data-size={size}
       className={cn(
         "flex flex-col rounded-lg",
         wide && "sm:col-span-2",
         cover === null ? "gap-3 p-4" : "overflow-hidden p-0",
+        sea !== null && "landing-sea-card relative",
+        className,
       )}
     >
       {cover === null ? (
         <>
-          {chipRow}
+          {seaHead ? (
+            <div className="landing-sea-head">
+              {title}
+              {chipRow}
+            </div>
+          ) : (
+            chipRow
+          )}
           {body}
         </>
       ) : (

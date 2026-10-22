@@ -13,6 +13,8 @@ import {
   type QuotaDecision,
   type QuotaPolicy,
   type StepReservation,
+  unsplashPickQuota,
+  unsplashSearchQuota,
 } from "./quota";
 
 // A counter store with the same fixed-window semantics as the Postgres one,
@@ -389,6 +391,24 @@ describe("policy configuration", () => {
     } finally {
       vi.unstubAllEnvs();
     }
+  });
+
+  // Free keeps the demo-era abuse bound; anything priced gets a person's worth.
+  // One bucket per policy either way, so a change of plan keeps its count.
+  it.each([
+    ["search", unsplashSearchQuota, 8, 120, 2000],
+    ["pick", unsplashPickQuota, 3, 30, 400],
+  ] as const)("tiers the Unsplash %s ceiling per user and not globally", (_kind, policy, free, paid, global) => {
+    const [freePolicy] = policy(false);
+    const [paidPolicy] = policy(true);
+    expect([freePolicy?.perUser, paidPolicy?.perUser]).toEqual([free, paid]);
+    expect([freePolicy?.global, paidPolicy?.global]).toEqual([global, global]);
+    expect(paidPolicy?.name).toBe(freePolicy?.name);
+  });
+
+  it("sizes the Unsplash globals under production's 5,000 an hour, both windows filled", () => {
+    const perHour = unsplashSearchQuota(false)[0]!.global + unsplashPickQuota(false)[0]!.global;
+    expect(perHour * 2).toBeLessThanOrEqual(5000);
   });
 
   it("keeps the AI policies ordered burst-then-bill, both bounded per user and globally", () => {

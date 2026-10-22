@@ -597,7 +597,7 @@ Export → import reproduces the name, summary, every day and every stop field.
 
 **Discover.** `GET /v1/discover/playbooks` lists **published** Playbooks from
 everyone — yours included, your private ones never — as the same cards the app's
-Discover page draws: derived facts, day one's first three stops, rating and
+Discover page draws: derived facts, day one's first twelve stops, rating and
 review count, `ownerId`. Open one with `GET /v1/playbooks/{playbookId}`.
 
 | Query | Meaning |

@@ -1,9 +1,23 @@
 import { cleanup, render, screen, within } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { createElement } from "react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { unsplashCreditHref } from "@tc/contracts";
 import { tripCoverFactory } from "@tc/factories";
 import type { DiscoverDay } from "@/lib/playbooks";
 import { DiscoverCard, editorialSize } from "./DiscoverCard";
+
+/** Every set of props a `next/link` was rendered with; the real link still renders. */
+const linkProps = vi.hoisted(() => [] as { href?: unknown; prefetch?: unknown }[]);
+vi.mock("next/link", async (importOriginal) => {
+  const real = await importOriginal<typeof import("next/link")>();
+  return {
+    ...real,
+    default: (props: Parameters<typeof real.default>[0]) => {
+      linkProps.push(props);
+      return createElement(real.default, props);
+    },
+  };
+});
 
 // The card's stop rows (M27 link 10, `dc.html:2645`). What the server puts in
 // `preview` is its own test (`savedDays.sequence.int.test.ts`); this one is
@@ -298,5 +312,32 @@ describe("a Discover card's title", () => {
     cleanup();
     render(<DiscoverCard day={day()} origin={{ from: "playbooks" }} headingLevel={3} />);
     expect(screen.getByRole("heading", { level: 3, name: "Kyoto temples on foot" })).toBeTruthy();
+  });
+});
+
+// A sea of 148 doors must not prefetch 148 day pages (ADR-063, M51's gate).
+// `next/link` renders nothing for `prefetch={false}`, so the prop is read
+// where it is handed over.
+describe("a Discover card on the front door's sea", () => {
+  it("opens its canonical page without prefetching it", () => {
+    render(<DiscoverCard day={day()} origin={{ from: "sea", href: "/playbooks/day/kyoto-temples" }} />);
+    const door = linkProps.find((props) => props.href === "/playbooks/day/kyoto-temples");
+    expect(door?.prefetch).toBe(false);
+  });
+
+  // Mitchell's walk of PR 510: a one-column cell's chips ran to two and three
+  // rows and pushed the title off the card's foot. A compact card draws the
+  // chips one row holds and counts the rest.
+  it("draws a small cell's cities on one row: two chips, and the rest counted", () => {
+    render(
+      <DiscoverCard
+        day={day({ cities: ["Kyoto", "Uji", "Nara", "Osaka"] })}
+        origin={{ from: "sea", href: "/playbooks/day/kyoto-temples" }}
+        compact
+      />,
+    );
+    const chips = within(screen.getByTestId("city-chips"));
+    expect(chips.getAllByText(/^(Kyoto|Uji|Nara|Osaka)$/)).toHaveLength(2);
+    expect(chips.getByTestId("city-chips-more").textContent).toBe("+2 more");
   });
 });

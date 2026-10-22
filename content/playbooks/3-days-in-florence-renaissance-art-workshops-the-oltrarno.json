@@ -1,0 +1,312 @@
+{
+  "$schema": "travel-collab/content-bundle/v1",
+  "bundle": {
+    "id": "3-days-in-florence-renaissance-art-workshops-the-oltrarno",
+    "name": "3 days in Florence: Renaissance art, workshops & the Oltrarno",
+    "origin": "human",
+    "sources": [],
+    "generatedAt": "2026-10-21T04:13:34.187Z"
+  },
+  "trips": [],
+  "playbooks": [
+    {
+      "key": "3-days-in-florence-renaissance-art-workshops-the-oltrarno",
+      "name": "3 days in Florence: Renaissance art, workshops & the Oltrarno",
+      "summary": "Do Florence the slow way: timed entries at the Uffizi and Accademia, the living workshops of the Oltrarno, the friars' pharmacy, and sunset from Piazzale Michelangelo. Art on the walls and art still being made in the same streets.",
+      "ownerId": "dev-sofia",
+      "visibility": "public",
+      "origin": "human",
+      "sourceTrip": {
+        "name": "3 days in Florence: Renaissance art, workshops & the Oltrarno"
+      },
+      "addedBy": [],
+      "version": 1,
+      "days": [
+        {
+          "stops": [
+            {
+              "title": "The Uffizi, Botticelli first",
+              "timeWindow": {
+                "start": "09:00",
+                "end": "12:00"
+              },
+              "location": {
+                "name": "Galleria degli Uffizi",
+                "lat": 43.76838,
+                "lng": 11.25584,
+                "countryCode": "IT",
+                "city": "Florence"
+              },
+              "notes": "Book the first timed entry and go straight to the Botticelli rooms — Primavera and the Birth of Venus before the crowds — then work backwards through Giotto, Leonardo and Michelangelo. Three hours is the honest maximum before museum fatigue; the rooftop café over the Arno is the reward.",
+              "kind": "planned",
+              "tags": [
+                "ticketed",
+                "museum"
+              ]
+            },
+            {
+              "title": "Piazza della Signoria",
+              "timeWindow": {
+                "start": "12:00",
+                "end": "13:00"
+              },
+              "location": {
+                "name": "Piazza della Signoria",
+                "lat": 43.7697,
+                "lng": 11.25595,
+                "countryCode": "IT",
+                "city": "Florence"
+              },
+              "notes": "Florence's outdoor sculpture gallery: the copy of David at the Palazzo Vecchio door, Cellini's Perseus under the Loggia, and the Fountain of Neptune. Stand in the middle and read the piazza like a timeline — this is where the republic governed, rioted and burned its vanities.",
+              "kind": "planned",
+              "tags": [
+                "sight"
+              ]
+            },
+            {
+              "title": "Ponte Vecchio at golden hour",
+              "timeWindow": {
+                "start": "17:00",
+                "end": "18:00"
+              },
+              "location": {
+                "name": "Ponte Vecchio",
+                "lat": 43.76828,
+                "lng": 11.25408,
+                "countryCode": "IT",
+                "city": "Florence"
+              },
+              "notes": "Cross at golden hour when the jewellers' windows light up and the Arno turns pink. The bridge has held shops since the 1300s — butchers first, then goldsmiths by Medici decree — and the Vasari Corridor still runs overhead, out of sight, for the duke's private commute.",
+              "kind": "planned",
+              "tags": [
+                "sight"
+              ]
+            },
+            {
+              "title": "Dinner in the Oltrarno at Trattoria 4 Leoni",
+              "timeWindow": {
+                "start": "19:30",
+                "end": "21:30"
+              },
+              "location": {
+                "name": "Trattoria 4 Leoni",
+                "lat": 43.76731,
+                "lng": 11.25038,
+                "countryCode": "IT",
+                "city": "Florence"
+              },
+              "notes": "Cross into the Oltrarno for dinner on little Piazza della Passera: pappa al pomodoro, bistecca alla fiorentina for two, and a Chianti that doesn't need a lecture. Book ahead — this square is small and the regulars protect their tables.",
+              "kind": "planned",
+              "tags": [
+                "meal"
+              ]
+            }
+          ]
+        },
+        {
+          "stops": [
+            {
+              "title": "David at the Accademia",
+              "timeWindow": {
+                "start": "09:00",
+                "end": "10:30"
+              },
+              "location": {
+                "name": "Galleria dell'Accademia",
+                "lat": 43.77677,
+                "lng": 11.25865,
+                "countryCode": "IT",
+                "city": "Florence"
+              },
+              "notes": "Timed entry again, and again the trick is to go straight to the prize: David at the end of the long hall, approached down a corridor of Michelangelo's unfinished Slaves. Give the giant fifteen unhurried minutes from every angle, then leave — the rest of the museum is a pleasant footnote.",
+              "kind": "planned",
+              "tags": [
+                "ticketed",
+                "museum"
+              ]
+            },
+            {
+              "title": "Lunch at Mercato Centrale",
+              "timeWindow": {
+                "start": "11:00",
+                "end": "12:30"
+              },
+              "location": {
+                "name": "Mercato Centrale San Lorenzo",
+                "lat": 43.7768,
+                "lng": 11.25405,
+                "countryCode": "IT",
+                "city": "Florence"
+              },
+              "notes": "Graze the upstairs food hall for lunch — lampredotto sandwiches, fresh pasta, a glass of wine at a counter — then brave the leather stalls outside for a jacket or bag, haggling politely and checking the stitching. The market is loud, crowded and the best lunch in the centre.",
+              "kind": "planned",
+              "tags": [
+                "meal",
+                "shopping"
+              ]
+            },
+            {
+              "title": "Santa Maria Novella",
+              "timeWindow": {
+                "start": "14:00",
+                "end": "15:30"
+              },
+              "location": {
+                "name": "Santa Maria Novella",
+                "lat": 43.77419,
+                "lng": 11.24913,
+                "countryCode": "IT",
+                "city": "Florence"
+              },
+              "notes": "The great Dominican church and its frescoed chapels: Masaccio's Trinity, the first correct use of perspective in Western painting, and Ghirlandaio's Tornabuoni Chapel, a portrait gallery of 15th-century Florence in fresco. Quieter than the Duomo and, many would say, better.",
+              "kind": "planned",
+              "tags": [
+                "sight"
+              ]
+            },
+            {
+              "title": "The friars' pharmacy",
+              "timeWindow": {
+                "start": "15:30",
+                "end": "16:30"
+              },
+              "location": {
+                "name": "Officina Profumo-Farmaceutica di Santa Maria Novella",
+                "lat": 43.77411,
+                "lng": 11.24769,
+                "countryCode": "IT",
+                "city": "Florence"
+              },
+              "notes": "A pharmacy founded by Dominican friars in 1221, still selling potpourri, soaps and liqueurs from the same frescoed rooms: the smell alone is worth the visit. Buy the potpourri sachets — they are the oldest continuously made product in Florence and they actually work.",
+              "kind": "planned",
+              "tags": [
+                "shopping"
+              ]
+            },
+            {
+              "title": "Leather school at Santa Croce",
+              "timeWindow": {
+                "start": "16:30",
+                "end": "17:30"
+              },
+              "location": {
+                "name": "Scuola del Cuoio",
+                "lat": 43.76779,
+                "lng": 11.26515,
+                "countryCode": "IT",
+                "city": "Florence"
+              },
+              "notes": "Behind Santa Croce, in the old Franciscan dormitory, leather artisans still train apprentices and sell bags, belts and jackets made on site. Watch a craftsman tool a wallet at the bench, then buy something with your name embossed — the Oltrarno workshops are the living half of Florentine art.",
+              "kind": "planned",
+              "tags": [
+                "shopping",
+                "tour"
+              ]
+            }
+          ]
+        },
+        {
+          "stops": [
+            {
+              "title": "Palazzo Pitti",
+              "timeWindow": {
+                "start": "09:30",
+                "end": "12:00"
+              },
+              "location": {
+                "name": "Palazzo Pitti",
+                "lat": 43.76529,
+                "lng": 11.24994,
+                "countryCode": "IT",
+                "city": "Florence"
+              },
+              "notes": "The Medici's palace across the river: the Palatine Gallery's wall-to-wall Raphaels and Titians hung the old way, floor to ceiling, plus the royal apartments and the Museum of Fashion. Pick one wing and do it properly rather than racing the whole palace.",
+              "kind": "planned",
+              "tags": [
+                "museum"
+              ]
+            },
+            {
+              "title": "Boboli Gardens picnic",
+              "timeWindow": {
+                "start": "12:00",
+                "end": "14:00"
+              },
+              "location": {
+                "name": "Giardino di Boboli",
+                "lat": 43.76527,
+                "lng": 11.24835,
+                "countryCode": "IT",
+                "city": "Florence"
+              },
+              "notes": "The palace's hillside garden: grottoes, fountains, the amphitheatre carved into the hill, and views opening over the city as you climb. Pack a picnic from the market and eat it on the grass — the Boboli is Florence's great outdoor room.",
+              "kind": "planned",
+              "tags": [
+                "outdoors"
+              ]
+            },
+            {
+              "title": "San Miniato al Monte",
+              "timeWindow": {
+                "start": "16:30",
+                "end": "17:30"
+              },
+              "location": {
+                "name": "San Miniato al Monte",
+                "lat": 43.75983,
+                "lng": 11.26447,
+                "countryCode": "IT",
+                "city": "Florence"
+              },
+              "notes": "Florence's most beautiful church, and its least crowded: a Romanesque facade of green and white marble, a glittering 13th-century mosaic in the apse, and monks who still sing Gregorian chant at vespers. Go for the interior; stay for the silence.",
+              "kind": "planned",
+              "tags": [
+                "sight"
+              ]
+            },
+            {
+              "title": "Sunset at Piazzale Michelangelo",
+              "timeWindow": {
+                "start": "17:30",
+                "end": "18:30"
+              },
+              "location": {
+                "name": "Piazzale Michelangelo",
+                "lat": 43.76313,
+                "lng": 11.265,
+                "countryCode": "IT",
+                "city": "Florence"
+              },
+              "notes": "The postcard view, earned: the whole centro storico laid out below — Duomo, Palazzo Vecchio, the Arno's bridges — with the hills behind. Arrive before sunset, bring a bottle of wine, and watch the city light up one roof at a time.",
+              "kind": "planned",
+              "tags": [
+                "sight"
+              ]
+            },
+            {
+              "title": "Farewell dinner at La Giostra",
+              "timeWindow": {
+                "start": "19:30",
+                "end": "21:30"
+              },
+              "location": {
+                "name": "La Giostra",
+                "lat": 43.77212,
+                "lng": 11.26211,
+                "countryCode": "IT",
+                "city": "Florence"
+              },
+              "notes": "The farewell table: a prince's former stables turned into a candlelit dining room, famous for its pear-and-pecorino ravioli and a pear tree growing through the roof. Book ahead and dress up — this is the one dinner on the trip that feels like an occasion.",
+              "kind": "planned",
+              "tags": [
+                "meal"
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "notebooks": [],
+  "activities": []
+}

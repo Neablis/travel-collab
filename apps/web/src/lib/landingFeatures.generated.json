@@ -25,6 +25,18 @@
       {
         "title": "Bánh mì at Bánh Mì 25",
         "start": "11:00"
+      },
+      {
+        "title": "Đồng Xuân Market wander",
+        "start": "12:30"
+      },
+      {
+        "title": "Egg coffee at Cà Phê Giảng",
+        "start": "15:00"
+      },
+      {
+        "title": "Evening at St. Joseph's Cathedral",
+        "start": "17:30"
       }
     ],
     "totalCost": null,
@@ -57,54 +69,600 @@
     "namedTags": []
   },
   "shelf": {
-    "savedDayId": "95742081-a970-48b2-8779-34d5104c94ca",
-    "ownerId": "dev-nadia",
-    "ownerDisplayName": "Nadia",
-    "name": "Railay: the first longtail, Phra Nang before the crowd, and back after dark",
+    "savedDayId": "a0f7662e-c84d-4a18-8606-a37c5bfa60ea",
+    "ownerId": "dev-marco",
+    "ownerDisplayName": "Marco",
+    "name": "3 days in Rome: emperors, gladiators & the layers beneath",
     "cities": [
-      "Krabi"
+      "Rome"
     ],
     "matchedCities": [],
-    "stopCount": 8,
-    "dayCount": 1,
-    "window": {
-      "start": "08:15",
-      "end": "21:25"
-    },
+    "stopCount": 14,
+    "dayCount": 3,
+    "window": null,
     "preview": [
       {
-        "title": "Longtail from Ao Nang beach to Railay West",
-        "start": "08:15"
-      },
-      {
-        "title": "Phra Nang Cave Beach and the fertility shrine",
+        "title": "The Pantheon",
         "start": "09:00"
       },
       {
-        "title": "Railay viewpoint, and the lagoon if it has not rained",
-        "start": "10:35"
+        "title": "Piazza Navona",
+        "start": "10:00"
+      },
+      {
+        "title": "Largo di Torre Argentina",
+        "start": "11:00"
+      },
+      {
+        "title": "Pizza bianca at Forno Campo de' Fiori",
+        "start": "12:00"
+      },
+      {
+        "title": "Trajan's Column and the Imperial Fora",
+        "start": "14:00"
+      },
+      {
+        "title": "Dinner in Trastevere at Da Augusto",
+        "start": "19:30"
       }
     ],
     "totalCost": null,
-    "adds": 5,
-    "rating": null,
-    "reviewCount": 0,
+    "adds": 0,
+    "rating": 4.7,
+    "reviewCount": 28,
     "visibility": "public",
-    "authorKind": "ai",
-    "sourceTripName": "Andaman, twelve days and one bag",
-    "createdAt": "2026-02-14T09:00:00.000Z",
-    "publishedAt": "2026-02-14T09:00:00.000Z",
+    "authorKind": "human",
+    "sourceTripName": "3 days in Rome: emperors, gladiators & the layers beneath",
+    "createdAt": "2026-09-20T00:00:00.000Z",
+    "publishedAt": "2026-09-20T00:00:00.000Z",
     "isMine": false,
     "cover": null,
-    "description": "Food & outdoors",
+    "description": "Sightseeing",
     "tags": [
+      "sight",
       "meal",
-      "outdoors",
-      "drinks",
-      "beach",
+      "museum",
+      "shopping",
       "tour"
     ],
     "namedTags": []
+  },
+  "assistant": {
+    "trip": "Two days in Rome",
+    "currency": "USD",
+    "accent": "info",
+    "river": {
+      "dayId": "00000000-0000-4000-80d0-000000000001",
+      "ordinal": 1,
+      "city": "Rome",
+      "activityIds": [
+        "00000000-0000-4000-80d0-000000000003",
+        "00000000-0000-4000-80d0-000000000004",
+        "00000000-0000-4000-80d0-000000000005",
+        "00000000-0000-4000-80d0-000000000006"
+      ],
+      "activities": {
+        "00000000-0000-4000-80d0-000000000003": {
+          "activityId": "00000000-0000-4000-80d0-000000000003",
+          "title": "The Colosseum, arena floor first",
+          "timeWindow": {
+            "start": "09:00",
+            "end": "11:30"
+          },
+          "location": {
+            "name": "Colosseum",
+            "lat": 41.89004,
+            "lng": 12.49423,
+            "countryCode": "IT",
+            "city": "Rome"
+          },
+          "notes": "Book the first timed entry and enter through the arena floor if you can — standing where the gladiators stood changes the scale of the place entirely. The hypogeum tour underneath is worth the extra ticket: the lifts and trapdoors that made the spectacles work.",
+          "anchors": [],
+          "kind": "planned",
+          "tags": [
+            "ticketed"
+          ],
+          "cost": null,
+          "bookedBy": null,
+          "participants": [],
+          "addedBy": null,
+          "mode": null,
+          "endLocation": null,
+          "pendingReason": null
+        },
+        "00000000-0000-4000-80d0-000000000004": {
+          "activityId": "00000000-0000-4000-80d0-000000000004",
+          "title": "The Roman Forum",
+          "timeWindow": {
+            "start": "11:30",
+            "end": "13:30"
+          },
+          "location": {
+            "name": "Foro Romano",
+            "lat": 41.89251,
+            "lng": 12.48417,
+            "countryCode": "IT",
+            "city": "Rome"
+          },
+          "notes": "Walk the Via Sacra the way triumphs did: past the Curia where the Senate met, the rostra where Cicero spoke, and the Temple of Vesta where the sacred flame burned. The Forum rewards slow looking — every ruin is a building with a biography, and the audio guide earns its keep here.",
+          "anchors": [],
+          "kind": "planned",
+          "tags": [
+            "ticketed",
+            "sight"
+          ],
+          "cost": null,
+          "bookedBy": null,
+          "participants": [],
+          "addedBy": null,
+          "mode": null,
+          "endLocation": null,
+          "pendingReason": null
+        },
+        "00000000-0000-4000-80d0-000000000005": {
+          "activityId": "00000000-0000-4000-80d0-000000000005",
+          "title": "Palatine Hill",
+          "timeWindow": {
+            "start": "13:30",
+            "end": "15:00"
+          },
+          "location": {
+            "name": "Palatino",
+            "lat": 41.88785,
+            "lng": 12.48981,
+            "countryCode": "IT",
+            "city": "Rome"
+          },
+          "notes": "The hill where Rome began — Romulus's hut, Augustus's house, and the palace complex that gave us the word 'palace'. Climb to the viewpoint over the Forum and the Circus Maximus: the best single panorama of ancient Rome, and the quietest corner of the whole archaeological park.",
+          "anchors": [],
+          "kind": "planned",
+          "tags": [
+            "sight"
+          ],
+          "cost": null,
+          "bookedBy": null,
+          "participants": [],
+          "addedBy": null,
+          "mode": null,
+          "endLocation": null,
+          "pendingReason": null
+        },
+        "00000000-0000-4000-80d0-000000000006": {
+          "activityId": "00000000-0000-4000-80d0-000000000006",
+          "title": "Dinner at Armando al Pantheon",
+          "timeWindow": {
+            "start": "19:30",
+            "end": "21:30"
+          },
+          "location": {
+            "name": "Armando al Pantheon",
+            "lat": 41.89905,
+            "lng": 12.47622,
+            "countryCode": "IT",
+            "city": "Rome"
+          },
+          "notes": "The classic dinner after a day in the ruins: a family-run room steps from the Pantheon, famous for its cacio e pepe and its refusal to rush anyone. Book ahead — it is small, beloved, and the waiters remember you on the second visit.",
+          "anchors": [],
+          "kind": "planned",
+          "tags": [
+            "meal"
+          ],
+          "cost": null,
+          "bookedBy": null,
+          "participants": [],
+          "addedBy": null,
+          "mode": null,
+          "endLocation": null,
+          "pendingReason": null
+        }
+      }
+    },
+    "ask": "Can you fill the afternoon on Day 1 before dinner?",
+    "answer": "Day 1 is open from Palatine Hill at 3 until dinner at 7:30. Both are from the Rome playbook you borrowed: a late lunch at Mercato Testaccio, then the Circus Maximus under the Palatine as the light goes.",
+    "suggested": {
+      "suggestionId": "00000000-0000-4000-80d1-000000000000",
+      "changeCount": 2,
+      "snapshotId": "00000000-0000-4000-80d2-000000000000",
+      "snapshotName": "Before: Can you fill the afternoon on Day 1 before dinner?",
+      "skipped": []
+    },
+    "ghosts": [
+      {
+        "changeId": "00000000-0000-4000-80d1-000000000001",
+        "suggestionId": "00000000-0000-4000-80d1-000000000000",
+        "authorId": "reader",
+        "description": "Added \"Lunch at Mercato Testaccio\" to Day 1",
+        "dependsOn": [],
+        "blockedBy": [],
+        "via": "assistant",
+        "kind": "add",
+        "activityId": "00000000-0000-4000-80d0-000000000007",
+        "activity": {
+          "activityId": "00000000-0000-4000-80d0-000000000007",
+          "title": "Lunch at Mercato Testaccio",
+          "timeWindow": {
+            "start": "15:15",
+            "end": "16:45"
+          },
+          "location": {
+            "name": "Mercato Testaccio",
+            "lat": 41.87759,
+            "lng": 12.47329,
+            "countryCode": "IT",
+            "city": "Rome"
+          },
+          "notes": "Lunch where Romans lunch: the Testaccio market's food boxes serve tripe, supplì, and trapizzino to workers and regulars, in the neighbourhood that fed the city for centuries. Eat at a counter, then walk off lunch past the old slaughterhouse and the Protestant Cemetery's pyramid.",
+          "anchors": [],
+          "kind": "planned",
+          "tags": [
+            "meal",
+            "shopping"
+          ],
+          "cost": null,
+          "bookedBy": null,
+          "participants": [],
+          "addedBy": null,
+          "mode": null,
+          "endLocation": null,
+          "pendingReason": null
+        },
+        "dayId": "00000000-0000-4000-80d0-000000000001"
+      },
+      {
+        "changeId": "00000000-0000-4000-80d1-000000000002",
+        "suggestionId": "00000000-0000-4000-80d1-000000000000",
+        "authorId": "reader",
+        "description": "Added \"Circus Maximus\" to Day 1",
+        "dependsOn": [],
+        "blockedBy": [],
+        "via": "assistant",
+        "kind": "add",
+        "activityId": "00000000-0000-4000-80d0-000000000008",
+        "activity": {
+          "activityId": "00000000-0000-4000-80d0-000000000008",
+          "title": "Circus Maximus",
+          "timeWindow": {
+            "start": "17:30",
+            "end": "19:00"
+          },
+          "location": {
+            "name": "Via del Circo Massimo",
+            "lat": 41.88539,
+            "lng": 12.48509,
+            "countryCode": "IT",
+            "city": "Rome"
+          },
+          "notes": "The chariot-racing track that held 250,000 spectators is now a long grassy hollow — walk its length to feel the scale, then climb the Palatine side for the view down the spine. It is the emptiest big space in central Rome, and the best place to imagine the roar.",
+          "anchors": [],
+          "kind": "planned",
+          "tags": [
+            "sight"
+          ],
+          "cost": null,
+          "bookedBy": null,
+          "participants": [],
+          "addedBy": null,
+          "mode": null,
+          "endLocation": null,
+          "pendingReason": null
+        },
+        "dayId": "00000000-0000-4000-80d0-000000000001"
+      }
+    ]
+  },
+  "crew": {
+    "name": "Paros to Santorini",
+    "currency": "USD",
+    "accents": {
+      "00000000-0000-4000-80c0-000000000001": "warning",
+      "00000000-0000-4000-80c0-000000000002": "danger",
+      "00000000-0000-4000-80c0-000000000003": "success"
+    },
+    "river": {
+      "dayId": "00000000-0000-4000-80c0-000000000002",
+      "ordinal": 2,
+      "city": "Naxos Town",
+      "activityIds": [
+        "00000000-0000-4000-80c0-000000000012",
+        "00000000-0000-4000-80c0-000000000013",
+        "00000000-0000-4000-80c0-000000000014",
+        "00000000-0000-4000-80c0-000000000015",
+        "00000000-0000-4000-80c0-000000000016",
+        "00000000-0000-4000-80c0-000000000017",
+        "00000000-0000-4000-80c0-000000000018",
+        "00000000-0000-4000-80c0-000000000019"
+      ],
+      "activities": {
+        "00000000-0000-4000-80c0-000000000012": {
+          "activityId": "00000000-0000-4000-80c0-000000000012",
+          "title": "Drive up to Filoti and park by the square",
+          "timeWindow": {
+            "start": "06:45",
+            "end": "07:30"
+          },
+          "location": {
+            "name": "Filoti main square",
+            "countryCode": "GR",
+            "city": "Filoti",
+            "area": "Village square"
+          },
+          "notes": "Day rate for a small car — Naxos is the one Cycladic island where a car beats a quad, because the mountain road is long and cold at 07:00. The trail starts on the steps opposite Taverna Baboulas on the square. You can also drive on to the tiny Aria Spring car park and save 40 minutes of road walking, but it holds six cars and fills by 08:00.",
+          "anchors": [],
+          "kind": "transit",
+          "tags": [],
+          "cost": null,
+          "bookedBy": null,
+          "participants": [],
+          "addedBy": "Maeve",
+          "mode": null,
+          "endLocation": null,
+          "pendingReason": null
+        },
+        "00000000-0000-4000-80c0-000000000013": {
+          "activityId": "00000000-0000-4000-80c0-000000000013",
+          "title": "Fill both bottles at the Aria Spring",
+          "timeWindow": {
+            "start": "07:35",
+            "end": "08:05"
+          },
+          "location": {
+            "name": "Aria Spring",
+            "countryCode": "GR",
+            "city": "Filoti",
+            "area": "Aria"
+          },
+          "notes": "A stone well under a plane tree, running cold straight out of the mountain and safe to drink. It is the last water on the route in both directions — two litres each, and it is also the best-placed drink on the whole descent.",
+          "anchors": [],
+          "kind": "planned",
+          "tags": [
+            "outdoors"
+          ],
+          "cost": null,
+          "bookedBy": null,
+          "participants": [],
+          "addedBy": "Tomas",
+          "mode": null,
+          "endLocation": null,
+          "pendingReason": null
+        },
+        "00000000-0000-4000-80c0-000000000014": {
+          "activityId": "00000000-0000-4000-80c0-000000000014",
+          "title": "Zas Cave and the push to 1,003 m",
+          "timeWindow": {
+            "start": "08:10",
+            "end": "11:00"
+          },
+          "location": {
+            "name": "Mount Zas summit",
+            "countryCode": "GR",
+            "city": "Filoti",
+            "area": "Mount Zas"
+          },
+          "notes": "The cave where Zeus was supposedly hidden is twenty minutes above the spring and worth the detour; take a torch, it goes back further than it looks. From there the route is cairns rather than signs and the last half hour is loose scree — if the cloud is down on the summit the cairns are genuinely hard to follow, so turn round rather than guess.",
+          "anchors": [],
+          "kind": "planned",
+          "tags": [
+            "outdoors"
+          ],
+          "cost": null,
+          "bookedBy": null,
+          "participants": [
+            "Maeve",
+            "Tomas",
+            "Ruth"
+          ],
+          "addedBy": "Ruth",
+          "mode": null,
+          "endLocation": null,
+          "pendingReason": null
+        },
+        "00000000-0000-4000-80c0-000000000015": {
+          "activityId": "00000000-0000-4000-80c0-000000000015",
+          "title": "Down the Agia Marina side to close the loop",
+          "timeWindow": {
+            "start": "11:05",
+            "end": "12:30"
+          },
+          "location": {
+            "name": "Agia Marina chapel",
+            "lat": 37.044701,
+            "lng": 25.507188,
+            "countryCode": "GR",
+            "city": "Filoti",
+            "area": "Agia Marina"
+          },
+          "notes": "Retracing your steps is faster; the loop down past the Agia Marina chapel and back along the contour to Filoti is the better half of the walk and costs about 40 extra minutes. Roughly 12.8 km all in.",
+          "anchors": [],
+          "kind": "transit",
+          "tags": [
+            "outdoors"
+          ],
+          "cost": null,
+          "bookedBy": null,
+          "participants": [],
+          "addedBy": "Kenji",
+          "mode": null,
+          "endLocation": null,
+          "pendingReason": null
+        },
+        "00000000-0000-4000-80c0-000000000016": {
+          "activityId": "00000000-0000-4000-80c0-000000000016",
+          "title": "Lunch at Lefteris in Apeiranthos",
+          "timeWindow": {
+            "start": "13:00",
+            "end": "14:30"
+          },
+          "location": {
+            "name": "Lefteris",
+            "lat": 37.071792,
+            "lng": 25.519616,
+            "countryCode": "GR",
+            "city": "Apeiranthos",
+            "area": "Marble village",
+            "precision": "city"
+          },
+          "notes": "Apeiranthos is entirely paved in marble and has five small museums nobody visits. Ask for the goat in lemon and take the back terrace — it looks straight down the valley you spent the morning walking out of, which is the only way to make sense of the shape of the island.",
+          "anchors": [],
+          "kind": "planned",
+          "tags": [
+            "meal"
+          ],
+          "cost": null,
+          "bookedBy": "Maeve",
+          "participants": [],
+          "addedBy": "Maeve",
+          "mode": null,
+          "endLocation": null,
+          "pendingReason": null
+        },
+        "00000000-0000-4000-80c0-000000000017": {
+          "activityId": "00000000-0000-4000-80c0-000000000017",
+          "title": "Citron tasting at the Vallindras distillery, Halki",
+          "timeWindow": {
+            "start": "14:45",
+            "end": "15:30"
+          },
+          "location": {
+            "name": "Vallindras Distillery",
+            "lat": 37.063013,
+            "lng": 25.482285,
+            "countryCode": "GR",
+            "city": "Halki",
+            "area": "Halki village"
+          },
+          "notes": "Fifteen minutes, free, and still using the copper stills from 1896. Three strengths of kitron: green is the sweet one people like on the day, yellow is the one worth carrying home. Skip it if you are driving the mountain road afterwards.",
+          "anchors": [],
+          "kind": "pending",
+          "tags": [
+            "drinks"
+          ],
+          "cost": null,
+          "bookedBy": null,
+          "participants": [],
+          "addedBy": "Tomas",
+          "mode": null,
+          "endLocation": null,
+          "pendingReason": null
+        },
+        "00000000-0000-4000-80c0-000000000018": {
+          "activityId": "00000000-0000-4000-80c0-000000000018",
+          "title": "Plaka Beach, ten minutes south of the last sunbed",
+          "timeWindow": {
+            "start": "16:15",
+            "end": "18:30"
+          },
+          "location": {
+            "name": "Plaka Beach",
+            "countryCode": "GR",
+            "city": "Plaka",
+            "area": "Southern dunes"
+          },
+          "notes": "A pair of beds and an umbrella at the beach clubs at the north end runs about what is priced here. Walk ten minutes south past the last row instead and it is empty sand and dune all the way to Kastraki for nothing — this cost is the version where you give in, and it is fine either way.",
+          "anchors": [],
+          "kind": "pending",
+          "tags": [
+            "beach"
+          ],
+          "cost": null,
+          "bookedBy": null,
+          "participants": [],
+          "addedBy": "Ruth",
+          "mode": null,
+          "endLocation": null,
+          "pendingReason": null
+        },
+        "00000000-0000-4000-80c0-000000000019": {
+          "activityId": "00000000-0000-4000-80c0-000000000019",
+          "title": "The Portara at sunset, dinner in the old market after",
+          "timeWindow": {
+            "start": "19:15",
+            "end": "21:45"
+          },
+          "location": {
+            "name": "Portara and the Kastro lanes",
+            "lat": 36.870658,
+            "lng": 25.521091,
+            "countryCode": "GR",
+            "city": "Naxos Town",
+            "area": "Palatia and Kastro",
+            "precision": "city"
+          },
+          "notes": "The marble door frame on the islet is a five-minute causeway walk from the port and is the one sunset on Naxos worth planning around. Then go up into the Kastro rather than eating on the waterfront — the port tavernas have the view and the village ones have the food. Book, because the good ones inside the walls have eight tables.",
+          "anchors": [],
+          "kind": "planned",
+          "tags": [
+            "meal",
+            "sight"
+          ],
+          "cost": null,
+          "bookedBy": "Tomas",
+          "participants": [
+            "Maeve",
+            "Tomas",
+            "Kenji"
+          ],
+          "addedBy": "Kenji",
+          "mode": null,
+          "endLocation": null,
+          "pendingReason": null
+        }
+      }
+    },
+    "personas": {
+      "Maeve": {
+        "name": "Maeve",
+        "avatar": "sailboat",
+        "color": "sky",
+        "travelling": true,
+        "colorShifted": false
+      },
+      "Tomas": {
+        "name": "Tomas",
+        "avatar": "bike",
+        "color": "ochre",
+        "travelling": true,
+        "colorShifted": false
+      },
+      "Ruth": {
+        "name": "Ruth",
+        "avatar": "camera",
+        "color": "rose",
+        "travelling": true,
+        "colorShifted": false
+      },
+      "Kenji": {
+        "name": "Kenji",
+        "avatar": null,
+        "color": "teal",
+        "travelling": true,
+        "colorShifted": false
+      }
+    },
+    "people": {
+      "kind": "trip-people",
+      "stack": [
+        {
+          "name": "Tomas",
+          "avatar": "bike",
+          "color": "ochre"
+        },
+        {
+          "name": "Ruth",
+          "avatar": "camera",
+          "color": "rose"
+        },
+        {
+          "name": "Kenji",
+          "avatar": null,
+          "color": "teal"
+        }
+      ],
+      "sentence": "Tomas, Ruth and Kenji are going with Maeve."
+    },
+    "borrowed": {
+      "savedDayId": "0fe810f9-755b-4b38-8692-e08788eb980a",
+      "href": "/playbooks/day/naxos-up-zas-at-dawn-the-marble-villages-and-plaka-for-the-s-0fe810f9-755b-4b38-8692-e08788eb980a"
+    }
   },
   "memory": [
     [
@@ -243,26 +801,54 @@
       ],
       "summary": "Sunrise and sunset for 1 day."
     },
-    "people": {
-      "kind": "trip-people",
-      "stack": [
-        {
-          "name": "Priya",
-          "avatar": "camera",
-          "color": "ochre"
-        },
-        {
-          "name": "Jonah",
-          "avatar": "bike",
-          "color": "clay"
-        },
-        {
-          "name": "Mei",
-          "avatar": "sailboat",
-          "color": "rose"
-        }
-      ],
-      "sentence": "Priya, Jonah and Mei are going with Sam."
-    }
+    "sunTitle": "Sunrise and sunset",
+    "journal": [
+      {
+        "heading": "What we would tell the next lot",
+        "paragraphs": [
+          [
+            {
+              "kind": "text",
+              "text": "The Romancecar fills up from Shinjuku. Book the front seats the day before, not on the platform: Jonah got the last two, and we sat in them in shifts."
+            }
+          ],
+          [
+            {
+              "kind": "text",
+              "text": "Give the Open-Air Museum the whole morning. Take your shoes off for the foot bath halfway round, and leave the Picasso pavilion for last, when the groups have gone to lunch."
+            }
+          ],
+          [
+            {
+              "kind": "text",
+              "text": "At Bakery & Table, go up to the counter over the lake, not the tables inside. Mei went back for a second curry bread and nobody blamed her."
+            }
+          ],
+          [
+            {
+              "kind": "text",
+              "text": "At Gora Kadan ask for the late bath. The outdoor one is quiet after nine, and the steam comes up off the trees."
+            }
+          ]
+        ]
+      },
+      {
+        "heading": "Next time",
+        "paragraphs": [
+          [
+            {
+              "kind": "text",
+              "text": "Two nights, not one. The ropeway and Owakudani were on the list, and we never left the ryokan."
+            }
+          ],
+          [
+            {
+              "kind": "text",
+              "text": "Sam wants to walk the old Tokaido path down to Hatajuku. Priya wants the same room again. Both can be true."
+            }
+          ]
+        ]
+      }
+    ]
   }
 }

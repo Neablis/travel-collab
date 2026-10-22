@@ -38,24 +38,6 @@ export function whoItIsFor(choice: AccountPlanChoice): string {
   return "For planning a trip on your own, start to finish.";
 }
 
-/**
- * The landing page's one line per plan (Mitchell, 2026-10-11: *"free -
- * unlimited planned trips, paid = access to ai tools to help plan trip, pro =
- * invite all your friends to come along"*).
- *
- * **Read off the entitlements, for `whoItIsFor`'s reason**, and in its order:
- * the line names the most social thing the plan grants. Every plan's trips are
- * unlimited (`planBullets`' first row), so a plan with neither the assistant
- * nor collaborators is pitched on that. No line may say "free" — SPEC §14's
- * copy rule, which only the plan's name and price are exempt from.
- */
-export function planPitch(choice: AccountPlanChoice): string {
-  const has = (entitlement: string) => choice.entitlements.includes(entitlement);
-  if (has("trip.collaborators")) return "Invite all your friends to come along";
-  if (has("ai.ask")) return "AI tools to help plan the trip";
-  return "Unlimited planned trips";
-}
-
 /** A plan's price as every plan surface prints it: "Free", "$9 / month", or `—` when it is not sold. */
 export function planPrice(choice: AccountPlanChoice): string {
   if (choice.priceMinor === null) return "—";

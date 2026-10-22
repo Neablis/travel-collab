@@ -14,8 +14,8 @@ function fixture() {
   return tripDetailFixture({
     days: [{ dayId: DAY, activityIds: [A1, A2], date: null, costSubtotal: 0 }],
     activities: {
-      [A1]: { activityId: A1, title: "Colosseum", timeWindow: { start: "09:00", end: "11:00" }, location: null, notes: null, anchors: [], kind: "planned" as const, tags: [], cost: null , bookedBy: null, participants: [], mode: null, endLocation: null, pendingReason: null},
-      [A2]: { activityId: A2, title: "Vatican Museums", timeWindow: { start: "10:00", end: "12:00" }, location: null, notes: null, anchors: [], kind: "planned" as const, tags: [], cost: null , bookedBy: null, participants: [], mode: null, endLocation: null, pendingReason: null},
+      [A1]: { activityId: A1, title: "Colosseum", timeWindow: { start: "09:00", end: "11:00" }, location: null, notes: null, anchors: [], kind: "planned" as const, tags: [], cost: null , bookedBy: null, participants: [], addedBy: null, mode: null, endLocation: null, pendingReason: null},
+      [A2]: { activityId: A2, title: "Vatican Museums", timeWindow: { start: "10:00", end: "12:00" }, location: null, notes: null, anchors: [], kind: "planned" as const, tags: [], cost: null , bookedBy: null, participants: [], addedBy: null, mode: null, endLocation: null, pendingReason: null},
     },
     conflicts: [
       {
@@ -60,9 +60,9 @@ function threeWayOverlapFixture() {
   return tripDetailFixture({
     days: [{ dayId: DAY, activityIds: [A1, A2, A3], date: null, costSubtotal: 0 }],
     activities: {
-      [A1]: { activityId: A1, title: "Colosseum", timeWindow: { start: "09:00", end: "12:00" }, location: null, notes: null, anchors: [], kind: "planned" as const, tags: [], cost: null , bookedBy: null, participants: [], mode: null, endLocation: null, pendingReason: null},
-      [A2]: { activityId: A2, title: "Vatican Museums", timeWindow: { start: "10:00", end: "13:00" }, location: null, notes: null, anchors: [], kind: "planned" as const, tags: [], cost: null , bookedBy: null, participants: [], mode: null, endLocation: null, pendingReason: null},
-      [A3]: { activityId: A3, title: "Trastevere walk", timeWindow: { start: "11:00", end: "14:00" }, location: null, notes: null, anchors: [], kind: "planned" as const, tags: [], cost: null , bookedBy: null, participants: [], mode: null, endLocation: null, pendingReason: null},
+      [A1]: { activityId: A1, title: "Colosseum", timeWindow: { start: "09:00", end: "12:00" }, location: null, notes: null, anchors: [], kind: "planned" as const, tags: [], cost: null , bookedBy: null, participants: [], addedBy: null, mode: null, endLocation: null, pendingReason: null},
+      [A2]: { activityId: A2, title: "Vatican Museums", timeWindow: { start: "10:00", end: "13:00" }, location: null, notes: null, anchors: [], kind: "planned" as const, tags: [], cost: null , bookedBy: null, participants: [], addedBy: null, mode: null, endLocation: null, pendingReason: null},
+      [A3]: { activityId: A3, title: "Trastevere walk", timeWindow: { start: "11:00", end: "14:00" }, location: null, notes: null, anchors: [], kind: "planned" as const, tags: [], cost: null , bookedBy: null, participants: [], addedBy: null, mode: null, endLocation: null, pendingReason: null},
     },
     conflicts: [
       conflict(A1, A2, "Colosseum", "Vatican Museums"),
@@ -467,7 +467,7 @@ describe("Board", () => {
             id,
             // Timed, an hour apart: an untimed stop is drawn in the rack now
             // (PR #269), and this is about the river keeping every block.
-            { activityId: id, title: `Stop ${i + 1}`, timeWindow: { start: `${String(8 + i).padStart(2, "0")}:00`, end: `${String(8 + i).padStart(2, "0")}:45` }, location: null, notes: null, anchors: [], kind: "planned" as const, tags: [], cost: null , bookedBy: null, participants: [], mode: null, endLocation: null, pendingReason: null},
+            { activityId: id, title: `Stop ${i + 1}`, timeWindow: { start: `${String(8 + i).padStart(2, "0")}:00`, end: `${String(8 + i).padStart(2, "0")}:45` }, location: null, notes: null, anchors: [], kind: "planned" as const, tags: [], cost: null , bookedBy: null, participants: [], addedBy: null, mode: null, endLocation: null, pendingReason: null},
           ]),
         ),
       }),

@@ -1,242 +1,241 @@
-import { cleanup, render, screen, within, fireEvent } from "@testing-library/react";
-import { renderToStaticMarkup } from "react-dom/server";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { renderToString } from "react-dom/server";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { LANDING_CLOSING_QUOTE, LANDING_FEATURES } from "@/lib/landingDemo";
-import { PhoneFrontDoor } from "./PhoneFrontDoor";
+import { SEA_DAYS } from "@/lib/landingSea";
+import { layoutSea, type SeaArea } from "./LandingSea";
+import { PHONE_SEA, PhoneFrontDoor } from "./PhoneFrontDoor";
 
-// The three real cards are `lazy()`-loaded; loaded here first so a cold
-// worker's transform does not outrun `findBy*` (`LandingHeroArt.test.tsx`).
+// The moments' real panels are `lazy()`-loaded; loaded here first so a cold
+// worker's transform does not outrun `findBy*` (`LandingScreen.test.tsx`).
 beforeAll(async () => {
   await import("./LandingFeaturePanels");
 });
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+});
 
-/** The four claim panes, in document order, with their current opacity. */
-function opacities(): number[] {
-  return screen.getAllByTestId("front-door-claim").map((el) => Number(el.style.opacity));
+/** An `IntersectionObserver` the test drives, which keeps the root each one watches against. */
+function watchScreens() {
+  const watched: { el: Element; root: Element | Document | null; callback: IntersectionObserverCallback; observer: IntersectionObserver }[] = [];
+  vi.stubGlobal(
+    "IntersectionObserver",
+    class {
+      callback: IntersectionObserverCallback;
+      root: Element | Document | null;
+      constructor(callback: IntersectionObserverCallback, options?: IntersectionObserverInit) {
+        this.callback = callback;
+        this.root = options?.root ?? null;
+      }
+      observe(el: Element) {
+        watched.push({ el, root: this.root, callback: this.callback, observer: this as never });
+      }
+      disconnect() {}
+    },
+  );
+  return {
+    roots: () => watched.map((w) => w.root),
+    nearAll: () =>
+      act(() => {
+        for (const w of watched) w.callback([{ isIntersecting: true, target: w.el } as never], w.observer);
+      }),
+  };
 }
 
-/**
- * Drives the pinned block to a fraction of its scroll.
- *
- * jsdom reports every `offsetHeight`/`clientHeight` as 0, so the component's
- * own `usable` would be 1 and any scrollTop would saturate the sequence. These
- * two properties are defined so the geometry is real — which is the only way a
- * test can distinguish "chunk 2 is showing" from "everything is showing".
- */
-function scrollTo(fraction: number) {
+/** A grid item's area from its inline placement (`grid-row: 9 / span 2`), 0-based like `SeaArea`, or null when it has none. */
+function areaOf(el: HTMLElement): SeaArea | null {
+  const row = /^(\d+) \/ span (\d+)$/.exec(el.style.gridRow);
+  const col = /^(\d+) \/ span (\d+)$/.exec(el.style.gridColumn);
+  return row && col ? { row: Number(row[1]) - 1, h: Number(row[2]), col: Number(col[1]) - 1, w: Number(col[2]) } : null;
+}
+const meet = (a: SeaArea, b: SeaArea, margin = 0) =>
+  a.row < b.row + b.h + margin && b.row < a.row + a.h + margin && a.col < b.col + b.w + margin && b.col < a.col + a.w + margin;
+/** Whether two areas that do not overlap share a stretch of edge, not just a corner. */
+const touch = (a: SeaArea, b: SeaArea) =>
+  ((a.row + a.h === b.row || b.row + b.h === a.row) && a.col < b.col + b.w && b.col < a.col + a.w) ||
+  ((a.col + a.w === b.col || b.col + b.w === a.col) && a.row < b.row + b.h && b.row < a.row + a.h);
+
+const savedDayIds = (scope: HTMLElement) => within(scope).queryAllByTestId("discover-card").map((card) => card.getAttribute("data-saved-day-id")!);
+
+const MOMENTS = ["Find a day worth borrowing.", "Ask for more, keep what fits.", "Everyone going, one plan.", "Keep the notebook afterwards."];
+
+/** The phone's scroller with the geometry jsdom lacks: `viewport` tall, scrolled to `scrollTop`, its top at the window's. */
+function scrollTo(scrollTop: number, viewport = 800) {
   const scroller = screen.getByTestId("phone-front-door");
-  const pin = screen.getByTestId("front-door-pin");
-  Object.defineProperty(pin, "offsetHeight", { value: 3000, configurable: true });
-  Object.defineProperty(scroller, "clientHeight", { value: 1000, configurable: true });
-  scroller.scrollTop = fraction * 2000;
+  Object.defineProperty(scroller, "clientHeight", { value: viewport, configurable: true });
+  vi.spyOn(scroller, "getBoundingClientRect").mockReturnValue({ top: 0 } as DOMRect);
+  scroller.scrollTop = scrollTop;
   fireEvent.scroll(scroller);
 }
 
-describe("the phone front door (SPEC §28)", () => {
-  // §28's second note, and the one that produces the worst-looking bug: *"The
-  // rest state must be **authored into the markup** (first chunk visible, the
-  // rest at zero) or a cold load stacks all four."*
-  //
-  // **Asserted against the SERVER render, and it has to be.** The first version
-  // of this test rendered normally and checked the opacities — and passed with
-  // the authored `style` deleted, because the mount effect paints them a tick
-  // later and jsdom never shows the frame in between. That frame is the whole
-  // bug: Next ships the server's HTML, the browser paints it, and only then
-  // does hydration run the effect. If the markup does not carry the rest state,
-  // all four claims are stacked on top of each other for that paint.
-  //
-  // `renderToStaticMarkup` runs no effects, which is exactly the state the
-  // trap lives in.
-  it("carries the rest state in the server-rendered markup, before any effect runs", () => {
-    const html = renderToStaticMarkup(<PhoneFrontDoor closingQuote={LANDING_CLOSING_QUOTE} />);
-    const claimStyles = [...html.matchAll(/data-testid="front-door-claim"[^>]*style="([^"]*)"/g)].map((m) => m[1]!);
-    expect(claimStyles).toHaveLength(4);
-    expect(claimStyles[0]).toContain("opacity:1");
-    for (const style of claimStyles.slice(1)) expect(style).toContain("opacity:0");
+// M51 decision 11: *"Could we keep the tiled background, and the embedded
+// cards from the elements as i suggested in the mobile version?"* The phone
+// is the desktop's sea on a grid of two columns, not a pinned sequence.
+describe("the phone sea", () => {
+  it("tiles its first screen from the snapshot, on whole units of two columns, in the server's HTML", () => {
+    const html = renderToString(<PhoneFrontDoor />);
+    render(<PhoneFrontDoor />);
+    const sea = screen.getByTestId("phone-sea");
+    const cells = within(sea).getAllByTestId("sea-cell");
+    expect(cells.length).toBeGreaterThan(4);
+    const library = new Set(SEA_DAYS.map((cell) => cell.day.savedDayId));
+    const ground = cells.filter((cell) => cell.getAttribute("aria-hidden") === "true");
+    expect(ground.length).toBeGreaterThan(4);
+    for (const cell of ground) {
+      const id = within(cell).getByTestId("discover-card").getAttribute("data-saved-day-id")!;
+      expect(library.has(id)).toBe(true);
+      expect(html).toContain(`data-saved-day-id="${id}"`);
+    }
+    const placed = [screen.getByTestId("sea-hero"), ...cells, ...within(sea).queryAllByTestId("sea-accent"), ...within(sea).getAllByTestId("sea-story")].map(
+      (el) => areaOf(el),
+    );
+    expect(placed).not.toContain(null);
+    const areas = placed as SeaArea[];
+    for (const at of areas) expect(at.col + at.w).toBeLessThanOrEqual(2);
+    expect(areas.flatMap((a, i) => areas.slice(i + 1).filter((b) => meet(a, b)))).toEqual([]);
+    // The headline is the first screen's: in the hero, the second row.
+    expect(areaOf(screen.getByTestId("sea-hero"))).toEqual({ row: 1, col: 0, w: 2, h: PHONE_SEA.hero!.h });
   });
 
-  it("also paints the rest state on mount, so a client-only render is not stacked either", () => {
-    render(<PhoneFrontDoor closingQuote={LANDING_CLOSING_QUOTE} />);
-    expect(opacities()).toEqual([1, 0, 0, 0]);
-  });
-
-  // **A claim nobody can see is a claim nobody should hear.** All four panes
-  // are in the document at every scroll position and `opacity: 0` is a paint
-  // property, not a presence one — so without `aria-hidden` a screen reader
-  // read the whole sequence stacked on itself, four labels and four bodies,
-  // wherever the page happened to be (CodeRabbit, PR 170).
-  //
-  // Asserted against what is PAINTED rather than against an index, so the two
-  // cannot drift: whatever the effect made visible is exactly what is exposed.
-  it("exposes only the claims that are actually on screen", () => {
-    render(<PhoneFrontDoor closingQuote={LANDING_CLOSING_QUOTE} />);
-    const exposed = () =>
-      screen.getAllByTestId("front-door-claim").map((el) => el.getAttribute("aria-hidden") !== "true");
-
-    expect(exposed()).toEqual([true, false, false, false]);
-    for (const p of [0.3, 0.5, 0.62, 0.9]) {
-      scrollTo(p);
-      expect(exposed(), `at p=${p}`).toEqual(opacities().map((o) => o > 0));
+  // Mitchell's walks of PR 510, met on a phone: whole units with no hole, the
+  // moments full width and no taller than a short phone's screen, two lit
+  // days touching each and apart, and no column three tall.
+  it("packs a phone's grid whole at every phone size, its moments full width with two lit days touching each", () => {
+    for (const width of [360, 390, 430]) {
+      for (const viewport of [640, 844, 932]) {
+        const unit = (width - 2 * 16 - 8) / 2;
+        const layout = layoutSea({ cols: 2, unit, viewport }, PHONE_SEA);
+        const at = { width, viewport };
+        const taken = Array.from({ length: layout.rows }, () => [0, 0]);
+        const areas = [PHONE_SEA.hero!, ...Object.values(layout.stories), ...layout.lit.map((lit) => lit.at), ...layout.background.map((cell) => cell.at)];
+        for (const area of areas) for (let r = area.row; r < area.row + area.h; r++) for (let c = area.col; c < area.col + area.w; c++) taken[r]![c]! += 1;
+        expect({ ...at, holes: taken.flat().filter((n) => n === 0).length, overlaps: taken.flat().filter((n) => n > 1).length }).toEqual({ ...at, holes: 0, overlaps: 0 });
+        expect({ ...at, tall: layout.background.filter((cell) => cell.at.h > 2).length }).toEqual({ ...at, tall: 0 });
+        for (const [id, story] of Object.entries(layout.stories)) {
+          expect({ ...at, id, w: story.w }).toEqual({ ...at, id, w: 2 });
+        }
+        for (const moment of ["sea-find", "sea-assistant", "sea-crew", "sea-notebook"] as const) {
+          const box = layout.stories[moment];
+          expect({ ...at, moment, rows: box.h <= 3 }).toEqual({ ...at, moment, rows: true });
+          const lit = layout.lit.filter((day) => day.moment === moment).map((day) => day.at);
+          expect({ ...at, moment, lit: lit.length, touching: lit.every((day) => touch(day, box)) }).toEqual({ ...at, moment, lit: 2, touching: true });
+          expect(meet(lit[0]!, lit[1]!, 1)).toBe(false);
+        }
+      }
     }
   });
 
-  // M42 part 9 put real links in the claims (the Discover card's), and the
-  // claims are stacked: a faded one later in the document sat over the shown
-  // one, took its taps, and kept its links in the tab order. Every claim the
-  // sequence hides is `inert` as well as `aria-hidden`. jsdom models neither
-  // focus nor hit-testing for it, so the attribute is held here and the
-  // behaviour in `m42-demo-trips.spec.ts`.
-  it("puts only the claims on screen within reach of a tap or a tab", () => {
-    render(<PhoneFrontDoor closingQuote={LANDING_CLOSING_QUOTE} />);
-    const reachable = () => screen.getAllByTestId("front-door-claim").map((el) => !el.hasAttribute("inert"));
-
-    expect(reachable()).toEqual([true, false, false, false]);
-    for (const p of [0.3, 0.5, 0.62, 0.9]) {
-      scrollTo(p);
-      expect(reachable(), `at p=${p}`).toEqual(opacities().map((o) => o > 0));
-    }
+  it("raises each moment out of its ghost by the scroller's position, and dims the sea behind it", () => {
+    render(<PhoneFrontDoor />);
+    const moment = screen.getByRole("region", { name: "Everyone going, one plan." });
+    const panel = within(moment).getByTestId("moment-panel");
+    const at = (top: number) => {
+      vi.spyOn(moment, "getBoundingClientRect").mockReturnValue({ top, height: 500 } as DOMRect);
+      scrollTo(4000);
+      // Places are read on resize, not on scroll: the mocked rect only
+      // reaches the paint through a resize.
+      fireEvent.resize(window);
+      return Number(panel.style.opacity);
+    };
+    // Coming up from the scroller's foot: a ghost of the real panel.
+    const below = at(760);
+    expect(below).toBeGreaterThan(0);
+    expect(below).toBeLessThan(1);
+    // At the screen's middle, wholly risen; leaving at the top, a ghost again.
+    expect(at(150)).toBe(1);
+    const leaving = at(-300);
+    expect(leaving).toBeGreaterThan(0);
+    expect(leaving).toBeLessThan(1);
+    // Off the scroller's screen, not drawn.
+    expect(at(-600)).toBe(0);
+    expect(screen.getByTestId("sea-scrim").style.getPropertyValue("--sea-dim")).toBe("1");
+    scrollTo(0);
+    expect(screen.getByTestId("sea-scrim").style.getPropertyValue("--sea-dim")).toBe("0");
   });
 
-  // And the markup carries it before any effect runs, for the same reason the
-  // authored opacity has to: Next ships the server's HTML and hydration is a
-  // tick later, so a page read in that gap would announce all four.
-  it("carries the hidden state in the server-rendered markup too", () => {
-    const html = renderToStaticMarkup(<PhoneFrontDoor closingQuote={LANDING_CLOSING_QUOTE} />);
-    const claims = [...html.matchAll(/data-testid="front-door-claim"([^>]*)>/g)].map((m) => m[1]!);
-    expect(claims).toHaveLength(4);
-    expect(claims[0]).not.toContain('aria-hidden="true"');
-    expect(claims[0]).not.toContain("inert");
-    for (const attrs of claims.slice(1)) {
-      expect(attrs).toContain('aria-hidden="true"');
-      expect(attrs).toContain('inert=""');
-    }
+  // PR 517's cache, on the phone's scroller: a read per moment on every
+  // scroll event forced a layout per moment after the last one's writes.
+  it("paints a scroll from the moments' cached places, without reading them again", () => {
+    render(<PhoneFrontDoor />);
+    const moment = screen.getByRole("region", { name: "Everyone going, one plan." });
+    const rect = vi.spyOn(moment, "getBoundingClientRect");
+    scrollTo(4000);
+    // The scroll painted: the sea dimmed.
+    expect(screen.getByTestId("sea-scrim").style.getPropertyValue("--sea-dim")).toBe("1");
+    expect(rect).not.toHaveBeenCalled();
   });
 
-  // §28's first note: *"Progress is **scroll position inside the pinned
-  // block**, not time — you can stop on one."* Stopping a third of the way in
-  // puts a later claim up and the first one away, and it STAYS there, because
-  // nothing here is on a timer.
-  it("advances the sequence by scroll position, and holds wherever it stops", () => {
-    render(<PhoneFrontDoor closingQuote={LANDING_CLOSING_QUOTE} />);
-    scrollTo(0.4);
-    const stopped = opacities();
-    expect(stopped[0]).toBeLessThan(1);
-    expect(stopped[1]! + stopped[2]!).toBeGreaterThan(0);
-
-    // No timers, no rAF: nothing advances on its own. Re-reading without a
-    // scroll must give the identical frame.
-    expect(opacities()).toEqual(stopped);
+  // iOS momentum scroll stutters inside an `overflow-y-auto` scroller with
+  // many cards mounted. The scroller, not the window, is what the reader is
+  // near: the window never scrolls here.
+  it("mounts a far screen's cells only once the reader is near it in the scroller", () => {
+    const screens = watchScreens();
+    render(<PhoneFrontDoor />);
+    const sea = screen.getByTestId("phone-sea");
+    const before = new Set(savedDayIds(sea));
+    expect(before.size).toBeLessThan(40);
+    expect(screens.roots().length).toBeGreaterThan(0);
+    for (const root of screens.roots()) expect(root).toBe(screen.getByTestId("phone-front-door"));
+    screens.nearAll();
+    expect(savedDayIds(sea).filter((id) => !before.has(id)).length).toBeGreaterThan(10);
   });
 
-  // **The stage is never blank between two claims**, which is half of what
-  // Mitchell reported as *"there needs to be more time between the scroll
-  // transitions between blocks, right now the last few are almost
-  // unreadable"*. The other half is the length of the pin, which is geometry
-  // this layer cannot see (`.front-door-pin` is 900dvh of CSS and jsdom reports
-  // every height as 0 — `scrollTo` above fakes the two it needs).
-  //
-  // A claim used to finish fading out exactly where the next began fading in,
-  // so at every segment boundary both were at zero. CodeRabbit found the same
-  // thing as arithmetic — at `p = 0.25`, `0.5` and `0.75` neither neighbour was
-  // rendered — and the existing sample at `0.4` sat comfortably inside a
-  // segment where it could never have noticed.
-  it("always has a claim on screen through every transition", () => {
-    render(<PhoneFrontDoor closingQuote={LANDING_CLOSING_QUOTE} />);
-    // **A dense sweep rather than named boundaries.** The first version sampled
-    // 0.25 / 0.5 / 0.75 and a hair either side, which was right when the four
-    // claims divided the whole pin — and silently wrong the moment they were
-    // re-spread over `[0, TAIL_START]` so the last one stopped being squeezed
-    // by the clear-out. A test that knows the boundaries has to be edited every
-    // time they move, and the edit is exactly what nobody remembers to do.
-    //
-    // Sweeping asserts the property instead: at no point in the whole sequence
-    // is the stage blank or nearly so. It covers the boundaries wherever they
-    // are, and the midpoints, and everything between.
-    //
-    // Stops at 0.9 rather than 1: past `TAIL_START` the stage is SUPPOSED to
-    // clear, and asserting a lit claim there would be asserting the opposite of
-    // §28's "then the map clears out".
-    for (let p = 0; p <= 0.9; p += 0.01) {
-      scrollTo(p);
-      const lit = opacities().filter((o) => o > 0);
-      expect(lit.length, `nothing is on screen at p=${p.toFixed(2)}`).toBeGreaterThan(0);
-      // And it is READABLE, not a sliver: at a crossfade one of the two is
-      // always fully in, and a crossfade whose peak is 0.2 is the same
-      // complaint Mitchell filed in a different shape.
-      expect(Math.max(...lit), `what is on screen at p=${p.toFixed(2)} is barely there`).toBeGreaterThan(0.5);
-    }
+  it("reads the headline, then the moments, then pricing and the closing cell, with no background card in the accessibility tree", async () => {
+    render(<PhoneFrontDoor />);
+    const main = within(within(screen.getByTestId("phone-front-door")).getByRole("main"));
+    const headings = main.getAllByRole("heading", { level: 2 }).map((heading) => heading.textContent);
+    expect(main.getByRole("heading", { level: 1 }).textContent).toBe("Plan the trip together.");
+    expect(headings.filter((heading) => [...MOMENTS, "Start the plan, then bring everyone."].includes(heading!))).toEqual([
+      ...MOMENTS,
+      "Start the plan, then bring everyone.",
+    ]);
+    const before = (a: Element, b: Element) => (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
+    const pricing = main.getByRole("region", { name: "Pricing" });
+    expect(before(main.getByRole("region", { name: MOMENTS[3]! }), pricing)).toBe(true);
+    expect(before(pricing, main.getByRole("region", { name: "Start the plan, then bring everyone." }))).toBe(true);
+    // The background is ground: the only day links a reader meets are the moments' and their lit days'.
+    const lit = within(screen.getByTestId("phone-sea"))
+      .getAllByTestId("sea-cell")
+      .filter((cell) => cell.hasAttribute("data-lit-for"));
+    expect(lit.length).toBe(8);
+    const find = main.getByRole("region", { name: MOMENTS[0]! });
+    expect(await within(find).findAllByRole("link")).not.toEqual([]);
+    const doors = main.getAllByRole("link").filter((link) => link.getAttribute("href")!.startsWith("/playbooks/day/"));
+    expect(doors.filter((door) => !find.contains(door) && !lit.some((cell) => cell.contains(door)))).toEqual([]);
   });
 
-  // **Every claim gets the same share of the scroll**, which is the half of
-  // *"the last chunk … doesn't last long enough"* that is arithmetic rather
-  // than taste. The claims used to divide the WHOLE pin while the clear-out ate
-  // the end of it, so the fourth one held at full strength for 0.07 of the
-  // scroll against the first one's 0.25 — a quarter of the reading time, for
-  // one claim in four.
-  //
-  // Measured as "how much scroll is this claim the brightest thing on screen
-  // for", which is what a reader experiences, and compared between the first
-  // and the last — the two the old arithmetic separated most.
-  it("gives the last claim as much of the scroll as the first", () => {
-    render(<PhoneFrontDoor closingQuote={LANDING_CLOSING_QUOTE} />);
-    const held = [0, 0, 0, 0];
-    for (let p = 0; p <= 0.92; p += 0.005) {
-      scrollTo(p);
-      const os = opacities();
-      const best = os.indexOf(Math.max(...os));
-      // `?? 0` for `noUncheckedIndexedAccess`, not for doubt: `best` comes from
-      // `indexOf` on the same array. Vitest transpiles without typechecking, so
-      // this only failed at `next build` — which is the point of that step.
-      held[best] = (held[best] ?? 0) + 1;
-    }
-    expect(held[0]).toBeGreaterThan(0);
-    expect(held[3]).toBeGreaterThan(0);
-    // Within a fifth of each other. Not exact: the first claim starts already
-    // lit and the last runs into the clear-out, so the two ends are genuinely
-    // shaped differently — what must not happen is one of them getting a
-    // fraction of another's.
-    //
-    // Red-checked by dividing the pin instead of `TAIL_START`: `first claim
-    // held for 51 samples, last for 33` — the fourth claim on two thirds of the
-    // first one's scroll, which is what he was reading when he filed it.
-    expect(
-      Math.abs(held[3]! - held[0]!) / held[0]!,
-      `first claim held for ${held[0]} samples, last for ${held[3]}`,
-    ).toBeLessThan(0.2);
+  // WCAG 2.4.3, PR 516's review: each moment lights a day above it and one
+  // below, and Tab meets them as the eye does, never jumping back up the page.
+  it("tabs through the moments and their lit days from the top of the sea down", async () => {
+    render(<PhoneFrontDoor />);
+    const sea = within(screen.getByTestId("phone-sea"));
+    expect(await within(screen.getByRole("region", { name: MOMENTS[0]! })).findAllByRole("link")).not.toEqual([]);
+    const placed = [screen.getByTestId("sea-hero"), ...sea.getAllByTestId("sea-story"), ...sea.getAllByTestId("sea-cell").filter((cell) => cell.hasAttribute("data-lit-for"))];
+    const rows = sea.getAllByRole("link").map((link) => areaOf(placed.find((item) => item.contains(link))!)!.row);
+    expect(rows.length).toBeGreaterThan(8);
+    expect(rows).toEqual([...rows].sort((a, b) => a - b));
   });
+});
 
-  // §28: *"then the map clears out and the call to action arrives on empty
-  // paper."* The stage clears as ONE — the map and whatever claim is still on
-  // it go together — so the pin never releases onto a line of type floating
-  // over a background that has already gone.
-  it("clears the map and the last claim together at the end of the pin", () => {
-    render(<PhoneFrontDoor closingQuote={LANDING_CLOSING_QUOTE} />);
-    scrollTo(1);
-    const map = screen.getByTestId("front-door-map");
-    expect(Number(map.style.opacity)).toBe(0);
-    expect(opacities().every((o) => o === 0)).toBe(true);
-  });
-
-  // The five things Mitchell reported missing on the 2026-09-12 preview, each
-  // pinned by the thing he asked for rather than by a class name.
-  // ADR-061: the playbook library is open without an account, so a phone
-  // visitor can leave the front door for it (Mitchell, 2026-10-02).
-  // axe at phone width on `/`: no `main` landmark, and the headline, claims
-  // and call to action outside every landmark.
-  it("holds its content in a main landmark, between the banner and the footer", () => {
-    render(<PhoneFrontDoor closingQuote={LANDING_CLOSING_QUOTE} />);
-    const main = within(screen.getByTestId("phone-front-door")).getByRole("main");
-    expect(within(main).getByRole("heading", { level: 1, name: "Plan the trip together." })).toBeTruthy();
-    expect(within(main).getByRole("link", { name: "Start a trip" })).toBeTruthy();
+// The shell the pinned sequence had, kept: its own scroller under a sticky
+// bar, the hash answered by the scroller, and the footer.
+describe("the phone front door's shell", () => {
+  it("holds the headline and the calls to action in a main landmark, between the banner and the footer", () => {
+    render(<PhoneFrontDoor />);
+    const main = within(within(screen.getByTestId("phone-front-door")).getByRole("main"));
+    expect(main.getByRole("heading", { level: 1, name: "Plan the trip together." })).toBeTruthy();
+    const hero = within(screen.getByTestId("sea-hero"));
+    expect(hero.getByRole("link", { name: "Start a trip" }).getAttribute("href")).toBe("/signup");
+    expect(hero.getByRole("link", { name: "Look around a real trip" }).getAttribute("href")).toBe("/demo");
   });
 
   // M42 D3. The desktop tree owns the `pricing` id — two elements cannot share
   // one — and comes second in the document, so a browser following
-  // `/welcome#pricing` at phone width finds the hidden desktop section and
-  // scrolls nowhere. The phone front door answers the hash itself, by
-  // scrolling its own scroller and nothing else (see the effect's comment).
+  // `/#pricing` at phone width finds the hidden desktop section and scrolls
+  // nowhere. The phone front door answers the hash itself, by scrolling its
+  // own scroller and nothing else.
   describe("#pricing", () => {
     const scrolled: { el: Element; top: number | undefined }[] = [];
     beforeEach(() => {
@@ -253,15 +252,18 @@ describe("the phone front door (SPEC §28)", () => {
 
     it("scrolls its own scroller when the page is opened at #pricing", () => {
       window.history.replaceState(null, "", "#pricing");
-      render(<PhoneFrontDoor closingQuote={LANDING_CLOSING_QUOTE} />);
+      render(<PhoneFrontDoor />);
       expect(scrolled.map(({ el }) => el)).toEqual([screen.getByTestId("phone-front-door")]);
     });
 
-    it("lands the section just under the sticky bar when the hash changes to #pricing", () => {
-      render(<PhoneFrontDoor closingQuote={LANDING_CLOSING_QUOTE} />);
+    // Pricing is a cell of the sea, second to last as on the desktop (M51
+    // decision 10), and the hash lands its "Pricing" line just under the
+    // sticky bar (PR 516's review).
+    it("lands the sea's pricing just under the sticky bar when the hash changes to #pricing", () => {
+      render(<PhoneFrontDoor />);
       const door = screen.getByTestId("phone-front-door");
-      const pricing = within(door).getByRole("region", { name: "Pricing" });
-      // jsdom lays nothing out, so the geometry the effect reads is given here.
+      const stories = within(screen.getByTestId("phone-sea")).getAllByTestId("sea-story");
+      const pricing = within(stories.at(-2)!).getByRole("region", { name: "Pricing" });
       door.scrollTop = 100;
       vi.spyOn(door, "getBoundingClientRect").mockReturnValue({ top: 0 } as DOMRect);
       vi.spyOn(pricing, "getBoundingClientRect").mockReturnValue({ top: 5000 } as DOMRect);
@@ -274,141 +276,36 @@ describe("the phone front door (SPEC §28)", () => {
     });
 
     // Mitchell, 2026-10-11: the front door summarises the plans and leaves
-    // the specifics to `/plans`. One line each, one way through to the rest —
-    // and no second sign-up button, because "Start a trip" sits just above.
+    // the specifics to `/plans`.
     it("summarises the plans and sends the specifics to /plans", () => {
-      render(<PhoneFrontDoor closingQuote={LANDING_CLOSING_QUOTE} />);
+      render(<PhoneFrontDoor />);
       const door = within(screen.getByTestId("phone-front-door"));
       const pricing = within(door.getByRole("region", { name: "Pricing" }));
       expect(pricing.queryByRole("table")).toBeNull();
-      expect(pricing.getByText("Unlimited planned trips")).toBeTruthy();
-      expect(pricing.getByText("AI tools to help plan the trip")).toBeTruthy();
-      expect(pricing.getByText("Invite all your friends to come along")).toBeTruthy();
+      expect(pricing.getAllByTestId("plan-step")).toHaveLength(2);
       expect(pricing.getByRole("link", { name: "Compare plans" }).getAttribute("href")).toBe("/signin?callbackUrl=%2Fplans");
       expect(door.queryByRole("link", { name: "Sign up" })).toBeNull();
     });
   });
 
-  // Mitchell, 2026-10-11: the bar is clear over the map, where nothing sits
-  // under it to read, and paper once the pin releases — after that, content
-  // scrolls under it, and a clear bar shows that content through its links
-  // and takes the taps aimed at it.
-  it("puts the header on paper once the pin releases, and only then", () => {
-    render(<PhoneFrontDoor closingQuote={LANDING_CLOSING_QUOTE} />);
-    const header = within(screen.getByTestId("phone-front-door")).getByRole("banner");
-    expect(header.hasAttribute("data-solid")).toBe(false);
-    scrollTo(0.97);
-    expect(header.hasAttribute("data-solid")).toBe(false);
-    scrollTo(1.2);
-    expect(header.hasAttribute("data-solid")).toBe(true);
-    scrollTo(0.5);
-    expect(header.hasAttribute("data-solid")).toBe(false);
+  it("links the playbook library and sign-in from the header", () => {
+    render(<PhoneFrontDoor />);
+    const header = within(within(screen.getByTestId("phone-front-door")).getByRole("banner"));
+    expect(header.getByRole("link", { name: "Playbooks" }).getAttribute("href")).toBe("/playbooks");
+    expect(header.getByRole("link", { name: "Sign in" }).getAttribute("href")).toBe("/signin");
   });
 
-  it("links the playbook library from the header", () => {
-    render(<PhoneFrontDoor closingQuote={LANDING_CLOSING_QUOTE} />);
-    const playbooks = within(screen.getByTestId("phone-front-door")).getByRole("link", { name: "Playbooks" });
-    expect(playbooks.getAttribute("href")).toBe("/playbooks");
-  });
-
-  describe("what the first build of this screen left out", () => {
-    // *"Missing the top of page signing CTA"*. There was no header at all, so a
-    // returning visitor on a phone had no way into their own account.
-    it("offers a way in for somebody who already has an account", () => {
-      render(<PhoneFrontDoor closingQuote={LANDING_CLOSING_QUOTE} />);
-      const signIn = within(screen.getByTestId("phone-front-door")).getByRole("link", { name: "Sign in" });
-      expect(signIn.getAttribute("href")).toBe("/signin");
-      // **SPEC §13.1's 44px floor is NOT asserted here**, and the test-quality
-      // wall is right to have refused it: `expect(className).toContain(
-      // "min-h-11")` is asserting a class, and the wall's own message says
-      // roles, labels and values. The floor is a property of the `touch` size
-      // variant and `ui/primitives.test.tsx` owns it — "Button's touch size is
-      // a 44px floor in both axes" — which is the one place `components/ui` is
-      // allowed to read its own token classes. Restating it here would have
-      // been a second, weaker copy of a claim already made properly.
-    });
-
-    // *"Is also awkward wording ... and missing the graphic"*, twice, and
-    // *"missing the example. Attached example of what it should look like"*.
-    // Every claim carries a card since the 2026-09-28 retro (the card-less
-    // "One plan" opener went; Playbooks leads, and Countdown is new), and three
-    // of the four are the product itself since M42 part 9: the desktop blocks'
-    // river, Discover card and notebook page, at phone size. Found with
-    // `hidden`, because every claim but the first starts out unannounced.
-    it("draws the example under every claim, three of them the product's own", async () => {
-      render(<PhoneFrontDoor closingQuote={LANDING_CLOSING_QUOTE} />);
-      const claims = screen.getAllByTestId("front-door-claim");
-      // Playbooks: a real day from the library, as Discover shows it.
-      expect(
-        await within(claims[0]!).findByRole("link", { name: LANDING_FEATURES.playbook.name, hidden: true }),
-      ).toBeTruthy();
-      expect(within(claims[0]!).queryByText("A beach day in Phuket")).toBeNull();
-      // Together: the demo trip's day on the board's read-only river.
-      expect(await within(claims[1]!).findByRole("list", { name: "Day 7 timeline", hidden: true })).toBeTruthy();
-      expect(within(claims[1]!).queryByText("Fushimi Inari, early")).toBeNull();
-      // Countdown: the night before, and somebody still awake moving the
-      // start earlier — still a drawing, since the app's own reads the clock.
-      expect(within(claims[2]!).getByText("Wheels up tomorrow")).toBeTruthy();
-      expect(within(claims[2]!).getByText("Priya moved the meet-up to 6:40 am.")).toBeTruthy();
-      // A countdown offers no Accept, so its card draws none (review of PR 405).
-      expect(within(claims[2]!).queryByText("Accept")).toBeNull();
-      // Notebook: a page of the trip as it was lived, under the trip's strip.
-      expect(await within(claims[3]!).findByRole("img", { name: /^Days 1–3 Tokyo/, hidden: true })).toBeTruthy();
-      expect(within(claims[3]!).getByText(/best night of the trip/)).toBeTruthy();
-      expect(within(claims[3]!).queryByText("Sam, Priya, Dana, Marcus · Apr 9")).toBeNull();
-    });
-
-    // Mitchell, 2026-10-11: *"it should be more nostalgic than how much you
-    // spent on dinner."* The card used to be a day's spend and its receipts;
-    // "How you'll remember it" is not a total.
-    it("remembers the trip in the notebook without a price in it", async () => {
-      render(<PhoneFrontDoor closingQuote={LANDING_CLOSING_QUOTE} />);
-      const notebook = screen.getAllByTestId("front-door-claim")[3]!;
-      expect(await within(notebook).findByText("Check in at Gora Kadan")).toBeTruthy();
-      expect(within(notebook).getByText("How you'll remember it.")).toBeTruthy();
-      expect(notebook.textContent).not.toMatch(/[$€£¥]\s?\d/);
-    });
-
-    // The half of "awkward wording" that was a BUILD defect rather than a copy
-    // preference: the `Together` claim ran the design's headline and its card's
-    // caption together into one sentence, because the card was not built.
-    it("keeps the Together headline to the headline", () => {
-      render(<PhoneFrontDoor closingQuote={LANDING_CLOSING_QUOTE} />);
-      const claims = screen.getAllByTestId("front-door-claim");
-      expect(within(claims[1]!).getByText("The trip starts before the trip.")).toBeTruthy();
-    });
-
-    // *"The mobile homepage styling is missing the background box with
-    // gradiant"*. The plate is what keeps a claim legible while the map moves
-    // under it; the veil is what stops the map reading as a flat block behind
-    // the type. Both are one-off gradients in `globals.css` (the colour wall
-    // refuses arbitrary Tailwind values), so the class IS the handle here —
-    // there is no role or label standing in for "this has a background".
-    it("puts every claim on its plate, and the map under its veil", () => {
-      const html = renderToStaticMarkup(<PhoneFrontDoor closingQuote={LANDING_CLOSING_QUOTE} />);
-      expect([...html.matchAll(/front-door-plate/g)]).toHaveLength(4);
-      expect(html).toContain("front-door-veil");
-    });
-  });
-
-  // M50 part 5, the desktop's closing moment at phone width: a notebook
-  // page's words, then the ask to bring the group.
-  it("puts the call to action on the paper after the pin, under a notebook page's words", () => {
-    render(<PhoneFrontDoor closingQuote={LANDING_CLOSING_QUOTE} />);
-    const cta = within(
-      within(screen.getByTestId("phone-front-door")).getByRole("region", { name: "Start the plan, then bring everyone." }),
-    );
-    expect(cta.getByRole("blockquote").textContent).toMatch(/best night of the trip, and nobody argued/);
-    expect(cta.getByRole("link", { name: "Start a trip" }).getAttribute("href")).toBe("/signup");
-    expect(cta.getByRole("link", { name: "Look around a real trip" }).getAttribute("href")).toBe("/demo");
+  it("ends the sea on the closing cell's two ways in", () => {
+    render(<PhoneFrontDoor />);
+    const closing = within(within(screen.getByTestId("phone-front-door")).getByRole("region", { name: "Start the plan, then bring everyone." }));
+    expect(closing.getByRole("link", { name: "Start a trip" }).getAttribute("href")).toBe("/signup");
+    expect(closing.getByRole("link", { name: "Find a day to start with" }).getAttribute("href")).toBe("/playbooks");
   });
 
   it("ends on the same footer as the desktop landing", () => {
-    render(<PhoneFrontDoor closingQuote={LANDING_CLOSING_QUOTE} />);
+    render(<PhoneFrontDoor />);
     const footer = within(within(screen.getByTestId("phone-front-door")).getByRole("contentinfo"));
-    expect(footer.getByRole("link", { name: "mitchell@demarcosoftware.com" }).getAttribute("href")).toBe(
-      "mailto:mitchell@demarcosoftware.com",
-    );
+    expect(footer.getByRole("link", { name: "mitchell@demarcosoftware.com" }).getAttribute("href")).toBe("mailto:mitchell@demarcosoftware.com");
     expect(footer.getByRole("link", { name: "Developers" }).getAttribute("href")).toBe("/developers");
   });
 });

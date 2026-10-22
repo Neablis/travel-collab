@@ -1,5 +1,6 @@
 import { after } from "next/server";
 import { CoverSearchResponse, SetCoverBody, TripCoverResponse, type CoverCandidate, type TripCover } from "@tc/contracts";
+import { drawsOnPricedPlan, entitlementsFor } from "./entitlements/resolver";
 import { UpstreamError } from "./external/upstream";
 import { consumeQuota, quotaRefusal, unsplashPickQuota, unsplashSearchQuota } from "./quota";
 import { readBody } from "./readBody";
@@ -46,6 +47,11 @@ export function upstreamFailure(error: UpstreamError, now: Date = new Date()): R
   );
 }
 
+/** Which per-user Unsplash ceiling `userId` is charged against (`unsplashSearchQuota`). */
+async function paying(userId: string): Promise<boolean> {
+  return drawsOnPricedPlan(await entitlementsFor(userId));
+}
+
 // Unsplash's search answers at most 50 pages for a sensible query; a page
 // beyond what anyone scrolls is refused here rather than spent there.
 const MAX_PAGE = 50;
@@ -66,7 +72,7 @@ export async function coverSearch(request: Request, userId: string, photos: Cove
   }
   if (photos === null) return coversUnavailable();
   if (!q) return Response.json(CoverSearchResponse.parse({ results: [] }));
-  const quota = await consumeQuota(unsplashSearchQuota(), userId);
+  const quota = await consumeQuota(unsplashSearchQuota(await paying(userId)), userId);
   if (!quota.allowed) return quotaRefusal(quota);
   try {
     return Response.json(CoverSearchResponse.parse({ results: await photos.search(q, page) }));
@@ -98,7 +104,7 @@ export async function coverPick(
   // who sees the cover, so it must be one the source could have returned:
   // images on its CDN, credits on unsplash.com, the ping on its API.
   if (!photos.owns(candidate)) return Response.json({ error: "not-a-cover-candidate" }, { status: 400 });
-  const quota = await consumeQuota(unsplashPickQuota(), userId);
+  const quota = await consumeQuota(unsplashPickQuota(await paying(userId)), userId);
   if (!quota.allowed) return quotaRefusal(quota);
   const cover = await store(candidate);
   // After the response, and not fatal to it: the cover is chosen whether or

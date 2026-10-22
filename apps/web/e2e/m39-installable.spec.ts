@@ -286,8 +286,11 @@ test.describe("M39 Part 7 — the pinned and fixed layers clear the safe area", 
         await page.goto("/");
         const header = page.getByTestId("phone-front-door").getByRole("banner");
         expect.soft(await px(header, "paddingTop"), "header").toBe(24 + tall.top);
-        const headline = page.getByTestId("front-door-stage");
-        expect.soft(await px(headline, "paddingTop"), "headline").toBe(64 + tall.top);
+        // The sea starts under the header in flow, so the headline in its
+        // hero clears the bar, and the status bar above it, by layout alone.
+        const headline = page.getByTestId("phone-front-door").getByRole("heading", { name: "Plan the trip together." });
+        const [bar, words] = [(await header.boundingBox())!, (await headline.boundingBox())!];
+        expect.soft(words.y, "headline").toBeGreaterThanOrEqual(bar.y + bar.height);
 
         // The screen is its own scroller, and its footer ends it: scrolled to
         // the end, the footer's last line stops above the home indicator.

@@ -244,6 +244,14 @@ describe("what a stranger is served", () => {
     const tripId = await seedTrip();
     const invite = await createInvite(tripId, OWNER, { email: null, role: "editor" });
     await acceptInvite(invite.token, GUEST);
+    // A stop carries ids three ways: who added it (PR 508), who booked it and
+    // who is going. Without one, the `not.toContain`s below cannot see any of them.
+    const activityId = randomUUID();
+    const added = await executeTripCommand(
+      { type: "AddActivity", tripId, activityId, title: "Fushimi Inari", bookedBy: GUEST, participants: [OWNER, GUEST] },
+      OWNER,
+    );
+    expect(added.ok).toBe(true);
     const share = await createShare(tripId, OWNER);
     expect(share.ok).toBe(true);
     if (!share.ok) return;
@@ -252,6 +260,7 @@ describe("what a stranger is served", () => {
     expect(view.ok).toBe(true);
     if (!view.ok) return;
 
+    expect(view.value.activities[activityId]).toMatchObject({ addedBy: null, bookedBy: null, participants: [] });
     const serialized = JSON.stringify(view.value);
     expect(serialized).not.toContain(OWNER);
     expect(serialized).not.toContain(GUEST);

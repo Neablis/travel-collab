@@ -51,7 +51,11 @@ describe("the landing page's prices", () => {
     render(<LandingScreen />);
     const scope = within(screen.getByTestId(tree));
 
-    expect(scope.queryAllByText(PRICE_SHAPED).map((el) => el.textContent)).toEqual([
+    // Read whole, as it is heard: the ladder sets " / month" in a smaller
+    // run inside the price, so the price is the element whose own text holds
+    // the amount and whose whole text reads as a monthly price.
+    const prices = scope.queryAllByText((own, el) => /[$€£]\s?\d/.test(own) && PRICE_SHAPED.test(el?.textContent ?? ""));
+    expect(prices.map((el) => el.textContent)).toEqual([
       "$12.34 / month",
       "$56.78 / month",
     ]);

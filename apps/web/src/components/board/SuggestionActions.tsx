@@ -11,6 +11,7 @@ import { Popover } from "@/components/ui/popover";
 import { Text } from "@/components/ui/text";
 import type { Ghost } from "@/lib/suggestionOverlay";
 import type { BoardSuggestions } from "./DayRiver";
+import { SuggestionReviewList } from "./SuggestionReviewList";
 
 /**
  * Accept, Dismiss and Withdraw for one pending change (spec §2.4, §2.7).
@@ -186,16 +187,7 @@ function SuggestionReview({ ghosts, trigger }: { ghosts: readonly Ghost[]; trigg
   const [open, setOpen] = useState(false);
   return (
     <Popover open={open} onOpenChange={setOpen} trigger={trigger} align="start">
-      <ul aria-label="Suggested changes" className="m-0 flex list-none flex-col gap-3 p-0">
-        {ghosts.map((ghost) => (
-          <li key={ghost.changeId} className="flex flex-col gap-1.5">
-            <Text as="span" className="text-sm text-ink">
-              {ghost.description}
-            </Text>
-            <SuggestionActions ghost={ghost} />
-          </li>
-        ))}
-      </ul>
+      <SuggestionReviewList ghosts={ghosts} actions={(ghost) => <SuggestionActions ghost={ghost} />} />
     </Popover>
   );
 }

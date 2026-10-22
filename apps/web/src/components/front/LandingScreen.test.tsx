@@ -1,33 +1,31 @@
 import { UNBUILT_SOCIAL } from "@/test-support/unbuiltSocial";
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { LANDING_FEATURES } from "@/lib/landingDemo";
 import { LandingScreen } from "./LandingScreen";
 
-// **The real panels are loaded before any test runs.** The hero `lazy()`-loads
-// `LandingHeroPanels` (the board's river, `@tc/pages`), and in a cold Vitest
-// worker that first import is a transform of the whole module tree: measured
-// at ~1.4s on a 4-core container, against `findBy*`'s 1s default. So the first
-// test to open a Timeline or Notebook view failed every time, in the same
-// place, and every later one passed off the warm module cache. Importing it
-// here makes `lazy()` resolve from that cache, so what these tests measure is
-// what the panels draw, not how fast the machine compiles them. A load that
-// fails is `LandingHeroArt.failed.test.tsx`'s business, not this file's.
+// **The real panels are loaded before any test runs.** The sea's moments and
+// the phone's claims `lazy()`-load them (the board's river, `@tc/pages`), and
+// in a cold Vitest worker that first import is a transform of the whole module
+// tree: measured at ~1.4s on a 4-core container, against `findBy*`'s 1s
+// default. Importing it here makes `lazy()` resolve from the warm cache, so
+// what these tests measure is what the panels draw, not how fast the machine
+// compiles them.
 beforeAll(async () => {
-  await import("./LandingHeroPanels");
   await import("./LandingFeaturePanels");
 });
 
 /**
- * Waits for the feature blocks' and the phone claims' real components (M42
- * part 9), in both trees, so what a test reads next is what a visitor sees
- * once they have arrived. `hidden`, because the phone's later claims start out
- * unannounced.
+ * Waits for the sea's moments' real components, in both trees, so what a test
+ * reads next is what a visitor sees once they have arrived.
  */
 async function realPanels() {
-  expect(await screen.findAllByRole("link", { name: LANDING_FEATURES.playbook.name, hidden: true })).toHaveLength(2);
-  expect(await screen.findAllByRole("list", { name: "Day 7 timeline", hidden: true })).toHaveLength(2);
-  expect(await screen.findAllByRole("img", { name: /^Days 1–3 Tokyo/, hidden: true })).toHaveLength(2);
+  for (const tree of ["desktop-landing", "phone-front-door"]) {
+    const scope = within(screen.getByTestId(tree));
+    expect(await scope.findAllByRole("link", { name: LANDING_FEATURES.shelf.name })).not.toEqual([]);
+    expect(await scope.findByRole("list", { name: "Day 2 timeline" })).toBeDefined();
+    expect(await scope.findByTestId("notebook-page")).toBeDefined();
+  }
 }
 
 afterEach(() => {
@@ -75,54 +73,44 @@ describe("LandingScreen", () => {
   // place — and it stays an ordinary link, not a fetch: SPEC §14 says this
   // page runs on nothing, so the CTA does not go looking for a trip to peek
   // at. `/demo` decides that, on its own page (ADR-031).
-  it("sends both peek-at-a-trip CTAs to the public demo board", () => {
-    const { container } = render(<LandingScreen />);
-    // eslint-disable-next-line testing-library/no-container, testing-library/no-node-access -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
-    expect(container.querySelectorAll("[data-preview-id]")).toHaveLength(0);
-    const peek = within(screen.getByTestId("desktop-landing")).getByRole("link", { name: "Look around a real trip" });
-    const finished = within(screen.getByTestId("desktop-landing")).getByRole("link", { name: "See a finished one" });
-    expect(peek.getAttribute("href")).toBe("/demo");
-    expect(finished.getAttribute("href")).toBe("/demo");
-  });
-
-  // M50 part 5: the page ends on a line from a trip notebook, not on a SaaS
-  // call-to-action band, and the ask after it is to bring the group. The quote
-  // is the last paragraph of the Hakone page the Notebook block shows, read
-  // from the same snapshot, so it is a day somebody wrote down, not a
-  // testimonial, and a regenerated page cannot leave it behind.
-  it("closes on a notebook page's words, then asks to bring everyone", () => {
+  it("sends the peek-at-a-trip CTA to the public demo board", () => {
     render(<LandingScreen />);
-    const closing = within(
-      within(screen.getByTestId("desktop-landing")).getByRole("region", { name: "Start the plan, then bring everyone." }),
-    );
-    const lastParagraph = LANDING_FEATURES.memory.at(-1)!.map((seg) => seg.text).join("");
-    expect(closing.getByRole("blockquote").textContent).toBe(`“${lastParagraph}”`);
-    expect(closing.getByRole("blockquote").textContent).toMatch(/best night of the trip, and nobody argued/);
-    expect(closing.getByRole("link", { name: "Start a trip" }).getAttribute("href")).toBe("/signup");
-    expect(closing.getByRole("link", { name: "See a finished one" }).getAttribute("href")).toBe("/demo");
-    expect(screen.queryByText("Start the plan, then send the link.")).toBeNull();
+    const peek = within(screen.getByTestId("desktop-landing")).getByRole("link", { name: "Look around a real trip" });
+    expect(peek.getAttribute("href")).toBe("/demo");
   });
 
-  // SPEC §14: the front door runs on nothing. Since the hero's Timeline and
-  // Notebook panels became the product's own river and notebook blocks, "no
-  // backend" is a property of components that DO fetch elsewhere (a notebook
-  // block beside a weather request, a board beside its trip read), so it is
-  // held here rather than trusted. The hero mounts one view at a time, so each
-  // is opened, and each is asserted to have drawn something real before the
-  // spy is read — a view that failed to mount would otherwise pass for free.
-  // The feature blocks and phone claims are the product's own components too,
-  // a Discover card among them, so they are waited for as well.
-  it("calls fetch for nothing while it renders, in any hero view or feature block (SPEC §14)", async () => {
+  // M51 decision 10: pricing second to last, and the last thing on the page
+  // the ask, in a full-width cell of the sea: sign up, or find a day to start
+  // from. Order is document position, which is what a reader scrolls.
+  it("ends the sea on pricing, then the closing cell's two ways in", () => {
+    render(<LandingScreen />);
+    const desktop = within(screen.getByTestId("desktop-landing"));
+    const closingRegion = desktop.getByRole("region", { name: "Start the plan, then bring everyone." });
+    const closing = within(closingRegion);
+    expect(closing.getByRole("link", { name: "Start a trip" }).getAttribute("href")).toBe("/signup");
+    expect(closing.getByRole("link", { name: "Find a day to start with" }).getAttribute("href")).toBe("/playbooks");
+
+    const before = (a: Element, b: Element) => (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
+    const pricing = desktop.getByRole("region", { name: "Pricing" });
+    const sea = within(desktop.getByTestId("landing-sea"));
+    expect(before(pricing, closingRegion)).toBe(true);
+    for (const cell of sea.getAllByTestId("discover-card")) expect(before(cell, pricing)).toBe(true);
+    for (const name of ["Find a day worth borrowing.", "Keep the notebook afterwards."]) {
+      expect(before(sea.getByRole("region", { name }), pricing)).toBe(true);
+    }
+    expect(sea.getByRole("region", { name: "Start the plan, then bring everyone." })).toBe(closingRegion);
+  });
+
+  // SPEC §14: the front door runs on nothing. The sea's moments are the
+  // product's own river, notebook blocks and Discover cards, components that
+  // DO fetch elsewhere (a notebook block beside a weather request, a board
+  // beside its trip read), so "no backend" is held here rather than trusted,
+  // after each has drawn something real: a moment that failed to mount would
+  // otherwise pass for free.
+  it("calls fetch for nothing while it renders, in the sea or any moment (SPEC §14)", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch");
     render(<LandingScreen />);
     await realPanels();
-    const desktop = within(screen.getByTestId("desktop-landing"));
-
-    fireEvent.click(desktop.getByRole("button", { name: "Day 7" }));
-    expect(await desktop.findByRole("list", { name: "Day 7 timeline" })).toBeDefined();
-    fireEvent.click(desktop.getByRole("button", { name: "Day 5" }));
-    expect(await desktop.findByRole("img", { name: /^Days 1–3 Tokyo/ })).toBeDefined();
-
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
@@ -151,9 +139,7 @@ describe("LandingScreen", () => {
     const pricing = desktop.getByRole("region", { name: "Pricing" });
     expect(pricing.id).toBe("pricing");
     expect(within(pricing).queryByRole("table")).toBeNull();
-    expect(within(pricing).getByText("Unlimited planned trips")).toBeDefined();
-    expect(within(pricing).getByText("AI tools to help plan the trip")).toBeDefined();
-    expect(within(pricing).getByText("Invite all your friends to come along")).toBeDefined();
+    expect(within(pricing).getAllByTestId("plan-step")).toHaveLength(2);
     expect(within(pricing).getByRole("link", { name: "Compare plans" }).getAttribute("href")).toBe(
       "/signin?callbackUrl=%2Fplans",
     );
@@ -194,16 +180,23 @@ describe("LandingScreen", () => {
   // Only an element that is exactly the name is let through — "Free for a
   // week" on a card is still a claim — and the other two patterns get no
   // exemption at all.
+  //
+  // **No exclamation mark** either (M51 decision 6): *"the exclamation mark
+  // undermines the authenticity and tone im looking for"*.
   it.each([
     ["free", /\bfree\b/i],
     ["open source", /open[ -]source/i],
     ["no credit card", /credit card/i],
+    ["an exclamation mark", /!/],
   ])("never sells itself on %s (SPEC §14)", (_label, pattern) => {
     render(<LandingScreen />);
     const planNames = screen
       .getAllByTestId("plan-summary")
       .flatMap((table) => within(table).queryAllByText(/^free$/i));
-    expect(screen.queryAllByText(pattern).filter((el) => !planNames.includes(el))).toEqual([]);
+    // The sea's cards are days people wrote ("Carnavalet, the free museum"),
+    // not the page selling itself, so their words are theirs.
+    const days = screen.queryAllByTestId("discover-card").flatMap((card) => within(card).queryAllByText(pattern));
+    expect(screen.queryAllByText(pattern).filter((el) => !planNames.includes(el) && !days.includes(el))).toEqual([]);
   });
 
   // Mitchell, 2026-10-11: the landing draws what the app does. Trips have no
@@ -211,9 +204,7 @@ describe("LandingScreen", () => {
   // suggestions and a history of who changed what, and the public library
   // has stars — so neither tree may picture the rest. Both trees, because the
   // phone front door carries its own cards, and once their real components
-  // have arrived, because those are what a visitor reads; the hero's Timeline
-  // and Notebook views are swept in `LandingHeroArt.test.tsx`, and the
-  // drawings the real components replace in the `.failed` tests.
+  // have arrived, because those are what a visitor reads.
   it("pictures no replies, votes, reactions or presence, which trips do not have", async () => {
     render(<LandingScreen />);
     await realPanels();

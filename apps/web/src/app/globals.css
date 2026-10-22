@@ -84,6 +84,21 @@
   --color-person-teal: #17707a;
   --color-person-on: #ffffff;
 
+  /* The landing sea's region mats (M51, the C2 prototype), past the eight
+     person colours above, which the other regions reuse. Each carries white
+     mono caps, so each is as dark as the person colours are. */
+  --color-mat-rust: #9a5a2a;
+  --color-mat-navy: #2d5a8c;
+  --color-mat-berry: #963a5a;
+  --color-mat-amber: #8a6212;
+  --color-mat-violet: #6c3f78;
+  --color-mat-night: #1f2a40;
+  --color-mat-fern: #4f6a35;
+  --color-mat-leaf: #4a6b34;
+  --color-mat-brick: #8c3b2f;
+  /* The pricing ladder's middle step (the prototype's `.s1`). */
+  --color-mat-ladder: #1d2a44;
+
   /* ADR-070's nine new activity tags (design-system.md "Tag colours"). The
      original four keep their semantic families. Each tag has a solid (its
      spend-chart series, ≥3:1 on surface, validated as one categorical palette
@@ -164,6 +179,12 @@
   --text-4xl: clamp(38px, 4.6vw, 58px);
   --text-4xl--line-height: 1.03;
   --text-4xl--letter-spacing: -0.022em;
+  /* The desktop sea's hero alone: a size above the closing's `text-4xl`, so
+     the first screen's headline stands off the full-colour sea (Mitchell's
+     third walk of PR 510). */
+  --text-5xl: clamp(44px, 4.4vw, 76px);
+  --text-5xl--line-height: 1.02;
+  --text-5xl--letter-spacing: -0.024em;
 
   /* 4px, for the brand mark's tile and nothing else so far. SPEC §28 states
      the radius directly ("32px tile, 4px radius, 18px strokes") and the scale
@@ -486,74 +507,12 @@ html[data-look="ledger"] .shadow-raised {
 
 
 @layer components {
-  /* SPEC §28's phone front door: the pinned block is three viewports tall, and
-     the sticky stage inside it is one — so scrolling it moves `scrollTop`
-     without moving what you are looking at, which is the whole mechanic. Three
-     is the length of the sequence, not a spacing value, so there is no token
-     for it and `h-[300dvh]` is the arbitrary value the colour wall correctly
-     rejects. It lives here, once, the way `.unscheduled-rack`'s own one-off
-     geometry does. */
-  .front-door-pin {
-    /* **900dvh, and it was 300.** Mitchell, on the preview: *"there needs to be
-       more time between the scroll transitions between blocks, right now the
-       last few are almost unreadable"*.
-
-       One of these viewports is the sticky stage, so the height is the sequence
-       plus one: at 300dvh four claims and the clear-out shared TWO screens of
-       scroll — about a third of a screen each, which is a flick of the thumb
-       per claim. At 900 they share eight, so a claim holds for most of a screen
-       and stopping on one is something you can actually do, which is §28's own
-       first note about this block ("you can stop on one").
-
-       Still a count rather than a spacing value, so still no token for it and
-       still an arbitrary Tailwind value the colour wall correctly refuses. */
-    height: 900dvh;
-  }
-
-  /* The paper veil over the front door's map (`dc.html:3401`), and the reason
-     the map reads as ground rather than as a picture: opaque at the top so the
-     headline sits on paper, clear through the middle where the route shows, and
-     opaque again at the foot so the claims are legible over it.
-
-     Here rather than in a class attribute because a `bg-[linear-gradient(…)]` is
-     an arbitrary Tailwind value and the colour wall correctly refuses those —
-     the same reasoning `.front-door-pin` above gives for its own one-off. The
-     stops are the design's; `color-mix` is how a token gets a partial alpha
-     without inventing a second colour for it. */
-  .front-door-veil {
-    background: linear-gradient(
-      180deg,
-      var(--color-paper) 0%,
-      color-mix(in srgb, var(--color-paper) 72%, transparent) 22%,
-      transparent 40%,
-      transparent 52%,
-      var(--color-paper) 86%
-    );
-  }
-
-  /* The plate a claim sits on (`dc.html:3410`). Mitchell, on the preview: *"The
-     mobile homepage styling is missing the background box with gradiant"* — it
-     is what keeps a claim readable while the map moves underneath it, and
-     without it the words sit directly on the route.
-
-     Radial rather than a flat panel on purpose: a rectangle of paper over a map
-     reads as a card, and this has to read as the map fading out around the
-     words. */
-  .front-door-plate {
-    background: radial-gradient(
-      128% 104% at 50% 50%,
-      var(--color-paper) 46%,
-      color-mix(in srgb, var(--color-paper) 72%, transparent) 72%,
-      transparent 100%
-    );
-  }
-
   /* A cover photo's veil (M37): the photo dissolves into whatever is under the
-     words, and the title stands on the fade — the front door's veil, applied
-     to a cover. Stops are the approved canvas's. `strip` is a home card's
-     132px strip, `band` the hero's 236px band, both into the card's surface;
-     `paper` is a playbook day's full-bleed cover, into the page. Classes, not
-     `bg-[linear-gradient(…)]`, for the colour wall's reason given above. */
+     words, and the title stands on the fade. Stops are the approved canvas's.
+     `strip` is a home card's 132px strip, `band` the hero's 236px band, both
+     into the card's surface; `paper` is a playbook day's full-bleed cover,
+     into the page. Classes, not `bg-[linear-gradient(…)]`: an arbitrary
+     Tailwind value, which the colour wall refuses. */
   .cover-veil-strip {
     background: linear-gradient(
       180deg,
@@ -857,10 +816,9 @@ html[data-look="ledger"] .shadow-raised {
      `.below-notebook-toolbar` — the notebook editor's widget column, sticky
      under AppHeader and the editing toolbar under it (60px: `md:py-3` around
      an `h-9` button). It was `top-29`, 116px, with the 56 hard-coded.
-     `.phone-front-door-header` / `.phone-front-door-stage` — the phone front
-     door, which is its own scroller with no AppHeader above it: its sticky
-     header's `pt-6` and the pinned stage's `pt-16`, each plus the inset. The
-     stage's headline clears the header because the two numbers move together.
+     `.phone-front-door-header` — the phone front door, which is its own
+     scroller with no AppHeader above it: its sticky header's `pt-6` plus the
+     inset. The sea starts under it in flow, so its headline clears it.
 
      TripHeader's `--sticky-stack-height` needs no rule: it is measured from
      the header's resolved `top`, which already includes the inset. */
@@ -882,9 +840,6 @@ html[data-look="ledger"] .shadow-raised {
   }
   .phone-front-door-header {
     padding-top: calc(1.5rem + var(--safe-area-top));
-  }
-  .phone-front-door-stage {
-    padding-top: calc(4rem + var(--safe-area-top));
   }
   /* The front door's footer, the end of its own `h-dvh` scroller: `py-5`'s
      bottom half plus the bottom inset (M39 Part 7). Not a top-inset rule —
@@ -1905,71 +1860,451 @@ html[data-look="ledger"] .shadow-raised {
     }
   }
 
-  /* Landing hero veil (`dc.html:1871`): a 97deg wash that fades the paper
-     background out across the decorative map so the headline column keeps
-     full contrast while the art dissolves toward the right edge. Five colour
-     stops, two of them `color-mix()` — no utility class can express that, and
-     the colour wall bans the bracket value that could. Same named-class
-     escape hatch `.hero-grid` and `.unscheduled-rack` use. Sits in the
-     components layer because nothing overrides it with a utility. */
-  .landing-hero-veil {
-    background: linear-gradient(
-      97deg,
-      var(--color-paper) 0%,
-      var(--color-paper) 30%,
-      color-mix(in srgb, var(--color-paper) 74%, transparent) 44%,
-      color-mix(in srgb, var(--color-paper) 20%, transparent) 60%,
-      transparent 74%
-    );
+  /* The front door's sea of notebooks (M51, `LandingSea.tsx`), laid as the
+     C2 prototype lays it: one grid of square units edge to edge, every cell
+     and every moment a whole number of them. About one column per 180px and
+     at least six (`round((width - 32px) / 180px)`, the prototype's rule),
+     set here so the first screen is right before any script runs;
+     `LandingSea` reads `--cols` back to pack the rest. Here because
+     `grid-cols-[repeat(…)]` is an arbitrary Tailwind value, which the colour
+     wall refuses. */
+  .landing-sea {
+    container-type: inline-size;
+    --sea-gap: 0.5rem;
+    --sea-pad: 1rem;
+    --cols: 6;
+    /* The hero: the prototype's base width plus one, centred; three rows
+       where a unit is tall enough for it, four where one is not. */
+    --hero-span: 5;
+    --hero-start: 1;
+    --hero-rows: 4;
   }
-
-  /* Paper grain on the landing's surfaces (M50 part 5): the spreads, the photo
-     slot and the closing moment, so the front door reads as paper rather than
-     a flat fill. The noise is an SVG filter, black at a low alpha and
-     multiplied, so it darkens whatever paper the look supplies instead of
-     carrying a colour of its own, and so works under `paper` and `ledger`
-     alike. Drawn under the content: `isolation` keeps the `z-index: -1` layer
-     inside the element, above its own background. The element supplies
-     `position: relative`, which the call sites set as a utility.
-
-     The alpha is held by the copy that sits on the grain, slate at 11 to
-     13px, which must keep 4.5:1 where the noise is darkest. At full noise the
-     layer darkens the ground by opacity x 0.55, and the slate ratios at
-     flat / mean noise / peak are:
-       paper look, 0.12:  paper 5.63 / 5.24 / 4.86, moss 5.31 / 4.94 / 4.59
-       ledger look, 0.08: paper 5.53 / 5.27 / 5.02, moss 5.01 / 4.78 / 4.55
-     Ledger takes the lighter grain because its cream moss starts darker; at
-     0.40 the spread copy there fell to 2.99:1 (PR 500's review).
-
-     A texture is translucency, so it goes under
-     `prefers-reduced-transparency`, and it goes in print, where it would come
-     out as smudge. */
-  .landing-grain {
-    isolation: isolate;
+  @media (min-width: 1202px) {
+    .landing-sea {
+      --cols: 7;
+      --hero-span: 5;
+      --hero-start: 2;
+      --hero-rows: 4;
+    }
   }
-  .landing-grain::before {
+  @media (min-width: 1382px) {
+    .landing-sea {
+      --cols: 8;
+      --hero-span: 5;
+      --hero-start: 2;
+      --hero-rows: 3;
+    }
+  }
+  @media (min-width: 1562px) {
+    .landing-sea {
+      --cols: 9;
+      --hero-span: 5;
+      --hero-start: 3;
+      --hero-rows: 3;
+    }
+  }
+  @media (min-width: 1742px) {
+    .landing-sea {
+      --cols: 10;
+      --hero-span: 5;
+      --hero-start: 3;
+      --hero-rows: 3;
+    }
+  }
+  @media (min-width: 1922px) {
+    .landing-sea {
+      --cols: 11;
+      --hero-span: 5;
+      --hero-start: 4;
+      --hero-rows: 3;
+    }
+  }
+  @media (min-width: 2102px) {
+    .landing-sea {
+      --cols: 12;
+      --hero-span: 6;
+      --hero-start: 4;
+      --hero-rows: 3;
+    }
+  }
+  @media (min-width: 2282px) {
+    .landing-sea {
+      --cols: 13;
+      --hero-span: 6;
+      --hero-start: 4;
+      --hero-rows: 3;
+    }
+  }
+  @media (min-width: 2462px) {
+    .landing-sea {
+      --cols: 14;
+      --hero-span: 6;
+      --hero-start: 5;
+      --hero-rows: 3;
+    }
+  }
+  @media (min-width: 2642px) {
+    .landing-sea {
+      --cols: 15;
+      --hero-span: 6;
+      --hero-start: 5;
+      --hero-rows: 3;
+    }
+  }
+  @media (min-width: 2822px) {
+    .landing-sea {
+      --cols: 16;
+      --hero-span: 7;
+      --hero-start: 5;
+      --hero-rows: 3;
+    }
+  }
+  @media (min-width: 3002px) {
+    .landing-sea {
+      --cols: 17;
+      --hero-span: 7;
+      --hero-start: 6;
+      --hero-rows: 3;
+    }
+  }
+  @media (min-width: 3182px) {
+    .landing-sea {
+      --cols: 18;
+      --hero-span: 7;
+      --hero-start: 6;
+      --hero-rows: 3;
+    }
+  }
+  @media (min-width: 3362px) {
+    .landing-sea {
+      --cols: 19;
+      --hero-span: 7;
+      --hero-start: 7;
+      --hero-rows: 3;
+    }
+  }
+  @media (min-width: 3542px) {
+    .landing-sea {
+      --cols: 20;
+      --hero-span: 7;
+      --hero-start: 7;
+      --hero-rows: 3;
+    }
+  }
+  /* The phone's sea (`PhoneFrontDoor`): two columns at every phone width, a
+     unit as wide as the desktop's narrowest, so a card fills it as it does
+     there. The packer places its hero, as it places everything else. */
+  .landing-sea.landing-sea-phone {
+    --cols: 2;
+  }
+  .landing-sea-grid {
+    --unit: calc((100cqw - 2 * var(--sea-pad) - (var(--cols) - 1) * var(--sea-gap)) / var(--cols));
+    position: relative;
+    display: grid;
+    grid-template-columns: repeat(var(--cols), minmax(0, 1fr));
+    grid-auto-rows: var(--unit);
+    grid-auto-flow: row dense;
+    gap: var(--sea-gap);
+    padding: var(--sea-gap) var(--sea-pad);
+    /* Exactly the packed rows (`--sea-rows`, from `LandingSea`), floored at
+       the server pack's rows (`--sea-rows-floor`): a repack that packs
+       shorter rearranges cells within the container instead of pulling the
+       footer up. A first screen's cell that found no room above the packed
+       grid falls past its last row, and is clipped there. */
+    height: calc(max(var(--sea-rows), var(--sea-rows-floor, var(--sea-rows))) * (var(--unit) + var(--sea-gap)) + var(--sea-gap));
+    overflow: clip;
+  }
+  /* The hero stands off the full-colour sea around it (Mitchell's third walk
+     of PR 510: *"maybe give it a little more standout"*): an ink rule, and
+     the designs' lifted drop shadow (the C2 prototype's `.ex .ff`, which no
+     token holds: `--shadow-lifted` is the lighter tier); its headline is
+     `text-5xl`. The rule is its border, inside its grid area, so its edge is
+     on the grid's lines like every other cell's (his fourth walk: *"The
+     border makes this wider than the other components"*). No `shadow-*`
+     utility on the element: one would win over this from the utilities
+     layer. */
+  .landing-sea-hero {
+    grid-row: 2 / span var(--hero-rows);
+    grid-column: var(--hero-start) / span var(--hero-span);
+    z-index: 2;
+    border: 0.1875rem solid var(--color-ink);
+    box-shadow: 0 1.875rem 5rem rgb(21 29 46 / 0.35);
+  }
+  /* A cell's region strip: mono caps over the card, white on the region's
+     mat (the prototype's `.ml`). */
+  .landing-sea-label {
+    flex: none;
+    height: 1.375rem;
+    padding: 0 0.625rem;
+    line-height: 1.375rem;
+    font-family: var(--font-mono);
+    font-size: var(--text-3xs);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--color-person-on);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  /* The sea dimming into ground as the reader scrolls: one veil over the
+     background and under the moments and their lit days. Its opacity is the
+     one value the scroll writes (`--sea-dim`, 0 to 1, on the scrim itself). */
+  .landing-sea-scrim {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    background: var(--color-ink);
+    opacity: calc(0.55 * var(--sea-dim, 0));
+  }
+  .landing-sea-lit,
+  .landing-sea-story {
+    z-index: 2;
+  }
+  /* A lit day sits over the scrim, so it carries its own veil, which the
+     scroll darkens with the sea while its moment is a ghost and clears as the
+     moment rises; and its ring inside its mat (the prototype's `.veil` and
+     `.ring`), which shows as the moment rises. `LandingSea` writes both
+     opacities; the markup's rest state is lit. */
+  .landing-sea-veil,
+  .landing-sea-ring {
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+  }
+  .landing-sea-veil {
+    background: var(--color-ink);
+    opacity: 0;
+  }
+  .landing-sea-ring {
+    box-shadow:
+      inset 0 0 0 3px var(--color-surface),
+      inset 0 0 0 6px var(--color-brand);
+  }
+  /* A moment holding focus is drawn risen, whatever the scroll has painted:
+     a browser that scrolls a focused door only to the screen's edge would
+     otherwise leave it faded and lowered. A lit day under the pointer or
+     holding focus is drawn lit. */
+  [data-moment]:focus-within > [data-testid="moment-panel"] {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+  .landing-sea-lit:is(:hover, :focus-within) > .landing-sea-veil {
+    opacity: 0 !important;
+  }
+  .landing-sea-lit:is(:hover, :focus-within) > .landing-sea-ring {
+    opacity: 1 !important;
+  }
+  /* A background card under the pointer rises over the scrim to full colour,
+     as a lit day does, and sinks back under it when the pointer leaves
+     (Mitchell's walk of PR 510 at 7260011). Its veil starts and ends at the
+     scrim's darkness (`--veil`, which `LandingSea` hands the card as the
+     pointer enters), so neither edge of the fade jumps. Hover only: the
+     background is out of the tab order. Every card would run the sinking
+     animation as it mounts, so only a card the pointer has entered
+     (`data-lifted`) carries it. */
+  .landing-sea-cell[data-lifted] {
+    animation: sea-sink 0.25s ease-out;
+  }
+  .landing-sea-cell[data-lifted]::before {
     content: "";
     position: absolute;
     inset: 0;
-    z-index: -1;
-    pointer-events: none;
+    z-index: 1;
     border-radius: inherit;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .55 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
-    mix-blend-mode: multiply;
-    opacity: 0.12;
+    background: var(--color-ink);
+    opacity: 0;
+    pointer-events: none;
+    animation: sea-veil 0.25s ease-out;
   }
-  html[data-look="ledger"] .landing-grain::before {
-    opacity: 0.08;
+  .landing-sea-cell[data-lifted]:hover {
+    z-index: 2;
+    animation: none;
   }
-  @media (prefers-reduced-transparency: reduce) {
-    .landing-grain::before {
-      display: none;
+  .landing-sea-cell[data-lifted]:hover::before {
+    animation: sea-unveil 0.25s ease-out;
+  }
+  @keyframes sea-sink {
+    from,
+    to {
+      z-index: 2;
     }
   }
-  @media print {
-    .landing-grain::before {
-      display: none;
+  @keyframes sea-veil {
+    from {
+      opacity: 0;
     }
+    to {
+      opacity: var(--veil, 0);
+    }
+  }
+  @keyframes sea-unveil {
+    from {
+      opacity: var(--veil, 0);
+    }
+    to {
+      opacity: 0;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .landing-sea-cell[data-lifted],
+    .landing-sea-cell[data-lifted]::before {
+      animation: none;
+    }
+  }
+  /* The closing cell is the grid's full width; its words keep to a centred
+     track as wide as the prototype's (1280px), which the cell sets, not they. */
+  .landing-sea-closing {
+    display: grid;
+    grid-template-columns: minmax(0, 80rem);
+    justify-content: center;
+  }
+  /* The pricing's ladder (`LandingPricing`), from `md` where its steps stand
+     side by side: one row the ladder's height, each step standing on its
+     foot and filling it, Premium full height and each step before it one
+     rise lower. A step's rise gives way before what it holds is cut: it is
+     at least its content tall, up to the whole ladder (Mitchell's fourth
+     walk of PR 510: *"shrink the whole container down 1 row, then take up
+     the extra space at the bottom of free, plus and premium"*). */
+  @media (width >= 48rem) {
+    /* *Compare plans* beside the heading, not under the ladder, so the
+       ladder has the room it took: three rows hold Plus's picture whole.
+       The section is `md:grid` and the summary `md:contents` by utility,
+       which the utilities layer would otherwise win over. */
+    .landing-pricing {
+      grid-template-columns: minmax(0, 1fr) auto;
+      grid-template-rows: auto auto minmax(0, 1fr);
+    }
+    .landing-pricing > [data-testid="plan-summary"] > :not(.landing-ladder) {
+      grid-column: 1;
+    }
+    .landing-pricing > a {
+      grid-row: 1 / span 2;
+      grid-column: 2;
+    }
+    .landing-ladder {
+      grid-column: 1 / -1;
+      grid-template-rows: minmax(0, 1fr);
+    }
+    .landing-ladder > * {
+      align-self: end;
+      min-height: calc(100% - var(--rise, 0rem));
+      max-height: 100%;
+    }
+    .landing-ladder > :nth-last-child(2) {
+      --rise: 5.75rem;
+    }
+    .landing-ladder > :nth-last-child(3) {
+      --rise: 11.5rem;
+    }
+  }
+  /* A card on the sea fills the box its cell gives it and keeps what fits.
+     Its parts are one column that wraps, so a part with no room left moves
+     to a second column, which the card clips whole: nothing is cut through
+     a line, and the card never grows its cell. */
+  .landing-sea-card {
+    flex-wrap: wrap;
+    /* Wider than the card's padding, so no part of the second column shows.
+       Important because the card's own `gap-*` utility sets it too, and the
+       utilities layer outranks this one whatever the specificity. */
+    column-gap: 2.5rem !important;
+    overflow: hidden;
+  }
+  .landing-sea-card > *,
+  .landing-sea-card > .contents > *,
+  .landing-sea-head > * {
+    width: 100%;
+  }
+  /* A card's stop rows, each a part of its column (`DiscoverCard`), as close
+     as the list holds them anywhere else: 6px apart, not the card's gap. */
+  .landing-sea-rows > li + li {
+    margin-top: -0.375rem;
+  }
+  /* The card's first part: its title, then its chips, laid upwards from the
+     title. Too tall for the card, it is the only part in the first column
+     and shrinks to it; inside, the chips then wrap to a clipped column of
+     their own, so the title is never the part a short card drops.
+     `flex-end` packs the pair to the top, chips over title. */
+  .landing-sea-head {
+    display: flex;
+    flex-direction: column-reverse;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    row-gap: inherit;
+    column-gap: 2.5rem;
+    min-height: 0;
+    overflow: hidden;
+  }
+  /* One row of chips: a chip with no room wraps to a second row a whole row
+     below the first, which is clipped. */
+  .landing-one-row {
+    flex-wrap: wrap;
+    row-gap: 1.5rem;
+    max-height: 1.5rem;
+    overflow: hidden;
+  }
+  /* An accent (the prototype's `.stamp`): the region's colour, a mono line,
+     and a place or a kind of day in large type, laid from the cell's foot. */
+  .landing-sea-stamp {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+    flex-direction: column;
+    justify-content: flex-end;
+    gap: 0.25rem;
+    padding: 0.75rem;
+    overflow: hidden;
+    color: var(--color-person-on);
+    /* The name's type is sized to this cell (`cqi`). */
+    container-type: inline-size;
+  }
+  .landing-sea-stamp-label {
+    font-family: var(--font-mono);
+    font-size: var(--text-3xs);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .landing-sea-stamp-name {
+    font-family: var(--font-display);
+    font-weight: 500;
+    /* As large as the cell allows its longest word (`--word` characters, at
+       most 0.6em each in the display faces) on one line, so a name is never
+       cut mid-word where the browser has no hyphenation dictionary (PR 510
+       r6: "Switzerlan" on Linux Chromium). Half a character spare: at
+       exactly 0.6em a word measured a tenth of a pixel over its box and broke
+       (r7: "Switzerlan / d" at 1650 and 3100). Breaking anywhere is the last
+       resort, for a face wider than that. */
+    font-size: min(clamp(0.875rem, 1.6vw, 1.625rem), 100cqi / (0.6 * var(--word, 1) + 0.3));
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+    overflow-wrap: anywhere;
+  }
+  /* Content longer than its cell, faded out at the cell's foot rather than
+     cut there: the notebook's page. */
+  .landing-sea-fade {
+    mask-image: linear-gradient(to bottom, black calc(100% - 7rem), transparent);
+  }
+  /* A moment's day on the phone's sea, the assistant's and the crew's, runs
+     on past its cell and fades out at the cell's foot the same way; on the
+     desktop's wider cells it fits whole. */
+  .landing-sea-phone .landing-phone-fade {
+    mask-image: linear-gradient(to bottom, black calc(100% - 5rem), transparent);
+  }
+  /* A linked cell is a door: its title link covers the whole card, and the
+     cell rings when the link is hovered or focused. */
+  .landing-sea-door::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+  }
+  .landing-sea-cell:has(.landing-sea-door:hover),
+  .landing-sea-cell:has(.landing-sea-door:focus-visible) {
+    outline: 2px solid var(--color-brand);
+    outline-offset: 2px;
   }
 
   /* Notebook page prose (KI-44 / design-sync audit A3). `.tc-page-editor`

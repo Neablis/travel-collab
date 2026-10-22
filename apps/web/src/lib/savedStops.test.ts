@@ -21,6 +21,7 @@ const activity = (activityId: string, title: string): ActivityView => ({
   cost: { amountMinor: 1200, currency: "USD" },
   bookedBy: null,
   participants: [],
+  addedBy: null,
   mode: null,
   endLocation: null,
   pendingReason: null,

@@ -5,7 +5,8 @@
 // today; every other demo's is `src/lib/landingDemo.<slug>.generated.json`
 // (M42 D2); the cards are `src/lib/demoTripCards.generated.json` (D1); the
 // landing's Playbooks card and Notebook page are
-// `src/lib/landingFeatures.generated.json` (M42 part 9).
+// `src/lib/landingFeatures.generated.json` (M42 part 9); the sea of every
+// public library day is `src/lib/landingSea.generated.json` (M51).
 //
 //   pnpm --filter web landing:generate   # rewrite the snapshots
 //   pnpm landing:verify                  # the drift check CI runs (also inside `pnpm test`)
@@ -32,20 +33,53 @@
 // Run with `node --import ./scripts/lib/ts-resolve-register.mjs`, which lets
 // Node follow `src/**`'s extensionless imports and the `@/` alias.
 
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import type { DiscoverDay } from "@/lib/playbooks";
-import { SavedStop, TripCover, travellerIds, type PageParagraphNode, type TripDetail } from "@tc/contracts";
+import { DISCOVER_PREVIEW_STOPS, type DiscoverDay } from "@/lib/playbooks";
+import {
+  SavedStop,
+  SNAPSHOT_NAME_MAX,
+  TripCover,
+  travellerIds,
+  type AvatarKey,
+  type ActivityTagDescribed,
+  type PageParagraphNode,
+  type PersonColor,
+  type SuggestionChange,
+  type TripCommand,
+  type TripDetail,
+  type TripMemberProfile,
+} from "@tc/contracts";
+import { decideCreateTrip, decideTripCommand, describeByTags, evolveTrip, evolveTripEnvelope, tripDetailFromState, type TripState } from "@tc/domain";
+import { predictBatch } from "@tc/domain/predict";
 import { z } from "zod";
-import { parseBundle, REFERENCE_START_DATE, resolvePlaybook } from "@tc/fixtures";
-import { renderMacro, type BlockPayload, type Seg, type WidgetContext } from "@tc/pages";
+import {
+  bundleTripCommandGroups,
+  JAPAN_SAVED_DAYS,
+  JAPAN_SOURCE_TRIP,
+  parseBundle,
+  REFERENCE_START_DATE,
+  resolvePlaybook,
+  type ContentBundleV1,
+  type ResolvedPlaybook,
+} from "@tc/fixtures";
+import { getMacro, renderMacro, type BlockPayload, type Seg, type WidgetContext } from "@tc/pages";
 import { cityAccents } from "@/components/pages/cityAccents";
+import { TAG_LABEL } from "@/lib/activityTags";
 import { DEMO_TRIPS, demoTripBySlug } from "@/lib/demoTrip";
 import { displayNameFor } from "@/lib/displayName";
-import type { LandingDemo, LandingFeatures } from "@/lib/landingDemo";
+import type { LandingCrew, LandingDemo, LandingFeatures } from "@/lib/landingDemo";
+import type { LandingSea, SeaAccent, SeaCell, SeaCellSize, SeaDay, SeaDayCell } from "@/lib/landingSea";
+import { countryName } from "@/lib/place";
+import { cityPath, countrySlug, dayPath, placeIndexable, placePath, tagPath } from "@/lib/playbookUrls";
+import { suggestionOverlay } from "@/lib/suggestionOverlay";
+import { overlayMembers } from "@/server/access/overlay";
+import { withTripColors } from "@/server/access/personaColors";
+import { serverConflictContext } from "@/server/conflictContext";
 import { demoTripCards, demoTripDetailFor, demoTripMembers } from "@/server/demoTrip";
 import { toDiscoverDay, type DiscoverRow } from "@/server/discoverDay";
 import { savedDayCities } from "@/server/savedDayCities";
+import { savedDayCountries } from "@/server/savedDayCountries";
 import { buildTripGlobals } from "@/server/tripGlobals";
 
 /** Where demo `slug`'s snapshot is committed. Japan's keeps the name it had before there were others. */
@@ -125,7 +159,10 @@ function undatedDemo(slug: string) {
  * copy to the original.
  */
 export function demoPersonasOf(tripId: string): NonNullable<WidgetContext["personas"]> {
-  const members = demoTripMembers(tripId);
+  return personasOfMembers(demoTripMembers(tripId));
+}
+
+function personasOfMembers(members: readonly TripMemberProfile[]): NonNullable<WidgetContext["personas"]> {
   const going = new Set(travellerIds(members));
   return Object.fromEntries(
     members.map((m) => [
@@ -138,6 +175,16 @@ export function demoPersonasOf(tripId: string): NonNullable<WidgetContext["perso
       },
     ]),
   );
+}
+
+/**
+ * The people the river's blocks name (M51 decision 8a), as the board's
+ * `PeopleProvider` would hand them down: the widget personas above, plus the
+ * clash shift the board's own carry. The landing may not fetch them.
+ */
+function riverPeopleOf(tripId: string): LandingDemo["river"]["people"] {
+  const personas = demoPersonasOf(tripId);
+  return Object.fromEntries(demoTripMembers(tripId).map((m) => [m.userId, { ...personas[m.userId]!, colorShifted: m.colorShifted }]));
 }
 
 /** Demo `slug`'s slice, folded and resolved exactly as `/demo/<slug>` and a notebook would, with no calendar dates. */
@@ -168,6 +215,7 @@ export function buildLandingDemo(slug: string): LandingDemo {
       city,
       activityIds: day.activityIds,
       activities: Object.fromEntries(day.activityIds.map((id) => [id, trip.activities[id]!])),
+      people: riverPeopleOf(ctx.page.tripId),
     },
     notebook: {
       strip: resolveBlock(ctx, "trip.strip", {}, "trip-strip"),
@@ -262,31 +310,180 @@ function landingCard(row: DiscoverRow): DiscoverDay {
 }
 
 /**
- * The shelf's second day (M50 part 9, Mitchell's walk: two real days where an
- * empty photo mat stood). A library playbook, read from the bundle the
- * production import reads and resolved by the same `resolvePlaybook`, so its
- * id is the one the library serves and its card links to a day that exists.
- * Its adds are the bundle's own ledger. It has no reviews, and its card says
- * so: the seeded rating is Mitchell's ruling for his own Hanoi day alone
- * (2026-10-19), never a number invented for somebody else's.
+ * The find moment's banner: a day named by its key, not ranked by a rule
+ * (Mitchell's fourth walk of PR 510: *"Let the rule go, i never said to make
+ * it a rule, use the italy days i suggested"*): his Rome playbook. His own
+ * row is in production only; this is the bundle copy of his export, whose id
+ * the content import derives, so its card links to a day previews and
+ * production both hold once imported. Drawn as its cell in the sea is but for
+ * its rows (`SHELF_DAY`), so the two agree on its name and its rating.
  *
  * The card is a frozen copy of a row the content import owns, re-derived from
  * the bundle file only, so `landing:verify` cannot see the production row
- * change: hidden by a moderator, renamed or pruned away, given a cover by
- * its author, or reviewed (its card says "No reviews yet"). Check the row on
- * production's Discover when regenerating.
+ * change: hidden by a moderator, renamed or pruned away, or given a cover by
+ * its author. Check the row on production's Discover when regenerating.
  */
-const SHELF_BUNDLE_PATH = new URL("../../../content/playbooks/thailand-beaches.json", import.meta.url);
-const SHELF_KEY = "railay-limestone-and-sunset";
+const SHELF_BUNDLE = "3-days-in-rome-emperors-gladiators-the-layers-beneath";
+
+/**
+ * The day of it the banner's rows are (Mitchell, 2026-10-21: *"use day 2 for
+ * the banner"*): the Pantheon to Trastevere, six stops to day one's four, so
+ * the wide card is full. Discover previews day one; the banner alone says
+ * another, and still links to the whole playbook, the only page it has.
+ */
+const SHELF_DAY = 2;
 
 function shelfPlaybook(): DiscoverDay {
-  const bundle = parseBundle(JSON.parse(readFileSync(SHELF_BUNDLE_PATH, "utf8")));
-  const playbook = bundle.playbooks.find((p) => p.key === SHELF_KEY);
-  if (playbook === undefined) throw new Error(`landing demo: ${bundle.bundle.id} no longer holds ${SHELF_KEY}`);
-  const day = resolvePlaybook(bundle.bundle.id, playbook, bundle.bundle.origin);
-  // The import stamps a day with `keptOn`, or the moment it ran; only the
-  // first is reproducible.
-  if (day.keptOn === undefined) throw new Error(`landing demo: ${SHELF_KEY} has no keptOn date to stamp it with`);
+  const bundle = libraryBundles().find((b) => b.bundle.id === SHELF_BUNDLE);
+  const playbook = bundle?.playbooks.find((p) => p.key === SHELF_BUNDLE);
+  if (bundle === undefined || playbook === undefined) throw new Error(`landing demo: content/playbooks no longer holds ${SHELF_BUNDLE}`);
+  const { stops } = resolvePlaybook(bundle.bundle.id, playbook, bundle.bundle.origin);
+  const preview = stops
+    .filter((stop) => stop.dayIndex === SHELF_DAY - 1)
+    .slice(0, DISCOVER_PREVIEW_STOPS)
+    .map((stop) => ({ title: stop.title, start: stop.timeWindow?.start ?? null }));
+  if (preview.length === 0) throw new Error(`landing demo: ${SHELF_BUNDLE} has no day ${SHELF_DAY}`);
+  return { ...seaCard(bundle, playbook), preview };
+}
+
+// ---------------------------------------------------------------------------
+// The assistant moment (M51 part 6)
+// ---------------------------------------------------------------------------
+
+/**
+ * The trip the assistant is asked about: the first two days of the find
+ * moment's Rome playbook, borrowed, so the sea's story runs on from its
+ * banner. Its Day 1 ends at the Palatine at three and picks up at dinner.
+ */
+const ASSISTANT_TRIP_NAME = "Two days in Rome";
+const ASSISTANT_TRIP_ID = "00000000-0000-4000-80d0-000000000000";
+const ASSISTANT_SUGGESTION_ID = "00000000-0000-4000-80d1-000000000000";
+const ASSISTANT_DAYS = 2;
+/**
+ * What the assistant puts on Day 1: two of the playbook's own places from the
+ * day the trip left out, moved into the gap. Real venues, with nothing said
+ * about them that the bundle does not say.
+ */
+const ASSISTANT_STOPS = [
+  { title: "Lunch at Mercato Testaccio", timeWindow: { start: "15:15", end: "16:45" } },
+  { title: "Circus Maximus", timeWindow: { start: "17:30", end: "19:00" } },
+] as const;
+const ASSISTANT_ASK = "Can you fill the afternoon on Day 1 before dinner?";
+const ASSISTANT_ANSWER =
+  "Day 1 is open from Palatine Hill at 3 until dinner at 7:30. Both are from the Rome playbook you borrowed: a late lunch at Mercato Testaccio, then the Circus Maximus under the Palatine as the light goes.";
+/**
+ * The snapshot the turn saved first, named as the server names one
+ * (`snapshotNameFor`): the ask, after "Before: ". Short enough that the server
+ * would not cut it, which the script holds rather than importing the server.
+ */
+const ASSISTANT_SNAPSHOT = `Before: ${ASSISTANT_ASK}`;
+/** Who asked. The suggestion is theirs; the assistant only acted for them (ADR-067 decision 2). */
+const ASSISTANT_READER = "reader";
+
+/**
+ * The assistant moment's worked example: the trip's Day 1, and the stops an
+ * assistant turn stored on it as one suggestion of one change each, worded as
+ * the server words them (`predictBatch`'s description) and laid on the day by
+ * the board's own overlay. Folded by the real decider, undated and unpriced.
+ */
+function buildLandingAssistant(): LandingFeatures["assistant"] {
+  const bundle = libraryBundles().find((b) => b.bundle.id === SHELF_BUNDLE);
+  const days = bundle?.playbooks.find((p) => p.key === SHELF_BUNDLE)?.days;
+  if (bundle === undefined || days === undefined) throw new Error(`landing demo: content/playbooks no longer holds ${SHELF_BUNDLE}'s days`);
+  // No price: the front door sells the day (Mitchell, 2026-10-11).
+  const unpriced = (stops: (typeof days)[number]["stops"]) => stops.map(({ cost: _cost, ...stop }) => stop);
+  const extra = ASSISTANT_STOPS.map(({ title, timeWindow }) => {
+    const stop = unpriced(days.slice(ASSISTANT_DAYS).flatMap((day) => day.stops)).find((s) => s.title === title);
+    if (stop === undefined) throw new Error(`landing demo: ${SHELF_BUNDLE} no longer holds "${title}" past day ${ASSISTANT_DAYS}`);
+    return { ...stop, timeWindow };
+  });
+  if (ASSISTANT_SNAPSHOT.length > SNAPSHOT_NAME_MAX) throw new Error(`landing demo: the snapshot "${ASSISTANT_SNAPSHOT}" is past the server's ${SNAPSHOT_NAME_MAX} characters`);
+  let n = 0;
+  // The suggested stops ride at the end of Day 1's group, so they are the
+  // importer's own `AddActivity`s; then they come off it as the suggestion.
+  const groups = bundleTripCommandGroups(
+    bundle.bundle.id,
+    {
+      key: "two-days-in-rome",
+      name: ASSISTANT_TRIP_NAME,
+      days: days.slice(0, ASSISTANT_DAYS).map((day, i) => ({ stops: [...unpriced(day.stops), ...(i === 0 ? extra : [])] })),
+      backlog: [],
+    },
+    { tripId: ASSISTANT_TRIP_ID, today: REFERENCE_START_DATE, mintId: () => `00000000-0000-4000-80d0-${String(++n).padStart(12, "0")}` },
+  );
+  const suggested = groups[1]!.splice(-extra.length);
+  // Folded without the envelope: a stop nobody is named as adding says so to nobody.
+  const reader = { actorId: ASSISTANT_READER };
+  const genesis = decideCreateTrip(null, { type: "CreateTrip", tripId: ASSISTANT_TRIP_ID, name: ASSISTANT_TRIP_NAME, forkedFrom: null }, reader);
+  if (!genesis.ok) throw new Error(`landing demo: CreateTrip rejected — ${genesis.rejection.message}`);
+  let state: TripState | null = null;
+  for (const event of genesis.events) state = evolveTrip(state, event);
+  for (const command of groups.flat()) {
+    const decision = decideTripCommand(state, command, reader);
+    if (!decision.ok) throw new Error(`landing demo: ${command.type} rejected — ${decision.rejection.message}`);
+    for (const event of decision.events) state = evolveTrip(state, event);
+  }
+  if (state === null) throw new Error("landing demo: the Rome trip folded to nothing");
+  const createdAt = `${REFERENCE_START_DATE}T00:00:00.000Z`;
+  const trip = tripDetailFromState(state, createdAt, serverConflictContext());
+  if (conflictsOn(trip, 0).length > 0) throw new Error("landing demo: the Rome trip's Day 1 has conflicts the moment does not draw");
+  let predicted = trip;
+  const changes: SuggestionChange[] = suggested.map((command, i) => {
+    if (command.type !== "AddActivity") throw new Error(`landing demo: the assistant's change ${i} is a ${command.type}`);
+    const outcome = predictBatch(predicted, [command], { skipNoOps: true });
+    if (!outcome.ok) throw new Error(`landing demo: the assistant's "${command.title}" does not apply — ${outcome.rejection.message}`);
+    predicted = outcome.detail;
+    return {
+      id: `00000000-0000-4000-80d1-${String(i + 1).padStart(12, "0")}`,
+      suggestionId: ASSISTANT_SUGGESTION_ID,
+      tripId: ASSISTANT_TRIP_ID,
+      authorId: ASSISTANT_READER,
+      note: null,
+      createdAt,
+      commands: [command],
+      description: outcome.description,
+      status: "pending",
+      dependsOn: [],
+      resolvedBy: null,
+      resolvedAt: null,
+      via: "assistant",
+    };
+  });
+  const day = trip.days[0]!;
+  const ghosts = suggestionOverlay(trip, changes).byDay.get(day.dayId) ?? [];
+  if (ghosts.length !== changes.length) throw new Error(`landing demo: ${ghosts.length} of the assistant's ${changes.length} stops land on Day 1`);
+  const city = buildTripGlobals(trip).days[0]!.cities.at(-1);
+  if (city === undefined) throw new Error("landing demo: the Rome trip's Day 1 names no city");
+  return {
+    trip: trip.name,
+    currency: trip.currency,
+    accent: cityAccents(trip).ofDayId(day.dayId),
+    river: {
+      dayId: day.dayId,
+      ordinal: 1,
+      city,
+      activityIds: day.activityIds,
+      activities: Object.fromEntries(day.activityIds.map((id) => [id, trip.activities[id]!])),
+    },
+    ask: ASSISTANT_ASK,
+    answer: ASSISTANT_ANSWER,
+    suggested: {
+      suggestionId: ASSISTANT_SUGGESTION_ID,
+      changeCount: changes.length,
+      snapshotId: "00000000-0000-4000-80d2-000000000000",
+      snapshotName: ASSISTANT_SNAPSHOT,
+      skipped: [],
+    },
+    ghosts,
+  };
+}
+
+/**
+ * A resolved library day as Discover's card, read signed out, with the rating
+ * the caller gives it. The import owns the row, so its cover is none and its
+ * adds are the bundle's own ledger.
+ */
+function libraryCard(day: ResolvedPlaybook, rated: { rating: number; reviewCount: number } | null, stampedOn: string): DiscoverDay {
   return landingCard({
     id: day.savedDayId,
     owner_id: day.ownerId,
@@ -299,14 +496,341 @@ function shelfPlaybook(): DiscoverDay {
     author_kind: day.authorKind,
     day_count: day.dayCount,
     adds: day.addedBy.length,
-    rating: null,
-    review_count: 0,
+    rating: rated?.rating ?? null,
+    review_count: rated?.reviewCount ?? 0,
     source_trip_name: day.sourceTripName,
-    created_at: day.keptOn,
-    published_at: day.keptOn,
+    created_at: stampedOn,
+    published_at: stampedOn,
     cover: null,
     matched_count: 0,
   });
+}
+
+// ---------------------------------------------------------------------------
+// The sea (M51)
+// ---------------------------------------------------------------------------
+
+/** Every bundle the production import reads for the library. */
+const PLAYBOOKS_DIR = new URL("../../../content/playbooks/", import.meta.url);
+
+function libraryBundles(): ContentBundleV1[] {
+  return readdirSync(PLAYBOOKS_DIR)
+    .filter((file) => file.endsWith(".json"))
+    .sort()
+    .map((file) => parseBundle(JSON.parse(readFileSync(new URL(file, PLAYBOOKS_DIR), "utf8"))));
+}
+
+/**
+ * FNV-1a over `text`: the sea's one source of variety. A day's size, rating
+ * and place come from its own id, so regenerating moves nothing, and a day
+ * added to a bundle does not reshuffle the others.
+ */
+function hashOf(text: string): number {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 0x01000193) >>> 0;
+  return h;
+}
+
+/** Half the cells single, most of the rest wide or square, the long thin shapes rarest. */
+const SIZE_WHEEL: readonly SeaCellSize[] = [
+  ...Array<SeaCellSize>(25).fill("1x1"),
+  ...Array<SeaCellSize>(10).fill("2x1"),
+  ...Array<SeaCellSize>(9).fill("2x2"),
+  ...Array<SeaCellSize>(4).fill("1x2"),
+  ...Array<SeaCellSize>(2).fill("3x1"),
+];
+/**
+ * A column three tall for one card in sixty, chosen by count rather than by
+ * a slot on the wheel, which a few dozen hashes fill unevenly (Mitchell's
+ * third walk of PR 510: *"use 1x3 very sparringly, they look a bit ugly"*).
+ */
+const TALL_SHARE = 60;
+
+/**
+ * The sample rating a sea card shows (decision 9, Mitchell 2026-10-20: *"just
+ * add the sample ratings, and we will re-address as reviews come in"*): 4.0
+ * to 4.9 over 3 to 60 reviews, and one card in nine with none, as a library
+ * really reads. For the landing only; nothing writes it anywhere.
+ */
+function sampleRating(savedDayId: string): { rating: number; reviewCount: number } | null {
+  const h = hashOf(`rating:${savedDayId}`);
+  if (h % 9 === 0) return null;
+  return { rating: 4 + (Math.floor(h / 9) % 10) / 10, reviewCount: 3 + (Math.floor(h / 90) % 58) };
+}
+
+/**
+ * A public library playbook as its sea card, with its sample rating. Its
+ * `keptOn` goes in as the stamp only because the card needs one (an export
+ * carries none, and takes the reference date); `seaCell` takes the dates off.
+ */
+function seaCard(bundle: ContentBundleV1, playbook: ContentBundleV1["playbooks"][number]): DiscoverDay {
+  const day = resolvePlaybook(bundle.bundle.id, playbook, bundle.bundle.origin);
+  return libraryCard(day, sampleRating(day.savedDayId), day.keptOn ?? REFERENCE_START_DATE);
+}
+
+/** The card without what `SeaDay` leaves out. */
+const seaDayOf = ({ createdAt: _created, publishedAt: _published, sourceTripName: _source, ...drawn }: DiscoverDay): SeaDay => drawn;
+
+function seaCell(day: DiscoverDay, group: string): SeaCell {
+  return { day: seaDayOf(day), size: SIZE_WHEEL[hashOf(`size:${day.savedDayId}`) % SIZE_WHEEL.length]!, group };
+}
+
+/**
+ * Every public library day as a sea cell, in an order shuffled by id so no
+ * country runs in a block, each linked to its day page. The id derives from
+ * (bundle, key), so the link holds wherever `content/` is imported: `db:reseed`
+ * locally, `import-content-production.yml` in production. A preview build
+ * imports no content yet, so there these links 404 until M51 part 7 seeds it.
+ */
+function librarySea(): SeaDayCell[] {
+  const cells = libraryBundles()
+    .flatMap((bundle) =>
+      bundle.playbooks
+        .filter((playbook) => playbook.visibility === "public")
+        .map((playbook) => {
+          const card = seaCard(bundle, playbook);
+          return { ...seaCell(card, bundle.bundle.id), href: dayPath(card) };
+        }),
+    );
+  const tallOrder = (cell: SeaDayCell) => hashOf(`tall:${cell.day.savedDayId}`);
+  const tall = new Set(
+    [...cells]
+      .sort((a, b) => tallOrder(a) - tallOrder(b))
+      .slice(0, Math.floor(cells.length / TALL_SHARE))
+      .map((cell) => cell.day.savedDayId),
+  );
+  return cells
+    .map((cell): SeaDayCell => (tall.has(cell.day.savedDayId) ? { ...cell, size: "1x3" } : cell))
+    .sort((a, b) => hashOf(`order:${a.day.savedDayId}`) - hashOf(`order:${b.day.savedDayId}`));
+}
+
+/**
+ * The cluster around the notebook (decision 10): the demo seed's public Japan
+ * days, since no Japan bundle is in the library. They are seeded by
+ * `api/dev/saved-days` alone, which 404s in production, so production has no
+ * page for them and their cells carry no link.
+ */
+function japanCluster(): LandingSea["japan"] {
+  return JAPAN_SAVED_DAYS.filter((day) => day.visibility === "public").map((day) => {
+    const card = libraryCard(
+      {
+        ...day,
+        dayCount: 1,
+        authorKind: "human",
+        sourceTripId: JAPAN_SOURCE_TRIP.id,
+        sourceTripName: JAPAN_SOURCE_TRIP.name,
+      },
+      sampleRating(day.savedDayId),
+      REFERENCE_START_DATE,
+    );
+    return { ...seaCell(card, "japan"), href: null };
+  });
+}
+
+/** The value used most, the first in code-point order on a tie, so two builds name a page alike. */
+function mostUsed(uses: ReadonlyMap<string, number>): string | undefined {
+  return [...uses].sort(([a, aUses], [b, bUses]) => bUses - aUses || (a < b ? -1 : a > b ? 1 : 0))[0]?.[0];
+}
+
+/**
+ * The sea's accents (Mitchell's third walk of PR 510: *"this nice accent full
+ * color cards with Country - city"*): every country, city and activity-tag
+ * page that the library's public days fill with `MIN_INDEXED_PLACE_DAYS` or
+ * more, so each opens on days and is indexed. Counted as `publishedPlaces`
+ * and `publishedTagPages` count them, from the rows the content import writes:
+ * a place by its slug over the day's own cities and countries, a tag by the
+ * days whose description names it (ADR-070 §4). Shuffled by path, as the days
+ * are by id.
+ */
+function libraryAccents(): SeaAccent[] {
+  const pages = new Map<
+    string,
+    { kind: SeaAccent["kind"]; days: Set<string>; spellings: Map<string, number>; bundles: Map<string, number>; countries: Map<string, number> }
+  >();
+  const count = (uses: Map<string, number>, value: string) => uses.set(value, (uses.get(value) ?? 0) + 1);
+  for (const bundle of libraryBundles()) {
+    for (const playbook of bundle.playbooks.filter((p) => p.visibility === "public")) {
+      const day = resolvePlaybook(bundle.bundle.id, playbook, bundle.bundle.origin);
+      const countries = [...new Set(savedDayCountries(day.stops))];
+      const touch = (kind: SeaAccent["kind"], href: string | null, spelling: string) => {
+        if (href === null) return;
+        let page = pages.get(href);
+        if (page === undefined) pages.set(href, (page = { kind, days: new Set(), spellings: new Map(), bundles: new Map(), countries: new Map() }));
+        if (page.days.has(day.savedDayId)) return;
+        page.days.add(day.savedDayId);
+        count(page.spellings, spelling);
+        count(page.bundles, bundle.bundle.id);
+        // A city's country, from the days that stop in one country only.
+        if (countries.length === 1) count(page.countries, countries[0]!);
+      };
+      for (const city of savedDayCities(day.stops)) touch("city", cityPath(city), city);
+      for (const code of countries) {
+        const slug = countrySlug(code);
+        touch("country", slug === null ? null : placePath({ kind: "country", slug }), code);
+      }
+      for (const tag of describeByTags(day.stops)?.named ?? []) touch("tag", tagPath(tag), tag);
+    }
+  }
+  return [...pages]
+    .filter(([, page]) => placeIndexable({ days: page.days.size }))
+    .map(([href, page]): SeaAccent => {
+      const spelling = mostUsed(page.spellings)!;
+      const country = mostUsed(page.countries);
+      return {
+        kind: page.kind,
+        label: page.kind === "country" ? "Country" : page.kind === "tag" ? "Activity" : ((country && countryName(country)) ?? "City"),
+        name: page.kind === "country" ? countryName(spelling)! : page.kind === "tag" ? TAG_LABEL[spelling as ActivityTagDescribed] : spelling,
+        // Mostly single, one in four wide (the prototype stamps single cells only).
+        size: hashOf(`accent:${href}`) % 4 === 0 ? "2x1" : "1x1",
+        group: mostUsed(page.bundles)!,
+        href,
+      };
+    })
+    .sort((a, b) => hashOf(`order:${a.href}`) - hashOf(`order:${b.href}`));
+}
+
+/** Where the sea is committed. */
+export const SEA_PATH = fileURLToPath(new URL("../src/lib/landingSea.generated.json", import.meta.url));
+
+/** The sea: every public library day, then the accents, and the Japan cluster. */
+export function buildLandingSea(): LandingSea {
+  return { cells: [...librarySea(), ...libraryAccents()], japan: japanCluster() };
+}
+
+// ---------------------------------------------------------------------------
+// The crew moment's trip (M51 decision 10)
+// ---------------------------------------------------------------------------
+
+/**
+ * The crew who plan the Greek trip, ids as their names as `/demo`'s are
+ * (`server/demoTrip.ts`, `membersOf`): four library authors, so the names are
+ * people the sea already credits. Four colours, so no clash shifts one.
+ */
+export const CREW = ["Maeve", "Tomas", "Ruth", "Kenji"] as const;
+const CREW_LOOKS: Record<(typeof CREW)[number], { avatar: AvatarKey | null; color: PersonColor }> = {
+  Maeve: { avatar: "sailboat", color: "sky" },
+  Tomas: { avatar: "bike", color: "ochre" },
+  Ruth: { avatar: "camera", color: "rose" },
+  Kenji: { avatar: null, color: "teal" },
+};
+
+/**
+ * Paros to Santorini in three days, every one a Greek library day: Paros,
+ * Elena's Naxos day as Day 2, and the caldera walk (Mitchell, 2026-10-20: three
+ * days, Naxos as Day 2). The library has no Athens day to start from. The trip
+ * is what the crew built by borrowing; Day 2 is the one the moment draws.
+ */
+const CREW_BUNDLE_PATH = new URL("../../../content/playbooks/greek-islands.json", import.meta.url);
+const CREW_DAYS = ["paros-antiparos-cave-and-soros", "naxos-zas-marble-villages-and-plaka", "santorini-caldera-walk-and-skaros-sunset"] as const;
+const CREW_RIVER_INDEX = 1;
+const CREW_TRIP_NAME = "Paros to Santorini";
+const CREW_TRIP_ID = "00000000-0000-4000-80c0-000000000000";
+
+/** What somebody books ahead: a table, a ticket or a tour, never a drive or a spring. */
+const BOOKED_TAGS: ReadonlySet<string> = new Set(["meal", "ticketed", "tour"]);
+
+/**
+ * Who booked a stop and who is on it, so the crew's names reach the river. A
+ * pending stop is not booked yet, and neither is a transit leg or anything
+ * nobody books; the crew take turns booking the rest down the day, `bookings`
+ * being how many they have booked so far. Every third stop leaves one of them
+ * out, so a stop with fewer than all four is something the river shows too.
+ */
+function crewOnStop(command: Extract<TripCommand, { type: "AddActivity" }>, turn: number, bookings: number): TripCommand {
+  const booked = command.kind !== "transit" && (command.tags ?? []).some((tag) => BOOKED_TAGS.has(tag));
+  const participants = turn % 3 === 2 ? CREW.filter((_, i) => i !== (turn + 1) % CREW.length) : [];
+  return { ...command, bookedBy: booked ? CREW[bookings % CREW.length]! : null, participants };
+}
+
+/** The crew's trip folded by the real decider, as `/demo` folds its trips, undated and unpriced. */
+function crewTrip(): { trip: TripDetail; members: TripMemberProfile[]; borrowed: ResolvedPlaybook } {
+  const bundle = parseBundle(JSON.parse(readFileSync(CREW_BUNDLE_PATH, "utf8")));
+  const playbooks = CREW_DAYS.map((key) => {
+    const found = bundle.playbooks.find((p) => p.key === key);
+    if (found === undefined) throw new Error(`landing demo: ${bundle.bundle.id} no longer holds ${key}`);
+    return found;
+  });
+  let n = 0;
+  const groups = bundleTripCommandGroups(
+    bundle.bundle.id,
+    {
+      key: "paros-to-santorini",
+      name: CREW_TRIP_NAME,
+      // No price: the front door sells the day (Mitchell, 2026-10-11).
+      days: playbooks.map((p) => ({ stops: (p.stops ?? p.days!.flatMap((d) => d.stops)).map(({ cost: _cost, ...stop }) => stop) })),
+      backlog: [],
+    },
+    { tripId: CREW_TRIP_ID, today: REFERENCE_START_DATE, mintId: () => `00000000-0000-4000-80c0-${String(++n).padStart(12, "0")}` },
+  );
+  // Maeve owns the trip; the crew take turns adding its stops, so each stop
+  // names one of them. Folded with the envelope's actor, as `/demo` folds
+  // (`server/demoTrip.ts`), because only that fold writes a stop's `addedBy`.
+  const owner = { actorId: CREW[0] as string };
+  const genesis = decideCreateTrip(null, { type: "CreateTrip", tripId: CREW_TRIP_ID, name: CREW_TRIP_NAME, forkedFrom: null }, owner);
+  if (!genesis.ok) throw new Error(`landing demo: CreateTrip rejected — ${genesis.rejection.message}`);
+  let state: TripState | null = null;
+  for (const event of genesis.events) state = evolveTripEnvelope(state, event, owner);
+  let adds = 0;
+  for (const group of groups) {
+    let turn = 0;
+    let bookings = 0;
+    for (const command of group) {
+      const crewed = command.type === "AddActivity" && command.kind !== "pending" ? crewOnStop(command, turn++, bookings) : command;
+      if (crewed.type === "AddActivity" && crewed.bookedBy) bookings++;
+      const ctx = crewed.type === "AddActivity" ? { actorId: CREW[adds++ % CREW.length] as string } : owner;
+      const decision = decideTripCommand(state, crewed, ctx);
+      if (!decision.ok) throw new Error(`landing demo: ${command.type} rejected — ${decision.rejection.message}`);
+      for (const event of decision.events) state = evolveTripEnvelope(state, event, ctx);
+    }
+  }
+  if (state === null) throw new Error("landing demo: the crew trip folded to nothing");
+  const members = withTripColors(
+    CREW.map((name, i) => ({
+      userId: name,
+      role: i === 0 ? ("owner" as const) : ("editor" as const),
+      travelling: true,
+      name,
+      email: null,
+      image: null,
+      displayName: null,
+      ...CREW_LOOKS[name],
+    })),
+  );
+  const trip = overlayMembers(
+    tripDetailFromState(state, `${REFERENCE_START_DATE}T00:00:00.000Z`, serverConflictContext()),
+    members.map(({ userId, role, travelling }) => ({ userId, role, travelling })),
+  );
+  return { trip, members, borrowed: resolvePlaybook(bundle.bundle.id, playbooks[CREW_RIVER_INDEX]!, bundle.bundle.origin) };
+}
+
+/** The crew moment's slice: Day 2 on the river, who is on it, and the day it was borrowed from. */
+function buildLandingCrew(): LandingCrew {
+  const { trip, members, borrowed } = crewTrip();
+  const globals = buildTripGlobals(trip);
+  const personas = personasOfMembers(members);
+  const ctx: WidgetContext = { trip, page: { tripId: trip.tripId }, user: null, globals, today: null, personas };
+  // The board's persona carries the clash shift a widget's does not.
+  const shifted = new Map(members.map((m) => [m.userId, m.colorShifted]));
+  const accents = cityAccents(trip);
+  const day = trip.days[CREW_RIVER_INDEX]!;
+  if (conflictsOn(trip, CREW_RIVER_INDEX).length > 0) throw new Error("landing demo: the crew's Day 2 has conflicts the moment does not draw");
+  const city = globals.days[CREW_RIVER_INDEX]!.cities.at(-1);
+  if (city === undefined) throw new Error("landing demo: the crew's Day 2 names no city");
+  return {
+    name: trip.name,
+    currency: trip.currency,
+    accents: Object.fromEntries(trip.days.map((d) => [d.dayId, accents.ofDayId(d.dayId)])),
+    river: {
+      dayId: day.dayId,
+      ordinal: CREW_RIVER_INDEX + 1,
+      city,
+      activityIds: day.activityIds,
+      activities: Object.fromEntries(day.activityIds.map((id) => [id, trip.activities[id]!])),
+    },
+    personas: Object.fromEntries(Object.entries(personas).map(([id, persona]) => [id, { ...persona, colorShifted: shifted.get(id) ?? false }])),
+    people: resolveBlock(ctx, "trip.people", {}, "trip-people"),
+    borrowed: { savedDayId: borrowed.savedDayId, href: dayPath(borrowed) },
+  };
 }
 
 const MEMORY_DAY = { kind: "index", index: 5 };
@@ -341,6 +865,33 @@ const MEMORY_PAGE: PageParagraphNode[] = [
   },
 ];
 
+/**
+ * The rest of that page, as the desktop's notebook moment draws it (Mitchell's
+ * third walk of PR 510: *"looks too fake, not lived in enough, also dont be
+ * afraid to make it too long"*): what they would tell the next people to go,
+ * and what they would change, under the headings a notebook page holds. Longer
+ * than its cell on purpose; the moment fades it out at the cell's foot. The
+ * phone's page and the closing quote read `MEMORY_PAGE` alone.
+ */
+const JOURNAL: { heading: string; paragraphs: string[] }[] = [
+  {
+    heading: "What we would tell the next lot",
+    paragraphs: [
+      "The Romancecar fills up from Shinjuku. Book the front seats the day before, not on the platform: Jonah got the last two, and we sat in them in shifts.",
+      "Give the Open-Air Museum the whole morning. Take your shoes off for the foot bath halfway round, and leave the Picasso pavilion for last, when the groups have gone to lunch.",
+      "At Bakery & Table, go up to the counter over the lake, not the tables inside. Mei went back for a second curry bread and nobody blamed her.",
+      "At Gora Kadan ask for the late bath. The outdoor one is quiet after nine, and the steam comes up off the trees.",
+    ],
+  },
+  {
+    heading: "Next time",
+    paragraphs: [
+      "Two nights, not one. The ropeway and Owakudani were on the list, and we never left the ryokan.",
+      "Sam wants to walk the old Tokaido path down to Hatajuku. Priya wants the same room again. Both can be true.",
+    ],
+  },
+];
+
 /** One paragraph's text and widgets as the segments a notebook draws, each widget resolved against Japan. */
 function resolveParagraph(ctx: WidgetContext, paragraph: PageParagraphNode): Seg[] {
   return paragraph.content.flatMap((node): Seg[] => {
@@ -360,13 +911,20 @@ export function buildLandingFeatures(): LandingFeatures {
   return {
     playbook: landingPlaybook(),
     shelf: shelfPlaybook(),
+    assistant: buildLandingAssistant(),
+    crew: buildLandingCrew(),
     memory: MEMORY_PAGE.map((paragraph) => resolveParagraph(ctx, paragraph)),
-    // The page's widgets beside its words (M50 part 9): the day it is about,
-    // that day's daylight, and who was there.
+    // The page's widgets beside its words (M50 part 9): the day it is about
+    // and that day's daylight; then the rest of what was written.
     page: {
       day: resolveBlock(ctx, "day.detail", { day: MEMORY_DAY }, "itinerary-day"),
       sun: resolveBlock(dated, "day.sun", { day: MEMORY_DAY }, "sun"),
-      people: resolveBlock(ctx, "trip.people", {}, "trip-people"),
+      // The widget's own title, as the notebook's widget picker names it.
+      sunTitle: getMacro("day.sun")!.title,
+      journal: JOURNAL.map(({ heading, paragraphs }) => ({
+        heading,
+        paragraphs: paragraphs.map((words) => resolveParagraph(ctx, { type: "paragraph", content: [text(words)] })),
+      })),
     },
   };
 }
@@ -385,6 +943,7 @@ export function generatedFiles(): { path: string; fresh: string }[] {
     ...DEMO_TRIPS.map(({ slug }) => ({ path: snapshotPath(slug), fresh: serializeLandingDemo(buildLandingDemo(slug)) })),
     { path: CARDS_PATH, fresh: serializeLandingDemo(demoTripCards()) },
     { path: FEATURES_PATH, fresh: serializeLandingDemo(buildLandingFeatures()) },
+    { path: SEA_PATH, fresh: serializeLandingDemo(buildLandingSea()) },
   ];
 }
 

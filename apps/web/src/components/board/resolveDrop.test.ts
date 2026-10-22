@@ -23,6 +23,7 @@ function fixture() {
     cost: null,
     bookedBy: null,
     participants: [],
+    addedBy: null,
     mode: null,
     endLocation: null,
     pendingReason: null,

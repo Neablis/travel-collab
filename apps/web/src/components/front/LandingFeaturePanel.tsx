@@ -5,8 +5,8 @@ import { lazy, Suspense, type ReactNode } from "react";
 import { ChartErrorBoundary } from "@/components/ui/chart";
 
 // One of the landing's real feature panels (`LandingFeaturePanels.tsx`), split
-// out of the first load as the hero's are (`LandingHeroArt.tsx` gives the
-// numbers). The server renders the real panel into the page's HTML, so it is
+// out of the first load: the river's drag-and-drop and `@tc/pages` are most of
+// its weight. The server renders the real panel into the page's HTML, so it is
 // the chunk's JavaScript that waits; the drawing it is handed is what a
 // client-side render shows meanwhile, and stays if the load fails: `Suspense`
 // does not catch a rejected `lazy` import, and nothing above the landing but
@@ -24,11 +24,9 @@ export const loadFeaturePanels = () =>
     throw e;
   }));
 const PANELS = {
-  together: lazy(() => loadFeaturePanels().then((m) => ({ default: m.TogetherPanel }))),
-  playbook: lazy(() => loadFeaturePanels().then((m) => ({ default: m.PlaybookPanel }))),
-  "playbook-compact": lazy(() => loadFeaturePanels().then((m) => ({ default: m.CompactPlaybookPanel }))),
-  "playbook-shelf": lazy(() => loadFeaturePanels().then((m) => ({ default: m.ShelfPlaybookPanel }))),
-  notebook: lazy(() => loadFeaturePanels().then((m) => ({ default: m.MemoryPanel }))),
+  "find-a-day": lazy(() => loadFeaturePanels().then((m) => ({ default: m.FindADayPanel }))),
+  assistant: lazy(() => loadFeaturePanels().then((m) => ({ default: m.AssistantPanel }))),
+  crew: lazy(() => loadFeaturePanels().then((m) => ({ default: m.CrewPanel }))),
   "notebook-page": lazy(() => loadFeaturePanels().then((m) => ({ default: m.NotebookPagePanel }))),
 };
 

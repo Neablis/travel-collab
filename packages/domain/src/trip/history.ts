@@ -13,7 +13,7 @@ import {
 } from "@tc/contracts";
 import type { Rejection } from "./decide";
 import { diffTripStates } from "./diff";
-import { evolveTrip } from "./evolve";
+import { evolveTrip, evolveTripEnvelope } from "./evolve";
 import { evolvePages, type PagesState } from "./pageState";
 import type { TripState } from "./state";
 
@@ -34,9 +34,10 @@ export function foldEnvelopes(envelopes: EventEnvelope[], toSeq?: number): TripS
   for (const env of envelopes) {
     if (toSeq !== undefined && env.seq > toSeq) break;
     if (isPageEventType(env.type)) continue;
-    state = evolveTrip(
+    state = evolveTripEnvelope(
       state,
       TripEventSchema.parse({ type: env.type, version: env.version, payload: env.payload }),
+      env,
     );
   }
   return state;

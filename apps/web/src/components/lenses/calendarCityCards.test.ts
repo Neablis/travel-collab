@@ -22,6 +22,7 @@ function stop(
     cost: costMinor === undefined ? null : { amountMinor: costMinor, currency: "USD" },
     bookedBy: null,
     participants: [],
+    addedBy: null,
     mode: null,
     endLocation: null,
     pendingReason: null,

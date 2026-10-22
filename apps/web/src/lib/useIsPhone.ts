@@ -19,7 +19,7 @@ const PHONE_MAX_WIDTH_PX = 767;
  * Starts `false` and corrects in an effect: there is no viewport on the
  * server, and guessing "phone" for everyone would flash the wrong control on
  * every desktop load. `matchMedia` is feature-detected because jsdom does not
- * always ship it — the same guard `LandingHeroArt` uses.
+ * always ship it — the same guard `LandingSea` uses.
  */
 export function useIsPhone(): boolean {
   return useMatches(PHONE);

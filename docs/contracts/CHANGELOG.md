@@ -13,6 +13,68 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-10-21 — Discover previews carry up to twelve stops (M51 part 9; public API 1.20.0)
+- **Widened** (`apps/web/src/lib/playbooks.ts`, not `packages/contracts`): `DiscoverDay.preview`
+  is day one's first `DISCOVER_PREVIEW_STOPS` stops, now 12 (was 3). On the wire in
+  `GET /v1/discover/playbooks`: `items[].preview` `maxItems` 3 → 12. `openapi.json` regenerated,
+  `info.version` 1.19.0 → 1.20.0.
+- Why: Mitchell, 2026-10-21, walking PR 510. Day cards on the landing sea and the Discover cards
+  list stops until they run out of room, not just three, and he chose to raise the cap everywhere,
+  the public API included, rather than for the app alone. Twelve is a payload bound, not a row
+  count: every public library day today has 8 stops or fewer, and a 200-item page with every title
+  at its 200-character limit stays near 0.5 MB.
+- Consumers updated: `apps/web` (`server/discoverDay.ts` slices by the constant; the landing sea and
+  features snapshots regenerated, so their cards carry day one's whole list). `DiscoverCard` off
+  the sea (Discover, tag, city, country and profile; Mitchell's option b): a card in a grid row is
+  as tall as the row, which its other parts and room for three one-line rows set; the stop list
+  fills what is left and draws the whole rows that fit, so a card beside a taller neighbour shows
+  more than three. A title keeps to one line there, so three always fit; a lone card on a phone
+  shows three, as before. The landing sea's own layout is PR 510's, and its cards, the find
+  moment's banner included, now show every row their cell holds.
+- Breaking? no, **minor**: the shape and every field are unchanged, and a response may now hold
+  more items than before, as a new enum value on a response may (`using-the-api.md`, *minor for
+  anything additive*). A caller that assumed at most three rows, or that validates responses
+  against a cached 1.19.0 document, should re-read the reference when `info.version` moves.
+  The app's own wire has a skew window: a tab loaded before the deploy parses `/api/playbooks`
+  with `.max(3)`, so its Discover search, filters and next page fail until it is reloaded. The
+  same exposure the 1.10.0 `origin` entry accepted; no change in the new bundle reaches an old tab.
+
+## 2026-10-20 — Who added a stop (M51 part 4; public API 1.19.0)
+- **Added** (`packages/contracts/src/detail.ts`): `ActivityView.addedBy`, `string | null`,
+  `.default(null)`, beside `bookedBy` and `participants`. The id of whoever added the stop, which
+  the board draws as *"Sam added this"* (M51 decision 8a). On `TripDetail` and so in every
+  response that carries one, `/v1` included: `openapi.json` regenerated, `info.version` 1.18.0 →
+  1.19.0 (minor: additive).
+- **Derived, not stored in any event.** It is the `actorId` of the `ActivityAdded` envelope,
+  which every event has carried since day one (Invariant 6a), so no payload changes and every
+  stop already in the log folds to its adder on its trip's next write. The domain folds it in
+  `evolveTripEnvelope`, which `foldEnvelopes` (the live write) and `projectTripDetails` (the
+  rebuild) both step through; `TripState.addedBy` holds it, and `tripStatesEqual` and the diff
+  ignore it, since no event could reconcile it. `ActivitySnapshot` does not carry it
+  (`ActivityViewCoversSnapshot` now excludes it by name).
+- What it names: the actor of the add. The assistant and a public-API key act as their person,
+  so their adds name that person. **An undo, redo or revert that re-adds a stop names whoever
+  undid**. An accepted suggestion names the person who suggested it (`origin.authorId`), not the
+  reviewer who accepted it and is the envelope's actor. A batch accept (`suggestions`) whose
+  changes all come from one suggester names that suggester (`origin.authorIds[0]`); only a batch
+  mixing suggesters names the reviewer, since its origin does not say which change made which stop
+  (KI-2026-10-20-b). Removing a stop drops it.
+- Old documents: a `trip_details.doc` written before this has no key and reads `null` until its
+  trip's next write, which folds the whole stream (`commands.ts`) and so fills every stop from the
+  log. Production has no operator rebuild (`rebuildProjections` has only test callers,
+  KI-2026-09-05-j), so a trip nobody edits keeps reading `null`, and its stops draw no adder.
+- Consumers updated: `packages/domain` (`evolve.ts`, `history.ts`, `detail.ts`, `hydrate.ts`,
+  `state.ts`), `@tc/factories` (`activityFactory`, legacy fixtures), `@tc/fixtures` (the Japan
+  demo's adders and two `bookedBy` picks), `apps/web` (`RiverBlock` draws it, named by the
+  `PeopleProvider` that now wraps the Plan board, and on the landing by the snapshot's new
+  `river.people`; `demoTrip.ts` folds each demo under its people: Japan's adders, a bundle's
+  dealt round its roster, so no stop names the demo's own actor; the landing snapshots
+  regenerated, every hand-built `ActivityView` in tests); `SharedTripView` (`toSharedView`, the
+  public share read) nulls it, and with it each stop's `bookedBy` and `participants`, which
+  leaked to link holders already: all three are actor ids, which the view exists not to serve
+  (`share.ts`, beside `members`). `shares.int.test.ts` now shares a stop carrying all three.
+- Breaking? no. Defaulted, so an older reader and every stored document still parse.
+
 ## 2026-10-19 — Dismissing the offer to publish a trip that is over (M50 part 7)
 - **Added** (`packages/contracts/src/identity.ts`): `UserPreferences.dismissedPublishOffers`,
   `string[]` of trip uuids (at most `MAX_DISMISSED_PUBLISH_OFFERS`, 1000, also

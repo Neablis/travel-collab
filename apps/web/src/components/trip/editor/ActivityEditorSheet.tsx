@@ -91,6 +91,7 @@ export function ActivityEditorSheet() {
           // not "unknown".
           bookedBy: null,
           participants: [],
+          addedBy: null,
           mode: null,
           endLocation: null,
           pendingReason: null,

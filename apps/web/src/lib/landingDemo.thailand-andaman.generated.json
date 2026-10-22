@@ -50,6 +50,7 @@
         "cost": null,
         "bookedBy": null,
         "participants": [],
+        "addedBy": "Oskar",
         "mode": null,
         "endLocation": null,
         "pendingReason": null
@@ -76,6 +77,7 @@
         "cost": null,
         "bookedBy": null,
         "participants": [],
+        "addedBy": "Oskar",
         "mode": null,
         "endLocation": null,
         "pendingReason": null
@@ -105,6 +107,7 @@
         "cost": null,
         "bookedBy": null,
         "participants": [],
+        "addedBy": "Oskar",
         "mode": null,
         "endLocation": null,
         "pendingReason": null
@@ -133,6 +136,7 @@
         "cost": null,
         "bookedBy": null,
         "participants": [],
+        "addedBy": "Oskar",
         "mode": null,
         "endLocation": null,
         "pendingReason": null
@@ -162,6 +166,7 @@
         "cost": null,
         "bookedBy": null,
         "participants": [],
+        "addedBy": "Oskar",
         "mode": null,
         "endLocation": null,
         "pendingReason": null
@@ -190,6 +195,7 @@
         "cost": null,
         "bookedBy": null,
         "participants": [],
+        "addedBy": "Oskar",
         "mode": null,
         "endLocation": null,
         "pendingReason": null
@@ -218,9 +224,33 @@
         "cost": null,
         "bookedBy": null,
         "participants": [],
+        "addedBy": "Oskar",
         "mode": null,
         "endLocation": null,
         "pendingReason": null
+      }
+    },
+    "people": {
+      "Tomás": {
+        "name": "Tomás",
+        "avatar": "palm",
+        "color": "ochre",
+        "travelling": true,
+        "colorShifted": false
+      },
+      "Ines": {
+        "name": "Ines",
+        "avatar": null,
+        "color": "rose",
+        "travelling": true,
+        "colorShifted": false
+      },
+      "Oskar": {
+        "name": "Oskar",
+        "avatar": "mountain",
+        "color": "teal",
+        "travelling": true,
+        "colorShifted": false
       }
     }
   },

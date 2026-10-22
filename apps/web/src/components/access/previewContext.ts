@@ -111,7 +111,7 @@ function stopView(activityId: string, title: string, location: Location | null):
   return {
     activityId, title, location,
     timeWindow: null, notes: null, anchors: [], kind: "planned", tags: [], cost: null,
-    bookedBy: null, participants: [], mode: null, endLocation: null, pendingReason: null,
+    bookedBy: null, participants: [], addedBy: null, mode: null, endLocation: null, pendingReason: null,
   };
 }
 

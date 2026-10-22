@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ActivityView } from "@tc/contracts";
 import { activityFactory, locationFactory } from "@tc/factories";
+import { FixedPeopleProvider, type Persona } from "@/components/pages/people";
 import { DayRiver, type RiverGestures } from "./DayRiver";
 import { RACK_LIFT_OVER_EVENT } from "@/lib/touchLift";
 import { RIVER_TOUCH_HOLD_MS } from "./riverGestures";
@@ -176,6 +177,31 @@ describe("what a block has room to say", () => {
     expect(
       screen.getByRole("button", { name: "Edit Ramen, 12 pm – 12:30 pm, Planned, Ichiran, Tokyo, Japan, €18.50, tagged Food and Ticketed" }),
     ).toBeTruthy();
+  });
+});
+
+// M51 decision 8a: a stop says who is going, who booked it and who added it.
+// The names come from the trip's people; anyone they do not hold (a member who
+// has left) is a handle, never the id.
+describe("a block names its people", () => {
+  const persona = (name: string): Persona => ({ name, avatar: null, color: null, colorShifted: false, travelling: true });
+  const personas = { sam: persona("Sam Okafor"), priya: persona("Priya Nair") };
+  const gone = "6b1f0c7e-2d4a-4c8e-9f1a-3e5d7c9b4f2a";
+  const people = { participants: ["priya", gone], bookedBy: "sam", addedBy: "priya" };
+  const tall = activityFactory.build({ title: "Ropeway", timeWindow: { start: "09:00", end: "11:00" }, ...people });
+  const short = activityFactory.build({ title: "Coffee", timeWindow: { start: "12:00", end: "13:00" }, ...people });
+
+  it("draws who is going, who booked it and who added it on a block with the room, and says it to a reader on every block", () => {
+    render(<FixedPeopleProvider personas={personas}>{riverElement([tall, short])}</FixedPeopleProvider>);
+    const said = ", going Priya Nair and Traveler 9b4f2a, booked by Sam Okafor, added by Priya Nair";
+
+    expect(screen.getByRole("button", { name: `Edit Ropeway, 9 am – 11 am, Planned${said}` })).toBeTruthy();
+    expect(block(tall.activityId).getByText("Booked by Sam Okafor · Priya Nair added this")).toBeTruthy();
+    expect(block(tall.activityId).getAllByTitle(/.+/).map((chip) => chip.getAttribute("title"))).toEqual(["Priya Nair", "Traveler 9b4f2a"]);
+
+    // An hour is 42px: no room for a third line, so only the name says it.
+    expect(screen.getByRole("button", { name: `Edit Coffee, 12 pm – 1 pm, Planned${said}` })).toBeTruthy();
+    expect(block(short.activityId).queryByText(/added this/)).toBeNull();
   });
 });
 

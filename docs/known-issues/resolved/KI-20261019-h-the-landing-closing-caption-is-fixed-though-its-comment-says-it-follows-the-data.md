@@ -1,4 +1,4 @@
-### KI-2026-10-19-h — The landing's closing caption "Day six, Hakone" is a fixed string, though its comment says it changes with the data
+### KI-2026-10-19-h — The landing's closing caption "Day six, Hakone" is a fixed string, though its comment says it changes with the data — RESOLVED
 
 - **Severity:** cleanup. Nothing is wrong today; the comment misleads the next person who changes
   the demo day.
@@ -14,3 +14,8 @@
   derive the caption from the generated landing data. Ride the next change to the landing.
 - **Cross-reference:** M50 part 5 (PR 500).
 - **First noted:** 2026-10-19, PR 500's re-review.
+- **Proof (resolved by M51):** both captions are gone with the closing quote they sat under. The
+  desktop's went with M51 part 2 (PR 510), whose closing cell has no quote; the phone's went with
+  part 3, whose closing cell is the desktop's, and with it `LANDING_CLOSING_QUOTE`.
+  `grep -rn "Day six, Hakone" apps/web/src` finds nothing; `PhoneFrontDoor.test.tsx` (*ends the
+  sea on the closing cell's two ways in*) holds the closing cell.

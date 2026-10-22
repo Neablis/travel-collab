@@ -47,6 +47,7 @@
         "cost": null,
         "bookedBy": null,
         "participants": [],
+        "addedBy": "Ravi",
         "mode": null,
         "endLocation": null,
         "pendingReason": null
@@ -76,6 +77,7 @@
         "cost": null,
         "bookedBy": null,
         "participants": [],
+        "addedBy": "Ravi",
         "mode": null,
         "endLocation": null,
         "pendingReason": null
@@ -104,6 +106,7 @@
         "cost": null,
         "bookedBy": null,
         "participants": [],
+        "addedBy": "Ravi",
         "mode": null,
         "endLocation": null,
         "pendingReason": null
@@ -132,6 +135,7 @@
         "cost": null,
         "bookedBy": null,
         "participants": [],
+        "addedBy": "Ravi",
         "mode": null,
         "endLocation": null,
         "pendingReason": null
@@ -159,6 +163,7 @@
         "cost": null,
         "bookedBy": null,
         "participants": [],
+        "addedBy": "Ravi",
         "mode": null,
         "endLocation": null,
         "pendingReason": null
@@ -187,6 +192,7 @@
         "cost": null,
         "bookedBy": null,
         "participants": [],
+        "addedBy": "Ravi",
         "mode": null,
         "endLocation": null,
         "pendingReason": null
@@ -215,9 +221,33 @@
         "cost": null,
         "bookedBy": null,
         "participants": [],
+        "addedBy": "Ravi",
         "mode": null,
         "endLocation": null,
         "pendingReason": null
+      }
+    },
+    "people": {
+      "Ravi": {
+        "name": "Ravi",
+        "avatar": "plane",
+        "color": "sky",
+        "travelling": true,
+        "colorShifted": false
+      },
+      "Lena": {
+        "name": "Lena",
+        "avatar": "tent",
+        "color": "clay",
+        "travelling": true,
+        "colorShifted": false
+      },
+      "Tomás": {
+        "name": "Tomás",
+        "avatar": "palm",
+        "color": "ochre",
+        "travelling": true,
+        "colorShifted": false
       }
     }
   },

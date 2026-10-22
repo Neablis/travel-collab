@@ -1,4 +1,4 @@
-import type { TripEvent } from "@tc/contracts";
+import type { EventEnvelope, TripEvent } from "@tc/contracts";
 import type { TripState } from "./state";
 
 // Off every list, and so off `parkedFrom` too: a stop that is not parked has
@@ -163,4 +163,38 @@ export function evolveTrip(state: TripState | null, event: TripEvent): TripState
     case "TripRestored":
       return { ...state, status: "active" };
   }
+}
+
+/**
+ * `evolveTrip` for an event read from the log, where the envelope says who
+ * issued it. The add's actor is recorded as the stop's `addedBy`; that is the
+ * only use of the envelope. The live fold (`foldEnvelopes`) and the rebuild
+ * (`projectTripDetails`) both step through here, so they agree.
+ *
+ * An accepted suggestion credits the person who suggested it, not the
+ * reviewer who is the envelope's actor (Mitchell's call on PR 508). So does a
+ * batch accept (`suggestions`) whose changes all have one author. A batch
+ * mixing authors does not say which change made which stop, so it keeps the
+ * actor (KI-2026-10-20-b).
+ */
+export function evolveTripEnvelope(
+  state: TripState | null,
+  event: TripEvent,
+  envelope: Pick<EventEnvelope, "actorId"> & Partial<Pick<EventEnvelope, "origin">>,
+): TripState {
+  const next = evolveTrip(state, event);
+  if (event.type === "ActivityAdded") {
+    const origin = envelope.origin;
+    const adder =
+      origin?.kind === "suggestion" ? origin.authorId
+      : origin?.kind === "suggestions" && origin.authorIds.length === 1 ? origin.authorIds[0]!
+      : envelope.actorId;
+    return { ...next, addedBy: { ...next.addedBy, [event.payload.activityId]: adder } };
+  }
+  if (event.type === "ActivityRemoved" && next.addedBy?.[event.payload.activityId] !== undefined) {
+    const { [event.payload.activityId]: _gone, ...addedBy } = next.addedBy;
+    void _gone;
+    return { ...next, addedBy };
+  }
+  return next;
 }

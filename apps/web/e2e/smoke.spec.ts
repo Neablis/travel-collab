@@ -31,7 +31,7 @@ test("sign in, create a trip, see it in the list", async ({ page }) => {
   // `/signup`, not `/signin`: M11a's gate refuses anyone with no `users` row
   // and no credential, and the invite-code field the credential goes in exists
   // on the signup screen only. `.first()` because the landing page repeats
-  // this CTA in the header and the closing band — same link, three places.
+  // this CTA in the header, the hero and the closing cell — same link, three places.
   await page.getByRole("link", { name: "Start a trip" }).first().click();
 
   // The invite gate (M11a). Dev login goes through admission like every other

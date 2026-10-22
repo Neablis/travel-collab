@@ -1,7 +1,9 @@
-import type { ActivityView } from "@tc/contracts";
+import type { ActivityView, AssistantSuggested } from "@tc/contracts";
 import type { ItineraryDayPayload, Seg, SunPayload, TripPeoplePayload, TripStripPayload } from "@tc/pages";
 import type { AccentFamily } from "@/lib/dayAccent";
+import type { Persona } from "@/lib/persona";
 import type { DiscoverDay } from "@/lib/playbooks";
+import type { Ghost } from "@/lib/suggestionOverlay";
 import snapshot from "./landingDemo.generated.json";
 import features from "./landingFeatures.generated.json";
 
@@ -21,23 +23,47 @@ import features from "./landingFeatures.generated.json";
 // against the trip with its dates removed, so the blocks print the undated
 // forms they already have ("Day 5 · Tokyo · 5 stops").
 
+/** One day of a trip, as `DayRiver` takes it. */
+export type LandingRiverDay = {
+  dayId: string;
+  ordinal: number;
+  city: string;
+  activityIds: string[];
+  activities: Record<string, ActivityView>;
+};
+
 export type LandingDemo = {
   currency: string;
   /** Each day's colour family by `dayId`, as `cityAccents` answers it on the board. */
   accents: Record<string, AccentFamily>;
   /** One day of the trip, as `DayRiver` takes it. */
-  river: {
-    dayId: string;
-    ordinal: number;
-    city: string;
-    activityIds: string[];
-    activities: Record<string, ActivityView>;
+  river: LandingRiverDay & {
+    /** Every member by userId: who the blocks say is going, booked and added each stop. */
+    people: Record<string, Persona>;
   };
   /** The notebook panel's widgets, resolved by `@tc/pages` exactly as a notebook resolves them. */
   notebook: {
     strip: TripStripPayload;
     day: ItineraryDayPayload;
   };
+};
+
+/**
+ * The crew moment's trip (M51 decision 10): Paros to Santorini, planned by
+ * four people, with Elena's Naxos day borrowed as its Day 2. Folded by the
+ * real decider from the Greek bundle's days, undated and unpriced.
+ */
+export type LandingCrew = {
+  name: string;
+  currency: string;
+  accents: Record<string, AccentFamily>;
+  /** Day 2, its stops booked by and shared among the crew. */
+  river: LandingRiverDay;
+  /** The crew, for `FixedPeopleProvider`. */
+  personas: Record<string, Persona>;
+  people: TripPeoplePayload;
+  /** The library day Day 2 came from, and its canonical page. */
+  borrowed: { savedDayId: string; href: string };
 };
 
 /**
@@ -48,15 +74,34 @@ export type LandingDemo = {
 export type LandingFeatures = {
   /** Mitchell's published Hanoi playbook (`scripts/landing-day.json`), read through Discover's own `toDiscoverDay`. */
   playbook: DiscoverDay;
-  /** The shelf's second day (M50 part 9): a library playbook from `content/playbooks/`, read the same way. */
+  /** The find moment's banner: the day `scripts/landing-demo.ts` names by its key in `content/playbooks/`. */
   shelf: DiscoverDay;
+  /**
+   * The assistant moment's worked example (M51 part 6): Day 1 of a trip
+   * borrowed from the find moment's Rome playbook, what the reader asked, what
+   * the assistant said, and the stops its turn stored as a suggestion, as the
+   * board's overlay lays them on the day.
+   */
+  assistant: {
+    trip: string;
+    currency: string;
+    accent: AccentFamily;
+    river: LandingRiverDay;
+    ask: string;
+    answer: string;
+    suggested: AssistantSuggested;
+    ghosts: Ghost[];
+  };
+  crew: LandingCrew;
   /** The page's paragraphs: the author's words and the widgets' resolved values. */
   memory: Seg[][];
-  /** The page's block widgets (M50 part 9): the day it remembers, that day's daylight, and who was there. */
+  /** The page's block widgets (M50 part 9), the day it remembers and that day's daylight, and the rest of the page under its headings. */
   page: {
     day: ItineraryDayPayload;
     sun: SunPayload;
-    people: TripPeoplePayload;
+    /** The sun widget's title, as the widget picker names it: the page heads the widget with it. */
+    sunTitle: string;
+    journal: { heading: string; paragraphs: Seg[][] }[];
   };
 };
 
@@ -65,9 +110,3 @@ export type LandingFeatures = {
 // tsc checks, and by the verify step, which holds this file to its output.
 export const LANDING_DEMO = snapshot as unknown as LandingDemo;
 export const LANDING_FEATURES = features as unknown as LandingFeatures;
-
-/**
- * The closing quote on both front doors (M50 part 5): the Notebook page's last
- * paragraph, read here so that a regenerated page changes the quote with it.
- */
-export const LANDING_CLOSING_QUOTE = (LANDING_FEATURES.memory.at(-1) ?? []).map((seg) => seg.text).join("");

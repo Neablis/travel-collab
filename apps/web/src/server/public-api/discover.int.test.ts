@@ -59,14 +59,14 @@ const req = (secret: string, body?: unknown, method = "GET", url = "http://local
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
 
-/** A Playbook of `days` days whose first stop is in `city`, published unless told otherwise. */
+/** A Playbook of `days` days whose first day holds `stops` stops in `city`, published unless told otherwise. */
 async function playbookIn(
   secret: string,
   city: string,
-  opts: { days?: number; publish?: boolean; name?: string } = {},
+  opts: { days?: number; stops?: number; publish?: boolean; name?: string } = {},
 ): Promise<SavedDay> {
-  const stop = {
-    title: "A stop",
+  const stops = Array.from({ length: opts.stops ?? 1 }, (_, i) => ({
+    title: i === 0 ? "A stop" : `Stop ${i + 1}`,
     timeWindow: null,
     location: { name: `${city} centre`, city },
     notes: null,
@@ -74,8 +74,8 @@ async function playbookIn(
     kind: "planned",
     tags: [],
     cost: null,
-  };
-  const days = Array.from({ length: opts.days ?? 1 }, (_, i) => ({ stops: i === 0 ? [stop] : [] }));
+  }));
+  const days = Array.from({ length: opts.days ?? 1 }, (_, i) => ({ stops: i === 0 ? stops : [] }));
   const res = await CREATE(req(secret, { name: opts.name ?? "Somewhere", days }, "POST"), NO_PARAMS);
   expect(res.status).toBe(201);
   const { playbook } = (await res.json()) as { playbook: SavedDay };
@@ -219,6 +219,18 @@ describe("GET /v1/discover/playbooks", () => {
   // this API does not. `route()` sends the handler's objects, not the item
   // schema's parse, so the field has to be dropped by the handler — an
   // `.omit` on the schema alone would still ship it.
+  // The card shows as many stop rows as fit (M51 part 9), so the item carries
+  // day one's stops past three, as the app's card does.
+  it("previews day one's stops past three", async () => {
+    const city = `Discoverville-${RUN}-preview`;
+    const { secret } = await entitledToken();
+    await playbookIn(secret, city, { stops: 5 });
+
+    const { items } = await discover(secret, { city });
+    expect(items).toHaveLength(1);
+    expect(items[0]!.preview.map((stop) => stop.title)).toEqual(["A stop", "Stop 2", "Stop 3", "Stop 4", "Stop 5"]);
+  });
+
   it("names nobody: the item carries the owner's id and not their name", async () => {
     const city = `Discoverville-${RUN}-names`;
     const { owner, secret } = await entitledToken();
