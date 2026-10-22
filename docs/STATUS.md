@@ -33,7 +33,7 @@ parallel. Part 2 (the desktop sea) starts when part 1 merges; parts 3 and 6 star
 (part 6 also after part 5).
 
 **M52 is next after M51** (minted 2026-10-22, not scoped): the during-trip experience. Mitchell
-answered decisions 1–8, 11, 12, 17 and 18's chat reading the same day (a *During the trip*
+answered decisions 1–9, 11, 12, 17, 10's empty days and 18's chat reading the same day (a *During the trip*
 notebook); the rest are open recommendations; scope it with Mitchell before any part
 (`docs/milestones/M52-the-trip-comes-with-you.md`).
 

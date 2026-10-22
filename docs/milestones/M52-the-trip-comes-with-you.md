@@ -120,19 +120,39 @@ chips do.
 
 ### Open (recommendations, except where marked **Answered**)
 
-9. **The template's name and seeding.** *Recommended:* titled **During the trip**, seed key
-   `during-the-trip`, `seedIntoNewTrips: false`. It is **planted when a trip first enters its
-   *soon* window** (decision 11), by `instantiateMissingDefaults(…, only: "during-the-trip")`. That
-   is idempotent, so planning-phase trips never carry a fifth notebook they have no use for, and
-   trips that already exist get it too. A trip that deleted it is not given it again. The
-   alternative is seeding it into every new trip, which shows it all through planning.
+9. **The template's name and seeding.** **Answered by Mitchell, 2026-10-22:** *"3 days sounds
+   good to swap it in but it should be available always in the notebooks view if they want to
+   modify what they get shown daily. The default should be the daily good default, but like
+   everything it's flexible."* So:
+   - It is titled **During the trip**, with seed key `during-the-trip` and
+     **`seedIntoNewTrips: true`**: it comes with every trip, beside Overview, *Before you go*,
+     *Bookings* and *Money*.
+   - It is always in the notebook index, so anyone with edit access can change what their trip
+     shows each day, at any time.
+   - **Trips that already exist get it once**, by `instantiateMissingDefaults(…, only:
+     "during-the-trip")`, the next time their notebook index loads. That is idempotent. A trip
+     that deleted it is not given it again, and it can be re-added from the template gallery.
+   - The seeded content is the default described above (*Where it lives*). The notebook is the
+     trip's own copy after that, like every seeded notebook. A reset restores the default.
+   - **The 3-day mark** is when it starts to *surface*: Home's departure countdown and its
+     *Add your flight* prompt (decision 11). The Overview swap is decision 11's, under way only.
+     *(Read from "3 days sounds good to swap it in", alongside decision 11's earlier answer;
+     confirm at scoping whether Overview should swap at 3 days instead.)*
+   - A trip whose *During the trip* notebook was deleted keeps its ordinary Overview throughout.
 10. **What the Today scope is.** *Recommended:* a page context flag (`scope: "today"`, beside
     `kind: "overview"`), which every new page can be given and the template sets. *Today* is the
     trip day whose date is today, by decision 12's clock. Every widget on the page with an unset
-    `day` (or `dates`) input is narrowed to it, the way `repeat` narrows. Outside the trip's dates
-    the page says so in one line and reads as day 1 before the trip and the last day after it,
-    rather than rendering empty. The widget picker marks *"follows today"* on a widget it will
-    scope.
+    `day` (or `dates`) input is narrowed to it, the way `repeat` narrows. The widget picker marks
+    *"follows today"* on a widget it will scope.
+
+    **Outside the trip's dates, answered by Mitchell, 2026-10-22:** *"like all other widgets they
+    should know what to render if data is empty. So a day filter before trip should show lots of
+    nothing today default values."* Today is always the real today. On a date that is not a trip
+    day, each scoped widget is narrowed to *no day* and renders **its own empty state**: "Nothing
+    planned today", "No flight today", and so on. Nothing is substituted for today (the earlier
+    recommendation read day 1 before the trip), and there is no page-level banner. Every widget
+    the template seeds, and every new widget (decision 15), therefore needs a written
+    empty-today state, as the seeding rule already demands of an empty trip (`templates.ts:34`).
 11. **When the swap happens, and what *soon* does.** **Answered by Mitchell, 2026-10-22: as
     recommended.**
     - **Under way** (start date to end date): Overview shows *During the trip*, with a quiet
@@ -269,7 +289,8 @@ chips do.
 
 ## Exit gate
 
-- [ ] **Decisions 9, 10, 13–16 and 18–20 are answered and recorded here** (11, 12 and 17 are),
+- [ ] **Decisions 10 (the scope's shape), 13–16 and 18–20 are answered and recorded here** (9,
+      11, 12, 17 and 10's empty days are),
       with:
       - an ADR for the phase, *now* and the Today scope;
       - ADR-073 and ADR-067 amended for `@assistant`;
@@ -281,8 +302,13 @@ chips do.
       scope removed.
 - [ ] **Overview swaps only while the trip is under way**: a unit test over `pickOverviewPage`
       for a planning, soon, under-way and ended trip.
-- [ ] **The template is planted once, at *soon*, and not again after a delete**: an integration
-      test.
+- [ ] **Every trip has *During the trip***: a new trip is seeded with it, and an existing trip
+      gains it once on its next index load and not again after a delete. An integration test
+      shows both.
+- [ ] **Off a trip day, every widget on the seeded page renders its empty-today state**:
+      `templates.test.ts`, which already renders every seeded widget against new trips, renders
+      this page with a clock before the trip and after it. Seen red with one widget's empty
+      state removed.
 - [ ] **A trip replayed from a log written before `booking` equals its stored projection.**
 - [ ] **A confirmation number never reaches a share link or a published day**: an integration
       test reads both.
