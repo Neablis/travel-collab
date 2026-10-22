@@ -22,33 +22,17 @@ import { cn } from "@/lib/cn";
 import { LANDING_DEMO, LANDING_FEATURES } from "@/lib/landingDemo";
 import { dayPath } from "@/lib/playbookUrls";
 import { toClockRange } from "@/lib/time";
-import { LANDING_ACCENTS, LANDING_RIVER_CITY, LANDING_RIVER_TITLE, LandingRiver, snapshotAccents } from "./LandingRiver";
+import { LANDING_ACCENTS, LandingRiver, snapshotAccents } from "./LandingRiver";
 
-// The sea's moments (M51) and the phone's claims, drawn by the product's own
-// components (M42 part 9) from the committed snapshots (`lib/landingDemo.ts`).
+// The sea's moments (M51), on the desktop and the phone alike, drawn by the
+// product's own components (M42 part 9) from the committed snapshots
+// (`lib/landingDemo.ts`). Each fills the moment's cell, whose size the sea's
+// grid gives it: on a phone a cell is the screen's width and three units tall.
 //
 // Loaded lazily by `LandingFeaturePanel`, which keeps the river's
-// drag-and-drop and `@tc/pages` out of the landing's first load. Each panel
-// carries its own surface, so a moment and a phone claim can hold the same one.
+// drag-and-drop and `@tc/pages` out of the landing's first load.
 
 const SURFACE = "overflow-hidden rounded-lg border border-hairline bg-surface";
-
-/** Together: the demo trip's day on the board's own read-only river, under its day and city. */
-export function TogetherPanel(): React.ReactElement {
-  return (
-    <div className={SURFACE}>
-      <div className="flex items-center gap-2.5 border-b border-hairline px-3.5 py-2.5">
-        <Text as="span" className="font-display font-semibold">
-          {`${LANDING_RIVER_TITLE} · ${LANDING_RIVER_CITY}`}
-        </Text>
-        <DataText className="ml-auto text-2xs tracking-wider uppercase">Timeline</DataText>
-      </div>
-      <div className="px-3.5 py-3">
-        <LandingRiver />
-      </div>
-    </div>
-  );
-}
 
 /**
  * The sea's first moment: the richest Thailand day as a big card, filling the
@@ -183,13 +167,17 @@ const RAIL_TABS = [
  * none is there, so a screen reader hears one figure, named for what it shows,
  * and Tab passes it by. Canned (`landingFeatures.generated.json`), so `/`
  * fetches nothing (ADR-078).
+ *
+ * In a cell too narrow for two columns, a phone's, the day alone: its stack
+ * of what is being added and its ghosts say what was asked for, and the
+ * river runs on past the cell's foot, faded there.
  */
 export function AssistantPanel(): React.ReactElement {
   const clock = useTimeFormat();
   return (
-    <figure aria-label="An example: the assistant suggests two stops for Day 1" className="grid min-h-0 flex-1">
-      <div aria-hidden className="grid min-h-0 grid-cols-2 gap-5">
-        <div className={cn(SURFACE, "flex min-h-0 min-w-0 flex-col")}>
+    <figure aria-label="An example: the assistant suggests two stops for Day 1" className="@container grid min-h-0 flex-1">
+      <div aria-hidden className="grid min-h-0 gap-5 @sm:grid-cols-2">
+        <div className={cn(SURFACE, "hidden min-h-0 min-w-0 flex-col @sm:flex")}>
           <div className="shrink-0 border-b border-hairline px-4 py-3">
             <div className="flex items-center gap-2">
               <BrandMark size={24} />
@@ -217,7 +205,7 @@ export function AssistantPanel(): React.ReactElement {
             <Transcript turns={ASSISTANT_TURNS} example={{ review: ASSISTANT_REVIEW }} />
           </div>
         </div>
-        <div className={cn(SURFACE, "flex min-h-0 min-w-0 flex-col")}>
+        <div className={cn(SURFACE, "landing-phone-fade flex min-h-0 min-w-0 flex-col")}>
           <div className="flex items-center gap-2.5 border-b border-hairline px-3.5 py-2.5">
             <Text as="span" className="font-display font-semibold">
               {`${assistant.trip} · ${ASSISTANT_DAY} · ${assistant.river.city}`}
@@ -275,8 +263,9 @@ const CREW_PX_PER_HOUR = 29;
 export function CrewPanel(): React.ReactElement {
   return (
     <FixedPeopleProvider personas={crew.personas}>
-      {/* Filling its moment, whose height the sea's grid gives it. */}
-      <div className={cn(SURFACE, "flex min-h-0 flex-1 flex-col")}>
+      {/* Filling its moment, whose height the sea's grid gives it; on a
+          phone the day runs on past it, faded at its foot. */}
+      <div className={cn(SURFACE, "landing-phone-fade flex min-h-0 flex-1 flex-col")}>
         <div className="flex flex-col gap-2 border-b border-hairline px-3.5 py-2.5">
           <div className="flex items-center gap-2.5">
             <Text as="span" className="font-display font-semibold">
@@ -294,20 +283,6 @@ export function CrewPanel(): React.ReactElement {
   );
 }
 
-/**
- * Playbooks at phone size: the same card without its cover photo, city chips,
- * stop rows and tag chips, so it fits under the phone's headline on a 390×664
- * screen (the pinned stage clips what runs past it). What kind of day it is
- * still says what the tags would, and the title still opens the whole day.
- */
-export function CompactPlaybookPanel(): React.ReactElement {
-  return (
-    <ul className="flex flex-col">
-      <DiscoverCard day={{ ...LANDING_FEATURES.playbook, cover: null, cities: [], preview: [], tags: [] }} origin={{ from: "playbooks" }} />
-    </ul>
-  );
-}
-
 const PAGE = "flex flex-col gap-3 rounded-md border border-hairline bg-paper px-3.75 py-3.5";
 
 /** One of the page's paragraphs: the author's words with the widgets' values in them. */
@@ -316,22 +291,6 @@ function Paragraph({ segs, className = "text-sm" }: { segs: (typeof LANDING_FEAT
     <Text as="p" className={cn("leading-relaxed text-pretty", className)}>
       <Segs segs={segs} accents={LANDING_ACCENTS} />
     </Text>
-  );
-}
-
-/**
- * Notebook at phone size: a page somebody wrote about a day of the demo trip,
- * under the trip's strip. Its values are widgets resolved against the trip,
- * drawn as a notebook draws them; none of them is money (Mitchell, 2026-10-11).
- */
-export function MemoryPanel(): React.ReactElement {
-  return (
-    <div className={PAGE}>
-      <TripStripBlock payload={LANDING_DEMO.notebook.strip} accents={LANDING_ACCENTS} />
-      {LANDING_FEATURES.memory.map((segs, i) => (
-        <Paragraph key={i} segs={segs} />
-      ))}
-    </div>
   );
 }
 

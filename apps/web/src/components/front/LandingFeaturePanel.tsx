@@ -24,12 +24,9 @@ export const loadFeaturePanels = () =>
     throw e;
   }));
 const PANELS = {
-  together: lazy(() => loadFeaturePanels().then((m) => ({ default: m.TogetherPanel }))),
   "find-a-day": lazy(() => loadFeaturePanels().then((m) => ({ default: m.FindADayPanel }))),
   assistant: lazy(() => loadFeaturePanels().then((m) => ({ default: m.AssistantPanel }))),
   crew: lazy(() => loadFeaturePanels().then((m) => ({ default: m.CrewPanel }))),
-  "playbook-compact": lazy(() => loadFeaturePanels().then((m) => ({ default: m.CompactPlaybookPanel }))),
-  notebook: lazy(() => loadFeaturePanels().then((m) => ({ default: m.MemoryPanel }))),
   "notebook-page": lazy(() => loadFeaturePanels().then((m) => ({ default: m.NotebookPagePanel }))),
 };
 

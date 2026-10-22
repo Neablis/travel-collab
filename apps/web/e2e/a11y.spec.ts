@@ -44,6 +44,30 @@ test.describe("signed out", () => {
     expect(await seriousViolations(page)).toEqual([]);
   });
 
+  // The phone's front door is its own tree (M51 decision 11), and its moments
+  // rise out of a ghost of themselves as the reader scrolls: each is audited
+  // once it has risen at the screen's middle, alone, since the next is
+  // still a ghost coming up under it, which is faint on purpose.
+  test("the landing page at phone width, each moment once it has risen", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/");
+    const phone = page.getByTestId("phone-front-door");
+    await expect(phone.getByRole("heading", { name: "Plan the trip together." })).toBeVisible();
+    expect(await seriousViolations(page)).toEqual([]);
+    for (const id of ["sea-find", "sea-assistant", "sea-crew", "sea-notebook"]) {
+      const moment = phone.locator(`[aria-labelledby="${id}"]`);
+      await moment.evaluate((section) => {
+        const scroller = section.closest<HTMLElement>("[data-testid=phone-front-door]")!;
+        const box = section.getBoundingClientRect();
+        scroller.scrollTop += box.top + box.height / 2 - scroller.clientHeight / 2;
+      });
+      await expect(moment.getByTestId("moment-panel")).toHaveCSS("opacity", "1");
+      const { violations } = await new AxeBuilder({ page }).include(`[aria-labelledby="${id}"]`).withTags(WCAG_TAGS).analyze();
+      const serious = violations.filter((v) => v.impact === "serious" || v.impact === "critical").map((v) => ({ id: v.id, targets: v.nodes.map((n) => n.target.join(" ")) }));
+      expect({ id, serious }).toEqual({ id, serious: [] });
+    }
+  });
+
   test("sign in", async ({ page }) => {
     await page.goto("/signin");
     await expect(page.getByRole("button", { name: /sign in with dev login/i })).toBeVisible();
