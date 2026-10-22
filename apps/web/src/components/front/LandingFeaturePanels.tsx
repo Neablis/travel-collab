@@ -138,7 +138,15 @@ export function FindADayPanel(): React.ReactElement {
   return (
     <div data-testid="find-a-day-panel" className="landing-sea-cell flex min-h-0 flex-1 flex-col gap-2">
       <Heading level={3} className="shrink-0 text-md font-medium leading-snug">
-        <Link href={dayPath(shelf)} prefetch={false} className="hover:underline">
+        {/* `landing-sea-door`, as the DiscoverCard's title link had it: the
+            whole card is the tap target, not just the title glyphs. Without
+            it the two-line title's box center falls between its line boxes,
+            so a tap (and the phone tap check) at that point misses the link —
+            and the card stops being the door a tap opens, which is what the
+            find moment was before these tweaks. The panel's only interactive
+            element is this link (its tag chips render as plain text), so the
+            door covers nothing else. */}
+        <Link href={dayPath(shelf)} prefetch={false} className="landing-sea-door hover:underline">
           {shelf.name}
         </Link>
       </Heading>
