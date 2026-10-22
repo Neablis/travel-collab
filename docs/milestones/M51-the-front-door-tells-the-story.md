@@ -1,11 +1,12 @@
 # M51 — The front door tells the story
 
-**Status:** **Proposed and scoped 2026-10-20 with Mitchell; current from 2026-10-20**, ahead of
+**Status:** **Closed 2026-10-22, gate 11 of 11** (on Mitchell's ruling; see the gate and the
+retro). Proposed and scoped 2026-10-20 with Mitchell, current from 2026-10-20, ahead of
 M49 (decision 7). It comes from the top entry of `docs/candidates.md`, *The front door tells the
 story*, which M50's walk filed on 2026-10-19 (M50 decision 21). The design review settled every
-decision below before any code. The build plan is `docs/plans/2026-10-20-M51-front-door.md`,
-nine parts on `main` (parts 8 and 9 added during the build). Part 0 is this file, the plan and the
-gate tracker. No ADR: the two contract changes are additive, the `addedBy` read-model field
+decision below before any code. The build plan was `docs/plans/2026-10-20-M51-front-door.md`
+(deleted at the close; it is in git history), nine parts on `main` (parts 8 and 9 added during the
+build). Part 0 (PR 505) was this file, the plan and the gate tracker. No ADR: the two contract changes are additive, the `addedBy` read-model field
 (part 4) and the public API's preview stop cap, 3 to 12 (part 9, 1.20.0), each recorded in
 `docs/contracts/CHANGELOG.md` by its part.
 
@@ -181,8 +182,8 @@ repeated here.
 
 ## Scope
 
-Nine parts, each its own PR on `main` (the plan has the files, entry points, tests and preview
-walks):
+Nine parts, each its own PR on `main` (the deleted plan, in git history, had the files, entry
+points, tests and preview walks):
 
 1. **The sea's data.** All 148 public library days as `DiscoverCard` props with sample ratings,
    cell sizes and `dayPath` links. The Greece and Japan clusters and the moments' data, under
@@ -205,7 +206,7 @@ walks):
 8. **The preview link check** (PR 511, merged). Part 7's CI step against the PR's preview, built
    as its own part: it requests every sea link and fails on any non-200 (*The links stay real*,
    second half).
-9. **Day previews carry their stops** (PR 513, open). Day cards list stops until they run out of
+9. **Day previews carry their stops** (PR 513, merged). Day cards list stops until they run out of
    room, and the public API's preview stop cap rises from 3 to 12 (1.20.0; decisions 16 and 17).
    It waits on part 2 (PR 510) and merges after it.
 
@@ -224,54 +225,64 @@ moment's names wait on 4. 8 followed 7; 9 merges after 2.
 
 ## Exit gate
 
-- [ ] **The sea's data:** a generated snapshot holds all 148 public library days as
+**Ticked 2026-10-22 on Mitchell's ruling at the close**: the parts are merged with CI green on
+`main`, and his walk at 390, 1440 and 3440 works. Each box's per-box red evidence was not
+re-checked after the test-pruning pass (PRs 520 to 526); that is KI-2026-10-22-b. The two boxes
+below with a note are closed without part of their scope, which now lives in a known issue.
+
+- [x] **The sea's data:** a generated snapshot holds all 148 public library days as
       `DiscoverCard` props, each with a cell size, a canonical `dayPath` href that round-trips
       through `parseDaySegment`, and a sample rating in `ratingLine`'s format (about one in nine
       *"No reviews yet"*). It carries no calendar date. `landing:verify` covers it. The Greece crew
       trip and the Japan cluster come from it. The Railay viewpoint (both content files) and dinner
       stop lose the wrong pin and carry none until the geocoder re-pins them, and KI-2026-10-20-a
       is in `resolved/`. Test seen red.
-- [ ] **The desktop sea:** at 1440 and 3440 the sea runs edge to edge with no dead side margins.
+- [x] **The desktop sea:** at 1440 and 3440 the sea runs edge to edge with no dead side margins.
       The first screen of cells is in the server-rendered HTML. Only near-screen cells mount. The
       moments rise and the sea dims, with one screen of sea between them and the first screen held
       longer. Pricing is second to last, and the full-width closing cell is the last element. `/`
       stays static (ADR-078) and the landing makes no request (`LandingScreen.test.tsx`'s fetch
       spy). Tests seen red.
-- [ ] **Every linked cell is a door:** each linked cell goes to its canonical day page, with no
+- [x] **Every linked cell is a door:** each linked cell goes to its canonical day page, with no
       `?from=` and with prefetch off, and resolves to a real day in that environment's DB: seeded
       library days on previews (part 7), production days on production. Unlinked cells (the Japan
-      cluster) are allowed. A linked cell shows a hover and focus ring. Keyboard focus reaches the moments
+      cluster) are allowed. A linked cell shows a hover and focus ring. *Production half deferred
+      (Mitchell, 2026-10-22): nothing checks the sea's links against production after an import;
+      KI-2026-10-20-c.* Keyboard focus reaches the moments
       and the CTAs without tabbing through every background card. `a11y.spec.ts` (axe) passes on
       `/`.
-- [ ] **The links stay real:** a CI unit test checks that every href the landing sea renders
+- [x] **The links stay real:** a CI unit test checks that every href the landing sea renders
       resolves to a day the content importer creates from `content/`, using the importer's own
       slug/id code, not a copy (this settles PR 507's minor at `landing-demo.test.ts:141`), and
       that the Japan cells render no link. A CI step against the PR's Vercel preview, after part 7
       seeds it, requests every sea link and fails on any non-200. Both seen red.
-- [ ] **Pricing ladder:** Free → Plus $9/mo → Premium $19/mo, with decision 6's copy. "Free"
+- [x] **Pricing ladder:** Free → Plus $9/mo → Premium $19/mo, with decision 6's copy. "Free"
       appears only as the plan name, and the page has no exclamation mark. Each *"Everything in X,
       and…"* line is computed from entitlement sets, never from price or order
       (`planVersions.noExtension.test.ts`'s warning).
-- [ ] **The phone sea:** at 390 the tiled sea has the same rise and fade. `#pricing` still scrolls
+- [x] **The phone sea:** at 390 the tiled sea has the same rise and fade. `#pricing` still scrolls
       under the sticky header, the safe-area banner holds (`m39-installable.spec.ts`), and there is
       no sideways scroll at 390, 375 or 360.
-- [ ] **The old landing's tests are replaced, not deleted silently:** every pin listed in the plan
+- [x] **The old landing's tests are replaced, not deleted silently:** every pin listed in the plan
       is rewritten or removed with a reason. KI-2026-10-19-d, -h and -i move to `resolved/`, and
       any replacement for the 900px assertion is seen red.
-- [ ] **Names on stops:** a trip's stops show who is going, "Booked by" and *"Sam added this"*.
+- [x] **Names on stops:** a trip's stops show who is going, "Booked by" and *"Sam added this"*.
       `ActivityView.addedBy` is in the read model, the CHANGELOG and the committed `openapi.json`.
       The projection-rebuild golden test passes, the demo fixture exercises it and `pnpm
       seed:verify` is green. The rack reads "Booked by". Tests seen red.
-- [ ] **Pick a day:** `AddToTripDialog` offers the chosen trip's days and "after the last day". A
+- [x] **Pick a day:** `AddToTripDialog` offers the chosen trip's days and "after the last day". A
       chosen day sends `startingAt` and the stops land on it. The dialog's copy states what it
       does. Unit and e2e (`m11b-playbooks.spec.ts` or `m11-saved-days.spec.ts`) seen red.
-- [ ] **Make it your trip:** from the landing's moment, signed out: sign up → *Making your
+- [x] **Make it your trip:** from the landing's moment, signed out: sign up → *Making your
       trip…* → a new undated trip named for the day, holding it. A signed-in return opens the
-      add-to-trip choice (M50 decision 15). e2e seen red, via ci-like.
-- [ ] **[walk]** Mitchell walks the preview at **390, 1440 and 3440**, with the mouse and with the
+      add-to-trip choice (M50 decision 15). e2e seen red, via ci-like. *Not built; closed on
+      Mitchell's ruling (2026-10-22): the design changed and part 6 (PR 514) became the assistant
+      moment. KI-2026-10-22-a holds it.*
+- [x] **[walk]** Mitchell walks the preview at **390, 1440 and 3440**, with the mouse and with the
       keyboard only: the sea's first screen, each moment rising, a cell opening its day page,
       pricing, the closing cell, and *Make it your trip* through to a new trip. He also walks a
-      trip's stops with names and the day picker.
+      trip's stops with names and the day picker. *Done: Mitchell, 2026-10-22, "I did the walk and
+      it works".*
 
 A retro is appended at gate close. `pnpm milestone close M51` deletes the placed candidate.
 
@@ -299,3 +310,76 @@ A retro is appended at gate close. `pnpm milestone close M51` deletes the placed
 - **"Added by" names whoever re-emitted the add.** A revert or undo re-emits `ActivityAdded` under
   the reverter's actor. Part 4 states this in the CHANGELOG entry.
 - **iOS momentum scroll** with many mounted cards inside the phone's scroller.
+
+## Retro — written 2026-10-22 (11 of 11 boxes ticked)
+
+### Mitchell's ruling at the close
+
+**2026-10-22.** He did the walk and it works, so the **[walk]** box is ticked on his word. Every
+other box is ticked on the merged parts, with three items moved to known issues rather than
+holding the gate:
+
+- **Make it your trip** was not built as planned. The design changed, and part 6 (PR 514) became
+  the assistant moment: KI-2026-10-22-a.
+- **The per-box red evidence** was not re-checked after the test-pruning pass. Mitchell's reason:
+  testing is taking too long. KI-2026-10-22-b.
+- **The production half of the links ruling** (decision 10) is still not checked, and he wants it
+  built later: KI-2026-10-20-c.
+
+### What went well
+
+- **All nine parts merged in about two days.** The parts, in merge order:
+  - part 5, PR 506
+  - part 1, PR 507
+  - part 4, PR 508
+  - part 7, PR 509
+  - part 8, PR 511
+  - part 2, PR 510
+  - part 9, PR 513
+  - part 6, PR 514
+  - part 3, PR 516
+
+  Mitchell's follow-up tweaks to the sea came in PR 518. Part 0 (PR 505) merged before the gate
+  closed, so the close runs on its own prose-only PR.
+- **Four known issues closed by the redesign or by part 1, as decision 12 planned**:
+  KI-2026-10-19-d, -h and -i, and KI-2026-10-20-a. All four are in `resolved/`.
+- **The contract changes stayed additive, with no ADR**: `addedBy` (part 4) and the preview stop
+  cap of 3 to 12 (part 9, 1.20.0). Each is in `docs/contracts/CHANGELOG.md`.
+- **Previews now hold the library's days** (part 7), and a CI step requests every sea link on the
+  PR's preview (part 8). This closed the 147-of-148 preview 404s that the Risks section named.
+
+### What could be better
+
+- **Part 0 merged before the gate closed** (PR 505, 2026-10-21). That is against
+  `building-a-milestone.md`, where part 0 merges last. STATUS then read "build parts 1, 4, 5" for
+  two days after they had merged, and the close needed a new PR. Merging part 0 only when the gate
+  closes would have kept STATUS current.
+- **A planned part was redesigned without updating the gate.** Part 6 shipped the assistant moment
+  (PR 514), while the gate still asked for the signup → trip flow. Amending the box when the walk
+  changed part 6's scope would have avoided closing the gate on a ruling.
+- **The test-pruning pass ran between the build and the close** (PRs 520 to 526, including the
+  m42 screenshot replacement). The "seen red" boxes were therefore ticked without re-checking the
+  tests behind them (KI-2026-10-22-b). The red evidence should be gathered while each part merges,
+  before any pruning.
+- **The spend is not measured.** No build session ran `session-metrics` before its hand-off, and
+  this close session has none of their transcripts.
+
+### Leftovers
+
+- The landing's signup → new-trip path: KI-2026-10-22-a.
+- Re-proving the gate's red evidence after pruning: KI-2026-10-22-b.
+- Checking production's sea links: KI-2026-10-20-c.
+- Filed during the build and still open: KI-2026-10-20-b and KI-2026-10-21-a.
+- Real reviews on the landing's cards, and the book motif across the app: `docs/candidates.md`.
+- The Railay stops are still unpinned until the geocoder re-pins them (decision 12).
+
+## Spend
+
+Not measured: closed with `--no-spend`. The build sessions' transcripts are not in the closing
+session's container, and none of those sessions recorded a block before its hand-off. For scale,
+the merged diffs of PRs 506 to 518, without `docs/`, `*.generated.json` and `pnpm-lock.yaml`,
+add about 9,300 lines (part 2, PR 510, is 4,587 of them).
+
+### Spend against the last milestone
+
+No targets can be compared: M51 has no block, and M50's is the last measured one.
