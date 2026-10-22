@@ -81,7 +81,7 @@ test.describe("responsive (narrow viewport)", () => {
     // single narrow-project test.
     for (const width of [1280, 1100] as const) {
       await page.setViewportSize({ width, height: 900 });
-      const plan = page.locator(".trip-board-content");
+      const plan = page.getByTestId("trip-board-content");
       await expect
         .poll(() => plan.evaluate((el) => el.getBoundingClientRect().width))
         .toBe(width);
