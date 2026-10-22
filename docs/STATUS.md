@@ -21,21 +21,20 @@ general setup.
 
 ## Where the work is right now
 
-**M51 — The front door tells the story — is the current milestone**
-(`docs/milestones/M51-the-front-door-tells-the-story.md`), minted and scoped with Mitchell on
-2026-10-20 after a design review of the homepage; he chose C2, the sea of notebooks. It is placed
-ahead of M49, which waits. Plan: `docs/plans/2026-10-20-M51-front-door.md`, six parts on `main`
-(branches `claude/m51-part<K>-…`). Part 0 is the draft PR on `claude/m51-front-door-plan`, and it
-merges last. KI-2026-10-20-a (the Railay coordinates) is fixed by part 1.
+**M52 — The trip comes with you — is the current milestone**
+(`docs/milestones/M52-the-trip-comes-with-you.md`), minted 2026-10-22 and **not yet scoped**: the
+during-trip experience. Mitchell answered decisions 1–9, 11, 12, 17, 10's empty days and 18's chat
+reading the same day (a *During the trip* notebook). The rest are open recommendations.
 
-**Next action:** build parts 1 (the sea's data), 4 (names on stops) and 5 (pick a day) in
-parallel. Part 2 (the desktop sea) starts when part 1 merges; parts 3 and 6 start after part 2
-(part 6 also after part 5).
+**Next action:** scope M52 with Mitchell (`plan-a-milestone`) before any part is built. After it,
+the order is M49 → M43 → M44, with M48 parked.
 
-**M52 is next after M51** (minted 2026-10-22, not scoped): the during-trip experience. Mitchell
-answered decisions 1–9, 11, 12, 17, 10's empty days and 18's chat reading the same day (a *During the trip*
-notebook); the rest are open recommendations; scope it with Mitchell before any part
-(`docs/milestones/M52-the-trip-comes-with-you.md`).
+**M51 closed 2026-10-22, gate 11 of 11**, on Mitchell's ruling at the close: his walk at 390, 1440
+and 3440 works, and the parts are merged (PRs 506–511, 513, 514, 516; part 0 PR 505 merged early;
+follow-up tweaks PR 518). Three things left the gate as known issues: the landing's signup →
+new-trip path (KI-2026-10-22-a), re-proving the gate's red evidence after the test-pruning pass
+(KI-2026-10-22-b), and checking the sea's links against production (KI-2026-10-20-c). Closed with
+`--no-spend`. Evidence and retro are in `docs/milestones/M51-the-front-door-tells-the-story.md`.
 
 **M50 closed 2026-10-19, gate 11 of 11** (part 0 PR 493). Parts are PRs 494-501 and 503 (part 9,
 from Mitchell's walk), migrations `0060` and `0061`, both applied in production; ADR-079. Five
@@ -78,7 +77,7 @@ Also merged beside it: `docs/guidelines/building-with-judgment.md` (PR 468).
 **M45 closed 2026-10-13, gate 12 of 12** (part 0 PR 420); evidence and retro in
 `docs/milestones/M45-the-assistant-beyond-one-trip.md`. Accepted gap: KI-2026-10-13-a.
 
-Order: `… M42 ✓ → M45 ✓ → M46 ✓ → M47 ✓ → M50 ✓ → M51 → M48 (parked) → M49 → M43 → M44`; the reorder is in
+Order: `… M42 ✓ → M45 ✓ → M46 ✓ → M47 ✓ → M50 ✓ → M51 ✓ → M52 → M48 (parked) → M49 → M43 → M44`; the M51 reorder is in
 `docs/milestones/README.md`, *2026-10-20 — minted: M51, ahead of M49*. Earlier closed milestones'
 narrative is in `docs/retros/2026-10-16-status-archive.md` and each milestone's own file.
 

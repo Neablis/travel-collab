@@ -11,12 +11,13 @@
   resolve.
 - **Why not fixed here:** found in PR 510's fresh review (M51 part 2). Part 7's checks cover the
   importer's ids and the preview, not production's state after the import, so no part owns the
-  drift, and part 2 builds the sea, not its link audit.
+  drift, and part 2 builds the sea, not its link audit. At M51's gate close (2026-10-22) Mitchell
+  kept it open, to be built later; M51 closed with the production half of decision 10 unchecked.
 - **Fix direction:** a scheduled check (or a step in `import-content-production.yml`) that
   requests every href in `landingSea.generated.json` against production and fails on a non-200,
   or a build-time read of production's published ids. Alternatively, put one line in M51 part 7's
   scope so the production half of the links ruling has an owner.
-- **Cross-reference:** M51's milestone file, decision 10 (on the part 0 branch
-  `claude/m51-front-door-plan` until it merges);
+- **Cross-reference:** M51's milestone file
+  (`docs/milestones/M51-the-front-door-tells-the-story.md`), decision 10 and its retro;
   ADR-041 (`docs/guidelines/content-bundles.md`); ADR-063 (the day page's cache).
 - **First noted:** 2026-10-20, PR 510's fresh review, finding 11.
