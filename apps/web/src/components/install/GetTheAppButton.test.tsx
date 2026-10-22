@@ -65,6 +65,11 @@ describe("GetTheAppButton", () => {
     store = createInstallPrompt(ipad as unknown as Window);
     render(<GetTheAppButton />);
     await userEvent.click(button()!);
-    expect(await screen.findByRole("dialog", { name: "Add Caesura to your Home Screen" })).toBeTruthy();
+    // Test-pruning: the shared iOS sheet's copy is asserted here, once —
+    // the iPhone copy of this test in AccountMenu.install.test.tsx was
+    // removed, and this test's title already promised the two steps.
+    const sheet = await screen.findByRole("dialog", { name: "Add Caesura to your Home Screen" });
+    expect(sheet.textContent).toContain("Tap Share in Safari's toolbar.");
+    expect(sheet.textContent).toContain("Choose Add to Home Screen.");
   });
 });

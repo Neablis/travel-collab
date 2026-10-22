@@ -37,14 +37,14 @@ async function openMenu() {
 }
 
 describe("AccountMenu — Install app", () => {
-  it("is not offered by a browser that has not said it can install", async () => {
-    render(<AccountMenu name="Sam K" email="sam@example.com" />);
-    await openMenu();
-    expect(screen.getByRole("button", { name: "Sign out" })).toBeTruthy();
-    expect(screen.queryByRole("button", { name: "Install app" })).toBeNull();
-  });
-
-  it("asks the browser to install once it has said it can", async () => {
+  // Test-pruning: the install lifecycle itself (not offered / prompt once /
+  // gone after install) is proven at its owner layer by
+  // GetTheAppButton.test.tsx against the same store mock, and the store
+  // logic by lib/installPrompt.test.ts — so this file keeps only the
+  // menu-specific wiring: the control is present inside the menu, and
+  // the menu closes behind the browser's dialog. The iOS sheet's two
+  // steps are asserted once, in GetTheAppButton.test.tsx's iPad test.
+  it("the menu offers Install app once installable, and the menu closes when it is pressed", async () => {
     render(<AccountMenu name="Sam K" email="sam@example.com" />);
     const prompt = fireInstallable();
     await openMenu();
@@ -52,31 +52,5 @@ describe("AccountMenu — Install app", () => {
     expect(prompt).toHaveBeenCalledTimes(1);
     // The menu closed behind the browser's own dialog.
     expect(screen.queryByRole("button", { name: "Sign out" })).toBeNull();
-  });
-
-  it("goes away once the app is installed", async () => {
-    render(<AccountMenu name="Sam K" email="sam@example.com" />);
-    fireInstallable();
-    act(() => {
-      window.dispatchEvent(new Event("appinstalled"));
-    });
-    await openMenu();
-    expect(screen.queryByRole("button", { name: "Install app" })).toBeNull();
-  });
-
-  it("shows Safari on an iPhone the two steps instead", async () => {
-    const iphone = Object.assign(new EventTarget(), {
-      navigator: {
-        userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Version/18.0 Mobile/15E148 Safari/604.1",
-        maxTouchPoints: 5,
-      },
-    });
-    store = createInstallPrompt(iphone as unknown as Window);
-    render(<AccountMenu name="Sam K" email="sam@example.com" />);
-    await openMenu();
-    await userEvent.click(screen.getByRole("button", { name: "Install app" }));
-    const sheet = await screen.findByRole("dialog", { name: "Add Caesura to your Home Screen" });
-    expect(sheet.textContent).toContain("Tap Share in Safari's toolbar.");
-    expect(sheet.textContent).toContain("Choose Add to Home Screen.");
   });
 });
