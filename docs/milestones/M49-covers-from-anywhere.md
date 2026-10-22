@@ -1,6 +1,6 @@
 # M49 — A cover can come from anywhere, and be framed where you want it
 
-**Status:** **Proposed 2026-10-12, placed after M48 and before M43 and M44. Not scoped yet**:
+**Status:** **Waits for M51 from 2026-10-20** (Mitchell: M51 goes ahead of M49; nothing here has started). **Proposed 2026-10-12, placed after M48 and before M43 and M44. Not scoped yet**:
 decisions 1–3 were answered by Mitchell when it was minted; the rest are recommendations and none
 has been answered. Minted on Mitchell's ask the same day (see `docs/milestones/README.md`,
 *2026-10-12 — reordered and minted*).

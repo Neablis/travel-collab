@@ -131,6 +131,7 @@ for collaboration later landing on a product people already want to join.
 | M48 | A planned trip starts from trips that already exist | **Proposed 2026-10-11; serving code merged 2026-10-16** off the row order, with Mitchell's approval (`docs/STATUS.md`), behind a flag, **on in production from 2026-10-17** to gather flag-on numbers: PRs 459-467, migration `0054`, pgvector in Neon (ADR-075). **Current since 2026-10-18**, when M47's gate closed; what is left is the gate's evidence and the ledger box. From a PM brief (Sunny), on Mitchell's ask; see *2026-10-11 — proposed: M48*. A `plan` turn adapts example days Caesura already holds instead of inventing them, measured in dollars per plan turn. Decisions and the remaining gate boxes: `M48-plans-start-from-examples.md` |
 | M49 | A cover can come from anywhere, and be framed where you want it | **Proposed 2026-10-12, not scoped**; decisions 1–3 answered by Mitchell at minting. On his ask; see *2026-10-12 — reordered and minted*. Placed after M48, ahead of M43 and M44. A trip's cover set, read and cleared on the public API from any image URL (referenced, never stored), and a cover's crop repositioned in the API and by drag on the band. Absorbs the *Reposition a cover* candidate: `M49-covers-from-anywhere.md` |
 | M50 | A stranger can find a day, make it their trip, and bring people in | **Closed 2026-10-19, gate 11 of 11**, on part 0, PR 493. **Proposed and scoped 2026-10-19 with Mitchell**, ahead of M48 (parked) and M49. From his go-to-market plan; see *2026-10-19 — minted: M50, M48 parked*. Copy fixes, first-touch `?ref=` attribution (ADR-079, migration `0060`), place-page JSON-LD, one step from a playbook day to a new trip, an editorial landing and empty states, publishing a lived trip, the referral nudge; eight parts (the plan is deleted): `M50-strangers-find-a-day.md` |
+| M51 | The front door tells the story | **Proposed and scoped 2026-10-20 with Mitchell; current from 2026-10-20**, ahead of M49 (which waits) and M48 (parked). From the top entry of `docs/candidates.md`, placed by a design review with three directions and two motion prototypes; see *2026-10-20 — minted: M51, ahead of M49*. The landing becomes a sea of the library's 148 public days as real Discover cards, from a build-time snapshot, with the story's moments rising out of it; a pricing ladder; names on stops (`addedBy`, `openapi.json`); a day picker over `startingAt` (ADR-050); the landing's path into onboarding. Six parts, plan `docs/plans/2026-10-20-M51-front-door.md`: `M51-the-front-door-tells-the-story.md` |
 
 - **Restructure (2026-07-28), from the Phase 1 gate review.** The gate had not
   been met and the reason was structural, not cosmetic: a trip cannot be renamed
@@ -196,7 +197,7 @@ Placement notes (decided 2026-07-07):
   questions stay open — start-only trip dates, first-run vs. the four-step
   wizard, and whether the landing copy may sell M11/M12 — see the review's §8.
 
-Current milestone: M49 — A cover can come from anywhere, and be framed where y…
+Current milestone: M51 — The front door tells the story
 
 ### Archived decision notes
 
@@ -230,6 +231,16 @@ instruction, and they were 56% of this file.
 - **2026-10-06** — M35 closed; M37 is current
 - **2026-08-08, 2026-08-14, 2026-08-25, 2026-08-26** — the superseded reorders and M10's reopened gate, and the placement paragraphs for M26 to M28: *Moved out of README.md on 2026-09-30*, at the end
 - **Current-milestone placements, M14 to M34**: *Moved out of README.md on 2026-10-11*, at the end
+
+### 2026-10-20 — minted: M51, ahead of M49
+
+**Asked 2026-10-19, scoped 2026-10-20.** M50's walk filed the homepage redesign as a candidate
+(*The front door tells the story*) and as its own milestone, starting from a design review. The
+review ran on 2026-10-20 (three directions, two second rounds, two motion prototypes), and Mitchell
+chose C2, the sea of notebooks. **M51 is minted, scoped and current.** It is placed **ahead of
+M49**, which waits (Mitchell: M51 goes ahead of M49, and nothing in M49 has started). M48 stays
+parked. Order: M51 → M49 → M43 → M44, with M48 parked. The decisions are in
+`M51-the-front-door-tells-the-story.md`.
 
 ### 2026-10-19 — minted: M50, M48 parked
 
