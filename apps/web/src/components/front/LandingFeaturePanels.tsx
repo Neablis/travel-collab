@@ -82,7 +82,6 @@ const FIND_A_DAY_BLURB =
 const SAMPLE_REVIEWS: { name: string; quote: string }[] = [
   { name: "Elena", quote: "The arena floor first thing was worth every cent — standing where the gladiators stood changes the whole place." },
   { name: "Tom", quote: "Lunch in Testaccio was the day's best decision. The market stalls, then walking it off past the Pyramid." },
-  { name: "Priya", quote: "The Appian Way walk felt like leaving the city behind. Ancient stones, no crowds, and the catacombs under it." },
 ];
 /**
  * The sea's first moment (M9): the Rome day as the day page shows it, not a
@@ -102,7 +101,7 @@ export function FindADayPanel(): React.ReactElement {
     .filter((part) => part !== null)
     .join(" · ");
   return (
-    <div className="landing-sea-cell flex min-h-0 flex-1 flex-col gap-2.5">
+    <div className="landing-sea-cell flex min-h-0 flex-1 flex-col gap-2">
       <Heading level={3} className="text-md font-medium leading-snug">
         <Link href={dayPath(shelf)} prefetch={false} className="hover:underline">
           {shelf.name}
@@ -114,23 +113,37 @@ export function FindADayPanel(): React.ReactElement {
       <DataText size="xs" className="block">
         {meta}
       </DataText>
-      {shelf.description !== null && <Text variant="secondary">{shelf.description}</Text>}
-      {shelf.tags.length > 0 && <StopTagChips activityId={shelf.savedDayId} tags={shelf.tags} focusedTag={null} />}
+      {(shelf.description !== null || shelf.tags.length > 0) && (
+        <div className="flex flex-wrap items-center gap-2" data-testid="find-a-day-tags">
+          {shelf.description !== null && <Text variant="secondary">{shelf.description}</Text>}
+          {shelf.tags.length > 0 && <StopTagChips activityId={shelf.savedDayId} tags={shelf.tags} focusedTag={null} />}
+        </div>
+      )}
       <Text as="p" className="line-clamp-2 text-sm leading-relaxed text-pretty">
         {FIND_A_DAY_BLURB}
       </Text>
-      {/* The canned preview is Day 2's stops (its times and names match the day page's Day 2). */}
+      {/* The canned preview is Day 2's stops (its times and names match the day page's Day 2). The rows mirror the day page's stop rows — time gutter, numbered marker, title — tightened to pt-1.5/pb-0.5 so six rows fit the moment; no leg lines, because the snapshot carries no leg data and none are invented. */}
       <div className="flex flex-col gap-1">
         <DataText size="xs" className="uppercase tracking-wider">
           Day 2 · {shelf.preview.length} stops
         </DataText>
-        <ul className="flex flex-col gap-1">
+        <ul className="flex flex-col">
           {shelf.preview.map((stop, index) => (
-            <li key={index} className="flex items-baseline gap-2.5 text-sm">
-              <DataText size="xs" className="w-15.5 shrink-0 pt-0.5 text-2xs">
-                {stop.start !== null ? toClockLabel(stop.start, clock) : ""}
-              </DataText>
-              <span className="truncate">{stop.title}</span>
+            <li key={index}>
+              <div className="flex gap-2.5 pt-1.5 pb-0.5 md:gap-3">
+                <DataText size="xs" className="w-15.5 shrink-0 pt-0.5 text-2xs md:w-21.5">
+                  {stop.start !== null ? toClockLabel(stop.start, clock) : ""}
+                </DataText>
+                <span
+                  className="grid size-6 shrink-0 place-items-center rounded-full bg-brand font-mono text-2xs font-semibold text-surface"
+                  data-testid="stop-number"
+                >
+                  {index + 1}
+                </span>
+                <div className="flex min-w-0 flex-1 flex-col gap-1.5 pt-px">
+                  <span className="truncate font-semibold text-ink">{stop.title}</span>
+                </div>
+              </div>
             </li>
           ))}
         </ul>
@@ -151,7 +164,7 @@ export function FindADayPanel(): React.ReactElement {
         </div>
         <ul className="flex flex-col gap-1.5">
           {SAMPLE_REVIEWS.map((review) => (
-            <li key={review.name} className="flex flex-col">
+            <li key={review.name} className="flex flex-col" data-testid="find-a-day-review">
               <Text as="span" className="text-sm leading-snug">
                 “{review.quote}”
               </Text>
