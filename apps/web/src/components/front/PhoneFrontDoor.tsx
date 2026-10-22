@@ -1,418 +1,173 @@
 "use client";
 
-import { type ReactNode, useEffect, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
 import { BrandMark } from "@/components/BrandMark";
-import { Badge } from "@/components/ui/badge";
-import { LandingFeaturePanel } from "@/components/front/LandingFeaturePanel";
 import { LandingPricing } from "@/components/front/LandingPricing";
+import {
+  SeaPlaced,
+  layoutSea,
+  measureSea,
+  packedFor,
+  paintMoments,
+  seaDim,
+  styleNumber,
+  useMomentTops,
+  useSeaMetrics,
+  type SeaShape,
+} from "@/components/front/LandingSea";
+import { GAP, PAD, place } from "@/components/front/LandingSeaCells";
 import { buttonVariants } from "@/components/ui/button";
 import { DataText } from "@/components/ui/data-text";
 import { Heading } from "@/components/ui/heading";
 import { Text } from "@/components/ui/text";
+import { DEMO_PATH } from "@/lib/demoTrip";
 import { cn } from "@/lib/cn";
 
-// SPEC §28's phone front door.
+// The phone's front door is the desktop's sea at a phone's width (M51
+// decision 11, Mitchell: *"Could we keep the tiled background, and the
+// embedded cards from the elements as i suggested in the mobile version?"*):
+// the same library days on their regions' mats, the same four moments rising
+// out of the sea as it dims, the pricing and the closing cell last. It
+// replaced SPEC §28's pinned sequence, a map with four claims passing under
+// one headline.
 //
-// > The desktop landing's long scroll and rotating hero is the wrong shape at
-// > 390px. The phone gets a **pinned sequence**: the map and the headline hold
-// > still while four claims pass through underneath, then the map clears out
-// > and the call to action arrives on empty paper.
+// **Two columns, not the prototype's four.** The prototype scaled a 260px card
+// down into each 85px unit; a card here never scales itself to fit (M51
+// decision 13, `building-from-the-design.md`), and a Discover card fills a
+// unit some 170px wide as it does on the desktop's narrowest grid. Every
+// moment is the grid's full width and three rows at most, so it fits one
+// phone screen, and each lights two days, one above and one below it, apart.
 //
-// **Three notes the spec attaches to this, all of which read like they were
-// paid for once**, and all three are load-bearing here:
-//
-//  1. **Progress is scroll position inside the pinned block, not time** — so
-//     you can stop on one claim and it stays. A timed sequence on a front door
-//     is a thing that moves while you are reading it.
-//  2. **The rest state is authored into the markup** — the first chunk at
-//     `opacity: 1`, the rest at `0` — or a cold load stacks all four on top of
-//     each other before the first scroll event ever fires.
-//  3. **No `requestAnimationFrame`.** In a throttled or hidden frame the
-//     callback never runs, so the "already scheduled" guard latches forever and
-//     silently kills the effect. Synchronous transform/opacity writes only.
-//
-// **Written to the DOM per scroll event, never to React state.** Sixty
-// re-renders a second of a tree this size is the thing rAF is usually reached
-// for, and the answer here is not to schedule the work but to not do work that
-// needs scheduling: two style properties on five elements is cheap, and the
-// browser coalesces the paint itself.
+// The screen is its own scroller under a sticky bar, as it was: the bar holds
+// still, the `#pricing` hash is answered here, and the footer ends it. The
+// scroll writes to the DOM as the desktop's does (SPEC §28's notes, which
+// `LandingSea` follows): progress is the scroller's position, no
+// `requestAnimationFrame`, the rest state in the markup, and only the scrim,
+// the moments' panels and their lit days' veils written, never a card. Cells
+// mount as the reader nears them in the scroller: iOS momentum scrolling
+// stutters with the whole library mounted inside an `overflow-y-auto` box.
 
-/**
- * Where the stage starts clearing, and over how much of the scroll. §28's "the
- * map clears out".
- *
- * **The two numbers now say the whole story, because they sum to 1 and the
- * claims no longer reach past the first of them.**
- *
- * Mitchell, second round on the preview: *"the last chunk before start a trip
- * takes over doesn't last long enough, and when it does fade it takes too much
- * scrolling to get start a trip to appear"*. Both halves were arithmetic:
- *
- * - The claims were spread over the WHOLE pin while the tail ate the end of it,
- *   so the last claim's window was its own quarter MINUS everything after
- *   `TAIL_START` — 0.75 to 0.82 at full strength against the first claim's 0.25.
- *   One claim in four got a quarter of the reading time. They are spread over
- *   `[0, TAIL_START]` now (see `seg` in `paint`), so all four get the same
- *   ~0.23 — about 184dvh of thumb each on the 900dvh pin — and the last one
- *   holds until the exact moment the clear-out starts.
- * - The tail used to END at 0.96, leaving four points of pin (~32dvh) with a
- *   cleared stage and nothing in it, and the clear-out itself ran 112dvh before
- *   that. `TAIL_START + TAIL_LENGTH === 1` now: the fade finishes exactly as the
- *   pin releases, and it is ~64dvh rather than 112 — a deliberate clear, not a
- *   long one. There is no dead scroll left in the block at all.
- *
- * (The previous note here explained 0.82 over 0.72, from the first round. That
- * move was right and is subsumed: the reason the last claim "paid twice" is the
- * overlap this fixes properly rather than by moving the boundary.)
- */
-const TAIL_START = 0.92;
-const TAIL_LENGTH = 0.08;
-/** How far the map drifts up across the whole pin, in px. */
-const MAP_DRIFT = 74;
-/**
- * The fraction of a chunk's own window spent fading in, and out.
- *
- * **The fades OVERLAP the segment boundary rather than sitting inside it**, and
- * that is the other half of *"the last few are almost unreadable"*. A claim used
- * to finish fading out exactly where the next one started fading in — so at
- * every boundary both were at zero and the stage went blank for a moment, four
- * times down the page. CodeRabbit found the same thing as arithmetic: at
- * `p = 0.25`, `0.5` and `0.75` neither neighbour was rendered.
- *
- * Now each claim is fully in by the start of its own segment and only begins to
- * leave at the end of it, fading out ACROSS the next one, which is what a
- * crossfade is.
- */
-const EDGE = 0.16;
-const ENTER_FROM = 30;
-const LEAVE_TO = -26;
+/** The phone's grid for the shared packer: all of it laid by `layoutSea`, the hero too, since it is always two columns. */
+export const PHONE_SEA: SeaShape = {
+  firstRows: 0,
+  // The hero under one row of sea, the grid's width and three units tall:
+  // 496px at 360, which holds the headline, its two calls and a line.
+  hero: { row: 1, col: 0, w: 2, h: 3 },
+  // Each moment three rows at every phone width (two from about 600px), so it
+  // fits a 664px screen under the bar; its content fills it and fades at its
+  // foot. Pricing's ladder stacks on a phone, its steps a column some 1100px
+  // tall at 360, which they stretch to fill on a wider phone.
+  heights: { "sea-find": 480, "sea-assistant": 480, "sea-crew": 480, "sea-notebook": 480, pricing: 1100, closing: 300 },
+  fullWidth: true,
+  litSize: 1,
+  litCount: 2,
+  tallest: 2,
+};
+/** What the server packs for: a 390×844 phone. A phone of another size packs again once mounted, below the first screen. */
+const SERVER_METRICS = { cols: 2, unit: (390 - 2 * PAD - GAP) / 2, viewport: 844 };
+/** The rows mounted at once, in the server's HTML: an 844px screen's, and more than a 932px one shows. */
+const FIRST_SCREEN_ROWS = 6;
+/** A story's padding on a phone: the desktop's 28px is a sixth of the cell's width here. */
+const INSET = "gap-3 p-4";
 
-// `dc.html:7537`, trimmed to the two fields the phone card draws. The desktop
-// blocks carry the same three stops with more on each; a 390px card has room
-// for a time and a title.
-const CLAIM_STOPS = [
-  { time: "9:40 am", title: "Fushimi Inari, early" },
-  { time: "1:15 pm", title: "Lunch at Nishiki Market" },
-  { time: "4:00 pm", title: "Ryokan check-in, Higashiyama" },
-] as const;
-
-// A card under a claim, in the design's own shape: `--radius-xl` is 14px, which
-// is the value `dc.html` draws these at.
-function ExampleCard({ children, className }: { children: ReactNode; className?: string }) {
-  return (
-    <span className={cn("block rounded-xl border border-hairline bg-surface p-3.5", className)}>{children}</span>
-  );
-}
-
-/**
- * The four claims, each with the example card under it. Order and headings are
- * the 2026-09-28 retro's (DRIFT D21): Playbooks, Together, Countdown, Notebook.
- *
- * **The examples are the half the build shipped without**, and Mitchell said so
- * three times on the preview — *"missing the graphic"*, *"missing the graphic"*,
- * *"missing the example. Attached example of what it should look like"*. They
- * are not decoration: each claim is an assertion about what the product does,
- * and the card under it is the product doing it.
- *
- * It is also why two of those notes also said *"awkward wording"*. The
- * `Together` claim's body was `"Everyone moves the same day. Priya moved this
- * an hour later — everyone sees it."` — the design's headline and its card's
- * caption concatenated into one sentence, because the card they belonged to was
- * not built. Split back apart, both halves read.
- *
- * **Three of the cards are now the product itself** (M42 part 9): the same
- * river, Discover card and notebook page as the desktop blocks, at phone size
- * (`LandingFeaturePanel`) — the Discover card in its compact form, which fits
- * a short phone. The drawings below are the fallback if those cannot load.
- * Countdown stays a drawing, as on the desktop.
- */
-const CLAIMS: readonly { label: string; body: string; example?: ReactNode }[] = [
-  {
-    // The 2026-09-28 retro's headings, as on the desktop blocks (DRIFT D21).
-    // This one now opens the sequence, as Playbooks opens the desktop page.
-    label: "Playbooks",
-    body: "Relive someone's perfect day.",
-    example: (
-      <LandingFeaturePanel panel="playbook-compact">
-        <ExampleCard className="flex flex-col gap-2.5">
-          <span className="flex items-baseline justify-between gap-2.5">
-            <Text as="span" className="text-sm font-semibold text-ink">
-              A beach day in Phuket
-            </Text>
-            <DataText size="xs" className="shrink-0 text-slate">
-              4.8 ★
-            </DataText>
-          </span>
-          {/* A drawing's number, not a real day's (M50 decision 13). */}
-          <span className="flex items-center gap-2">
-            <Text as="span" className="text-xs text-slate">
-              6 stops · Relived 214 times
-            </Text>
-            <Badge variant="neutral" className="flex-none px-1.5 text-3xs tracking-wider uppercase">Sample</Badge>
-          </span>
-          <span className="flex items-center gap-2 rounded-lg bg-moss px-2.5 py-2">
-            <Text as="span" className="text-xs text-ink">
-              Dropping in as Day 2 — times shift to fit.
-            </Text>
-          </span>
-        </ExampleCard>
-      </LandingFeaturePanel>
-    ),
-  },
-  {
-    label: "Together",
-    body: "The trip starts before the trip.",
-    example: (
-      <LandingFeaturePanel panel="together">
-        <ExampleCard className="flex flex-col gap-2">
-          {CLAIM_STOPS.map((stop) => (
-            <span key={stop.title} className="flex items-baseline gap-2.5">
-              <DataText size="xs" className="w-14 shrink-0 text-slate">
-                {stop.time}
-              </DataText>
-              <Text as="span" className="truncate text-sm text-ink">
-                {stop.title}
-              </Text>
-            </span>
-          ))}
-          {/* The caption that used to be stuck on the end of the headline. It is
-              a change somebody else made, which is the whole claim, so it wears
-              the brand tint and their initials rather than sitting in the list. */}
-          <span className="flex items-center gap-2 rounded-lg bg-brand-tint px-2.5 py-2">
-            <DataText
-              size="xs"
-              className="grid size-5 shrink-0 place-items-center rounded-full bg-brand text-surface"
-            >
-              PR
-            </DataText>
-            <Text as="span" className="text-xs text-brand-pressed">
-              Priya moved this an hour later — everyone sees it.
-            </Text>
-          </span>
-        </ExampleCard>
-      </LandingFeaturePanel>
-    ),
-  },
-  {
-    // New in the retro: anticipation gets a home. A frozen fixture, not a
-    // clock — the front door runs on nothing (SPEC §14).
-    label: "Countdown",
-    body: "Too excited to sleep.",
-    example: (
-      <ExampleCard className="flex flex-col gap-2.5">
-        <span className="flex items-baseline justify-between gap-2.5">
-          <Text as="span" className="text-sm font-semibold text-ink">
-            Wheels up tomorrow
-          </Text>
-          <DataText size="xs" className="shrink-0 text-slate">
-            Kyoto · Apr 4
-          </DataText>
-        </span>
-        <Text as="span" className="text-xs text-slate">
-          One month · One week · <span className="text-brand-pressed">One day</span>
-        </Text>
-        <span className="flex items-center gap-2 rounded-lg bg-brand-tint px-2.5 py-2">
-          <DataText
-            size="xs"
-            className="grid size-5 shrink-0 place-items-center rounded-full bg-brand text-surface"
-          >
-            PR
-          </DataText>
-          {/* A change somebody made, not a chat line: trips have no replies
-              (Mitchell, 2026-10-11), and a countdown offers no Accept. */}
-          <Text as="span" className="text-xs text-brand-pressed">
-            Priya moved the meet-up to 6:40 am.
-          </Text>
-        </span>
-      </ExampleCard>
-    ),
-  },
-  {
-    label: "Notebook",
-    body: "How you'll remember it.",
-    // A page of the trip as it was lived, not what it cost (Mitchell,
-    // 2026-10-11: *"it should be more nostalgic than how much you spent on
-    // dinner"*). Day 6 is Apr 9 because Countdown's wheels-up is Apr 4, and the
-    // four are the landing's own crew.
-    example: (
-      <LandingFeaturePanel panel="notebook">
-        <ExampleCard className="flex flex-col gap-2">
-          <DataText size="xs" className="uppercase tracking-wider text-slate">
-            Day 6 · Hakone
-          </DataText>
-          <Text as="span" className="text-sm text-ink">
-            We stayed in the onsen until our fingers wrinkled, then ate far too much kaiseki. Priya says it was the
-            best night of the trip.
-          </Text>
-          <Text as="span" className="text-xs text-slate">
-            Sam, Priya, Dana, Marcus · Apr 9
-          </Text>
-        </ExampleCard>
-      </LandingFeaturePanel>
-    ),
-  },
-];
-
-/**
- * The phone's front door (SPEC §28): a pinned scroll sequence, not the desktop landing at a narrower width.
- * `closingQuote` comes from the server's `LandingScreen` (`LANDING_CLOSING_QUOTE`) rather than an import
- * here, so the generated snapshot stays out of this client component's first-load chunk.
- */
-export function PhoneFrontDoor({ closingQuote }: { closingQuote: string }) {
+/** The phone's front door: the sea of notebooks in its own scroller, under a sticky bar and over the footer. */
+export function PhoneFrontDoor() {
   const scrollerRef = useRef<HTMLDivElement | null>(null);
-  const pinRef = useRef<HTMLDivElement | null>(null);
-  const mapRef = useRef<SVGSVGElement | null>(null);
-  const chunkRefs = useRef<(HTMLDivElement | null)[]>([]);
   const headerRef = useRef<HTMLElement | null>(null);
   const pricingRef = useRef<HTMLElement | null>(null);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const scrimRef = useRef<HTMLDivElement | null>(null);
+  const gridRef = useRef<HTMLDivElement | null>(null);
+  const metrics = useSeaMetrics(gridRef, SERVER_METRICS, () => scrollerRef.current?.clientHeight ?? window.innerHeight);
+  const layout = useMemo(() => layoutSea(metrics, PHONE_SEA), [metrics]);
+  // The moments' places down this scroller, as the desktop caches its own
+  // down the window: read per pack and resize, never on scroll.
+  const [tops, refreshTops] = useMomentTops(rootRef, layout, () => {
+    const scroller = scrollerRef.current;
+    return scroller === null ? 0 : scroller.scrollTop - scroller.getBoundingClientRect().top;
+  });
 
   // **`#pricing` is answered here, not by the browser.** The id belongs to the
   // desktop landing's section, since two elements cannot share it, and the
-  // browser scrolls to that one — which is `display: none` at this width, so
+  // browser scrolls to that one, which is `display: none` at this width, so
   // nothing moves. On a wide screen this tree is the hidden one, every rect in
   // it is zero and the scroll goes nowhere, so the two never fight.
   //
-  // **Only this scroller moves, to just under the sticky bar.** The first
-  // version called `scrollIntoView`, which scrolls every ancestor: on a 390px
-  // phone it moved the window 374px as well and took the bar with it.
+  // **Only this scroller moves, and its "Pricing" line lands just under the
+  // sticky bar**, the cell's padding scrolled under it. `scrollIntoView`
+  // scrolls every ancestor: on a 390px phone it moved the window 374px as
+  // well and took the bar with it.
+  const toPricing = useCallback(() => {
+    const scroller = scrollerRef.current;
+    const pricing = pricingRef.current;
+    if (window.location.hash !== "#pricing" || scroller === null || pricing === null) return;
+    const below = pricing.getBoundingClientRect().top - scroller.getBoundingClientRect().top;
+    scroller.scrollTo({ top: scroller.scrollTop + below - (headerRef.current?.offsetHeight ?? 0) });
+  }, []);
   useEffect(() => {
-    const toPricing = () => {
-      const scroller = scrollerRef.current;
-      const pricing = pricingRef.current;
-      if (window.location.hash !== "#pricing" || scroller === null || pricing === null) return;
-      const below = pricing.getBoundingClientRect().top - scroller.getBoundingClientRect().top;
-      scroller.scrollTo({ top: scroller.scrollTop + below - (headerRef.current?.offsetHeight ?? 0) });
-    };
-    toPricing();
     window.addEventListener("hashchange", toPricing);
     return () => window.removeEventListener("hashchange", toPricing);
-  }, []);
+  }, [toPricing]);
+  // **A page opened at `#pricing` waits for the sea packed for this screen.**
+  // The server packs for 844px; a shorter phone, which is most of them with a
+  // browser's toolbars showing, packs again once mounted and moves pricing up
+  // by rows (366px at 390x664). Answered against the server's layout, the
+  // hash landed past the whole Free step. Once only: a later re-pack, as a
+  // toolbar folds away mid-scroll, does not pull the reader back.
+  const opened = useRef(false);
+  useEffect(() => {
+    const grid = gridRef.current;
+    if (opened.current || grid === null || scrollerRef.current === null) return;
+    // Not yet laid out (the hidden tree, or jsdom): nothing will re-pack it.
+    const now = measureSea(grid, scrollerRef.current.clientHeight);
+    if (now !== null && !packedFor(metrics, now)) return;
+    opened.current = true;
+    toPricing();
+  }, [metrics, toPricing]);
 
   useEffect(() => {
     const scroller = scrollerRef.current;
-    const pin = pinRef.current;
-    if (scroller === null || pin === null) return;
-
-    // Note 3: no rAF, no scheduling guard. This runs synchronously on the
-    // event and does two writes per element.
+    const root = rootRef.current;
+    const scrim = scrimRef.current;
+    if (scroller === null || root === null || scrim === null) return;
+    const motion = window.matchMedia?.("(prefers-reduced-motion: reduce)");
     const paint = () => {
-      const usable = Math.max(1, pin.offsetHeight - scroller.clientHeight);
-      const p = Math.max(0, Math.min(1, scroller.scrollTop / usable));
-
-      // **The bar goes to paper as the pin releases.** Over the stage there is
-      // nothing under it but the map; after, content scrolls beneath it, and a
-      // clear bar shows that content through its links (Mitchell, 2026-10-11).
-      headerRef.current?.toggleAttribute("data-solid", p >= 1);
-
-      // The stage clears as ONE: the map and whatever claim is still on it go
-      // together, so the pin releases onto empty paper rather than dropping the
-      // background out from under a line of type still sitting there.
-      const tail = p > TAIL_START ? Math.max(0, 1 - (p - TAIL_START) / TAIL_LENGTH) : 1;
-
-      const map = mapRef.current;
-      if (map !== null) {
-        map.style.transform = `translate3d(0,${(-p * MAP_DRIFT).toFixed(1)}px,0)`;
-        map.style.opacity = tail.toFixed(3);
-      }
-
-      // **The claims share the scroll BEFORE the tail, not the whole pin.**
-      // Dividing by `CLAIMS.length` alone gave every claim an equal quarter on
-      // paper and an unequal one on screen, because the clear-out overlapped the
-      // last quarter and nothing else. Dividing `TAIL_START` is what makes the
-      // four windows actually equal — and it is why `EDGE` needs no adjustment,
-      // being a fraction of a segment rather than of the pin.
-      const seg = TAIL_START / CLAIMS.length;
-      chunkRefs.current.forEach((chunk, i) => {
-        if (chunk === null) return;
-        const t = (p - i * seg) / seg;
-        // The first claim is already there when you arrive and the last holds
-        // to the end of the pin — only the ones between both enter and leave,
-        // so the stage is never empty at either end.
-        const first = i === 0;
-        const last = i === CLAIMS.length - 1;
-        let opacity: number;
-        let dy: number;
-        // The window a claim is visible in runs from `-EDGE` to `1 + EDGE` of
-        // its own segment, so it is already at full when its segment begins and
-        // only starts leaving when it ends. Both bounds widen with it, or the
-        // early returns would blank the very frames the overlap exists for.
-        if (t < -EDGE && !first) {
-          opacity = 0;
-          dy = ENTER_FROM;
-        } else if (t > 1 + EDGE && !last) {
-          opacity = 0;
-          dy = LEAVE_TO;
-        } else {
-          const inF = first ? 1 : Math.min(1, Math.max(0, (t + EDGE) / EDGE));
-          const outF = last ? 1 : Math.min(1, Math.max(0, (1 + EDGE - t) / EDGE));
-          opacity = Math.min(inF, outF);
-          dy = (1 - inF) * ENTER_FROM - (1 - outF) * -LEAVE_TO;
-        }
-        // **One rounded string decides both what is painted and what is
-        // announced**, so the two can never disagree. A claim that is faded
-        // out is still in the document, and nothing here removes it from the
-        // accessibility tree — `opacity: 0` is a paint property, not a
-        // presence one — so without this a screen reader read all four claims
-        // stacked on each other, at every scroll position (CodeRabbit, PR 170).
-        //
-        // Read back off `toFixed(3)` rather than off `opacity * tail`: a value
-        // that rounds to `0.000` is gone from the screen, and a claim nobody
-        // can see is a claim nobody should hear.
-        //
-        // **And nobody should reach or tap it** (M42 part 9). The claims hold
-        // real links now — the Discover card's — and they are stacked, so a
-        // faded claim later in the document sat over the shown one, took its
-        // taps, and kept its own links in the tab order inside `aria-hidden`.
-        // `inert` goes on and off with `aria-hidden`: out of the tab order,
-        // out of hit-testing, so a tap falls through to the claim on screen.
-        const painted = (opacity * tail).toFixed(3);
-        const hidden = Number(painted) === 0;
-        chunk.style.opacity = painted;
-        if (hidden) chunk.setAttribute("aria-hidden", "true");
-        else chunk.removeAttribute("aria-hidden");
-        chunk.toggleAttribute("inert", hidden);
-        chunk.style.transform = `translate3d(0,${dy.toFixed(1)}px,0)`;
-      });
+      const viewport = scroller.clientHeight;
+      // Nothing to paint while this tree is the hidden one, on a wide screen.
+      if (viewport === 0) return;
+      const dim = seaDim(scroller.scrollTop, viewport);
+      scrim.style.setProperty("--sea-dim", styleNumber(dim));
+      const top = scroller.getBoundingClientRect().top;
+      paintMoments(root, { viewport, scroll: scroller.scrollTop, top, dim, still: motion?.matches ?? false, tops: tops.current });
     };
-
-    // Once on mount as well as on scroll: arriving at this screen from another
-    // route, or restoring a scroll position, both need one pass or the sections
-    // render at their authored rest state and then jump on the first scroll.
+    const onResize = () => {
+      refreshTops();
+      paint();
+    };
+    // Once on mount too: a restored scroll position paints before the first
+    // scroll event, or the page would jump on it. The scroll listener needs
+    // no gate on the breakpoint, as the desktop's does: it is on this
+    // scroller, which cannot scroll while it is `display: none`.
     paint();
     scroller.addEventListener("scroll", paint, { passive: true });
-    return () => scroller.removeEventListener("scroll", paint);
-  }, []);
+    window.addEventListener("resize", onResize, { passive: true });
+    return () => {
+      scroller.removeEventListener("scroll", paint);
+      window.removeEventListener("resize", onResize);
+    };
+  }, [tops, refreshTops]);
 
   return (
     <div ref={scrollerRef} className="h-dvh overflow-y-auto overflow-x-hidden md:hidden" data-testid="phone-front-door">
-      {/* **The top bar, and the sign-in it carries** (`dc.html:3373`). Mitchell,
-          on the preview: *"Missing the top of page signing CTA"* — this screen
-          had no header at all, so a returning visitor on a phone had no way
-          into their own account short of guessing a URL. The desktop landing
-          has always had one; the phone front door was written without it.
-
-          **It stays on screen for the whole page** — Mitchell, second round:
-          *"the header with the logo and site name and sign in button should
-          still be visible"*. It used to scroll off once, like a page header,
-          and the reasoning for that was about the wrong thing: it is outside
-          the pinned block so that it does not slide away WITH the map, which is
-          still why it lives here rather than inside the stage. Being outside
-          the pin does not require scrolling away — `sticky top-0` keeps it put
-          over the stage, over the empty paper the pin releases onto, and over
-          the call to action at the foot.
-
-          `z-10` because the pinned stage is also `sticky top-0` and comes after
-          it in the document: without it the map's own stacking context would
-          paint over the one control on this screen for somebody who already has
-          an account. The headline below clears it without a spacer — the
-          stage's top padding is 64px and this bar is 64 (24 + a 28px mark +
-          12). Both add the top safe-area inset (`.phone-front-door-header`,
-          `.phone-front-door-stage`), so they still match under a status bar. */}
+      {/* **The top bar, and the sign-in it carries**, on paper over the sea
+          for the whole page (Mitchell: *"the header with the logo and site
+          name and sign in button should still be visible"*). `z-10` over the
+          moments and lit days, which stand above the scrim. Its top padding
+          adds the status bar's inset (`.phone-front-door-header`). */}
       <header
         ref={headerRef}
-        // Clear until `paint` marks it `data-solid`: the page opens on the map.
-        className="phone-front-door-header sticky top-0 z-10 flex items-center justify-between px-6 pb-3 transition-colors data-solid:bg-paper"
+        className="phone-front-door-header sticky top-0 z-10 flex items-center justify-between bg-paper px-6 pb-3"
       >
         <span className="flex items-center gap-2.5">
           <BrandMark size={28} />
@@ -420,174 +175,96 @@ export function PhoneFrontDoor({ closingQuote }: { closingQuote: string }) {
             Caesura
           </Text>
         </span>
-        {/* `size="touch"` is SPEC §13.1's 44px floor. Ghost, because the CTA
-            this screen is actually selling is "Start a trip" at the foot — this
-            is the door for somebody who already has an account. */}
-        {/* Playbooks beside Sign in, as on the desktop header: the library
-            is browsable without an account (ADR-061). */}
+        {/* `size="touch"` is SPEC §13.1's 44px floor. Ghost: this is the door
+            for somebody who already has an account, and the library is
+            browsable without one (ADR-061). */}
         <span className="flex items-center">
-          <Link
-            href="/playbooks"
-            className={cn(buttonVariants({ variant: "ghost", size: "touch" }), "no-underline")}
-          >
+          <Link href="/playbooks" className={cn(buttonVariants({ variant: "ghost", size: "touch" }), "no-underline")}>
             Playbooks
           </Link>
-          <Link
-            href="/signin"
-            className={cn(buttonVariants({ variant: "ghost", size: "touch" }), "no-underline")}
-          >
+          <Link href="/signin" className={cn(buttonVariants({ variant: "ghost", size: "touch" }), "no-underline")}>
             Sign in
           </Link>
         </span>
       </header>
-      {/* **`main` around everything between the bar and the footer.** axe on
-          `/` at phone width: no `main` landmark, and the stage, the claims and
-          the call to action sat outside every landmark. The desktop tree has
-          its own `main`; the two are never shown together (`hidden` is
-          `display: none`, out of the accessibility tree), so a reader meets
-          exactly one. A bare element with no classes, so neither the pin's
-          sticky mechanics nor the sections' heights notice it. */}
+      {/* The desktop tree has its own `main`; the two are never shown
+          together (`hidden` is `display: none`), so a reader meets one. */}
       <main>
-        {/* The pinned block. It is three viewports tall, and the sticky stage
-            inside it is one — so scrolling it moves `scrollTop` without moving
-            what you are looking at, which is the whole mechanic. */}
-        <div ref={pinRef} data-testid="front-door-pin" className="front-door-pin relative">
-          <div className="sticky top-0 flex h-dvh flex-col overflow-hidden">
-            <svg
-              ref={mapRef}
-              viewBox="0 0 160 210"
-              preserveAspectRatio="xMidYMid slice"
+        <div ref={rootRef} data-testid="phone-sea" className="landing-sea landing-sea-phone bg-hairline">
+          <div
+            ref={gridRef}
+            data-testid="sea-grid"
+            data-cols={metrics.cols}
+            // eslint-disable-next-line no-restricted-syntax -- the packed grid's row count, computed by `layoutSea`, which `.landing-sea-grid` sizes itself to
+            style={{ "--sea-rows": layout.rows } as React.CSSProperties}
+            className="landing-sea-grid"
+          >
+            <div
+              ref={scrimRef}
               aria-hidden
-              data-testid="front-door-map"
-              className="pointer-events-none absolute inset-0 h-full w-full"
+              data-testid="sea-scrim"
+              // eslint-disable-next-line no-restricted-syntax -- not a style but the scroll's one state value, authored at rest (SPEC §28's note 2) where `paint` writes it
+              style={{ "--sea-dim": 0 } as React.CSSProperties}
+              className="landing-sea-scrim"
+            />
+            {/* First in the DOM, so a screen reader meets the headline first. */}
+            <div
+              data-testid="sea-hero"
+              // eslint-disable-next-line no-restricted-syntax -- the hero's area on the sea's grid, `PHONE_SEA.hero`, which the packer lays the sea around
+              style={place(PHONE_SEA.hero!)}
+              className="landing-sea-hero flex min-h-0 flex-col justify-center gap-4 overflow-hidden rounded-2xl bg-paper p-5"
             >
-              <rect x="-10" y="-10" width="180" height="230" className="fill-moss" />
-              {[34, 76, 120, 164].map((y) => (
-                <path key={`ew${y}`} d={`M-6 ${y} L 166 ${y - 7}`} strokeWidth="0.6" className="fill-none stroke-hairline" />
-              ))}
-              {[[44, 50], [108, 114]].map(([top, bottom]) => (
-                <path key={`ns${top}`} d={`M${top} -6 L ${bottom} 216`} strokeWidth="0.6" className="fill-none stroke-hairline" />
-              ))}
-              <rect x="52" y="30" width="22" height="17" opacity="0.55" className="fill-surface" />
-              <rect x="116" y="80" width="19" height="28" opacity="0.45" className="fill-surface" />
-              <rect x="18" y="126" width="24" height="20" opacity="0.5" className="fill-surface" />
-              {/* The route: one line through the city, with a stop on it. */}
-              <path
-                d="M30 6 C 52 34, 44 66, 68 92 S 104 126, 96 166 S 118 196, 128 214"
-                strokeWidth="2.2"
-                strokeLinecap="round"
-                opacity="0.55"
-                className="fill-none stroke-brand"
-              />
-              {[[30, 6], [68, 92], [96, 166], [128, 214]].map(([cx, cy]) => (
-                <circle key={`${cx}-${cy}`} cx={cx} cy={cy} r="3.4" className="fill-brand" />
-              ))}
-            </svg>
-            {/* The paper veil (`dc.html:3401`): opaque where the headline and the
-                claims sit, clear through the middle where the route shows. Without
-                it the map is a flat block of moss behind text rather than ground
-                the words are standing on. The gradient itself is in `globals.css`
-                — see `.front-door-veil` for why it cannot be a class attribute. */}
-            <div aria-hidden className="front-door-veil pointer-events-none absolute inset-0" />
-
-            {/* The headline holds still while the claims pass underneath. */}
-            <div className="phone-front-door-stage relative px-6" data-testid="front-door-stage">
-              <Text variant="muted" className="uppercase tracking-widest">
+              <DataText size="xs" className="text-2xs tracking-widest uppercase">
                 Days worth reliving
-              </Text>
+              </DataText>
               {/* An <h2> that announces as level 1. The desktop tree holds this
                   headline as the document's one <h1>; CSS shows one tree per
                   breakpoint, and a crawler reads both. */}
-              <Heading level={2} aria-level={1} className="mt-2 text-3xl">
+              <Heading level={2} aria-level={1} className="text-3xl text-pretty">
                 Plan the trip together.
               </Heading>
+              <Text as="p" variant="secondary" className="text-pretty">
+                Real days from real trips, saved by the people who lived them. Borrow one, plan the rest with your
+                group, and relive it all when you&rsquo;re home.
+              </Text>
+              <div className="flex flex-col gap-2.5">
+                <Link href="/signup" className={cn(buttonVariants({ variant: "primary", size: "touch" }), "justify-center no-underline")}>
+                  Start a trip
+                </Link>
+                <Link href={DEMO_PATH} className={cn(buttonVariants({ variant: "secondary", size: "touch" }), "justify-center no-underline")}>
+                  Look around a real trip
+                </Link>
+              </div>
+              <Text as="p" variant="muted">
+                Invite the group with a link, nothing to install.
+              </Text>
             </div>
-
-            <div className="relative mt-8 flex-1">
-              {CLAIMS.map((claim, i) => (
-                <div
-                  key={claim.label}
-                  ref={(el) => {
-                    chunkRefs.current[i] = el;
-                  }}
-                  data-testid="front-door-claim"
-                  // The authored rest state's other half: the three claims that
-                  // start invisible start unannounced too, so the server's HTML
-                  // and the paint above agree before any effect has run — and
-                  // inert, so their links can be neither tabbed to nor tapped.
-                  aria-hidden={i !== 0}
-                  inert={i !== 0}
-                  className="absolute inset-0 flex flex-col justify-center px-6"
-                  // Note 2: the rest state is AUTHORED, not applied by the
-                  // effect. Without it a cold load — or a browser that fires no
-                  // scroll event because the page opens at the top — stacks all
-                  // four claims on top of each other.
-                  // eslint-disable-next-line no-restricted-syntax -- the authored rest state of a scroll-driven sequence; it is overwritten per scroll event and has no token equivalent.
-                  style={{ opacity: i === 0 ? 1 : 0, willChange: "transform, opacity" }}
-                >
-                  {/* **The plate, which Mitchell reported missing by name** —
-                      *"The mobile homepage styling is missing the background box
-                      with gradiant"*. It is what keeps a claim legible while the
-                      map moves under it. `-mx-1.5` is the design's `margin: 0
-                      -6px`: the plate bleeds past the text's own gutter so the
-                      words are never near its edge. */}
-                  <span className="front-door-plate -mx-1.5 flex flex-col gap-3 px-4 py-5">
-                    <Text variant="muted" className="uppercase tracking-widest">
-                      {claim.label}
-                    </Text>
-                    <Text className="text-lg text-ink">{claim.body}</Text>
-                    {claim.example}
-                  </span>
-                </div>
-              ))}
-            </div>
+            <SeaPlaced
+              layout={layout}
+              firstRows={PHONE_SEA.firstRows}
+              unit={metrics.unit}
+              root={scrollerRef}
+              eager={FIRST_SCREEN_ROWS}
+              inset={INSET}
+              aboveFirst
+              pricing={<LandingPricing ref={pricingRef} />}
+              closing={
+                <section aria-labelledby="front-door-closing" className="flex min-w-0 flex-col justify-center gap-5">
+                  <Heading level={2} id="front-door-closing" className="text-2xl text-pretty">
+                    Start the plan, then bring everyone.
+                  </Heading>
+                  <div className="flex flex-col gap-2.5">
+                    <Link href="/signup" className={cn(buttonVariants({ variant: "primary", size: "touch" }), "justify-center no-underline")}>
+                      Start a trip
+                    </Link>
+                    <Link href="/playbooks" className={cn(buttonVariants({ variant: "secondary", size: "touch" }), "justify-center no-underline")}>
+                      Find a day to start with
+                    </Link>
+                  </div>
+                </section>
+              }
+            />
           </div>
-        </div>
-
-        {/* Empty paper. §28: "then the map clears out and the call to action
-            arrives on empty paper" — so this sits AFTER the pin, in ordinary
-            flow, with nothing behind it but the paper's own grain. It is the
-            desktop's closing moment (M50 part 5, `LandingScreen.tsx`): a line
-            from the Hakone notebook page, then the ask. */}
-        <section
-          aria-labelledby="front-door-closing"
-          className="landing-grain relative flex min-h-dvh flex-col justify-center gap-4 bg-paper px-6"
-        >
-          <figure className="flex flex-col gap-2.5 pb-4">
-            <blockquote>
-              <Text as="p" className="font-display text-xl leading-snug tracking-tight text-pretty">
-                &ldquo;{closingQuote}&rdquo;
-              </Text>
-            </blockquote>
-            {/* A literal, as on the desktop: it names the day `scripts/landing-demo.ts` writes ("Day six, ") and changes with it. */}
-            <figcaption>
-              <Text variant="muted" className="uppercase tracking-widest">
-                The trip notebook · Day six, Hakone
-              </Text>
-            </figcaption>
-          </figure>
-          <Heading level={2} id="front-door-closing" className="text-2xl">
-            Start the plan, then bring everyone.
-          </Heading>
-          <Link
-            href="/signup"
-            className={cn(buttonVariants({ variant: "primary", size: "touch" }), "justify-center no-underline")}
-          >
-            Start a trip
-          </Link>
-          <Link
-            href="/demo"
-            className={cn(buttonVariants({ variant: "secondary", size: "touch" }), "justify-center no-underline")}
-          >
-            Look around a real trip
-          </Link>
-        </section>
-
-        {/* After the call to action, not between it and the pin: §28's clear-out
-            lands on empty paper and the CTA, and Mitchell tuned that hand-off
-            twice. No sign-up of its own: "Start a trip" is just above. */}
-        <div className="bg-paper px-6 pb-10">
-          <LandingPricing ref={pricingRef} />
         </div>
       </main>
 

@@ -37,12 +37,6 @@ export function snapshotAccents(byDay: Record<string, AccentFamily>): CityAccent
 /** The demo trip's colours, for the blocks drawn beside its river. */
 export const LANDING_ACCENTS: CityAccents = snapshotAccents(accents);
 
-/** The river's title, "Day 7": what its list is named and what its panel heads read. */
-export const LANDING_RIVER_TITLE = `Day ${river.ordinal}`;
-
-/** The snapshot's city for the river's day, for the panel heads. */
-export const LANDING_RIVER_CITY = river.city;
-
 /** A snapshot's day on the board's read-only river; the demo trip's Day 7 unless told otherwise. */
 export function LandingRiver({
   day = river,

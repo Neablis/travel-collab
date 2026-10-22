@@ -10,7 +10,6 @@ import { LandingSea } from "@/components/front/LandingSea";
 import { LandingSeaFirstScreen } from "@/components/front/LandingSeaFirstScreen";
 import { LeaveLandingIfSignedIn } from "@/components/front/LeaveLandingIfSignedIn";
 import { DEMO_PATH } from "@/lib/demoTrip";
-import { LANDING_CLOSING_QUOTE } from "@/lib/landingDemo";
 import { cn } from "@/lib/cn";
 
 // The words are Mitchell's retro of 2026-09-28
@@ -30,9 +29,9 @@ import { cn } from "@/lib/cn";
 // value a committed snapshot. A data-model change must never be able to break
 // the front door.
 
-// SPEC §28 gives the phone a different front door — a pinned scroll sequence,
-// not this page at a narrower width — so both are rendered and the breakpoint
-// picks one.
+// The phone has its own front door (`PhoneFrontDoor`): the same sea on two
+// columns in its own scroller, not this page at a narrower width. Both are
+// rendered and the breakpoint picks one.
 //
 // **CSS, not `useIsPhone`.** This is the first paint of the first page an
 // unauthenticated visitor sees, and `useIsPhone` starts `false` on the server
@@ -53,7 +52,7 @@ export function LandingScreen() {
   return (
     <>
       <LeaveLandingIfSignedIn />
-      <PhoneFrontDoor closingQuote={LANDING_CLOSING_QUOTE} />
+      <PhoneFrontDoor />
       <div data-testid="desktop-landing" className="hidden min-h-screen flex-col bg-paper text-ink md:flex">
       <FrontDoorHeader
         actions={

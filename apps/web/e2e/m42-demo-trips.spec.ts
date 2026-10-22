@@ -21,9 +21,6 @@ const DEMOS = [
   { slug: "thailand-andaman", name: "Thailand: Bangkok → Krabi → Koh Lanta", description: "Food & beach", days: "10 days" },
 ];
 
-/** The phone's Playbooks claim, Mitchell's Hanoi playbook (`scripts/landing-day.json`). */
-const PLAYBOOK = /^Hanoi in 4 days/;
-
 /** The sea's first moment's banner, the Rome playbook `scripts/landing-demo.ts` names in `content/playbooks/`. */
 const BANNER = /^3 days in Rome: emperors, gladiators/;
 
@@ -265,7 +262,7 @@ test.describe("the front door, signed out (M42)", () => {
     await page.setViewportSize({ width: 1100, height: 900 });
     await page.goto("/");
     const ask = page.getByTestId("desktop-landing").getByRole("region", { name: "Ask for more, keep what fits." });
-    await expect(page.getByTestId("sea-grid")).toHaveAttribute("data-cols", "6");
+    await expect(page.getByTestId("desktop-landing").getByTestId("sea-grid")).toHaveAttribute("data-cols", "6");
     const river = ask.getByRole("list", { name: /timeline$/, includeHidden: true });
     const popover = ask.getByRole("group", { name: "Review this suggestion", includeHidden: true });
     const [lane, open] = [(await river.boundingBox())!, (await popover.boundingBox())!];
@@ -316,41 +313,33 @@ test.describe("the front door, signed out (M42)", () => {
     expect((await settled()).z).toBeNaN();
   });
 
-  // The phone's claims are the same components, the Discover card in its
-  // compact form so it fits a short phone (390×664): below the headline and
-  // inside the pinned stage. The claims are stacked, so the ones the sequence
-  // hides are `inert`: a tap on the card lands on the card, not on a faded
-  // claim over it, and a hidden claim's links take no focus.
-  test("the phone's Playbooks claim fits a short phone and its card takes the tap", async ({ page }) => {
+  // The phone's sea (M51 decision 11): every moment fits a short phone's
+  // screen under the bar (390×664), its content inside its cell, and the
+  // find moment risen at the screen's middle is a door a tap opens.
+  test("the phone's moments each fit a short phone, and the find moment's card takes the tap", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 664 });
     await page.goto("/");
     const phone = page.getByTestId("phone-front-door");
-    const title = phone.getByTestId("discover-card").getByRole("link", { name: PLAYBOOK });
-    await expect(title).toBeVisible();
+    const bar = (await phone.getByRole("banner").boundingBox())!;
+    for (const name of ["Find a day worth borrowing.", "Ask for more, keep what fits.", "Everyone going, one plan.", "Keep the notebook afterwards."]) {
+      const moment = (await phone.getByRole("region", { name }).boundingBox())!;
+      expect({ name, fits: moment.height <= 664 - bar.height }).toEqual({ name, fits: true });
+    }
 
-    const headline = await phone.getByRole("heading", { name: "Plan the trip together." }).boundingBox();
-    const card = await phone.getByTestId("discover-card").boundingBox();
-    expect(card!.y).toBeGreaterThan(headline!.y + headline!.height);
-    expect(card!.y + card!.height).toBeLessThanOrEqual(664);
-
+    const find = phone.getByRole("region", { name: "Find a day worth borrowing." });
+    await find.evaluate((moment) => {
+      const scroller = moment.closest<HTMLElement>("[data-testid=phone-front-door]")!;
+      const box = moment.getBoundingClientRect();
+      scroller.scrollTop += box.top + box.height / 2 - scroller.clientHeight / 2;
+    });
+    await expect(find.getByTestId("moment-panel")).toHaveCSS("opacity", "1");
+    const title = find.getByRole("link", { name: BANNER });
+    const [cell, card] = [(await find.boundingBox())!, (await find.getByTestId("discover-card").boundingBox())!];
+    expect(card.y + card.height).toBeLessThanOrEqual(cell.y + cell.height);
     const tapped = await title.evaluate((link) => {
       const r = link.getBoundingClientRect();
       return link.contains(document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2));
     });
     expect(tapped).toBe(true);
-
-    // Halfway down the pin the Playbooks claim has faded out, and with it out
-    // of the accessibility tree, so the link is held from before.
-    const link = await title.elementHandle();
-    await phone.evaluate((scroller) => {
-      const pin = scroller.querySelector<HTMLElement>("[data-testid=front-door-pin]")!;
-      scroller.scrollTop = 0.5 * (pin.offsetHeight - scroller.clientHeight);
-    });
-    await expect(phone.getByTestId("front-door-claim").first()).toHaveAttribute("aria-hidden", "true");
-    const focused = await link!.evaluate((el: HTMLElement) => {
-      el.focus();
-      return document.activeElement === el;
-    });
-    expect(focused).toBe(false);
   });
 });

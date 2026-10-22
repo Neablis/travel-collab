@@ -16,18 +16,16 @@ beforeAll(async () => {
 });
 
 /**
- * Waits for the sea's moments and the phone claims' real components, in both
- * trees, so what a test reads next is what a visitor sees once they have
- * arrived. `hidden`, because the phone's later claims start out unannounced.
+ * Waits for the sea's moments' real components, in both trees, so what a test
+ * reads next is what a visitor sees once they have arrived.
  */
 async function realPanels() {
-  const desktop = within(screen.getByTestId("desktop-landing"));
-  const phone = within(screen.getByTestId("phone-front-door"));
-  expect(await phone.findByRole("link", { name: LANDING_FEATURES.playbook.name, hidden: true })).toBeDefined();
-  expect(await phone.findByRole("list", { name: "Day 7 timeline", hidden: true })).toBeDefined();
-  expect(await desktop.findAllByRole("link", { name: LANDING_FEATURES.shelf.name })).not.toEqual([]);
-  expect(await desktop.findByRole("list", { name: "Day 2 timeline" })).toBeDefined();
-  expect(await desktop.findByTestId("notebook-page")).toBeDefined();
+  for (const tree of ["desktop-landing", "phone-front-door"]) {
+    const scope = within(screen.getByTestId(tree));
+    expect(await scope.findAllByRole("link", { name: LANDING_FEATURES.shelf.name })).not.toEqual([]);
+    expect(await scope.findByRole("list", { name: "Day 2 timeline" })).toBeDefined();
+    expect(await scope.findByTestId("notebook-page")).toBeDefined();
+  }
 }
 
 afterEach(() => {
