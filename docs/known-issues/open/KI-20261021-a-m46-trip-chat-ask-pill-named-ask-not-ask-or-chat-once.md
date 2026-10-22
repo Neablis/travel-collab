@@ -1,4 +1,4 @@
-### KI-2026-10-21 — `m46-trip-chat.spec.ts:77` once found the owner's Ask pill named "Ask", not "Ask or chat", then passed on retry
+### KI-2026-10-21-a — `m46-trip-chat.spec.ts:77` once found the owner's Ask pill named "Ask", not "Ask or chat", then passed on retry
 
 - **Severity:** reliability. One e2e red that passed on retry; no product behaviour is known to
   be wrong. Seen once.
