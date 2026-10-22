@@ -1,4 +1,5 @@
 import AxeBuilder from "@axe-core/playwright";
+import type { Locator, Page } from "@playwright/test";
 import { expect, test } from "./fixtures/test";
 
 // M42's front door, walked by somebody with no account: the `/demo` picker,
@@ -56,6 +57,34 @@ const SEA_SHOT = {
   threshold: 0.2,
   maxDiffPixels: 2000,
 } as const;
+
+/**
+ * Wait for the phone sea's client repack to settle before any test
+ * measures boxes and scrolls on them. The server packs the phone sea
+ * for 844px; a shorter phone viewport (390x664 here) repacks once
+ * mounted and shifts content up by rows (~366px documented for
+ * pricing, ~400-500px observed for the find moment). Scrolling on
+ * pre-repack boxes centers the wrong position, and by tap/screenshot
+ * time the title has moved above the viewport — the #524 tap failure
+ * (initial + retry, not a flake): the hit-test's rect center missed
+ * because the title was off-viewport, not because the door was broken.
+ * Fonts alone do not settle this, so fonts.ready is awaited first so
+ * font-driven reflows are done, then the region's box is compared
+ * across two frame-separated reads until a pair agrees, which is what
+ * catches the hydration-driven repack. No sleeps: expect.poll retries
+ * and requestAnimationFrame waits are frame waits, the same idiom as
+ * the full-page pre-walks below.
+ */
+async function waitForPhoneSeaToSettle(page: Page, region: Locator): Promise<void> {
+  await page.evaluate(() => document.fonts.ready);
+  await expect.poll(async () => {
+    const key = (box: { y: number; height: number } | null): string => (box ? `${box.y}:${box.height}` : "missing");
+    const first = await region.boundingBox();
+    await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+    const second = await region.boundingBox();
+    return key(first) === key(second);
+  }).toBe(true);
+}
 
 test.describe("the front door, signed out (M42)", () => {
   test.use({ storageState: { cookies: [], origins: [] } });
@@ -389,6 +418,11 @@ test.describe("the front door, signed out (M42)", () => {
     await page.setViewportSize({ width: 390, height: 664 });
     await page.goto("/");
     const phone = page.getByTestId("phone-front-door");
+    // Settle before scrolling: see waitForPhoneSeaToSettle. Without
+    // this, the first moment's scroll uses pre-repack boxes and its
+    // shot can capture pre-repack layout — a baseline generated from
+    // that would lock in the wrong layout.
+    await waitForPhoneSeaToSettle(page, phone.getByRole("region", { name: "Find a day worth borrowing." }));
     // One viewport shot per moment, each risen at the scroller's middle:
     // a moment taller than the screen under the bar shows cut at the
     // viewport's edges, and the find card overflowing its cell shows the
@@ -423,6 +457,11 @@ test.describe("the front door, signed out (M42)", () => {
     await page.goto("/");
     const phone = page.getByTestId("phone-front-door");
     const find = phone.getByRole("region", { name: "Find a day worth borrowing." });
+    // Settle before scrolling: see waitForPhoneSeaToSettle. The old
+    // combined test's fit loop settled the repack implicitly; this
+    // split test scrolled straight after goto and measured pre-repack
+    // boxes, so the title had moved above the viewport by tap time.
+    await waitForPhoneSeaToSettle(page, find);
     await find.evaluate((moment) => {
       const scroller = moment.closest<HTMLElement>("[data-testid=phone-front-door]")!;
       const box = moment.getBoundingClientRect();
