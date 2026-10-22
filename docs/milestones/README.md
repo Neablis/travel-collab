@@ -249,6 +249,9 @@ notebook: a Today scope applied to every widget with a day, new widgets for the 
 swapping to it during the trip. He dropped live flight tracking, push and offline (all three are
 candidates), took flight details into M52 (M44 keeps containment), and asked for the assistant in
 the group chat, paid plans only, on the asker's quota and accepted only by the asker.
+In a second review he settled the swap (under way only), local time for every stop, change
+lines in the chat, and `@assistant` reading the chat through a `read_chat` tool whose message
+count is a tunable constant.
 
 ### 2026-10-20 — minted: M51, ahead of M49
 

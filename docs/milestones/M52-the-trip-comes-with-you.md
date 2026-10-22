@@ -3,8 +3,9 @@
 **Status:** **Proposed 2026-10-22 by Mitchell, placed after M51 and ahead of M49. Not scoped
 yet.** His answers are below under *Answered*: what it is for, where it lives (a *During the
 trip* notebook that Overview swaps to), five of the first set of recommendations, and the
-assistant in the group chat. The decisions under *Open* are recommendations, and none has been
-answered. Minted the same day (see `docs/milestones/README.md`, *2026-10-22 — minted: M52, the
+assistant in the group chat. In a second review the same day he answered decisions 11, 12, 17
+and 18, and each is marked **Answered** where it stands. The rest under *Open* are
+recommendations, and none has been answered. Minted the same day (see `docs/milestones/README.md`, *2026-10-22 — minted: M52, the
 trip comes with you*).
 
 ## Why this exists
@@ -117,7 +118,7 @@ chips do.
 
    The rest of its rules are decision 18.
 
-### Open (recommendations; none answered)
+### Open (recommendations, except where marked **Answered**)
 
 9. **The template's name and seeding.** *Recommended:* titled **During the trip**, seed key
    `during-the-trip`, `seedIntoNewTrips: false`. It is **planted when a trip first enters its
@@ -132,7 +133,8 @@ chips do.
     the page says so in one line and reads as day 1 before the trip and the last day after it,
     rather than rendering empty. The widget picker marks *"follows today"* on a widget it will
     scope.
-11. **When the swap happens, and what *soon* does.** *Recommended:*
+11. **When the swap happens, and what *soon* does.** **Answered by Mitchell, 2026-10-22: as
+    recommended.**
     - **Under way** (start date to end date): Overview shows *During the trip*, with a quiet
       *Whole trip →* link to the usual Overview.
     - **Soon** (up to 3 days before): Overview stays as it is. The notebook is planted, and its
@@ -140,10 +142,11 @@ chips do.
       the first departure's time ("Flight in 2 days, 7 h").
     - **Ended**: Overview goes back to normal, and the publish offer stays.
 
-    The alternative is swapping to *Before you go* during *soon*. That is simple too, but that
-    page's content is fixed per trip and is not rewritten on existing trips, so a flight widget
-    added to it would reach new trips only.
-12. **How *now* is computed when times carry no zone.** *Recommended:* a stop's `HH:MM` is local
+    The alternative was swapping to *Before you go* during *soon*. It was not chosen, because
+    that page's content is fixed per trip and is not rewritten on existing trips, so a flight
+    widget added to it would reach new trips only.
+12. **How *now* is computed when times carry no zone.** **Answered by Mitchell, 2026-10-22:
+    every time is local time, as recommended.** A stop's `HH:MM` is local
     to **its day's zone** (`TripGlobalsDay.timeZone`), falling back to the device's zone. *Now*
     is the device clock converted into that zone. One pure function in `packages/domain`,
     `tripNow(trip, globals, now) → { phase, dayId, current, next }`, with the clock passed in
@@ -195,11 +198,12 @@ chips do.
     stop leads in. It opens the app on Android and iOS when installed. There is no per-account
     preference until someone asks for one. The stop's own detail sheet also gets the link
     whenever the stop has coordinates. It costs one link and helps while planning too.
-17. **Changes made during the trip are announced in the chat.** *Recommended:* yes, while under
-    way only. An accepted change to today's or tomorrow's stops posts a system line ("Mitchell
+17. **Changes made during the trip are announced in the chat.** **Answered by Mitchell,
+    2026-10-22: yes**, while under way only. An accepted change to today's or tomorrow's stops posts a system line ("Mitchell
     moved Dinner at Tasca to 20:30") that links the stop and cannot be edited. With decision 18,
     an `@assistant` change accepted in the chat says so in the same thread.
-18. **How `@assistant` in the chat works (decision 8).** *Recommended:*
+18. **How `@assistant` in the chat works (decision 8).** *Recommended*, except for what it reads,
+    which is **answered**:
     - **Store.** The answer is a message in `trip_messages`, with an author `kind` of
       `assistant` and a `requested_by` naming the asker. ADR-073 is amended. A migration adds the
       columns, and the same `kind` serves decision 17's system lines.
@@ -208,9 +212,23 @@ chips do.
       sees `@assistant` in the mention list with *"Asking the assistant in chat comes with
       Plus"* and an upgrade link: an offer, not a disabled control. The asker's role on the trip
       still caps what the turn may propose, exactly as in Ask.
-    - **What it reads.** The trip, as in Ask, plus **the last 20 chat messages**, since "find us
-      lunch" depends on the conversation. Every member can see that the assistant read them,
-      because its reply is in the thread.
+    - **What it reads. Answered by Mitchell, 2026-10-22:** *"keep in a config to play with, when
+      I say '@assistant can you fix this problem?' It calls a tool that gets last x messages (we
+      hard code x but it will be a variable for the tool call so we can make the tool more
+      flexible in future) and try to understand what the problem was"*. So:
+      - The chat is **not** put into the turn's context up front. A chat-started turn is offered
+        a tool, **`read_chat({ limit? })`**, which returns the last `limit` messages: author,
+        time and text, with `@day`/`@stop` targets resolved to names. The model calls it when it
+        needs the conversation to understand the ask ("fix this problem", "find us lunch").
+      - `limit` is a tool parameter from day one. Today the model is told to leave it unset, and
+        it **defaults to `CHAT_CONTEXT_MESSAGES = 20`**. A hard ceiling, `MAX_CHAT_MESSAGES_READ`,
+        caps any value it passes. Both are named constants in `server/assistant/limits.ts`, beside
+        `MAX_DAYS_READ_PER_TURN`, so the number can be tuned without touching the tool.
+      - The tool is offered **only on turns started from the chat**, on the same `activeTools`
+        rule as `find_places_near_now` (decision 13). An Ask-tab turn never carries it.
+      - Every member can see that the assistant read the chat, because its reply is in the
+        thread. The M33 evals gain a chat case whose problem is stated only in earlier messages,
+        and which therefore has to call `read_chat`.
     - **Accepting.** Its proposal appears in the chat as a card that **only the asker may accept
       or dismiss**. Everyone else sees *"Waiting on Mitchell"*. That is a new rule on a
       suggestion (`requested_by`), enforced in `acceptSuggestionChanges`, beside its editor check
@@ -251,7 +269,8 @@ chips do.
 
 ## Exit gate
 
-- [ ] **Decisions 9–20 are answered and recorded here**, with:
+- [ ] **Decisions 9, 10, 13–16 and 18–20 are answered and recorded here** (11, 12 and 17 are),
+      with:
       - an ADR for the phase, *now* and the Today scope;
       - ADR-073 and ADR-067 amended for `@assistant`;
       - the contracts changelog entry for `booking`.
@@ -267,8 +286,10 @@ chips do.
 - [ ] **A trip replayed from a log written before `booking` equals its stored projection.**
 - [ ] **A confirmation number never reaches a share link or a published day**: an integration
       test reads both.
-- [ ] **`find_places_near_now` is offered only while the trip is under way**: a test of the
-      offered tools for a planning and an under-way trip. The M33 day-of cases pass, at their
+- [ ] **`find_places_near_now` is offered only while the trip is under way, and `read_chat` only
+      on a chat-started turn**: a test of the offered tools for a planning trip, an under-way
+      trip, an Ask turn and a chat turn. `read_chat`'s default and its ceiling are read from
+      `limits.ts`, which a test changing the constant shows. The M33 day-of cases pass, at their
       stated cost.
 - [ ] **Only the asker can accept an `@assistant` proposal**: an integration test is refused
       for another editor and accepted for the asker. **A free member's `@assistant` spends
