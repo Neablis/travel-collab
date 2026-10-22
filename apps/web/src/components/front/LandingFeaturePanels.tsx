@@ -241,7 +241,7 @@ export function FindADayPanel(): React.ReactElement {
 const { assistant } = LANDING_FEATURES;
 const ASSISTANT_ACCENTS = snapshotAccents({ [assistant.river.dayId]: assistant.accent });
 // Day 1's axis, nine to ten at night, filling its panel under the stack of
-// what is being added: the moment is at least the 690px `LandingSea`'s
+// what is being added: the moment is at least the 710px `LandingSea`'s
 // STORIES declares, which less its heading, the panel's head, the stack and
 // padding leaves some 440px for thirteen hours, the open popover inside them.
 // Whole rows can only make the moment taller, so the day never runs past its

@@ -94,14 +94,15 @@ const SERVER_METRICS: SeaMetrics = { cols: 6, unit: (1100 - 2 * PAD - 5 * GAP) /
 // columns, five from 12, six from 16), or the full width, how tall its
 // content is drawn in px, which sets its rows, and where it sits. The crew's
 // 680px is four rows at 1440 (Mitchell's third walk: *"Cut it one row
-// shorter"*), as is the assistant's 690, which its day from nine to ten
-// fills (PR 514 r1: at 600, four rows left the river 90px short of its
-// panel's foot). The pricing's
+// shorter"*). The assistant's 710 is five rows at 1100 and 1440 — four rows
+// left its expanded open transcript (five steps, PR 518's reversal of PR 514's
+// unexpansion) 44px clipped at the panel's foot — and four rows wherever the
+// step is larger. The pricing's
 // 480 is three rows at every unit, one fewer than it had (his fourth: *"Too
 // much dead space, shrink the whole container down 1 row"*).
 const STORIES: { id: StoryId; extra: number | null; height: number; align: "left" | "right" | "center" }[] = [
   { id: "sea-find", extra: 1, height: 480, align: "left" },
-  { id: "sea-assistant", extra: 1, height: 690, align: "right" },
+  { id: "sea-assistant", extra: 1, height: 710, align: "right" },
   { id: "sea-crew", extra: 1, height: 680, align: "center" },
   { id: "sea-notebook", extra: 2, height: 640, align: "left" },
   { id: "pricing", extra: 2, height: 480, align: "center" },
@@ -309,12 +310,14 @@ export function seaRowsFloor(rows: number): number {
 const HOLD = 0.6;
 const FADE = 0.8;
 // A moment is wholly risen while its middle is within 15% of a screen of the
-// screen's own, and sinks back to its ghost over the next 35%, so it fades in
-// as it comes up the screen and out as it leaves at the top (Mitchell's walk
-// of PR 510 at 7260011). The ghost is the real panel, faint: never gone, and
-// never a cover over it.
+// screen's own, and sinks back to its ghost over the next half a screen, so
+// it fades in as it comes up the screen and out as it leaves at the top
+// (Mitchell's walk of PR 510 at 7260011). Half a screen, not 35%: with the
+// assistant five rows tall at 1440, its middle is further past the screen's
+// middle when the crew comes in, and 35% had it fully sunk (lift 0) there.
+// The ghost is the real panel, faint: never gone, and never a cover over it.
 const RISEN = 0.15;
-const RISE = 0.35;
+const RISE = 0.5;
 // No further than the grid's gap: a lit day touches its moment's foot across
 // that gap, and a panel lowered past it slid under the day, its rounded foot
 // and shadow lost (PR 510 r5).
