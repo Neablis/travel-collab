@@ -20,6 +20,13 @@ describe("FindADayPanel trims", () => {
     expect(screen.queryByText("— Priya")).toBeNull();
   });
 
+  it("clamps the sample review quote to one line", () => {
+    render(<FindADayPanel />);
+    const review = screen.getByTestId("find-a-day-review");
+    const quote = within(review).getByText(/arena floor first thing/);
+    expect(quote.classList.contains("line-clamp-1")).toBe(true);
+  });
+
   it("inlines the description with the tag chips", () => {
     render(<FindADayPanel />);
     const row = screen.getByTestId("find-a-day-tags");

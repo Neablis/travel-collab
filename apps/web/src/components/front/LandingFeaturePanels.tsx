@@ -164,7 +164,7 @@ export function FindADayPanel(): React.ReactElement {
         <ul className="flex flex-col gap-1.5">
           {SAMPLE_REVIEWS.map((review) => (
             <li key={review.name} className="flex flex-col" data-testid="find-a-day-review">
-              <Text as="span" className="text-sm leading-snug">
+              <Text as="span" className="line-clamp-1 text-sm leading-snug">
                 “{review.quote}”
               </Text>
               <Text as="span" variant="muted" className="text-xs">
