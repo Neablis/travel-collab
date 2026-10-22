@@ -31,8 +31,21 @@ const BANNER = /^3 days in Rome: emperors, gladiators/;
 // with one comparison per viewport instead of a number per element.
 // `animations: "disabled"` freezes transitions so a capture is never a
 // mid-transition read; `caret: "hide"` keeps the text caret out of the
-// diff; the 1% ratio absorbs anti-aliasing noise while a genuinely
-// clipped cell, a repacked grid, or a missing story changes far more.
+// diff. The gate is an ABSOLUTE pixel budget (`maxDiffPixels`), not a
+// ratio, on purpose: a clipped foot is ~N pixels no matter how tall the
+// page is, so a ratio budget grows with page height while the defect
+// does not — the old 1% ratio on a ~7M-pixel full-page shot allowed
+// ~70,000 differing pixels, and a 44px foot cut across a ~350px cell
+// (~15,000 pixels, ~0.2%) passed straight through it. The 2,000-pixel
+// budget catches the clips the old arithmetic guarded — a 44px cut
+// (~15,000 pixels), a 44px transcript clip (~9,000), a 21px blurb line
+// (~6,300) — each with at least 3x margin, while per-pixel
+// anti-aliasing noise is already absorbed by `threshold: 0.2` plus
+// pixelmatch's anti-alias exclusion, so run-to-run diff in a pinned
+// environment should sit far below it. No ratio is set alongside the
+// cap, so the budget means the same thing on every shot regardless of
+// image size — a ratio would silently loosen the gate on the tallest
+// shots, which is exactly the failure being fixed.
 // Baselines live in `m42-demo-trips.spec.ts-snapshots/` and MUST be
 // generated in a CI-matching environment (see the PR body) — a snapshot
 // generated on a developer's machine renders that machine's fonts, not
@@ -41,7 +54,7 @@ const SEA_SHOT = {
   animations: "disabled",
   caret: "hide",
   threshold: 0.2,
-  maxDiffPixelRatio: 0.01,
+  maxDiffPixels: 2000,
 } as const;
 
 test.describe("the front door, signed out (M42)", () => {
@@ -380,6 +393,13 @@ test.describe("the front door, signed out (M42)", () => {
     // a moment taller than the screen under the bar shows cut at the
     // viewport's edges, and the find card overflowing its cell shows the
     // same way. Named per moment so a diff names the moment that broke.
+    // Baseline check for the find shot, stated here so it is not lost:
+    // the frame must show BOTH the find card's foot and its cell's
+    // foot. The old check was card bottom <= cell bottom, and a shot
+    // showing only the card proves nothing about the card-inside-cell
+    // rule — the reviewer must confirm both feet are visible before
+    // committing the baseline, like the assistant popover-in-frame
+    // check above.
     for (const [name, shot] of [
       ["Find a day worth borrowing.", "phone-moment-find.png"],
       ["Ask for more, keep what fits.", "phone-moment-ask.png"],
