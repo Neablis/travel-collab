@@ -89,7 +89,7 @@ test("an AI plan reaches the board only once it is approved", async ({ page }) =
   // proposal card names the same stops ("Add “Sample: coffee stop” to day 1")
   // and `getByText` matches substrings, so an unscoped locator would find the
   // proposal and report the trip as already changed.
-  const board = page.locator(".trip-board-content");
+  const board = page.getByTestId("trip-board-content");
 
   const card = page.getByRole("group", { name: "Suggested change" });
   await expect(card).toBeVisible();
@@ -150,7 +150,7 @@ test("rejecting an AI plan leaves the trip exactly as it was", async ({ page }) 
 
   const card = page.getByRole("group", { name: "Suggested change" });
   await expect(card).toBeVisible();
-  const board = page.locator(".trip-board-content");
+  const board = page.getByTestId("trip-board-content");
 
   // No request is expected at all: rejecting is the apply endpoint not being
   // called, which is what makes "byte-identical" a property of the shape.
@@ -263,7 +263,7 @@ test("a playbook day the assistant found reaches the board once it is approved",
   // `?view=Plan`: a bare trip URL lands on Overview since SPEC §24, and every
   // board assertion below reads `.trip-board-content`, which only Plan renders.
   await finder.goto(`/trips/${target.tripId}?view=Plan`);
-  const board = finder.locator(".trip-board-content");
+  const board = finder.getByTestId("trip-board-content");
   await expect(board.getByText(`Already here ${city}`)).toBeVisible();
 
   await openAssistantRail(finder);
