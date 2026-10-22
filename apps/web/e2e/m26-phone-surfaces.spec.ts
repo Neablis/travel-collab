@@ -47,20 +47,9 @@ test.describe("the phone's account screen", () => {
     await expect(page.getByRole("navigation", { name: "Phone navigation" })).toBeVisible();
   });
 
-  // SPEC §13.1, "44px targets, always", and KI-046's 191-of-211. Measured as a
-  // rendered box, which is the only honest form of this claim.
-  test("puts its tabs on the 44px floor", async ({ page }) => {
-    // `openAccountPage` opens the avatar menu, so the page has to BE somewhere
-    // first — without this the test starts at `about:blank` and spends its
-    // timeout waiting for a header that was never rendered.
-    await page.goto("/home");
-    await openAccountPage(page);
-    for (const name of ["Profile", "Plan & usage"]) {
-      const box = await page.getByRole("tab", { name }).boundingBox();
-      expect(box, `${name} has no box`).not.toBeNull();
-      expect(box!.height, `${name} is ${box!.height}px tall`).toBeGreaterThanOrEqual(44);
-    }
-  });
+  // The tabs' 44px floor is NOT asserted here anymore: the m26-phone-targets
+  // sweep measures every phone control on /account, tabs included, behind a
+  // Profile-tab readiness guard — one owner for the claim, not two.
 
   // Each tab is a URL (`?tab=`), which is what makes the back button walk them —
   // and the tokens sub-view (not a tab since M27, §35.4) is one too.
