@@ -40,7 +40,7 @@ test.describe("M26 — SPEC §13.1's 44px floor on a phone", () => {
     /MapLibre|OpenFreeMap|OpenMapTiles|OpenStreetMap/,
   ];
 
-  async function countUnder(page: import("@playwright/test").Page, url: string, readyTestId?: string) {
+  async function countUnder(page: import("@playwright/test").Page, url: string, readyTestId?: string, readyTab?: string) {
     await page.goto(url);
     // The page's own chrome, rather than `networkidle` — which the lint wall
     // bans for good reason (a surface with a poll or a long-lived stream never
@@ -51,6 +51,14 @@ test.describe("M26 — SPEC §13.1's 44px floor on a phone", () => {
     // data paints it first. Measured without this, the Plan route had rendered
     // no stop card yet, so neither its chips nor its Edit/Remove were counted.
     if (readyTestId) await page.getByTestId(readyTestId).first().waitFor();
+    // The same hazard on the account route, in tab form: the wordmark paints
+    // before the account screen mounts its tab strip, and an unrendered tab
+    // is unmeasured, not passing — so the sweep waits for the Profile tab
+    // before counting, exactly as the Plan route waits for its chip. The
+    // Profile tab is the strip's first tab, so its presence says the strip
+    // rendered, which is what makes the sweep's account-tab measurement
+    // airtight rather than timing-dependent.
+    if (readyTab) await page.getByRole("tab", { name: readyTab }).first().waitFor();
     return controlsUnderFloor(page);
   }
 
@@ -69,19 +77,19 @@ test.describe("M26 — SPEC §13.1's 44px floor on a phone", () => {
     });
     expect(tagged.ok()).toBe(true);
 
-    const routes: readonly (readonly [route: string, url: string, readyTestId?: string])[] = [
+    const routes: readonly (readonly [route: string, url: string, readyTestId?: string, readyTab?: string])[] = [
       ["trips", "/"],
       ["plan", `/trips/${tripId}?view=Plan`, "tag-chip-meal"],
       ["map", `/trips/${tripId}?view=Map`],
       ["notebook", `/trips/${tripId}/pages`],
       ["playbooks", "/playbooks"],
-      ["account", "/account"],
+      ["account", "/account", undefined, "Profile"],
       ["plans", "/plans"],
     ];
 
     const measured = [];
-    for (const [route, url, ready] of routes) {
-      measured.push(...(await countUnder(page, url, ready)).map((c) => ({ route, ...c })));
+    for (const [route, url, ready, readyTab] of routes) {
+      measured.push(...(await countUnder(page, url, ready, readyTab)).map((c) => ({ route, ...c })));
     }
     // The filter is not a conditional IN the test — it is how the exception
     // list is applied, and it keeps the assertion a single `toEqual` whose
