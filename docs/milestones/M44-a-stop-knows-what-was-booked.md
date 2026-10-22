@@ -4,6 +4,9 @@
 recommendations and none has been answered. Minted from `docs/candidates.md` (see
 `docs/milestones/README.md`, *2026-10-06 — proposed: M37 to M47*).
 
+*2026-10-22:* **`booking` (decisions 1–2 here) moved to M52** for flight details, on Mitchell's
+answer (M52 decision 5; confirm at scoping). M44 keeps containment only.
+
 ## Why this exists
 
 Two entries ask the activity contract to say something it cannot say today. Both are changes to
