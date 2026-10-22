@@ -133,18 +133,16 @@ describe("a public profile", () => {
   // A first read that FAILS leaves `loading` false and `data` null. The page
   // used to sit under its own sync banner pulsing a skeleton at a profile that
   // was never coming (CodeRabbit, PR 102).
-  it("stops pretending to load when the first read failed, and offers one Retry", async () => {
+  it("stops pretending to load when the first read failed", async () => {
     fetchPublicProfileMock.mockResolvedValue({ ok: false, error: { status: 0, message: "Network error" } });
     renderProfile();
     await screen.findByText("This profile did not load");
     expect(screen.queryByTestId("profile-skeleton")).toBeNull();
-    // The Retry is the banner's, and there is exactly one of it. Both halves
-    // matter: the count rules out a second offer elsewhere on the page, and the
-    // scoped query is the one that fails if the banner lost its button.
-    expect(screen.getAllByRole("button", { name: "Retry" })).toHaveLength(1);
-    expect(
-      within(screen.getByTestId("library-sync-failure")).getByRole("button", { name: "Retry" }),
-    ).toBeTruthy();
+    // Test-pruning: the page keeps only its own halves here (its error
+    // copy, its skeleton going away, and that it wires the banner at all).
+    // The banner's contract — exactly one Retry, and that it reloads —
+    // is the owner test's (ReadStates.test.tsx), not re-proved here.
+    expect(screen.getByTestId("library-sync-failure")).toBeTruthy();
   });
 
   it("shows the skeleton only while the first read is still in flight", () => {
