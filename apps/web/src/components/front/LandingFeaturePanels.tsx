@@ -58,6 +58,14 @@ const keptIn = (createdAt: string): string => {
 const FIND_A_DAY_BLURB =
   "Rome as a city built on top of itself: the Colosseum and Forum, the Pantheon and the baroque piazzas, then out past the walls to the Baths of Caracalla and the catacombs under the Appian Way. Ancient history you can walk through, with Trastevere and Testaccio dinners to recover in.";
 /**
+ * How many of the day's tags the panel shows: the description plus this
+ * many chips fit one line at every panel width (desktop and phone), so the
+ * row never wraps. The full list stays in the snapshot's data; only the
+ * display is shortened (Mitchell's preview feedback: shorten the tag list
+ * so Sightseeing sits on the same line as the tags).
+ */
+const FIND_A_DAY_TAGS_SHOWN = 3;
+/**
  * PLACEHOLDER reviews, to be replaced when a better example exists: sample
  * quotes that make the day read used and real, grounded in its actual stops
  * (the Colosseum, Testaccio, the Appian Way). These are not real user
@@ -99,18 +107,19 @@ export function FindADayPanel(): React.ReactElement {
       {(shelf.description !== null || shelf.tags.length > 0) && (
         <div className="flex flex-wrap items-center gap-2" data-testid="find-a-day-tags">
           {shelf.description !== null && <Text variant="secondary">{shelf.description}</Text>}
-          {shelf.tags.length > 0 && <StopTagChips activityId={shelf.savedDayId} tags={shelf.tags} focusedTag={null} />}
+          {shelf.tags.length > 0 && <StopTagChips activityId={shelf.savedDayId} tags={shelf.tags.slice(0, FIND_A_DAY_TAGS_SHOWN)} focusedTag={null} />}
         </div>
       )}
       <Text as="p" className="line-clamp-2 text-sm leading-relaxed text-pretty">
         {FIND_A_DAY_BLURB}
       </Text>
-      {/* The canned preview is Day 2's stops (its times and names match the day page's Day 2). The rows mirror the day page's stop rows — time gutter, numbered marker, title — tightened to pt-1.5/pb-0.5 so six rows fit the moment; no leg lines, because the snapshot carries no leg data and none are invented. */}
+      {/* The canned preview is Day 1's stops (its times and names match the day page's Day 1; the generator's SHELF_DAY picks it, and Day 1's four stops fit the moment where Day 2's six did not). The rows mirror the day page's stop rows — time gutter, numbered marker, title — tightened to pt-1.5/pb-0.5; no leg lines, because the snapshot carries no leg data and none are invented. The hairline under the day line and the dividers between rows are the day page's own hairline token, as Mitchell's preview feedback asked for. */}
       <div className="flex flex-col gap-1">
         <DataText size="xs" className="uppercase tracking-wider">
-          Day 2 · {shelf.preview.length} stops
+          Day 1 · {shelf.preview.length} stops
         </DataText>
-        <ul className="flex flex-col">
+        <span aria-hidden data-testid="find-a-day-separator" className="h-px bg-hairline" />
+        <ul data-testid="find-a-day-timeline" className="flex flex-col divide-y divide-hairline">
           {shelf.preview.map((stop, index) => (
             <li key={index}>
               <div className="flex gap-2.5 pt-1.5 pb-0.5 md:gap-3">
@@ -157,7 +166,15 @@ export function FindADayPanel(): React.ReactElement {
             </li>
           ))}
         </ul>
-        <Text as="span" className="text-xs">
+        {/* The attribution hides on phones: it is the panel's last line, so
+            on a narrow phone moment it is the line that half-clips below the
+            activities (Mitchell's preview feedback: text peeking out from
+            under the day activities on mobile — the cut falls in the
+            reviews block's tail, not the notebook description, which sits
+            mid-panel). Day 1's four stops and the shortened tag list
+            already fit phones 375px and up; hiding this line covers the
+            350–366px band too. */}
+        <Text as="span" className="text-xs max-md:hidden">
           By {shelf.ownerDisplayName}
         </Text>
       </div>

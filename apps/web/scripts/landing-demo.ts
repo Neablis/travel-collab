@@ -327,11 +327,13 @@ const SHELF_BUNDLE = "3-days-in-rome-emperors-gladiators-the-layers-beneath";
 
 /**
  * The day of it the banner's rows are (Mitchell, 2026-10-21: *"use day 2 for
- * the banner"*): the Pantheon to Trastevere, six stops to day one's four, so
- * the wide card is full. Discover previews day one; the banner alone says
- * another, and still links to the whole playbook, the only page it has.
+ * the banner"* — superseded by his 2026-10-21 preview feedback asking why
+ * not day 1): day 1's four stops to day 2's six, so the banner fits the
+ * 480px moment instead of overflowing it. Discover previews day one; the
+ * banner alone says another, and still links to the whole playbook, the only
+ * page it has.
  */
-const SHELF_DAY = 2;
+const SHELF_DAY = 1;
 
 function shelfPlaybook(): DiscoverDay {
   const bundle = libraryBundles().find((b) => b.bundle.id === SHELF_BUNDLE);
