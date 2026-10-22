@@ -9,7 +9,7 @@ import { haversineKm } from "@/lib/geo";
 import { LANDING_FEATURES } from "@/lib/landingDemo";
 import { LANDING_SEA, SEA_ACCENTS, SEA_DAYS } from "@/lib/landingSea";
 import { dayPath, parseDaySegment } from "@/lib/playbookUrls";
-import { FIRST_SCREEN, FIRST_SCREEN_ROWS, HERO, LandingSea, SEA_REGIONS, firstScreenAccents, layoutSea, momentRise, seaDim, seaRowsFloor, type SeaArea } from "./LandingSea";
+import { FIRST_SCREEN, FIRST_SCREEN_ROWS, HERO, LandingSea, SEA_REGIONS, firstScreenAccents, heroShadow, layoutSea, momentRise, seaDim, seaRowsFloor, type SeaArea } from "./LandingSea";
 import { LandingSeaFirstScreen } from "./LandingSeaFirstScreen";
 
 /** The first screen's days, without its accents. */
@@ -302,13 +302,20 @@ describe("the sea's moments", () => {
       return moment;
     }
 
-    // Mitchell, later on the same walk: "Unexpand the 'Hide how it got there'
-    // so nothing goes off the bottom".
-    it("draws the turn's steps closed, as the app's one-line summary of them", async () => {
+    // Mitchell, 2026-10-21, reversing the walk below: the homepage example
+    // draws the turn's steps open, under the closed-form summary, so the
+    // panel fills its frame and the suggestions land near its foot.
+    it("draws the turn's steps open, under the app's one-line summary of them", async () => {
       const moment = await assistantMoment();
       const log = within(moment.getByRole("log", { name: "Conversation", hidden: true }));
-      expect(log.queryAllByRole("listitem", { hidden: true })).toEqual([]);
-      expect(log.getByText(/^\d+ steps · Drafted a change$/)).toBeDefined();
+      expect(log.getByText(/^5 steps · Drafted a change$/)).toBeDefined();
+      expect(log.getAllByRole("listitem", { hidden: true }).map((item) => item.textContent)).toEqual([
+        "Read the trip",
+        "Checked day 1",
+        "Checked the playbook",
+        "Drafted a change",
+        "Drafted a change",
+      ]);
       expect(log.queryByText("Hide how it got there")).toBeNull();
     });
 
@@ -510,6 +517,20 @@ describe("the rise and the dim", () => {
     expect(momentRise(-350, 400, 1000).opacity).toBe(below.opacity);
     // Wholly off the screen, at either edge, it is not drawn at all.
     expect([momentRise(1000, 400, 1000).opacity, momentRise(-400, 400, 1000).opacity]).toEqual([0, 0]);
+  });
+
+  // The hero's lift (Mitchell, 2026-10-21: a drop shadow, not the ink border)
+  // fades as it scrolls past: full on its place, gone a hero height past it.
+  it("fades the hero's shadow out over a hero height past its place", () => {
+    expect(heroShadow(1000, 400, 0)).toBe(1);
+    expect(heroShadow(1000, 400, 1000)).toBe(1);
+    expect(heroShadow(1000, 400, 1200)).toBe(0.5);
+    expect(heroShadow(1000, 400, 1400)).toBe(0);
+    expect(heroShadow(1000, 400, 2000)).toBe(0);
+  });
+
+  it("keeps a hero with no height at full shadow", () => {
+    expect(heroShadow(1000, 0, 5000)).toBe(1);
   });
 
   it("starts from the rest state in the markup, and follows the scroll", () => {
@@ -849,6 +870,17 @@ describe("the sea at Mitchell's third walk", () => {
     }
     const first = FIRST_SCREEN.filter((ground) => ground.accent !== undefined).length / FIRST_SCREEN.length;
     expect(first >= 1 / 12 && first <= 1 / 8).toBe(true);
+  });
+
+  // Peru leads the accent rotation (Mitchell, 2026-10-21: one Country Peru
+  // tile, same as the other countries), so it is on the first screen rather
+  // than buried in the background or never drawn at narrow widths.
+  it("puts a Country Peru tile on the first screen, to its country page", () => {
+    const accents = FIRST_SCREEN.flatMap((ground) => (ground.accent === undefined ? [] : [ground.accent]));
+    const peru = accents.find((accent) => accent.kind === "country" && accent.name === "Peru");
+    expect(peru).toBeDefined();
+    expect(peru!.href).toBe("/playbooks/country/peru");
+    expect(peru!.size).toBe("2x1");
   });
 
   // The first screen's accents, which CSS packs, and the background's, which

@@ -14,7 +14,7 @@ import {
   LIT,
   PAD,
   POOL,
-  SEA_ACCENTS,
+  SEA_ACCENT_ORDER,
   SIZE,
   firstScreenAccents,
   heroAt,
@@ -94,14 +94,15 @@ const SERVER_METRICS: SeaMetrics = { cols: 6, unit: (1100 - 2 * PAD - 5 * GAP) /
 // columns, five from 12, six from 16), or the full width, how tall its
 // content is drawn in px, which sets its rows, and where it sits. The crew's
 // 680px is four rows at 1440 (Mitchell's third walk: *"Cut it one row
-// shorter"*), as is the assistant's 690, which its day from nine to ten
-// fills (PR 514 r1: at 600, four rows left the river 90px short of its
-// panel's foot). The pricing's
+// shorter"*). The assistant's 710 is five rows at 1100 and 1440 — four rows
+// left its expanded open transcript (five steps, PR 518's reversal of PR 514's
+// unexpansion) 44px clipped at the panel's foot — and four rows wherever the
+// step is larger. The pricing's
 // 480 is three rows at every unit, one fewer than it had (his fourth: *"Too
 // much dead space, shrink the whole container down 1 row"*).
 const STORIES: { id: StoryId; extra: number | null; height: number; align: "left" | "right" | "center" }[] = [
   { id: "sea-find", extra: 1, height: 480, align: "left" },
-  { id: "sea-assistant", extra: 1, height: 690, align: "right" },
+  { id: "sea-assistant", extra: 1, height: 710, align: "right" },
   { id: "sea-crew", extra: 1, height: 680, align: "center" },
   { id: "sea-notebook", extra: 2, height: 640, align: "left" },
   { id: "pricing", extra: 2, height: 480, align: "center" },
@@ -267,8 +268,8 @@ export function layoutSea({ cols, unit, viewport }: SeaMetrics, shape: SeaShape 
   for (let r = firstRows; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
       if (rowAt(r)[c]) continue;
-      if (since >= ACCENT_EVERY - 1 && SEA_ACCENTS.length > 0) {
-        const accent = SEA_ACCENTS[accentsUsed % SEA_ACCENTS.length]!;
+      if (since >= ACCENT_EVERY - 1 && SEA_ACCENT_ORDER.length > 0) {
+        const accent = SEA_ACCENT_ORDER[accentsUsed % SEA_ACCENT_ORDER.length]!;
         const at = largest(r, c, SIZE[accent.size]);
         if (accents.every((other) => !meet(at, other, 1))) {
           take(at);
@@ -309,12 +310,14 @@ export function seaRowsFloor(rows: number): number {
 const HOLD = 0.6;
 const FADE = 0.8;
 // A moment is wholly risen while its middle is within 15% of a screen of the
-// screen's own, and sinks back to its ghost over the next 35%, so it fades in
-// as it comes up the screen and out as it leaves at the top (Mitchell's walk
-// of PR 510 at 7260011). The ghost is the real panel, faint: never gone, and
-// never a cover over it.
+// screen's own, and sinks back to its ghost over the next half a screen, so
+// it fades in as it comes up the screen and out as it leaves at the top
+// (Mitchell's walk of PR 510 at 7260011). Half a screen, not 35%: with the
+// assistant five rows tall at 1440, its middle is further past the screen's
+// middle when the crew comes in, and 35% had it fully sunk (lift 0) there.
+// The ghost is the real panel, faint: never gone, and never a cover over it.
 const RISEN = 0.15;
-const RISE = 0.35;
+const RISE = 0.5;
 // No further than the grid's gap: a lit day touches its moment's foot across
 // that gap, and a panel lowered past it slid under the day, its rounded foot
 // and shadow lost (PR 510 r5).
@@ -347,6 +350,17 @@ export function momentRise(top: number, height: number, viewport: number): { opa
   return { opacity: seen ? GHOST + (1 - GHOST) * lift : 0, dy: Math.round((1 - lift) * RISE_PX), lift };
 }
 
+/**
+ * The hero's drop shadow at `scrollY`: full while the hero is still on its
+ * place, fading as it scrolls past, gone once it has scrolled a whole hero
+ * height past its place. `heroTop` and `heroHeight` are the hero's document
+ * top and height, as `paint` caches them for the moments. The shadow is the
+ * hero's lift; a hero already scrolled past keeps none of it.
+ */
+export function heroShadow(heroTop: number, heroHeight: number, scrollY: number): number {
+  if (heroHeight <= 0) return 1;
+  return clamp(1 - (scrollY - heroTop) / heroHeight);
+}
 /** A number as a style value, `1` rather than `1.000`, so the authored rest state and a painted one read alike. */
 export const styleNumber = (n: number) => String(Number(n.toFixed(3)));
 
@@ -724,6 +738,12 @@ export function LandingSea({
       // every scroll event, 115ms a frame with 650 mounted (PR 510 r4).
       scrim.style.setProperty("--sea-dim", styleNumber(dim));
       paintMoments(root, { viewport, scroll: window.scrollY, top: 0, dim, still, tops: tops.current });
+      // The hero's lift fades as it scrolls past: full on its place, gone a hero height past it.
+      const hero = root.querySelector<HTMLElement>('[data-testid="sea-hero"]');
+      if (hero !== null) {
+        const box = hero.getBoundingClientRect();
+        hero.style.setProperty("--hero-shadow", styleNumber(heroShadow(box.top + window.scrollY, box.height, window.scrollY)));
+      }
       // The card under the pointer sinks back from the sea as it is now, not
       // as it was when the pointer came onto it (PR 510 r5): one cell at most.
       root.querySelector<HTMLElement>(".landing-sea-cell[data-lifted]:hover")?.style.setProperty("--veil", styleNumber(SCRIM * dim));

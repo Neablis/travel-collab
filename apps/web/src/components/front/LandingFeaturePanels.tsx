@@ -1,12 +1,14 @@
 "use client";
 
-import type { ComponentProps, ReactElement } from "react";
+import { useEffect, useRef, useState, type ComponentProps, type ReactElement } from "react";
+import Link from "next/link";
 import { useTimeFormat } from "@/components/account/PreferencesProvider";
 import { Transcript, toolNoteLabel, type AssistantTurn } from "@/components/assistant/Transcript";
 import { BrandMark } from "@/components/BrandMark";
 import type { BoardSuggestions } from "@/components/board/DayRiver";
+import { StopTagChips } from "@/components/board/StopTagChips";
 import { SuggestionReviewList } from "@/components/board/SuggestionReviewList";
-import { DiscoverCard } from "@/components/playbooks/DiscoverCard";
+import { ratingLine } from "@/components/playbooks/DiscoverCard";
 import { ItineraryDayBlock } from "@/components/pages/blocks/ItineraryDayBlock";
 import { SunBlock } from "@/components/pages/blocks/SunBlock";
 import { TripPeopleBlock } from "@/components/pages/blocks/TripPeopleBlock";
@@ -21,7 +23,7 @@ import { Text } from "@/components/ui/text";
 import { cn } from "@/lib/cn";
 import { LANDING_DEMO, LANDING_FEATURES } from "@/lib/landingDemo";
 import { dayPath } from "@/lib/playbookUrls";
-import { toClockRange } from "@/lib/time";
+import { toClockLabel, toClockRange } from "@/lib/time";
 import { LANDING_ACCENTS, LandingRiver, snapshotAccents } from "./LandingRiver";
 
 // The sea's moments (M51), on the desktop and the phone alike, drawn by the
@@ -34,17 +36,204 @@ import { LANDING_ACCENTS, LandingRiver, snapshotAccents } from "./LandingRiver";
 
 const SURFACE = "overflow-hidden rounded-lg border border-hairline bg-surface";
 
+// The sea's first moment (M9) is the Rome day as the day page shows it
+// (`SharedDayScreen`), not a repeat of the small cards: the title, its meta
+// line, its tag chips, the warm description, one day's timeline, what people
+// said, and who kept it. The title is the one door into the day, as before.
+// No map: the day page's MapLibre map is an external rate-limited library
+// and stays off the homepage. No transit legs between the timeline's stops:
+// the canned snapshot carries no leg data (the day page computes them), so
+// none are invented here — the rows are times and stop names only. The
+// description is the Rome day's own, as its day page shows it, kept as panel
+// copy because the canned snapshot carries no narrative paragraph; when the
+// snapshot gains one, swap this in for it. The meta line follows the day
+// page's own format, and `keptIn` its wording (Month Year, UTC); it is kept
+// local so the landing bundle does not pull in the day screen.
+const keptIn = (createdAt: string): string => {
+  const at = new Date(createdAt);
+  if (Number.isNaN(at.getTime())) return "Not known";
+  return at.toLocaleString("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
+};
+/** The Rome day's own description, as its day page shows it (see the panel comment). */
+const FIND_A_DAY_BLURB =
+  "Rome as a city built on top of itself: the Colosseum and Forum, the Pantheon and the baroque piazzas, then out past the walls to the Baths of Caracalla and the catacombs under the Appian Way. Ancient history you can walk through, with Trastevere and Testaccio dinners to recover in.";
 /**
- * The sea's first moment: the richest Thailand day as a big card, filling the
- * moment, and opening the day's canonical page, as every cell of the sea does.
- * The days lit beside it are other Thai days, not this one again (Mitchell's
- * third walk of PR 510).
+ * How many of the day's tags the panel shows: the description plus this
+ * many chips fit one line at every panel width (desktop and phone), so the
+ * row never wraps. The full list stays in the snapshot's data; only the
+ * display is shortened (Mitchell's preview feedback: shorten the tag list
+ * so Sightseeing sits on the same line as the tags).
+ */
+const FIND_A_DAY_TAGS_SHOWN = 3;
+/**
+ * PLACEHOLDER reviews, to be replaced when a better example exists: sample
+ * quotes that make the day read used and real, grounded in its actual stops
+ * (the Colosseum, Testaccio, the Appian Way). These are not real user
+ * reviews. Keep them in this one constant so replacing them is one edit.
+ */
+const SAMPLE_REVIEWS: { name: string; quote: string }[] = [
+  { name: "Elena", quote: "The arena floor first thing was worth every cent — standing where the gladiators stood changes the whole place." },
+];
+/**
+ * Whether the find panel's day block overflows the height the moment
+ * leaves it: the timeline earns its bottom fade exactly when its content
+ * runs past that height. The 1px tolerance absorbs subpixel rounding, so
+ * a hairline rounding difference never fades a fitting timeline. Pure so
+ * the rule is unit-testable: jsdom reports no real layout.
+ */
+export function dayBlockOverflows(scrollHeight: number, clientHeight: number): boolean {
+  return scrollHeight > clientHeight + 1;
+}
+
+/**
+ * The sea's first moment (M9): the Rome day as the day page shows it, not a
+ * repeat of the small cards. Returns the notebook-style panel: title, meta
+ * line, tag chips, description, one day's timeline, what people said, and
+ * who kept it.
+ *
+ * Layout contract (Mitchell's follow-up to the preview feedback): the
+ * panel is a full-height flex column whose day block is the flexible
+ * middle (`flex-1 min-h-0 overflow-hidden`) and whose reviews block is
+ * pinned at the foot (`mt-auto shrink-0`), so the review is never the
+ * thing that clips. The day block's bottom fade is conditional — it
+ * appears exactly when the timeline overflows its flexed height, never
+ * when the rows fit whole.
  */
 export function FindADayPanel(): React.ReactElement {
   const { shelf } = LANDING_FEATURES;
+  const clock = useTimeFormat();
+  const rated = ratingLine(shelf);
+  const dayRef = useRef<HTMLDivElement>(null);
+  const [dayOverflows, setDayOverflows] = useState(false);
+  // The fade is state-gated, not always-on: measure the day block's own
+  // overflow (its box is fixed by flex, so a content change alone does not
+  // move it — re-check on viewport resizes, element resizes, and font
+  // loads, the three ways its overflow can change).
+  useEffect(() => {
+    const el = dayRef.current;
+    if (el === null) return;
+    const update = () => {
+      const next = dayBlockOverflows(el.scrollHeight, el.clientHeight);
+      setDayOverflows((prev) => (prev === next ? prev : next));
+    };
+    update();
+    window.addEventListener("resize", update);
+    const ro = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(update);
+    if (ro !== null) ro.observe(el);
+    if (typeof document !== "undefined" && document.fonts !== undefined) {
+      void document.fonts.ready.then(update).catch(() => undefined);
+    }
+    return () => {
+      window.removeEventListener("resize", update);
+      if (ro !== null) ro.disconnect();
+    };
+  }, []);
+  const meta = [
+    shelf.dayCount > 1 ? `${shelf.dayCount} days` : null,
+    `${shelf.stopCount} stops`,
+    `kept in ${keptIn(shelf.createdAt)}`,
+  ]
+    .filter((part) => part !== null)
+    .join(" · ");
   return (
-    <div className="landing-sea-cell flex min-h-0 flex-1 flex-col">
-      <DiscoverCard day={shelf} origin={{ from: "sea", href: dayPath(shelf) }} size="wide" headingLevel={3} className="min-h-0 flex-1" />
+    <div data-testid="find-a-day-panel" className="landing-sea-cell flex min-h-0 flex-1 flex-col gap-2">
+      <Heading level={3} className="shrink-0 text-md font-medium leading-snug">
+        {/* `landing-sea-door`, as the DiscoverCard's title link had it: the
+            whole card is the tap target, not just the title glyphs. Without
+            it the two-line title's box center falls between its line boxes,
+            so a tap (and the phone tap check) at that point misses the link —
+            and the card stops being the door a tap opens, which is what the
+            find moment was before these tweaks. The panel's only interactive
+            element is this link (its tag chips render as plain text), so the
+            door covers nothing else. */}
+        <Link href={dayPath(shelf)} prefetch={false} className="landing-sea-door hover:underline">
+          {shelf.name}
+        </Link>
+      </Heading>
+      <DataText size="xs" className="block shrink-0">
+        {shelf.cities.join(", ")}
+      </DataText>
+      <DataText size="xs" className="block shrink-0">
+        {meta}
+      </DataText>
+      {(shelf.description !== null || shelf.tags.length > 0) && (
+        <div className="flex shrink-0 flex-wrap items-center gap-2" data-testid="find-a-day-tags">
+          {shelf.description !== null && <Text variant="secondary">{shelf.description}</Text>}
+          {shelf.tags.length > 0 && <StopTagChips activityId={shelf.savedDayId} tags={shelf.tags.slice(0, FIND_A_DAY_TAGS_SHOWN)} focusedTag={null} />}
+        </div>
+      )}
+      <Text as="p" className="line-clamp-2 shrink-0 text-sm leading-relaxed text-pretty">
+        {FIND_A_DAY_BLURB}
+      </Text>
+      {/* The canned preview is Day 1's stops (its times and names match the day page's Day 1; the generator's SHELF_DAY picks it, and Day 1's four stops fit the moment where Day 2's six did not). The rows mirror the day page's stop rows — time gutter, numbered marker, title — tightened to pt-1.5/pb-0.5; no leg lines, because the snapshot carries no leg data and none are invented. The hairline under the day line and the dividers between rows are the day page's own hairline token, as Mitchell's preview feedback asked for. This block is the panel's flexible middle: it takes whatever height the moment leaves after the header, blurb, and footer, and clips the rest — with its bottom fade (`landing-find-day-fade`) applied exactly when its content runs past that height, so the rows dissolve instead of cutting mid-row. */}
+      <div
+        ref={dayRef}
+        data-testid="find-a-day-day"
+        className={cn("flex min-h-0 flex-1 flex-col gap-1 overflow-hidden", dayOverflows && "landing-find-day-fade")}
+      >
+        <DataText size="xs" className="uppercase tracking-wider">
+          Day 1 · {shelf.preview.length} stops
+        </DataText>
+        <span aria-hidden data-testid="find-a-day-separator" className="h-px bg-hairline" />
+        <ul data-testid="find-a-day-timeline" className="flex flex-col divide-y divide-hairline">
+          {shelf.preview.map((stop, index) => (
+            <li key={index}>
+              <div className="flex gap-2.5 pt-1.5 pb-0.5 md:gap-3">
+                <DataText size="xs" className="w-15.5 shrink-0 pt-0.5 text-2xs md:w-21.5">
+                  {stop.start !== null ? toClockLabel(stop.start, clock) : ""}
+                </DataText>
+                <span
+                  className="grid size-6 shrink-0 place-items-center rounded-full bg-brand font-mono text-2xs font-semibold text-surface"
+                  data-testid="stop-number"
+                >
+                  {index + 1}
+                </span>
+                <div className="flex min-w-0 flex-1 flex-col gap-1.5 pt-px">
+                  <span className="truncate font-semibold text-ink">{stop.title}</span>
+                </div>
+              </div>
+            </li>
+          ))}
+        </ul>
+      </div>
+      <div className="mt-auto flex shrink-0 flex-col gap-1.5" data-testid="find-a-day-footer">
+        <div className="flex items-baseline gap-2">
+          <Heading level={4} className="text-sm font-semibold">
+            What people said
+          </Heading>
+          {rated !== null && (
+            <span className="text-xs">
+              <span aria-hidden className="text-warning">
+                ★
+              </span>{" "}
+              <span className="font-semibold text-ink">{rated}</span>
+            </span>
+          )}
+        </div>
+        <ul className="flex flex-col gap-1.5">
+          {SAMPLE_REVIEWS.map((review) => (
+            <li key={review.name} className="flex flex-col" data-testid="find-a-day-review">
+              <Text as="span" className="line-clamp-1 text-sm leading-snug">
+                “{review.quote}”
+              </Text>
+              <Text as="span" variant="muted" className="text-xs">
+                — {review.name}
+              </Text>
+            </li>
+          ))}
+        </ul>
+        {/* The attribution hides on phones: it is the panel's last line, so
+            on a narrow phone moment it is the line that half-clips below the
+            activities (Mitchell's preview feedback: text peeking out from
+            under the day activities on mobile — the cut falls in the
+            reviews block's tail, not the notebook description, which sits
+            mid-panel). Day 1's four stops and the shortened tag list
+            already fit phones 375px and up; hiding this line covers the
+            350–366px band too. */}
+        <Text as="span" className="text-xs max-md:hidden">
+          By {shelf.ownerDisplayName}
+        </Text>
+      </div>
     </div>
   );
 }
@@ -52,7 +241,7 @@ export function FindADayPanel(): React.ReactElement {
 const { assistant } = LANDING_FEATURES;
 const ASSISTANT_ACCENTS = snapshotAccents({ [assistant.river.dayId]: assistant.accent });
 // Day 1's axis, nine to ten at night, filling its panel under the stack of
-// what is being added: the moment is at least the 690px `LandingSea`'s
+// what is being added: the moment is at least the 710px `LandingSea`'s
 // STORIES declares, which less its heading, the panel's head, the stack and
 // padding leaves some 440px for thirteen hours, the open popover inside them.
 // Whole rows can only make the moment taller, so the day never runs past its
@@ -61,13 +250,15 @@ const ASSISTANT_ACCENTS = snapshotAccents({ [assistant.river.dayId]: assistant.a
 const ASSISTANT_PX_PER_HOUR = 33;
 /**
  * The tools the turn called, worded by the transcript's own `toolNoteLabel`:
- * it read the trip and the day, and drafted one change per stop it suggests.
+ * it read the trip and the day, the borrowed playbook the suggestions come
+ * from, and drafted one change per stop it suggests.
  * Not `find_free_time`, whose note says "free", a word the front door does
  * not use (SPEC §14).
  */
 const ASSISTANT_STEPS: [tool: string, input: unknown][] = [
   ["read_trip", {}],
   ["read_day", { days: [assistant.river.ordinal] }],
+  ["read_playbook", {}],
   ...assistant.ghosts.map((): [string, unknown] => ["AddActivity", {}]),
 ];
 const ASSISTANT_TURNS: AssistantTurn[] = [
@@ -158,7 +349,7 @@ const RAIL_TABS = [
  * screenshot of the real panel): the panel's head, its Chat and Ask tabs on
  * Ask, and the line saying what it is looking at; the app's own transcript,
  * asking for more of the Rome trip's Day 1, with the steps the turn took
- * folded to their one-line summary, the answer, and the note of the suggestion it stored (ADR-067)
+ * open, the answer, and the note of the suggestion it stored (ADR-067)
  * with *Accept all*. Beside it, the day under a stack of what is being added,
  * and the board's own river drawing the same stops as ghosts, one with its
  * popover open.
@@ -202,7 +393,7 @@ export function AssistantPanel(): React.ReactElement {
             <div className="mt-2 rounded-sm bg-paper px-2.5 py-1.5 text-xs text-slate">{`Looking at ${assistant.trip}`}</div>
           </div>
           <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-hidden px-4 py-3.5">
-            <Transcript turns={ASSISTANT_TURNS} example={{ review: ASSISTANT_REVIEW }} />
+            <Transcript turns={ASSISTANT_TURNS} example={{ review: ASSISTANT_REVIEW, stepsOpen: true }} />
           </div>
         </div>
         <div className={cn(SURFACE, "landing-phone-fade flex min-h-0 min-w-0 flex-col")}>
