@@ -35,6 +35,17 @@ describe("FindADayPanel trims", () => {
     expect(quote.classList.contains("line-clamp-1")).toBe(true);
   });
 
+  // Test-pruning lock: the m42 story-cell clip check excludes line-clamped
+  // elements permanently, so the blurb's clamp is load-bearing for that
+  // exclusion — if the clamp were dropped, the 1440 variant would fail
+  // again on the blurb's third line. Pin the clamp here, next to the
+  // review quote's, so a future edit cannot silently remove it.
+  it("clamps the find blurb to two lines", () => {
+    render(<FindADayPanel />);
+    const blurb = screen.getByText(/Rome as a city built on top of itself/);
+    expect(blurb.classList.contains("line-clamp-2")).toBe(true);
+  });
+
   it("inlines the description with three tag chips, not five", () => {
     render(<FindADayPanel />);
     const row = screen.getByTestId("find-a-day-tags");

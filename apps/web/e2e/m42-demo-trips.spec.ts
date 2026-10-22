@@ -148,7 +148,8 @@ test.describe("the front door, signed out (M42)", () => {
   // (Mitchell's walk of PR 510): a moment's panel, its river, its notebook
   // page and the pricing are drawn whole inside the cell they are given, with
   // nothing clipped at a foot, at the gate's widths. `sr-only` is clipped by
-  // design and is not looked at. The notebook's page is the one exception
+  // design and is not looked at, and neither is a deliberately line-clamped
+  // element (a clamp hides overflow by design). The notebook's page is the one exception
   // (Mitchell's third walk: *"dont be afraid to make it too long, but clip it
   // at bottom so it fades out at the real edge"*): it runs on past its cell
   // and fades out at the cell's own foot, which the cell keeps.
@@ -157,18 +158,18 @@ test.describe("the front door, signed out (M42)", () => {
     [3440, 1440, 19],
   ] as const) {
     test(`every story cell holds what it shows at ${width}`, async ({ page }) => {
-      // FIXME (test-pruning assessment, on merge): the 1440 variant is skipped
-      // because its only clipped element is the sea-find blurb paragraph
-      // (`sea-find: P 21px`), and that blurb is deliberately line-clamped to
-      // 2 lines — the 21px is the hidden third line behind a clean ellipsis,
-      // not broken cut-off text. This test measures scroll overflow, which
-      // any line-clamp produces by design, so the measurement and the design
-      // disagree here. Test-pruning: assess whether (i) this test should
-      // ignore line-clamped elements permanently, (ii) the blurb should be
-      // shortened to fit unclamped (~229 chars), or (iii) this test is
-      // redundant — and remove this FIXME accordingly. Do NOT delete the
-      // test without recording the decision.
-      test.fixme(width === 1440, "sea-find blurb is deliberately line-clamped");
+      // No skip: the 1440 variant used to be test.fixme'd because its only
+      // clipped element was the sea-find blurb paragraph (`sea-find: P
+      // 21px`), and that blurb is deliberately line-clamped to 2 lines —
+      // the 21px is the hidden third line behind a clean ellipsis, not
+      // broken cut-off text. Test-pruning decision (see the pruning
+      // decision log): a line-clamp hides overflow by design, so clamped
+      // elements are excluded from this clip check permanently, exactly
+      // like the already-excluded `sr-only` elements and the notebook's
+      // deliberate fade. Shortening the blurb to fit unclamped (~229
+      // chars) was rejected — it would cut the Trastevere/Testaccio food
+      // line for a test's sake — and the test is not redundant: at 1440
+      // it is the only guard that every story cell is drawn whole.
       await page.setViewportSize({ width, height });
       await page.goto("/");
       const sea = page.getByTestId("desktop-landing").getByTestId("landing-sea");
@@ -181,7 +182,22 @@ test.describe("the front door, signed out (M42)", () => {
       const clipped = await stories.evaluateAll((cells) =>
         cells.flatMap((cell) =>
           [cell, ...cell.querySelectorAll<HTMLElement>("*")]
-            .filter((el) => !el.classList.contains("sr-only") && getComputedStyle(el).overflowY !== "visible")
+            .filter((el) => {
+              if (el.classList.contains("sr-only")) return false;
+              const style = getComputedStyle(el);
+              if (style.overflowY === "visible") return false;
+              // Deliberately line-clamped: the clamp hides overflow by
+              // design, so scroll overflow here is not clipping. Both
+              // signals: the computed -webkit-line-clamp value (covers
+              // clamps applied without a Tailwind class) and a numeric
+              // line-clamp-* class. The class test is numeric-only on
+              // purpose: line-clamp-none means NO clamping, so it must
+              // never be excluded (part-review catch on PR #519).
+              const clamp = style.getPropertyValue("-webkit-line-clamp");
+              if (clamp !== "" && clamp !== "none") return false;
+              if ([...el.classList].some((c) => /^line-clamp-\d+$/.test(c))) return false;
+              return true;
+            })
             .filter((el) => !el.closest(".landing-sea-fade"))
             .filter((el) => el.scrollHeight - el.clientHeight > 1)
             .map((el) => `${cell.getAttribute("aria-labelledby") ?? cell.textContent!.slice(0, 24)}: ${el.tagName} ${el.scrollHeight - el.clientHeight}px`),
