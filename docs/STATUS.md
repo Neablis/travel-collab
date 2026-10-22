@@ -32,6 +32,10 @@ merges last. KI-2026-10-20-a (the Railay coordinates) is fixed by part 1.
 parallel. Part 2 (the desktop sea) starts when part 1 merges; parts 3 and 6 start after part 2
 (part 6 also after part 5).
 
+**M52 is next after M51** (minted 2026-10-22, not scoped): the during-trip experience. Its
+decisions 3–15 are open recommendations; scope it with Mitchell before any part
+(`docs/milestones/M52-the-trip-comes-with-you.md`).
+
 **M50 closed 2026-10-19, gate 11 of 11** (part 0 PR 493). Parts are PRs 494-501 and 503 (part 9,
 from Mitchell's walk), migrations `0060` and `0061`, both applied in production; ADR-079. Five
 boxes are ticked on Mitchell's walk of the landing page (his ruling, option a). Evidence, retro
