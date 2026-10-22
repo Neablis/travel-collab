@@ -1,4 +1,4 @@
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ReferralNudge } from "./ReferralNudge";
@@ -7,15 +7,14 @@ import { ReferralNudge } from "./ReferralNudge";
 // stays "Copy referral link": unless that text is in a live region, a screen
 // reader user presses Copy and hears nothing either way.
 
-function serveMint(status: number, codes: { code: string; redeemed: boolean }[] = []) {
-  vi.stubGlobal(
-    "fetch",
-    vi.fn(async (_url: string, init?: RequestInit) =>
-      init?.method === "POST"
-        ? new Response(JSON.stringify({ error: "nope" }), { status })
-        : new Response(JSON.stringify({ codes, earnsReward: true }), { status: 200 }),
-    ),
+function serveMint(status: number, codes: { code: string; redeemed: boolean }[] = [], earnsReward = true) {
+  const fetchMock = vi.fn(async (_url: string, init?: RequestInit) =>
+    init?.method === "POST"
+      ? new Response(JSON.stringify({ error: "nope" }), { status })
+      : new Response(JSON.stringify({ codes, earnsReward }), { status: 200 }),
   );
+  vi.stubGlobal("fetch", fetchMock);
+  return fetchMock;
 }
 
 const writeText = vi.fn();
@@ -26,6 +25,27 @@ afterEach(() => {
 });
 
 describe("ReferralNudge", () => {
+  // Test-pruning: this is the owner layer for the earns-nothing render
+  // state. The Share panel and the invite dialog used to each carry their
+  // own copy of this assertion; they now keep only a wiring test each,
+  // and the gating itself lives here (logic) plus useReferralLink.test.tsx
+  // (the earns flag). The nudge renders null both before the server
+  // answers and when it answers earnsReward: false, so the wait for the
+  // fetch call plus the act flush is what makes this absence meaningful
+  // rather than vacuous: a fetch that never happened fails the wait, and
+  // a true earnsReward would render the button after the flush.
+  it("renders nothing new when the server says the account earns nothing", async () => {
+    const fetchMock = serveMint(200, [], false);
+    render(<ReferralNudge />);
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/account/referrals"));
+    // Let the answer land before asserting that it changed nothing (the
+    // same pattern the Share panel and invite dialog used for this wait).
+    await act(async () => {
+      await fetchMock.mock.results[0]?.value;
+    });
+    expect(screen.queryByRole("button", { name: "Copy referral link" })).toBeNull();
+  });
+
   it.each([
     [409, /as many unused codes/],
     [500, /Couldn.t make a link/],

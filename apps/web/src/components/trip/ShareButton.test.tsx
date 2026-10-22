@@ -1,4 +1,4 @@
-import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TripShare } from "@tc/contracts";
@@ -178,22 +178,15 @@ describe("ShareButton", () => {
   });
 
   // M50 decision 8: someone already sharing a trip is told a referral pays a
-  // month, and only when it would.
+  // month, and only when it would. Test-pruning: this file keeps only the
+  // wiring half (the panel renders the nudge when the account earns); the
+  // earns-nothing render state is owned by ReferralNudge.test.tsx, and the
+  // gating flag by useReferralLink.test.tsx — so the second test here,
+  // which re-proved the gating at a parent layer, is removed, not moved.
   it("offers a referral link to an account that earns the reward", async () => {
     earnsReward(true);
     render(<ShareButton tripId={tripId} />);
     await openPanel();
     expect(await screen.findByRole("button", { name: "Copy referral link" })).toBeTruthy();
-  });
-
-  it("offers nothing new to an account that earns nothing", async () => {
-    render(<ShareButton tripId={tripId} />);
-    await openPanel();
-    await waitFor(() => expect(referralsFetch).toHaveBeenCalledWith("/api/account/referrals"));
-    // Let the answer land before asserting that it changed nothing.
-    await act(async () => {
-      await referralsFetch.mock.results[0]?.value;
-    });
-    expect(screen.queryByRole("button", { name: "Copy referral link" })).toBeNull();
   });
 });
