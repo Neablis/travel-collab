@@ -328,13 +328,15 @@ describe("Board", () => {
   // header/chip color. This fixture's activities carry no location, so the
   // day's city is null and dayAccents (Task 8.2, KI-18) resolves it to the
   // explicit "neutral" family — moss, not a spent semantic bucket.
-  it("a day column is 268px wide, rounded-2xl, and tinted by dayAccents", () => {
+  it("a day column is 268px wide", () => {
     renderBoard(fixture(), noopCallbacks());
     const day = screen.getAllByTestId("day-column")[0]!;
-    // eslint-disable-next-line no-restricted-syntax -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
-    expect(day.className).toContain("rounded-2xl");
-    // eslint-disable-next-line no-restricted-syntax -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
-    expect(day.className).toContain("bg-moss");
+    // Test-pruning: the rounded-2xl/bg-moss token assertions were trimmed
+    // here — pure presentation tokens that break on any restyle and assert
+    // no behaviour (the file's own 2026-08-30 trimming precedent), and the
+    // tint logic is unit-tested in dayAccent tests. The width assertion
+    // stays: it is load-bearing (the trailing "One more day?" column must
+    // match a real day column's width, asserted in this file).
     expect((day as HTMLElement).style.width).toBe("268px");
   });
 

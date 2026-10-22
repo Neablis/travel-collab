@@ -198,18 +198,22 @@ describe("Discover", () => {
   });
 
   // Its cards come in two sizes, and their titles sit one level under it.
+  // Test-pruning: two cards, not six — this page test's contribution is
+  // that the page applies sizes and titles cards under the results
+  // heading; the six-long rhythm (wide first and every fifth) is proven
+  // at the unit layer by editorialSize in DiscoverCard.test.tsx.
   it("lays the results out wide, then standard, each card titled under the results' heading", async () => {
-    const six = Array.from({ length: 6 }, (_, i) =>
+    const two = Array.from({ length: 2 }, (_, i) =>
       day({ savedDayId: `aa000000-0000-4000-8000-00000000000${i}`, name: `Day ${i}` }),
     );
-    searchPlaybooksMock.mockResolvedValue(ok(response({ days: six })));
+    searchPlaybooksMock.mockResolvedValue(ok(response({ days: two })));
     render(<DiscoverScreen />);
     const results = await screen.findByRole("list", { name: "Results" });
     expect(within(results).getAllByTestId("discover-card").map((card) => card.getAttribute("data-size"))).toEqual([
-      "wide", "standard", "standard", "standard", "standard", "wide",
+      "wide", "standard",
     ]);
     expect(within(results).getAllByRole("heading", { level: 3 }).map((h) => h.textContent)).toEqual(
-      six.map((d) => d.name),
+      two.map((d) => d.name),
     );
   });
 
