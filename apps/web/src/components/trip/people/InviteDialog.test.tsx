@@ -1,4 +1,4 @@
-import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { tripInviteFactory } from "@tc/factories";
@@ -156,20 +156,13 @@ describe("InviteDialog", () => {
     expect(within(again).getByRole("radio", { name: "Can edit" }).getAttribute("aria-checked")).toBe("true");
   });
 
-  // M50 decision 8, the same rule as the Share panel's.
+  // M50 decision 8, the same rule as the Share panel's. Test-pruning: this
+  // file keeps only the wiring half (the dialog renders the nudge when the
+  // account earns); the earns-nothing render state is owned by
+  // ReferralNudge.test.tsx, and the gating flag by useReferralLink.test.tsx.
   it("offers a referral link to an account that earns the reward", async () => {
     earnsReward(true);
     const { dialog } = renderDialog();
     expect(await within(dialog).findByRole("button", { name: "Copy referral link" })).toBeTruthy();
-  });
-
-  it("offers nothing new to an account that earns nothing", async () => {
-    const { dialog } = renderDialog();
-    await waitFor(() => expect(referralsFetch).toHaveBeenCalledWith("/api/account/referrals"));
-    // Let the answer land before asserting that it changed nothing.
-    await act(async () => {
-      await referralsFetch.mock.results[0]?.value;
-    });
-    expect(within(dialog).queryByRole("button", { name: "Copy referral link" })).toBeNull();
   });
 });
