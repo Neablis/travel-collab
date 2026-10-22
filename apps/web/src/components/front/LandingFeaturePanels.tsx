@@ -81,7 +81,6 @@ const FIND_A_DAY_BLURB =
  */
 const SAMPLE_REVIEWS: { name: string; quote: string }[] = [
   { name: "Elena", quote: "The arena floor first thing was worth every cent — standing where the gladiators stood changes the whole place." },
-  { name: "Tom", quote: "Lunch in Testaccio was the day's best decision. The market stalls, then walking it off past the Pyramid." },
 ];
 /**
  * The sea's first moment (M9): the Rome day as the day page shows it, not a

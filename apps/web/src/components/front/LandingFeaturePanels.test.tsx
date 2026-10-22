@@ -7,15 +7,16 @@ afterEach(() => {
 });
 
 /**
- * The find moment's panel trims: two sample reviews (not three), the
+ * The find moment's panel trims: one sample review (not two), the
  * description inline with the tag chips, and the timeline stops numbered
  * like the day page's rows. The panel's moment is 480px tall with an
  * overflow-hidden foot, so every row here is room the panel cannot spare.
  */
 describe("FindADayPanel trims", () => {
-  it("shows two sample reviews, not three", () => {
+  it("shows one sample review, not two", () => {
     render(<FindADayPanel />);
-    expect(screen.getAllByTestId("find-a-day-review")).toHaveLength(2);
+    expect(screen.getAllByTestId("find-a-day-review")).toHaveLength(1);
+    expect(screen.queryByText("— Tom")).toBeNull();
     expect(screen.queryByText("— Priya")).toBeNull();
   });
 
