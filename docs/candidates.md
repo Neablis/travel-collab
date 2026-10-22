@@ -16,6 +16,25 @@ not by anybody remembering. That automation exists because the rule was being
 skipped: M23's entry survived its own gate closing on 2026-09-19 and was still
 here two days later.
 
+- **Live flight status: delays, gate changes and a heads-up when they change (asked
+  2026-10-22).** Left out of M52 by Mitchell (decision 4). M52 gives a flight leg its number, its
+  times in each end's zone and a countdown, with no vendor. Live status needs a paid flight-data
+  provider (FlightAware, AeroDataBox, Cirium), a key, a cost line and a terms review, a job that
+  polls flights departing in the next day, and push (below) for the heads-up to reach anyone.
+  Read-only on open, behind `EXTERNAL_DATA_OFFLINE` like weather, is the smallest version.
+
+- **Push notifications (asked 2026-10-22).** Left out of M52 (decision 7). `public/sw.js` has no
+  push handler, and adding one is its own ADR (VAPID keys, a subscriptions table, per-person
+  opt-in, iOS's installed-PWA-only rule). What would use it first: "leave in 15 minutes" for the
+  next stop, a chat message that mentions you (already asked in *Trip chat follow-ups*), and live
+  flight status (above).
+
+- **The trip works offline while you are on it (asked 2026-10-22).** Left out of M52 (decision 7),
+  and the stronger case of the two: roaming abroad is exactly when today's plan is most needed.
+  `sw.js` forbids a fetch listener today (`:5-19`), and its comments say offline needs its own ADR.
+  The smallest version is a read-only cache of an under-way trip's *During the trip* notebook and
+  today's stops, refreshed whenever the trip opens online.
+
 - **The front door tells the story: a homepage redesign from Mitchell's 2026-10-19 walk
   (asked 2026-10-19).** Walking production `/` after M50 part 9 (PR 503, merged as a stopgap),
   Mitchell said the homepage needs a bigger design review, not more fixes:
@@ -174,7 +193,7 @@ here two days later.
   Open questions: which fields actually render (card, editor, the Money notebook?),
   whether check-in/out times belong here or in the time window, and whether a
   confirmation number is sensitive enough to hide from viewers and share links.
-  *Placed 2026-10-06 → `docs/milestones/M44-a-stop-knows-what-was-booked.md` (proposed, not yet scoped). M44's gate deletes this entry at close.*
+  *Placed 2026-10-06 → M44; moved 2026-10-22 → `docs/milestones/M52-the-trip-comes-with-you.md` (decision 5; proposed, not yet scoped). M52's gate deletes this entry at close.*
 
 - **An architecture map that is generated, drift-checked, and annotated at gate
   close (designed 2026-09-18 — `docs/specs/2026-09-18-architecture-map-and-drift-audit-design.md`).**
