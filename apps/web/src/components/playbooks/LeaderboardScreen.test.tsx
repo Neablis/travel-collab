@@ -109,16 +109,21 @@ describe("the leaderboard", () => {
   // A first read that FAILS leaves `loading` false and `data` null. The board
   // used to pulse skeleton rows forever under its own sync banner (CodeRabbit,
   // PR 102) — which reads as "still loading", not as "this did not work".
-  it("stops pretending to load when the first read failed, and offers one Retry", async () => {
+  it("stops pretending to load when the first read failed", async () => {
     fetchLeaderboardMock.mockResolvedValue({ ok: false, error: { status: 0, message: "Network error" } });
     render(<LeaderboardScreen />);
     await screen.findByText("The board did not load");
     expect(screen.queryByTestId("board-skeleton")).toBeNull();
-    // Exactly one, and it is the banner's — a second Retry elsewhere on a page
-    // that failed its first read would be two answers to the same question.
+    // Test-pruning: the page keeps its own halves here (its error copy,
+    // its skeleton going away, and that it wires the banner at all), and
+    // this global count is the ONE retained page-level uniqueness guard
+    // (part-review catch on PR #522): the owner test proves the banner
+    // emits exactly one Retry, but only a page-level count proves the
+    // page offers no second Retry elsewhere. The banner-scoped Retry
+    // assertion itself stays owner-owned (ReadStates.test.tsx), and the
+    // Profile page's count stays removed — one retained copy is the
+    // guard, not a copy per page.
+    expect(screen.getByTestId("library-sync-failure")).toBeTruthy();
     expect(screen.getAllByRole("button", { name: "Retry" })).toHaveLength(1);
-    expect(
-      within(screen.getByTestId("library-sync-failure")).getByRole("button", { name: "Retry" }),
-    ).toBeTruthy();
   });
 });
