@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CHAT_MESSAGE_MAX, ChatMessage, ChatPage, EditChatMessage, PostChatMessage, TripEventsPage } from "../src/index.ts";
+import { ASK_MAX_DURATION_SECONDS, CHAT_MESSAGE_MAX, ChatMessage, ChatPage, EditChatMessage, PostChatMessage, TripEventsPage } from "../src/index.ts";
 
 const meta = {
   messageId: "6e9a2c9e-3f7a-4b6e-9d3f-2b1a5c8d7e6f",
@@ -58,6 +58,17 @@ describe("ChatMessage", () => {
   it("keeps a message whose link kind it does not know, without the link", () => {
     const parsed = ChatMessage.parse({ ...meta, removed: false, body: "@Later", link: { kind: "unknown_future", id: "x" } });
     expect(parsed).toEqual({ ...served, removed: false, body: "@Later" });
+  });
+});
+
+// A client reads `asksAssistant` as pending only this long after `createdAt`:
+// a turn the platform killed, or whose reply could not be posted, names the
+// message in no `replyTo`, so without the bound it would read "thinking"
+// forever. The routes' `maxDuration` is held to the same number in
+// `askDeadline.test.ts`.
+describe("ASK_MAX_DURATION_SECONDS", () => {
+  it("is the five-minute wall an assistant turn cannot outlive", () => {
+    expect(ASK_MAX_DURATION_SECONDS).toBe(300);
   });
 });
 

@@ -3,17 +3,8 @@
 // route, the handler and the test that ties them together share one number
 // without the test importing the handler's database graph.
 
-/**
- * **The ask route's wall, in seconds** — the value `route.ts` exports as
- * `maxDuration`. Next.js reads that export statically, so it has to be a
- * literal there; this is the same number for code to derive from, and
- * `askDeadline.test.ts` asserts the two agree.
- *
- * 300 is what the deployment already enforced without saying so: on
- * 2026-09-26 a page turn died at `Task timed out after 300 seconds`, wrote no
- * `ai.ask` record, and delivered nothing it had drafted (KI-2026-09-26-s).
- */
-export const ASK_MAX_DURATION_SECONDS = 300;
+// The wall is a contract: a client bounds `asksAssistant`'s pending state by it.
+import { ASK_MAX_DURATION_SECONDS } from "@tc/contracts";
 
 /**
  * **After this, the turn takes no new tool step** — it is given one last step

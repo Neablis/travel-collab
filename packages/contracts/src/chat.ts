@@ -50,13 +50,16 @@ const MessageMeta = {
   replyTo: z.string().uuid().nullable().default(null),
   /**
    * On an assistant message, the suggestion its turn stored, which only
-   * `requestedBy` may accept or dismiss; null when it proposed nothing.
+   * `requestedBy` may accept, and dismiss beside the trip's owner (ADR-067's
+   * 2026-10-23 amendment); null when it proposed nothing.
    */
   suggestionId: z.string().uuid().nullable().default(null),
   /**
    * On a member's message, that it asked the assistant: its reply is still to
    * come until an `assistant` message names it in `replyTo`, which is how every
-   * member, not only the asker, can see the assistant is working on it.
+   * member, not only the asker, can see the assistant is working on it. Pending
+   * only while `createdAt` is within `ASK_MAX_DURATION_SECONDS`: a turn the
+   * platform killed, or whose reply could not be posted, never gets one.
    */
   asksAssistant: z.boolean().default(false),
   createdAt: z.string(),

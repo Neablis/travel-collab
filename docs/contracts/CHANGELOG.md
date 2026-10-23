@@ -21,11 +21,14 @@ Format:
   suggestion its turn stored, which is what the thread renders the asker's card from (part 6).
   `ChatMessage` also gains `asksAssistant` (`boolean`, `.default(false)`): a member's message
   that was an `@assistant`, so every member can see a reply is on its way until an `assistant`
-  message names it in `replyTo`. `PostChatMessage` gains `assistant: true` (optional), the
+  message names it in `replyTo`, and only while `createdAt` is within `ASK_MAX_DURATION_SECONDS`:
+  a turn the platform killed, or whose reply could not be posted, is never answered. `PostChatMessage` gains `assistant: true` (optional), the
   `@assistant` target.
 - **Added** (`packages/contracts/src/assistant.ts`): `STOPPED_EMPTY`, the sentence a turn stopped
   at its hard deadline with nothing said ends on. It moved here from `useAskThread.ts`, which the
   Ask tab still reads it from, so the chat's `@assistant` reply says the same.
+  `ASK_MAX_DURATION_SECONDS` (300) moved here from `server/ai/askDeadline.ts`, which still derives
+  its deadlines from it, so a client can bound `asksAssistant`'s pending state (part 6).
 - **Added** (`packages/contracts/src/suggestion.ts`): `SuggestionChange.requestedBy` (optional,
   absent like `via` for a change any editor decides): the one member who may accept a change a
   chat `@assistant` stored (they or the trip's owner may dismiss it, ADR-067's amendment), so a client can offer Accept to them and *Waiting on* to

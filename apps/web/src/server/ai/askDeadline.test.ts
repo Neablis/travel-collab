@@ -2,7 +2,8 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { ASK_HARD_DEADLINE_MS, ASK_MAX_DURATION_SECONDS, ASK_STEP_DEADLINE_MS } from "./askDeadline";
+import { ASK_MAX_DURATION_SECONDS } from "@tc/contracts";
+import { ASK_HARD_DEADLINE_MS, ASK_STEP_DEADLINE_MS } from "./askDeadline";
 
 describe("the ask route's time budget", () => {
   // Next.js reads `maxDuration` statically, so the route has to spell it as a

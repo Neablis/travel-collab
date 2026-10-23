@@ -84,6 +84,20 @@ export const ASK_FAILED_MESSAGE = "The assistant couldn't answer just now. Try a
 export const ASK_INTERNAL_ERROR_MESSAGE = "The assistant hit a problem on our side, and it has been logged.";
 
 /**
+ * **The ask route's wall, in seconds** — the value `route.ts` exports as
+ * `maxDuration`. Next.js reads that export statically, so it has to be a
+ * literal there; this is the same number for code to derive from, and
+ * `askDeadline.test.ts` asserts the two agree (the chat route's too, which
+ * runs an `@assistant` turn under it). A client reads a chat message's
+ * `asksAssistant` as pending only this long after its `createdAt` (M52).
+ *
+ * 300 is what the deployment already enforced without saying so: on
+ * 2026-09-26 a page turn died at `Task timed out after 300 seconds`, wrote no
+ * `ai.ask` record, and delivered nothing it had drafted (KI-2026-09-26-s).
+ */
+export const ASK_MAX_DURATION_SECONDS = 300;
+
+/**
  * What a turn stopped at its hard deadline says when it produced nothing
  * (KI-2026-09-26-s): the Ask tab's rail adds it to an empty answer, and the
  * chat's `@assistant` posts it as the reply (M52). The stream's `abort` chunk
