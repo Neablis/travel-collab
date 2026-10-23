@@ -98,6 +98,10 @@ Mitchell, M52 decisions 8, 17 and 18.
 - **A message has an author `kind`**: `member` (every message before this), `assistant`, or
   `system`. A migration adds the column, defaulting existing rows to `member`, and a nullable
   `requested_by` naming the member whose `@assistant` produced an assistant message.
+- **An assistant message names its question and its proposal**: `reply_to` (the member message
+  that asked) and `suggestion_id` (the suggestion its turn stored, when it proposed), so the thread
+  can show the proposal card beside the reply. Authors in anything the assistant reads or writes
+  are named by display name, never by email.
 - **`@assistant` is a mention target** beside a person, notebook, day and stop. The turn runs on
   the **asker's** plan, quota and ledger (M31), capped by the asker's role on the trip. It is not
   available while the chat is read-only (decision 2's lapse rule still holds).
