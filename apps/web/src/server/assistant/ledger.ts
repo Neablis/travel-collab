@@ -132,7 +132,8 @@ export interface TurnCost {
   latencyMs: number | null;
   /**
    * Example days in a plan turn's prompt (M48). Null when retrieval never ran:
-   * not a plan turn, or the flag off. 0 when it ran and nothing reached the prompt.
+   * not a plan turn, or the flag off. 0 when it ran and nothing reached the
+   * prompt, a failed or timed-out lookup included (only the log tells those apart).
    */
   planExamples: number | null;
 }

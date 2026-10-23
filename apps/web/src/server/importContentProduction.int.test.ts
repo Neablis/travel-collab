@@ -182,7 +182,8 @@ describe("importPlaybooks — the declared day count (KI-2026-09-24-b)", () => {
 describe("importPlaybooks — the embed queue", () => {
   it("queues every day it writes, and re-queues a pruned day so the sweep tombstones it", async () => {
     const id = `playbook-embed-${randomUUID().slice(0, 8)}`;
-    const bundle = (keys: string[]) =>
+    const twoDays = [{ stops: [{ title: "Fushimi Inari" }] }, { stops: [] }];
+    const bundle = (keys: string[], days: { stops: { title: string }[] }[] = twoDays) =>
       parseBundle({
         $schema: "travel-collab/content-bundle/v1",
         bundle: { id, name: "Embed queue", origin: "ai" },
@@ -191,7 +192,7 @@ describe("importPlaybooks — the embed queue", () => {
           name: `Day ${key}`,
           ownerId: owner,
           sourceTrip: { name: "Kyoto" },
-          days: [{ stops: [{ title: "Fushimi Inari" }] }, { stops: [] }],
+          days,
         })),
       });
     const queued = async (savedDayId: string) =>
@@ -210,6 +211,28 @@ describe("importPlaybooks — the embed queue", () => {
     await db.update(pendingEmbeddings).set({ status: "done" }).where(eq(pendingEmbeddings.sourceId, pruned));
     await importPlaybooks(bundle(["kept"]), true);
     expect(await queued(pruned)).toEqual(["0:pending", "1:pending"]);
+  });
+
+  it("re-queues the days a shortened re-import drops, so the sweep tombstones them", async () => {
+    const id = `playbook-shrink-${randomUUID().slice(0, 8)}`;
+    const bundle = (days: { stops: { title: string }[] }[]) =>
+      parseBundle({
+        $schema: "travel-collab/content-bundle/v1",
+        bundle: { id, name: "Shrink", origin: "ai" },
+        playbooks: [{ key: "day", name: "Day", ownerId: owner, sourceTrip: { name: "Kyoto" }, days }],
+      });
+    const savedDayId = playbookIdFor(id, "day");
+
+    await importPlaybooks(bundle([{ stops: [{ title: "Fushimi Inari" }] }, { stops: [{ title: "Arashiyama" }] }]), false);
+    await db.update(pendingEmbeddings).set({ status: "done" }).where(eq(pendingEmbeddings.sourceId, savedDayId));
+    await importPlaybooks(bundle([{ stops: [{ title: "Fushimi Inari" }] }]), false);
+
+    const rows = await db
+      .select({ dayIndex: pendingEmbeddings.dayIndex, status: pendingEmbeddings.status })
+      .from(pendingEmbeddings)
+      .where(eq(pendingEmbeddings.sourceId, savedDayId))
+      .orderBy(asc(pendingEmbeddings.dayIndex));
+    expect(rows.map((r) => `${r.dayIndex}:${r.status}`)).toEqual(["0:pending", "1:pending"]);
   });
 });
 

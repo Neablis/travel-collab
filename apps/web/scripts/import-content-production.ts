@@ -172,6 +172,14 @@ export async function importPlaybooks(bundle: ContentBundleV1, prune: boolean) {
   await db.transaction(async (tx) => {
     // Read before the delete below erases it; put back after the re-insert.
     const moderation = await carryModeration(tx, ids);
+    // Each day's old length, so a re-import that shortens it also queues the
+    // dropped indexes: the sweep tombstones a day past the new end.
+    const previousDayCount = new Map(
+      ids.length === 0
+        ? []
+        : (await tx.select({ id: savedDays.id, dayCount: savedDays.dayCount }).from(savedDays).where(inArray(savedDays.id, ids)))
+            .map((row) => [row.id, row.dayCount]),
+    );
     // Ledger first: `saved_day_adds` has no foreign key (this schema's
     // convention), so removing the days first would orphan it.
     //
@@ -205,7 +213,8 @@ export async function importPlaybooks(bundle: ContentBundleV1, prune: boolean) {
         await tx.delete(savedDayCovers).where(inArray(savedDayCovers.savedDayId, staleIds));
         await tx.delete(savedDays).where(inArray(savedDays.id, staleIds));
         // Re-queued so the sweep finds the source gone and tombstones its
-        // embeddings, as `deleteSavedDay` does. Retrieval already hides them.
+        // embeddings, as `deleteSavedDay` does. Until then retrieval can still
+        // serve them: its veto needs the row, and a prune hard-deletes it.
         for (const row of stale) await enqueueDayChunksInTransaction(tx, "playbook", row.id, dayIndexes(row.dayCount));
         pruned = staleIds.length;
       }
@@ -246,7 +255,8 @@ export async function importPlaybooks(bundle: ContentBundleV1, prune: boolean) {
       // days itself, or retrieval never sees an imported playbook (four went
       // unembedded on 2026-10-21). A re-import of unchanged text costs no
       // provider call: the sweep skips a day whose chunk text matches.
-      await enqueueDayChunksInTransaction(tx, "playbook", day.savedDayId, dayIndexes(day.dayCount));
+      const span = Math.max(day.dayCount, previousDayCount.get(day.savedDayId) ?? 0);
+      await enqueueDayChunksInTransaction(tx, "playbook", day.savedDayId, dayIndexes(span));
     }
     // Reviews are NOT deleted with the rows above, and the counters are
     // recomputed from them instead. A re-import rewrites the authored content

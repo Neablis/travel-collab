@@ -1350,9 +1350,10 @@ export const aiUsage = pgTable(
     // is read from here rather than from a log nobody keeps (ADR-062 §7).
     latencyMs: integer("latency_ms"),
     // How many retrieved example days went into a plan turn's prompt (M48,
-    // ADR-075). 0 means retrieval ran and nothing reached the prompt; null
-    // means it never ran — not a plan turn, or `RAG_PLAN_RETRIEVAL` off — so
-    // the two read apart. A count, never the ids: those are in the log.
+    // ADR-075). 0 means retrieval ran and nothing reached the prompt, which
+    // includes a lookup that failed or timed out (the `rag: plan example
+    // lookup failed` log tells those apart); null means it never ran — not a
+    // plan turn, or `RAG_PLAN_RETRIEVAL` off. A count, never the ids.
     planExamples: integer("plan_examples"),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
   },

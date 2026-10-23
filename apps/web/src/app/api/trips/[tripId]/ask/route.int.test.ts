@@ -104,11 +104,6 @@ vi.mock("@/server/assistant/deps", async (importOriginal) => {
   };
 });
 
-// KI-2026-09-24-w: a throw inside `buildProposal` (called from `messageMetadata`
-// on the stream's `finish` part) must not break the stream. Armed per-test;
-// every other call is the real implementation. Reset between tests: a test
-// that fails before the mock fires would otherwise arm the throw for the
-// next one.
 // M48's ledger count: retrieval needs an embedding provider and a corpus, so
 // the two seams are stubbed per test. Off by default, every other test sees
 // the real module with the flag as configured (off in this lane).
@@ -138,6 +133,11 @@ vi.mock("@/server/ai/planExamples", async (importOriginal) => {
   };
 });
 
+// KI-2026-09-24-w: a throw inside `buildProposal` (called from `messageMetadata`
+// on the stream's `finish` part) must not break the stream. Armed per-test;
+// every other call is the real implementation. Reset between tests: a test
+// that fails before the mock fires would otherwise arm the throw for the
+// next one.
 let failNextProposalBuild = false;
 beforeEach(() => {
   failNextProposalBuild = false;

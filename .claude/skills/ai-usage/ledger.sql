@@ -276,7 +276,10 @@ ORDER BY sp.endpoint, sp.part DESC, sp.model;
 --     null), how many examples their prompts carried on average, and the
 --     turn's own tokens at p50 for each group, flag-on beside flag-off. Null
 --     is "retrieval never ran" (flag off, or a row from before 0066); 0 is
---     "it ran and found nothing". Price the token columns as query 11 says.
+--     "it ran and nothing reached the prompt", which also counts a lookup that
+--     failed or timed out: read `rag: plan example lookup failed` in the logs
+--     before calling a run of zeros an empty corpus. Price the token columns
+--     as query 11 says.
 WITH window_ AS (SELECT now() - interval '30 days' AS since)
 SELECT date_trunc('day', u.created_at)::date AS day,
        (u.plan_examples IS NOT NULL) AS retrieval_ran,

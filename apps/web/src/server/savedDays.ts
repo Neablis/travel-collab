@@ -288,7 +288,9 @@ export async function storeSavedDay(input: {
   // failures, so a queue outage never fails a save. One hook site covers the
   // public API, the library route and the app's keep, which all write through
   // `storeSavedDay`. The production content importer inserts its rows directly
-  // and queues them itself (`scripts/import-content-production.ts`).
+  // and queues them itself (`scripts/import-content-production.ts`); the dev
+  // content route (`app/api/dev/content/playbooks`) inserts directly and does
+  // not, so a dev database's library is unembedded until a backfill.
   const dayIndexes = Array.from({ length: row.dayCount }, (_, dayIndex) => dayIndex);
   await enqueueDayChunksForEmbedding("playbook", row.id, dayIndexes);
   return { ok: true, value: toDto(row, validated.data) };
