@@ -347,24 +347,30 @@ export function PageScreen({
   // An invite still out: the poll runs on a solo trip for it, as the board's
   // does, so the one who accepts is seen within an interval.
   const [inviteOut, setInviteOut] = useState(false);
-  // Only the newest access read lands: the load's and a poll's can cross.
+  // The load's read and a poll's re-read can cross. A re-read lands only if it
+  // is the newest read STARTED; the load's, only if no re-read has ANSWERED
+  // since it started (PR 537 round 13). The load's is the one that settles
+  // `editRole` from pending, so a re-read that fails or never lands must not
+  // drop it: that left an editor with no way into Editing until a reload.
   const accessTicket = useRef(0);
+  const answeredTicket = useRef(0);
   // The `accessRev` the members above are from, so the poll re-reads them
   // only when someone has joined or left (`onAccessRevision`).
   const seenAccessRev = useRef<string | null>(null);
   useEffect(() => {
     let cancelled = false;
-    const ticket = ++accessTicket.current;
+    ++accessTicket.current;
+    const ticket = ++answeredTicket.current;
     setEditRole("pending");
     void cachedRead(tripKeys.access(tripId), () => fetchTripAccess(tripId)).then((access) => {
-      if (cancelled || ticket !== accessTicket.current) return;
-      const role = !access.ok ? "unknown" : canEditNotebook(access.value.myRole) ? "writer" : "reader";
-      setEditRole(role);
+      if (cancelled || ticket !== answeredTicket.current) return;
       setMembers(access.ok ? access.value.members : null);
       setMyRole(access.ok ? access.value.myRole : null);
       setAccessRefused(!access.ok && access.error.status >= 400 && access.error.status < 500);
       setInviteOut(access.ok && access.value.invites.some((i) => i.status === "pending"));
       if (access.ok) seenAccessRev.current = access.value.accessRev ?? null;
+      const role = !access.ok ? "unknown" : canEditNotebook(access.value.myRole) ? "writer" : "reader";
+      setEditRole(role);
       if (role === "reader") setEditing(false);
       if (role === "writer" && from === "overview") setEditing(true);
     });
@@ -378,8 +384,13 @@ export function PageScreen({
   // someone just joined. The board's rule (`TripProvider`'s
   // `onAccessRevision`): with no baseline the first rev becomes it, and a
   // failed re-read keeps the last good answer and leaves the rev unseen, so
-  // the next poll retries. Only who is on the trip moves here: the editing
-  // role stays the load's, as it did before.
+  // the next poll retries.
+  //
+  // **And the role, so the page holds one answer to it** (round 13): an editor
+  // made a viewer leaves Editing and loses the toggle, as a load would have
+  // left them. Leaving Editing commits the session, and a save refused for the
+  // role keeps the document in this browser like any refused save, held for
+  // a later visit with the role given back (the held-draft rule below).
   const onAccessRevision = (rev: string) => {
     if (seenAccessRev.current === null) {
       seenAccessRev.current = rev;
@@ -395,6 +406,10 @@ export function PageScreen({
       setAccessRefused(false);
       setInviteOut(access.value.invites.some((i) => i.status === "pending"));
       seenAccessRev.current = access.value.accessRev ?? rev;
+      answeredTicket.current++;
+      const mayEdit = canEditNotebook(access.value.myRole);
+      setEditRole(mayEdit ? "writer" : "reader");
+      if (!mayEdit) setEditing(false);
     });
   };
   const mayToggleEditing = editRole === "writer" || editRole === "unknown";

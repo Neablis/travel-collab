@@ -1,4 +1,4 @@
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
 import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { setupServer } from "msw/node";
@@ -6,7 +6,7 @@ import { http, HttpResponse } from "msw";
 import { PageScreen } from "./PageScreen";
 import { PhoneAskTab } from "@/components/nav/PhoneTabBar";
 import { ChatMessage, CURRENT_PAGE_DOC_VERSION, newPageDoc, SuggestionChange, SYSTEM_ACTOR_ID, type MacroNode, type Page } from "@tc/contracts";
-import { pageFixture as sharedPageFixture, tripDetailFixture, uuidFrom } from "@tc/factories";
+import { pageFixture as sharedPageFixture, tripDetailFixture, tripInviteFactory, uuidFrom } from "@tc/factories";
 import { insertWidget, presetCatalog } from "@tc/pages";
 import { makeChatHandlers, makePagesHandlers, makeAccountPlanHandler, makeWeatherHandler } from "@/mocks/handlers";
 import { PreferencesProvider } from "@/components/account/PreferencesProvider";
@@ -18,6 +18,7 @@ import { fetchTripGlobals } from "@/lib/apiClient";
 import { cachedRead, DEDUPE } from "@/lib/queryCache";
 import { tripKeys } from "@/lib/queryKeys";
 import { findPaletteCommand, runPaletteCommand } from "@/components/palette/paletteRegistry";
+import { POLL_INTERVAL_MS } from "@/components/trip/context/broadcast";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
@@ -2752,5 +2753,148 @@ describe("PageScreen: a notebook's Group chat", () => {
     await userEvent.click(await screen.findByRole("button", card));
     await userEvent.type(await within(chatPanel()).findByRole("combobox", { name: "Message" }), "Still here?{Enter}");
     await waitFor(() => expect(within(chatPanel()).getByRole("link", { name: "Back to your trips" })).toBeTruthy());
+  });
+});
+
+// Who is on the trip, and as what, moves while a notebook is open: the poll's
+// `accessRev`, and the access read it sends for (PR 537 rounds 12 and 13).
+describe("PageScreen: the trip's access moving under an open page", () => {
+  type Member = { userId: string; role: "owner" | "editor" | "viewer" };
+  const pair: Member[] = [
+    { userId: "u1", role: "editor" },
+    { userId: "u-bea", role: "owner" },
+  ];
+  const accessBody = (tripId: unknown, myRole: Member["role"], members: Member[], accessRev: string, invites: object[] = []) => ({
+    access: {
+      tripId,
+      myRole,
+      members: members.map((m) => ({ ...m, name: null, email: null, image: null })),
+      invites,
+      guests: [],
+      collaboratorsEntitled: true,
+      accessRev,
+    },
+  });
+  // A trip id of its own each time: `cachedRead` keeps each trip's answer.
+  function notebook(members: Member[]) {
+    const trip = tripDetailFixture({ tripId: crypto.randomUUID(), members });
+    const page = pageFixture({ tripId: trip.tripId, title: "Packing" });
+    server.use(...makePagesHandlers([page]), http.get("/api/trips/:tripId", () => HttpResponse.json({ trip })));
+    render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
+    return page;
+  }
+  // Coming back to the tab polls; dispatched on every retry.
+  const pollUntil = (seen: () => void) =>
+    waitFor(() => {
+      document.dispatchEvent(new Event("visibilitychange"));
+      seen();
+    });
+
+  // Finding 1: the load's read is the one that settles the editing role, so a
+  // poll's re-read started while it is slow must not drop it. Here the re-read
+  // fails, which leaves the load's answer as the only one there will be.
+  it("still settles the editing role when a poll's re-read crosses a slow load and fails", async () => {
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => (release = resolve));
+    let reads = 0;
+    let polls = 0;
+    let rev = "r1";
+    server.use(
+      http.get("/api/trips/:tripId/events", () => {
+        polls++;
+        return HttpResponse.json({ headSeq: 0, events: [], resync: false, accessRev: rev });
+      }),
+      http.get("/api/trips/:tripId/access", async ({ params }) => {
+        if (++reads > 1) return HttpResponse.json({ error: "internal" }, { status: 500 });
+        await held;
+        return HttpResponse.json(accessBody(params.tripId, "editor", pair, "r1"));
+      }),
+    );
+    notebook(pair);
+    await screen.findByRole("article");
+
+    // The first poll is the baseline; one on a new rev re-reads.
+    await pollUntil(() => expect(polls).toBeGreaterThan(0));
+    rev = "r2";
+    await pollUntil(() => expect(reads).toBe(2));
+    release();
+
+    expect(await screen.findByRole("button", { name: "Edit page" })).toBeTruthy();
+  });
+
+  // Finding 2: an editor made a viewer leaves Editing, and loses the toggle,
+  // rather than keep typing into saves that come back 403. What they typed is
+  // kept in the browser by the refused save, as any refused save keeps it.
+  it("takes an editor made a viewer out of Editing, keeping what they typed", async () => {
+    server.use(
+      http.get("/api/trips/:tripId/events", () => HttpResponse.json({ headSeq: 0, events: [], resync: false, accessRev: "r1" })),
+      http.get("/api/trips/:tripId/access", ({ params }) => HttpResponse.json(accessBody(params.tripId, "editor", pair, "r1"))),
+    );
+    const page = notebook(pair);
+    await userEvent.click(await screen.findByRole("button", { name: "Edit page" }));
+    const box = screen.queryAllByRole("textbox").find((el) => el.getAttribute("contenteditable") === "true")!;
+    await userEvent.type(box, "Q");
+    await pollUntil(() => expect(screen.getByRole("button", { name: "Done editing" })).toBeTruthy());
+
+    const demoted: Member[] = [{ userId: "u1", role: "viewer" }, pair[1]!];
+    server.use(
+      http.patch("/api/trips/:tripId/pages/:pageId", () => HttpResponse.json({ error: "forbidden" }, { status: 403 })),
+      http.get("/api/trips/:tripId/events", () => HttpResponse.json({ headSeq: 0, events: [], resync: false, accessRev: "r2" })),
+      http.get("/api/trips/:tripId/access", ({ params }) => HttpResponse.json(accessBody(params.tripId, "viewer", demoted, "r2"))),
+    );
+    await pollUntil(() => expect(screen.queryByRole("button", { name: "Done editing" })).toBeNull());
+    expect(screen.queryByRole("button", { name: "Edit page" })).toBeNull();
+    expect(screen.getByRole("heading", { level: 1, name: "Packing" }).getAttribute("contenteditable")).toBe("false");
+    await waitFor(() => expect(localStorage.getItem(`page_draft:${page.id}`) ?? "").toContain("Q"));
+  });
+
+  // Finding 3: the timed poll runs where a join can come — a second member, or
+  // an invite out on a solo trip — and nowhere else, as on the board.
+  describe("the timed poll", () => {
+    let setIntervalSpy: MockInstance<typeof setInterval>;
+    let clearIntervalSpy: MockInstance<typeof clearInterval>;
+    beforeEach(() => {
+      setIntervalSpy = vi.spyOn(globalThis, "setInterval");
+      clearIntervalSpy = vi.spyOn(globalThis, "clearInterval");
+    });
+    const runningPollTimers = () => {
+      const cleared = new Set(clearIntervalSpy.mock.calls.map(([id]) => id));
+      return setIntervalSpy.mock.calls.filter(([, ms], i) => ms === POLL_INTERVAL_MS && !cleared.has(setIntervalSpy.mock.results[i]!.value)).length;
+    };
+    const solo: Member[] = [{ userId: "u1", role: "owner" }];
+    async function settled(members: Member[], inviteOut = false) {
+      // The trip's own members say solo throughout: only the access read can start the poll.
+      const trip = tripDetailFixture({ tripId: crypto.randomUUID(), members: solo });
+      const page = pageFixture({ tripId: trip.tripId });
+      const invites = inviteOut ? [tripInviteFactory.build({ tripId: trip.tripId, status: "pending" })] : [];
+      let answered = false;
+      server.use(
+        ...makePagesHandlers([page]),
+        http.get("/api/trips/:tripId", () => HttpResponse.json({ trip })),
+        http.get("/api/trips/:tripId/events", () => HttpResponse.json({ headSeq: 0, events: [], resync: false, accessRev: "r1" })),
+        http.get("/api/trips/:tripId/access", ({ params }) => {
+          answered = true;
+          return HttpResponse.json(accessBody(params.tripId, "owner", members, "r1", invites));
+        }),
+      );
+      render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
+      await screen.findByRole("button", { name: "Edit page" });
+      expect(answered).toBe(true);
+    }
+
+    it("runs none on a solo trip with no invite out", async () => {
+      await settled(solo);
+      expect(runningPollTimers()).toBe(0);
+    });
+
+    it("runs one on a solo trip with an invite out", async () => {
+      await settled(solo, true);
+      await waitFor(() => expect(runningPollTimers()).toBe(1));
+    });
+
+    it("runs one once the access read finds a second member", async () => {
+      await settled(pair.map((m) => (m.userId === "u1" ? { ...m, role: "owner" as const } : { ...m, role: "viewer" as const })));
+      await waitFor(() => expect(runningPollTimers()).toBe(1));
+    });
   });
 });
