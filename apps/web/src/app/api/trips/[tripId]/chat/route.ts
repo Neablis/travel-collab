@@ -50,16 +50,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ tri
   }
   const message = await postMessage(tripId, access.userId, body.data);
   if (asksAssistant) {
-    after(() =>
-      runChatAskTurn(tripId, access.userId, body.data.body).then(
-        () => undefined,
-        (error: unknown) => console.error("chat: the @assistant turn failed", { tripId, error }),
-      ),
-    );
+    after(() => runChatAskTurn({ tripId, askerId: access.userId, question: body.data.body, messageId: message.messageId }));
   }
   return Response.json({ message: ChatMessage.parse(message) }, { status: 201 });
 }
 
 // The `@assistant` turn runs in `after()`, inside this function's lifetime, so
-// it gets the Ask route's wall (`ask/route.ts`), a literal for the same reason.
+// it gets the Ask route's wall (`ask/route.ts`), a literal for the same reason,
+// and `askDeadline.test.ts` holds both to `ASK_MAX_DURATION_SECONDS`.
 export const maxDuration = 300;

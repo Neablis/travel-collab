@@ -8,9 +8,11 @@ describe("the ask route's time budget", () => {
   // Next.js reads `maxDuration` statically, so the route has to spell it as a
   // literal; the deadlines are derived from the constant. If the two drift,
   // the deadlines are measured against a wall the platform does not enforce.
-  it("derives its deadlines from the same wall the route declares", () => {
-    const route = readFileSync(path.join(__dirname, "../../app/api/trips/[tripId]/ask/route.ts"), "utf8");
-    const declared = /export const maxDuration = (\d+);/.exec(route)?.[1];
+  // The chat route runs the same turn in `after()` for an `@assistant` (M52),
+  // so its wall is held to the same constant.
+  it.each(["ask", "chat"])("derives its deadlines from the same wall the %s route declares", (route) => {
+    const source = readFileSync(path.join(__dirname, `../../app/api/trips/[tripId]/${route}/route.ts`), "utf8");
+    const declared = /export const maxDuration = (\d+);/.exec(source)?.[1];
     expect(Number(declared)).toBe(ASK_MAX_DURATION_SECONDS);
   });
 

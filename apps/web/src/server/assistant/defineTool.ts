@@ -214,9 +214,10 @@ export interface ToolSpec<
   /**
    * **Where the turn was started, when that is the tool's one condition** (M52
    * decision 18): `read_chat` is offered only on a turn an `@assistant` in the
-   * trip chat started. Omitted means every origin. Like `postures`, an absent
-   * argument to `toolsFor` offers a tagged tool nowhere: a caller that does not
-   * know where the turn came from is not one the chat started.
+   * trip chat started, and `go_to` only on an Ask turn, whose rail can move the
+   * page. Omitted means every origin. `toolsFor` reads an absent origin as
+   * `ask`: a caller that does not know where the turn came from is not one the
+   * chat started.
    */
   origins?: readonly TurnOrigin[];
   /**

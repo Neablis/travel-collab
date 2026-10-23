@@ -26,6 +26,8 @@ function toMessage(row: Row): ChatMessage {
     authorId: row.authorId,
     kind: row.kind,
     requestedBy: row.requestedBy,
+    replyTo: row.replyTo,
+    suggestionId: row.suggestionId,
     createdAt: row.createdAt.toISOString(),
     editedAt: row.editedAt?.toISOString() ?? null,
   };
@@ -141,19 +143,39 @@ export async function postMessage(
  */
 export const ASSISTANT_AUTHOR_ID = "assistant";
 
+/** Who an assistant reply answers: the asker, their message, and any suggestion the turn stored. */
+export interface AssistantReplyTo {
+  requestedBy: string;
+  replyTo: string;
+  suggestionId?: string | null;
+}
+
 /**
  * An `@assistant` turn's reply, posted whole (decision 18) and naming the
  * member who asked. A reply past `CHAT_MESSAGE_MAX` is cut there rather than
  * lost: the turn has already been paid for.
+ *
+ * The model's text never passed `ChatMessageBody`, so its NUL refine is done
+ * here: Postgres refuses U+0000 in a text column, and the insert would throw.
  */
 export async function postAssistantReply(
   tripId: string,
-  requestedBy: string,
+  { requestedBy, replyTo, suggestionId = null }: AssistantReplyTo,
   body: string,
   now: Date = new Date(),
 ): Promise<ChatMessage> {
-  const text = body.length <= CHAT_MESSAGE_MAX ? body : `${body.slice(0, CHAT_MESSAGE_MAX - 1).trimEnd()}…`;
-  return insertMessage({ tripId, authorId: ASSISTANT_AUTHOR_ID, kind: "assistant", requestedBy, body: text, createdAt: now });
+  const clean = body.replaceAll("\u0000", "");
+  const text = clean.length <= CHAT_MESSAGE_MAX ? clean : `${clean.slice(0, CHAT_MESSAGE_MAX - 1).trimEnd()}…`;
+  return insertMessage({
+    tripId,
+    authorId: ASSISTANT_AUTHOR_ID,
+    kind: "assistant",
+    requestedBy,
+    replyTo,
+    suggestionId,
+    body: text,
+    createdAt: now,
+  });
 }
 
 async function insertMessage(values: Omit<typeof tripMessages.$inferInsert, "id">): Promise<ChatMessage> {

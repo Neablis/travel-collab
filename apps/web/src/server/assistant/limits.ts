@@ -72,6 +72,14 @@ export const MAX_DAYS_READ_PER_TURN = 15;
 // numbers can be tuned without touching the tool (Mitchell, 2026-10-22: "keep
 // in a config to play with"). Twenty is a conversation's last few exchanges,
 // the span in which "can you fix this problem?" names its problem; the ceiling
-// bounds what one call re-sends on every later step, as the day cap above does.
+// bounds how many messages one call re-sends on every later step, as the day
+// cap above does.
 export const CHAT_CONTEXT_MESSAGES = 20;
 export const MAX_CHAT_MESSAGES_READ = 50;
+
+// Characters of one chat message `read_chat` returns, the rest cut at an
+// ellipsis. The ceiling above bounds the count only, and a message may be
+// `CHAT_MESSAGE_MAX` (4,000) long: any member, free or not, could swell the
+// readout to 200k characters, re-sent on every later step of the asker's paid
+// turn. A thousand is longer than nearly anything people say to each other.
+export const MAX_CHAT_CHARS_PER_MESSAGE = 1000;

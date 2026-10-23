@@ -115,6 +115,8 @@ describe("DELETE /api/trips/:tripId/chat/:messageId", () => {
       authorId: editor,
       kind: "member",
       requestedBy: null,
+      replyTo: null,
+      suggestionId: null,
       createdAt: message.createdAt,
       editedAt: null,
       removed: true,

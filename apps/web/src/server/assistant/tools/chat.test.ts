@@ -11,6 +11,7 @@ vi.mock("@/server/assistant/limits", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/server/assistant/limits")>()),
   CHAT_CONTEXT_MESSAGES: 7,
   MAX_CHAT_MESSAGES_READ: 9,
+  MAX_CHAT_CHARS_PER_MESSAGE: 20,
 }));
 
 const trip = tripDetailFactory.build({}, { transient: { dayCount: 2, activitiesPerDay: 1 } });
@@ -28,6 +29,14 @@ describe("read_chat", () => {
     await readChatTool.invoke({ limit: 3 }, { chatLog: log, trip });
     await readChatTool.invoke({ limit: 500 }, { chatLog: log, trip });
     expect(log.asked).toEqual([7, 3, 9]);
+  });
+
+  // Any member can paste long messages, and the readout is re-sent on every
+  // later step of the asker's paid turn: each one is cut at limits.ts's cap.
+  it("cuts a long message at limits.ts's character cap", async () => {
+    const log = chatLog([{ author: "Sam", at: "2027-04-01T09:00:00.000Z", text: "abcdefghijklmnopqrstuvwxyz" }]);
+    const { messages } = await readChatTool.invoke({}, { chatLog: log, trip });
+    expect(messages[0]!.text).toBe(untrusted("abcdefghijklmnopqrs…"));
   });
 
   it("names the day and stop a message links, and fences what members wrote", async () => {

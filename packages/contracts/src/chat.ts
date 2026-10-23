@@ -46,6 +46,13 @@ const MessageMeta = {
   kind: ChatMessageKind.default("member"),
   /** On an assistant message, the member whose `@assistant` it answers; null otherwise. */
   requestedBy: z.string().nullable().default(null),
+  /** On an assistant message, the member's message that asked it; null otherwise. */
+  replyTo: z.string().uuid().nullable().default(null),
+  /**
+   * On an assistant message, the suggestion its turn stored, which only
+   * `requestedBy` may accept or dismiss; null when it proposed nothing.
+   */
+  suggestionId: z.string().uuid().nullable().default(null),
   createdAt: z.string(),
   /** When the author last changed the text; null when never. */
   editedAt: z.string().nullable(),

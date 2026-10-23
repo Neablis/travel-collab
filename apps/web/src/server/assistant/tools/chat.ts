@@ -7,7 +7,7 @@
 import { z } from "zod";
 import type { ChatLink, TripDetail } from "@tc/contracts";
 import { defineTool } from "@/server/assistant/defineTool";
-import { CHAT_CONTEXT_MESSAGES, MAX_CHAT_MESSAGES_READ } from "@/server/assistant/limits";
+import { CHAT_CONTEXT_MESSAGES, MAX_CHAT_CHARS_PER_MESSAGE, MAX_CHAT_MESSAGES_READ } from "@/server/assistant/limits";
 import { untrusted, untrustedOrNull } from "@/server/assistant/prompt";
 
 export const READ_CHAT_TOOL_NAME = "read_chat";
@@ -33,6 +33,11 @@ type ReadChatOutput = z.infer<typeof ReadChatOutput>;
 /** How many messages a call reads: the default when unset, never past the ceiling. */
 export function chatReadLimit(asked: number | undefined): number {
   return Math.min(asked ?? CHAT_CONTEXT_MESSAGES, MAX_CHAT_MESSAGES_READ);
+}
+
+/** One message's text, cut at the character cap. */
+function clip(text: string): string {
+  return text.length <= MAX_CHAT_CHARS_PER_MESSAGE ? text : `${text.slice(0, MAX_CHAT_CHARS_PER_MESSAGE - 1)}…`;
 }
 
 /**
@@ -71,9 +76,10 @@ export const readChatTool = defineTool({
   minimumRole: "viewer",
   origins: ["chat"],
   run: async (input, deps) => ({
-    messages: (await deps.chatLog.recent(chatReadLimit(input.limit))).map(({ link, ...line }) => {
+    messages: (await deps.chatLog.recent(chatReadLimit(input.limit))).map(({ link, text, ...line }) => {
+      const cut = text === null ? null : clip(text);
       const about = aboutOf(deps.trip, link);
-      return about === undefined ? line : { ...line, about };
+      return about === undefined ? { ...line, text: cut } : { ...line, text: cut, about };
     }),
   }),
 });

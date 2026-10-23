@@ -541,6 +541,19 @@ describe("the grant a turn holds", () => {
     expect(await tools(undefined, viewer())).not.toContain("read_chat");
   });
 
+  // `go_to` moves the asker's page through the finish chunk's palette
+  // commands, which a chat reply has nowhere to carry: offered there, the
+  // thread read "Taking you to Day 3." and nobody's page moved.
+  it("offers go_to on an Ask turn, and never on a turn the chat started", async () => {
+    const offered = async (origin: "chat" | undefined) => {
+      const admission = await evaluateAiGrant({ request: askFor(TRIP_TURN), tripId: TRIP_ID, ports: spyPorts().ports, ...(origin ? { origin } : {}) });
+      if (!admission.ok) throw new Error(admission.refusal.reason);
+      return [...admission.grant.tools, ...(admission.grant.escalation?.tools ?? [])].map((tool) => tool.name);
+    };
+    expect(await offered(undefined)).toContain("go_to");
+    expect(await offered("chat")).not.toContain("go_to");
+  });
+
   // The asker's plan decides what a chat turn may do: `ai.ask` answers, and
   // only `ai.command` proposes. The Ask door is unchanged by it.
   it("holds a chat turn to answers when the asker's plan has no ai.command", async () => {

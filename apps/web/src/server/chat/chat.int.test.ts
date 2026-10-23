@@ -10,10 +10,12 @@
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { ChatMessage, ChatPage, TripEventsPage } from "@tc/contracts";
+import { ASK_FAILED_MESSAGE, type ChatMessage, type ChatPage, type TripEventsPage } from "@tc/contracts";
+import { auth } from "@/server/auth";
 import { db } from "@/server/db/client";
 import { tripMessages, tripSuggestions, users } from "@/server/db/schema";
 import { unreadByTrip } from "@/server/chat/messages";
+import { listSuggestionChanges } from "@/server/suggestions/list";
 import { executeTripCommand } from "@/server/commands";
 import { readStream } from "@/server/eventStore";
 import { grantMembership } from "@/server/access/members";
@@ -359,14 +361,40 @@ describe("@assistant", () => {
     expect(!reply.removed && reply.body).toContain("I read the last 2 messages in the chat.");
   });
 
-  it("stores a change it drafts as a suggestion only the asker may accept", async () => {
-    const { tripId, owner } = await sharedTrip();
+  // What part 6 renders the card from: the reply names the question it answers
+  // and the suggestion it stored, and the board names who the change waits on.
+  it("stores a change it drafts as a suggestion only the asker may accept, linked from the reply", async () => {
+    const { tripId, owner, editor } = await sharedTrip();
     expect((await executeTripCommand({ type: "AddDay", tripId, dayId: randomUUID() }, owner)).ok).toBe(true);
-    expect((await post(tripId, owner, { body: "@assistant add a museum on day 1", assistant: true })).status).toBe(201);
+    const asked = await post(tripId, owner, { body: "@assistant add a museum on day 1", assistant: true });
+    expect(asked.status).toBe(201);
+    const question = ((await asked.json()) as { message: ChatMessage }).message;
     await runAfterResponse();
 
     const stored = await db.select().from(tripSuggestions).where(eq(tripSuggestions.tripId, tripId));
     expect(stored).toMatchObject([{ authorId: owner, via: "assistant", requestedBy: owner }]);
+    const page = (await (await list(tripId, editor)).json()) as ChatPage;
+    expect(page.messages.at(-1)).toMatchObject({ kind: "assistant", replyTo: question.messageId, suggestionId: stored[0]!.id });
+    const board = await listSuggestionChanges(tripId, editor);
+    expect(board.ok && board.value.changes.map((change) => change.requestedBy)).toEqual([owner]);
+  });
+
+  // A throw out of the turn (here the session read admission makes) used to
+  // reach only the route's log, and the asker waited on a reply forever.
+  it("still answers in the thread when the turn throws", async () => {
+    const { tripId, owner } = await sharedTrip();
+    const asked = await post(tripId, owner, { body: "@assistant anything?", assistant: true });
+    const question = ((await asked.json()) as { message: ChatMessage }).message;
+    vi.mocked(auth).mockRejectedValueOnce(new Error("connection reset"));
+    await runAfterResponse();
+
+    const page = (await (await list(tripId, owner)).json()) as ChatPage;
+    expect(page.messages.at(-1)).toMatchObject({
+      kind: "assistant",
+      requestedBy: owner,
+      replyTo: question.messageId,
+      body: ASK_FAILED_MESSAGE,
+    });
   });
 
   // Decision 18's lapse rule: a read-only chat takes no `@assistant`, even

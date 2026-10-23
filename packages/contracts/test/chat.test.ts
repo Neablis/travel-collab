@@ -8,7 +8,7 @@ const meta = {
   editedAt: null,
 };
 // What every message before M52 reads as: a member's, answering nobody.
-const served = { ...meta, kind: "member", requestedBy: null };
+const served = { ...meta, kind: "member", requestedBy: null, replyTo: null, suggestionId: null };
 
 describe("ChatMessage", () => {
   // ADR-073 §4: a removed message is served with no text. The variant is what
@@ -28,12 +28,26 @@ describe("ChatMessage", () => {
     expect(ChatMessage.parse(live)).toEqual(live);
   });
 
-  // M52 decision 18: the assistant's reply names who asked; a message sent
-  // without the two fields (an older server) is a member's.
-  it("keeps an assistant message's asker, and reads a message without a kind as a member's", () => {
-    const reply = { ...meta, kind: "assistant", requestedBy: "dev-bea", removed: false, body: "Moved it." };
+  // M52 decision 18: the assistant's reply names who asked, the message that
+  // asked and the suggestion it stored, which is what the thread renders its
+  // card from. A message sent without them (an older server) is a member's.
+  it("keeps an assistant message's asker, question and suggestion, and reads a message without them as a member's", () => {
+    const reply = {
+      ...meta,
+      kind: "assistant",
+      requestedBy: "dev-bea",
+      replyTo: "5d2c7a3e-58a1-4c5e-9b8e-2f4f1c9a7b10",
+      suggestionId: "8e1f0b2a-3c4d-4e5f-8a6b-7c8d9e0f1a2b",
+      removed: false,
+      body: "Moved it.",
+    };
     expect(ChatMessage.parse(reply)).toEqual(reply);
-    expect(ChatMessage.parse({ ...meta, removed: false, body: "hi" })).toMatchObject({ kind: "member", requestedBy: null });
+    expect(ChatMessage.parse({ ...meta, removed: false, body: "hi" })).toMatchObject({
+      kind: "member",
+      requestedBy: null,
+      replyTo: null,
+      suggestionId: null,
+    });
   });
 
   // A reader on an older build (a stale tab, a rolled-back deploy) must not
@@ -64,12 +78,12 @@ describe("PostChatMessage", () => {
     expect(PostChatMessage.safeParse({ body: "hi", link }).success).toBe(false);
   });
 
-  // A person is a `users.id`, which is not a uuid; a notebook's id is.
   it("asks the assistant only with assistant: true", () => {
     expect(PostChatMessage.parse({ body: "@assistant hi", assistant: true }).assistant).toBe(true);
     expect(PostChatMessage.safeParse({ body: "hi", assistant: false }).success).toBe(false);
   });
 
+  // A person is a `users.id`, which is not a uuid; a notebook's id is.
   it("takes a person by user id, and a notebook only by uuid", () => {
     expect(PostChatMessage.safeParse({ body: "hi", link: { kind: "person", id: "dev-bea" } }).success).toBe(true);
     expect(PostChatMessage.safeParse({ body: "hi", link: { kind: "notebook", id: "dev-bea" } }).success).toBe(false);

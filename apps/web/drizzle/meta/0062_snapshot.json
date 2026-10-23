@@ -1,5 +1,5 @@
 {
-  "id": "5622dd3f-82cb-41bb-bf99-1bd9c77627d4",
+  "id": "4b84ce28-16e4-402f-baae-31a142ea345e",
   "prevId": "54f8ea55-4d0b-425e-8c10-eb4777cc2438",
   "version": "7",
   "dialect": "postgresql",
@@ -2829,6 +2829,18 @@
         "requested_by": {
           "name": "requested_by",
           "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reply_to": {
+          "name": "reply_to",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "suggestion_id": {
+          "name": "suggestion_id",
+          "type": "uuid",
           "primaryKey": false,
           "notNull": false
         },

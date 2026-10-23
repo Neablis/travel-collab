@@ -1157,61 +1157,106 @@ export const CHAT_CHANGE_NOT_STORED =
  * said is posted whole as one `assistant` message naming the asker. A change
  * it proposed is on the board already, as a suggestion only they can accept.
  *
- * A turn refused or failed still answers in the thread, with the sentence the
- * Ask tab would have shown: the asker is waiting on a reply.
+ * A turn refused, failed or thrown still answers in the thread, with the
+ * sentence the Ask tab would have shown: the asker is waiting on a reply. The
+ * reply names the message that asked and any suggestion the turn stored, which
+ * is what the thread renders the asker's card from.
  *
  * `model` is `handleAskRequest`'s test seam.
  */
 export async function runChatAskTurn(
-  tripId: string,
-  askerId: string,
-  question: string,
+  { tripId, askerId, question, messageId }: { tripId: string; askerId: string; question: string; messageId: string },
   model?: LanguageModel,
-): Promise<ChatMessage> {
-  const request = new Request(`http://chat.internal/api/trips/${tripId}/ask`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      messages: [{ id: crypto.randomUUID(), role: "user", parts: [{ type: "text", text: question }] }],
-      scope: { kind: "trip" },
-    }),
-  });
+): Promise<ChatMessage | null> {
   const writes: (() => Promise<void>)[] = [];
-  const response = await handleAskRequest(request, tripId, model, undefined, undefined, (task) => writes.push(task), "chat");
-  const reply = await chatReplyOf(response);
-  // The ledger row and the step refund, which a response normally outlives.
-  await Promise.all(writes.map((task) => task()));
-  return postAssistantReply(tripId, askerId, reply);
+  const to = { requestedBy: askerId, replyTo: messageId, suggestionId: null as string | null };
+  try {
+    const request = new Request(`http://chat.internal/api/trips/${tripId}/ask`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        messages: [{ id: crypto.randomUUID(), role: "user", parts: [{ type: "text", text: question }] }],
+        scope: { kind: "trip" },
+      }),
+    });
+    const response = await handleAskRequest(request, tripId, model, undefined, undefined, (task) => writes.push(task), "chat");
+    const reply = await chatReplyOf(response);
+    to.suggestionId = reply.suggestionId;
+    return await postAssistantReply(tripId, to, reply.text);
+  } catch (error) {
+    console.error("chat: the @assistant turn failed", { tripId, error });
+    try {
+      return await postAssistantReply(tripId, to, ASK_FAILED_MESSAGE);
+    } catch (postError) {
+      console.error("chat: the @assistant turn's failure reply failed", { tripId, error: postError });
+      return null;
+    }
+  } finally {
+    // The ledger row and the step refund, which a response normally outlives:
+    // awaited on every path, a throw included, or `after()` resolves first and
+    // the platform can freeze the function before they are written.
+    await Promise.allSettled(writes.map((task) => task()));
+  }
+}
+
+/**
+ * What a chat turn's reply says when it was refused for too many requests:
+ * the quota's own wording is a lower-case fragment written for the Ask tab's
+ * error line, not a sentence for a shared thread.
+ */
+export const CHAT_ASK_LIMITED = "The assistant has had too many questions just now. Try again later.";
+
+// The fixed sentences the Ask tab itself shows for a failure.
+const ASK_FAILURE_SENTENCES: readonly string[] = [ASK_FAILED_MESSAGE, ASK_INTERNAL_ERROR_MESSAGE];
+
+/**
+ * A refusal as the whole thread reads it. A coded refusal's `error` is written
+ * for people (the demo, a deleted trip, a plan without the assistant); an
+ * uncoded one can be a bare code like `forbidden`, so it is said by status.
+ */
+async function refusalSentence(response: Response): Promise<string> {
+  const refused = (await response.json().catch(() => null)) as { error?: unknown; code?: unknown } | null;
+  const error = typeof refused?.error === "string" ? refused.error : null;
+  if (error !== null && (typeof refused?.code === "string" || ASK_FAILURE_SENTENCES.includes(error))) return error;
+  return response.status === 429 ? CHAT_ASK_LIMITED : ASK_FAILED_MESSAGE;
 }
 
 /**
  * What a chat turn says, read off its response as the rail would show it:
  * each text part the stream kept (a retracted note is gone), then any outcome
- * that would have been said beside them. A refusal is its own sentence.
+ * that would have been said beside them, and the id of the suggestion it
+ * stored. A refusal is its own sentence. A stream that failed after some text
+ * says so after it, as the Ask tab's error line would: posted alone, the part
+ * would read as the whole answer.
  */
-async function chatReplyOf(response: Response): Promise<string> {
-  if (!response.ok || response.body === null) {
-    const refused = (await response.json().catch(() => null)) as { error?: unknown } | null;
-    return typeof refused?.error === "string" ? refused.error : ASK_FAILED_MESSAGE;
-  }
+export async function chatReplyOf(response: Response): Promise<{ text: string; suggestionId: string | null }> {
+  if (!response.ok || response.body === null) return { text: await refusalSentence(response), suggestionId: null };
   const parts = new Map<string, string>();
   const notes: string[] = [];
+  let suggestionId: string | null = null;
   const chunks = parseJsonEventStream({ stream: response.body, schema: uiMessageChunkSchema }).getReader();
   for (let read = await chunks.read(); !read.done; read = await chunks.read()) {
     if (!read.value.success) continue;
     const chunk = read.value.value;
     if (chunk.type === "text-delta") parts.set(chunk.id, (parts.get(chunk.id) ?? "") + chunk.delta);
     else if (chunk.type === ASK_RETRACT_CHUNK) for (const id of (chunk.data as AskRetractData).ids) parts.delete(id);
-    else if (chunk.type === "finish" && chunk.messageMetadata !== undefined) {
+    else if (chunk.type === "error") {
+      notes.push(ASK_FAILURE_SENTENCES.includes(chunk.errorText) ? chunk.errorText : ASK_FAILED_MESSAGE);
+    } else if (chunk.type === "finish" && chunk.messageMetadata !== undefined) {
       const outcome = chunk.messageMetadata as AskStreamMetadata;
+      if ("suggested" in outcome) {
+        suggestionId = outcome.suggested.suggestionId;
+        const { skipped, snapshotSkipped } = outcome.suggested;
+        notes.push(...skipped, ...(snapshotSkipped === undefined ? [] : [snapshotSkipped]));
+      }
       if ("proposal" in outcome) notes.push(CHAT_CHANGE_NOT_STORED);
       if ("proposalFailed" in outcome) notes.push(outcome.proposalFailed.message);
       if ("notApplied" in outcome) notes.push(...outcome.notApplied.skipped);
     }
   }
   const said = [...parts.values(), ...notes].map((part) => part.trim()).filter((part) => part !== "");
-  // Nothing kept, which a failed stream is too: the Ask tab's own sentence.
-  return said.length > 0 ? said.join("\n\n") : ASK_FAILED_MESSAGE;
+  // Nothing kept: the Ask tab's own sentence.
+  return { text: said.length > 0 ? said.join("\n\n") : ASK_FAILED_MESSAGE, suggestionId };
 }
 
 /**

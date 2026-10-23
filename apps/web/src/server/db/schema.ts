@@ -562,6 +562,12 @@ export const tripMessages = pgTable(
     // message the member whose `@assistant` it answers.
     kind: text("kind").$type<ChatMessageKind>().notNull().default("member"),
     requestedBy: text("requested_by"),
+    // On an assistant message, the member's message it answers and the
+    // `trip_suggestions` row its turn stored, so the thread can pair a reply
+    // with its question and put the asker's card under it. No foreign keys, as
+    // above: a message is never deleted, and neither is a suggestion.
+    replyTo: uuid("reply_to"),
+    suggestionId: uuid("suggestion_id"),
     body: text("body").notNull(),
     linkKind: text("link_kind").$type<ChatLink["kind"]>(),
     linkId: text("link_id"),

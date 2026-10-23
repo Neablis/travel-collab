@@ -150,7 +150,7 @@ export const ASKER_ONLY = "was asked of the assistant by someone else, and only 
  */
 export function toChange(
   row: ChangeRow,
-  suggestion: Pick<SuggestionRow, "authorId" | "note" | "via">,
+  suggestion: Pick<SuggestionRow, "authorId" | "note" | "via" | "requestedBy">,
 ): SuggestionChange | null {
   const parsed = SuggestionChange.safeParse({
     id: row.id,
@@ -167,6 +167,8 @@ export function toChange(
     resolvedAt: row.resolvedAt === null ? null : row.resolvedAt.toISOString(),
     // Absent, not null, for a person's draft: the contract's field is optional.
     ...(suggestion.via === null ? {} : { via: suggestion.via }),
+    // Absent likewise, for every change any editor may decide.
+    ...(suggestion.requestedBy === null ? {} : { requestedBy: suggestion.requestedBy }),
   });
   if (parsed.success) return parsed.data;
   // The issues, not the row: the trip and change ids are what make it findable.
@@ -181,7 +183,7 @@ export function toChange(
 /** {@link toChange} over rows of one suggestion, leaving out any that do not parse. */
 export function toChanges(
   rows: readonly ChangeRow[],
-  suggestion: Pick<SuggestionRow, "authorId" | "note" | "via">,
+  suggestion: Pick<SuggestionRow, "authorId" | "note" | "via" | "requestedBy">,
 ): SuggestionChange[] {
   return rows.flatMap((row) => toChange(row, suggestion) ?? []);
 }
