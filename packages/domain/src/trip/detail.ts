@@ -54,6 +54,7 @@ export function tripDetailFromState(
           mode: a.mode,
           endLocation: a.endLocation,
           pendingReason: a.pendingReason,
+          flightNumber: a.flightNumber,
         },
       ]),
     ),

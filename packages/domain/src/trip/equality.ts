@@ -117,6 +117,7 @@ const FIELD_EQUAL: { [K in keyof ActivityState]: (a: ActivityState[K], b: Activi
   endLocation: sameLocation,
   // ADR-055. One value or none, like `mode`.
   pendingReason: (a, b) => a === b,
+  flightNumber: (a, b) => a === b,
 };
 
 const ACTIVITY_FIELDS = Object.keys(FIELD_EQUAL) as (keyof ActivityState)[];

@@ -53,6 +53,8 @@ export type ActivityFormValue = {
   endLocation: Location | null;
   // ADR-055. Only ever non-null while `kind` is "pending", for the same reason.
   pendingReason: PendingReason | null;
+  // M52. Only ever non-null on a flight leg: the field is asked for there alone.
+  flightNumber: string | null;
 };
 
 // One option per trip day for the "Day" NativeSelect, plus that day's
@@ -368,6 +370,7 @@ export function ActivityEditor({
   // them; only what is SAVED is cleared (see submit).
   const [travelMode, setTravelMode] = useState<ActivityMode | null>(initial?.mode ?? null);
   const [endLocation, setEndLocation] = useState<Location | null>(initial?.endLocation ?? null);
+  const [flightNumber, setFlightNumber] = useState(initial?.flightNumber ?? "");
   // A stop being CREATED says "To book" until told otherwise — the handoff's
   // own default (`addWhy || 'book'`), and the same bet the `pending` default
   // above makes. A stop being edited keeps what it has, including no reason.
@@ -475,6 +478,9 @@ export function ActivityEditor({
       mode: kind === "transit" ? travelMode : null,
       endLocation: kind === "transit" ? endLocation : null,
       pendingReason: kind === "pending" ? pendingReason : null,
+      // Off a flight it is cleared with the rest of the leg's answers: a train
+      // has no flight number, and the field that set one is no longer shown.
+      flightNumber: kind === "transit" && travelMode === "flight" && flightNumber.trim() !== "" ? flightNumber.trim() : null,
     };
   }
 
@@ -634,6 +640,18 @@ export function ActivityEditor({
       {kind === "transit" && (
         // The place above is where the leg starts; this is where it ends.
         <LocationInput id="end-location-search" label="Going to" value={endLocation} onChange={setEndLocation} />
+      )}
+
+      {kind === "transit" && travelMode === "flight" && (
+        <FormField id="activity-flight-number" label="Flight number">
+          <Input
+            id="activity-flight-number"
+            placeholder="e.g. TP 1234"
+            maxLength={20}
+            value={flightNumber}
+            onChange={(e) => setFlightNumber(e.target.value)}
+          />
+        </FormField>
       )}
 
       {/* ADR-060: a typed price is for ONE person, and the trip multiplies it

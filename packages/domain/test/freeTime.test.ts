@@ -23,6 +23,7 @@ function activity(id: string, timeWindow: { start: string; end: string } | null)
     mode: null,
     endLocation: null,
     pendingReason: null,
+    flightNumber: null,
   };
 }
 

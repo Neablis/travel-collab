@@ -28,6 +28,7 @@ const stops: SavedStop[] = [
     mode: null,
     endLocation: null,
     pendingReason: null,
+    flightNumber: null,
   },
 ];
 

@@ -100,6 +100,8 @@ const source = (over: Record<string, unknown> = {}) =>
                 mode: "train",
                 endLocation: { name: "Saga-Arashiyama Station" },
               }),
+              // M52's flight number, for the same reason.
+              stop({ title: "Fly to Tokyo", kind: "transit", mode: "flight", flightNumber: "JL 104" }),
             ],
           },
           {
@@ -213,7 +215,7 @@ describe("tripToBundle", () => {
     expect(exported.trips[0]).not.toHaveProperty("startDate");
     expect(exported.trips[0]).not.toHaveProperty("startsInDays");
     expect(exported.trips[0]!.days.map((d) => d.stops.map((s) => s.title))).toEqual([
-      ["Fushimi Inari", "Lunch", "Train to Arashiyama"],
+      ["Fushimi Inari", "Lunch", "Train to Arashiyama", "Fly to Tokyo"],
       ["Arashiyama"],
     ]);
   });

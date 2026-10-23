@@ -41,6 +41,7 @@ describe("chipModel", () => {
           mode: null,
           endLocation: null,
           pendingReason: null,
+          flightNumber: null,
         },
       },
     });
@@ -75,6 +76,7 @@ describe("chipModel", () => {
           mode: null,
           endLocation: null,
           pendingReason: null,
+          flightNumber: null,
         },
         [osakaActivity]: {
           activityId: osakaActivity,
@@ -92,6 +94,7 @@ describe("chipModel", () => {
           mode: null,
           endLocation: null,
           pendingReason: null,
+          flightNumber: null,
         },
       },
     });
@@ -135,6 +138,7 @@ describe("chipModel", () => {
           mode: null,
           endLocation: null,
           pendingReason: null,
+          flightNumber: null,
         },
         [noLocationActivity]: {
           activityId: noLocationActivity,
@@ -152,6 +156,7 @@ describe("chipModel", () => {
           mode: null,
           endLocation: null,
           pendingReason: null,
+          flightNumber: null,
         },
       },
     });
@@ -193,6 +198,7 @@ describe("chipModel", () => {
           mode: null,
           endLocation: null,
           pendingReason: null,
+          flightNumber: null,
         },
         [kyotoActivity]: {
           activityId: kyotoActivity,
@@ -210,6 +216,7 @@ describe("chipModel", () => {
           mode: null,
           endLocation: null,
           pendingReason: null,
+          flightNumber: null,
         },
       },
     });
@@ -248,6 +255,7 @@ describe("chipModel", () => {
           mode: null,
           endLocation: null,
           pendingReason: null,
+          flightNumber: null,
         },
         [tokyoActivity]: {
           activityId: tokyoActivity,
@@ -265,6 +273,7 @@ describe("chipModel", () => {
           mode: null,
           endLocation: null,
           pendingReason: null,
+          flightNumber: null,
         },
       },
     });
@@ -420,6 +429,7 @@ describe("cityFor", () => {
     mode: null,
     endLocation: null,
     pendingReason: null,
+    flightNumber: null,
   });
   const oneStopDay = { dayId: day1, activityIds: [tokyoActivity], date: "2027-06-01", costSubtotal: 0 };
   const twoStopDay = {

@@ -37,6 +37,7 @@ describe("ActivityEditor", () => {
       mode: null,
       endLocation: null,
       pendingReason: null,
+      flightNumber: null,
     };
     const onSave = vi.fn();
     const props = { initial, mode: "edit" as const, days: [], onSave, onCancel: vi.fn() };
@@ -78,6 +79,7 @@ function existingStop(overrides: Partial<ActivityView> = {}): ActivityView {
     mode: null,
     endLocation: null,
     pendingReason: null,
+    flightNumber: null,
     ...overrides,
   };
 }
@@ -212,6 +214,21 @@ describe("ActivityEditor travel leg", () => {
     expect(screen.getByRole("radio", { name: "Ferry" }).getAttribute("aria-checked")).toBe("true");
     await userEvent.keyboard("{ArrowLeft}{ArrowLeft}{ArrowLeft}{ArrowLeft}{ArrowLeft}");
     expect(screen.getByRole("radio", { name: "Bike" }).getAttribute("aria-checked")).toBe("true");
+  });
+
+  // M52 decision 5: a flight number, asked for on a flight leg and nowhere else.
+  it("asks for a flight number only on a flight leg, and saves it trimmed", () => {
+    const onSave = renderEditor(existingStop(leg), "edit");
+    expect(screen.queryByLabelText("Flight number")).toBeNull();
+    fireEvent.click(screen.getByRole("radio", { name: "Flight" }));
+    fireEvent.change(screen.getByLabelText("Flight number"), { target: { value: " TP 1234 " } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(onSave).toHaveBeenLastCalledWith(expect.objectContaining({ mode: "flight", flightNumber: "TP 1234" }));
+
+    fireEvent.click(screen.getByRole("radio", { name: "Train" }));
+    expect(screen.queryByLabelText("Flight number")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(onSave).toHaveBeenLastCalledWith(expect.objectContaining({ mode: "train", flightNumber: null }));
   });
 
   // Two place pickers on one form: a screen reader listing the buttons must be
@@ -362,6 +379,7 @@ describe("ActivityEditor attribution (M13 link 5)", () => {
     mode: null,
     endLocation: null,
     pendingReason: null,
+    flightNumber: null,
     ...over,
   });
 

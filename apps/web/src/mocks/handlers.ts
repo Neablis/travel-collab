@@ -132,6 +132,7 @@ function applyMock(detail: TripDetail, command: TripCommand): TripDetail {
         mode: command.mode ?? null,
         endLocation: command.endLocation ?? null,
         pendingReason: command.pendingReason ?? null,
+        flightNumber: command.flightNumber ?? null,
       };
       if (command.dayId !== undefined) {
         next.days.find((d) => d.dayId === command.dayId)?.activityIds.push(command.activityId);
@@ -167,6 +168,7 @@ function applyMock(detail: TripDetail, command: TripCommand): TripDetail {
         if (command.mode !== undefined) activity.mode = command.mode;
         if (command.endLocation !== undefined) activity.endLocation = command.endLocation;
         if (command.pendingReason !== undefined) activity.pendingReason = command.pendingReason;
+        if (command.flightNumber !== undefined) activity.flightNumber = command.flightNumber;
       }
       rerollup(next);
       break;

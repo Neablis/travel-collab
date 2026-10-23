@@ -34,6 +34,7 @@ function fixture(): TripDetail {
         mode: null,
         endLocation: null,
         pendingReason: null,
+        flightNumber: null,
       },
       [a2]: {
         activityId: a2,
@@ -51,6 +52,7 @@ function fixture(): TripDetail {
         mode: null,
         endLocation: null,
         pendingReason: null,
+        flightNumber: null,
       },
     },
     members: [

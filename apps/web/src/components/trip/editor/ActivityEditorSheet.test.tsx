@@ -92,6 +92,7 @@ function fixture() {
         mode: null,
         endLocation: null,
         pendingReason: null,
+        flightNumber: null,
       },
       [UNSCHEDULED_ACTIVITY_ID]: {
         activityId: UNSCHEDULED_ACTIVITY_ID,
@@ -109,6 +110,7 @@ function fixture() {
         mode: null,
         endLocation: null,
         pendingReason: null,
+        flightNumber: null,
       },
     },
   });
@@ -607,6 +609,38 @@ describe("ActivityEditorSheet conflicts", () => {
     expect(await screen.findByLabelText("What or where")).toBeTruthy();
     expect(screen.queryByText(DISTANCE_COPY)).toBeNull();
     expect(screen.queryByText(UNRELATED_COPY)).toBeNull();
+  });
+});
+
+// M52 decision 16: a placed stop's sheet links to directions, travelling the
+// way the leg into it does.
+describe("ActivityEditorSheet — Directions", () => {
+  const LEG_ID = "activity-leg";
+  function placedAfterLeg() {
+    const trip = fixture();
+    trip.days[0]!.activityIds = [LEG_ID, SCHEDULED_ACTIVITY_ID];
+    trip.activities[LEG_ID] = activityFactory.build({ activityId: LEG_ID, title: "Train to Sintra", kind: "transit", mode: "train" });
+    trip.activities[SCHEDULED_ACTIVITY_ID] = activityFactory.build({
+      activityId: SCHEDULED_ACTIVITY_ID,
+      title: "Pena Palace",
+      location: { name: "Pena Palace", lat: 38.7876, lng: -9.3906, precision: "venue" },
+    });
+    vi.mocked(fetchTripDetail).mockResolvedValue({ ok: true, value: trip });
+  }
+
+  it("links a placed stop to directions, by the leg leading in", async () => {
+    placedAfterLeg();
+    renderEditorSheet({ mode: "edit", activityId: SCHEDULED_ACTIVITY_ID });
+    const link = await screen.findByRole("link", { name: "Directions" });
+    const url = new URL(link.getAttribute("href")!);
+    expect(url.searchParams.get("destination")).toBe("38.7876,-9.3906");
+    expect(url.searchParams.get("travelmode")).toBe("transit");
+  });
+
+  it("offers none for a stop with no place", async () => {
+    renderEditorSheet({ mode: "edit", activityId: SCHEDULED_ACTIVITY_ID });
+    await screen.findByDisplayValue("Existing stop");
+    expect(screen.queryByRole("link", { name: "Directions" })).toBeNull();
   });
 });
 

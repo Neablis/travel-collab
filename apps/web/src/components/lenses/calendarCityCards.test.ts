@@ -26,6 +26,7 @@ function stop(
     mode: null,
     endLocation: null,
     pendingReason: null,
+    flightNumber: null,
   };
 }
 

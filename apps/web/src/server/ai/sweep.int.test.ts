@@ -48,6 +48,7 @@ function stop(title: string, dayIndex: number, city: string | null = "Kyoto"): S
     mode: null,
     endLocation: null,
     pendingReason: null,
+    flightNumber: null,
   };
 }
 

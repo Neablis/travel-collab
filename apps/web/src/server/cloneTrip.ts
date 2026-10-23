@@ -255,6 +255,7 @@ function eventToCommand(event: ReturnType<typeof diffTripStates>[number], tripId
         mode: event.payload.mode ?? undefined,
         endLocation: event.payload.endLocation ?? undefined,
         pendingReason: event.payload.pendingReason ?? undefined,
+        flightNumber: event.payload.flightNumber ?? undefined,
       };
     case "ActivityMoved":
       return {

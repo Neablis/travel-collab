@@ -76,6 +76,8 @@ const activity: fc.Arbitrary<ActivityState> = fc.record({
   endLocation: fc.option(location, { nil: null }),
   // ADR-055, independent of `kind` for the same reason `mode` is.
   pendingReason: fc.option(fc.constantFrom("book", "maybe"), { nil: null }),
+  // M52, independent of `kind` for the same reason `mode` is.
+  flightNumber: fc.option(fc.string({ minLength: 1, maxLength: 8 }), { nil: null }),
 });
 
 // A non-owner member is unreachable by replay — no command adds a member, so
