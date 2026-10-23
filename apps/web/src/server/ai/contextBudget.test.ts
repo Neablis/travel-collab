@@ -30,8 +30,10 @@
 import { describe, expect, it } from "vitest";
 import { asSchema } from "ai";
 import { readFileSync, writeFileSync } from "node:fs";
+import { tripDetailFactory } from "@tc/factories";
 import { instructionsFor, type PageBrief } from "@/server/ai/handleAskRequest";
 import type { TaskClass } from "@/server/assistant/taskClass";
+import { nowBlocks, turnNowOf } from "@/server/assistant/context";
 import { TURN_DEP_KEYS, type TurnDeps } from "@/server/assistant/deps";
 import { grantFor, postureFor, toolsFor, type EffectCaps } from "@/server/assistant/grants";
 import { ASSISTANT_TOOLS, aiToolsFor } from "@/server/assistant/registry";
@@ -55,6 +57,8 @@ interface Shape {
   narrowBy: TaskClass | undefined;
   /** A page turn's instruction is the page one, built from `PAGE_BRIEF`. */
   board: boolean;
+  /** On a trip under way: offered what only such a turn is, and told `UNDERWAY_NOW`. */
+  underway?: true;
 }
 
 // A fixed page and trip shape, so a page shape's instruction is measured like a
@@ -67,11 +71,24 @@ const PAGE_BRIEF: Omit<PageBrief, "intent"> = {
   shape: { days: 10, startDate: "2026-11-03", cities: ["Kyoto", "Osaka", "Nara"], tags: ["meal", "museum", "temple"], kinds: ["planned", "pending", "transit"] },
 };
 
+// An under-way day's *now* (M52 decision 14a): a stop under way and the next,
+// with titles of a typical length fixed here so the shape moves only when the
+// Now rule or its data does (PR 534 review, finding 3).
+const UNDERWAY_NOW = (() => {
+  const trip = tripDetailFactory.build({}, { transient: { dayCount: 1, activitiesPerDay: 3, startDate: "2026-11-03" } });
+  const titles = ["Fushimi Inari at dawn", "Lunch at Nishiki Market", "Kiyomizu-dera and Sannenzaka"];
+  trip.days[0]!.activityIds.forEach((id, index) => {
+    trip.activities[id] = { ...trip.activities[id]!, title: titles[index]! };
+  });
+  return nowBlocks(turnNowOf(trip, null, Date.parse("2026-11-03T10:30:00Z"), "UTC"), trip);
+})();
+
 const editor = { role: "propose", plan: "propose" } as const;
 
 const SHAPES: Record<string, Shape> = {
   "trip · viewer": { caps: { surface: "trip", role: "read", plan: "propose", classifier: "read" }, narrowBy: undefined, board: true },
   "trip · question": { caps: { surface: "trip", ...editor, classifier: "read" }, narrowBy: "question", board: true },
+  "trip · question · under way": { caps: { surface: "trip", ...editor, classifier: "read" }, narrowBy: "question", board: true, underway: true },
   "trip · edit": { caps: { surface: "trip", ...editor, classifier: "propose" }, narrowBy: "edit", board: true },
   "trip · plan": { caps: { surface: "trip", ...editor, classifier: "propose" }, narrowBy: "plan", board: true },
   "trip · unsure": { caps: { surface: "trip", ...editor, classifier: "propose" }, narrowBy: undefined, board: true },
@@ -108,15 +125,16 @@ async function measure() {
   for (const [label, shape] of Object.entries(SHAPES)) {
     const grants = grantFor(shape.caps);
     const posture = postureFor(shape.caps);
-    const offerable = toolsFor(grants, undefined, posture);
-    const tools = toolsFor(grants, shape.narrowBy, posture)
+    const phase = shape.underway ? ("underway" as const) : undefined;
+    const offerable = toolsFor(grants, undefined, posture, "ask", phase);
+    const tools = toolsFor(grants, shape.narrowBy, posture, "ask", phase)
       // admission drops the pivot when a page has nowhere to pivot to; every
       // page here can pivot (compose ↔ question), so it is kept.
       .filter((tool) => !shape.board || tool.name !== SWITCH_INTENT_TOOL_NAME)
       .map((tool) => tool.name);
     const toolsTotal = tools.reduce((sum, name) => sum + toolChars[name]!, 0);
     const instructionChars = shape.board
-      ? instructionsFor({ kind: "trip" }, 10, posture, null, tools.length < offerable.length).length
+      ? instructionsFor({ kind: "trip" }, 10, posture, null, tools.length < offerable.length, undefined, undefined, undefined, shape.underway ? UNDERWAY_NOW : []).length
       : instructionsFor({ kind: "page", pageId: "page-1" }, 10, posture, { ...PAGE_BRIEF, intent: shape.narrowBy }).length;
     const totalChars = toolsTotal + instructionChars;
     shapes[label] = { tools, toolChars: toolsTotal, instructionChars, totalChars, approxTokens: approxTokens(totalChars) };

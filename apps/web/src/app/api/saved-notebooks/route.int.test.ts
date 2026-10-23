@@ -45,10 +45,10 @@ async function trip(name: string, days = 0): Promise<{ tripId: string; dayIds: s
 }
 
 /** A notebook in `tripId`, created the way the app creates one. */
-async function notebook(tripId: string, title: string, content: unknown[]): Promise<string> {
+async function notebook(tripId: string, title: string, content: unknown[], context: Partial<Page["context"]> = {}): Promise<string> {
   const pageId = randomUUID();
   const result = await executePageCommand(
-    { type: "CreatePage", tripId, pageId, title, context: { tripId }, content: { v: CURRENT_PAGE_DOC_VERSION, type: "doc", content } },
+    { type: "CreatePage", tripId, pageId, title, context: { tripId, ...context }, content: { v: CURRENT_PAGE_DOC_VERSION, type: "doc", content } },
     OWNER,
   );
   if (!result.ok) throw new Error(result.error.message);
@@ -208,6 +208,17 @@ describe("POST /api/trips/:tripId/saved-notebooks/:id — instantiate", () => {
     const { page } = (await (await instantiate(b.tripId, saved.savedNotebookId)).json()) as { page: Page };
     expect(page.context).toEqual({ tripId: b.tripId });
     expect((await listPages(b.tripId)).filter((p) => p.context.kind === "overview")).toHaveLength(1);
+  });
+
+  // ADR-080: a copy of a page keeps its date scope, and a template is the copy
+  // path there is. A *During the trip* page used on the next trip still reads today.
+  it("keeps the page's date scope", async () => {
+    const a = await trip("Source");
+    const saved = await save({ tripId: a.tripId, pageId: await notebook(a.tripId, "Today", [PARAGRAPH], { dateScope: "today" }) });
+    const b = await trip("Target");
+
+    const { page } = (await (await instantiate(b.tripId, saved.savedNotebookId)).json()) as { page: Page };
+    expect(page.context).toEqual({ tripId: b.tripId, dateScope: "today" });
   });
 
   // Gate box 2 at the storage boundary: a row holding a v1 snapshot — old

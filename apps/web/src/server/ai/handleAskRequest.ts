@@ -73,7 +73,8 @@ import { isDemoTripId } from "@/lib/demoTrip";
 import { guard } from "@/server/pages-guard";
 import { settleAiSteps } from "@/server/quota";
 import { OFF_TOPIC } from "@/server/ai/askIntent";
-import { clockTimesLine, type AskScope } from "@/server/assistant/context";
+import { clockTimesLine, nowBlocks, turnNowOf, type AskScope } from "@/server/assistant/context";
+import { buildTripGlobals } from "@/server/tripGlobals";
 import type { SurfaceKind } from "@/server/assistant/grants";
 import { readPreferences } from "@/server/users";
 import { MAX_DAYS_READ_PER_TURN, MAX_PROPOSAL_INSERTS } from "@/server/assistant/limits";
@@ -336,6 +337,9 @@ export async function handleAskRequest(
     // reservation has to as well. (CodeRabbit, PR #178.)
     stepBudget: MAX_ASK_STEPS + CLASSIFIER_ROUND_TRIPS,
     origin,
+    // Where the trip is at the turn's own start (M52 decision 14a): the tool
+    // set, the *now* line and `find_places_near_now` all read this one value.
+    now: (trip, deviceZone) => turnNowOf(trip, buildTripGlobals(trip), startedAt, deviceZone),
   });
   if (!admission.ok) return admission.refusal.response;
   const { grant } = admission;
@@ -473,6 +477,8 @@ export async function handleAskRequest(
       paletteCommands,
       // Only where `read_chat` can be offered, which is only here.
       ...(fromChat ? { chatLog: chatLogFor(detail, userId) } : {}),
+      // Null only on a turn about no trip, where nothing that reads it is offered.
+      ...(grant.now === null ? {} : { now: grant.now }),
     },
     meter,
   );
@@ -801,6 +807,7 @@ export async function handleAskRequest(
       standingOf(detail),
       clock,
       promptExamples,
+      nowBlocks(grant.now, detail),
     ),
     tools,
     // The narrow set is what step 1 sends. `prepareStep` below is the only
@@ -1164,10 +1171,19 @@ export const CHAT_CHANGE_NOT_STORED =
  * reply names the message that asked and any suggestion the turn stored, which
  * is what the thread renders the asker's card from.
  *
+ * `timeZone` is the poster's device zone, carried on their message, so a
+ * zone-less trip reads today as the Ask tab and Home's badge do.
+ *
  * `model` is `handleAskRequest`'s test seam.
  */
 export async function runChatAskTurn(
-  { tripId, askerId, question, messageId }: { tripId: string; askerId: string; question: string; messageId: string },
+  {
+    tripId,
+    askerId,
+    question,
+    messageId,
+    timeZone = null,
+  }: { tripId: string; askerId: string; question: string; messageId: string; timeZone?: string | null },
   model?: LanguageModel,
 ): Promise<ChatMessage | null> {
   const writes: (() => Promise<void>)[] = [];
@@ -1179,6 +1195,7 @@ export async function runChatAskTurn(
       body: JSON.stringify({
         messages: [{ id: crypto.randomUUID(), role: "user", parts: [{ type: "text", text: question }] }],
         scope: { kind: "trip" },
+        ...(timeZone === null ? {} : { timeZone }),
       }),
     });
     const response = await handleAskRequest(request, tripId, model, undefined, undefined, (task) => writes.push(task), "chat");
@@ -1961,8 +1978,10 @@ export function instructionsFor(
   // [] — and `formatExampleBlocks([])` is [] — so every existing caller,
   // which passes nothing, gets byte-identically today's instruction.
   examples: DayChunk[] = [],
+  // M52: the under-way trip's *now* (`nowBlocks`), and nothing on any other.
+  now: PromptBlock[] = [],
 ): string {
-  return renderPrompt(instructionBlocks(scope, dayCount, posture, page, classWithheld, standing, clock, examples));
+  return renderPrompt(instructionBlocks(scope, dayCount, posture, page, classWithheld, standing, clock, examples, now));
 }
 
 /**
@@ -2057,6 +2076,9 @@ export function instructionBlocks(
   // and the example text itself arrives as a `data` block, as ADR-043
   // requires for text other users wrote.
   examples: DayChunk[] = [],
+  // `nowBlocks`, beside the asker's clock. Empty off an under-way trip, so
+  // every other turn is told byte-identically what it was told before.
+  now: PromptBlock[] = [],
 ): PromptBlock[] {
   // A page turn is a different job, not a variant of this one: it composes a
   // document rather than answering, and every planning rule below (activityRef,
@@ -2214,7 +2236,7 @@ export function instructionBlocks(
   ];
   // `formatExampleBlocks([])` is `[]`: with no examples this is the same
   // array of blocks as before Part 4, which is the flag-off guarantee.
-  return [...rules.map(rule), scopeBlock(scope), ...formatExampleBlocks(examples)];
+  return [...rules.map(rule), ...now, scopeBlock(scope), ...formatExampleBlocks(examples)];
 }
 
 /**

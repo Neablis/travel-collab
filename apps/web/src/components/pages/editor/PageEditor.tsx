@@ -117,6 +117,10 @@ export function PageEditor({ detail, context, user = null, globals = null, value
     [needsKey],
   );
   const external = useExternalInputs(context.tripId, needs);
+  // The reader's clock for the page's `dateScope`, read once per page as
+  // `useToday` reads the date. Safe on the client only, which is the one place
+  // the editor renders (`immediatelyRender: false`).
+  const [now] = useState(() => ({ at: Date.now(), deviceZone: Intl.DateTimeFormat().resolvedOptions().timeZone }));
 
   const editor = useEditor({
     extensions: PAGE_EDITOR_EXTENSIONS,
@@ -321,7 +325,7 @@ export function PageEditor({ detail, context, user = null, globals = null, value
 
   return (
     <MacroEditorContext.Provider
-      value={{ detail, context, user, globals, external, editing: editable, compact, onBindDay, onWidgetSelected }}
+      value={{ detail, context, user, globals, external, now, editing: editable, compact, onBindDay, onWidgetSelected }}
     >
       {/* The `hidden` attribute (preflight makes it `display: none`), not a
           class: it also takes the half-drawn document out of the

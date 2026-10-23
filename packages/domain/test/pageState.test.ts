@@ -177,6 +177,19 @@ describe("pageStatesEqual", () => {
   });
 });
 
+describe("pageStatesEqual and the date scope", () => {
+  // Equality is field for field, and the scope is a field of the page's
+  // context (ADR-080), so two pages that differ only in it are not the same
+  // page. Absent is "all", so a page stored before the field equals one at "all".
+  it("sees a page scoped to today as a different page, and absent as all", () => {
+    const page = (dateScope?: "all" | "today") => ({
+      title: "T", context: { ...ctx(), ...(dateScope === undefined ? {} : { dateScope }) }, content: doc("one"), actorId: ALICE, seedKey: null,
+    });
+    expect(pageStatesEqual(page(), page("today"))).toBe(false);
+    expect(pageStatesEqual(page(), page("all"))).toBe(true);
+  });
+});
+
 describe("diffPageStates — the events that make undo cover notebooks", () => {
   const page = (title: string, text: string) => ({ title, context: ctx(), content: doc(text), actorId: ALICE, seedKey: null });
 

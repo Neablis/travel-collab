@@ -13,6 +13,35 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-10-23 — A chat message carries the poster's zone to its `@assistant` turn (M52 part 5)
+- **Added** (`packages/contracts/src/chat.ts`): `PostChatMessage.timeZone` (optional, 1 to 64
+  characters), the poster's IANA zone as their device reads it.
+- Why: an `@assistant` turn read a trip day without a zone of its own on UTC, so in a New York
+  evening its "today" was tomorrow while Home's badge showed today (PR 534 review 2, finding 1).
+  The turn now reads such a day on the poster's zone, as the Ask tab's turn does (ADR-080
+  decision 1). The server reads it only on an `@assistant` message and never stores it; a zone
+  it does not know is passed over (`turnNowOf`), so it never refuses the message.
+- Consumers updated: `apps/web` (`chat/route.ts` hands it to `runChatAskTurn`; `useTripChat`
+  sends it on every post).
+- Breaking? no — optional, and an older client simply sends none.
+## 2026-10-23 — A notebook page's `dateScope` (M52 part 4; public API 1.22.0)
+- **Added** (`pages.ts`): `DateScope`, `"all" | "today" | { date }` (`date` a calendar
+  `YYYY-MM-DD`), and an optional `dateScope` on `PageContext`, so on `Page`, `CreatePageInput`,
+  `PageCreatedV1` and the v1 pages endpoints. **Absent means `"all"`**, rather than a schema
+  default, so every stored page and every `PageCreated` reads back exactly as written.
+  `openapi.json` regenerated, `info.version` 1.21.0 → 1.22.0.
+- Why: M52 decision 10, ADR-080 §4. One resolver (`resolveDateScope` in `@tc/pages`) turns the
+  page's scope into the scope `narrow` hands every widget that left its day and dates unbound;
+  `"today"` is `tripNow`'s day, or *no day* (each widget's own empty state) off the trip's dates.
+  `{ date }` is accepted and scopes nothing until a settings control exists. No edit path: the
+  template sets it when instantiated (part 9).
+- Consumers updated: `@tc/domain` (`pageStatesEqual` compares it), `@tc/pages` (`dateScope.ts`,
+  `WidgetContext.now`, `NoDay`/`WidgetScope`, `narrow`, `renderMacro`, `resolveRepeat`),
+  `apps/web` (the editor's clock through `MacroEditorContext`, `MacroView`, `RepeatNodeView`,
+  the widget picker's *follows today*, and a saved template, which keeps the scope in
+  `saved_notebooks.date_scope`, migration 0065), the public API document.
+- Breaking? no, **minor**: an optional field on a request body and on responses.
+
 ## 2026-10-23 — A chat message has an author kind, and can ask the assistant (M52 part 3)
 - **Added** (`packages/contracts/src/chat.ts`): `ChatMessageKind` (`member | assistant | system`).
   `ChatMessage` gains `kind` (`.default("member")`), and `requestedBy`, `replyTo` and

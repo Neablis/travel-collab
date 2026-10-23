@@ -10,6 +10,7 @@ import type { WeatherPayload } from "./weatherPayload";
 import type { SunPayload } from "./sunPayload";
 import type { LinkCardPayload, MissingNotebookPayload } from "./linkTarget";
 import type { ItineraryPayload } from "./itineraryPayload";
+import type { TripNowClock } from "./now";
 import { VALUE_KIND_FORMATS } from "./kinds";
 
 // Inline payloads are display-ready strings; block payloads are structured data
@@ -498,6 +499,13 @@ export interface WidgetContext {
    */
   today: string | null;
   /**
+   * The instant and the device's zone, for a page's `dateScope` (ADR-080 §4),
+   * which `renderMacro` resolves through `tripNow`. Passed in for `today`'s
+   * reason. **Optional, and absent scopes nothing**: the server's and the
+   * assistant's contexts have no reader's clock, and read a page as stored.
+   */
+  now?: TripNowClock | null;
+  /**
    * Data the trip does not hold — weather — fetched by the client and handed
    * in as slots (ADR-052 decision 3). Read it through `readSlot`.
    *
@@ -577,6 +585,24 @@ export type ItemScope =
   | { kind: "stop"; activityId: string; dayIndex: number | null };
 
 /**
+ * A page scoped to today, read on a date that is no trip day (`resolveDateScope`).
+ * Not an `ItemScope`, because no repeat iterates it: `narrow` turns it into an
+ * empty selection, so each widget renders its own empty state, never
+ * `unbound("day")`, which says a day was removed.
+ */
+export type NoDay = { kind: "no-day" };
+
+/**
+ * A *for each city* line on a page with a date scope. A city item leaves `day`
+ * open, unlike a day or a stop item, so the line fills `city` and the page
+ * still fills `day` (ADR-080 §4); either alone would sum every day in the city.
+ */
+export type CityInScope = { kind: "city-in-scope"; name: string; page: Extract<ItemScope, { kind: "day" }> | NoDay };
+
+/** What a widget is handed beside its params: its repeat line, its page's date scope, or a city line and the scope together. */
+export type WidgetScope = ItemScope | NoDay | CityInScope;
+
+/**
  * What a PRIMITIVE selects over (ADR-039 decision 1: `widget = entity + filters
  * + shape`).
  *
@@ -647,7 +673,7 @@ export interface MacroDef<P, T> {
   // makes the sidebar and the page contradict each other in one session, which
   // is why the design phrases person previews generically.
   preview: string;
-  resolve(ctx: WidgetContext, params: P, item?: ItemScope): MacroResult<T>;
+  resolve(ctx: WidgetContext, params: P, item?: WidgetScope): MacroResult<T>;
   // `resolve` and `render` are deliberately TWO functions, not one (ADR-037
   // decision 1). `resolve` answers "what does this mean against the current
   // trip"; `render` answers "what does that look like". Keeping them apart is

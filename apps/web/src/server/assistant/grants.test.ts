@@ -204,9 +204,12 @@ describe("a grant is a minimum over four independent caps", () => {
   // apply path, which is not a tool at all. Grounding made the tag true of
   // something. A second spending tool is a decision, and this assertion is
   // where it gets noticed.
-  it("has exactly one tool that can spend at a vendor", () => {
+  // The second, M52's near-now search, is that decision taken: the same port,
+  // vendor and quota as the first (decision 13), with *here* filled in.
+  it("has exactly the two place searches that can spend at a vendor", () => {
     expect(ASSISTANT_TOOLS.filter((tool) => tool.spend === "vendor").map((tool) => tool.name)).toEqual([
       "search_places",
+      "find_places_near_now",
     ]);
   });
 
@@ -234,9 +237,9 @@ describe("a grant is a minimum over four independent caps", () => {
     expect(toolsFor(grantFor(editorTrip), "question", "propose").map((t) => t.name)).toEqual(unnarrowed);
   });
 
-  // The term M20 owns. It has no source yet and must not have invented one:
-  // today it permits everybody, which is what makes P2 a refactor.
-  it("permits propose for everybody until M20 supplies a plan", () => {
+  // The port's own answer. The plan's cap is admission's: a plan without
+  // `ai.command` caps the turn at read there, not here.
+  it("the port permits propose; admission caps a plan without ai.command at read", () => {
     expect(permitsPropose({ userId: "anyone" })).toBe("propose");
   });
 });

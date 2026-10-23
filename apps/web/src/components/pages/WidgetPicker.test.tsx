@@ -336,3 +336,20 @@ describe("WidgetPicker", () => {
     expect(screen.getByRole("button", { name: /The trip's name/ }).getAttribute("draggable")).not.toBe("true");
   });
 });
+
+// M52 decision 10: on a page scoped to today, the picker says which widgets the
+// scope will narrow, from the same rule the render applies (`followsDateScope`).
+describe("on a page scoped to today", () => {
+  const FOLLOWS = "follows today";
+
+  it("marks a widget that leaves its day open, and not one with no days to narrow", () => {
+    render(<WidgetPicker onPick={vi.fn()} dateScope="today" />);
+    expect(within(screen.getByRole("button", { name: /The days, in detail/ })).getByText(FOLLOWS)).toBeTruthy();
+    expect(within(screen.getByRole("button", { name: /The trip's name/ })).queryByText(FOLLOWS)).toBeNull();
+  });
+
+  it("marks nothing on a page that reads every day", () => {
+    render(<WidgetPicker onPick={vi.fn()} />);
+    expect(screen.queryByText(FOLLOWS)).toBeNull();
+  });
+});

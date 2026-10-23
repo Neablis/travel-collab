@@ -33,7 +33,7 @@ export { WebAddress, hostOf } from "./macros/primitives/link";
 export { personNames } from "./macros/primitives/balances";
 // The one reader of an instant in a named zone; the server's weather cuts its
 // local days with it too, rather than a second `Intl` walk (review finding 6).
-export { clockIn } from "./clock";
+export { clockIn, isKnownZone } from "./clock";
 // The one clock-time formatter, in the reader's 12- or 24-hour clock.
 // `apps/web/src/lib/time.ts` re-exports it, so the board and the notebook
 // print one format.
@@ -47,3 +47,4 @@ export * from "./defaultNotebooks";
 // M52 (ADR-080): where a trip is right now. Every reader of "now" asks this,
 // and none works out a phase of its own.
 export * from "./now";
+export * from "./dateScope";

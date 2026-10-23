@@ -65,6 +65,20 @@ vi.mock("@/server/entitlements/usage", async (importOriginal) => {
   };
 });
 
+// Each turn's *now* (M52 decision 14a), as the real `turnNowOf` read it.
+const turnNows = vi.hoisted(() => [] as unknown[]);
+vi.mock("@/server/assistant/context", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@/server/assistant/context")>();
+  return {
+    ...real,
+    turnNowOf: (...args: Parameters<typeof real.turnNowOf>) => {
+      const now = real.turnNowOf(...args);
+      turnNows.push(now);
+      return now;
+    },
+  };
+});
+
 const chat = await import("@/app/api/trips/[tripId]/chat/route");
 const oneMessage = await import("@/app/api/trips/[tripId]/chat/[messageId]/route");
 const read = await import("@/app/api/trips/[tripId]/chat/read/route");
@@ -119,6 +133,7 @@ async function chatRev(tripId: string, as: string): Promise<string | undefined> 
 beforeEach(() => {
   currentUserId = "";
   afterResponse.length = 0;
+  turnNows.length = 0;
   Object.assign(turnWrites, { failReplies: false, replyAttempts: 0, ledgerHeld: null });
 });
 
@@ -489,6 +504,28 @@ describe("@assistant", () => {
     release();
     await turn;
     expect(await db.select().from(aiUsage).where(eq(aiUsage.userId, owner))).toMatchObject([{ endpoint: "ask.chat" }]);
+  });
+
+  // ADR-080 decision 1 on the chat door (PR 534 review 2, finding 1): a day
+  // with no zone is read on the poster's, which rides on the message. On UTC
+  // a New York evening is already tomorrow, past the end of this one-day trip.
+  it("reads a zone-less trip's now on the poster's zone, so a New York evening is still today", async () => {
+    const { tripId, owner } = await sharedTrip();
+    // 20:30 in New York on 2027-06-10, and already 06-11 on UTC.
+    vi.useFakeTimers({ toFake: ["Date"], now: Date.parse("2027-06-11T00:30:00Z") });
+    try {
+      const dated = await executeTripCommand(
+        { type: "SetTripDates", tripId, startDate: "2027-06-10", endDate: "2027-06-10", newDayIds: [randomUUID()] },
+        owner,
+      );
+      expect(dated.ok).toBe(true);
+      const asked = await post(tripId, owner, { body: "@assistant coffee near here?", assistant: true, timeZone: "America/New_York" });
+      expect(asked.status).toBe(201);
+      await runAfterResponse();
+    } finally {
+      vi.useRealTimers();
+    }
+    expect(turnNows).toMatchObject([{ phase: "underway", dayIndex: 0, local: { date: "2027-06-10", time: "20:30" } }]);
   });
 
   // Decision 18's lapse rule: a read-only chat takes no `@assistant`, even
