@@ -227,9 +227,9 @@ chips do.
       number, times in each end's local zone, the countdown to departure, and the confirmation for
       editors. With none, it offers *Add your flight*, which opens the stop editor prefilled as a
       flight.
-    - **`chat.recent`**, *Group chat*: the last three messages and *Open chat*. It is absent on a
+    - **`chat.recent`**, *Group chat* (amended below: a mini chat card, N a setting): the last three messages and *Open chat*. It is absent on a
       trip whose chat the reader cannot see.
-    - **`assistant.prompts`**, *Ask*: day-of chips that open the sheet prefilled. It is absent for
+    - ~~**`assistant.prompts`**, *Ask*~~ (**dropped by Mitchell, 2026-10-23; see the amendment below**): day-of chips that open the sheet prefilled. It is absent for
       a reader with no assistant, and per SPEC §27 nothing renders disabled.
     **Amended by Mitchell after walking part 8's preview, 2026-10-23:** the *Ask* widget is
     dropped (no widget prefills the AI assistant); *Group chat* is a mini chat card, the last N
