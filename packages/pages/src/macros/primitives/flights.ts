@@ -7,10 +7,11 @@ import { nextFlight, timedStops, tripNow, type TripNowStop } from "../../now";
 import { readerClock, toClockLabel } from "../../clockLabel";
 
 // `trip.flights` — *Your flights* (M52 decision 15): today's flights, or the
-// next one, with its flight number, its departure and arrival as typed, and
-// the countdown, which the block keeps on its own minute clock from
-// `startsAt`. A trip with no flight at all gets *Add your flight*, which opens
-// the stop editor prefilled as a flight on `dayId`. Confirmation codes are
+// next one, with its flight number, where it goes, its departure, and the
+// countdown, which the block keeps on the page's minute clock from `startsAt`.
+// No arrival: a stop's window ends the day it starts, so its end is not when
+// the flight lands (KI-2026-10-23-b). A trip with no flight at all gets *Add
+// your flight*, which opens the stop editor prefilled as a flight on `dayId`. Confirmation codes are
 // M44's `booking` (decision 5, as amended), so none is shown.
 //
 // A registered widget, not a primitive, for `trip.now`'s reason: which flight
@@ -25,22 +26,14 @@ export const NO_FLIGHT_TODAY = "No flight today";
 const isFlight = (a: Pick<ActivityView, "kind" | "mode"> | undefined) => a?.kind === "transit" && a.mode === "flight";
 const placeName = (location: Location | null) => location?.city ?? location?.name ?? null;
 
-/**
- * A flight's line. The arrival is shown as typed, beside where it lands, and
- * not converted: what people copy is the ticket's arrival, which is local
- * where it lands, and nothing in the stop says which clock it was typed on.
- * Read on the departure day's clock (ADR-080 decision 1), Lisbon 12:00 to New
- * York 14:30 would land at 09:30, before it left.
- */
+/** A flight's line, its departure on its own day's clock (ADR-080 decision 1). */
 function lineOf(trip: TripDetail, timed: ReadonlyMap<string, TripNowStop>, format: ReturnType<typeof readerClock>, activityId: string): FlightLine {
   const activity = trip.activities[activityId]!;
   const window = activity.timeWindow;
-  const to = placeName(activity.endLocation);
   return {
     activityId, title: activity.title, flightNumber: activity.flightNumber,
-    from: placeName(activity.location), to,
+    from: placeName(activity.location), to: placeName(activity.endLocation),
     departs: window ? toClockLabel(window.start, format) : null,
-    arrives: window ? `${toClockLabel(window.end, format)}${to === null ? "" : ` ${to}`}` : null,
     startsAt: timed.get(activityId)?.start ?? null,
   };
 }
@@ -49,7 +42,7 @@ export const tripFlights: MacroDef<FlightsParams, TripFlightsPayload> = {
   name: "trip.flights", title: "Your flights", shape: "block",
   params: FlightsParams, inputs: [], selection: undefined,
   description:
-    "The trip's flights for today, or the next one: flight number, where from and to, departure and arrival each in its own local time, and a countdown to departure. With no flight on the trip it offers to add one.",
+    "The trip's flights for today, or the next one: flight number, where from and to, its departure time, and a countdown to departure. With no flight on the trip it offers to add one.",
   emptyText: "shows your flights once the time is known",
   preview: "your next flight, with a countdown to departure",
   resolve: ({ trip, globals, now, user }: WidgetContext): MacroResult<TripFlightsPayload> => {

@@ -10,9 +10,8 @@ import { hasDirections, leadingMode, NOTHING_MORE_TODAY, NOTHING_TODAY } from ".
 // one and the time until it, each with Directions.
 //
 // **The one widget that reads `ctx.now`** (decision 12), as `trip.countdown`
-// alone reads `today`. It re-renders each minute while visible, and a page
-// reads its clock once, so the resolver hands over every stop not yet over,
-// as instants, and the block re-picks the two with `nowAndNext` on its own
+// alone reads `today`. The resolver hands over every stop not yet over, as
+// instants, and the block re-picks the two with `nowAndNext` on the page's
 // minute clock. The pick is `tripNow`'s own (`pickNowNext`), so the two agree.
 //
 // A registered widget, not a primitive, for `trip.people`'s reason: *now* is

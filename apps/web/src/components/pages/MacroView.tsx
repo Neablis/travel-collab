@@ -65,7 +65,7 @@ export function MacroView({ detail, context, user = null, globals = null, extern
   // `null` until the provider's read lands; absent is fine, the widget then
   // falls back the way it does for an unnamed non-member.
   const guests = useGuests();
-  // The page's clock, for its `dateScope`: the editor reads it once per page.
+  // The page's minute clock, for its `dateScope`.
   // Outside an editor (the invite card) there is none, and nothing is scoped.
   const now = useContext(MacroEditorContext)?.now ?? null;
   const outcome = renderMacro({ trip: detail, page: context, user, globals, today, now, external, people, personas, guests }, name, params);

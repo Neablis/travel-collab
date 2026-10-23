@@ -3,7 +3,7 @@ import { renderMacro } from "../../registry";
 import { clockContext, dayTrip, stopId, wallAt } from "../../test-support/dayTrip";
 
 // `trip.flights`, *Your flights* (M52 decision 15): today's flights, or the
-// next one, the arrival as the ticket gives it; *Add your flight* when the
+// next one, with no arrival; *Add your flight* when the
 // trip has none; and *No flight today* when it has some but none today or ahead.
 
 const LISBON = "Europe/Lisbon";
@@ -19,16 +19,16 @@ const trip = dayTrip([
 ]);
 const line = {
   activityId: stopId(0, 1), title: "Flight to Tokyo", flightNumber: "TP 1234", from: "Lisbon", to: "Tokyo",
-  departs: "12:00", arrives: "23:00 Tokyo", startsAt: wallAt(LISBON, "2026-06-10", "12:00"),
+  departs: "12:00", startsAt: wallAt(LISBON, "2026-06-10", "12:00"),
 };
 
-/** The arrival the widget shows for `days`' only flight, read at `at`. */
-function arrivalAt(days: ReturnType<typeof dayTrip>, at: number): string | null {
+/** The block the widget shows for `days`, read at `at`. */
+function blockAt(days: ReturnType<typeof dayTrip>, at: number) {
   const outcome = renderMacro(clockContext(days, at), "trip.flights", {});
   if (outcome.status !== "ok" || outcome.rendered.kind !== "block" || outcome.rendered.block.kind !== "trip-flights") {
     throw new Error(`expected a trip-flights block, got ${JSON.stringify(outcome)}`);
   }
-  return outcome.rendered.block.flights[0]!.arrives;
+  return outcome.rendered.block;
 }
 
 describe("trip.flights", () => {
@@ -62,27 +62,21 @@ describe("trip.flights", () => {
     expect(on("2026-06-01")).toMatchObject({ rendered: { block: { heading: "none", dayId: grounded.trip.days[0]!.dayId } } });
   });
 
-  it("shows the arrival as the ticket gives it, on the clock where it lands, not converted from the departure's", () => {
-    // A ticket's arrival is local where it lands: Lisbon 12:00, New York 14:30.
-    // Read on Lisbon's clock that is 09:30 in New York, before it leaves.
-    const west = { ...flight, title: "Flight to New York", timeWindow: { start: "12:00", end: "14:30" }, endLocation: { name: "JFK Airport", city: "New York" } };
-    const days = dayTrip([
-      { date: "2026-06-10", zone: LISBON, city: "Lisbon", stops: [west] },
-      { date: "2026-06-11", zone: "America/New_York", city: "New York", stops: [] },
-    ]);
-    expect(arrivalAt(days, wallAt(LISBON, "2026-06-10", "08:00"))).toBe("14:30 New York");
-  });
-
-  it("claims no place for an arrival whose destination is not known", () => {
-    const nowhere = dayTrip([{ date: "2026-06-10", zone: TOKYO, city: "Tokyo", stops: [{ ...flight, endLocation: null }] }]);
-    expect(arrivalAt(nowhere, wallAt(TOKYO, "2026-06-10", "08:00"))).toBe("23:00");
+  it("shows no arrival, which a same-day stop cannot hold", () => {
+    // A stop's window ends the day it starts, so a 22:00 flight to Tokyo is
+    // saved as 22:00-23:59: its end is not when it lands.
+    const redEye = { ...flight, timeWindow: { start: "22:00", end: "23:59" } };
+    const days = dayTrip([{ date: "2026-06-10", zone: LISBON, city: "Lisbon", stops: [redEye] }]);
+    const shown = JSON.stringify(blockAt(days, wallAt(LISBON, "2026-06-10", "08:00")));
+    expect(shown).toContain("22:00");
+    expect(shown).not.toContain("23:59");
   });
 
   it("shows an untimed flight before the trip as the next one, with no countdown", () => {
     const untimed = dayTrip([{ date: "2026-06-10", zone: LISBON, city: "Lisbon", stops: [{ ...flight, timeWindow: null }] }]);
     expect(renderMacro(clockContext(untimed, wallAt(LISBON, "2026-06-08", "08:00")), "trip.flights", {})).toMatchObject({
       status: "ok",
-      rendered: { block: { heading: "next", flights: [{ activityId: stopId(0, 0), departs: null, arrives: null, startsAt: null }] } },
+      rendered: { block: { heading: "next", flights: [{ activityId: stopId(0, 0), departs: null, startsAt: null }] } },
     });
   });
 

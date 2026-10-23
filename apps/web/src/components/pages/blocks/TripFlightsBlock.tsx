@@ -54,7 +54,7 @@ function FlightRow({ flight, at, interactive }: { flight: FlightLine; at: number
     <span className="flex flex-col gap-0.5">
       <StopName activityId={flight.activityId} title={flight.title} interactive={interactive} />
       {route && <span className="text-sm text-ink">{route}</span>}
-      {flight.departs && <span className="text-sm text-slate">{`${flight.departs} → ${flight.arrives ?? "?"}`}</span>}
+      {flight.departs && <span className="text-sm text-slate">{`Departs ${flight.departs}`}</span>}
       {flight.startsAt !== null && at !== null && flight.startsAt > at && (
         <span className="text-sm text-slate">{`Leaves in ${formatTimeUntil(flight.startsAt - at)}`}</span>
       )}

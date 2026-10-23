@@ -21,7 +21,7 @@ const MINUTE = 60_000;
 const T = Date.parse("2026-06-08T07:00:00Z");
 const line: FlightLine = {
   activityId: "f1", title: "Flight to Tokyo", flightNumber: "TP 1234", from: "Lisbon", to: "Tokyo",
-  departs: "12:00", arrives: "23:00 Tokyo", startsAt: T + (2 * 24 * 60 + 7 * 60) * MINUTE,
+  departs: "12:00", startsAt: T + (2 * 24 * 60 + 7 * 60) * MINUTE,
 };
 const none: TripFlightsPayload = { kind: "trip-flights", heading: "none", flights: [], dayId: "day-2" };
 
@@ -46,7 +46,7 @@ afterEach(() => {
 });
 
 describe("TripFlightsBlock", () => {
-  it("shows the next flight's number, route and times, and counts down to it on the page's clock", () => {
+  it("shows the next flight's number, route and departure, and counts down to it on the page's clock", () => {
     // The device's clock is two hours on from the page's: the countdown reads
     // the page's, the one *Now and next* beside it reads.
     vi.useFakeTimers({ toFake: ["Date"] });
@@ -55,7 +55,7 @@ describe("TripFlightsBlock", () => {
     const { rerender } = render(onPage(T, next));
     expect(screen.getByText("Next flight")).toBeTruthy();
     expect(screen.getByText("TP 1234 · Lisbon → Tokyo")).toBeTruthy();
-    expect(screen.getByText("12:00 → 23:00 Tokyo")).toBeTruthy();
+    expect(screen.getByText("Departs 12:00")).toBeTruthy();
     expect(screen.getByText("Leaves in 2 days, 7 h")).toBeTruthy();
     rerender(onPage(T + 61 * MINUTE, next));
     expect(screen.getByText("Leaves in 2 days, 5 h")).toBeTruthy();
