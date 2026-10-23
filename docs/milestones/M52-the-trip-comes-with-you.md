@@ -288,6 +288,15 @@ chips do.
 20. **Who sees the notebook.** **Answered at scoping, 2026-10-23: as recommended.** every member, whatever their role. Reading today's
     plan is reading, and Directions is a link. A share-link reader sees it as read-only, without
     the chat or Ask widgets.
+21. **The trip under way, over the public API.** **Added and answered by Mitchell, 2026-10-23.**
+    Two endpoints, not one: **`GET /v1/trips?active=true`** filters the existing list to the trips
+    whose `tripNow` phase is `underway` (today, in the trip's own zone, by ADR-080's fallback, falls
+    within its dates; an undated trip is never active), and **`GET /v1/trips/{tripId}/today`**
+    (`trips:read`, `viewer`) answers today's date and zone, the phase, the day (or none), today's
+    stops in order in the shape the API already uses for a stop, and which stop is **now** and which
+    is **next**, computed by `tripNow`, so the API and the *Now and next* widget agree. An optional
+    `?timeZone=` is ADR-080's asker zone: validated, never stored. Off a trip day it answers 200 with
+    the phase and no stops. Its own part (10), independent of part 9.
 
 ## Scope
 
@@ -301,6 +310,7 @@ chips do.
 - The assistant's *now*, `find_places_near_now` offered only under way, and the eval cases
   (decisions 13 and 14).
 - `@assistant` in the chat (decision 18), and the change lines (decision 17).
+- The trip under way over the public API: `?active=true` and `/today` (decision 21).
 
 ## Out of scope
 
@@ -347,6 +357,11 @@ chips do.
       mid-day: Overview shows *During the trip* with Now and Next; Directions has the right link;
       `@assistant push dinner back an hour` in the chat posts a reply and a card that the asker
       accepts.
+- [ ] **The API answers *now* (decision 21)**: an integration test lists a trip under way for
+  `GET /v1/trips?active=true` and not a planning, *soon*, ended or undated one (and one whose zone
+  is already tomorrow where UTC is still today), and `GET /v1/trips/{tripId}/today` names the same
+  now and next as `tripNow` at a frozen clock, answers a viewer, and refuses a non-member; the
+  OpenAPI version and fingerprint move with a changelog line.
 - [ ] **[walk]** On a phone, against the PR preview, with a trip dated today: open it from Home,
       tap Directions, and ask `@assistant` in the chat to find lunch nearby. Accept as the asker,
       and see the change line from a second account, which could not accept it.

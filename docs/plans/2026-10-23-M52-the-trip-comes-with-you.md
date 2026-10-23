@@ -12,7 +12,7 @@ parts to merge, then branches from the new `main`.
 | 1 | 1, 2, 3 (no dependencies) |
 | 2 | 4 (needs 1), 5 (needs 1), 6 (needs 1, 3) |
 | 3 | 7 (needs 1, 2, 4), 8 (needs 4) |
-| 4 | 9 (needs 7, 8) |
+| 4 | 9 (needs 7, 8), 10 (no dependencies; added 2026-10-23) |
 
 ## Constraints the survey found (read before building)
 
@@ -253,3 +253,27 @@ Theme: decisions 9, 11, 20 and the walk.
 
 Preview: the gate's walk — open a trip dated today from Home on a phone, tap Directions, ask
 `@assistant` to find lunch nearby, accept as the asker, see the change line from a second account.
+
+## Part 10 — The trip under way over the API · `claude/m52-part10-api-today` · No dependencies
+
+Theme: decision 21 (added by Mitchell 2026-10-23). Follow `docs/guidelines/using-the-api.md`,
+*For somebody adding an endpoint*: a route declaration, nothing hand-written for auth, errors,
+pagination or the reference.
+
+- `GET /v1/trips?active=true`: a filter on the existing list route
+  (`apps/web/src/app/api/v1/trips/route.ts`); active means part 1's `tripNow` phase is
+  `underway` (`packages/pages/src/now.ts`), with ADR-080's zone fallback. Pagination and the
+  cursor are unchanged; `active=false` or absent means today's behaviour.
+- `GET /v1/trips/{tripId}/today`: new route beside the trip routes; `trips:read`, `viewer`.
+  Answers `{ date, timeZone, phase, dayId | null, stops: [...], now: stopId | null, next: stopId | null }`;
+  stops reuse the API's existing stop schema; `now`/`next` come from `tripNow`, never a second
+  computation. Optional `?timeZone=` (IANA, validated, never stored) is the asker zone. Off a trip
+  day: 200, `dayId: null`, `stops: []`.
+- OpenAPI: minor bump of `API_VERSION` with the new fingerprint (`openapi.test.ts`), a line in
+  `docs/contracts/CHANGELOG.md`, and a section in `docs/guidelines/using-the-api.md`.
+- Tests: an integration test beside the existing v1 trip route tests: under way listed; planning,
+  *soon*, ended and undated not; a trip in UTC+13 active when UTC is still the day before;
+  `/today` now/next equal `tripNow` at a frozen clock; a viewer answered; a non-member refused
+  as the API refuses one elsewhere. Seen red with the filter removed and with `now` hard-coded.
+
+Preview: with a token, `curl …/api/v1/trips?active=true` on a trip dated today, then its `/today`.
