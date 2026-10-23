@@ -148,8 +148,8 @@ chips do.
    - **Amended by Mitchell, 2026-10-23: it cannot be deleted**, like Overview (`page-undeletable`).
      So every trip has it: new trips are seeded with it, and every existing trip gains it once on
      its next notebook-index load (no "was deleted" skip). The bullet above no longer applies.
-     Proposed title **Today** (seed key `today`), Mitchell's suggestion, to be confirmed before
-     part 9 starts.
+     It is titled **Today** (seed key `today`), confirmed by Mitchell 2026-10-23; this replaces
+     *During the trip* / `during-the-trip` above.
 10. **What the Today scope is.** **Answered at scoping, 2026-10-23 (Mitchell): a general
     notebook setting, not a today-only hook.** *"Someday i want to have settings for a notebook,
     where we trigger 'is this dynamic (follows current date), scoped to some specific date, or
