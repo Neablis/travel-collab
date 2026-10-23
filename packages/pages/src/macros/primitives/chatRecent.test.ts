@@ -55,28 +55,31 @@ describe("chat.recent", () => {
 
   // A removed message has no text to show (the contract gives it none), so
   // it does not take one of the three places.
-  it("passes over removed messages, and names the assistant and no one for the app's own lines", () => {
+  // A change line is stored as the server writes it (`postSystemLine`): its
+  // author is whoever made the change, and its body only what was done, so
+  // the name in front of it is the widget's to give, as the chat panel does.
+  it("passes over removed messages, and names the assistant and whoever made a change", () => {
     const chat = [
       said("sam", "Running 20 late"),
       said("assistant", "I moved dinner to 20:30.", { kind: "assistant", requestedBy: "sam" }),
       { ...said("dana", "x"), removed: true } as ChatMessage,
-      said("system", "Sam moved Dinner to 20:30", { kind: "system" }),
+      said("dana", "moved “Dinner” to 20:30", { kind: "system" }),
     ];
     const out = chatOf(ctx({ canChat: true, chat }));
     expect(out.lines?.map((l) => [l.author, l.message.body])).toEqual([
       ["Sam Okafor", "Running 20 late"],
       ["Assistant", "I moved dinner to 20:30."],
-      [null, "Sam moved Dinner to 20:30"],
+      ["Dana Reyes", "moved “Dinner” to 20:30"],
     ]);
   });
 
-  // The assistant and the app write under ids no member has: counted as
-  // former members, they would number the one real leaver beside them.
-  it("names someone who has left as the one former member beside the assistant's and the app's lines", () => {
+  // The assistant writes under an id no member has: counted as a former
+  // member, it would number the one real leaver beside it.
+  it("names someone who has left as the one former member beside the assistant's line", () => {
     const chat = [
       said("left-trip", "See you all at home"),
       said("assistant", "Done.", { kind: "assistant", requestedBy: "sam" }),
-      said("system", "Sam moved Dinner to 20:30", { kind: "system" }),
+      said("sam", "moved “Dinner” to 20:30", { kind: "system" }),
     ];
     expect(chatOf(ctx({ canChat: true, chat })).lines?.[0]?.author).toBe("Former member");
   });

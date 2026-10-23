@@ -35,6 +35,13 @@ afterEach(() => {
 const offer = (chat: PhoneChat) => unregister.push(registerPhoneAsk({ open: false, onOpen: () => {}, chat }));
 const view = () => <MacroView detail={trip} context={{ tripId: trip.tripId }} name="chat.recent" params={{}} />;
 const controls = () => [...screen.queryAllByRole("button"), ...screen.queryAllByRole("link")];
+// What a screen reader reads after the card's name.
+const description = (el: HTMLElement) =>
+  (el.getAttribute("aria-describedby") ?? "")
+    .split(" ")
+    // eslint-disable-next-line testing-library/no-node-access -- the description is found by the ids the card points at, which is the relationship under test.
+    .map((id) => document.getElementById(id)?.textContent ?? "")
+    .join(" ");
 
 describe("ChatRecentBlock", () => {
   // Mitchell, PR 537 preview walk: a mini chat card, each message as the chat
@@ -51,10 +58,22 @@ describe("ChatRecentBlock", () => {
     expect(onOpen).toHaveBeenCalledOnce();
   });
 
-  it("says how many are unread in its header", () => {
+  // As the server stores it (`postSystemLine`): the actor is its author, the
+  // body only what was done, and the chat names the actor in front of it.
+  it("names whoever made a change, as the chat panel does", () => {
+    const change: ChatMessage = { ...message, messageId: "00000000-0000-4000-8000-000000000002", kind: "system", body: "moved “Dinner” to 20:30" };
+    offer({ onOpen: () => {}, messages: [change], unread: 0 });
+    render(view());
+    expect(description(screen.getByRole("button", { name: "Group chat Open chat" }))).toMatch(/^Traveler 2 moved “Dinner” to 20:30 · /);
+  });
+
+  // In the description, not the name, so the name stays exactly the words shown.
+  it("says how many are unread in its header, and to a screen reader", () => {
     offer({ onOpen: () => {}, messages: [message], unread: 2 });
     render(view());
-    expect(within(screen.getByRole("button", { name: /^Group chat/ })).getByText("2 unread messages")).toBeTruthy();
+    const card = screen.getByRole("button", { name: "Group chat Open chat" });
+    expect(within(card).getByText("2 unread messages")).toBeTruthy();
+    expect(description(card)).toMatch(/^2 unread messages /);
   });
 
   it("still shows what it is while the chat is being read", () => {

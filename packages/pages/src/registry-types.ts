@@ -177,11 +177,12 @@ export type BlockPayload =
 // "Group chat" (`chat.recent`, M52 decision 15): the newest messages, oldest
 // first. Each is the message itself, which the app draws with its chat's own
 // line (Mitchell, PR 537 preview walk), and its author named here as every
-// widget names people. `author` is `null` on the app's own line (a change
-// announced, decision 17), which has nobody to name. `lines` is `null` while
-// the chat has not been read, so the block says nothing rather than "no
-// messages yet" about a conversation it has not seen.
-export interface ChatRecentLine { message: Extract<ChatMessage, { removed: false }>; author: string | null; }
+// widget names people. On the app's own line (a change announced, decision
+// 17) it is whoever made the change, whom the chat names in front of what
+// was done. `lines` is `null` while the chat has not been read, so the block
+// says nothing rather than "no messages yet" about a conversation it has not
+// seen.
+export interface ChatRecentLine { message: Extract<ChatMessage, { removed: false }>; author: string; }
 export interface ChatRecentPayload { kind: "chat-recent"; lines: ChatRecentLine[] | null; }
 
 // What a REPEAT widget resolves to: one entry per item, each a lead phrase and

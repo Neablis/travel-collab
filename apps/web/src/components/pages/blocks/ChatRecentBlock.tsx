@@ -25,7 +25,7 @@ import { usePersonas } from "../people";
 // other, so the card is drawn but is no control then.
 //
 // Its name is the header and the footer it shows (WCAG 2.5.3): a voice user
-// says what they see. The messages describe it.
+// says what they see. The unread count and the messages describe it.
 //
 // Spans rather than `<div>`s, `TripStripBlock`'s reason: a widget node is an
 // inline atom and renders inside a paragraph.
@@ -36,6 +36,7 @@ export function ChatRecentBlock({ payload, interactive = true }: { payload: Chat
   const titleId = useId();
   const footerId = useId();
   const linesId = useId();
+  const unreadId = useId();
   const unread = chat?.unread ?? 0;
 
   const content = (
@@ -45,7 +46,7 @@ export function ChatRecentBlock({ payload, interactive = true }: { payload: Chat
         <span id={titleId} className="text-sm font-semibold text-ink">
           Group chat
         </span>
-        {unread > 0 && <span className="ml-auto text-xs font-medium text-brand">{unreadWords(unread)}</span>}
+        {unread > 0 && <span id={unreadId} className="ml-auto text-xs font-medium text-brand">{unreadWords(unread)}</span>}
       </span>
       {payload.lines === null ? null : (
         <span id={linesId} className="flex flex-col gap-3 px-3 py-2.5">
@@ -75,7 +76,9 @@ export function ChatRecentBlock({ payload, interactive = true }: { payload: Chat
   }
   const control = {
     "aria-labelledby": `${titleId} ${footerId}`,
-    "aria-describedby": payload.lines === null ? undefined : linesId,
+    // The unread count is drawn in the header but is neither label, so it
+    // is said here; the name stays exactly the words a voice user sees.
+    "aria-describedby": [unread > 0 ? unreadId : null, payload.lines === null ? null : linesId].filter(Boolean).join(" ") || undefined,
     className: cn(card, "h-auto items-stretch justify-start gap-0 p-0 font-normal whitespace-normal"),
   };
   return "href" in chat ? (

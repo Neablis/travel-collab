@@ -38,8 +38,7 @@ function countOf(stored: unknown): number {
 const ASSISTANT = "Assistant";
 
 function lineOf(message: Extract<ChatMessage, { removed: false }>, names: ReadonlyMap<string, string>): ChatRecentLine {
-  const author = message.kind === "assistant" ? ASSISTANT : message.kind === "system" ? null : names.get(message.authorId)!;
-  return { message, author };
+  return { message, author: message.kind === "assistant" ? ASSISTANT : names.get(message.authorId)! };
 }
 
 export const chatRecent: MacroDef<ChatRecentParams, ChatRecentPayload> = {
@@ -65,9 +64,10 @@ export const chatRecent: MacroDef<ChatRecentParams, ChatRecentPayload> = {
     // A removed message has no text (the contract gives it none), so it does
     // not take one of the places.
     const shown = chat.filter((m): m is Extract<ChatMessage, { removed: false }> => !m.removed).slice(-countOf(params.count));
-    // Members' ids only: the assistant's and the app's are no member's, and
-    // `personNames` would count them as former members and number a real one.
-    const authors = shown.filter((m) => m.kind === "member").map((m) => m.authorId);
+    // Not the assistant's id, which is no member's: `personNames` would count
+    // it as a former member and number a real one. A change line's author is
+    // whoever made the change (`postSystemLine`), so it is named like a message's.
+    const authors = shown.filter((m) => m.kind !== "assistant").map((m) => m.authorId);
     const names = personNames(trip, people, authors, guests);
     return ok({ kind: "chat-recent", lines: shown.map((m) => lineOf(m, names)) });
   },
