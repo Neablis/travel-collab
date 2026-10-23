@@ -600,7 +600,7 @@ export const PRESETS: readonly WidgetPreset[] = [
     widget: "trip.flights",
     params: {},
     title: "Your flights",
-    summary: "Shows today's flights or the next one, with flight number, local times at each end and a countdown to take-off.",
+    summary: "Shows today's flights or the next one, with flight number, where it goes, its departure time and a countdown to take-off.",
     keywords: ["flight", "flights", "plane", "fly", "airport", "departure", "arrival", "countdown", "flight number"],
   },
   {

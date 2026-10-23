@@ -116,7 +116,7 @@ export interface TripPeoplePayload { kind: "trip-people"; stack: TripPeoplePerso
 // The day-of widgets (M52 decision 15). A stop carries its place and the leg
 // leading in, and `apps/web` turns them into a link (`directionsUrl`): the URL
 // is the app's, as a colour is. Instants are ms since the epoch, so the block
-// can count down, and re-pick *now* and *next*, on its own minute clock.
+// can count down, and re-pick *now* and *next*, on the page's minute clock.
 export interface NowStop {
   activityId: string; title: string; start: number; end: number;
   /** Its window, in the reader's clock. */
