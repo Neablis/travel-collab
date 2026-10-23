@@ -571,6 +571,10 @@ flightNumber: null,
     },
   };
 
+  // 9:30 in Kyoto on the fixture's day, mid-museum, so the day-of widgets
+  // (M52) have a stop under way, a place to go and a clock to count from.
+  const richNow = { at: Date.parse("2026-08-01T00:30:00Z"), deviceZone: "Asia/Tokyo" };
+
   it("resolves every widget in the registry against this fixture", () => {
     // The witness for the test below, and a real assertion in its own right: if
     // one entry stops resolving here, the nesting walk quietly stops covering
@@ -580,7 +584,7 @@ flightNumber: null,
         // A fixed `today` well before the fixture's dates, so `trip.countdown`
         // resolves rather than reporting "no dates set yet" — and so this
         // sweep's answer does not change with the calendar.
-        { trip: richDetail, page: ctx, user: richUser, globals: richGlobals, today: "2027-01-01", external: richExternal },
+        { trip: richDetail, page: ctx, user: richUser, globals: richGlobals, today: "2027-01-01", now: richNow, external: richExternal },
         widget.widget,
         boundParams(widget),
       );
@@ -605,17 +609,19 @@ flightNumber: null,
     try {
       for (const widget of presetCatalog()) {
         const { unmount } = render(
-          <p>
-            <MacroView
-              detail={richDetail}
-              context={ctx}
-              user={richUser}
-              globals={richGlobals}
-              external={richExternal}
-              name={widget.widget}
-              params={boundParams(widget)}
-            />
-          </p>,
+          <MacroEditorContext.Provider value={{ detail: richDetail, context: ctx, user: richUser, globals: richGlobals, editing: false, now: richNow }}>
+            <p>
+              <MacroView
+                detail={richDetail}
+                context={ctx}
+                user={richUser}
+                globals={richGlobals}
+                external={richExternal}
+                name={widget.widget}
+                params={boundParams(widget)}
+              />
+            </p>
+          </MacroEditorContext.Provider>,
         );
         // A chart's code is loaded lazily (`SpendByDayBlock`), and until it
         // arrives only its placeholder is in the paragraph. Unmounting then

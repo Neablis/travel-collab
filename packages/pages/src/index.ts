@@ -48,3 +48,5 @@ export * from "./defaultNotebooks";
 // and none works out a phase of its own.
 export * from "./now";
 export * from "./dateScope";
+export { nowAndNext } from "./macros/primitives/nowNext";
+export { NOTHING_MORE_TODAY } from "./macros/primitives/directions";

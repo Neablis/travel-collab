@@ -87,7 +87,7 @@ export function ActivityEditorSheet() {
           location: state.prefill.location ?? null,
           notes: state.prefill.notes ?? null,
           anchors: [],
-          kind: "pending" as const,
+          kind: state.prefill.kind ?? ("pending" as const),
           tags: [],
           cost: null,
           // M13 link 5. A stop being created is attributed to nobody until
@@ -96,7 +96,7 @@ export function ActivityEditorSheet() {
           bookedBy: null,
           participants: [],
           addedBy: null,
-          mode: null,
+          mode: state.prefill.mode ?? null,
           endLocation: null,
           pendingReason: null,
           flightNumber: null,
