@@ -72,10 +72,12 @@ const REMOVED = 409;
  * notebook both read, so they cannot disagree: not on /demo, and not on a trip
  * with one member, whose screens offer the assistant alone (Mitchell on PR
  * 537: no Chat tab, no ⌘K *Open chat*, no *Group chat*, reversing M46's solo
- * tab). `memberCount` is the trip's access read; `null` when that read failed
- * without refusing (a 5xx, a dropped connection), which says nothing of who is
- * on the trip, so the chat stays and its own 403 answers a stranger. A read
- * that refused (a share link's reader, who is no member) counts none.
+ * tab). `memberCount` is the trip's access read; `null` when that read said
+ * nothing of who is on the trip, so the chat stays and its own 403 answers a
+ * stranger. The board passes `null` for any failed read: a reader the access
+ * read refuses has had the trip itself refused, so never reaches it. Only a
+ * notebook tells them apart, counting none for a refusal (a share link's
+ * reader, who is no member) and `null` for a 5xx or a dropped connection.
  */
 export function tripHasChat(tripId: string, memberCount: number | null): boolean {
   return !isDemoTripId(tripId) && (memberCount === null || memberCount > 1);

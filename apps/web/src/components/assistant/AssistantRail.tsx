@@ -733,7 +733,9 @@ export function AssistantRail({
   //
   // A panel with no chat is on Ask, so the switch arriving or going under Ask
   // (the trip no longer solo, or solo again) moves no focus. Going under Chat
-  // it takes focus with the chat's composer, and Ask's takes it.
+  // it took the chat's composer, so focus fell to <body> and Ask's takes it;
+  // but the poll made that switch, not the person, so focus they had put
+  // elsewhere stays, and a sheet takes none (PR 537 round 12).
   const openTab = chat?.tab ?? "ask";
   const shownTab = useRef(openTab);
   const stripChose = useRef(false);
@@ -747,6 +749,10 @@ export function AssistantRail({
     const fromStrip = stripChose.current;
     stripChose.current = false;
     if (fromStrip) return;
+    if (chat === undefined) {
+      const at = document.activeElement;
+      if (isSheet || (at !== document.body && !panelRef.current?.contains(at))) return;
+    }
     focusOpenTab();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- on a switch of tab only; `focusOpenTab` reads this render's
   }, [openTab]);

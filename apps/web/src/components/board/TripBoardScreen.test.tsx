@@ -2098,6 +2098,50 @@ describe("assistant rail visibility", () => {
       expect(selected(panel)).toEqual(["Ask"]);
     });
 
+    // The person did not make that switch (PR 537 round 12): focus they had
+    // put on the board stays there, and is not taken mid-word.
+    it("leaves focus on the board when the trip goes solo under an open Chat", async () => {
+      setViewportMatches({ "(min-width: 1180px)": true });
+      window.localStorage.setItem("assistant:tab", "chat");
+      const addListener = vi.spyOn(document, "addEventListener");
+      const fixture = shared();
+      server.use(...makeTripHandlers(fixture));
+      renderWithTabBar(fixture.tripId);
+      expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+      await userEvent.click(screen.getByTestId("ask-pill"));
+      const panel = await screen.findByRole("complementary", { name: "Assistant" });
+      await waitFor(() => expect(addListener).toHaveBeenCalledWith("visibilitychange", expect.any(Function)));
+      addListener.mockRestore();
+      const addDay = screen.getByRole("button", { name: "Add a day" });
+      act(() => addDay.focus());
+
+      membersMove(fixture, [fixture.members[0]!]);
+
+      await waitFor(() => expect(within(panel).queryAllByRole("tab")).toEqual([]));
+      expect(addDay.matches(":focus")).toBe(true);
+    });
+
+    // A phone's sheet never takes focus for a composer it did not open on:
+    // the keyboard would rise over it (PR 442).
+    it("does not focus Ask's composer in the phone's sheet when the trip goes solo under Chat", async () => {
+      setViewportMatches({ "(max-width: 767px)": true });
+      window.localStorage.setItem("assistant:tab", "chat");
+      const addListener = vi.spyOn(document, "addEventListener");
+      const fixture = shared();
+      server.use(...makeTripHandlers(fixture));
+      renderWithTabBar(fixture.tripId);
+      expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+      await userEvent.click(await screen.findByTestId("ask-tab"));
+      expect(await screen.findByRole("dialog", { name: "Chat" })).toBeTruthy();
+      await waitFor(() => expect(addListener).toHaveBeenCalledWith("visibilitychange", expect.any(Function)));
+      addListener.mockRestore();
+
+      membersMove(fixture, [fixture.members[0]!]);
+
+      const sheet = await screen.findByRole("dialog", { name: "Assistant" });
+      expect(within(sheet).getByRole("textbox", { name: "Question for the assistant" }).matches(":focus")).toBe(false);
+    });
+
     // And the switch arriving under an open Ask is no reason to move focus.
     it("leaves focus where it is when someone joins under an open Ask", async () => {
       setViewportMatches({ "(min-width: 1180px)": true });

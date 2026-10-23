@@ -2427,6 +2427,7 @@ describe("PageScreen: a notebook's Group chat", () => {
             invites: [],
             guests: [],
             collaboratorsEntitled: true,
+            accessRev: `members-${members.length}`,
           },
         }),
       ),
@@ -2637,6 +2638,63 @@ describe("PageScreen: a notebook's Group chat", () => {
     expect(within(panel).queryAllByRole("tab")).toEqual([]);
     expect(within(panel).getByRole("textbox", { name: "Question for the assistant" })).toBeTruthy();
     expect(findPaletteCommand("chat")).toBeUndefined();
+  });
+
+  // Who is on the trip moves while the notebook is open: the poll's
+  // `accessRev`, and the access read it sends for, as on the board (PR 537
+  // round 12). Coming back to the tab polls; dispatched on every retry.
+  async function membersMove(members: { userId: string; role: "owner" | "viewer" }[], seen: () => void) {
+    const accessRev = `members-${members.length}`;
+    server.use(
+      http.get("/api/trips/:tripId/events", () => HttpResponse.json({ headSeq: 0, events: [], resync: false, accessRev })),
+      http.get("/api/trips/:tripId/access", ({ params }) =>
+        HttpResponse.json({
+          access: {
+            tripId: params.tripId,
+            myRole: "owner",
+            members: members.map((m) => ({ ...m, name: null, email: null, image: null })),
+            invites: [],
+            guests: [],
+            collaboratorsEntitled: true,
+            accessRev,
+          },
+        }),
+      ),
+    );
+    await waitFor(() => {
+      document.dispatchEvent(new Event("visibilitychange"));
+      seen();
+    });
+  }
+
+  it("takes the chat away when the last other member leaves: no Chat tab, Group chat or Open chat", async () => {
+    server.use(...makeChatHandlers({ viewerId: "u1", messages: [said] }).handlers);
+    chatNotebook(pair);
+    await userEvent.click(await screen.findByRole("button", card));
+    await within(chatPanel()).findByText("Train at nine?");
+
+    const panel = screen.getByRole("complementary", { name: "Assistant" });
+    await membersMove([pair[0]!], () => expect(within(panel).queryAllByRole("tab")).toEqual([]));
+    expect(within(panel).getByRole("textbox", { name: "Question for the assistant" })).toBeTruthy();
+    // The card hears of it a render later (`usePhoneAskEntry` publishes in an effect).
+    await waitFor(() => expect(screen.queryByRole("button", card)).toBeNull());
+    expect(screen.queryByRole("group", { name: "Group chat" })).toBeNull();
+    expect(findPaletteCommand("chat")).toBeUndefined();
+
+    // Someone joining again does not pull the panel back onto Chat.
+    await membersMove(pair, () => expect(within(panel).getByRole("tab", chatTab)).toBeTruthy());
+    expect(within(panel).getByRole("tab", { name: "Ask" }).getAttribute("aria-selected")).toBe("true");
+  });
+
+  it("offers the chat once someone joins a trip the reader was alone on", async () => {
+    server.use(...makeChatHandlers({ viewerId: "u1", messages: [said] }).handlers);
+    chatNotebook([pair[0]!]);
+    const panel = await openAssistant();
+    expect(within(panel).queryAllByRole("tab")).toEqual([]);
+
+    await membersMove(pair, () => expect(within(panel).getByRole("tab", chatTab)).toBeTruthy());
+    expect(await screen.findByRole("button", card)).toBeTruthy();
+    expect(findPaletteCommand("chat")?.action).toBe("Open chat");
   });
 
   // A share link's reader holds no role on the trip: its access read is

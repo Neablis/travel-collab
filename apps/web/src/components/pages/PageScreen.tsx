@@ -344,16 +344,27 @@ export function PageScreen({
   // the server saying no; a 5xx or a dropped connection says nothing of who
   // this is, so it is no refusal.
   const [accessRefused, setAccessRefused] = useState<boolean | null>(null);
+  // An invite still out: the poll runs on a solo trip for it, as the board's
+  // does, so the one who accepts is seen within an interval.
+  const [inviteOut, setInviteOut] = useState(false);
+  // Only the newest access read lands: the load's and a poll's can cross.
+  const accessTicket = useRef(0);
+  // The `accessRev` the members above are from, so the poll re-reads them
+  // only when someone has joined or left (`onAccessRevision`).
+  const seenAccessRev = useRef<string | null>(null);
   useEffect(() => {
     let cancelled = false;
+    const ticket = ++accessTicket.current;
     setEditRole("pending");
     void cachedRead(tripKeys.access(tripId), () => fetchTripAccess(tripId)).then((access) => {
-      if (cancelled) return;
+      if (cancelled || ticket !== accessTicket.current) return;
       const role = !access.ok ? "unknown" : canEditNotebook(access.value.myRole) ? "writer" : "reader";
       setEditRole(role);
       setMembers(access.ok ? access.value.members : null);
       setMyRole(access.ok ? access.value.myRole : null);
       setAccessRefused(!access.ok && access.error.status >= 400 && access.error.status < 500);
+      setInviteOut(access.ok && access.value.invites.some((i) => i.status === "pending"));
+      if (access.ok) seenAccessRev.current = access.value.accessRev ?? null;
       if (role === "reader") setEditing(false);
       if (role === "writer" && from === "overview") setEditing(true);
     });
@@ -361,6 +372,31 @@ export function PageScreen({
       cancelled = true;
     };
   }, [from, tripId]);
+  // **Joins and leaves, as the board sees them** (PR 537 round 12): whether
+  // there is a chat at all hangs on the member count, so a count read once
+  // left the notebook offering Chat on a trip gone solo, and none to the one
+  // someone just joined. The board's rule (`TripProvider`'s
+  // `onAccessRevision`): with no baseline the first rev becomes it, and a
+  // failed re-read keeps the last good answer and leaves the rev unseen, so
+  // the next poll retries. Only who is on the trip moves here: the editing
+  // role stays the load's, as it did before.
+  const onAccessRevision = (rev: string) => {
+    if (seenAccessRev.current === null) {
+      seenAccessRev.current = rev;
+      return;
+    }
+    if (rev === seenAccessRev.current) return;
+    const ticket = ++accessTicket.current;
+    invalidate(tripKeys.access(tripId));
+    void cachedRead(tripKeys.access(tripId), () => fetchTripAccess(tripId)).then((access) => {
+      if (ticket !== accessTicket.current || !access.ok) return;
+      setMembers(access.value.members);
+      setMyRole(access.value.myRole);
+      setAccessRefused(false);
+      setInviteOut(access.value.invites.some((i) => i.status === "pending"));
+      seenAccessRev.current = access.value.accessRev ?? rev;
+    });
+  };
   const mayToggleEditing = editRole === "writer" || editRole === "unknown";
   // **The rail's filter lives here because the rail does not.** §26 gives the
   // right column two states, and selecting a widget swaps the insert rail out
@@ -1014,10 +1050,11 @@ export function PageScreen({
   useTripBroadcast({
     tripId,
     enabled: status === "ready",
-    interval: (trip?.members.length ?? 0) > 1,
+    interval: (members ?? trip?.members ?? []).length > 1 || inviteOut,
     cursor: () => headSeq.current,
     onChanged: refreshTrip,
     onSuggestionsChanged,
+    onAccessChanged: onAccessRevision,
     onChatChanged: setChatRev,
     onRefused: () => setAccessLost(true),
   });
