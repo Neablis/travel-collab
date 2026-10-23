@@ -310,6 +310,15 @@ rule as a travel leg (ADR-055, "Callers").
 Omitted means no reason given, which is what every stop written before the
 field existed reads as.
 
+**A travel leg can carry a flight number.** A stop with `"kind": "transit"`
+may carry a `flightNumber` of 1 to 20 characters, such as `"TP 1234"`. The
+board card and the edit form show it only on a leg whose `mode` is `flight`; the
+stop's read-only view shows it on any leg, labelled by mode (`Train ICE 578`),
+or `Number ICE 578` when the leg has no mode. On any other kind it is refused
+with a `400`, and a `PATCH` that moves a stop off `transit` clears it unless the
+body names it, the same rule as the rest of the leg. A stop written before the
+field existed reads as `null`.
+
 **To check a place before writing it**, `GET /v1/trips/{tripId}/geocode?q=…`
 (optionally `&countryCode=JP`) returns up to five candidates — without
 `countryCode`, preferring the trip's countries by the same rule as above. Each is a complete

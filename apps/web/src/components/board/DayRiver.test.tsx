@@ -238,6 +238,19 @@ describe("a transit block says where its leg goes", () => {
     renderRiver([leg]);
     expect(block(leg.activityId).getByText("Train · Local · Kyoto → Osaka")).toBeTruthy();
   });
+
+  // M52 decision 5: the flight number is what a traveller reads off the departures board.
+  it("names a flight by its flight number", () => {
+    const leg = activityFactory.build({
+      title: "Fly home",
+      kind: "transit",
+      mode: "flight",
+      flightNumber: "TP 1234",
+      timeWindow: { start: "09:00", end: "11:30" },
+    });
+    renderRiver([leg]);
+    expect(block(leg.activityId).getByText("Flight TP 1234 · Fly home")).toBeTruthy();
+  });
 });
 
 describe("the order a river is read in", () => {

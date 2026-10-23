@@ -25,6 +25,7 @@ const activity = (activityId: string, title: string): ActivityView => ({
   mode: null,
   endLocation: null,
   pendingReason: null,
+  flightNumber: null,
 });
 
 function detail(): TripDetail {
@@ -57,6 +58,7 @@ describe("stopsForDay", () => {
       mode: null,
       endLocation: null,
       pendingReason: null,
+      flightNumber: null,
     });
   });
 

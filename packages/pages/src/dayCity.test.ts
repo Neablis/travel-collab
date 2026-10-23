@@ -25,6 +25,7 @@ function stop(
     mode: endLocation ? "train" : null,
     endLocation,
     pendingReason: null,
+    flightNumber: null,
   };
 }
 

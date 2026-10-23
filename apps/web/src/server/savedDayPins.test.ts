@@ -25,6 +25,7 @@ function stop(name: string, location: Partial<Location> = {}): SavedStop {
     mode: null,
     endLocation: null,
     pendingReason: null,
+    flightNumber: null,
   };
 }
 

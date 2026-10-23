@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Caesura API",
-    "version": "1.20.0",
+    "version": "1.21.0",
     "description": "The public REST API. Every endpoint takes an account API token as\n`Authorization: Bearer tc_...`, minted in Account settings.\n\nScopes:\n- `trips:read` — See your trips, their days and stops, costs, history, and existing share links.\n- `trips:write` — Create, change and delete trips, days and stops; undo, redo and revert.\n- `notebook:read` — Read the Notebook pages on a trip.\n- `notebook:write` — Create, change and delete the Notebook pages on a trip.\n- `library:read` — Read your saved-days library and your Playbooks (a Playbook is a view over saved days), and browse published Playbooks.\n- `library:write` — Create, edit, import and delete saved days and Playbooks, and publish or unpublish them to Discover.\n- `sharing:write` — Invite people to a trip and revoke invites, and create or revoke share links.\n- `account:read` — See who you are and what plan you hold.\n- `places:read` — Look up real places by name, outside any trip. Every search counts against your daily geocoding allowance (the one the app's own place search uses) and a daily budget shared by every account; one token may make at most 100 a day."
   },
   "paths": {
@@ -1161,6 +1161,11 @@
                             ],
                             "nullable": true,
                             "default": null
+                          },
+                          "flightNumber": {
+                            "type": "string",
+                            "nullable": true,
+                            "default": null
                           }
                         },
                         "required": [
@@ -1730,6 +1735,11 @@
                               "book",
                               "maybe"
                             ],
+                            "nullable": true,
+                            "default": null
+                          },
+                          "flightNumber": {
+                            "type": "string",
                             "nullable": true,
                             "default": null
                           }
@@ -2355,6 +2365,11 @@
                                   ],
                                   "nullable": true,
                                   "default": null
+                                },
+                                "flightNumber": {
+                                  "type": "string",
+                                  "nullable": true,
+                                  "default": null
                                 }
                               },
                               "required": [
@@ -2929,6 +2944,11 @@
                               "book",
                               "maybe"
                             ],
+                            "nullable": true,
+                            "default": null
+                          },
+                          "flightNumber": {
+                            "type": "string",
                             "nullable": true,
                             "default": null
                           }
@@ -3605,6 +3625,11 @@
                                     "book",
                                     "maybe"
                                   ]
+                                },
+                                "flightNumber": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 20
                                 }
                               },
                               "required": [
@@ -4038,6 +4063,11 @@
                                           "book",
                                           "maybe"
                                         ]
+                                      },
+                                      "flightNumber": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 20
                                       }
                                     },
                                     "required": [
@@ -4563,6 +4593,11 @@
                               "book",
                               "maybe"
                             ],
+                            "nullable": true,
+                            "default": null
+                          },
+                          "flightNumber": {
+                            "type": "string",
                             "nullable": true,
                             "default": null
                           }
@@ -5137,6 +5172,11 @@
                                 ],
                                 "nullable": true,
                                 "default": null
+                              },
+                              "flightNumber": {
+                                "type": "string",
+                                "nullable": true,
+                                "default": null
                               }
                             },
                             "required": [
@@ -5621,6 +5661,11 @@
                                   "book",
                                   "maybe"
                                 ],
+                                "nullable": true,
+                                "default": null
+                              },
+                              "flightNumber": {
+                                "type": "string",
                                 "nullable": true,
                                 "default": null
                               }
@@ -6397,6 +6442,11 @@
                                   "book",
                                   "maybe"
                                 ]
+                              },
+                              "flightNumber": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 20
                               }
                             },
                             "required": [
@@ -6830,6 +6880,11 @@
                                         "book",
                                         "maybe"
                                       ]
+                                    },
+                                    "flightNumber": {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 20
                                     }
                                   },
                                   "required": [
@@ -7323,6 +7378,11 @@
                                   "book",
                                   "maybe"
                                 ],
+                                "nullable": true,
+                                "default": null
+                              },
+                              "flightNumber": {
+                                "type": "string",
                                 "nullable": true,
                                 "default": null
                               }
@@ -7993,6 +8053,11 @@
                                   ],
                                   "nullable": true,
                                   "default": null
+                                },
+                                "flightNumber": {
+                                  "type": "string",
+                                  "nullable": true,
+                                  "default": null
                                 }
                               },
                               "required": [
@@ -8636,6 +8701,11 @@
                                     ],
                                     "nullable": true,
                                     "default": null
+                                  },
+                                  "flightNumber": {
+                                    "type": "string",
+                                    "nullable": true,
+                                    "default": null
                                   }
                                 },
                                 "required": [
@@ -9131,6 +9201,11 @@
                                 ],
                                 "nullable": true,
                                 "default": null
+                              },
+                              "flightNumber": {
+                                "type": "string",
+                                "nullable": true,
+                                "default": null
                               }
                             },
                             "required": [
@@ -9568,7 +9643,7 @@
                       "pending",
                       "transit"
                     ],
-                    "description": "`planned`, `pending` (not settled yet; see `pendingReason`) or `transit` (a travel leg; see `mode` and `endLocation`). There is no `travel` kind — travel is `kind: \"transit\"` plus `mode`. The kinds retired in M28 — `idea`, `hold`, `booked` — are refused on write: send `pending` for the first two and `planned` for `booked`. Omitted = unchanged; no null (send `planned`). Changing `kind` clears the fields the new kind cannot carry — `mode` and `endLocation` off `transit`, `pendingReason` off `pending` — unless the patch names them."
+                    "description": "`planned`, `pending` (not settled yet; see `pendingReason`) or `transit` (a travel leg; see `mode`, `endLocation` and `flightNumber`). There is no `travel` kind — travel is `kind: \"transit\"` plus `mode`. The kinds retired in M28 — `idea`, `hold`, `booked` — are refused on write: send `pending` for the first two and `planned` for `booked`. Omitted = unchanged; no null (send `planned`). Changing `kind` clears the fields the new kind cannot carry — `mode`, `endLocation` and `flightNumber` off `transit`, `pendingReason` off `pending` — unless the patch names them."
                   },
                   "tags": {
                     "type": "array",
@@ -9735,6 +9810,13 @@
                     ],
                     "nullable": true,
                     "description": "Omitted = unchanged, null = cleared. Only allowed while the stop is (or this patch makes it) `pending`; otherwise a 400. A patch that changes `kind` away from `pending` clears it for you."
+                  },
+                  "flightNumber": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 20,
+                    "nullable": true,
+                    "description": "A flight leg's flight number. Omitted = unchanged, null = cleared. Only allowed while the stop is (or this patch makes it) `transit`; otherwise a 400. A patch that changes `kind` away from `transit` clears it for you."
                   },
                   "dayId": {
                     "type": "string",
@@ -10359,6 +10441,11 @@
                               "book",
                               "maybe"
                             ],
+                            "nullable": true,
+                            "default": null
+                          },
+                          "flightNumber": {
+                            "type": "string",
                             "nullable": true,
                             "default": null
                           }
@@ -11093,6 +11180,11 @@
                             ],
                             "nullable": true,
                             "default": null
+                          },
+                          "flightNumber": {
+                            "type": "string",
+                            "nullable": true,
+                            "default": null
                           }
                         },
                         "required": [
@@ -11495,7 +11587,7 @@
                       "pending",
                       "transit"
                     ],
-                    "description": "`planned`, `pending` (not settled yet; see `pendingReason`) or `transit` (a travel leg; see `mode` and `endLocation`). There is no `travel` kind — travel is `kind: \"transit\"` plus `mode`. The kinds retired in M28 — `idea`, `hold`, `booked` — are refused on write: send `pending` for the first two and `planned` for `booked`. Omitted = `planned`."
+                    "description": "`planned`, `pending` (not settled yet; see `pendingReason`) or `transit` (a travel leg; see `mode`, `endLocation` and `flightNumber`). There is no `travel` kind — travel is `kind: \"transit\"` plus `mode`. The kinds retired in M28 — `idea`, `hold`, `booked` — are refused on write: send `pending` for the first two and `planned` for `booked`. Omitted = `planned`."
                   },
                   "tags": {
                     "type": "array",
@@ -11658,6 +11750,12 @@
                       "maybe"
                     ],
                     "description": "Why a stop is not settled: `book` (still has to be booked) or `maybe` (may not happen at all). Only allowed when `kind` is `pending`; otherwise a 400."
+                  },
+                  "flightNumber": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 20,
+                    "description": "A flight leg's flight number, such as `TP 1234`. Only allowed when `kind` is `transit`; otherwise a 400."
                   }
                 },
                 "required": [
@@ -12276,6 +12374,11 @@
                               "book",
                               "maybe"
                             ],
+                            "nullable": true,
+                            "default": null
+                          },
+                          "flightNumber": {
+                            "type": "string",
                             "nullable": true,
                             "default": null
                           }
@@ -13012,6 +13115,11 @@
                             ],
                             "nullable": true,
                             "default": null
+                          },
+                          "flightNumber": {
+                            "type": "string",
+                            "nullable": true,
+                            "default": null
                           }
                         },
                         "required": [
@@ -13746,6 +13854,11 @@
                             ],
                             "nullable": true,
                             "default": null
+                          },
+                          "flightNumber": {
+                            "type": "string",
+                            "nullable": true,
+                            "default": null
                           }
                         },
                         "required": [
@@ -14472,6 +14585,11 @@
                             ],
                             "nullable": true,
                             "default": null
+                          },
+                          "flightNumber": {
+                            "type": "string",
+                            "nullable": true,
+                            "default": null
                           }
                         },
                         "required": [
@@ -15142,6 +15260,11 @@
                                           "book",
                                           "maybe"
                                         ]
+                                      },
+                                      "flightNumber": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 20
                                       }
                                     },
                                     "required": [
@@ -15571,6 +15694,11 @@
                                     "book",
                                     "maybe"
                                   ]
+                                },
+                                "flightNumber": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 20
                                 }
                               },
                               "required": [
@@ -17288,6 +17416,11 @@
                             ],
                             "nullable": true,
                             "default": null
+                          },
+                          "flightNumber": {
+                            "type": "string",
+                            "nullable": true,
+                            "default": null
                           }
                         },
                         "required": [
@@ -18012,6 +18145,11 @@
                               "book",
                               "maybe"
                             ],
+                            "nullable": true,
+                            "default": null
+                          },
+                          "flightNumber": {
+                            "type": "string",
                             "nullable": true,
                             "default": null
                           }
@@ -18759,6 +18897,11 @@
                               "book",
                               "maybe"
                             ],
+                            "nullable": true,
+                            "default": null
+                          },
+                          "flightNumber": {
+                            "type": "string",
                             "nullable": true,
                             "default": null
                           }
@@ -19761,6 +19904,11 @@
                               "book",
                               "maybe"
                             ],
+                            "nullable": true,
+                            "default": null
+                          },
+                          "flightNumber": {
+                            "type": "string",
                             "nullable": true,
                             "default": null
                           }
@@ -21933,6 +22081,11 @@
                             ],
                             "nullable": true,
                             "default": null
+                          },
+                          "flightNumber": {
+                            "type": "string",
+                            "nullable": true,
+                            "default": null
                           }
                         },
                         "required": [
@@ -22657,6 +22810,11 @@
                               "book",
                               "maybe"
                             ],
+                            "nullable": true,
+                            "default": null
+                          },
+                          "flightNumber": {
+                            "type": "string",
                             "nullable": true,
                             "default": null
                           }
@@ -23432,6 +23590,11 @@
                             ],
                             "nullable": true,
                             "default": null
+                          },
+                          "flightNumber": {
+                            "type": "string",
+                            "nullable": true,
+                            "default": null
                           }
                         },
                         "required": [
@@ -24154,6 +24317,11 @@
                               "book",
                               "maybe"
                             ],
+                            "nullable": true,
+                            "default": null
+                          },
+                          "flightNumber": {
+                            "type": "string",
                             "nullable": true,
                             "default": null
                           }
@@ -25080,6 +25248,11 @@
                                         "book",
                                         "maybe"
                                       ]
+                                    },
+                                    "flightNumber": {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 20
                                     }
                                   },
                                   "required": [
@@ -25509,6 +25682,11 @@
                                   "book",
                                   "maybe"
                                 ]
+                              },
+                              "flightNumber": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 20
                               }
                             },
                             "required": [
@@ -26132,6 +26310,11 @@
                               "book",
                               "maybe"
                             ],
+                            "nullable": true,
+                            "default": null
+                          },
+                          "flightNumber": {
+                            "type": "string",
                             "nullable": true,
                             "default": null
                           }
@@ -27092,6 +27275,11 @@
                               "book",
                               "maybe"
                             ],
+                            "nullable": true,
+                            "default": null
+                          },
+                          "flightNumber": {
+                            "type": "string",
                             "nullable": true,
                             "default": null
                           }

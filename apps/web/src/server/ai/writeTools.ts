@@ -216,9 +216,9 @@ export function withDefaultKind(command: BatchableCommand): BatchableCommand {
 
 /**
  * **A created stop that names a kind's detail and no kind is that kind** (M24's
- * travel leg, ADR-055's pending reason). A `mode` or `endLocation` is legal on
- * nothing but `transit`, and a `pendingReason` on nothing but `pending`, so the
- * detail is the model having stated what the stop is. Fields that name two
+ * travel leg, ADR-055's pending reason). A `mode`, `endLocation` or (M52)
+ * `flightNumber` is legal on nothing but `transit`, and a `pendingReason` on
+ * nothing but `pending`, so the detail is the model having stated what the stop is. Fields that name two
  * different kinds are left alone for the contract to refuse.
  *
  * **Why this half runs on the UNPARSED fields, unlike `withDefaultKind`.** The

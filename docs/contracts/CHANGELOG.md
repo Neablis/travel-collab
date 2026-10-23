@@ -48,6 +48,29 @@ Format:
 - Breaking? no: every new field is defaulted or optional, so a body from a server before this
   parses as a member's message or an any-editor change, and `assistant` is optional.
 
+## 2026-10-23 — A transit stop's `flightNumber` (M52 part 2; public API 1.21.0)
+- **Added** (`activity.ts`): `FlightNumber` (trimmed, 1–20 characters, free text), and an optional
+  `flightNumber` on `AddActivity`, nullable-optional on `UpdateActivity` (omitted = unchanged,
+  null = cleared), defaulted `null` on `ActivitySnapshot` (so on `ActivityAddedV1` and
+  `ActivityUpdatedV1`), `ActivityView` (`detail.ts`) and `SavedStop` (`saved.ts`). A third
+  `KIND_DETAIL_FIELDS` entry, `flightNumber: "transit"`, so the command unions, the decider
+  (`travel-leg-off-transit`), the saved-day write path and `clearDetailFieldsForKind` all ask the
+  rule `mode` follows without being edited. `@tc/fixtures`' `BundleStop` gains it too.
+  `openapi.json` regenerated, `info.version` 1.20.0 → 1.21.0.
+- Why: M52 decision 5 as amended at scoping (Mitchell, 2026-10-23): flight number only, not M44's
+  `booking` object. It is not secret, so it travels wherever the stop does: share links,
+  published days, the API and export. The editor asks for it on a flight leg only, labelled
+  *Flight number*, and the river block shows it ("Flight TP 1234 · Fly home").
+- Consumers updated: `@tc/domain` (decide, evolve, `FIELD_EQUAL`, diff, hydrate, detail),
+  `@tc/factories`, `@tc/fixtures` (bundle schema, export, import, playbooks), `apps/web` (the
+  editor and its command builders, the river block, clone, saved days and their stops, the
+  assistant's `read_day` readout, fenced, and its `UpdateActivity` description, the MSW handlers,
+  the preview context). The v1 add and patch bodies take it from the contract schemas.
+- Breaking? no, **minor**: an optional field on two request bodies and a nullable one on
+  responses. Every event, `trip_details.doc` and `saved_days` row written before it reads as
+  `null` (`packages/domain/test/m52-flight-number.test.ts` replays a pre-M52 log against its
+  stored projection).
+
 ## 2026-10-21 — Discover previews carry up to twelve stops (M51 part 9; public API 1.20.0)
 - **Widened** (`apps/web/src/lib/playbooks.ts`, not `packages/contracts`): `DiscoverDay.preview`
   is day one's first `DISCOVER_PREVIEW_STOPS` stops, now 12 (was 3). On the wire in

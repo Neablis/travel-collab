@@ -131,6 +131,8 @@ export const SavedStop = z.object({
   // ADR-055, on the same terms as the leg above: defaulted because every saved
   // row predates it, and refined only on the write path below.
   pendingReason: PendingReason.nullable().default(null),
+  // M52 decision 5, on the leg's terms: a flight number goes wherever its stop goes.
+  flightNumber: z.string().nullable().default(null),
 });
 export type SavedStop = z.infer<typeof SavedStop>;
 

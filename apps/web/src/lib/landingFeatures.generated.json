@@ -160,7 +160,8 @@
           "addedBy": null,
           "mode": null,
           "endLocation": null,
-          "pendingReason": null
+          "pendingReason": null,
+          "flightNumber": null
         },
         "00000000-0000-4000-80d0-000000000004": {
           "activityId": "00000000-0000-4000-80d0-000000000004",
@@ -189,7 +190,8 @@
           "addedBy": null,
           "mode": null,
           "endLocation": null,
-          "pendingReason": null
+          "pendingReason": null,
+          "flightNumber": null
         },
         "00000000-0000-4000-80d0-000000000005": {
           "activityId": "00000000-0000-4000-80d0-000000000005",
@@ -217,7 +219,8 @@
           "addedBy": null,
           "mode": null,
           "endLocation": null,
-          "pendingReason": null
+          "pendingReason": null,
+          "flightNumber": null
         },
         "00000000-0000-4000-80d0-000000000006": {
           "activityId": "00000000-0000-4000-80d0-000000000006",
@@ -245,7 +248,8 @@
           "addedBy": null,
           "mode": null,
           "endLocation": null,
-          "pendingReason": null
+          "pendingReason": null,
+          "flightNumber": null
         }
       }
     },
@@ -296,7 +300,8 @@
           "addedBy": null,
           "mode": null,
           "endLocation": null,
-          "pendingReason": null
+          "pendingReason": null,
+          "flightNumber": null
         },
         "dayId": "00000000-0000-4000-80d0-000000000001"
       },
@@ -336,7 +341,8 @@
           "addedBy": null,
           "mode": null,
           "endLocation": null,
-          "pendingReason": null
+          "pendingReason": null,
+          "flightNumber": null
         },
         "dayId": "00000000-0000-4000-80d0-000000000001"
       }
@@ -388,7 +394,8 @@
           "addedBy": "Maeve",
           "mode": null,
           "endLocation": null,
-          "pendingReason": null
+          "pendingReason": null,
+          "flightNumber": null
         },
         "00000000-0000-4000-80c0-000000000013": {
           "activityId": "00000000-0000-4000-80c0-000000000013",
@@ -415,7 +422,8 @@
           "addedBy": "Tomas",
           "mode": null,
           "endLocation": null,
-          "pendingReason": null
+          "pendingReason": null,
+          "flightNumber": null
         },
         "00000000-0000-4000-80c0-000000000014": {
           "activityId": "00000000-0000-4000-80c0-000000000014",
@@ -446,7 +454,8 @@
           "addedBy": "Ruth",
           "mode": null,
           "endLocation": null,
-          "pendingReason": null
+          "pendingReason": null,
+          "flightNumber": null
         },
         "00000000-0000-4000-80c0-000000000015": {
           "activityId": "00000000-0000-4000-80c0-000000000015",
@@ -475,7 +484,8 @@
           "addedBy": "Kenji",
           "mode": null,
           "endLocation": null,
-          "pendingReason": null
+          "pendingReason": null,
+          "flightNumber": null
         },
         "00000000-0000-4000-80c0-000000000016": {
           "activityId": "00000000-0000-4000-80c0-000000000016",
@@ -505,7 +515,8 @@
           "addedBy": "Maeve",
           "mode": null,
           "endLocation": null,
-          "pendingReason": null
+          "pendingReason": null,
+          "flightNumber": null
         },
         "00000000-0000-4000-80c0-000000000017": {
           "activityId": "00000000-0000-4000-80c0-000000000017",
@@ -534,7 +545,8 @@
           "addedBy": "Tomas",
           "mode": null,
           "endLocation": null,
-          "pendingReason": null
+          "pendingReason": null,
+          "flightNumber": null
         },
         "00000000-0000-4000-80c0-000000000018": {
           "activityId": "00000000-0000-4000-80c0-000000000018",
@@ -561,7 +573,8 @@
           "addedBy": "Ruth",
           "mode": null,
           "endLocation": null,
-          "pendingReason": null
+          "pendingReason": null,
+          "flightNumber": null
         },
         "00000000-0000-4000-80c0-000000000019": {
           "activityId": "00000000-0000-4000-80c0-000000000019",
@@ -596,7 +609,8 @@
           "addedBy": "Kenji",
           "mode": null,
           "endLocation": null,
-          "pendingReason": null
+          "pendingReason": null,
+          "flightNumber": null
         }
       }
     },

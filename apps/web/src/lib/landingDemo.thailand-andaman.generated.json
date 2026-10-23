@@ -53,7 +53,8 @@
         "addedBy": "Oskar",
         "mode": null,
         "endLocation": null,
-        "pendingReason": null
+        "pendingReason": null,
+        "flightNumber": null
       },
       "00000000-0000-4000-8004-000000000018": {
         "activityId": "00000000-0000-4000-8004-000000000018",
@@ -80,7 +81,8 @@
         "addedBy": "Oskar",
         "mode": null,
         "endLocation": null,
-        "pendingReason": null
+        "pendingReason": null,
+        "flightNumber": null
       },
       "00000000-0000-4000-8004-000000000019": {
         "activityId": "00000000-0000-4000-8004-000000000019",
@@ -110,7 +112,8 @@
         "addedBy": "Oskar",
         "mode": null,
         "endLocation": null,
-        "pendingReason": null
+        "pendingReason": null,
+        "flightNumber": null
       },
       "00000000-0000-4000-8004-000000000020": {
         "activityId": "00000000-0000-4000-8004-000000000020",
@@ -139,7 +142,8 @@
         "addedBy": "Oskar",
         "mode": null,
         "endLocation": null,
-        "pendingReason": null
+        "pendingReason": null,
+        "flightNumber": null
       },
       "00000000-0000-4000-8004-000000000021": {
         "activityId": "00000000-0000-4000-8004-000000000021",
@@ -169,7 +173,8 @@
         "addedBy": "Oskar",
         "mode": null,
         "endLocation": null,
-        "pendingReason": null
+        "pendingReason": null,
+        "flightNumber": null
       },
       "00000000-0000-4000-8004-000000000022": {
         "activityId": "00000000-0000-4000-8004-000000000022",
@@ -198,7 +203,8 @@
         "addedBy": "Oskar",
         "mode": null,
         "endLocation": null,
-        "pendingReason": null
+        "pendingReason": null,
+        "flightNumber": null
       },
       "00000000-0000-4000-8004-000000000023": {
         "activityId": "00000000-0000-4000-8004-000000000023",
@@ -227,7 +233,8 @@
         "addedBy": "Oskar",
         "mode": null,
         "endLocation": null,
-        "pendingReason": null
+        "pendingReason": null,
+        "flightNumber": null
       }
     },
     "people": {

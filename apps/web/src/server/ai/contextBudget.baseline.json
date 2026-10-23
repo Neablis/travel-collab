@@ -50,10 +50,10 @@
         "insert_playbook_day",
         "go_to"
       ],
-      "toolChars": 22628,
+      "toolChars": 23139,
       "instructionChars": 4205,
-      "totalChars": 26833,
-      "approxTokens": 8107
+      "totalChars": 27344,
+      "approxTokens": 8261
     },
     "trip · plan": {
       "tools": [
@@ -75,10 +75,10 @@
         "insert_playbook_day",
         "go_to"
       ],
-      "toolChars": 21569,
+      "toolChars": 22080,
       "instructionChars": 4512,
-      "totalChars": 26081,
-      "approxTokens": 7879
+      "totalChars": 26592,
+      "approxTokens": 8034
     },
     "trip · unsure": {
       "tools": [
@@ -103,10 +103,10 @@
         "insert_playbook_day",
         "go_to"
       ],
-      "toolChars": 22628,
+      "toolChars": 23139,
       "instructionChars": 4205,
-      "totalChars": 26833,
-      "approxTokens": 8107
+      "totalChars": 27344,
+      "approxTokens": 8261
     },
     "page · compose": {
       "tools": [
@@ -143,12 +143,12 @@
   },
   "tools": {
     "UpdateActivity": {
-      "chars": 6283,
-      "approxTokens": 1898
+      "chars": 6624,
+      "approxTokens": 2001
     },
     "AddActivity": {
-      "chars": 5626,
-      "approxTokens": 1700
+      "chars": 5796,
+      "approxTokens": 1751
     },
     "search_widgets": {
       "chars": 1288,

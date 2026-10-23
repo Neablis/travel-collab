@@ -32,6 +32,7 @@ function stop(title: string, start: string, location: SavedStop["location"]): Sa
     mode: null,
     endLocation: null,
     pendingReason: null,
+    flightNumber: null,
   };
 }
 

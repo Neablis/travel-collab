@@ -60,7 +60,8 @@
           "lng": 135.7588,
           "countryCode": "JP"
         },
-        "pendingReason": null
+        "pendingReason": null,
+        "flightNumber": null
       },
       "00000000-0000-4000-8000-000000000045": {
         "activityId": "00000000-0000-4000-8000-000000000045",
@@ -89,7 +90,8 @@
         "addedBy": "Jonah",
         "mode": null,
         "endLocation": null,
-        "pendingReason": null
+        "pendingReason": null,
+        "flightNumber": null
       },
       "00000000-0000-4000-8000-000000000046": {
         "activityId": "00000000-0000-4000-8000-000000000046",
@@ -119,7 +121,8 @@
         "addedBy": "Jonah",
         "mode": null,
         "endLocation": null,
-        "pendingReason": null
+        "pendingReason": null,
+        "flightNumber": null
       },
       "00000000-0000-4000-8000-000000000047": {
         "activityId": "00000000-0000-4000-8000-000000000047",
@@ -148,7 +151,8 @@
         "addedBy": "Jonah",
         "mode": null,
         "endLocation": null,
-        "pendingReason": null
+        "pendingReason": null,
+        "flightNumber": null
       },
       "00000000-0000-4000-8000-000000000048": {
         "activityId": "00000000-0000-4000-8000-000000000048",
@@ -177,7 +181,8 @@
         "addedBy": "Jonah",
         "mode": null,
         "endLocation": null,
-        "pendingReason": "maybe"
+        "pendingReason": "maybe",
+        "flightNumber": null
       }
     },
     "people": {

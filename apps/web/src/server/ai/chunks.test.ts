@@ -22,6 +22,7 @@ function stop(overrides: Partial<SavedStop> & { title: string }): SavedStop {
     mode: null,
     endLocation: null,
     pendingReason: null,
+    flightNumber: null,
     ...overrides,
   };
 }

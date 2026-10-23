@@ -1,6 +1,7 @@
 import { z } from "zod";
 import {
   ActivityMode,
+  FlightNumber,
   PendingReason,
   ActivityTag,
   Anchor,
@@ -79,6 +80,8 @@ export const BundleStop = z.object({
   endLocation: Location.optional(),
   /** Why a pending stop is pending (ADR-055). Legal only with `kind: "pending"`, enforced the same way. */
   pendingReason: PendingReason.optional(),
+  /** A flight leg's flight number (M52). Legal only with `kind: "transit"`, enforced the same way. */
+  flightNumber: FlightNumber.optional(),
 });
 export type BundleStop = z.infer<typeof BundleStop>;
 

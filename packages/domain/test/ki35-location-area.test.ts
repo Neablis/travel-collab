@@ -40,6 +40,7 @@ const stateWith = (area: string | undefined): TripState => ({
       mode: null,
       endLocation: null,
       pendingReason: null,
+      flightNumber: null,
     },
   },
   dismissedConflictIds: [],

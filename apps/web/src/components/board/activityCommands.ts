@@ -73,6 +73,7 @@ export function addActivityCommand(
     mode,
     endLocation,
     pendingReason,
+    flightNumber,
     ...rest
   } = value;
   const _exhaustive: NothingLeftOver = rest;
@@ -96,6 +97,7 @@ export function addActivityCommand(
     mode: mode ?? undefined,
     endLocation: endLocation ?? undefined,
     pendingReason: pendingReason ?? undefined,
+    flightNumber: flightNumber ?? undefined,
   };
 }
 
@@ -132,6 +134,7 @@ export function updateActivityCommand(
     mode,
     endLocation,
     pendingReason,
+    flightNumber,
     ...rest
   } = value;
   const _exhaustive: NothingLeftOver = rest;
@@ -154,5 +157,6 @@ export function updateActivityCommand(
     mode,
     endLocation,
     pendingReason,
+    flightNumber,
   };
 }

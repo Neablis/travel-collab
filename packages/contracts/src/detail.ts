@@ -55,6 +55,8 @@ export const ActivityView = z.object({
   endLocation: Location.nullable().default(null),
   // ADR-055, on M24's terms: defaulted, and not held to "pending only" on read.
   pendingReason: PendingReason.nullable().default(null),
+  // M52 decision 5, on M24's terms: defaulted, and not held to "transit only" on read.
+  flightNumber: z.string().nullable().default(null),
 });
 export type ActivityView = z.infer<typeof ActivityView>;
 

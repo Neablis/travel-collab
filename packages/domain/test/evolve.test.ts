@@ -40,6 +40,7 @@ const addActivity: TripEvent = {
     mode: null,
     endLocation: null,
     pendingReason: null,
+    flightNumber: null,
   },
 };
 
@@ -87,6 +88,7 @@ describe("evolveTrip (M1 events)", () => {
       mode: null,
       endLocation: null,
       pendingReason: null,
+      flightNumber: null,
     });
   });
 
@@ -107,7 +109,7 @@ describe("evolveTrip (M1 events)", () => {
       {
         type: "ActivityUpdated",
         version: 1,
-        payload: { tripId: TRIP, activityId: ACT, title: "Colosseum tour", timeWindow: null, location: null, notes: "book ahead", anchors: [], kind: "planned" as const, tags: [], cost: null, bookedBy: null, participants: [], mode: null, endLocation: null, pendingReason: null },
+        payload: { tripId: TRIP, activityId: ACT, title: "Colosseum tour", timeWindow: null, location: null, notes: "book ahead", anchors: [], kind: "planned" as const, tags: [], cost: null, bookedBy: null, participants: [], mode: null, endLocation: null, pendingReason: null, flightNumber: null },
       },
     ]);
     expect(state.activities[ACT]).toEqual({
@@ -124,6 +126,7 @@ describe("evolveTrip (M1 events)", () => {
       mode: null,
       endLocation: null,
       pendingReason: null,
+      flightNumber: null,
     });
   });
 
@@ -192,6 +195,7 @@ describe("evolveTrip totality — activity events naming an unknown day", () => 
           mode: null,
           endLocation: null,
           pendingReason: null,
+          flightNumber: null,
         },
       }),
     ).toThrow(/corrupt stream/i);

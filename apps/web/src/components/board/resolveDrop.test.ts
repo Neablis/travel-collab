@@ -27,6 +27,7 @@ function fixture() {
     mode: null,
     endLocation: null,
     pendingReason: null,
+    flightNumber: null,
   });
   return tripDetailFixture({
     days: [

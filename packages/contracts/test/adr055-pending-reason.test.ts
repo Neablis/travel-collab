@@ -34,7 +34,7 @@ describe("a pending reason is legal only on a pending stop", () => {
   // would be a silent drop: overwrite a detail the patch named, or touch a
   // patch that is not changing the kind.
   it("clearDetailFieldsForKind clears only what a new kind cannot carry and the patch did not name", () => {
-    expect(clearDetailFieldsForKind({ kind: "planned" })).toEqual({ kind: "planned", mode: null, endLocation: null, pendingReason: null });
+    expect(clearDetailFieldsForKind({ kind: "planned" })).toEqual({ kind: "planned", mode: null, endLocation: null, pendingReason: null, flightNumber: null });
     expect(clearDetailFieldsForKind({ kind: "transit", mode: "train" })).toEqual({ kind: "transit", mode: "train", pendingReason: null });
     const contradiction = { kind: "planned", pendingReason: "book" };
     expect(clearDetailFieldsForKind(contradiction)).toMatchObject({ pendingReason: "book" });

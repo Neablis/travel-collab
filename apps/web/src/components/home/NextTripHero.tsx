@@ -2,7 +2,8 @@
 
 import { useEffect, useId, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { travellerIds, type TripSummary } from "@tc/contracts";
+import { travellerIds, type TripDetail, type TripGlobals, type TripSummary } from "@tc/contracts";
+import { dayLabel, formatCountdown, formatTimeUntil, nextFlight, tripNow, type TripNowClock } from "@tc/pages";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Heading } from "@/components/ui/heading";
@@ -28,9 +29,10 @@ import {
 } from "./UnplannedTrip";
 import { viewerOwnsTrip } from "@/lib/tripRole";
 import { cityFor } from "@/lib/dayChips";
-import { fetchTripDetail } from "@/lib/apiClient";
+import { fetchTripDetail, fetchTripGlobals } from "@/lib/apiClient";
 import { cachedRead } from "@/lib/queryCache";
 import { tripKeys } from "@/lib/queryKeys";
+import { localTodayIso } from "@/lib/today";
 import { formatTripDateLong, relativeCalendarDays } from "@/lib/formatDate";
 import { displayNameFor } from "@/lib/displayName";
 import { PersonChip } from "@/components/ui/person-chip";
@@ -106,12 +108,25 @@ export function NextTripHero({ trip, menuSlot, viewerId, unreadChat = 0 }: NextT
   // Home's own date line is set this way. `null` until the first client frame,
   // which is also why the countdown below simply does not render yet rather
   // than rendering a guess.
-  const [today, setToday] = useState<string | null>(null);
+  //
+  // The device's zone is read with it: a day without a zone of its own runs on
+  // it (ADR-080 decision 1). Read again each minute and when the tab comes
+  // back, so a Home left open does not count down to a flight that has left.
+  const [clock, setClock] = useState<TripNowClock | null>(null);
   useEffect(() => {
-    const now = new Date();
-    const pad = (n: number) => String(n).padStart(2, "0");
-    setToday(`${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`);
+    const read = () => setClock({ at: Date.now(), deviceZone: Intl.DateTimeFormat().resolvedOptions().timeZone });
+    const onVisible = () => {
+      if (document.visibilityState === "visible") read();
+    };
+    read();
+    const timer = window.setInterval(read, 60_000);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, []);
+  const today = clock === null ? null : localTodayIso(new Date(clock.at));
   // **The date this hero shows** (KI-034): the summary's own `startDate` from
   // the first frame, and the detail's once it has loaded — the detail is the
   // fresher read of the same field, so it wins, including when it says the
@@ -142,6 +157,12 @@ export function NextTripHero({ trip, menuSlot, viewerId, unreadChat = 0 }: NextT
   // narrower than SPEC §12's literal wording and says why. `null` is the same
   // "nothing honest to say yet" as its neighbours above.
   const [notBooked, setNotBooked] = useState<number | null>(null);
+  // What `tripNow` reads (M52): the loaded trip's days and stops, and its
+  // globals for each day's zone. `undefined` while the globals are in flight,
+  // so the badge does not say one day and then another; `null` when they
+  // failed, and every day runs on the device's zone.
+  const [itinerary, setItinerary] = useState<Pick<TripDetail, "days" | "activities"> | null>(null);
+  const [globals, setGlobals] = useState<TripGlobals | null | undefined>(undefined);
   const detailLoading = sparkline.status === "loading";
   const hasDecisions = conflictCount !== null && conflictCount > 0;
   const hasUnbooked = notBooked !== null && notBooked > 0;
@@ -194,6 +215,7 @@ export function NextTripHero({ trip, menuSlot, viewerId, unreadChat = 0 }: NextT
     setPlannedOfBudget(null);
     setConflictCount(null);
     setNotBooked(null);
+    setItinerary(null);
     // The same key `TripProvider` reads under, which is the point: the stats
     // below and the board you reach by clicking them are the same document,
     // and this page used to fetch it seconds before the trip route fetched it
@@ -214,6 +236,7 @@ export function NextTripHero({ trip, menuSlot, viewerId, unreadChat = 0 }: NextT
         setPlannedOfBudget(plannedOfBudgetLine(tripSpend(detail), detail.currency));
         setConflictCount(detail.conflicts.length);
         setNotBooked(Object.values(activities).filter((a) => needsBooking(a)).length);
+        setItinerary({ days, activities });
       } else {
         setSparkline({ status: "error" });
       }
@@ -223,27 +246,61 @@ export function NextTripHero({ trip, menuSlot, viewerId, unreadChat = 0 }: NextT
     };
   }, [trip.tripId]);
 
+  useEffect(() => {
+    let cancelled = false;
+    setGlobals(undefined);
+    // The key the Overview reads the globals under, so opening the trip from
+    // here does not fetch them again.
+    void cachedRead(tripKeys.globals(trip.tripId), () => fetchTripGlobals(trip.tripId)).then((result) => {
+      if (!cancelled) setGlobals(result.ok ? result.value : null);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [trip.tripId]);
+
+  // **The badge reads where the trip is** (M52 decisions 11, 19; ADR-080):
+  // which day of it while under way, and in the days before it how long until
+  // the first flight leaves, or until the start date when no flight is timed.
+  // Otherwise, and until the trip and its zones have loaded, it is the next
+  // trip. When the badge counts, the date countdown beside it would say the
+  // same thing twice, so it gives way.
+  let badge = "Next trip";
+  if (clock !== null && itinerary !== null && globals !== undefined) {
+    const now = tripNow(itinerary, globals, clock);
+    const dates = itinerary.days.flatMap((day) => (day.date === null ? [] : [day.date]));
+    if (now.phase === "underway") {
+      badge = `${dayLabel(itinerary.days.findIndex((day) => day.dayId === now.dayId))} of ${itinerary.days.length}`;
+    } else if (now.phase === "soon") {
+      const flight = nextFlight(itinerary, globals, clock);
+      const words =
+        flight !== null
+          ? `Flight in ${formatTimeUntil(flight.start - clock.at)}`
+          : formatCountdown(now.firstDayToday!, dates[0]!, dates.at(-1)!);
+      if (words !== null) badge = `${words[0]!.toUpperCase()}${words.slice(1)}`;
+    }
+  }
+
   // The badge, the countdown and the menu: the column's first row, or laid
   // over the cover's band when there is one.
   const badgeRow = (
     <div className={cn("flex items-center gap-2.5", cover !== null && "absolute top-3 right-3 left-6 sm:top-3.5")}>
-      <Badge variant="brand">Next trip</Badge>
+      <Badge variant="brand">{badge}</Badge>
       <ChatUnreadBadge count={unreadChat} />
       {/* **The countdown** (DRIFT D6, `dc.html:1540`, M26 link 9d). Home
           picks this hero by start date (`orderHomeTrips`, KI-034), and
           this counts to that date.
 
-          **It stays honest about a trip that has started or passed**:
-          `relativeCalendarDays` says "yesterday" and "12 days ago" as
-          readily as "in 47 days". The hero lands on a past trip when
-          every trip is past, or when the trip is under way (the summary
-          has no end date, so "under way" ranks as past).
+          It shows only beside "Next trip": while the trip is under way or
+          soon, the badge already says where it is. So it counts to a trip
+          further out, or back to one that has ended ("12 days ago"), which
+          the hero lands on when every trip is past.
 
           Absent until the first client frame and for an undated trip —
           see `today`'s note for why it is read in an effect, and
           `shownStartDate`'s for where the date comes from. This hero
           never invents a date it has not been given. */}
-      {countdown !== null && (
+      {countdown !== null && badge === "Next trip" && (
         <DataText size="sm" className={cn(cover !== null && "cover-over-text text-surface")}>
           {countdown}
         </DataText>
