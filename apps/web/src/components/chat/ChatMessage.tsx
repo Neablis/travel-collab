@@ -1,6 +1,7 @@
 "use client";
 import { useRef, useState, type ReactNode, type Ref } from "react";
 import type { ChatMessage as ChatMessageData } from "@tc/contracts";
+import { FORMER_MEMBER } from "@tc/pages";
 import { useKnownSessionUser } from "@/components/account/useSessionUser";
 import { SuggestionCard } from "@/components/assistant/ProposalCard";
 import type { Persona } from "@/lib/persona";
@@ -13,8 +14,8 @@ import { PersonChip } from "@/components/ui/person-chip";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MessageBody } from "./MessageChip";
 
-/** Who wrote a message that a member no longer on the trip wrote. */
-export const FORMER_MEMBER = "Former member";
+// The Group chat widget names a leaver from the same constant.
+export { FORMER_MEMBER };
 /** Who wrote an `@assistant`'s reply (M52 decision 18). */
 export const ASSISTANT_NAME = "Assistant";
 

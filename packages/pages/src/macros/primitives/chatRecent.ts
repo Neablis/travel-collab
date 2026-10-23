@@ -68,7 +68,10 @@ export const chatRecent: MacroDef<ChatRecentParams, ChatRecentPayload> = {
     // it as a former member and number a real one. A change line's author is
     // whoever made the change (`postSystemLine`), so it is named like a message's.
     const authors = shown.filter((m) => m.kind !== "assistant").map((m) => m.authorId);
-    const names = personNames(trip, people, authors, guests);
+    // One id at a time, so a leaver is never numbered: the chat panel calls
+    // every one "Former member", and a number here would be an index into the
+    // shown window, changing as it slides (PR 537 round 8).
+    const names = new Map(authors.map((id) => [id, personNames(trip, people, [id], guests).get(id)!] as const));
     return ok({ kind: "chat-recent", lines: shown.map((m) => lineOf(m, names)) });
   },
   render: blockOf,

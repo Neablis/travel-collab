@@ -84,6 +84,13 @@ describe("chat.recent", () => {
     expect(chatOf(ctx({ canChat: true, chat })).lines?.[0]?.author).toBe("Former member");
   });
 
+  // The chat panel never numbers a leaver (PR 537 round 8), and a number here
+  // would be an index into the shown window, so it would shift as it slides.
+  it("names every leaver as the chat panel does, unnumbered, however many are shown", () => {
+    const chat = [said("ana", "See you"), said("ben", "Bye"), said("ben", "moved “Dinner” to 20:30", { kind: "system" })];
+    expect(chatOf(ctx({ canChat: true, chat })).lines?.map((l) => l.author)).toEqual(["Former member", "Former member", "Former member"]);
+  });
+
   // Mitchell, on PR 537's round 3: how many it shows is the widget's setting,
   // three unless chosen, and between one and ten.
   describe("how many messages it shows", () => {

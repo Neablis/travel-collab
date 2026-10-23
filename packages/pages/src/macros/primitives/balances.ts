@@ -59,6 +59,9 @@ const balanceMemberIds = (trip: TripDetail, guests: readonly Guest[] | null | un
   return ids;
 };
 
+/** Who someone is once they have left the trip, wherever a name is shown for them. */
+export const FORMER_MEMBER = "Former member";
+
 /**
  * What to call each person `ids` names. A member is the name the web handed in
  * (`WidgetContext.people`), or "Traveler N" by their place in the trip while
@@ -90,7 +93,7 @@ export function personNames(
     const named = people?.[id] ?? guestNames.get(id);
     if (named) names.set(id, named);
     else if (index >= 0) names.set(id, `Traveler ${index + 1}`);
-    else names.set(id, former.length > 1 ? `Former member ${former.indexOf(id) + 1}` : "Former member");
+    else names.set(id, former.length > 1 ? `${FORMER_MEMBER} ${former.indexOf(id) + 1}` : FORMER_MEMBER);
   }
   return names;
 }
