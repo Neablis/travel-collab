@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import type { SuggestionChange } from "@tc/contracts";
-import { useSessionUser } from "@/components/account/useSessionUser";
+import { useKnownSessionUser } from "@/components/account/useSessionUser";
 import { useOptionalTrip } from "./TripProvider";
 import { acceptAllOrder } from "@/lib/acceptAll";
 
@@ -27,14 +27,16 @@ export type AcceptAll = {
  * A change another member asked the assistant for in the chat is theirs to
  * accept (ADR-067's 2026-10-23 amendment) and is left out: the server refuses
  * the whole batch with it in. Its suggestion's own changes go with it, so
- * nothing left behind depends on it.
+ * nothing left behind depends on it. The reader is the provider's answer, never
+ * a fetch of its own: the chip is drawn on the front door, which fetches
+ * nothing (SPEC §14), and an unknown reader keeps only unasked changes.
  *
  * Null outside a trip, for a reader who cannot accept (`boardMode` other than
  * `write`), and while suggestions are not loaded.
  */
 export function useAcceptAll(): AcceptAll | null {
   const trip = useOptionalTrip();
-  const me = useSessionUser()?.id;
+  const me = useKnownSessionUser()?.id;
   const [accepting, setAccepting] = useState(false);
   const [refusal, setRefusal] = useState<string | null>(null);
   const ghosts = trip?.suggestionGhosts ?? null;
