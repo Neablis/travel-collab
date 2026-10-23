@@ -170,6 +170,9 @@ function ChangeLine({ ref, message, name }: { ref?: Ref<HTMLLIElement> | undefin
   );
 }
 
+/** A member who left can accept nothing; the owner's dismiss still holds. */
+const ASKER_LEFT = "Asked by a member who has left: only the owner can dismiss this";
+
 /**
  * The card for what an `@assistant` proposed, while any of it is pending on
  * the board's list (`useTripSuggestions`): the asker, if they may review,
@@ -193,8 +196,7 @@ function ChatSuggestion({ suggestionId, requestedBy, askedBy }: { suggestionId: 
   if (suggestions === null || changes.length === 0) {
     // A reviewer's list is whole, so an empty one means it was decided.
     if (trip?.boardMode === "write") return null;
-    // A member who left can accept nothing; the owner's dismiss still holds.
-    if (askedBy === undefined) return <p className="mt-1 text-xs text-slate">Asked by a member who has left: only the owner can dismiss this</p>;
+    if (askedBy === undefined) return <p className="mt-1 text-xs text-slate">{ASKER_LEFT}</p>;
     return <p className="mt-1 text-xs text-slate">Only {askedBy?.name ?? "the member who asked"} can accept this</p>;
   }
 
@@ -225,7 +227,8 @@ function ChatSuggestion({ suggestionId, requestedBy, askedBy }: { suggestionId: 
       <SuggestionCard
         descriptions={changes.map((change) => change.description)}
         may={me !== null && me === requestedBy && trip?.boardMode === "write" ? "decide" : trip?.myRole === "owner" ? "dismiss" : "wait"}
-        askerName={askedBy?.name ?? "the member who asked"}
+        // Nobody waits on a member who left: the card says what the viewer is told.
+        lead={askedBy === undefined ? ASKER_LEFT : `Waiting on ${askedBy?.name ?? "the member who asked"}`}
         busy={busy}
         note={note}
         onAccept={() => void decide(() => suggestions.acceptMany(ids))}

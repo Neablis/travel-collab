@@ -208,13 +208,13 @@ export function ProposalCard({
  * What a chat `@assistant` proposed (M52 decision 18): the suggestion its turn
  * stored, by the server's description of each change, as the Ask tab's card
  * draws a proposal. `may` is the reader's part in it (ADR-067's 2026-10-23
- * amendment): the asker decides; anyone else is told who it waits on, and the
- * trip's owner may still dismiss it, never accept it.
+ * amendment): the asker decides; anyone else reads `lead`, who it waits on,
+ * and the trip's owner may still dismiss it, never accept it.
  */
 export function SuggestionCard({
   descriptions,
   may,
-  askerName,
+  lead,
   busy,
   note,
   onAccept,
@@ -222,7 +222,8 @@ export function SuggestionCard({
 }: {
   descriptions: readonly string[];
   may: "decide" | "dismiss" | "wait";
-  askerName: string;
+  /** What a reader who does not decide is told: whom it waits on. */
+  lead: string;
   busy: boolean;
   /** Why the last decision did not land. */
   note: string | null;
@@ -233,7 +234,7 @@ export function SuggestionCard({
   return (
     <PendingCard
       label="The assistant's suggestion"
-      lead={may === "decide" ? undefined : `Waiting on ${askerName}`}
+      lead={may === "decide" ? undefined : lead}
       title={title}
       detail={detail}
       // Its own 44px floor either way; the chat has no docked variant to size for.

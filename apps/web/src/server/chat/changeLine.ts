@@ -86,11 +86,20 @@ function dayLine(after: TripDetail, index: number): { words: string; link: ChatL
   return { words: `changed the trip's days: day ${index + 1} now falls on ${date}`, link: { kind: "day", id: day.dayId } };
 }
 
+/** "the trip now ends on day N, <date>", linked to that day, for the day at `index`. */
+function endLine(after: TripDetail, index: number): { words: string; link: ChatLink | undefined } {
+  const day = after.days[index];
+  const date = formatShortDate(day?.date ?? null);
+  if (day === undefined || date === null) return { words: "changed the trip's days", link: undefined };
+  return { words: `changed the trip's days: the trip now ends on day ${index + 1}, ${date}`, link: { kind: "day", id: day.dayId } };
+}
+
 /**
  * The line for a change of dates that names no stop on today or tomorrow: the
  * first of the two that now holds another day's plan, by its date, so the line
  * stays true once stored. Null when neither plan changed, as when an empty day
- * takes an empty one's place. A trip moved off today says where it now starts.
+ * takes an empty one's place. A trip moved off today says where it now starts
+ * if its start moved, and otherwise that it now ends before today.
  */
 function shiftLine(
   before: TripDetail,
@@ -98,16 +107,15 @@ function shiftLine(
   todayWas: readonly string[],
   todayIs: readonly string[],
 ): { words: string; link: ChatLink | undefined } | null {
-  if (todayIs.length === 0) return dayLine(after, 0);
+  if (todayIs.length === 0) {
+    return after.days[0]?.date === before.days[0]?.date ? endLine(after, after.days.length - 1) : dayLine(after, 0);
+  }
   const slot = [0, 1].find((i) => todayWas[i] !== todayIs[i] && !(planOf(after, todayIs[i])?.length === 0 && (planOf(before, todayWas[i])?.length ?? 0) === 0));
   if (slot === undefined) return null;
   const now = todayIs[slot];
   if (now !== undefined) return dayLine(after, after.days.findIndex((day) => day.dayId === now));
   // Tomorrow is gone: the trip now ends today.
-  const index = after.days.findIndex((day) => day.dayId === todayIs[0]);
-  const date = formatShortDate(after.days[index]!.date);
-  if (date === null) return { words: "changed the trip's days", link: undefined };
-  return { words: `changed the trip's days: the trip now ends on day ${index + 1}, ${date}`, link: { kind: "day", id: todayIs[0]! } };
+  return endLine(after, after.days.findIndex((day) => day.dayId === todayIs[0]));
 }
 
 /**

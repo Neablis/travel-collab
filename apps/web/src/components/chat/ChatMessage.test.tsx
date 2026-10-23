@@ -194,6 +194,15 @@ describe("ChatMessage, from the assistant or the app", () => {
     expect(within(card()).getAllByRole("button").map((b) => b.textContent)).toEqual(["Dismiss"]);
   });
 
+  // Review round 4 of PR 535: a suggestion outlives its asker's leaving, and
+  // nobody waits on them; an editor and the owner read what the viewer reads.
+  it.each([["editor", "u-cal"], ["owner", "u-owner"]] as const)("tells the %s, when the asker has left, that only the owner can dismiss it", (role, id) => {
+    readAs(id, role);
+    line({ mine: false, mayEdit: false, mayDelete: false }, reply, false, { askedBy: undefined });
+    expect(card().textContent).toContain("Asked by a member who has left: only the owner can dismiss this");
+    expect(card().textContent).not.toContain("Waiting");
+  });
+
   // Review of PR 535: the server refuses a non-editor's review, the asker's too.
   it("offers an asker who cannot review nothing to press", () => {
     readAs("u-bea", "suggester");

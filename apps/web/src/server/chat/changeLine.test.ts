@@ -110,6 +110,16 @@ describe("changeLine", () => {
     });
   });
 
+  // Review round 4 of PR 535: going home before today leaves no today, and
+  // day 1 did not move; the news is that the trip has ended.
+  it("says a trip cut short before today now ends on its last day", () => {
+    const early = { ...before, endDate: "2027-05-01", days: before.days.slice(0, 1) };
+    expect(changeLine([{ type: "SetTripDates", tripId, startDate: "2027-05-01", endDate: "2027-05-01", newDayIds: [] }], before, early, AT)).toEqual({
+      words: "changed the trip's days: the trip now ends on day 1, May 1",
+      link: { kind: "day", id: DAY[0]! },
+    });
+  });
+
   it("says nothing when a change of dates leaves today's and tomorrow's plans as they were", () => {
     const DAY5 = uuidFrom(15, 52);
     const longer = { ...before, endDate: "2027-05-05", days: [...before.days, { dayId: DAY5, activityIds: [], date: "2027-05-05", costSubtotal: 0 }] };
