@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { undeletableReason } from "@tc/domain";
+import { TODAY_UNDELETABLE, undeletableReason } from "@tc/domain";
 import { TEMPLATE_LIBRARY, TODAY_SEED_KEY, instantiateDefaults, isUndeletablePage } from "@tc/pages";
 
 // One rule, two copies (PR 540 review, finding 5). The server refuses a delete
@@ -24,6 +24,7 @@ describe("which notebooks cannot be deleted", () => {
 
   it("covers Today, so the comparison above is not vacuous", () => {
     const today = seeded.find((page) => page.seedKey === TODAY_SEED_KEY);
-    expect(today && undeletableReason(today)).not.toBeNull();
+    expect(today).toBeDefined();
+    expect(undeletableReason(today!)).toBe(TODAY_UNDELETABLE);
   });
 });
