@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { ChatMessage as ChatMessageData, type SuggestionChange, type TripRole } from "@tc/contracts";
 import { uuidFrom } from "@tc/factories";
 import type { Persona } from "@/components/pages/people";
+import { boardMode } from "@/lib/tripRole";
 import { ChatMessage, FORMER_MEMBER, type MessageViewer } from "./ChatMessage";
 
 // Who is reading, and the trip's pending suggestions as the board holds them:
@@ -158,7 +159,7 @@ describe("ChatMessage, from the assistant or the app", () => {
   function readAs(id: string, myRole: TripRole) {
     const suggestions = { changes, acceptMany: vi.fn(async () => ({ ok: true, value: [] })), resolve: vi.fn(async () => ({ ok: true, value: [] })) };
     reader.me = { id };
-    reader.trip = { myRole, suggestions };
+    reader.trip = { myRole, boardMode: boardMode(myRole), suggestions };
     return suggestions;
   }
   const card = () => screen.getByRole("group", { name: "The assistant's suggestion" });
@@ -193,10 +194,52 @@ describe("ChatMessage, from the assistant or the app", () => {
     expect(within(card()).getAllByRole("button").map((b) => b.textContent)).toEqual(["Dismiss"]);
   });
 
-  it("draws a change line with no way to change, delete or report it", () => {
-    const changed = ChatMessageData.parse({ ...beas, messageId: uuidFrom(3, 46), kind: "system", body: "Bea moved “Dinner at Tasca” to 20:30" });
+  // Review of PR 535: the server refuses a non-editor's review, the asker's too.
+  it("offers an asker who cannot review nothing to press", () => {
+    readAs("u-bea", "suggester");
+    line({ mine: false, mayEdit: false, mayDelete: false }, reply);
+    expect(within(card()).queryAllByRole("button")).toEqual([]);
+  });
+
+  // Review of PR 535: accepting takes the card away, and the focused button
+  // with it; the line keeps focus rather than <body>.
+  it("keeps focus on the reply once the asker has decided", async () => {
+    readAs("u-bea", "editor");
+    line({ mine: false, mayEdit: false, mayDelete: false }, reply);
+    // `:focus` asked of the line: Testing Library forbids reading `document.activeElement`.
+    const lineHasFocus = () => screen.getByRole("listitem").matches(":focus");
+    await userEvent.click(within(card()).getByRole("button", { name: "Accept" }));
+    expect(lineHasFocus()).toBe(true);
+    await userEvent.click(within(card()).getByRole("button", { name: "Dismiss" }));
+    expect(lineHasFocus()).toBe(true);
+  });
+
+  // M52 decision 18: a viewer is not served the suggestions, but is told the
+  // reply waits on its asker rather than reading it as done.
+  it("tells a viewer who it waits on, from the reply alone", () => {
+    reader.me = { id: "u-vi" };
+    reader.trip = { myRole: "viewer", boardMode: "read", suggestions: null };
+    line({ mine: false, mayEdit: false, mayDelete: false }, reply);
+    expect(screen.queryByRole("group", { name: "The assistant's suggestion" })).toBeNull();
+    expect(screen.getByRole("listitem").textContent).toContain("Waiting on Bea");
+    expect(screen.queryByRole("button", { name: /Accept|Dismiss/ })).toBeNull();
+  });
+
+  const changed = ChatMessageData.parse({ ...beas, messageId: uuidFrom(3, 46), kind: "system", body: "moved “Dinner at Tasca” to 20:30" });
+  it("draws a change line under its actor's name, with no way to change, delete or report it", () => {
     line({ mine: true, mayEdit: true, mayDelete: true }, changed);
     expect(screen.getByRole("listitem").textContent).toContain("Bea moved “Dinner at Tasca” to 20:30");
     expect(screen.queryAllByRole("button")).toEqual([]);
+  });
+
+  // Review of PR 535: the line stores only what was done, so it names its
+  // actor as their messages do, a leaver included.
+  it("names an actor who has left the trip as a former member", () => {
+    render(
+      <ol>
+        <ChatMessage message={changed} persona={undefined} tripId={TRIP} viewer={null} editing={false} onEdit={() => {}} onDelete={() => {}} onSave={async () => true} onCancelEdit={() => {}} />
+      </ol>,
+    );
+    expect(screen.getByRole("listitem").textContent).toContain(`${FORMER_MEMBER} moved “Dinner at Tasca” to 20:30`);
   });
 });

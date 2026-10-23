@@ -183,7 +183,8 @@ export async function postAssistantReply(
 /**
  * A change line (M52 decision 17): the app's announcement of a change someone
  * made, authored by them so it is not unread to them, and nobody's to edit or
- * delete (`editMessage`, `deleteMessage`).
+ * delete (`editMessage`, `deleteMessage`). `body` is only what was done; the
+ * chat names the author in front of it, as it does on their messages.
  */
 export async function postSystemLine(
   tripId: string,

@@ -28,6 +28,13 @@ const ROWS_PER_KIND = 2;
 const KINDS = ["assistant", "day", "stop", "person", "notebook"] as const;
 /** The mention being typed: an `@` at the start or after a space, and what follows it to the end. */
 const MENTION = /(^|\s)@([^@\n]*)$/;
+/**
+ * A message asks the assistant where `@assistant` stands as the picker writes
+ * it: after a space or at the start, and not run on into an address
+ * (`bookings@assistant.com`), since an ask is a turn on the asker's plan. A
+ * full stop that ends the sentence still asks.
+ */
+const ASKS = /(^|\s)@assistant(?![\p{L}\p{N}_@-]|\.[\p{L}\p{N}])/u;
 const KIND_WORD = { assistant: "Ask", day: "Day", stop: "Stop", person: "Person", notebook: "Notebook" } as const;
 
 /**
@@ -167,15 +174,20 @@ export function useTargetPicker(
     </ul>
   ) : null;
 
-  const offer: ReactNode = offered ? (
-    <div role="status" className="mb-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
-      <p className="text-xs text-ink">{ASSISTANT_OFFER}</p>
-      {/* An anchor, as the rail's upgrade is: it navigates out of the trip. */}
-      <Link href="/plans" className={buttonVariants({ variant: "secondary", size: "sm" })}>
-        See plans
-      </Link>
+  // Mounted empty: a live region that arrives holding its words is often not read out.
+  const offer: ReactNode = (
+    <div role="status" className={cn(offered && "mb-1.5 flex flex-wrap items-center gap-x-2 gap-y-1")}>
+      {offered && (
+        <>
+          <p className="text-xs text-ink">{ASSISTANT_OFFER}</p>
+          {/* An anchor, as the rail's upgrade is: it navigates out of the trip. */}
+          <Link href="/plans" className={buttonVariants({ variant: "secondary", size: "sm" })}>
+            See plans
+          </Link>
+        </>
+      )}
     </div>
-  ) : null;
+  );
 
   return {
     inputProps: {
@@ -190,7 +202,7 @@ export function useTargetPicker(
     /** The upgrade offer, for the panel to show above the composer. */
     offer,
     /** Whether `body` asks the assistant: its mention is in the words, and the reader's plan has it. */
-    asks: (body: string) => assistant?.entitled === true && wholeMention(body, ASSISTANT_MENTION) !== -1,
+    asks: (body: string) => assistant?.entitled === true && ASKS.test(body),
     /** The link to send with `body`: the last pick, while its mention is still there. */
     linkFor: (body: string): ChatLink | undefined =>
       picked !== null && wholeMention(body, `@${picked.name}`) !== -1 ? { kind: picked.kind, id: picked.id } : undefined,

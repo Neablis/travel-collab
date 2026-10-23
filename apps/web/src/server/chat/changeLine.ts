@@ -1,9 +1,6 @@
-import { eq } from "drizzle-orm";
 import { ActivityView, type BatchableCommand, type ChatLink, type TripDetail } from "@tc/contracts";
 import { tripNow } from "@tc/pages";
-import { displayNameFor } from "@/lib/displayName";
-import { db } from "../db/client";
-import { users } from "../db/schema";
+import { collaboratorsEntitled } from "../access/members";
 import { buildTripGlobals } from "../tripGlobals";
 import { postSystemLine } from "./messages";
 
@@ -16,16 +13,25 @@ import { postSystemLine } from "./messages";
 /** The server has no device clock: a day with no placed stop is read on UTC's. */
 const SERVER_ZONE = "UTC";
 
-/** Today's and tomorrow's day ids while the trip is under way at `at`; null otherwise. */
-function daysAhead(detail: TripDetail, at: number): ReadonlySet<string> | null {
+/** Today's and tomorrow's day ids while the trip is under way at `at`; none otherwise. */
+function daysAhead(detail: TripDetail, at: number): string[] {
   const now = tripNow(detail, buildTripGlobals(detail), { at, deviceZone: SERVER_ZONE });
-  if (now.phase !== "underway") return null;
+  if (now.phase !== "underway") return [];
   const index = detail.days.findIndex((day) => day.dayId === now.dayId);
-  return new Set(detail.days.slice(index, index + 2).map((day) => day.dayId));
+  return detail.days.slice(index, index + 2).map((day) => day.dayId);
 }
 
 const dayOf = (detail: TripDetail, activityId: string) =>
   detail.days.find((day) => day.activityIds.includes(activityId))?.dayId ?? null;
+
+/** The commands that act on one stop: its own, and the removal of the day it was on. */
+function commandsOn(commands: readonly BatchableCommand[], before: TripDetail, id: string): BatchableCommand[] {
+  return commands.filter((command) =>
+    "activityId" in command
+      ? command.activityId === id
+      : command.type === "RemoveDay" && before.days.find((day) => day.dayId === command.dayId)?.activityIds.includes(id) === true,
+  );
+}
 
 /**
  * The stops these commands name, in command order: only those, so a write by
@@ -45,20 +51,37 @@ function namedStops(commands: readonly BatchableCommand[], before: TripDetail): 
 // value whatever their key order or defaulted fields.
 const sameStop = (a: unknown, b: unknown) => JSON.stringify(ActivityView.parse(a)) === JSON.stringify(ActivityView.parse(b));
 
-/** What the change did to one stop, as the line says it after the actor's name. */
-function phrase(before: ActivityView | undefined, after: ActivityView | undefined, dayWord: (dayId: string | null) => string, days: [string | null, string | null]): string {
+/**
+ * What the change did to one stop, as the line says it after the actor's
+ * name. A move is said only when one of `own` makes it: `before` is read
+ * outside the batch, so another member's edit to the same stop can land in
+ * between, and is not this actor's to be named for.
+ */
+function phrase(
+  before: ActivityView | undefined,
+  after: ActivityView | undefined,
+  own: readonly BatchableCommand[],
+  dayWord: (dayId: string | null) => string,
+  days: [string | null, string | null],
+): string {
   if (after === undefined) return `removed “${before!.title}”`;
   if (before === undefined) return `added “${after.title}” to ${dayWord(days[1])}`;
-  if (days[0] !== days[1]) return `moved “${after.title}” to ${dayWord(days[1])}`;
-  if (after.timeWindow !== null && after.timeWindow.start !== before.timeWindow?.start) return `moved “${after.title}” to ${after.timeWindow.start}`;
+  const moved = own.some((command) => command.type === "MoveActivity" || command.type === "RemoveDay");
+  if (moved && days[0] !== days[1]) return `moved “${after.title}” to ${dayWord(days[1])}`;
+  const retimed = own.some((command) => command.type === "UpdateActivity" && command.timeWindow != null);
+  if (retimed && after.timeWindow !== null && after.timeWindow.start !== before.timeWindow?.start) return `moved “${after.title}” to ${after.timeWindow.start}`;
   return `changed “${after.title}”`;
 }
 
 /**
  * What a committed change's line says after the actor's name, or null when it
  * is not one to announce: the trip is not under way, or no stop it names on
- * today or tomorrow changed. The first such stop is said and linked; any more
- * are counted.
+ * today or tomorrow changed. Today and tomorrow are read from the trip before
+ * the change as well as after it, so removing today's day is announced. The
+ * first such stop is said and linked; any more are counted.
+ *
+ * A day is said by its number, never "today" or "tomorrow": the line is
+ * stored, and read the next morning those words would name the wrong day.
  */
 export function changeLine(
   commands: readonly BatchableCommand[],
@@ -66,22 +89,17 @@ export function changeLine(
   after: TripDetail,
   at: number,
 ): { words: string; link: ChatLink | undefined } | null {
-  const ahead = daysAhead(after, at);
-  if (ahead === null) return null;
-  const [today, tomorrow] = [...ahead];
-  const dayWord = (dayId: string | null) => {
-    if (dayId === null) return "the backlog";
-    if (dayId === today) return "today";
-    if (dayId === tomorrow) return "tomorrow";
-    return `day ${after.days.findIndex((day) => day.dayId === dayId) + 1}`;
-  };
+  const ahead = new Set([...daysAhead(before, at), ...daysAhead(after, at)]);
+  if (ahead.size === 0) return null;
+  const dayWord = (dayId: string | null) =>
+    dayId === null ? "the backlog" : `day ${after.days.findIndex((day) => day.dayId === dayId) + 1}`;
   const touched = namedStops(commands, before).flatMap((id) => {
     const days: [string | null, string | null] = [dayOf(before, id), dayOf(after, id)];
     const was = before.activities[id];
     const is = after.activities[id];
     if (!days.some((day) => day !== null && ahead.has(day))) return [];
     if (was !== undefined && is !== undefined && days[0] === days[1] && sameStop(was, is)) return [];
-    return [{ id, words: phrase(was, is, dayWord, days), stays: is !== undefined }];
+    return [{ id, words: phrase(was, is, commandsOn(commands, before, id), dayWord, days), stays: is !== undefined }];
   });
   const [first, ...rest] = touched;
   if (first === undefined) return null;
@@ -105,9 +123,11 @@ export async function announceChange(
   try {
     const line = changeLine(commands, before, after, now.getTime());
     if (line === null) return;
-    // By display name, never address: everyone on the trip reads the line.
-    const [person] = await db.select({ displayName: users.displayName, name: users.name }).from(users).where(eq(users.id, actorId));
-    await postSystemLine(tripId, actorId, `${displayNameFor({ userId: actorId, ...person })} ${line.words}`, line.link, now);
+    // A read-only chat (the owner's lapse, ADR-073 §5) takes no new line, the app's included.
+    if (!(await collaboratorsEntitled(after.members))) return;
+    // Only what was done: the chat puts the actor's name in front as it draws
+    // their messages, so a rename or a leaver reads as everywhere else.
+    await postSystemLine(tripId, actorId, line.words, line.link, now);
   } catch (error) {
     console.error("chat: the change line was not posted", { tripId, error });
   }

@@ -204,13 +204,13 @@ export function ChatPanel({
                 />
               ))}
             </ol>
-            {thinking && (
-              <p role="status" className="text-xs text-slate">
-                {THINKING_LINE}
-              </p>
-            )}
           </>
         )}
+        {/* Mounted empty, out of the flow until it speaks: a live region that
+            arrives holding its words is often not read out. */}
+        <p role="status" className={cn("text-xs text-slate", !thinking && "sr-only")}>
+          {thinking ? THINKING_LINE : null}
+        </p>
       </div>
       <Dialog
         open={deleting !== null}

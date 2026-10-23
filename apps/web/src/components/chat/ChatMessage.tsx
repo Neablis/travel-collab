@@ -1,5 +1,5 @@
 "use client";
-import { useState, type Ref } from "react";
+import { useRef, useState, type Ref } from "react";
 import type { ChatMessage as ChatMessageData } from "@tc/contracts";
 import { useKnownSessionUser } from "@/components/account/useSessionUser";
 import { SuggestionCard } from "@/components/assistant/ProposalCard";
@@ -80,7 +80,7 @@ export function ChatMessage({
   /** On an assistant reply, the member who asked, for its card to say who it waits on. */
   askedBy?: Persona | null | undefined;
 }) {
-  if (message.kind === "system") return <ChangeLine ref={ref} message={message} />;
+  if (message.kind === "system") return <ChangeLine ref={ref} message={message} name={persona === null ? null : (persona?.name ?? FORMER_MEMBER)} />;
   const name = message.kind === "assistant" ? ASSISTANT_NAME : persona === null ? null : (persona?.name ?? FORMER_MEMBER);
   const whose = `${name ?? "this"}${name === null ? "" : "'s"} message`;
   const live = viewer !== null && !message.removed;
@@ -145,11 +145,22 @@ export function ChatMessage({
   );
 }
 
-/** A change line (M52 decision 17): what changed, linked to the stop, and when. */
-function ChangeLine({ ref, message }: { ref?: Ref<HTMLLIElement> | undefined; message: ChatMessageData }) {
+/**
+ * A change line (M52 decision 17): who changed what, linked to the stop, and
+ * when. The line stores only what was done; its actor is named here, as their
+ * messages are, and not at all until the members are known.
+ */
+function ChangeLine({ ref, message, name }: { ref?: Ref<HTMLLIElement> | undefined; message: ChatMessageData; name: string | null }) {
   return (
     <li ref={ref} tabIndex={-1} className="rounded-md px-2 text-center text-xs text-slate focus-visible:outline-2 focus-visible:outline-brand">
-      {message.removed ? <span className="italic">message removed</span> : <MessageBody body={message.body} link={message.link} />}
+      {message.removed ? (
+        <span className="italic">message removed</span>
+      ) : (
+        <>
+          {name !== null && `${name} `}
+          <MessageBody body={message.body} link={message.link} />
+        </>
+      )}
       {" · "}
       <time dateTime={message.createdAt}>{time(message.createdAt)}</time>
     </li>
@@ -158,25 +169,38 @@ function ChangeLine({ ref, message }: { ref?: Ref<HTMLLIElement> | undefined; me
 
 /**
  * The card for what an `@assistant` proposed, while any of it is pending on
- * the board's list (`useTripSuggestions`, which a viewer is not served): the
- * asker accepts it whole or dismisses it; anyone else reads who it waits on,
- * and the owner may dismiss it (ADR-067's 2026-10-23 amendment). The server
- * refuses the rest; this only keeps a control that would be refused off it.
+ * the board's list (`useTripSuggestions`): the asker, if they may review,
+ * accepts it whole or dismisses it; anyone else reads who it waits on, and the
+ * owner may dismiss it (ADR-067's 2026-10-23 amendment). The server refuses
+ * the rest; this only keeps a control that would be refused off it.
+ *
+ * A reader who is not served the whole list (a viewer, a suggester) cannot
+ * tell pending from decided, so they are told only who it waits on, from the
+ * reply itself; that line stays once the asker has decided.
  */
 function ChatSuggestion({ suggestionId, requestedBy, askerName }: { suggestionId: string; requestedBy: string; askerName: string | null }) {
   const trip = useOptionalTrip();
   const me = useKnownSessionUser()?.id ?? null;
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
+  const card = useRef<HTMLDivElement>(null);
   const suggestions = trip?.suggestions ?? null;
   const changes = suggestions?.changes.filter((change) => change.suggestionId === suggestionId) ?? [];
-  if (suggestions === null || changes.length === 0) return null;
+  if (suggestions === null || changes.length === 0) {
+    // A reviewer's list is whole, so an empty one means it was decided.
+    if (trip?.boardMode === "write") return null;
+    return <p className="mt-1 text-xs text-slate">Waiting on {askerName ?? "the member who asked"}</p>;
+  }
 
   const decide = async (run: () => Promise<{ ok: boolean; error?: { message: string } }>) => {
+    // Taken before the card can go: a decision that lands takes it, and the
+    // focused button with it, so the line keeps focus instead of <body>.
+    const line = card.current?.closest("li");
     setBusy(true);
     const result = await run();
     setBusy(false);
     setNote(result.ok ? null : (result.error?.message ?? null));
+    if (result.ok) line?.focus();
   };
   const ids = changes.map((change) => change.id);
   // Dismissing a change takes everything built on it along, so only the ones
@@ -191,10 +215,10 @@ function ChatSuggestion({ suggestionId, requestedBy, askerName }: { suggestionId
   };
 
   return (
-    <div className="mt-1.5">
+    <div ref={card} className="mt-1.5">
       <SuggestionCard
         descriptions={changes.map((change) => change.description)}
-        may={me !== null && me === requestedBy ? "decide" : trip?.myRole === "owner" ? "dismiss" : "wait"}
+        may={me !== null && me === requestedBy && trip?.boardMode === "write" ? "decide" : trip?.myRole === "owner" ? "dismiss" : "wait"}
         askerName={askerName ?? "the member who asked"}
         busy={busy}
         note={note}

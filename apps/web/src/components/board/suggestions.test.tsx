@@ -370,6 +370,26 @@ describe("the suggestions chip", () => {
     expect(resolved).toEqual([{ changeId: seeded[0]!.id, action: "accept" }]);
   });
 
+  // ADR-067's 2026-10-23 amendment: only the asker accepts a chat
+  // `@assistant`'s change; the owner may still dismiss it, another editor neither.
+  const asked = (tripId: string) => [
+    change(tripId, 'Renamed the trip to "Roma"', [{ type: "SetTripName", tripId, name: "Roma" }], { requestedBy: "dev-bea" }),
+  ];
+  it("offers the owner Dismiss and no Accept on a change another member asked the assistant for", async () => {
+    mount("owner", asked);
+    fireEvent.click(await screen.findByRole("button", { name: "1 suggestion" }));
+    expect(await screen.findByRole("button", { name: 'Dismiss: Renamed the trip to "Roma"' })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: 'Accept: Renamed the trip to "Roma"' })).toBeNull();
+  });
+
+  it("offers another editor neither Accept nor Dismiss on a change someone else asked the assistant for", async () => {
+    sessionUserId = "dev-cal";
+    mount("editor", asked);
+    fireEvent.click(await screen.findByRole("button", { name: "1 suggestion" }));
+    expect(await screen.findByText(/^Suggested by /)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /^(Accept|Dismiss): / })).toBeNull();
+  });
+
   it("lets the author withdraw an on-board change from the list", async () => {
     sessionUserId = "dev-sam";
     const { resolved, seeded } = mount("suggester", (tripId) => [addGelato(tripId)]);
@@ -454,6 +474,24 @@ describe("Accept all", () => {
     expect(await screen.findByRole("button", { name: "1 suggestion" })).toBeTruthy();
     expect(acceptedAll).toEqual([[add!.id, rename!.id, roma!.id]]);
     expect(resolved).toEqual([]);
+  });
+
+  // ADR-067's 2026-10-23 amendment: a chat `@assistant`'s suggestion is its
+  // asker's to accept, and the server refuses the whole batch if it is in it.
+  it("leaves out a change another member asked the assistant for", async () => {
+    const { acceptedAll, seeded } = mount("owner", (tripId) => [
+      change(tripId, 'Renamed the trip to "Roma"', [{ type: "SetTripName", tripId, name: "Roma" }]),
+      change(tripId, "Set the currency to EUR", [{ type: "SetTripCurrency", tripId, currency: "EUR" }], {
+        suggestionId: uuidFrom(9302, 7),
+        requestedBy: "dev-bea",
+      }),
+      change(tripId, "Set the start date", [{ type: "SetTripStartDate", tripId, startDate: "2027-05-01" }]),
+    ]);
+    fireEvent.click(await screen.findByRole("button", { name: "3 suggestions" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Accept all" }));
+
+    const [roma, , start] = seeded;
+    await waitFor(() => expect(acceptedAll).toEqual([[roma!.id, start!.id]]));
   });
 
   it("is a reviewer's: the author is not offered it", async () => {

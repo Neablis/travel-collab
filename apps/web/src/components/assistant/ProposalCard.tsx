@@ -333,8 +333,8 @@ function PendingCard({
               {approveLabel}
             </Button>
           )}
-          {/* Always available while the card is open. On a proposal or a
-              command, declining sends nothing. */}
+          {/* On a proposal or a command it is always available, and
+              declining sends nothing. */}
           {onReject !== undefined && (
             <Button
               variant="secondary"

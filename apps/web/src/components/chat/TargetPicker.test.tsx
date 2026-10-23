@@ -172,13 +172,32 @@ describe("the composer's @assistant", () => {
     expect(post).toHaveBeenCalledWith("@assistant push dinner back an hour", undefined, true);
   });
 
+  // Review of PR 535: an address is not an ask, and an ask is a paid turn.
+  it("does not ask for @assistant inside an address, and does at a sentence's end", async () => {
+    const user = userEvent.setup();
+    const { post, field } = composer();
+    await user.type(field, "forward it to bookings@assistant.com{Enter}");
+    await user.type(field, "or foo@assistant{Enter}");
+    await user.type(field, "@assistant.com is theirs{Enter}");
+    await user.type(field, "over to you, @assistant.{Enter}");
+    expect(post.mock.calls).toEqual([
+      ["forward it to bookings@assistant.com", undefined],
+      ["or foo@assistant", undefined],
+      ["@assistant.com is theirs", undefined],
+      ["over to you, @assistant.", undefined, true],
+    ]);
+  });
+
   it("offers a reader without the plan the upgrade instead, and sends their words as a message", async () => {
     aiEntitled.value = false;
     const user = userEvent.setup();
     const { post, field } = composer();
+    // Mounted empty, so a screen reader announces the offer when it arrives.
+    const regions = screen.getAllByRole("status");
+    expect(regions.map((region) => region.textContent)).toEqual(["", ""]);
     await user.type(field, "@ass{Enter}");
     expect(field.value).toBe("@ass");
-    expect(screen.getByRole("status").textContent).toContain("Asking the assistant in chat comes with Plus");
+    expect(regions.find((region) => region.textContent?.includes("Asking the assistant in chat comes with Plus"))).toBeDefined();
     expect(screen.getByRole("link", { name: "See plans" }).getAttribute("href")).toBe("/plans");
 
     await user.clear(field);

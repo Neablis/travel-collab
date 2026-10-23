@@ -537,7 +537,7 @@ describe("a change line", () => {
     await apply(tripId, editor, dinner);
     const page = (await (await list(tripId, viewer)).json()) as ChatPage;
     expect(page.messages).toMatchObject([
-      { kind: "system", authorId: editor, link: { kind: "stop", id: dinner }, body: expect.stringMatching(/ moved “Dinner at Tasca” to 20:30$/) },
+      { kind: "system", authorId: editor, link: { kind: "stop", id: dinner }, body: "moved “Dinner at Tasca” to 20:30" },
     ]);
   });
 

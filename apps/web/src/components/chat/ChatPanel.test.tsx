@@ -57,13 +57,16 @@ const chat = (over: Partial<TripChat> = {}): TripChat => ({
   ...over,
 });
 
+/** What the panel's live regions say; the thinking line's is mounted empty. */
+const statuses = () => screen.queryAllByRole("status").flatMap((s) => (s.textContent === "" ? [] : [s.textContent]));
+
 const bea = personasOf([tripMemberProfileFactory.build({ userId: "u-bea", displayName: "Bea" })]);
 
 describe("ChatPanel", () => {
   it("offers a composer to a member who may post", () => {
     render(<ChatPanel chat={chat()} personas={null} />);
     expect(screen.getByRole("combobox", { name: "Message" })).toBeTruthy();
-    expect(screen.queryByRole("status")).toBeNull();
+    expect(statuses()).toEqual([]);
   });
 
   // M46 D2: after the owner's lapse the conversation stays readable, and the
@@ -72,7 +75,7 @@ describe("ChatPanel", () => {
     render(<ChatPanel chat={chat({ canPost: false })} personas={null} />);
     expect(within(screen.getByRole("list", { name: "Messages" })).getAllByRole("listitem")).toHaveLength(1);
     expect(screen.queryByRole("combobox", { name: "Message" })).toBeNull();
-    expect(screen.getByRole("status").textContent).toBe(READ_ONLY_LINE);
+    expect(statuses()).toEqual([READ_ONLY_LINE]);
   });
 
   // M46 D2: a 403 says so, with a way out, instead of looking live.
@@ -276,17 +279,30 @@ describe("ChatPanel, while the assistant works", () => {
     removed: false,
     body: "Dinner is at 20:30 now.",
   });
-  const status = () => screen.queryByRole("status")?.textContent ?? null;
+  const thinking = () => statuses().includes(THINKING);
 
-  it("says so while an ask is unanswered and younger than a turn can run", () => {
-    render(<ChatPanel chat={chat({ messages: [ask(10)] })} personas={bea} />);
-    expect(status()).toBe(THINKING);
+  it("says so while an ask is unanswered and younger than a turn can run, in a region already there", () => {
+    const { rerender } = render(<ChatPanel chat={chat({ messages: [] })} personas={bea} />);
+    const regions = screen.getAllByRole("status");
+    rerender(<ChatPanel chat={chat({ messages: [ask(10)] })} personas={bea} />);
+    expect(regions.find((region) => region.textContent === THINKING)).toBeDefined();
   });
 
   it("stops once the reply lands, or once the ask is older than a turn can run", () => {
     const { rerender } = render(<ChatPanel chat={chat({ messages: [ask(10), reply] })} personas={bea} />);
-    expect(status()).toBeNull();
+    expect(thinking()).toBe(false);
     rerender(<ChatPanel chat={chat({ messages: [ask(ASK_MAX_DURATION_SECONDS + 1)] })} personas={bea} />);
-    expect(status()).toBeNull();
+    expect(thinking()).toBe(false);
+  });
+
+  // Review of PR 535: a turn the platform killed is never answered, so the
+  // line must go on its own while the panel stays open.
+  it("stops on its own once an open ask outlives a turn", () => {
+    vi.useFakeTimers();
+    onTestFinished(() => void vi.useRealTimers());
+    render(<ChatPanel chat={chat({ messages: [ask(ASK_MAX_DURATION_SECONDS - 1)] })} personas={bea} />);
+    expect(thinking()).toBe(true);
+    act(() => void vi.advanceTimersByTime(2000));
+    expect(thinking()).toBe(false);
   });
 });

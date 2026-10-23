@@ -934,8 +934,19 @@ describe("change lines", () => {
     const [change] = await suggest(draft(retime(stopId)));
     expect((await resolveSuggestionChange(tripId, change!.id, EDITOR, "accept")).ok).toBe(true);
     expect(await lines()).toMatchObject([
-      { kind: "system", authorId: EDITOR, linkKind: "stop", linkId: stopId, body: expect.stringMatching(/ moved “Fushimi Inari” to 20:30$/) },
+      // Only what was done: the chat names the reviewer as it draws the line.
+      { kind: "system", authorId: EDITOR, linkKind: "stop", linkId: stopId, body: "moved “Fushimi Inari” to 20:30" },
     ]);
+  });
+
+  // Fresh review of PR 535: after the owner's lapse the chat is read-only
+  // (ADR-073 §5), and the owner may still accept what was pending.
+  it("posts nothing into a chat that is read-only", async () => {
+    await startOn(dateIn(0));
+    const [change] = await suggest(draft(retime(stopId)));
+    await db.update(users).set({ planId: "free" }).where(eq(users.id, OWNER));
+    expect((await resolveSuggestionChange(tripId, change!.id, OWNER, "accept")).ok).toBe(true);
+    expect(await lines()).toEqual([]);
   });
 
   it("says nothing before the trip is under way, or about a stop after tomorrow", async () => {

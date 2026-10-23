@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { SuggestionChange } from "@tc/contracts";
+import { useSessionUser } from "@/components/account/useSessionUser";
 import { useOptionalTrip } from "./TripProvider";
 import { acceptAllOrder } from "@/lib/acceptAll";
 
@@ -23,18 +24,25 @@ export type AcceptAll = {
  * nothing. The header's chip and the chat's note (Mitchell's preview comment,
  * 2026-10-10) call this one hook, so the two buttons cannot drift apart.
  *
+ * A change another member asked the assistant for in the chat is theirs to
+ * accept (ADR-067's 2026-10-23 amendment) and is left out: the server refuses
+ * the whole batch with it in. Its suggestion's own changes go with it, so
+ * nothing left behind depends on it.
+ *
  * Null outside a trip, for a reader who cannot accept (`boardMode` other than
  * `write`), and while suggestions are not loaded.
  */
 export function useAcceptAll(): AcceptAll | null {
   const trip = useOptionalTrip();
+  const me = useSessionUser()?.id;
   const [accepting, setAccepting] = useState(false);
   const [refusal, setRefusal] = useState<string | null>(null);
   const ghosts = trip?.suggestionGhosts ?? null;
   const suggestions = trip?.suggestions ?? null;
   if (trip === null || trip.boardMode !== "write" || ghosts === null || suggestions === null) return null;
 
-  const acceptable = acceptAllOrder(ghosts.pending, new Set(ghosts.stale.map((g) => g.changeId)));
+  const mine = ghosts.pending.filter((c) => c.requestedBy === undefined || c.requestedBy === me);
+  const acceptable = acceptAllOrder(mine, new Set(ghosts.stale.map((g) => g.changeId)));
   const acceptAll = async () => {
     setRefusal(null);
     setAccepting(true);
