@@ -231,6 +231,11 @@ chips do.
       trip whose chat the reader cannot see.
     - **`assistant.prompts`**, *Ask*: day-of chips that open the sheet prefilled. It is absent for
       a reader with no assistant, and per SPEC §27 nothing renders disabled.
+    **Amended by Mitchell after walking part 8's preview, 2026-10-23:** the *Ask* widget is
+    dropped (no widget prefills the AI assistant); *Group chat* is a mini chat card, the last N
+    messages (a setting, default 3) in the chat's own message style with an *Open chat* row, the
+    whole card one control that opens the chat where it lives. Under the Today scope an unbound
+    Weather widget shows only today.
 16. **Which maps app Directions opens.** **Answered at scoping, 2026-10-23: Google Maps, as recommended.** Google Maps' universal URL
     (`https://www.google.com/maps/dir/?api=1&destination=<lat>,<lng>`). It falls back to the name
     and address at `city` precision, and takes `travelmode` from the leg's `mode` when a transit
