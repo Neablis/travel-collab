@@ -10,7 +10,11 @@ import { buildTripGlobals } from "@/server/tripGlobals";
 // `tripNow`'s, read through `turnNowOf` for the server's zone fallback
 // (ADR-080), so the API, the *Now and next* widget and the assistant agree.
 
-const TripPhaseSchema = z.enum(["planning", "soon", "underway", "ended"]) satisfies z.ZodType<TripPhase>;
+// A record, not a tuple, so the published enum is `TripPhase` both ways: a
+// phase missing here or one `TripPhase` lacks fails the typecheck, where a new
+// phase would otherwise be a 500 from the response check on every such trip.
+const PHASES: Record<TripPhase, true> = { planning: true, soon: true, underway: true, ended: true };
+const TripPhaseSchema = z.enum(Object.keys(PHASES) as [TripPhase, ...TripPhase[]]);
 
 const TripToday = z.object({
   date: z.string().describe("Today's date (`YYYY-MM-DD`) on the trip's clock."),
