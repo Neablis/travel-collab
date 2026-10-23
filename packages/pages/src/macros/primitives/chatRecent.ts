@@ -34,11 +34,11 @@ function countOf(stored: unknown): number {
   return Number.isFinite(n) ? Math.min(MOST, Math.max(1, n)) : CHAT_RECENT_DEFAULT;
 }
 
-/** What the chat panel calls the assistant's replies. */
-const ASSISTANT = "Assistant";
+/** Who wrote an `@assistant`'s reply (M52 decision 18), in the chat panel and here. */
+export const ASSISTANT_NAME = "Assistant";
 
 function lineOf(message: Extract<ChatMessage, { removed: false }>, names: ReadonlyMap<string, string>): ChatRecentLine {
-  return { message, author: message.kind === "assistant" ? ASSISTANT : names.get(message.authorId)! };
+  return { message, author: message.kind === "assistant" ? ASSISTANT_NAME : names.get(message.authorId)! };
 }
 
 export const chatRecent: MacroDef<ChatRecentParams, ChatRecentPayload> = {
@@ -64,9 +64,8 @@ export const chatRecent: MacroDef<ChatRecentParams, ChatRecentPayload> = {
     // A removed message has no text (the contract gives it none), so it does
     // not take one of the places.
     const shown = chat.filter((m): m is Extract<ChatMessage, { removed: false }> => !m.removed).slice(-countOf(params.count));
-    // Not the assistant's id, which is no member's: `personNames` would count
-    // it as a former member and number a real one. A change line's author is
-    // whoever made the change (`postSystemLine`), so it is named like a message's.
+    // Not the assistant's id: `lineOf` names its replies. A change line's author
+    // is whoever made the change (`postSystemLine`), so it is named like a message's.
     const authors = shown.filter((m) => m.kind !== "assistant").map((m) => m.authorId);
     // One id at a time, so a leaver is never numbered: the chat panel calls
     // every one "Former member", and a number here would be an index into the

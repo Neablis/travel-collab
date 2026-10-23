@@ -1,7 +1,7 @@
 "use client";
 import { useRef, useState, type ReactNode, type Ref } from "react";
 import type { ChatMessage as ChatMessageData } from "@tc/contracts";
-import { FORMER_MEMBER } from "@tc/pages";
+import { ASSISTANT_NAME, FORMER_MEMBER } from "@tc/pages";
 import { useKnownSessionUser } from "@/components/account/useSessionUser";
 import { SuggestionCard } from "@/components/assistant/ProposalCard";
 import type { Persona } from "@/lib/persona";
@@ -16,8 +16,6 @@ import { MessageBody } from "./MessageChip";
 
 // The Group chat widget names a leaver from the same constant.
 export { FORMER_MEMBER };
-/** Who wrote an `@assistant`'s reply (M52 decision 18). */
-export const ASSISTANT_NAME = "Assistant";
 
 /**
  * What the reader may do to one message (M46 D6), decided by the panel from
