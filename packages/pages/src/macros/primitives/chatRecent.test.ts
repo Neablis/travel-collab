@@ -46,7 +46,7 @@ describe("chat.recent", () => {
   it("shows the last three messages, oldest first, each by its author's name", () => {
     const chat = [said("dana", "Landed!"), said("sam", "On the train"), said("dana", "Dinner at 8?"), said("sam", "Yes")];
     const out = chatOf(ctx({ canChat: true, chat }));
-    expect(out.lines?.map((l) => [l.author, l.body])).toEqual([
+    expect(out.lines?.map((l) => [l.author, l.message.body])).toEqual([
       ["Sam Okafor", "On the train"],
       ["Dana Reyes", "Dinner at 8?"],
       ["Sam Okafor", "Yes"],
@@ -63,7 +63,7 @@ describe("chat.recent", () => {
       said("system", "Sam moved Dinner to 20:30", { kind: "system" }),
     ];
     const out = chatOf(ctx({ canChat: true, chat }));
-    expect(out.lines?.map((l) => [l.author, l.body])).toEqual([
+    expect(out.lines?.map((l) => [l.author, l.message.body])).toEqual([
       ["Sam Okafor", "Running 20 late"],
       ["Assistant", "I moved dinner to 20:30."],
       [null, "Sam moved Dinner to 20:30"],
@@ -85,7 +85,7 @@ describe("chat.recent", () => {
   // three unless chosen, and between one and ten.
   describe("how many messages it shows", () => {
     const chat = Array.from({ length: 12 }, (_, i) => said(i % 2 === 0 ? "dana" : "sam", `Message ${i + 1}`));
-    const shown = (params: Record<string, unknown>) => chatOf(ctx({ canChat: true, chat }), params).lines?.map((l) => l.body);
+    const shown = (params: Record<string, unknown>) => chatOf(ctx({ canChat: true, chat }), params).lines?.map((l) => l.message.body);
 
     it("shows the number chosen in its settings", () => {
       expect(shown({ count: "5" })).toEqual(["Message 8", "Message 9", "Message 10", "Message 11", "Message 12"]);

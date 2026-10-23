@@ -48,7 +48,7 @@ import { TripHeader } from "@/components/trip/TripHeader";
 import { TripHeaderSkeleton } from "@/components/trip/TripHeaderSkeleton";
 import { useTripCover } from "@/components/trip/cover/useTripCover";
 import { useTripSeed } from "@/components/trip/context/tripSeed";
-import { usePhoneAskEntry, type AskHandOff } from "@/components/nav/phoneAsk";
+import { usePhoneAskEntry } from "@/components/nav/phoneAsk";
 import { OPEN_CHAT_PARAM } from "@/components/chat/boardChatHref";
 import { AddSavedDayButton } from "@/components/trip/AddSavedDayButton";
 import { useBoardSuggestions } from "./SuggestionActions";
@@ -319,19 +319,19 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // it sends through its own gate and `submitAssistantAsk`'s refusals. Dropped
   // once the rail has taken it: the rail remounts on Hide and Show, and when
   // the header skeleton comes back, and must not find it again.
-  const [handOff, setHandOff] = useState<AskHandOff | null>(null);
+  const [handOff, setHandOff] = useState<{ text: string } | null>(null);
   usePhoneAskEntry(
     boardRenders && !isDemoTripId(tripId) ? openAsk : undefined,
     assistant.open,
-    (text, how) => {
+    (text) => {
       openAsk();
-      setHandOff({ text, ...how });
+      setHandOff({ text });
     },
     openLastTab,
     hasChat ? chat.unread : undefined,
     assistant.open && railTab === "chat",
     // For a notebook's *Group chat* widget (M52): absent without a chat.
-    hasChat ? { onOpen: openChat, messages: chat.status === "ready" ? chat.messages : null } : undefined,
+    hasChat ? { onOpen: openChat, messages: chat.status === "ready" ? chat.messages : null, unread: chat.unread } : undefined,
   );
   // **⌘K's commands are this screen's own functions** (M41 D9, ADR-068 §1,
   // ADR-069 §4). Each is named here, above the early returns because the

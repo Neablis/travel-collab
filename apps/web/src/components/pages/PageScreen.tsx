@@ -36,7 +36,7 @@ import { useTripChat } from "@/components/chat/useTripChat";
 import { boardChatHref } from "@/components/chat/boardChatHref";
 import { isDemoTripId } from "@/lib/demoTrip";
 import { AssistantBubble } from "@/components/assistant/AssistantBubble";
-import { usePhoneAskEntry, type AskHandOff } from "@/components/nav/phoneAsk";
+import { usePhoneAskEntry } from "@/components/nav/phoneAsk";
 import { phoneAskContext } from "@/components/assistant/phoneAskContext";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/cn";
@@ -988,7 +988,7 @@ export function PageScreen({
   // ⌘K's *Ask: <text>* (M45 D6), as the board takes it: dropped once the
   // rail has taken it, since it remounts on the next open and must not
   // find it again.
-  const [handOff, setHandOff] = useState<AskHandOff | null>(null);
+  const [handOff, setHandOff] = useState<{ text: string } | null>(null);
   // **Closing the surface hangs up on the turn.** Unmounting `AssistantRail`
   // does not: `useAskThread` lives HERE, so its cleanup runs only when the whole
   // screen goes, and a turn still streaming would land its `page-inserts` in a
@@ -1014,14 +1014,14 @@ export function PageScreen({
       ? () => setAssistantOpen(true)
       : undefined,
     assistantOpen,
-    (text, how) => {
+    (text) => {
       setAssistantOpen(true);
-      setHandOff({ text, ...how });
+      setHandOff({ text });
     },
     undefined,
     undefined,
     false,
-    hasChat ? { href: boardChatHref(tripId), messages: chat.status === "ready" ? chat.messages : null } : undefined,
+    hasChat ? { href: boardChatHref(tripId), messages: chat.status === "ready" ? chat.messages : null, unread: chat.unread } : undefined,
   );
   // **Leaving Editing no longer hangs up, and that is a reversal.** It did,
   // because the assistant was an editing-only control and leaving Editing was

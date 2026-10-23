@@ -1115,59 +1115,6 @@ describe("AssistantRail — text handed in from ⌘K", () => {
     await waitFor(() => expect(box.value).toBe("and dinner that night? book a hotel near Gion"));
   });
 
-  // M52 decision 15: a notebook's *Ask* chip opens the sheet with its question
-  // filled in, for the reader to finish ("by 30 minutes") before it costs a turn.
-  it("only fills the composer with a hand-off marked prefill, and sends nothing", () => {
-    const onAsk = vi.fn();
-    renderRail({ onAsk, incoming: { text: "We're running late.", prefill: true } });
-    expect(onAsk).not.toHaveBeenCalled();
-    expect((screen.getByPlaceholderText(/ask about this day/i) as HTMLInputElement).value).toBe("We're running late.");
-  });
-
-  // PR 537 review round 2 (m3): a reader who taps *Running late*, then *Move
-  // dinner later*, has chosen the second question, not asked both in one turn.
-  it("replaces a prefilled question with the next one", () => {
-    const { rerender } = renderRail({ incoming: { text: "We're running late.", prefill: true } });
-    rerender(<AssistantRail {...baseProps} incoming={{ text: "Move dinner later.", prefill: true }} />);
-    expect((screen.getByPlaceholderText(/ask about this day/i) as HTMLInputElement).value).toBe("Move dinner later.");
-  });
-
-  // PR 537 review round 3: the sheet closes between the two taps, so the rail
-  // that takes the second chip is a new one, holding the first as its stored
-  // draft. A chip's question replaces whatever is in the box.
-  it("replaces the stored question when a chip prefills a reopened rail", async () => {
-    const first = renderRail({ rememberDraftAs: "page:p", incoming: { text: "We're running late.", prefill: true } });
-    first.unmount();
-    renderRail({ rememberDraftAs: "page:p", incoming: { text: "Move dinner later.", prefill: true } });
-    const box = screen.getByPlaceholderText(/ask about this day/i) as HTMLInputElement;
-    try {
-      await waitFor(() => expect(box.value).toBe("Move dinner later."));
-    } finally {
-      localStorage.clear();
-    }
-  });
-
-  // PR 537 review round 2 (m4): a chip pressed beside an open docked rail left
-  // focus on the chip, so a keyboard reader had to find the composer to finish.
-  it("moves focus into an open rail's composer, at the end of the prefilled question", () => {
-    const { rerender } = render(
-      <>
-        <button type="button">Running late</button>
-        <AssistantRail {...baseProps} />
-      </>,
-    );
-    screen.getByRole("button", { name: "Running late" }).focus();
-    rerender(
-      <>
-        <button type="button">Running late</button>
-        <AssistantRail {...baseProps} incoming={{ text: "We're running late.", prefill: true }} />
-      </>,
-    );
-    const box = screen.getByPlaceholderText(/ask about this day/i) as HTMLInputElement;
-    expect(box.matches(":focus")).toBe(true);
-    expect(box.selectionStart).toBe(box.value.length);
-  });
-
   it("leaves it waiting in the composer while a turn is answering", () => {
     const onAsk = vi.fn();
     renderRail({ onAsk, asking: true, incoming: { text: "and where next?" } });

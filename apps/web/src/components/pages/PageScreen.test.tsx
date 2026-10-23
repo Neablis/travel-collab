@@ -2411,7 +2411,7 @@ describe("PageScreen: a notebook's Group chat", () => {
     server.use(...makeChatHandlers({ viewerId: "u1", messages: [said] }).handlers);
     const trip = chatNotebook(pair);
 
-    const widget = await screen.findByRole("link", { name: "Open group chat" });
+    const widget = await screen.findByRole("link", { name: "Group chat Open chat" });
     await waitFor(() => expect(widget.textContent).toContain("Train at nine?"));
     expect(widget.getAttribute("href")).toBe(`/trips/${trip.tripId}?chat=open`);
   });
@@ -2419,11 +2419,11 @@ describe("PageScreen: a notebook's Group chat", () => {
   it("is no link while the page is being edited", async () => {
     server.use(...makeChatHandlers({ viewerId: "u1", messages: [said] }).handlers);
     chatNotebook(pair);
-    await screen.findByRole("link", { name: "Open group chat" });
+    await screen.findByRole("link", { name: "Group chat Open chat" });
 
     await userEvent.click(screen.getByRole("button", { name: "Edit page" }));
     expect(await within(await screen.findByRole("group", { name: "Group chat" })).findByText("Train at nine?")).toBeTruthy();
-    expect(screen.queryByRole("link", { name: "Open group chat" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Group chat Open chat" })).toBeNull();
   });
 
   it("gives a reader alone on the trip no Group chat", async () => {
@@ -2431,7 +2431,7 @@ describe("PageScreen: a notebook's Group chat", () => {
 
     expect(await screen.findByRole("article")).toBeTruthy();
     expect(screen.queryByRole("group", { name: "Group chat" })).toBeNull();
-    expect(screen.queryByRole("link", { name: "Open group chat" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Group chat Open chat" })).toBeNull();
   });
 
   // Removed from the trip while it still lists them: the chat's 403 is the answer.
@@ -2440,7 +2440,7 @@ describe("PageScreen: a notebook's Group chat", () => {
     chatNotebook(pair);
 
     expect(await screen.findByRole("article")).toBeTruthy();
-    await waitFor(() => expect(screen.queryByRole("link", { name: "Open group chat" })).toBeNull());
+    await waitFor(() => expect(screen.queryByRole("link", { name: "Group chat Open chat" })).toBeNull());
     expect(screen.queryByRole("group", { name: "Group chat" })).toBeNull();
   });
 });

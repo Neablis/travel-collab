@@ -172,20 +172,17 @@ export type BlockPayload =
   | MissingNotebookPayload
   | ItineraryPayload
   | TripNowPayload | StopDirectionsPayload | TripFlightsPayload
-  | ChatRecentPayload
-  | AssistantPromptsPayload;
+  | ChatRecentPayload;
 
 // "Group chat" (`chat.recent`, M52 decision 15): the newest messages, oldest
-// first, each display-ready. `author` is `null` on the app's own line (a change
+// first. Each is the message itself, which the app draws with its chat's own
+// line (Mitchell, PR 537 preview walk), and its author named here as every
+// widget names people. `author` is `null` on the app's own line (a change
 // announced, decision 17), which has nobody to name. `lines` is `null` while
 // the chat has not been read, so the block says nothing rather than "no
 // messages yet" about a conversation it has not seen.
-export interface ChatRecentLine { messageId: string; author: string | null; body: string; }
+export interface ChatRecentLine { message: Extract<ChatMessage, { removed: false }>; author: string | null; }
 export interface ChatRecentPayload { kind: "chat-recent"; lines: ChatRecentLine[] | null; }
-// "Ask" (`assistant.prompts`, M52 decision 15): a chip's `label`, and the
-// whole question it sends to the assistant.
-export interface AssistantPrompt { label: string; text: string; }
-export interface AssistantPromptsPayload { kind: "assistant-prompts"; prompts: AssistantPrompt[]; }
 
 // What a REPEAT widget resolves to: one entry per item, each a lead phrase and
 // the resolved values that follow it. Kept apart from `BlockPayload` on purpose
@@ -604,16 +601,15 @@ export interface WidgetContext {
    */
   personas?: Readonly<Record<string, WidgetPersona>> | null;
   /**
-   * What the reader may do beyond reading (M52 decisions 15 and 20): see the
-   * trip's chat, and ask its assistant. A widget that declares one in
-   * `MacroDef.requires` is **absent** without it — not disabled (SPEC §27).
+   * Whether the reader may see the trip's chat (M52 decisions 15 and 20). A
+   * widget that declares it in `MacroDef.requires` is **absent** without it —
+   * not disabled (SPEC §27).
    *
    * **Optional, and absent is "may not"**: a share-link reader's context, the
    * invite preview's, the server's and the assistant's never say, and none of
-   * them has a chat to open or an assistant to hand a question to.
+   * them has a chat to open.
    */
   canChat?: boolean;
-  canAsk?: boolean;
   /**
    * The trip's chat, oldest first, for `chat.recent`; `null` until it has been
    * read. Handed in by the screen that already holds it, rather than read a
@@ -623,7 +619,7 @@ export interface WidgetContext {
 }
 
 /** A `WidgetContext` capability a widget can require (`MacroDef.requires`). */
-export type ReaderCapability = "canChat" | "canAsk";
+export type ReaderCapability = "canChat";
 
 /** One member as `WidgetContext.personas` carries them. */
 export interface WidgetPersona {

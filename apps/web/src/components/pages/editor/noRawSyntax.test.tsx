@@ -17,7 +17,6 @@ import {
 import { PageEditor } from "./PageEditor";
 import { ReadOnlyPageDoc } from "./ReadOnlyPageDoc";
 import { registerPhoneAsk } from "@/components/nav/phoneAsk";
-import { ServedEntitlementsProvider } from "@/lib/useAiEntitled";
 
 // The M14 gate box *"No user-visible macro syntax anywhere, in either mode"*,
 // at the document: both modes of the editor, and the read-only fallback. What
@@ -111,13 +110,10 @@ describe("no macro syntax reaches the DOM", () => {
 
   for (const editing of [false, true]) {
     it(`in ${editing ? "Editing" : "Reading"}`, async () => {
-      // A screen offering its chat and Ask, to a reader with the assistant
-      // (M52), so "Group chat" and "Ask" are drawn rather than absent.
-      onTestFinished(registerPhoneAsk({ open: false, onOpen: () => {}, onAsk: () => {}, chat: { onOpen: () => {}, messages: [] } }));
+      // A screen offering its chat (M52), so "Group chat" is drawn rather than absent.
+      onTestFinished(registerPhoneAsk({ open: false, onOpen: () => {}, chat: { onOpen: () => {}, messages: [], unread: 0 } }));
       const { container } = render(
-        <ServedEntitlementsProvider entitlements={["ai.ask"]}>
-          <PageEditor detail={trip} context={context} user={user} value={doc} onChange={() => {}} editable={editing} />
-        </ServedEntitlementsProvider>,
+        <PageEditor detail={trip} context={context} user={user} value={doc} onChange={() => {}} editable={editing} />,
       );
       // Every node view has mounted and printed SOMETHING — a chip, a ghost,
       // a table or a placeholder — so "no syntax" is said about real output.

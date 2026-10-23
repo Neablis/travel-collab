@@ -18,15 +18,14 @@ import type { ChatMessage } from "@tc/contracts";
 // notebook, the account pages). The entry is a value, not a flag the bar
 // holds — the route still decides which tabs exist (`tabsForScope`).
 //
-// **Not the tab bar's alone since M52**: a notebook's *Group chat* and *Ask*
-// widgets read the entry at every width (`readerCapabilities.ts`), so what a
-// screen offers here decides whether they are drawn at all.
+// **Not the tab bar's alone since M52**: a notebook's *Group chat* widget
+// reads the entry at every width (`readerCapabilities.ts`), so what a screen
+// offers here decides whether it is drawn at all.
 
 /**
  * What the tab bar's Ask item needs: whether the assistant is up, and how to
  * bring it up. `onAsk` brings it up and sends `text`, for ⌘K's *Ask: <text>*
- * (M45 D6), or with `prefill` only types it there, for a notebook's *Ask*
- * chips (M52 decision 15); a screen that offers none gets no such row. `onResume` is the bar's
+ * (M45 D6); a screen that offers none gets no such row. `onResume` is the bar's
  * own, where the screen's panel has more than one tab: it reopens the tab last
  * open (PR 436), while ⌘K's *Ask* keeps `onOpen`, which names Ask. `unread` is
  * the trip's unread chat count where that panel has a Chat tab, for the item's
@@ -36,32 +35,25 @@ import type { ChatMessage } from "@tc/contracts";
 export type PhoneAskEntry = {
   open: boolean;
   onOpen: () => void;
-  onAsk?: (text: string, how?: { prefill: true }) => void;
+  onAsk?: (text: string) => void;
   onResume?: () => void;
   unread?: number;
   chatShown?: boolean;
   /**
    * The trip's chat, where the reader can see it: opening the panel on Chat,
-   * and its messages (`null` until read). A notebook's *Group chat* widget
-   * (M52) reads both from here, as its *Ask* widget reads `onAsk`: the screen
-   * holding the chat is several levels above the page that draws them.
+   * its messages (`null` until read) and how many are unread. A notebook's
+   * *Group chat* widget (M52) reads them from here: the screen holding the
+   * chat is several levels above the page that draws it.
    */
   chat?: PhoneChat;
 };
-
-/**
- * A question handed to a screen's assistant (`PhoneAskEntry.onAsk`), as the
- * rail takes it (`AssistantRail`'s `incoming`): sent, or with `prefill` only
- * put in the box.
- */
-export type AskHandOff = { text: string; prefill?: true };
 
 /**
  * What a screen offers of its trip's chat (`PhoneAskEntry.chat`): `onOpen`
  * where the chat is this screen's own panel, `href` where it is another page's,
  * so the way in is a link (a notebook's, to the board: PR 537 round 4).
  */
-export type PhoneChat = { messages: readonly ChatMessage[] | null } & ({ onOpen: () => void } | { href: string });
+export type PhoneChat = { messages: readonly ChatMessage[] | null; unread: number } & ({ onOpen: () => void } | { href: string });
 
 let entry: PhoneAskEntry | null = null;
 const listeners = new Set<() => void>();
@@ -113,7 +105,7 @@ export function usePhoneAsk(): PhoneAskEntry | null {
 export function usePhoneAskEntry(
   onOpen: (() => void) | undefined,
   open: boolean,
-  onAsk?: PhoneAskEntry["onAsk"],
+  onAsk?: (text: string) => void,
   onResume?: () => void,
   unread?: number,
   chatShown = false,
@@ -129,17 +121,20 @@ export function usePhoneAskEntry(
   const resumes = onResume !== undefined;
   const chats = chat !== undefined;
   const messages = chat?.messages ?? null;
+  const chatUnread = chat?.unread ?? 0;
   const chatHref = chat !== undefined && "href" in chat ? chat.href : undefined;
   useEffect(() => {
     if (!offered) return;
     return registerPhoneAsk({
       open,
       onOpen: () => latest.current.onOpen?.(),
-      ...(asks ? { onAsk: (text: string, how?: { prefill: true }) => latest.current.onAsk?.(text, how) } : {}),
+      ...(asks ? { onAsk: (text: string) => latest.current.onAsk?.(text) } : {}),
       ...(resumes ? { onResume: () => latest.current.onResume?.() } : {}),
       ...(unread === undefined ? {} : { unread }),
       ...(chatShown ? { chatShown } : {}),
-      ...(chats ? { chat: chatHref === undefined ? { onOpen: () => latest.current.onChat?.(), messages } : { href: chatHref, messages } } : {}),
+      ...(chats
+        ? { chat: chatHref === undefined ? { onOpen: () => latest.current.onChat?.(), messages, unread: chatUnread } : { href: chatHref, messages, unread: chatUnread } }
+        : {}),
     });
-  }, [offered, asks, resumes, open, unread, chatShown, chats, chatHref, messages]);
+  }, [offered, asks, resumes, open, unread, chatShown, chats, chatHref, messages, chatUnread]);
 }

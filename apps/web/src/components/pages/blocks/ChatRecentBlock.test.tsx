@@ -1,16 +1,17 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ChatMessage } from "@tc/contracts";
 import { tripDetailFactory } from "@tc/factories";
-import { registerPhoneAsk } from "@/components/nav/phoneAsk";
+import { registerPhoneAsk, type PhoneChat } from "@/components/nav/phoneAsk";
 import { MacroView } from "../MacroView";
 import { ChatRecentBlock } from "./ChatRecentBlock";
 
 // "Group chat" (M52 decision 15) through the notebook's own renderer. Which
 // messages and whose names are `chatRecent.test.ts`'s; this holds what only
-// the app decides: that the board's chat reaches the widget, that the widget
-// opens it, and that a reader with no chat (decision 20) is shown nothing.
+// the app decides: that the board's chat reaches the widget, that it is drawn
+// as the chat draws a message, that the whole card opens the chat, and that a
+// reader with no chat (decision 20) is shown nothing.
 
 const trip = tripDetailFactory.build(
   { members: [{ userId: "dana", role: "owner" }, { userId: "sam", role: "editor" }] },
@@ -22,6 +23,8 @@ const message: ChatMessage = {
   replyTo: null, suggestionId: null, asksAssistant: false, createdAt: "2026-10-23T10:00:00Z", editedAt: null,
   removed: false, body: "On the train",
 };
+// The chat panel's own clock format (`ChatMessage`'s `time`), in this runner's zone.
+const sentAt = new Date(message.createdAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 
 const unregister: (() => void)[] = [];
 afterEach(() => {
@@ -29,42 +32,58 @@ afterEach(() => {
   cleanup();
 });
 
+const offer = (chat: PhoneChat) => unregister.push(registerPhoneAsk({ open: false, onOpen: () => {}, chat }));
 const view = () => <MacroView detail={trip} context={{ tripId: trip.tripId }} name="chat.recent" params={{}} />;
+const controls = () => [...screen.queryAllByRole("button"), ...screen.queryAllByRole("link")];
 
 describe("ChatRecentBlock", () => {
-  // Mitchell, PR 537 round 3: the widget is the way in, not a button under it.
-  it("is one control that opens the chat, from a click on any of its messages", async () => {
+  // Mitchell, PR 537 preview walk: a mini chat card, each message as the chat
+  // draws it, and the whole card the one way in.
+  it("draws each message with its author and time, as one control that opens the chat", async () => {
     const onOpen = vi.fn();
-    unregister.push(registerPhoneAsk({ open: false, onOpen: () => {}, chat: { onOpen, messages: [message] } }));
+    offer({ onOpen, messages: [message], unread: 0 });
     render(view());
-    const control = screen.getByRole("button", { name: "Open group chat" });
-    expect(screen.getAllByRole("button")).toEqual([control]);
-    // Its name is words it shows (WCAG 2.5.3), and the messages describe it.
-    expect(control.textContent).toBe("Open group chatTraveler 2: On the train");
-    await userEvent.click(screen.getByText("On the train"));
+    const card = screen.getByRole("button", { name: "Group chat Open chat" });
+    expect(controls()).toEqual([card]);
+    expect(within(card).getByText("Traveler 2")).toBeTruthy();
+    expect(within(card).getByText(sentAt)).toBeTruthy();
+    await userEvent.click(within(card).getByText("On the train"));
     expect(onOpen).toHaveBeenCalledOnce();
   });
 
-  it("still shows what it is while the chat is being read", () => {
-    unregister.push(registerPhoneAsk({ open: false, onOpen: () => {}, chat: { onOpen: () => {}, messages: null } }));
+  it("says how many are unread in its header", () => {
+    offer({ onOpen: () => {}, messages: [message], unread: 2 });
     render(view());
-    expect(screen.getByRole("button", { name: "Open group chat" }).textContent).toBe("Open group chat");
+    expect(within(screen.getByRole("button", { name: /^Group chat/ })).getByText("2 unread messages")).toBeTruthy();
+  });
+
+  it("still shows what it is while the chat is being read", () => {
+    offer({ onOpen: () => {}, messages: null, unread: 0 });
+    render(view());
+    expect(screen.getByRole("button", { name: "Group chat Open chat" })).toBeTruthy();
+  });
+
+  it("says so when nobody has written yet", () => {
+    offer({ onOpen: () => {}, messages: [], unread: 0 });
+    render(view());
+    expect(within(screen.getByRole("button", { name: "Group chat Open chat" })).getByText("No messages yet.")).toBeTruthy();
   });
 
   // A notebook's way in is a page change (PR 537 round 4): a link, so it can
   // open in a new tab, where the board's is its own panel.
   it("is a link where the chat lives on another page", () => {
-    unregister.push(registerPhoneAsk({ open: false, onOpen: () => {}, chat: { href: "/trips/x?chat=open", messages: [message] } }));
+    offer({ href: "/trips/x?chat=open", messages: [message], unread: 0 });
     render(view());
-    expect(screen.getByRole("link", { name: "Open group chat" }).getAttribute("href")).toBe("/trips/x?chat=open");
-    expect(screen.queryByRole("button")).toBeNull();
+    const card = screen.getByRole("link", { name: "Group chat Open chat" });
+    expect(card.getAttribute("href")).toBe("/trips/x?chat=open");
+    expect(controls()).toEqual([card]);
   });
 
   it("opens nothing from a click while the page is being edited", async () => {
     const onOpen = vi.fn();
-    unregister.push(registerPhoneAsk({ open: false, onOpen: () => {}, chat: { onOpen, messages: [message] } }));
-    render(<ChatRecentBlock payload={{ kind: "chat-recent", lines: [{ messageId: message.messageId, author: "Sam", body: "On the train" }] }} interactive={false} />);
-    expect(screen.queryByRole("button")).toBeNull();
+    offer({ onOpen, messages: [message], unread: 0 });
+    render(<ChatRecentBlock payload={{ kind: "chat-recent", lines: [{ message, author: "Sam" }] }} interactive={false} />);
+    expect(controls()).toEqual([]);
     await userEvent.click(screen.getByText("On the train"));
     expect(onOpen).not.toHaveBeenCalled();
   });
@@ -75,12 +94,10 @@ describe("ChatRecentBlock", () => {
     unregister.push(registerPhoneAsk({ open: false, onOpen: () => {}, onAsk: () => {} }));
     render(<div data-testid="page">{view()}</div>);
     expect(screen.getByTestId("page").textContent).toBe("");
-    expect(screen.queryByRole("group")).toBeNull();
   });
 
   it("is absent where no screen offers anything", () => {
     render(<div data-testid="page">{view()}</div>);
     expect(screen.getByTestId("page").textContent).toBe("");
-    expect(screen.queryByRole("group")).toBeNull();
   });
 });

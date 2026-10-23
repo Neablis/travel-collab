@@ -28,7 +28,6 @@ import { tripNowWidget } from "./macros/primitives/nowNext";
 import { stopDirections } from "./macros/primitives/directions";
 import { tripFlights } from "./macros/primitives/flights";
 import { chatRecent } from "./macros/primitives/chatRecent";
-import { assistantPrompts } from "./macros/primitives/assistantPrompts";
 
 // **Twelve primitives, and nothing else** (ADR-039 decision 1; spec §1's table).
 //
@@ -90,9 +89,9 @@ const DEFS: AnyMacroDef[] = [
   // read the reader's clock and have nothing to narrow; *Directions* is a stop
   // primitive, so a page's Today scope reaches it.
   tripNowWidget, stopDirections, tripFlights,
-  // "Group chat" and "Ask" (M52 decision 15): no selection, on `trip.people`'s
-  // terms, and each shown only to a reader it is for (`MacroDef.requires`).
-  chatRecent, assistantPrompts,
+  // "Group chat" (M52 decision 15): no selection, on `trip.people`'s terms,
+  // and shown only to a reader who can see the chat (`MacroDef.requires`).
+  chatRecent,
 ] as unknown as AnyMacroDef[];
 
 export const MACRO_REGISTRY: Record<string, AnyMacroDef> = Object.fromEntries(DEFS.map((d) => [d.name, d]));

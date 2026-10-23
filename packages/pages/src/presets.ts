@@ -638,14 +638,6 @@ export const PRESETS: readonly WidgetPreset[] = [
     summary: "Shows the trip chat's last few messages (three unless you choose), and opens the conversation when tapped.",
     keywords: ["chat", "messages", "message", "group", "conversation", "talk", "recent"],
   },
-  {
-    id: "ask",
-    widget: "assistant.prompts",
-    params: {},
-    title: "Ask",
-    summary: "Offers day-of questions for the assistant, each a tap to start: running late, moving dinner, a place that is closed.",
-    keywords: ["ask", "assistant", "ai", "help", "late", "running late", "dinner", "closed", "today"],
-  },
 ];
 
 const BY_ID: Record<string, WidgetPreset> = Object.fromEntries(PRESETS.map((p) => [p.id, p]));

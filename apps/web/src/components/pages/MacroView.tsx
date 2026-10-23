@@ -32,7 +32,6 @@ const EXTERNAL_NOUN: Record<ExternalNeed, string> = { weather: "weather", notebo
 /** Who a `requires` widget is drawn for, as Editing says it where it is absent. */
 const SHOWN_TO: Record<ReaderCapability, string> = {
   canChat: "shown to people who can see the trip's chat",
-  canAsk: "shown to people who have the assistant",
 };
 
 /**
@@ -75,8 +74,8 @@ export function MacroView({ detail, context, user = null, globals = null, extern
   // The page's minute clock, for its `dateScope`.
   // Outside an editor (the invite card) there is none, and nothing is scoped.
   const now = useContext(MacroEditorContext)?.now ?? null;
-  // Whether the reader may chat and ask (M52), for the widgets that are absent
-  // without (`MacroDef.requires`).
+  // Whether the reader may chat (M52), for the widget that is absent without
+  // (`MacroDef.requires`).
   const reader = useReaderCapabilities();
   const outcome = renderMacro({ trip: detail, page: context, user, globals, today, now, external, people, personas, guests, ...reader }, name, params);
   // SPEC §27: nothing renders disabled, so a widget this reader may not use is

@@ -1,5 +1,5 @@
 "use client";
-import { useRef, useState, type Ref } from "react";
+import { useRef, useState, type ReactNode, type Ref } from "react";
 import type { ChatMessage as ChatMessageData } from "@tc/contracts";
 import { useKnownSessionUser } from "@/components/account/useSessionUser";
 import { SuggestionCard } from "@/components/assistant/ProposalCard";
@@ -83,7 +83,7 @@ export function ChatMessage({
    */
   askedBy?: Persona | null | undefined;
 }) {
-  if (message.kind === "system") return <ChangeLine ref={ref} message={message} name={persona === null ? null : (persona?.name ?? FORMER_MEMBER)} />;
+  if (message.kind === "system") return <ChangeLine ref={ref} message={message} name={persona === null ? null : (persona?.name ?? FORMER_MEMBER)} as="li" />;
   const name = message.kind === "assistant" ? ASSISTANT_NAME : persona === null ? null : (persona?.name ?? FORMER_MEMBER);
   const whose = `${name ?? "this"}${name === null ? "" : "'s"} message`;
   const live = viewer !== null && !message.removed;
@@ -99,23 +99,7 @@ export function ChatMessage({
       aria-busy={pending || undefined}
       className="group flex gap-2 rounded-md focus-visible:outline-2 focus-visible:outline-brand"
     >
-      {name === null ? (
-        <Skeleton circle className="mt-0.5 size-7 shrink-0" />
-      ) : (
-        <PersonChip name={name} avatar={persona?.avatar ?? null} color={persona?.color ?? null} size="sm" className="mt-0.5 shrink-0" />
-      )}
-      <div className="min-w-0 flex-1">
-        <p className="flex items-baseline gap-1.5 text-xs">
-          {name !== null && <span className="font-semibold text-ink">{name}</span>}
-          {pending ? (
-            <span className="text-slate">Sending…</span>
-          ) : (
-            <time dateTime={message.createdAt} className="text-slate">
-              {time(message.createdAt)}
-            </time>
-          )}
-          {!message.removed && message.editedAt !== null && <span className="text-slate">edited</span>}
-        </p>
+      <MessageFace name={name} persona={persona} message={message} pending={pending} as="div">
         {message.removed ? (
           <p className="text-sm italic text-slate">message removed</p>
         ) : editing ? (
@@ -132,7 +116,7 @@ export function ChatMessage({
             askedBy={askedBy}
           />
         )}
-      </div>
+      </MessageFace>
       {/* Quiet until the line is pointed at or focused, where a mouse can do
           that; always there on touch, which cannot hover. A Report dialog open
           here closes if the message is removed under it, deliberately: the
@@ -149,24 +133,84 @@ export function ChatMessage({
 }
 
 /**
+ * A message's face, as the chat draws one: its author's chip, then their name,
+ * the time and whether it was edited, over `children`, the words and what
+ * hangs off them. The panel's line wraps it in its controls; a notebook's
+ * *Group chat* card (M52) draws it alone, so the card is this chat in small
+ * and not a likeness of it. `as="span"` is the card's: a widget renders inside
+ * a paragraph, where a `div` may not go.
+ */
+export function MessageFace({
+  name,
+  persona,
+  message,
+  pending = false,
+  as: Column,
+  children,
+}: {
+  /** `null` while the members are not known: a placeholder chip and no name. */
+  name: string | null;
+  persona: Persona | undefined | null;
+  message: ChatMessageData;
+  pending?: boolean;
+  as: "div" | "span";
+  children: ReactNode;
+}) {
+  return (
+    <>
+      {name === null ? (
+        <Skeleton circle className="mt-0.5 size-7 shrink-0" />
+      ) : (
+        <PersonChip name={name} avatar={persona?.avatar ?? null} color={persona?.color ?? null} size="sm" className="mt-0.5 shrink-0" />
+      )}
+      <Column className="block min-w-0 flex-1">
+        <span className="flex items-baseline gap-1.5 text-xs">
+          {name !== null && <span className="font-semibold text-ink">{name}</span>}
+          {pending ? (
+            <span className="text-slate">Sending…</span>
+          ) : (
+            <time dateTime={message.createdAt} className="text-slate">
+              {time(message.createdAt)}
+            </time>
+          )}
+          {!message.removed && message.editedAt !== null && <span className="text-slate">edited</span>}
+        </span>
+        {children}
+      </Column>
+    </>
+  );
+}
+
+/**
  * A change line (M52 decision 17): who changed what, linked to the stop, and
  * when. The line stores only what was done; its actor is named here, as their
- * messages are, and not at all until the members are known.
+ * messages are, and not at all until the members are known. The panel's is a
+ * list item it can focus; a notebook's *Group chat* card draws it as a `span`,
+ * and without its link: the card is one control, and a chip would be a second
+ * inside it.
  */
-function ChangeLine({ ref, message, name }: { ref?: Ref<HTMLLIElement> | undefined; message: ChatMessageData; name: string | null }) {
-  return (
-    <li ref={ref} tabIndex={-1} className="rounded-md px-2 text-center text-xs text-slate focus-visible:outline-2 focus-visible:outline-brand">
+export function ChangeLine({ ref, message, name, as }: { ref?: Ref<HTMLLIElement> | undefined; message: ChatMessageData; name: string | null; as: "li" | "span" }) {
+  const className = "rounded-md px-2 text-center text-xs text-slate";
+  const line = (
+    <>
       {message.removed ? (
         <span className="italic">message removed</span>
       ) : (
         <>
           {name !== null && `${name} `}
-          <MessageBody body={message.body} link={message.link} />
+          <MessageBody body={message.body} link={as === "li" ? message.link : undefined} />
         </>
       )}
       {" · "}
       <time dateTime={message.createdAt}>{time(message.createdAt)}</time>
+    </>
+  );
+  return as === "li" ? (
+    <li ref={ref} tabIndex={-1} className={`${className} focus-visible:outline-2 focus-visible:outline-brand`}>
+      {line}
     </li>
+  ) : (
+    <span className={`block ${className}`}>{line}</span>
   );
 }
 

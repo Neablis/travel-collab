@@ -39,7 +39,7 @@ const ASSISTANT = "Assistant";
 
 function lineOf(message: Extract<ChatMessage, { removed: false }>, names: ReadonlyMap<string, string>): ChatRecentLine {
   const author = message.kind === "assistant" ? ASSISTANT : message.kind === "system" ? null : names.get(message.authorId)!;
-  return { messageId: message.messageId, author, body: message.body };
+  return { message, author };
 }
 
 export const chatRecent: MacroDef<ChatRecentParams, ChatRecentPayload> = {

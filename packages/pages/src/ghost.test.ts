@@ -10,9 +10,9 @@ import { VALUE_KIND_FORMATS } from "./kinds";
 
 const page: PageContext = { tripId: "11111111-1111-1111-1111-111111111111" };
 // No trip: the one unbound state every trip-reading resolver can reach. A
-// reader who may chat and ask, or `chat.recent` and `assistant.prompts` answer
-// `absent` before they resolve (M52 decision 20) and the sweep never sees them.
-const tripless = { page, user: null, globals: null, today: null, canChat: true, canAsk: true };
+// reader who may chat, or `chat.recent` answers `absent` before it resolves
+// (M52 decision 20) and the sweep never sees it.
+const tripless = { page, user: null, globals: null, today: null, canChat: true };
 
 function shapeOf(name: string, params: Record<string, unknown> = {}): readonly Seg[] {
   const outcome = renderMacro(tripless, name, params);

@@ -21,7 +21,6 @@ import { TripNowBlock } from "./blocks/TripNowBlock";
 import { StopDirectionsBlock } from "./blocks/StopDirectionsBlock";
 import { TripFlightsBlock } from "./blocks/TripFlightsBlock";
 import { ChatRecentBlock } from "./blocks/ChatRecentBlock";
-import { AssistantPromptsBlock } from "./blocks/AssistantPromptsBlock";
 
 // The one place a block payload becomes a component, and the reason ADR-037
 // decision 1's "no switch case" is satisfied by a file that plainly contains a
@@ -124,8 +123,6 @@ export function BlockView({
       return <TripFlightsBlock payload={block} interactive={interactive} />;
     case "chat-recent":
       return <ChatRecentBlock payload={block} interactive={interactive} />;
-    case "assistant-prompts":
-      return <AssistantPromptsBlock payload={block} interactive={interactive} />;
     default: {
       // Not dead code and not defensive: this line is the enforcement. If
       // `block` is ever not `never` here, the assignment fails to compile and

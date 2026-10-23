@@ -26,7 +26,6 @@ import {
 import { useAssistantPosition } from "./useAssistantShape";
 import { usePinToBottom } from "./usePinToBottom";
 import { UnreadDot, unreadWords } from "@/components/nav/askOrChat";
-import type { AskHandOff } from "@/components/nav/phoneAsk";
 import { useAiEntitled } from "@/lib/useAiEntitled";
 
 /**
@@ -216,7 +215,7 @@ function railTabOptions(unread: number) {
  * @param presentation - Layout presentation for the panel.
  * @param onHide - Closes or hides the panel; required of a sheet, and omitted, a docked or floating panel offers no Hide.
  * @param rememberDraftAs - Conversation name to keep the unsent composer text under.
- * @param incoming - Text handed in from outside (⌘K's *Ask:*), sent as if typed here; with `prefill`, only typed.
+ * @param incoming - Text handed in from outside (⌘K's *Ask:*), sent as if typed here.
  * @param onIncomingTaken - Called once `incoming` is sent or waiting in the box.
  * @param takeFocus - Whether this mount is a fresh open, whose composer takes focus; asked once per mount.
  * @param chat - The trip's chat as a *Chat · Ask* tab pair, and which is open; absent, the panel is Ask alone.
@@ -455,10 +454,8 @@ export function AssistantRail({
    * A new object each hand-off, so the same words twice send twice. It goes
    * through the composer's own gate: while a turn answers, the thread is
    * full or the plan withholds the assistant, it waits in the box instead.
-   * `prefill` only puts it in the box: a notebook's *Ask* chip (M52 decision
-   * 15) leaves the reader to finish the question before it costs a turn.
    */
-  incoming?: AskHandOff | null;
+  incoming?: { text: string } | null;
   /**
    * Called once `incoming` has been sent or put in the box, so the caller can
    * drop it: a rail that remounts (the board's does when its header reloads)
@@ -811,24 +808,6 @@ export function AssistantRail({
   // dropping it on `onIncomingTaken` stops a remount doing the same.
   const handedIn = useRef<{ text: string } | null>(null);
   const keepHandedIn = (text: string) => setAsk((draft) => (draft.trim() === "" ? text : `${draft} ${text}`));
-  // A chip's question is chosen, not added: it replaces the box, whatever is
-  // there. That includes a rail mounted for it, whose box has just restored
-  // the stored draft, often the previous chip's question (PR 537 review round
-  // 3). Focus follows it into the composer, caret last, so the reader
-  // finishes the question there (decision 15). Not in a sheet, for the PR 442
-  // reason above.
-  const [prefills, setPrefills] = useState(0);
-  const prefill = (text: string) => {
-    setAsk(text);
-    setPrefills((n) => n + 1);
-  };
-  useEffect(() => {
-    const box = composerRef.current;
-    if (prefills === 0 || isSheet || box === null) return;
-    box.focus();
-    box.setSelectionRange(box.value.length, box.value.length);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- on a prefill only; the presentation is this render's
-  }, [prefills]);
   const sendHandedIn = async (text: string) => {
     if (asking || threadFull || upgradeGated) {
       keepHandedIn(text);
@@ -836,13 +815,12 @@ export function AssistantRail({
     }
     if ((await onAsk(text)) === false) keepHandedIn(text);
   };
-  const sendHandedInLatest = useRef({ send: sendHandedIn, prefill, taken: onIncomingTaken });
-  sendHandedInLatest.current = { send: sendHandedIn, prefill, taken: onIncomingTaken };
+  const sendHandedInLatest = useRef({ send: sendHandedIn, taken: onIncomingTaken });
+  sendHandedInLatest.current = { send: sendHandedIn, taken: onIncomingTaken };
   useEffect(() => {
     if (incoming === null || incoming === handedIn.current) return;
     handedIn.current = incoming;
-    if (incoming.prefill) sendHandedInLatest.current.prefill(incoming.text);
-    else void sendHandedInLatest.current.send(incoming.text);
+    void sendHandedInLatest.current.send(incoming.text);
     sendHandedInLatest.current.taken?.();
   }, [incoming]);
 

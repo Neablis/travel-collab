@@ -41,7 +41,7 @@ describe("registry", () => {
       "link.external", "link.internal", "open", "person.share", "stop.directions", "stop.rows", "tag.breakdown", "tag.byDay",
       "trip.description", "trip.flights", "trip.now", "trip.people", "trip.strip",
       // M52 decision 15, on `trip.people`'s terms.
-      "assistant.prompts", "chat.recent",
+      "chat.recent",
     ].sort());
     for (const name of MACRO_NAMES) expect(getMacro(name)!.name).toBe(name);
   });
@@ -296,10 +296,10 @@ describe("every widget renders (ADR-037 decision 2)", () => {
   // which is exactly what the person clicking it gets.
   const presetOutcome = (entry: ReturnType<typeof presetCatalog>[number]) =>
     renderMacro(
-      // A reader who may chat and ask (M52): without, those two are `absent`.
+      // A reader who may chat (M52): without, Group chat is `absent`.
       // `now` is 10:00 in Tokyo on the trip's one day, mid-museum, so the
       // day-of widgets (M52) have a stop under way to show.
-      { trip: populated, page: { tripId: populated.tripId }, user, globals, today: "2027-06-01", now: { at: Date.parse("2026-08-01T01:00:00Z"), deviceZone: "Asia/Tokyo" }, external, canChat: true, canAsk: true, chat: [] },
+      { trip: populated, page: { tripId: populated.tripId }, user, globals, today: "2027-06-01", now: { at: Date.parse("2026-08-01T01:00:00Z"), deviceZone: "Asia/Tokyo" }, external, canChat: true, chat: [] },
       entry.widget,
       // Bind anything still asking for a day to the one day above, so block
       // widgets reach `ok` instead of `unbound`. A field the preset leaves for
@@ -451,7 +451,7 @@ describe("every primitive declares a legal selection (ADR-039 decision 3)", () =
     expect([...MACRO_NAMES].sort()).toEqual(expect.arrayContaining([...PRIMITIVE_NAMES].sort()));
     expect(MACRO_NAMES.filter((n) => getMacro(n)!.selection === undefined).sort()).toEqual([
       "country.facts", "link.external", "link.internal", "open", "trip.description", "trip.flights", "trip.now", "trip.people", "trip.strip",
-      "assistant.prompts", "chat.recent",
+      "chat.recent",
     ].sort());
   });
 

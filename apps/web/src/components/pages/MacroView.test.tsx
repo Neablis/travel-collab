@@ -6,7 +6,6 @@ import { withCostRollups } from "@tc/factories";
 import { MacroView } from "./MacroView";
 import { MacroEditorContext } from "./editor/MacroEditorContext";
 import { registerPhoneAsk } from "@/components/nav/phoneAsk";
-import { ServedEntitlementsProvider } from "@/lib/useAiEntitled";
 
 afterEach(cleanup);
 
@@ -408,15 +407,12 @@ describe("MacroView", () => {
 
 // M52 decision 20: a widget the reader may not use is absent while reading
 // (SPEC §27), but its author still has to see what they put there. Without a
-// screen offering chat or Ask, Editing names the widget and who it is for;
+// screen offering its chat, Editing names the widget and who it is for;
 // Reading shows nothing.
 describe("a widget for readers who are not this one", () => {
   it("is named, with who it is for, while editing", () => {
     render(<MacroView detail={baseDetail} context={ctx} name="chat.recent" params={{}} editing />);
     expect(screen.getByText(/^Group chat/).textContent).toMatch(/can see the trip's chat/);
-    cleanup();
-    render(<MacroView detail={baseDetail} context={ctx} name="assistant.prompts" params={{}} editing />);
-    expect(screen.getByText(/^Ask/).textContent).toMatch(/assistant/i);
   });
 
   it("is not there at all while reading", () => {
@@ -622,8 +618,8 @@ flightNumber: null,
         // A fixed `today` well before the fixture's dates, so `trip.countdown`
         // resolves rather than reporting "no dates set yet" — and so this
         // sweep's answer does not change with the calendar.
-        // A reader who may chat and ask (M52): without, those two are `absent`.
-        { trip: richDetail, page: ctx, user: richUser, globals: richGlobals, today: "2027-01-01", now: richNow, external: richExternal, canChat: true, canAsk: true, chat: [] },
+        // A reader who may chat (M52): without, Group chat is `absent`.
+        { trip: richDetail, page: ctx, user: richUser, globals: richGlobals, today: "2027-01-01", now: richNow, external: richExternal, canChat: true, chat: [] },
         widget.widget,
         boundParams(widget),
       );
@@ -645,27 +641,24 @@ flightNumber: null,
     const spy = vi.spyOn(console, "error").mockImplementation((...args: unknown[]) => {
       errors.push(args.map(String).join(" "));
     });
-    // A screen offering its chat and Ask, to a reader with the assistant (M52),
-    // so "Group chat" and "Ask" are drawn rather than absent.
-    const unregister = registerPhoneAsk({ open: false, onOpen: () => {}, onAsk: () => {}, chat: { onOpen: () => {}, messages: [] } });
+    // A screen offering its chat (M52), so "Group chat" is drawn rather than absent.
+    const unregister = registerPhoneAsk({ open: false, onOpen: () => {}, chat: { onOpen: () => {}, messages: [], unread: 0 } });
     try {
       for (const widget of presetCatalog()) {
         const { unmount } = render(
-          <ServedEntitlementsProvider entitlements={["ai.ask"]}>
-            <MacroEditorContext.Provider value={{ detail: richDetail, context: ctx, user: richUser, globals: richGlobals, editing: false, now: richNow }}>
-              <p>
-                <MacroView
-                  detail={richDetail}
-                  context={ctx}
-                  user={richUser}
-                  globals={richGlobals}
-                  external={richExternal}
-                  name={widget.widget}
-                  params={boundParams(widget)}
-                />
-              </p>
-            </MacroEditorContext.Provider>
-          </ServedEntitlementsProvider>,
+          <MacroEditorContext.Provider value={{ detail: richDetail, context: ctx, user: richUser, globals: richGlobals, editing: false, now: richNow }}>
+            <p>
+              <MacroView
+                detail={richDetail}
+                context={ctx}
+                user={richUser}
+                globals={richGlobals}
+                external={richExternal}
+                name={widget.widget}
+                params={boundParams(widget)}
+              />
+            </p>
+          </MacroEditorContext.Provider>,
         );
         // A chart's code is loaded lazily (`SpendByDayBlock`), and until it
         // arrives only its placeholder is in the paragraph. Unmounting then

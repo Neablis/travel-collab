@@ -136,10 +136,10 @@
         "go_to",
         "propose_notebook_editing"
       ],
-      "toolChars": 5918,
+      "toolChars": 5898,
       "instructionChars": 3564,
-      "totalChars": 9482,
-      "approxTokens": 2865
+      "totalChars": 9462,
+      "approxTokens": 2859
     },
     "page · question": {
       "tools": [
@@ -175,13 +175,13 @@
       "chars": 1245,
       "approxTokens": 376
     },
-    "insert_widget": {
-      "chars": 1245,
-      "approxTokens": 376
-    },
     "find_free_time": {
       "chars": 1239,
       "approxTokens": 374
+    },
+    "insert_widget": {
+      "chars": 1225,
+      "approxTokens": 370
     },
     "find_days": {
       "chars": 1072,
