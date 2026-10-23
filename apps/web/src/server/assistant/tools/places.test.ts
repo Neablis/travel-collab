@@ -13,7 +13,8 @@ import { describe, expect, it, vi } from "vitest";
 import { scenarios, tripDetailFactory } from "@tc/factories";
 import { UNTRUSTED_CLOSE, UNTRUSTED_OPEN, plain } from "@/server/assistant/prompt";
 import { newPlaceCache, type PlaceLookup, type PlaceSearchPort } from "@/server/assistant/deps";
-import { MAX_PLACE_QUERIES, searchPlacesTool } from "./places";
+import { turnNowOf, type TurnNow } from "@/server/assistant/context";
+import { MAX_PLACE_QUERIES, findPlacesNearNowTool, nearNowAnchor, searchPlacesTool } from "./places";
 
 const ACTOR = { tripId: "11111111-2222-4333-8444-555566667777", userId: "asker" };
 
@@ -191,6 +192,63 @@ describe("search_places", () => {
     expect(searchPlacesTool.input.safeParse({ queries: Array(MAX_PLACE_QUERIES + 1).fill("x") }).success).toBe(false);
     expect(searchPlacesTool.input.safeParse({ queries: "falls" }).success).toBe(false);
     expect(searchPlacesTool.input.safeParse({ queries: [] }).success).toBe(false);
+  });
+});
+
+// M52 decision 13: *here* is where the plan says the trip is, in a fixed
+// order, and the answer can say where it searched.
+describe("find_places_near_now", () => {
+  // Three stops, 09-10 at the Colosseum, 10-11 at the Forum, 11-12 at the
+  // Vatican, on 2026-06-10, read on UTC.
+  const trip = tripDetailFactory.build({}, { transient: { dayCount: 1, activitiesPerDay: 3, located: true, startDate: "2026-06-10" } });
+  const at = (time: string) => turnNowOf(trip, null, Date.parse(`2026-06-10T${time}:00Z`));
+  const withoutPlace = (index: number) => {
+    const id = trip.days[0]!.activityIds[index]!;
+    return { ...trip, activities: { ...trip.activities, [id]: { ...trip.activities[id]!, location: null } } };
+  };
+  const ROME: TurnNow["city"] = { name: "Rome", lat: 41.89, lng: 12.49 };
+
+  it("anchors on the stop under way, then the last passed today, then the next, then today's city", () => {
+    expect(nearNowAnchor(trip, at("10:30"))).toMatchObject({ name: "Roman Forum, Rome, Italy", is: "the stop under way" });
+    expect(nearNowAnchor(withoutPlace(1), at("10:30"))).toMatchObject({ name: "Colosseum, Rome, Italy", is: "the last stop today" });
+    expect(nearNowAnchor(trip, at("08:00"))).toMatchObject({ name: "Colosseum, Rome, Italy", is: "the next stop" });
+    const nothingPlaced = { ...trip, activities: Object.fromEntries(Object.entries(trip.activities).map(([id, stop]) => [id, { ...stop, location: null }])) };
+    expect(nearNowAnchor(nothingPlaced, { ...at("10:30"), city: ROME })).toMatchObject({ name: "Rome", is: "today's city" });
+    expect(nearNowAnchor(nothingPlaced, at("10:30"))).toBeNull();
+  });
+
+  it("searches around the anchor, numbers into the turn's cache, and names the anchor fenced", async () => {
+    const port = portReturning(found("coffee", "Sant'Eustachio"));
+    const cache = newPlaceCache();
+    const readout = await findPlacesNearNowTool.invoke(
+      { queries: ["coffee"] },
+      { trip, actor: ACTOR, placeSearch: port, placeCache: cache, now: at("10:30") },
+    );
+    const region = (port.calls[0] as { region: { minLat: number; maxLat: number; minLng: number; maxLng: number } }).region;
+    // The Forum is at 41.8925, 12.4853: a box a few km across, not the trip's region.
+    expect(region.minLat).toBeLessThan(41.8925);
+    expect(region.maxLat).toBeGreaterThan(41.8925);
+    expect(region.maxLat - region.minLat).toBeLessThan(0.1);
+    expect(readout.near).toEqual({ name: "⟦Roman Forum, Rome, Italy⟧", is: "the stop under way" });
+    expect(readout.results[0]!.candidates[0]!.ref).toBe(1);
+    expect(cache.get(1)?.name).toBe("Sant'Eustachio");
+  });
+
+  it("puts a city with no coordinates into the query, and reads back the model's own", async () => {
+    const port = portReturning(found("coffee, Rome", "Sant'Eustachio"));
+    const nothingPlaced = { ...trip, activities: Object.fromEntries(Object.entries(trip.activities).map(([id, stop]) => [id, { ...stop, location: null }])) };
+    const readout = await findPlacesNearNowTool.run(
+      { queries: ["coffee"] },
+      { trip: nothingPlaced, actor: ACTOR, placeSearch: port, placeCache: newPlaceCache(), now: { ...at("10:30"), city: { name: "Rome", lat: null, lng: null } } },
+    );
+    expect((port.calls[0] as { queries: string[] }).queries).toEqual(["coffee, Rome"]);
+    expect(readout.results[0]!.query).toBe("coffee");
+    expect(readout.near).toEqual({ name: "Rome", is: "today's city" });
+  });
+
+  it("is offered only under way, and spends as search_places does", () => {
+    expect(findPlacesNearNowTool.phases).toEqual(["underway"]);
+    expect([findPlacesNearNowTool.domain, findPlacesNearNowTool.effect, findPlacesNearNowTool.spend]).toEqual(["places", "spend", "vendor"]);
   });
 });
 

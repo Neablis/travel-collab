@@ -6,7 +6,9 @@
 //     refuses a post or an edit, by name;
 //   * the demo and a deleted trip are refused, and a restore brings it back;
 //   * every chat write moves `chatRev` on the events poll, for every reader;
-//   * an `@assistant` is answered in the thread, and refused while it is read-only (M52).
+//   * an `@assistant` is answered in the thread, and refused while it is read-only (M52);
+//   * an Ask proposal applied to today's stops while under way is announced, by
+//     a line nobody edits or deletes (M52 decision 17).
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -17,7 +19,7 @@ import { aiUsage, tripMessages, tripSuggestions, users } from "@/server/db/schem
 import { postAssistantReply, unreadByTrip } from "@/server/chat/messages";
 import { chatLogFor } from "@/server/ai/assistantPorts";
 import { getTripDetail } from "@/server/projections";
-import { runChatAskTurn } from "@/server/ai/handleAskRequest";
+import { handleApplyProposalRequest, runChatAskTurn } from "@/server/ai/handleAskRequest";
 import { upsertUser } from "@/server/users";
 import { listSuggestionChanges } from "@/server/suggestions/list";
 import { executeTripCommand } from "@/server/commands";
@@ -59,6 +61,20 @@ vi.mock("@/server/entitlements/usage", async (importOriginal) => {
     recordTurnLedger: async (...args: Parameters<typeof real.recordTurnLedger>) => {
       await turnWrites.ledgerHeld;
       return real.recordTurnLedger(...args);
+    },
+  };
+});
+
+// Each turn's *now* (M52 decision 14a), as the real `turnNowOf` read it.
+const turnNows = vi.hoisted(() => [] as unknown[]);
+vi.mock("@/server/assistant/context", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@/server/assistant/context")>();
+  return {
+    ...real,
+    turnNowOf: (...args: Parameters<typeof real.turnNowOf>) => {
+      const now = real.turnNowOf(...args);
+      turnNows.push(now);
+      return now;
     },
   };
 });
@@ -117,6 +133,7 @@ async function chatRev(tripId: string, as: string): Promise<string | undefined> 
 beforeEach(() => {
   currentUserId = "";
   afterResponse.length = 0;
+  turnNows.length = 0;
   Object.assign(turnWrites, { failReplies: false, replyAttempts: 0, ledgerHeld: null });
 });
 
@@ -489,6 +506,28 @@ describe("@assistant", () => {
     expect(await db.select().from(aiUsage).where(eq(aiUsage.userId, owner))).toMatchObject([{ endpoint: "ask.chat" }]);
   });
 
+  // ADR-080 decision 1 on the chat door (PR 534 review 2, finding 1): a day
+  // with no zone is read on the poster's, which rides on the message. On UTC
+  // a New York evening is already tomorrow, past the end of this one-day trip.
+  it("reads a zone-less trip's now on the poster's zone, so a New York evening is still today", async () => {
+    const { tripId, owner } = await sharedTrip();
+    // 20:30 in New York on 2027-06-10, and already 06-11 on UTC.
+    vi.useFakeTimers({ toFake: ["Date"], now: Date.parse("2027-06-11T00:30:00Z") });
+    try {
+      const dated = await executeTripCommand(
+        { type: "SetTripDates", tripId, startDate: "2027-06-10", endDate: "2027-06-10", newDayIds: [randomUUID()] },
+        owner,
+      );
+      expect(dated.ok).toBe(true);
+      const asked = await post(tripId, owner, { body: "@assistant coffee near here?", assistant: true, timeZone: "America/New_York" });
+      expect(asked.status).toBe(201);
+      await runAfterResponse();
+    } finally {
+      vi.useRealTimers();
+    }
+    expect(turnNows).toMatchObject([{ phase: "underway", dayIndex: 0, local: { date: "2027-06-10", time: "20:30" } }]);
+  });
+
   // Decision 18's lapse rule: a read-only chat takes no `@assistant`, even
   // from a member whose own plan holds it.
   it("is refused while the chat is read-only, and starts no turn", async () => {
@@ -499,5 +538,62 @@ describe("@assistant", () => {
     expect(refused.status).toBe(402);
     expect(await refused.json()).toMatchObject({ code: "collaborators-not-entitled" });
     expect(afterResponse).toEqual([]);
+  });
+});
+
+// M52 decision 17, for the Ask tab's apply (`handleApplyProposalRequest`); the
+// suggestion accepts are `suggestions.int.test.ts`'s.
+describe("a change line", () => {
+  async function underWayWithDinner(startDate = new Date().toISOString().slice(0, 10)) {
+    const trip = await sharedTrip();
+    const dinner = randomUUID();
+    const dayId = randomUUID();
+    for (const command of [
+      { type: "AddDay", tripId: trip.tripId, dayId },
+      { type: "SetTripStartDate", tripId: trip.tripId, startDate },
+      { type: "AddActivity", tripId: trip.tripId, activityId: dinner, dayId, title: "Dinner at Tasca", timeWindow: { start: "19:30", end: "21:00" } },
+    ] as const) {
+      expect((await executeTripCommand(command, trip.owner)).ok).toBe(true);
+    }
+    return { ...trip, dinner };
+  }
+  async function apply(tripId: string, as: string, activityId: string) {
+    currentUserId = as;
+    const commands = [{ type: "UpdateActivity", tripId, activityId, timeWindow: { start: "20:30", end: "22:00" } }];
+    const res = await handleApplyProposalRequest(
+      new Request(`http://test/api/trips/${tripId}/ask/apply`, { method: "POST", body: JSON.stringify({ commands }) }),
+      tripId,
+      undefined,
+      () => {},
+    );
+    expect(res.status).toBe(200);
+  }
+
+  it("announces an applied proposal to today's stop while the trip is under way", async () => {
+    const { tripId, editor, viewer, dinner } = await underWayWithDinner();
+    await apply(tripId, editor, dinner);
+    const page = (await (await list(tripId, viewer)).json()) as ChatPage;
+    expect(page.messages).toMatchObject([
+      { kind: "system", authorId: editor, link: { kind: "stop", id: dinner }, body: "moved “Dinner at Tasca” to 20:30" },
+    ]);
+  });
+
+  it("is not posted for a trip that has not started", async () => {
+    const start = new Date(Date.now() + 10 * 86_400_000).toISOString().slice(0, 10);
+    const { tripId, editor, dinner } = await underWayWithDinner(start);
+    await apply(tripId, editor, dinner);
+    expect(await db.select().from(tripMessages).where(eq(tripMessages.tripId, tripId))).toEqual([]);
+  });
+
+  it("can be neither edited by the member it names nor deleted by the owner", async () => {
+    const { tripId, owner, editor, dinner } = await underWayWithDinner();
+    await apply(tripId, editor, dinner);
+    const [line] = await db.select().from(tripMessages).where(eq(tripMessages.tripId, tripId));
+    const params = { params: Promise.resolve({ tripId, messageId: line!.id }) };
+    currentUserId = editor;
+    const edited = await oneMessage.PATCH(new Request("http://test/x", { method: "PATCH", body: JSON.stringify({ body: "I did nothing" }) }), params);
+    expect(edited.status).toBe(403);
+    currentUserId = owner;
+    expect((await oneMessage.DELETE(new Request("http://test/x", { method: "DELETE" }), params)).status).toBe(403);
   });
 });

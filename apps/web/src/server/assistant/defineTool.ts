@@ -37,6 +37,7 @@
 // rather than a second manifest.
 import type { z } from "zod";
 import type { TripRole } from "@tc/contracts";
+import type { TripPhase } from "@tc/pages";
 import type { AssistantDeps, DepKey } from "./deps";
 import type { TaskClass } from "./taskClass";
 import type { AskToolPosture } from "./grants";
@@ -220,6 +221,14 @@ export interface ToolSpec<
    * chat started.
    */
   origins?: readonly TurnOrigin[];
+  /**
+   * **Which phases of the trip this tool is offered in** (M52 decision 6):
+   * `find_places_near_now` only while the trip is under way, so no turn before
+   * or after it pays for the schema. An absent phase is read as `postures`
+   * reads an absent posture, as not knowing it: a tagged tool is not offered.
+   * Omitted means every phase.
+   */
+  phases?: readonly TripPhase[];
   /**
    * Input properties the MODEL is not shown, as dot paths (`"location.lat"`).
    * They stay in `input` and are still accepted and validated when sent; the

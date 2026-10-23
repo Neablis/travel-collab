@@ -560,6 +560,28 @@ describe("simulatedModel — the ask surface", () => {
     expect(calls.map((c) => c.toolName)).toEqual(["read_trip"]);
   });
 
+  // M52 decision 13: "near here" on an under-way trip is the near-now search,
+  // and the answer names where it looked. Offered only then, so a planning
+  // turn asked the same thing does not reach for it.
+  it("searches near now when it was handed the tool and asked about nearby, and names the anchor", async () => {
+    const question = "find coffee near here";
+    const underway = { ...askPrompt({ kind: "trip" }, [], { question }), tools: [...askPrompt({ kind: "trip" }).tools, { name: "find_places_near_now" }] };
+    const calls = callsOf(await probe().doGenerate(underway));
+    expect(calls.map((c) => c.toolName)).toEqual(["read_trip", "find_free_time", "find_places_near_now"]);
+    expect(JSON.parse(calls[2]!.input)).toEqual({ queries: ["coffee"] });
+    expect(callsOf(await probe().doGenerate(askPrompt({ kind: "trip" }, [], { question }))).map((c) => c.toolName)).not.toContain(
+      "find_places_near_now",
+    );
+
+    const near = { results: [{ query: "coffee", candidates: [{ ref: 1, name: "⟦Sant'Eustachio⟧" }] }], near: { name: "⟦Roman Forum⟧", is: "the stop under way" } };
+    const answer = textOf(
+      await probe().doGenerate(
+        askPrompt({ kind: "trip" }, [{ toolName: "read_trip", value: TRIP_READOUT }, { toolName: "find_places_near_now", value: near }], { question }),
+      ),
+    );
+    expect(answer).toContain("I searched near Roman Forum: Sant'Eustachio.");
+  });
+
   it("answers turn 2 from turn 2's results, never the ones before its question", async () => {
     const priorTurn = askPrompt({ kind: "trip" }, [
       { toolName: "read_trip", value: { ...TRIP_READOUT, name: "STALE" } },

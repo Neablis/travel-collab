@@ -180,6 +180,30 @@ export async function postAssistantReply(
   });
 }
 
+/**
+ * A change line (M52 decision 17): the app's announcement of a change someone
+ * made, authored by them so it is not unread to them, and nobody's to edit or
+ * delete (`editMessage`, `deleteMessage`). `body` is only what was done; the
+ * chat names the author in front of it, as it does on their messages.
+ */
+export async function postSystemLine(
+  tripId: string,
+  actorId: string,
+  body: string,
+  link: ChatLink | undefined,
+  now: Date = new Date(),
+): Promise<ChatMessage> {
+  return insertMessage({
+    tripId,
+    authorId: actorId,
+    kind: "system",
+    body,
+    linkKind: link?.kind ?? null,
+    linkId: link?.id ?? null,
+    createdAt: now,
+  });
+}
+
 async function insertMessage(values: Omit<typeof tripMessages.$inferInsert, "id">): Promise<ChatMessage> {
   return db.transaction(async (tx) => {
     const [row] = await tx
@@ -212,7 +236,8 @@ export async function editMessage(
 ): Promise<MessageOutcome<ChatMessage>> {
   const row = await messageOnTrip(tripId, messageId);
   if (row === null) return { ok: false, error: "not-found" };
-  if (row.authorId !== userId) return { ok: false, error: "forbidden" };
+  // A change line names its actor as author, and still says what the app saw.
+  if (row.authorId !== userId || row.kind === "system") return { ok: false, error: "forbidden" };
   if (isRemoved(row)) return { ok: false, error: "removed" };
   return db.transaction(async (tx) => {
     const [updated] = await tx
@@ -229,9 +254,9 @@ export async function editMessage(
 }
 
 /**
- * Soft-delete: the author deletes their own, the owner any (M46 D6). The row
- * stays and reads as removed. Deleting a message already removed changes
- * nothing and moves no revision.
+ * Soft-delete: the author deletes their own, the owner any but a change line
+ * (M46 D6, M52 decision 17). The row stays and reads as removed. Deleting a
+ * message already removed changes nothing and moves no revision.
  */
 export async function deleteMessage(
   tripId: string,
@@ -242,7 +267,7 @@ export async function deleteMessage(
 ): Promise<MessageOutcome<ChatMessage>> {
   const row = await messageOnTrip(tripId, messageId);
   if (row === null) return { ok: false, error: "not-found" };
-  if (row.authorId !== userId && role !== "owner") return { ok: false, error: "forbidden" };
+  if (row.kind === "system" || (row.authorId !== userId && role !== "owner")) return { ok: false, error: "forbidden" };
   if (isRemoved(row)) return { ok: true, value: toMessage(row) };
   return db.transaction(async (tx) => {
     const [updated] = await tx

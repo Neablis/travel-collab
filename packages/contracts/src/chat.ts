@@ -91,6 +91,13 @@ export const PostChatMessage = z.object({
   body: ChatMessageBody,
   link: ChatLink.optional(),
   assistant: z.literal(true).optional(),
+  /**
+   * The poster's IANA zone, as their device reads it. Read only by an
+   * `@assistant` turn, whose trip days without a zone of their own run on it
+   * (ADR-080 decision 1), and never stored. Bounded only: a zone the server
+   * does not know is passed over there, so it cannot refuse the message.
+   */
+  timeZone: z.string().min(1).max(64).optional(),
 });
 export type PostChatMessage = z.infer<typeof PostChatMessage>;
 
