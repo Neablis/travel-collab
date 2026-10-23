@@ -600,14 +600,15 @@ export const PRESETS: readonly WidgetPreset[] = [
     preview: "one row per thing waiting on a decision",
   },
   // ---- the group, on the day -------------------------------------------------
-  // M52 decision 15. No params. Each is absent for a reader it is not for
+  // M52 decision 15. Default params (Group chat's count is its own setting).
+  // Each is absent for a reader it is not for
   // (decision 20), so a page carrying them still reads whole to everyone.
   {
     id: "group-chat",
     widget: "chat.recent",
     params: {},
     title: "Group chat",
-    summary: "Shows the trip chat's last three messages, with a button to open the conversation.",
+    summary: "Shows the trip chat's last few messages (three unless you choose), and opens the conversation when tapped.",
     keywords: ["chat", "messages", "message", "group", "conversation", "talk", "recent"],
   },
   {

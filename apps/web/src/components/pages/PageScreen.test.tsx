@@ -18,8 +18,9 @@ import { cachedRead, DEDUPE } from "@/lib/queryCache";
 import { tripKeys } from "@/lib/queryKeys";
 import { findPaletteCommand, runPaletteCommand } from "@/components/palette/paletteRegistry";
 
+const routerPush = vi.hoisted(() => ({ spy: (_href: string) => {} }));
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: vi.fn() }),
+  useRouter: () => ({ push: (href: string) => routerPush.spy(href) }),
 }));
 
 // The real save guard, behind a spy, so one test can make the editor's output
@@ -2366,11 +2367,11 @@ describe("PageScreen — Undo reset", () => {
   });
 });
 
-// M52, Mitchell's option A on PR 537: the notebook page's rail takes the
-// board's *Chat · Ask* tabs, so a notebook's *Group chat* has a chat to show
-// and to open. A reader who cannot see the chat gets neither (decision 15,
-// SPEC §27: nothing renders disabled).
-describe("PageScreen: the trip's chat beside Ask", () => {
+// M52, Mitchell on PR 537 round 3: a notebook's *Group chat* shows the
+// trip's last messages and is itself the way to the chat, which opens where it
+// lives, on the board (`boardChatHref`). A reader who cannot see the chat gets
+// no widget (decision 15, SPEC §27: nothing renders disabled).
+describe("PageScreen: a notebook's Group chat", () => {
   const said = ChatMessage.parse({
     messageId: "6e9a2c9e-0000-4b6e-9d3f-2b1a5c8d7e61",
     authorId: "u-bea",
@@ -2378,6 +2379,11 @@ describe("PageScreen: the trip's chat beside Ask", () => {
     editedAt: null,
     removed: false,
     body: "Train at nine?",
+  });
+  let pushed: string[] = [];
+  beforeEach(() => {
+    pushed = [];
+    routerPush.spy = (href) => pushed.push(href);
   });
   function chatNotebook(members: { userId: string; role: "owner" | "viewer" }[]) {
     const trip = tripDetailFixture({ members });
@@ -2401,29 +2407,45 @@ describe("PageScreen: the trip's chat beside Ask", () => {
       ),
     );
     render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
+    return trip;
   }
-  const selected = (panel: HTMLElement) =>
-    within(panel)
-      .getAllByRole("tab")
-      .filter((tab) => tab.getAttribute("aria-selected") === "true")
-      .map((tab) => tab.textContent);
+  const pair = [{ userId: "u1", role: "owner" as const }, { userId: "u-bea", role: "viewer" as const }];
 
-  it("shows a chat member the chat's messages, and Open chat opens the panel on Chat", async () => {
+  it("shows a chat member the chat's messages, and a click on one goes to the board's chat", async () => {
     server.use(...makeChatHandlers({ viewerId: "u1", messages: [said] }).handlers);
-    chatNotebook([{ userId: "u1", role: "owner" }, { userId: "u-bea", role: "viewer" }]);
+    const trip = chatNotebook(pair);
 
-    const widget = await screen.findByRole("group", { name: "Group chat" });
-    await waitFor(() => expect(within(widget).getAllByRole("listitem").map((line) => line.textContent)).toEqual([expect.stringContaining("Train at nine?")]));
-    await userEvent.click(within(widget).getByRole("button", { name: "Open chat" }));
-    expect(selected(await screen.findByRole("complementary", { name: "Assistant" }))).toEqual(["Chat"]);
+    const widget = await screen.findByRole("button", { name: "Open group chat" });
+    await waitFor(() => expect(widget.textContent).toContain("Train at nine?"));
+    await userEvent.click(within(widget).getByText("Train at nine?"));
+    expect(pushed).toEqual([`/trips/${trip.tripId}?chat=open`]);
   });
 
-  it("gives a reader alone on the trip no Chat tab and no Group chat", async () => {
+  it("goes nowhere from a click while the page is being edited", async () => {
+    server.use(...makeChatHandlers({ viewerId: "u1", messages: [said] }).handlers);
+    chatNotebook(pair);
+    await screen.findByRole("button", { name: "Open group chat" });
+
+    await userEvent.click(screen.getByRole("button", { name: "Edit page" }));
+    await userEvent.click(await within(await screen.findByRole("group", { name: "Group chat" })).findByText("Train at nine?"));
+    expect(pushed).toEqual([]);
+  });
+
+  it("gives a reader alone on the trip no Group chat", async () => {
     chatNotebook([{ userId: "u1", role: "owner" }]);
 
-    await userEvent.click(await screen.findByTestId("assistant-launcher"));
-    const panel = await screen.findByRole("complementary", { name: "Assistant" });
-    expect(within(panel).queryByRole("tab", { name: /^Chat/ })).toBeNull();
+    expect(await screen.findByRole("article")).toBeTruthy();
+    expect(screen.queryByRole("group", { name: "Group chat" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Open group chat" })).toBeNull();
+  });
+
+  // Removed from the trip while it still lists them: the chat's 403 is the answer.
+  it("gives a reader the chat refuses no Group chat", async () => {
+    server.use(http.get("/api/trips/:tripId/chat", () => HttpResponse.json({ error: "forbidden" }, { status: 403 })));
+    chatNotebook(pair);
+
+    expect(await screen.findByRole("article")).toBeTruthy();
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Open group chat" })).toBeNull());
     expect(screen.queryByRole("group", { name: "Group chat" })).toBeNull();
   });
 });

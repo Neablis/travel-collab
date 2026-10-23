@@ -3,6 +3,7 @@ import type { ChatMessage, TripDetail } from "@tc/contracts";
 import { tripDetailFactory } from "@tc/factories";
 import { renderMacro } from "../../registry";
 import type { ChatRecentPayload, WidgetContext } from "../../registry-types";
+import { chatRecent } from "./chatRecent";
 
 // "Group chat" (M52 decision 15). What a reader cannot check from the screen
 // is who the widget is shown to at all (decision 20: never to a share-link
@@ -33,8 +34,8 @@ const ctx = (extra: Partial<WidgetContext>): WidgetContext => ({
   trip, page: { tripId: trip.tripId }, user: null, globals: null, today: null, people, ...extra,
 });
 
-function chatOf(context: WidgetContext): ChatRecentPayload {
-  const outcome = renderMacro(context, "chat.recent", {});
+function chatOf(context: WidgetContext, params: Record<string, unknown> = {}): ChatRecentPayload {
+  const outcome = renderMacro(context, "chat.recent", params);
   if (outcome.status !== "ok" || outcome.rendered.kind !== "block" || outcome.rendered.block.kind !== "chat-recent") {
     throw new Error(`expected a chat-recent block, got ${JSON.stringify(outcome)}`);
   }
@@ -78,6 +79,33 @@ describe("chat.recent", () => {
       said("system", "Sam moved Dinner to 20:30", { kind: "system" }),
     ];
     expect(chatOf(ctx({ canChat: true, chat })).lines?.[0]?.author).toBe("Former member");
+  });
+
+  // Mitchell, on PR 537's round 3: how many it shows is the widget's setting,
+  // three unless chosen, and between one and ten.
+  describe("how many messages it shows", () => {
+    const chat = Array.from({ length: 12 }, (_, i) => said(i % 2 === 0 ? "dana" : "sam", `Message ${i + 1}`));
+    const shown = (params: Record<string, unknown>) => chatOf(ctx({ canChat: true, chat }), params).lines?.map((l) => l.body);
+
+    it("shows the number chosen in its settings", () => {
+      expect(shown({ count: "5" })).toEqual(["Message 8", "Message 9", "Message 10", "Message 11", "Message 12"]);
+    });
+
+    it("shows three when nothing is chosen, or what is stored is not a number", () => {
+      expect(shown({})).toEqual(["Message 10", "Message 11", "Message 12"]);
+      expect(shown({ count: "lots" })).toEqual(["Message 10", "Message 11", "Message 12"]);
+    });
+
+    it("holds a stored number outside one to ten at the nearer end", () => {
+      expect(shown({ count: 0 })).toEqual(["Message 12"]);
+      expect(shown({ count: "40" })).toHaveLength(10);
+    });
+
+    it("offers one to ten in its settings, three first chosen", () => {
+      const input = chatRecent.inputs.find((i) => i.name === "count");
+      expect(input).toMatchObject({ type: "choice", default: "3" });
+      expect(input?.type === "choice" && input.options.map((o) => o.value)).toEqual(["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]);
+    });
   });
 
   it("says nothing yet while the chat has not been read, and an empty list once it has", () => {

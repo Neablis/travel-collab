@@ -1132,6 +1132,21 @@ describe("AssistantRail — text handed in from ⌘K", () => {
     expect((screen.getByPlaceholderText(/ask about this day/i) as HTMLInputElement).value).toBe("Move dinner later.");
   });
 
+  // PR 537 review round 3: the sheet closes between the two taps, so the rail
+  // that takes the second chip is a new one, holding the first as its stored
+  // draft. A chip's question replaces whatever is in the box.
+  it("replaces the stored question when a chip prefills a reopened rail", async () => {
+    const first = renderRail({ rememberDraftAs: "page:p", incoming: { text: "We're running late.", prefill: true } });
+    first.unmount();
+    renderRail({ rememberDraftAs: "page:p", incoming: { text: "Move dinner later.", prefill: true } });
+    const box = screen.getByPlaceholderText(/ask about this day/i) as HTMLInputElement;
+    try {
+      await waitFor(() => expect(box.value).toBe("Move dinner later."));
+    } finally {
+      localStorage.clear();
+    }
+  });
+
   // PR 537 review round 2 (m4): a chip pressed beside an open docked rail left
   // focus on the chip, so a keyboard reader had to find the composer to finish.
   it("moves focus into an open rail's composer, at the end of the prefilled question", () => {

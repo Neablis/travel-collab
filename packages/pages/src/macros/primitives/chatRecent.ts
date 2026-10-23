@@ -5,19 +5,30 @@ import { blockOf } from "../../registry-types";
 import { ok, needsTrip, type MacroResult } from "../../result";
 import { personNames } from "./balances";
 
-// `chat.recent` — "Group chat" (M52 decision 15): the last three messages and
-// a way into the conversation. **A registered widget, not a primitive**, for
+// `chat.recent` — "Group chat" (M52 decision 15): the last few messages, as
+// many as its settings say, and a way into the conversation. **A registered widget, not a primitive**, for
 // `trip.people`'s reason: there is no entity to narrow.
 //
 // It is shown only to a reader who can see the chat (`requires`, decision 20),
 // and reads the messages the screen already holds (`WidgetContext.chat`). The
-// way in, *Open chat*, is the renderer's: it is a control, not data.
-
-const ChatRecentParams = z.object({});
-type ChatRecentParams = z.infer<typeof ChatRecentParams>;
+// way in, the whole widget opening the chat, is the renderer's: it is a
+// control, not data.
 
 /** The design's three: enough to tell what is being talked about, and no more. */
-const SHOWN = 3;
+export const CHAT_RECENT_DEFAULT = 3;
+/** The most a reader may choose (Mitchell, PR 537 round 3): past ten it is the chat itself. */
+const MOST = 10;
+
+// A `choice` stores its value as a string; a number is taken too, for a page
+// written by hand. Anything else, or nothing, is the default rather than a
+// broken widget, and a number outside one to ten is held at the nearer end.
+const ChatRecentParams = z.object({ count: z.union([z.string(), z.number()]).optional() });
+type ChatRecentParams = z.infer<typeof ChatRecentParams>;
+
+function countOf(stored: ChatRecentParams["count"]): number {
+  const n = Math.round(Number(stored));
+  return stored === undefined || stored === "" || !Number.isFinite(n) ? CHAT_RECENT_DEFAULT : Math.min(MOST, Math.max(1, n));
+}
 
 /** What the chat panel calls the assistant's replies. */
 const ASSISTANT = "Assistant";
@@ -32,19 +43,24 @@ export const chatRecent: MacroDef<ChatRecentParams, ChatRecentPayload> = {
   title: "Group chat",
   shape: "block",
   params: ChatRecentParams,
-  inputs: [],
+  inputs: [
+    {
+      name: "count", type: "choice", label: "Messages shown", default: String(CHAT_RECENT_DEFAULT),
+      options: Array.from({ length: MOST }, (_, i) => ({ value: String(i + 1), label: String(i + 1) })),
+    },
+  ],
   selection: undefined,
   requires: "canChat",
-  description: "The trip's group chat: its last three messages, and a way to open the conversation. Shown only to people who can see the chat.",
+  description: `The trip's group chat: its last messages (${CHAT_RECENT_DEFAULT} unless \`count\` says 1 to ${MOST}), and opening it opens the conversation. Shown only to people who can see the chat.`,
   emptyText: "no messages yet",
   // Fixed, never computed (ADR-037 decision 5): nobody's words.
-  preview: "the last three messages, and Open chat",
-  resolve: ({ trip, people, guests, chat }: WidgetContext, _params): MacroResult<ChatRecentPayload> => {
+  preview: "the last few messages, opening the chat",
+  resolve: ({ trip, people, guests, chat }: WidgetContext, params): MacroResult<ChatRecentPayload> => {
     if (!trip) return needsTrip();
     if (chat == null) return ok({ kind: "chat-recent", lines: null });
     // A removed message has no text (the contract gives it none), so it does
     // not take one of the places.
-    const shown = chat.filter((m): m is Extract<ChatMessage, { removed: false }> => !m.removed).slice(-SHOWN);
+    const shown = chat.filter((m): m is Extract<ChatMessage, { removed: false }> => !m.removed).slice(-countOf(params.count));
     // Members' ids only: the assistant's and the app's are no member's, and
     // `personNames` would count them as former members and number a real one.
     const authors = shown.filter((m) => m.kind === "member").map((m) => m.authorId);

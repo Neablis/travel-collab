@@ -811,16 +811,15 @@ export function AssistantRail({
   // dropping it on `onIncomingTaken` stops a remount doing the same.
   const handedIn = useRef<{ text: string } | null>(null);
   const keepHandedIn = (text: string) => setAsk((draft) => (draft.trim() === "" ? text : `${draft} ${text}`));
-  // A chip's question is chosen, not added: one still in the box as it was
-  // put there gives way to the next, and a draft the reader wrote is kept.
-  // Focus follows it into the composer, caret last, so the reader finishes the
-  // question there (decision 15). Not in a sheet, for the PR 442 reason above.
-  const prefilled = useRef<string | null>(null);
+  // A chip's question is chosen, not added: it replaces the box, whatever is
+  // there. That includes a rail mounted for it, whose box has just restored
+  // the stored draft, often the previous chip's question (PR 537 review round
+  // 3). Focus follows it into the composer, caret last, so the reader
+  // finishes the question there (decision 15). Not in a sheet, for the PR 442
+  // reason above.
   const [prefills, setPrefills] = useState(0);
   const prefill = (text: string) => {
-    if (ask === prefilled.current) setAsk(text);
-    else keepHandedIn(text);
-    prefilled.current = text;
+    setAsk(text);
     setPrefills((n) => n + 1);
   };
   useEffect(() => {

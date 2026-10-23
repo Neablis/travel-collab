@@ -19,6 +19,7 @@ import { PreferencesProvider } from "@/components/account/PreferencesProvider";
 import { PhoneAskTab } from "@/components/nav/PhoneTabBar";
 import { usePhoneAsk } from "@/components/nav/phoneAsk";
 import { useBoardFocus } from "@/components/chat/boardFocus";
+import { boardChatHref } from "@/components/chat/boardChatHref";
 import { type PaletteCommand, usePaletteCommands } from "@/components/palette/paletteRegistry";
 import { activityFactory, costedTripDetailFixture, historyFixture, locationFactory, pageFixture, tripCoverFactory, tripDetailFixture } from "@tc/factories";
 import { makeTripHandlers, makeAccountPlanHandler, makeChatHandlers, makeNearbyStopsHandler, makePagesHandlers } from "@/mocks/handlers";
@@ -1962,6 +1963,16 @@ describe("assistant rail visibility", () => {
       expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
       await screen.findByTestId("ask-pill");
       expect(screen.getAllByRole("button", { name: /^(Ask|Chat)\b/ }).map((b) => b.getAttribute("data-testid"))).toEqual(["ask-pill"]);
+    });
+
+    // Mitchell, PR 537 round 3: a notebook's *Group chat* opens the chat where
+    // it lives, so the board arrived at with `?chat=open` opens on Chat.
+    it("opens the panel on Chat when arrived at from a notebook's Group chat", async () => {
+      search = new URLSearchParams(boardChatHref("x").split("?")[1]);
+      const fixture = shared();
+      server.use(...makeChatHandlers({ viewerId: "dev-alice", messages: [said] }).handlers, ...makeTripHandlers(fixture));
+      renderWithTabBar(fixture.tripId);
+      expect(selected(await screen.findByRole("complementary", { name: "Assistant" }))).toEqual(["Chat"]);
     });
 
     it("opens on the tab last open, Chat with its composer focused, and Ask once Ask was chosen", async () => {

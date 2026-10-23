@@ -49,6 +49,7 @@ import { TripHeaderSkeleton } from "@/components/trip/TripHeaderSkeleton";
 import { useTripCover } from "@/components/trip/cover/useTripCover";
 import { useTripSeed } from "@/components/trip/context/tripSeed";
 import { usePhoneAskEntry, type AskHandOff } from "@/components/nav/phoneAsk";
+import { OPEN_CHAT_PARAM } from "@/components/chat/boardChatHref";
 import { AddSavedDayButton } from "@/components/trip/AddSavedDayButton";
 import { useBoardSuggestions } from "./SuggestionActions";
 import { SuggestionTray } from "./SuggestionTray";
@@ -713,6 +714,20 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
     setFocusedDay(index);
     setReveal({ dayId: activeTrip.days[index]!.dayId, activityId: linkedStop, from: view });
   }, [linkedStop, activeTrip, setFocusedDay, setView, view]);
+
+  /**
+   * **A notebook's *Group chat*** (M52, `boardChatHref`) arrives as
+   * `?chat=open`: the panel opens on Chat once the board renders, once per
+   * arrival, so closing it afterwards stays closed.
+   */
+  const linkedChat = searchParams.get(OPEN_CHAT_PARAM) !== null;
+  const appliedChatLink = useRef(false);
+  useEffect(() => {
+    if (!linkedChat || !boardRenders || isDemoTripId(tripId) || appliedChatLink.current) return;
+    appliedChatLink.current = true;
+    openChat();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once the board renders; `openChat` is this render's
+  }, [linkedChat, boardRenders]);
 
   // A demo board (`/demo/<slug>`, ADR-031) runs everything on this screen except
   // the assistant. Not because it would look wrong — because it would not
