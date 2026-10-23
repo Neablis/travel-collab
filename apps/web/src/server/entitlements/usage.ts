@@ -98,6 +98,7 @@ export async function recordTurnLedger(ledger: TurnLedger, now: Date = new Date(
         steps: cost.steps,
         planVersionRef: cost.planVersionRef,
         latencyMs: cost.latencyMs,
+        planExamples: cost.planExamples,
         createdAt: now,
       })
       .onConflictDoNothing({ target: aiUsage.id });

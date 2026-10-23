@@ -47,6 +47,7 @@ function turn(
       planVersionRef: "plus@v1",
       turnId: null,
       latencyMs: 2400,
+      planExamples: null,
     },
     capacity: [],
     toolCalls: (options.tools ?? []).map((name, index) => ({

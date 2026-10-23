@@ -326,6 +326,10 @@ should. The flag is off.
       *(2026-10-17: this is not built. The example count reaches only the `rag: plan examples`
       and `rag: plan examples used` log lines (`handleAskRequest.ts:710-716` and `:896-899`). It
       does not reach the M31 ledger tables.)*
+      *(2026-10-23: built. `ai_usage.plan_examples` (migration 0066) holds the example days in each
+      plan turn's prompt, null when retrieval did not run; the `ai-usage` skill's query 12 reads it
+      beside tokens and steps. Still open: it needs flag-on plan turns, and production had none
+      between 2026-10-17 and 2026-10-23.)*
 - [x] **[walk]** On the PR preview with the flag on, ask *"plan a 6 day food trip to Tokyo"*,
       and the suggestions it writes are a plan Mitchell would accept.
       *(Ticked on Mitchell's word, 2026-10-17: "We did walk it, and we shipped a few improvements

@@ -60,6 +60,7 @@ function usage(userId: string): TurnLedger {
       planVersionRef: "plus@v1",
       turnId: null,
       latencyMs: null,
+      planExamples: null,
     },
     capacity: [],
     toolCalls: [],
