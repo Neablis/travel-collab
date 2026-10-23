@@ -1,5 +1,6 @@
 import type { z } from "zod";
 import type { AvatarKey, FilterDimension, Guest, ManifestObject, PersonColor, TripDetail, PageContext, TripGlobals, UserPreferences, ValueKind, WidgetShape } from "@tc/contracts";
+import type { ActivityMode, Location } from "@tc/contracts";
 import type { WidgetEntity } from "./filters";
 import type { MacroResult, UnboundNeeds } from "./result";
 import type { ExternalInputs, ExternalNeed } from "./external";
@@ -112,6 +113,33 @@ export interface TripStripPayload { kind: "trip-strip"; runs: TripStripRun[]; su
 // chip (`PersonChip`), as it turns a city name into a colour.
 export interface TripPeoplePerson { name: string; avatar: AvatarKey | null; color: PersonColor | null; }
 export interface TripPeoplePayload { kind: "trip-people"; stack: TripPeoplePerson[]; sentence: string; }
+// The day-of widgets (M52 decision 15). A stop carries its place and the leg
+// leading in, and `apps/web` turns them into a link (`directionsUrl`): the URL
+// is the app's, as a colour is. Instants are ms since the epoch, so the block
+// can count down, and re-pick *now* and *next*, on the page's minute clock.
+export interface NowStop {
+  activityId: string; title: string; start: number; end: number;
+  /** Its window, in the reader's clock. */
+  time: string;
+  place: Location | null;
+  /** The leg leading in, when a transit stop does (`directionsUrl`'s `mode`). */
+  mode: ActivityMode | null;
+}
+export interface TripNowPayload { kind: "trip-now"; stops: NowStop[]; }
+export interface StopDirectionsPayload {
+  kind: "stop-directions"; activityId: string; title: string; time: string | null; place: Location; mode: ActivityMode | null;
+}
+export interface FlightLine {
+  activityId: string; title: string; flightNumber: string | null;
+  /** Each end's city, or its place's name. */
+  from: string | null; to: string | null;
+  /** When it leaves, as typed. No arrival: a stop's window ends the day it starts. */
+  departs: string | null;
+  /** When it leaves, for the countdown; `null` untimed. */
+  startsAt: number | null;
+}
+/** `none` is a trip with no flight at all, and `dayId` the day *Add your flight* opens the editor on. */
+export interface TripFlightsPayload { kind: "trip-flights"; heading: "today" | "next" | "none"; flights: FlightLine[]; dayId: string | null; }
 
 // A DISCRIMINATED union, and the `kind` tags are the whole reason `MacroView`
 // no longer switches on a widget's name.
@@ -141,7 +169,8 @@ export type BlockPayload =
   | SunPayload
   | LinkCardPayload
   | MissingNotebookPayload
-  | ItineraryPayload;
+  | ItineraryPayload
+  | TripNowPayload | StopDirectionsPayload | TripFlightsPayload;
 
 // What a REPEAT widget resolves to: one entry per item, each a lead phrase and
 // the resolved values that follow it. Kept apart from `BlockPayload` on purpose

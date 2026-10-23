@@ -36,7 +36,8 @@ export function localTodayIso(now: Date = new Date()): string {
  * A `useState` initialiser rather than a value computed on each render: two
  * widgets on one page must not be able to straddle midnight and disagree about
  * what day it is. The cost is that a tab left open overnight counts down from
- * yesterday, which is the right trade for a page nobody watches for hours.
+ * yesterday; a notebook page, which is left open all day, reads its day off
+ * its minute clock instead (`usePageToday`).
  */
 export function useToday(): string {
   const [today] = useState(() => localTodayIso());

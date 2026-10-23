@@ -3,14 +3,13 @@ import { useContext, useMemo } from "react";
 import type { TripDetail, PageContext, TripGlobals, UserPreferences } from "@tc/contracts";
 import { renderMacro, getMacro, UNBOUND_GHOSTS, type ExternalInputs, type ExternalNeed } from "@tc/pages";
 import { cn } from "@/lib/cn";
-import { useToday } from "@/lib/today";
 import { usePeople, usePersonas, useGuests } from "./people";
 import { cityAccents } from "./cityAccents";
 import { Segs } from "./WidgetSegs";
 import { EmptyChip } from "./EmptyChip";
 import { BlockView } from "./BlockView";
 import { LinkCardPending } from "./blocks/LinkCardBlock";
-import { MacroEditorContext } from "./editor/MacroEditorContext";
+import { MacroEditorContext, usePageToday } from "./editor/MacroEditorContext";
 
 // Renders one widget instance. **It no longer knows any widget's name.**
 //
@@ -54,8 +53,8 @@ export function MacroView({ detail, context, user = null, globals = null, extern
   // The reader's own calendar day, for the one widget that reads the trip
   // against it (`attribute{field: "trip.countdown"}`). Every other resolver
   // ignores it — see `WidgetContext.today` for why it is passed rather than
-  // read inside the package.
-  const today = useToday();
+  // read inside the package. Off the page's clock, so it agrees with `now`.
+  const today = usePageToday();
   // Member names, for the widgets that say who (`WidgetContext.people`).
   // `null` outside a `PeopleProvider` — the widget then says "Traveler 2".
   const people = usePeople();
@@ -66,7 +65,7 @@ export function MacroView({ detail, context, user = null, globals = null, extern
   // `null` until the provider's read lands; absent is fine, the widget then
   // falls back the way it does for an unnamed non-member.
   const guests = useGuests();
-  // The page's clock, for its `dateScope`: the editor reads it once per page.
+  // The page's minute clock, for its `dateScope`.
   // Outside an editor (the invite card) there is none, and nothing is scoped.
   const now = useContext(MacroEditorContext)?.now ?? null;
   const outcome = renderMacro({ trip: detail, page: context, user, globals, today, now, external, people, personas, guests }, name, params);
