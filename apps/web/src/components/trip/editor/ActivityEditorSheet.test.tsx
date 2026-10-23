@@ -796,6 +796,23 @@ describe("ActivityEditorSheet — a viewer gets no form", () => {
     expect(screen.queryByText("Flight ICE 578")).toBeNull();
   });
 
+  it("names a mode-less leg's number plainly, not as a flight", async () => {
+    asViewer();
+    const trip = fixture();
+    trip.activities[SCHEDULED_ACTIVITY_ID] = activityFactory.build({
+      activityId: SCHEDULED_ACTIVITY_ID,
+      title: "To Lisbon",
+      kind: "transit",
+      mode: null,
+      flightNumber: "TP 1234",
+    });
+    vi.mocked(fetchTripDetail).mockResolvedValue({ ok: true, value: trip });
+    renderEditorSheet({ mode: "edit", activityId: SCHEDULED_ACTIVITY_ID });
+
+    expect(await screen.findByText("To Lisbon")).toBeTruthy();
+    expect(screen.getByText("Number TP 1234")).toBeTruthy();
+  });
+
   it("gives an owner the editable form at the same call site", async () => {
     renderEditorSheet({ mode: "edit", activityId: SCHEDULED_ACTIVITY_ID });
 
