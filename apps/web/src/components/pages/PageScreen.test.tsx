@@ -2944,6 +2944,83 @@ describe("PageScreen: the trip's access moving under an open page", () => {
     await expect(screen.findByRole("button", { name: /^(Edit page|Done editing)$/ }, { timeout: 500 })).rejects.toThrow();
   });
 
+  // Round 15, finding 2: Overview's Edit opens Editing once. Someone who has
+  // since pressed Done editing stays in Reading when a join or a leave
+  // re-reads the role and it is still editor.
+  it("keeps Overview's Edit in Reading after Done editing when a re-read answers editor", async () => {
+    let rev = "r1";
+    let reads = 0;
+    server.use(
+      http.get("/api/trips/:tripId/events", () => HttpResponse.json({ headSeq: 0, events: [], resync: false, accessRev: rev })),
+      http.get("/api/trips/:tripId/access", ({ params }) => {
+        reads++;
+        return HttpResponse.json(accessBody(params.tripId, "editor", pair, rev));
+      }),
+    );
+    const trip = tripDetailFixture({ tripId: crypto.randomUUID(), members: pair });
+    const page = pageFixture({ tripId: trip.tripId, title: "Packing" });
+    server.use(...makePagesHandlers([page]), http.get("/api/trips/:tripId", () => HttpResponse.json({ trip })));
+    render(<PageScreen tripId={trip.tripId} pageId={page.id} from="overview" />);
+    await userEvent.click(await screen.findByRole("button", { name: "Done editing" }));
+    await pollUntil(() => expect(screen.getByRole("button", { name: "Edit page" })).toBeTruthy());
+
+    rev = "r2";
+    await pollUntil(() => expect(reads).toBe(2));
+    await expect(screen.findByRole("button", { name: "Done editing" }, { timeout: 500 })).rejects.toThrow();
+    expect(screen.getByRole("button", { name: "Edit page" })).toBeTruthy();
+  });
+
+  // Round 15, finding 1: words typed while the refused save was on the wire
+  // are kept and offered with it, not dropped by `superseded`.
+  it("keeps what a demoted editor typed while their refused save was in flight", async () => {
+    let rev = "r1";
+    let role: Member["role"] = "editor";
+    const patches: string[] = [];
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => (release = resolve));
+    let refuse = true;
+    server.use(
+      http.get("/api/trips/:tripId/events", () => HttpResponse.json({ headSeq: 0, events: [], resync: false, accessRev: rev })),
+      http.get("/api/trips/:tripId/access", ({ params }) =>
+        HttpResponse.json(accessBody(params.tripId, role, [{ userId: "u1", role }, pair[1]!], rev)),
+      ),
+    );
+    const page = notebook(pair);
+    server.use(
+      http.patch("/api/trips/:tripId/pages/:pageId", async ({ request }) => {
+        patches.push(JSON.stringify(await request.json()));
+        if (!refuse) return HttpResponse.json({ page: { ...page, updatedAt: page.updatedAt } });
+        await held;
+        return HttpResponse.json({ error: "forbidden" }, { status: 403 });
+      }),
+    );
+    await userEvent.click(await screen.findByRole("button", { name: "Edit page" }));
+    const box = screen.queryAllByRole("textbox").find((el) => el.getAttribute("contenteditable") === "true")!;
+    const idleTimers = vi.spyOn(globalThis, "setTimeout");
+    await userEvent.type(box, "Q");
+    await pollUntil(() => expect(screen.getByRole("button", { name: "Done editing" })).toBeTruthy());
+    // The idle commit, sent now rather than a minute from now.
+    const idle = idleTimers.mock.calls.filter(([, ms]) => ms === EDIT_SESSION_IDLE_MS).at(-1)![0] as () => void;
+    act(() => idle());
+    await waitFor(() => expect(patches).toHaveLength(1));
+    await userEvent.type(box, "wombat");
+
+    role = "viewer";
+    rev = "r2";
+    await pollUntil(() => expect(screen.queryByRole("button", { name: "Done editing" })).toBeNull());
+    release();
+    expect(await screen.findByText(/You can no longer edit this page/)).toBeTruthy();
+    expect(localStorage.getItem(`page_draft:${page.id}`) ?? "").toContain("wombat");
+
+    refuse = false;
+    role = "editor";
+    rev = "r3";
+    const sent = patches.length;
+    await pollUntil(() => expect(screen.getByRole("button", { name: "Restore mine" })).toBeTruthy());
+    await userEvent.click(screen.getByRole("button", { name: "Restore mine" }));
+    await waitFor(() => expect(patches.slice(sent).some((p) => p.includes("wombat"))).toBe(true));
+  });
+
   // Finding 3: the timed poll runs where a join can come — a second member, or
   // an invite out on a solo trip — and nowhere else, as on the board.
   describe("the timed poll", () => {

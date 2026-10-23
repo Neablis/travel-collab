@@ -726,12 +726,18 @@ export function PageScreen({
           return next === "rebased" ? (attempt < 3 ? send(attempt + 1) : false) : next;
         }
         if (!result.ok) {
-          rememberPageDraft(pageId, draft);
+          if (editRoleRef.current !== "reader") {
+            rememberPageDraft(pageId, draft);
+            return false;
+          }
           // Refused to someone who is now a viewer: no retry can land, so the
           // session stops here and the draft waits, offered if the role comes
-          // back (round 14). Kept in the browser above either way.
-          if (editRoleRef.current !== "reader") return false;
-          setOfferedDraft({ ...draft, demoted: true });
+          // back (round 14). Read now, as `pageChanged` does: anything typed
+          // while this was in flight is pending behind it, and `superseded`
+          // drops it from the session (round 15).
+          const mine: PageDraft = { base: draft.base, doc: latestDocRef.current ?? draft.doc };
+          rememberPageDraft(pageId, mine);
+          setOfferedDraft({ ...mine, demoted: true });
           return "superseded";
         }
         baseRef.current = result.value.updatedAt;
