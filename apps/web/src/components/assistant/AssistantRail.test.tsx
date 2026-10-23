@@ -1124,6 +1124,35 @@ describe("AssistantRail — text handed in from ⌘K", () => {
     expect((screen.getByPlaceholderText(/ask about this day/i) as HTMLInputElement).value).toBe("We're running late.");
   });
 
+  // PR 537 review round 2 (m3): a reader who taps *Running late*, then *Move
+  // dinner later*, has chosen the second question, not asked both in one turn.
+  it("replaces a prefilled question with the next one", () => {
+    const { rerender } = renderRail({ incoming: { text: "We're running late.", prefill: true } });
+    rerender(<AssistantRail {...baseProps} incoming={{ text: "Move dinner later.", prefill: true }} />);
+    expect((screen.getByPlaceholderText(/ask about this day/i) as HTMLInputElement).value).toBe("Move dinner later.");
+  });
+
+  // PR 537 review round 2 (m4): a chip pressed beside an open docked rail left
+  // focus on the chip, so a keyboard reader had to find the composer to finish.
+  it("moves focus into an open rail's composer, at the end of the prefilled question", () => {
+    const { rerender } = render(
+      <>
+        <button type="button">Running late</button>
+        <AssistantRail {...baseProps} />
+      </>,
+    );
+    screen.getByRole("button", { name: "Running late" }).focus();
+    rerender(
+      <>
+        <button type="button">Running late</button>
+        <AssistantRail {...baseProps} incoming={{ text: "We're running late.", prefill: true }} />
+      </>,
+    );
+    const box = screen.getByPlaceholderText(/ask about this day/i) as HTMLInputElement;
+    expect(box.matches(":focus")).toBe(true);
+    expect(box.selectionStart).toBe(box.value.length);
+  });
+
   it("leaves it waiting in the composer while a turn is answering", () => {
     const onAsk = vi.fn();
     renderRail({ onAsk, asking: true, incoming: { text: "and where next?" } });

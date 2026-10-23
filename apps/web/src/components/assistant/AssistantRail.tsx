@@ -811,6 +811,25 @@ export function AssistantRail({
   // dropping it on `onIncomingTaken` stops a remount doing the same.
   const handedIn = useRef<{ text: string } | null>(null);
   const keepHandedIn = (text: string) => setAsk((draft) => (draft.trim() === "" ? text : `${draft} ${text}`));
+  // A chip's question is chosen, not added: one still in the box as it was
+  // put there gives way to the next, and a draft the reader wrote is kept.
+  // Focus follows it into the composer, caret last, so the reader finishes the
+  // question there (decision 15). Not in a sheet, for the PR 442 reason above.
+  const prefilled = useRef<string | null>(null);
+  const [prefills, setPrefills] = useState(0);
+  const prefill = (text: string) => {
+    if (ask === prefilled.current) setAsk(text);
+    else keepHandedIn(text);
+    prefilled.current = text;
+    setPrefills((n) => n + 1);
+  };
+  useEffect(() => {
+    const box = composerRef.current;
+    if (prefills === 0 || isSheet || box === null) return;
+    box.focus();
+    box.setSelectionRange(box.value.length, box.value.length);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- on a prefill only; the presentation is this render's
+  }, [prefills]);
   const sendHandedIn = async (text: string) => {
     if (asking || threadFull || upgradeGated) {
       keepHandedIn(text);
@@ -818,12 +837,12 @@ export function AssistantRail({
     }
     if ((await onAsk(text)) === false) keepHandedIn(text);
   };
-  const sendHandedInLatest = useRef({ send: sendHandedIn, keep: keepHandedIn, taken: onIncomingTaken });
-  sendHandedInLatest.current = { send: sendHandedIn, keep: keepHandedIn, taken: onIncomingTaken };
+  const sendHandedInLatest = useRef({ send: sendHandedIn, prefill, taken: onIncomingTaken });
+  sendHandedInLatest.current = { send: sendHandedIn, prefill, taken: onIncomingTaken };
   useEffect(() => {
     if (incoming === null || incoming === handedIn.current) return;
     handedIn.current = incoming;
-    if (incoming.prefill) sendHandedInLatest.current.keep(incoming.text);
+    if (incoming.prefill) sendHandedInLatest.current.prefill(incoming.text);
     else void sendHandedInLatest.current.send(incoming.text);
     sendHandedInLatest.current.taken?.();
   }, [incoming]);

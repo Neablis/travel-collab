@@ -413,7 +413,7 @@ describe("MacroView", () => {
 describe("a widget for readers who are not this one", () => {
   it("is named, with who it is for, while editing", () => {
     render(<MacroView detail={baseDetail} context={ctx} name="chat.recent" params={{}} editing />);
-    expect(screen.getByText(/^Group chat/).textContent).toMatch(/chat/i);
+    expect(screen.getByText(/^Group chat/).textContent).toMatch(/can see the trip's chat/);
     cleanup();
     render(<MacroView detail={baseDetail} context={ctx} name="assistant.prompts" params={{}} editing />);
     expect(screen.getByText(/^Ask/).textContent).toMatch(/assistant/i);

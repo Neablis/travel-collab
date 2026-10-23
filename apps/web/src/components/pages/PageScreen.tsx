@@ -1,12 +1,12 @@
 "use client";
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { PAGE_CHANGED_CODE, type Page, type PageDoc, type ResetPageResult, type TripDetail, type TripGlobals } from "@tc/contracts";
+import { PAGE_CHANGED_CODE, type Page, type PageDoc, type ResetPageResult, type TripDetail, type TripGlobals, type TripMemberProfile } from "@tc/contracts";
 import { fetchPage, restorePageVersion, updatePage } from "@/lib/pagesClient";
 import { fetchTripAccess, fetchTripDetail, fetchTripGlobals, fetchTripHistory } from "@/lib/apiClient";
 import { cachedRead, DEDUPE, invalidate } from "@/lib/queryCache";
 import { tripKeys } from "@/lib/queryKeys";
-import { PeopleProvider } from "./people";
+import { PeopleProvider, personasOf } from "./people";
 import { headSeqOf, useTripBroadcast } from "@/components/trip/context/broadcast";
 import { usePreferences } from "@/components/account/PreferencesProvider";
 import { PageContainer } from "@/components/ui/page-container";
@@ -31,7 +31,11 @@ import {
   toStoredPageDoc,
   type StoredPageDoc,
 } from "@/components/pages/editor/storedPageDoc";
-import { AssistantRail } from "@/components/assistant/AssistantRail";
+import { AssistantRail, type RailTab } from "@/components/assistant/AssistantRail";
+import { readLastRailTab, rememberRailTab } from "@/components/assistant/lastTab";
+import { ChatPanel } from "@/components/chat/ChatPanel";
+import { useTripChat } from "@/components/chat/useTripChat";
+import { isDemoTripId } from "@/lib/demoTrip";
 import { AssistantBubble } from "@/components/assistant/AssistantBubble";
 import { usePhoneAskEntry, type AskHandOff } from "@/components/nav/phoneAsk";
 import { phoneAskContext } from "@/components/assistant/phoneAskContext";
@@ -331,6 +335,8 @@ export function PageScreen({
   // - `writer`: owner or editor.
   const [editing, setEditing] = useState(false);
   const [editRole, setEditRole] = useState<"pending" | "reader" | "unknown" | "writer">("pending");
+  // The same read's members, for whether there is a chat and whose its lines are.
+  const [members, setMembers] = useState<readonly TripMemberProfile[] | null>(null);
   useEffect(() => {
     let cancelled = false;
     setEditRole("pending");
@@ -338,6 +344,7 @@ export function PageScreen({
       if (cancelled) return;
       const role = !access.ok ? "unknown" : canEditNotebook(access.value.myRole) ? "writer" : "reader";
       setEditRole(role);
+      setMembers(access.ok ? access.value.members : null);
       if (role === "reader") setEditing(false);
       if (role === "writer" && from === "overview") setEditing(true);
     });
@@ -580,6 +587,8 @@ export function PageScreen({
   // through `MacroEditorContext`, so new detail is all a chip needs, in Reading
   // and in Editing alike.
   const refreshes = useRef(0);
+  const [chatRev, setChatRev] = useState<string | null>(null);
+  const [accessLost, setAccessLost] = useState(false);
   const refreshTrip = useCallback(
     (head: number) => {
       // Latest wins. Two polls' refetches can land out of order, and the older
@@ -608,6 +617,8 @@ export function PageScreen({
     interval: (trip?.members.length ?? 0) > 1,
     cursor: () => headSeq.current,
     onChanged: refreshTrip,
+    onChatChanged: setChatRev,
+    onRefused: () => setAccessLost(true),
   });
 
   // **One write per editing session**, not one per pause (ADR-036, M14 link 9):
@@ -962,6 +973,33 @@ export function PageScreen({
     for (const queued of pendingInserts.current.splice(0)) landInserts(queued);
   }, [editing, editor, pendingCount]);
   const [assistantOpen, setAssistantOpen] = useState(false);
+  // **The board's *Chat · Ask* tabs, on this rail too** (Mitchell's option A
+  // on PR 537), so a notebook's *Group chat* has messages to show and a chat to
+  // open. The same tab state, opener and remembered tab as `TripBoardScreen`,
+  // with one difference: a reader with no chat to see gets no Chat tab at all
+  // here, where the board keeps an empty one (decision 15, SPEC §27).
+  const [railTab, setRailTab] = useState<RailTab>("ask");
+  const chooseTab = (tab: RailTab) => {
+    setRailTab(tab);
+    rememberRailTab(tab);
+  };
+  const openAsk = () => {
+    chooseTab("ask");
+    setAssistantOpen(true);
+  };
+  const openChat = () => {
+    chooseTab("chat");
+    setAssistantOpen(true);
+  };
+  // Not read at all on a trip with one member: there is nobody to chat with.
+  const shared = !isDemoTripId(tripId) && (members?.length ?? 0) > 1;
+  const chat = useTripChat({ tripId, enabled: status === "ready" && shared, chatRev, reading: assistantOpen && railTab === "chat", accessLost });
+  const hasChat = shared && chat.status !== "no-access";
+  const openLastTab = () => {
+    setRailTab(hasChat ? readLastRailTab() : "ask");
+    setAssistantOpen(true);
+  };
+  const personas = useMemo(() => (members === null ? null : personasOf(members)), [members]);
   // The server's refusal for the LAST page turn, or null. Separate from
   // `ask.askError` (which is the transport's) and merged with it at the rail,
   // because only one of the two can be true of any given turn.
@@ -993,13 +1031,17 @@ export function PageScreen({
       page !== null &&
       trip !== null &&
       stored?.status === "mountable"
-      ? () => setAssistantOpen(true)
+      ? openAsk
       : undefined,
     assistantOpen,
     (text, how) => {
-      setAssistantOpen(true);
+      openAsk();
       setHandOff({ text, ...how });
     },
+    openLastTab,
+    hasChat ? chat.unread : undefined,
+    assistantOpen && railTab === "chat",
+    hasChat ? { onOpen: openChat, messages: chat.status === "ready" ? chat.messages : null } : undefined,
   );
   // **Leaving Editing no longer hangs up, and that is a reversal.** It did,
   // because the assistant was an editing-only control and leaving Editing was
@@ -1658,7 +1700,7 @@ export function PageScreen({
           `useAskThread`'s, which lives on this screen: closing hangs up on the
           turn (`closeAssistant`) and the conversation survives being put away. */}
       {!isPhone && !assistantOpen ? (
-        <AssistantBubble open={assistantOpen} onOpen={() => setAssistantOpen(true)} />
+        <AssistantBubble open={assistantOpen} onOpen={openLastTab} />
       ) : null}
       {assistantOpen ? (
         <AssistantRail
@@ -1734,6 +1776,17 @@ export function PageScreen({
           asking={ask.asking}
           askError={ask.askError ?? turnRefusal}
           simulated={ask.simulated}
+          chat={
+            hasChat
+              ? {
+                  tab: railTab,
+                  onTabChange: chooseTab,
+                  panel: <ChatPanel chat={chat} personas={personas} touch={isPhone} />,
+                  unread: chat.unread,
+                  ready: chat.status === "ready",
+                }
+              : undefined
+          }
           onHide={closeAssistant}
         />
       ) : null}

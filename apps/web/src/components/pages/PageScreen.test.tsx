@@ -5,10 +5,10 @@ import { setupServer } from "msw/node";
 import { http, HttpResponse } from "msw";
 import { PageScreen } from "./PageScreen";
 import { PhoneAskTab } from "@/components/nav/PhoneTabBar";
-import { CURRENT_PAGE_DOC_VERSION, SYSTEM_ACTOR_ID, type Page } from "@tc/contracts";
+import { ChatMessage, CURRENT_PAGE_DOC_VERSION, newPageDoc, SYSTEM_ACTOR_ID, type MacroNode, type Page } from "@tc/contracts";
 import { pageFixture as sharedPageFixture, tripDetailFixture } from "@tc/factories";
-import { presetCatalog } from "@tc/pages";
-import { makePagesHandlers, makeAccountPlanHandler, makeWeatherHandler } from "@/mocks/handlers";
+import { insertWidget, presetCatalog } from "@tc/pages";
+import { makeChatHandlers, makePagesHandlers, makeAccountPlanHandler, makeWeatherHandler } from "@/mocks/handlers";
 import { PreferencesProvider } from "@/components/account/PreferencesProvider";
 import { SaveLightMark, SaveLightProvider } from "@/components/SaveLight";
 import { everyWidget, everyWidgetPage, rawSyntaxLeaks } from "@/test-support/rawSyntax";
@@ -457,8 +457,8 @@ describe("PageScreen: no macro syntax on the screen", () => {
       // eslint-disable-next-line testing-library/no-node-access -- the witness is "every widget node view mounted"; no role or label names a node view.
       const views = document.body.querySelectorAll(".tc-page-editor [data-macro-name]");
       expect(views.length).toBeGreaterThanOrEqual(widgetCount);
-      // "Group chat" is absent in Reading here (M52 decision 20): this
-      // screen offers no chat. Every other widget draws something. Editing
+      // "Group chat" is absent in Reading here (M52 decision 20): the trip
+      // has one member, so there is no chat. Every other widget draws something. Editing
       // names it instead (`MacroView.test.tsx`, "a widget for readers who are
       // not this one").
       for (const view of views) {
@@ -2363,5 +2363,67 @@ describe("PageScreen — Undo reset", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Done editing" }));
     expect(await screen.findByRole("button", { name: "Undo reset" })).toBeTruthy();
+  });
+});
+
+// M52, Mitchell's option A on PR 537: the notebook page's rail takes the
+// board's *Chat · Ask* tabs, so a notebook's *Group chat* has a chat to show
+// and to open. A reader who cannot see the chat gets neither (decision 15,
+// SPEC §27: nothing renders disabled).
+describe("PageScreen: the trip's chat beside Ask", () => {
+  const said = ChatMessage.parse({
+    messageId: "6e9a2c9e-0000-4b6e-9d3f-2b1a5c8d7e61",
+    authorId: "u-bea",
+    createdAt: "2026-10-13T10:00:00.000Z",
+    editedAt: null,
+    removed: false,
+    body: "Train at nine?",
+  });
+  function chatNotebook(members: { userId: string; role: "owner" | "viewer" }[]) {
+    const trip = tripDetailFixture({ members });
+    const widget = insertWidget("chat.recent");
+    if (!widget.ok) throw new Error("could not build Group chat");
+    const page = pageFixture({ tripId: trip.tripId, content: newPageDoc([{ type: "paragraph", content: [widget.node as MacroNode] }]) });
+    server.use(
+      ...makePagesHandlers([page]),
+      http.get("/api/trips/:tripId", () => HttpResponse.json({ trip })),
+      http.get("/api/trips/:tripId/access", ({ params }) =>
+        HttpResponse.json({
+          access: {
+            tripId: params.tripId,
+            myRole: "owner",
+            members: members.map((m) => ({ ...m, name: null, email: null, image: null })),
+            invites: [],
+            guests: [],
+            collaboratorsEntitled: true,
+          },
+        }),
+      ),
+    );
+    render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
+  }
+  const selected = (panel: HTMLElement) =>
+    within(panel)
+      .getAllByRole("tab")
+      .filter((tab) => tab.getAttribute("aria-selected") === "true")
+      .map((tab) => tab.textContent);
+
+  it("shows a chat member the chat's messages, and Open chat opens the panel on Chat", async () => {
+    server.use(...makeChatHandlers({ viewerId: "u1", messages: [said] }).handlers);
+    chatNotebook([{ userId: "u1", role: "owner" }, { userId: "u-bea", role: "viewer" }]);
+
+    const widget = await screen.findByRole("group", { name: "Group chat" });
+    await waitFor(() => expect(within(widget).getAllByRole("listitem").map((line) => line.textContent)).toEqual([expect.stringContaining("Train at nine?")]));
+    await userEvent.click(within(widget).getByRole("button", { name: "Open chat" }));
+    expect(selected(await screen.findByRole("complementary", { name: "Assistant" }))).toEqual(["Chat"]);
+  });
+
+  it("gives a reader alone on the trip no Chat tab and no Group chat", async () => {
+    chatNotebook([{ userId: "u1", role: "owner" }]);
+
+    await userEvent.click(await screen.findByTestId("assistant-launcher"));
+    const panel = await screen.findByRole("complementary", { name: "Assistant" });
+    expect(within(panel).queryByRole("tab", { name: /^Chat/ })).toBeNull();
+    expect(screen.queryByRole("group", { name: "Group chat" })).toBeNull();
   });
 });
