@@ -48,6 +48,7 @@ import { insertPlaybookDayTool } from "./tools/insertPlaybookDay";
 import { ACROSS_TRIP_TOOLS } from "./tools/acrossTrips";
 import { NAVIGATION_TOOLS } from "./tools/navigate";
 import { PLAYBOOK_TOOLS } from "./tools/playbook";
+import { CHAT_TOOLS } from "./tools/chat";
 
 // **Derived from the two runtime lists, not written out.** This was a
 // hand-typed array of seven strings, which is the manifest shape ADR-043
@@ -76,6 +77,7 @@ const TURN_DEPS = {
   paletteCommands: newPaletteCommandBuffer(),
   playbookPage: newPlaybookPageReads({ kind: "discover", search: { cities: [], countries: [], scope: "everyone", sort: "most-added", budget: "any", length: "any", rating: "any", tag: "any", after: null } }, { day: async () => null, list: async () => [] }),
   playbookProposal: newPlaybookProposalBuffer(),
+  chatLog: { recent: async () => [] },
 };
 
 /** The widget names `insert_widget`'s schema will accept, read off the schema. */
@@ -93,6 +95,7 @@ describe("the registry", () => {
     expect(names.sort()).toEqual(
       [
         ...READ_TOOLS.map((t) => t.name),
+        ...CHAT_TOOLS.map((t) => t.name),
         ...ACROSS_TRIP_TOOLS.map((t) => t.name),
         ...PLAYBOOK_TOOLS.map((t) => t.name),
         ...PLACE_TOOLS.map((t) => t.name),

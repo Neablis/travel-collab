@@ -102,6 +102,9 @@ export const EFFECT_LEVEL: Readonly<Record<ToolEffect, EffectLevel>> = {
  */
 export type ToolSpend = "none" | "vendor";
 
+/** Where a turn was asked: the Ask tab or a page's rail, or the trip chat's `@assistant` (M52). */
+export type TurnOrigin = "ask" | "chat";
+
 export interface ToolSpec<
   Input extends z.ZodTypeAny,
   Output extends z.ZodTypeAny,
@@ -208,6 +211,15 @@ export interface ToolSpec<
    * off it, and this tag cannot put anything back.
    */
   onReadOnlyTurns?: false;
+  /**
+   * **Where the turn was started, when that is the tool's one condition** (M52
+   * decision 18): `read_chat` is offered only on a turn an `@assistant` in the
+   * trip chat started, and `go_to` only on an Ask turn, whose rail can move the
+   * page. Omitted means every origin. `toolsFor` reads an absent origin as
+   * `ask`: a caller that does not know where the turn came from is not one the
+   * chat started.
+   */
+  origins?: readonly TurnOrigin[];
   /**
    * Input properties the MODEL is not shown, as dot paths (`"location.lat"`).
    * They stay in `input` and are still accepted and validated when sent; the
