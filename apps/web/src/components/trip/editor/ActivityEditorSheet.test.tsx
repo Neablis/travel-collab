@@ -777,6 +777,25 @@ describe("ActivityEditorSheet — a viewer gets no form", () => {
     expect(screen.getByText("Flight TP 1234")).toBeTruthy();
   });
 
+  // The contract lets any leg carry a number; a train's is not a flight's.
+  it("names a non-flight leg's number by its mode, not as a flight", async () => {
+    asViewer();
+    const trip = fixture();
+    trip.activities[SCHEDULED_ACTIVITY_ID] = activityFactory.build({
+      activityId: SCHEDULED_ACTIVITY_ID,
+      title: "To Berlin",
+      kind: "transit",
+      mode: "train",
+      flightNumber: "ICE 578",
+    });
+    vi.mocked(fetchTripDetail).mockResolvedValue({ ok: true, value: trip });
+    renderEditorSheet({ mode: "edit", activityId: SCHEDULED_ACTIVITY_ID });
+
+    expect(await screen.findByText("To Berlin")).toBeTruthy();
+    expect(screen.getByText("Train ICE 578")).toBeTruthy();
+    expect(screen.queryByText("Flight ICE 578")).toBeNull();
+  });
+
   it("gives an owner the editable form at the same call site", async () => {
     renderEditorSheet({ mode: "edit", activityId: SCHEDULED_ACTIVITY_ID });
 

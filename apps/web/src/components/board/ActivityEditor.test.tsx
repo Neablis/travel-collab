@@ -251,6 +251,17 @@ describe("ActivityEditor travel leg", () => {
     expect(onSave).toHaveBeenLastCalledWith(expect.objectContaining({ mode: null, flightNumber: "TP 1234" }));
   });
 
+  // Once the field has been on screen, what the user did to it wins: a number
+  // they cleared must not come back because the stop arrived with one.
+  it("drops a number the user cleared once the field was shown, even moved off flight", () => {
+    const onSave = renderEditor(existingStop({ ...leg, mode: null, flightNumber: "TP 1234" }), "edit");
+    fireEvent.click(screen.getByRole("radio", { name: "Flight" }));
+    fireEvent.change(screen.getByLabelText("Flight number"), { target: { value: "" } });
+    fireEvent.click(screen.getByRole("radio", { name: "Train" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(onSave).toHaveBeenLastCalledWith(expect.objectContaining({ mode: "train", flightNumber: null }));
+  });
+
   // Two place pickers on one form: a screen reader listing the buttons must be
   // able to tell the origin's Search/Clear from the destination's.
   it("names the destination's Search and Clear apart from the origin's", () => {

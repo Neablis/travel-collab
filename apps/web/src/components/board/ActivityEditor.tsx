@@ -371,6 +371,8 @@ export function ActivityEditor({
   const [travelMode, setTravelMode] = useState<ActivityMode | null>(initial?.mode ?? null);
   const [endLocation, setEndLocation] = useState<Location | null>(initial?.endLocation ?? null);
   const [flightNumber, setFlightNumber] = useState(initial?.flightNumber ?? "");
+  // Whether the number has been on screen to edit; see `savedFlightNumber`.
+  const [flightFieldShown, setFlightFieldShown] = useState(initial?.mode === "flight");
   // A stop being CREATED says "To book" until told otherwise — the handoff's
   // own default (`addWhy || 'book'`), and the same bet the `pending` default
   // above makes. A stop being edited keeps what it has, including no reason.
@@ -484,12 +486,13 @@ export function ActivityEditor({
 
   // Moved off a flight, the number is cleared with the rest of the leg's
   // answers. A transit stop that was never a flight can still carry one (the
-  // API and the assistant allow it), and the field was not shown, so that
-  // number is kept: null here would erase it unseen.
+  // API and the assistant allow it); while the field has not been shown that
+  // number is kept, since null here would erase it unseen. Once shown, the
+  // user may have cleared or changed it, and the stored one must not return.
   function savedFlightNumber(): string | null {
     if (kind !== "transit") return null;
     if (travelMode === "flight") return flightNumber.trim() !== "" ? flightNumber.trim() : null;
-    return initial?.mode === "flight" ? null : (initial?.flightNumber ?? null);
+    return flightFieldShown ? null : (initial?.flightNumber ?? null);
   }
 
   function submit(e: React.FormEvent) {
@@ -642,7 +645,15 @@ export function ActivityEditor({
           options={KIND_OPTIONS.map((option) => ({ value: option, label: KIND_LABEL[option] }))}
         />
         {kind === "pending" && <PendingReasonPicker value={pendingReason} onChange={setPendingReason} />}
-        {kind === "transit" && <TravelModePicker value={travelMode} onChange={setTravelMode} />}
+        {kind === "transit" && (
+          <TravelModePicker
+            value={travelMode}
+            onChange={(next) => {
+              setTravelMode(next);
+              if (next === "flight") setFlightFieldShown(true);
+            }}
+          />
+        )}
       </div>
 
       {kind === "transit" && (

@@ -23,6 +23,7 @@ import { formatMoney } from "@/lib/formatMoney";
 import { stopTotalLine } from "@/lib/cost";
 import { displayPlace, legEnd } from "@/lib/place";
 import { directionsUrl } from "@/lib/directions";
+import { MODE_LABEL } from "@/lib/travelMode";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 
@@ -394,7 +395,10 @@ function ReadOnlyActivity({
             <Text as="p" variant="secondary">Going to {displayPlace(destination)}</Text>
           )}
           {activity.kind === "transit" && activity.flightNumber !== null && (
-            <Text as="p" variant="secondary">Flight {activity.flightNumber}</Text>
+            // Labelled by mode: the contract lets a train leg carry one too.
+            <Text as="p" variant="secondary">
+              {activity.mode === null ? "Number" : MODE_LABEL[activity.mode]} {activity.flightNumber}
+            </Text>
           )}
           <DataText size="xs" className="block">
             {activity.cost === null ? "No cost yet" : `${formatMoney(activity.cost.amountMinor, currency)} per person`}
