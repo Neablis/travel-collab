@@ -172,7 +172,7 @@ describe("the turn's now", () => {
   it("passes over a zone this runtime does not know rather than failing the turn", () => {
     const unknown = { days: [{ ...inTokyo.days[0]!, timeZone: "Mars/Olympus_Mons" }] } as unknown as TripGlobals;
     const now = turnNowOf(trip, unknown, Date.parse("2026-06-10T10:30:00Z"));
-    expect(now.local).toEqual({ date: "2026-06-10", time: "10:30" });
+    expect(now.local).toEqual({ date: "2026-06-10", time: "10:30", timeZone: "UTC" });
     expect(now.current?.activityId).toBe(second);
   });
 
@@ -180,7 +180,7 @@ describe("the turn's now", () => {
   // throw a RangeError after quota is reserved.
   it("passes over a device zone this runtime does not know, reading on UTC", () => {
     const now = turnNowOf(trip, null, Date.parse("2026-06-10T10:30:00Z"), "Mars/Olympus_Mons");
-    expect(now.local).toEqual({ date: "2026-06-10", time: "10:30" });
+    expect(now.local).toEqual({ date: "2026-06-10", time: "10:30", timeZone: "UTC" });
     expect(now.current?.activityId).toBe(second);
   });
 

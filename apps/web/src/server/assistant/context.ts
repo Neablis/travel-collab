@@ -157,8 +157,8 @@ export interface TurnNow {
   phase: TripPhase;
   /** Today's day, 0-based, while the trip is under way. */
   dayIndex: number | null;
-  /** The date and `HH:mm` on today's clock, or the first day's before the trip. */
-  local: { date: string; time: string };
+  /** The date and `HH:mm` on today's clock, or the first day's before the trip, and that clock's zone. */
+  local: { date: string; time: string; timeZone: string };
   current: TripNowStop | null;
   next: TripNowStop | null;
   /** The last of today's stops whose window has closed. */
@@ -195,7 +195,7 @@ export function turnNowOf(
   return {
     phase: now.phase,
     dayIndex,
-    local: clockIn(zone, at),
+    local: { ...clockIn(zone, at), timeZone: zone },
     current: now.current,
     next: now.next,
     passed,

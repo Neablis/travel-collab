@@ -177,7 +177,17 @@ export interface CollectionDef<I = unknown> extends BaseDef {
      */
     readonly cursorOf: (item: I) => string;
   };
-  readonly handle: (ctx: HandlerContext) => Promise<I[]> | I[];
+  readonly handle: (ctx: HandlerContext) => Promise<I[] | CollectionPage<I>> | I[] | CollectionPage<I>;
+}
+
+/**
+ * A page that names its own cursor, for a handler that filters what it reads
+ * and stops at a budget: its page can be short without being the end, which
+ * the wrapper's one rule cannot tell from the items alone.
+ */
+export interface CollectionPage<I> {
+  readonly items: I[];
+  readonly nextCursor: string | null;
 }
 
 /**
@@ -815,8 +825,10 @@ async function declareCollection(
   def: CollectionDef<CollectionItem>,
   ctx: HandlerContext,
 ): Promise<{ items: unknown[]; nextCursor: string | null }> {
-  const items = await def.handle(ctx);
+  const page = await def.handle(ctx);
+  const items = Array.isArray(page) ? page : page.items;
   for (const item of items) def.collection.item.parse(item);
+  if (!Array.isArray(page)) return { items, nextCursor: page.nextCursor };
   // **A full page means there may be more; a short one is the end.** The
   // handler is asked for `limit` items and the cursor is the last one's key, so
   // there is no count query and no offset — which is what keeps this the same

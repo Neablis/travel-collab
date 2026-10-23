@@ -4,6 +4,7 @@ import { TripDetail, TripMember, TripSummary } from "@tc/contracts";
 import { db } from "@/server/db/client";
 import { withEffectiveMembersByTrip } from "@/server/access/members";
 import { listTripSummariesPage } from "@/server/projections";
+import { activeTripsPage, tripKeyOf } from "@/server/public-api/activeTrips";
 import { orThrow, runCreation, tripDatesCommand } from "@/server/public-api/commands";
 import { route } from "@/server/public-api/route";
 
@@ -31,14 +32,24 @@ export const { GET, POST } = route({
   GET: {
     summary: "List the trips you own or are a member of",
     scope: "trips:read",
+    query: z.object({
+      active: z
+        .enum(["true", "false"])
+        .optional()
+        .describe("`true` lists only the trips under way today, by each trip's own zone. An undated trip is never under way. A page may be short, or empty, and still give a cursor to the next one: the scan stops after a fixed number of rows. Keep paging until the cursor is null."),
+    }),
     collection: {
       item: PublicTripSummary,
       // Keyset, matching `listTripSummariesPage`'s ORDER BY. `tripId` is in the
       // key because `createdAt` alone ties, and a tied order is a pager that
       // silently loses rows.
-      cursorOf: (trip: PublicTripSummary) => `${trip.createdAt}|${trip.tripId}`,
+      cursorOf: (trip: PublicTripSummary) => tripKeyOf(trip),
     },
-    handle: async ({ actor, page }) => {
+    handle: async ({ actor, page, query }) => {
+      if ((query as { active?: "true" | "false" }).active === "true") {
+        const active = await activeTripsPage(actor.userId, page, Date.now());
+        return { ...active, items: await withEffectiveMembersByTrip(db, active.items) };
+      }
       const rows = await listTripSummariesPage(actor.userId, page);
       // **The member overlay is kept, deviating from the design.** The design
       // called for *"a reshaped `GET /v1/trips`"* on the grounds that today's
