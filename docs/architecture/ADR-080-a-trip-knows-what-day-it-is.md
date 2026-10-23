@@ -29,7 +29,9 @@ or all' … so maybe dont make it a hook that 'just' does day scope."*
 1. **Every stop time is local to its day's zone.** A stop's `HH:MM` is read in
    `TripGlobalsDay.timeZone`, falling back to the device's zone when the day has none.
 2. **One pure function answers *now*:** `tripNow(trip, globals, now) → { phase, dayId, current,
-   next }` in `packages/domain`, with the clock passed in (invariant 4). The Overview swap, the
+   next }` in **`packages/pages`**, with the clock passed in (invariant 4). It sits there, not
+   in `packages/domain`, because client code may not import `@tc/domain`
+   (`apps/web/eslint.config.mjs`) and `packages/pages` already holds the zone helper (`clock.ts`). The Overview swap, the
    notebook scope, Home's badge, the now-and-next widget and the assistant all read it, and none
    computes a phase of its own.
 3. **The phases are** `planning` (undated, or more than 3 days out), `soon` (up to 3 days before

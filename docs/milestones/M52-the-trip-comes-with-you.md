@@ -187,7 +187,7 @@ chips do.
 12. **How *now* is computed when times carry no zone.** **Answered by Mitchell, 2026-10-22:
     every time is local time, as recommended.** A stop's `HH:MM` is local
     to **its day's zone** (`TripGlobalsDay.timeZone`), falling back to the device's zone. *Now*
-    is the device clock converted into that zone. One pure function in `packages/domain`,
+    is the device clock converted into that zone. One pure function in `packages/pages` (moved from `packages/domain` at scoping: the client may not import the domain; ADR-080),
     `tripNow(trip, globals, now) → { phase, dayId, current, next }`, with the clock passed in
     (invariant 4). The Today scope, the now-and-next widget, Home's badge and the assistant all
     read it. Its property test covers midnight, a day with no zone, and a flight that lands in
