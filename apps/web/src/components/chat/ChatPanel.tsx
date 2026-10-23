@@ -15,7 +15,7 @@ import { fetchPages } from "@/lib/pagesClient";
 import { cachedRead, DEDUPE } from "@/lib/queryCache";
 import { tripKeys } from "@/lib/queryKeys";
 import { useAiEntitled } from "@/lib/useAiEntitled";
-import { ChatMessage, type MessageViewer } from "./ChatMessage";
+import { ChatMessage, type ChatReader, type MessageViewer } from "./ChatMessage";
 import { ChatMentionsProvider, type ChatMentions } from "./MessageChip";
 import { useTargetPicker } from "./TargetPicker";
 import type { ChatLine, TripChat } from "./useTripChat";
@@ -62,17 +62,21 @@ function useThinking(messages: readonly ChatLine[]): boolean {
  * caller's (`useTripChat`), so it outlives this panel being closed.
  *
  * `touch` is the sheet's: its controls take SPEC §13.1's 44px floor, as the
- * Ask tab's do.
+ * Ask tab's do. `reader` is who is reading where no `TripProvider` says (a
+ * notebook), so the owner's Delete and the asker's Accept are there too.
  */
 export function ChatPanel({
   chat,
   personas,
   touch = false,
+  reader,
 }: {
   chat: TripChat;
   personas: Readonly<Record<string, Persona>> | null;
   touch?: boolean;
+  reader?: ChatReader | undefined;
 }) {
+  const trip = useOptionalTrip();
   const [draft, setDraft] = useState("");
   const [editing, setEditing] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
@@ -85,7 +89,7 @@ export function ChatPanel({
   // board's own read of them, shared through the cache rather than asked again,
   // and read again on `remoteRevision`, as the board's is, so a notebook added
   // since is offered and resolves without the panel remounting.
-  const remoteRevision = useOptionalTrip()?.remoteRevision;
+  const remoteRevision = trip?.remoteRevision;
   const [notebooks, setNotebooks] = useState<ChatMentions["notebooks"]>([]);
   useEffect(() => {
     let live = true;
@@ -112,7 +116,7 @@ export function ChatPanel({
   // Who is reading decides what each line offers (D6). Neither is a request of
   // its own: the `(app)` layout's session, and the trip's own access read.
   const me = useKnownSessionUser()?.id ?? null;
-  const isOwner = useOptionalTrip()?.myRole === "owner";
+  const isOwner = (reader ?? trip)?.myRole === "owner";
   const viewerOf = (authorId: string): MessageViewer | null =>
     me === null
       ? null
@@ -177,6 +181,7 @@ export function ChatPanel({
                   message={message}
                   persona={personaOf(message.authorId)}
                   askedBy={personaOf(message.requestedBy)}
+                  reader={reader}
                   tripId={chat.tripId}
                   // A pending line's id is this page's own: nothing on it
                   // would reach a stored message.

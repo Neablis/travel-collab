@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { PAGE_CHANGED_CODE, type Page, type PageDoc, type ResetPageResult, type TripDetail, type TripGlobals, type TripMemberProfile } from "@tc/contracts";
+import { PAGE_CHANGED_CODE, type Page, type PageDoc, type ResetPageResult, type TripDetail, type TripGlobals, type TripMemberProfile, type TripRole } from "@tc/contracts";
 import { fetchPage, restorePageVersion, updatePage } from "@/lib/pagesClient";
 import { fetchTripAccess, fetchTripDetail, fetchTripGlobals, fetchTripHistory } from "@/lib/apiClient";
 import { cachedRead, DEDUPE, invalidate } from "@/lib/queryCache";
@@ -47,8 +47,11 @@ import { useEditSession } from "./useEditSession";
 import { forgetPageDraft, readPageDraft, rememberPageDraft, type PageDraft } from "./pageDraft";
 import type { ApiError } from "@/lib/apiClient";
 import { usePublishSaveState } from "@/components/SaveLight";
-import { canEditNotebook } from "@/lib/tripRole";
-import { notebookEditingCommand } from "@/components/palette/commands";
+import { boardMode, canEditNotebook } from "@/lib/tripRole";
+import { isDemoTripId } from "@/lib/demoTrip";
+import { useAssistantVisibility } from "@/components/assistant/useAssistantVisibility";
+import { useTripSuggestions } from "@/components/trip/context/useTripSuggestions";
+import { chatCommand, notebookEditingCommand } from "@/components/palette/commands";
 import { usePaletteSource } from "@/components/palette/paletteRegistry";
 import type { DroppedInsert, PageNode } from "@tc/contracts";
 import type { AskEventHandler } from "@/components/assistant/useAskThread";
@@ -334,8 +337,10 @@ export function PageScreen({
   // - `writer`: owner or editor.
   const [editing, setEditing] = useState(false);
   const [editRole, setEditRole] = useState<"pending" | "reader" | "unknown" | "writer">("pending");
-  // The same read's members, for whether there is a chat and who wrote it (M52).
+  // The same read's members and role, for the chat: whether there is one, who
+  // wrote each line, and what this reader may do to it (M52).
   const [members, setMembers] = useState<readonly TripMemberProfile[] | null>(null);
+  const [myRole, setMyRole] = useState<TripRole | null>(null);
   useEffect(() => {
     let cancelled = false;
     setEditRole("pending");
@@ -344,6 +349,7 @@ export function PageScreen({
       const role = !access.ok ? "unknown" : canEditNotebook(access.value.myRole) ? "writer" : "reader";
       setEditRole(role);
       setMembers(access.ok ? access.value.members : null);
+      setMyRole(access.ok ? access.value.myRole : null);
       if (role === "reader") setEditing(false);
       if (role === "writer" && from === "overview") setEditing(true);
     });
@@ -610,15 +616,6 @@ export function PageScreen({
     },
     [tripId],
   );
-  useTripBroadcast({
-    tripId,
-    enabled: status === "ready",
-    interval: (trip?.members.length ?? 0) > 1,
-    cursor: () => headSeq.current,
-    onChanged: refreshTrip,
-    onChatChanged: setChatRev,
-    onRefused: () => setAccessLost(true),
-  });
 
   // **One write per editing session**, not one per pause (ADR-036, M14 link 9):
   // the document is committed when the author leaves Editing, when this screen
@@ -971,33 +968,62 @@ export function PageScreen({
     if (!editing || editor === null || pendingInserts.current.length === 0) return;
     for (const queued of pendingInserts.current.splice(0)) landInserts(queued);
   }, [editing, editor, pendingCount]);
-  const [assistantOpen, setAssistantOpen] = useState(false);
+  // The board's open state, so an opener's focus moves into the panel and
+  // comes back to it on Hide: the *Group chat* card stays on screen, where the
+  // bubble did not.
+  const assistant = useAssistantVisibility();
+  const assistantOpen = assistant.open;
   // **The trip's chat, a tab of this panel as of the board's** (Mitchell, PR
   // 537, reversing round 3's "no Chat tab here"): the same *Chat · Ask*
-  // switch, the same rule for who has it (`hasTripChat`), the same tab last
-  // open. One read, held here, feeds the tab and a notebook's *Group chat*,
-  // which opens the tab in place. Not read on a trip with one member: there is
-  // nobody to chat with.
+  // switch, for the same readers, the same tab last open. The board's tab is
+  // there for any member (M46): alone on the trip, or refused by the chat,
+  // whose 403 the tab is what says. Not on /demo, and not for a reader the
+  // access read refuses (a share link's), who is no member. One read, held
+  // here, feeds the tab and a notebook's *Group chat*, which opens it in place.
+  const offersChat = !isDemoTripId(tripId) && members !== null;
   const [railTab, setRailTab] = useState<RailTab>("ask");
   const chooseTab = (tab: RailTab) => {
     setRailTab(tab);
     rememberRailTab(tab);
   };
-  const memberCount = members?.length ?? 0;
-  const chat = useTripChat({ tripId, enabled: status === "ready" && memberCount > 1, chatRev, reading: assistantOpen && railTab === "chat", accessLost });
-  const hasChat = hasTripChat(tripId, chat.status, memberCount);
+  const chatShown = assistantOpen && offersChat && railTab === "chat";
+  const chat = useTripChat({ tripId, enabled: status === "ready" && offersChat, chatRev, reading: chatShown, accessLost });
+  // Someone to chat with: the card, the count and a remembered Chat reopening.
+  const hasChat = hasTripChat(tripId, chat.status, members?.length ?? 0);
   const personas = useMemo(() => (members === null ? null : personasOf(members)), [members]);
+  // **The reader the board's `TripProvider` would give the chat** (PR 537
+  // round 10: an owner had no Delete on this tab, and an asker no Accept). The
+  // role is the access read's; the suggestions are read only once a line
+  // carries one, since nothing else on a notebook draws them.
+  const suggestionsWanted = offersChat && myRole !== null && boardMode(myRole) !== "read" && chat.messages.some((m) => m.suggestionId !== null);
+  const { suggestions, onRevision: onSuggestionsChanged } = useTripSuggestions({
+    tripId,
+    enabled: status === "ready" && suggestionsWanted,
+    onAccepted: () => refreshTrip(headSeq.current),
+  });
+  const chatReader = useMemo(() => (myRole === null ? undefined : { myRole, boardMode: boardMode(myRole), suggestions }), [myRole, suggestions]);
+  // The poll `refreshTrip` describes, down here since it feeds the suggestions too.
+  useTripBroadcast({
+    tripId,
+    enabled: status === "ready",
+    interval: (trip?.members.length ?? 0) > 1,
+    cursor: () => headSeq.current,
+    onChanged: refreshTrip,
+    onSuggestionsChanged,
+    onChatChanged: setChatRev,
+    onRefused: () => setAccessLost(true),
+  });
   const openAsk = () => {
     chooseTab("ask");
-    setAssistantOpen(true);
+    assistant.show();
   };
   const openChat = () => {
     chooseTab("chat");
-    setAssistantOpen(true);
+    assistant.show();
   };
   const openLastTab = () => {
     setRailTab(hasChat ? readLastRailTab() : "ask");
-    setAssistantOpen(true);
+    assistant.show();
   };
   // The server's refusal for the LAST page turn, or null. Separate from
   // `ask.askError` (which is the transport's) and merged with it at the rail,
@@ -1015,7 +1041,7 @@ export function PageScreen({
   // by Copilot and CodeRabbit on PR 139.
   const closeAssistant = () => {
     ask.cancel();
-    setAssistantOpen(false);
+    assistant.hide();
   };
   // **A phone's Ask is the tab bar's** (Mitchell, 2026-10-10: "Dont forget this
   // 'Ask' element when moving ask to toolbar"). Offered only where the page's
@@ -1039,7 +1065,7 @@ export function PageScreen({
     },
     openLastTab,
     hasChat ? chat.unread : undefined,
-    assistantOpen && railTab === "chat",
+    chatShown,
     hasChat ? { onOpen: openChat, messages: chat.status === "ready" ? chat.messages : null, unread: chat.unread } : undefined,
   );
   // **Leaving Editing no longer hangs up, and that is a reversal.** It did,
@@ -1116,7 +1142,13 @@ export function PageScreen({
   };
   // ⌘K's *Edit › Notebook*, which is this toggle (ADR-068 §1), offered when
   // the toolbar's button is.
-  usePaletteSource("notebook", mayToggleEditing && status === "ready" ? [notebookEditingCommand(editing, toggleEditing)] : []);
+  // And *Open chat*, wherever the panel has the tab, as the board offers it (ADR-069).
+  usePaletteSource(
+    "notebook",
+    status === "ready"
+      ? [...(mayToggleEditing ? [notebookEditingCommand(editing, toggleEditing)] : []), ...(offersChat ? [chatCommand(openChat)] : [])]
+      : [],
+  );
 
   // **The page's shape in outlines, never a word** (KI-2026-09-20-e). It used
   // to paint `Loading…` alone, the flicker on Overview → Edit Overview; then it
@@ -1712,8 +1744,9 @@ export function PageScreen({
           // The first-paint flash `AssistantRail`'s `presentation` note warns
           // about is not reachable here: `useIsPhone` starts `false` and
           // corrects in an effect, but this rail mounts only when
-          // `assistantOpen` is true, `assistantOpen` starts `false`, and the
-          // only things that set it are a tap on the tab bar's Ask or on the bubble.
+          // `assistantOpen` is true, `assistantOpen` starts `false`, and only
+          // a user sets it: the bubble, the tab bar's Ask, the Group chat card
+          // or ⌘K.
           // Effects have run long before a user can tap, so there is no frame
           // in which `isPhone` is stale AND the rail is on screen.
           // **This surface offers no Dock, and that is a decision rather than
@@ -1775,15 +1808,17 @@ export function PageScreen({
           asking={ask.asking}
           askError={ask.askError ?? turnRefusal}
           simulated={ask.simulated}
-          // Withheld without a chat, so a solo trip's, a refused reader's or a
-          // removed member's panel is Ask alone (PR 537 round 3's findings).
-          {...(hasChat
+          takeFocus={assistant.takeFocus}
+          // The board's tab, for the board's readers (`offersChat`): a share
+          // link's reader, refused the access read, gets Ask alone.
+          {...(offersChat
             ? {
                 chat: {
                   tab: railTab,
                   onTabChange: chooseTab,
-                  panel: <ChatPanel chat={chat} personas={personas} touch={isPhone} />,
-                  unread: chat.unread,
+                  panel: <ChatPanel chat={chat} personas={personas} touch={isPhone} reader={chatReader} />,
+                  // Gated as the tab bar's count is, so a removed member's tab drops it too.
+                  unread: hasChat ? chat.unread : 0,
                   ready: chat.status === "ready",
                 },
               }

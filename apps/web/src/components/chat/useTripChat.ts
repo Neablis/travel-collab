@@ -68,12 +68,14 @@ const NO_ACCESS = 403;
 const REMOVED = 409;
 
 /**
- * **Whether this reader has the trip's chat**, on the board and on a notebook
- * alike (M46; M52, Mitchell on PR 537): never on /demo, never once the server
- * refuses it (`no-access`, its own role check, `chatAccess`), and never on a
- * trip with one member, where there is nobody to chat with. `memberCount` is
- * the trip's access read, so a reader that read refuses (a share link's, who
- * is no member) counts none. One rule, so the two surfaces cannot disagree.
+ * **Whether this reader has someone to chat with**, on the board and on a
+ * notebook alike (M46; M52, Mitchell on PR 537): never on /demo, never once
+ * the server refuses it (`no-access`, its own role check, `chatAccess`), and
+ * never on a trip with one member. `memberCount` is the trip's access read, so
+ * a reader that read refuses (a share link's, who is no member) counts none.
+ * It gates the opener's unread count, a remembered Chat reopening and the
+ * *Group chat* widget, not the panel's Chat tab: both screens keep that for
+ * any member, so a removed one is told why (M46, KI-2026-10-05-h).
  */
 export function hasTripChat(tripId: string, status: TripChatStatus, memberCount: number): boolean {
   return !isDemoTripId(tripId) && status !== "no-access" && memberCount > 1;

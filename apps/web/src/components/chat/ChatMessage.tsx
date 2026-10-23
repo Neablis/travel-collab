@@ -1,12 +1,14 @@
 "use client";
 import { useRef, useState, type ReactNode, type Ref } from "react";
-import type { ChatMessage as ChatMessageData } from "@tc/contracts";
+import type { ChatMessage as ChatMessageData, TripRole } from "@tc/contracts";
 import { ASSISTANT_NAME, FORMER_MEMBER } from "@tc/pages";
 import { useKnownSessionUser } from "@/components/account/useSessionUser";
 import { SuggestionCard } from "@/components/assistant/ProposalCard";
 import type { Persona } from "@/lib/persona";
 import { ReportAction } from "@/components/report/ReportDialog";
 import { useOptionalTrip } from "@/components/trip/context/TripProvider";
+import type { TripSuggestions } from "@/components/trip/context/useTripSuggestions";
+import type { boardMode } from "@/lib/tripRole";
 import { PersonMenu, type PersonAction } from "@/components/trip/people/PersonMenu";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,6 +25,12 @@ export { FORMER_MEMBER };
  * would be refused off the line.
  */
 export type MessageViewer = { mine: boolean; mayEdit: boolean; mayDelete: boolean };
+
+/**
+ * Who is reading, as `TripProvider` says on the board: for a screen with no
+ * provider (a notebook), from its own access read.
+ */
+export type ChatReader = { myRole: TripRole | null; boardMode: ReturnType<typeof boardMode>; suggestions: TripSuggestions | null };
 
 const time = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 
@@ -56,6 +64,7 @@ export function ChatMessage({
   onCancelEdit,
   pending = false,
   askedBy,
+  reader,
 }: {
   /** The line, which takes focus when the control the reader used is gone. */
   ref?: Ref<HTMLLIElement>;
@@ -81,6 +90,8 @@ export function ChatMessage({
    * is to accept: null until the members are known, undefined once they have left.
    */
   askedBy?: Persona | null | undefined;
+  /** The reader, where no `TripProvider` is above this line. */
+  reader?: ChatReader | undefined;
 }) {
   if (message.kind === "system") return <ChangeLine ref={ref} message={message} name={persona === null ? null : (persona?.name ?? FORMER_MEMBER)} as="li" />;
   const name = message.kind === "assistant" ? ASSISTANT_NAME : persona === null ? null : (persona?.name ?? FORMER_MEMBER);
@@ -113,6 +124,7 @@ export function ChatMessage({
             suggestionId={message.suggestionId}
             requestedBy={message.requestedBy}
             askedBy={askedBy}
+            reader={reader}
           />
         )}
       </MessageFace>
@@ -228,8 +240,19 @@ const ASKER_LEFT = "Asked by a member who has left: only the owner can dismiss t
  * from the reply itself: words that stay true once the asker has decided,
  * where "Waiting on" would not.
  */
-function ChatSuggestion({ suggestionId, requestedBy, askedBy }: { suggestionId: string; requestedBy: string; askedBy: Persona | null | undefined }) {
-  const trip = useOptionalTrip();
+function ChatSuggestion({
+  suggestionId,
+  requestedBy,
+  askedBy,
+  reader,
+}: {
+  suggestionId: string;
+  requestedBy: string;
+  askedBy: Persona | null | undefined;
+  reader: ChatReader | undefined;
+}) {
+  const fromTrip = useOptionalTrip();
+  const trip = reader ?? fromTrip;
   const me = useKnownSessionUser()?.id ?? null;
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
