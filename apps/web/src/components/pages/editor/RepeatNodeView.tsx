@@ -70,7 +70,7 @@ export function RepeatNodeView({ node, selected, editor }: ReactNodeViewProps) {
   const people = usePeople();
   const name = node.attrs.name as string;
   const params = useSelectionReport(selected, name, node.attrs.params, editor);
-  const ctx = { trip: value.detail, page: value.context, user: value.user, globals: value.globals, today, external: value.external, people };
+  const ctx = { trip: value.detail, page: value.context, user: value.user, globals: value.globals, today, now: value.now, external: value.external, people };
   const outcome = resolveRepeat(ctx, name, params);
   const { editing } = value;
   const { label, resolved } = rail(outcome);

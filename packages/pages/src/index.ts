@@ -47,3 +47,4 @@ export * from "./defaultNotebooks";
 // M52 (ADR-080): where a trip is right now. Every reader of "now" asks this,
 // and none works out a phase of its own.
 export * from "./now";
+export * from "./dateScope";

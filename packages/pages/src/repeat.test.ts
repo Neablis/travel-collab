@@ -406,3 +406,20 @@ describe("the repeat preset — how a person reaches one", () => {
     expect([...presetCatalog().find((entry) => entry.name === "line")!.aliases].sort()).toEqual(["city.line", "day.line", "stop.line"]);
   });
 });
+
+// A repeat on a page scoped to today iterates what its rows primitive lists
+// there (ADR-080 §4): today's day, and nothing off the trip's dates.
+describe("resolveRepeat — on a page scoped to today", () => {
+  const scopedAt = (iso: string): WidgetContext => {
+    const { ctx } = ctxOf();
+    return { ...ctx, page: { ...ctx.page, dateScope: "today" }, now: { at: Date.parse(iso), deviceZone: "UTC" } };
+  };
+
+  it("iterates today alone while the trip is under way", () => {
+    expect(items(resolveRepeat(scopedAt("2027-06-02T12:00:00Z"), "day.rows", {}))).toEqual([{ kind: "day", index: 1 }]);
+  });
+
+  it("is empty off the trip's dates, never unbound", () => {
+    expect(resolveRepeat(scopedAt("2027-06-05T12:00:00Z"), "day.rows", {}).status).toBe("empty");
+  });
+});

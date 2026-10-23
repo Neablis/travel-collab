@@ -249,6 +249,17 @@ export const FILTER_VALUE_SCHEMAS = {
   dates: DatesRef,
 } as const satisfies Record<FilterDimension, z.ZodTypeAny>;
 
+/**
+ * Which days a notebook's widgets read when they leave their own day unbound
+ * (M52 decision 10, ADR-080 §4): `"all"`, every day, which is what every page
+ * read before this existed; `"today"`, the trip day whose date is today; or one
+ * date. A page setting rather than a widget's, read through one resolver
+ * (`resolveDateScope` in `@tc/pages`), so an explicit binding on a widget still
+ * wins. `{ date }` is accepted and has no control yet.
+ */
+export const DateScope = z.union([z.literal("all"), z.literal("today"), z.object({ date: IsoDate })]);
+export type DateScope = z.infer<typeof DateScope>;
+
 // A page is trip-bound and nothing else. It is NOT "about" a day: a page holds
 // widgets and each widget owns its own inputs, so two widgets on one page can
 // read two different days (SPEC §18, ADR-035 decision 1). `dayRef` used to live
@@ -273,6 +284,13 @@ export const PageContext = z.object({
    * union grows and nothing that reads it has to change shape.
    */
   kind: z.literal("overview").optional(),
+  /**
+   * The page's `DateScope`. **Absent is `"all"`**, rather than a schema
+   * default, for `kind`'s reason: every page and every `PageCreated` written
+   * before it reads back exactly as it was stored, so a replay still equals
+   * its projection.
+   */
+  dateScope: DateScope.optional(),
 });
 export type PageContext = z.infer<typeof PageContext>;
 

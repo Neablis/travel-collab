@@ -26,6 +26,18 @@ describe("page contracts", () => {
     expect(PageContext.parse({ tripId, dayRef: { kind: "index", index: 0 } })).toEqual({ tripId });
   });
 
+  // M52 decision 10 (ADR-080 §4): a notebook setting every widget reads through
+  // one resolver. Absent is "all", which is every page written before it.
+  it("carries the page's date scope, and reads a page without one as unscoped", () => {
+    const tripId = crypto.randomUUID();
+    for (const dateScope of ["all", "today", { date: "2026-10-23" }] as const) {
+      expect(PageContext.parse({ tripId, dateScope })).toEqual({ tripId, dateScope });
+    }
+    expect(PageContext.parse({ tripId })).not.toHaveProperty("dateScope");
+    expect(PageContext.safeParse({ tripId, dateScope: "tomorrow" }).success).toBe(false);
+    expect(PageContext.safeParse({ tripId, dateScope: { date: "2026-02-30" } }).success).toBe(false);
+  });
+
   it("validates a full Page row", () => {
     const page = {
       id: crypto.randomUUID(), tripId: crypto.randomUUID(), title: "Overview",

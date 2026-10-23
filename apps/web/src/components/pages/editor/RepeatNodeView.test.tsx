@@ -1,8 +1,8 @@
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Editor } from "@tiptap/react";
 import { scenarios } from "@tc/factories";
-import { newPageDoc, type PageDoc, type TripDetail, type TripGlobals } from "@tc/contracts";
+import { newPageDoc, type PageContext, type PageDoc, type TripDetail, type TripGlobals } from "@tc/contracts";
 import { PageEditor } from "./PageEditor";
 import { toStoredPageDoc } from "./storedPageDoc";
 
@@ -49,12 +49,12 @@ const sentence = (params: Record<string, unknown> = {}) => repeatPage("day.rows"
 // A range no day falls in, so the repeat has nothing to repeat over.
 const NO_DAYS = { dates: { from: "2031-01-01", through: "2031-01-02" } };
 
-function mount(doc: PageDoc, editing: boolean, detail: TripDetail = trip) {
+function mount(doc: PageDoc, editing: boolean, detail: TripDetail = trip, pageContext: PageContext = context) {
   let editor: Editor | null = null;
   const view = render(
     <PageEditor
       detail={detail}
-      context={context}
+      context={pageContext}
       globals={globals}
       value={doc}
       onChange={() => {}}
@@ -71,6 +71,23 @@ function mount(doc: PageDoc, editing: boolean, detail: TripDetail = trip) {
 const linesIn = (root: HTMLElement) => [...root.querySelectorAll("[data-repeat-line]")].map((line) => line.textContent);
 
 const DAY_LINES = ["Day Jun 1, 2027 — Tokyo", "Day Jun 2, 2027 — Tokyo, Kyoto", "Day Jun 3, 2027 — Kyoto"];
+
+// A page scoped to today (ADR-080 §4): the editor reads the reader's clock and
+// hands it to the repeat, which iterates today's day alone. The days have no
+// zone, so the device's is used; noon UTC is June 2 in every zone within 11 h.
+describe("a sentence for each day, on a page scoped to today", () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2027-06-02T12:00:00Z"));
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it("reads today's line alone", async () => {
+    const { container } = mount(sentence(), false, trip, { ...context, dateScope: "today" });
+    await screen.findByText("Our days:");
+    expect(linesIn(container)).toEqual([DAY_LINES[1]]);
+  });
+});
 
 describe("a sentence for each day", () => {
   it("reads one line per day in Reading, each filled from its own day", async () => {
