@@ -86,6 +86,7 @@ import { executePageCommand } from "@/server/pageCommands";
 import { users } from "@/server/db/schema";
 import { getTripDetail } from "@/server/projections";
 import { planBundleLocationReconcile, type PlannedLocationUpdate } from "@/server/bundleLocationReconcile";
+import { enqueueDayChunksInTransaction } from "@/server/ai/queue";
 import { bundleFiles, CONTENT_DIR, contentDays } from "./lib/content-bundles.ts";
 
 const REPO_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
@@ -122,6 +123,9 @@ async function ensureServiceUser(): Promise<void> {
     .onConflictDoNothing({ target: users.id });
 }
 const today = (): string => new Date().toISOString().slice(0, 10);
+
+/** Every day index of a playbook: 0..dayCount-1, rest days included (ADR-048 decision 2). */
+const dayIndexes = (dayCount: number): number[] => Array.from({ length: dayCount }, (_, i) => i);
 
 type Options = {
   dir: string;
@@ -186,7 +190,7 @@ export async function importPlaybooks(bundle: ContentBundleV1, prune: boolean) {
       // `isNotNull` is belt-and-braces over the equality — a NULL
       // `source_bundle` is a person's own day and must never be reachable here.
       const stale = await tx
-        .select({ id: savedDays.id })
+        .select({ id: savedDays.id, dayCount: savedDays.dayCount })
         .from(savedDays)
         .where(
           and(
@@ -200,6 +204,9 @@ export async function importPlaybooks(bundle: ContentBundleV1, prune: boolean) {
         await tx.delete(savedDayAdds).where(inArray(savedDayAdds.savedDayId, staleIds));
         await tx.delete(savedDayCovers).where(inArray(savedDayCovers.savedDayId, staleIds));
         await tx.delete(savedDays).where(inArray(savedDays.id, staleIds));
+        // Re-queued so the sweep finds the source gone and tombstones its
+        // embeddings, as `deleteSavedDay` does. Retrieval already hides them.
+        for (const row of stale) await enqueueDayChunksInTransaction(tx, "playbook", row.id, dayIndexes(row.dayCount));
         pruned = staleIds.length;
       }
     }
@@ -235,6 +242,11 @@ export async function importPlaybooks(bundle: ContentBundleV1, prune: boolean) {
           createdAt: Number.isNaN(at.getTime()) ? new Date() : at,
         });
       }
+      // Embed-on-write: this insert bypasses `storeSavedDay`, so it queues the
+      // days itself, or retrieval never sees an imported playbook (four went
+      // unembedded on 2026-10-21). A re-import of unchanged text costs no
+      // provider call: the sweep skips a day whose chunk text matches.
+      await enqueueDayChunksInTransaction(tx, "playbook", day.savedDayId, dayIndexes(day.dayCount));
     }
     // Reviews are NOT deleted with the rows above, and the counters are
     // recomputed from them instead. A re-import rewrites the authored content
