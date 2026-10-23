@@ -34,6 +34,11 @@ or all' … so maybe dont make it a hook that 'just' does day scope."*
    (`apps/web/eslint.config.mjs`) and `packages/pages` already holds the zone helper (`clock.ts`). The Overview swap, the
    notebook scope, Home's badge, the now-and-next widget and the assistant all read it, and none
    computes a phase of its own.
+   **Which day is today** across zones: a day stays today until midnight ends it in its own
+   zone, and the next day takes over only once that has happened and the next day's own midnight
+   has also come. So a trip flying east does not turn the page early (day 1 in Lisbon, day 2 in
+   Tokyo: at 17:00 in Lisbon it is still day 1). A day lying wholly inside the previous day's span
+   (zones more than 24 h apart) is passed over.
 3. **The phases are** `planning` (undated, or more than 3 days out), `soon` (up to 3 days before
    the start date), `underway` (start date through end date, in the trip's zone) and `ended`.
 4. **A page carries `dateScope: "all" | "today" | { date }`**, default `"all"`. It is a notebook
