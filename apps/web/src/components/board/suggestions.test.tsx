@@ -6,6 +6,7 @@ import { setupServer } from "msw/node";
 import type { BatchableCommand, SuggestionChange, TripDetail, TripRole } from "@tc/contracts";
 import { activityFactory, tripAccessFixture, tripDetailFixture, tripMemberProfileFactory, uuidFrom } from "@tc/factories";
 import { preloadTripBoardModules, TripBoardScreen } from "@/components/board/TripBoardScreen";
+import { SessionUserProvider } from "@/components/account/useSessionUser";
 import { TripProvider } from "@/components/trip/context/TripProvider";
 import { EditorHost } from "@/components/trip/context/EditorHost";
 import { FocusProvider } from "@/components/trip/context/FocusProvider";
@@ -91,8 +92,12 @@ const addGelato = (tripId: string) =>
     { type: "AddActivity", tripId, activityId: GELATO, dayId: DAY_2, title: "Gelato", timeWindow: { start: "14:00", end: "15:00" } },
   ]);
 
-/** `before` is matched ahead of the trip's own handlers, to answer one route differently. */
-function mount(myRole: TripRole, changes: (tripId: string) => SuggestionChange[], before: RequestHandler[] = []) {
+/**
+ * `before` is matched ahead of the trip's own handlers, to answer one route
+ * differently. `reader` mounts the session provider the `(app)` board sits
+ * under, which is the only identity Accept all reads.
+ */
+function mount(myRole: TripRole, changes: (tripId: string) => SuggestionChange[], before: RequestHandler[] = [], reader?: string) {
   const fixture = trip();
   const seeded = changes(fixture.tripId);
   const resolved: { changeId: string; action: string }[] = [];
@@ -109,7 +114,7 @@ function mount(myRole: TripRole, changes: (tripId: string) => SuggestionChange[]
       void request.clone().json().then((body: { action: string }) => resolved.push({ changeId: match[1]!, action: body.action }));
     }
   });
-  render(
+  const board = (
     <TripProvider tripId={fixture.tripId}>
       <FocusProvider>
         <EditorHost>
@@ -118,8 +123,9 @@ function mount(myRole: TripRole, changes: (tripId: string) => SuggestionChange[]
           </LensRouter>
         </EditorHost>
       </FocusProvider>
-    </TripProvider>,
+    </TripProvider>
   );
+  render(reader === undefined ? board : <SessionUserProvider initialUser={{ id: reader }}>{board}</SessionUserProvider>);
   return { fixture, seeded, resolved, acceptedAll };
 }
 
@@ -478,20 +484,30 @@ describe("Accept all", () => {
 
   // ADR-067's 2026-10-23 amendment: a chat `@assistant`'s suggestion is its
   // asker's to accept, and the server refuses the whole batch if it is in it.
+  const askedByBea = (tripId: string) => [
+    change(tripId, 'Renamed the trip to "Roma"', [{ type: "SetTripName", tripId, name: "Roma" }]),
+    change(tripId, "Set the currency to EUR", [{ type: "SetTripCurrency", tripId, currency: "EUR" }], {
+      suggestionId: uuidFrom(9302, 7),
+      requestedBy: "dev-bea",
+    }),
+    change(tripId, "Set the start date", [{ type: "SetTripStartDate", tripId, startDate: "2027-05-01" }]),
+  ];
   it("leaves out a change another member asked the assistant for", async () => {
-    const { acceptedAll, seeded } = mount("owner", (tripId) => [
-      change(tripId, 'Renamed the trip to "Roma"', [{ type: "SetTripName", tripId, name: "Roma" }]),
-      change(tripId, "Set the currency to EUR", [{ type: "SetTripCurrency", tripId, currency: "EUR" }], {
-        suggestionId: uuidFrom(9302, 7),
-        requestedBy: "dev-bea",
-      }),
-      change(tripId, "Set the start date", [{ type: "SetTripStartDate", tripId, startDate: "2027-05-01" }]),
-    ]);
+    const { acceptedAll, seeded } = mount("owner", askedByBea, [], "dev-alice");
     fireEvent.click(await screen.findByRole("button", { name: "3 suggestions" }));
     fireEvent.click(await screen.findByRole("button", { name: "Accept all" }));
 
     const [roma, , start] = seeded;
     await waitFor(() => expect(acceptedAll).toEqual([[roma!.id, start!.id]]));
+  });
+
+  it("takes in the change the reader asked the assistant for", async () => {
+    const { acceptedAll, seeded } = mount("editor", askedByBea, [], "dev-bea");
+    fireEvent.click(await screen.findByRole("button", { name: "3 suggestions" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Accept all" }));
+
+    const [roma, currency, start] = seeded;
+    await waitFor(() => expect(acceptedAll).toEqual([[roma!.id, currency!.id, start!.id]]));
   });
 
   it("is a reviewer's: the author is not offered it", async () => {
