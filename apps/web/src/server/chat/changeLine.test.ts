@@ -88,8 +88,33 @@ describe("changeLine", () => {
     expect(changeLine([{ type: "SetTripStartDate", tripId, startDate: "2027-05-02" }], before, later, AT)?.words).toBe(
       "changed the trip's days: day 1 now falls on May 2",
     );
-    // A later end leaves today's and tomorrow's plans where they were.
-    expect(changeLine([{ type: "SetTripDates", tripId, startDate: "2027-05-01", endDate: "2027-05-09", newDayIds: [] }], before, before, AT)).toBeNull();
+    // A start moved past today: the trip is no longer under way, so where it now begins.
+    expect(changeLine([{ type: "SetTripStartDate", tripId, startDate: "2027-05-05" }], before, dated(DAY, 5), AT)?.words).toBe(
+      "changed the trip's days: day 1 now falls on May 5",
+    );
+  });
+
+  // Review round 3 of PR 535: a change of dates that moves only tomorrow
+  // names tomorrow's new day, not today's, which did not move.
+  it("names the day a change of dates put on tomorrow, and says when the trip now ends today", () => {
+    const sparse = trip({ [DAY[1]!]: [LUNCH], [DAY[3]!]: [MARKET] }, [stop(LUNCH, "Lunch"), stop(MARKET, "Market")]);
+    const closed = { ...sparse, days: sparse.days.filter((day) => day.dayId !== DAY[2]).map((day, index) => ({ ...day, date: `2027-05-0${index + 1}` })) };
+    expect(changeLine([{ type: "RemoveDay", tripId, dayId: DAY[2]! }], sparse, closed, AT)).toEqual({
+      words: "changed the trip's days: day 3 now falls on May 3",
+      link: { kind: "day", id: DAY[3]! },
+    });
+    const home = { ...before, endDate: "2027-05-02", days: before.days.slice(0, 2) };
+    expect(changeLine([{ type: "SetTripDates", tripId, startDate: "2027-05-01", endDate: "2027-05-02", newDayIds: [] }], before, home, AT)).toEqual({
+      words: "changed the trip's days: the trip now ends on day 2, May 2",
+      link: { kind: "day", id: DAY[1]! },
+    });
+  });
+
+  it("says nothing when a change of dates leaves today's and tomorrow's plans as they were", () => {
+    const DAY5 = uuidFrom(15, 52);
+    const longer = { ...before, endDate: "2027-05-05", days: [...before.days, { dayId: DAY5, activityIds: [], date: "2027-05-05", costSubtotal: 0 }] };
+    const lastDay = Date.UTC(2027, 4, 4, 12);
+    expect(changeLine([{ type: "SetTripDates", tripId, startDate: "2027-05-01", endDate: "2027-05-05", newDayIds: [DAY5] }], before, longer, lastDay)).toBeNull();
   });
 
   it("says nothing before the trip is under way", () => {

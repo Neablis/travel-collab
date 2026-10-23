@@ -28,7 +28,7 @@ const beas = ChatMessageData.parse({
 });
 const bea = { name: "Bea", avatar: null, color: null, colorShifted: false, travelling: true };
 
-function line(viewer: MessageViewer | null, message: ChatMessageData = beas, pending = false, askedBy: Persona | null | undefined = bea) {
+function line(viewer: MessageViewer | null, message: ChatMessageData = beas, pending = false, { askedBy }: { askedBy: Persona | null | undefined } = { askedBy: bea }) {
   const onEdit = vi.fn();
   const onDelete = vi.fn();
   render(
@@ -165,7 +165,7 @@ describe("ChatMessage, from the assistant or the app", () => {
   const card = () => screen.getByRole("group", { name: "The assistant's suggestion" });
 
   it("names the assistant as the author of its reply", () => {
-    line({ mine: false, mayEdit: false, mayDelete: false }, { ...reply, suggestionId: null }, false, undefined);
+    line({ mine: false, mayEdit: false, mayDelete: false }, { ...reply, suggestionId: null }, false, { askedBy: undefined });
     expect(screen.getByRole("listitem").textContent).toContain("Assistant");
     expect(screen.getByRole("listitem").textContent).not.toContain(FORMER_MEMBER);
   });
@@ -225,6 +225,16 @@ describe("ChatMessage, from the assistant or the app", () => {
     expect(screen.getByRole("listitem").textContent).toContain("Only Bea can accept this");
     expect(screen.getByRole("listitem").textContent).not.toContain("Waiting");
     expect(screen.queryByRole("button", { name: /Accept|Dismiss/ })).toBeNull();
+  });
+
+  // Review round 3 of PR 535: a member who left can accept nothing, so the
+  // viewer is not told they can; what still holds is the owner's dismiss.
+  it("tells a viewer, when the asker has left, that only the owner can dismiss it", () => {
+    reader.me = { id: "u-vi" };
+    reader.trip = { myRole: "viewer", boardMode: "read", suggestions: null };
+    line({ mine: false, mayEdit: false, mayDelete: false }, reply, false, { askedBy: undefined });
+    expect(screen.getByRole("listitem").textContent).toContain("Asked by a member who has left: only the owner can dismiss this");
+    expect(screen.getByRole("listitem").textContent).not.toContain("can accept");
   });
 
   const changed = ChatMessageData.parse({ ...beas, messageId: uuidFrom(3, 46), kind: "system", body: "moved “Dinner at Tasca” to 20:30" });

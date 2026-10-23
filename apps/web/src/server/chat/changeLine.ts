@@ -76,17 +76,38 @@ function phrase(
 /** The commands that can put another day's plan on today: days are positional (`dates.ts`). */
 const SHIFTS = new Set<BatchableCommand["type"]>(["RemoveDay", "SetTripStartDate", "SetTripDates"]);
 
-/**
- * The line for a change of dates that names no stop on today or tomorrow but
- * puts other days there: which day today now is, by its date, so the line
- * stays true once stored.
- */
-function shiftLine(after: TripDetail, ahead: readonly string[]): { words: string; link: ChatLink | undefined } {
-  const index = ahead[0] === undefined ? 0 : after.days.findIndex((day) => day.dayId === ahead[0]);
+const planOf = (detail: TripDetail, dayId: string | undefined) => detail.days.find((day) => day.dayId === dayId)?.activityIds;
+
+/** "day N now falls on <date>", linked to that day, for the day at `index`. */
+function dayLine(after: TripDetail, index: number): { words: string; link: ChatLink | undefined } {
   const day = after.days[index];
   const date = formatShortDate(day?.date ?? null);
   if (day === undefined || date === null) return { words: "changed the trip's days", link: undefined };
   return { words: `changed the trip's days: day ${index + 1} now falls on ${date}`, link: { kind: "day", id: day.dayId } };
+}
+
+/**
+ * The line for a change of dates that names no stop on today or tomorrow: the
+ * first of the two that now holds another day's plan, by its date, so the line
+ * stays true once stored. Null when neither plan changed, as when an empty day
+ * takes an empty one's place. A trip moved off today says where it now starts.
+ */
+function shiftLine(
+  before: TripDetail,
+  after: TripDetail,
+  todayWas: readonly string[],
+  todayIs: readonly string[],
+): { words: string; link: ChatLink | undefined } | null {
+  if (todayIs.length === 0) return dayLine(after, 0);
+  const slot = [0, 1].find((i) => todayWas[i] !== todayIs[i] && !(planOf(after, todayIs[i])?.length === 0 && (planOf(before, todayWas[i])?.length ?? 0) === 0));
+  if (slot === undefined) return null;
+  const now = todayIs[slot];
+  if (now !== undefined) return dayLine(after, after.days.findIndex((day) => day.dayId === now));
+  // Tomorrow is gone: the trip now ends today.
+  const index = after.days.findIndex((day) => day.dayId === todayIs[0]);
+  const date = formatShortDate(after.days[index]!.date);
+  if (date === null) return { words: "changed the trip's days", link: undefined };
+  return { words: `changed the trip's days: the trip now ends on day ${index + 1}, ${date}`, link: { kind: "day", id: todayIs[0]! } };
 }
 
 /**
@@ -123,7 +144,7 @@ export function changeLine(
   const [first, ...rest] = touched;
   if (first === undefined) {
     const shifted = commands.some((command) => SHIFTS.has(command.type)) && todayWas.join() !== todayIs.join();
-    return shifted ? shiftLine(after, todayIs) : null;
+    return shifted ? shiftLine(before, after, todayWas, todayIs) : null;
   }
   const more = rest.length === 0 ? "" : `, and changed ${rest.length} more stop${rest.length === 1 ? "" : "s"}`;
   return { words: `${first.words}${more}`, link: first.stays ? { kind: "stop", id: first.id } : undefined };

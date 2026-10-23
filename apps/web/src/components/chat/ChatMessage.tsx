@@ -56,7 +56,7 @@ export function ChatMessage({
   onSave,
   onCancelEdit,
   pending = false,
-  askedBy = null,
+  askedBy,
 }: {
   /** The line, which takes focus when the control the reader used is gone. */
   ref?: Ref<HTMLLIElement>;
@@ -77,7 +77,10 @@ export function ChatMessage({
   /** Resolves false when the edit was not stored, so the field keeps the text. */
   onSave: (body: string) => Promise<boolean>;
   onCancelEdit: () => void;
-  /** On an assistant reply, the member who asked, for its card to say whose it is to accept. */
+  /**
+   * On an assistant reply, the member who asked, for its card to say whose it
+   * is to accept: null until the members are known, undefined once they have left.
+   */
   askedBy?: Persona | null | undefined;
 }) {
   if (message.kind === "system") return <ChangeLine ref={ref} message={message} name={persona === null ? null : (persona?.name ?? FORMER_MEMBER)} />;
@@ -126,7 +129,7 @@ export function ChatMessage({
           <ChatSuggestion
             suggestionId={message.suggestionId}
             requestedBy={message.requestedBy}
-            askerName={askedBy === null ? null : (askedBy?.name ?? FORMER_MEMBER)}
+            askedBy={askedBy}
           />
         )}
       </div>
@@ -179,7 +182,7 @@ function ChangeLine({ ref, message, name }: { ref?: Ref<HTMLLIElement> | undefin
  * from the reply itself: words that stay true once the asker has decided,
  * where "Waiting on" would not.
  */
-function ChatSuggestion({ suggestionId, requestedBy, askerName }: { suggestionId: string; requestedBy: string; askerName: string | null }) {
+function ChatSuggestion({ suggestionId, requestedBy, askedBy }: { suggestionId: string; requestedBy: string; askedBy: Persona | null | undefined }) {
   const trip = useOptionalTrip();
   const me = useKnownSessionUser()?.id ?? null;
   const [busy, setBusy] = useState(false);
@@ -190,7 +193,9 @@ function ChatSuggestion({ suggestionId, requestedBy, askerName }: { suggestionId
   if (suggestions === null || changes.length === 0) {
     // A reviewer's list is whole, so an empty one means it was decided.
     if (trip?.boardMode === "write") return null;
-    return <p className="mt-1 text-xs text-slate">Only {askerName ?? "the member who asked"} can accept this</p>;
+    // A member who left can accept nothing; the owner's dismiss still holds.
+    if (askedBy === undefined) return <p className="mt-1 text-xs text-slate">Asked by a member who has left: only the owner can dismiss this</p>;
+    return <p className="mt-1 text-xs text-slate">Only {askedBy?.name ?? "the member who asked"} can accept this</p>;
   }
 
   const decide = async (run: () => Promise<{ ok: boolean; error?: { message: string } }>) => {
@@ -220,7 +225,7 @@ function ChatSuggestion({ suggestionId, requestedBy, askerName }: { suggestionId
       <SuggestionCard
         descriptions={changes.map((change) => change.description)}
         may={me !== null && me === requestedBy && trip?.boardMode === "write" ? "decide" : trip?.myRole === "owner" ? "dismiss" : "wait"}
-        askerName={askerName ?? "the member who asked"}
+        askerName={askedBy?.name ?? "the member who asked"}
         busy={busy}
         note={note}
         onAccept={() => void decide(() => suggestions.acceptMany(ids))}
