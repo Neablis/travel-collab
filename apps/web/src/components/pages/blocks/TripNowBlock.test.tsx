@@ -66,4 +66,15 @@ describe("TripNowBlock", () => {
     expect(focusActivity).toHaveBeenCalledWith(museum.activityId);
     takeBack();
   });
+
+  it("leaves a stop's name as plain text while the page is being edited", () => {
+    const takeBack = registerBoardFocus({
+      days: [], stops: [{ activityId: museum.activityId, label: "Museum", dayId: "d1", nearness: "trip" }],
+      focusDay: vi.fn(), focusActivity: vi.fn(),
+    });
+    render(<TripNowBlock payload={payload} interactive={false} />);
+    expect(screen.getByText("Museum")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Museum" })).toBeNull();
+    takeBack();
+  });
 });

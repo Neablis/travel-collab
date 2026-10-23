@@ -3,7 +3,7 @@ import { formatTimeUntil, type FlightLine, type TripFlightsPayload } from "@tc/p
 import { Button } from "@/components/ui/button";
 import { useOptionalEditor } from "@/components/trip/context/EditorHost";
 import { useOptionalTrip } from "@/components/trip/context/TripProvider";
-import { StopName, useMinuteClock } from "./dayOfParts";
+import { StopName, useBlockClock } from "./dayOfParts";
 
 // *Your flights* (M52 decision 15): today's flights or the next one, and the
 // countdown to each that has not left, on the block's own minute clock.
@@ -17,7 +17,7 @@ const HEADING = { today: "Today's flights", next: "Next flight" } as const;
 
 /** Your flights: a line per flight, or the offer to add one. */
 export function TripFlightsBlock({ payload, interactive }: { payload: TripFlightsPayload; interactive: boolean }) {
-  const at = useMinuteClock();
+  const at = useBlockClock();
   const editor = useOptionalEditor();
   const canEdit = useOptionalTrip()?.canEditBoard ?? false;
   if (payload.heading === "none") {
@@ -46,7 +46,7 @@ export function TripFlightsBlock({ payload, interactive }: { payload: TripFlight
   );
 }
 
-function FlightRow({ flight, at, interactive }: { flight: FlightLine; at: number; interactive: boolean }) {
+function FlightRow({ flight, at, interactive }: { flight: FlightLine; at: number | null; interactive: boolean }) {
   const route = [flight.flightNumber, flight.from && flight.to ? `${flight.from} → ${flight.to}` : (flight.from ?? flight.to)]
     .filter(Boolean)
     .join(" · ");
@@ -55,7 +55,7 @@ function FlightRow({ flight, at, interactive }: { flight: FlightLine; at: number
       <StopName activityId={flight.activityId} title={flight.title} interactive={interactive} />
       {route && <span className="text-sm text-ink">{route}</span>}
       {flight.departs && <span className="text-sm text-slate">{`${flight.departs} → ${flight.arrives ?? "?"}`}</span>}
-      {flight.startsAt !== null && flight.startsAt > at && (
+      {flight.startsAt !== null && at !== null && flight.startsAt > at && (
         <span className="text-sm text-slate">{`Leaves in ${formatTimeUntil(flight.startsAt - at)}`}</span>
       )}
     </span>

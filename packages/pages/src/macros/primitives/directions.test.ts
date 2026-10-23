@@ -63,4 +63,28 @@ describe("stop.directions", () => {
       status: "empty", because: "add a place to a stop to see this",
     });
   });
+
+  it("leaves an untimed stop behind once a stop after it has ended", () => {
+    const hotel = { name: "Hotel Avenida", lat: 38.7167, lng: -9.1424, city: "Lisbon" };
+    const day = dayTrip([
+      {
+        date: "2026-06-10", zone: LISBON, city: "Lisbon",
+        stops: [
+          { title: "Hotel", location: hotel },
+          { title: "Coffee", timeWindow: { start: "09:00", end: "10:00" }, location: cafe },
+          { title: "Dinner", timeWindow: { start: "19:00", end: "21:00" }, location: tasca },
+        ],
+      },
+    ]);
+    const ctx: WidgetContext = { ...clockContext(day, at("2026-06-10", "13:00")), page: { tripId: day.trip.tripId, dateScope: "today" } };
+    expect(payloadOf(renderMacro(ctx, "stop.directions", {}))).toMatchObject({ title: "Dinner" });
+  });
+
+  it("passes over a place that is only a typed name, as the stop sheet does", () => {
+    const day = dayTrip([
+      { date: "2026-06-10", zone: LISBON, city: "Lisbon", stops: [{ title: "Dinner w/ Ana", timeWindow: { start: "19:00", end: "21:00" }, location: { name: "Dinner w/ Ana" } }] },
+    ]);
+    const ctx: WidgetContext = { ...clockContext(day, at("2026-06-10", "08:00")), page: { tripId: day.trip.tripId, dateScope: "today" } };
+    expect(renderMacro(ctx, "stop.directions", {})).toEqual({ status: "empty", because: "add a place to a stop to see this" });
+  });
 });

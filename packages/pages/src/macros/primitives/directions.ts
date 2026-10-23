@@ -1,10 +1,10 @@
 import { z } from "zod";
-import type { ActivityMode, FilterDimension, TripDetail } from "@tc/contracts";
-import type { MacroDef, StopDirectionsPayload, WidgetContext, WidgetScope } from "../../registry-types";
+import type { ActivityMode, FilterDimension, Location, TripDetail } from "@tc/contracts";
+import type { MacroDef, StopDirectionsPayload, WidgetContext } from "../../registry-types";
 import { blockOf } from "../../registry-types";
 import { ok, empty, needsTrip, type MacroResult } from "../../result";
 import { filterInputs, filterParams } from "../../filters";
-import { narrow } from "../../select";
+import { isNoDay, narrow } from "../../select";
 import { timedStops } from "../../now";
 import { readerClock, toClockRange } from "../../clockLabel";
 
@@ -35,9 +35,13 @@ export function leadingMode(trip: Pick<TripDetail, "days" | "activities">, dayId
   return before?.kind === "transit" ? before.mode : null;
 }
 
-/** A page scoped to today, read on a date that is no trip day (`resolveDateScope`). */
-export function isNoDay(item: WidgetScope | undefined): boolean {
-  return item?.kind === "no-day" || (item?.kind === "city-in-scope" && item.page.kind === "no-day");
+/**
+ * Whether Directions can be offered to `location`: only with coordinates, as
+ * the stop sheet offers it (M52 decision 16), since a bare typed name gives
+ * Maps nothing to find. The one rule for the sheet and the widgets alike.
+ */
+export function hasDirections(location: Location | null | undefined): location is Location {
+  return location?.lat !== undefined && location.lng !== undefined;
 }
 
 export const stopDirections: MacroDef<DirectionsParams, StopDirectionsPayload> = {
@@ -54,16 +58,19 @@ export const stopDirections: MacroDef<DirectionsParams, StopDirectionsPayload> =
     if (selection.status !== "ok") return selection;
     const { stops } = selection.value;
     if (stops.length === 0) return empty(isNoDay(item) ? NOTHING_TODAY : "no stops here yet");
-    // Only what has ended is behind the reader; an untimed stop never has. A
-    // stop's own line goes to it whatever the time.
+    // What has ended is behind the reader, and so is an untimed stop that
+    // comes before one that has: an untimed stop has no time of its own, so
+    // its place in the day says when it is. A stop's own line goes to it
+    // whatever the time.
     const ended = new Set(
       now == null || item?.kind === "stop"
         ? []
         : timedStops(trip, globals, now.deviceZone).filter((s) => s.end <= now.at).map((s) => s.activityId),
     );
-    const ahead = stops.filter((s) => !ended.has(s.activityId));
+    const lastEnded = stops.reduce((last, s, i) => (ended.has(s.activityId) ? i : last), -1);
+    const ahead = stops.filter((s, i) => !ended.has(s.activityId) && (s.activity.timeWindow != null || i > lastEnded));
     if (ahead.length === 0) return empty(NOTHING_MORE_TODAY);
-    const stop = ahead.find((s) => s.activity.location != null);
+    const stop = ahead.find((s) => hasDirections(s.activity.location));
     if (!stop) return empty("add a place to a stop to see this");
     const { activity } = stop;
     const dayId = stop.dayIndex === null ? null : trip.days[stop.dayIndex]!.dayId;

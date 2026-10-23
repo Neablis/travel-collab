@@ -86,4 +86,13 @@ describe("trip.now", () => {
     if (outcome.status !== "ok" || outcome.rendered.kind !== "block" || outcome.rendered.block.kind !== "trip-now") throw new Error("expected ok");
     expect(nowAndNext(outcome.rendered.block, instant + MINUTE).current?.title).toBe("Tour");
   });
+
+  it("offers no place for Directions when a stop's place is only a typed name", () => {
+    const named = dayTrip([
+      { date: "2026-06-10", zone: LISBON, stops: [{ title: "Dinner w/ Ana", timeWindow: { start: "19:00", end: "21:00" }, location: { name: "Dinner w/ Ana" } }] },
+    ]);
+    const outcome = resolve(clockContext(named, at("2026-06-10", "08:00")));
+    if (outcome.status !== "ok" || outcome.rendered.kind !== "block" || outcome.rendered.block.kind !== "trip-now") throw new Error("expected ok");
+    expect(outcome.rendered.block.stops[0]).toMatchObject({ title: "Dinner w/ Ana", place: null });
+  });
 });

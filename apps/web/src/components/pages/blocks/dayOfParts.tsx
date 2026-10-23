@@ -1,33 +1,25 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useContext } from "react";
 import type { ActivityMode, Location } from "@tc/contracts";
 import { resolveLink, useBoardFocus } from "@/components/chat/boardFocus";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 import { directionsUrl } from "@/lib/directions";
+import { useMinuteClock } from "@/lib/useMinuteClock";
+import { MacroEditorContext } from "@/components/pages/editor/MacroEditorContext";
 
 // What the day-of widgets (M52 decision 15) share: a clock that moves each
 // minute, a stop's name that focuses it on the board, and the Directions link.
 
 /**
- * The time now, read again each minute and when the tab comes back into view,
- * so a countdown and *now and next* keep up while the page stays open.
+ * The time a day-of block reads (ms since the epoch): its own minute clock, so
+ * a countdown and *now and next* keep up while the page stays open, and the
+ * page's for the first frame, before that clock has read. `null` only outside
+ * a page, before the first read.
  */
-export function useMinuteClock(): number {
-  const [at, setAt] = useState(() => Date.now());
-  useEffect(() => {
-    const read = () => setAt(Date.now());
-    const onVisible = () => {
-      if (document.visibilityState === "visible") read();
-    };
-    const timer = window.setInterval(read, 60_000);
-    document.addEventListener("visibilitychange", onVisible);
-    return () => {
-      window.clearInterval(timer);
-      document.removeEventListener("visibilitychange", onVisible);
-    };
-  }, []);
-  return at;
+export function useBlockClock(): number | null {
+  const page = useContext(MacroEditorContext)?.now ?? null;
+  return (useMinuteClock() ?? page)?.at ?? null;
 }
 
 /**

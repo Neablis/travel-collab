@@ -13,6 +13,7 @@ export type DaySpec = { date: string | null; zone: string | null; city?: string;
 /** Stop `s` of day `d`, both counted from 0, as `dayTrip` ids it. */
 export const stopId = (d: number, s: number) => uuidFrom(d + 1, s + 1);
 
+/** A trip of `days`, dated and zoned as given, with globals whose days carry each zone and city. */
 export function dayTrip(days: DaySpec[]): { trip: TripDetail; globals: TripGlobals } {
   const activities: Record<string, ActivityView> = {};
   const tripDays = days.map((day, d) => {

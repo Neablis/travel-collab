@@ -2,7 +2,7 @@
 
 import { travellerIds, type ActivityView, type NearbyStop } from "@tc/contracts";
 import { useEffect, useRef, useState } from "react";
-import { personNames } from "@tc/pages";
+import { hasDirections, personNames } from "@tc/pages";
 import { Banner } from "@/components/ui/banner";
 import { Sheet } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
@@ -117,8 +117,9 @@ export function ActivityEditorSheet() {
   const editingDay = editingActivityId === undefined ? undefined : activeTrip?.days.find((d) => d.activityIds.includes(editingActivityId));
   const leadingIn = editingDay?.activityIds[editingDay.activityIds.indexOf(editingActivityId!) - 1];
   const leadingLeg = leadingIn === undefined ? undefined : activeTrip?.activities[leadingIn];
-  const directionsHref = editingActivity?.location?.lat !== undefined
-    ? directionsUrl(editingActivity.location, leadingLeg?.kind === "transit" ? leadingLeg.mode : null)
+  const place = editingActivity?.location;
+  const directionsHref = hasDirections(place)
+    ? directionsUrl(place, leadingLeg?.kind === "transit" ? leadingLeg.mode : null)
     : null;
   // A suggester has no rack (W71), so a stop they add with no day named — the
   // header's bare "Add stop" — starts on the first day rather than in a drawer

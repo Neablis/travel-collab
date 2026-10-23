@@ -3,7 +3,7 @@ import type { ActivityView, Location, TripDetail, TripGlobals } from "@tc/contra
 import type { FlightLine, MacroDef, TripFlightsPayload, WidgetContext } from "../../registry-types";
 import { blockOf } from "../../registry-types";
 import { ok, empty, needsTrip, type MacroResult } from "../../result";
-import { nextFlight, timedStops, tripNow, type TripNowStop } from "../../now";
+import { nextFlight, timedStops, tripNow, zoneOf, type TripNowStop } from "../../now";
 import { clockIn, isKnownZone } from "../../clock";
 import { readerClock, toClockLabel } from "../../clockLabel";
 import { formatShortDate } from "../../format";
@@ -28,21 +28,31 @@ const isFlight = (a: Pick<ActivityView, "kind" | "mode"> | undefined) => a?.kind
 const placeName = (location: Location | null) => location?.city ?? location?.name ?? null;
 
 /**
- * The zone a flight lands in: the first day from its own on whose place is
- * the city it lands in. `null` when no day says, and the stored time is read
- * as it was entered, on the departure day's clock (ADR-080 decision 1).
+ * The clock a flight lands on (M52 decision 15: each end's time on that end's
+ * clock). A day from its own on whose place is the city it lands in says it,
+ * and the time reads as local there. Otherwise the zone is the likeliest one —
+ * the next day's, or home's for a flight off the last day — or, with neither,
+ * the departure day's, on which the stored time was entered (ADR-080 decision
+ * 1). Those are guesses, so the reader is told which clock the time is on.
  */
-function arrivalZone(globals: TripGlobals | null, fromIndex: number, city: string | null): string | null {
-  if (city === null) return null;
-  const day = globals?.days.find((d) => d.index >= fromIndex && d.place?.city === city && d.timeZone !== null);
-  return day?.timeZone != null && isKnownZone(day.timeZone) ? day.timeZone : null;
+function arrivalClock(globals: TripGlobals | null, fromIndex: number, city: string | null, departureZone: string): { zone: string; local: boolean } {
+  const known = (zone: string | null | undefined) => (zone != null && isKnownZone(zone) ? zone : null);
+  const there = city === null ? undefined : globals?.days.find((d) => d.index >= fromIndex && d.place?.city === city && known(d.timeZone) !== null);
+  if (there) return { zone: there.timeZone!, local: true };
+  const later = globals?.days.filter((d) => d.index > fromIndex) ?? [];
+  const guess = later.length > 0 ? (later.map((d) => known(d.timeZone)).find((zone) => zone !== null) ?? null) : known(globals?.homeTimeZone);
+  return { zone: guess ?? departureZone, local: false };
 }
+
+/** "Asia/Tokyo" as a reader names its clock: "Tokyo time". */
+const clockName = (zone: string) => `${zone.split("/").at(-1)!.replaceAll("_", " ")} time`;
 
 function lineOf(
   trip: TripDetail,
   globals: TripGlobals | null,
   timed: ReadonlyMap<string, TripNowStop>,
   format: ReturnType<typeof readerClock>,
+  deviceZone: string,
   activityId: string,
 ): FlightLine {
   const activity = trip.activities[activityId]!;
@@ -52,13 +62,10 @@ function lineOf(
   let arrives: string | null = null;
   if (window && placed) {
     const dayIndex = trip.days.findIndex((day) => day.dayId === placed.dayId);
-    const zone = arrivalZone(globals, dayIndex, activity.endLocation?.city ?? null);
-    if (zone === null) arrives = toClockLabel(window.end, format);
-    else {
-      const landing = clockIn(zone, placed.end);
-      const date = landing.date === trip.days[dayIndex]!.date ? "" : ` ${formatShortDate(landing.date)}`;
-      arrives = `${toClockLabel(landing.time, format)}${date}`;
-    }
+    const { zone, local } = arrivalClock(globals, dayIndex, activity.endLocation?.city ?? null, zoneOf(globals, dayIndex, deviceZone));
+    const landing = clockIn(zone, placed.end);
+    const date = landing.date === trip.days[dayIndex]!.date ? "" : ` ${formatShortDate(landing.date)}`;
+    arrives = `${toClockLabel(landing.time, format)}${date}${local ? "" : ` (${clockName(zone)})`}`;
   }
   return {
     activityId, title: activity.title, flightNumber: activity.flightNumber,
@@ -86,11 +93,20 @@ export const tripFlights: MacroDef<FlightsParams, TripFlightsPayload> = {
       return ok({ kind: "trip-flights", heading: "none", flights: [], dayId: where.dayId ?? trip.days[0]?.dayId ?? null });
     }
     const timed = new Map(timedStops(trip, globals, now.deviceZone).map((s) => [s.activityId, s]));
-    const line = (id: string) => lineOf(trip, globals, timed, readerClock(user), id);
+    const line = (id: string) => lineOf(trip, globals, timed, readerClock(user), now.deviceZone, id);
     const today = flights.filter((f) => where.phase === "underway" && f.dayId === where.dayId);
     if (today.length > 0) return ok({ kind: "trip-flights", heading: "today", flights: today.map((f) => line(f.id)), dayId: where.dayId });
     const next = nextFlight(trip, globals, now);
     if (next) return ok({ kind: "trip-flights", heading: "next", flights: [line(next.activityId)], dayId: next.dayId });
+    // A flight with no time yet has no instant to be next by, so the first
+    // one on a day still to come stands in, with no countdown: the *soon*
+    // window is when the outbound flight is wanted (decision 11).
+    const fromDate = where.phase === "underway" ? trip.days.find((day) => day.dayId === where.dayId)?.date : where.firstDayToday;
+    const untimed = fromDate == null ? undefined : flights.find((f) => {
+      const date = trip.days.find((day) => day.dayId === f.dayId)?.date;
+      return date != null && date >= fromDate && trip.activities[f.id]!.timeWindow == null;
+    });
+    if (untimed) return ok({ kind: "trip-flights", heading: "next", flights: [line(untimed.id)], dayId: untimed.dayId });
     return empty(NO_FLIGHT_TODAY);
   },
   render: blockOf,

@@ -2,9 +2,9 @@ import { z } from "zod";
 import type { MacroDef, NowStop, TripNowPayload, WidgetContext } from "../../registry-types";
 import { blockOf } from "../../registry-types";
 import { ok, empty, needsTrip, type MacroResult } from "../../result";
-import { formatTimeUntil, timedStops, tripNow } from "../../now";
+import { formatTimeUntil, pickNowNext, timedStops, tripNow } from "../../now";
 import { readerClock, toClockRange } from "../../clockLabel";
-import { leadingMode, NOTHING_MORE_TODAY, NOTHING_TODAY } from "./directions";
+import { hasDirections, leadingMode, NOTHING_MORE_TODAY, NOTHING_TODAY } from "./directions";
 
 // `trip.now` — *Now and next* (M52 decision 15): the stop under way, the next
 // one and the time until it, each with Directions.
@@ -13,7 +13,7 @@ import { leadingMode, NOTHING_MORE_TODAY, NOTHING_TODAY } from "./directions";
 // alone reads `today`. It re-renders each minute while visible, and a page
 // reads its clock once, so the resolver hands over every stop not yet over,
 // as instants, and the block re-picks the two with `nowAndNext` on its own
-// minute clock. The pick stays here, pure, beside `tripNow`'s rule it repeats.
+// minute clock. The pick is `tripNow`'s own (`pickNowNext`), so the two agree.
 //
 // A registered widget, not a primitive, for `trip.people`'s reason: *now* is
 // the trip's, and a filter cannot narrow it.
@@ -29,9 +29,8 @@ export function nowAndNext(
   payload: Pick<TripNowPayload, "stops">,
   at: number,
 ): { current: NowStop | null; next: (NowStop & { until: string }) | null } {
-  const current = payload.stops.filter((s) => s.start <= at && at < s.end).at(-1) ?? null;
-  const next = payload.stops.find((s) => s.start > at);
-  return { current, next: next === undefined ? null : { ...next, until: formatTimeUntil(next.start - at) } };
+  const { current, next } = pickNowNext(payload.stops, at);
+  return { current, next: next === null ? null : { ...next, until: formatTimeUntil(next.start - at) } };
 }
 
 export const tripNowWidget: MacroDef<NowParams, TripNowPayload> = {
@@ -57,7 +56,7 @@ export const tripNowWidget: MacroDef<NowParams, TripNowPayload> = {
         return {
           activityId, title: activity.title, start, end,
           time: toClockRange(window.start, window.end, clock),
-          place: activity.location,
+          place: hasDirections(activity.location) ? activity.location : null,
           mode: leadingMode(trip, dayId, activityId),
         };
       }),

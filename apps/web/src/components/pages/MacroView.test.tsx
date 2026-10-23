@@ -507,8 +507,9 @@ describe("every widget is legal where widgets actually go", () => {
       a1: { ...costedDetail.activities.a1!, kind: "pending", tags: ["ticketed"] },
       booked: {
         activityId: "booked", title: "Ryokan", timeWindow: { start: "15:00", end: "23:00" },
-        // Located, so "Know before you go" has a country to card.
-        location: { name: "Ryokan, Kyoto", countryCode: "JP" }, notes: null, anchors: [], kind: "planned", tags: [],
+        // Located, so "Know before you go" has a country to card, and placed,
+        // so "Directions" has somewhere to send Maps.
+        location: { name: "Ryokan, Kyoto", countryCode: "JP", lat: 35.0037, lng: 135.7788 }, notes: null, anchors: [], kind: "planned", tags: [],
         cost: { amountMinor: 12000, currency: "USD" },
         bookedBy: null,
         participants: [],

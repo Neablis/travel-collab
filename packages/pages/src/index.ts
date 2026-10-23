@@ -49,4 +49,4 @@ export * from "./defaultNotebooks";
 export * from "./now";
 export * from "./dateScope";
 export { nowAndNext } from "./macros/primitives/nowNext";
-export { NOTHING_MORE_TODAY } from "./macros/primitives/directions";
+export { hasDirections, NOTHING_MORE_TODAY } from "./macros/primitives/directions";

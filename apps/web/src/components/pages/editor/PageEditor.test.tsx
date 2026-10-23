@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { newPageDoc } from "@tc/contracts";
 import type { PageDoc } from "@tc/contracts";
-import { tripDetailFixture } from "@tc/factories";
+import { activityFactory, tripDetailFixture } from "@tc/factories";
 import { TEMPLATE_LIBRARY, presetCatalog } from "@tc/pages";
 import { widgetMatches } from "@/components/pages/WidgetPicker";
 import { PageEditor } from "./PageEditor";
@@ -866,5 +866,36 @@ describe("PageEditor — a document that changes underneath a reader", () => {
     // Same reason as above — `rerender` has already flushed the effect, so the
     // identity comparison is meaningful immediately.
     expect(screen.getByText("same")).toBe(before);
+  });
+});
+
+// The page's clock is what every day-of widget is resolved against, and a
+// Today-scoped page is left open on a phone all day: read once, *Now and next*
+// opened the night before the trip said "Nothing planned today" all of day 1.
+describe("PageEditor's clock", () => {
+  const coffee = activityFactory.build({ title: "Coffee", kind: "planned", mode: null, location: null, timeWindow: { start: "09:00", end: "10:00" } });
+  const dayOne = tripDetailFixture({
+    startDate: "2026-06-10", backlog: [],
+    days: [{ dayId: "day-1", activityIds: [coffee.activityId], date: "2026-06-10", costSubtotal: 0 }],
+    activities: { [coffee.activityId]: coffee },
+  });
+  const value = newPageDoc([{ type: "paragraph", content: [{ type: "macro", attrs: { name: "trip.now", params: {} } }] }]);
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date", "setInterval", "clearInterval"] });
+    // 23:00 the night before, on the device's clock, which an unplaced day runs on.
+    vi.setSystemTime(new Date(2026, 5, 9, 23, 0));
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("moves on with the time while the page stays open", async () => {
+    render(<PageEditor detail={dayOne} context={{ tripId: dayOne.tripId }} value={value} onChange={() => {}} editable={false} />);
+    await waitFor(() => expect(screen.getByRole("textbox").textContent).toContain("Nothing planned today"));
+    act(() => {
+      vi.advanceTimersByTime(10 * 60 * 60_000);
+    });
+    expect(screen.getByRole("textbox").textContent).toContain("Coffee");
   });
 });

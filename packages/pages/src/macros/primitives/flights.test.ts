@@ -23,6 +23,15 @@ const line = {
   departs: "12:00", arrives: "07:00 Jun 11", startsAt: wallAt(LISBON, "2026-06-10", "12:00"),
 };
 
+/** The arrival the widget shows for `days`' only flight, read at `at`. */
+function arrivalAt(days: ReturnType<typeof dayTrip>, at: number): string | null {
+  const outcome = renderMacro(clockContext(days, at), "trip.flights", {});
+  if (outcome.status !== "ok" || outcome.rendered.kind !== "block" || outcome.rendered.block.kind !== "trip-flights") {
+    throw new Error(`expected a trip-flights block, got ${JSON.stringify(outcome)}`);
+  }
+  return outcome.rendered.block.flights[0]!.arrives;
+}
+
 describe("trip.flights", () => {
   it("lists today's flights, with each end's time on its own clock", () => {
     expect(renderMacro(clockContext(trip, wallAt(LISBON, "2026-06-10", "08:00")), "trip.flights", {})).toMatchObject({
@@ -52,6 +61,33 @@ describe("trip.flights", () => {
       status: "ok", rendered: { block: { kind: "trip-flights", heading: "none", flights: [], dayId: grounded.trip.days[1]!.dayId } },
     });
     expect(on("2026-06-01")).toMatchObject({ rendered: { block: { heading: "none", dayId: grounded.trip.days[0]!.dayId } } });
+  });
+
+  it("names the clock an arrival is on when no later day is in the city it lands in", () => {
+    // Haneda geocodes to Ota City, so no day's city matches; the next day's zone is where it lands.
+    const ota = { ...flight, endLocation: { name: "Haneda Airport", city: "Ota City" } };
+    const shibuya = dayTrip([
+      { date: "2026-06-10", zone: LISBON, city: "Lisbon", stops: [ota] },
+      { date: "2026-06-11", zone: TOKYO, city: "Shibuya", stops: [] },
+    ]);
+    expect(arrivalAt(shibuya, wallAt(LISBON, "2026-06-10", "08:00"))).toBe("07:00 Jun 11 (Tokyo time)");
+  });
+
+  it("puts the flight home on the home clock, and says which clock it is on when there is none", () => {
+    // 10:00 to 14:00 on Tokyo's clock, which is 06:00 the same morning in Lisbon.
+    const home = { ...flight, title: "Flight home", timeWindow: { start: "10:00", end: "14:00" }, location: { name: "Haneda Airport", city: "Tokyo" }, endLocation: { name: "Lisbon Airport", city: "Lisbon" } };
+    const lastDay = dayTrip([{ date: "2026-06-10", zone: TOKYO, city: "Tokyo", stops: [home] }]);
+    const morning = wallAt(TOKYO, "2026-06-10", "08:00");
+    expect(arrivalAt({ ...lastDay, globals: { ...lastDay.globals, homeTimeZone: LISBON } }, morning)).toBe("06:00 (Lisbon time)");
+    expect(arrivalAt(lastDay, morning)).toBe("14:00 (Tokyo time)");
+  });
+
+  it("shows an untimed flight before the trip as the next one, with no countdown", () => {
+    const untimed = dayTrip([{ date: "2026-06-10", zone: LISBON, city: "Lisbon", stops: [{ ...flight, timeWindow: null }] }]);
+    expect(renderMacro(clockContext(untimed, wallAt(LISBON, "2026-06-08", "08:00")), "trip.flights", {})).toMatchObject({
+      status: "ok",
+      rendered: { block: { heading: "next", flights: [{ activityId: stopId(0, 0), departs: null, arrives: null, startsAt: null }] } },
+    });
   });
 
   it("waits for the reader's clock, which the server and the assistant do not have", () => {

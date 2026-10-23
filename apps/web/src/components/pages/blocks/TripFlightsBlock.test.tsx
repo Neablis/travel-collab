@@ -75,4 +75,14 @@ describe("TripFlightsBlock", () => {
     expect(screen.getByText("No flights on this trip yet")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Add your flight" })).toBeNull();
   });
+
+  it("offers nothing to add while the page is being edited", () => {
+    render(
+      <EditorHost>
+        <TripFlightsBlock payload={none} interactive={false} />
+      </EditorHost>,
+    );
+    expect(screen.getByText("No flights on this trip yet")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Add your flight" })).toBeNull();
+  });
 });

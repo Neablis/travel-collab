@@ -52,9 +52,7 @@ type TripNowGlobals = Pick<TripGlobals, "days"> | null;
  * are never current or next.
  */
 export function tripNow(trip: TripNowTrip, globals: TripNowGlobals, clock: TripNowClock): TripNow {
-  const stops = timedStops(trip, globals, clock.deviceZone);
-  const current = stops.filter((s) => s.start <= clock.at && clock.at < s.end).at(-1) ?? null;
-  const next = stops.find((s) => s.start > clock.at) ?? null;
+  const { current, next } = pickNowNext(timedStops(trip, globals, clock.deviceZone), clock.at);
 
   const dated = trip.days.flatMap((day, index) => (day.date === null ? [] : [{ ...day, date: day.date, index }]));
   const first = dated[0];
@@ -81,6 +79,15 @@ export function tripNow(trip: TripNowTrip, globals: TripNowGlobals, clock: TripN
   return { phase: "underway", dayId: today.dayId, current, next, firstDayToday };
 }
 
+/**
+ * Of `stops`, earliest start first, the one under way at `at` (the latest to
+ * begin when two overlap) and the first still to begin: `tripNow`'s rule, and
+ * the one the now-and-next widget re-picks by each minute.
+ */
+export function pickNowNext<S extends { start: number; end: number }>(stops: readonly S[], at: number): { current: S | null; next: S | null } {
+  return { current: stops.filter((s) => s.start <= at && at < s.end).at(-1) ?? null, next: stops.find((s) => s.start > at) ?? null };
+}
+
 /** The first flight still to leave, for Home's "Flight in 2 days, 7 h" — `null` with none, or none timed. */
 export function nextFlight(trip: TripNowTrip, globals: TripNowGlobals, clock: TripNowClock): TripNowStop | null {
   return (
@@ -105,7 +112,8 @@ export function formatTimeUntil(ms: number): string {
   return `${minutes} min`;
 }
 
-function zoneOf(globals: TripNowGlobals, index: number, deviceZone: string): string {
+/** The zone day `index`'s stop times are on: its own, or the device's when it has none this runtime knows. */
+export function zoneOf(globals: TripNowGlobals, index: number, deviceZone: string): string {
   const zone = globals?.days.find((day) => day.index === index)?.timeZone ?? null;
   // A name this runtime does not know degrades to the device's clock rather
   // than throwing on Home.
