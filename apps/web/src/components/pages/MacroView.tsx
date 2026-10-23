@@ -1,7 +1,7 @@
 "use client";
 import { useContext, useMemo } from "react";
 import type { TripDetail, PageContext, TripGlobals, UserPreferences } from "@tc/contracts";
-import { renderMacro, getMacro, UNBOUND_GHOSTS, type ExternalInputs, type ExternalNeed } from "@tc/pages";
+import { renderMacro, getMacro, UNBOUND_GHOSTS, type ExternalInputs, type ExternalNeed, type ReaderCapability } from "@tc/pages";
 import { cn } from "@/lib/cn";
 import { useToday } from "@/lib/today";
 import { usePeople, usePersonas, useGuests } from "./people";
@@ -29,6 +29,12 @@ import { useReaderCapabilities } from "./readerCapabilities";
 // What an `unavailable` chip calls the input it is waiting on. A `Record` so a
 // second outside input is a type error here until it has a word.
 const EXTERNAL_NOUN: Record<ExternalNeed, string> = { weather: "weather", notebooks: "notebooks" };
+
+/** Who a `requires` widget is drawn for, as Editing says it where it is absent. */
+const SHOWN_TO: Record<ReaderCapability, string> = {
+  canChat: "shown to people who can see the trip's chat",
+  canAsk: "shown to people who have the assistant",
+};
 
 /**
  * Renders a macro widget for the supplied trip and page context.
@@ -74,8 +80,13 @@ export function MacroView({ detail, context, user = null, globals = null, extern
   // without (`MacroDef.requires`).
   const reader = useReaderCapabilities();
   const outcome = renderMacro({ trip: detail, page: context, user, globals, today, now, external, people, personas, guests, ...reader }, name, params);
-  // SPEC §27: nothing renders disabled, so a widget this reader may not use is not here at all.
-  if (outcome.status === "absent") return null;
+  // SPEC §27: nothing renders disabled, so a widget this reader may not use is
+  // not here at all. Its author still has to see what they put there, so
+  // Editing names it and who it is for, in fixed words: never the payload, so
+  // no chat text reaches a screen that holds no chat.
+  if (outcome.status === "absent") {
+    return editing && def?.requires ? <EmptyChip tone="muted" label={`${def.title}: ${SHOWN_TO[def.requires]}`} /> : null;
+  }
   // Never the stored name: that is raw syntax on the screen (M14 gate box, `noRawSyntax.test.tsx`).
   if (outcome.status === "unknown") return <EmptyChip tone="error" label="this widget isn't available in this version" />;
   if (outcome.status === "bad-params") return <EmptyChip tone="error" label="this widget's settings no longer fit it" />;

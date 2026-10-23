@@ -406,6 +406,25 @@ describe("MacroView", () => {
   });
 });
 
+// M52 decision 20: a widget the reader may not use is absent while reading
+// (SPEC §27), but its author still has to see what they put there. Without a
+// screen offering chat or Ask, Editing names the widget and who it is for;
+// Reading shows nothing.
+describe("a widget for readers who are not this one", () => {
+  it("is named, with who it is for, while editing", () => {
+    render(<MacroView detail={baseDetail} context={ctx} name="chat.recent" params={{}} editing />);
+    expect(screen.getByText(/^Group chat/).textContent).toMatch(/chat/i);
+    cleanup();
+    render(<MacroView detail={baseDetail} context={ctx} name="assistant.prompts" params={{}} editing />);
+    expect(screen.getByText(/^Ask/).textContent).toMatch(/assistant/i);
+  });
+
+  it("is not there at all while reading", () => {
+    render(<div data-testid="page"><MacroView detail={baseDetail} context={ctx} name="chat.recent" params={{}} /></div>);
+    expect(screen.getByTestId("page").textContent).toBe("");
+  });
+});
+
 // M52's gate box (decision 10, ADR-080 §4), as a reader sees it: on a page
 // scoped to today, a day.detail left unbound reads today, and one bound to day 1
 // reads day 1. The clock reaches the widget through the editor's context.
@@ -637,7 +656,11 @@ flightNumber: null,
     }
     const nesting = errors.filter((e) => /cannot be a descendant of|cannot contain a nested/i.test(e));
     expect(nesting, `block-level markup inside <p>:\n${nesting.join("\n")}`).toEqual([]);
-  });
+    // Every preset, one after another, in one test: 2.5s idle and 3.2s with
+    // four copies running (measured, M52 part 8), against the unit lane's
+    // default 5s, which a saturated CI box can run out. A timeout says nothing
+    // about nesting, so the budget is the sweep's own.
+  }, 20_000);
 });
 
 // ADR-056: the one rendered value that carries an address. A new tab, and

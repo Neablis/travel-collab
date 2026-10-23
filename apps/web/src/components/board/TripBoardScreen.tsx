@@ -48,7 +48,7 @@ import { TripHeader } from "@/components/trip/TripHeader";
 import { TripHeaderSkeleton } from "@/components/trip/TripHeaderSkeleton";
 import { useTripCover } from "@/components/trip/cover/useTripCover";
 import { useTripSeed } from "@/components/trip/context/tripSeed";
-import { usePhoneAskEntry } from "@/components/nav/phoneAsk";
+import { usePhoneAskEntry, type AskHandOff } from "@/components/nav/phoneAsk";
 import { AddSavedDayButton } from "@/components/trip/AddSavedDayButton";
 import { useBoardSuggestions } from "./SuggestionActions";
 import { SuggestionTray } from "./SuggestionTray";
@@ -318,13 +318,13 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // it sends through its own gate and `submitAssistantAsk`'s refusals. Dropped
   // once the rail has taken it: the rail remounts on Hide and Show, and when
   // the header skeleton comes back, and must not find it again.
-  const [handOff, setHandOff] = useState<{ text: string } | null>(null);
+  const [handOff, setHandOff] = useState<AskHandOff | null>(null);
   usePhoneAskEntry(
     boardRenders && !isDemoTripId(tripId) ? openAsk : undefined,
     assistant.open,
-    (text) => {
+    (text, how) => {
       openAsk();
-      setHandOff({ text });
+      setHandOff({ text, ...how });
     },
     openLastTab,
     hasChat ? chat.unread : undefined,

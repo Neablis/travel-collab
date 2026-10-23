@@ -457,8 +457,10 @@ describe("PageScreen: no macro syntax on the screen", () => {
       // eslint-disable-next-line testing-library/no-node-access -- the witness is "every widget node view mounted"; no role or label names a node view.
       const views = document.body.querySelectorAll(".tc-page-editor [data-macro-name]");
       expect(views.length).toBeGreaterThanOrEqual(widgetCount);
-      // "Group chat" is absent here, and rightly (M52 decision 20): this
-      // screen holds no chat to offer it. Every other widget draws something.
+      // "Group chat" is absent in Reading here (M52 decision 20): this
+      // screen offers no chat. Every other widget draws something. Editing
+      // names it instead (`MacroView.test.tsx`, "a widget for readers who are
+      // not this one").
       for (const view of views) {
         if ((view as HTMLElement).dataset.macroName === "chat.recent") continue;
         expect(view.textContent?.trim(), (view as HTMLElement).dataset.macroName).not.toBe("");

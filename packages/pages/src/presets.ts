@@ -615,7 +615,7 @@ export const PRESETS: readonly WidgetPreset[] = [
     widget: "assistant.prompts",
     params: {},
     title: "Ask",
-    summary: "Offers one-tap questions for the assistant on the day: running late, moving dinner, a place that is closed.",
+    summary: "Offers day-of questions for the assistant, each a tap to start: running late, moving dinner, a place that is closed.",
     keywords: ["ask", "assistant", "ai", "help", "late", "running late", "dinner", "closed", "today"],
   },
 ];

@@ -9,8 +9,10 @@ import { VALUE_KIND_FORMATS } from "./kinds";
 // value that is coming. The rendering half is `MacroView.ghost.test.tsx`.
 
 const page: PageContext = { tripId: "11111111-1111-1111-1111-111111111111" };
-// No trip: the one unbound state every trip-reading resolver can reach.
-const tripless = { page, user: null, globals: null, today: null };
+// No trip: the one unbound state every trip-reading resolver can reach. A
+// reader who may chat and ask, or `chat.recent` and `assistant.prompts` answer
+// `absent` before they resolve (M52 decision 20) and the sweep never sees them.
+const tripless = { page, user: null, globals: null, today: null, canChat: true, canAsk: true };
 
 function shapeOf(name: string, params: Record<string, unknown> = {}): readonly Seg[] {
   const outcome = renderMacro(tripless, name, params);

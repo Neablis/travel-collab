@@ -33,7 +33,7 @@ import {
 } from "@/components/pages/editor/storedPageDoc";
 import { AssistantRail } from "@/components/assistant/AssistantRail";
 import { AssistantBubble } from "@/components/assistant/AssistantBubble";
-import { usePhoneAskEntry } from "@/components/nav/phoneAsk";
+import { usePhoneAskEntry, type AskHandOff } from "@/components/nav/phoneAsk";
 import { phoneAskContext } from "@/components/assistant/phoneAskContext";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/cn";
@@ -970,7 +970,7 @@ export function PageScreen({
   // ⌘K's *Ask: <text>* (M45 D6), as the board takes it: dropped once the
   // rail has taken it, since it remounts on the next open and must not
   // find it again.
-  const [handOff, setHandOff] = useState<{ text: string } | null>(null);
+  const [handOff, setHandOff] = useState<AskHandOff | null>(null);
   // **Closing the surface hangs up on the turn.** Unmounting `AssistantRail`
   // does not: `useAskThread` lives HERE, so its cleanup runs only when the whole
   // screen goes, and a turn still streaming would land its `page-inserts` in a
@@ -996,9 +996,9 @@ export function PageScreen({
       ? () => setAssistantOpen(true)
       : undefined,
     assistantOpen,
-    (text) => {
+    (text, how) => {
       setAssistantOpen(true);
-      setHandOff({ text });
+      setHandOff({ text, ...how });
     },
   );
   // **Leaving Editing no longer hangs up, and that is a reversal.** It did,

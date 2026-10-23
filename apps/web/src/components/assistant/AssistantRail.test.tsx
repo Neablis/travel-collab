@@ -1115,6 +1115,15 @@ describe("AssistantRail — text handed in from ⌘K", () => {
     await waitFor(() => expect(box.value).toBe("and dinner that night? book a hotel near Gion"));
   });
 
+  // M52 decision 15: a notebook's *Ask* chip opens the sheet with its question
+  // filled in, for the reader to finish ("by 30 minutes") before it costs a turn.
+  it("only fills the composer with a hand-off marked prefill, and sends nothing", () => {
+    const onAsk = vi.fn();
+    renderRail({ onAsk, incoming: { text: "We're running late.", prefill: true } });
+    expect(onAsk).not.toHaveBeenCalled();
+    expect((screen.getByPlaceholderText(/ask about this day/i) as HTMLInputElement).value).toBe("We're running late.");
+  });
+
   it("leaves it waiting in the composer while a turn is answering", () => {
     const onAsk = vi.fn();
     renderRail({ onAsk, asking: true, incoming: { text: "and where next?" } });

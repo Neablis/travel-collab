@@ -69,6 +69,17 @@ describe("chat.recent", () => {
     ]);
   });
 
+  // The assistant and the app write under ids no member has: counted as
+  // former members, they would number the one real leaver beside them.
+  it("names someone who has left as the one former member beside the assistant's and the app's lines", () => {
+    const chat = [
+      said("left-trip", "See you all at home"),
+      said("assistant", "Done.", { kind: "assistant", requestedBy: "sam" }),
+      said("system", "Sam moved Dinner to 20:30", { kind: "system" }),
+    ];
+    expect(chatOf(ctx({ canChat: true, chat })).lines?.[0]?.author).toBe("Former member");
+  });
+
   it("says nothing yet while the chat has not been read, and an empty list once it has", () => {
     expect(chatOf(ctx({ canChat: true, chat: null })).lines).toBeNull();
     expect(chatOf(ctx({ canChat: true, chat: [] })).lines).toEqual([]);

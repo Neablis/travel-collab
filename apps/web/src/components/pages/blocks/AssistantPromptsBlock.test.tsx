@@ -7,9 +7,9 @@ import { ServedEntitlementsProvider } from "@/lib/useAiEntitled";
 import { MacroView } from "../MacroView";
 
 // "Ask" (M52 decision 15) through the notebook's own renderer, for the three
-// readers the plan's preview names: a paid member's chip sends its question
-// through the screen's Ask; a free member and a share-link reader are shown
-// nothing (decision 20, SPEC §27: absent, never disabled).
+// readers the plan's preview names: a paid member's chip opens the screen's
+// Ask with its question filled in; a free member and a share-link reader are
+// shown nothing (decision 20, SPEC §27: absent, never disabled).
 
 const trip = tripDetailFactory.build({}, { transient: { dayCount: 1, activitiesPerDay: 0, unscheduledCount: 0 } });
 
@@ -28,12 +28,14 @@ const page = (entitlements: readonly ("ai.ask")[]) => (
 );
 
 describe("AssistantPromptsBlock", () => {
-  it("sends a chip's whole question through the screen's Ask, for a member with the assistant", async () => {
+  // Filled in, not sent (decision 15: "opens the sheet prefilled"): the
+  // reader says by how much before it costs a turn.
+  it("fills a chip's whole question into the screen's Ask, for a member with the assistant", async () => {
     const onAsk = vi.fn();
     unregister.push(registerPhoneAsk({ open: false, onOpen: () => {}, onAsk }));
     render(page(["ai.ask"]));
     await userEvent.click(screen.getByRole("button", { name: "Running late" }));
-    expect(onAsk).toHaveBeenCalledWith(expect.stringMatching(/running late/i));
+    expect(onAsk).toHaveBeenCalledWith(expect.stringMatching(/running late/i), { prefill: true });
     expect(onAsk.mock.calls[0]![0]).not.toBe("Running late");
   });
 

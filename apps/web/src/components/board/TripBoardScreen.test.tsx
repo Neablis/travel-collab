@@ -3045,6 +3045,8 @@ describe("⌘K runs the trip page's own actions", () => {
       },
       openAssistant: () => act(() => ask?.onOpen()),
       askAssistant: (text: string) => act(() => ask?.onAsk?.(text)),
+      prefillAssistant: (text: string) => act(() => ask?.onAsk?.(text, { prefill: true })),
+      offered: () => ask,
       ids: () => commands.map((c) => c.id),
     };
   }
@@ -3075,6 +3077,39 @@ describe("⌘K runs the trip page's own actions", () => {
     fireEvent.click(askButton());
     await waitFor(() => expect(askAssistantMock).toHaveBeenCalledTimes(2));
     expect(askCall(1).messages.at(-1)!.parts[0]!.text).toBe("and the quietest?");
+  });
+
+  // M52 decision 15: a notebook's *Ask* chip opens the sheet with its question
+  // filled in, and the reader sends it. The board hands `prefill` on to its rail.
+  it("puts a notebook chip's question in its rail's box, and asks nothing", async () => {
+    const fixture = tripDetailFixture();
+    server.use(...makeTripHandlers(fixture));
+    const page = renderWithPalette(fixture.tripId);
+    expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+
+    page.prefillAssistant("We're running late.");
+    const box = await within(await screen.findByRole("complementary", { name: "Assistant" })).findByPlaceholderText(/ask about this (?:day|trip)/i);
+    expect((box as HTMLInputElement).value).toBe("We're running late.");
+    expect(askAssistantMock).not.toHaveBeenCalled();
+  });
+
+  // The one line that keeps a notebook's *Group chat* off a trip with nobody
+  // to chat with (M52 decision 15): the board offers its chat only with `hasChat`.
+  it("offers no chat to a notebook on a trip you are alone on", async () => {
+    const solo = tripDetailFixture();
+    server.use(...makeTripHandlers(solo));
+    const page = renderWithPalette(solo.tripId);
+    expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+    await waitFor(() => expect(page.offered()?.onOpen).toBeDefined());
+    expect(page.offered()?.chat).toBeUndefined();
+  });
+
+  it("offers its chat to a notebook on a shared trip", async () => {
+    const shared = tripDetailFixture({ members: [{ userId: "dev-alice", role: "owner" }, { userId: "u-bea", role: "viewer" }] });
+    server.use(...makeChatHandlers({ viewerId: "dev-alice", messages: [] }).handlers, ...makeTripHandlers(shared));
+    const page = renderWithPalette(shared.tripId);
+    expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+    await waitFor(() => expect(page.offered()?.chat).toBeDefined());
   });
 
   // Every batch posted, as one list of commands each. Registered after the

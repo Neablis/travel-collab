@@ -45,7 +45,10 @@ export const chatRecent: MacroDef<ChatRecentParams, ChatRecentPayload> = {
     // A removed message has no text (the contract gives it none), so it does
     // not take one of the places.
     const shown = chat.filter((m): m is Extract<ChatMessage, { removed: false }> => !m.removed).slice(-SHOWN);
-    const names = personNames(trip, people, shown.map((m) => m.authorId), guests);
+    // Members' ids only: the assistant's and the app's are no member's, and
+    // `personNames` would count them as former members and number a real one.
+    const authors = shown.filter((m) => m.kind === "member").map((m) => m.authorId);
+    const names = personNames(trip, people, authors, guests);
     return ok({ kind: "chat-recent", lines: shown.map((m) => lineOf(m, names)) });
   },
   render: blockOf,

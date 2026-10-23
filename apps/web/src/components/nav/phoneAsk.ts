@@ -17,11 +17,16 @@ import type { ChatMessage } from "@tc/contracts";
 // the bar never offers an Ask with nothing behind it (`/demo`, a locked
 // notebook, the account pages). The entry is a value, not a flag the bar
 // holds — the route still decides which tabs exist (`tabsForScope`).
+//
+// **Not the tab bar's alone since M52**: a notebook's *Group chat* and *Ask*
+// widgets read the entry at every width (`readerCapabilities.ts`), so what a
+// screen offers here decides whether they are drawn at all.
 
 /**
  * What the tab bar's Ask item needs: whether the assistant is up, and how to
  * bring it up. `onAsk` brings it up and sends `text`, for ⌘K's *Ask: <text>*
- * (M45 D6); a screen that offers none gets no such row. `onResume` is the bar's
+ * (M45 D6), or with `prefill` only types it there, for a notebook's *Ask*
+ * chips (M52 decision 15); a screen that offers none gets no such row. `onResume` is the bar's
  * own, where the screen's panel has more than one tab: it reopens the tab last
  * open (PR 436), while ⌘K's *Ask* keeps `onOpen`, which names Ask. `unread` is
  * the trip's unread chat count where that panel has a Chat tab, for the item's
@@ -31,7 +36,7 @@ import type { ChatMessage } from "@tc/contracts";
 export type PhoneAskEntry = {
   open: boolean;
   onOpen: () => void;
-  onAsk?: (text: string) => void;
+  onAsk?: (text: string, how?: { prefill: true }) => void;
   onResume?: () => void;
   unread?: number;
   chatShown?: boolean;
@@ -43,6 +48,13 @@ export type PhoneAskEntry = {
    */
   chat?: PhoneChat;
 };
+
+/**
+ * A question handed to a screen's assistant (`PhoneAskEntry.onAsk`), as the
+ * rail takes it (`AssistantRail`'s `incoming`): sent, or with `prefill` only
+ * put in the box.
+ */
+export type AskHandOff = { text: string; prefill?: true };
 
 /** What a screen offers of its trip's chat (`PhoneAskEntry.chat`). */
 export type PhoneChat = { onOpen: () => void; messages: readonly ChatMessage[] | null };
@@ -97,7 +109,7 @@ export function usePhoneAsk(): PhoneAskEntry | null {
 export function usePhoneAskEntry(
   onOpen: (() => void) | undefined,
   open: boolean,
-  onAsk?: (text: string) => void,
+  onAsk?: PhoneAskEntry["onAsk"],
   onResume?: () => void,
   unread?: number,
   chatShown = false,
@@ -117,7 +129,7 @@ export function usePhoneAskEntry(
     return registerPhoneAsk({
       open,
       onOpen: () => latest.current.onOpen?.(),
-      ...(asks ? { onAsk: (text: string) => latest.current.onAsk?.(text) } : {}),
+      ...(asks ? { onAsk: (text: string, how?: { prefill: true }) => latest.current.onAsk?.(text, how) } : {}),
       ...(resumes ? { onResume: () => latest.current.onResume?.() } : {}),
       ...(unread === undefined ? {} : { unread }),
       ...(chatShown ? { chatShown } : {}),

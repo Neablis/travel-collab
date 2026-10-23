@@ -26,6 +26,7 @@ import {
 import { useAssistantPosition } from "./useAssistantShape";
 import { usePinToBottom } from "./usePinToBottom";
 import { UnreadDot, unreadWords } from "@/components/nav/askOrChat";
+import type { AskHandOff } from "@/components/nav/phoneAsk";
 import { useAiEntitled } from "@/lib/useAiEntitled";
 
 /**
@@ -215,7 +216,7 @@ function railTabOptions(unread: number) {
  * @param presentation - Layout presentation for the panel.
  * @param onHide - Closes or hides the panel; required of a sheet, and omitted, a docked or floating panel offers no Hide.
  * @param rememberDraftAs - Conversation name to keep the unsent composer text under.
- * @param incoming - Text handed in from outside (⌘K's *Ask:*), sent as if typed here.
+ * @param incoming - Text handed in from outside (⌘K's *Ask:*), sent as if typed here; with `prefill`, only typed.
  * @param onIncomingTaken - Called once `incoming` is sent or waiting in the box.
  * @param takeFocus - Whether this mount is a fresh open, whose composer takes focus; asked once per mount.
  * @param chat - The trip's chat as a *Chat · Ask* tab pair, and which is open; absent, the panel is Ask alone.
@@ -454,8 +455,10 @@ export function AssistantRail({
    * A new object each hand-off, so the same words twice send twice. It goes
    * through the composer's own gate: while a turn answers, the thread is
    * full or the plan withholds the assistant, it waits in the box instead.
+   * `prefill` only puts it in the box: a notebook's *Ask* chip (M52 decision
+   * 15) leaves the reader to finish the question before it costs a turn.
    */
-  incoming?: { text: string } | null;
+  incoming?: AskHandOff | null;
   /**
    * Called once `incoming` has been sent or put in the box, so the caller can
    * drop it: a rail that remounts (the board's does when its header reloads)
@@ -815,12 +818,13 @@ export function AssistantRail({
     }
     if ((await onAsk(text)) === false) keepHandedIn(text);
   };
-  const sendHandedInLatest = useRef({ send: sendHandedIn, taken: onIncomingTaken });
-  sendHandedInLatest.current = { send: sendHandedIn, taken: onIncomingTaken };
+  const sendHandedInLatest = useRef({ send: sendHandedIn, keep: keepHandedIn, taken: onIncomingTaken });
+  sendHandedInLatest.current = { send: sendHandedIn, keep: keepHandedIn, taken: onIncomingTaken };
   useEffect(() => {
     if (incoming === null || incoming === handedIn.current) return;
     handedIn.current = incoming;
-    void sendHandedInLatest.current.send(incoming.text);
+    if (incoming.prefill) sendHandedInLatest.current.keep(incoming.text);
+    else void sendHandedInLatest.current.send(incoming.text);
     sendHandedInLatest.current.taken?.();
   }, [incoming]);
 
