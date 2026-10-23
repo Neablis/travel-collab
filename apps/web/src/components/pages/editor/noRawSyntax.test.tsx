@@ -1,5 +1,5 @@
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
-import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, onTestFinished } from "vitest";
 import { scenarios } from "@tc/factories";
 import { MACRO_NAMES, PRESETS } from "@tc/pages";
 import { newPageDoc, type MacroNode, type TripGlobals } from "@tc/contracts";
@@ -16,6 +16,8 @@ import {
 } from "@/test-support/rawSyntax";
 import { PageEditor } from "./PageEditor";
 import { ReadOnlyPageDoc } from "./ReadOnlyPageDoc";
+import { registerPhoneAsk } from "@/components/nav/phoneAsk";
+import { ServedEntitlementsProvider } from "@/lib/useAiEntitled";
 
 // The M14 gate box *"No user-visible macro syntax anywhere, in either mode"*,
 // at the document: both modes of the editor, and the read-only fallback. What
@@ -109,8 +111,13 @@ describe("no macro syntax reaches the DOM", () => {
 
   for (const editing of [false, true]) {
     it(`in ${editing ? "Editing" : "Reading"}`, async () => {
+      // A screen offering its chat and Ask, to a reader with the assistant
+      // (M52), so "Group chat" and "Ask" are drawn rather than absent.
+      onTestFinished(registerPhoneAsk({ open: false, onOpen: () => {}, onAsk: () => {}, chat: { onOpen: () => {}, messages: [] } }));
       const { container } = render(
-        <PageEditor detail={trip} context={context} user={user} value={doc} onChange={() => {}} editable={editing} />,
+        <ServedEntitlementsProvider entitlements={["ai.ask"]}>
+          <PageEditor detail={trip} context={context} user={user} value={doc} onChange={() => {}} editable={editing} />
+        </ServedEntitlementsProvider>,
       );
       // Every node view has mounted and printed SOMETHING — a chip, a ghost,
       // a table or a placeholder — so "no syntax" is said about real output.

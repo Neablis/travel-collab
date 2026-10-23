@@ -5,6 +5,8 @@ import { fieldChoices, getMacro, presetCatalog, renderMacro, type ExternalInputs
 import { withCostRollups } from "@tc/factories";
 import { MacroView } from "./MacroView";
 import { MacroEditorContext } from "./editor/MacroEditorContext";
+import { registerPhoneAsk } from "@/components/nav/phoneAsk";
+import { ServedEntitlementsProvider } from "@/lib/useAiEntitled";
 
 afterEach(cleanup);
 
@@ -580,7 +582,8 @@ flightNumber: null,
         // A fixed `today` well before the fixture's dates, so `trip.countdown`
         // resolves rather than reporting "no dates set yet" — and so this
         // sweep's answer does not change with the calendar.
-        { trip: richDetail, page: ctx, user: richUser, globals: richGlobals, today: "2027-01-01", external: richExternal },
+        // A reader who may chat and ask (M52): without, those two are `absent`.
+        { trip: richDetail, page: ctx, user: richUser, globals: richGlobals, today: "2027-01-01", external: richExternal, canChat: true, canAsk: true, chat: [] },
         widget.widget,
         boundParams(widget),
       );
@@ -602,20 +605,25 @@ flightNumber: null,
     const spy = vi.spyOn(console, "error").mockImplementation((...args: unknown[]) => {
       errors.push(args.map(String).join(" "));
     });
+    // A screen offering its chat and Ask, to a reader with the assistant (M52),
+    // so "Group chat" and "Ask" are drawn rather than absent.
+    const unregister = registerPhoneAsk({ open: false, onOpen: () => {}, onAsk: () => {}, chat: { onOpen: () => {}, messages: [] } });
     try {
       for (const widget of presetCatalog()) {
         const { unmount } = render(
-          <p>
-            <MacroView
-              detail={richDetail}
-              context={ctx}
-              user={richUser}
-              globals={richGlobals}
-              external={richExternal}
-              name={widget.widget}
-              params={boundParams(widget)}
-            />
-          </p>,
+          <ServedEntitlementsProvider entitlements={["ai.ask"]}>
+            <p>
+              <MacroView
+                detail={richDetail}
+                context={ctx}
+                user={richUser}
+                globals={richGlobals}
+                external={richExternal}
+                name={widget.widget}
+                params={boundParams(widget)}
+              />
+            </p>
+          </ServedEntitlementsProvider>,
         );
         // A chart's code is loaded lazily (`SpendByDayBlock`), and until it
         // arrives only its placeholder is in the paragraph. Unmounting then
@@ -624,6 +632,7 @@ flightNumber: null,
         unmount();
       }
     } finally {
+      unregister();
       spy.mockRestore();
     }
     const nesting = errors.filter((e) => /cannot be a descendant of|cannot contain a nested/i.test(e));

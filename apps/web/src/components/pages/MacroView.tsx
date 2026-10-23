@@ -11,6 +11,7 @@ import { EmptyChip } from "./EmptyChip";
 import { BlockView } from "./BlockView";
 import { LinkCardPending } from "./blocks/LinkCardBlock";
 import { MacroEditorContext } from "./editor/MacroEditorContext";
+import { useReaderCapabilities } from "./readerCapabilities";
 
 // Renders one widget instance. **It no longer knows any widget's name.**
 //
@@ -69,7 +70,12 @@ export function MacroView({ detail, context, user = null, globals = null, extern
   // The page's clock, for its `dateScope`: the editor reads it once per page.
   // Outside an editor (the invite card) there is none, and nothing is scoped.
   const now = useContext(MacroEditorContext)?.now ?? null;
-  const outcome = renderMacro({ trip: detail, page: context, user, globals, today, now, external, people, personas, guests }, name, params);
+  // Whether the reader may chat and ask (M52), for the widgets that are absent
+  // without (`MacroDef.requires`).
+  const reader = useReaderCapabilities();
+  const outcome = renderMacro({ trip: detail, page: context, user, globals, today, now, external, people, personas, guests, ...reader }, name, params);
+  // SPEC §27: nothing renders disabled, so a widget this reader may not use is not here at all.
+  if (outcome.status === "absent") return null;
   // Never the stored name: that is raw syntax on the screen (M14 gate box, `noRawSyntax.test.tsx`).
   if (outcome.status === "unknown") return <EmptyChip tone="error" label="this widget isn't available in this version" />;
   if (outcome.status === "bad-params") return <EmptyChip tone="error" label="this widget's settings no longer fit it" />;

@@ -40,7 +40,9 @@ describe("registry", () => {
       "count", "country.facts", "dates", "day.detail", "day.fromHome", "day.rows", "day.sun", "day.weather", "field", "hours",
       "link.external", "link.internal", "open", "person.share", "stop.rows", "tag.breakdown", "tag.byDay",
       "trip.description", "trip.people", "trip.strip",
-    ]);
+      // M52 decision 15, on `trip.people`'s terms.
+      "assistant.prompts", "chat.recent",
+    ].sort());
     for (const name of MACRO_NAMES) expect(getMacro(name)!.name).toBe(name);
   });
   // `renderMacro` is the one dispatcher. `resolveMacro` sat beside it with only
@@ -293,7 +295,8 @@ describe("every widget renders (ADR-037 decision 2)", () => {
   // which is exactly what the person clicking it gets.
   const presetOutcome = (entry: ReturnType<typeof presetCatalog>[number]) =>
     renderMacro(
-      { trip: populated, page: { tripId: populated.tripId }, user, globals, today: "2027-06-01", external },
+      // A reader who may chat and ask (M52): without, those two are `absent`.
+      { trip: populated, page: { tripId: populated.tripId }, user, globals, today: "2027-06-01", external, canChat: true, canAsk: true, chat: [] },
       entry.widget,
       // Bind anything still asking for a day to the one day above, so block
       // widgets reach `ok` instead of `unbound`. A field the preset leaves for
@@ -445,7 +448,8 @@ describe("every primitive declares a legal selection (ADR-039 decision 3)", () =
     expect([...MACRO_NAMES].sort()).toEqual(expect.arrayContaining([...PRIMITIVE_NAMES].sort()));
     expect(MACRO_NAMES.filter((n) => getMacro(n)!.selection === undefined).sort()).toEqual([
       "country.facts", "link.external", "link.internal", "open", "trip.description", "trip.people", "trip.strip",
-    ]);
+      "assistant.prompts", "chat.recent",
+    ].sort());
   });
 
   it("declares only dimensions its entity permits", () => {

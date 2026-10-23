@@ -24,6 +24,8 @@ import { field } from "./macros/primitives/field";
 import { daySun, dayFromHome } from "./macros/primitives/time";
 import { dayWeather } from "./macros/primitives/weather";
 import { internalLink, externalLink } from "./macros/primitives/link";
+import { chatRecent } from "./macros/primitives/chatRecent";
+import { assistantPrompts } from "./macros/primitives/assistantPrompts";
 
 // **Twelve primitives, and nothing else** (ADR-039 decision 1; spec §1's table).
 //
@@ -81,6 +83,9 @@ const DEFS: AnyMacroDef[] = [
   // The two link widgets (M30, ADR-056): no selection, so not primitives. In
   // the assistant's vocabulary since ADR-057, behind its `insert_widget` guards.
   internalLink, externalLink,
+  // "Group chat" and "Ask" (M52 decision 15): no selection, on `trip.people`'s
+  // terms, and each shown only to a reader it is for (`MacroDef.requires`).
+  chatRecent, assistantPrompts,
 ] as unknown as AnyMacroDef[];
 
 export const MACRO_REGISTRY: Record<string, AnyMacroDef> = Object.fromEntries(DEFS.map((d) => [d.name, d]));
@@ -119,6 +124,9 @@ export type RenderOutcome =
   | { status: "unbound"; needs: UnboundNeeds; shape: readonly Seg[] }
   // No shape, and never one: ADR-052's `unavailable` is not a ghost.
   | { status: "unavailable"; reason: UnavailableReason }
+  // Not shown at all (M52 decision 20): the reader lacks what the widget
+  // `requires`. Never a chip — SPEC §27, nothing renders disabled.
+  | { status: "absent" }
   | { status: "unknown" }
   | { status: "bad-params"; message: string };
 
@@ -133,6 +141,7 @@ export function renderMacro(ctx: WidgetContext, name: string, rawParams: unknown
   if (!def) return { status: "unknown" };
   const parsed = def.params.safeParse(rawParams ?? {});
   if (!parsed.success) return { status: "bad-params", message: parsed.error.message };
+  if (def.requires !== undefined && ctx[def.requires] !== true) return { status: "absent" };
   const page = pageScope(ctx, def, parsed.data as Record<string, unknown>);
   const scope: WidgetScope | undefined =
     item?.kind === "city" && page !== undefined ? { kind: "city-in-scope", name: item.name, page } : (item ?? page);

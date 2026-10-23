@@ -329,6 +329,8 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
     openLastTab,
     hasChat ? chat.unread : undefined,
     assistant.open && railTab === "chat",
+    // For a notebook's *Group chat* widget (M52): absent without a chat.
+    hasChat ? { onOpen: openChat, messages: chat.status === "ready" ? chat.messages : null } : undefined,
   );
   // **⌘K's commands are this screen's own functions** (M41 D9, ADR-068 §1,
   // ADR-069 §4). Each is named here, above the early returns because the

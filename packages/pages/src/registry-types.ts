@@ -11,6 +11,7 @@ import type { SunPayload } from "./sunPayload";
 import type { LinkCardPayload, MissingNotebookPayload } from "./linkTarget";
 import type { ItineraryPayload } from "./itineraryPayload";
 import type { TripNowClock } from "./now";
+import type { ChatMessage } from "@tc/contracts";
 import { VALUE_KIND_FORMATS } from "./kinds";
 
 // Inline payloads are display-ready strings; block payloads are structured data
@@ -141,7 +142,21 @@ export type BlockPayload =
   | SunPayload
   | LinkCardPayload
   | MissingNotebookPayload
-  | ItineraryPayload;
+  | ItineraryPayload
+  | ChatRecentPayload
+  | AssistantPromptsPayload;
+
+// "Group chat" (`chat.recent`, M52 decision 15): the newest messages, oldest
+// first, each display-ready. `author` is `null` on the app's own line (a change
+// announced, decision 17), which has nobody to name. `lines` is `null` while
+// the chat has not been read, so the block says nothing rather than "no
+// messages yet" about a conversation it has not seen.
+export interface ChatRecentLine { messageId: string; author: string | null; body: string; }
+export interface ChatRecentPayload { kind: "chat-recent"; lines: ChatRecentLine[] | null; }
+// "Ask" (`assistant.prompts`, M52 decision 15): a chip's `label`, and the
+// whole question it sends to the assistant.
+export interface AssistantPrompt { label: string; text: string; }
+export interface AssistantPromptsPayload { kind: "assistant-prompts"; prompts: AssistantPrompt[]; }
 
 // What a REPEAT widget resolves to: one entry per item, each a lead phrase and
 // the resolved values that follow it. Kept apart from `BlockPayload` on purpose
@@ -559,7 +574,27 @@ export interface WidgetContext {
    * by `travellerIds(trip.members)`.
    */
   personas?: Readonly<Record<string, WidgetPersona>> | null;
+  /**
+   * What the reader may do beyond reading (M52 decisions 15 and 20): see the
+   * trip's chat, and ask its assistant. A widget that declares one in
+   * `MacroDef.requires` is **absent** without it — not disabled (SPEC §27).
+   *
+   * **Optional, and absent is "may not"**: a share-link reader's context, the
+   * invite preview's, the server's and the assistant's never say, and none of
+   * them has a chat to open or an assistant to hand a question to.
+   */
+  canChat?: boolean;
+  canAsk?: boolean;
+  /**
+   * The trip's chat, oldest first, for `chat.recent`; `null` until it has been
+   * read. Handed in by the screen that already holds it, rather than read a
+   * second time per widget.
+   */
+  chat?: readonly ChatMessage[] | null;
 }
+
+/** A `WidgetContext` capability a widget can require (`MacroDef.requires`). */
+export type ReaderCapability = "canChat" | "canAsk";
 
 /** One member as `WidgetContext.personas` carries them. */
 export interface WidgetPersona {
@@ -666,6 +701,11 @@ export interface MacroDef<P, T> {
   // fetches an input only when one of its widgets names it here, so absent is
   // the answer for every widget that reads only the trip.
   needs?: readonly ExternalNeed[];
+  /**
+   * The reader capability this widget is shown only with (M52 decision 20).
+   * `renderMacro` answers `absent` without it, before `resolve` runs.
+   */
+  requires?: ReaderCapability;
   description: string;             // human- AND machine-readable (AI + autocomplete)
   emptyText: string;               // declarative empty-state copy
   // The insert sidebar's sample. **A fixed string, never a computed value**

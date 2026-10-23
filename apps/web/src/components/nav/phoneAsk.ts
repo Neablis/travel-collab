@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useSyncExternalStore } from "react";
+import type { ChatMessage } from "@tc/contracts";
 
 // **The phone's Ask lives in the bottom tab bar** (Mitchell, 2026-10-10
 // preview pass: the phone trip header was "way too crowded", and he chose
@@ -34,7 +35,17 @@ export type PhoneAskEntry = {
   onResume?: () => void;
   unread?: number;
   chatShown?: boolean;
+  /**
+   * The trip's chat, where the reader can see it: opening the panel on Chat,
+   * and its messages (`null` until read). A notebook's *Group chat* widget
+   * (M52) reads both from here, as its *Ask* widget reads `onAsk`: the screen
+   * holding the chat is several levels above the page that draws them.
+   */
+  chat?: PhoneChat;
 };
+
+/** What a screen offers of its trip's chat (`PhoneAskEntry.chat`). */
+export type PhoneChat = { onOpen: () => void; messages: readonly ChatMessage[] | null };
 
 let entry: PhoneAskEntry | null = null;
 const listeners = new Set<() => void>();
@@ -78,10 +89,10 @@ export function usePhoneAsk(): PhoneAskEntry | null {
 /**
  * Offers this screen's assistant as the tab bar's Ask while mounted. `onOpen`
  * `undefined` offers none; `onAsk`, sending a question as it opens, and
- * `onResume`, the bar's reopen, are optional beside it, as are `unread` and
- * `chatShown`. Any function may be a fresh one each render: the entry calls
- * whichever is latest, so only a value, or whether each is offered, changing
- * re-registers.
+ * `onResume`, the bar's reopen, are optional beside it, as are `unread`,
+ * `chatShown` and `chat`. Any function may be a fresh one each render: the
+ * entry calls whichever is latest, so only a value, or whether each is
+ * offered, changing re-registers.
  */
 export function usePhoneAskEntry(
   onOpen: (() => void) | undefined,
@@ -90,14 +101,17 @@ export function usePhoneAskEntry(
   onResume?: () => void,
   unread?: number,
   chatShown = false,
+  chat?: PhoneChat,
 ): void {
-  const latest = useRef({ onOpen, onAsk, onResume });
+  const latest = useRef({ onOpen, onAsk, onResume, onChat: chat?.onOpen });
   useEffect(() => {
-    latest.current = { onOpen, onAsk, onResume };
+    latest.current = { onOpen, onAsk, onResume, onChat: chat?.onOpen };
   });
   const offered = onOpen !== undefined;
   const asks = onAsk !== undefined;
   const resumes = onResume !== undefined;
+  const chats = chat !== undefined;
+  const messages = chat?.messages ?? null;
   useEffect(() => {
     if (!offered) return;
     return registerPhoneAsk({
@@ -107,6 +121,7 @@ export function usePhoneAskEntry(
       ...(resumes ? { onResume: () => latest.current.onResume?.() } : {}),
       ...(unread === undefined ? {} : { unread }),
       ...(chatShown ? { chatShown } : {}),
+      ...(chats ? { chat: { onOpen: () => latest.current.onChat?.(), messages } } : {}),
     });
-  }, [offered, asks, resumes, open, unread, chatShown]);
+  }, [offered, asks, resumes, open, unread, chatShown, chats, messages]);
 }

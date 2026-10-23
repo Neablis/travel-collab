@@ -599,6 +599,25 @@ export const PRESETS: readonly WidgetPreset[] = [
     keywords: ["open", "todo", "decide", "decisions", "waiting", "overlap", "conflict", "empty", "parked", "unscheduled"],
     preview: "one row per thing waiting on a decision",
   },
+  // ---- the group, on the day -------------------------------------------------
+  // M52 decision 15. No params. Each is absent for a reader it is not for
+  // (decision 20), so a page carrying them still reads whole to everyone.
+  {
+    id: "group-chat",
+    widget: "chat.recent",
+    params: {},
+    title: "Group chat",
+    summary: "Shows the trip chat's last three messages, with a button to open the conversation.",
+    keywords: ["chat", "messages", "message", "group", "conversation", "talk", "recent"],
+  },
+  {
+    id: "ask",
+    widget: "assistant.prompts",
+    params: {},
+    title: "Ask",
+    summary: "Offers one-tap questions for the assistant on the day: running late, moving dinner, a place that is closed.",
+    keywords: ["ask", "assistant", "ai", "help", "late", "running late", "dinner", "closed", "today"],
+  },
 ];
 
 const BY_ID: Record<string, WidgetPreset> = Object.fromEntries(PRESETS.map((p) => [p.id, p]));
