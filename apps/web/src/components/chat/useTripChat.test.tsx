@@ -443,3 +443,42 @@ describe("useTripChat", () => {
     expect(result.current.changeError).toBeNull();
   });
 });
+
+// M52 decision 18: an `@assistant` is a message the server also answers.
+describe("useTripChat, asking the assistant", () => {
+  it("sends the ask as one, and shows it asking from the moment it is sent", async () => {
+    const bodies: unknown[] = [];
+    server.use(
+      http.get(`/api/trips/${TRIP}/chat`, () => HttpResponse.json(pageOf([message(1)]))),
+      http.post(`/api/trips/${TRIP}/chat`, async ({ request }) => {
+        bodies.push(await request.json());
+        return HttpResponse.json({ message: message(2, "u-me") }, { status: 201 });
+      }),
+    );
+    const { result } = renderHook(() => useTripChat({ tripId: TRIP, enabled: true, chatRev: "1", reading: false, accessLost: false }));
+    await waitFor(() => expect(result.current.status).toBe("ready"));
+
+    let sent = Promise.resolve<string | null>(null);
+    act(() => void (sent = result.current.post("@assistant push dinner back", undefined, true)));
+    expect(result.current.messages.at(-1)).toMatchObject({ pending: true, asksAssistant: true });
+    await act(async () => expect(await sent).toBeNull());
+    expect(bodies).toEqual([{ body: "@assistant push dinner back", assistant: true }]);
+  });
+
+  // The route answers 402 for the asker's own plan as it does for the owner's
+  // lapse; only the lapse makes the chat read-only.
+  it("keeps the composer when the asker's plan has no assistant, and says why", async () => {
+    server.use(
+      http.get(`/api/trips/${TRIP}/chat`, () => HttpResponse.json(pageOf([message(1)]))),
+      http.post(`/api/trips/${TRIP}/chat`, () =>
+        HttpResponse.json({ error: "The assistant is part of Plus.", code: "ai-not-entitled" }, { status: 402 }),
+      ),
+    );
+    const { result } = renderHook(() => useTripChat({ tripId: TRIP, enabled: true, chatRev: "1", reading: false, accessLost: false }));
+    await waitFor(() => expect(result.current.status).toBe("ready"));
+
+    await act(async () => expect(await result.current.post("@assistant hi", undefined, true)).toBe("@assistant hi"));
+    expect(result.current.canPost).toBe(true);
+    expect(result.current.postError).toBe("The assistant is part of Plus.");
+  });
+});

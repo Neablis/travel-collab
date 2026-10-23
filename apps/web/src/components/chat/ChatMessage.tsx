@@ -1,8 +1,11 @@
 "use client";
 import { useState, type Ref } from "react";
 import type { ChatMessage as ChatMessageData } from "@tc/contracts";
+import { useKnownSessionUser } from "@/components/account/useSessionUser";
+import { SuggestionCard } from "@/components/assistant/ProposalCard";
 import type { Persona } from "@/components/pages/people";
 import { ReportAction } from "@/components/report/ReportDialog";
+import { useOptionalTrip } from "@/components/trip/context/TripProvider";
 import { PersonMenu, type PersonAction } from "@/components/trip/people/PersonMenu";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,6 +15,8 @@ import { MessageBody } from "./MessageChip";
 
 /** Who wrote a message that a member no longer on the trip wrote. */
 export const FORMER_MEMBER = "Former member";
+/** Who wrote an `@assistant`'s reply (M52 decision 18). */
+export const ASSISTANT_NAME = "Assistant";
 
 /**
  * What the reader may do to one message (M46 D6), decided by the panel from
@@ -34,6 +39,10 @@ const time = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: "nume
  * `viewer` is `null` until the reader is known, and the line offers nothing
  * then. Edit and Delete sit in the `⋯` menu; Report is the library's own
  * control (`ReportAction`) drawn as a flag, on other people's messages only.
+ *
+ * The assistant's reply is drawn as a message under its own name, with the
+ * card for any change it proposed; a change line is the app's, a quiet line
+ * nobody acts on (M52 decisions 17 and 18).
  */
 export function ChatMessage({
   ref,
@@ -47,6 +56,7 @@ export function ChatMessage({
   onSave,
   onCancelEdit,
   pending = false,
+  askedBy = null,
 }: {
   /** The line, which takes focus when the control the reader used is gone. */
   ref?: Ref<HTMLLIElement>;
@@ -67,8 +77,11 @@ export function ChatMessage({
   /** Resolves false when the edit was not stored, so the field keeps the text. */
   onSave: (body: string) => Promise<boolean>;
   onCancelEdit: () => void;
+  /** On an assistant reply, the member who asked, for its card to say who it waits on. */
+  askedBy?: Persona | null | undefined;
 }) {
-  const name = persona === null ? null : (persona?.name ?? FORMER_MEMBER);
+  if (message.kind === "system") return <ChangeLine ref={ref} message={message} />;
+  const name = message.kind === "assistant" ? ASSISTANT_NAME : persona === null ? null : (persona?.name ?? FORMER_MEMBER);
   const whose = `${name ?? "this"}${name === null ? "" : "'s"} message`;
   const live = viewer !== null && !message.removed;
   const actions: PersonAction[] = [];
@@ -109,6 +122,13 @@ export function ChatMessage({
             <MessageBody body={message.body} link={message.link} />
           </p>
         )}
+        {!message.removed && message.suggestionId !== null && message.requestedBy !== null && (
+          <ChatSuggestion
+            suggestionId={message.suggestionId}
+            requestedBy={message.requestedBy}
+            askerName={askedBy === null ? null : (askedBy?.name ?? FORMER_MEMBER)}
+          />
+        )}
       </div>
       {/* Quiet until the line is pointed at or focused, where a mouse can do
           that; always there on touch, which cannot hover. A Report dialog open
@@ -122,6 +142,66 @@ export function ChatMessage({
         </div>
       )}
     </li>
+  );
+}
+
+/** A change line (M52 decision 17): what changed, linked to the stop, and when. */
+function ChangeLine({ ref, message }: { ref?: Ref<HTMLLIElement> | undefined; message: ChatMessageData }) {
+  return (
+    <li ref={ref} tabIndex={-1} className="rounded-md px-2 text-center text-xs text-slate focus-visible:outline-2 focus-visible:outline-brand">
+      {message.removed ? <span className="italic">message removed</span> : <MessageBody body={message.body} link={message.link} />}
+      {" · "}
+      <time dateTime={message.createdAt}>{time(message.createdAt)}</time>
+    </li>
+  );
+}
+
+/**
+ * The card for what an `@assistant` proposed, while any of it is pending on
+ * the board's list (`useTripSuggestions`, which a viewer is not served): the
+ * asker accepts it whole or dismisses it; anyone else reads who it waits on,
+ * and the owner may dismiss it (ADR-067's 2026-10-23 amendment). The server
+ * refuses the rest; this only keeps a control that would be refused off it.
+ */
+function ChatSuggestion({ suggestionId, requestedBy, askerName }: { suggestionId: string; requestedBy: string; askerName: string | null }) {
+  const trip = useOptionalTrip();
+  const me = useKnownSessionUser()?.id ?? null;
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
+  const suggestions = trip?.suggestions ?? null;
+  const changes = suggestions?.changes.filter((change) => change.suggestionId === suggestionId) ?? [];
+  if (suggestions === null || changes.length === 0) return null;
+
+  const decide = async (run: () => Promise<{ ok: boolean; error?: { message: string } }>) => {
+    setBusy(true);
+    const result = await run();
+    setBusy(false);
+    setNote(result.ok ? null : (result.error?.message ?? null));
+  };
+  const ids = changes.map((change) => change.id);
+  // Dismissing a change takes everything built on it along, so only the ones
+  // built on nothing else here are sent.
+  const roots = changes.filter((change) => !change.dependsOn.some((id) => ids.includes(id)));
+  const dismiss = async () => {
+    for (const root of roots) {
+      const result = await suggestions.resolve(root.id, "dismiss");
+      if (!result.ok) return result;
+    }
+    return { ok: true };
+  };
+
+  return (
+    <div className="mt-1.5">
+      <SuggestionCard
+        descriptions={changes.map((change) => change.description)}
+        may={me !== null && me === requestedBy ? "decide" : trip?.myRole === "owner" ? "dismiss" : "wait"}
+        askerName={askerName ?? "the member who asked"}
+        busy={busy}
+        note={note}
+        onAccept={() => void decide(() => suggestions.acceptMany(ids))}
+        onDismiss={() => void decide(dismiss)}
+      />
+    </div>
   );
 }
 

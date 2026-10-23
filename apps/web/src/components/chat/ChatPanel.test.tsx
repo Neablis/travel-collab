@@ -2,7 +2,7 @@ import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import type { TripRole } from "@tc/contracts";
-import { ChatMessage } from "@tc/contracts";
+import { ASK_MAX_DURATION_SECONDS, ChatMessage } from "@tc/contracts";
 import { tripDetailFixture, tripMemberProfileFactory, uuidFrom } from "@tc/factories";
 import { personasOf } from "@/components/pages/people";
 import { tripTargets } from "@/components/palette/commands";
@@ -24,6 +24,7 @@ let notebooks: { id: string; title: string }[] = [];
 vi.mock("@/components/account/useSessionUser", () => ({ useKnownSessionUser: () => me }));
 vi.mock("@/components/trip/context/TripProvider", () => ({ useOptionalTrip: () => ({ myRole, remoteRevision }) }));
 vi.mock("@/lib/pagesClient", () => ({ fetchPages: async () => ({ ok: true, value: { pages: notebooks, viewerId: null } }) }));
+vi.mock("@/lib/useAiEntitled", () => ({ useAiEntitled: () => null }));
 beforeEach(() => {
   me = undefined;
   myRole = null;
@@ -246,5 +247,46 @@ describe("ChatPanel", () => {
     render(<ChatPanel chat={chat()} personas={bea} />);
     expect(screen.queryByRole("button", { name: "Actions for Bea's message" })).toBeNull();
     expect(screen.getByRole("button", { name: "Report Bea's message" })).toBeTruthy();
+  });
+});
+
+// M52 decision 18: every member sees the assistant is working on an ask until
+// its reply lands, and no longer than a turn can run, since a turn the
+// platform killed never gets one.
+describe("ChatPanel, while the assistant works", () => {
+  const THINKING = "Assistant is thinking…";
+  const ask = (secondsAgo: number) =>
+    ChatMessage.parse({
+      messageId: uuidFrom(2, 46),
+      authorId: "u-bea",
+      createdAt: new Date(Date.now() - secondsAgo * 1000).toISOString(),
+      editedAt: null,
+      removed: false,
+      body: "@assistant push dinner back an hour",
+      asksAssistant: true,
+    });
+  const reply = ChatMessage.parse({
+    messageId: uuidFrom(3, 46),
+    authorId: "assistant",
+    kind: "assistant",
+    requestedBy: "u-bea",
+    replyTo: uuidFrom(2, 46),
+    createdAt: new Date().toISOString(),
+    editedAt: null,
+    removed: false,
+    body: "Dinner is at 20:30 now.",
+  });
+  const status = () => screen.queryByRole("status")?.textContent ?? null;
+
+  it("says so while an ask is unanswered and younger than a turn can run", () => {
+    render(<ChatPanel chat={chat({ messages: [ask(10)] })} personas={bea} />);
+    expect(status()).toBe(THINKING);
+  });
+
+  it("stops once the reply lands, or once the ask is older than a turn can run", () => {
+    const { rerender } = render(<ChatPanel chat={chat({ messages: [ask(10), reply] })} personas={bea} />);
+    expect(status()).toBeNull();
+    rerender(<ChatPanel chat={chat({ messages: [ask(ASK_MAX_DURATION_SECONDS + 1)] })} personas={bea} />);
+    expect(status()).toBeNull();
   });
 });

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { ChatLink, ChatMessage, ChatPage } from "@tc/contracts";
+import { ChatReadOnlyReason, type ChatLink, type ChatMessage, type ChatPage } from "@tc/contracts";
 import { useKnownSessionUser } from "@/components/account/useSessionUser";
 import {
   deleteChatMessage,
@@ -48,9 +48,10 @@ export type TripChat = {
    * sending, so they are stored in the order they were sent. Resolves `null`
    * once stored. One not stored is taken back with every send queued behind
    * it, and resolves to all their text, joined, for the composer to give back;
-   * those queued sends resolve `null`.
+   * those queued sends resolve `null`. `assistant` asks the assistant too
+   * (M52 decision 18), on the poster's own plan.
    */
-  post: (body: string, link?: ChatLink) => Promise<string | null>;
+  post: (body: string, link?: ChatLink, assistant?: boolean) => Promise<string | null>;
   postError: string | null;
   /** The author's new text; resolves false when it was not stored. */
   edit: (messageId: string, body: string) => Promise<boolean>;
@@ -180,7 +181,7 @@ export function useTripChat({
   }, [tripId, enabled, reading, newest, status, refused]);
 
   const post = useCallback(
-    (body: string, link?: ChatLink) => {
+    (body: string, link?: ChatLink, assistant = false) => {
       sent.current += 1;
       const line: Sending["line"] = {
         messageId: `pending-${sent.current}`,
@@ -189,7 +190,7 @@ export function useTripChat({
         requestedBy: null,
         replyTo: null,
         suggestionId: null,
-        asksAssistant: false,
+        asksAssistant: assistant,
         createdAt: new Date().toISOString(),
         editedAt: null,
         removed: false,
@@ -203,7 +204,11 @@ export function useTripChat({
       const turn = queue.current.then(async (): Promise<string | null> => {
         // Taken back with an earlier send that was not stored.
         if (!queued.current.some((s) => s.line === line)) return null;
-        const result = await postChatMessage(tripId, link === undefined ? { body } : { body, link });
+        const result = await postChatMessage(tripId, {
+          body,
+          ...(link === undefined ? {} : { link }),
+          ...(assistant ? { assistant: true as const } : {}),
+        });
         if (result.ok) {
           setQueued(queued.current.filter((s) => s.line !== line));
           // In the pending line's place, in the same render. A re-read may have
@@ -220,7 +225,9 @@ export function useTripChat({
         const unsent = queued.current.map((s) => s.line.body).join(" ");
         setQueued([]);
         if (refused(result.error)) return unsent;
-        if (result.error.status === READ_ONLY) {
+        // An ask is refused 402 for the asker's own plan as well, which leaves
+        // the chat open to them; only the owner's lapse closes it.
+        if (result.error.status === READ_ONLY && (!assistant || result.error.code === ChatReadOnlyReason.enum["collaborators-not-entitled"])) {
           // The owner lapsed since the last read: the panel turns read-only now
           // rather than on the next one.
           setPage((current) => (current === null ? current : { ...current, canPost: false }));
