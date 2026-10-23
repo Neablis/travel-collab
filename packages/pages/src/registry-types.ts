@@ -133,7 +133,7 @@ export interface FlightLine {
   activityId: string; title: string; flightNumber: string | null;
   /** Each end's city, or its place's name. */
   from: string | null; to: string | null;
-  /** Leaving on the departure day's clock, landing on the arrival city's, with its date when that is another. */
+  /** Each end's time as typed; the arrival, the ticket's local time there, followed by where it lands when known. */
   departs: string | null; arrives: string | null;
   /** When it leaves, for the countdown; `null` untimed. */
   startsAt: number | null;

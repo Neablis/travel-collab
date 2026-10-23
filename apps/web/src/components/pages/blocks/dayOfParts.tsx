@@ -5,21 +5,18 @@ import { resolveLink, useBoardFocus } from "@/components/chat/boardFocus";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 import { directionsUrl } from "@/lib/directions";
-import { useMinuteClock } from "@/lib/useMinuteClock";
 import { MacroEditorContext } from "@/components/pages/editor/MacroEditorContext";
 
-// What the day-of widgets (M52 decision 15) share: a clock that moves each
-// minute, a stop's name that focuses it on the board, and the Directions link.
+// What the day-of widgets (M52 decision 15) share: the page's clock, a stop's name that focuses it on the board, and the Directions link.
 
 /**
- * The time a day-of block reads (ms since the epoch): its own minute clock, so
- * a countdown and *now and next* keep up while the page stays open, and the
- * page's for the first frame, before that clock has read. `null` only outside
- * a page, before the first read.
+ * The time a day-of block reads (ms since the epoch): the page's, which
+ * `PageEditor` moves each minute, so a countdown and *now and next* agree with
+ * the payload the page resolved at that minute. `null` outside a page, where
+ * these widgets resolve to nothing.
  */
 export function useBlockClock(): number | null {
-  const page = useContext(MacroEditorContext)?.now ?? null;
-  return (useMinuteClock() ?? page)?.at ?? null;
+  return useContext(MacroEditorContext)?.now?.at ?? null;
 }
 
 /**

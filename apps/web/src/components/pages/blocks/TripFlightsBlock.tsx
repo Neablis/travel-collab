@@ -6,7 +6,7 @@ import { useOptionalTrip } from "@/components/trip/context/TripProvider";
 import { StopName, useBlockClock } from "./dayOfParts";
 
 // *Your flights* (M52 decision 15): today's flights or the next one, and the
-// countdown to each that has not left, on the block's own minute clock.
+// countdown to each that has not left, on the page's minute clock.
 //
 // **Add your flight** is offered only where it can work: the stop editor is
 // hosted (the board, not a notebook's own page) and the reader may edit the

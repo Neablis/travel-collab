@@ -112,8 +112,7 @@ export function formatTimeUntil(ms: number): string {
   return `${minutes} min`;
 }
 
-/** The zone day `index`'s stop times are on: its own, or the device's when it has none this runtime knows. */
-export function zoneOf(globals: TripNowGlobals, index: number, deviceZone: string): string {
+function zoneOf(globals: TripNowGlobals, index: number, deviceZone: string): string {
   const zone = globals?.days.find((day) => day.index === index)?.timeZone ?? null;
   // A name this runtime does not know degrades to the device's clock rather
   // than throwing on Home.

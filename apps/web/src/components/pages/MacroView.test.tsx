@@ -439,6 +439,22 @@ describe("on a page scoped to today", () => {
   });
 });
 
+// One clock per page: the countdown reads today off the page's clock, which
+// moves each minute, so it cannot still say "starts tomorrow" once *Now and
+// next* has moved on to day 1. Noon UTC is the same date in any test zone.
+describe("the countdown on a page with a clock", () => {
+  it("counts from the page's day, not the day the page was opened", () => {
+    render(
+      <MacroEditorContext.Provider
+        value={{ detail: costedDetail, context: ctx, user: null, globals: null, editing: false, now: { at: Date.parse("2026-07-31T12:00:00Z"), deviceZone: "UTC" } }}
+      >
+        <MacroView detail={costedDetail} context={ctx} name="attribute" params={{ field: "trip.countdown" }} />
+      </MacroEditorContext.Provider>,
+    );
+    expect(screen.getByText("starts tomorrow")).toBeTruthy();
+  });
+});
+
 // **Every widget must be legal inside a paragraph, because that is where every
 // widget goes.** `MacroNodeExtension` is an inline atom, so a widget node sits
 // in the text flow — and a block-level element there is not merely unusual

@@ -4,8 +4,7 @@ import { DirectionsLink, StopName, useBlockClock } from "./dayOfParts";
 
 // *Now and next* (M52 decision 15): the stop under way and the next one, each
 // with Directions when it has a place. The payload holds every stop not yet
-// over, so the two are re-picked on the block's own minute clock while the
-// page stays open (`nowAndNext`), and the page is not read again to move on.
+// over, so the two are re-picked by the page's minute clock (`nowAndNext`).
 //
 // Spans, not divs: a widget node is an inline atom inside a paragraph.
 
