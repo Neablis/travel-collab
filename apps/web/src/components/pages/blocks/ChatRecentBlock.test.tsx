@@ -88,16 +88,6 @@ describe("ChatRecentBlock", () => {
     expect(within(screen.getByRole("button", { name: "Group chat Open chat" })).getByText("No messages yet.")).toBeTruthy();
   });
 
-  // A notebook's way in is a page change (PR 537 round 4): a link, so it can
-  // open in a new tab, where the board's is its own panel.
-  it("is a link where the chat lives on another page", () => {
-    offer({ href: "/trips/x?chat=open", messages: [message], unread: 0 });
-    render(view());
-    const card = screen.getByRole("link", { name: "Group chat Open chat" });
-    expect(card.getAttribute("href")).toBe("/trips/x?chat=open");
-    expect(controls()).toEqual([card]);
-  });
-
   it("opens nothing from a click while the page is being edited", async () => {
     const onOpen = vi.fn();
     offer({ onOpen, messages: [message], unread: 0 });

@@ -1,5 +1,4 @@
 "use client";
-import Link from "next/link";
 import { useId, type ReactNode } from "react";
 import { ChevronRight, MessageCircle } from "lucide-react";
 import type { ChatRecentLine, ChatRecentPayload } from "@tc/pages";
@@ -7,7 +6,7 @@ import { ChangeLine, MessageFace } from "@/components/chat/ChatMessage";
 import { MessageBody } from "@/components/chat/MessageChip";
 import { usePhoneAsk } from "@/components/nav/phoneAsk";
 import { unreadWords } from "@/components/nav/askOrChat";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { Text } from "@/components/ui/text";
 import { cn } from "@/lib/cn";
 import type { Persona } from "@/lib/persona";
@@ -16,10 +15,9 @@ import { usePersonas } from "../people";
 // "Group chat" (M52 decision 15), as a mini chat card (Mitchell, PR 537
 // preview walk): a "Group chat" header, the last few messages drawn by the
 // chat's own `MessageFace` and `ChangeLine`, so they look as they do in the
-// chat, and an "Open chat" footer. The whole card is the one way into the
-// conversation, through the screen that knows where it lives
-// (`PhoneAskEntry.chat`): a button where that is the screen's own panel, a
-// link where it is another page, so it opens in a new tab (PR 537 round 4).
+// chat, and an "Open chat" footer. The whole card is one button into the
+// conversation, opening the screen's own panel on Chat in place, on the board
+// and on a notebook alike (`PhoneAskEntry.chat`; Mitchell, PR 537).
 // Nothing inside it is a control: a message's link is drawn as its words.
 // While the page is being edited a click selects the widget as it does any
 // other, so the card is drawn but is no control then.
@@ -81,11 +79,7 @@ export function ChatRecentBlock({ payload, interactive = true }: { payload: Chat
     "aria-describedby": [unread > 0 ? unreadId : null, payload.lines === null ? null : linesId].filter(Boolean).join(" ") || undefined,
     className: cn(card, "h-auto items-stretch justify-start gap-0 p-0 font-normal whitespace-normal"),
   };
-  return "href" in chat ? (
-    <Link href={chat.href} {...control} className={cn(buttonVariants({ variant: "ghost" }), control.className)}>
-      {content}
-    </Link>
-  ) : (
+  return (
     <Button variant="ghost" onClick={chat.onOpen} {...control}>
       {content}
     </Button>

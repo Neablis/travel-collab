@@ -49,7 +49,6 @@ import { TripHeaderSkeleton } from "@/components/trip/TripHeaderSkeleton";
 import { useTripCover } from "@/components/trip/cover/useTripCover";
 import { useTripSeed } from "@/components/trip/context/tripSeed";
 import { usePhoneAskEntry } from "@/components/nav/phoneAsk";
-import { OPEN_CHAT_PARAM } from "@/components/chat/boardChatHref";
 import { AddSavedDayButton } from "@/components/trip/AddSavedDayButton";
 import { useBoardSuggestions } from "./SuggestionActions";
 import { SuggestionTray } from "./SuggestionTray";
@@ -77,7 +76,7 @@ import type { RailTab } from "@/components/assistant/AssistantRail";
 import { readLastRailTab, rememberRailTab } from "@/components/assistant/lastTab";
 import { ChatPanel } from "@/components/chat/ChatPanel";
 import { useBoardFocusEntry } from "@/components/chat/boardFocus";
-import { useTripChat } from "@/components/chat/useTripChat";
+import { hasTripChat, useTripChat } from "@/components/chat/useTripChat";
 import { personasOf } from "@/components/pages/people";
 import type { AssistantTurn } from "@/components/assistant/Transcript";
 import { proposalUndoFor, type ProposalState } from "@/components/assistant/ProposalCard";
@@ -269,7 +268,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // Whether there is anyone to chat with: not on /demo, not once access is
   // gone, and not on a trip you are alone on. Without, the button is Ask
   // alone and a remembered Chat does not reopen; the tab stays, as before.
-  const hasChat = !isDemoTripId(tripId) && chat.status !== "no-access" && (members?.length ?? 0) > 1;
+  const hasChat = hasTripChat(tripId, chat.status, members?.length ?? 0);
   const openLastTab = () => {
     setRailTab(hasChat ? readLastRailTab() : "ask");
     assistant.show();
@@ -714,28 +713,6 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
     setFocusedDay(index);
     setReveal({ dayId: activeTrip.days[index]!.dayId, activityId: linkedStop, from: view });
   }, [linkedStop, activeTrip, setFocusedDay, setView, view]);
-
-  /**
-   * **A notebook's *Group chat*** (M52, `boardChatHref`) arrives as
-   * `?chat=open`: the panel opens on Chat once the board renders, once per
-   * arrival, so closing it afterwards stays closed. The param then goes from
-   * the URL, or a reload, Back from a notebook or a copied link would open
-   * Chat again (PR 537 round 4). It goes by `history.replaceState`, as
-   * `LensRouter.setView` writes the URL: no history entry, and no router
-   * navigation to fetch the page from the server again (PR 486).
-   */
-  const linkedChat = searchParams.get(OPEN_CHAT_PARAM) !== null;
-  const appliedChatLink = useRef(false);
-  useEffect(() => {
-    if (!linkedChat || !boardRenders || isDemoTripId(tripId) || appliedChatLink.current) return;
-    appliedChatLink.current = true;
-    openChat();
-    const rest = new URLSearchParams(searchParams);
-    rest.delete(OPEN_CHAT_PARAM);
-    const query = rest.toString();
-    window.history.replaceState(null, "", `${window.location.pathname}${query === "" ? "" : `?${query}`}`);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- once the board renders; `openChat` is this render's
-  }, [linkedChat, boardRenders]);
 
   // A demo board (`/demo/<slug>`, ADR-031) runs everything on this screen except
   // the assistant. Not because it would look wrong — because it would not

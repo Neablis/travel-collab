@@ -50,10 +50,10 @@ export type PhoneAskEntry = {
 
 /**
  * What a screen offers of its trip's chat (`PhoneAskEntry.chat`): `onOpen`
- * where the chat is this screen's own panel, `href` where it is another page's,
- * so the way in is a link (a notebook's, to the board: PR 537 round 4).
+ * opens the screen's own panel on Chat, the board's and a notebook's alike
+ * (Mitchell, PR 537: the chat opens in place).
  */
-export type PhoneChat = { messages: readonly ChatMessage[] | null; unread: number } & ({ onOpen: () => void } | { href: string });
+export type PhoneChat = { onOpen: () => void; messages: readonly ChatMessage[] | null; unread: number };
 
 let entry: PhoneAskEntry | null = null;
 const listeners = new Set<() => void>();
@@ -111,7 +111,7 @@ export function usePhoneAskEntry(
   chatShown = false,
   chat?: PhoneChat,
 ): void {
-  const onChat = chat !== undefined && "onOpen" in chat ? chat.onOpen : undefined;
+  const onChat = chat?.onOpen;
   const latest = useRef({ onOpen, onAsk, onResume, onChat });
   useEffect(() => {
     latest.current = { onOpen, onAsk, onResume, onChat };
@@ -122,7 +122,6 @@ export function usePhoneAskEntry(
   const chats = chat !== undefined;
   const messages = chat?.messages ?? null;
   const chatUnread = chat?.unread ?? 0;
-  const chatHref = chat !== undefined && "href" in chat ? chat.href : undefined;
   useEffect(() => {
     if (!offered) return;
     return registerPhoneAsk({
@@ -132,9 +131,7 @@ export function usePhoneAskEntry(
       ...(resumes ? { onResume: () => latest.current.onResume?.() } : {}),
       ...(unread === undefined ? {} : { unread }),
       ...(chatShown ? { chatShown } : {}),
-      ...(chats
-        ? { chat: chatHref === undefined ? { onOpen: () => latest.current.onChat?.(), messages, unread: chatUnread } : { href: chatHref, messages, unread: chatUnread } }
-        : {}),
+      ...(chats ? { chat: { onOpen: () => latest.current.onChat?.(), messages, unread: chatUnread } } : {}),
     });
-  }, [offered, asks, resumes, open, unread, chatShown, chats, chatHref, messages, chatUnread]);
+  }, [offered, asks, resumes, open, unread, chatShown, chats, messages, chatUnread]);
 }

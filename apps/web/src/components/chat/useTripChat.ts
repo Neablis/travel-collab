@@ -13,6 +13,7 @@ import {
   type ApiResult,
 } from "@/lib/apiClient";
 import { whenIdle } from "@/lib/whenIdle";
+import { isDemoTripId } from "@/lib/demoTrip";
 
 /**
  * - `loading`: the first read has not answered.
@@ -65,6 +66,18 @@ const READ_ONLY = 402;
 const NO_ACCESS = 403;
 // An edit of a message deleted or hidden since this page last read it.
 const REMOVED = 409;
+
+/**
+ * **Whether this reader has the trip's chat**, on the board and on a notebook
+ * alike (M46; M52, Mitchell on PR 537): never on /demo, never once the server
+ * refuses it (`no-access`, its own role check, `chatAccess`), and never on a
+ * trip with one member, where there is nobody to chat with. `memberCount` is
+ * the trip's access read, so a reader that read refuses (a share link's, who
+ * is no member) counts none. One rule, so the two surfaces cannot disagree.
+ */
+export function hasTripChat(tripId: string, status: TripChatStatus, memberCount: number): boolean {
+  return !isDemoTripId(tripId) && status !== "no-access" && memberCount > 1;
+}
 
 /**
  * A trip's chat, held by the board so the header's pill can count it while the

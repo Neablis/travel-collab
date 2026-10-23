@@ -2366,10 +2366,12 @@ describe("PageScreen — Undo reset", () => {
   });
 });
 
-// M52, Mitchell on PR 537 round 3: a notebook's *Group chat* shows the
-// trip's last messages and is itself the way to the chat, which opens where it
-// lives, on the board (`boardChatHref`). A reader who cannot see the chat gets
-// no widget (decision 15, SPEC §27: nothing renders disabled).
+// M52, Mitchell on PR 537 (2026-10-23): the notebook's assistant panel holds
+// the trip's chat as the board's does, an *Ask · Chat* switch on the floating
+// panel and the phone's sheet alike, for whoever the board offers it to
+// (`hasTripChat`). A notebook's *Group chat* shows the last messages and opens
+// that tab in place. A reader who cannot see the chat gets neither (decision
+// 15, SPEC §27: nothing renders disabled).
 describe("PageScreen: a notebook's Group chat", () => {
   const said = ChatMessage.parse({
     messageId: "6e9a2c9e-0000-4b6e-9d3f-2b1a5c8d7e61",
@@ -2379,7 +2381,7 @@ describe("PageScreen: a notebook's Group chat", () => {
     removed: false,
     body: "Train at nine?",
   });
-  function chatNotebook(members: { userId: string; role: "owner" | "viewer" }[]) {
+  function chatNotebook(members: { userId: string; role: "owner" | "viewer" }[], access: "member" | "refused" = "member") {
     const trip = tripDetailFixture({ members });
     const widget = insertWidget("chat.recent");
     if (!widget.ok) throw new Error("could not build Group chat");
@@ -2388,7 +2390,7 @@ describe("PageScreen: a notebook's Group chat", () => {
       ...makePagesHandlers([page]),
       http.get("/api/trips/:tripId", () => HttpResponse.json({ trip })),
       http.get("/api/trips/:tripId/access", ({ params }) =>
-        HttpResponse.json({
+        access === "refused" ? HttpResponse.json({ error: "forbidden" }, { status: 403 }) : HttpResponse.json({
           access: {
             tripId: params.tripId,
             myRole: "owner",
@@ -2405,42 +2407,100 @@ describe("PageScreen: a notebook's Group chat", () => {
   }
   const pair = [{ userId: "u1", role: "owner" as const }, { userId: "u-bea", role: "viewer" as const }];
 
-  // A link, not a button and `router.push` (PR 537 round 4), so it opens in
-  // a new tab as any other way to another page does.
-  it("shows a chat member the chat's messages, as one link to the board's chat", async () => {
-    server.use(...makeChatHandlers({ viewerId: "u1", messages: [said] }).handlers);
-    const trip = chatNotebook(pair);
+  const card = { name: "Group chat Open chat" };
+  // "Edit page" waits out the role read, which says whether there is a chat.
+  const openAssistant = async () => {
+    await screen.findByRole("button", { name: "Edit page" });
+    await userEvent.click(screen.getByTestId("assistant-launcher"));
+    return screen.getByRole("complementary", { name: "Assistant" });
+  };
+  const chatTab = { name: "Chat" };
 
-    const widget = await screen.findByRole("link", { name: "Group chat Open chat" });
-    await waitFor(() => expect(widget.textContent).toContain("Train at nine?"));
-    expect(widget.getAttribute("href")).toBe(`/trips/${trip.tripId}?chat=open`);
-  });
-
-  it("is no link while the page is being edited", async () => {
+  it("gives a chat member's assistant panel a Chat tab beside Ask", async () => {
     server.use(...makeChatHandlers({ viewerId: "u1", messages: [said] }).handlers);
     chatNotebook(pair);
-    await screen.findByRole("link", { name: "Group chat Open chat" });
+
+    const panel = await openAssistant();
+    await within(panel).findByRole("tab", chatTab);
+    expect(within(panel).getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["Chat", "Ask"]);
+  });
+
+  it("opens the panel on Chat in place when the Group chat card is tapped", async () => {
+    server.use(...makeChatHandlers({ viewerId: "u1", messages: [said] }).handlers);
+    chatNotebook(pair);
+    const widget = await screen.findByRole("button", card);
+    await waitFor(() => expect(widget.textContent).toContain("Train at nine?"));
+
+    await userEvent.click(widget);
+    const chat = within(screen.getByRole("complementary", { name: "Assistant" })).getByRole("tabpanel", { name: "Chat" });
+    // The board's own chat panel, reading the one subscription the card reads.
+    expect(await within(chat).findByText("Train at nine?")).toBeTruthy();
+    expect(screen.queryByRole("link", card)).toBeNull();
+  });
+
+  it("opens the phone's sheet on Chat when the Group chat card is tapped", async () => {
+    Object.defineProperty(window, "matchMedia", {
+      configurable: true,
+      writable: true,
+      value: (query: string) => ({ matches: query === "(max-width: 767px)", media: query, addEventListener: () => {}, removeEventListener: () => {} }),
+    });
+    try {
+      server.use(...makeChatHandlers({ viewerId: "u1", messages: [said] }).handlers);
+      chatNotebook(pair);
+
+      await userEvent.click(await screen.findByRole("button", card));
+      const sheet = await screen.findByRole("dialog", { name: "Chat" });
+      expect(within(sheet).getByRole("tabpanel", { name: "Chat" })).toBeTruthy();
+    } finally {
+      Reflect.deleteProperty(window, "matchMedia");
+    }
+  });
+
+  it("is no control while the page is being edited", async () => {
+    server.use(...makeChatHandlers({ viewerId: "u1", messages: [said] }).handlers);
+    chatNotebook(pair);
+    await screen.findByRole("button", card);
 
     await userEvent.click(screen.getByRole("button", { name: "Edit page" }));
     expect(await within(await screen.findByRole("group", { name: "Group chat" })).findByText("Train at nine?")).toBeTruthy();
-    expect(screen.queryByRole("link", { name: "Group chat Open chat" })).toBeNull();
+    expect(screen.queryByRole("button", card)).toBeNull();
   });
 
-  it("gives a reader alone on the trip no Group chat", async () => {
+  it("gives a reader alone on the trip no Group chat and no Chat tab", async () => {
     chatNotebook([{ userId: "u1", role: "owner" }]);
 
     expect(await screen.findByRole("article")).toBeTruthy();
     expect(screen.queryByRole("group", { name: "Group chat" })).toBeNull();
-    expect(screen.queryByRole("link", { name: "Group chat Open chat" })).toBeNull();
+    expect(screen.queryByRole("button", card)).toBeNull();
+    expect(within(await openAssistant()).queryByRole("tab", chatTab)).toBeNull();
+  });
+
+  // A share link's reader holds no role on the trip: its access read is
+  // refused, as it is for anyone who is not a member.
+  it("gives a reader the trip's access read refuses no Chat tab", async () => {
+    server.use(...makeChatHandlers({ viewerId: "u1", messages: [said] }).handlers);
+    chatNotebook(pair, "refused");
+
+    expect(within(await openAssistant()).queryByRole("tab", chatTab)).toBeNull();
+    expect(screen.queryByRole("button", card)).toBeNull();
   });
 
   // Removed from the trip while it still lists them: the chat's 403 is the answer.
-  it("gives a reader the chat refuses no Group chat", async () => {
-    server.use(http.get("/api/trips/:tripId/chat", () => HttpResponse.json({ error: "forbidden" }, { status: 403 })));
+  it("gives a reader the chat refuses no Group chat and no Chat tab", async () => {
+    let asked!: () => void;
+    const refused = new Promise<void>((resolve) => (asked = resolve));
+    server.use(
+      http.get("/api/trips/:tripId/chat", () => {
+        asked();
+        return HttpResponse.json({ error: "forbidden" }, { status: 403 });
+      }),
+    );
     chatNotebook(pair);
 
-    expect(await screen.findByRole("article")).toBeTruthy();
-    await waitFor(() => expect(screen.queryByRole("link", { name: "Group chat Open chat" })).toBeNull());
+    await refused;
+    const panel = await openAssistant();
+    await waitFor(() => expect(within(panel).queryByRole("tab", chatTab)).toBeNull());
+    expect(screen.queryByRole("button", card)).toBeNull();
     expect(screen.queryByRole("group", { name: "Group chat" })).toBeNull();
   });
 });
