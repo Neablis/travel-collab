@@ -58,6 +58,7 @@ import { plain } from "@/server/assistant/prompt";
 import { ASSISTANT_TOOLS } from "@/server/assistant/registry";
 import { GO_TO_TOOL_NAME, OPEN_TRIP_TOOL_NAME, PROPOSE_NOTEBOOK_EDITING_TOOL_NAME } from "@/server/assistant/tools/navigate";
 import { READ_CHAT_TOOL_NAME } from "@/server/assistant/tools/chat";
+import { FIND_PLACES_NEAR_NOW_TOOL_NAME, type PlaceSearchReadout } from "@/server/assistant/tools/places";
 import {
   ADD_PLAYBOOK_TO_TRIP_TOOL_NAME,
   READ_PLAYBOOK_TOOL_NAME,
@@ -283,8 +284,17 @@ function askQuestions(scope: AskScope, options: CallOptionsLike): ToolCall[] {
   // A turn the trip chat started (M52): what was said before the ask is read
   // with the trip, as a model asked to "fix this" has to.
   if (offered(options, READ_CHAT_TOOL_NAME)) calls.push(call(READ_CHAT_TOOL_NAME, {}));
+  // An under-way trip (M52 decision 13): "near here" is the plan's here, which
+  // only the near-now search knows, and it is offered only then.
+  const question = latestUserText(options);
+  if (offered(options, FIND_PLACES_NEAR_NOW_TOOL_NAME) && NEARBY.test(question)) {
+    calls.push(call(FIND_PLACES_NEAR_NOW_TOOL_NAME, { queries: [question.replace(new RegExp(NEARBY, "gi"), "").replace(FIND_WORDS, "").trim() || "places"] }));
+  }
   return calls;
 }
+
+const NEARBY = /\b(?:near (?:here|us|me|by)|nearby|around (?:here|us)|close by)\b/i;
+const FIND_WORDS = /\b(?:find|me|some|is there|are there|any)\b|\?/gi;
 
 /** Whether the harness handed this call a tool of that name. */
 function offered(options: CallOptionsLike, name: string): boolean {
@@ -424,6 +434,14 @@ function askAnswer(scope: AskScope, results: readonly ToolResultLike[]): string[
 
   const chat = resultFor<{ messages: unknown[] }>(results, READ_CHAT_TOOL_NAME);
   if (chat) sentences.push(`I read the last ${chat.messages.length} message${chat.messages.length === 1 ? "" : "s"} in the chat.`);
+
+  // The answer says where it searched, as decision 13 asks of a real model.
+  const near = resultFor<PlaceSearchReadout & { near: { name: string } | null }>(results, FIND_PLACES_NEAR_NOW_TOOL_NAME);
+  if (near) {
+    const names = near.results.flatMap((result) => result.candidates.map((candidate) => plain(candidate.name)));
+    const where = near.near === null ? "around the trip" : `near ${plain(near.near.name)}`;
+    sentences.push(names.length === 0 ? `I found nothing ${where}.` : `I searched ${where}: ${names.join(", ")}.`);
+  }
 
   sentences.push(SIMULATED_ASK_NOTICE);
   return sentences;

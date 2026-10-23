@@ -7,10 +7,50 @@
 import { randomUUID } from "node:crypto";
 import type { ActivityTag, Location, TripCommand } from "@tc/contracts";
 import { commandsFor } from "@tc/factories";
+import { JAPAN_STOPS, JAPAN_TRIP_DAY_COUNT, addDays } from "@tc/fixtures";
+import { clockIn } from "@tc/pages";
 
-/** The trips a live-set prompt may name, beyond the default Japan trip. */
-export const EVAL_TRIPS = ["long-100"] as const;
+/**
+ * The trips a live-set prompt may name, beyond the default Japan trip.
+ * `today` is that trip dated to start today (M52), so a day-of prompt runs on
+ * a trip under way and is offered what only such a trip is.
+ */
+export const EVAL_TRIPS = ["long-100", "today"] as const;
 export type EvalTripName = (typeof EVAL_TRIPS)[number];
+
+/**
+ * The start date that makes `today` under way at `at`, on the first Japan day
+ * with a stop already begun and one still to come at that hour in Tokyo, where
+ * every stop is. The day-of cases need both, so a trip simply started today
+ * failed them for the hour of the run: nothing has begun on day 1 before
+ * 14:30, and nothing is left after 21:00 (PR 534 review, finding 4).
+ *
+ * Null when no day has both, from 21:00 to 06:30 JST: the runner leaves the
+ * day-of prompts out then (`notRunOnClock`).
+ */
+export function japanTodayStart(at: number): string | null {
+  const { date, time } = clockIn("Asia/Tokyo", at);
+  for (let day = 1; day <= JAPAN_TRIP_DAY_COUNT; day++) {
+    const starts = JAPAN_STOPS.filter((stop) => stop.day === day).map((stop) => stop.start);
+    if (starts.some((start) => start <= time) && starts.some((start) => start > time)) return addDays(date, 1 - day);
+  }
+  return null;
+}
+
+/**
+ * The day-of prompts among `prompts` that cannot run at `at`, each with the
+ * line the run's summary names it on. Outside the hours `japanTodayStart`
+ * covers, a full run leaves them out of its turns and its report rather than
+ * refusing the whole set; a run that named one with `EVAL_ONLY` refuses.
+ */
+export function notRunOnClock(
+  prompts: readonly { id: string; trip?: EvalTripName }[],
+  at: number,
+): { id: string; reason: string }[] {
+  if (japanTodayStart(at) !== null) return [];
+  const reason = `not run: clock (${clockIn("Asia/Tokyo", at).time} JST)`;
+  return prompts.filter((prompt) => prompt.trip === "today").map(({ id }) => ({ id, reason }));
+}
 
 // A hundred days through six stays, Tokyo twice: long enough to be well past
 // the overview line, and shaped like a real long trip — a few cities, each for

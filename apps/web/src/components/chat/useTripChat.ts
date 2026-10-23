@@ -203,7 +203,8 @@ export function useTripChat({
       const turn = queue.current.then(async (): Promise<string | null> => {
         // Taken back with an earlier send that was not stored.
         if (!queued.current.some((s) => s.line === line)) return null;
-        const result = await postChatMessage(tripId, link === undefined ? { body } : { body, link });
+        const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        const result = await postChatMessage(tripId, link === undefined ? { body, timeZone } : { body, link, timeZone });
         if (result.ok) {
           setQueued(queued.current.filter((s) => s.line !== line));
           // In the pending line's place, in the same render. A re-read may have
