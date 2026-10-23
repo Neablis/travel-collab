@@ -3,7 +3,7 @@ import { useRef, useState, type Ref } from "react";
 import type { ChatMessage as ChatMessageData } from "@tc/contracts";
 import { useKnownSessionUser } from "@/components/account/useSessionUser";
 import { SuggestionCard } from "@/components/assistant/ProposalCard";
-import type { Persona } from "@/components/pages/people";
+import type { Persona } from "@/lib/persona";
 import { ReportAction } from "@/components/report/ReportDialog";
 import { useOptionalTrip } from "@/components/trip/context/TripProvider";
 import { PersonMenu, type PersonAction } from "@/components/trip/people/PersonMenu";

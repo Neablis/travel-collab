@@ -194,8 +194,9 @@ describe("every widget renders (ADR-037 decision 2)", () => {
       a1: {
         activityId: "a1", tripId: detail.tripId, title: "Museum", dayId: "d0", position: 0,
         // Located, so "Know before you go" has a country to card rather than
-        // resolving to `empty` — the witness floor below, once more.
-        timeWindow: { start: "09:00", end: "17:00" }, location: { name: "Tokyo National Museum", countryCode: "JP" },
+        // resolving to `empty` — the witness floor below, once more — and placed,
+        // so "Directions" has somewhere to send Maps.
+        timeWindow: { start: "09:00", end: "17:00" }, location: { name: "Tokyo National Museum", countryCode: "JP", lat: 35.7188, lng: 139.7765 },
         cost: { amountMinor: 5000, currency: "USD" },
         // `booked`, not `null`: `booking.line` resolves to `empty` for a day
         // whose stops are all merely planned, so with a null kind it never

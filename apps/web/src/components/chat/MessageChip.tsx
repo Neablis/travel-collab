@@ -2,7 +2,7 @@
 import { createContext, useContext } from "react";
 import Link from "next/link";
 import type { ChatLink } from "@tc/contracts";
-import type { Persona } from "@/components/pages/people";
+import type { Persona } from "@/lib/persona";
 import { resolveLink, useBoardFocus, type BoardFocus } from "./boardFocus";
 import { Button } from "@/components/ui/button";
 

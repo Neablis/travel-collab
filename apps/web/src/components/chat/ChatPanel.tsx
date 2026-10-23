@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { ASK_MAX_DURATION_SECONDS } from "@tc/contracts";
 import { useKnownSessionUser } from "@/components/account/useSessionUser";
-import type { Persona } from "@/components/pages/people";
+import type { Persona } from "@/lib/persona";
 import { usePinToBottom } from "@/components/assistant/usePinToBottom";
 import { useOptionalTrip } from "@/components/trip/context/TripProvider";
 import { Button, buttonVariants } from "@/components/ui/button";
