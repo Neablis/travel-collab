@@ -39,7 +39,11 @@ export { clockIn } from "./clock";
 // print one format.
 export { readerClock, toClockLabel, toClockRange } from "./clockLabel";
 // The one ordinal suffix table: the chart's axis here, and the Calendar cell's
-// "14th" in `apps/web` (`ordinalDayOfMonth`), which delegates to it.
-export { ordinal, formatShortDate } from "./format";
+// "14th" in `apps/web` (`ordinalDayOfMonth`), which delegates to it. The
+// countdown and the day's name are Home's badge's words too (M52).
+export { ordinal, formatShortDate, formatCountdown, dayLabel } from "./format";
 export * from "./widgetSearch";
 export * from "./defaultNotebooks";
+// M52 (ADR-080): where a trip is right now. Every reader of "now" asks this,
+// and none works out a phase of its own.
+export * from "./now";

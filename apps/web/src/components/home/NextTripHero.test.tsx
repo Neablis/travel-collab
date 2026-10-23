@@ -2,16 +2,18 @@ import { act, cleanup, render, screen, waitFor, within } from "@testing-library/
 import { hydrateRoot, type Root } from "react-dom/client";
 import { renderToString } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { TripSummary } from "@tc/contracts";
-import { costedTripDetailFixture, tripCoverFactory, tripDetailFixture, tripSummaryFactory, tripSummaryMemberFactory } from "@tc/factories";
+import type { ActivityView, TripGlobals, TripSummary } from "@tc/contracts";
+import { activityFactory, costedTripDetailFixture, tripCoverFactory, tripDetailFixture, tripSummaryFactory, tripSummaryMemberFactory } from "@tc/factories";
 
 const fetchTripDetailMock = vi.fn();
+const fetchTripGlobalsMock = vi.fn();
 
 vi.mock("@/lib/apiClient", async (orig) => {
   const actual = await orig<typeof import("@/lib/apiClient")>();
   return {
     ...actual,
     fetchTripDetail: (...args: unknown[]) => fetchTripDetailMock(...args),
+    fetchTripGlobals: (...args: unknown[]) => fetchTripGlobalsMock(...args),
   };
 });
 
@@ -26,6 +28,8 @@ afterEach(() => {
 
 beforeEach(() => {
   fetchTripDetailMock.mockReset();
+  fetchTripGlobalsMock.mockReset();
+  fetchTripGlobalsMock.mockResolvedValue({ ok: false, error: { status: 500, message: "unavailable" } });
 });
 
 /** A `TripSummary` from `tripSummaryFactory`, planned unless `overrides` say otherwise. */
@@ -717,6 +721,119 @@ describe("NextTripHero — the countdown", () => {
 
     await screen.findByRole("heading", { level: 2, name: trip.name });
     expect(screen.queryByText(/days ago|in \d+ days|^today$|^tomorrow$/)).toBeNull();
+  });
+});
+
+// M52 (decisions 11, 19; ADR-080): the badge says where the trip is. Each day is
+// in Lisbon (UTC+1 in August) through the globals, and the clock is a UTC
+// instant, so the answer does not depend on the zone the suite runs in.
+describe("NextTripHero — the badge reads where the trip is", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  /**
+   * A trip of `length` days from `start`, its first day carrying `firstDay`'s
+   * stops, every day in `zone`; `globals: false` makes the globals fail.
+   */
+  function heroFor(
+    start: string,
+    length: number,
+    firstDay: Partial<ActivityView>[] = [],
+    { zone = "Europe/Lisbon", at = "2026-08-04T12:00:00Z", globals: globalsLoad = true } = {},
+  ) {
+    const trip = tripSummaryFixture();
+    const dates = Array.from({ length }, (_, i) => new Date(Date.parse(start) + i * 86_400_000).toISOString().slice(0, 10));
+    const stops = firstDay.map((stop) => activityFactory.build(stop));
+    const days = dates.map((date, i) => ({
+      dayId: `00000000-0000-4000-8000-00000000000${i}`,
+      activityIds: i === 0 ? stops.map((stop) => stop.activityId) : [],
+      date,
+      costSubtotal: 0,
+    }));
+    fetchTripDetailMock.mockResolvedValue({
+      ok: true,
+      value: tripDetailFixture({
+        tripId: trip.tripId,
+        startDate: start,
+        days,
+        activities: Object.fromEntries(stops.map((stop) => [stop.activityId, stop])),
+      }),
+    });
+    const globals: TripGlobals = {
+      days: dates.map((date, index) => ({
+        index,
+        date,
+        cities: [],
+        activityCount: 0,
+        costSubtotal: 0,
+        place: { lat: 38.71, lng: -9.14, city: "Lisbon" },
+        timeZone: zone,
+      })),
+      cities: [],
+      tags: [],
+      description: null,
+      homeTimeZone: null,
+    };
+    if (globalsLoad) fetchTripGlobalsMock.mockResolvedValue({ ok: true, value: globals });
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(new Date(at));
+    render(<NextTripHero trip={trip} />);
+  }
+
+  it("says which day of the trip it is while under way", async () => {
+    heroFor("2026-08-02", 7);
+    expect(await screen.findByText("Day 3 of 7")).toBeTruthy();
+    expect(screen.queryByText("Next trip")).toBeNull();
+  });
+
+  it("counts down to the first flight in the days before", async () => {
+    // 20:00 in Lisbon on the 6th is 19:00 UTC: two days and seven hours away.
+    heroFor("2026-08-06", 3, [
+      { timeWindow: { start: "07:00", end: "08:00" } },
+      { kind: "transit", mode: "flight", timeWindow: { start: "20:00", end: "23:00" } },
+    ]);
+    expect(await screen.findByText("Flight in 2 days, 7 h")).toBeTruthy();
+  });
+
+  it("counts down to the start date in the days before when no flight is timed", async () => {
+    heroFor("2026-08-06", 3, [{ timeWindow: { start: "07:00", end: "08:00" } }]);
+    expect(await screen.findByText("In 2 days")).toBeTruthy();
+    // The date countdown beside the badge would say it twice.
+    expect(screen.queryByText("in 2 days")).toBeNull();
+  });
+
+  it("counts the days to the start on the trip's clock, not the device's", async () => {
+    // 10:30 UTC on the 4th is already 00:30 on the 5th in Kiritimati (UTC+14),
+    // and still the 4th on any device clock the suite can run on.
+    heroFor("2026-08-07", 3, [], { zone: "Pacific/Kiritimati", at: "2026-08-04T10:30:00Z" });
+    expect(await screen.findByText("In 2 days")).toBeTruthy();
+  });
+
+  it("moves on while the page stays open", async () => {
+    heroFor("2026-08-06", 3, [{ kind: "transit", mode: "flight", timeWindow: { start: "20:00", end: "23:00" } }]);
+    expect(await screen.findByText("Flight in 2 days, 7 h")).toBeTruthy();
+    act(() => {
+      vi.advanceTimersByTime(60 * 60_000);
+    });
+    expect(await screen.findByText("Flight in 2 days, 6 h")).toBeTruthy();
+  });
+
+  it("is the next trip further out, with its countdown beside it", async () => {
+    heroFor("2026-08-20", 3);
+    expect(await screen.findByText("in 16 days")).toBeTruthy();
+    expect(screen.getByText("Next trip")).toBeTruthy();
+  });
+
+  it("is the next trip once it has ended, with how long ago beside it", async () => {
+    heroFor("2026-07-20", 3);
+    expect(await screen.findByText("15 days ago")).toBeTruthy();
+    expect(screen.getByText("Next trip")).toBeTruthy();
+  });
+
+  it("still says the day when the trip's zones fail to load, on the device's clock", async () => {
+    heroFor("2026-08-02", 7, [], { globals: false });
+    expect(await screen.findByText("Day 3 of 7")).toBeTruthy();
   });
 });
 
