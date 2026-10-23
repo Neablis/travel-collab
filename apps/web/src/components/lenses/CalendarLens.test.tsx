@@ -89,6 +89,7 @@ function detailFixture() {
         mode: null,
         endLocation: null,
         pendingReason: null,
+        flightNumber: null,
       },
       [forum]: {
         activityId: forum,
@@ -106,6 +107,7 @@ function detailFixture() {
         mode: null,
         endLocation: null,
         pendingReason: null,
+        flightNumber: null,
       },
       [flight]: {
         activityId: flight,
@@ -123,6 +125,7 @@ function detailFixture() {
         mode: null,
         endLocation: null,
         pendingReason: null,
+        flightNumber: null,
       },
     },
   });
@@ -205,7 +208,7 @@ describe("CalendarLens", () => {
         activities: Object.fromEntries(
           ids.map((id, i) => [
             id,
-            { activityId: id, title: `Stop ${i + 1}`, timeWindow: null, location: { name: "Rome", city: "Rome" }, notes: null, anchors: [], kind: "planned" as const, tags: [], cost: null , bookedBy: null, participants: [], addedBy: null, mode: null, endLocation: null, pendingReason: null},
+            { activityId: id, title: `Stop ${i + 1}`, timeWindow: null, location: { name: "Rome", city: "Rome" }, notes: null, anchors: [], kind: "planned" as const, tags: [], cost: null , bookedBy: null, participants: [], addedBy: null, mode: null, endLocation: null, pendingReason: null, flightNumber: null},
           ]),
         ),
       }),
@@ -241,6 +244,7 @@ describe("CalendarLens", () => {
           mode: null,
           endLocation: null,
           pendingReason: null,
+          flightNumber: null,
         },
         [forum]: {
           activityId: forum,
@@ -258,6 +262,7 @@ describe("CalendarLens", () => {
           mode: null,
           endLocation: null,
           pendingReason: null,
+          flightNumber: null,
         },
       },
     });
@@ -288,6 +293,7 @@ describe("CalendarLens", () => {
           mode: null,
           endLocation: null,
           pendingReason: null,
+          flightNumber: null,
         },
       },
     });
@@ -475,6 +481,7 @@ describe("CalendarLens", () => {
         mode: null,
         endLocation: null,
         pendingReason: null,
+        flightNumber: null,
       });
 
       return tripDetailFixture({

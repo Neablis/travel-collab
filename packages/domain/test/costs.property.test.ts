@@ -19,7 +19,7 @@ function stateOf(costs: number[], onDay: boolean[], picked: (number | readonly s
     const id = `a${i}`;
     const pick = picked[i] ?? 0;
     const participants = typeof pick === "number" ? Array.from({ length: pick }, (_, p) => `u${p + 1}`) : [...pick];
-    activities[id] = { title: `A${i}`, timeWindow: null, location: null, notes: null, anchors: [], kind: "planned" as const, tags: [], cost: c === 0 ? null : { amountMinor: c, currency: "USD" } , bookedBy: null, participants, mode: null, endLocation: null, pendingReason: null};
+    activities[id] = { title: `A${i}`, timeWindow: null, location: null, notes: null, anchors: [], kind: "planned" as const, tags: [], cost: c === 0 ? null : { amountMinor: c, currency: "USD" } , bookedBy: null, participants, mode: null, endLocation: null, pendingReason: null, flightNumber: null};
     (onDay[i] ? day.activityIds : backlog).push(id);
   });
   const memberList: TripState["members"] = Array.from({ length: members }, (_, m) => ({ userId: `u${m + 1}`, role: m === 0 ? ("owner" as const) : ("editor" as const) }));

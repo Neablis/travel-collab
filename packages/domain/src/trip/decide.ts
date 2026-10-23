@@ -296,6 +296,7 @@ function decideCommand(
             mode: command.mode ?? null,
             endLocation: command.endLocation ?? null,
             pendingReason: command.pendingReason ?? null,
+            flightNumber: command.flightNumber ?? null,
           },
         },
       ]);
@@ -310,7 +311,8 @@ function decideCommand(
       const mode = command.mode === undefined ? current.mode : command.mode;
       const endLocation = command.endLocation === undefined ? current.endLocation : command.endLocation;
       const pendingReason = command.pendingReason === undefined ? current.pendingReason : command.pendingReason;
-      const offKind = kindDetailRejection({ kind, mode, endLocation, pendingReason });
+      const flightNumber = command.flightNumber === undefined ? current.flightNumber : command.flightNumber;
+      const offKind = kindDetailRejection({ kind, mode, endLocation, pendingReason, flightNumber });
       if (offKind) return offKind;
       return okUnlessNoOp(state, [
         {
@@ -335,6 +337,7 @@ function decideCommand(
             mode,
             endLocation,
             pendingReason,
+            flightNumber,
           },
         },
       ]);

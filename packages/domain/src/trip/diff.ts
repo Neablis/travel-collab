@@ -125,6 +125,7 @@ export function diffTripStates(current: TripState, target: TripState): TripEvent
           mode: a.mode,
           endLocation: a.endLocation,
           pendingReason: a.pendingReason,
+          flightNumber: a.flightNumber,
         },
       });
     }
@@ -153,6 +154,7 @@ export function diffTripStates(current: TripState, target: TripState): TripEvent
           mode: a.mode,
           endLocation: a.endLocation,
           pendingReason: a.pendingReason,
+          flightNumber: a.flightNumber,
         },
       });
     }

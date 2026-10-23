@@ -248,6 +248,7 @@ function detailFixture() {
         mode: null,
         endLocation: null,
         pendingReason: null,
+        flightNumber: null,
       },
       unlocated1: {
         activityId: "unlocated1",
@@ -265,6 +266,7 @@ function detailFixture() {
         mode: null,
         endLocation: null,
         pendingReason: null,
+        flightNumber: null,
       },
       unlocated2: {
         activityId: "unlocated2",
@@ -282,6 +284,7 @@ function detailFixture() {
         mode: null,
         endLocation: null,
         pendingReason: null,
+        flightNumber: null,
       },
     },
   });
@@ -318,6 +321,7 @@ function locatedActivity(
     mode: null,
     endLocation: null,
     pendingReason: null,
+    flightNumber: null,
   };
 }
 

@@ -44,6 +44,7 @@ it("shows the offline panel at once when the map library fails to load, rather t
         mode: null,
         endLocation: null,
         pendingReason: null,
+        flightNumber: null,
       },
     },
   });

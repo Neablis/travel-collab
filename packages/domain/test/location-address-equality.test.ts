@@ -21,6 +21,7 @@ const activity = (patch: { location: Location }): ActivityState => ({
   mode: null,
   endLocation: null,
   pendingReason: null,
+  flightNumber: null,
   ...patch,
 });
 

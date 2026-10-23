@@ -294,6 +294,13 @@ export type ActivityMode = z.infer<typeof ActivityMode>;
 export const PendingReason = z.enum(["book", "maybe"]);
 export type PendingReason = z.infer<typeof PendingReason>;
 
+// The carrier's code for a flight leg, as printed on the ticket ("TP 1234"),
+// M52 decision 5. Free text, not a pattern: carriers and agents write it with
+// and without the space, and a format check would refuse a real one to catch
+// nothing. Not secret, unlike a booking's confirmation code (M44), so it goes
+// wherever the stop goes.
+export const FlightNumber = z.string().trim().min(1).max(20);
+
 /**
  * **Each field that details ONE kind, and the kind it belongs to** (ADR-053's
  * travel leg, ADR-055's pending reason). A stop of any other kind may not
@@ -305,6 +312,7 @@ export const KIND_DETAIL_FIELDS = {
   mode: "transit",
   endLocation: "transit",
   pendingReason: "pending",
+  flightNumber: "transit",
 } as const satisfies Record<string, ActivityKind>;
 export type KindDetailField = keyof typeof KIND_DETAIL_FIELDS;
 
@@ -382,8 +390,8 @@ export function clearDetailFieldsForKind<T extends Record<string, unknown>>(patc
 // and patch bodies). An external consumer looked for a `travel` kind and sent
 // `booked` after M28; both answers belong where the field is documented.
 const KIND_DOC =
-  "`planned`, `pending` (not settled yet; see `pendingReason`) or `transit` (a travel leg; see `mode` " +
-  "and `endLocation`). There is no `travel` kind — travel is `kind: \"transit\"` plus `mode`. The kinds " +
+  "`planned`, `pending` (not settled yet; see `pendingReason`) or `transit` (a travel leg; see `mode`, " +
+  "`endLocation` and `flightNumber`). There is no `travel` kind — travel is `kind: \"transit\"` plus `mode`. The kinds " +
   "retired in M28 — `idea`, `hold`, `booked` — are refused on write: send `pending` for the first two " +
   "and `planned` for `booked`.";
 
@@ -444,6 +452,10 @@ export const AddActivity = z.object({
   pendingReason: PendingReason.optional().describe(
     "Why a stop is not settled: `book` (still has to be booked) or `maybe` (may not happen at all). Only allowed when `kind` is `pending`; otherwise a 400.",
   ),
+  // M52. Legal only with `kind: "transit"`, by the same rule as `mode`.
+  flightNumber: FlightNumber.optional().describe(
+    "A flight leg's flight number, such as `TP 1234`. Only allowed when `kind` is `transit`; otherwise a 400.",
+  ),
 });
 export type AddActivity = z.infer<typeof AddActivity>;
 
@@ -470,7 +482,7 @@ export const UpdateActivity = z.object({
   kind: ActivityKind.optional().describe(
     KIND_DOC +
       " Omitted = unchanged; no null (send `planned`). Changing `kind` clears the fields the new kind " +
-      "cannot carry — `mode` and `endLocation` off `transit`, `pendingReason` off `pending` — unless the " +
+      "cannot carry — `mode`, `endLocation` and `flightNumber` off `transit`, `pendingReason` off `pending` — unless the " +
       "patch names them.",
   ),
   tags: z.array(ActivityTag).optional(), // omitted = unchanged; whole-array replace, like anchors
@@ -494,6 +506,10 @@ export const UpdateActivity = z.object({
   pendingReason: PendingReason.nullable().optional().describe(
     "Omitted = unchanged, null = cleared. Only allowed while the stop is (or this patch makes it) " +
       "`pending`; otherwise a 400. A patch that changes `kind` away from `pending` clears it for you.",
+  ),
+  flightNumber: FlightNumber.nullable().optional().describe(
+    "A flight leg's flight number. Omitted = unchanged, null = cleared. Only allowed while the stop is (or this " +
+      "patch makes it) `transit`; otherwise a 400. A patch that changes `kind` away from `transit` clears it for you.",
   ),
 });
 export type UpdateActivity = z.infer<typeof UpdateActivity>;
@@ -636,6 +652,14 @@ export const ActivitySnapshot = z.object({
   // did not say; it reads as plain "Pending". Defaulted for the reason
   // `mode` is, and unlabelled for the same reason.
   pendingReason: PendingReason.nullable().default(null),
+  // ---- A flight leg's flight number (M52 decision 5) ----
+  //
+  // `transit`'s third detail, beside `mode`, and on the same terms: defaulted
+  // because every stored payload predates it, unrefined so replay never
+  // refuses one. Plain string rather than `FlightNumber`: a payload is a fact
+  // already decided, and a later tightening of the command schema must not
+  // make an old one unreadable.
+  flightNumber: z.string().nullable().default(null),
 });
 export type ActivitySnapshot = z.infer<typeof ActivitySnapshot>;
 

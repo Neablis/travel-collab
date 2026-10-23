@@ -18,6 +18,7 @@ function stop(over: Partial<SavedStop> = {}): SavedStop {
     mode: null,
     endLocation: null,
     pendingReason: null,
+    flightNumber: null,
     ...over,
   };
 }

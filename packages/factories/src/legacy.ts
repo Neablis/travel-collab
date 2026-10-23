@@ -72,6 +72,7 @@ export function costedTripDetailFixture(): TripDetail {
         mode: null,
         endLocation: null,
         pendingReason: null,
+        flightNumber: null,
       },
       [forumId]: {
         activityId: forumId,
@@ -89,6 +90,7 @@ export function costedTripDetailFixture(): TripDetail {
         mode: null,
         endLocation: null,
         pendingReason: null,
+        flightNumber: null,
       },
       [flightId]: {
         activityId: flightId,
@@ -106,6 +108,7 @@ export function costedTripDetailFixture(): TripDetail {
         mode: null,
         endLocation: null,
         pendingReason: null,
+        flightNumber: null,
       },
     },
     unscheduledCostSubtotal,

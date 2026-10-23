@@ -49,6 +49,7 @@ export function hydrate(detail: TripDetail): TripState {
           mode: a.mode ?? null,
           endLocation: a.endLocation ?? null,
           pendingReason: a.pendingReason ?? null,
+          flightNumber: a.flightNumber ?? null,
         },
       ]),
     ),

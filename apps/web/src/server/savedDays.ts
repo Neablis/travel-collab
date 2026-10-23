@@ -1118,6 +1118,7 @@ export function insertCommands(
         mode: stop.mode ?? undefined,
         endLocation: stop.endLocation ?? undefined,
         pendingReason: stop.pendingReason ?? undefined,
+        flightNumber: stop.flightNumber ?? undefined,
       }),
   );
   return [

@@ -255,6 +255,7 @@ describe("resolvePlaybook", () => {
       mode: null,
       endLocation: null,
       pendingReason: null,
+      flightNumber: null,
     });
     expect(toSavedStop({ title: "Bare" }).kind).toBe("planned");
   });

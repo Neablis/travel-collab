@@ -26,6 +26,7 @@ const stop = {
   mode: null,
   endLocation: null,
   pendingReason: null,
+  flightNumber: null,
 };
 
 const savedDay = {

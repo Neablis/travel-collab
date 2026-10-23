@@ -21,6 +21,7 @@ const form = (over: Partial<ActivityFormValue> = {}): ActivityFormValue => ({
   mode: null,
   endLocation: null,
   pendingReason: null,
+  flightNumber: null,
   ...over,
 });
 
@@ -44,8 +45,9 @@ describe("addActivityCommand", () => {
         cost: { amountMinor: 4200, currency: "USD" },
         bookedBy: "alice",
         participants: ["alice", "bob"],
-        mode: "train",
-        endLocation: { name: "Kyoto Station" },
+        mode: "flight",
+        flightNumber: "JL 123",
+        endLocation: { name: "Itami Airport" },
       }),
     );
     expect(command).toMatchObject({
@@ -61,8 +63,9 @@ describe("addActivityCommand", () => {
       cost: { amountMinor: 4200, currency: "USD" },
       bookedBy: "alice",
       participants: ["alice", "bob"],
-      mode: "train",
-      endLocation: { name: "Kyoto Station" },
+      mode: "flight",
+      flightNumber: "JL 123",
+      endLocation: { name: "Itami Airport" },
     });
   });
 
@@ -79,6 +82,7 @@ describe("addActivityCommand", () => {
     expect(command.mode).toBeUndefined();
     expect(command.endLocation).toBeUndefined();
     expect(command.pendingReason).toBeUndefined();
+    expect(command.flightNumber).toBeUndefined();
   });
 
   // Attribution is NOT null-collapsed: `bookedBy: null` is the honest zero
@@ -135,6 +139,7 @@ describe("updateActivityCommand", () => {
     expect(command.endLocation).toBeNull();
     // ADR-055, for the same reason: leaving `pending` must clear the reason.
     expect(command.pendingReason).toBeNull();
+    expect(command.flightNumber).toBeNull();
   });
 
   // `ActivityEditor` disables the Day select in edit mode for this reason: a
