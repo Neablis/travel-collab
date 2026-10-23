@@ -241,6 +241,11 @@ Theme: decisions 9, 11, 20 and the walk.
   "during-the-trip")`, skipped if the page's history shows it was deleted (`:426`). Demo fold
   `server/pages.ts:136`; MSW `mocks/handlers.ts:738`. Test `server/defaultNotebooks.int.test.ts`
   (**seeded on a new trip; gained once by an existing one; not again after a delete**).
+- **Undeletable (Mitchell, 2026-10-23, decision 9 amendment):** like Overview — extend the
+  `page-undeletable` rule (`packages/domain/src/trip/pageState.ts:357`, `pageCommands.ts:316`)
+  to this seed key; the index's delete control is absent for it; the existing-trip backfill drops
+  the "not again after a delete" skip. Title/seed key per the amendment (proposed *Today* /
+  `today`). Tests: delete refused (domain + route), backfill on an existing trip.
 - Swap: `apps/web/src/lib/overviewPage.ts:16` `pickOverviewPage` swaps for `soon` and `underway`;
   *Whole trip →* link to the usual Overview. Callers `components/lenses/OverviewLens.tsx:160,226`,
   `server/tripFirstData.ts:46`. Tests: new `lib/overviewPage.test.ts` (planning, soon, under way,

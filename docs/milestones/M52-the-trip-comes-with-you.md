@@ -145,6 +145,11 @@ chips do.
      (decision 11 is amended to match). Before day 1 its widgets show their empty-today states,
      except the flights widget's countdown and *Add your flight*.
    - A trip whose *During the trip* notebook was deleted keeps its ordinary Overview throughout.
+   - **Amended by Mitchell, 2026-10-23: it cannot be deleted**, like Overview (`page-undeletable`).
+     So every trip has it: new trips are seeded with it, and every existing trip gains it once on
+     its next notebook-index load (no "was deleted" skip). The bullet above no longer applies.
+     Proposed title **Today** (seed key `today`), Mitchell's suggestion, to be confirmed before
+     part 9 starts.
 10. **What the Today scope is.** **Answered at scoping, 2026-10-23 (Mitchell): a general
     notebook setting, not a today-only hook.** *"Someday i want to have settings for a notebook,
     where we trigger 'is this dynamic (follows current date), scoped to some specific date, or
@@ -236,6 +241,11 @@ chips do.
     messages (a setting, default 3) in the chat's own message style with an *Open chat* row, the
     whole card one control that opens the chat where it lives. Under the Today scope an unbound
     Weather widget shows only today.
+    **Amended by Mitchell, 2026-10-23 (later the same day):** the notebook page's assistant
+    panel gets the board's *Chat | Ask* switch, and the card opens that Chat tab in place
+    (`?chat=open` is gone). **A solo trip has no chat anywhere**, board and notebook alike: no
+    Chat tab, no ⌘K *Open chat*, no *Group chat* card, only the assistant. This reverses M46's
+    solo Chat tab on the board.
 16. **Which maps app Directions opens.** **Answered at scoping, 2026-10-23: Google Maps, as recommended.** Google Maps' universal URL
     (`https://www.google.com/maps/dir/?api=1&destination=<lat>,<lng>`). It falls back to the name
     and address at `city` precision, and takes `travelmode` from the leg's `mode` when a transit
