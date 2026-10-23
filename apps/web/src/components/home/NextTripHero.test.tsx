@@ -732,8 +732,16 @@ describe("NextTripHero — the badge reads where the trip is", () => {
     vi.useRealTimers();
   });
 
-  /** A trip of `length` days from `start`, its first day carrying `firstDay`'s stops. */
-  function heroFor(start: string, length: number, firstDay: Partial<ActivityView>[] = []) {
+  /**
+   * A trip of `length` days from `start`, its first day carrying `firstDay`'s
+   * stops, every day in `zone`; `globals: false` makes the globals fail.
+   */
+  function heroFor(
+    start: string,
+    length: number,
+    firstDay: Partial<ActivityView>[] = [],
+    { zone = "Europe/Lisbon", at = "2026-08-04T12:00:00Z", globals: globalsLoad = true } = {},
+  ) {
     const trip = tripSummaryFixture();
     const dates = Array.from({ length }, (_, i) => new Date(Date.parse(start) + i * 86_400_000).toISOString().slice(0, 10));
     const stops = firstDay.map((stop) => activityFactory.build(stop));
@@ -760,16 +768,16 @@ describe("NextTripHero — the badge reads where the trip is", () => {
         activityCount: 0,
         costSubtotal: 0,
         place: { lat: 38.71, lng: -9.14, city: "Lisbon" },
-        timeZone: "Europe/Lisbon",
+        timeZone: zone,
       })),
       cities: [],
       tags: [],
       description: null,
       homeTimeZone: null,
     };
-    fetchTripGlobalsMock.mockResolvedValue({ ok: true, value: globals });
+    if (globalsLoad) fetchTripGlobalsMock.mockResolvedValue({ ok: true, value: globals });
     vi.useFakeTimers({ shouldAdvanceTime: true });
-    vi.setSystemTime(new Date("2026-08-04T12:00:00Z"));
+    vi.setSystemTime(new Date(at));
     render(<NextTripHero trip={trip} />);
   }
 
@@ -795,10 +803,37 @@ describe("NextTripHero — the badge reads where the trip is", () => {
     expect(screen.queryByText("in 2 days")).toBeNull();
   });
 
+  it("counts the days to the start on the trip's clock, not the device's", async () => {
+    // 10:30 UTC on the 4th is already 00:30 on the 5th in Kiritimati (UTC+14),
+    // and still the 4th on any device clock the suite can run on.
+    heroFor("2026-08-07", 3, [], { zone: "Pacific/Kiritimati", at: "2026-08-04T10:30:00Z" });
+    expect(await screen.findByText("In 2 days")).toBeTruthy();
+  });
+
+  it("moves on while the page stays open", async () => {
+    heroFor("2026-08-06", 3, [{ kind: "transit", mode: "flight", timeWindow: { start: "20:00", end: "23:00" } }]);
+    expect(await screen.findByText("Flight in 2 days, 7 h")).toBeTruthy();
+    act(() => {
+      vi.advanceTimersByTime(60 * 60_000);
+    });
+    expect(await screen.findByText("Flight in 2 days, 6 h")).toBeTruthy();
+  });
+
   it("is the next trip further out, with its countdown beside it", async () => {
     heroFor("2026-08-20", 3);
     expect(await screen.findByText("in 16 days")).toBeTruthy();
     expect(screen.getByText("Next trip")).toBeTruthy();
+  });
+
+  it("is the next trip once it has ended, with how long ago beside it", async () => {
+    heroFor("2026-07-20", 3);
+    expect(await screen.findByText("15 days ago")).toBeTruthy();
+    expect(screen.getByText("Next trip")).toBeTruthy();
+  });
+
+  it("still says the day when the trip's zones fail to load, on the device's clock", async () => {
+    heroFor("2026-08-02", 7, [], { globals: false });
+    expect(await screen.findByText("Day 3 of 7")).toBeTruthy();
   });
 });
 

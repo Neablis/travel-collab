@@ -64,7 +64,7 @@ describe("tripNow — phases", () => {
 
   it("is planning for an undated trip, with nothing current", () => {
     const { trip, globals } = tripOf([{ date: null, zone: null, stops: [window("09:00", "10:00")] }]);
-    expect(tripNow(trip, globals, at("2026-06-10"))).toEqual({ phase: "planning", dayId: null, current: null, next: null });
+    expect(tripNow(trip, globals, at("2026-06-10"))).toEqual({ phase: "planning", dayId: null, current: null, next: null, firstDayToday: null });
   });
 
   it("is planning more than three days out, and soon from three days before the start", () => {
@@ -92,6 +92,29 @@ describe("tripNow — phases", () => {
     // 00:10 on the 11th in Tokyo is still the 10th in Los Angeles.
     const now = { at: wallAt("Asia/Tokyo", "2026-06-11", "00:10"), deviceZone: "America/Los_Angeles" };
     expect(tripNow(trip, globals, now).dayId).toBe(trip.days[1]!.dayId);
+  });
+
+  it("keeps a day until it ends on its own clock, after a flight east and after one west", () => {
+    const east = tripOf([
+      { date: "2026-06-10", zone: "Europe/Lisbon", stops: [window("19:00", "21:00")] },
+      { date: "2026-06-11", zone: "Asia/Tokyo", stops: [] },
+    ]);
+    // 17:00 in Lisbon is already the 11th in Tokyo, but dinner in Lisbon is still to come.
+    const afternoon = { at: wallAt("Europe/Lisbon", "2026-06-10", "17:00"), deviceZone: "Europe/Lisbon" };
+    expect(tripNow(east.trip, east.globals, afternoon)).toMatchObject({
+      dayId: east.trip.days[0]!.dayId,
+      next: { activityId: east.trip.days[0]!.activityIds[0] },
+    });
+    const lisbonMidnight = { ...afternoon, at: wallAt("Europe/Lisbon", "2026-06-11", "00:00") };
+    expect(tripNow(east.trip, east.globals, lisbonMidnight).dayId).toBe(east.trip.days[1]!.dayId);
+
+    const west = tripOf([
+      { date: "2026-06-10", zone: "Asia/Tokyo", stops: [] },
+      { date: "2026-06-11", zone: "Europe/Lisbon", stops: [] },
+    ]);
+    // 02:00 on the 11th in Tokyo is still the 10th in Lisbon: day 1 has ended and day 2 not begun.
+    const between = { at: wallAt("Asia/Tokyo", "2026-06-11", "02:00"), deviceZone: "Asia/Tokyo" };
+    expect(tripNow(west.trip, west.globals, between).dayId).toBe(west.trip.days[0]!.dayId);
   });
 
   it("reads a day with no zone on the device's clock", () => {
@@ -206,6 +229,8 @@ const caseArb = fc
 describe("tripNow — properties", () => {
   it("is under way exactly while the first day has begun and the last has not ended, each in its own zone", () => {
     const w = witness("under way, with a day");
+    // What a flight east makes: the next day's midnight has come and today holds.
+    const held = witness("a day held past the next day's midnight");
     fc.assert(
       fc.property(caseArb, ({ specs, trip, globals, now }) => {
         const zoneOf = (i: number) => specs[i]!.zone ?? now.deviceZone;
@@ -220,15 +245,22 @@ describe("tripNow — properties", () => {
           expect(result.dayId).toBeNull();
           return;
         }
-        // The day is the latest one its own clock has reached.
+        // Days hand over in order: today has begun on its own clock, every day
+        // before it has ended on its own, and it gives way only once it has
+        // ended and the next has begun. No more than one day meets all three.
         w.tick();
         const i = trip.days.findIndex((d) => d.dayId === result.dayId);
-        expect(specs[i]!.date <= todayIn(i)).toBe(true);
-        if (i < last) expect(specs[i + 1]!.date > todayIn(i + 1)).toBe(true);
+        const begun = (j: number) => specs[j]!.date <= todayIn(j);
+        const ended = (j: number) => specs[j]!.date < todayIn(j);
+        expect(begun(i)).toBe(true);
+        for (let j = 0; j < i; j++) expect(ended(j)).toBe(true);
+        if (i < last) expect(ended(i) && begun(i + 1)).toBe(false);
+        if (i < last && begun(i + 1)) held.tick();
       }),
       { numRuns: RUNS },
     );
     w.atLeast(110); // observed 222-241 of 300
+    held.atLeast(12); // observed 25-43 of 300
   });
 
   it("calls a stop current exactly when its day's wall clock is inside its window, and next is the first still to start", () => {

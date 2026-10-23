@@ -110,10 +110,21 @@ export function NextTripHero({ trip, menuSlot, viewerId, unreadChat = 0 }: NextT
   // than rendering a guess.
   //
   // The device's zone is read with it: a day without a zone of its own runs on
-  // it (ADR-080 decision 1).
+  // it (ADR-080 decision 1). Read again each minute and when the tab comes
+  // back, so a Home left open does not count down to a flight that has left.
   const [clock, setClock] = useState<TripNowClock | null>(null);
   useEffect(() => {
-    setClock({ at: Date.now(), deviceZone: Intl.DateTimeFormat().resolvedOptions().timeZone });
+    const read = () => setClock({ at: Date.now(), deviceZone: Intl.DateTimeFormat().resolvedOptions().timeZone });
+    const onVisible = () => {
+      if (document.visibilityState === "visible") read();
+    };
+    read();
+    const timer = window.setInterval(read, 60_000);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, []);
   const today = clock === null ? null : localTodayIso(new Date(clock.at));
   // **The date this hero shows** (KI-034): the summary's own `startDate` from
@@ -265,7 +276,7 @@ export function NextTripHero({ trip, menuSlot, viewerId, unreadChat = 0 }: NextT
       const words =
         flight !== null
           ? `Flight in ${formatTimeUntil(flight.start - clock.at)}`
-          : formatCountdown(localTodayIso(new Date(clock.at)), dates[0]!, dates.at(-1)!);
+          : formatCountdown(now.firstDayToday!, dates[0]!, dates.at(-1)!);
       if (words !== null) badge = `${words[0]!.toUpperCase()}${words.slice(1)}`;
     }
   }
@@ -280,11 +291,10 @@ export function NextTripHero({ trip, menuSlot, viewerId, unreadChat = 0 }: NextT
           picks this hero by start date (`orderHomeTrips`, KI-034), and
           this counts to that date.
 
-          **It stays honest about a trip that has started or passed**:
-          `relativeCalendarDays` says "yesterday" and "12 days ago" as
-          readily as "in 47 days". The hero lands on a past trip when
-          every trip is past, or when the trip is under way (the summary
-          has no end date, so "under way" ranks as past).
+          It shows only beside "Next trip": while the trip is under way or
+          soon, the badge already says where it is. So it counts to a trip
+          further out, or back to one that has ended ("12 days ago"), which
+          the hero lands on when every trip is past.
 
           Absent until the first client frame and for an undated trip —
           see `today`'s note for why it is read in an effect, and

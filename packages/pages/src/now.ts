@@ -31,6 +31,11 @@ export type TripNow = {
   current: TripNowStop | null;
   /** The first stop still to begin, on any day. */
   next: TripNowStop | null;
+  /**
+   * Today's date on the first day's clock, which the phase counts the days to
+   * the start on, so a countdown beside it says the same; `null` when undated.
+   */
+  firstDayToday: string | null;
 };
 
 /** The instant, and the zone the device's clock is set to (`Intl…resolvedOptions().timeZone`). */
@@ -54,20 +59,26 @@ export function tripNow(trip: TripNowTrip, globals: TripNowGlobals, clock: TripN
   const dated = trip.days.flatMap((day, index) => (day.date === null ? [] : [{ ...day, date: day.date, index }]));
   const first = dated[0];
   const last = dated.at(-1);
-  if (first === undefined || last === undefined) return { phase: "planning", dayId: null, current, next };
+  if (first === undefined || last === undefined) return { phase: "planning", dayId: null, current, next, firstDayToday: null };
   // "Today" on each day's own clock, so the first day begins at midnight where
   // it is spent and the last ends at midnight there.
   const todayOn = (index: number) => clockIn(zoneOf(globals, index, clock.deviceZone), clock.at).date;
 
-  const toStart = isoDaysBetween(todayOn(first.index), first.date) ?? 0;
-  if (toStart > SOON_DAYS) return { phase: "planning", dayId: null, current, next };
-  if (toStart > 0) return { phase: "soon", dayId: null, current, next };
-  if (todayOn(last.index) > last.date) return { phase: "ended", dayId: null, current, next };
-  // The latest day its own clock has reached. After a flight west, yesterday's
-  // day can still be today where it is spent while the next day's clock has
-  // not reached its date; the first day always qualifies by now.
-  const today = dated.filter((day) => day.date <= todayOn(day.index)).at(-1) ?? first;
-  return { phase: "underway", dayId: today.dayId, current, next };
+  const firstDayToday = todayOn(first.index);
+  const toStart = isoDaysBetween(firstDayToday, first.date) ?? 0;
+  if (toStart > SOON_DAYS) return { phase: "planning", dayId: null, current, next, firstDayToday };
+  if (toStart > 0) return { phase: "soon", dayId: null, current, next, firstDayToday };
+  if (todayOn(last.index) > last.date) return { phase: "ended", dayId: null, current, next, firstDayToday };
+  // Days hand over in order: a day stays today until midnight ends it on its
+  // own clock, and the next takes over once its own midnight has come too.
+  // After a flight east the next day's midnight comes first, while tonight's
+  // dinner is still ahead; after one west there is a gap in which neither
+  // clock says the next day, and the day that has ended holds. The last day
+  // has not ended by now, so some day has not.
+  const at = dated.findIndex((day) => todayOn(day.index) <= day.date);
+  const candidate = dated[at]!;
+  const today = candidate.date <= todayOn(candidate.index) ? candidate : (dated[at - 1] ?? first);
+  return { phase: "underway", dayId: today.dayId, current, next, firstDayToday };
 }
 
 /** The first flight still to leave, for Home's "Flight in 2 days, 7 h" — `null` with none, or none timed. */
@@ -101,8 +112,12 @@ function zoneOf(globals: TripNowGlobals, index: number, deviceZone: string): str
   return zone !== null && isKnownZone(zone) ? zone : deviceZone;
 }
 
-/** Every timed stop on a dated day, earliest start first. */
-function timedStops(trip: TripNowTrip, globals: TripNowGlobals, deviceZone: string): TripNowStop[] {
+/**
+ * Every timed stop on a dated day placed in time, earliest start first: the
+ * one wall-time-to-instant reading a "last stop that has passed" or "today's
+ * flights" is filtered from, rather than a second one.
+ */
+export function timedStops(trip: TripNowTrip, globals: TripNowGlobals, deviceZone: string): TripNowStop[] {
   return trip.days
     .flatMap((day, index) => {
       if (day.date === null) return [];
