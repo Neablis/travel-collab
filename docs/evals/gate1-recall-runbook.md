@@ -28,7 +28,7 @@ backfill script only *queues* rows — the sweep does the paid embedding:
 DATABASE_URL=<your-neon-url> pnpm --filter web db:backfill-embeddings
 
 # 2. Drain the queue through the production sweep. Either wait for the
-#    5-minute Vercel cron, or trigger it manually (repeat until the queue
+#    daily 04:00 UTC Vercel cron, or trigger it manually (repeat until the queue
 #    is empty):
 curl -H "Authorization: Bearer $CRON_SECRET" https://<your-prod-url>/api/cron/embed-days
 ```

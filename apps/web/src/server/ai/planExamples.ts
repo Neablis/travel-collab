@@ -28,6 +28,11 @@ export type { DayChunk };
  */
 const PLAN_EXAMPLE_BUDGET_MS = 2_000;
 
+/** Whether `RAG_PLAN_RETRIEVAL` is on: the ledger's null-versus-0 for a plan turn's example count. */
+export function planRetrievalEnabled(): boolean {
+  return serverConfig.ragPlanRetrieval;
+}
+
 /**
  * The example days for a plan turn: embed the request, run the hybrid
  * retrieval, return up to `serverConfig.ragPlanExampleCount` day-chunks.
