@@ -231,6 +231,26 @@ describe("ActivityEditor travel leg", () => {
     expect(onSave).toHaveBeenLastCalledWith(expect.objectContaining({ mode: "train", flightNumber: null }));
   });
 
+  it("shows a flight leg's number, keeps it through an untouched save, and clears it once moved off flight", () => {
+    const onSave = renderEditor(existingStop({ ...leg, mode: "flight", flightNumber: "TP 1234" }), "edit");
+    expect(screen.getByLabelText<HTMLInputElement>("Flight number").value).toBe("TP 1234");
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(onSave).toHaveBeenLastCalledWith(expect.objectContaining({ mode: "flight", flightNumber: "TP 1234" }));
+
+    fireEvent.click(screen.getByRole("radio", { name: "Train" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(onSave).toHaveBeenLastCalledWith(expect.objectContaining({ mode: "train", flightNumber: null }));
+  });
+
+  // The API and the assistant may set a number on a transit stop with no mode,
+  // where the field is not shown: a save that never offered it must not erase it.
+  it("keeps a number it never showed when the mode was not moved off flight", () => {
+    const onSave = renderEditor(existingStop({ ...leg, mode: null, flightNumber: "TP 1234" }), "edit");
+    expect(screen.queryByLabelText("Flight number")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(onSave).toHaveBeenLastCalledWith(expect.objectContaining({ mode: null, flightNumber: "TP 1234" }));
+  });
+
   // Two place pickers on one form: a screen reader listing the buttons must be
   // able to tell the origin's Search/Clear from the destination's.
   it("names the destination's Search and Clear apart from the origin's", () => {

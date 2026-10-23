@@ -642,6 +642,21 @@ describe("ActivityEditorSheet — Directions", () => {
     await screen.findByDisplayValue("Existing stop");
     expect(screen.queryByRole("link", { name: "Directions" })).toBeNull();
   });
+
+  // A typed name with no coordinates ("Dinner") would send Maps searching for
+  // the word itself.
+  it("offers none for a place with only a name", async () => {
+    const trip = fixture();
+    trip.activities[SCHEDULED_ACTIVITY_ID] = activityFactory.build({
+      activityId: SCHEDULED_ACTIVITY_ID,
+      title: "Dinner",
+      location: { name: "Dinner" },
+    });
+    vi.mocked(fetchTripDetail).mockResolvedValue({ ok: true, value: trip });
+    renderEditorSheet({ mode: "edit", activityId: SCHEDULED_ACTIVITY_ID });
+    await screen.findByDisplayValue("Dinner");
+    expect(screen.queryByRole("link", { name: "Directions" })).toBeNull();
+  });
 });
 
 // docs/reviews/2026-08-28-m11-pr71-review.md §5: the sheet took `dispatch`
@@ -741,6 +756,25 @@ describe("ActivityEditorSheet — a viewer gets no form", () => {
     expect(await screen.findByText("Shinkansen")).toBeTruthy();
     expect(screen.getByText("Odawara Station, Odawara, Japan")).toBeTruthy();
     expect(screen.getByText("Going to Kyoto Station, Kyoto, Japan")).toBeTruthy();
+  });
+
+  // M52 decision 5: the number travels wherever the stop does, and the card
+  // above this sheet already shows it.
+  it("names a leg's flight number", async () => {
+    asViewer();
+    const trip = fixture();
+    trip.activities[SCHEDULED_ACTIVITY_ID] = activityFactory.build({
+      activityId: SCHEDULED_ACTIVITY_ID,
+      title: "To Lisbon",
+      kind: "transit",
+      mode: "flight",
+      flightNumber: "TP 1234",
+    });
+    vi.mocked(fetchTripDetail).mockResolvedValue({ ok: true, value: trip });
+    renderEditorSheet({ mode: "edit", activityId: SCHEDULED_ACTIVITY_ID });
+
+    expect(await screen.findByText("To Lisbon")).toBeTruthy();
+    expect(screen.getByText("Flight TP 1234")).toBeTruthy();
   });
 
   it("gives an owner the editable form at the same call site", async () => {

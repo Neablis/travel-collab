@@ -478,10 +478,18 @@ export function ActivityEditor({
       mode: kind === "transit" ? travelMode : null,
       endLocation: kind === "transit" ? endLocation : null,
       pendingReason: kind === "pending" ? pendingReason : null,
-      // Off a flight it is cleared with the rest of the leg's answers: a train
-      // has no flight number, and the field that set one is no longer shown.
-      flightNumber: kind === "transit" && travelMode === "flight" && flightNumber.trim() !== "" ? flightNumber.trim() : null,
+      flightNumber: savedFlightNumber(),
     };
+  }
+
+  // Moved off a flight, the number is cleared with the rest of the leg's
+  // answers. A transit stop that was never a flight can still carry one (the
+  // API and the assistant allow it), and the field was not shown, so that
+  // number is kept: null here would erase it unseen.
+  function savedFlightNumber(): string | null {
+    if (kind !== "transit") return null;
+    if (travelMode === "flight") return flightNumber.trim() !== "" ? flightNumber.trim() : null;
+    return initial?.mode === "flight" ? null : (initial?.flightNumber ?? null);
   }
 
   function submit(e: React.FormEvent) {

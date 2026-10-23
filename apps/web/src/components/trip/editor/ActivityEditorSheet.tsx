@@ -110,12 +110,13 @@ export function ActivityEditorSheet() {
   // to the first day in create mode, stays unselected in edit mode) rather
   // than this component guessing one.
   const editingActivityId = state.mode === "edit" ? state.activityId : undefined;
-  // M52 decision 16: whenever the stop has a place, for an editor and a viewer
-  // alike. A transit stop just before it on its day says how to get there.
+  // M52 decision 16: whenever the stop has coordinates, for an editor and a
+  // viewer alike; a bare typed name gives Maps nothing to find. A transit stop
+  // just before it on its day says how to get there.
   const editingDay = editingActivityId === undefined ? undefined : activeTrip?.days.find((d) => d.activityIds.includes(editingActivityId));
   const leadingIn = editingDay?.activityIds[editingDay.activityIds.indexOf(editingActivityId!) - 1];
   const leadingLeg = leadingIn === undefined ? undefined : activeTrip?.activities[leadingIn];
-  const directionsHref = editingActivity?.location
+  const directionsHref = editingActivity?.location?.lat !== undefined
     ? directionsUrl(editingActivity.location, leadingLeg?.kind === "transit" ? leadingLeg.mode : null)
     : null;
   // A suggester has no rack (W71), so a stop they add with no day named — the
@@ -391,6 +392,9 @@ function ReadOnlyActivity({
               field; a viewer, who gets no form, read only the origin here. */}
           {destination !== null && (
             <Text as="p" variant="secondary">Going to {displayPlace(destination)}</Text>
+          )}
+          {activity.kind === "transit" && activity.flightNumber !== null && (
+            <Text as="p" variant="secondary">Flight {activity.flightNumber}</Text>
           )}
           <DataText size="xs" className="block">
             {activity.cost === null ? "No cost yet" : `${formatMoney(activity.cost.amountMinor, currency)} per person`}
