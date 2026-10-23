@@ -90,3 +90,19 @@ state architecture, and the boundary is ADR-003's.
 - No public API endpoint now (`docs/guidelines/using-the-api.md`, *Features ship before their
   endpoints*): each chat route has a `planned` line in `server/public-api/exposure.ts`.
 - Email and push are not decided here. They would read the same cursor.
+
+## Amendment — 2026-10-23 (M52): the assistant and system lines write to the chat
+
+Mitchell, M52 decisions 8, 17 and 18.
+
+- **A message has an author `kind`**: `member` (every message before this), `assistant`, or
+  `system`. A migration adds the column, defaulting existing rows to `member`, and a nullable
+  `requested_by` naming the member whose `@assistant` produced an assistant message.
+- **`@assistant` is a mention target** beside a person, notebook, day and stop. The turn runs on
+  the **asker's** plan, quota and ledger (M31), capped by the asker's role on the trip. It is not
+  available while the chat is read-only (decision 2's lapse rule still holds).
+- **The chat is not put into the turn's context.** A chat-started turn alone is offered
+  `read_chat({ limit? })`, defaulting to `CHAT_CONTEXT_MESSAGES` and capped by
+  `MAX_CHAT_MESSAGES_READ` (`server/assistant/limits.ts`).
+- **System lines** announce an accepted change to today's or tomorrow's stops while the trip is
+  under way (ADR-080's phase). They link the stop and cannot be edited or deleted by a member.

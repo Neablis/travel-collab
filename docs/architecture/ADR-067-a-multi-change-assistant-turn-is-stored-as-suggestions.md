@@ -63,3 +63,11 @@ who is usually an editor. Invariant 7 says the assistant takes only paths its us
   need its own overlay, review and cap. Rejected.
 - **Record the assistant as the author.** It is not a member and cannot be reviewed against, and
   invariant 7 is easier to keep when the author is the person it acted for. Rejected.
+
+## Amendment — 2026-10-23 (M52): a suggestion may name the only member who can accept it
+
+Mitchell, M52 decisions 8 and 18. A suggestion produced by an `@assistant` turn in the trip chat
+carries **`requested_by`**. `acceptSuggestionChanges` refuses to accept or dismiss it for anyone
+but that member, beside its existing editor check: the asker must still be an editor. Every other
+member sees *"Waiting on <name>"*. A suggestion without `requested_by` (every Ask-tab turn, and
+every one before this) keeps today's rule: any editor may accept it.

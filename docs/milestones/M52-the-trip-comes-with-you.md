@@ -1,7 +1,8 @@
 # M52 — The trip comes with you: a notebook for today, and an assistant the group can ask
 
-**Status:** **Proposed 2026-10-22 by Mitchell, placed after M51 and ahead of M49. Not scoped
-yet.** His answers are below under *Answered*: what it is for, where it lives (a *During the
+**Status:** **Scoped 2026-10-23 with Mitchell: every decision is answered** (the third review,
+recorded under each decision below). The plan is `docs/plans/2026-10-23-M52-the-trip-comes-with-you.md`.
+Proposed 2026-10-22 by Mitchell, placed after M51 and ahead of M49. His answers are below under *Answered*: what it is for, where it lives (a *During the
 trip* notebook that Overview swaps to), five of the first set of recommendations, and the
 assistant in the group chat. In a second review the same day he answered decisions 11, 12, 17
 and 18, and each is marked **Answered** where it stands. The rest under *Open* are
@@ -100,6 +101,11 @@ chips do.
    confirmation code, and share links and published days never do. M44 keeps containment only.
    *(Read from "Flight details: Agreed keep there", answering the recommendation to take
    `booking` into M52; confirm at scoping.)*
+
+   **Superseded at scoping, 2026-10-23 (Mitchell): flight number only.** A transit stop gains an
+   optional `flightNumber`, shown and edited on a flight leg. The `booking` object, the
+   confirmation code and its access rule stay in **M44**. A flight number is not secret, so it
+   travels wherever the stop does (share links, published days, the API, export).
 6. **No device location.** Instead, **"nearby" means where the plan says you are now**. A tool
    that knows this is offered to the assistant **only while the trip is under way**, so no other
    turn carries it. Mitchell: *"make sure we have tools that understand 'Im on the trip, so when i
@@ -134,12 +140,22 @@ chips do.
      that deleted it is not given it again, and it can be re-added from the template gallery.
    - The seeded content is the default described above (*Where it lives*). The notebook is the
      trip's own copy after that, like every seeded notebook. A reset restores the default.
-   - **The 3-day mark** is when it starts to *surface*: Home's departure countdown and its
-     *Add your flight* prompt (decision 11). The Overview swap is decision 11's, under way only.
-     *(Read from "3 days sounds good to swap it in", alongside decision 11's earlier answer;
-     confirm at scoping whether Overview should swap at 3 days instead.)*
+   - **The 3-day mark is when Overview swaps.** **Confirmed at scoping, 2026-10-23 (Mitchell):
+     from 3 days before.** Overview shows *During the trip* from *soon* through the end date
+     (decision 11 is amended to match). Before day 1 its widgets show their empty-today states,
+     except the flights widget's countdown and *Add your flight*.
    - A trip whose *During the trip* notebook was deleted keeps its ordinary Overview throughout.
-10. **What the Today scope is.** *Recommended:* a page context flag (`scope: "today"`, beside
+10. **What the Today scope is.** **Answered at scoping, 2026-10-23 (Mitchell): a general
+    notebook setting, not a today-only hook.** *"Someday i want to have settings for a notebook,
+    where we trigger 'is this dynamic (follows current date), scoped to some specific date, or
+    all' … and that can trigger settings for some widgets … so maybe dont make it a hook that
+    'just' does day scope, and more its a 'global', to the current notebook setting that we can
+    reuse later."* So the page carries **`dateScope: "all" | "today" | { date }`**, default `"all"`
+    (today's behaviour), read by every widget through **one resolver** that later notebook
+    settings extend. The contract carries all three. This milestone builds and tests `"all"` and
+    `"today"`. `{ date }` is accepted but has no settings control until a notebook settings panel
+    exists. The template sets `"today"`. The rest below stands, with "the scope" meaning
+    `dateScope: "today"`. *Earlier recommendation:* a page context flag (`scope: "today"`, beside
     `kind: "overview"`), which every new page can be given and the template sets. *Today* is the
     trip day whose date is today, by decision 12's clock. Every widget on the page with an unset
     `day` (or `dates`) input is narrowed to it, the way `repeat` narrows. The widget picker marks
@@ -154,7 +170,10 @@ chips do.
     the template seeds, and every new widget (decision 15), therefore needs a written
     empty-today state, as the seeding rule already demands of an empty trip (`templates.ts:34`).
 11. **When the swap happens, and what *soon* does.** **Answered by Mitchell, 2026-10-22: as
-    recommended.**
+    recommended. Amended at scoping, 2026-10-23: Overview swaps from *soon*, not only under way**
+    (decision 9). The *soon* bullet below is replaced by: Overview shows *During the trip*, whose
+    flights widget offers *Add your flight* if the trip has none, and Home's badge counts down to
+    the first departure.
     - **Under way** (start date to end date): Overview shows *During the trip*, with a quiet
       *Whole trip →* link to the usual Overview.
     - **Soon** (up to 3 days before): Overview stays as it is. The notebook is planted, and its
@@ -173,7 +192,7 @@ chips do.
     (invariant 4). The Today scope, the now-and-next widget, Home's badge and the assistant all
     read it. Its property test covers midnight, a day with no zone, and a flight that lands in
     another zone.
-13. **The *near me now* tool (decision 6).** *Recommended:* **`find_places_near_now`**, added to
+13. **The *near me now* tool (decision 6).** **Answered at scoping, 2026-10-23: as recommended.** **`find_places_near_now`**, added to
     the offered tools in `handleAskRequest.ts`'s `activeTools` **only when `tripNow` says under
     way**. It resolves *here* in this order:
     1. the current stop's location;
@@ -186,7 +205,7 @@ chips do.
     quota is involved. It is cheaper in tokens than teaching every turn's prompt about *here*. It
     is one more tool in the M33 evals, with a day-of case that must choose it, and a planning-phase
     case that must not see it.
-14. **What else the assistant gains.** *Recommended:*
+14. **What else the assistant gains.** **Answered at scoping, 2026-10-23: as recommended.**
     - (a) Every turn on an under-way trip carries **now**: the local date and time, the phase, and
       today's current and next stops, from `tripNow`.
     - (b) **"We're 45 minutes late"** is one Accept-all suggestion of `UpdateActivity` time moves
@@ -196,7 +215,7 @@ chips do.
       and adds the new one.
 
     There are two eval cases for (b) and (c).
-15. **The new widgets.** *Recommended:* each is a preset in `packages/pages/src/presets.ts` and
+15. **The new widgets.** **Answered at scoping, 2026-10-23: all five, as recommended.** each is a preset in `packages/pages/src/presets.ts` and
     reads well with no data, as the seeding rule demands (`templates.ts:34`):
     - **`trip.now`**, *Now and next*: the current and next stop, the time until it, and
       Directions. It re-renders each minute while visible. Today's widget context carries a date
@@ -212,7 +231,7 @@ chips do.
       trip whose chat the reader cannot see.
     - **`assistant.prompts`**, *Ask*: day-of chips that open the sheet prefilled. It is absent for
       a reader with no assistant, and per SPEC §27 nothing renders disabled.
-16. **Which maps app Directions opens.** *Recommended:* Google Maps' universal URL
+16. **Which maps app Directions opens.** **Answered at scoping, 2026-10-23: Google Maps, as recommended.** Google Maps' universal URL
     (`https://www.google.com/maps/dir/?api=1&destination=<lat>,<lng>`). It falls back to the name
     and address at `city` precision, and takes `travelmode` from the leg's `mode` when a transit
     stop leads in. It opens the app on Android and iOS when installed. There is no per-account
@@ -222,8 +241,8 @@ chips do.
     2026-10-22: yes**, while under way only. An accepted change to today's or tomorrow's stops posts a system line ("Mitchell
     moved Dinner at Tasca to 20:30") that links the stop and cannot be edited. With decision 18,
     an `@assistant` change accepted in the chat says so in the same thread.
-18. **How `@assistant` in the chat works (decision 8).** *Recommended*, except for what it reads,
-    which is **answered**:
+18. **How `@assistant` in the chat works (decision 8).** **Answered at scoping, 2026-10-23: as
+    recommended**, with what it reads answered earlier:
     - **Store.** The answer is a message in `trip_messages`, with an author `kind` of
       `assistant` and a `requested_by` naming the asker. ADR-073 is amended. A migration adds the
       columns, and the same `kind` serves decision 17's system lines.
@@ -258,9 +277,9 @@ chips do.
       It is not streamed into the chat.
     - **Lapses.** When the owner's `trip.collaborators` lapses, the chat is read-only (M46
       decision 2), and so `@assistant` is unavailable.
-19. **What "soon" means.** *Recommended:* 3 days before the start date, the "couple days before"
+19. **What "soon" means.** **Answered at scoping, 2026-10-23: as recommended.** 3 days before the start date, the "couple days before"
     of the ask.
-20. **Who sees the notebook.** *Recommended:* every member, whatever their role. Reading today's
+20. **Who sees the notebook.** **Answered at scoping, 2026-10-23: as recommended.** every member, whatever their role. Reading today's
     plan is reading, and Directions is a link. A share-link reader sees it as read-only, without
     the chat or Ask widgets.
 
@@ -270,16 +289,18 @@ chips do.
 - The Today page scope (decision 10), and the *During the trip* template planted at *soon*
   (decisions 9 and 11).
 - The Overview swap and Home's phase badge (decision 11).
-- `booking` and the flight number (decision 5): the contract, the domain, the editor, the card,
-  the Money notebook's booked list, the public API, and trip export (M25), with its access rule.
+- The flight number (decision 5, as amended): the contract, the domain, the editor, the card,
+  the public API, and trip export (M25). The `booking` object stays in M44.
 - The five widgets (decision 15) and Directions on the stop sheet (decision 16).
 - The assistant's *now*, `find_places_near_now` offered only under way, and the eval cases
   (decisions 13 and 14).
-- `@assistant` in the chat (decision 18), and the change lines (decision 17) if they are
-  answered yes.
+- `@assistant` in the chat (decision 18), and the change lines (decision 17).
 
 ## Out of scope
 
+- The `booking` object and confirmation codes (decision 5, as amended; M44).
+- A notebook settings control, and `dateScope: { date }` behaviour (decision 10; the contract
+  carries it).
 - A live flight-status vendor, polling, and flight alerts (decision 4; a candidate).
 - Push notifications, and offline access to the trip (decision 7; candidates).
 - The device's location (decision 6).
@@ -289,19 +310,17 @@ chips do.
 
 ## Exit gate
 
-- [ ] **Decisions 10 (the scope's shape), 13–16 and 18–20 are answered and recorded here** (9,
-      11, 12, 17 and 10's empty days are),
-      with:
-      - an ADR for the phase, *now* and the Today scope;
+- [ ] **Every decision is answered and recorded here** (done at scoping, 2026-10-23), with:
+      - ADR-080 for the phase, *now* and the notebook `dateScope`;
       - ADR-073 and ADR-067 amended for `@assistant`;
-      - the contracts changelog entry for `booking`.
+      - the contracts changelog entries for `flightNumber` and `dateScope`.
 - [ ] **`tripNow` is right across zones and midnight**: a `fast-check` property over day zones,
       device zones and clock times, seen red with the zone conversion removed.
 - [ ] **The Today scope narrows only unset days**: on a page with the scope, an unbound
       `day.detail` shows today, and one bound to day 1 still shows day 1. Seen red with the
       scope removed.
-- [ ] **Overview swaps only while the trip is under way**: a unit test over `pickOverviewPage`
-      for a planning, soon, under-way and ended trip.
+- [ ] **Overview swaps from *soon* through the end date**: a unit test over `pickOverviewPage`
+      for a planning, soon, under-way and ended trip (decision 9, amended).
 - [ ] **Every trip has *During the trip***: a new trip is seeded with it, and an existing trip
       gains it once on its next index load and not again after a delete. An integration test
       shows both.
@@ -309,9 +328,7 @@ chips do.
       `templates.test.ts`, which already renders every seeded widget against new trips, renders
       this page with a clock before the trip and after it. Seen red with one widget's empty
       state removed.
-- [ ] **A trip replayed from a log written before `booking` equals its stored projection.**
-- [ ] **A confirmation number never reaches a share link or a published day**: an integration
-      test reads both.
+- [ ] **A trip replayed from a log written before `flightNumber` equals its stored projection.**
 - [ ] **`find_places_near_now` is offered only while the trip is under way, and `read_chat` only
       on a chat-started turn**: a test of the offered tools for a planning trip, an under-way
       trip, an Ask turn and a chat turn. `read_chat`'s default and its ceiling are read from

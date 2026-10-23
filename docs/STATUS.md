@@ -22,12 +22,15 @@ general setup.
 ## Where the work is right now
 
 **M52 — The trip comes with you — is the current milestone**
-(`docs/milestones/M52-the-trip-comes-with-you.md`), minted 2026-10-22 and **not yet scoped**: the
-during-trip experience. Mitchell answered decisions 1–9, 11, 12, 17, 10's empty days and 18's chat
-reading the same day (a *During the trip* notebook). The rest are open recommendations.
+(`docs/milestones/M52-the-trip-comes-with-you.md`), minted 2026-10-22 and **scoped 2026-10-23**:
+the during-trip experience. Every decision is answered (the third review changed three: the
+Today scope is a general notebook `dateScope` setting, Overview swaps from 3 days before, and
+flights get a flight number only, `booking` staying in M44). The plan is
+`docs/plans/2026-10-23-M52-the-trip-comes-with-you.md`; part 0 is this session's branch
+`claude/serene-tesla-quoyte`.
 
-**Next action:** scope M52 with Mitchell (`plan-a-milestone`) before any part is built. After it,
-the order is M49 → M43 → M44, with M48 parked.
+**Next action:** build M52's parts (`build-a-milestone`). After it, the order is M49 → M43 → M44,
+with M48 parked.
 
 **M51 closed 2026-10-22, gate 11 of 11**, on Mitchell's ruling at the close: his walk at 390, 1440
 and 3440 works, and the parts are merged (PRs 506–511, 513, 514, 516; part 0 PR 505 merged early;
