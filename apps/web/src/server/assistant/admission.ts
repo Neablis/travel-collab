@@ -186,6 +186,10 @@ export const AskRequest = z.object({
     .min(1, "messages must not be empty")
     .max(MAX_ASK_MESSAGES, `a thread may hold at most ${MAX_ASK_MESSAGES} messages`),
   scope: AskScopeSchema,
+  // The asker's IANA zone, as their device reads it. A day with no zone of its
+  // own is read on it (ADR-080 decision 1, `turnNowOf`); a zone this runtime
+  // does not know is passed over there, so it is only bounded here.
+  timeZone: z.string().min(1).max(64).optional(),
 });
 
 export type AskUiMessage = z.infer<typeof AskUiMessage>;
@@ -657,10 +661,11 @@ export interface AdmissionInput {
   /**
    * Where the trip is now (`turnNowOf`), read off the trip the guard loaded.
    * The clock and the trip's globals are the edge's, so this arrives as a
-   * function rather than a value. Omitted, no phase is known, and a tool
-   * offered only in one (`find_places_near_now`) is not offered.
+   * function rather than a value, handed the zone the asker's client sent.
+   * Omitted, no phase is known, and a tool offered only in one
+   * (`find_places_near_now`) is not offered.
    */
-  now?: (detail: TripDetail) => TurnNow;
+  now?: (detail: TripDetail, deviceZone: string | null) => TurnNow;
   ports: AdmissionPorts;
 }
 
@@ -683,6 +688,8 @@ interface AdmissionDraft {
     scope: AskScope;
     question: string;
     turn: "opening" | "follow-up";
+    /** The zone the asker's client sent, or null. */
+    timeZone: string | null;
   };
   /**
    * Present once `resolveSurface` has run: the page row (null on every
@@ -838,7 +845,7 @@ const parseRequestStage: AdmissionStage = {
   run: async (draft) => {
     const parsed = parseRequest(required(draft.raw, "capRawBody"), AskRequest);
     if (!parsed.ok) return refuse("parseRequest", parsed.error, badRequest(parsed.error));
-    const { messages, scope } = parsed.value;
+    const { messages, scope, timeZone = null } = parsed.value;
 
     const lastUser = [...messages].reverse().find((m) => m.role === "user");
     if (!lastUser) {
@@ -856,7 +863,7 @@ const parseRequestStage: AdmissionStage = {
     // (Design note in askAnalytics.ts) its tool-call shape is genuinely
     // different from an opening question's.
     const turn: "opening" | "follow-up" = messages.length > 1 ? "follow-up" : "opening";
-    draft.parsed = { messages, scope, question, turn };
+    draft.parsed = { messages, scope, question, turn, timeZone };
     return null;
   },
 };
@@ -1155,8 +1162,8 @@ const classifyTask: AdmissionStage = {
  *   * the SURFACE is `scope.kind`, already verified server-side by
  *     `resolveSurface`;
  *   * the ROLE comes from the guard's members, through the AccessPolicy seam;
- *   * the PLAN has no source yet — `permitsPropose` permits everybody, which
- *     is exactly today's behaviour. M20 owns it (spec §7c);
+ *   * the PLAN is `read` on a plan without `ai.command` (Studio, M52
+ *     decision 18), and `permitsPropose` on every other;
  *   * the CLASSIFIER is `askIntent`'s answer. On a page it caps nothing: the
  *     page verdict chooses a profile, never an effect (ADR-058).
  *
@@ -1180,7 +1187,7 @@ const grantTools: AdmissionStage = {
   name: "grantTools",
   run: async (draft) => {
     const { userId, detail, canWrite } = required(draft.actor, "identifyActor");
-    const { messages, scope, question, turn } = required(draft.parsed, "parseRequest");
+    const { messages, scope, question, turn, timeZone } = required(draft.parsed, "parseRequest");
     const { page, kind: surface } = required(draft.surface, "resolveSurface");
     const selected = required(draft.selected, "selectModel");
     const { classification } = required(draft.classified, "classifyTask");
@@ -1306,7 +1313,7 @@ const grantTools: AdmissionStage = {
     const posture = postureFor(caps);
     // The phase is the tool set's sixth axis (M52 decision 6): read once, here,
     // so every set below and the instruction agree on one instant.
-    const now = detail !== null && draft.input.now ? draft.input.now(detail) : null;
+    const now = detail !== null && draft.input.now ? draft.input.now(detail, timeZone) : null;
     const phase = now?.phase;
     const offerable = toolsFor(grants, undefined, posture, origin, phase);
     // The page's intents, each resolved to the set it would hold. The pivot

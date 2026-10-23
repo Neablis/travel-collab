@@ -7,6 +7,7 @@
 import { randomUUID } from "node:crypto";
 import type { ActivityTag, Location, TripCommand } from "@tc/contracts";
 import { commandsFor } from "@tc/factories";
+import { JAPAN_STOPS, JAPAN_TRIP_DAY_COUNT, addDays } from "@tc/fixtures";
 import { clockIn } from "@tc/pages";
 
 /**
@@ -18,11 +19,21 @@ export const EVAL_TRIPS = ["long-100", "today"] as const;
 export type EvalTripName = (typeof EVAL_TRIPS)[number];
 
 /**
- * Today's date where the Japan trip's first days are, so `today` is under way
- * whatever zone the runner is in: its first stops are in Tokyo.
+ * The start date that makes `today` under way at `at`, on the first Japan day
+ * with a stop already begun and one still to come at that hour in Tokyo, where
+ * every stop is. The day-of cases need both, so a trip simply started today
+ * failed them for the hour of the run: nothing has begun on day 1 before
+ * 14:30, and nothing is left after 21:00 (PR 534 review, finding 4).
+ *
+ * Null when no day has both, from 21:00 to 06:30 JST: the runner refuses then.
  */
-export function japanTodayStart(at: number): string {
-  return clockIn("Asia/Tokyo", at).date;
+export function japanTodayStart(at: number): string | null {
+  const { date, time } = clockIn("Asia/Tokyo", at);
+  for (let day = 1; day <= JAPAN_TRIP_DAY_COUNT; day++) {
+    const starts = JAPAN_STOPS.filter((stop) => stop.day === day).map((stop) => stop.start);
+    if (starts.some((start) => start <= time) && starts.some((start) => start > time)) return addDays(date, 1 - day);
+  }
+  return null;
 }
 
 // A hundred days through six stays, Tokyo twice: long enough to be well past

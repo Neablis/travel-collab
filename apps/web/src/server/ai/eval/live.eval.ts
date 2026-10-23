@@ -131,6 +131,13 @@ const plan =
 let spentMicroUsd = 0;
 let unpricedTurns = 0;
 
+/** `japanTodayStart` now, or a refusal: from 21:00 to 06:30 JST a day-of case would fail on the clock, not the model. */
+function todayStart(): string {
+  const start = japanTodayStart(Date.now());
+  if (start === null) throw new Error("The day-of cases need 06:30 to 21:00 in Tokyo, when a Japan day has a stop begun and one to come. Run them then, or leave them out with EVAL_ONLY.");
+  return start;
+}
+
 /**
  * A fresh copy of the trip `prompt` runs on, through the real command path:
  * the Japan demo trip as db:seed builds it, or a named one from `trips.ts`.
@@ -143,7 +150,7 @@ async function seedTripFor(prompt: LivePrompt): Promise<{ tripId: string; detail
   const commands =
     prompt.trip === "long-100"
       ? longTripCommands(tripId)
-      : japanTripCommands(tripId, { startDate: prompt.trip === "today" ? japanTodayStart(Date.now()) : "2027-04-01" });
+      : japanTripCommands(tripId, { startDate: prompt.trip === "today" ? todayStart() : "2027-04-01" });
   const seeded = await executeTripCommandBatch(commands, ACTOR_ID);
   if (!seeded.ok) throw new Error(`seed: ${seeded.error.message}`);
   return { tripId, detail: seeded.detail };
@@ -294,6 +301,8 @@ beforeAll(async () => {
   if (!confirmed) {
     throw new Error(`${plan}\nNothing was sent. Set EVAL_CONFIRM=1 to spend it (and EVAL_MAX_USD to change the cap).`);
   }
+  // Before anything is sent, so the refusal costs nothing; seeding checks again.
+  if (prompts.some((prompt) => prompt.trip === "today")) todayStart();
   if (unpriced.length > 0 && process.env.EVAL_ALLOW_UNPRICED !== "1") {
     throw new Error(`No rate in modelRates.ts for ${unpriced.join(", ")}, so this run's spend cannot be capped. Add the rate, or set EVAL_ALLOW_UNPRICED=1.`);
   }

@@ -13,10 +13,12 @@ import {
   tripDetailFromState,
   type TripState,
 } from "@tc/domain";
+import { JAPAN_STOPS } from "@tc/fixtures";
+import { clockIn } from "@tc/pages";
 import type { AskAnalyticsRecord } from "@/server/assistant/askAnalytics";
 import { OVERVIEW_ABOVE_DAYS } from "@/server/assistant/tools/read";
 import { accountExpectationFor, expectationFor, mostFreeDays, playbookExpectationFor, type SeededAccountTrip } from "./cases";
-import { ACCOUNT_TRIPS, EVAL_TRIPS, LONG_TRIP_DAYS, accountTripCommands, longTripCommands } from "./trips";
+import { ACCOUNT_TRIPS, EVAL_TRIPS, LONG_TRIP_DAYS, accountTripCommands, japanTodayStart, longTripCommands } from "./trips";
 import { grade, namesAmount, namesDayNumber, navigatedTo, retractedText, reviewedChanges, textBeforeToolCall, visibleText, type EvalTurn } from "./grade";
 
 // The fields `grade` reads, on an otherwise ordinary completed turn.
@@ -319,6 +321,28 @@ describe("the cases", () => {
     const dates = longTripCommands("00000000-0000-4000-8000-000000000000").find((c) => c.type === "SetTripDates");
     expect(dates?.type === "SetTripDates" && dates.newDayIds.length).toBe(LONG_TRIP_DAYS);
     expect(LONG_TRIP_DAYS).toBeGreaterThan(OVERVIEW_ABOVE_DAYS);
+  });
+
+  // The day-of cases need a stop begun and one still to come today, or a
+  // correct model fails them for the hour the run started (PR 534 review,
+  // finding 4): a Japan trip simply started today has nothing begun before
+  // 14:30 JST and nothing left after 21:00.
+  it("dates the today trip so the run lands inside a day with a stop begun and one to come", () => {
+    const dayOfRun = (at: number) => {
+      const start = japanTodayStart(at);
+      if (start === null) return null;
+      const { date, time } = clockIn("Asia/Tokyo", at);
+      const day = (Date.parse(date) - Date.parse(start)) / 86_400_000 + 1;
+      const starts = JAPAN_STOPS.filter((stop) => stop.day === day).map((stop) => stop.start);
+      return { day, begun: starts.some((s) => s <= time), toCome: starts.some((s) => s > time) };
+    };
+    // Every half hour from 06:30 to 20:30 JST, 10:00 JST among them.
+    for (let minutes = 6 * 60 + 30; minutes <= 20 * 60 + 30; minutes += 30) {
+      const at = Date.parse("2026-10-23T00:00:00+09:00") + minutes * 60_000;
+      expect(dayOfRun(at), `${Math.floor(minutes / 60)}:${String(minutes % 60).padStart(2, "0")} JST`).toMatchObject({ begun: true, toCome: true });
+    }
+    // 22:45 JST: no day has a stop left, so the runner refuses rather than spends.
+    expect(japanTodayStart(Date.parse("2026-10-23T22:45:00+09:00"))).toBeNull();
   });
 
   // The summary is the overview's job: one look at a stay is fine, a read of

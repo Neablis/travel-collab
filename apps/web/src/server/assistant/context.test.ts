@@ -152,7 +152,17 @@ describe("the turn's now", () => {
     expect(now.city).toEqual({ name: "Rome", lat: 41.89, lng: 12.49 });
   });
 
-  it("runs on UTC when no day has a zone", () => {
+  // ADR-080 decision 1: a day with no zone is read on the device's. At 20:30
+  // in New York it is already 00:30 tomorrow on UTC, which put the assistant a
+  // day ahead of Home's badge every evening, and past the end of this one-day
+  // trip while Home still showed it under way (PR 534 review, finding 1).
+  it("reads a zone-less trip on the asker's zone, so a New York evening is still today", () => {
+    const now = turnNowOf(trip, null, Date.parse("2026-06-11T00:30:00Z"), "America/New_York");
+    expect(now).toMatchObject({ phase: "underway", dayIndex: 0, local: { date: "2026-06-10", time: "20:30" } });
+    expect(now.passed?.activityId).toBe(third);
+  });
+
+  it("runs on UTC when no day has a zone and the asker sent none", () => {
     const now = turnNowOf(trip, null, Date.parse("2026-06-10T10:30:00Z"));
     expect(now.current?.activityId).toBe(second);
     expect(now.local.time).toBe("10:30");

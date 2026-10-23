@@ -168,21 +168,28 @@ export interface TurnNow {
 }
 
 /**
- * The trip at `at`, on the server. There is no device here, so a day without
- * a zone of its own runs on the trip's (its first day that has one), and on
- * UTC when no stop anywhere has coordinates. A zone this runtime does not know
- * is passed over, as `tripNow` passes it over, rather than failing the turn.
+ * The trip at `at`, on the server. A day without a zone of its own runs on the
+ * asker's (`deviceZone`, the zone their client sent), as Home's badge does
+ * (ADR-080 decision 1). A turn that brought none (a chat turn brings none) runs
+ * on the trip's (its first day that has one), and on UTC when no stop anywhere
+ * has coordinates. A zone this runtime does not know is passed over, as
+ * `tripNow` passes it over, rather than failing the turn.
  */
-export function turnNowOf(detail: TripDetail, globals: TripGlobals | null, at: number): TurnNow {
+export function turnNowOf(
+  detail: TripDetail,
+  globals: TripGlobals | null,
+  at: number,
+  deviceZone: string | null = null,
+): TurnNow {
   const known = (zone: string | null | undefined): zone is string => zone != null && isKnownZone(zone);
-  const tripZone = globals?.days.map((day) => day.timeZone).find(known) ?? "UTC";
-  const now = tripNow(detail, globals, { at, deviceZone: tripZone });
+  const fallback = known(deviceZone) ? deviceZone : (globals?.days.map((day) => day.timeZone).find(known) ?? "UTC");
+  const now = tripNow(detail, globals, { at, deviceZone: fallback });
   const dayIndex = now.dayId === null ? null : detail.days.findIndex((day) => day.dayId === now.dayId);
   const today = dayIndex === null ? undefined : globals?.days[dayIndex];
   const ownZone = (today ?? globals?.days[0])?.timeZone;
-  const zone = known(ownZone) ? ownZone : tripZone;
+  const zone = known(ownZone) ? ownZone : fallback;
   const passed =
-    timedStops(detail, globals, tripZone)
+    timedStops(detail, globals, fallback)
       .filter((stop) => stop.dayId === now.dayId && stop.end <= at)
       .at(-1) ?? null;
   const cityName = today?.place?.city ?? today?.cities[0] ?? null;

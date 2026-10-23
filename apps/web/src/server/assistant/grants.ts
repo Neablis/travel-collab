@@ -215,14 +215,13 @@ export interface EffectCaps {
 }
 
 /**
- * What the caller's PLAN permits — the one term with no source yet.
+ * What the caller's PLAN permits, once it sells `ai.command`.
  *
- * M20 owns it. It is a port rather than a missing term so that the shape is
- * real now and the arithmetic below is the arithmetic that ships: a turn's
- * grant is a minimum over four caps, and a fourth one appearing later must not
- * be a re-derivation of the other three. Today it permits `propose` for
- * everybody, which is exactly today's behaviour — there is no plan to consult,
- * and no tier, ceiling or table is invented here to pretend otherwise.
+ * The plan cap is `read` on a plan without `ai.command` (Studio, M52 decision
+ * 18), which admission's `grantTools` decides from the selected entitlements;
+ * on every other plan it is this port, which permits `propose`. It stays a port
+ * so a finer plan rule lands here, not as a re-derivation of the other three
+ * caps in the minimum below.
  *
  * If M20's answer needs IO, it is resolved BEFORE `grantFor` is called, which
  * is what keeps `grantFor` a pure minimum over four values.

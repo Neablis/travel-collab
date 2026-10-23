@@ -27,6 +27,23 @@
       "totalChars": 10165,
       "approxTokens": 3071
     },
+    "trip · question · under way": {
+      "tools": [
+        "read_trip",
+        "read_day",
+        "find_days",
+        "find_free_time",
+        "search_playbooks",
+        "search_places",
+        "find_places_near_now",
+        "go_to",
+        "request_change_tools"
+      ],
+      "toolChars": 8457,
+      "instructionChars": 3106,
+      "totalChars": 11563,
+      "approxTokens": 3493
+    },
     "trip · edit": {
       "tools": [
         "read_trip",

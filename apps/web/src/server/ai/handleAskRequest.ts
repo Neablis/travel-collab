@@ -338,7 +338,7 @@ export async function handleAskRequest(
     origin,
     // Where the trip is at the turn's own start (M52 decision 14a): the tool
     // set, the *now* line and `find_places_near_now` all read this one value.
-    now: (trip) => turnNowOf(trip, buildTripGlobals(trip), startedAt),
+    now: (trip, deviceZone) => turnNowOf(trip, buildTripGlobals(trip), startedAt, deviceZone),
   });
   if (!admission.ok) return admission.refusal.response;
   const { grant } = admission;
