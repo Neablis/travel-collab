@@ -362,3 +362,19 @@ describe("datesLabel — a `dates` binding as the page says it", () => {
     expect(datesLabel(["2026-10-09", "2026-10-12", "2026-10-14", "2026-10-15"])).toBe("4 days");
   });
 });
+
+// A page scoped to today, read on a date that is no trip day (ADR-080 §4).
+// "No day" is a selection of nothing, so a widget says its own empty state; it
+// is not `unbound("day")`, which tells the reader their day was removed.
+describe("narrow — a page's no-day scope", () => {
+  it("selects no day, no stop and no city, the backlog included", () => {
+    const { trip, globals } = selectionTrip();
+    const none = selected(trip, globals, {}, { kind: "no-day" });
+    expect({ days: none.days, stops: none.stops, cities: none.cities }).toEqual({ days: [], stops: [], cities: [] });
+  });
+
+  it("leaves a widget's own day binding alone", () => {
+    const { trip, globals } = selectionTrip();
+    expect(selected(trip, globals, { day: { kind: "index", index: 0 } }, { kind: "no-day" }).days).toEqual([0]);
+  });
+});

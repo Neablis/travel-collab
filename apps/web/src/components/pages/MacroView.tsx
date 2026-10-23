@@ -1,5 +1,5 @@
 "use client";
-import { useMemo } from "react";
+import { useContext, useMemo } from "react";
 import type { TripDetail, PageContext, TripGlobals, UserPreferences } from "@tc/contracts";
 import { renderMacro, getMacro, UNBOUND_GHOSTS, type ExternalInputs, type ExternalNeed } from "@tc/pages";
 import { cn } from "@/lib/cn";
@@ -10,6 +10,7 @@ import { Segs } from "./WidgetSegs";
 import { EmptyChip } from "./EmptyChip";
 import { BlockView } from "./BlockView";
 import { LinkCardPending } from "./blocks/LinkCardBlock";
+import { MacroEditorContext } from "./editor/MacroEditorContext";
 
 // Renders one widget instance. **It no longer knows any widget's name.**
 //
@@ -65,7 +66,10 @@ export function MacroView({ detail, context, user = null, globals = null, extern
   // `null` until the provider's read lands; absent is fine, the widget then
   // falls back the way it does for an unnamed non-member.
   const guests = useGuests();
-  const outcome = renderMacro({ trip: detail, page: context, user, globals, today, external, people, personas, guests }, name, params);
+  // The page's clock, for its `dateScope`: the editor reads it once per page.
+  // Outside an editor (the invite card) there is none, and nothing is scoped.
+  const now = useContext(MacroEditorContext)?.now ?? null;
+  const outcome = renderMacro({ trip: detail, page: context, user, globals, today, now, external, people, personas, guests }, name, params);
   // Never the stored name: that is raw syntax on the screen (M14 gate box, `noRawSyntax.test.tsx`).
   if (outcome.status === "unknown") return <EmptyChip tone="error" label="this widget isn't available in this version" />;
   if (outcome.status === "bad-params") return <EmptyChip tone="error" label="this widget's settings no longer fit it" />;

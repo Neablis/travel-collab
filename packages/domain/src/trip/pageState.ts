@@ -178,6 +178,8 @@ export function pageStatesEqual(a: PageState, b: PageState): boolean {
     a.seedKey === b.seedKey &&
     a.context.kind === b.context.kind &&
     a.context.tripId === b.context.tripId &&
+    // Absent is "all" (`PageContext.dateScope`), and `{ date }` is an object.
+    docsEqual(a.context.dateScope ?? "all", b.context.dateScope ?? "all") &&
     docsEqual(a.content, b.content)
   );
 }
