@@ -879,6 +879,24 @@ describe("PageScreen: inserting and pointing a widget (item G)", () => {
     expect(screen.queryByRole("button", { name: /^Assistant$/ })).toBeNull();
   });
 
+  // The bubble is the notebook's usual opener, and Hide hands focus back to
+  // whatever opened the panel. A bubble that came back as a new element left
+  // a keyboard user on <body> (PR 537 round 11).
+  it("gives focus back to the bubble on Hide", async () => {
+    const trip = tripDetailFixture({ days: [] });
+    const page = pageFixture({
+      tripId: trip.tripId,
+      content: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Notes" }] }] },
+    });
+    server.use(...makePagesHandlers([page]), http.get("/api/trips/:tripId", () => HttpResponse.json({ trip })));
+    render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
+    await screen.findByText("Notes");
+
+    await userEvent.click(screen.getByTestId("assistant-launcher"));
+    await userEvent.click(within(screen.getByRole("complementary", { name: "Assistant" })).getByRole("button", { name: "Hide" }));
+    expect(screen.getByTestId("assistant-launcher").matches(":focus")).toBe(true);
+  });
+
   // SPEC §23 gave the phone a sheet and changed nothing above 768px. Worth its
   // own assertion because the two presentations now share one call site and
   // one `phoneAskContext` import: a branch written the wrong way round would
@@ -2386,7 +2404,7 @@ describe("PageScreen: a notebook's Group chat", () => {
     removed: false,
     body: "Train at nine?",
   });
-  function chatNotebook(members: { userId: string; role: "owner" | "viewer" }[], access: "member" | "refused" = "member", me?: string) {
+  function chatNotebook(members: { userId: string; role: "owner" | "viewer" }[], access: "member" | "refused" | "failed" = "member", me?: string) {
     const trip = tripDetailFixture({ members });
     const widget = insertWidget("chat.recent");
     if (!widget.ok) throw new Error("could not build Group chat");
@@ -2395,7 +2413,11 @@ describe("PageScreen: a notebook's Group chat", () => {
       ...makePagesHandlers([page]),
       http.get("/api/trips/:tripId", () => HttpResponse.json({ trip })),
       http.get("/api/trips/:tripId/access", ({ params }) =>
-        access === "refused" ? HttpResponse.json({ error: "forbidden" }, { status: 403 }) : HttpResponse.json({
+        access === "refused"
+          ? HttpResponse.json({ error: "forbidden" }, { status: 403 })
+          : access === "failed"
+            ? HttpResponse.json({ error: "internal" }, { status: 500 })
+            : HttpResponse.json({
           access: {
             tripId: params.tripId,
             myRole: "owner",
@@ -2527,6 +2549,68 @@ describe("PageScreen: a notebook's Group chat", () => {
     expect(within(suggestion).getByRole("button", { name: "Accept" })).toBeTruthy();
   });
 
+  // A second `@assistant` reply on a later poll: the chat re-reads on its
+  // revision, and only the suggestions' revision re-reads the list its Accept
+  // comes from. Without that, the new card offers nothing until a remount.
+  it("offers Accept on a suggestion that arrives on a later poll", async () => {
+    const trip = chatNotebook(pair, "member", "u1");
+    const suggested = (n: number) => {
+      const suggestionId = uuidFrom(9 + n, 537);
+      const reply = ChatMessage.parse({
+        messageId: uuidFrom(2 + n, 537),
+        authorId: "assistant",
+        kind: "assistant",
+        requestedBy: "u1",
+        replyTo: said.messageId,
+        suggestionId,
+        createdAt: `2026-10-13T10:0${n}:00.000Z`,
+        editedAt: null,
+        removed: false,
+        body: `Suggestion ${n}`,
+      });
+      const change = SuggestionChange.parse({
+        id: uuidFrom(21 + n, 537),
+        suggestionId,
+        tripId: trip.tripId,
+        authorId: "u1",
+        note: null,
+        createdAt: `2026-10-13T10:0${n}:00.000Z`,
+        commands: [{ type: "SetTripName", tripId: trip.tripId, name: `Lisbon ${n}` }],
+        description: "Rename the trip",
+        status: "pending",
+        dependsOn: [],
+        resolvedBy: null,
+        resolvedAt: null,
+        via: "assistant",
+        requestedBy: "u1",
+      });
+      return { reply, change };
+    };
+    const first = suggested(1);
+    const second = suggested(2);
+    let rev = "1";
+    let messages = [said, first.reply];
+    let changes = [first.change];
+    server.use(
+      http.get("/api/trips/:tripId/chat", () => HttpResponse.json({ messages, hasEarlier: false, unread: 0, canPost: true })),
+      http.get("/api/trips/:tripId/suggestions", () => HttpResponse.json({ changes, rev })),
+      http.get("/api/trips/:tripId/events", () =>
+        HttpResponse.json({ headSeq: 0, events: [], resync: false, suggestionsRev: rev, chatRev: rev }),
+      ),
+    );
+    await userEvent.click(await screen.findByRole("button", card));
+    await within(chatPanel()).findByRole("button", { name: "Accept" });
+
+    rev = "2";
+    messages = [said, first.reply, second.reply];
+    changes = [first.change, second.change];
+    // Coming back to the tab polls; dispatched on every retry, as above.
+    await waitFor(() => {
+      document.dispatchEvent(new Event("visibilitychange"));
+      expect(within(chatPanel()).getAllByRole("button", { name: "Accept" })).toHaveLength(2);
+    });
+  });
+
   it("is no control while the page is being edited", async () => {
     server.use(...makeChatHandlers({ viewerId: "u1", messages: [said] }).handlers);
     chatNotebook(pair);
@@ -2557,6 +2641,17 @@ describe("PageScreen: a notebook's Group chat", () => {
     expect(within(await openAssistant()).queryByRole("tab", chatTab)).toBeNull();
     expect(screen.queryByRole("button", card)).toBeNull();
     expect(findPaletteCommand("chat")).toBeUndefined();
+  });
+
+  // The access read unanswered (a 5xx, a dropped connection) says nothing of
+  // who this is, so the notebook keeps the board's tab, as the board does when
+  // its own read fails: the chat's own refusal is what a stranger then sees.
+  it("keeps the Chat tab and Open chat when the trip's access read fails", async () => {
+    server.use(...makeChatHandlers({ viewerId: "u1", messages: [said] }).handlers);
+    chatNotebook(pair, "failed");
+
+    expect(await within(await openAssistant()).findByRole("tab", chatTab)).toBeTruthy();
+    expect(findPaletteCommand("chat")?.action).toBe("Open chat");
   });
 
   // Removed from the trip while it still lists them: the chat's 403 is the

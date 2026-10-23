@@ -341,6 +341,10 @@ export function PageScreen({
   // wrote each line, and what this reader may do to it (M52).
   const [members, setMembers] = useState<readonly TripMemberProfile[] | null>(null);
   const [myRole, setMyRole] = useState<TripRole | null>(null);
+  // Whether that read refused this reader, null until it settles. A 4xx is
+  // the server saying no; a 5xx or a dropped connection says nothing of who
+  // this is, so it is no refusal.
+  const [accessRefused, setAccessRefused] = useState<boolean | null>(null);
   useEffect(() => {
     let cancelled = false;
     setEditRole("pending");
@@ -350,6 +354,7 @@ export function PageScreen({
       setEditRole(role);
       setMembers(access.ok ? access.value.members : null);
       setMyRole(access.ok ? access.value.myRole : null);
+      setAccessRefused(!access.ok && access.error.status >= 400 && access.error.status < 500);
       if (role === "reader") setEditing(false);
       if (role === "writer" && from === "overview") setEditing(true);
     });
@@ -978,9 +983,11 @@ export function PageScreen({
   // switch, for the same readers, the same tab last open. The board's tab is
   // there for any member (M46): alone on the trip, or refused by the chat,
   // whose 403 the tab is what says. Not on /demo, and not for a reader the
-  // access read refuses (a share link's), who is no member. One read, held
-  // here, feeds the tab and a notebook's *Group chat*, which opens it in place.
-  const offersChat = !isDemoTripId(tripId) && members !== null;
+  // access read refuses (a share link's), who is no member. An access read
+  // that failed (5xx, network) refuses no one, so the tab stays, as the
+  // board's does when its read fails. One read, held here, feeds the tab and a
+  // notebook's *Group chat*, which opens it in place.
+  const offersChat = !isDemoTripId(tripId) && accessRefused === false;
   const [railTab, setRailTab] = useState<RailTab>("ask");
   const chooseTab = (tab: RailTab) => {
     setRailTab(tab);
@@ -1730,8 +1737,13 @@ export function PageScreen({
           The panel unmounts between openings, but the thread is
           `useAskThread`'s, which lives on this screen: closing hangs up on the
           turn (`closeAssistant`) and the conversation survives being put away. */}
-      {!isPhone && !assistantOpen ? (
-        <AssistantBubble open={assistantOpen} onOpen={openLastTab} />
+      {/* Hidden rather than unmounted while the panel is open, so the
+          bubble that opened it is still the element Hide gives focus back to
+          (PR 537 round 11). */}
+      {!isPhone ? (
+        <div hidden={assistantOpen}>
+          <AssistantBubble open={assistantOpen} onOpen={openLastTab} />
+        </div>
       ) : null}
       {assistantOpen ? (
         <AssistantRail
