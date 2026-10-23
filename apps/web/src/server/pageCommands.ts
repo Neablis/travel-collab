@@ -151,12 +151,17 @@ type PageStepOutcome =
  * second way to write a page. `minimum` is the role the write needs: an editor
  * edits a notebook, and only the owner resets the trip's defaults (Mitchell,
  * 2026-09-27).
+ *
+ * `recordAs` names the batch in the log when that is not the person
+ * authorized: Today's backfill is checked against its reader and written as
+ * the system's, since a viewer's read may plant it and a viewer adds nothing.
  */
 async function commitPageStep(
   tripId: string,
   actorId: string,
   minimum: TripRole,
   step: (s: PageStep) => Promise<PageStepOutcome>,
+  recordAs: string = actorId,
 ): Promise<PageCommandResult> {
   // The demo trip is read-only all the way down (ADR-031, KI-2026-09-05-d).
   // Refused here rather than at the route, so no caller can reach the write
@@ -225,7 +230,7 @@ async function commitPageStep(
         // that introduces it, in the same batch so the two cannot be separated by
         // a crash.
         events: [...genesis, ...outcome.events].map(storedPageEvent),
-        actorId,
+        actorId: recordAs,
         occurredAt: new Date().toISOString(),
         batchId: crypto.randomUUID(),
         origin: { kind: "user" },
@@ -465,16 +470,18 @@ export async function addMissingDefaultPages(tripId: string, actorId: string, on
  * Gives a trip made before Today its Today notebook (M52 decision 9, as
  * amended 2026-10-23: *every existing trip gains it once on its next
  * notebook-index load*). Called by the index read, so any member's first look
- * plants it, and the envelope names that reader. Any member, not only the
- * owner who may add the other defaults: this is not a choice anyone makes,
- * and a trip whose owner never opens the index would otherwise never get it.
+ * plants it. Any member, not only the owner who may add the other defaults:
+ * this is not a choice anyone makes, and a trip whose owner never opens the
+ * index would otherwise never get it. For the same reason the batch is
+ * recorded as `SYSTEM_ACTOR_ID`, which owns every seed: History must not say a
+ * viewer added a notebook.
  *
  * Today cannot be deleted, so a trip that has one keeps it and this appends
  * nothing again. A Today the log shows deleted (none can be now) comes back
  * under its old id, as any re-added seed does.
  */
 export async function addTodayPage(tripId: string, readerId: string): Promise<PageCommandResult> {
-  return commitPageStep(tripId, readerId, "viewer", addMissing(tripId, TODAY_SEED_KEY));
+  return commitPageStep(tripId, readerId, "viewer", addMissing(tripId, TODAY_SEED_KEY), SYSTEM_ACTOR_ID);
 }
 
 function addMissing(tripId: string, only: string | undefined): (s: PageStep) => Promise<PageStepOutcome> {
@@ -494,7 +501,7 @@ function addMissing(tripId: string, only: string | undefined): (s: PageStep) => 
     for (const seed of seeds) {
       // Through the page decision like any create, with `system` as the
       // OWNER — the parameter exists for exactly this (`decidePageCommand`).
-      // The envelope still names the person who asked.
+      // The envelope names the person who asked (Today's backfill aside: `addTodayPage`).
       const decision = decidePageCommand(
         folded,
         {

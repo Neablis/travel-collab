@@ -78,7 +78,7 @@ test("a trip under way opens on Today, with now, next and directions, and an @as
     `https://www.google.com/maps/dir/?api=1&destination=${DINNER.lat}%2C${DINNER.lng}`,
   );
   // The usual Overview is one quiet link away, and back.
-  await letter.getByRole("link", { name: "Whole trip →" }).click();
+  await letter.getByRole("link", { name: "Whole trip", exact: true }).click();
   await expect(letter.getByText(/^Here is your itinerary, day by day/)).toBeVisible();
   await letter.getByRole("link", { name: "Today", exact: true }).click();
   await expect(letter.getByRole("button", { name: "Castle 2", exact: true })).toBeVisible();

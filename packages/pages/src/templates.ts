@@ -62,7 +62,7 @@ import type {
 // dates at all, and dated days with no stops (what the wizard makes) — each at
 // first paint and after everything has loaded, to hold exactly that line.
 //
-// --- Four notebooks come with a trip, since M30 ---
+// --- Five notebooks come with a trip: four since M30, Today since M52 ---
 // **Reversed 2026-09-26.** On 2026-09-12 Mitchell set *"Only 1 notebook per
 // trip is always generated, this is undeletable notebook that needs to be
 // created on every new trip"*, and for two weeks the Overview was the one page
@@ -70,7 +70,7 @@ import type {
 // dump of information … Maybe the issue is trying to make the overview do
 // everything, and instead we have several notebooks, with different
 // purposes."* Asked, he chose: **seed several notebooks into every new trip.**
-// So a new trip gets four, each with one job:
+// So a new trip got four, each with one job:
 //
 //   - **Overview** — the itinerary: a short letter, then every day as a timed
 //     schedule, then links to the other three. Undeletable (SPEC §25).
@@ -80,20 +80,19 @@ import type {
 //     what needs you.
 //   - **Money** — what it costs, day by day, against the budget.
 //
-// M52 added a fifth, **Today**, and made it undeletable too (by its seed
-// key, `isUndeletablePage`); every existing trip gains it once, on its next
-// notebook-index load (`tripPagesView`).
+// M52 added a fifth, **Today**, so a new trip now gets five.
 //
-// Only the Overview is undeletable: its `kind: "overview"` is what
-// `deletePage` refuses on, and the other three carry no `kind`. Nothing
-// migrates: `listPages` seeds only into a trip with zero pages, so every
-// existing trip keeps exactly the notebooks it has. `docs/milestones/M30-notebooks-and-links.md`
-// and ADR-056 carry the decision.
+// Two of the five are undeletable (`isUndeletablePage`): the Overview by its
+// `kind: "overview"`, and Today by its seed key. The other three delete like
+// any notebook. `listPages` seeds only into a trip with zero pages, so an
+// existing trip keeps the notebooks it has, with one exception: a trip made
+// before Today gains it once, on its next notebook read (`tripPagesView`).
+// `docs/milestones/M30-notebooks-and-links.md` and ADR-056 carry the decision.
 //
 // --- Two lists, and the split is the point ---
 // `DEFAULT_TEMPLATES` is what a new trip is SEEDED with; `TEMPLATE_LIBRARY` is
-// what the gallery OFFERS. Apart from the Overview, the first is a subset of
-// the second — so a notebook somebody deleted can be started again from the
+// what the gallery OFFERS. Apart from the Overview and Today, the first is a
+// subset of the second — so a notebook somebody deleted can be started again from the
 // gallery — and it stays small deliberately: a library that plants every entry
 // in every trip stops being a library, and every seed it plants is one more
 // notebook each trip keeps a permanent key for (`Page.seedKey`).

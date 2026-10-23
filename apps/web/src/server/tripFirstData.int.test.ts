@@ -1,7 +1,9 @@
 import { randomUUID } from "node:crypto";
+import { and, eq } from "drizzle-orm";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { executeTripCommand } from "@/server/commands";
 import { db } from "@/server/db/client";
+import { pages } from "@/server/db/schema";
 import { grantMembership } from "@/server/access/members";
 import { createInvite } from "@/server/access/invites";
 import { entitleAccounts } from "@/server/test-support/entitledAccount";
@@ -106,6 +108,23 @@ describe("tripFirstData", () => {
 
     const planning = await tripFirstData(await seedTrip());
     expect(planning?.overview?.page).toMatchObject({ seedKey: "overview", context: { kind: "overview" } });
+  });
+
+  // Mitchell's walk: Home, then a trip made before Today, under way. The page's
+  // own read plants Today and sends it as the Overview in the same response,
+  // with no visit to the notebook index first. Read as the viewer, the reader
+  // least able to add a notebook.
+  it("plants Today on a trip made before it, and sends it as the Overview of that trip under way", async () => {
+    const tripId = await seedTrip();
+    await db.delete(pages).where(and(eq(pages.tripId, tripId), eq(pages.seedKey, "today")));
+    await executeTripCommand(
+      { type: "SetTripDates", tripId, startDate: isoDateInDays(-1), endDate: isoDateInDays(1), newDayIds: [randomUUID(), randomUUID()] },
+      OWNER,
+    );
+    currentUserId = VIEWER;
+    const sent = await tripFirstData(tripId);
+    expect(sent?.overview?.page).toMatchObject({ seedKey: "today", context: { dateScope: "today" } });
+    expect(sent?.pages.pages.filter((p) => p.seedKey === "today")).toHaveLength(1);
   });
 
   // The "one shape" claim: each field is the body its route answers, for the

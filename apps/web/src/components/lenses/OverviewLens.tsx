@@ -391,7 +391,7 @@ export function OverviewLens({
                   reaches another notebook here (`?page=`). */}
               {wholeTripId === null ? null : (
                 <Link href={`${pathname ?? ""}?view=Overview&page=${wholeTripId}`} className="text-sm text-slate hover:text-ink">
-                  Whole trip →
+                  Whole trip <span aria-hidden="true">→</span>
                 </Link>
               )}
             </span>

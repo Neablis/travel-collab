@@ -298,7 +298,7 @@ describe("OverviewLens — Today, around and during the trip", () => {
     mount("1b2c3d4e-5f60-4718-8293-a4b5c6d7e8f9", "2026-06-09");
     expect(await screen.findByText("Now and next")).toBeTruthy();
     expect(screen.queryByText("Dear crew")).toBeNull();
-    expect(screen.getByRole("link", { name: "Whole trip →" }).getAttribute("href")).toBe(`?view=Overview&page=${OVERVIEW_PAGE_ID}`);
+    expect(screen.getByRole("link", { name: "Whole trip" }).getAttribute("href")).toBe(`?view=Overview&page=${OVERVIEW_PAGE_ID}`);
   });
 
   it("shows Today three days before the start", async () => {
@@ -309,7 +309,7 @@ describe("OverviewLens — Today, around and during the trip", () => {
   it("shows the Overview, and no link, a month out", async () => {
     mount("3d4e5f60-7182-493a-a4b5-c6d7e8f90a1b", "2026-07-10");
     expect(await screen.findByText("Dear crew")).toBeTruthy();
-    expect(screen.queryByRole("link", { name: "Whole trip →" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Whole trip" })).toBeNull();
   });
 });
 

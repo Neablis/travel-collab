@@ -133,10 +133,12 @@ describe("Today, on every trip", () => {
     const listed = await loadIndexAs(viewerId, tripId);
     const today = listed.find((p) => p.seedKey === "today");
     expect(today).toMatchObject({ title: "Today", context: { tripId, dateScope: "today" }, actorId: SYSTEM_ACTOR_ID });
-    // Into the log, so a rebuild keeps it (Invariant 2): its create, named by
-    // the reader whose load planted it.
-    const created = (await readStream(db, tripId)).slice(before).filter((e) => e.type === "PageCreated" && (e.payload as { seedKey?: string }).seedKey === "today");
-    expect(created.map((e) => e.actorId)).toEqual([viewerId]);
+    // Into the log, so a rebuild keeps it (Invariant 2). The whole batch,
+    // backfilled genesis included, is the system's: a viewer may not add a
+    // notebook, so History must not say this one did (PR 540 review).
+    const added = (await readStream(db, tripId)).slice(before);
+    expect(added.filter((e) => e.type === "PageCreated" && (e.payload as { seedKey?: string }).seedKey === "today")).toHaveLength(1);
+    expect([...new Set(added.map((e) => e.actorId))]).toEqual([SYSTEM_ACTOR_ID]);
 
     // Once: the next load writes nothing.
     const head = (await readStream(db, tripId)).length;

@@ -268,7 +268,8 @@ export const OVERVIEW_UNDELETABLE =
  * Today's seed key (M52; `TODAY_SEED_KEY` in `@tc/pages`, which this package
  * cannot import). Today is undeletable by its key rather than a `kind`: its
  * context already carries `dateScope`, and a key no edit moves is identity
- * enough.
+ * enough. `apps/web/src/server/undeletablePages.contract.test.ts` fails if this
+ * rule and `isUndeletablePage` disagree.
  */
 const TODAY_SEED_KEY = "today";
 
