@@ -261,6 +261,58 @@ describe("OverviewLens — another notebook, linked from a card", () => {
   });
 });
 
+// M52 decision 11, as amended: from three days before the trip through its
+// last day the tab shows Today, with a quiet way to the whole trip's Overview.
+describe("OverviewLens — Today, around and during the trip", () => {
+  const TODAY_ID = "8d9e0f1a-2b3c-4d4e-8f5a-6b7c8d9e0f1a";
+  const NOW = Date.parse("2026-06-10T12:00:00Z");
+  const pagesOf = (tripId: string) => ({
+    ok: true as const,
+    value: {
+      ...okPages.value,
+      pages: [
+        { ...okPages.value.pages[0]!, tripId, seedKey: "overview" },
+        { ...okPages.value.pages[0]!, id: TODAY_ID, tripId, title: "Today", context: { tripId, dateScope: "today" as const }, seedKey: "today" },
+      ],
+    },
+  });
+  // Three consecutive days from `startDate` (the factory dates every day alike).
+  const tripFrom = (startDate: string) => {
+    const built = tripDetailFactory.build({ startDate }, { transient: { dayCount: 3, startDate } });
+    const dayOf = (i: number) => new Date(Date.parse(startDate) + i * 86_400_000).toISOString().slice(0, 10);
+    return { ...built, days: built.days.map((day, i) => ({ ...day, date: dayOf(i) })) };
+  };
+  function mount(tripId: string, startDate: string) {
+    fetchPagesMock.mockResolvedValue(pagesOf(tripId));
+    fetchPageMock.mockImplementation((_trip: string, id: string) => Promise.resolve(okPageDoc(id === TODAY_ID ? "Now and next" : "Dear crew")));
+    render(<OverviewLens detail={tripFrom(startDate)} tripId={tripId} />);
+  }
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(NOW);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it("shows Today while the trip is under way, with a link to the whole trip's Overview", async () => {
+    mount("1b2c3d4e-5f60-4718-8293-a4b5c6d7e8f9", "2026-06-09");
+    expect(await screen.findByText("Now and next")).toBeTruthy();
+    expect(screen.queryByText("Dear crew")).toBeNull();
+    expect(screen.getByRole("link", { name: "Whole trip →" }).getAttribute("href")).toBe(`?view=Overview&page=${OVERVIEW_PAGE_ID}`);
+  });
+
+  it("shows Today three days before the start", async () => {
+    mount("2c3d4e5f-6071-4829-93a4-b5c6d7e8f90a", "2026-06-13");
+    expect(await screen.findByText("Now and next")).toBeTruthy();
+  });
+
+  it("shows the Overview, and no link, a month out", async () => {
+    mount("3d4e5f60-7182-493a-a4b5-c6d7e8f90a1b", "2026-07-10");
+    expect(await screen.findByText("Dear crew")).toBeTruthy();
+    expect(screen.queryByRole("link", { name: "Whole trip →" })).toBeNull();
+  });
+});
+
 // **The reported bug's last mile.** Mitchell, 2026-09-22: two devices, one
 // editing the Overview notebook, the other sat on this tab and never seeing it
 // until a refresh. Three things were wrong; the first two were server-side

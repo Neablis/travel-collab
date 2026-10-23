@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { SYSTEM_ACTOR_ID, newPageDoc, seedKeyOf } from "@tc/contracts";
 import { DEFAULT_TEMPLATES } from "./templates";
-import { instantiateMissingDefaults, seedTemplateOf } from "./defaultNotebooks";
+import { defaultDocumentFor, instantiateMissingDefaults, seedTemplateOf } from "./defaultNotebooks";
 
 const TRIP = "6e9a2c9e-3f7a-4b6e-9d3f-2b1a5c8d7e6f";
 
@@ -21,7 +21,19 @@ describe("the seed key an old PageCreated implies", () => {
         actorId: SYSTEM_ACTOR_ID,
       }).key,
     );
-    expect(implied.map((key) => seedTemplateOf({ id: TRIP, seedKey: key })?.key)).toEqual(DEFAULT_TEMPLATES.map((t) => t.key));
+    // Today came with M52, long after keys did, so no old event implies it.
+    expect(implied.map((key) => seedTemplateOf({ id: TRIP, seedKey: key })?.key)).toEqual(
+      DEFAULT_TEMPLATES.map((t) => t.key).filter((key) => key !== "today"),
+    );
+  });
+});
+
+// *Reset to default* puts back whatever `defaultDocumentFor` names, and Today
+// has one like every seed (Mitchell, 2026-10-23: "restore to base").
+describe("Today's default", () => {
+  it("is its template's title and document, whatever the notebook is called now", () => {
+    const today = DEFAULT_TEMPLATES.find((t) => t.key === "today")!;
+    expect(defaultDocumentFor({ id: TRIP, seedKey: "today" })).toEqual({ title: "Today", content: today.content });
   });
 });
 

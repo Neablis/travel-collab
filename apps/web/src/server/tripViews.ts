@@ -16,6 +16,8 @@ import { accountCan } from "@/server/entitlements/resolver";
 import { getTripHistory } from "@/server/history";
 import { isUuid } from "@/server/ids";
 import { getPage, listPageEntries } from "@/server/pages";
+import { addTodayPage } from "@/server/pageCommands";
+import { TODAY_SEED_KEY } from "@tc/pages";
 import { buildTripGlobals } from "@/server/tripGlobals";
 import { getTripCover } from "@/server/tripCovers";
 import { readPreferences } from "@/server/users";
@@ -125,7 +127,14 @@ export async function tripPagesView(
   // `listPageEntries`, not `listPages`: each row carries what the notebook says
   // (ADR-056), which a link card and the index print. The public API stays on
   // `listPages`, whose rows are `PageSummary` exactly.
-  return { pages: await listPageEntries(tripId), viewerId: access.userId };
+  const pages = await listPageEntries(tripId);
+  // A trip made before Today gains it here, once (M52 decision 9, as amended).
+  // A new trip was seeded with it above, and the demo's fold carries it. A
+  // refusal (a reader who is not a member) or a lost race leaves the list as
+  // it was: the next load plants it.
+  if (isDemoTripId(tripId) || pages.some((page) => page.seedKey === TODAY_SEED_KEY)) return { pages, viewerId: access.userId };
+  const added = await addTodayPage(tripId, access.userId);
+  return { pages: added.ok && added.seq !== null ? await listPageEntries(tripId) : pages, viewerId: access.userId };
 }
 
 /**

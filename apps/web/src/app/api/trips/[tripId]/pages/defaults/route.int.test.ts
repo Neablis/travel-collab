@@ -71,7 +71,8 @@ describe("POST /pages/defaults with a seed key", () => {
     const { tripId, ownerId } = await sharedTrip();
     currentUserId = ownerId;
     const url = `http://test/api/trips/${tripId}/pages/defaults`;
-    for (const page of (await listPages(tripId)).filter((p) => p.context.kind !== "overview")) {
+    // Every default that can go: the Overview and Today cannot (M52).
+    for (const page of (await listPages(tripId)).filter((p) => p.context.kind !== "overview" && p.seedKey !== "today")) {
       const res = await DELETE(new Request(url, { method: "DELETE" }), { params: Promise.resolve({ tripId, pageId: page.id }) });
       expect(res.status).toBe(200);
     }
@@ -82,7 +83,7 @@ describe("POST /pages/defaults with a seed key", () => {
     const res = await ADD_MISSING(post(url, { seedKey: "money" }), { params: Promise.resolve({ tripId }) });
     expect(res.status).toBe(200);
     const body = (await res.json()) as { pages: { seedKey?: string }[] };
-    expect(body.pages.map((p) => p.seedKey).sort()).toEqual(["money", "overview"]);
+    expect(body.pages.map((p) => p.seedKey).sort()).toEqual(["money", "overview", "today"]);
   });
 });
 

@@ -735,7 +735,7 @@ describe("renderMacro on a page scoped to today", () => {
     expect(renderMacro(scopedAt("2027-06-02T12:00:00Z"), "cost", {}, romeLine)).toEqual(todayInRome);
   });
 
-  it("renders the widget's empty state off the trip's dates, not a removed day", () => {
-    expect(renderMacro(scopedAt("2027-05-30T12:00:00Z"), "day.detail", {})).toEqual({ status: "empty" });
+  it("renders an empty state that says today is no trip day, off the trip's dates, not a removed day", () => {
+    expect(renderMacro(scopedAt("2027-05-30T12:00:00Z"), "day.detail", {})).toEqual({ status: "empty", because: "Nothing planned today" });
   });
 });
