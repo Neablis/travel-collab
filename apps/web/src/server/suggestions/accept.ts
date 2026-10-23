@@ -2,6 +2,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import { BatchableCommand, type Origin, type SuggestionChange, type TripDetail } from "@tc/contracts";
 import { predictBatch } from "@tc/domain/predict";
 import { roleAtLeast } from "../accessPolicy";
+import { announceChange } from "../chat/changeLine";
 import { executeTripCommandBatch } from "../commands";
 import { db } from "../db/client";
 import { tripSuggestionChanges, tripSuggestions } from "../db/schema";
@@ -133,9 +134,12 @@ export async function acceptSuggestionChanges(
       throw new SuggestionAlreadyResolved(ids.find((id) => !won.has(id)));
     }
   };
+  const commands = ordered.flatMap((r) => commandsOf.get(r.change.id)!);
+  // The trip before the change, for its change line (M52 decision 17).
+  const before = await getTripDetail(tripId);
   try {
     const result = await executeTripCommandBatch(
-      ordered.flatMap((r) => commandsOf.get(r.change.id)!),
+      commands,
       reviewerId,
       mark,
       { origin, runOnNoOp: true },
@@ -146,6 +150,7 @@ export async function acceptSuggestionChanges(
       if (result.error.code === "forbidden") return refuse("forbidden", result.error.message);
       return await whichNoLongerApplies(tripId, ordered, commandsOf, result.error.message);
     }
+    if (result.ok && before !== null) await announceChange(tripId, reviewerId, commands, before, result.detail, new Date(now));
   } catch (error) {
     if (error instanceof SuggestionAlreadyResolved) {
       return refuseFor("already-resolved", byId.get(error.message) ?? error.message, "was already resolved.");

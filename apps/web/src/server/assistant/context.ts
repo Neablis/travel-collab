@@ -13,8 +13,10 @@
 //     numbering: both the read tools and `batchResolver`'s `conflictRef`
 //     resolution read it, so the number the model is shown and the id the
 //     server resolves it back to cannot drift.
-import type { TimeFormat, TripDetail } from "@tc/contracts";
+import type { TimeFormat, TripDetail, TripGlobals } from "@tc/contracts";
+import { clockIn, isKnownZone, timedStops, tripNow, type TripNowStop, type TripPhase } from "@tc/pages";
 import type { PlaybookDiscoverSearch } from "./admission";
+import { data, rule, untrusted, type PromptBlock } from "./prompt";
 
 // Every surface a model is selected for, and there is one: `/ask` is the only
 // AI entry point (ADR-033 Decision 1). `AiCommandSurface` — the `page` /
@@ -143,6 +145,87 @@ export function clockTimesLine(format: TimeFormat): string {
   return format === "24h"
     ? 'Write any clock time in your answer on the 24-hour clock, the way this person reads times: "09:30", "14:00", "00:00" for midnight. Times you pass to a tool are 24-hour HH:mm as well.'
     : 'Write any clock time in your answer on the 12-hour clock, the way this person reads times: "9:30 am", "2 pm", "12 am" for midnight — never "14:00". The tools give times as 24-hour HH:mm because that is how they are stored; convert them when you write them to the person, and keep passing HH:mm to a tool.';
+}
+
+/**
+ * **Where the trip is as the turn starts** (M52 decision 14a), read once with
+ * `tripNow` so the instruction, the tool set and `find_places_near_now` agree
+ * on one instant. The stops are `tripNow`'s; `passed` and `city` are what
+ * `find_places_near_now` falls back on when nothing is under way.
+ */
+export interface TurnNow {
+  phase: TripPhase;
+  /** Today's day, 0-based, while the trip is under way. */
+  dayIndex: number | null;
+  /** The date and `HH:mm` on today's clock, or the first day's before the trip. */
+  local: { date: string; time: string };
+  current: TripNowStop | null;
+  next: TripNowStop | null;
+  /** The last of today's stops whose window has closed. */
+  passed: TripNowStop | null;
+  /** Today's city, and where it is when a stop on the day has coordinates (`TripGlobalsDay.place`). */
+  city: { name: string; lat: number | null; lng: number | null } | null;
+}
+
+/**
+ * The trip at `at`, on the server. A day without a zone of its own runs on the
+ * asker's (`deviceZone`, the zone their client sent), as Home's badge does
+ * (ADR-080 decision 1). A turn that brought none runs on the trip's (its first
+ * day that has one), and on UTC when no stop anywhere has coordinates. A zone this runtime does not know is passed over, as
+ * `tripNow` passes it over, rather than failing the turn.
+ */
+export function turnNowOf(
+  detail: TripDetail,
+  globals: TripGlobals | null,
+  at: number,
+  deviceZone: string | null = null,
+): TurnNow {
+  const known = (zone: string | null | undefined): zone is string => zone != null && isKnownZone(zone);
+  const fallback = known(deviceZone) ? deviceZone : (globals?.days.map((day) => day.timeZone).find(known) ?? "UTC");
+  const now = tripNow(detail, globals, { at, deviceZone: fallback });
+  const dayIndex = now.dayId === null ? null : detail.days.findIndex((day) => day.dayId === now.dayId);
+  const today = dayIndex === null ? undefined : globals?.days[dayIndex];
+  const ownZone = (today ?? globals?.days[0])?.timeZone;
+  const zone = known(ownZone) ? ownZone : fallback;
+  const passed =
+    timedStops(detail, globals, fallback)
+      .filter((stop) => stop.dayId === now.dayId && stop.end <= at)
+      .at(-1) ?? null;
+  const cityName = today?.place?.city ?? today?.cities[0] ?? null;
+  return {
+    phase: now.phase,
+    dayIndex,
+    local: clockIn(zone, at),
+    current: now.current,
+    next: now.next,
+    passed,
+    city: cityName === null ? null : { name: cityName, lat: today?.place?.lat ?? null, lng: today?.place?.lng ?? null },
+  };
+}
+
+/**
+ * **The *now* line, on an under-way turn only** (M52 decision 14a), beside
+ * `clockTimesLine`: a rule saying how to read it, and the instant itself as a
+ * `data` block, because a stop's title is somebody's text. Before and after
+ * the trip it is nothing, so those turns are told what they were told before.
+ */
+export function nowBlocks(now: TurnNow | null, detail: TripDetail): PromptBlock[] {
+  if (now === null || now.phase !== "underway" || now.dayIndex === null) return [];
+  const stop = (at: TripNowStop | null) => {
+    if (at === null) return null;
+    const window = detail.activities[at.activityId]?.timeWindow;
+    return {
+      title: untrusted(detail.activities[at.activityId]?.title ?? ""),
+      day: detail.days.findIndex((day) => day.dayId === at.dayId) + 1,
+      ...(window ? { from: window.start, to: window.end } : {}),
+    };
+  };
+  return [
+    rule(
+      'The trip is under way. "Now" below is the local date and time where the trip is, today\'s day number, and the stop under way and the next one: read "now", "today", "here" and "nearby" against it.',
+    ),
+    data("Now", { date: now.local.date, time: now.local.time, day: now.dayIndex + 1, current: stop(now.current), next: stop(now.next) }),
+  ];
 }
 
 // A single active conflict, in the stable human-referenceable form the model

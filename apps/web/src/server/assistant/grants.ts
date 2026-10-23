@@ -15,6 +15,7 @@
 // constants have to keep true. It is the `itinerary` domain capped at `read` on
 // the page surface, and the `pages` domain being absent from the planning one.
 import type { TripRole } from "@tc/contracts";
+import type { TripPhase } from "@tc/pages";
 import { roleAtLeast } from "@/server/accessPolicy";
 import { EFFECT_LEVEL, type AnyAssistantTool, type EffectLevel, type ToolDomain, type TurnOrigin } from "./defineTool";
 import type { TaskClass } from "./taskClass";
@@ -214,14 +215,13 @@ export interface EffectCaps {
 }
 
 /**
- * What the caller's PLAN permits — the one term with no source yet.
+ * What the caller's PLAN permits, once it sells `ai.command`.
  *
- * M20 owns it. It is a port rather than a missing term so that the shape is
- * real now and the arithmetic below is the arithmetic that ships: a turn's
- * grant is a minimum over four caps, and a fourth one appearing later must not
- * be a re-derivation of the other three. Today it permits `propose` for
- * everybody, which is exactly today's behaviour — there is no plan to consult,
- * and no tier, ceiling or table is invented here to pretend otherwise.
+ * The plan cap is `read` on a plan without `ai.command` (Studio, M52 decision
+ * 18), which admission's `grantTools` decides from the selected entitlements;
+ * on every other plan it is this port, which permits `propose`. It stays a port
+ * so a finer plan rule lands here, not as a re-derivation of the other three
+ * caps in the minimum below.
  *
  * If M20's answer needs IO, it is resolved BEFORE `grantFor` is called, which
  * is what keeps `grantFor` a pure minimum over four values.
@@ -273,10 +273,15 @@ export function toolsFor(
   // A turn is the Ask tab's unless a caller says the chat started it, as the
   // admission door's own default is.
   origin: TurnOrigin = "ask",
+  // Where the trip is now (`tripNow`), or undefined on a turn about no trip or
+  // one whose phase nobody read.
+  phase?: TripPhase,
 ): readonly AnyAssistantTool[] {
   return ASSISTANT_TOOLS.filter((definition) => {
     // The fifth axis (`defineTool`'s `origins`).
     if (definition.origins !== undefined && !definition.origins.includes(origin)) return false;
+    // The sixth (`phases`), closed on an unknown phase as the fourth is.
+    if (definition.phases !== undefined && (phase === undefined || !definition.phases.includes(phase))) return false;
     const granted = grant[definition.domain];
     if (granted === undefined || EFFECT_RANK[EFFECT_LEVEL[definition.effect]] > EFFECT_RANK[granted]) return false;
     // **A read-only turn holds pure reads and nothing else** (ADR-058 decision
@@ -366,8 +371,8 @@ export type AskToolPosture = "propose" | "withheld" | "read-only";
  * A plan that does not permit `propose` reads as `read-only` rather than
  * `withheld`: rephrasing would not recover it, so the withheld copy's "ask
  * again saying what you want changed" would be the same dead end it exists to
- * avoid. Unreachable today — `permitsPropose` permits everybody — and M20 is
- * where it stops being.
+ * avoid. A plan holding `ai.ask` without `ai.command` (Studio) is that case
+ * (M52 decision 18).
  */
 export function postureFor(caps: Pick<EffectCaps, "role" | "plan" | "classifier">): AskToolPosture {
   if (caps.role !== "propose" || caps.plan !== "propose") return "read-only";

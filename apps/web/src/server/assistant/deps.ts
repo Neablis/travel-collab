@@ -29,7 +29,7 @@ import {
 } from "@tc/contracts";
 import type { DiscoverDay } from "@/lib/playbooks";
 import type { RawToolIntent } from "@/server/assistant/batchResolver";
-import type { AskScope, PlaybookPage } from "@/server/assistant/context";
+import type { AskScope, PlaybookPage, TurnNow } from "@/server/assistant/context";
 import type { BoundingBox } from "@/server/geocoding/geocoder";
 import type { TypedAddresses } from "@/server/assistant/typedAddresses";
 import type { IntentLatch } from "@/server/assistant/intents";
@@ -732,6 +732,8 @@ export interface AssistantDeps {
   playbookProposal: PlaybookProposalBuffer;
   /** The trip's chat, as `read_chat` reads it (M52). Supplied only on a turn the chat started. */
   chatLog: ChatLog;
+  /** Where the trip is as the turn starts (M52). Supplied only on a turn about a trip. */
+  now: TurnNow;
 }
 
 export type DepKey = keyof AssistantDeps;
@@ -781,6 +783,7 @@ const TURN_DEP_KEY_SET: Record<TurnDepKey, true> = {
   playbookPage: true,
   playbookProposal: true,
   chatLog: true,
+  now: true,
 };
 export const TURN_DEP_KEYS = Object.keys(TURN_DEP_KEY_SET) as readonly TurnDepKey[];
 

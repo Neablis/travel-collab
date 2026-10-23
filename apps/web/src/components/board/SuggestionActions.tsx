@@ -19,17 +19,23 @@ import { SuggestionReviewList } from "./SuggestionReviewList";
  * Accept and Dismiss are a reviewer's (`boardMode === "write"`); Withdraw is the
  * author's. Every name carries the change's sentence, so the several on screen
  * at once stay distinguishable. A `stale` change (W5: it no longer predicts)
- * has nothing to accept, and says so.
+ * has nothing to accept, and says so. A change a member asked the assistant
+ * for in the chat is theirs to accept, and theirs or the owner's to dismiss
+ * (ADR-067's 2026-10-23 amendment): the server refuses anyone else.
  */
 export function SuggestionActions({ ghost, stale = false }: { ghost: Ghost; stale?: boolean }) {
-  const { suggestions, boardMode } = useTrip();
+  const { suggestions, boardMode, myRole } = useTrip();
   const user = useSessionUser();
   const [busy, setBusy] = useState(false);
   const [refusal, setRefusal] = useState<string | null>(null);
   const hintId = useId();
   if (suggestions === null) return null;
 
+  const asker = suggestions.changes.find((c) => c.id === ghost.changeId)?.requestedBy;
+  const askedHere = asker === undefined || (typeof user?.id === "string" && user.id === asker);
   const reviewer = boardMode === "write";
+  const mayAccept = reviewer && askedHere;
+  const mayDismiss = reviewer && (askedHere || myRole === "owner");
   const author = typeof user?.id === "string" && user.id === ghost.authorId;
   // The server refuses an accept while a parent is pending (§2.7); the button
   // says which parent rather than letting the reader find out by a 409.
@@ -45,7 +51,7 @@ export function SuggestionActions({ ghost, stale = false }: { ghost: Ghost; stal
     if (!result.ok) setRefusal(result.error.message);
   };
 
-  if (!reviewer && !author && !stale) return null;
+  if (!mayDismiss && !author && !stale) return null;
   return (
     <div className="flex flex-col gap-1">
       {stale && (
@@ -54,7 +60,7 @@ export function SuggestionActions({ ghost, stale = false }: { ghost: Ghost; stal
         </Text>
       )}
       <div className="flex flex-wrap gap-1.5">
-        {reviewer && !stale && (
+        {mayAccept && !stale && (
           <Button
             variant="primary"
             size="sm"
@@ -66,7 +72,7 @@ export function SuggestionActions({ ghost, stale = false }: { ghost: Ghost; stal
             Accept
           </Button>
         )}
-        {reviewer && (
+        {mayDismiss && (
           <Button variant="secondary" size="sm" disabled={busy} aria-label={`Dismiss: ${ghost.description}`} onClick={() => void run("dismiss")}>
             Dismiss
           </Button>
@@ -77,7 +83,7 @@ export function SuggestionActions({ ghost, stale = false }: { ghost: Ghost; stal
           </Button>
         )}
       </div>
-      {reviewer && !stale && hint !== null && (
+      {mayAccept && !stale && hint !== null && (
         <Text as="span" id={hintId} className="text-xs text-slate">
           {hint}
         </Text>

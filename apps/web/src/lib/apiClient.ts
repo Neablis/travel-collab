@@ -1986,7 +1986,9 @@ export async function askAssistant(
     const res = await fetch(apiUrl(askPath(where)), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ messages, scope: where.scope }),
+      // The device's zone: a trip day with none of its own is read on it, as
+      // Home's badge reads it (ADR-080 decision 1).
+      body: JSON.stringify({ messages, scope: where.scope, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone }),
       signal,
     });
     if (!res.ok) {

@@ -912,7 +912,7 @@ describe("trip writes invalidate the trip's cached reads", () => {
 });
 
 describe("askAssistant", () => {
-  it("posts the whole thread and the scope to /ask", async () => {
+  it("posts the whole thread, the scope and the device's zone to /ask", async () => {
     let seen: unknown;
     server.use(
       http.post("*/api/trips/:tripId/ask", async ({ request }) => {
@@ -926,7 +926,7 @@ describe("askAssistant", () => {
       { id: "u2", role: "user", parts: [{ type: "text", text: "what about the next day?" }] },
     ];
     await askAssistant({ tripId: TRIP_ID, scope: { kind: "day", dayIndex: 2 } }, thread);
-    expect(seen).toEqual({ messages: thread, scope: { kind: "day", dayIndex: 2 } });
+    expect(seen).toEqual({ messages: thread, scope: { kind: "day", dayIndex: 2 }, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone });
   });
 
   // M45 D7: Home's rail is no trip's, so its turn goes to the account door.
@@ -941,7 +941,7 @@ describe("askAssistant", () => {
     const thread: apiClientModule.AskWireMessage[] = [{ id: "u1", role: "user", parts: [{ type: "text", text: "which city have I been to most?" }] }];
     const result = await askAssistant({ scope: { kind: "account" } }, thread);
     expect(result.ok).toBe(true);
-    expect(seen).toEqual({ messages: thread, scope: { kind: "account" } });
+    expect(seen).toEqual({ messages: thread, scope: { kind: "account" }, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone });
   });
 
   // PR 426 review, finding 4: the door is chosen from a pair, so a trip scope

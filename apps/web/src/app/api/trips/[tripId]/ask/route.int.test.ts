@@ -41,6 +41,9 @@ const OUTSIDER_ID = "ask-outsider";
 // Their own account, so the 24-hour setting below is never written onto an
 // actor another test reads the default clock from.
 const CLOCK_READER_ID = "ask-24h-reader";
+// Their own account too: the under-way turn runs on a clock set in 2027, and
+// its ledger row would sort after every row another test reads as its last.
+const NOW_ASKER_ID = "ask-now-asker";
 
 let currentUserId = ACTOR_ID;
 
@@ -1189,6 +1192,62 @@ describe("POST /api/trips/:id/ask", () => {
 
       expect(turnInstruction()).toContain(clockTimesLine("12h"));
       expect(turnInstruction()).not.toContain(clockTimesLine("24h"));
+    });
+
+    // M52 decision 14a, through the route: the turn's *now* is read with the
+    // zone the client sent, and reaches both the tool set and the instruction.
+    // Admission and `nowBlocks` are tested with their own `now`; this is the
+    // one test that fails if `handleAskRequest` stops handing either one over.
+    it("tells an under-way turn its now, on the asker's zone, and offers it the near-now search", async () => {
+      await upsertUser({ id: NOW_ASKER_ID, email: null, name: null, image: null });
+      await issueGrant({ userId: NOW_ASKER_ID, planId: "premium", planVersion: 1, source: "admin", grantedBy: "ask-route-int-test", expiresAt: null });
+      currentUserId = NOW_ASKER_ID;
+      // 20:30 in New York on 2027-06-10, and already 06-11 on UTC.
+      vi.useFakeTimers({ toFake: ["Date"], now: Date.parse("2027-06-11T00:30:00Z") });
+      try {
+        const tripId = randomUUID();
+        await executeTripCommand({ type: "CreateTrip", tripId, name: "New York 2027" }, NOW_ASKER_ID);
+        const dated = await executeTripCommand(
+          { type: "SetTripDates", tripId, startDate: "2027-06-10", endDate: "2027-06-10", newDayIds: [randomUUID()] },
+          NOW_ASKER_ID,
+        );
+        if (!dated.ok) throw new Error("failed to date trip");
+        // No location anywhere, so no day has a zone of its own.
+        await executeTripCommand(
+          {
+            type: "AddActivity",
+            tripId,
+            activityId: randomUUID(),
+            dayId: dated.detail.days[0]!.dayId,
+            title: "Dinner in the Village",
+            timeWindow: { start: "19:00", end: "21:00" },
+          },
+          NOW_ASKER_ID,
+        );
+        const records: AskAnalyticsRecord[] = [];
+        const { model, turnInstruction } = recordingModel();
+        const res = await handleAskRequest(
+          req(tripId, { messages: [userMessage("find coffee near here")], scope: { kind: "trip" }, timeZone: "America/New_York" }),
+          tripId,
+          model,
+          (r) => records.push(r),
+        );
+        await res.text();
+
+        expect(records[0]!.offeredTools).toContain("find_places_near_now");
+        const line = turnInstruction()
+          .split("\n")
+          .find((text) => text.startsWith("Now: "));
+        expect(line, "the instruction carries a Now line").toBeDefined();
+        expect(JSON.parse(line!.slice("Now: ".length))).toMatchObject({
+          date: "2027-06-10",
+          time: "20:30",
+          day: 1,
+          current: { title: "⟦Dinner in the Village⟧", from: "19:00", to: "21:00" },
+        });
+      } finally {
+        vi.useRealTimers();
+      }
     });
 
     // **A narrowed turn must be TOLD it was narrowed**, or the filter turns a

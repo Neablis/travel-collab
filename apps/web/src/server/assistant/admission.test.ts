@@ -42,6 +42,7 @@ import {
   type AiGrantRecord,
 } from "./admission";
 import { NO_CEILINGS, PERMITS_EVERYTHING, type EntitlementCeilings } from "./entitlements";
+import { turnNowOf } from "./context";
 
 const TRIP_ID = "11111111-1111-4111-8111-111111111111";
 const PAGE_ID = "22222222-2222-4222-8222-222222222222";
@@ -541,6 +542,41 @@ describe("the grant a turn holds", () => {
     expect(await tools(undefined, viewer())).not.toContain("read_chat");
   });
 
+  // M52 decisions 6 and 13: *near here* means where the plan says the trip is,
+  // so the tool that knows it is offered only while the trip is under way, and
+  // a planning turn never pays for its schema.
+  it("offers find_places_near_now only while the trip is under way", async () => {
+    const trip = tripDetailFactory.build(
+      { tripId: TRIP_ID, members: [tripMemberFactory.build({ userId: EDITOR, role: "editor" })] },
+      { transient: { dayCount: 1, activitiesPerDay: 3, located: true, startDate: "2026-06-10" } },
+    );
+    const offered = async (at: string | null, classify?: AdmissionPorts["classify"]) => {
+      const { ports } = spyPorts({
+        identifyActor: async () => ({ userId: EDITOR, detail: trip }),
+        ...(classify ? { classify } : {}),
+      });
+      const admission = await evaluateAiGrant({
+        request: askFor(TRIP_TURN),
+        tripId: TRIP_ID,
+        ports,
+        ...(at === null ? {} : { now: (detail: TripDetail) => turnNowOf(detail, null, Date.parse(at)) }),
+      });
+      if (!admission.ok) throw new Error(admission.refusal.reason);
+      return [...admission.grant.tools, ...(admission.grant.escalation?.tools ?? [])].map((tool) => tool.name);
+    };
+    const asQuestion = async () => ({ ...CLASSIFIED_AS_WRITE, intent: "question" as const });
+
+    expect(await offered("2026-06-10T10:30:00Z")).toContain("find_places_near_now");
+    expect(await offered("2026-06-10T10:30:00Z", asQuestion)).toContain("find_places_near_now");
+    expect(await offered("2026-05-01T10:30:00Z")).not.toContain("find_places_near_now");
+    expect(await offered("2026-05-01T10:30:00Z", asQuestion)).not.toContain("find_places_near_now");
+    expect(await offered("2026-06-12T10:30:00Z")).not.toContain("find_places_near_now");
+    // No clock handed in is no phase known, and the tool stays off.
+    expect(await offered(null)).not.toContain("find_places_near_now");
+    // `search_places` is offered either way: only *here* is the under-way trip's.
+    expect(await offered("2026-05-01T10:30:00Z")).toContain("search_places");
+  });
+
   // `go_to` moves the asker's page through the finish chunk's palette
   // commands, which a chat reply has nowhere to carry: offered there, the
   // thread read "Taking you to Day 3." and nobody's page moved.
@@ -554,11 +590,11 @@ describe("the grant a turn holds", () => {
     expect(await offered("chat")).not.toContain("go_to");
   });
 
-  // The asker's plan decides what a chat turn may do: `ai.ask` answers, and
-  // only `ai.command` proposes. The Ask door is unchanged by it.
-  // Escalating lifts the classifier's cap and no other, so a question on that
-  // plan must not be offered a way to the change tools either.
-  it("holds a chat turn to answers when the asker's plan has no ai.command", async () => {
+  // The asker's plan decides what a turn may do: `ai.ask` answers, and only
+  // `ai.command` proposes, on the Ask tab as in the chat (Mitchell,
+  // 2026-10-23). Escalating lifts the classifier's cap and no other, so a
+  // question on that plan must not be offered a way to the change tools either.
+  it("holds a turn to answers when the asker's plan has no ai.command, from either door", async () => {
     const answersOnly = (classify?: AdmissionPorts["classify"]) =>
       spyPorts({
         ...(classify ? { classify } : {}),
@@ -579,6 +615,14 @@ describe("the grant a turn holds", () => {
     if (!question.ok) throw new Error(question.refusal.reason);
     expect(question.grant.tools.map((tool) => tool.name)).not.toContain("request_change_tools");
     expect(question.grant.escalation).toBeNull();
+
+    const ask = await evaluateAiGrant({ request: askFor(TRIP_TURN), tripId: TRIP_ID, ports: answersOnly() });
+    if (!ask.ok) throw new Error(ask.refusal.reason);
+    expect(ask.grant.grants.itinerary).toBe("read");
+    expect(ask.grant.tools.map((tool) => tool.name)).not.toContain("AddActivity");
+    const askedOnAsk = await evaluateAiGrant({ request: askFor(TRIP_TURN), tripId: TRIP_ID, ports: asked });
+    if (!askedOnAsk.ok) throw new Error(askedOnAsk.refusal.reason);
+    expect(askedOnAsk.grant.escalation).toBeNull();
   });
 
   it("refuses a viewer's page turn without reaching a model", async () => {
