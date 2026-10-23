@@ -77,7 +77,7 @@ export function ChatMessage({
   /** Resolves false when the edit was not stored, so the field keeps the text. */
   onSave: (body: string) => Promise<boolean>;
   onCancelEdit: () => void;
-  /** On an assistant reply, the member who asked, for its card to say who it waits on. */
+  /** On an assistant reply, the member who asked, for its card to say whose it is to accept. */
   askedBy?: Persona | null | undefined;
 }) {
   if (message.kind === "system") return <ChangeLine ref={ref} message={message} name={persona === null ? null : (persona?.name ?? FORMER_MEMBER)} />;
@@ -175,8 +175,9 @@ function ChangeLine({ ref, message, name }: { ref?: Ref<HTMLLIElement> | undefin
  * the rest; this only keeps a control that would be refused off it.
  *
  * A reader who is not served the whole list (a viewer, a suggester) cannot
- * tell pending from decided, so they are told only who it waits on, from the
- * reply itself; that line stays once the asker has decided.
+ * tell pending from decided, so they are told only whose it is to accept,
+ * from the reply itself: words that stay true once the asker has decided,
+ * where "Waiting on" would not.
  */
 function ChatSuggestion({ suggestionId, requestedBy, askerName }: { suggestionId: string; requestedBy: string; askerName: string | null }) {
   const trip = useOptionalTrip();
@@ -189,7 +190,7 @@ function ChatSuggestion({ suggestionId, requestedBy, askerName }: { suggestionId
   if (suggestions === null || changes.length === 0) {
     // A reviewer's list is whole, so an empty one means it was decided.
     if (trip?.boardMode === "write") return null;
-    return <p className="mt-1 text-xs text-slate">Waiting on {askerName ?? "the member who asked"}</p>;
+    return <p className="mt-1 text-xs text-slate">Only {askerName ?? "the member who asked"} can accept this</p>;
   }
 
   const decide = async (run: () => Promise<{ ok: boolean; error?: { message: string } }>) => {

@@ -214,14 +214,16 @@ describe("ChatMessage, from the assistant or the app", () => {
     expect(lineHasFocus()).toBe(true);
   });
 
-  // M52 decision 18: a viewer is not served the suggestions, but is told the
-  // reply waits on its asker rather than reading it as done.
-  it("tells a viewer who it waits on, from the reply alone", () => {
+  // M52 decision 18: a viewer is not served the suggestions, but is told whose
+  // it is to accept. Not that it waits (review of PR 535): the viewer cannot
+  // tell pending from decided, and once Bea decides that would be false.
+  it("tells a viewer whose it is to accept, from the reply alone, and never that it waits", () => {
     reader.me = { id: "u-vi" };
     reader.trip = { myRole: "viewer", boardMode: "read", suggestions: null };
     line({ mine: false, mayEdit: false, mayDelete: false }, reply);
     expect(screen.queryByRole("group", { name: "The assistant's suggestion" })).toBeNull();
-    expect(screen.getByRole("listitem").textContent).toContain("Waiting on Bea");
+    expect(screen.getByRole("listitem").textContent).toContain("Only Bea can accept this");
+    expect(screen.getByRole("listitem").textContent).not.toContain("Waiting");
     expect(screen.queryByRole("button", { name: /Accept|Dismiss/ })).toBeNull();
   });
 

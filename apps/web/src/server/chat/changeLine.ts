@@ -1,5 +1,5 @@
 import { ActivityView, type BatchableCommand, type ChatLink, type TripDetail } from "@tc/contracts";
-import { tripNow } from "@tc/pages";
+import { formatShortDate, tripNow } from "@tc/pages";
 import { collaboratorsEntitled } from "../access/members";
 import { buildTripGlobals } from "../tripGlobals";
 import { postSystemLine } from "./messages";
@@ -73,12 +73,29 @@ function phrase(
   return `changed “${after.title}”`;
 }
 
+/** The commands that can put another day's plan on today: days are positional (`dates.ts`). */
+const SHIFTS = new Set<BatchableCommand["type"]>(["RemoveDay", "SetTripStartDate", "SetTripDates"]);
+
+/**
+ * The line for a change of dates that names no stop on today or tomorrow but
+ * puts other days there: which day today now is, by its date, so the line
+ * stays true once stored.
+ */
+function shiftLine(after: TripDetail, ahead: readonly string[]): { words: string; link: ChatLink | undefined } {
+  const index = ahead[0] === undefined ? 0 : after.days.findIndex((day) => day.dayId === ahead[0]);
+  const day = after.days[index];
+  const date = formatShortDate(day?.date ?? null);
+  if (day === undefined || date === null) return { words: "changed the trip's days", link: undefined };
+  return { words: `changed the trip's days: day ${index + 1} now falls on ${date}`, link: { kind: "day", id: day.dayId } };
+}
+
 /**
  * What a committed change's line says after the actor's name, or null when it
  * is not one to announce: the trip is not under way, or no stop it names on
- * today or tomorrow changed. Today and tomorrow are read from the trip before
- * the change as well as after it, so removing today's day is announced. The
- * first such stop is said and linked; any more are counted.
+ * today or tomorrow changed and no change of dates put other days there.
+ * Today and tomorrow are read from the trip before the change as well as
+ * after it, so removing today's day is announced. The first such stop is said
+ * and linked; any more are counted.
  *
  * A day is said by its number, never "today" or "tomorrow": the line is
  * stored, and read the next morning those words would name the wrong day.
@@ -89,7 +106,9 @@ export function changeLine(
   after: TripDetail,
   at: number,
 ): { words: string; link: ChatLink | undefined } | null {
-  const ahead = new Set([...daysAhead(before, at), ...daysAhead(after, at)]);
+  const todayWas = daysAhead(before, at);
+  const todayIs = daysAhead(after, at);
+  const ahead = new Set([...todayWas, ...todayIs]);
   if (ahead.size === 0) return null;
   const dayWord = (dayId: string | null) =>
     dayId === null ? "the backlog" : `day ${after.days.findIndex((day) => day.dayId === dayId) + 1}`;
@@ -102,7 +121,10 @@ export function changeLine(
     return [{ id, words: phrase(was, is, commandsOn(commands, before, id), dayWord, days), stays: is !== undefined }];
   });
   const [first, ...rest] = touched;
-  if (first === undefined) return null;
+  if (first === undefined) {
+    const shifted = commands.some((command) => SHIFTS.has(command.type)) && todayWas.join() !== todayIs.join();
+    return shifted ? shiftLine(after, todayIs) : null;
+  }
   const more = rest.length === 0 ? "" : `, and changed ${rest.length} more stop${rest.length === 1 ? "" : "s"}`;
   return { words: `${first.words}${more}`, link: first.stays ? { kind: "stop", id: first.id } : undefined };
 }

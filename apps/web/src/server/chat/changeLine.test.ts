@@ -69,6 +69,29 @@ describe("changeLine", () => {
     expect(changeLine(rename, before, after, AT)?.words).toBe("changed “Long lunch”");
   });
 
+  // Review of PR 535: days are positional, so removing a past day or moving
+  // the start puts another day's plan on today while naming no stop on it.
+  it("announces a change of dates that puts another day's plan on today", () => {
+    const dated = (days: string[], start: number) =>
+      tripDetailFixture({
+        ...before,
+        days: before.days
+          .filter((day) => days.includes(day.dayId))
+          .map((day, index) => ({ ...day, date: `2027-05-0${start + index}` })),
+      });
+    const removed = dated([DAY[1]!, DAY[2]!, DAY[3]!], 1);
+    expect(changeLine([{ type: "RemoveDay", tripId, dayId: DAY[0]! }], before, removed, AT)).toEqual({
+      words: "changed the trip's days: day 2 now falls on May 2",
+      link: { kind: "day", id: DAY[2]! },
+    });
+    const later = dated(DAY, 2);
+    expect(changeLine([{ type: "SetTripStartDate", tripId, startDate: "2027-05-02" }], before, later, AT)?.words).toBe(
+      "changed the trip's days: day 1 now falls on May 2",
+    );
+    // A later end leaves today's and tomorrow's plans where they were.
+    expect(changeLine([{ type: "SetTripDates", tripId, startDate: "2027-05-01", endDate: "2027-05-09", newDayIds: [] }], before, before, AT)).toBeNull();
+  });
+
   it("says nothing before the trip is under way", () => {
     const after = trip({ [DAY[1]!]: [], [DAY[2]!]: [TEMPLE], [DAY[3]!]: [MARKET] }, [stop(TEMPLE, "Temple"), stop(MARKET, "Market")]);
     expect(changeLine([{ type: "RemoveActivity", tripId, activityId: LUNCH }], before, after, Date.UTC(2027, 3, 1))).toBeNull();
