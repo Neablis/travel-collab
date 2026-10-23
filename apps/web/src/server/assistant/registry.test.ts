@@ -78,7 +78,7 @@ const TURN_DEPS = {
   playbookPage: newPlaybookPageReads({ kind: "discover", search: { cities: [], countries: [], scope: "everyone", sort: "most-added", budget: "any", length: "any", rating: "any", tag: "any", after: null } }, { day: async () => null, list: async () => [] }),
   playbookProposal: newPlaybookProposalBuffer(),
   chatLog: { recent: async () => [] },
-  now: { phase: "planning" as const, dayIndex: null, local: { date: "2026-01-01", time: "00:00" }, current: null, next: null, passed: null, city: null },
+  now: { phase: "planning" as const, dayIndex: null, local: { date: "2026-01-01", time: "00:00", timeZone: "UTC" }, current: null, next: null, passed: null, city: null },
 };
 
 /** The widget names `insert_widget`'s schema will accept, read off the schema. */

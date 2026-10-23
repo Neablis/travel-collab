@@ -13,6 +13,19 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-10-23 — The trip under way over the API (M52 part 10; public API 1.23.0)
+- **Added** (`apps/web`, the v1 surface only; no `packages/contracts` schema changed):
+  `GET /v1/trips?active=true`, the list narrowed to the trips whose `tripNow` phase is
+  `underway`, and `GET /v1/trips/{tripId}/today` (`trips:read`, `viewer`), answering
+  `{ date, timeZone, phase, dayId, stops, now, next }` with `stops` as `ActivityView` and an
+  optional `?timeZone=` read and never stored. `openapi.json` regenerated, `info.version`
+  1.22.0 → 1.23.0.
+- Why: M52 decision 21. Both read `tripNow` through `turnNowOf` (ADR-080's server zone
+  fallback), so the API names the same now and next as the *Now and next* widget.
+  `TurnNow.local` gained the `timeZone` it reads the date in, so the endpoint reports it rather
+  than working it out again.
+- Consumers updated: none outside the endpoints; `apps/web`'s assistant reads `TurnNow` as before.
+- Breaking? no — a new query parameter and a new endpoint.
 ## 2026-10-23 — A chat message carries the poster's zone to its `@assistant` turn (M52 part 5)
 - **Added** (`packages/contracts/src/chat.ts`): `PostChatMessage.timeZone` (optional, 1 to 64
   characters), the poster's IANA zone as their device reads it.

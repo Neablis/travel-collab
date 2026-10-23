@@ -3,7 +3,9 @@ import { z } from "zod";
 import { TripDetail, TripMember, TripSummary } from "@tc/contracts";
 import { db } from "@/server/db/client";
 import { withEffectiveMembersByTrip } from "@/server/access/members";
-import { listTripSummariesPage } from "@/server/projections";
+import { getTripDetails, listTripSummariesPage } from "@/server/projections";
+import { turnNowOf } from "@/server/assistant/context";
+import { buildTripGlobals } from "@/server/tripGlobals";
 import { orThrow, runCreation, tripDatesCommand } from "@/server/public-api/commands";
 import { route } from "@/server/public-api/route";
 
@@ -22,6 +24,44 @@ import { route } from "@/server/public-api/route";
 const PublicTripSummary = TripSummary.extend({ members: z.array(TripMember).min(1) });
 type PublicTripSummary = z.infer<typeof PublicTripSummary>;
 
+type Listed = Awaited<ReturnType<typeof listTripSummariesPage>>[number];
+
+const keyOf = (trip: Pick<PublicTripSummary, "createdAt" | "tripId">) => `${trip.createdAt}|${trip.tripId}`;
+
+const DAY_MS = 86_400_000;
+
+/**
+ * A page of the trips under way at `at` (M52 decision 21): `tripNow`'s phase,
+ * on the server's zone fallback (`turnNowOf`, ADR-080) with no asker's zone.
+ *
+ * The filter needs each trip's document, which the listing does not read, so
+ * it walks the same keyset pages until it has `limit` trips under way or runs
+ * out, and the cursor stays the list's own. Only a trip whose dates reach
+ * within a day of UTC's today is read: no zone is more than a day from UTC, so
+ * no other trip can be under way anywhere.
+ */
+async function activePage(userId: string, page: { limit: number; after: string | null }, at: number): Promise<Listed[]> {
+  const yesterday = new Date(at - DAY_MS).toISOString().slice(0, 10);
+  const tomorrow = new Date(at + DAY_MS).toISOString().slice(0, 10);
+  const active: Listed[] = [];
+  let after = page.after;
+  for (;;) {
+    const rows = await listTripSummariesPage(userId, { limit: page.limit, after });
+    const near = rows.filter(
+      (row) => row.startDate !== null && row.endDate !== null && row.startDate <= tomorrow && row.endDate >= yesterday,
+    );
+    const details = await getTripDetails(near.map((row) => row.tripId), "omit");
+    for (const row of near) {
+      const detail = details.get(row.tripId);
+      if (detail === undefined || turnNowOf(detail, buildTripGlobals(detail), at).phase !== "underway") continue;
+      active.push(row);
+      if (active.length === page.limit) return active;
+    }
+    if (rows.length < page.limit) return active;
+    after = keyOf(rows.at(-1)!);
+  }
+}
+
 // Everything this file does NOT contain is the point: no `auth()`, no bearer
 // parsing, no scope check, no 401 shape, no `WWW-Authenticate`, no rate limit,
 // no `last_used_at`, no error envelope, no `?limit=` bounds, no cursor
@@ -31,15 +71,24 @@ export const { GET, POST } = route({
   GET: {
     summary: "List the trips you own or are a member of",
     scope: "trips:read",
+    query: z.object({
+      active: z
+        .enum(["true", "false"])
+        .optional()
+        .describe("`true` lists only the trips under way today, by each trip's own zone. An undated trip is never under way."),
+    }),
     collection: {
       item: PublicTripSummary,
       // Keyset, matching `listTripSummariesPage`'s ORDER BY. `tripId` is in the
       // key because `createdAt` alone ties, and a tied order is a pager that
       // silently loses rows.
-      cursorOf: (trip: PublicTripSummary) => `${trip.createdAt}|${trip.tripId}`,
+      cursorOf: keyOf,
     },
-    handle: async ({ actor, page }) => {
-      const rows = await listTripSummariesPage(actor.userId, page);
+    handle: async ({ actor, page, query }) => {
+      const rows =
+        (query as { active?: "true" | "false" }).active === "true"
+          ? await activePage(actor.userId, page, Date.now())
+          : await listTripSummariesPage(actor.userId, page);
       // **The member overlay is kept, deviating from the design.** The design
       // called for *"a reshaped `GET /v1/trips`"* on the grounds that today's
       // version overlays members *"purely so the Home avatar stack renders"* —
