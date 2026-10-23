@@ -24,6 +24,9 @@ import { field } from "./macros/primitives/field";
 import { daySun, dayFromHome } from "./macros/primitives/time";
 import { dayWeather } from "./macros/primitives/weather";
 import { internalLink, externalLink } from "./macros/primitives/link";
+import { tripNowWidget } from "./macros/primitives/nowNext";
+import { stopDirections } from "./macros/primitives/directions";
+import { tripFlights } from "./macros/primitives/flights";
 
 // **Twelve primitives, and nothing else** (ADR-039 decision 1; spec §1's table).
 //
@@ -81,6 +84,10 @@ const DEFS: AnyMacroDef[] = [
   // The two link widgets (M30, ADR-056): no selection, so not primitives. In
   // the assistant's vocabulary since ADR-057, behind its `insert_widget` guards.
   internalLink, externalLink,
+  // The day-of widgets (M52 decision 15): *Now and next* and *Your flights*
+  // read the reader's clock and have nothing to narrow; *Directions* is a stop
+  // primitive, so a page's Today scope reaches it.
+  tripNowWidget, stopDirections, tripFlights,
 ] as unknown as AnyMacroDef[];
 
 export const MACRO_REGISTRY: Record<string, AnyMacroDef> = Object.fromEntries(DEFS.map((d) => [d.name, d]));

@@ -3,7 +3,7 @@
 import { useEffect, useId, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { travellerIds, type TripDetail, type TripGlobals, type TripSummary } from "@tc/contracts";
-import { dayLabel, formatCountdown, formatTimeUntil, nextFlight, tripNow, type TripNowClock } from "@tc/pages";
+import { dayLabel, formatCountdown, formatTimeUntil, nextFlight, tripNow } from "@tc/pages";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Heading } from "@/components/ui/heading";
@@ -40,6 +40,7 @@ import { needsBooking } from "@/lib/needsBooking";
 import { tripSpend, plannedOfBudgetLine } from "@/lib/cost";
 import { cn } from "@/lib/cn";
 import { useCreatedLabel } from "@/lib/useCreatedLabel";
+import { useMinuteClock } from "@/lib/useMinuteClock";
 import { PublishTripOffer, viewerKeepsDays } from "@/components/trip/PublishTripOffer";
 
 export type NextTripHeroProps = {
@@ -102,30 +103,13 @@ export function NextTripHero({ trip, menuSlot, viewerId, unreadChat = 0 }: NextT
   // "loading"/"error" never render fabricated bars.
   const [sparkline, setSparkline] = useState<SparklineFetchState>({ status: "loading" });
   const [startDate, setStartDate] = useState<string | null>(null);
-  // **Today, read in an effect and not during render.** A value derived from
-  // `new Date()` while rendering differs between the server pass and the first
-  // client one, which React reports as a hydration error — the same reason
-  // Home's own date line is set this way. `null` until the first client frame,
-  // which is also why the countdown below simply does not render yet rather
-  // than rendering a guess.
-  //
-  // The device's zone is read with it: a day without a zone of its own runs on
-  // it (ADR-080 decision 1). Read again each minute and when the tab comes
-  // back, so a Home left open does not count down to a flight that has left.
-  const [clock, setClock] = useState<TripNowClock | null>(null);
-  useEffect(() => {
-    const read = () => setClock({ at: Date.now(), deviceZone: Intl.DateTimeFormat().resolvedOptions().timeZone });
-    const onVisible = () => {
-      if (document.visibilityState === "visible") read();
-    };
-    read();
-    const timer = window.setInterval(read, 60_000);
-    document.addEventListener("visibilitychange", onVisible);
-    return () => {
-      window.clearInterval(timer);
-      document.removeEventListener("visibilitychange", onVisible);
-    };
-  }, []);
+  // **Today, read in an effect and not during render** (`useMinuteClock`, for
+  // the hydration reason it gives; Home's own date line is set the same way).
+  // `null` until the first client frame, which is why the countdown below
+  // simply does not render yet rather than rendering a guess. The device's
+  // zone comes with it: a day without a zone of its own runs on it (ADR-080
+  // decision 1).
+  const clock = useMinuteClock();
   const today = clock === null ? null : localTodayIso(new Date(clock.at));
   // **The date this hero shows** (KI-034): the summary's own `startDate` from
   // the first frame, and the detail's once it has loaded — the detail is the

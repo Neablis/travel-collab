@@ -155,6 +155,11 @@ const NARROWS: Record<FilterDimension, "days" | "contents" | "days and contents"
   person: "refused",
 };
 
+/** A page scoped to today, read on a date that is no trip day (`resolveDateScope`). */
+export function isNoDay(item: WidgetScope | undefined): boolean {
+  return item?.kind === "no-day" || (item?.kind === "city-in-scope" && item.page.kind === "no-day");
+}
+
 /**
  * Narrow the trip to what a widget's filters select, or refuse.
  *
@@ -191,8 +196,7 @@ export function narrow(
   // A page scoped to today on a date that is no trip day: nothing, so the
   // widget renders its own empty state. Only a day the widget left open, as
   // every scope here: a bound one is read as bound.
-  const noDay = item?.kind === "no-day" || (item?.kind === "city-in-scope" && item.page.kind === "no-day");
-  if (noDay && filters.day === undefined) {
+  if (isNoDay(item) && filters.day === undefined) {
     return ok({ filters, days: [], stops: [], cities: [], narrowed: true, contentNarrowed: false });
   }
 

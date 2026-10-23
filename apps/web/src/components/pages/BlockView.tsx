@@ -17,6 +17,9 @@ import { WeatherBlock } from "./blocks/WeatherBlock";
 import { SunBlock } from "./blocks/SunBlock";
 import { LinkCardBlock, MissingNotebookBlock } from "./blocks/LinkCardBlock";
 import { ItineraryScheduleBlock, ItineraryScheduleCompact } from "./blocks/ItineraryScheduleBlock";
+import { TripNowBlock } from "./blocks/TripNowBlock";
+import { StopDirectionsBlock } from "./blocks/StopDirectionsBlock";
+import { TripFlightsBlock } from "./blocks/TripFlightsBlock";
 
 // The one place a block payload becomes a component, and the reason ADR-037
 // decision 1's "no switch case" is satisfied by a file that plainly contains a
@@ -109,6 +112,14 @@ export function BlockView({
       ) : (
         <ItineraryScheduleBlock payload={block} accents={accents} />
       );
+    // The day-of widgets (M52 decision 15): a stop's name focuses it on the
+    // board, and *Add your flight* opens the editor, but not while editing.
+    case "trip-now":
+      return <TripNowBlock payload={block} interactive={interactive} />;
+    case "stop-directions":
+      return <StopDirectionsBlock payload={block} interactive={interactive} />;
+    case "trip-flights":
+      return <TripFlightsBlock payload={block} interactive={interactive} />;
     default: {
       // Not dead code and not defensive: this line is the enforcement. If
       // `block` is ever not `never` here, the assignment fails to compile and

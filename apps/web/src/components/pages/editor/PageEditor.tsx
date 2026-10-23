@@ -11,6 +11,7 @@ import { useSlashMenu } from "./useSlashMenu";
 import { allowWidgetDragOver, handleWidgetDrop } from "./widgetDrop";
 import { insertRepeatAt, repeatAt } from "./RepeatNodeExtension";
 import { NodeSelection } from "@tiptap/pm/state";
+import { useMinuteClock } from "@/lib/useMinuteClock";
 
 export interface PageEditorProps {
   detail: TripDetail;
@@ -117,10 +118,13 @@ export function PageEditor({ detail, context, user = null, globals = null, value
     [needsKey],
   );
   const external = useExternalInputs(context.tripId, needs);
-  // The reader's clock for the page's `dateScope`, read once per page as
-  // `useToday` reads the date. Safe on the client only, which is the one place
-  // the editor renders (`immediatelyRender: false`).
-  const [now] = useState(() => ({ at: Date.now(), deviceZone: Intl.DateTimeFormat().resolvedOptions().timeZone }));
+  // The reader's clock for the page's `dateScope`, its `today` and its day-of
+  // widgets: the one clock they all read (ADR-068), read again each minute so
+  // a page left open moves on with the day. The first frame reads it during
+  // render, so no widget is drawn without one: safe on the client only, which
+  // is the one place the editor renders (`immediatelyRender: false`).
+  const [firstClock] = useState(() => ({ at: Date.now(), deviceZone: Intl.DateTimeFormat().resolvedOptions().timeZone }));
+  const now = useMinuteClock() ?? firstClock;
 
   const editor = useEditor({
     extensions: PAGE_EDITOR_EXTENSIONS,
