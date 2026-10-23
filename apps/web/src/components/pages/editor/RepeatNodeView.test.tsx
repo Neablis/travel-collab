@@ -74,13 +74,21 @@ const DAY_LINES = ["Day Jun 1, 2027 — Tokyo", "Day Jun 2, 2027 — Tokyo, Kyot
 
 // A page scoped to today (ADR-080 §4): the editor reads the reader's clock and
 // hands it to the repeat, which iterates today's day alone. The days have no
-// zone, so the device's is used; noon UTC is June 2 in every zone within 11 h.
+// zone, so the device's is used, and the test pins it to UTC: noon UTC is
+// already June 3 east of UTC+12.
 describe("a sentence for each day, on a page scoped to today", () => {
   beforeEach(() => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2027-06-02T12:00:00Z"));
+    const resolvedOptions = Intl.DateTimeFormat.prototype.resolvedOptions;
+    vi.spyOn(Intl.DateTimeFormat.prototype, "resolvedOptions").mockImplementation(function (this: Intl.DateTimeFormat) {
+      return { ...resolvedOptions.call(this), timeZone: "UTC" };
+    });
   });
-  afterEach(() => vi.useRealTimers());
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
 
   it("reads today's line alone", async () => {
     const { container } = mount(sentence(), false, trip, { ...context, dateScope: "today" });

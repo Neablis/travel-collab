@@ -9,7 +9,7 @@
 //
 // Pure (Invariant 4): the reader's clock is handed in, as `tripNow` takes it.
 import type { PageContext, TripDetail, TripGlobals } from "@tc/contracts";
-import type { AnyMacroDef, ItemScope, NoDay, WidgetContext, WidgetScope } from "./registry-types";
+import type { AnyMacroDef, ItemScope, NoDay, WidgetContext } from "./registry-types";
 import { tripNow, type TripNowClock } from "./now";
 
 /**
@@ -47,6 +47,6 @@ export function followsDateScope(def: Pick<AnyMacroDef, "selection"> | undefined
 }
 
 /** The date scope a page hands this widget, or `undefined` when the widget does not follow it. */
-export function pageScope(ctx: WidgetContext, def: AnyMacroDef, params: Readonly<Record<string, unknown>>): WidgetScope | undefined {
+export function pageScope(ctx: WidgetContext, def: AnyMacroDef, params: Readonly<Record<string, unknown>>): ReturnType<typeof resolveDateScope> {
   return followsDateScope(def, params) ? resolveDateScope(ctx.page, ctx.trip, ctx.globals, ctx.now ?? null) : undefined;
 }

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { WidgetShape } from "@tc/contracts";
 import { FilterDimension } from "@tc/contracts";
-import type { AnyMacroDef, ItemScope, Rendered, Seg, WidgetContext, WidgetInput, WidgetSelection } from "./registry-types";
+import type { AnyMacroDef, ItemScope, Rendered, Seg, WidgetContext, WidgetInput, WidgetScope, WidgetSelection } from "./registry-types";
 import { pageScope } from "./dateScope";
 import { ghost, text } from "./registry-types";
 import type { UnavailableReason, UnboundNeeds } from "./result";
@@ -125,14 +125,18 @@ export type RenderOutcome =
 // `item` is the repeat line this widget is being rendered on, when it sits in a
 // repeat's template (ADR-035 decision 4). Render-time only: it never reaches
 // the stored node. Without one, the widget is handed its page's date scope
-// (ADR-080 §4); a repeat's line was already narrowed by that scope, through
-// `resolveRepeat`, so it is the narrower of the two.
+// (ADR-080 §4). A day or a stop line already names a day the scope narrowed
+// it to, through `resolveRepeat`, so it wins; a city line names no day, so it
+// carries the page's too.
 export function renderMacro(ctx: WidgetContext, name: string, rawParams: unknown, item?: ItemScope): RenderOutcome {
   const def = getMacro(name);
   if (!def) return { status: "unknown" };
   const parsed = def.params.safeParse(rawParams ?? {});
   if (!parsed.success) return { status: "bad-params", message: parsed.error.message };
-  const outcome = def.resolve(ctx, parsed.data as never, item ?? pageScope(ctx, def, parsed.data as Record<string, unknown>));
+  const page = pageScope(ctx, def, parsed.data as Record<string, unknown>);
+  const scope: WidgetScope | undefined =
+    item?.kind === "city" && page !== undefined ? { kind: "city-in-scope", name: item.name, page } : (item ?? page);
+  const outcome = def.resolve(ctx, parsed.data as never, scope);
   if (outcome.status === "ok") return { status: "ok", rendered: def.render(outcome.value) };
   if (outcome.status === "unbound") return { ...outcome, shape: outcome.shape ?? fallbackShape(def) };
   return outcome;

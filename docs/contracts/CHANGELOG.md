@@ -27,7 +27,8 @@ Format:
 - Consumers updated: `@tc/domain` (`pageStatesEqual` compares it), `@tc/pages` (`dateScope.ts`,
   `WidgetContext.now`, `NoDay`/`WidgetScope`, `narrow`, `renderMacro`, `resolveRepeat`),
   `apps/web` (the editor's clock through `MacroEditorContext`, `MacroView`, `RepeatNodeView`,
-  the widget picker's *follows today*), the public API document.
+  the widget picker's *follows today*, and a saved template, which keeps the scope in
+  `saved_notebooks.date_scope`, migration 0065), the public API document.
 - Breaking? no, **minor**: an optional field on a request body and on responses.
 
 ## 2026-10-23 — A chat message has an author kind, and can ask the assistant (M52 part 3)

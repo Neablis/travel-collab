@@ -723,6 +723,15 @@ describe("renderMacro on a page scoped to today", () => {
     expect(renderMacro(onDay2, "day.detail", day(0))).toEqual(renderMacro(plain, "day.detail", day(0)));
   });
 
+  // Rome is on days 1 and 2, so a Rome line that dropped the page's day would
+  // sum both, where the same widget outside the repeat reads day 2 alone.
+  it("reads today's cost in its city on a for-each-city line", () => {
+    const romeLine = { kind: "city", name: "Rome" } as const;
+    const todayInRome = renderMacro(plain, "cost", { city: "Rome", ...day(1) });
+    expect(renderMacro(plain, "cost", {}, romeLine)).not.toEqual(todayInRome);
+    expect(renderMacro(scopedAt("2027-06-02T12:00:00Z"), "cost", {}, romeLine)).toEqual(todayInRome);
+  });
+
   it("renders the widget's empty state off the trip's dates, not a removed day", () => {
     expect(renderMacro(scopedAt("2027-05-30T12:00:00Z"), "day.detail", {})).toEqual({ status: "empty" });
   });

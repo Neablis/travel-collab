@@ -22,6 +22,7 @@ import type {
   ApiScope,
   AvatarKey,
   BatchableCommand,
+  DateScope,
   DistanceUnit,
   GrantSource,
   PlanId,
@@ -1166,6 +1167,9 @@ export const savedNotebooks = pgTable(
     // The snapshot's `v`, written in the same insert (ADR-038). A column so the
     // list can carry it without reading every document.
     docVersion: integer("doc_version").notNull(),
+    // The page's `dateScope` (ADR-080 §4), which a copy of the page keeps.
+    // Null for a page that reads every day, as absent is on the page itself.
+    dateScope: jsonb("date_scope").$type<DateScope>(),
     // Private by default, and the only value today (`SavedNotebookVisibility`).
     // `text` with a `$type`, following `saved_days.visibility`.
     visibility: text("visibility").$type<SavedNotebookVisibility>().notNull().default("private"),

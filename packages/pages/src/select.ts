@@ -191,7 +191,8 @@ export function narrow(
   // A page scoped to today on a date that is no trip day: nothing, so the
   // widget renders its own empty state. Only a day the widget left open, as
   // every scope here: a bound one is read as bound.
-  if (item?.kind === "no-day" && filters.day === undefined) {
+  const noDay = item?.kind === "no-day" || (item?.kind === "city-in-scope" && item.page.kind === "no-day");
+  if (noDay && filters.day === undefined) {
     return ok({ filters, days: [], stops: [], cities: [], narrowed: true, contentNarrowed: false });
   }
 
@@ -347,6 +348,8 @@ function scoped(filters: WidgetFilterValues, item: WidgetScope | undefined): Wid
       return filters.day === undefined ? { ...filters, day: { kind: "index", index: item.index } } : filters;
     case "city":
       return filters.city === undefined ? { ...filters, city: item.name } : filters;
+    case "city-in-scope":
+      return scoped(scoped(filters, { kind: "city", name: item.name }), item.page);
     case "stop":
       return filters.day === undefined && item.dayIndex !== null
         ? { ...filters, day: { kind: "index", index: item.dayIndex } }

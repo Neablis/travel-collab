@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import type { MacroNode, PageRepeatNode, TripDetail, TripGlobals } from "@tc/contracts";
+import type { DateScope, MacroNode, PageRepeatNode, TripDetail, TripGlobals } from "@tc/contracts";
 import { getMacro, getPreset, insertPreset } from "@tc/pages";
 import { useIsPhone } from "@/lib/useIsPhone";
 import { usePeople, useGuests } from "@/components/pages/people";
@@ -58,6 +58,7 @@ export function WidgetInsert({
   onInsert,
   filter,
   onFilterChange,
+  dateScope,
 }: {
   detail: TripDetail;
   globals: TripGlobals | null;
@@ -67,6 +68,8 @@ export function WidgetInsert({
   // neither and the picker keeps its own.
   filter?: WidgetFilter;
   onFilterChange?: (next: WidgetFilter) => void;
+  // The page's, for the picker's *follows today* (M52 decision 10).
+  dateScope?: DateScope;
 }) {
   const isPhone = useIsPhone();
   const people = usePeople();
@@ -125,6 +128,7 @@ export function WidgetInsert({
     return (
       <WidgetPicker
         draggable
+        dateScope={dateScope}
         filter={filter}
         onFilterChange={onFilterChange}
         // **Not `autoFocus`.** In a popover that was right — it opened on a
@@ -160,6 +164,7 @@ export function WidgetInsert({
       >
         {pending === null || pendingDef === null || pendingDef === undefined || pendingTarget === null ? (
           <WidgetPicker
+            dateScope={dateScope}
             onPick={(presetId) => {
               // A preset whose name already answers every dimension is finished
               // the moment it lands, so §19 has it skip step 2 entirely rather

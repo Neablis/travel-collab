@@ -1,0 +1,1 @@
+ALTER TABLE "saved_notebooks" ADD COLUMN "date_scope" jsonb;

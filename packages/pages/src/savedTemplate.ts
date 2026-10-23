@@ -1,6 +1,7 @@
 import {
   PageDoc as PageDocSchema,
   migratePageDoc,
+  type DateScope,
   type PageContext,
   type PageDoc,
   type PageInlineNode,
@@ -49,16 +50,18 @@ export type TemplateInstance =
  *    date ranges are values rather than ids and are carried as written: a city
  *    the new trip does not touch matches nothing, and a range is shown in its
  *    control, where it can be changed. Nothing is guessed.
- * 3. **The context is the target trip and nothing else.** `kind: "overview"`
- *    is dropped: a trip has exactly one Overview (SPEC §25), and a template
- *    saved FROM one must instantiate as an ordinary notebook, not a second
- *    undeletable page.
+ * 3. **The context is the target trip and the template's date scope.**
+ *    `kind: "overview"` is dropped: a trip has exactly one Overview (SPEC §25),
+ *    and a template saved FROM one must instantiate as an ordinary notebook,
+ *    not a second undeletable page. The scope is kept, because a copy of a
+ *    page keeps it (ADR-080 §4).
  *
  * Pure (Invariant 4): the caller mints the page id and runs the command.
  */
 export function instantiateTemplate(
   snapshot: unknown,
   target: { tripId: string; dayIds: readonly string[] },
+  dateScope?: DateScope,
 ): TemplateInstance {
   const parsed = PageDocSchema.safeParse(snapshot);
   if (!parsed.success) {
@@ -73,7 +76,7 @@ export function instantiateTemplate(
   const days = new Set(target.dayIds);
   return {
     ok: true,
-    context: { tripId: target.tripId },
+    context: dateScope === undefined ? { tripId: target.tripId } : { tripId: target.tripId, dateScope },
     content: { ...migrated, content: migrated.content.map((node) => rebindNode(node, days)) },
   };
 }

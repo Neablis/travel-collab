@@ -592,8 +592,15 @@ export type ItemScope =
  */
 export type NoDay = { kind: "no-day" };
 
-/** What a widget is handed beside its params: its repeat line, or its page's date scope. */
-export type WidgetScope = ItemScope | NoDay;
+/**
+ * A *for each city* line on a page with a date scope. A city item leaves `day`
+ * open, unlike a day or a stop item, so the line fills `city` and the page
+ * still fills `day` (ADR-080 §4); either alone would sum every day in the city.
+ */
+export type CityInScope = { kind: "city-in-scope"; name: string; page: Extract<ItemScope, { kind: "day" }> | NoDay };
+
+/** What a widget is handed beside its params: its repeat line, its page's date scope, or a city line and the scope together. */
+export type WidgetScope = ItemScope | NoDay | CityInScope;
 
 /**
  * What a PRIMITIVE selects over (ADR-039 decision 1: `widget = entity + filters
