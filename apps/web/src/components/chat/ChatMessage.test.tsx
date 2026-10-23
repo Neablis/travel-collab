@@ -1,9 +1,21 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
-import { ChatMessage as ChatMessageData } from "@tc/contracts";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { ChatMessage as ChatMessageData, type SuggestionChange, type TripRole } from "@tc/contracts";
 import { uuidFrom } from "@tc/factories";
-import { ChatMessage, type MessageViewer } from "./ChatMessage";
+import type { Persona } from "@/components/pages/people";
+import { boardMode } from "@/lib/tripRole";
+import { ChatMessage, FORMER_MEMBER, type MessageViewer } from "./ChatMessage";
+
+// Who is reading, and the trip's pending suggestions as the board holds them:
+// what an assistant reply's card is decided from (M52 decision 18).
+const reader = vi.hoisted(() => ({ me: undefined as { id: string } | undefined, trip: null as unknown }));
+vi.mock("@/components/account/useSessionUser", () => ({ useKnownSessionUser: () => reader.me }));
+vi.mock("@/components/trip/context/TripProvider", () => ({ useOptionalTrip: () => reader.trip }));
+afterEach(() => {
+  reader.me = undefined;
+  reader.trip = null;
+});
 
 const TRIP = uuidFrom(46);
 const beas = ChatMessageData.parse({
@@ -16,7 +28,7 @@ const beas = ChatMessageData.parse({
 });
 const bea = { name: "Bea", avatar: null, color: null, colorShifted: false, travelling: true };
 
-function line(viewer: MessageViewer | null, message: ChatMessageData = beas, pending = false) {
+function line(viewer: MessageViewer | null, message: ChatMessageData = beas, pending = false, { askedBy }: { askedBy: Persona | null | undefined } = { askedBy: bea }) {
   const onEdit = vi.fn();
   const onDelete = vi.fn();
   render(
@@ -32,6 +44,7 @@ function line(viewer: MessageViewer | null, message: ChatMessageData = beas, pen
         onSave={async () => true}
         onCancelEdit={() => {}}
         pending={pending}
+        askedBy={askedBy}
       />
     </ol>,
   );
@@ -107,5 +120,147 @@ describe("ChatMessage, sent and not yet stored", () => {
     expect(item.textContent).toContain("Sending…");
     expect(item.textContent).not.toContain(sentAt);
     expect(item.getAttribute("aria-busy")).toBe("true");
+  });
+});
+
+// M52 decisions 17 and 18: the assistant's replies and the app's change lines
+// are in the thread too, and neither is a member's to change.
+describe("ChatMessage, from the assistant or the app", () => {
+  const SUGGESTION = uuidFrom(9, 46);
+  const reply = ChatMessageData.parse({
+    messageId: uuidFrom(2, 46),
+    authorId: "assistant",
+    kind: "assistant",
+    requestedBy: "u-bea",
+    replyTo: beas.messageId,
+    suggestionId: SUGGESTION,
+    createdAt: "2026-10-13T10:01:00.000Z",
+    editedAt: null,
+    removed: false,
+    body: "I can push dinner back an hour.",
+  });
+  const change = (n: number, dependsOn: string[] = []): SuggestionChange => ({
+    id: uuidFrom(20 + n, 46),
+    suggestionId: SUGGESTION,
+    tripId: TRIP,
+    authorId: "u-bea",
+    note: null,
+    createdAt: "2026-10-13T10:01:00.000Z",
+    commands: [{ type: "SetTripName", tripId: TRIP, name: "Lisbon" }],
+    description: `Change ${n}`,
+    status: "pending",
+    dependsOn,
+    resolvedBy: null,
+    resolvedAt: null,
+    via: "assistant",
+    requestedBy: "u-bea",
+  });
+  const changes = [change(1), change(2, [uuidFrom(21, 46)])];
+  function readAs(id: string, myRole: TripRole) {
+    const suggestions = { changes, acceptMany: vi.fn(async () => ({ ok: true, value: [] })), resolve: vi.fn(async () => ({ ok: true, value: [] })) };
+    reader.me = { id };
+    reader.trip = { myRole, boardMode: boardMode(myRole), suggestions };
+    return suggestions;
+  }
+  const card = () => screen.getByRole("group", { name: "The assistant's suggestion" });
+
+  it("names the assistant as the author of its reply", () => {
+    line({ mine: false, mayEdit: false, mayDelete: false }, { ...reply, suggestionId: null }, false, { askedBy: undefined });
+    expect(screen.getByRole("listitem").textContent).toContain("Assistant");
+    expect(screen.getByRole("listitem").textContent).not.toContain(FORMER_MEMBER);
+  });
+
+  it("offers the asker Accept and Dismiss, taking the whole suggestion as one", async () => {
+    const suggestions = readAs("u-bea", "editor");
+    line({ mine: false, mayEdit: false, mayDelete: false }, reply);
+    await userEvent.click(within(card()).getByRole("button", { name: "Accept" }));
+    expect(suggestions.acceptMany).toHaveBeenCalledWith(changes.map((c) => c.id));
+    await userEvent.click(within(card()).getByRole("button", { name: "Dismiss" }));
+    // The first change: dismissing it takes the one built on it along.
+    expect(suggestions.resolve).toHaveBeenCalledExactlyOnceWith(changes[0]!.id, "dismiss");
+  });
+
+  it("tells another editor who it waits on, and offers them nothing", () => {
+    readAs("u-cal", "editor");
+    line({ mine: false, mayEdit: false, mayDelete: false }, reply);
+    expect(card().textContent).toContain("Waiting on Bea");
+    expect(within(card()).queryAllByRole("button")).toEqual([]);
+  });
+
+  it("lets the trip's owner dismiss it, never accept it", () => {
+    readAs("u-owner", "owner");
+    line({ mine: false, mayEdit: false, mayDelete: true }, reply);
+    expect(card().textContent).toContain("Waiting on Bea");
+    expect(within(card()).getAllByRole("button").map((b) => b.textContent)).toEqual(["Dismiss"]);
+  });
+
+  // Review round 4 of PR 535: a suggestion outlives its asker's leaving, and
+  // nobody waits on them; an editor and the owner read what the viewer reads.
+  it.each([["editor", "u-cal"], ["owner", "u-owner"]] as const)("tells the %s, when the asker has left, that only the owner can dismiss it", (role, id) => {
+    readAs(id, role);
+    line({ mine: false, mayEdit: false, mayDelete: false }, reply, false, { askedBy: undefined });
+    expect(card().textContent).toContain("Asked by a member who has left: only the owner can dismiss this");
+    expect(card().textContent).not.toContain("Waiting");
+  });
+
+  // Review of PR 535: the server refuses a non-editor's review, the asker's too.
+  it("offers an asker who cannot review nothing to press", () => {
+    readAs("u-bea", "suggester");
+    line({ mine: false, mayEdit: false, mayDelete: false }, reply);
+    expect(within(card()).queryAllByRole("button")).toEqual([]);
+  });
+
+  // Review of PR 535: accepting takes the card away, and the focused button
+  // with it; the line keeps focus rather than <body>.
+  it("keeps focus on the reply once the asker has decided", async () => {
+    readAs("u-bea", "editor");
+    line({ mine: false, mayEdit: false, mayDelete: false }, reply);
+    // `:focus` asked of the line: Testing Library forbids reading `document.activeElement`.
+    const lineHasFocus = () => screen.getByRole("listitem").matches(":focus");
+    await userEvent.click(within(card()).getByRole("button", { name: "Accept" }));
+    expect(lineHasFocus()).toBe(true);
+    await userEvent.click(within(card()).getByRole("button", { name: "Dismiss" }));
+    expect(lineHasFocus()).toBe(true);
+  });
+
+  // M52 decision 18: a viewer is not served the suggestions, but is told whose
+  // it is to accept. Not that it waits (review of PR 535): the viewer cannot
+  // tell pending from decided, and once Bea decides that would be false.
+  it("tells a viewer whose it is to accept, from the reply alone, and never that it waits", () => {
+    reader.me = { id: "u-vi" };
+    reader.trip = { myRole: "viewer", boardMode: "read", suggestions: null };
+    line({ mine: false, mayEdit: false, mayDelete: false }, reply);
+    expect(screen.queryByRole("group", { name: "The assistant's suggestion" })).toBeNull();
+    expect(screen.getByRole("listitem").textContent).toContain("Only Bea can accept this");
+    expect(screen.getByRole("listitem").textContent).not.toContain("Waiting");
+    expect(screen.queryByRole("button", { name: /Accept|Dismiss/ })).toBeNull();
+  });
+
+  // Review round 3 of PR 535: a member who left can accept nothing, so the
+  // viewer is not told they can; what still holds is the owner's dismiss.
+  it("tells a viewer, when the asker has left, that only the owner can dismiss it", () => {
+    reader.me = { id: "u-vi" };
+    reader.trip = { myRole: "viewer", boardMode: "read", suggestions: null };
+    line({ mine: false, mayEdit: false, mayDelete: false }, reply, false, { askedBy: undefined });
+    expect(screen.getByRole("listitem").textContent).toContain("Asked by a member who has left: only the owner can dismiss this");
+    expect(screen.getByRole("listitem").textContent).not.toContain("can accept");
+  });
+
+  const changed = ChatMessageData.parse({ ...beas, messageId: uuidFrom(3, 46), kind: "system", body: "moved “Dinner at Tasca” to 20:30" });
+  it("draws a change line under its actor's name, with no way to change, delete or report it", () => {
+    line({ mine: true, mayEdit: true, mayDelete: true }, changed);
+    expect(screen.getByRole("listitem").textContent).toContain("Bea moved “Dinner at Tasca” to 20:30");
+    expect(screen.queryAllByRole("button")).toEqual([]);
+  });
+
+  // Review of PR 535: the line stores only what was done, so it names its
+  // actor as their messages do, a leaver included.
+  it("names an actor who has left the trip as a former member", () => {
+    render(
+      <ol>
+        <ChatMessage message={changed} persona={undefined} tripId={TRIP} viewer={null} editing={false} onEdit={() => {}} onDelete={() => {}} onSave={async () => true} onCancelEdit={() => {}} />
+      </ol>,
+    );
+    expect(screen.getByRole("listitem").textContent).toContain(`${FORMER_MEMBER} moved “Dinner at Tasca” to 20:30`);
   });
 });

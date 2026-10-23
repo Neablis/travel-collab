@@ -140,6 +140,7 @@ import {
 import { ASSISTANT_TOOLS, aiToolsFor, ambientContextFor, type AssistantToolSet } from "@/server/assistant/registry";
 import { listGuests } from "@/server/access/guests";
 import { postAssistantReply } from "@/server/chat/messages";
+import { announceChange } from "@/server/chat/changeLine";
 import type { AskToolPosture } from "@/server/assistant/grants";
 import type { TurnOrigin } from "@/server/assistant/defineTool";
 import {
@@ -1901,6 +1902,8 @@ export async function handleApplyProposalRequest(
     );
   }
   sink({ ...record, outcome: "applied", code: null });
+  // `detail` is the trip the guard read, before the batch (M52 decision 17).
+  await announceChange(tripId, userId, commands.commands, detail, committed.value.detail);
   // The same `{ detail, history }` every command endpoint answers with, so the
   // board reconciles an approved plan through `applyOutcome` rather than
   // through a second, assistant-shaped path.

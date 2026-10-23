@@ -80,12 +80,18 @@ export function proposalUndoFor(state: ProposalState, history: TripHistory | nul
  * server could not match rides in the detail line either way.
  */
 export function proposalWords(proposal: AssistantProposal): { title: string; detail: string } {
-  const texts = proposal.changes.map((change) => change.text);
+  return changeWords(
+    proposal.changes.map((change) => change.text),
+    proposal.skipped,
+  );
+}
+
+function changeWords(texts: readonly string[], skipped: readonly string[]): { title: string; detail: string } {
   const [only] = texts;
   if (texts.length === 1 && only !== undefined) {
-    return { title: only, detail: proposal.skipped.join(" · ") };
+    return { title: only, detail: skipped.join(" · ") };
   }
-  return { title: `${texts.length} changes`, detail: [...texts, ...proposal.skipped].join(" · ") };
+  return { title: `${texts.length} changes`, detail: [...texts, ...skipped].join(" · ") };
 }
 
 /**
@@ -199,30 +205,87 @@ export function ProposalCard({
 }
 
 /**
+ * What a chat `@assistant` proposed (M52 decision 18): the suggestion its turn
+ * stored, by the server's description of each change, as the Ask tab's card
+ * draws a proposal. `may` is the reader's part in it (ADR-067's 2026-10-23
+ * amendment): the asker decides; anyone else reads `lead`, who it waits on,
+ * and the trip's owner may still dismiss it, never accept it.
+ */
+export function SuggestionCard({
+  descriptions,
+  may,
+  lead,
+  busy,
+  note,
+  onAccept,
+  onDismiss,
+}: {
+  descriptions: readonly string[];
+  may: "decide" | "dismiss" | "wait";
+  /** What a reader who does not decide is told: whom it waits on. */
+  lead: string;
+  busy: boolean;
+  /** Why the last decision did not land. */
+  note: string | null;
+  onAccept: () => void;
+  onDismiss: () => void;
+}) {
+  const { title, detail } = changeWords(descriptions, []);
+  return (
+    <PendingCard
+      label="The assistant's suggestion"
+      lead={may === "decide" ? undefined : lead}
+      title={title}
+      detail={detail}
+      // Its own 44px floor either way; the chat has no docked variant to size for.
+      touch={false}
+      approveLabel={busy ? "Accepting…" : "Accept"}
+      onApprove={may === "decide" ? onAccept : undefined}
+      approveDisabled={busy}
+      rejectLabel="Dismiss"
+      onReject={may === "wait" ? undefined : onDismiss}
+      rejectDisabled={busy}
+    >
+      {note !== null && (
+        <p role="status" className="pt-1 text-a-note text-danger-ink">
+          {note}
+        </p>
+      )}
+    </PendingCard>
+  );
+}
+
+/**
  * An open card, waiting on you: what it would do, and the two buttons. Shared
- * by a proposal and a palette command (ADR-072 §4), so the one place a person
- * decides looks and reads the same whichever kind of change it is.
+ * by a proposal, a palette command (ADR-072 §4) and a chat `@assistant`'s
+ * suggestion, so the one place a person decides looks and reads the same
+ * whichever kind of change it is. A button with no handler is not drawn: on a
+ * suggestion it is not the reader's, and `lead` then says whose it is.
  */
 function PendingCard({
   label,
+  lead = "Ready when you are",
   title,
   detail,
   touch,
   approveLabel,
   onApprove,
   approveDisabled,
+  rejectLabel = "Not now",
   onReject,
   rejectDisabled,
   children,
 }: {
   label: string;
+  lead?: string | undefined;
   title: string;
   detail: string;
   touch: boolean;
   approveLabel: string;
-  onApprove: () => void;
+  onApprove: (() => void) | undefined;
   approveDisabled: boolean;
-  onReject: () => void;
+  rejectLabel?: string;
+  onReject: (() => void) | undefined;
   rejectDisabled: boolean;
   children?: ReactNode;
 }) {
@@ -249,9 +312,7 @@ function PendingCard({
         {/* Said out loud, in the one place the user decides: the sentence above
             this card is the model's, and a model's word for what it has done is
             not evidence. "Ready when you are" is the not-yet, in §35.9's voice. */}
-        <span className="font-mono text-a-label font-semibold uppercase tracking-a-label text-brand-pressed">
-          Ready when you are
-        </span>
+        <span className="font-mono text-a-label font-semibold uppercase tracking-a-label text-brand-pressed">{lead}</span>
       </div>
       <p className={`pt-1.75 font-semibold text-pretty text-brand-pressed ${touch ? "text-base" : "text-a-chat"}`}>
         {title}
@@ -260,27 +321,34 @@ function PendingCard({
         <p className="pt-0.5 text-a-note leading-normal text-pretty text-brand-pressed">{detail}</p>
       )}
       {children}
-      <div className="flex gap-2 pt-2.5">
-        <Button
-          variant="primary"
-          size="sm"
-          onClick={onApprove}
-          disabled={approveDisabled}
-          className={`h-auto flex-1 rounded-full font-semibold ${target}`}
-        >
-          {approveLabel}
-        </Button>
-        {/* Always available while the card is open: declining sends nothing. */}
-        <Button
-          variant="secondary"
-          size="sm"
-          onClick={onReject}
-          disabled={rejectDisabled}
-          className={`h-auto rounded-full border-brand bg-transparent px-3.5 text-brand-pressed hover:bg-brand-tint ${target}`}
-        >
-          Not now
-        </Button>
-      </div>
+      {(onApprove !== undefined || onReject !== undefined) && (
+        <div className="flex gap-2 pt-2.5">
+          {onApprove !== undefined && (
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={onApprove}
+              disabled={approveDisabled}
+              className={`h-auto flex-1 rounded-full font-semibold ${target}`}
+            >
+              {approveLabel}
+            </Button>
+          )}
+          {/* On a proposal or a command it is always available, and
+              declining sends nothing. */}
+          {onReject !== undefined && (
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={onReject}
+              disabled={rejectDisabled}
+              className={`h-auto rounded-full border-brand bg-transparent px-3.5 text-brand-pressed hover:bg-brand-tint ${target}`}
+            >
+              {rejectLabel}
+            </Button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
