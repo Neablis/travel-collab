@@ -2030,16 +2030,93 @@ describe("assistant rail visibility", () => {
       expect(within(panel).getByRole("tab", { name: "Chat" })).toBeTruthy();
     });
 
-    // A trip you are alone on has nobody to chat with, so a remembered Chat
-    // does not reopen there, and the button is plain Ask.
-    it("opens on Ask over a remembered Chat on a trip you are alone on, and is called Ask", async () => {
+    // A solo trip has no chat anywhere (Mitchell on PR 537, reversing M46's
+    // solo tab): a remembered Chat opens the assistant alone, with no switch
+    // to an empty Chat, and the button is plain Ask.
+    it("opens the assistant alone over a remembered Chat on a trip you are alone on, and is called Ask", async () => {
       window.localStorage.setItem("assistant:tab", "chat");
       const fixture = tripDetailFixture();
       server.use(...makeTripHandlers(fixture));
       renderWithTabBar(fixture.tripId);
       expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
-      expect(selected(await openFromTabBar())).toEqual(["Ask"]);
+      const panel = await openFromTabBar();
+      expect(within(panel).queryAllByRole("tab")).toEqual([]);
+      expect(within(panel).getByRole("textbox", { name: "Question for the assistant" })).toBeTruthy();
       expect(screen.getAllByRole("button", { name: "Ask" }).map((b) => b.getAttribute("data-testid"))).toEqual(["ask-pill", "ask-tab"]);
+    });
+
+    // Who is on the trip moves under an open panel: the poll's `accessRev`,
+    // and the access read it sends for.
+    function membersMove(fixture: ReturnType<typeof shared>, members: ReturnType<typeof shared>["members"]) {
+      const accessRev = `members-${members.length}`;
+      server.use(
+        http.get("/api/trips/:tripId/events", () => HttpResponse.json({ headSeq: 0, events: [], resync: false, accessRev })),
+        http.get("/api/trips/:tripId/access", () =>
+          HttpResponse.json({
+            access: {
+              tripId: fixture.tripId,
+              myRole: "owner",
+              members: members.map((m) => ({ ...m, name: null, email: null, image: null })),
+              invites: [],
+              collaboratorsEntitled: true,
+              accessRev,
+              viewerId: "dev-alice",
+              guests: [],
+            },
+          }),
+        ),
+      );
+      Object.defineProperty(document, "visibilityState", { value: "visible", configurable: true });
+      document.dispatchEvent(new Event("visibilitychange"));
+    }
+
+    // The last other member leaves while the panel is on Chat: it falls back
+    // to Ask, and focus, which went with the chat's composer, goes to Ask's.
+    // Someone joining again does not pull the panel back onto Chat.
+    it("falls back to Ask, with its composer focused, when the trip goes solo under an open Chat", async () => {
+      setViewportMatches({ "(min-width: 1180px)": true });
+      window.localStorage.setItem("assistant:tab", "chat");
+      const addListener = vi.spyOn(document, "addEventListener");
+      const fixture = shared();
+      server.use(...makeTripHandlers(fixture));
+      renderWithTabBar(fixture.tripId);
+      expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+      await userEvent.click(screen.getByTestId("ask-pill"));
+      const panel = await screen.findByRole("complementary", { name: "Assistant" });
+      expect(within(panel).getByRole("combobox", { name: "Message" }).matches(":focus")).toBe(true);
+      // KI-2026-09-22-e: a rendered trip is not yet an armed poll.
+      await waitFor(() => expect(addListener).toHaveBeenCalledWith("visibilitychange", expect.any(Function)));
+      addListener.mockRestore();
+
+      membersMove(fixture, [fixture.members[0]!]);
+
+      await waitFor(() => expect(within(panel).queryAllByRole("tab")).toEqual([]));
+      expect(within(panel).getByRole("textbox", { name: "Question for the assistant" }).matches(":focus")).toBe(true);
+
+      membersMove(fixture, shared().members);
+      expect(await within(panel).findByRole("tab", { name: "Chat" })).toBeTruthy();
+      expect(selected(panel)).toEqual(["Ask"]);
+    });
+
+    // And the switch arriving under an open Ask is no reason to move focus.
+    it("leaves focus where it is when someone joins under an open Ask", async () => {
+      setViewportMatches({ "(min-width: 1180px)": true });
+      const addListener = vi.spyOn(document, "addEventListener");
+      const fixture = tripDetailFixture();
+      server.use(...makeTripHandlers(fixture));
+      renderWithTabBar(fixture.tripId);
+      expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+      await userEvent.click(screen.getByTestId("ask-pill"));
+      const panel = await screen.findByRole("complementary", { name: "Assistant" });
+      await waitFor(() => expect(addListener).toHaveBeenCalledWith("visibilitychange", expect.any(Function)));
+      addListener.mockRestore();
+      const hide = within(panel).getByRole("button", { name: "Hide" });
+      act(() => hide.focus());
+
+      membersMove(fixture, [...fixture.members, { userId: "u-bea", role: "viewer" }]);
+
+      expect(await within(panel).findByRole("tab", { name: "Chat" })).toBeTruthy();
+      expect(hide.matches(":focus")).toBe(true);
     });
 
     it("opens the phone's sheet on a remembered Chat from the tab bar", async () => {
@@ -3080,21 +3157,26 @@ describe("⌘K runs the trip page's own actions", () => {
 
   // The one line that keeps a notebook's *Group chat* off a trip with nobody
   // to chat with (M52 decision 15): the board offers its chat only with `hasChat`.
-  it("offers no chat to a notebook on a trip you are alone on", async () => {
+  // And ⌘K's *Open chat* with it: a solo trip has no chat anywhere (Mitchell
+  // on PR 537).
+  it("offers no chat, to ⌘K or a notebook, on a trip you are alone on", async () => {
     const solo = tripDetailFixture();
     server.use(...makeTripHandlers(solo));
     const page = renderWithPalette(solo.tripId);
     expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
     await waitFor(() => expect(page.offered()?.onOpen).toBeDefined());
+    await waitFor(() => expect(page.ids()).toContain("view:Plan"));
+    expect(page.ids()).not.toContain("chat");
     expect(page.offered()?.chat).toBeUndefined();
   });
 
-  it("offers its chat to a notebook on a shared trip", async () => {
+  it("offers its chat, to ⌘K and a notebook, on a shared trip", async () => {
     const shared = tripDetailFixture({ members: [{ userId: "dev-alice", role: "owner" }, { userId: "u-bea", role: "viewer" }] });
     server.use(...makeChatHandlers({ viewerId: "dev-alice", messages: [] }).handlers, ...makeTripHandlers(shared));
     const page = renderWithPalette(shared.tripId);
     expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
     await waitFor(() => expect(page.offered()?.chat).toBeDefined());
+    expect(page.ids()).toContain("chat");
   });
 
   // Every batch posted, as one list of commands each. Registered after the

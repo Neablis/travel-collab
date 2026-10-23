@@ -34,7 +34,7 @@ import {
 import { AssistantRail, type RailTab } from "@/components/assistant/AssistantRail";
 import { readLastRailTab, rememberRailTab } from "@/components/assistant/lastTab";
 import { ChatPanel } from "@/components/chat/ChatPanel";
-import { hasTripChat, useTripChat } from "@/components/chat/useTripChat";
+import { hasTripChat, tripHasChat, useTripChat } from "@/components/chat/useTripChat";
 import { AssistantBubble } from "@/components/assistant/AssistantBubble";
 import { usePhoneAskEntry } from "@/components/nav/phoneAsk";
 import { phoneAskContext } from "@/components/assistant/phoneAskContext";
@@ -48,7 +48,6 @@ import { forgetPageDraft, readPageDraft, rememberPageDraft, type PageDraft } fro
 import type { ApiError } from "@/lib/apiClient";
 import { usePublishSaveState } from "@/components/SaveLight";
 import { boardMode, canEditNotebook } from "@/lib/tripRole";
-import { isDemoTripId } from "@/lib/demoTrip";
 import { useAssistantVisibility } from "@/components/assistant/useAssistantVisibility";
 import { useTripSuggestions } from "@/components/trip/context/useTripSuggestions";
 import { chatCommand, notebookEditingCommand } from "@/components/palette/commands";
@@ -980,23 +979,25 @@ export function PageScreen({
   const assistantOpen = assistant.open;
   // **The trip's chat, a tab of this panel as of the board's** (Mitchell, PR
   // 537, reversing round 3's "no Chat tab here"): the same *Chat · Ask*
-  // switch, for the same readers, the same tab last open. The board's tab is
-  // there for any member (M46): alone on the trip, or refused by the chat,
-  // whose 403 the tab is what says. Not on /demo, and not for a reader the
-  // access read refuses (a share link's), who is no member. An access read
-  // that failed (5xx, network) refuses no one, so the tab stays, as the
-  // board's does when its read fails. One read, held here, feeds the tab and a
-  // notebook's *Group chat*, which opens it in place.
-  const offersChat = !isDemoTripId(tripId) && accessRefused === false;
+  // switch, for the same readers (`tripHasChat`), the same tab last open. A
+  // solo trip has none, here as on the board. Nor has a reader the access read
+  // refuses (a share link's), who is no member, nor one still waiting on it. A
+  // read that failed (5xx, network) refuses no one and counts no one, so the
+  // tab stays, as the board's does when its read fails. One read, held here,
+  // feeds the tab and a notebook's *Group chat*, which opens it in place.
+  const memberCount = members !== null ? members.length : accessRefused === false ? null : 0;
+  const offersChat = tripHasChat(tripId, memberCount);
   const [railTab, setRailTab] = useState<RailTab>("ask");
+  // As on the board: no Chat to be on without a chat.
+  if (!offersChat && railTab === "chat") setRailTab("ask");
   const chooseTab = (tab: RailTab) => {
     setRailTab(tab);
     rememberRailTab(tab);
   };
-  const chatShown = assistantOpen && offersChat && railTab === "chat";
+  const chatShown = assistantOpen && railTab === "chat";
   const chat = useTripChat({ tripId, enabled: status === "ready" && offersChat, chatRev, reading: chatShown, accessLost });
   // Someone to chat with: the card, the count and a remembered Chat reopening.
-  const hasChat = hasTripChat(tripId, chat.status, members?.length ?? 0);
+  const hasChat = hasTripChat(tripId, chat.status, memberCount);
   const personas = useMemo(() => (members === null ? null : personasOf(members)), [members]);
   // **The reader the board's `TripProvider` would give the chat** (PR 537
   // round 10: an owner had no Delete on this tab, and an asker no Accept). The
@@ -1821,8 +1822,8 @@ export function PageScreen({
           askError={ask.askError ?? turnRefusal}
           simulated={ask.simulated}
           takeFocus={assistant.takeFocus}
-          // The board's tab, for the board's readers (`offersChat`): a share
-          // link's reader, refused the access read, gets Ask alone.
+          // The board's tab, by the board's rule (`offersChat`): on a solo
+          // trip, or for a share link's reader, the assistant alone.
           {...(offersChat
             ? {
                 chat: {

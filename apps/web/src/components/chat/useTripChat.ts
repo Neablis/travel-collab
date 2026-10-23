@@ -68,17 +68,29 @@ const NO_ACCESS = 403;
 const REMOVED = 409;
 
 /**
- * **Whether this reader has someone to chat with**, on the board and on a
- * notebook alike (M46; M52, Mitchell on PR 537): never on /demo, never once
- * the server refuses it (`no-access`, its own role check, `chatAccess`), and
- * never on a trip with one member. `memberCount` is the trip's access read, so
- * a reader that read refuses (a share link's, who is no member) counts none.
- * It gates the opener's unread count, a remembered Chat reopening and the
- * *Group chat* widget, not the panel's Chat tab: both screens keep that for
- * any member, so a removed one is told why (M46, KI-2026-10-05-h).
+ * **Whether the trip has a chat at all**, the one rule the board and a
+ * notebook both read, so they cannot disagree: not on /demo, and not on a trip
+ * with one member, whose screens offer the assistant alone (Mitchell on PR
+ * 537: no Chat tab, no ⌘K *Open chat*, no *Group chat*, reversing M46's solo
+ * tab). `memberCount` is the trip's access read; `null` when that read failed
+ * without refusing (a 5xx, a dropped connection), which says nothing of who is
+ * on the trip, so the chat stays and its own 403 answers a stranger. A read
+ * that refused (a share link's reader, who is no member) counts none.
  */
-export function hasTripChat(tripId: string, status: TripChatStatus, memberCount: number): boolean {
-  return !isDemoTripId(tripId) && status !== "no-access" && memberCount > 1;
+export function tripHasChat(tripId: string, memberCount: number | null): boolean {
+  return !isDemoTripId(tripId) && (memberCount === null || memberCount > 1);
+}
+
+/**
+ * **Whether this reader has someone to chat with**: a trip with a chat
+ * (`tripHasChat`) whose members are known, and a chat that has not refused
+ * them (`no-access`, its own role check). It gates the opener's unread count,
+ * a remembered Chat reopening and the *Group chat* widget. The Chat tab is
+ * `tripHasChat`'s, so a removed member's still says why (M46,
+ * KI-2026-10-05-h).
+ */
+export function hasTripChat(tripId: string, status: TripChatStatus, memberCount: number | null): boolean {
+  return memberCount !== null && tripHasChat(tripId, memberCount) && status !== "no-access";
 }
 
 /**

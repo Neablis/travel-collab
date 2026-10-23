@@ -83,8 +83,9 @@ const server = setupServer(
   // `PeopleProvider` reads the trip's guests beside the members (guests spec
   // P4); no notebook page names guests on its own, so the list is empty here.
   http.get("/api/v1/trips/:tripId/guests", () => HttpResponse.json({ items: [] })),
-  // And the trip's chat, which a member's page reads at idle for its Chat tab,
-  // as the board does: empty unless a test says otherwise.
+  // And the trip's chat, which a page reads at idle for its Chat tab, as the
+  // board does, wherever the access read failed or found a second member:
+  // empty unless a test says otherwise.
   http.get("/api/trips/:tripId/chat", () => HttpResponse.json({ messages: [], hasEarlier: false, unread: 0, canPost: true })),
 );
 
@@ -2391,10 +2392,11 @@ describe("PageScreen — Undo reset", () => {
 // M52, Mitchell on PR 537 (2026-10-23): the notebook's assistant panel holds
 // the trip's chat as the board's does, an *Ask · Chat* switch on the floating
 // panel and the phone's sheet alike, with the same reader's role behind it.
-// The tab is the board's rule: any member, alone on the trip or refused by the
-// chat, whose 403 the tab says out loud. A notebook's *Group chat* shows the
-// last messages and opens that tab in place, only for a reader with someone to
-// chat with (`hasTripChat`; decision 15, SPEC §27: nothing renders disabled).
+// The tab is the board's rule (`tripHasChat`): a trip of two or more, never a
+// solo one, and kept for a member the chat refuses, whose 403 the tab says out
+// loud. A notebook's *Group chat* shows the last messages and opens that tab in
+// place, only for a reader with someone to chat with (`hasTripChat`; decision
+// 15, SPEC §27: nothing renders disabled).
 describe("PageScreen: a notebook's Group chat", () => {
   const said = ChatMessage.parse({
     messageId: "6e9a2c9e-0000-4b6e-9d3f-2b1a5c8d7e61",
@@ -2621,15 +2623,20 @@ describe("PageScreen: a notebook's Group chat", () => {
     expect(screen.queryByRole("button", card)).toBeNull();
   });
 
-  // M46 keeps the board's tab on a trip you are alone on; the notebook's
-  // matches it. The card is the one thing withheld: nobody to chat with.
-  it("gives a reader alone on the trip no Group chat, and the board's Chat tab", async () => {
+  // A solo trip has no chat anywhere, board and notebook alike (Mitchell on
+  // PR 537): no card, no ⌘K Open chat, and the assistant alone in the panel,
+  // a remembered Chat included.
+  it("gives a reader alone on the trip only the assistant: no Group chat, Chat tab or Open chat", async () => {
+    window.localStorage.setItem("assistant:tab", "chat");
     chatNotebook([{ userId: "u1", role: "owner" }]);
 
     expect(await screen.findByRole("article")).toBeTruthy();
     expect(screen.queryByRole("group", { name: "Group chat" })).toBeNull();
     expect(screen.queryByRole("button", card)).toBeNull();
-    expect(await within(await openAssistant()).findByRole("tab", chatTab)).toBeTruthy();
+    const panel = await openAssistant();
+    expect(within(panel).queryAllByRole("tab")).toEqual([]);
+    expect(within(panel).getByRole("textbox", { name: "Question for the assistant" })).toBeTruthy();
+    expect(findPaletteCommand("chat")).toBeUndefined();
   });
 
   // A share link's reader holds no role on the trip: its access read is

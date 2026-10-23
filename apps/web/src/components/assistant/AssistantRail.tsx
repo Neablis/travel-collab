@@ -730,21 +730,26 @@ export function AssistantRail({
   // by where the switch came from, not by where focus is: Safari does not
   // focus a tapped button, and a sheet's composer taking focus raises the
   // phone's keyboard over it (PR 442 review).
-  const shownTab = useRef(chat?.tab);
+  //
+  // A panel with no chat is on Ask, so the switch arriving or going under Ask
+  // (the trip no longer solo, or solo again) moves no focus. Going under Chat
+  // it takes focus with the chat's composer, and Ask's takes it.
+  const openTab = chat?.tab ?? "ask";
+  const shownTab = useRef(openTab);
   const stripChose = useRef(false);
   const chooseFromStrip = (tab: RailTab) => {
     if (tab !== chat?.tab) stripChose.current = true;
     chat?.onTabChange(tab);
   };
   useEffect(() => {
-    if (shownTab.current === chat?.tab) return;
-    shownTab.current = chat?.tab;
+    if (shownTab.current === openTab) return;
+    shownTab.current = openTab;
     const fromStrip = stripChose.current;
     stripChose.current = false;
     if (fromStrip) return;
     focusOpenTab();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- on a switch of tab only; `focusOpenTab` reads this render's
-  }, [chat?.tab]);
+  }, [openTab]);
   // The chat's composer comes with its first read, which waits for idle, so
   // Chat opened sooner put focus on the panel. Once the read lands it moves on
   // to the composer, but only from the panel: focus the person has moved
