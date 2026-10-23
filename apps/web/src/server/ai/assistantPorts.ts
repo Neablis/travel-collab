@@ -26,7 +26,9 @@
 import type { TripDetail } from "@tc/contracts";
 import { db } from "@/server/db/client";
 import { getTripDetails, listTripSummariesVisibleTo } from "@/server/projections";
-import { withEffectiveMembersByTrip } from "@/server/access/members";
+import { withEffectiveMembersByTrip, withProfiles } from "@/server/access/members";
+import { recentMessages } from "@/server/chat/messages";
+import { displayNameFor } from "@/lib/displayName";
 import { discoverDays } from "@/server/playbooks";
 import { discoverFor } from "@/server/publicLibrary";
 import { placePageDays } from "@/server/placePage";
@@ -40,6 +42,7 @@ import { consumeQuota, geocodeQuota } from "@/server/quota";
 import { MIN_INTERVAL_MS } from "@/server/ai/rateLimit";
 import { PLACE_CANDIDATES_PER_QUERY } from "@/server/assistant/tools/places";
 import type {
+  ChatLog,
   NotebookDirectory,
   PlaceLookup,
   PlaceSearchPort,
@@ -300,4 +303,31 @@ export async function readPlaybookList(page: PlaybookPage, readerId: string): Pr
       return unhandled;
     }
   }
+}
+
+/**
+ * `read_chat`'s chat (M52 decision 18): the trip's newest messages, each
+ * author named as the trip shows them to the asker (`withProfiles`, so no
+ * address reaches the model that the asker could not see). An author no longer
+ * on the trip is named by their handle, as `displayNameFor` names anyone.
+ */
+export function chatLogFor(detail: TripDetail, readerId: string): ChatLog {
+  return {
+    recent: async (limit) => {
+      const [messages, people] = await Promise.all([
+        recentMessages(detail.tripId, limit),
+        withProfiles(detail.members, readerId),
+      ]);
+      const names = new Map(people.map((person) => [person.userId, displayNameFor(person)]));
+      return messages.map((message) => ({
+        author:
+          message.kind === "assistant"
+            ? "Assistant"
+            : (names.get(message.authorId) ?? displayNameFor({ userId: message.authorId })),
+        at: message.createdAt,
+        text: message.removed ? null : message.body,
+        ...(message.removed || message.link === undefined ? {} : { link: message.link }),
+      }));
+    },
+  };
 }

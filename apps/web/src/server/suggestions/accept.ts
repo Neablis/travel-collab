@@ -8,8 +8,10 @@ import { tripSuggestionChanges, tripSuggestions } from "../db/schema";
 import { getTripDetail } from "../projections";
 import { SuggestionAlreadyResolved } from "./resolve";
 import {
+  ASKER_ONLY,
   expireStale,
   isExpired,
+  mayReview,
   refuse,
   roleOn,
   SUGGESTION_TTL_DAYS,
@@ -72,6 +74,10 @@ export async function acceptSuggestionChanges(
   }
   const resolved = found.find((r) => r.change.status !== "pending");
   if (resolved !== undefined) return refuseFor("already-resolved", resolved, "was already resolved.");
+  // Beside the editor check, never instead of it (ADR-067's 2026-10-23
+  // amendment): a chat `@assistant`'s change is its asker's to decide.
+  const notTheirs = found.find((r) => !mayReview(r.suggestion, reviewerId));
+  if (notTheirs !== undefined) return refuseFor("forbidden", notTheirs, ASKER_ONLY);
 
   // A parent outside the set must already be accepted. A dismissed one took
   // its children with it, so any other status here is pending.

@@ -66,3 +66,12 @@ export const MAX_PROPOSAL_INSERTS = 8;
 // stops is one to answer from `read_trip`'s overview and `find_days`, or to
 // narrow with the user. `newDayReadBudget` (deps.ts) keeps the count.
 export const MAX_DAYS_READ_PER_TURN = 15;
+
+// Chat messages `read_chat` returns when the model leaves `limit` unset, and
+// the most it returns whatever it asks for (M52 decision 18). Named here so the
+// numbers can be tuned without touching the tool (Mitchell, 2026-10-22: "keep
+// in a config to play with"). Twenty is a conversation's last few exchanges,
+// the span in which "can you fix this problem?" names its problem; the ceiling
+// bounds what one call re-sends on every later step, as the day cap above does.
+export const CHAT_CONTEXT_MESSAGES = 20;
+export const MAX_CHAT_MESSAGES_READ = 50;

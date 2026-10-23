@@ -522,6 +522,42 @@ describe("the grant a turn holds", () => {
     expect(admission.grant.page?.id).toBe(PAGE_ID);
   });
 
+  // M52 decision 18: the chat is read by a tool only a chat-started turn
+  // holds. An Ask turn never carries it, escalated or not.
+  it("offers read_chat on a turn the chat started, and never on an Ask turn", async () => {
+    const tools = async (origin: "chat" | undefined, ports: AdmissionPorts) => {
+      const admission = await evaluateAiGrant({ request: askFor(TRIP_TURN), tripId: TRIP_ID, ports, ...(origin ? { origin } : {}) });
+      if (!admission.ok) throw new Error(admission.refusal.reason);
+      return [...admission.grant.tools, ...(admission.grant.escalation?.tools ?? [])].map((tool) => tool.name);
+    };
+    const asQuestion = () => spyPorts({ classify: async () => ({ ...CLASSIFIED_AS_WRITE, intent: "question" as const }) }).ports;
+    const viewer = () =>
+      spyPorts({ identifyActor: async () => ({ userId: VIEWER, detail: detailFor("viewer", VIEWER) }) }).ports;
+
+    expect(await tools("chat", spyPorts().ports)).toContain("read_chat");
+    expect(await tools("chat", viewer())).toContain("read_chat");
+    expect(await tools(undefined, spyPorts().ports)).not.toContain("read_chat");
+    expect(await tools(undefined, asQuestion())).not.toContain("read_chat");
+    expect(await tools(undefined, viewer())).not.toContain("read_chat");
+  });
+
+  // The asker's plan decides what a chat turn may do: `ai.ask` answers, and
+  // only `ai.command` proposes. The Ask door is unchanged by it.
+  it("holds a chat turn to answers when the asker's plan has no ai.command", async () => {
+    const answersOnly = spyPorts({
+      selectModel: async () => ({
+        outcome: "live",
+        models: { cheap: "test/model" as LanguageModel, mid: "test/model" as LanguageModel, strong: "test/model" as LanguageModel },
+        classifierModel: "test/classifier" as LanguageModel,
+        entitlements: { has: (capability) => capability === "ai.ask", ceilings: NO_CEILINGS, planVersionRef: null },
+      }),
+    }).ports;
+    const chat = await evaluateAiGrant({ request: askFor(TRIP_TURN), tripId: TRIP_ID, ports: answersOnly, origin: "chat" });
+    if (!chat.ok) throw new Error(chat.refusal.reason);
+    expect(chat.grant.grants.itinerary).toBe("read");
+    expect(chat.grant.tools.map((tool) => tool.name)).not.toContain("AddActivity");
+  });
+
   it("refuses a viewer's page turn without reaching a model", async () => {
     const { ports, calls } = spyPorts({
       identifyActor: async () => {

@@ -185,6 +185,8 @@ export function useTripChat({
       const line: Sending["line"] = {
         messageId: `pending-${sent.current}`,
         authorId: me,
+        kind: "member",
+        requestedBy: null,
         createdAt: new Date().toISOString(),
         editedAt: null,
         removed: false,

@@ -31,6 +31,16 @@ export function storesAsSuggestion(proposal: AssistantProposal): boolean {
   return proposal.commands.length > 1 && proposal.inserts.length === 0;
 }
 
+/**
+ * The same question for a turn the trip chat started (M52 decision 18): every
+ * change goes on the board, one change included. A chat has no card whose
+ * Approve only the asker can press, and a stored suggestion holds that rule
+ * (`requested_by`) for as long as it is pending.
+ */
+export function storesFromChat(proposal: AssistantProposal): boolean {
+  return proposal.commands.length > 0 && proposal.inserts.length === 0;
+}
+
 const SNAPSHOT_PREFIX = "Before: ";
 
 /**
@@ -83,10 +93,13 @@ const INSTEAD = "So they are here to review instead of on the board.";
  * asker to viewer, or a throw: the proposal comes back as ADR-022's card with
  * `notSuggested` saying why, and the snapshot this call saved is deleted again
  * — best effort after a throw — so nothing is stored (decision 3).
+ *
+ * `requestedBy` is set on a chat turn's proposal, to the asker: only they may
+ * then accept or dismiss it (ADR-067's 2026-10-23 amendment).
  */
 export async function suggestProposal(
   proposal: AssistantProposal,
-  { tripId, userId, question }: { tripId: string; userId: string; question: string },
+  { tripId, userId, question, requestedBy }: { tripId: string; userId: string; question: string; requestedBy?: string },
 ): Promise<{ metadata: AskStreamMetadata; outcome: ProposalOutcome }> {
   const card = (code: NotSuggestedCode, reason: string) => ({
     metadata: { proposal: { ...proposal, notSuggested: `${reason} ${INSTEAD}` } },
@@ -111,7 +124,7 @@ export async function suggestProposal(
     // still gets the suggestion, and the chat says the snapshot was skipped.
     const snapshot = await saveSnapshot(tripId, userId, { name: snapshotNameFor(question) });
     if (snapshot.ok) snapshotId = snapshot.value.id;
-    const created = await createSuggestion(tripId, userId, input.data, undefined, { via: "assistant" });
+    const created = await createSuggestion(tripId, userId, input.data, undefined, { via: "assistant", requestedBy });
     if (!created.ok) {
       // Cleared first, and its failure only logged: a cleanup that throws
       // must not swap the refusal's own reason for the catch's generic one,

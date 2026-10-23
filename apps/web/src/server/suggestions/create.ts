@@ -32,6 +32,8 @@ import {
  * `via: "assistant"` marks a suggestion an assistant turn stored for its
  * author (decision 2). It is exempt from the per-author cap, and not counted
  * toward it, but held to the trip's cap like any other (decision 3).
+ * `requestedBy` names the one member who may then accept or dismiss it: the
+ * asker of a chat `@assistant` turn (ADR-067's 2026-10-23 amendment).
  *
  * Every unit is dry-run in order with the domain's own `predictBatch`, each on
  * the detail the one before it left (W4). It skips a no-op sub-command and
@@ -50,7 +52,7 @@ export async function createSuggestion(
   actorId: string,
   input: CreateSuggestionInput,
   now: string = new Date().toISOString(),
-  { via }: { via?: SuggestionVia } = {},
+  { via, requestedBy }: { via?: SuggestionVia; requestedBy?: string } = {},
 ): Promise<SuggestionResult<SuggestionChange[]>> {
   const units = input.units.map((u) => u.commands);
   // Accepting replays a change through `executeTripCommandBatch`, which takes
@@ -120,6 +122,7 @@ export async function createSuggestion(
       baseSeq: history.length,
       createdAt: new Date(now),
       via: via ?? null,
+      requestedBy: requestedBy ?? null,
     };
     const ids = units.map(() => randomUUID());
     const rows = dependsOn(units.map((commands, i) => ({ commands, effect: effects[i]! }))).map((deps, position) => ({

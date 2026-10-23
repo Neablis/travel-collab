@@ -54,7 +54,7 @@ import { hasAtLeast } from "@/server/accessPolicy";
 import type { AskScope } from "@/server/assistant/context";
 import type { AskIntentRecord } from "@/server/assistant/askAnalytics";
 import { MAX_ASK_BODY_BYTES, MAX_ASK_MESSAGES, MAX_PROMPT_CHARS } from "@/server/assistant/limits";
-import type { AnyAssistantTool, EffectLevel } from "./defineTool";
+import type { AnyAssistantTool, EffectLevel, TurnOrigin } from "./defineTool";
 import { PERMITS_EVERYTHING, type EntitlementCeilings, type ResolvedEntitlements } from "./entitlements";
 import { capTier, tierFor, type ModelTier, type TaskClass, type TierModels } from "./taskClass";
 import { reachableIntents } from "./intents";
@@ -646,6 +646,12 @@ export interface AdmissionInput {
    * know what that default even is, only that it exists.
    */
   stepBudget?: number;
+  /**
+   * Where the turn was asked, as the SERVER knows it, never a body field: the
+   * chat route says `chat` for an `@assistant` (M52 decision 18). Omitted is
+   * the Ask door.
+   */
+  origin?: TurnOrigin;
   ports: AdmissionPorts;
 }
 
@@ -1176,10 +1182,15 @@ const grantTools: AdmissionStage = {
     // classifier is the off-topic gate alone, as the account's is.
     const playbook = scope.kind === "playbook";
 
+    const { origin = "ask" } = draft.input;
     const caps = {
       surface,
       role: canWrite || playbook ? ("propose" as const) : ("read" as const),
-      plan: permitsPropose({ userId }),
+      // **A chat turn proposes only on a plan that sells `ai.command`** (M52
+      // decision 18), the asker's own: Studio holds `ai.ask` alone, so its
+      // asker gets answers. The Ask door still asks `permitsPropose`, as it did.
+      plan:
+        origin === "chat" && !selected.entitlements.has("ai.command") ? ("read" as const) : permitsPropose({ userId }),
       // **A page classifier picks a PROFILE, never an effect** (ADR-058). The
       // page surface's intents both live inside what the page grant already
       // holds, and a page `question` narrowing the effect to `read` would make
@@ -1284,13 +1295,13 @@ const grantTools: AdmissionStage = {
     // would be a second copy of `TASK_CLASSES_FOR` that drifts the first time
     // a tool's `taskClasses` changes.
     const posture = postureFor(caps);
-    const offerable = toolsFor(grants, undefined, posture);
+    const offerable = toolsFor(grants, undefined, posture, origin);
     // The page's intents, each resolved to the set it would hold. The pivot
     // tool is in a set only when there is somewhere to pivot TO.
     const reachable = pageReachable ?? [taskClass];
     const canPivot = page !== null && reachable.length > 1;
     const setFor = (intent: TaskClass) =>
-      toolsFor(grants, intent, posture).filter((tool) => canPivot || tool.name !== SWITCH_INTENT_TOOL_NAME);
+      toolsFor(grants, intent, posture, origin).filter((tool) => canPivot || tool.name !== SWITCH_INTENT_TOOL_NAME);
     const tools = narrowBy === undefined ? offerable : setFor(narrowBy);
     const classWithheld = page === null && tools.length < offerable.length;
     const intents = canPivot
@@ -1326,7 +1337,7 @@ const grantTools: AdmissionStage = {
             const escalatedGrants = grantFor(lifted);
             const escalatedTier = capTier(tierFor("edit"), selected.entitlements.ceilings.maxTier);
             return {
-              tools: toolsFor(escalatedGrants, "edit", postureFor(lifted)),
+              tools: toolsFor(escalatedGrants, "edit", postureFor(lifted), origin),
               grants: escalatedGrants,
               tier: escalatedTier,
               model: selected.models[escalatedTier],

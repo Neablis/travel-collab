@@ -128,6 +128,11 @@ export function expectationFor(id: string, trip: TripDetail): EvalExpectation | 
     // NOTHING, which `completes` (answered) still fails; a draft is not required.
     case "t-reads-and-says-nothing":
       return { ...CHANGE, proposes: undefined, maxToolCalls: 40, maxLatencyMs: 240_000 };
+    // M52 decision 18: "can you fix this problem?" in the chat, whose problem
+    // (Fushimi Inari closed on its day) is only in the messages before it. A
+    // turn that never read the chat cannot know what to fix.
+    case "h-chat-fix-problem":
+      return { ...CHANGE, mustCall: ["read_chat"] };
     default:
       return undefined;
   }

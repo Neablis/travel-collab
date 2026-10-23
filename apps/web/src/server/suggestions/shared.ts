@@ -123,6 +123,18 @@ export type ChangeRow = typeof tripSuggestionChanges.$inferSelect;
 export type SuggestionRow = typeof tripSuggestions.$inferSelect;
 
 /**
+ * Whether this reviewer may accept or dismiss the suggestion, beyond being an
+ * editor: one a chat `@assistant` stored is its asker's alone (ADR-067's
+ * 2026-10-23 amendment). Every other suggestion is any editor's.
+ */
+export function mayReview(suggestion: Pick<SuggestionRow, "requestedBy">, reviewerId: string): boolean {
+  return suggestion.requestedBy === null || suggestion.requestedBy === reviewerId;
+}
+
+/** Why another editor is refused one; it finishes a sentence naming the change. */
+export const ASKER_ONLY = "was asked of the assistant by someone else, and only they can accept or dismiss it.";
+
+/**
  * A stored change as the contract serves it, or null — logged — when the row
  * no longer parses. `mode: "date"` columns, so one ISO rendering (KI-53).
  *

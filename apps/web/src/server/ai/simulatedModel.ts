@@ -57,6 +57,7 @@ import { INSERT_PLAYBOOK_DAY } from "@/server/ai/writeTools";
 import { plain } from "@/server/assistant/prompt";
 import { ASSISTANT_TOOLS } from "@/server/assistant/registry";
 import { GO_TO_TOOL_NAME, OPEN_TRIP_TOOL_NAME, PROPOSE_NOTEBOOK_EDITING_TOOL_NAME } from "@/server/assistant/tools/navigate";
+import { READ_CHAT_TOOL_NAME } from "@/server/assistant/tools/chat";
 import {
   ADD_PLAYBOOK_TO_TRIP_TOOL_NAME,
   READ_PLAYBOOK_TOOL_NAME,
@@ -279,6 +280,9 @@ function askQuestions(scope: AskScope, options: CallOptionsLike): ToolCall[] {
   // `read_day` alone (ADR-058 decision 9), and calling a tool the turn was
   // not offered ends it with `NoSuchToolError`.
   if (offered(options, "find_free_time")) calls.push(call("find_free_time", { ...WAKING_HOURS }));
+  // A turn the trip chat started (M52): what was said before the ask is read
+  // with the trip, as a model asked to "fix this" has to.
+  if (offered(options, READ_CHAT_TOOL_NAME)) calls.push(call(READ_CHAT_TOOL_NAME, {}));
   return calls;
 }
 
@@ -417,6 +421,9 @@ function askAnswer(scope: AskScope, results: readonly ToolResultLike[]): string[
   // true, because an assistant that streams nothing is indistinguishable from
   // one that is broken.
   if (sentences.length === 0) sentences.push("I couldn't read anything about this trip.");
+
+  const chat = resultFor<{ messages: unknown[] }>(results, READ_CHAT_TOOL_NAME);
+  if (chat) sentences.push(`I read the last ${chat.messages.length} message${chat.messages.length === 1 ? "" : "s"} in the chat.`);
 
   sentences.push(SIMULATED_ASK_NOTICE);
   return sentences;

@@ -31,9 +31,21 @@ const ChatMessageBody = z
   // failed insert answered 500.
   .refine((body) => !body.includes("\u0000"), "A message cannot contain a NUL character.");
 
+/**
+ * Who wrote a message (M52, ADR-073's 2026-10-23 amendment): a member, the
+ * assistant answering a member's `@assistant`, or the app announcing a change.
+ * Every message before M52 is a member's.
+ */
+export const ChatMessageKind = z.enum(["member", "assistant", "system"]);
+export type ChatMessageKind = z.infer<typeof ChatMessageKind>;
+
 const MessageMeta = {
   messageId: z.string().uuid(),
   authorId: z.string().min(1),
+  /** Defaulted for version skew, as every field added after a release is. */
+  kind: ChatMessageKind.default("member"),
+  /** On an assistant message, the member whose `@assistant` it answers; null otherwise. */
+  requestedBy: z.string().nullable().default(null),
   createdAt: z.string(),
   /** When the author last changed the text; null when never. */
   editedAt: z.string().nullable(),
@@ -54,10 +66,15 @@ export const ChatMessage = z.discriminatedUnion("removed", [
 ]);
 export type ChatMessage = z.infer<typeof ChatMessage>;
 
-/** `POST /api/trips/:tripId/chat`. */
+/**
+ * `POST /api/trips/:tripId/chat`. `assistant: true` is the `@assistant`
+ * target (M52 decision 18): the message posts as any other, then starts a turn
+ * on the poster's own plan whose reply lands as an `assistant` message.
+ */
 export const PostChatMessage = z.object({
   body: ChatMessageBody,
   link: ChatLink.optional(),
+  assistant: z.literal(true).optional(),
 });
 export type PostChatMessage = z.infer<typeof PostChatMessage>;
 

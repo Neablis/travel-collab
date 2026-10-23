@@ -13,6 +13,24 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-10-23 — A chat message has an author kind, and can ask the assistant (M52 part 3)
+- **Added** (`packages/contracts/src/chat.ts`): `ChatMessageKind` (`member | assistant | system`).
+  `ChatMessage` gains `kind` (`.default("member")`) and `requestedBy` (`string | null`,
+  `.default(null)`) on both variants: an `assistant` message names the member whose `@assistant`
+  it answers. `PostChatMessage` gains `assistant: true` (optional), the `@assistant` target.
+- Why: M52 decisions 8 and 18, ADR-073's 2026-10-23 amendment. An `@assistant` message starts a
+  turn on the poster's own plan, quota and ledger, and its reply is posted whole as an `assistant`
+  message. A poster whose plan has no `ai.ask` is refused 402 `ai-not-entitled` before anything is
+  posted. `system` is decision 17's change lines, which part 7 writes. Stored in migration 0062
+  (`trip_messages.kind`, `trip_messages.requested_by`, and `trip_suggestions.requested_by`, which
+  is not on the wire yet).
+- Consumers updated: `apps/web` (`server/chat/messages.ts` serves both fields;
+  `app/api/trips/[tripId]/chat/route.ts` takes `assistant`; `components/chat/useTripChat.ts`'s
+  optimistic line and `mocks/handlers.ts` build a member's message with them). The chat is not on
+  the public API, so `openapi.json` does not move.
+- Breaking? no: both fields are defaulted, so a body from a server before this parses as a
+  member's message, and `assistant` is optional.
+
 ## 2026-10-21 — Discover previews carry up to twelve stops (M51 part 9; public API 1.20.0)
 - **Widened** (`apps/web/src/lib/playbooks.ts`, not `packages/contracts`): `DiscoverDay.preview`
   is day one's first `DISCOVER_PREVIEW_STOPS` stops, now 12 (was 3). On the wire in

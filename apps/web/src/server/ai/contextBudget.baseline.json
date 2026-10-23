@@ -250,6 +250,10 @@
       "chars": 385,
       "approxTokens": 116
     },
+    "read_chat": {
+      "chars": 382,
+      "approxTokens": 115
+    },
     "places_visited": {
       "chars": 370,
       "approxTokens": 112

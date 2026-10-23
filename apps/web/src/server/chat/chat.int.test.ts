@@ -5,13 +5,14 @@
 //   * after the owner's lapse the chat reads, marks read and deletes, and
 //     refuses a post or an edit, by name;
 //   * the demo and a deleted trip are refused, and a restore brings it back;
-//   * every chat write moves `chatRev` on the events poll, for every reader.
+//   * every chat write moves `chatRev` on the events poll, for every reader;
+//   * an `@assistant` is answered in the thread, and refused while it is read-only (M52).
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ChatMessage, ChatPage, TripEventsPage } from "@tc/contracts";
 import { db } from "@/server/db/client";
-import { tripMessages, users } from "@/server/db/schema";
+import { tripMessages, tripSuggestions, users } from "@/server/db/schema";
 import { unreadByTrip } from "@/server/chat/messages";
 import { executeTripCommand } from "@/server/commands";
 import { readStream } from "@/server/eventStore";
@@ -22,6 +23,13 @@ import { DEMO_TRIP_ID } from "@/lib/demoTrip";
 let currentUserId = "";
 vi.mock("@/server/auth", () => ({
   auth: vi.fn(async () => (currentUserId ? { user: { id: currentUserId } } : null)),
+}));
+
+// The `@assistant` turn the POST hands `after()`, held for a test to run.
+const afterResponse = vi.hoisted(() => [] as (() => Promise<unknown>)[]);
+vi.mock("next/server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("next/server")>()),
+  after: (task: () => Promise<unknown>) => void afterResponse.push(task),
 }));
 
 const chat = await import("@/app/api/trips/[tripId]/chat/route");
@@ -77,7 +85,13 @@ async function chatRev(tripId: string, as: string): Promise<string | undefined> 
 
 beforeEach(() => {
   currentUserId = "";
+  afterResponse.length = 0;
 });
+
+/** Run what the POSTs handed `after()`, as the platform does once each response has gone. */
+async function runAfterResponse() {
+  for (const task of afterResponse.splice(0)) await task();
+}
 
 describe("the event log", () => {
   // ADR-073 §1, the gate's first server box. Posting, editing, deleting and
@@ -320,5 +334,50 @@ describe("unreadByTrip", () => {
     } finally {
       spy.mockRestore();
     }
+  });
+});
+
+// M52 decision 18. On the simulated model (`AI_LIVE` off), which reads the
+// chat whenever it is offered `read_chat` and drafts a change when asked to.
+describe("@assistant", () => {
+  it("answers in the thread, whole, as the assistant, naming who asked", async () => {
+    const { tripId, owner, editor } = await sharedTrip();
+    await posted(tripId, editor, "The museum on day 1 is shut on Mondays");
+    const asked = await post(tripId, owner, { body: "@assistant can you fix this problem?", assistant: true });
+    expect(asked.status).toBe(201);
+    expect(((await asked.json()) as { message: ChatMessage }).message).toMatchObject({ kind: "member", requestedBy: null });
+    await runAfterResponse();
+
+    const page = (await (await list(tripId, editor)).json()) as ChatPage;
+    expect(page.messages.map((m) => [m.kind, m.requestedBy])).toEqual([
+      ["member", null],
+      ["member", null],
+      ["assistant", owner],
+    ]);
+    const reply = page.messages[2]!;
+    // It read the two messages before it, which is what `read_chat` is for.
+    expect(!reply.removed && reply.body).toContain("I read the last 2 messages in the chat.");
+  });
+
+  it("stores a change it drafts as a suggestion only the asker may accept", async () => {
+    const { tripId, owner } = await sharedTrip();
+    expect((await executeTripCommand({ type: "AddDay", tripId, dayId: randomUUID() }, owner)).ok).toBe(true);
+    expect((await post(tripId, owner, { body: "@assistant add a museum on day 1", assistant: true })).status).toBe(201);
+    await runAfterResponse();
+
+    const stored = await db.select().from(tripSuggestions).where(eq(tripSuggestions.tripId, tripId));
+    expect(stored).toMatchObject([{ authorId: owner, via: "assistant", requestedBy: owner }]);
+  });
+
+  // Decision 18's lapse rule: a read-only chat takes no `@assistant`, even
+  // from a member whose own plan holds it.
+  it("is refused while the chat is read-only, and starts no turn", async () => {
+    const { tripId, owner, editor } = await sharedTrip();
+    await entitleAccounts([editor]);
+    await db.update(users).set({ planId: "free" }).where(eq(users.id, owner));
+    const refused = await post(tripId, editor, { body: "@assistant anything?", assistant: true });
+    expect(refused.status).toBe(402);
+    expect(await refused.json()).toMatchObject({ code: "collaborators-not-entitled" });
+    expect(afterResponse).toEqual([]);
   });
 });

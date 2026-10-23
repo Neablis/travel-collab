@@ -7,6 +7,8 @@ const meta = {
   createdAt: "2026-10-13T10:00:00.000Z",
   editedAt: null,
 };
+// What every message before M52 reads as: a member's, answering nobody.
+const served = { ...meta, kind: "member", requestedBy: null };
 
 describe("ChatMessage", () => {
   // ADR-073 §4: a removed message is served with no text. The variant is what
@@ -18,12 +20,20 @@ describe("ChatMessage", () => {
       body: "the thing I deleted",
       link: { kind: "day", id: meta.messageId },
     });
-    expect(parsed).toEqual({ ...meta, removed: true });
+    expect(parsed).toEqual({ ...served, removed: true });
   });
 
   it("keeps the body and link of a live message", () => {
-    const live = { ...meta, removed: false, body: "Dinner at 8?", link: { kind: "stop", id: meta.messageId } };
+    const live = { ...served, removed: false, body: "Dinner at 8?", link: { kind: "stop", id: meta.messageId } };
     expect(ChatMessage.parse(live)).toEqual(live);
+  });
+
+  // M52 decision 18: the assistant's reply names who asked; a message sent
+  // without the two fields (an older server) is a member's.
+  it("keeps an assistant message's asker, and reads a message without a kind as a member's", () => {
+    const reply = { ...meta, kind: "assistant", requestedBy: "dev-bea", removed: false, body: "Moved it." };
+    expect(ChatMessage.parse(reply)).toEqual(reply);
+    expect(ChatMessage.parse({ ...meta, removed: false, body: "hi" })).toMatchObject({ kind: "member", requestedBy: null });
   });
 
   // A reader on an older build (a stale tab, a rolled-back deploy) must not
@@ -31,7 +41,7 @@ describe("ChatMessage", () => {
   // two, and the next one will too. The message is kept, without its link.
   it("keeps a message whose link kind it does not know, without the link", () => {
     const parsed = ChatMessage.parse({ ...meta, removed: false, body: "@Later", link: { kind: "unknown_future", id: "x" } });
-    expect(parsed).toEqual({ ...meta, removed: false, body: "@Later" });
+    expect(parsed).toEqual({ ...served, removed: false, body: "@Later" });
   });
 });
 
@@ -55,6 +65,11 @@ describe("PostChatMessage", () => {
   });
 
   // A person is a `users.id`, which is not a uuid; a notebook's id is.
+  it("asks the assistant only with assistant: true", () => {
+    expect(PostChatMessage.parse({ body: "@assistant hi", assistant: true }).assistant).toBe(true);
+    expect(PostChatMessage.safeParse({ body: "hi", assistant: false }).success).toBe(false);
+  });
+
   it("takes a person by user id, and a notebook only by uuid", () => {
     expect(PostChatMessage.safeParse({ body: "hi", link: { kind: "person", id: "dev-bea" } }).success).toBe(true);
     expect(PostChatMessage.safeParse({ body: "hi", link: { kind: "notebook", id: "dev-bea" } }).success).toBe(false);

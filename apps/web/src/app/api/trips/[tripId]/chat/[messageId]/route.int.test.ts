@@ -113,6 +113,8 @@ describe("DELETE /api/trips/:tripId/chat/:messageId", () => {
     expect(served).toEqual({
       messageId: message.messageId,
       authorId: editor,
+      kind: "member",
+      requestedBy: null,
       createdAt: message.createdAt,
       editedAt: null,
       removed: true,
