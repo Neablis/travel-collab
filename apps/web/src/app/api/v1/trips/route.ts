@@ -36,7 +36,7 @@ export const { GET, POST } = route({
       active: z
         .enum(["true", "false"])
         .optional()
-        .describe("`true` lists only the trips under way today, by each trip's own zone. An undated trip is never under way."),
+        .describe("`true` lists only the trips under way today, by each trip's own zone. An undated trip is never under way. A page may be short, or empty, and still carry a `nextCursor`: the scan stops after a fixed number of rows. Keep paging until `nextCursor` is null."),
     }),
     collection: {
       item: PublicTripSummary,

@@ -18,8 +18,9 @@ Format:
   `GET /v1/trips?active=true`, the list narrowed to the trips whose `tripNow` phase is
   `underway`, and `GET /v1/trips/{tripId}/today` (`trips:read`, `viewer`), answering
   `{ date, timeZone, phase, dayId, stops, now, next }` with `stops` as `ActivityView` and an
-  optional `?timeZone=` read and never stored. `openapi.json` regenerated, `info.version`
-  1.22.0 → 1.23.0.
+  optional `?timeZone=` read and never stored. The `active` description says a short or empty
+  page can still carry a `nextCursor`, since the scan stops after a fixed number of rows.
+  `openapi.json` regenerated, `info.version` 1.22.0 → 1.23.0.
 - Why: M52 decision 21. Both read `tripNow` through `turnNowOf` (ADR-080's server zone
   fallback), so the API names the same now and next as the *Now and next* widget.
   `TurnNow.local` gained the `timeZone` it reads the date in, so the endpoint reports it rather

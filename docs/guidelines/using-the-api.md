@@ -360,8 +360,9 @@ M52 decision 21. Both answer from `tripNow` (ADR-080), the one function the
 - **`GET /v1/trips?active=true`** lists only the trips under way: today, on the
   trip's own clock, falls within its dates. A day's clock is the zone where its
   stops are placed, else the first such zone on the trip, else UTC. An
-  undated trip is never under way. Pagination and the cursor are the list's own;
-  `active=false` or no parameter is the whole list.
+  undated trip is never under way. A page may be short, or empty, and still
+  carry a `nextCursor`: the scan stops after a fixed number of rows. Keep paging
+  until `nextCursor` is null. `active=false` or no parameter is the whole list.
 - **`GET /v1/trips/{tripId}/today`** (`trips:read`, `viewer`) answers
   `{ date, timeZone, phase, dayId, stops, now, next }`: today's date and the zone
   it is read in, the phase (`planning`, `soon`, `underway`, `ended`), today's day
