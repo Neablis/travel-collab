@@ -50,6 +50,7 @@ import { INTENT_TOOLS } from "./tools/intent";
 import { ACROSS_TRIP_TOOLS } from "./tools/acrossTrips";
 import { NAVIGATION_TOOLS } from "./tools/navigate";
 import { PLAYBOOK_TOOLS } from "./tools/playbook";
+import { CHAT_TOOLS } from "./tools/chat";
 
 /**
  * Every definition this build has. Derived families are spread, so a
@@ -58,6 +59,9 @@ import { PLAYBOOK_TOOLS } from "./tools/playbook";
  */
 export const ASSISTANT_TOOLS: readonly AnyAssistantTool[] = [
   ...READ_TOOLS,
+  // The chat's read (M52), beside the trip's. Offered only on a turn the chat
+  // started (`origins`), so no other turn's order moves.
+  ...CHAT_TOOLS,
   // The account surface's reads (M45). Offered nowhere else — no trip row
   // grants `account` — so where they sit changes no other turn's order.
   ...ACROSS_TRIP_TOOLS,

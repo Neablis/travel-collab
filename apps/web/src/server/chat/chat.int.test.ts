@@ -5,17 +5,24 @@
 //   * after the owner's lapse the chat reads, marks read and deletes, and
 //     refuses a post or an edit, by name;
 //   * the demo and a deleted trip are refused, and a restore brings it back;
-//   * every chat write moves `chatRev` on the events poll, for every reader.
+//   * every chat write moves `chatRev` on the events poll, for every reader;
+//   * an `@assistant` is answered in the thread, and refused while it is read-only (M52).
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { ChatMessage, ChatPage, TripEventsPage } from "@tc/contracts";
+import { ASK_FAILED_MESSAGE, type ChatMessage, type ChatPage, type TripEventsPage } from "@tc/contracts";
+import { auth } from "@/server/auth";
 import { db } from "@/server/db/client";
-import { tripMessages, users } from "@/server/db/schema";
-import { unreadByTrip } from "@/server/chat/messages";
+import { aiUsage, tripMessages, tripSuggestions, users } from "@/server/db/schema";
+import { postAssistantReply, unreadByTrip } from "@/server/chat/messages";
+import { chatLogFor } from "@/server/ai/assistantPorts";
+import { getTripDetail } from "@/server/projections";
+import { runChatAskTurn } from "@/server/ai/handleAskRequest";
+import { upsertUser } from "@/server/users";
+import { listSuggestionChanges } from "@/server/suggestions/list";
 import { executeTripCommand } from "@/server/commands";
 import { readStream } from "@/server/eventStore";
-import { grantMembership } from "@/server/access/members";
+import { grantMembership, withEffectiveMembersByTrip } from "@/server/access/members";
 import { entitleAccounts } from "@/server/test-support/entitledAccount";
 import { DEMO_TRIP_ID } from "@/lib/demoTrip";
 
@@ -23,6 +30,38 @@ let currentUserId = "";
 vi.mock("@/server/auth", () => ({
   auth: vi.fn(async () => (currentUserId ? { user: { id: currentUserId } } : null)),
 }));
+
+// The `@assistant` turn the POST hands `after()`, held for a test to run.
+const afterResponse = vi.hoisted(() => [] as (() => Promise<unknown>)[]);
+vi.mock("next/server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("next/server")>()),
+  after: (task: () => Promise<unknown>) => void afterResponse.push(task),
+}));
+
+// For the turn's last writes: a reply post that can be made to fail, and a
+// ledger row that can be held back, each passing through to the real one.
+const turnWrites = vi.hoisted(() => ({ failReplies: false, replyAttempts: 0, ledgerHeld: null as Promise<void> | null }));
+vi.mock("@/server/chat/messages", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@/server/chat/messages")>();
+  return {
+    ...real,
+    postAssistantReply: async (...args: Parameters<typeof real.postAssistantReply>) => {
+      turnWrites.replyAttempts += 1;
+      if (turnWrites.failReplies) throw new Error("connection reset");
+      return real.postAssistantReply(...args);
+    },
+  };
+});
+vi.mock("@/server/entitlements/usage", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@/server/entitlements/usage")>();
+  return {
+    ...real,
+    recordTurnLedger: async (...args: Parameters<typeof real.recordTurnLedger>) => {
+      await turnWrites.ledgerHeld;
+      return real.recordTurnLedger(...args);
+    },
+  };
+});
 
 const chat = await import("@/app/api/trips/[tripId]/chat/route");
 const oneMessage = await import("@/app/api/trips/[tripId]/chat/[messageId]/route");
@@ -77,7 +116,14 @@ async function chatRev(tripId: string, as: string): Promise<string | undefined> 
 
 beforeEach(() => {
   currentUserId = "";
+  afterResponse.length = 0;
+  Object.assign(turnWrites, { failReplies: false, replyAttempts: 0, ledgerHeld: null });
 });
+
+/** Run what the POSTs handed `after()`, as the platform does once each response has gone. */
+async function runAfterResponse() {
+  for (const task of afterResponse.splice(0)) await task();
+}
 
 describe("the event log", () => {
   // ADR-073 §1, the gate's first server box. Posting, editing, deleting and
@@ -320,5 +366,138 @@ describe("unreadByTrip", () => {
     } finally {
       spy.mockRestore();
     }
+  });
+});
+
+// M52 decision 18. On the simulated model (`AI_LIVE` off), which reads the
+// chat whenever it is offered `read_chat` and drafts a change when asked to.
+describe("@assistant", () => {
+  it("answers in the thread, whole, as the assistant, naming who asked", async () => {
+    const { tripId, owner, editor } = await sharedTrip();
+    await posted(tripId, editor, "The museum on day 1 is shut on Mondays");
+    const asked = await post(tripId, owner, { body: "@assistant can you fix this problem?", assistant: true });
+    expect(asked.status).toBe(201);
+    expect(((await asked.json()) as { message: ChatMessage }).message).toMatchObject({
+      kind: "member",
+      requestedBy: null,
+      asksAssistant: true,
+    });
+    await runAfterResponse();
+
+    // Every member's page says which message asked, so each can show the
+    // reply is on its way, not only the asker's (M52, migration 0064).
+    const page = (await (await list(tripId, editor)).json()) as ChatPage;
+    expect(page.messages.map((m) => [m.kind, m.requestedBy, m.asksAssistant])).toEqual([
+      ["member", null, false],
+      ["member", null, true],
+      ["assistant", owner, false],
+    ]);
+    const reply = page.messages[2]!;
+    // It read the two messages before it, which is what `read_chat` is for.
+    expect(!reply.removed && reply.body).toContain("I read the last 2 messages in the chat.");
+  });
+
+  // What part 6 renders the card from: the reply names the question it answers
+  // and the suggestion it stored, and the board names who the change waits on.
+  it("stores a change it drafts as a suggestion only the asker may accept, linked from the reply", async () => {
+    const { tripId, owner, editor } = await sharedTrip();
+    expect((await executeTripCommand({ type: "AddDay", tripId, dayId: randomUUID() }, owner)).ok).toBe(true);
+    const asked = await post(tripId, owner, { body: "@assistant add a museum on day 1", assistant: true });
+    expect(asked.status).toBe(201);
+    const question = ((await asked.json()) as { message: ChatMessage }).message;
+    await runAfterResponse();
+
+    const stored = await db.select().from(tripSuggestions).where(eq(tripSuggestions.tripId, tripId));
+    expect(stored).toMatchObject([{ authorId: owner, via: "assistant", requestedBy: owner }]);
+    const page = (await (await list(tripId, editor)).json()) as ChatPage;
+    expect(page.messages.at(-1)).toMatchObject({ kind: "assistant", replyTo: question.messageId, suggestionId: stored[0]!.id });
+    const board = await listSuggestionChanges(tripId, editor);
+    expect(board.ok && board.value.changes.map((change) => change.requestedBy)).toEqual([owner]);
+  });
+
+  // A throw out of the turn (here the session read admission makes) used to
+  // reach only the route's log, and the asker waited on a reply forever.
+  it("still answers in the thread when the turn throws", async () => {
+    const { tripId, owner } = await sharedTrip();
+    const asked = await post(tripId, owner, { body: "@assistant anything?", assistant: true });
+    const question = ((await asked.json()) as { message: ChatMessage }).message;
+    vi.mocked(auth).mockRejectedValueOnce(new Error("connection reset"));
+    await runAfterResponse();
+
+    const page = (await (await list(tripId, owner)).json()) as ChatPage;
+    expect(page.messages.at(-1)).toMatchObject({
+      kind: "assistant",
+      requestedBy: owner,
+      replyTo: question.messageId,
+      body: ASK_FAILED_MESSAGE,
+    });
+  });
+
+  // ADR-073's amendment: an owner's People list shows addresses, and the model
+  // may repeat what it reads into a thread everyone reads, so it is given
+  // display names only. Who wrote a line is its kind, never its name.
+  it("names authors to read_chat by display name, never address, and marks the assistant's own lines", async () => {
+    const { tripId, owner, editor, viewer } = await sharedTrip();
+    await upsertUser({ id: editor, email: "edna@example.com", name: null, image: null });
+    await upsertUser({ id: viewer, email: "vic@example.com", name: null, image: null });
+    await db.update(users).set({ displayName: "Assistant" }).where(eq(users.id, viewer));
+    const question = await posted(tripId, editor, "day 1 is too full");
+    await posted(tripId, viewer, "I moved the museum");
+    await postAssistantReply(tripId, { requestedBy: editor, replyTo: question.messageId }, "Day 1 has four stops now.");
+
+    const [detail] = await withEffectiveMembersByTrip(db, [(await getTripDetail(tripId))!]);
+    const lines = await chatLogFor(detail!, owner).recent(10);
+    expect(lines.map((line) => [line.authorKind, line.author])).toEqual([
+      ["member", expect.not.stringContaining("@")],
+      ["member", "Assistant"],
+      ["assistant", "Assistant"],
+    ]);
+  });
+
+  // The ledger row and the step refund are what the turn cost the asker. A
+  // turn whose model failed ends its stream without waiting for them, so it
+  // is `runChatAskTurn` that must, or `after()` settles and the platform can
+  // freeze the function first; a reply that cannot be posted is no reason.
+  it("settles only once a failed turn's ledger row is written, even when no reply can be posted", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const { tripId, owner } = await sharedTrip();
+    const question = await posted(tripId, owner, "@assistant anything?");
+    let release!: () => void;
+    turnWrites.ledgerHeld = new Promise((resolve) => (release = resolve));
+    turnWrites.failReplies = true;
+    const failing = {
+      specificationVersion: "v4",
+      provider: "test",
+      modelId: "test/failing",
+      supportedUrls: {},
+      doGenerate: async () => {
+        throw new Error("provider down");
+      },
+      doStream: async () => {
+        throw new Error("provider down");
+      },
+    } as unknown as Parameters<typeof runChatAskTurn>[1];
+
+    let settled = false;
+    const asked = { tripId, askerId: owner, question: question.removed ? "" : question.body, messageId: question.messageId };
+    const turn = runChatAskTurn(asked, failing).then(() => (settled = true));
+    // The reply, then the failure reply, both refused.
+    await vi.waitFor(() => expect(turnWrites.replyAttempts).toBe(2));
+    expect(settled).toBe(false);
+    release();
+    await turn;
+    expect(await db.select().from(aiUsage).where(eq(aiUsage.userId, owner))).toMatchObject([{ endpoint: "ask.chat" }]);
+  });
+
+  // Decision 18's lapse rule: a read-only chat takes no `@assistant`, even
+  // from a member whose own plan holds it.
+  it("is refused while the chat is read-only, and starts no turn", async () => {
+    const { tripId, owner, editor } = await sharedTrip();
+    await entitleAccounts([editor]);
+    await db.update(users).set({ planId: "free" }).where(eq(users.id, owner));
+    const refused = await post(tripId, editor, { body: "@assistant anything?", assistant: true });
+    expect(refused.status).toBe(402);
+    expect(await refused.json()).toMatchObject({ code: "collaborators-not-entitled" });
+    expect(afterResponse).toEqual([]);
   });
 });

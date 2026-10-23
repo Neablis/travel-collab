@@ -16,7 +16,7 @@
 // the page surface, and the `pages` domain being absent from the planning one.
 import type { TripRole } from "@tc/contracts";
 import { roleAtLeast } from "@/server/accessPolicy";
-import { EFFECT_LEVEL, type AnyAssistantTool, type EffectLevel, type ToolDomain } from "./defineTool";
+import { EFFECT_LEVEL, type AnyAssistantTool, type EffectLevel, type ToolDomain, type TurnOrigin } from "./defineTool";
 import type { TaskClass } from "./taskClass";
 import type { AskScope } from "./context";
 import { ASSISTANT_TOOLS } from "./registry";
@@ -270,8 +270,13 @@ export function toolsFor(
   grant: GrantedEffects,
   taskClass?: TaskClass,
   posture?: AskToolPosture,
+  // A turn is the Ask tab's unless a caller says the chat started it, as the
+  // admission door's own default is.
+  origin: TurnOrigin = "ask",
 ): readonly AnyAssistantTool[] {
   return ASSISTANT_TOOLS.filter((definition) => {
+    // The fifth axis (`defineTool`'s `origins`).
+    if (definition.origins !== undefined && !definition.origins.includes(origin)) return false;
     const granted = grant[definition.domain];
     if (granted === undefined || EFFECT_RANK[EFFECT_LEVEL[definition.effect]] > EFFECT_RANK[granted]) return false;
     // **A read-only turn holds pure reads and nothing else** (ADR-058 decision

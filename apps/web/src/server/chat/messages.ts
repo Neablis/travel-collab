@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { and, count, desc, eq, inArray, isNull, ne, or, sql } from "drizzle-orm";
-import type { ChatLink, ChatMessage, PostChatMessage, TripDetail, TripRole } from "@tc/contracts";
+import { CHAT_MESSAGE_MAX, type ChatLink, type ChatMessage, type PostChatMessage, type TripDetail, type TripRole } from "@tc/contracts";
 import { db, type Queryable } from "../db/client";
 import { pages, tripChatReads, tripMessages } from "../db/schema";
 import { isUuid } from "../ids";
@@ -24,6 +24,11 @@ function toMessage(row: Row): ChatMessage {
   const meta = {
     messageId: row.id,
     authorId: row.authorId,
+    kind: row.kind,
+    requestedBy: row.requestedBy,
+    replyTo: row.replyTo,
+    suggestionId: row.suggestionId,
+    asksAssistant: row.asksAssistant,
     createdAt: row.createdAt.toISOString(),
     editedAt: row.editedAt?.toISOString() ?? null,
   };
@@ -41,15 +46,28 @@ export async function listMessages(
   tripId: string,
   userId: string,
 ): Promise<{ messages: ChatMessage[]; hasEarlier: boolean; unread: number }> {
-  const rows = await db
+  const rows = await newestRows(tripId, CHAT_PAGE_LIMIT + 1);
+  const hasEarlier = rows.length > CHAT_PAGE_LIMIT;
+  const messages = rows.slice(0, CHAT_PAGE_LIMIT).reverse().map(toMessage);
+  return { messages, hasEarlier, unread: await unreadCount(tripId, userId) };
+}
+
+/**
+ * The newest `limit` messages, oldest first: what the assistant's `read_chat`
+ * reads (M52 decision 18). A removed message keeps its place with no text, as
+ * a member reads it.
+ */
+export async function recentMessages(tripId: string, limit: number): Promise<ChatMessage[]> {
+  return (await newestRows(tripId, limit)).reverse().map(toMessage);
+}
+
+function newestRows(tripId: string, limit: number): Promise<Row[]> {
+  return db
     .select()
     .from(tripMessages)
     .where(eq(tripMessages.tripId, tripId))
     .orderBy(desc(tripMessages.createdAt), desc(tripMessages.id))
-    .limit(CHAT_PAGE_LIMIT + 1);
-  const hasEarlier = rows.length > CHAT_PAGE_LIMIT;
-  const messages = rows.slice(0, CHAT_PAGE_LIMIT).reverse().map(toMessage);
-  return { messages, hasEarlier, unread: await unreadCount(tripId, userId) };
+    .limit(limit);
 }
 
 async function unreadCount(tripId: string, userId: string): Promise<number> {
@@ -109,20 +127,66 @@ export async function postMessage(
   input: PostChatMessage,
   now: Date = new Date(),
 ): Promise<ChatMessage> {
+  return insertMessage({
+    tripId,
+    authorId,
+    body: input.body,
+    linkKind: input.link?.kind ?? null,
+    linkId: input.link?.id ?? null,
+    asksAssistant: input.assistant === true,
+    createdAt: now,
+  });
+}
+
+/**
+ * The author id on the assistant's messages (M52). Not a `users.id`: nobody
+ * signs in as it, so nobody edits one as its author, and the owner's delete
+ * reaches it as it reaches any message.
+ */
+export const ASSISTANT_AUTHOR_ID = "assistant";
+
+/** Who an assistant reply answers: the asker, their message, and any suggestion the turn stored. */
+export interface AssistantReplyTo {
+  requestedBy: string;
+  replyTo: string;
+  suggestionId?: string | null;
+}
+
+/**
+ * An `@assistant` turn's reply, posted whole (decision 18) and naming the
+ * member who asked. A reply past `CHAT_MESSAGE_MAX` is cut there rather than
+ * lost: the turn has already been paid for.
+ *
+ * The model's text never passed `ChatMessageBody`, so its NUL refine is done
+ * here: Postgres refuses U+0000 in a text column, and the insert would throw.
+ */
+export async function postAssistantReply(
+  tripId: string,
+  { requestedBy, replyTo, suggestionId = null }: AssistantReplyTo,
+  body: string,
+  now: Date = new Date(),
+): Promise<ChatMessage> {
+  const clean = body.replaceAll("\u0000", "");
+  const text = clean.length <= CHAT_MESSAGE_MAX ? clean : `${clean.slice(0, CHAT_MESSAGE_MAX - 1).trimEnd()}…`;
+  return insertMessage({
+    tripId,
+    authorId: ASSISTANT_AUTHOR_ID,
+    kind: "assistant",
+    requestedBy,
+    replyTo,
+    suggestionId,
+    body: text,
+    createdAt: now,
+  });
+}
+
+async function insertMessage(values: Omit<typeof tripMessages.$inferInsert, "id">): Promise<ChatMessage> {
   return db.transaction(async (tx) => {
     const [row] = await tx
       .insert(tripMessages)
-      .values({
-        id: randomUUID(),
-        tripId,
-        authorId,
-        body: input.body,
-        linkKind: input.link?.kind ?? null,
-        linkId: input.link?.id ?? null,
-        createdAt: now,
-      })
+      .values({ id: randomUUID(), ...values })
       .returning();
-    await bumpChatRev(tx, tripId);
+    await bumpChatRev(tx, values.tripId);
     return toMessage(row!);
   });
 }

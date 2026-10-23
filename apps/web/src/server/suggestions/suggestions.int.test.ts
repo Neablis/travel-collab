@@ -485,6 +485,24 @@ describe("resolveSuggestionChange — accept", () => {
     expect(await statusOf(change!.id)).toBe("accepted");
   });
 
+  // ADR-067's 2026-10-23 amendment: the owner may always clear one, whose
+  // asker may have left or lost edit access, but never decide it for them.
+  it("lets only a chat asker accept the change they requested, and the owner dismiss it", async () => {
+    const otherEditor = `dev-edna-${randomUUID().slice(0, 8)}`;
+    await grantMembership(db, { tripId, userId: otherEditor, role: "editor", invitedBy: OWNER, now: new Date().toISOString() });
+    const created = await createSuggestion(tripId, EDITOR, draft([rename("Kyoto in spring")], [rename("Kyoto again")]), undefined, {
+      via: "assistant",
+      requestedBy: EDITOR,
+    });
+    const [first, second] = created.ok ? created.value : [];
+    for (const action of ["accept", "dismiss"] as const) {
+      expect(await resolveSuggestionChange(tripId, first!.id, otherEditor, action)).toMatchObject({ ok: false, error: { code: "forbidden" } });
+    }
+    expect(await resolveSuggestionChange(tripId, first!.id, OWNER, "accept")).toMatchObject({ ok: false, error: { code: "forbidden" } });
+    expect((await resolveSuggestionChange(tripId, first!.id, EDITOR, "accept")).ok).toBe(true);
+    expect((await resolveSuggestionChange(tripId, second!.id, OWNER, "dismiss")).ok).toBe(true);
+  });
+
   it("carries the assistant on the origin of a change it stored, so History can say so", async () => {
     const created = await createSuggestion(tripId, EDITOR, draft([rename("Kyoto in spring")]), undefined, { via: "assistant" });
     const [change] = created.ok ? created.value : [];
@@ -649,6 +667,31 @@ describe("acceptSuggestionChanges", () => {
   async function historyLength(): Promise<number> {
     return (await getTripHistory(tripId))!.entries.length;
   }
+
+  // ADR-067's 2026-10-23 amendment: what a chat `@assistant` proposed is its
+  // asker's to decide, beside the editor check. The owner is another editor too.
+  it("refuses another editor a change a chat asker requested, and accepts it from the asker", async () => {
+    const otherEditor = `dev-edna-${randomUUID().slice(0, 8)}`;
+    await grantMembership(db, { tripId, userId: otherEditor, role: "editor", invitedBy: OWNER, now: new Date().toISOString() });
+    const created = await createSuggestion(tripId, EDITOR, draft([rename("Asked in the chat")]), undefined, {
+      via: "assistant",
+      requestedBy: EDITOR,
+    });
+    if (!created.ok) throw new Error(JSON.stringify(created.error));
+    const ids = created.value.map((change) => change.id);
+
+    for (const reviewer of [otherEditor, OWNER]) {
+      expect(await acceptSuggestionChanges(tripId, ids, reviewer)).toMatchObject({
+        ok: false,
+        error: { code: "forbidden", changeId: ids[0] },
+      });
+    }
+    expect(await statusOf(ids[0]!)).toBe("pending");
+    expect((await getTripDetail(tripId))!.name).toBe("Kyoto");
+
+    expect(await acceptSuggestionChanges(tripId, ids, EDITOR)).toMatchObject({ ok: true });
+    expect((await getTripDetail(tripId))!.name).toBe("Asked in the chat");
+  });
 
   it("accepts ten changes as one History entry, which one undo takes back whole, leaving them accepted", async () => {
     const newDay = randomUUID();

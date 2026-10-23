@@ -30,6 +30,41 @@ Format:
   the widget picker's *follows today*), the public API document.
 - Breaking? no, **minor**: an optional field on a request body and on responses.
 
+## 2026-10-23 — A chat message has an author kind, and can ask the assistant (M52 part 3)
+- **Added** (`packages/contracts/src/chat.ts`): `ChatMessageKind` (`member | assistant | system`).
+  `ChatMessage` gains `kind` (`.default("member")`), and `requestedBy`, `replyTo` and
+  `suggestionId` (each `string | null`, `.default(null)`), on both variants: an `assistant`
+  message names the member whose `@assistant` it answers, that member's message, and the
+  suggestion its turn stored, which is what the thread renders the asker's card from (part 6).
+  `ChatMessage` also gains `asksAssistant` (`boolean`, `.default(false)`): a member's message
+  that was an `@assistant`, so every member can see a reply is on its way until an `assistant`
+  message names it in `replyTo`, and only while `createdAt` is within `ASK_MAX_DURATION_SECONDS`:
+  a turn the platform killed, or whose reply could not be posted, is never answered. `PostChatMessage` gains `assistant: true` (optional), the
+  `@assistant` target.
+- **Added** (`packages/contracts/src/assistant.ts`): `STOPPED_EMPTY`, the sentence a turn stopped
+  at its hard deadline with nothing said ends on. It moved here from `useAskThread.ts`, which the
+  Ask tab still reads it from, so the chat's `@assistant` reply says the same.
+  `ASK_MAX_DURATION_SECONDS` (300) moved here from `server/ai/askDeadline.ts`, which still derives
+  its deadlines from it, so a client can bound `asksAssistant`'s pending state (part 6).
+- **Added** (`packages/contracts/src/suggestion.ts`): `SuggestionChange.requestedBy` (optional,
+  absent like `via` for a change any editor decides): the one member who may accept a change a
+  chat `@assistant` stored (they or the trip's owner may dismiss it, ADR-067's amendment), so a client can offer Accept to them and *Waiting on* to
+  everyone else instead of an Accept that answers 403.
+- Why: M52 decisions 8 and 18, ADR-073's 2026-10-23 amendment. An `@assistant` message starts a
+  turn on the poster's own plan, quota and ledger, and its reply is posted whole as an `assistant`
+  message. A poster whose plan has no `ai.ask` is refused 402 `ai-not-entitled` before anything is
+  posted. `system` is decision 17's change lines, which part 6 writes. Stored in migrations 0062
+  (`trip_messages.kind` and `.requested_by`, `trip_suggestions.requested_by`), 0063
+  (`trip_messages.reply_to` and `.suggestion_id`) and 0064 (`trip_messages.asks_assistant`).
+- Consumers updated: `apps/web` (`server/chat/messages.ts` serves the five message fields and
+  `server/suggestions/shared.ts` the change's `requestedBy`; `app/api/trips/[tripId]/chat/route.ts`
+  takes `assistant`; `components/chat/useTripChat.ts`'s optimistic line and `mocks/handlers.ts`
+  build a member's message with them; `components/assistant/useAskThread.ts` imports
+  `STOPPED_EMPTY`). Neither the chat nor suggestions are on the public API, so
+  `openapi.json` does not move.
+- Breaking? no: every new field is defaulted or optional, so a body from a server before this
+  parses as a member's message or an any-editor change, and `assistant` is optional.
+
 ## 2026-10-23 — A transit stop's `flightNumber` (M52 part 2; public API 1.21.0)
 - **Added** (`activity.ts`): `FlightNumber` (trimmed, 1–20 characters, free text), and an optional
   `flightNumber` on `AddActivity`, nullable-optional on `UpdateActivity` (omitted = unchanged,

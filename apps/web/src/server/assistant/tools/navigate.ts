@@ -118,6 +118,10 @@ export const goToTool = defineTool({
   needs: ["trip", "scope", "notebooks", "paletteCommands"] as const,
   minimumRole: "viewer",
   onReadOnlyTurns: false,
+  // The page moves on the finish chunk's palette commands, which reach only
+  // the asker's own rail. A chat reply is read by the whole thread and moves
+  // nobody's page, so offered there it says "Taking you to Day 3." and lies.
+  origins: ["ask"],
   // Our sentences, and the model's own words quoted back: no person's text.
   run: async (input, deps): Promise<NavigateOutput> => {
     const found = await destinations(input, deps.trip, deps.scope, deps.notebooks);

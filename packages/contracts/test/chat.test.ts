@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CHAT_MESSAGE_MAX, ChatMessage, ChatPage, EditChatMessage, PostChatMessage, TripEventsPage } from "../src/index.ts";
+import { ASK_MAX_DURATION_SECONDS, CHAT_MESSAGE_MAX, ChatMessage, ChatPage, EditChatMessage, PostChatMessage, TripEventsPage } from "../src/index.ts";
 
 const meta = {
   messageId: "6e9a2c9e-3f7a-4b6e-9d3f-2b1a5c8d7e6f",
@@ -7,6 +7,8 @@ const meta = {
   createdAt: "2026-10-13T10:00:00.000Z",
   editedAt: null,
 };
+// What every message before M52 reads as: a member's, answering nobody.
+const served = { ...meta, kind: "member", requestedBy: null, replyTo: null, suggestionId: null, asksAssistant: false };
 
 describe("ChatMessage", () => {
   // ADR-073 §4: a removed message is served with no text. The variant is what
@@ -18,12 +20,36 @@ describe("ChatMessage", () => {
       body: "the thing I deleted",
       link: { kind: "day", id: meta.messageId },
     });
-    expect(parsed).toEqual({ ...meta, removed: true });
+    expect(parsed).toEqual({ ...served, removed: true });
   });
 
   it("keeps the body and link of a live message", () => {
-    const live = { ...meta, removed: false, body: "Dinner at 8?", link: { kind: "stop", id: meta.messageId } };
+    const live = { ...served, removed: false, body: "Dinner at 8?", link: { kind: "stop", id: meta.messageId } };
     expect(ChatMessage.parse(live)).toEqual(live);
+  });
+
+  // M52 decision 18: the assistant's reply names who asked, the message that
+  // asked and the suggestion it stored, which is what the thread renders its
+  // card from. A message sent without them (an older server) is a member's.
+  it("keeps an assistant message's asker, question and suggestion, and reads a message without them as a member's", () => {
+    const reply = {
+      ...meta,
+      kind: "assistant",
+      requestedBy: "dev-bea",
+      replyTo: "5d2c7a3e-58a1-4c5e-9b8e-2f4f1c9a7b10",
+      suggestionId: "8e1f0b2a-3c4d-4e5f-8a6b-7c8d9e0f1a2b",
+      asksAssistant: false,
+      removed: false,
+      body: "Moved it.",
+    };
+    expect(ChatMessage.parse(reply)).toEqual(reply);
+    expect(ChatMessage.parse({ ...meta, removed: false, body: "hi" })).toMatchObject({
+      kind: "member",
+      requestedBy: null,
+      replyTo: null,
+      suggestionId: null,
+      asksAssistant: false,
+    });
   });
 
   // A reader on an older build (a stale tab, a rolled-back deploy) must not
@@ -31,7 +57,18 @@ describe("ChatMessage", () => {
   // two, and the next one will too. The message is kept, without its link.
   it("keeps a message whose link kind it does not know, without the link", () => {
     const parsed = ChatMessage.parse({ ...meta, removed: false, body: "@Later", link: { kind: "unknown_future", id: "x" } });
-    expect(parsed).toEqual({ ...meta, removed: false, body: "@Later" });
+    expect(parsed).toEqual({ ...served, removed: false, body: "@Later" });
+  });
+});
+
+// A client reads `asksAssistant` as pending only this long after `createdAt`:
+// a turn the platform killed, or whose reply could not be posted, names the
+// message in no `replyTo`, so without the bound it would read "thinking"
+// forever. The routes' `maxDuration` is held to the same number in
+// `askDeadline.test.ts`.
+describe("ASK_MAX_DURATION_SECONDS", () => {
+  it("is the five-minute wall an assistant turn cannot outlive", () => {
+    expect(ASK_MAX_DURATION_SECONDS).toBe(300);
   });
 });
 
@@ -52,6 +89,11 @@ describe("PostChatMessage", () => {
   it("links only a day, a stop, a notebook or a person", () => {
     const link = { kind: "page", id: meta.messageId };
     expect(PostChatMessage.safeParse({ body: "hi", link }).success).toBe(false);
+  });
+
+  it("asks the assistant only with assistant: true", () => {
+    expect(PostChatMessage.parse({ body: "@assistant hi", assistant: true }).assistant).toBe(true);
+    expect(PostChatMessage.safeParse({ body: "hi", assistant: false }).success).toBe(false);
   });
 
   // A person is a `users.id`, which is not a uuid; a notebook's id is.

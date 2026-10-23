@@ -22,6 +22,9 @@
 // One with `"surface": "playbook"` (M45 D9) is asked at the same door on a
 // playbook day's page: the Japan trip's first day, published by the eval
 // actor, asked about by a fresh account whose own copy of the trip is "Kyoto".
+// One with `"surface": "chat"` (M52) is an `@assistant` in the seeded trip's
+// chat: its `chat` messages and then its own are posted there, and the turn
+// runs as the chat route runs it, offered `read_chat`.
 //
 // It writes a JSON report to `eval-results/` (git-ignored) and prints one line
 // per check. A failed check fails the run, so a regression is a red exit code.
@@ -39,6 +42,8 @@ import type { AskAnalyticsRecord } from "@/server/assistant/askAnalytics";
 import type { TurnLedger } from "@/server/assistant/ledger";
 import { accountExpectationFor, expectationFor, playbookExpectationFor, type SeededAccountTrip } from "./cases";
 import { saveDay, setSavedDayVisibility } from "@/server/savedDays";
+import { postMessage } from "@/server/chat/messages";
+import type { TurnOrigin } from "@/server/assistant/defineTool";
 import { grade, navigatedTo, retractedText, reviewedChanges, textBeforeToolCall, visibleText, type EvalCheck, type EvalTurn } from "./grade";
 import { capMicroUsdFrom, dollars, turnMicroUsd, unpricedModels } from "./spend";
 import { ACCOUNT_TRIPS, accountTripCommands, longTripCommands, type EvalTripName } from "./trips";
@@ -91,8 +96,10 @@ interface LivePrompt {
   text: string;
   /** The trip it runs on (`trips.ts`); absent, the seeded Japan trip. */
   trip?: EvalTripName;
-  /** `account`: asked at the account door, across `ACCOUNT_TRIPS` (M45); `playbook`: on a published day's page (D9). */
-  surface?: "account" | "playbook";
+  /** `account`: asked at the account door, across `ACCOUNT_TRIPS` (M45); `playbook`: on a published day's page (D9); `chat`: an `@assistant` in the trip chat (M52). */
+  surface?: "account" | "playbook" | "chat";
+  /** On a `chat` prompt, what was said before it, oldest first. */
+  chat?: string[];
 }
 
 const liveSet = JSON.parse(readFileSync(join(import.meta.dirname, "live-set.json"), "utf8")) as {
@@ -209,6 +216,8 @@ async function runTurn(
   tripId: string | null,
   /** At that door, the scope: the account's unless a playbook page is named. */
   beyondTrip: { kind: "account" } | { kind: "playbook"; page: { kind: "day"; savedDayId: string } } = { kind: "account" },
+  /** On a trip, where the turn was asked: the Ask tab, or the trip chat. */
+  origin: TurnOrigin = "ask",
 ): Promise<EvalTurn & { stepDurationsMs: (number | null)[]; providers: (string | null)[]; generationIds: (string | null)[]; microUsd: number | null }> {
   // Keyed by actor, and every turn here is the same actor (see replay.int.test.ts).
   await db.delete(rateLimitCounters);
@@ -229,7 +238,9 @@ async function runTurn(
     if (ledger) ledgers.push(ledger);
   };
   const response =
-    tripId === null ? await handleBeyondTripAskRequest(request, undefined, sink) : await handleAskRequest(request, tripId, undefined, sink);
+    tripId === null
+      ? await handleBeyondTripAskRequest(request, undefined, sink)
+      : await handleAskRequest(request, tripId, undefined, sink, undefined, undefined, origin);
   const body = await response.text();
   const record = records[0];
   if (record === undefined) {
@@ -347,6 +358,11 @@ describe.skipIf(!confirmed)("the live set, on production's models", () => {
             session.userId = ACTOR_ID;
           }
           expected = playbookExpectationFor(prompt.id, stopTitles);
+        } else if (prompt.surface === "chat") {
+          const { tripId, detail } = await seedTripFor(prompt);
+          for (const body of [...(prompt.chat ?? []), prompt.text]) await postMessage(tripId, ACTOR_ID, { body });
+          turn = await runTurn(prompt, tripId, undefined, "chat");
+          expected = expectationFor(prompt.id, detail);
         } else {
           const { tripId, detail } = await seedTripFor(prompt);
           turn = await runTurn(prompt, tripId);

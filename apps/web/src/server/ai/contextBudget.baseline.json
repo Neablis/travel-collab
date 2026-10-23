@@ -226,6 +226,10 @@
       "chars": 470,
       "approxTokens": 142
     },
+    "read_chat": {
+      "chars": 426,
+      "approxTokens": 129
+    },
     "search_this_page": {
       "chars": 418,
       "approxTokens": 126

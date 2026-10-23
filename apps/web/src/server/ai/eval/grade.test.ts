@@ -259,6 +259,25 @@ describe("the cases", () => {
     }
   });
 
+  // M52 decision 18: the chat case states its problem only in the messages
+  // before the ask, so a turn passes it only by reading them.
+  it("holds the chat case to read_chat, with its problem only in the earlier messages", () => {
+    const set = JSON.parse(readFileSync(join(import.meta.dirname, "live-set.json"), "utf8")) as {
+      prompts: { id: string; text: string; surface?: string; chat?: string[] }[];
+    };
+    const chatCases = set.prompts.filter((prompt) => prompt.surface === "chat");
+    expect(chatCases.map((prompt) => prompt.id)).toEqual(["h-chat-fix-problem"]);
+    const [asked] = chatCases;
+    expect(asked!.chat!.join(" ")).toContain("Fushimi Inari");
+    expect(asked!.text).not.toContain("Fushimi Inari");
+
+    const expected = expectationFor(asked!.id, japan)!;
+    const fixed = (toolCalls: { name: string; input: object }[]) =>
+      failing(grade(turn({ toolCalls }, "I've put moving Fushimi Inari to the next day up for review.", 1), expected));
+    expect(fixed([{ name: "read_chat", input: {} }, { name: "MoveActivity", input: {} }])).toEqual([]);
+    expect(fixed([{ name: "read_trip", input: {} }, { name: "MoveActivity", input: {} }])).toEqual(["calls read_chat"]);
+  });
+
   // A prompt that names a trip the runner cannot seed would fail only on a
   // paid run, after every prompt before it had spent; so would a "long" trip
   // that was not long enough to get the overview it exists to test.
