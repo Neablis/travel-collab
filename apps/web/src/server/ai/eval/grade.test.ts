@@ -278,6 +278,33 @@ describe("the cases", () => {
     expect(fixed([{ name: "read_trip", input: {} }, { name: "MoveActivity", input: {} }])).toEqual(["calls read_chat"]);
   });
 
+  // M52 decisions 13 and 14: the day-of cases run on a trip under way, and the
+  // one before the trip asks the same question where the near-now search is
+  // not offered. Each fails the turn that took the other road.
+  it("holds the day-of cases to the near-now search, the time moves and the pending swap", () => {
+    const set = JSON.parse(readFileSync(join(import.meta.dirname, "live-set.json"), "utf8")) as {
+      prompts: { id: string; text: string; trip?: string }[];
+    };
+    const prompt = (id: string) => set.prompts.find((entry) => entry.id === id)!;
+    expect(prompt("d-near-before-the-trip").text).toBe(prompt("d-coffee-near-now").text);
+    expect(prompt("d-near-before-the-trip").trip).toBeUndefined();
+    expect(prompt("d-running-late").text).toContain("45 minutes late");
+
+    const graded = (id: string, toolCalls: string[], proposed = 0) =>
+      failing(grade(turn({ toolCalls: toolCalls.map((name) => ({ name, input: {} })) }, "Near the Forum: Sant'Eustachio.", proposed), expectationFor(id, japan)!));
+    expect(graded("d-coffee-near-now", ["find_places_near_now"])).toEqual([]);
+    expect(graded("d-coffee-near-now", ["search_places"])).toEqual(["calls find_places_near_now"]);
+    expect(graded("d-near-before-the-trip", ["search_places"])).toEqual([]);
+    expect(graded("d-near-before-the-trip", ["find_places_near_now"])).toEqual(["never calls find_places_near_now"]);
+    expect(graded("d-running-late", ["read_day", "UpdateActivity", "UpdateActivity"], 2)).toEqual([]);
+    expect(graded("d-running-late", ["read_day", "MoveActivity"], 1)).toEqual(["calls UpdateActivity", "never calls MoveActivity"]);
+    expect(graded("d-closed-find-similar", ["find_places_near_now", "UpdateActivity", "AddActivity"], 2)).toEqual([]);
+    expect(graded("d-closed-find-similar", ["find_places_near_now", "RemoveActivity", "AddActivity"], 2)).toEqual([
+      "calls UpdateActivity",
+      "never calls RemoveActivity",
+    ]);
+  });
+
   // A prompt that names a trip the runner cannot seed would fail only on a
   // paid run, after every prompt before it had spent; so would a "long" trip
   // that was not long enough to get the overview it exists to test.
@@ -286,7 +313,7 @@ describe("the cases", () => {
       prompts: { id: string; trip?: string }[];
     };
     const named = set.prompts.filter((prompt) => prompt.trip !== undefined);
-    expect(named.map((prompt) => prompt.id)).toEqual(["q-summarise-long-trip"]);
+    expect(named.map((prompt) => prompt.id)).toEqual(["q-summarise-long-trip", "d-coffee-near-now", "d-running-late", "d-closed-find-similar"]);
     for (const prompt of named) expect(EVAL_TRIPS as readonly string[], prompt.id).toContain(prompt.trip);
 
     const dates = longTripCommands("00000000-0000-4000-8000-000000000000").find((c) => c.type === "SetTripDates");

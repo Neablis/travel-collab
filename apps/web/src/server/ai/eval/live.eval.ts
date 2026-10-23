@@ -46,7 +46,7 @@ import { postMessage } from "@/server/chat/messages";
 import type { TurnOrigin } from "@/server/assistant/defineTool";
 import { grade, navigatedTo, retractedText, reviewedChanges, textBeforeToolCall, visibleText, type EvalCheck, type EvalTurn } from "./grade";
 import { capMicroUsdFrom, dollars, turnMicroUsd, unpricedModels } from "./spend";
-import { ACCOUNT_TRIPS, accountTripCommands, longTripCommands, type EvalTripName } from "./trips";
+import { ACCOUNT_TRIPS, accountTripCommands, japanTodayStart, longTripCommands, type EvalTripName } from "./trips";
 
 const ACTOR_ID = "eval-actor";
 
@@ -141,7 +141,9 @@ async function seedTripFor(prompt: LivePrompt): Promise<{ tripId: string; detail
   const created = await executeTripCommand({ type: "CreateTrip", tripId, name }, ACTOR_ID);
   if (!created.ok) throw new Error(`seed: ${created.error.message}`);
   const commands =
-    prompt.trip === "long-100" ? longTripCommands(tripId) : japanTripCommands(tripId, { startDate: "2027-04-01" });
+    prompt.trip === "long-100"
+      ? longTripCommands(tripId)
+      : japanTripCommands(tripId, { startDate: prompt.trip === "today" ? japanTodayStart(Date.now()) : "2027-04-01" });
   const seeded = await executeTripCommandBatch(commands, ACTOR_ID);
   if (!seeded.ok) throw new Error(`seed: ${seeded.error.message}`);
   return { tripId, detail: seeded.detail };

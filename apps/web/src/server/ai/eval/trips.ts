@@ -7,10 +7,23 @@
 import { randomUUID } from "node:crypto";
 import type { ActivityTag, Location, TripCommand } from "@tc/contracts";
 import { commandsFor } from "@tc/factories";
+import { clockIn } from "@tc/pages";
 
-/** The trips a live-set prompt may name, beyond the default Japan trip. */
-export const EVAL_TRIPS = ["long-100"] as const;
+/**
+ * The trips a live-set prompt may name, beyond the default Japan trip.
+ * `today` is that trip dated to start today (M52), so a day-of prompt runs on
+ * a trip under way and is offered what only such a trip is.
+ */
+export const EVAL_TRIPS = ["long-100", "today"] as const;
 export type EvalTripName = (typeof EVAL_TRIPS)[number];
+
+/**
+ * Today's date where the Japan trip's first days are, so `today` is under way
+ * whatever zone the runner is in: its first stops are in Tokyo.
+ */
+export function japanTodayStart(at: number): string {
+  return clockIn("Asia/Tokyo", at).date;
+}
 
 // A hundred days through six stays, Tokyo twice: long enough to be well past
 // the overview line, and shaped like a real long trip — a few cities, each for

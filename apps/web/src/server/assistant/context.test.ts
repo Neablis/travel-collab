@@ -1,14 +1,17 @@
 import { describe, expect, it } from "vitest";
-import type { Conflict } from "@tc/contracts";
-import { tripDetailFixture } from "@tc/factories";
+import type { Conflict, TripGlobals } from "@tc/contracts";
+import { tripDetailFactory, tripDetailFixture } from "@tc/factories";
 import {
   ASK_SCOPE_PREFIX,
   activeConflicts,
   askScopeLine,
   clockTimesLine,
+  nowBlocks,
   parseAskScope,
+  turnNowOf,
   type AskScope,
 } from "./context";
+import { renderPrompt } from "./prompt";
 
 // Two conflicts with compound, UUID-embedding ids (as detectConflicts emits) —
 // exactly the ids the model must NEVER be asked to copy.
@@ -127,5 +130,54 @@ describe("clockTimesLine", () => {
     expect(clockTimesLine("24h")).toContain('"14:00"');
     expect(clockTimesLine("24h")).toContain("24-hour HH:mm as well");
     expect(clockTimesLine("24h")).not.toContain("pm");
+  });
+});
+
+// M52 decision 14a: an under-way turn is told the local time, today and the
+// stops either side of now, and no other turn is told anything new.
+describe("the turn's now", () => {
+  // Three stops, 09-10, 10-11 and 11-12, at the Colosseum, the Forum and the
+  // Vatican, on 2026-06-10.
+  const trip = tripDetailFactory.build({}, { transient: { dayCount: 1, activitiesPerDay: 3, located: true, startDate: "2026-06-10" } });
+  const [first, second, third] = trip.days[0]!.activityIds;
+  const inTokyo = {
+    days: [{ index: 0, date: "2026-06-10", cities: ["Rome"], activityCount: 3, costSubtotal: 0, place: { lat: 41.89, lng: 12.49, city: "Rome" }, timeZone: "Asia/Tokyo" }],
+  } as unknown as TripGlobals;
+
+  it("reads the stops either side of now on the day's own clock", () => {
+    // 01:30 UTC is 10:30 in Tokyo, inside the second stop's window.
+    const now = turnNowOf(trip, inTokyo, Date.parse("2026-06-10T01:30:00Z"));
+    expect(now).toMatchObject({ phase: "underway", dayIndex: 0, local: { date: "2026-06-10", time: "10:30" } });
+    expect([now.passed?.activityId, now.current?.activityId, now.next?.activityId]).toEqual([first, second, third]);
+    expect(now.city).toEqual({ name: "Rome", lat: 41.89, lng: 12.49 });
+  });
+
+  it("runs on UTC when no day has a zone", () => {
+    const now = turnNowOf(trip, null, Date.parse("2026-06-10T10:30:00Z"));
+    expect(now.current?.activityId).toBe(second);
+    expect(now.local.time).toBe("10:30");
+    expect(now.city).toBeNull();
+  });
+
+  it("passes over a zone this runtime does not know rather than failing the turn", () => {
+    const unknown = { days: [{ ...inTokyo.days[0]!, timeZone: "Mars/Olympus_Mons" }] } as unknown as TripGlobals;
+    const now = turnNowOf(trip, unknown, Date.parse("2026-06-10T10:30:00Z"));
+    expect(now.local).toEqual({ date: "2026-06-10", time: "10:30" });
+    expect(now.current?.activityId).toBe(second);
+  });
+
+  it("puts the local time, the day and the fenced stop titles in a data line, under way only", () => {
+    const rendered = renderPrompt(nowBlocks(turnNowOf(trip, null, Date.parse("2026-06-10T10:30:00Z")), trip));
+    const line = rendered.split("\n").find((text) => text.startsWith("Now: "))!;
+    expect(JSON.parse(line.slice("Now: ".length))).toEqual({
+      date: "2026-06-10",
+      time: "10:30",
+      day: 1,
+      current: { title: `⟦${trip.activities[second!]!.title}⟧`, day: 1, from: "10:00", to: "11:00" },
+      next: { title: `⟦${trip.activities[third!]!.title}⟧`, day: 1, from: "11:00", to: "12:00" },
+    });
+    expect(nowBlocks(turnNowOf(trip, null, Date.parse("2026-05-01T10:30:00Z")), trip)).toEqual([]);
+    expect(nowBlocks(turnNowOf(trip, null, Date.parse("2026-06-12T10:30:00Z")), trip)).toEqual([]);
+    expect(nowBlocks(null, trip)).toEqual([]);
   });
 });

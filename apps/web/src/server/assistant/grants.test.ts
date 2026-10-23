@@ -204,9 +204,12 @@ describe("a grant is a minimum over four independent caps", () => {
   // apply path, which is not a tool at all. Grounding made the tag true of
   // something. A second spending tool is a decision, and this assertion is
   // where it gets noticed.
-  it("has exactly one tool that can spend at a vendor", () => {
+  // The second, M52's near-now search, is that decision taken: the same port,
+  // vendor and quota as the first (decision 13), with *here* filled in.
+  it("has exactly the two place searches that can spend at a vendor", () => {
     expect(ASSISTANT_TOOLS.filter((tool) => tool.spend === "vendor").map((tool) => tool.name)).toEqual([
       "search_places",
+      "find_places_near_now",
     ]);
   });
 

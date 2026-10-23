@@ -51,7 +51,7 @@ import {
   normalizeCities,
 } from "@/lib/playbooks";
 import { hasAtLeast } from "@/server/accessPolicy";
-import type { AskScope } from "@/server/assistant/context";
+import type { AskScope, TurnNow } from "@/server/assistant/context";
 import type { AskIntentRecord } from "@/server/assistant/askAnalytics";
 import { MAX_ASK_BODY_BYTES, MAX_ASK_MESSAGES, MAX_PROMPT_CHARS } from "@/server/assistant/limits";
 import type { AnyAssistantTool, EffectLevel, TurnOrigin } from "./defineTool";
@@ -337,6 +337,8 @@ export interface AiGrant {
   scope: AskScope;
   /** The page row `resolveSurface` verified, or null on any other surface. */
   page: Page | null;
+  /** Where the trip is as the turn starts, or null on a turn about no trip or with no clock handed in. */
+  now: TurnNow | null;
   /** The (domain, maxEffect) pairs this turn holds. */
   grants: GrantedEffects;
   /** The definitions actually offered — a measurement, not a manifest. */
@@ -652,6 +654,13 @@ export interface AdmissionInput {
    * the Ask door.
    */
   origin?: TurnOrigin;
+  /**
+   * Where the trip is now (`turnNowOf`), read off the trip the guard loaded.
+   * The clock and the trip's globals are the edge's, so this arrives as a
+   * function rather than a value. Omitted, no phase is known, and a tool
+   * offered only in one (`find_places_near_now`) is not offered.
+   */
+  now?: (detail: TripDetail) => TurnNow;
   ports: AdmissionPorts;
 }
 
@@ -1186,11 +1195,11 @@ const grantTools: AdmissionStage = {
     const caps = {
       surface,
       role: canWrite || playbook ? ("propose" as const) : ("read" as const),
-      // **A chat turn proposes only on a plan that sells `ai.command`** (M52
+      // **A turn proposes only on a plan that sells `ai.command`** (M52
       // decision 18), the asker's own: Studio holds `ai.ask` alone, so its
-      // asker gets answers. The Ask door still asks `permitsPropose`, as it did.
-      plan:
-        origin === "chat" && !selected.entitlements.has("ai.command") ? ("read" as const) : permitsPropose({ userId }),
+      // asker gets answers, on the Ask tab as in the chat (Mitchell,
+      // 2026-10-23).
+      plan: selected.entitlements.has("ai.command") ? permitsPropose({ userId }) : ("read" as const),
       // **A page classifier picks a PROFILE, never an effect** (ADR-058). The
       // page surface's intents both live inside what the page grant already
       // holds, and a page `question` narrowing the effect to `read` would make
@@ -1295,13 +1304,17 @@ const grantTools: AdmissionStage = {
     // would be a second copy of `TASK_CLASSES_FOR` that drifts the first time
     // a tool's `taskClasses` changes.
     const posture = postureFor(caps);
-    const offerable = toolsFor(grants, undefined, posture, origin);
+    // The phase is the tool set's sixth axis (M52 decision 6): read once, here,
+    // so every set below and the instruction agree on one instant.
+    const now = detail !== null && draft.input.now ? draft.input.now(detail) : null;
+    const phase = now?.phase;
+    const offerable = toolsFor(grants, undefined, posture, origin, phase);
     // The page's intents, each resolved to the set it would hold. The pivot
     // tool is in a set only when there is somewhere to pivot TO.
     const reachable = pageReachable ?? [taskClass];
     const canPivot = page !== null && reachable.length > 1;
     const setFor = (intent: TaskClass) =>
-      toolsFor(grants, intent, posture, origin).filter((tool) => canPivot || tool.name !== SWITCH_INTENT_TOOL_NAME);
+      toolsFor(grants, intent, posture, origin, phase).filter((tool) => canPivot || tool.name !== SWITCH_INTENT_TOOL_NAME);
     const tools = narrowBy === undefined ? offerable : setFor(narrowBy);
     const classWithheld = page === null && tools.length < offerable.length;
     const intents = canPivot
@@ -1337,7 +1350,7 @@ const grantTools: AdmissionStage = {
             const escalatedGrants = grantFor(lifted);
             const escalatedTier = capTier(tierFor("edit"), selected.entitlements.ceilings.maxTier);
             return {
-              tools: toolsFor(escalatedGrants, "edit", postureFor(lifted), origin),
+              tools: toolsFor(escalatedGrants, "edit", postureFor(lifted), origin, phase),
               grants: escalatedGrants,
               tier: escalatedTier,
               model: selected.models[escalatedTier],
@@ -1381,6 +1394,7 @@ const grantTools: AdmissionStage = {
       surface,
       scope,
       page,
+      now,
       grants,
       tools,
       posture,
