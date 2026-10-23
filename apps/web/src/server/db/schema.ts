@@ -1349,6 +1349,11 @@ export const aiUsage = pgTable(
     // Null on rows written before it existed. The parity gate's p75 latency
     // is read from here rather than from a log nobody keeps (ADR-062 §7).
     latencyMs: integer("latency_ms"),
+    // How many retrieved example days went into a plan turn's prompt (M48,
+    // ADR-075). 0 means retrieval ran and nothing reached the prompt; null
+    // means it never ran — not a plan turn, or `RAG_PLAN_RETRIEVAL` off — so
+    // the two read apart. A count, never the ids: those are in the log.
+    planExamples: integer("plan_examples"),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
   },
   (t) => [

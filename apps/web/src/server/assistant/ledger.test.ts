@@ -64,6 +64,7 @@ export type _CostKeys = Assert<
     | "steps"
     | "planVersionRef"
     | "latencyMs"
+    | "planExamples"
   >
 >;
 export type _SpendKeys = Assert<Exact<keyof ModelSpend, "model" | "tokensIn" | "tokensOut">>;
@@ -129,6 +130,7 @@ const arbSpend: fc.Arbitrary<ModelSpend> = fc.record({
 const arbCost: fc.Arbitrary<TurnCost> = fc.record({
   turnId: fc.option(fc.uuid(), { nil: null }),
   latencyMs: fc.option(fc.integer({ min: 0, max: 300_000 }), { nil: null }),
+  planExamples: fc.option(fc.integer({ min: 0, max: 5 }), { nil: null }),
   userId: fc.constantFrom("alice", "bob"),
   endpoint: fc.constantFrom("ask" as const, "ask.apply" as const, "ask.account" as const, "ask.playbook" as const),
   outcome: fc.constantFrom("completed" as const, "error" as const, "abort" as const),
@@ -225,6 +227,7 @@ describe("cost and capacity are two ledgers, not two fields of one", () => {
       planVersionRef: null,
       turnId: null,
       latencyMs: null,
+      planExamples: null,
     };
     expect(billableRoundTrips({ cost, capacity: [], toolCalls: [], stepSpend: [] })).toBe(3);
     expect(

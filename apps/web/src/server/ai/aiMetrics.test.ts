@@ -111,6 +111,7 @@ function ledgerOf(record: AskAnalyticsRecord, toolCalls: TurnLedger["toolCalls"]
       steps: record.steps,
       planVersionRef: null,
       latencyMs: record.latencyMs,
+      planExamples: null,
     },
     capacity: [],
     toolCalls,

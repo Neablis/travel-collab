@@ -92,6 +92,7 @@ import {
   detectUsedExamples,
   formatExampleBlocks,
   getPlanExamples,
+  planRetrievalEnabled,
   selectPromptExamples,
   type DayChunk,
 } from "@/server/ai/planExamples";
@@ -521,6 +522,9 @@ export async function handleAskRequest(
   // (the off-topic refusal finishes the recorder straight away), and reading
   // a `let` declared further down is a TDZ throw on exactly that path.
   let wrapUpReason: AskWrapUp | null = null;
+  // The plan turn's example count for the ledger, set once retrieval has run
+  // further down; declared here for the same reason as `wrapUpReason`.
+  let planExampleCount: number | null = null;
   const recorder = createAskRecorder({
     turnId,
     // The request's own start, read before admission, so the turn's latency
@@ -566,6 +570,7 @@ export async function handleAskRequest(
     pivots: () => pivotsOf(intent.pivots(), escalation.escalated(), grant.taskClass),
     // Set in `prepareStep`, several frames after this recorder is built.
     wrapUp: () => wrapUpReason,
+    planExamples: () => planExampleCount,
     // **Read at write time, so an aborted step's writes are still in the
     // record.** Both buffers hand back copies, so this cannot mutate the turn's
     // own account of what the model asked for. The insert carries the saved
@@ -745,6 +750,9 @@ export async function handleAskRequest(
   // candidate set. The retrieved log above keeps the wider picture; the
   // model and the used-detection only ever see these.
   const promptExamples = selectPromptExamples(planExamples);
+  // Null unless retrieval ran, so a flag-off plan turn and one that found
+  // nothing do not read the same in the ledger.
+  if (grant.taskClass === "plan" && planRetrievalEnabled()) planExampleCount = promptExamples.length;
 
   const agent = new ToolLoopAgent({
     model: grant.model,

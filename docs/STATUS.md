@@ -43,8 +43,8 @@ and spend are in `docs/milestones/M50-strangers-find-a-day.md`.
 
 **M48 is parked, not closed** (2026-10-19, Mitchell): gate 4 of 11, its open boxes wait on
 flag-on plan turns, which M50's launch should bring. When it resumes, its no-traffic work comes
-first: (1) record the example count per plan turn in the M31 ledger (a migration and the
-recorder); (2) paste the baseline (the `ai-usage` skill over plan turns before 2026-10-18);
+first: (1) ~~record the example count per plan turn in the M31 ledger~~ — built 2026-10-23
+(`ai_usage.plan_examples`, migration 0066, `ai-usage` query 12); (2) paste the baseline (the `ai-usage` skill over plan turns before 2026-10-18);
 (3) capture PR 470's red text for the playbook-filter box. `RAG_PLAN_RETRIEVAL=1` stays on in
 production. Decisions 1 and 11 and both offline checks' pasted numbers are Mitchell's.
 
