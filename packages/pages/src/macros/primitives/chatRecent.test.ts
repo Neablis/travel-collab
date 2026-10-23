@@ -91,10 +91,14 @@ describe("chat.recent", () => {
       expect(shown({ count: "5" })).toEqual(["Message 8", "Message 9", "Message 10", "Message 11", "Message 12"]);
     });
 
-    it("shows three when nothing is chosen, or what is stored is not a number", () => {
-      expect(shown({})).toEqual(["Message 10", "Message 11", "Message 12"]);
-      expect(shown({ count: "lots" })).toEqual(["Message 10", "Message 11", "Message 12"]);
-    });
+    // A page written by hand or by the assistant can store anything here, and
+    // a broken widget is worse than the default (PR 537 round 4).
+    it.each([[{}], [{ count: "lots" }], [{ count: null }], [{ count: true }], [{ count: " " }]])(
+      "shows three when what is stored is not a number: %j",
+      (params) => {
+        expect(shown(params)).toEqual(["Message 10", "Message 11", "Message 12"]);
+      },
+    );
 
     it("holds a stored number outside one to ten at the nearer end", () => {
       expect(shown({ count: 0 })).toEqual(["Message 12"]);

@@ -34,7 +34,6 @@ import {
 import { AssistantRail } from "@/components/assistant/AssistantRail";
 import { useTripChat } from "@/components/chat/useTripChat";
 import { boardChatHref } from "@/components/chat/boardChatHref";
-import { useRouter } from "next/navigation";
 import { isDemoTripId } from "@/lib/demoTrip";
 import { AssistantBubble } from "@/components/assistant/AssistantBubble";
 import { usePhoneAskEntry, type AskHandOff } from "@/components/nav/phoneAsk";
@@ -974,11 +973,10 @@ export function PageScreen({
   }, [editing, editor, pendingCount]);
   const [assistantOpen, setAssistantOpen] = useState(false);
   // **The trip's chat, for a notebook's *Group chat* only** (Mitchell, PR 537
-  // round 3): its messages, read as the board reads them, and a way to the
+  // round 3): its messages, read as the board reads them, and a link to the
   // chat where it lives, the board's, opened (`boardChatHref`). This rail has
   // no Chat tab. Not read at all on a trip with one member: there is nobody
   // to chat with, and the widget is absent (decision 15).
-  const router = useRouter();
   const shared = !isDemoTripId(tripId) && memberCount > 1;
   const chat = useTripChat({ tripId, enabled: status === "ready" && shared, chatRev, reading: false, accessLost });
   const hasChat = shared && chat.status !== "no-access";
@@ -1023,7 +1021,7 @@ export function PageScreen({
     undefined,
     undefined,
     false,
-    hasChat ? { onOpen: () => router.push(boardChatHref(tripId)), messages: chat.status === "ready" ? chat.messages : null } : undefined,
+    hasChat ? { href: boardChatHref(tripId), messages: chat.status === "ready" ? chat.messages : null } : undefined,
   );
   // **Leaving Editing no longer hangs up, and that is a reversal.** It did,
   // because the assistant was an editing-only control and leaving Editing was

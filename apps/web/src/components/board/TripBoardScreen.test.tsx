@@ -19,7 +19,7 @@ import { PreferencesProvider } from "@/components/account/PreferencesProvider";
 import { PhoneAskTab } from "@/components/nav/PhoneTabBar";
 import { usePhoneAsk } from "@/components/nav/phoneAsk";
 import { useBoardFocus } from "@/components/chat/boardFocus";
-import { boardChatHref } from "@/components/chat/boardChatHref";
+import { boardChatHref, OPEN_CHAT_PARAM } from "@/components/chat/boardChatHref";
 import { type PaletteCommand, usePaletteCommands } from "@/components/palette/paletteRegistry";
 import { activityFactory, costedTripDetailFixture, historyFixture, locationFactory, pageFixture, tripCoverFactory, tripDetailFixture } from "@tc/factories";
 import { makeTripHandlers, makeAccountPlanHandler, makeChatHandlers, makeNearbyStopsHandler, makePagesHandlers } from "@/mocks/handlers";
@@ -1973,6 +1973,21 @@ describe("assistant rail visibility", () => {
       server.use(...makeChatHandlers({ viewerId: "dev-alice", messages: [said] }).handlers, ...makeTripHandlers(fixture));
       renderWithTabBar(fixture.tripId);
       expect(selected(await screen.findByRole("complementary", { name: "Assistant" }))).toEqual(["Chat"]);
+      // Once opened the param goes (PR 537 round 4), or a reload or Back
+      // would open Chat again after the reader closed it.
+      await waitFor(() => expect(search.get(OPEN_CHAT_PARAM)).toBeNull());
+    });
+
+    it("opens the phone's sheet on Chat when arrived at from a notebook's Group chat, and drops the param", async () => {
+      setViewportMatches({ "(max-width: 767px)": true });
+      search = new URLSearchParams(`view=Plan&${boardChatHref("x").split("?")[1]}`);
+      const fixture = shared();
+      server.use(...makeChatHandlers({ viewerId: "dev-alice", messages: [said] }).handlers, ...makeTripHandlers(fixture));
+      renderWithTabBar(fixture.tripId);
+      const sheet = await screen.findByRole("dialog", { name: "Chat" });
+      expect(within(sheet).getByRole("tabpanel", { name: "Chat" })).toBeTruthy();
+      // The rest of the URL stays as it was.
+      await waitFor(() => expect(search.toString()).toBe("view=Plan"));
     });
 
     it("opens on the tab last open, Chat with its composer focused, and Ask once Ask was chosen", async () => {

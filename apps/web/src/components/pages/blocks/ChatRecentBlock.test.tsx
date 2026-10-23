@@ -39,9 +39,25 @@ describe("ChatRecentBlock", () => {
     render(view());
     const control = screen.getByRole("button", { name: "Open group chat" });
     expect(screen.getAllByRole("button")).toEqual([control]);
-    expect(control.textContent).toBe("Traveler 2: On the train");
+    // Its name is words it shows (WCAG 2.5.3), and the messages describe it.
+    expect(control.textContent).toBe("Open group chatTraveler 2: On the train");
     await userEvent.click(screen.getByText("On the train"));
     expect(onOpen).toHaveBeenCalledOnce();
+  });
+
+  it("still shows what it is while the chat is being read", () => {
+    unregister.push(registerPhoneAsk({ open: false, onOpen: () => {}, chat: { onOpen: () => {}, messages: null } }));
+    render(view());
+    expect(screen.getByRole("button", { name: "Open group chat" }).textContent).toBe("Open group chat");
+  });
+
+  // A notebook's way in is a page change (PR 537 round 4): a link, so it can
+  // open in a new tab, where the board's is its own panel.
+  it("is a link where the chat lives on another page", () => {
+    unregister.push(registerPhoneAsk({ open: false, onOpen: () => {}, chat: { href: "/trips/x?chat=open", messages: [message] } }));
+    render(view());
+    expect(screen.getByRole("link", { name: "Open group chat" }).getAttribute("href")).toBe("/trips/x?chat=open");
+    expect(screen.queryByRole("button")).toBeNull();
   });
 
   it("opens nothing from a click while the page is being edited", async () => {

@@ -718,7 +718,11 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   /**
    * **A notebook's *Group chat*** (M52, `boardChatHref`) arrives as
    * `?chat=open`: the panel opens on Chat once the board renders, once per
-   * arrival, so closing it afterwards stays closed.
+   * arrival, so closing it afterwards stays closed. The param then goes from
+   * the URL, or a reload, Back from a notebook or a copied link would open
+   * Chat again (PR 537 round 4). It goes by `history.replaceState`, as
+   * `LensRouter.setView` writes the URL: no history entry, and no router
+   * navigation to fetch the page from the server again (PR 486).
    */
   const linkedChat = searchParams.get(OPEN_CHAT_PARAM) !== null;
   const appliedChatLink = useRef(false);
@@ -726,6 +730,10 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
     if (!linkedChat || !boardRenders || isDemoTripId(tripId) || appliedChatLink.current) return;
     appliedChatLink.current = true;
     openChat();
+    const rest = new URLSearchParams(searchParams);
+    rest.delete(OPEN_CHAT_PARAM);
+    const query = rest.toString();
+    window.history.replaceState(null, "", `${window.location.pathname}${query === "" ? "" : `?${query}`}`);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once the board renders; `openChat` is this render's
   }, [linkedChat, boardRenders]);
 

@@ -21,13 +21,17 @@ const MOST = 10;
 
 // A `choice` stores its value as a string; a number is taken too, for a page
 // written by hand. Anything else, or nothing, is the default rather than a
-// broken widget, and a number outside one to ten is held at the nearer end.
-const ChatRecentParams = z.object({ count: z.union([z.string(), z.number()]).optional() });
+// broken widget, so the schema takes any value and `countOf` judges it (PR 537
+// round 4): a number outside one to ten is held at the nearer end.
+const ChatRecentParams = z.object({ count: z.unknown().optional() });
 type ChatRecentParams = z.infer<typeof ChatRecentParams>;
 
-function countOf(stored: ChatRecentParams["count"]): number {
-  const n = Math.round(Number(stored));
-  return stored === undefined || stored === "" || !Number.isFinite(n) ? CHAT_RECENT_DEFAULT : Math.min(MOST, Math.max(1, n));
+function countOf(stored: unknown): number {
+  // Only a string or a number names a count: `Number(true)` is 1 and
+  // `Number(" ")` is 0, neither of which anyone chose.
+  const text = typeof stored === "number" ? String(stored) : typeof stored === "string" ? stored.trim() : "";
+  const n = text === "" ? NaN : Math.round(Number(text));
+  return Number.isFinite(n) ? Math.min(MOST, Math.max(1, n)) : CHAT_RECENT_DEFAULT;
 }
 
 /** What the chat panel calls the assistant's replies. */

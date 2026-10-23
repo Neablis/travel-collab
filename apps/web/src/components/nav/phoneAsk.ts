@@ -56,8 +56,12 @@ export type PhoneAskEntry = {
  */
 export type AskHandOff = { text: string; prefill?: true };
 
-/** What a screen offers of its trip's chat (`PhoneAskEntry.chat`). */
-export type PhoneChat = { onOpen: () => void; messages: readonly ChatMessage[] | null };
+/**
+ * What a screen offers of its trip's chat (`PhoneAskEntry.chat`): `onOpen`
+ * where the chat is this screen's own panel, `href` where it is another page's,
+ * so the way in is a link (a notebook's, to the board: PR 537 round 4).
+ */
+export type PhoneChat = { messages: readonly ChatMessage[] | null } & ({ onOpen: () => void } | { href: string });
 
 let entry: PhoneAskEntry | null = null;
 const listeners = new Set<() => void>();
@@ -115,15 +119,17 @@ export function usePhoneAskEntry(
   chatShown = false,
   chat?: PhoneChat,
 ): void {
-  const latest = useRef({ onOpen, onAsk, onResume, onChat: chat?.onOpen });
+  const onChat = chat !== undefined && "onOpen" in chat ? chat.onOpen : undefined;
+  const latest = useRef({ onOpen, onAsk, onResume, onChat });
   useEffect(() => {
-    latest.current = { onOpen, onAsk, onResume, onChat: chat?.onOpen };
+    latest.current = { onOpen, onAsk, onResume, onChat };
   });
   const offered = onOpen !== undefined;
   const asks = onAsk !== undefined;
   const resumes = onResume !== undefined;
   const chats = chat !== undefined;
   const messages = chat?.messages ?? null;
+  const chatHref = chat !== undefined && "href" in chat ? chat.href : undefined;
   useEffect(() => {
     if (!offered) return;
     return registerPhoneAsk({
@@ -133,7 +139,7 @@ export function usePhoneAskEntry(
       ...(resumes ? { onResume: () => latest.current.onResume?.() } : {}),
       ...(unread === undefined ? {} : { unread }),
       ...(chatShown ? { chatShown } : {}),
-      ...(chats ? { chat: { onOpen: () => latest.current.onChat?.(), messages } } : {}),
+      ...(chats ? { chat: chatHref === undefined ? { onOpen: () => latest.current.onChat?.(), messages } : { href: chatHref, messages } } : {}),
     });
-  }, [offered, asks, resumes, open, unread, chatShown, chats, messages]);
+  }, [offered, asks, resumes, open, unread, chatShown, chats, chatHref, messages]);
 }
