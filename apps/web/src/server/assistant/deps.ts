@@ -20,6 +20,7 @@ import {
   isAssistantCommandId,
   type AssistantProposal,
   type ChatLink,
+  type ChatMessageKind,
   type Guest,
   type PageNode,
   type PaletteCommandRef,
@@ -650,7 +651,9 @@ export function newPlaybookProposalBuffer(): PlaybookProposalBuffer {
 
 /** One chat message as the edge reads it for `read_chat`. */
 export interface ChatLine {
-  /** Who wrote it, by name: a member's, or "Assistant". */
+  /** Who wrote it: a member, the assistant, or the app. */
+  authorKind: ChatMessageKind;
+  /** Their name: a member's display name, never an address, or "Assistant". */
   author: string;
   /** ISO time it was posted. */
   at: string;

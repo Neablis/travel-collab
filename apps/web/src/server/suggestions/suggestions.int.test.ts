@@ -485,17 +485,22 @@ describe("resolveSuggestionChange — accept", () => {
     expect(await statusOf(change!.id)).toBe("accepted");
   });
 
-  it("lets only a chat asker accept or dismiss the change they requested", async () => {
+  // ADR-067's 2026-10-23 amendment: the owner may always clear one, whose
+  // asker may have left or lost edit access, but never decide it for them.
+  it("lets only a chat asker accept the change they requested, and the owner dismiss it", async () => {
+    const otherEditor = `dev-edna-${randomUUID().slice(0, 8)}`;
+    await grantMembership(db, { tripId, userId: otherEditor, role: "editor", invitedBy: OWNER, now: new Date().toISOString() });
     const created = await createSuggestion(tripId, EDITOR, draft([rename("Kyoto in spring")], [rename("Kyoto again")]), undefined, {
       via: "assistant",
       requestedBy: EDITOR,
     });
     const [first, second] = created.ok ? created.value : [];
     for (const action of ["accept", "dismiss"] as const) {
-      expect(await resolveSuggestionChange(tripId, first!.id, OWNER, action)).toMatchObject({ ok: false, error: { code: "forbidden" } });
+      expect(await resolveSuggestionChange(tripId, first!.id, otherEditor, action)).toMatchObject({ ok: false, error: { code: "forbidden" } });
     }
+    expect(await resolveSuggestionChange(tripId, first!.id, OWNER, "accept")).toMatchObject({ ok: false, error: { code: "forbidden" } });
     expect((await resolveSuggestionChange(tripId, first!.id, EDITOR, "accept")).ok).toBe(true);
-    expect((await resolveSuggestionChange(tripId, second!.id, EDITOR, "dismiss")).ok).toBe(true);
+    expect((await resolveSuggestionChange(tripId, second!.id, OWNER, "dismiss")).ok).toBe(true);
   });
 
   it("carries the assistant on the origin of a change it stored, so History can say so", async () => {

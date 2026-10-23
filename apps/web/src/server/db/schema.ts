@@ -568,6 +568,9 @@ export const tripMessages = pgTable(
     // above: a message is never deleted, and neither is a suggestion.
     replyTo: uuid("reply_to"),
     suggestionId: uuid("suggestion_id"),
+    // On a member's message, that it was an `@assistant` (M52, migration 0064),
+    // so the thread can show everyone a reply is on its way.
+    asksAssistant: boolean("asks_assistant").notNull().default(false),
     body: text("body").notNull(),
     linkKind: text("link_kind").$type<ChatLink["kind"]>(),
     linkId: text("link_id"),
@@ -732,9 +735,9 @@ export const tripSuggestions = pgTable(
     // decision 2); null for one a person sent. No CHECK: like `status` below,
     // the contract's enum is what a row is parsed against on the way out.
     via: text("via"),
-    // The one member who may accept or dismiss it: the asker of the chat's
-    // `@assistant` turn that stored it (ADR-067's 2026-10-23 amendment). Null
-    // keeps the old rule, any editor.
+    // The one member who may accept it, and dismiss it beside the owner: the
+    // asker of the chat's `@assistant` turn that stored it (ADR-067's
+    // 2026-10-23 amendment). Null keeps the old rule, any editor.
     requestedBy: text("requested_by"),
   },
   // No index on `trip_id`: every read goes through the changes table below.

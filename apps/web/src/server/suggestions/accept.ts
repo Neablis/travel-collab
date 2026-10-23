@@ -76,7 +76,7 @@ export async function acceptSuggestionChanges(
   if (resolved !== undefined) return refuseFor("already-resolved", resolved, "was already resolved.");
   // Beside the editor check, never instead of it (ADR-067's 2026-10-23
   // amendment): a chat `@assistant`'s change is its asker's to decide.
-  const notTheirs = found.find((r) => !mayReview(r.suggestion, reviewerId));
+  const notTheirs = found.find((r) => !mayReview(r.suggestion, { userId: reviewerId, role: access.value }, "accept"));
   if (notTheirs !== undefined) return refuseFor("forbidden", notTheirs, ASKER_ONLY);
 
   // A parent outside the set must already be accepted. A dismissed one took

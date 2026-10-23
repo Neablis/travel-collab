@@ -28,6 +28,7 @@ function toMessage(row: Row): ChatMessage {
     requestedBy: row.requestedBy,
     replyTo: row.replyTo,
     suggestionId: row.suggestionId,
+    asksAssistant: row.asksAssistant,
     createdAt: row.createdAt.toISOString(),
     editedAt: row.editedAt?.toISOString() ?? null,
   };
@@ -132,6 +133,7 @@ export async function postMessage(
     body: input.body,
     linkKind: input.link?.kind ?? null,
     linkId: input.link?.id ?? null,
+    asksAssistant: input.assistant === true,
     createdAt: now,
   });
 }

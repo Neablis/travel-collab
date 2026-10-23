@@ -74,7 +74,7 @@ export async function resolveSuggestionChange(
   }
   if (change.status !== "pending") return refuse("already-resolved", "This suggestion was already resolved.");
   // Beside the editor check above (ADR-067's 2026-10-23 amendment).
-  if (reviewing && !mayReview(suggestion, actorId)) return refuse("forbidden", `This change ${ASKER_ONLY}`);
+  if (action !== "withdraw" && !mayReview(suggestion, { userId: actorId, role }, action)) return refuse("forbidden", `This change ${ASKER_ONLY}`);
 
   return action === "accept"
     ? accept(change, suggestion, actorId, now)

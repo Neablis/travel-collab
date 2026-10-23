@@ -124,15 +124,23 @@ export type SuggestionRow = typeof tripSuggestions.$inferSelect;
 
 /**
  * Whether this reviewer may accept or dismiss the suggestion, beyond being an
- * editor: one a chat `@assistant` stored is its asker's alone (ADR-067's
- * 2026-10-23 amendment). Every other suggestion is any editor's.
+ * editor: one a chat `@assistant` stored is its asker's alone, except that the
+ * owner may always dismiss it, so one whose asker left or lost edit access can
+ * still be cleared (ADR-067's 2026-10-23 amendment). Never accept it: that
+ * would apply a change the asker had not decided on. Every other suggestion is
+ * any editor's.
  */
-export function mayReview(suggestion: Pick<SuggestionRow, "requestedBy">, reviewerId: string): boolean {
-  return suggestion.requestedBy === null || suggestion.requestedBy === reviewerId;
+export function mayReview(
+  suggestion: Pick<SuggestionRow, "requestedBy">,
+  reviewer: { userId: string; role: TripRole },
+  action: "accept" | "dismiss",
+): boolean {
+  if (suggestion.requestedBy === null || suggestion.requestedBy === reviewer.userId) return true;
+  return action === "dismiss" && reviewer.role === "owner";
 }
 
 /** Why another editor is refused one; it finishes a sentence naming the change. */
-export const ASKER_ONLY = "was asked of the assistant by someone else, and only they can accept or dismiss it.";
+export const ASKER_ONLY = "was asked of the assistant by someone else, so it is theirs to decide.";
 
 /**
  * A stored change as the contract serves it, or null — logged — when the row

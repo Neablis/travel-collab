@@ -226,6 +226,10 @@
       "chars": 470,
       "approxTokens": 142
     },
+    "read_chat": {
+      "chars": 426,
+      "approxTokens": 129
+    },
     "search_this_page": {
       "chars": 418,
       "approxTokens": 126
@@ -249,10 +253,6 @@
     "insert_text": {
       "chars": 385,
       "approxTokens": 116
-    },
-    "read_chat": {
-      "chars": 382,
-      "approxTokens": 115
     },
     "places_visited": {
       "chars": 370,

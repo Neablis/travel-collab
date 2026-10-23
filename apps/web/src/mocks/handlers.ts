@@ -1209,6 +1209,7 @@ export function makeChatHandlers(options: {
         requestedBy: null,
         replyTo: null,
         suggestionId: null,
+        asksAssistant: input.data.assistant === true,
         createdAt: new Date().toISOString(),
         editedAt: null,
         removed: false,
@@ -1240,8 +1241,19 @@ export function makeChatHandlers(options: {
       if (target.authorId !== options.viewerId && role !== "owner") {
         return HttpResponse.json({ error: "forbidden" }, { status: 403 });
       }
-      const { messageId, authorId, kind, requestedBy, replyTo, suggestionId, createdAt, editedAt } = target;
-      const removed: ChatMessage = { messageId, authorId, kind, requestedBy, replyTo, suggestionId, createdAt, editedAt, removed: true };
+      const { messageId, authorId, kind, requestedBy, replyTo, suggestionId, asksAssistant, createdAt, editedAt } = target;
+      const removed: ChatMessage = {
+        messageId,
+        authorId,
+        kind,
+        requestedBy,
+        replyTo,
+        suggestionId,
+        asksAssistant,
+        createdAt,
+        editedAt,
+        removed: true,
+      };
       if (!target.removed) rev += 1;
       messages[index] = removed;
       return HttpResponse.json({ message: removed });

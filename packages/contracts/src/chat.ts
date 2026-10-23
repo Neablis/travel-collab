@@ -53,6 +53,12 @@ const MessageMeta = {
    * `requestedBy` may accept or dismiss; null when it proposed nothing.
    */
   suggestionId: z.string().uuid().nullable().default(null),
+  /**
+   * On a member's message, that it asked the assistant: its reply is still to
+   * come until an `assistant` message names it in `replyTo`, which is how every
+   * member, not only the asker, can see the assistant is working on it.
+   */
+  asksAssistant: z.boolean().default(false),
   createdAt: z.string(),
   /** When the author last changed the text; null when never. */
   editedAt: z.string().nullable(),

@@ -556,19 +556,29 @@ describe("the grant a turn holds", () => {
 
   // The asker's plan decides what a chat turn may do: `ai.ask` answers, and
   // only `ai.command` proposes. The Ask door is unchanged by it.
+  // Escalating lifts the classifier's cap and no other, so a question on that
+  // plan must not be offered a way to the change tools either.
   it("holds a chat turn to answers when the asker's plan has no ai.command", async () => {
-    const answersOnly = spyPorts({
-      selectModel: async () => ({
-        outcome: "live",
-        models: { cheap: "test/model" as LanguageModel, mid: "test/model" as LanguageModel, strong: "test/model" as LanguageModel },
-        classifierModel: "test/classifier" as LanguageModel,
-        entitlements: { has: (capability) => capability === "ai.ask", ceilings: NO_CEILINGS, planVersionRef: null },
-      }),
-    }).ports;
-    const chat = await evaluateAiGrant({ request: askFor(TRIP_TURN), tripId: TRIP_ID, ports: answersOnly, origin: "chat" });
+    const answersOnly = (classify?: AdmissionPorts["classify"]) =>
+      spyPorts({
+        ...(classify ? { classify } : {}),
+        selectModel: async () => ({
+          outcome: "live",
+          models: { cheap: "test/model" as LanguageModel, mid: "test/model" as LanguageModel, strong: "test/model" as LanguageModel },
+          classifierModel: "test/classifier" as LanguageModel,
+          entitlements: { has: (capability) => capability === "ai.ask", ceilings: NO_CEILINGS, planVersionRef: null },
+        }),
+      }).ports;
+    const chat = await evaluateAiGrant({ request: askFor(TRIP_TURN), tripId: TRIP_ID, ports: answersOnly(), origin: "chat" });
     if (!chat.ok) throw new Error(chat.refusal.reason);
     expect(chat.grant.grants.itinerary).toBe("read");
     expect(chat.grant.tools.map((tool) => tool.name)).not.toContain("AddActivity");
+
+    const asked = answersOnly(async () => ({ ...CLASSIFIED_AS_WRITE, intent: "question" as const }));
+    const question = await evaluateAiGrant({ request: askFor(TRIP_TURN), tripId: TRIP_ID, ports: asked, origin: "chat" });
+    if (!question.ok) throw new Error(question.refusal.reason);
+    expect(question.grant.tools.map((tool) => tool.name)).not.toContain("request_change_tools");
+    expect(question.grant.escalation).toBeNull();
   });
 
   it("refuses a viewer's page turn without reaching a model", async () => {

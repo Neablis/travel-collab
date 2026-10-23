@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import { STOPPED_EMPTY } from "@tc/contracts";
 import {
   ASK_ABORTED_CODE,
   askAssistant,
@@ -33,9 +34,6 @@ export function proposalFailedNote(message: string): string {
 
 /** Why a reply's page-leaving command waits while a card above is undecided: the card would not come along. */
 const CARD_WAITING = "the change above is waiting for you to approve or turn it down";
-
-/** What a turn the server stopped at its deadline says when it produced nothing (KI-2026-09-26-s). */
-const STOPPED_EMPTY = "This took too long and was stopped before it finished. Nothing was changed — try asking for less at once.";
 
 // One conversation with the assistant, and everything a rail needs to render
 // it: the thread, whether a turn is in flight, the error, the simulated badge,

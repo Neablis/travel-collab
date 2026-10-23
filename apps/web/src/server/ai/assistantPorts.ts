@@ -307,9 +307,11 @@ export async function readPlaybookList(page: PlaybookPage, readerId: string): Pr
 
 /**
  * `read_chat`'s chat (M52 decision 18): the trip's newest messages, each
- * author named as the trip shows them to the asker (`withProfiles`, so no
- * address reaches the model that the asker could not see). An author no longer
- * on the trip is named by their handle, as `displayNameFor` names anyone.
+ * author by display name and never by address (ADR-073's 2026-10-23
+ * amendment), even to an owner who could read one: the thread is everyone's,
+ * and the model may repeat what it reads into it. An author no longer on the
+ * trip is named by their handle, as `displayNameFor` names anyone. Who wrote
+ * it is `authorKind`, not the name, which a member can set to "Assistant".
  */
 export function chatLogFor(detail: TripDetail, readerId: string): ChatLog {
   return {
@@ -318,8 +320,9 @@ export function chatLogFor(detail: TripDetail, readerId: string): ChatLog {
         recentMessages(detail.tripId, limit),
         withProfiles(detail.members, readerId),
       ]);
-      const names = new Map(people.map((person) => [person.userId, displayNameFor(person)]));
+      const names = new Map(people.map(({ userId, displayName, name }) => [userId, displayNameFor({ userId, displayName, name })]));
       return messages.map((message) => ({
+        authorKind: message.kind,
         author:
           message.kind === "assistant"
             ? "Assistant"

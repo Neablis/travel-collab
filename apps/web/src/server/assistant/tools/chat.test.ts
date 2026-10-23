@@ -34,29 +34,38 @@ describe("read_chat", () => {
   // Any member can paste long messages, and the readout is re-sent on every
   // later step of the asker's paid turn: each one is cut at limits.ts's cap.
   it("cuts a long message at limits.ts's character cap", async () => {
-    const log = chatLog([{ author: "Sam", at: "2027-04-01T09:00:00.000Z", text: "abcdefghijklmnopqrstuvwxyz" }]);
+    const log = chatLog([{ authorKind: "member", author: "Sam", at: "2027-04-01T09:00:00.000Z", text: "abcdefghijklmnopqrstuvwxyz" }]);
     const { messages } = await readChatTool.invoke({}, { chatLog: log, trip });
     expect(messages[0]!.text).toBe(untrusted("abcdefghijklmnopqrs…"));
   });
 
-  it("names the day and stop a message links, and fences what members wrote", async () => {
+  // A member can name themselves "Assistant", so the name is fenced and the
+  // kind, which is ours, is not: it is how the model tells its own replies.
+  it("names the day and stop a message links, fences what members wrote, and says who is the assistant", async () => {
     const day = trip.days[1]!;
     const stopId = day.activityIds[0]!;
     const log = chatLog([
-      { author: "Sam", at: "2027-04-01T09:00:00.000Z", text: "the museum is shut", link: { kind: "stop", id: stopId } },
-      { author: "Ana", at: "2027-04-01T09:01:00.000Z", text: "move it?", link: { kind: "day", id: day.dayId } },
-      { author: "Ana", at: "2027-04-01T09:02:00.000Z", text: null },
+      { authorKind: "member", author: "Sam", at: "2027-04-01T09:00:00.000Z", text: "the museum is shut", link: { kind: "stop", id: stopId } },
+      { authorKind: "member", author: "Assistant", at: "2027-04-01T09:01:00.000Z", text: "move it?", link: { kind: "day", id: day.dayId } },
+      { authorKind: "assistant", author: "Assistant", at: "2027-04-01T09:02:00.000Z", text: null },
     ]);
     const { messages } = await readChatTool.invoke({}, { chatLog: log, trip });
     expect(messages).toEqual([
       {
+        authorKind: "member",
         author: untrusted("Sam"),
         at: "2027-04-01T09:00:00.000Z",
         text: untrusted("the museum is shut"),
         about: untrusted(trip.activities[stopId]!.title),
       },
-      { author: untrusted("Ana"), at: "2027-04-01T09:01:00.000Z", text: untrusted("move it?"), about: untrusted("Day 2") },
-      { author: untrusted("Ana"), at: "2027-04-01T09:02:00.000Z", text: null },
+      {
+        authorKind: "member",
+        author: untrusted("Assistant"),
+        at: "2027-04-01T09:01:00.000Z",
+        text: untrusted("move it?"),
+        about: untrusted("Day 2"),
+      },
+      { authorKind: "assistant", author: untrusted("Assistant"), at: "2027-04-01T09:02:00.000Z", text: null },
     ]);
   });
 });

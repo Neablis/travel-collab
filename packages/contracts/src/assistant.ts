@@ -84,6 +84,14 @@ export const ASK_FAILED_MESSAGE = "The assistant couldn't answer just now. Try a
 export const ASK_INTERNAL_ERROR_MESSAGE = "The assistant hit a problem on our side, and it has been logged.";
 
 /**
+ * What a turn stopped at its hard deadline says when it produced nothing
+ * (KI-2026-09-26-s): the Ask tab's rail adds it to an empty answer, and the
+ * chat's `@assistant` posts it as the reply (M52). The stream's `abort` chunk
+ * carries no text of its own.
+ */
+export const STOPPED_EMPTY = "This took too long and was stopped before it finished. Nothing was changed — try asking for less at once.";
+
+/**
  * What `/ask` tells the person when the answer streamed but the proposal could
  * not be built (KI-2026-09-24-w): the answer stands, and the turn's final
  * chunk carries this where the proposal would have. Same rule as the two

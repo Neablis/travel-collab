@@ -189,6 +189,7 @@ export function useTripChat({
         requestedBy: null,
         replyTo: null,
         suggestionId: null,
+        asksAssistant: false,
         createdAt: new Date().toISOString(),
         editedAt: null,
         removed: false,

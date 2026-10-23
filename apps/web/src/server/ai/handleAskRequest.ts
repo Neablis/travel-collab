@@ -159,6 +159,7 @@ import {
   type ChatMessage,
   ASK_PROPOSAL_FAILED_MESSAGE,
   SIMULATED_HEADER,
+  STOPPED_EMPTY,
   type AskStreamMetadata,
   type AssistantProposal,
   type Page,
@@ -1227,36 +1228,50 @@ async function refusalSentence(response: Response): Promise<string> {
  * that would have been said beside them, and the id of the suggestion it
  * stored. A refusal is its own sentence. A stream that failed after some text
  * says so after it, as the Ask tab's error line would: posted alone, the part
- * would read as the whole answer.
+ * would read as the whole answer. A turn stopped at its deadline with nothing
+ * said says so, as the rail does.
+ *
+ * Never throws once the stream has started: a read that fails part-way is a
+ * failed stream, and keeps the suggestion id already read, since that change
+ * is on the board whatever happens to the reply.
  */
 export async function chatReplyOf(response: Response): Promise<{ text: string; suggestionId: string | null }> {
   if (!response.ok || response.body === null) return { text: await refusalSentence(response), suggestionId: null };
   const parts = new Map<string, string>();
   const notes: string[] = [];
   let suggestionId: string | null = null;
+  let stopped = false;
   const chunks = parseJsonEventStream({ stream: response.body, schema: uiMessageChunkSchema }).getReader();
-  for (let read = await chunks.read(); !read.done; read = await chunks.read()) {
-    if (!read.value.success) continue;
-    const chunk = read.value.value;
-    if (chunk.type === "text-delta") parts.set(chunk.id, (parts.get(chunk.id) ?? "") + chunk.delta);
-    else if (chunk.type === ASK_RETRACT_CHUNK) for (const id of (chunk.data as AskRetractData).ids) parts.delete(id);
-    else if (chunk.type === "error") {
-      notes.push(ASK_FAILURE_SENTENCES.includes(chunk.errorText) ? chunk.errorText : ASK_FAILED_MESSAGE);
-    } else if (chunk.type === "finish" && chunk.messageMetadata !== undefined) {
-      const outcome = chunk.messageMetadata as AskStreamMetadata;
-      if ("suggested" in outcome) {
-        suggestionId = outcome.suggested.suggestionId;
-        const { skipped, snapshotSkipped } = outcome.suggested;
-        notes.push(...skipped, ...(snapshotSkipped === undefined ? [] : [snapshotSkipped]));
+  try {
+    for (let read = await chunks.read(); !read.done; read = await chunks.read()) {
+      if (!read.value.success) continue;
+      const chunk = read.value.value;
+      if (chunk.type === "text-delta") parts.set(chunk.id, (parts.get(chunk.id) ?? "") + chunk.delta);
+      else if (chunk.type === ASK_RETRACT_CHUNK) for (const id of (chunk.data as AskRetractData).ids) parts.delete(id);
+      // A chat turn has no request of its own to cancel: an abort is its hard deadline.
+      else if (chunk.type === "abort") stopped = true;
+      else if (chunk.type === "error") {
+        notes.push(ASK_FAILURE_SENTENCES.includes(chunk.errorText) ? chunk.errorText : ASK_FAILED_MESSAGE);
+      } else if (chunk.type === "finish" && chunk.messageMetadata !== undefined) {
+        const outcome = chunk.messageMetadata as AskStreamMetadata;
+        if ("suggested" in outcome) {
+          suggestionId = outcome.suggested.suggestionId;
+          const { skipped, snapshotSkipped } = outcome.suggested;
+          notes.push(...skipped, ...(snapshotSkipped === undefined ? [] : [snapshotSkipped]));
+        }
+        if ("proposal" in outcome) notes.push(CHAT_CHANGE_NOT_STORED);
+        if ("proposalFailed" in outcome) notes.push(outcome.proposalFailed.message);
+        if ("notApplied" in outcome) notes.push(...outcome.notApplied.skipped);
       }
-      if ("proposal" in outcome) notes.push(CHAT_CHANGE_NOT_STORED);
-      if ("proposalFailed" in outcome) notes.push(outcome.proposalFailed.message);
-      if ("notApplied" in outcome) notes.push(...outcome.notApplied.skipped);
     }
+  } catch (error) {
+    console.error("chat: reading the @assistant turn's stream failed", { error });
+    notes.push(ASK_FAILED_MESSAGE);
   }
   const said = [...parts.values(), ...notes].map((part) => part.trim()).filter((part) => part !== "");
-  // Nothing kept: the Ask tab's own sentence.
-  return { text: said.length > 0 ? said.join("\n\n") : ASK_FAILED_MESSAGE, suggestionId };
+  // Nothing kept: the sentence the Ask tab's rail would show.
+  if (said.length === 0) return { text: stopped ? STOPPED_EMPTY : ASK_FAILED_MESSAGE, suggestionId };
+  return { text: said.join("\n\n"), suggestionId };
 }
 
 /**

@@ -8,7 +8,7 @@ const meta = {
   editedAt: null,
 };
 // What every message before M52 reads as: a member's, answering nobody.
-const served = { ...meta, kind: "member", requestedBy: null, replyTo: null, suggestionId: null };
+const served = { ...meta, kind: "member", requestedBy: null, replyTo: null, suggestionId: null, asksAssistant: false };
 
 describe("ChatMessage", () => {
   // ADR-073 §4: a removed message is served with no text. The variant is what
@@ -38,6 +38,7 @@ describe("ChatMessage", () => {
       requestedBy: "dev-bea",
       replyTo: "5d2c7a3e-58a1-4c5e-9b8e-2f4f1c9a7b10",
       suggestionId: "8e1f0b2a-3c4d-4e5f-8a6b-7c8d9e0f1a2b",
+      asksAssistant: false,
       removed: false,
       body: "Moved it.",
     };
@@ -47,6 +48,7 @@ describe("ChatMessage", () => {
       requestedBy: null,
       replyTo: null,
       suggestionId: null,
+      asksAssistant: false,
     });
   });
 
