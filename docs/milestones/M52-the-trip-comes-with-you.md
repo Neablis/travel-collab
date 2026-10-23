@@ -273,6 +273,12 @@ chips do.
       suggestion (`requested_by`), enforced in `acceptSuggestionChanges`, beside its editor check
       (`accept.ts:57`). The asker must also be an editor to accept, as today. A viewer's
       `@assistant` gets answers only.
+    - **When the asker can no longer accept. Answered by Mitchell, 2026-10-23:** the trip owner
+      can always **dismiss** an asker-only proposal, so one whose asker left the trip or lost edit
+      access does not sit on the board for 90 days. Only the asker can ever accept it.
+    - **The Ask tab gets the same `ai.command` gate. Answered by Mitchell, 2026-10-23: fix inside
+      M52** (part 5). Before M52 the Ask tab never checked `ai.command`, so a Studio account could
+      propose changes there; the chat route checks it, and Ask turns now do too.
     - **While it works.** The thread shows *"Assistant is thinking…"* and the reply lands whole.
       It is not streamed into the chat.
     - **Lapses.** When the owner's `trip.collaborators` lapses, the chat is read-only (M46

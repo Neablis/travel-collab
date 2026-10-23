@@ -110,7 +110,8 @@ asker can accept what it proposes (decisions 8, 18; ADR-073 and ADR-067 amendmen
   chat-started turn (`admission.ts:1287-1329` `toolsFor`, `handleAskRequest.ts:788`
   `activeTools`). Test the default and ceiling are read from `limits.ts`.
 - Accept rule: `server/suggestions/accept.ts:48,57` and `resolve.ts:38` — a suggestion with
-  `requested_by` is accepted or dismissed only by that member (still an editor).
+  `requested_by` is accepted or dismissed only by that member (still an editor). The trip owner may
+  always dismiss one (Mitchell, 2026-10-23).
 - Quota and ledger: `server/quota.ts:156,238` against the asker; `server/assistant/ledger.ts`.
 - Tests: `chat.int.test.ts`, `suggestions.int.test.ts` (**another editor refused, the asker
   accepted**), `quota.int.test.ts` (**a free member's `@assistant` spends nothing; a paid asker's
@@ -155,6 +156,9 @@ Theme: decisions 13 and 14.
 - `find_places_near_now`: `server/assistant/tools/places.ts:145,196` beside `searchPlacesTool`,
   added to `PLACE_TOOLS`; registry `server/assistant/registry.ts:59`. Anchor order: current
   stop, last passed stop today, next stop, the day's city; it returns the anchor.
+- Ask turns check `ai.command` before proposing (Mitchell, 2026-10-23): a plan holding `ai.ask`
+  alone (Studio) gets answers only on the Ask tab, as part 3 does for chat turns. Test in
+  `admission.test.ts` / the ask route test, seen red first.
 - Gate box: **offered only while under way** — a test of the offered tools for a planning trip
   and an under-way trip (`admission.test.ts`). (Part 3 covers `read_chat` on Ask vs chat turns.)
 - Evals: a day-of case that must choose `find_places_near_now`, a planning case that must not see
