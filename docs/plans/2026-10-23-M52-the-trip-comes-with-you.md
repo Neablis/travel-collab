@@ -246,6 +246,9 @@ Theme: decisions 9, 11, 20 and the walk.
   to this seed key; the index's delete control is absent for it; the existing-trip backfill drops
   the "not again after a delete" skip. Title **Today**, seed key `today` (confirmed; replaces `during-the-trip`
   throughout this part). Tests: delete refused (domain + route), backfill on an existing trip.
+  *Reset to default* already exists for seeded notebooks (`pageCommands.ts:510`
+  `resetPageToDefault`, `ResetToDefault.tsx`, an ordinary edit History can undo): assert Today
+  gets it (Mitchell, 2026-10-23: "restore to base" if you mess it up or the default is updated).
 - Swap: `apps/web/src/lib/overviewPage.ts:16` `pickOverviewPage` swaps for `soon` and `underway`;
   *Whole trip →* link to the usual Overview. Callers `components/lenses/OverviewLens.tsx:160,226`,
   `server/tripFirstData.ts:46`. Tests: new `lib/overviewPage.test.ts` (planning, soon, under way,
