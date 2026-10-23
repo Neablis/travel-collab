@@ -19,6 +19,7 @@ import { cachedRead, DEDUPE } from "@/lib/queryCache";
 import { tripKeys } from "@/lib/queryKeys";
 import { findPaletteCommand, runPaletteCommand } from "@/components/palette/paletteRegistry";
 import { POLL_INTERVAL_MS } from "@/components/trip/context/broadcast";
+import { EDIT_SESSION_IDLE_MS } from "./useEditSession";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
@@ -2846,6 +2847,101 @@ describe("PageScreen: the trip's access moving under an open page", () => {
     expect(screen.queryByRole("button", { name: "Edit page" })).toBeNull();
     expect(screen.getByRole("heading", { level: 1, name: "Packing" }).getAttribute("contenteditable")).toBe("false");
     await waitFor(() => expect(localStorage.getItem(`page_draft:${page.id}`) ?? "").toContain("Q"));
+  });
+
+  // Round 14, finding 1: a save refused for the role is not retried every idle
+  // minute nor called something that "will be tried again". The page says the
+  // role changed, and given it back, offers what they typed.
+  it("tells a demoted editor plainly, stops retrying, and offers their words back on promotion", async () => {
+    let rev = "r1";
+    let role: Member["role"] = "editor";
+    const patches: string[] = [];
+    let refuse = false;
+    server.use(
+      http.get("/api/trips/:tripId/events", () => HttpResponse.json({ headSeq: 0, events: [], resync: false, accessRev: rev })),
+      http.get("/api/trips/:tripId/access", ({ params }) =>
+        HttpResponse.json(accessBody(params.tripId, role, [{ userId: "u1", role }, pair[1]!], rev)),
+      ),
+    );
+    const page = notebook(pair);
+    server.use(
+      http.patch("/api/trips/:tripId/pages/:pageId", async ({ request }) => {
+        const body = JSON.stringify(await request.json());
+        patches.push(body);
+        if (refuse) return HttpResponse.json({ error: "forbidden" }, { status: 403 });
+        return HttpResponse.json({ page: { ...page, updatedAt: page.updatedAt } });
+      }),
+    );
+    await userEvent.click(await screen.findByRole("button", { name: "Edit page" }));
+    const box = screen.queryAllByRole("textbox").find((el) => el.getAttribute("contenteditable") === "true")!;
+    await userEvent.type(box, "Q");
+    await pollUntil(() => expect(screen.getByRole("button", { name: "Done editing" })).toBeTruthy());
+
+    const idleTimers = vi.spyOn(globalThis, "setTimeout");
+    refuse = true;
+    role = "viewer";
+    rev = "r2";
+    await pollUntil(() => expect(screen.getByText(/You can no longer edit this page/)).toBeTruthy());
+    expect(screen.queryByRole("button", { name: "Retry saving" })).toBeNull();
+    expect(screen.queryByText(/will be tried again/)).toBeNull();
+    // A refused save that is still retried re-arms the idle commit.
+    expect(idleTimers.mock.calls.filter(([, ms]) => ms === EDIT_SESSION_IDLE_MS)).toHaveLength(0);
+    expect(localStorage.getItem(`page_draft:${page.id}`) ?? "").toContain("Q");
+
+    refuse = false;
+    role = "editor";
+    rev = "r3";
+    const sent = patches.length;
+    await pollUntil(() => expect(screen.getByRole("button", { name: "Restore mine" })).toBeTruthy());
+    await userEvent.click(screen.getByRole("button", { name: "Restore mine" }));
+    await waitFor(() => expect(patches.slice(sent).some((p) => p.includes("Q"))).toBe(true));
+  });
+
+  // A load held until a poll's re-read has answered: the shape findings 2 and
+  // 3 of round 14 are about.
+  async function reReadBeforeLoad(reRead: Member["role"], from: "overview" | null) {
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => (release = resolve));
+    let reads = 0;
+    let polls = 0;
+    let loadAnswered = false;
+    let rev = "r1";
+    server.use(
+      http.get("/api/trips/:tripId/events", () => {
+        polls++;
+        return HttpResponse.json({ headSeq: 0, events: [], resync: false, accessRev: rev });
+      }),
+      http.get("/api/trips/:tripId/access", async ({ params }) => {
+        if (++reads > 1) return HttpResponse.json(accessBody(params.tripId, reRead, [{ userId: "u1", role: reRead }, pair[1]!], "r2"));
+        await held;
+        loadAnswered = true;
+        return HttpResponse.json(accessBody(params.tripId, "editor", pair, "r1"));
+      }),
+    );
+    const trip = tripDetailFixture({ tripId: crypto.randomUUID(), members: pair });
+    const page = pageFixture({ tripId: trip.tripId, title: "Packing" });
+    server.use(...makePagesHandlers([page]), http.get("/api/trips/:tripId", () => HttpResponse.json({ trip })));
+    render(<PageScreen tripId={trip.tripId} pageId={page.id} from={from} />);
+    await screen.findByRole("article");
+    await pollUntil(() => expect(polls).toBeGreaterThan(0));
+    rev = "r2";
+    await pollUntil(() => expect(reads).toBe(2));
+    release();
+    await waitFor(() => expect(loadAnswered).toBe(true));
+  }
+
+  // Round 14, finding 2: Overview's Edit opens Editing whichever read settles
+  // the role first.
+  it("opens Overview's Edit in Editing when a poll's re-read answers before a slow load", async () => {
+    await reReadBeforeLoad("editor", "overview");
+    expect(await screen.findByRole("button", { name: "Done editing" })).toBeTruthy();
+  });
+
+  // Round 14, finding 3: once a re-read has answered, the slow load's older
+  // answer is dropped rather than put back over it.
+  it("keeps a re-read's viewer answer over a slow load's older editor one", async () => {
+    await reReadBeforeLoad("viewer", "overview");
+    await expect(screen.findByRole("button", { name: /^(Edit page|Done editing)$/ }, { timeout: 500 })).rejects.toThrow();
   });
 
   // Finding 3: the timed poll runs where a join can come — a second member, or

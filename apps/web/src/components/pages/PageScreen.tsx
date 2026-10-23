@@ -354,6 +354,13 @@ export function PageScreen({
   // drop it: that left an editor with no way into Editing until a reload.
   const accessTicket = useRef(0);
   const answeredTicket = useRef(0);
+  // Whether a read has settled the role since this load began. Overview's Edit
+  // enters Editing on the FIRST answer, whichever read gives it (round 14): a
+  // later re-read must not pull back into Editing someone who left it.
+  const roleSettled = useRef(false);
+  // For the save, whose callback is the one captured when the typing happened.
+  const editRoleRef = useRef(editRole);
+  editRoleRef.current = editRole;
   // The `accessRev` the members above are from, so the poll re-reads them
   // only when someone has joined or left (`onAccessRevision`).
   const seenAccessRev = useRef<string | null>(null);
@@ -361,6 +368,7 @@ export function PageScreen({
     let cancelled = false;
     ++accessTicket.current;
     const ticket = ++answeredTicket.current;
+    roleSettled.current = false;
     setEditRole("pending");
     void cachedRead(tripKeys.access(tripId), () => fetchTripAccess(tripId)).then((access) => {
       if (cancelled || ticket !== answeredTicket.current) return;
@@ -371,6 +379,7 @@ export function PageScreen({
       if (access.ok) seenAccessRev.current = access.value.accessRev ?? null;
       const role = !access.ok ? "unknown" : canEditNotebook(access.value.myRole) ? "writer" : "reader";
       setEditRole(role);
+      roleSettled.current = true;
       if (role === "reader") setEditing(false);
       if (role === "writer" && from === "overview") setEditing(true);
     });
@@ -407,9 +416,11 @@ export function PageScreen({
       setInviteOut(access.value.invites.some((i) => i.status === "pending"));
       seenAccessRev.current = access.value.accessRev ?? rev;
       answeredTicket.current++;
-      const mayEdit = canEditNotebook(access.value.myRole);
-      setEditRole(mayEdit ? "writer" : "reader");
-      if (!mayEdit) setEditing(false);
+      const writes = canEditNotebook(access.value.myRole);
+      setEditRole(writes ? "writer" : "reader");
+      if (!writes) setEditing(false);
+      else if (!roleSettled.current && from === "overview") setEditing(true);
+      roleSettled.current = true;
     });
   };
   const mayToggleEditing = editRole === "writer" || editRole === "unknown";
@@ -561,7 +572,7 @@ export function PageScreen({
   // A draft that cannot simply be applied, because the page has been written
   // since it was typed: from an earlier visit, or `refused` by the server just
   // now. Offered, never applied unasked.
-  const [offeredDraft, setOfferedDraft] = useState<(PageDraft & { refused?: boolean }) | null>(null);
+  const [offeredDraft, setOfferedDraft] = useState<(PageDraft & { refused?: boolean; demoted?: boolean }) | null>(null);
   // A draft the load found, held until the role is known (Copilot, PR #280).
   // See the effect after `restoreDraft`.
   const heldDraft = useRef<PageDraft | null>(null);
@@ -716,7 +727,12 @@ export function PageScreen({
         }
         if (!result.ok) {
           rememberPageDraft(pageId, draft);
-          return false;
+          // Refused to someone who is now a viewer: no retry can land, so the
+          // session stops here and the draft waits, offered if the role comes
+          // back (round 14). Kept in the browser above either way.
+          if (editRoleRef.current !== "reader") return false;
+          setOfferedDraft({ ...draft, demoted: true });
+          return "superseded";
         }
         baseRef.current = result.value.updatedAt;
         baseDocRef.current = result.value.content;
@@ -1574,9 +1590,18 @@ export function PageScreen({
             </>
           }
         >
-          {offeredDraft.refused
-            ? "Your latest changes weren't saved: this page changed since you opened it. It now shows the saved version."
-            : "Changes you made here last time didn't reach the server, and the page has changed since."}
+          {offeredDraft.demoted
+            ? "Your latest changes weren't saved while you couldn't edit this page."
+            : offeredDraft.refused
+              ? "Your latest changes weren't saved: this page changed since you opened it. It now shows the saved version."
+              : "Changes you made here last time didn't reach the server, and the page has changed since."}
+        </Banner>
+      ) : null}
+      {/* The same draft while its holder is a viewer: nothing to restore yet,
+          so only why Editing closed and where their words are. */}
+      {offeredDraft?.demoted && editRole === "reader" ? (
+        <Banner variant="warning" className="mb-3" data-testid="page-save-role-changed">
+          You can no longer edit this page. Your changes are kept in this browser.
         </Banner>
       ) : null}
       {/* **The document sits on a page, not on the app's background.**
