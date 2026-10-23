@@ -1548,7 +1548,7 @@ export function PageScreen({
               affordance is harmless and duplicate naming is not. */}
           {editing && editor !== null && isPhone ? (
             <div className="mt-4 flex flex-wrap items-center gap-2">
-              <WidgetInsert detail={trip} globals={globals} onInsert={insertAtCursor} />
+              <WidgetInsert detail={trip} globals={globals} onInsert={insertAtCursor} dateScope={page.context.dateScope} />
               <span className="text-xs text-slate">
                 or press <span className="rounded-sm bg-moss px-1 font-mono">/</span> anywhere in the page
               </span>
@@ -1613,6 +1613,7 @@ export function PageScreen({
                     detail={trip}
                     globals={globals}
                     onInsert={insertAtCursor}
+                    dateScope={page.context.dateScope}
                     filter={widgetFilter}
                     onFilterChange={setWidgetFilter}
                   />

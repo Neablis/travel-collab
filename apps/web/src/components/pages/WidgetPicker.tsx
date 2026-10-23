@@ -1,7 +1,7 @@
 "use client";
 import { useMemo, useRef, useState } from "react";
-import { presetCatalog } from "@tc/pages";
-import type { WidgetShape } from "@tc/contracts";
+import { followsDateScope, getMacro, presetCatalog } from "@tc/pages";
+import type { DateScope, WidgetShape } from "@tc/contracts";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/cn";
@@ -246,6 +246,7 @@ export function WidgetPicker({
   autoFocus = false,
   filter,
   onFilterChange,
+  dateScope = "all",
 }: {
   // The PRESET's id, not a widget name: the row a person clicked is
   // `(primitive, params)`, and only `insertPreset` knows which. Callers hand it
@@ -265,6 +266,9 @@ export function WidgetPicker({
   // and drop the other.
   filter?: WidgetFilter;
   onFilterChange?: (next: WidgetFilter) => void;
+  // The page's `dateScope` (M52 decision 10). Under "today" a row says when the
+  // scope will narrow the widget it inserts.
+  dateScope?: DateScope;
 }) {
   // The uncontrolled half. It is still declared when a caller controls the
   // picker — hooks cannot be conditional — and simply goes unread, which costs
@@ -283,6 +287,8 @@ export function WidgetPicker({
   const kindRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const widgets = useMemo(() => presetCatalog(), []);
   const shown = widgets.filter((w) => widgetMatches(w, query) && (shape === null || w.shape === shape));
+  // By the rule the render applies, so the mark cannot promise what it does not do.
+  const followsToday = (w: (typeof widgets)[number]) => dateScope === "today" && followsDateScope(getMacro(w.widget), w.params);
 
   return (
     // **The rail is a header and a scrolling body, not one long column**
@@ -479,6 +485,11 @@ export function WidgetPicker({
                   {shape === null && (
                     <Badge variant="neutral" className="font-mono text-2xs font-normal">
                       {SHAPE_LABEL[w.shape]}
+                    </Badge>
+                  )}
+                  {followsToday(w) && (
+                    <Badge variant="brand" className="text-2xs font-normal">
+                      follows today
                     </Badge>
                   )}
                 </span>

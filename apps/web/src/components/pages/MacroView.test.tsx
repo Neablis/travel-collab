@@ -4,6 +4,7 @@ import type { TripDetail, PageContext, TripGlobals, UserPreferences } from "@tc/
 import { fieldChoices, getMacro, presetCatalog, renderMacro, type ExternalInputs } from "@tc/pages";
 import { withCostRollups } from "@tc/factories";
 import { MacroView } from "./MacroView";
+import { MacroEditorContext } from "./editor/MacroEditorContext";
 
 afterEach(cleanup);
 
@@ -400,6 +401,41 @@ describe("MacroView", () => {
       expect(screen.queryAllByRole("row")).toHaveLength(0);
       expect(screen.getByText("Museum")).toBeTruthy();
     });
+  });
+});
+
+// M52's gate box (decision 10, ADR-080 §4), as a reader sees it: on a page
+// scoped to today, a day.detail left unbound reads today, and one bound to day 1
+// reads day 1. The clock reaches the widget through the editor's context.
+describe("on a page scoped to today", () => {
+  const twoDated: TripDetail = withCostRollups({
+    ...costedDetail,
+    days: [
+      { ...costedDetail.days[0]!, activityIds: ["a1"], date: "2026-08-01" },
+      { dayId: "33333333-3333-3333-3333-333333333333", activityIds: ["a2"], date: "2026-08-02", costSubtotal: 0 },
+    ],
+    activities: { ...costedDetail.activities, a2: { ...costedDetail.activities.a1!, activityId: "a2", title: "Shrine" } },
+  });
+  const scoped: PageContext = { ...ctx, dateScope: "today" };
+  const onDay2 = (params: Record<string, unknown>) =>
+    render(
+      <MacroEditorContext.Provider
+        value={{ detail: twoDated, context: scoped, user: null, globals: null, editing: false, now: { at: Date.parse("2026-08-02T12:00:00Z"), deviceZone: "UTC" } }}
+      >
+        <MacroView detail={twoDated} context={scoped} name="day.detail" params={params} />
+      </MacroEditorContext.Provider>,
+    );
+
+  it("shows today in an unbound day.detail", () => {
+    onDay2({});
+    expect(screen.getByText("Shrine")).toBeTruthy();
+    expect(screen.queryByText("Museum")).toBeNull();
+  });
+
+  it("shows day 1 in one bound to day 1", () => {
+    onDay2({ day: { kind: "index", index: 0 } });
+    expect(screen.getByText("Museum")).toBeTruthy();
+    expect(screen.queryByText("Shrine")).toBeNull();
   });
 });
 

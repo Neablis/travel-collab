@@ -5,7 +5,7 @@ import { setupServer } from "msw/node";
 import { http, HttpResponse } from "msw";
 import { PageScreen } from "./PageScreen";
 import { PhoneAskTab } from "@/components/nav/PhoneTabBar";
-import { CURRENT_PAGE_DOC_VERSION, SYSTEM_ACTOR_ID } from "@tc/contracts";
+import { CURRENT_PAGE_DOC_VERSION, SYSTEM_ACTOR_ID, type Page } from "@tc/contracts";
 import { pageFixture as sharedPageFixture, tripDetailFixture } from "@tc/factories";
 import { presetCatalog } from "@tc/pages";
 import { makePagesHandlers, makeAccountPlanHandler, makeWeatherHandler } from "@/mocks/handlers";
@@ -639,7 +639,7 @@ describe("PageScreen and the account (ADR-037 open question 2)", () => {
 // the builder half a person can actually click. Insert a widget from the
 // sidebar, point it at a day from its chrome row, and watch it save.
 describe("PageScreen: inserting and pointing a widget (item G)", () => {
-  async function openPage() {
+  async function openPage(context: Partial<Page["context"]> = {}) {
     const dayId = "1b2c3d4e-5f60-4a7b-8c9d-0e1f2a3b4c5d";
     const trip = tripDetailFixture({
       days: [
@@ -649,6 +649,7 @@ describe("PageScreen: inserting and pointing a widget (item G)", () => {
     });
     const page = pageFixture({
       tripId: trip.tripId,
+      context: { tripId: trip.tripId, ...context },
       content: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Notes" }] }] },
     });
     const onUpdate = vi.fn();
@@ -898,6 +899,13 @@ describe("PageScreen: inserting and pointing a widget (item G)", () => {
     // forever, and it is not what a sidebar shows a reader.
     expect(screen.getByRole("button", { name: /What it costs/ })).toBeTruthy();
     expect(screen.queryByText("cost.rows")).toBeNull();
+  });
+
+  // M52 decision 10: the rail marks what the page's scope will narrow, so the
+  // page's context has to reach the picker.
+  it("marks a widget that follows today on a page scoped to today", async () => {
+    await openPage({ dateScope: "today" });
+    expect(within(screen.getByRole("button", { name: /The days, in detail/ })).getByText("follows today")).toBeTruthy();
   });
 
   it("inserts a widget at the cursor and renders it live", async () => {
@@ -1346,6 +1354,14 @@ describe("PageScreen: inserting and pointing a widget (item G)", () => {
       // well as on the index — see NotebookScreen.test.tsx for the pair.
       expect(screen.queryByText(/It cannot read your pages/)).toBeNull();
       expect(screen.queryByText(/the conversation stays here/)).toBeNull();
+    });
+
+    it("marks a widget that follows today in the sheet on a page scoped to today", async () => {
+      setPhone(true);
+      await openPage({ dateScope: "today" });
+      await userEvent.click(screen.getByRole("button", { name: "Insert a widget" }));
+      const dialog = await screen.findByRole("dialog");
+      expect(within(within(dialog).getByRole("button", { name: /The days, in detail/ })).getByText("follows today")).toBeTruthy();
     });
 
     // §19: "Insert is the desktop sheet, full height… two steps inside it."

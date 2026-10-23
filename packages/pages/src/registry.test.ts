@@ -6,7 +6,8 @@ import { presetCatalog } from "./presets";
 import { LEGAL_FILTERS } from "./filters";
 import { fieldChoices } from "./fields";
 import { insertWidget } from "./insert";
-import type { WidgetInput } from "./registry-types";
+import type { WidgetContext, WidgetInput } from "./registry-types";
+import { selectionTrip } from "./test-support/selectionTrip";
 
 const detail = { tripId: "11111111-1111-1111-1111-111111111111", name: "T", startDate: null, currency: "USD", budget: null, status: "active", members: [{ userId: "u1", role: "owner" }], forkedFrom: null, days: [], backlog: [], activities: {}, conflicts: [], dismissedConflictIds: [], createdAt: "2026-07-20T00:00:00.000Z", unscheduledCostSubtotal: 0, tripCostTotal: 0, budgetRemaining: null } as TripDetail;
 
@@ -703,5 +704,35 @@ describe("distinctApplies", () => {
       expect(distinctApplies(name, { field: "stop.title", columns: ["stop.title"] }), name).toBe(false);
     }
     expect(distinctApplies("nope", { field: "stop.title" })).toBe(false);
+  });
+});
+
+// M52's gate box (decision 10, ADR-080 §4): on a page scoped to today, a widget
+// that left its day open reads today, and one its author bound reads that day.
+describe("renderMacro on a page scoped to today", () => {
+  const { trip, globals } = selectionTrip();
+  const plain: WidgetContext = { trip, globals, page: { tripId: trip.tripId }, user: null, today: null };
+  const scopedAt = (iso: string): WidgetContext => ({
+    ...plain, page: { tripId: trip.tripId, dateScope: "today" }, now: { at: Date.parse(iso), deviceZone: "UTC" },
+  });
+  const day = (index: number) => ({ day: { kind: "index", index } });
+
+  it("shows today in an unbound day.detail, and day 1 in one bound to day 1", () => {
+    const onDay2 = scopedAt("2027-06-02T12:00:00Z");
+    expect(renderMacro(onDay2, "day.detail", {})).toEqual(renderMacro(plain, "day.detail", day(1)));
+    expect(renderMacro(onDay2, "day.detail", day(0))).toEqual(renderMacro(plain, "day.detail", day(0)));
+  });
+
+  // Rome is on days 1 and 2, so a Rome line that dropped the page's day would
+  // sum both, where the same widget outside the repeat reads day 2 alone.
+  it("reads today's cost in its city on a for-each-city line", () => {
+    const romeLine = { kind: "city", name: "Rome" } as const;
+    const todayInRome = renderMacro(plain, "cost", { city: "Rome", ...day(1) });
+    expect(renderMacro(plain, "cost", {}, romeLine)).not.toEqual(todayInRome);
+    expect(renderMacro(scopedAt("2027-06-02T12:00:00Z"), "cost", {}, romeLine)).toEqual(todayInRome);
+  });
+
+  it("renders the widget's empty state off the trip's dates, not a removed day", () => {
+    expect(renderMacro(scopedAt("2027-05-30T12:00:00Z"), "day.detail", {})).toEqual({ status: "empty" });
   });
 });
