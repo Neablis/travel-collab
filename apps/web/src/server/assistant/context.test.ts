@@ -176,6 +176,29 @@ describe("the turn's now", () => {
     expect(now.current?.activityId).toBe(second);
   });
 
+  // The device zone is bounded by length only; one reaching `clockIn` would
+  // throw a RangeError after quota is reserved.
+  it("passes over a device zone this runtime does not know, reading on UTC", () => {
+    const now = turnNowOf(trip, null, Date.parse("2026-06-10T10:30:00Z"), "Mars/Olympus_Mons");
+    expect(now.local).toEqual({ date: "2026-06-10", time: "10:30" });
+    expect(now.current?.activityId).toBe(second);
+  });
+
+  // ADR-080 decision 1, as Home's badge reads it. Today has no zone of its own
+  // unless given one; the second day is in Tokyo. 14:30 UTC is 16:30 in Rome,
+  // 10:30 in New York and 23:30 in Tokyo.
+  it("reads today on its own zone, then the asker's, then the trip's first, then UTC", () => {
+    const twoDays = tripDetailFactory.build({}, { transient: { dayCount: 2, activitiesPerDay: 3, startDate: "2026-06-10" } });
+    const day = (index: number, timeZone: string | null) => ({ ...inTokyo.days[0]!, index, place: null, timeZone });
+    const globals = (today: string | null) => ({ days: [day(0, today), day(1, "Asia/Tokyo")] }) as unknown as TripGlobals;
+    const at = Date.parse("2026-06-10T14:30:00Z");
+    const timeOf = (today: string | null, deviceZone: string | null) => turnNowOf(twoDays, globals(today), at, deviceZone).local.time;
+    expect(timeOf("Europe/Rome", "America/New_York")).toBe("16:30");
+    expect(timeOf(null, "America/New_York")).toBe("10:30");
+    expect(timeOf(null, null)).toBe("23:30");
+    expect(turnNowOf(twoDays, null, at).local.time).toBe("14:30");
+  });
+
   it("puts the local time, the day and the fenced stop titles in a data line, under way only", () => {
     const rendered = renderPrompt(nowBlocks(turnNowOf(trip, null, Date.parse("2026-06-10T10:30:00Z")), trip));
     const line = rendered.split("\n").find((text) => text.startsWith("Now: "))!;

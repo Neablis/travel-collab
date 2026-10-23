@@ -237,9 +237,9 @@ describe("a grant is a minimum over four independent caps", () => {
     expect(toolsFor(grantFor(editorTrip), "question", "propose").map((t) => t.name)).toEqual(unnarrowed);
   });
 
-  // The term M20 owns. It has no source yet and must not have invented one:
-  // today it permits everybody, which is what makes P2 a refactor.
-  it("permits propose for everybody until M20 supplies a plan", () => {
+  // The port's own answer. The plan's cap is admission's: a plan without
+  // `ai.command` caps the turn at read there, not here.
+  it("the port permits propose; admission caps a plan without ai.command at read", () => {
     expect(permitsPropose({ userId: "anyone" })).toBe("propose");
   });
 });

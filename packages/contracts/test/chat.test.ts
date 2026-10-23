@@ -96,6 +96,11 @@ describe("PostChatMessage", () => {
     expect(PostChatMessage.safeParse({ body: "hi", assistant: false }).success).toBe(false);
   });
 
+  it("carries the poster's zone, bounded", () => {
+    expect(PostChatMessage.parse({ body: "@assistant hi", assistant: true, timeZone: "America/New_York" }).timeZone).toBe("America/New_York");
+    expect(PostChatMessage.safeParse({ body: "hi", timeZone: "x".repeat(65) }).success).toBe(false);
+  });
+
   // A person is a `users.id`, which is not a uuid; a notebook's id is.
   it("takes a person by user id, and a notebook only by uuid", () => {
     expect(PostChatMessage.safeParse({ body: "hi", link: { kind: "person", id: "dev-bea" } }).success).toBe(true);

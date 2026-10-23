@@ -13,6 +13,18 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-10-23 — A chat message carries the poster's zone to its `@assistant` turn (M52 part 5)
+- **Added** (`packages/contracts/src/chat.ts`): `PostChatMessage.timeZone` (optional, 1 to 64
+  characters), the poster's IANA zone as their device reads it.
+- Why: an `@assistant` turn read a trip day without a zone of its own on UTC, so in a New York
+  evening its "today" was tomorrow while Home's badge showed today (PR 534 review 2, finding 1).
+  The turn now reads such a day on the poster's zone, as the Ask tab's turn does (ADR-080
+  decision 1). The server reads it only on an `@assistant` message and never stores it; a zone
+  it does not know is passed over (`turnNowOf`), so it never refuses the message.
+- Consumers updated: `apps/web` (`chat/route.ts` hands it to `runChatAskTurn`; `useTripChat`
+  sends it on every post).
+- Breaking? no — optional, and an older client simply sends none.
+
 ## 2026-10-23 — A chat message has an author kind, and can ask the assistant (M52 part 3)
 - **Added** (`packages/contracts/src/chat.ts`): `ChatMessageKind` (`member | assistant | system`).
   `ChatMessage` gains `kind` (`.default("member")`), and `requestedBy`, `replyTo` and

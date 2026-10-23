@@ -170,9 +170,8 @@ export interface TurnNow {
 /**
  * The trip at `at`, on the server. A day without a zone of its own runs on the
  * asker's (`deviceZone`, the zone their client sent), as Home's badge does
- * (ADR-080 decision 1). A turn that brought none (a chat turn brings none) runs
- * on the trip's (its first day that has one), and on UTC when no stop anywhere
- * has coordinates. A zone this runtime does not know is passed over, as
+ * (ADR-080 decision 1). A turn that brought none runs on the trip's (its first
+ * day that has one), and on UTC when no stop anywhere has coordinates. A zone this runtime does not know is passed over, as
  * `tripNow` passes it over, rather than failing the turn.
  */
 export function turnNowOf(

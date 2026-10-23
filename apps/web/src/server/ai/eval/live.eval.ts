@@ -46,7 +46,7 @@ import { postMessage } from "@/server/chat/messages";
 import type { TurnOrigin } from "@/server/assistant/defineTool";
 import { grade, navigatedTo, retractedText, reviewedChanges, textBeforeToolCall, visibleText, type EvalCheck, type EvalTurn } from "./grade";
 import { capMicroUsdFrom, dollars, turnMicroUsd, unpricedModels } from "./spend";
-import { ACCOUNT_TRIPS, accountTripCommands, japanTodayStart, longTripCommands, type EvalTripName } from "./trips";
+import { ACCOUNT_TRIPS, accountTripCommands, japanTodayStart, longTripCommands, notRunOnClock, type EvalTripName } from "./trips";
 
 const ACTOR_ID = "eval-actor";
 
@@ -131,10 +131,14 @@ const plan =
 let spentMicroUsd = 0;
 let unpricedTurns = 0;
 
-/** `japanTodayStart` now, or a refusal: from 21:00 to 06:30 JST a day-of case would fail on the clock, not the model. */
+// The day-of prompts left out on the clock, named in the summary and the report
+// so a comparison is not made over a smaller set without a word.
+const notRun: { id: string; run: number; reason: string }[] = [];
+
+/** `japanTodayStart` now. The turn checked the clock just before, so null is the instant it crossed 21:00 JST. */
 function todayStart(): string {
   const start = japanTodayStart(Date.now());
-  if (start === null) throw new Error("The day-of cases need 06:30 to 21:00 in Tokyo, when a Japan day has a stop begun and one to come. Run them then, or leave them out with EVAL_ONLY.");
+  if (start === null) throw new Error("The day-of cases need 06:30 to 21:00 in Tokyo, when a Japan day has a stop begun and one to come.");
   return start;
 }
 
@@ -301,8 +305,12 @@ beforeAll(async () => {
   if (!confirmed) {
     throw new Error(`${plan}\nNothing was sent. Set EVAL_CONFIRM=1 to spend it (and EVAL_MAX_USD to change the cap).`);
   }
-  // Before anything is sent, so the refusal costs nothing; seeding checks again.
-  if (prompts.some((prompt) => prompt.trip === "today")) todayStart();
+  // A full run leaves the day-of prompts out outside their hours, turn by turn;
+  // one that named them asked for them, so it refuses before anything is sent.
+  const late = only.length > 0 ? notRunOnClock(prompts, Date.now()) : [];
+  if (late.length > 0) {
+    throw new Error(`EVAL_ONLY names ${late.map(({ id }) => id).join(", ")}, which need 06:30 to 21:00 in Tokyo (${late[0]!.reason}). Nothing was sent.`);
+  }
   if (unpriced.length > 0 && process.env.EVAL_ALLOW_UNPRICED !== "1") {
     throw new Error(`No rate in modelRates.ts for ${unpriced.join(", ")}, so this run's spend cannot be capped. Add the rate, or set EVAL_ALLOW_UNPRICED=1.`);
   }
@@ -319,12 +327,12 @@ afterAll(() => {
     strong: process.env.AI_MODEL_STRONG,
     classifier: process.env.AI_CLASSIFIER_MODEL,
   };
-  writeFileSync(file, `${JSON.stringify({ models, repeat, spentMicroUsd, unpricedTurns, rows }, null, 2)}\n`);
+  writeFileSync(file, `${JSON.stringify({ models, repeat, spentMicroUsd, unpricedTurns, rows, notRun }, null, 2)}\n`);
   const failed = rows.flatMap((row) => row.checks.filter((check) => !check.pass).map((check) => `${row.id}#${row.run}: ${check.name}`));
   console.log(
     [
       "",
-      `eval: ${rows.length} turns, ${rows.reduce((n, row) => n + row.checks.length, 0)} checks, ${failed.length} failed`,
+      `eval: ${rows.length} turns, ${rows.reduce((n, row) => n + row.checks.length, 0)} checks, ${failed.length} failed, ${notRun.length} not run`,
       `models: ${JSON.stringify(models)}`,
       `retracted: ${rows.reduce((n, row) => n + row.retracted.parts, 0)} text parts, ${rows.reduce((n, row) => n + row.retracted.chars, 0)} chars, across ${rows.filter((row) => row.retracted.parts > 0).length} turns (KI-2026-10-12-h; not a failure)`,
       `spent: ${dollars(spentMicroUsd)} of a ${capMicroUsd === null ? "invalid" : dollars(capMicroUsd)} cap${unpricedTurns > 0 ? ` (+ ${unpricedTurns} unpriced turn(s))` : ""}`,
@@ -335,6 +343,7 @@ afterAll(() => {
           `[${row.stepDurationsMs.map((ms) => (ms === null ? "?" : (ms / 1000).toFixed(1))).join(" + ")}]  ${row.inputTokens ?? "?"} in  via ${[...new Set(row.providers)].join(",") || "?"}` +
           `  retracted ${row.retracted.parts}/${row.retracted.chars}ch`,
       ),
+      ...notRun.map((row) => `  NOT RUN ${row.id}#${row.run}  ${row.reason}`),
       `report: ${file}`,
     ].join("\n"),
   );
@@ -346,6 +355,14 @@ describe.skipIf(!confirmed)("the live set, on production's models", () => {
       it(`${prompt.id}#${run}: ${prompt.text}`, async (context) => {
         if (capMicroUsd === null || spentMicroUsd >= capMicroUsd) {
           console.log(`    skipped: the run has spent ${dollars(spentMicroUsd)}, its cap is ${capMicroUsd === null ? "invalid" : dollars(capMicroUsd)}`);
+          context.skip();
+          return;
+        }
+        // Checked as the turn starts, not once: a run begun at 20:40 JST reaches the day-of prompts last.
+        const late = notRunOnClock([prompt], Date.now())[0];
+        if (late !== undefined) {
+          notRun.push({ id: prompt.id, run, reason: late.reason });
+          console.log(`    ${late.reason}`);
           context.skip();
           return;
         }

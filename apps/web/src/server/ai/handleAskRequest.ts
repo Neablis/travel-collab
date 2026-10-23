@@ -1170,10 +1170,19 @@ export const CHAT_CHANGE_NOT_STORED =
  * reply names the message that asked and any suggestion the turn stored, which
  * is what the thread renders the asker's card from.
  *
+ * `timeZone` is the poster's device zone, carried on their message, so a
+ * zone-less trip reads today as the Ask tab and Home's badge do.
+ *
  * `model` is `handleAskRequest`'s test seam.
  */
 export async function runChatAskTurn(
-  { tripId, askerId, question, messageId }: { tripId: string; askerId: string; question: string; messageId: string },
+  {
+    tripId,
+    askerId,
+    question,
+    messageId,
+    timeZone = null,
+  }: { tripId: string; askerId: string; question: string; messageId: string; timeZone?: string | null },
   model?: LanguageModel,
 ): Promise<ChatMessage | null> {
   const writes: (() => Promise<void>)[] = [];
@@ -1185,6 +1194,7 @@ export async function runChatAskTurn(
       body: JSON.stringify({
         messages: [{ id: crypto.randomUUID(), role: "user", parts: [{ type: "text", text: question }] }],
         scope: { kind: "trip" },
+        ...(timeZone === null ? {} : { timeZone }),
       }),
     });
     const response = await handleAskRequest(request, tripId, model, undefined, undefined, (task) => writes.push(task), "chat");

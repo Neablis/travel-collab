@@ -18,7 +18,7 @@ import { clockIn } from "@tc/pages";
 import type { AskAnalyticsRecord } from "@/server/assistant/askAnalytics";
 import { OVERVIEW_ABOVE_DAYS } from "@/server/assistant/tools/read";
 import { accountExpectationFor, expectationFor, mostFreeDays, playbookExpectationFor, type SeededAccountTrip } from "./cases";
-import { ACCOUNT_TRIPS, EVAL_TRIPS, LONG_TRIP_DAYS, accountTripCommands, japanTodayStart, longTripCommands } from "./trips";
+import { ACCOUNT_TRIPS, EVAL_TRIPS, LONG_TRIP_DAYS, accountTripCommands, japanTodayStart, longTripCommands, notRunOnClock } from "./trips";
 import { grade, namesAmount, namesDayNumber, navigatedTo, retractedText, reviewedChanges, textBeforeToolCall, visibleText, type EvalTurn } from "./grade";
 
 // The fields `grade` reads, on an otherwise ordinary completed turn.
@@ -341,8 +341,18 @@ describe("the cases", () => {
       const at = Date.parse("2026-10-23T00:00:00+09:00") + minutes * 60_000;
       expect(dayOfRun(at), `${Math.floor(minutes / 60)}:${String(minutes % 60).padStart(2, "0")} JST`).toMatchObject({ begun: true, toCome: true });
     }
-    // 22:45 JST: no day has a stop left, so the runner refuses rather than spends.
+    // 22:45 JST: no day has a stop left, so the runner leaves those prompts out rather than spends.
     expect(japanTodayStart(Date.parse("2026-10-23T22:45:00+09:00"))).toBeNull();
+  });
+
+  // Refusing a whole run for three day-of prompts kept the live set off nine
+  // and a half hours a day, and a silent skip would shrink the comparison
+  // without a word (PR 534 review 2, finding 3). Outside the hours they are
+  // left out and named; inside them, nothing is.
+  it("names the day-of prompts a run leaves out on the clock, and only those, only outside the hours", () => {
+    const prompts = [{ id: "q-busiest" }, { id: "d-coffee-near-now", trip: "today" as const }, { id: "q-long", trip: "long-100" as const }];
+    expect(notRunOnClock(prompts, Date.parse("2026-10-23T22:45:00+09:00"))).toEqual([{ id: "d-coffee-near-now", reason: "not run: clock (22:45 JST)" }]);
+    expect(notRunOnClock(prompts, Date.parse("2026-10-23T12:00:00+09:00"))).toEqual([]);
   });
 
   // The summary is the overview's job: one look at a stay is fine, a read of

@@ -50,7 +50,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ tri
   }
   const message = await postMessage(tripId, access.userId, body.data);
   if (asksAssistant) {
-    after(() => runChatAskTurn({ tripId, askerId: access.userId, question: body.data.body, messageId: message.messageId }));
+    const { body: question, timeZone = null } = body.data;
+    after(() => runChatAskTurn({ tripId, askerId: access.userId, question, messageId: message.messageId, timeZone }));
   }
   return Response.json({ message: ChatMessage.parse(message) }, { status: 201 });
 }
