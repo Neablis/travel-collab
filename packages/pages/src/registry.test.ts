@@ -38,8 +38,8 @@ describe("registry", () => {
     expect([...MACRO_NAMES].sort()).toEqual([
       "attribute", "city", "city.detail", "city.rows", "cost", "cost.balances", "cost.breakdown", "cost.chart", "cost.rows",
       "count", "country.facts", "dates", "day.detail", "day.fromHome", "day.rows", "day.sun", "day.weather", "field", "hours",
-      "link.external", "link.internal", "open", "person.share", "stop.rows", "tag.breakdown", "tag.byDay",
-      "trip.description", "trip.people", "trip.strip",
+      "link.external", "link.internal", "open", "person.share", "stop.directions", "stop.rows", "tag.breakdown", "tag.byDay",
+      "trip.description", "trip.flights", "trip.now", "trip.people", "trip.strip",
       // M52 decision 15, on `trip.people`'s terms.
       "assistant.prompts", "chat.recent",
     ].sort());
@@ -196,8 +196,9 @@ describe("every widget renders (ADR-037 decision 2)", () => {
       a1: {
         activityId: "a1", tripId: detail.tripId, title: "Museum", dayId: "d0", position: 0,
         // Located, so "Know before you go" has a country to card rather than
-        // resolving to `empty` — the witness floor below, once more.
-        timeWindow: { start: "09:00", end: "17:00" }, location: { name: "Tokyo National Museum", countryCode: "JP" },
+        // resolving to `empty` — the witness floor below, once more — and placed,
+        // so "Directions" has somewhere to send Maps.
+        timeWindow: { start: "09:00", end: "17:00" }, location: { name: "Tokyo National Museum", countryCode: "JP", lat: 35.7188, lng: 139.7765 },
         cost: { amountMinor: 5000, currency: "USD" },
         // `booked`, not `null`: `booking.line` resolves to `empty` for a day
         // whose stops are all merely planned, so with a null kind it never
@@ -296,7 +297,9 @@ describe("every widget renders (ADR-037 decision 2)", () => {
   const presetOutcome = (entry: ReturnType<typeof presetCatalog>[number]) =>
     renderMacro(
       // A reader who may chat and ask (M52): without, those two are `absent`.
-      { trip: populated, page: { tripId: populated.tripId }, user, globals, today: "2027-06-01", external, canChat: true, canAsk: true, chat: [] },
+      // `now` is 10:00 in Tokyo on the trip's one day, mid-museum, so the
+      // day-of widgets (M52) have a stop under way to show.
+      { trip: populated, page: { tripId: populated.tripId }, user, globals, today: "2027-06-01", now: { at: Date.parse("2026-08-01T01:00:00Z"), deviceZone: "Asia/Tokyo" }, external, canChat: true, canAsk: true, chat: [] },
       entry.widget,
       // Bind anything still asking for a day to the one day above, so block
       // widgets reach `ok` instead of `unbound`. A field the preset leaves for
@@ -447,7 +450,7 @@ describe("every primitive declares a legal selection (ADR-039 decision 3)", () =
     // registered widget without a selection is not a primitive.
     expect([...MACRO_NAMES].sort()).toEqual(expect.arrayContaining([...PRIMITIVE_NAMES].sort()));
     expect(MACRO_NAMES.filter((n) => getMacro(n)!.selection === undefined).sort()).toEqual([
-      "country.facts", "link.external", "link.internal", "open", "trip.description", "trip.people", "trip.strip",
+      "country.facts", "link.external", "link.internal", "open", "trip.description", "trip.flights", "trip.now", "trip.people", "trip.strip",
       "assistant.prompts", "chat.recent",
     ].sort());
   });

@@ -221,6 +221,13 @@ describe("ActivityEditorSheet", () => {
     expect(sendTripUnitsMock).not.toHaveBeenCalled();
   });
 
+  // M52 decision 15: *Your flights*' *Add your flight* opens a leg by air,
+  // so the flight number is asked for at once.
+  it("opens as a flight when the prefill says so", async () => {
+    renderEditorSheet({ mode: "create", prefill: { dayId: DAY_1, title: "Flight", kind: "transit", mode: "flight" } });
+    expect(await screen.findByLabelText("Flight number")).toBeTruthy();
+  });
+
   it("offers day, start and duration rather than two raw times", () => {
     renderEditorSheet({ mode: "create" });
 

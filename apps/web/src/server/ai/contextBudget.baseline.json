@@ -136,10 +136,10 @@
         "go_to",
         "propose_notebook_editing"
       ],
-      "toolChars": 5840,
+      "toolChars": 5884,
       "instructionChars": 3564,
-      "totalChars": 9404,
-      "approxTokens": 2841
+      "totalChars": 9448,
+      "approxTokens": 2854
     },
     "page · question": {
       "tools": [
@@ -180,8 +180,8 @@
       "approxTokens": 374
     },
     "insert_widget": {
-      "chars": 1167,
-      "approxTokens": 353
+      "chars": 1211,
+      "approxTokens": 366
     },
     "find_days": {
       "chars": 1072,

@@ -52,9 +52,7 @@ type TripNowGlobals = Pick<TripGlobals, "days"> | null;
  * are never current or next.
  */
 export function tripNow(trip: TripNowTrip, globals: TripNowGlobals, clock: TripNowClock): TripNow {
-  const stops = timedStops(trip, globals, clock.deviceZone);
-  const current = stops.filter((s) => s.start <= clock.at && clock.at < s.end).at(-1) ?? null;
-  const next = stops.find((s) => s.start > clock.at) ?? null;
+  const { current, next } = pickNowNext(timedStops(trip, globals, clock.deviceZone), clock.at);
 
   const dated = trip.days.flatMap((day, index) => (day.date === null ? [] : [{ ...day, date: day.date, index }]));
   const first = dated[0];
@@ -79,6 +77,15 @@ export function tripNow(trip: TripNowTrip, globals: TripNowGlobals, clock: TripN
   const candidate = dated[at]!;
   const today = candidate.date <= todayOn(candidate.index) ? candidate : (dated[at - 1] ?? first);
   return { phase: "underway", dayId: today.dayId, current, next, firstDayToday };
+}
+
+/**
+ * Of `stops`, earliest start first, the one under way at `at` (the latest to
+ * begin when two overlap) and the first still to begin: `tripNow`'s rule, and
+ * the one the now-and-next widget re-picks by each minute.
+ */
+export function pickNowNext<S extends { start: number; end: number }>(stops: readonly S[], at: number): { current: S | null; next: S | null } {
+  return { current: stops.filter((s) => s.start <= at && at < s.end).at(-1) ?? null, next: stops.find((s) => s.start > at) ?? null };
 }
 
 /** The first flight still to leave, for Home's "Flight in 2 days, 7 h" — `null` with none, or none timed. */

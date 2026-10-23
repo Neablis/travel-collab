@@ -460,6 +460,22 @@ describe("on a page scoped to today", () => {
   });
 });
 
+// One clock per page: the countdown reads today off the page's clock, which
+// moves each minute, so it cannot still say "starts tomorrow" once *Now and
+// next* has moved on to day 1. Noon UTC is the same date in any test zone.
+describe("the countdown on a page with a clock", () => {
+  it("counts from the page's day, not the day the page was opened", () => {
+    render(
+      <MacroEditorContext.Provider
+        value={{ detail: costedDetail, context: ctx, user: null, globals: null, editing: false, now: { at: Date.parse("2026-07-31T12:00:00Z"), deviceZone: "UTC" } }}
+      >
+        <MacroView detail={costedDetail} context={ctx} name="attribute" params={{ field: "trip.countdown" }} />
+      </MacroEditorContext.Provider>,
+    );
+    expect(screen.getByText("starts tomorrow")).toBeTruthy();
+  });
+});
+
 // **Every widget must be legal inside a paragraph, because that is where every
 // widget goes.** `MacroNodeExtension` is an inline atom, so a widget node sits
 // in the text flow — and a block-level element there is not merely unusual
@@ -528,8 +544,9 @@ describe("every widget is legal where widgets actually go", () => {
       a1: { ...costedDetail.activities.a1!, kind: "pending", tags: ["ticketed"] },
       booked: {
         activityId: "booked", title: "Ryokan", timeWindow: { start: "15:00", end: "23:00" },
-        // Located, so "Know before you go" has a country to card.
-        location: { name: "Ryokan, Kyoto", countryCode: "JP" }, notes: null, anchors: [], kind: "planned", tags: [],
+        // Located, so "Know before you go" has a country to card, and placed,
+        // so "Directions" has somewhere to send Maps.
+        location: { name: "Ryokan, Kyoto", countryCode: "JP", lat: 35.0037, lng: 135.7788 }, notes: null, anchors: [], kind: "planned", tags: [],
         cost: { amountMinor: 12000, currency: "USD" },
         bookedBy: null,
         participants: [],
@@ -592,6 +609,10 @@ flightNumber: null,
     },
   };
 
+  // 9:30 in Kyoto on the fixture's day, mid-museum, so the day-of widgets
+  // (M52) have a stop under way, a place to go and a clock to count from.
+  const richNow = { at: Date.parse("2026-08-01T00:30:00Z"), deviceZone: "Asia/Tokyo" };
+
   it("resolves every widget in the registry against this fixture", () => {
     // The witness for the test below, and a real assertion in its own right: if
     // one entry stops resolving here, the nesting walk quietly stops covering
@@ -602,7 +623,7 @@ flightNumber: null,
         // resolves rather than reporting "no dates set yet" — and so this
         // sweep's answer does not change with the calendar.
         // A reader who may chat and ask (M52): without, those two are `absent`.
-        { trip: richDetail, page: ctx, user: richUser, globals: richGlobals, today: "2027-01-01", external: richExternal, canChat: true, canAsk: true, chat: [] },
+        { trip: richDetail, page: ctx, user: richUser, globals: richGlobals, today: "2027-01-01", now: richNow, external: richExternal, canChat: true, canAsk: true, chat: [] },
         widget.widget,
         boundParams(widget),
       );
@@ -631,17 +652,19 @@ flightNumber: null,
       for (const widget of presetCatalog()) {
         const { unmount } = render(
           <ServedEntitlementsProvider entitlements={["ai.ask"]}>
-            <p>
-              <MacroView
-                detail={richDetail}
-                context={ctx}
-                user={richUser}
-                globals={richGlobals}
-                external={richExternal}
-                name={widget.widget}
-                params={boundParams(widget)}
-              />
-            </p>
+            <MacroEditorContext.Provider value={{ detail: richDetail, context: ctx, user: richUser, globals: richGlobals, editing: false, now: richNow }}>
+              <p>
+                <MacroView
+                  detail={richDetail}
+                  context={ctx}
+                  user={richUser}
+                  globals={richGlobals}
+                  external={richExternal}
+                  name={widget.widget}
+                  params={boundParams(widget)}
+                />
+              </p>
+            </MacroEditorContext.Provider>
           </ServedEntitlementsProvider>,
         );
         // A chart's code is loaded lazily (`SpendByDayBlock`), and until it

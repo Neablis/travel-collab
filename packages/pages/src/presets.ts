@@ -576,6 +576,33 @@ export const PRESETS: readonly WidgetPreset[] = [
     summary: "Shows each day's weather: the forecast when the day is close, and what is typical for that month when it is not.",
     keywords: ["weather", "forecast", "temperature", "rain", "typical", "climate", "sun", "cold", "hot", "umbrella", "pack"],
   },
+  // ---- the day of the trip (M52 decision 15) ------------------------------
+  // Each reads well with nothing to show, as a seeded page must (`templates.ts`):
+  // "Nothing planned today" off the trip's dates.
+  {
+    id: "trip.now",
+    widget: "trip.now",
+    params: {},
+    title: "Now and next",
+    summary: "While you travel, shows the stop you are at, the next one and how long until it, with directions to each.",
+    keywords: ["now", "next", "today", "current", "upcoming", "where", "schedule", "day of", "directions", "late"],
+  },
+  {
+    id: "stop.directions",
+    widget: "stop.directions",
+    params: {},
+    title: "Directions",
+    summary: "A link that opens directions in Google Maps to a stop, or to the next place on today's plan.",
+    keywords: ["directions", "map", "maps", "navigate", "route", "get there", "how to get", "google maps", "walk"],
+  },
+  {
+    id: "trip.flights",
+    widget: "trip.flights",
+    params: {},
+    title: "Your flights",
+    summary: "Shows today's flights or the next one, with flight number, where it goes, its departure time and a countdown to take-off.",
+    keywords: ["flight", "flights", "plane", "fly", "airport", "departure", "arrival", "countdown", "flight number"],
+  },
   {
     id: "costs.table",
     widget: "cost.rows",
