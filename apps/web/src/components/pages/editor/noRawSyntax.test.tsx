@@ -59,7 +59,7 @@ const repeatPage = everyRepeatPage();
 const globals: TripGlobals = {
   days: trip.days.map((day, index) => ({
     index, date: day.date, cities: [index === 0 ? "Lisbon" : "Porto"], activityCount: day.activityIds.length,
-    costSubtotal: day.costSubtotal, place: null, timeZone: null,
+    costSubtotal: day.costSubtotal, place: null, timeZone: null, weatherPlace: null,
   })),
   cities: [
     { name: "Lisbon", dayIndexes: [0], activityCount: 2 },

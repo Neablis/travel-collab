@@ -39,6 +39,7 @@ function tripOf(days: DaySpec[]): { trip: TripDetail; globals: Pick<TripGlobals,
       costSubtotal: 0,
       place: day.zone === null ? null : { lat: 0, lng: 0, city: null },
       timeZone: day.zone,
+      weatherPlace: day.zone === null ? null : { lat: 0, lng: 0, city: null, timeZone: day.zone },
     }),
   );
   return {

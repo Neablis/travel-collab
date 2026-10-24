@@ -13,6 +13,33 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-10-24 — A day's `weatherPlace`, where its sun and weather are read (M52 part 11, PR 542's preview; public API 1.24.0)
+- **Added** (`packages/contracts` `TripGlobalsDay.weatherPlace`, optional, `{ lat, lng, city,
+  timeZone } | null`, default `null`; public API: the field on every response carrying
+  `TripGlobals`): the earliest located stop of the day's first city, or the earliest located stop
+  when none names a city, with the IANA zone there. `null` exactly when `place` is.
+- Unchanged: `TripGlobalsDay.place` and `timeZone` (still the earliest located stop, the day's
+  clock), and so the trip's phase, which day is today, now and next, and
+  `GET /v1/trips/{tripId}/today`.
+- Why: a stop with coordinates and no city (a flight out of the home airport) put a Today page's
+  sunrise at home while its weather was at the day's first city. Moving `place` instead moved the
+  clock, and made a trip under way the evening before it leaves. `placesOfDay`
+  (`apps/web/src/server/tripGlobals.ts`) is the one rule for both widgets.
+- Consumers updated: `apps/web` (`buildTripGlobals`, `weatherPointsOf`, `openapi.json`),
+  `@tc/pages` (`day.sun` reads `weatherPlace`; `day.fromHome` keeps `place`).
+- Breaking? no — additive; an older response parses with `weatherPlace: null`, and the sun then
+  shows nothing for that day.
+
+## 2026-10-24 — The weather route answers today off the trip's dates (M52 part 11)
+- **Changed** (`apps/web`, `GET /api/trips/[tripId]/weather` only; no `packages/contracts`
+  schema changed): when today is none of the trip's days, `TripWeather.points` carries one more
+  `TripWeatherPoint`, dated today at the place of the trip day nearest today (`nearestTripDay`,
+  `@tc/pages`), with `placeToday` equal to its `date`. `TripWeatherPoint`'s "one (day, city) of
+  the trip" now has that one exception.
+- Why: Mitchell, 2026-10-24: a notebook scoped to today shows today's weather before and after
+  the trip too. `day.weather` reads that point only on a Today page off the trip's dates.
+- Consumers updated: `@tc/pages` (`day.weather`); nothing else reads the route.
+- Breaking? no — an older client finds no trip day on that date and shows no row for it.
 ## 2026-10-23 — The trip under way over the API (M52 part 10; public API 1.23.0)
 - **Added** (`apps/web`, the v1 surface only; no `packages/contracts` schema changed):
   `GET /v1/trips?active=true`, the list narrowed to the trips whose `tripNow` phase is

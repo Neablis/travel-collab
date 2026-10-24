@@ -1,4 +1,4 @@
-import { citiesOfDay, describeByTags, describedTagCounts } from "@tc/domain";
+import { citiesOfDay, describeByTags, describedTagCounts, stopsInTimeOrder } from "@tc/domain";
 import type {
   TripDetail, TripGlobals, TripGlobalsCity, TripGlobalsDay, TripGlobalsDescription, TripGlobalsTag, UserPreferences,
 } from "@tc/contracts";
@@ -30,6 +30,7 @@ export function buildTripGlobals(
     activityCount: day.activityIds.length,
     costSubtotal: day.costSubtotal,
     ...placeOfDay(detail, day.activityIds),
+    weatherPlace: weatherPlaceOf(detail, index),
   }));
 
   // A city's days and its stop count, accumulated in one pass over the days
@@ -124,6 +125,37 @@ function placeOfDay(detail: TripDetail, activityIds: readonly string[]): Pick<Tr
   }
   if (best === null) return { place: null, timeZone: null };
   // The city travels with the coordinates: `cities[0]` can be an earlier stop
-  // that has a city and no coordinates (CodeRabbit on #223).
+  // that has a city and no coordinates (CodeRabbit on PR 223).
   return { place: { lat: best.lat, lng: best.lng, city: best.city }, timeZone: timeZoneAt(best.lat, best.lng) };
+}
+
+type Located = { lat: number; lng: number; city: string | null };
+
+/**
+ * Where a day's sky is read, for its weather and its sun: for each of its
+ * cities in `citiesOfDay` order, that city's first located stop in time order
+ * (`stopsInTimeOrder`, the walk `citiesOfDay` makes); a day whose located
+ * stops name no city is at its first. The first is `weatherPlace`; the
+ * weather has a point at each.
+ *
+ * By city, not `placeOfDay`'s first located stop: a stop naming no city (a
+ * flight out of the home airport) put a Today page's sunrise at home while its
+ * weather was at the day's first city (PR 542's preview). The clock stays on
+ * `placeOfDay`, where the morning is, because it decides which day is today.
+ */
+export function placesOfDay(detail: TripDetail, dayIndex: number): Located[] {
+  const day = detail.days[dayIndex];
+  if (!day) return [];
+  const stops = stopsInTimeOrder(day.activityIds.flatMap((id) => (detail.activities[id] ? [detail.activities[id]] : []))).flatMap(
+    ({ location }) => (location?.lat === undefined || location.lng === undefined ? [] : [{ lat: location.lat, lng: location.lng, city: location.city ?? null }]),
+  );
+  const byCity = citiesOfDay(detail, dayIndex).flatMap((city) => stops.find((stop) => stop.city === city) ?? []);
+  return byCity.length > 0 ? byCity : stops.slice(0, 1);
+}
+
+function weatherPlaceOf(detail: TripDetail, dayIndex: number): TripGlobalsDay["weatherPlace"] {
+  const [place] = placesOfDay(detail, dayIndex);
+  const timeZone = place === undefined ? null : timeZoneAt(place.lat, place.lng);
+  // No zone, no sun to read on it: the same day `place` keeps with `timeZone: null`.
+  return place === undefined || timeZone === null ? null : { ...place, timeZone };
 }

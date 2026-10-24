@@ -26,7 +26,7 @@ trip.days[1]!.date = "2027-06-02";
 trip.days[2]!.date = "2027-06-03";
 const day = (index: number, cities: string[]) => ({
   index, date: trip.days[index]!.date, cities, activityCount: 2, costSubtotal: trip.days[index]!.costSubtotal,
-  place: null, timeZone: null,
+  place: null, timeZone: null, weatherPlace: null,
 });
 const globals: TripGlobals = {
   days: [day(0, ["Tokyo"]), day(1, ["Tokyo", "Kyoto"]), day(2, ["Kyoto"])],

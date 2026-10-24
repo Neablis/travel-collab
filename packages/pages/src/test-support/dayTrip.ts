@@ -33,6 +33,7 @@ export function dayTrip(days: DaySpec[]): { trip: TripDetail; globals: TripGloba
       costSubtotal: 0,
       place: day.zone === null ? null : { lat: 0, lng: 0, city: day.city ?? null },
       timeZone: day.zone,
+      weatherPlace: day.zone === null ? null : { lat: 0, lng: 0, city: day.city ?? null, timeZone: day.zone },
     }),
   );
   return {

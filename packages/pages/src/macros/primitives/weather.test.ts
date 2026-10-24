@@ -51,6 +51,7 @@ function setup(dates: (string | null)[], points: TripWeatherPoint[]) {
     days: dates.map((date, index) => ({
       index, date, cities: ["Kyoto"], activityCount: 1, costSubtotal: 0,
       place: { lat: 35.01, lng: 135.77, city: "Kyoto" }, timeZone: "Asia/Tokyo",
+      weatherPlace: { lat: 35.01, lng: 135.77, city: "Kyoto", timeZone: "Asia/Tokyo" },
     })),
     cities: [], tags: [], description: null, homeTimeZone: null,
   };
@@ -241,10 +242,12 @@ describe("day.weather", () => {
     expect(payload.rows.map((r) => r.label)).toEqual(["Day 3"]);
   });
 
-  // M52 decision 10: on a page scoped to today an unbound weather reads today
-  // and a bound one keeps its day. The scope reaches it only through the
-  // `item` it hands `narrow`, which no other widget's test would miss.
-  it("reads only today on a page scoped to today, unless bound to a day", () => {
+  // M52 decision 10: on a page scoped to today the weather reads today, and
+  // since 2026-10-24 so does one stored bound to a day: the page's scope
+  // supersedes the widget's day (`supersededParams`). The scope reaches it
+  // only through the `item` it hands `narrow`, which no other widget's test
+  // would miss.
+  it("reads only today on a page scoped to today, even bound to a day", () => {
     const t = trip();
     // Noon in Kyoto on 2026-11-10, the trip's day 2.
     const scoped: WidgetContext = {
@@ -253,7 +256,7 @@ describe("day.weather", () => {
       now: { at: Date.parse("2026-11-10T03:00:00Z"), deviceZone: "Asia/Tokyo" },
     };
     expect(payloadOf(scoped).rows.map((r) => r.label)).toEqual(["Day 2"]);
-    expect(payloadOf(scoped, { day: { kind: "index", index: 2 } }).rows.map((r) => r.label)).toEqual(["Day 3"]);
+    expect(payloadOf(scoped, { day: { kind: "index", index: 2 } }).rows.map((r) => r.label)).toEqual(["Day 2"]);
   });
 
   // Mitchell, on the #221 preview: *"Make sure we are respecting the account
@@ -399,5 +402,30 @@ describe("day.weather — the graphic's numbers", () => {
   it("gives rain in the reader's unit, unrounded", () => {
     const row = payloadOf(ctxOf(one({ precipitationMm: 2.14 }), "2026-11-10", "ready", km)).rows[0]!;
     expect(row.rainValue).toBe(2.14);
+  });
+});
+
+// Mitchell, 2026-10-24: *"there's still weather and sunsets today at t minus
+// negative some amount of days till trip."* On a Today page off the trip's
+// dates the route adds today's point, at the trip day nearest today
+// (`todayPointOf`), and the widget shows it rather than nothing.
+describe("day.weather on a page scoped to today, off the trip's dates", () => {
+  const ctxOn = (iso: string, points: TripWeatherPoint[]): WidgetContext => {
+    const setUp = setup(["2026-11-12", "2026-11-13"], points);
+    return {
+      ...ctxOf(setUp, iso.slice(0, 10)),
+      page: { tripId: setUp.trip.tripId, dateScope: "today" },
+      now: { at: Date.parse(iso), deviceZone: "UTC" },
+    };
+  };
+  const dayPoints = [point("2026-11-12", { placeToday: "2026-11-10" }), point("2026-11-13", { placeToday: "2026-11-10" })];
+
+  it("shows today's weather before the trip, as a row called Today", () => {
+    const ctx = ctxOn("2026-11-10T09:00:00Z", [...dayPoints, point("2026-11-10", { placeToday: "2026-11-10" })]);
+    expect(payloadOf(ctx).rows.map((r) => [r.label, r.date, r.modeText, r.city])).toEqual([["Today", "Nov 10", "Today", "Kyoto"]]);
+  });
+
+  it("is still nothing today when the route sent no point for today", () => {
+    expect(renderMacro(ctxOn("2026-11-10T09:00:00Z", dayPoints), "day.weather", {})).toEqual({ status: "empty", because: "Nothing planned today" });
   });
 });

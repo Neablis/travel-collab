@@ -87,6 +87,29 @@ export const TripGlobalsDay = z.object({
   // no boundary dataset ships to the browser). `null` exactly when `place` is.
   // `.default(null)` so a response from before this field still parses.
   timeZone: described("text", "Time zone", z.string().min(1).nullable(), "The day's time zone").default(null),
+  // **Where the day's sky is read, for its weather and its sun** (PR 542): the
+  // earliest located stop of its first city, or `place` when no located stop
+  // names a city. Not `place`, which is the CLOCK's: a departure day opening
+  // with a flight out of the home airport keeps home's clock, so the trip is
+  // not under way the evening before, while its sun and weather are where the
+  // traveller sleeps. The server's `placesOfDay` is the one rule, and the
+  // weather's first point of the day is the same stop.
+  //
+  // `timeZone` rides inside it, because the sun's times are read on the clock
+  // of the place it rises over. Unannotated, like `place`. `.default(null)` so
+  // a response from before the field still parses.
+  weatherPlace: z
+    .object({
+      lat: z.number().min(-90).max(90),
+      lng: z.number().min(-180).max(180),
+      city: z.string().nullable().default(null).describe("The city of the stop the weather is read at, if it has one"),
+      timeZone: z.string().min(1).describe("The IANA time zone at that stop"),
+    })
+    .nullable()
+    .default(null)
+    .describe(
+      "Where the day's weather and sunrise are read: the earliest stop with coordinates in its first city, or its earliest stop with coordinates when none names a city. Null when no stop on the day has any.",
+    ),
 });
 export type TripGlobalsDay = z.infer<typeof TripGlobalsDay>;
 

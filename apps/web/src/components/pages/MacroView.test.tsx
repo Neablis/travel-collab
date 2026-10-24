@@ -313,7 +313,7 @@ describe("MacroView", () => {
       const globals = {
         days: [{
           index: 0, date: "2026-08-01", cities: ["Kyoto"], activityCount: 1, costSubtotal: 12345,
-          place: null, timeZone: null,
+          place: null, timeZone: null, weatherPlace: null,
         }],
         cities: [{ name: "Kyoto", dayIndexes: [0], activityCount: 1 }],
         tags: [], description: null, homeTimeZone: null,
@@ -422,8 +422,10 @@ describe("a widget for readers who are not this one", () => {
 });
 
 // M52's gate box (decision 10, ADR-080 §4), as a reader sees it: on a page
-// scoped to today, a day.detail left unbound reads today, and one bound to day 1
-// reads day 1. The clock reaches the widget through the editor's context.
+// scoped to today, a day.detail left unbound reads today, and since 2026-10-24
+// so does one stored bound to day 1, whose day the page's scope supersedes
+// (`supersededParams`, Mitchell). The clock reaches the widget through the
+// editor's context.
 describe("on a page scoped to today", () => {
   const twoDated: TripDetail = withCostRollups({
     ...costedDetail,
@@ -449,10 +451,10 @@ describe("on a page scoped to today", () => {
     expect(screen.queryByText("Museum")).toBeNull();
   });
 
-  it("shows day 1 in one bound to day 1", () => {
+  it("shows today in one stored bound to day 1", () => {
     onDay2({ day: { kind: "index", index: 0 } });
-    expect(screen.getByText("Museum")).toBeTruthy();
-    expect(screen.queryByText("Shrine")).toBeNull();
+    expect(screen.getByText("Shrine")).toBeTruthy();
+    expect(screen.queryByText("Museum")).toBeNull();
   });
 });
 
@@ -572,6 +574,7 @@ flightNumber: null,
     days: [{
       index: 0, date: "2026-08-01", cities: ["Kyoto"], activityCount: 2, costSubtotal: 12345,
       place: { lat: 35.0116, lng: 135.7681, city: "Kyoto" }, timeZone: "Asia/Tokyo",
+      weatherPlace: { lat: 35.0116, lng: 135.7681, city: "Kyoto", timeZone: "Asia/Tokyo" },
     }],
     cities: [{ name: "Kyoto", dayIndexes: [0], activityCount: 2 }],
     tags: [],

@@ -6,6 +6,7 @@ import { pointText } from "../roundedPoint";
 import metComplete from "./fixtures/met-complete.json";
 import { parseComplete } from "./met-norway";
 import { renderMacro, type WidgetContext } from "@tc/pages";
+import { buildTripGlobals } from "../../tripGlobals";
 import { buildTripWeather, forecastDayOf, weatherPointsOf, type WeatherDeps } from "./tripWeather";
 import type { Climate, Fetched, Forecast, ForecastSeries, MonthlyNormals } from "./ports";
 
@@ -34,7 +35,7 @@ function tripOf(days: { date: string | null; stops: Stop[] }[]): TripDetail {
       activities[id] = {
         ...activities[id]!,
         location: stop.lat === undefined ? null : { name: "a stop", lat: stop.lat, lng: stop.lng, ...(stop.city ? { city: stop.city } : {}) },
-        timeWindow: stop.start ? { start: stop.start, end: null } : null,
+        timeWindow: stop.start ? { start: stop.start, end: stop.start } : null,
       } as never;
     });
     return { ...day, date: spec.date, activityIds: ids };
@@ -270,6 +271,57 @@ describe("buildTripWeather", () => {
 // server knew the place's zone and the resolver chose from the reader's date.
 // 16:03 UTC on the 27th is 01:03 on the 28th in Kyoto and 06:03 on the 27th in
 // Honolulu.
+// Mitchell, 2026-10-24: a Today page shows today's weather before and after
+// the trip too, at the place of the trip day nearest today (`nearestTripDay`).
+// The route adds that one point; a page without a Today scope never reads it.
+describe("today's point off the trip's dates", () => {
+  const datesAndForecast = (weather: Awaited<ReturnType<typeof buildTripWeather>>) =>
+    weather.points.map((p) => [p.date, p.city, "unavailable" in p.forecast ? p.forecast.unavailable : "forecast"]);
+
+  it("is today at day 1's place before the trip, forecast, beside the trip's own days", async () => {
+    const before = tripOf([{ date: "2026-10-20", stops: [OSLO] }, { date: "2026-10-21", stops: [BERGEN] }]);
+    expect(datesAndForecast(await buildTripWeather(before, deps().deps))).toEqual([
+      ["2026-10-20", "Oslo", "not-in-horizon"],
+      ["2026-10-21", "Bergen", "not-in-horizon"],
+      ["2026-09-24", "Oslo", "forecast"],
+    ]);
+  });
+
+  it("is today at the last day's place after it", async () => {
+    const after = tripOf([{ date: "2026-08-01", stops: [OSLO] }, { date: "2026-08-02", stops: [BERGEN] }]);
+    expect(datesAndForecast(await buildTripWeather(after, deps().deps)).at(-1)).toEqual(["2026-09-24", "Bergen", "forecast"]);
+  });
+
+  it("is not added while today is one of the trip's days, nor for a nearest day with no place", async () => {
+    const during = tripOf([{ date: "2026-09-24", stops: [OSLO] }]);
+    expect(datesAndForecast(await buildTripWeather(during, deps().deps))).toEqual([["2026-09-24", "Oslo", "forecast"]]);
+    const unplaced = tripOf([{ date: "2026-10-20", stops: [] }, { date: "2026-10-21", stops: [BERGEN] }]);
+    expect(datesAndForecast(await buildTripWeather(unplaced, deps().deps))).toEqual([["2026-10-21", "Bergen", "not-in-horizon"]]);
+  });
+
+  // PR 542's preview: the sunrise was at home and the weather in Tokyo. Day 1
+  // opens with a located stop naming no city (a flight out of the home
+  // airport), and the sun took the day's first located stop while the weather
+  // took its first city's.
+  it("puts today's sun and today's weather at the same place before the trip", async () => {
+    const HOME = { lat: 42.3806, lng: -76.8733, start: "06:00" };
+    const TOKYO = { lat: 35.6812, lng: 139.7671, city: "Tokyo", start: "18:00" };
+    const trip = tripOf([{ date: "2026-10-20", stops: [HOME, TOKYO] }, { date: "2026-10-21", stops: [TOKYO] }]);
+    const ctx: WidgetContext = {
+      trip, page: { tripId: trip.tripId, dateScope: "today" }, user: null, globals: buildTripGlobals(trip), today: "2026-09-24",
+      now: { at: NOW.getTime(), deviceZone: "America/New_York" },
+      external: { weather: { state: "ready", value: await buildTripWeather(trip, deps().deps) } },
+    };
+    const cities = (name: string) => {
+      const outcome = renderMacro(ctx, name, {});
+      if (outcome.status !== "ok" || outcome.rendered.kind !== "block") throw new Error(`expected a block, got ${JSON.stringify(outcome)}`);
+      const { block } = outcome.rendered;
+      return block.kind === "sun" || block.kind === "weather" ? block.rows.map((row) => row.city) : [];
+    };
+    expect({ sun: cities("day.sun"), weather: cities("day.weather") }).toEqual({ sun: ["Tokyo"], weather: ["Tokyo"] });
+  });
+});
+
 describe("the place's today, not the reader's (KI-2026-09-27-c)", () => {
   const AT = new Date("2026-09-27T16:03:00Z");
   const KYOTO = { lat: 35.0116, lng: 135.7681, city: "Kyoto" };

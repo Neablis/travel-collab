@@ -29,7 +29,9 @@ function located(): { detail: TripDetail; globals: TripGlobals } {
   return {
     detail: { ...built, days: built.days.map((day, i) => ({ ...day, date: DAYS[i]!.date })) },
     globals: {
-      days: DAYS.map((day, index) => ({ index, ...day, cities: [day.place.city], activityCount: 1, costSubtotal: 0 })),
+      days: DAYS.map((day, index) => ({
+        index, ...day, cities: [day.place.city], activityCount: 1, costSubtotal: 0, weatherPlace: { ...day.place, timeZone: day.timeZone },
+      })),
       cities: [], tags: [], description: null, homeTimeZone: null,
     },
   };
