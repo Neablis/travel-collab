@@ -3,10 +3,11 @@
 //
 // **One resolver, and every widget reads it through `narrow`.** The scope is
 // handed to a widget exactly where a repeat hands its line's day (`scoped` in
-// `select.ts`), so it fills only a day the widget left open. On a Today page
-// the notebook's Today supersedes a day or dates stored on the widget
-// (`supersededParams`), so none is left set there. Later notebook settings
-// extend this function rather than adding a hook of their own.
+// `select.ts`), so it fills only a day the widget left open. Precedence is
+// Mitchell's (2026-10-24): *"Notebook level settings > manually set widget
+// settings > defaults"*, so on a Today page the notebook's Today supersedes a
+// day or dates stored on the widget (`supersededParams`). Later notebook
+// settings extend this function rather than adding a hook of their own.
 //
 // Pure (Invariant 4): the reader's clock is handed in, as `tripNow` takes it.
 import type { FilterDimension, PageContext, TripDetail, TripGlobals } from "@tc/contracts";
@@ -84,7 +85,10 @@ export function standInDay(trip: TripDetail, globals: TripGlobals | null, now: T
 /**
  * **Notebook settings and the widget params each takes over while it is set**
  * (Mitchell, 2026-10-24: *"we might have future global settings for notebooks
- * that might change the params possible in a widget"*). A new setting is a
+ * that might change the params possible in a widget"*). The general rule is
+ * *"Notebook level settings > manually set widget settings > defaults"*
+ * (Mitchell, 2026-10-24): a set notebook setting wins over a value the author
+ * stored on the widget, which wins over the widget's default. A new setting is a
  * row here; `supersededParams` is the one reader, behind the inputs a widget
  * offers (`inputsFor`) and the params it renders with (`renderMacro`).
  *
