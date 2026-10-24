@@ -136,9 +136,9 @@ describe("buildTripGlobals and duplicate tags", () => {
   });
 });
 
-// Where a day is, and what its clock says (M14 link 11). The rule: the first
-// located stop in TIME order, untimed stops after timed ones — `citiesOfDay`'s
-// walk — because the first stop is where the morning is.
+// Where a day is, and what its clock says (M14 link 11). The rule
+// (`placesOfDay`): the first located stop of the day's first city, in TIME
+// order, untimed stops after timed ones — `citiesOfDay`'s walk.
 describe("buildTripGlobals and time zones", () => {
   const TOKYO = { lat: 35.6812, lng: 139.7671 };
   const HONOLULU = { lat: 21.3069, lng: -157.8583 };

@@ -13,6 +13,16 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-10-24 — A day's place is its first city's (M52 part 11, PR 542's preview; public API 1.23.1)
+- **Changed** (`packages/contracts` `TripGlobalsDay.place`, description and comment only; no shape
+  change; public API description text): the place is the earliest located stop *of the day's
+  first city*, or the earliest located stop when none names a city, where it was the earliest
+  located stop of any. `timeZone` follows it.
+- Why: a stop with coordinates and no city (a flight out of the home airport) put a Today page's
+  sunrise at home while its weather was at the day's first city. `placesOfDay`
+  (`apps/web/src/server/tripGlobals.ts`) is now the one rule for both.
+- Consumers updated: `apps/web` (`buildTripGlobals`, `weatherPointsOf`, `openapi.json`).
+- Breaking? no — same shape; only a day that opens at a city-less stop moves.
 ## 2026-10-24 — The weather route answers today off the trip's dates (M52 part 11)
 - **Changed** (`apps/web`, `GET /api/trips/[tripId]/weather` only; no `packages/contracts`
   schema changed): when today is none of the trip's days, `TripWeather.points` carries one more

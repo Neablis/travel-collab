@@ -1,9 +1,9 @@
-import { citiesOfDay, stopsInTimeOrder } from "@tc/domain";
 import { clockIn, nearestTripDay } from "@tc/pages";
 import type { ForecastDay, TripDetail, TripWeather, TripWeatherPoint, TypicalMonth } from "@tc/contracts";
 import { readThrough, wouldCharge, type CacheRow, type CacheStore } from "../cache";
 import { pointText, roundForExport, type RoundedPoint } from "../roundedPoint";
 import { timeZoneAt } from "../../timeZones";
+import { placesOfDay } from "../../tripGlobals";
 import { ForecastSeries, MonthlyNormals, type Climate, type Forecast } from "./ports";
 
 // A trip's weather, as `GET /api/trips/[tripId]/weather` answers it (ADR-052
@@ -66,39 +66,19 @@ export interface PlannedPoint {
   zone: string | null;
 }
 
-type Located = { lat: number; lng: number; city: string | null };
-
-/** A day's located stops in time order — `stopsInTimeOrder`, the walk `citiesOfDay` makes, not a copy of it. */
-function locatedInTimeOrder(detail: TripDetail, activityIds: readonly string[]): Located[] {
-  const stops = activityIds.flatMap((id) => (detail.activities[id] ? [detail.activities[id]] : []));
-  return stopsInTimeOrder(stops).flatMap(({ location }) =>
-    location?.lat === undefined || location.lng === undefined
-      ? []
-      : [{ lat: location.lat, lng: location.lng, city: location.city ?? null }],
-  );
-}
-
 /**
- * The trip's points. A day with no located stop has none — the widget says
- * "add a place to a stop to see this", which the author can fix. A day whose located stops
- * name no city gets one point, at its first, with no city.
+ * The trip's points: each dated day's places (`placesOfDay`, the rule the
+ * day's sun is placed by too). A day with no located stop has none — the
+ * widget says "add a place to a stop to see this", which the author can fix.
  */
 export function weatherPointsOf(detail: TripDetail): PlannedPoint[] {
-  const points: PlannedPoint[] = [];
-  detail.days.forEach((day, index) => {
-    if (day.date === null) return;
-    const stops = locatedInTimeOrder(detail, day.activityIds);
-    if (stops.length === 0) return;
-    const planned = (stop: Located, city: string | null): PlannedPoint => ({
-      date: day.date!, city, point: roundForExport(stop.lat, stop.lng), zone: timeZoneAt(stop.lat, stop.lng),
-    });
-    const byCity = citiesOfDay(detail, index).flatMap((city) => {
-      const first = stops.find((stop) => stop.city === city);
-      return first ? [planned(first, city)] : [];
-    });
-    points.push(...(byCity.length > 0 ? byCity : [planned(stops[0]!, null)]));
-  });
-  return points;
+  return detail.days.flatMap((day, index) =>
+    day.date === null
+      ? []
+      : placesOfDay(detail, index).map(({ lat, lng, city }) => ({
+          date: day.date!, city, point: roundForExport(lat, lng), zone: timeZoneAt(lat, lng),
+        })),
+  );
 }
 
 /**

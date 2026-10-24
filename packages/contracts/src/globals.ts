@@ -60,10 +60,12 @@ export const TripGlobalsDay = z.object({
   activityCount: described("count", "Number of stops", z.number().int().nonnegative(), "How many stops are on this day"),
   costSubtotal: described("money", "Cost", z.number().int(), "What this day costs"),
   // **Where the day is, for the sun and the clock** (M14 link 11): the first
-  // located stop in TIME order, untimed stops after timed ones — `citiesOfDay`'s
-  // ordering, so "the day's place" and "the day's first city" come from the same
-  // walk. The first stop is where the morning is, and the morning is what a
-  // sunrise answers. `null` when no stop on the day has coordinates.
+  // located stop of the day's first city that has one, in TIME order, untimed
+  // stops after timed ones — `citiesOfDay`'s walk; the first located stop when
+  // none names a city. The first stop is where the morning is, and the morning
+  // is what a sunrise answers. The weather's first point of the day is the same
+  // stop, so a Today page's sun and weather agree (PR 542). `null` when no stop
+  // on the day has coordinates.
   //
   // Unannotated, so the field picker does not offer it: a pair of numbers has
   // no value kind that prints it, the same call `timeWindow` gets on a stop.
@@ -82,7 +84,7 @@ export const TripGlobalsDay = z.object({
     })
     .nullable()
     .default(null)
-    .describe("Where the day is: its earliest stop with coordinates. Null when no stop on the day has any."),
+    .describe("Where the day is: the earliest stop with coordinates in its first city, or its earliest stop with coordinates when none names a city. Null when no stop on the day has any."),
   // The IANA zone at `place`, computed on the server (M14 "Decided 2026-09-24":
   // no boundary dataset ships to the browser). `null` exactly when `place` is.
   // `.default(null)` so a response from before this field still parses.
