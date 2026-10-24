@@ -246,6 +246,11 @@ chips do.
     (`?chat=open` is gone). **A solo trip has no chat anywhere**, board and notebook alike: no
     Chat tab, no ⌘K *Open chat*, no *Group chat* card, only the assistant. This reverses M46's
     solo Chat tab on the board.
+    **Amended by Mitchell after walking part 8's preview, 2026-10-24:** the widget is titled
+    **Trip chat** (not *Group chat*; preset key `chat.recent` unchanged). It always renders:
+    on a solo trip it shows an empty state, *Add other travelers to see the trip chat*, and is
+    not a chat control; on a trip with chat but no messages it shows the chat card with
+    *No messages yet* and still opens the chat.
 16. **Which maps app Directions opens.** **Answered at scoping, 2026-10-23: Google Maps, as recommended.** Google Maps' universal URL
     (`https://www.google.com/maps/dir/?api=1&destination=<lat>,<lng>`). It falls back to the name
     and address at `city` precision, and takes `travelmode` from the leg's `mode` when a transit
