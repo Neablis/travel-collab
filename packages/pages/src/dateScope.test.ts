@@ -98,7 +98,10 @@ describe("supersededParams — a notebook setting takes over a widget's own", ()
     expect(names({ dateScope: "today" })).not.toContain("dates");
     expect(names({ dateScope: "today" })).toContain("city");
     const stored = { day: { kind: "index", index: 0 }, city: "Rome" };
-    expect(withoutSuperseded({ dateScope: "today" }, getMacro("day.weather"), stored)).toEqual({ city: "Rome" });
-    expect(withoutSuperseded({}, getMacro("day.weather"), stored)).toBe(stored);
+    const clock = { at: Date.parse("2027-06-02T12:00:00Z"), deviceZone: "UTC" };
+    expect(withoutSuperseded({ dateScope: "today" }, getMacro("day.weather"), stored, clock)).toEqual({ city: "Rome" });
+    expect(withoutSuperseded({}, getMacro("day.weather"), stored, clock)).toBe(stored);
+    // No clock (the invite card): the page scopes nothing, so the stored day stands.
+    expect(withoutSuperseded({ dateScope: "today" }, getMacro("day.weather"), stored, null)).toBe(stored);
   });
 });

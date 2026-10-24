@@ -3,9 +3,10 @@
 //
 // **One resolver, and every widget reads it through `narrow`.** The scope is
 // handed to a widget exactly where a repeat hands its line's day (`scoped` in
-// `select.ts`), so it fills only a day the widget left open and an explicit
-// binding still wins. Later notebook settings extend this function rather than
-// adding a hook of their own.
+// `select.ts`), so it fills only a day the widget left open. On a Today page
+// the notebook's Today supersedes a day or dates stored on the widget
+// (`supersededParams`), so none is left set there. Later notebook settings
+// extend this function rather than adding a hook of their own.
 //
 // Pure (Invariant 4): the reader's clock is handed in, as `tripNow` takes it.
 import type { FilterDimension, PageContext, TripDetail, TripGlobals } from "@tc/contracts";
@@ -89,19 +90,29 @@ export function standInDay(trip: TripDetail, globals: TripGlobals | null, now: T
  *
  * A setting takes over a filter only on a widget that selects by it.
  */
-const NOTEBOOK_SETTINGS: readonly { isSet: (page: Pick<PageContext, "dateScope">) => boolean; supersedes: readonly FilterDimension[] }[] = [
+const NOTEBOOK_SETTINGS: readonly {
+  isSet: (page: Pick<PageContext, "dateScope">, now: TripNowClock | null | undefined) => boolean;
+  supersedes: readonly FilterDimension[];
+}[] = [
   // Today is the day: a day or a range chosen on the widget would be ignored.
-  { isSet: (page) => page.dateScope === "today", supersedes: ["day", "dates"] },
+  // Not without a clock, where the page scopes nothing (`resolveDateScope`)
+  // and dropping the stored day would leave the widget reading every day.
+  { isSet: (page, now) => page.dateScope === "today" && now !== null, supersedes: ["day", "dates"] },
 ];
 
-/** The params of this widget that the page's settings take over, by name. */
+/**
+ * The params of this widget that the page's settings take over, by name.
+ * `now` is the render's clock, `null` when it has none; the settings panels
+ * leave it out and are shown the page as a reader with a clock sees it.
+ */
 export function supersededParams(
   page: Pick<PageContext, "dateScope"> | undefined,
   def: Pick<AnyMacroDef, "selection"> | undefined,
+  now?: TripNowClock | null,
 ): readonly string[] {
   const filters = def?.selection?.filters ?? [];
   if (page === undefined || filters.length === 0) return [];
-  return NOTEBOOK_SETTINGS.filter((setting) => setting.isSet(page)).flatMap((setting) =>
+  return NOTEBOOK_SETTINGS.filter((setting) => setting.isSet(page, now)).flatMap((setting) =>
     setting.supersedes.filter((dimension) => filters.includes(dimension)).map(paramKeyOf),
   );
 }
@@ -109,14 +120,15 @@ export function supersededParams(
 /**
  * `params` without what the page's settings take over: a value stored before
  * the setting was, or written by hand, is read as unset, so the setting wins
- * (`withoutWithheld`'s rule, one level up).
+ * (`withoutWithheld`'s rule, one level up). `now` as `supersededParams` reads it.
  */
 export function withoutSuperseded<P extends Readonly<Record<string, unknown>>>(
   page: Pick<PageContext, "dateScope"> | undefined,
   def: Pick<AnyMacroDef, "selection"> | undefined,
   params: P,
+  now?: TripNowClock | null,
 ): P {
-  const superseded = supersededParams(page, def).filter((name) => name in params);
+  const superseded = supersededParams(page, def, now).filter((name) => name in params);
   if (superseded.length === 0) return params;
   const kept: Record<string, unknown> = { ...params };
   for (const name of superseded) delete kept[name];

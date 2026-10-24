@@ -254,8 +254,9 @@ export const FILTER_VALUE_SCHEMAS = {
  * (M52 decision 10, ADR-080 §4): `"all"`, every day, which is what every page
  * read before this existed; `"today"`, the trip day whose date is today; or one
  * date. A page setting rather than a widget's, read through one resolver
- * (`resolveDateScope` in `@tc/pages`), so an explicit binding on a widget still
- * wins. `{ date }` is accepted and has no control yet.
+ * (`resolveDateScope` in `@tc/pages`). On a `"today"` page the notebook's
+ * Today supersedes a day or dates stored on a widget (`supersededParams`).
+ * `{ date }` is accepted and has no control yet.
  */
 export const DateScope = z.union([z.literal("all"), z.literal("today"), z.object({ date: IsoDate })]);
 export type DateScope = z.infer<typeof DateScope>;

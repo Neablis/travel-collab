@@ -217,9 +217,9 @@ describe("WidgetSettings for a sentence for each…", () => {
   const repeatDoc = (name: string, params: Record<string, unknown>) =>
     newPageDoc([{ type: "repeat", attrs: { name, params }, content: [] }]);
 
-  async function openRepeat(value: PageDoc): Promise<Editor> {
+  async function openRepeat(value: PageDoc, context?: PageContext): Promise<Editor> {
     let editor: Editor | undefined;
-    render(<Harness onEditor={(e) => (editor = e)} value={value} />);
+    render(<Harness onEditor={(e) => (editor = e)} value={value} context={context} />);
     await waitFor(() => expect(editor).toBeDefined());
     editor!.view.dispatch(editor!.state.tr.setSelection(NodeSelection.create(editor!.state.doc, 0)));
     await screen.findByTestId("widget-settings");
@@ -299,6 +299,17 @@ describe("WidgetSettings for a sentence for each…", () => {
     await userEvent.selectOptions(panel.getByRole("combobox", { name: "A sentence for each city: city" }), "Kyoto");
     await waitFor(() => expect(repeatAttrs(editor).params).toEqual({ city: "Kyoto", template: "Welcome to {name}" }));
     expect(lines()).toEqual(["Welcome to Kyoto"]);
+  });
+
+  // Review of PR 542: the repeat's panel reads the page's settings as every
+  // other widget's does, so a Today page offers no day the lines would ignore.
+  it("offers no days control on a page scoped to today, and offers it at all days", async () => {
+    await openRepeat(repeatDoc("day.rows", { template: "{index}" }), { tripId: detail.tripId, dateScope: "today" });
+    const panel = within(screen.getByTestId("widget-settings"));
+    expect(panel.queryByRole("button", { name: "A sentence for each day: dates" })).toBeNull();
+    cleanup();
+    await openRepeat(repeatDoc("day.rows", { template: "{index}" }));
+    expect(within(screen.getByTestId("widget-settings")).getByRole("button", { name: "A sentence for each day: dates" })).toBeTruthy();
   });
 
   it("shows a stored filter and clears it back to every item, and offers no table columns", async () => {

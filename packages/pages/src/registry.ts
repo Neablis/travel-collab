@@ -150,7 +150,7 @@ export function renderMacro(ctx: WidgetContext, name: string, rawParams: unknown
   if (!parsed.success) return { status: "bad-params", message: parsed.error.message };
   if (def.requires !== undefined && ctx[def.requires] !== true) return { status: "absent" };
   // What the page's settings take over is read as unset, so they win.
-  const params = withoutSuperseded(ctx.page, def, parsed.data as Record<string, unknown>);
+  const params = withoutSuperseded(ctx.page, def, parsed.data as Record<string, unknown>, ctx.now ?? null);
   const page = pageScope(ctx, def, params);
   const scope: WidgetScope | undefined =
     item?.kind === "city" && page !== undefined ? { kind: "city-in-scope", name: item.name, page } : (item ?? page);

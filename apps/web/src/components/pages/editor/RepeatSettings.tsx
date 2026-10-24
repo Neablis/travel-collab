@@ -1,7 +1,7 @@
 "use client";
 import { useId, useLayoutEffect, useRef } from "react";
 import type { Editor } from "@tiptap/react";
-import { REPEAT_SCOPE_ORDER, SENTENCE_TEMPLATE_MAX, type TripDetail, type TripGlobals } from "@tc/contracts";
+import { REPEAT_SCOPE_ORDER, SENTENCE_TEMPLATE_MAX, type PageContext, type TripDetail, type TripGlobals } from "@tc/contracts";
 import {
   REPEAT_WIDGETS, TABLE_ONLY_PARAMS, repeatNoun, repeatOver, repeatTemplate, rescopeRepeat, sentenceFields,
   unknownSentenceTokens, type RepeatOver,
@@ -80,11 +80,14 @@ export function RepeatSettings({
   repeat,
   detail,
   globals,
+  page,
 }: {
   editor: Editor;
   repeat: SelectedRepeat;
   detail: TripDetail;
   globals: TripGlobals | null;
+  /** The page's settings, which can take over the repeat's filters (`inputsFor`). */
+  page: PageContext;
 }) {
   // A stored name that is no longer a collection reads as days, so the panel
   // has an answer to show; choosing any scope writes a valid one.
@@ -130,7 +133,7 @@ export function RepeatSettings({
   // the STORED name, so a name that is no collection offers no controls rather
   // than day controls writing onto it.
   const filters = withoutTemplate(repeat.params);
-  const filterInputs = bindableInputs(repeat.name).filter((i) => !TABLE_ONLY_PARAMS.includes(i.name));
+  const filterInputs = bindableInputs(repeat.name, {}, page).filter((i) => !TABLE_ONLY_PARAMS.includes(i.name));
   const writeFilters = (next: Record<string, unknown>) => {
     const own = "template" in repeat.params ? { template: repeat.params.template } : {};
     editor.view.dispatch(rebindWidget(editor.state, repeat.pos, { ...withoutTemplate(next), ...own }));

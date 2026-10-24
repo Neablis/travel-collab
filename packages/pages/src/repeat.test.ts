@@ -422,4 +422,19 @@ describe("resolveRepeat — on a page scoped to today", () => {
   it("is empty off the trip's dates, never unbound", () => {
     expect(resolveRepeat(scopedAt("2027-06-05T12:00:00Z"), "day.rows", {}).status).toBe("empty");
   });
+
+  // Review of PR 542: the page's Today supersedes a day stored on the repeat,
+  // as it does on a widget (`withoutSuperseded`), so the lines are today's.
+  it("iterates today even when the repeat was bound to another day", () => {
+    const stored = { day: { kind: "index", index: 0 } };
+    expect(items(resolveRepeat(scopedAt("2027-06-02T12:00:00Z"), "day.rows", stored))).toEqual([{ kind: "day", index: 1 }]);
+  });
+
+  // With no reader's clock (the invite card) a Today page scopes nothing, so
+  // the stored day stands rather than the repeat reading every day.
+  it("keeps its stored day where the page has no clock", () => {
+    const { ctx } = ctxOf();
+    const unclocked: WidgetContext = { ...ctx, page: { ...ctx.page, dateScope: "today" }, now: null };
+    expect(items(resolveRepeat(unclocked, "day.rows", { day: { kind: "index", index: 0 } }))).toEqual([{ kind: "day", index: 0 }]);
+  });
 });
