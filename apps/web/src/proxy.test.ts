@@ -94,6 +94,15 @@ describe("proxy", () => {
     );
   });
 
+  // Found beside KI-2026-10-11-b: `/account`, the other `(app)` route, was
+  // outside the matcher too, so a stranger was served the account shell.
+  it("matches /account and sends a signed-out one to sign in, tab and all", () => {
+    const paths = config.matcher.filter((entry) => typeof entry === "string");
+    expect(nextMatches(paths, "/account")).toBe(true);
+    const res = handle(request("/account?tab=billing", { session: false, hint: false }));
+    expect(res.headers.get("location")).toBe("https://caesura.test/signin?callbackUrl=%2Faccount%3Ftab%3Dbilling");
+  });
+
   it("serves a signed-in /plans as it is", () => {
     const res = handle(request("/plans", { session: true, hint: true }));
     expect(res.headers.get("location")).toBeNull();

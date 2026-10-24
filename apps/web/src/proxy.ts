@@ -242,6 +242,7 @@ export const config = {
   matcher: [
     "/home",
     "/plans",
+    "/account",
     "/trips/:path*",
     "/invite/:path*",
     "/playbooks/:path*",
