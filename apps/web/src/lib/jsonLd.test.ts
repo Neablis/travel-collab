@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { dayDescription } from "./playbooksPreview";
-import { dayJsonLd, organizationJsonLd, placeItemListJsonLd, serializeJsonLd, webSiteJsonLd } from "./jsonLd";
+import { breadcrumbJsonLd, dayJsonLd, organizationJsonLd, placeItemListJsonLd, serializeJsonLd, webSiteJsonLd } from "./jsonLd";
 
 const ORIGIN = "https://caesura.today";
 const DAY = {
@@ -74,6 +74,31 @@ describe("dayJsonLd", () => {
       ["Kyoto", `${ORIGIN}/playbooks/city/kyoto`],
       ["A slow day", `${ORIGIN}/playbooks/day/a-slow-day-abc`],
     ]);
+  });
+});
+
+describe("breadcrumbJsonLd", () => {
+  it("lists the visible trail in order, each crumb at its absolute page-one URL", () => {
+    expect(
+      breadcrumbJsonLd(
+        [
+          { name: "Playbooks", path: "/playbooks" },
+          { name: "Italy", path: "/playbooks/country/italy" },
+          { name: "Rome", path: "/playbooks/country/italy/city/rome" },
+          { name: "Food", path: "/playbooks/country/italy/city/rome/tag/meal" },
+        ],
+        ORIGIN,
+      ),
+    ).toEqual({
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      itemListElement: [
+        { "@type": "ListItem", position: 1, name: "Playbooks", item: `${ORIGIN}/playbooks` },
+        { "@type": "ListItem", position: 2, name: "Italy", item: `${ORIGIN}/playbooks/country/italy` },
+        { "@type": "ListItem", position: 3, name: "Rome", item: `${ORIGIN}/playbooks/country/italy/city/rome` },
+        { "@type": "ListItem", position: 4, name: "Food", item: `${ORIGIN}/playbooks/country/italy/city/rome/tag/meal` },
+      ],
+    });
   });
 });
 

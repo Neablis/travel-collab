@@ -4,8 +4,9 @@ import { notFound } from "next/navigation";
 import type { PlaceDaysList } from "@/components/playbooks/PlaceDaysList";
 import { TAG_LABEL } from "@/lib/activityTags";
 import { ActivityTagDescribed } from "@tc/contracts";
-import { PLAYBOOKS_CARD_PATH } from "@/lib/playbooksPreview";
-import { PLACE_PAGE_SIZE, placeIndexable, placePagePath, tagPath } from "@/lib/playbookUrls";
+import type { BreadcrumbCrumb } from "@/lib/jsonLd";
+import { PLAYBOOKS_CARD_PATH, tagDescription, tagTitle, type SeoDay } from "@/lib/playbooksPreview";
+import { PLACE_PAGE_SIZE, countryCityPath, placeIndexable, placePagePath, placePath, tagPath } from "@/lib/playbookUrls";
 import { latticeNav } from "@/lib/latticeNav";
 import { NOINDEX_FOLLOW, pageMetadata } from "@/lib/siteMetadata";
 import { pageOf } from "./placePage";
@@ -71,34 +72,49 @@ async function resolveCountry({ params, searchParams }: CountryTagRouteProps) {
   return { page, data: await load(tag, citySlug ?? null, slug, page) };
 }
 
-/** The page's words: "Tokyo nightlife playbooks", "Food playbooks in Italy", "Rome food playbooks in Italy", and how many days. */
-function wordsFor({ tag, city, country, days }: TagPage): { heading: string; summary: string } {
-  const label = TAG_LABEL[tag];
-  const where = city === null ? (country === null ? "" : ` in ${country.name}`) : ` in ${city.name}${country === null ? "" : `, ${country.name}`}`;
+/**
+ * The page's words: its title base ("Food days worth borrowing", "Food days
+ * in Italy", "Food days in Rome, Italy"), its description over the page's
+ * own days, and its crumb trail. The description is the list summary, so the
+ * meta description and the sentence under the heading never tell a search
+ * engine two things. The last crumb is this page at its own URL, page-aware
+ * like the place pages' crumbs.
+ */
+function wordsFor(
+  tagPage: TagPage,
+  days: readonly SeoDay[],
+  page: number,
+): { heading: string; summary: string; crumbs: BreadcrumbCrumb[] } {
+  const label = TAG_LABEL[tagPage.tag];
+  const cityPage = tagPage.city;
+  const countryPage = tagPage.country;
+  const path = pathOf(tagPage);
+  const crumbs: BreadcrumbCrumb[] = [{ name: "Playbooks", path: "/playbooks" }];
+  if (countryPage !== null) crumbs.push({ name: countryPage.name, path: placePath({ kind: "country", slug: countryPage.slug }) });
+  if (cityPage !== null)
+    crumbs.push({
+      name: cityPage.name,
+      path:
+        countryPage !== null
+          ? countryCityPath(countryPage.slug, cityPage.slug)
+          : placePath({ kind: "city", slug: cityPage.slug }),
+    });
+  crumbs.push({ name: label, path: placePagePath(path, page) });
   return {
-    heading:
-      city === null
-        ? country === null
-          ? `${label} playbooks`
-          : `${label} playbooks in ${country.name}`
-        : country === null
-          ? `${city.name} ${label.toLowerCase()} playbooks`
-          : `${city.name} ${label.toLowerCase()} playbooks in ${country.name}`,
-    summary:
-      days === 1
-        ? `1 ${label.toLowerCase()} day a traveler planned${where}.`
-        : `${days} ${label.toLowerCase()} days other travelers planned${where}.`,
+    heading: tagTitle(label, cityPage?.name ?? null, countryPage?.name ?? null),
+    summary: tagDescription(label, cityPage?.name ?? null, countryPage?.name ?? null, tagPage.days, days),
+    crumbs,
   };
 }
 
 const pathOf = ({ tag, city, country }: TagPage) => tagPath(tag, city?.slug ?? null, country?.slug ?? null);
 
-/** Metadata for a tag page: its heading and count, its card, self-canonical per page. */
-function metadataFor(tagPage: TagPage, page: number): Metadata {
-  const { heading, summary } = wordsFor(tagPage);
+/** Metadata for a tag page: its heading and description, its card, self-canonical per page. */
+function metadataFor(tagPage: TagPage, days: readonly SeoDay[], page: number): Metadata {
+  const { heading, summary } = wordsFor(tagPage, days, page);
   return pageMetadata({
     title: page === 1 ? heading : `${heading}, page ${page}`,
-    description: `${summary} Find one and drop it into your trip.`,
+    description: summary,
     // A city's card for a city's tag page, as its city page draws; a
     // country's card for a country's, as its country page draws; the
     // Playbooks card for a tag across the library, which no one place names.
@@ -118,18 +134,18 @@ function metadataFor(tagPage: TagPage, page: number): Metadata {
   });
 }
 
-/** Metadata for a tag page: its heading and count, its card, self-canonical per page. */
+/** Metadata for a tag page: its heading and description, its card, self-canonical per page. */
 export async function tagMetadata(props: TagRouteProps): Promise<Metadata> {
   const { page, data } = await resolve(props);
   if (data === null) return {};
-  return metadataFor(data.tagPage, page);
+  return metadataFor(data.tagPage, data.days, page);
 }
 
 /** Metadata for a country-scoped tag page: the same, over its country, or its country×city. */
 export async function countryTagMetadata(props: CountryTagRouteProps): Promise<Metadata> {
   const { page, data } = await resolveCountry(props);
   if (data === null) return {};
-  return metadataFor(data.tagPage, page);
+  return metadataFor(data.tagPage, data.days, page);
 }
 
 /** A tag page's list, or a 404 for a tag with no page there and a page past its end. */
@@ -138,7 +154,7 @@ export async function tagListing(props: TagRouteProps): Promise<ComponentProps<t
   if (data === null) notFound();
   const [tags, countryCities] = await Promise.all([publishedTagPages(), publishedCountryCityPages()]);
   return {
-    ...wordsFor(data.tagPage),
+    ...wordsFor(data.tagPage, data.days, page),
     path: pathOf(data.tagPage),
     days: data.days,
     total: data.tagPage.days,
@@ -153,7 +169,7 @@ export async function countryTagListing(props: CountryTagRouteProps): Promise<Co
   if (data === null) notFound();
   const [tags, countryCities] = await Promise.all([publishedTagPages(), publishedCountryCityPages()]);
   return {
-    ...wordsFor(data.tagPage),
+    ...wordsFor(data.tagPage, data.days, page),
     path: pathOf(data.tagPage),
     days: data.days,
     total: data.tagPage.days,

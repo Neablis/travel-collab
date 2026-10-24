@@ -180,7 +180,10 @@ export function FindADayPanel(): React.ReactElement {
             <li key={index}>
               <div className="flex gap-2.5 pt-1.5 pb-0.5 md:gap-3">
                 <DataText size="xs" className="w-15.5 shrink-0 pt-0.5 text-2xs md:w-21.5">
-                  {stop.start !== null ? toClockLabel(stop.start, clock) : ""}
+                  {/* The trailing space is the crawler's separator, as on a
+                      Discover card's preview rows: the flex gap leaves no
+                      character between time and title. */}
+                  {stop.start !== null ? `${toClockLabel(stop.start, clock)} ` : ""}
                 </DataText>
                 <span
                   className="grid size-6 shrink-0 place-items-center rounded-full bg-brand font-mono text-2xs font-semibold text-surface"

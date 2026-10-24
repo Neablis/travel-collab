@@ -6,6 +6,7 @@ import { Heading } from "@/components/ui/heading";
 import { Text } from "@/components/ui/text";
 import type { DiscoverDay } from "@/lib/playbooks";
 import { PLACE_PAGE_SIZE, placePagePath } from "@/lib/playbookUrls";
+import type { BreadcrumbCrumb } from "@/lib/jsonLd";
 import type { LatticeNav } from "@/lib/latticeNav";
 import { cn } from "@/lib/cn";
 import { DiscoverCard } from "./DiscoverCard";
@@ -23,18 +24,21 @@ export function PlaceDaysList({
   heading,
   summary,
   path,
+  crumbs,
   days,
   total,
   page,
   assistant,
   nav,
 }: {
-  /** "Kyoto playbooks": one string, for the reason at the heading. */
+  /** The page's title base: one string, for the reason at the heading. */
   heading: string;
-  /** The line under it: how many days, and whose. */
+  /** The line under it: the page's description, the same sentence as its meta description. */
   summary: string;
   /** The page's own path, page one. */
   path: string;
+  /** The page's crumb trail, the same array its BreadcrumbList emits: the last crumb is this page. */
+  crumbs: BreadcrumbCrumb[];
   days: DiscoverDay[];
   total: number;
   page: number;
@@ -49,6 +53,32 @@ export function PlaceDaysList({
       <Link href="/playbooks" className={cn("inline-flex w-fit items-center text-sm text-slate hover:underline", PHONE_TOUCH)}>
         ← Discover
       </Link>
+      {/* The crumb trail, matching the page's BreadcrumbList crumb for
+          crumb: every crumb but the last is a link, the last is this page
+          as plain text, so the trail never links a page to itself. */}
+      <nav aria-label="Breadcrumb">
+        <ol className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-sm">
+          {crumbs.map((crumb, index) => {
+            const last = index === crumbs.length - 1;
+            return (
+              <li key={crumb.path} className="flex items-center gap-x-1.5">
+                {index > 0 && (
+                  <span aria-hidden="true" className="text-slate">
+                    ›
+                  </span>
+                )}
+                {last ? (
+                  <span aria-current="page">{crumb.name}</span>
+                ) : (
+                  <Link href={crumb.path} className={cn("inline-flex items-center underline", PHONE_TOUCH)}>
+                    {crumb.name}
+                  </Link>
+                )}
+              </li>
+            );
+          })}
+        </ol>
+      </nav>
       <div>
         {/* One string, not `{name} playbooks`: two text nodes reach the HTML
             split by a comment, and the heading is what a crawler reads. */}

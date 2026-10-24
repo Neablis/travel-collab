@@ -26,6 +26,33 @@ const ITALY = { slug: "italy", name: "Italy", countries: ["IT"] };
 const ROME = { slug: "rome", name: "Rome", cities: ["Rome"] };
 
 describe("latticeNav", () => {
+  it("labels every link with its target page's own heading, not the old 'playbooks' pattern", () => {
+    const nav = latticeNav({ country: ITALY, city: ROME, tag: "meal" }, lattice);
+    expect(nav.parents.map((link) => link.label)).toEqual([
+      "Rome, Italy: trips from real travelers",
+      "Food days in Italy",
+      "Food days in Rome",
+    ]);
+    // A city's refinements are its country×city pages (Rome exists in two
+    // countries here); a pair's are its tags; a tag's are its scoped pages.
+    // A pair's parents are its country and city pages' own headings.
+    const pairParents = latticeNav({ country: ITALY, city: ROME }, lattice);
+    expect(pairParents.parents.map((link) => link.label)).toEqual([
+      "Italy trips from real travelers",
+      "Rome trips from real travelers",
+    ]);
+    const city = latticeNav({ city: ROME }, lattice);
+    expect(city.children.map((link) => link.label)).toContain("Rome, Italy: trips from real travelers");
+    expect(city.children.map((link) => link.label)).toContain("Rome, United States: trips from real travelers");
+    const pair = latticeNav({ country: ITALY, city: ROME }, lattice);
+    expect(pair.children.map((link) => link.label)).toEqual([
+      "Food days in Rome, Italy",
+      "Museum days in Rome, Italy",
+    ]);
+    const tag = latticeNav({ tag: "meal" }, lattice);
+    expect(tag.children.map((link) => link.label)).toContain("Food days in Italy");
+  });
+
   it("drops one dimension for parents and adds one where a day matches for children", () => {
     const nav = latticeNav({ country: ITALY, city: ROME, tag: "meal" }, lattice);
     expect(nav.parents.map((link) => link.href)).toEqual([
