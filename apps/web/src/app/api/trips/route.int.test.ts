@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { eq, inArray } from "drizzle-orm";
 import { TripDetail, type ListedTripSummary, type TripSummaryMember } from "@tc/contracts";
 import { defaultPersonColor, resolveTripColors } from "@tc/domain";
@@ -133,6 +133,19 @@ async function grid(): Promise<Summary[]> {
   return ((await response.json()) as { trips: Summary[] }).trips;
 }
 
+// A premium owner: the list caps a lapsed owner's collaborators to viewer, as
+// the trip's own reads do (KI-2026-10-05-f, `collaborationGate.int.test.ts`),
+// and the roles these tests read are the ones an entitled owner gave.
+async function premium(userId: string): Promise<void> {
+  await db.update(users).set({ planId: "premium", planVersion: 1 }).where(eq(users.id, userId));
+}
+
+beforeAll(async () => {
+  signedIn.push(OWNER);
+  await upsertUser({ id: OWNER, email: null, name: null, image: null });
+  await premium(OWNER);
+});
+
 beforeEach(() => {
   currentUserId = OWNER;
 });
@@ -235,6 +248,7 @@ describe("GET /api/trips visibility", () => {
     await upsertUser({ id: owner, email: `${owner}@example.test`, name: "Dana Reyes", image: null });
     await upsertUser({ id: guest, email: `${guest}@example.test`, name: "Sam Okafor", image: null });
     await writePreferences(owner, { displayName: "Dee", avatar: "compass", color: "plum" });
+    await premium(owner);
     const tripId = await seedTrip("Named", owner);
     await join(tripId, "editor", guest, owner);
     currentUserId = guest;
@@ -380,8 +394,10 @@ describe("GET /api/trips cost", () => {
     // who is travelling, every member's persona (M38; M37 D5: in one read,
     // never per card), the unread chat counts (M46 D5), and — for each card's
     // budget line, which was a `GET /api/trips/:id` per card — the stored
-    // details and the guests.
-    expect(forSixTrips).toBe(7);
+    // details and the guests. Then the lapse cap's one batched Entitlements
+    // read for every owner of a shared trip on the page — plan, grants and
+    // subscription, three statements however many owners (KI-2026-10-05-f).
+    expect(forSixTrips).toBe(10);
     expect(forFiveTrips).toBe(forSixTrips);
   });
 });
