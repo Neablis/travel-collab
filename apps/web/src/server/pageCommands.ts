@@ -85,13 +85,25 @@ export async function executePageCommand(
   // exists and what it takes, and contracts cannot import the registry. Here,
   // rather than at the routes, because every page write — both BFF routes and
   // both `/api/v1` ones — reaches this function and no other.
-  if (command.type !== "DeletePage" && command.content !== undefined) {
+  //
+  // A new page is checked before the transaction. An EDIT is checked inside
+  // it, against the document the page holds now, so a widget whose macro was
+  // retired after the page saved it does not refuse every later save
+  // (KI-2026-10-24-g).
+  if (command.type === "CreatePage") {
     const checked = checkPageDocForWrite(command.content);
     if (!checked.ok) return { ok: false, error: { code: "invalid-page", message: checked.message } };
     command = { ...command, content: checked.doc };
   }
+  const unchecked = command;
 
-  return commitPageStep(command.tripId, actorId, "editor", async ({ tx, pages: pagesState }) => {
+  return commitPageStep(unchecked.tripId, actorId, "editor", async ({ tx, pages: pagesState }) => {
+    let command = unchecked;
+    if (command.type === "EditPage" && command.content !== undefined) {
+      const checked = checkPageDocForWrite(command.content, pagesState[command.pageId]?.content);
+      if (!checked.ok) return { ok: false, error: { code: "invalid-page", message: checked.message } };
+      command = { ...command, content: checked.doc };
+    }
     let decision = decidePageCommand(pagesState, command, actorId);
 
     // **A row the backfill had to skip can still be DELETED.**
@@ -588,7 +600,7 @@ async function editTo(
   actorId: string,
   expectedUpdatedAt: string | undefined,
 ): Promise<PageStepOutcome> {
-  const checked = checkPageDocForWrite(target.content);
+  const checked = checkPageDocForWrite(target.content, state[target.pageId]?.content);
   if (!checked.ok) return { ok: false, error: { code: "invalid-page", message: checked.message } };
   const decision = decidePageCommand(state, { type: "EditPage", ...target, content: checked.doc }, actorId);
   if (!decision.ok) return { ok: false, error: decision.rejection };

@@ -37,8 +37,15 @@ export const MAX_PAGE_BODY_BYTES = 512 * 1024;
  * Storing the migrated document CANONICALLY is the caller's job, and it is
  * `serializePageDoc` — see `executePageCommand`, which is the one place every
  * page write passes through.
+ *
+ * `held` is the page's stored document when the write edits one: a widget it
+ * already holds is carried even if its macro has since been retired
+ * (`findWidgetError`, KI-2026-10-24-g).
  */
-export function checkPageDocForWrite(doc: PageDoc): { ok: true; doc: PageDoc } | { ok: false; message: string } {
+export function checkPageDocForWrite(
+  doc: PageDoc,
+  held?: PageDoc,
+): { ok: true; doc: PageDoc } | { ok: false; message: string } {
   let migrated: PageDoc;
   try {
     // Throws for `v > CURRENT_PAGE_DOC_VERSION`: a document from the future has
@@ -47,7 +54,17 @@ export function checkPageDocForWrite(doc: PageDoc): { ok: true; doc: PageDoc } |
   } catch (error) {
     return { ok: false, message: `Invalid page document: ${(error as Error).message}` };
   }
-  const widgetError = findWidgetError(migrated.content);
+  // Migrated like the incoming one, so a renamed widget compares by its new
+  // name. A stored document this build cannot migrate vouches for nothing.
+  let heldContent: PageDoc["content"] = [];
+  if (held !== undefined) {
+    try {
+      heldContent = migratePageDoc(held).content;
+    } catch {
+      heldContent = [];
+    }
+  }
+  const widgetError = findWidgetError(migrated.content, heldContent);
   if (widgetError !== null) return { ok: false, message: widgetError };
   return { ok: true, doc: migrated };
 }

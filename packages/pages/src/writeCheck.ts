@@ -24,8 +24,48 @@ import { insertRepeat } from "./repeat";
  * Walks `content` at any depth. A node wrapped as `unknown` (ADR-038 decision
  * 3) has no `content` and no `attrs`, so it is carried rather than judged: it
  * belongs to a newer build, and this one has no rule to hold it to.
+ *
+ * **`held` is what the page already stores, and a widget it already holds is
+ * carried, not judged, when its macro is no longer registered**
+ * (KI-2026-10-24-g). A macro retired after a page saved it (M52's
+ * `assistant.prompts`) is still in that page, and the editor draws it as *this
+ * widget isn't available in this version*; refusing it made every later save
+ * of the page a 400 until someone found and deleted the widget by hand. Only
+ * the unknown-name refusal is lifted, and only for a node the page already
+ * held with the same name and params, so a save still cannot ADD a widget the
+ * registry does not know. Omit `held` for a document with no stored version.
  */
-export function findWidgetError(nodes: readonly unknown[]): string | null {
+export function findWidgetError(nodes: readonly unknown[], held: readonly unknown[] = []): string | null {
+  return walk(nodes, heldMacroKeys(held, new Set()));
+}
+
+/** A macro's identity for "the page already held this": its name and its params, key order aside. */
+function macroKey(name: string, params: Record<string, unknown>): string {
+  return JSON.stringify([name, canonical(params)]);
+}
+
+function canonical(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonical);
+  if (typeof value !== "object" || value === null) return value;
+  const record = value as Record<string, unknown>;
+  return Object.fromEntries(Object.keys(record).sort().map((key) => [key, canonical(record[key])]));
+}
+
+function heldMacroKeys(nodes: readonly unknown[], into: Set<string>): Set<string> {
+  for (const node of nodes) {
+    if (typeof node !== "object" || node === null) continue;
+    const record = node as Record<string, unknown>;
+    if (record.type === "macro") {
+      const parsed = MacroNode.safeParse(node);
+      if (parsed.success) into.add(macroKey(parsed.data.attrs.name, parsed.data.attrs.params));
+      continue;
+    }
+    if (Array.isArray(record.content)) heldMacroKeys(record.content, into);
+  }
+  return into;
+}
+
+function walk(nodes: readonly unknown[], held: ReadonlySet<string>): string | null {
   for (const node of nodes) {
     if (typeof node !== "object" || node === null) continue;
     const record = node as Record<string, unknown>;
@@ -36,9 +76,10 @@ export function findWidgetError(nodes: readonly unknown[]): string | null {
       const { name, params } = parsed.data.attrs;
       const checked = insertWidget(name, params);
       if (!checked.ok) {
-        return checked.error.reason === "unknown-widget"
-          ? `Unknown macro "${name}" is not in the registry.`
-          : `Macro "${name}" params failed validation: ${checked.error.message}`;
+        if (checked.error.reason !== "unknown-widget") {
+          return `Macro "${name}" params failed validation: ${checked.error.message}`;
+        }
+        if (!held.has(macroKey(name, params))) return `Unknown macro "${name}" is not in the registry.`;
       }
       continue;
     }
@@ -66,7 +107,7 @@ export function findWidgetError(nodes: readonly unknown[]): string | null {
 
     const nested = record.content;
     if (Array.isArray(nested)) {
-      const error = findWidgetError(nested);
+      const error = walk(nested, held);
       if (error) return error;
     }
   }

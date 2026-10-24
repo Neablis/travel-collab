@@ -373,6 +373,63 @@ describe("executePageCommand", () => {
   });
 });
 
+// KI-2026-10-24-g. A page saved while a widget's macro was registered keeps
+// that node after the macro is retired (M52's `assistant.prompts`), and the
+// editor draws it as "not available in this version". The write check judged
+// it like a new insert, so every later save of that page was a 400.
+describe("executePageCommand on a page holding a retired macro", () => {
+  const retired = { type: "macro", attrs: { name: "assistant.prompts", params: { count: 3 } } };
+  const docHolding = (text: string, ...widgets: unknown[]) => ({
+    ...newPageDoc(),
+    content: [{ type: "paragraph", content: [{ type: "text", text }] }, ...widgets.map((w) => ({ type: "paragraph", content: [w] }))],
+  });
+
+  // Written to the table directly: no save through this build could store it.
+  async function pageHoldingRetired(tripId: string) {
+    const pageId = randomUUID();
+    const now = new Date().toISOString();
+    await db.insert(pages).values({
+      id: pageId,
+      tripId,
+      title: "Ask",
+      context: { tripId },
+      content: docHolding("before", retired) as never,
+      createdAt: now,
+      updatedAt: now,
+      actorId: OWNER,
+    });
+    return pageId;
+  }
+
+  it("saves a prose edit that carries the widget it already held", async () => {
+    const tripId = await seedTrip();
+    const pageId = await pageHoldingRetired(tripId);
+
+    const result = await executePageCommand({ type: "EditPage", tripId, pageId, content: docHolding("after", retired) }, OWNER);
+    expect(result.ok ? "ok" : result.error.message).toBe("ok");
+    const [row] = await db.select().from(pages).where(eq(pages.id, pageId));
+    expect(JSON.stringify(row!.content)).toContain('"after"');
+    expect(JSON.stringify(row!.content)).toContain('"assistant.prompts"');
+  });
+
+  it("still refuses a retired macro the save adds", async () => {
+    const tripId = await seedTrip();
+    const pageId = await createPageVia(tripId, "Packing", "socks");
+
+    const result = await executePageCommand({ type: "EditPage", tripId, pageId, content: docHolding("socks", retired) }, OWNER);
+    expect(result.ok ? "ok" : result.error.message).toMatch(/Unknown macro "assistant\.prompts"/);
+  });
+
+  it("still refuses the retired macro with params the page never held", async () => {
+    const tripId = await seedTrip();
+    const pageId = await pageHoldingRetired(tripId);
+    const other = { type: "macro", attrs: { name: "assistant.prompts", params: { count: 9 } } };
+
+    const result = await executePageCommand({ type: "EditPage", tripId, pageId, content: docHolding("after", retired, other) }, OWNER);
+    expect(result.ok ? "ok" : result.error.message).toMatch(/Unknown macro "assistant\.prompts"/);
+  });
+});
+
 // **The stale-save guard** (CodeRabbit, PR #222). `expectedSeq` cannot refuse
 // an older document that arrives last, because each request reads the head
 // current when IT arrives. `expectedUpdatedAt` is the revision the client
