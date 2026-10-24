@@ -14,8 +14,8 @@ import { TOUCH } from "../home/NewTripWizard";
 describe("PHONE_TOUCH", () => {
   // **The bug the fold fixed.** It was `min-h-11 sm:min-h-0`, so the floor
   // released at 640px — while every other phone rule in this app draws the line
-  // at 767: `useIsPhone`'s `PHONE_MAX_WIDTH_PX`, `.assistant-rail`,
-  // `.unscheduled-rack`, and `md:hidden` on the tab bar. A 28px control on a
+  // at 767: `useIsPhone`'s `PHONE_MAX_WIDTH_PX`, `.unscheduled-rack`, and
+  // `md:hidden` on the tab bar. A 28px control on a
   // 700px-wide phone in landscape sat inside KI-046's band and outside the only
   // rule meant to protect it.
   //
