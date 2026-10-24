@@ -1,6 +1,6 @@
 ---
 name: ci-triage
-description: Triage a failing GitHub Actions check for travel-collab from a cloud session — name the red job over REST, read its check-run annotations, rule out the two known-noise checks, then reproduce it locally with the job's own scoped command, because job logs cannot be read through the cloud proxy. Use when a PR check is red, a CI run failed, or you need the root cause of a failing build/test/lint job in this repo.
+description: Triage a failing GitHub Actions check for travel-collab from a cloud session — name the red job over REST, read its check-run annotations, rule out the known-noise check, then reproduce it locally with the job's own scoped command, because job logs cannot be read through the cloud proxy. Use when a PR check is red, a CI run failed, or you need the root cause of a failing build/test/lint job in this repo.
 ---
 
 # CI triage
@@ -35,9 +35,10 @@ gh run list --commit <sha> --limit 3
 gh run view <run-id>        # per-job status and job ids; same as gh api $R/actions/runs/<run-id>/jobs
 ```
 
-Confirm the sha is the PR's current head before reading on. Then rule out the two checks
-that go red without the PR's help: `github-advanced-security` (KI-2026-10-17-b, not required)
-and a lone `test / unit` red that a re-run clears (KI-2026-10-14-c). `ci-ok` is the verdict.
+Confirm the sha is the PR's current head before reading on. Then rule out the check that
+goes red without the PR's help: `github-advanced-security` (KI-2026-10-17-b, not required).
+A lone `test / unit` red used to be one too, until fast-check's seed was pinned
+(KI-2026-10-14-c, resolved): now it reproduces locally, so root-cause it. `ci-ok` is the verdict.
 
 ## 2. Read the annotations, not the log
 

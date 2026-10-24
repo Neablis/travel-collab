@@ -83,5 +83,6 @@ instructions require. What goes on GitHub is short (`working-a-review.md`).
 
 Before treating a red check as the PR's fault, read `docs/known-issues/open/` for its name:
 `github-advanced-security` goes red on PRs that cannot have caused it (KI-2026-10-17-b) and is
-not required; `test / unit` has gone red once and green on re-run with nothing reproducing
-(KI-2026-10-14-c). `ci-ok` is the one check that decides.
+not required. A lone `test / unit` red is no longer noise: fast-check's seed is pinned
+(KI-2026-10-14-c, resolved), so a property floor that trips is a real change in counts.
+`ci-ok` is the one check that decides.
