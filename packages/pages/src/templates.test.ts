@@ -309,7 +309,9 @@ describe("templates", () => {
           const macro = getMacro(name);
           expect(macro, `${t.key} seeds an unregistered widget: ${name}`).toBeDefined();
 
-          const outcome = renderMacro(ctx, name, node.attrs?.params ?? {});
+          // Read as the trip's creator, who can see the chat; a reader who
+          // cannot gets `absent` from `chat.recent`, which says nothing at all.
+          const outcome = renderMacro({ ...ctx, canChat: true }, name, node.attrs?.params ?? {});
           // `unbound` is the state this test exists to refuse: it renders as a
           // chip asking for a binding the seeded page never made.
           expect(
@@ -368,9 +370,9 @@ describe("templates", () => {
     ).toEqual({
       // The letter's facts, the printed schedule, the three notebook cards.
       Overview: ["dates", "city", "day.detail", "link.internal", "link.internal", "link.internal"],
-      // The sketch's blocks (M52 decision 15), less the Group chat card,
-      // which comes with that widget.
-      Today: ["trip.now", "trip.flights", "day.detail", "day.weather", "day.sun", "link.internal"],
+      // The sketch's blocks (M52, "Where it lives"), the trip chat after the
+      // weather. *Reset to default* restores this too ("Today's default").
+      Today: ["trip.now", "trip.flights", "day.detail", "day.weather", "day.sun", "chat.recent", "link.internal"],
       "Before you go": ["day.fromHome", "day.sun", "day.weather", "country.facts"],
       Bookings: ["stop.rows", "stop.rows", "stop.rows", "open"],
       // "Who owes what" last, before the notes (M19 part 2).
@@ -417,7 +419,7 @@ describe("templates", () => {
     const said: Record<string, Record<string, unknown>> = {};
     for (const [moment, date] of [["before", "2026-06-07"], ["after", "2026-06-14"]] as const) {
       const ctx: WidgetContext = {
-        trip: lisbon.trip, globals: lisbon.globals, page: today.context, user: null, today: date, external,
+        trip: lisbon.trip, globals: lisbon.globals, page: today.context, user: null, today: date, external, canChat: true,
         now: { at: wallAt(LISBON, date, "12:00"), deviceZone: LISBON },
       };
       said[moment] = Object.fromEntries(
@@ -435,10 +437,13 @@ describe("templates", () => {
       "day.weather": "Nothing planned today",
       "day.sun": "Nothing planned today",
     };
+    // The chat reads no day, so it is there before the trip and after it.
+    const chat = { status: "ok", rendered: { kind: "block", block: expect.objectContaining({ kind: "chat-recent" }) } };
     expect(said.before).toEqual({
       ...nothingToday,
+      "chat.recent": chat,
       "trip.flights": { status: "ok", rendered: { kind: "block", block: expect.objectContaining({ kind: "trip-flights", heading: "next" }) } },
     });
-    expect(said.after).toEqual({ ...nothingToday, "trip.flights": "No flight today" });
+    expect(said.after).toEqual({ ...nothingToday, "chat.recent": chat, "trip.flights": "No flight today" });
   });
 });
