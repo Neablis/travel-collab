@@ -746,10 +746,15 @@ export function TripHeader({
             setSettingsAt(null);
             // Closing ends the link's instruction: the param goes, so a reload
             // or a copied URL does not reopen a sheet the reader closed. The
-            // native call, which Next's router observes, keeps the view param.
+            // native call keeps the view param, and passes `null` as its state
+            // for `LensRouter.setView`'s reason: a state carrying Next's own
+            // `__NA`, which `window.history.state` always does here, is taken
+            // for Next's own call and not synced into `useSearchParams`. The
+            // next tab switch then rebuilt its URL from the stale params and
+            // wrote `settings=` back (KI-2026-10-19-a).
             const { pathname, search, hash } = window.location;
             if (settingsSectionFrom(search) !== null) {
-              window.history.replaceState(window.history.state, "", `${pathname}${withoutSettingsParam(search)}${hash}`);
+              window.history.replaceState(null, "", `${pathname}${withoutSettingsParam(search)}${hash}`);
             }
           }}
           scrollTo={settingsAt}

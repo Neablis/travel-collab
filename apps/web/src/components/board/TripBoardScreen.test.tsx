@@ -3278,6 +3278,29 @@ describe("⌘K runs the trip page's own actions", () => {
     expect(replaceSpy.mock.calls.at(-1)).toEqual(byTab);
   });
 
+  // KI-2026-10-19-a: closing a sheet opened by a `?settings=` link drops the
+  // param from the address bar, and Next's router has to hear about it, or the
+  // next tab switch builds its URL from the stale params and writes it back.
+  // The page's history state carries Next's `__NA`, as it always does on an
+  // app-router page; a write that passes it on is one Next does not sync.
+  it("forgets a ?settings= link once the sheet closes, so a tab switch does not bring it back", async () => {
+    const fixture = tripDetailFixture();
+    server.use(...makeTripHandlers(fixture), http.get("/api/auth/session", () => HttpResponse.json({ user: { id: "dev-alice" } })));
+    window.history.replaceState({ __NA: true }, "", "/trips/x?view=Plan&settings=people");
+    search = new URLSearchParams("view=Plan&settings=people");
+    try {
+      renderScreen(fixture.tripId);
+      await screen.findByRole("dialog", { name: /trip settings/i });
+      await userEvent.click(screen.getByRole("button", { name: /close/i }));
+      await waitFor(() => expect(screen.queryByRole("dialog", { name: /trip settings/i })).toBeNull());
+
+      fireEvent.click(screen.getByRole("tab", { name: "Map" }));
+      expect(replaceSpy.mock.calls.at(-1)?.[0]).toBe("/trips/x?view=Map");
+    } finally {
+      window.history.replaceState(null, "", "/");
+    }
+  });
+
   it("opens Trip settings, as the trip's title does", async () => {
     const fixture = tripDetailFixture();
     // The sheet asks who is reading (`useSessionUser`).

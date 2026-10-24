@@ -1,4 +1,4 @@
-### KI-2026-10-19-a — Closing Trip settings leaves `?settings=` in the router, so the next tab switch writes it back and a reload reopens the sheet
+### KI-2026-10-19-a — Closing Trip settings leaves `?settings=` in the router, so the next tab switch writes it back and a reload reopens the sheet — RESOLVED
 
 - **Severity:** correctness, minor. Nothing is lost. A sheet the reader closed comes back on a
   reload, or in a link they copy, after any tab switch.
@@ -43,3 +43,15 @@
   settings).
 - **First noted:** 2026-10-18, PR 486's review of eea2034. Filed 2026-10-19 after both parts
   merged.
+- **Proof (resolved 2026-10-24, KI sweep):** the fix direction, as written: `TripHeader.tsx`'s
+  close passes `null` as the state, and its comment now says why. The optional `setView`
+  belt and braces was left out, so the test guards the cause rather than a second line.
+  Confirmed in Next 16.4.2's `app-router.js` (lines 302–308: `if (data?.__NA || data?._N)`
+  returns before the sync). Reproduced first, as the unit test the entry describes: the new
+  `TripBoardScreen.test.tsx` case *forgets a ?settings= link once the sheet closes, so a tab
+  switch does not bring it back* seeds the history state with `__NA`, opens from
+  `?view=Plan&settings=people`, closes the sheet and clicks Map. On the old code it failed with
+  `expected '/trips/x?view=Map&settings=people' to be '/trips/x?view=Map'`; with the fix
+  `TripBoardScreen.test.tsx` and `TripHeader.test.tsx` pass (175/175 with `phoneTouch.test.tsx`).
+  Of the "same pattern" checks: `DiscoverScreen.tsx`'s filter write had the bug too and is
+  fixed in the same sweep (its own red-first test). `AccountsPanel.tsx:168` was not touched.
