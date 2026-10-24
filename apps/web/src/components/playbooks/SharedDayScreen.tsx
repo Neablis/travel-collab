@@ -231,9 +231,14 @@ export function SharedDayScreen({
   // Whether the last failed read was the server's 404. `feed.error` keeps only
   // the message, and the not-shared copy may claim only what a 404 says.
   const [notShared, setNotShared] = useState(false);
+  // Only the latest read may say which, as only it may write `feed`
+  // (`useLibraryRead`'s generation): an older 404 landing after a newer 500
+  // would otherwise word the 500 as "not shared" (KI-2026-10-19-j).
+  const latestRead = useRef(0);
   const read = useCallback(async () => {
+    const mine = ++latestRead.current;
     const result = await readDay(savedDayId);
-    setNotShared(!result.ok && result.error.status === 404);
+    if (mine === latestRead.current) setNotShared(!result.ok && result.error.status === 404);
     return result;
   }, [savedDayId]);
   const feed = useLibraryRead(read, signature, initial);
