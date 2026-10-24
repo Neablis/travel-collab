@@ -34,7 +34,7 @@ import {
 import { AssistantRail, type RailTab } from "@/components/assistant/AssistantRail";
 import { readLastRailTab, rememberRailTab } from "@/components/assistant/lastTab";
 import { ChatPanel } from "@/components/chat/ChatPanel";
-import { hasTripChat, tripHasChat, useTripChat } from "@/components/chat/useTripChat";
+import { hasTripChat, tripHasChat, tripIsSolo, useTripChat } from "@/components/chat/useTripChat";
 import { AssistantBubble } from "@/components/assistant/AssistantBubble";
 import { usePhoneAskEntry } from "@/components/nav/phoneAsk";
 import { phoneAskContext } from "@/components/assistant/phoneAskContext";
@@ -1046,7 +1046,7 @@ export function PageScreen({
     for (const queued of pendingInserts.current.splice(0)) landInserts(queued);
   }, [editing, editor, pendingCount]);
   // The board's open state, so an opener's focus moves into the panel and
-  // comes back to it on Hide: the *Group chat* card stays on screen, where the
+  // comes back to it on Hide: the *Trip chat* card stays on screen, where the
   // bubble did not.
   const assistant = useAssistantVisibility();
   const assistantOpen = assistant.open;
@@ -1057,7 +1057,7 @@ export function PageScreen({
   // refuses (a share link's), who is no member, nor one still waiting on it. A
   // read that failed (5xx, network) refuses no one and counts no one, so the
   // tab stays, as the board's does when its read fails. One read, held here,
-  // feeds the tab and a notebook's *Group chat*, which opens it in place.
+  // feeds the tab and a notebook's *Trip chat*, which opens it in place.
   const memberCount = members !== null ? members.length : accessRefused === false ? null : 0;
   const offersChat = tripHasChat(tripId, memberCount);
   const [railTab, setRailTab] = useState<RailTab>("ask");
@@ -1149,6 +1149,7 @@ export function PageScreen({
     hasChat ? chat.unread : undefined,
     chatShown,
     hasChat ? { onOpen: openChat, messages: chat.status === "ready" ? chat.messages : null, unread: chat.unread } : undefined,
+    tripIsSolo(tripId, memberCount),
   );
   // **Leaving Editing no longer hangs up, and that is a reversal.** It did,
   // because the assistant was an editing-only control and leaving Editing was
@@ -1841,7 +1842,7 @@ export function PageScreen({
           // about is not reachable here: `useIsPhone` starts `false` and
           // corrects in an effect, but this rail mounts only when
           // `assistantOpen` is true, `assistantOpen` starts `false`, and only
-          // a user sets it: the bubble, the tab bar's Ask, the Group chat card
+          // a user sets it: the bubble, the tab bar's Ask, the Trip chat card
           // or ⌘K.
           // Effects have run long before a user can tap, so there is no frame
           // in which `isPhone` is stale AND the rail is on screen.

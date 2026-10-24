@@ -110,7 +110,7 @@ describe("no macro syntax reaches the DOM", () => {
 
   for (const editing of [false, true]) {
     it(`in ${editing ? "Editing" : "Reading"}`, async () => {
-      // A screen offering its chat (M52), so "Group chat" is drawn rather than absent.
+      // A screen offering its chat (M52), so "Trip chat" is drawn rather than absent.
       onTestFinished(registerPhoneAsk({ open: false, onOpen: () => {}, chat: { onOpen: () => {}, messages: [], unread: 0 } }));
       const { container } = render(
         <PageEditor detail={trip} context={context} user={user} value={doc} onChange={() => {}} editable={editing} />,

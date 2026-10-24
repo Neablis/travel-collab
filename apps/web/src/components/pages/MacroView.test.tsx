@@ -412,7 +412,7 @@ describe("MacroView", () => {
 describe("a widget for readers who are not this one", () => {
   it("is named, with who it is for, while editing", () => {
     render(<MacroView detail={baseDetail} context={ctx} name="chat.recent" params={{}} editing />);
-    expect(screen.getByText(/^Group chat/).textContent).toMatch(/can see the trip's chat/);
+    expect(screen.getByText(/^Trip chat/).textContent).toMatch(/can see the trip's chat/);
   });
 
   it("is not there at all while reading", () => {
@@ -618,7 +618,7 @@ flightNumber: null,
         // A fixed `today` well before the fixture's dates, so `trip.countdown`
         // resolves rather than reporting "no dates set yet" — and so this
         // sweep's answer does not change with the calendar.
-        // A reader who may chat (M52): without, Group chat is `absent`.
+        // A reader who may chat (M52): without, Trip chat is `absent`.
         { trip: richDetail, page: ctx, user: richUser, globals: richGlobals, today: "2027-01-01", now: richNow, external: richExternal, canChat: true, chat: [] },
         widget.widget,
         boundParams(widget),
@@ -641,7 +641,7 @@ flightNumber: null,
     const spy = vi.spyOn(console, "error").mockImplementation((...args: unknown[]) => {
       errors.push(args.map(String).join(" "));
     });
-    // A screen offering its chat (M52), so "Group chat" is drawn rather than absent.
+    // A screen offering its chat (M52), so "Trip chat" is drawn rather than absent.
     const unregister = registerPhoneAsk({ open: false, onOpen: () => {}, chat: { onOpen: () => {}, messages: [], unread: 0 } });
     try {
       for (const widget of presetCatalog()) {

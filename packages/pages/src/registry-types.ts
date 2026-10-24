@@ -174,16 +174,17 @@ export type BlockPayload =
   | TripNowPayload | StopDirectionsPayload | TripFlightsPayload
   | ChatRecentPayload;
 
-// "Group chat" (`chat.recent`, M52 decision 15): the newest messages, oldest
+// "Trip chat" (`chat.recent`, M52 decision 15): the newest messages, oldest
 // first. Each is the message itself, which the app draws with its chat's own
 // line (Mitchell, PR 537 preview walk), and its author named here as every
 // widget names people. On the app's own line (a change announced, decision
 // 17) it is whoever made the change, whom the chat names in front of what
 // was done. `lines` is `null` while the chat has not been read, so the block
 // says nothing rather than "no messages yet" about a conversation it has not
-// seen.
+// seen. `solo` is a trip with one traveler, which has no chat to show or open
+// (Mitchell, PR 537 walk), and then `lines` is `null`.
 export interface ChatRecentLine { message: Extract<ChatMessage, { removed: false }>; author: string; }
-export interface ChatRecentPayload { kind: "chat-recent"; lines: ChatRecentLine[] | null; }
+export interface ChatRecentPayload { kind: "chat-recent"; solo: boolean; lines: ChatRecentLine[] | null; }
 
 // What a REPEAT widget resolves to: one entry per item, each a lead phrase and
 // the resolved values that follow it. Kept apart from `BlockPayload` on purpose
@@ -602,9 +603,10 @@ export interface WidgetContext {
    */
   personas?: Readonly<Record<string, WidgetPersona>> | null;
   /**
-   * Whether the reader may see the trip's chat (M52 decisions 15 and 20). A
-   * widget that declares it in `MacroDef.requires` is **absent** without it —
-   * not disabled (SPEC §27).
+   * Whether the reader may see the trip's chat (M52 decisions 15 and 20): a
+   * member it does not refuse, including the one traveler on a solo trip,
+   * who would see it if the trip had one. A widget that declares it in
+   * `MacroDef.requires` is **absent** without it — not disabled (SPEC §27).
    *
    * **Optional, and absent is "may not"**: a share-link reader's context, the
    * invite preview's, the server's and the assistant's never say, and none of
@@ -617,6 +619,11 @@ export interface WidgetContext {
    * second time per widget.
    */
   chat?: readonly ChatMessage[] | null;
+  /**
+   * The trip has one traveler, so no chat (Mitchell on PR 537): *Trip chat*
+   * says how to get one rather than showing any. Absent is "not solo".
+   */
+  soloTrip?: boolean;
 }
 
 /** A `WidgetContext` capability a widget can require (`MacroDef.requires`). */

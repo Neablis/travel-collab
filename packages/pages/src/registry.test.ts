@@ -296,7 +296,7 @@ describe("every widget renders (ADR-037 decision 2)", () => {
   // which is exactly what the person clicking it gets.
   const presetOutcome = (entry: ReturnType<typeof presetCatalog>[number]) =>
     renderMacro(
-      // A reader who may chat (M52): without, Group chat is `absent`.
+      // A reader who may chat (M52): without, Trip chat is `absent`.
       // `now` is 10:00 in Tokyo on the trip's one day, mid-museum, so the
       // day-of widgets (M52) have a stop under way to show.
       { trip: populated, page: { tripId: populated.tripId }, user, globals, today: "2027-06-01", now: { at: Date.parse("2026-08-01T01:00:00Z"), deviceZone: "Asia/Tokyo" }, external, canChat: true, chat: [] },

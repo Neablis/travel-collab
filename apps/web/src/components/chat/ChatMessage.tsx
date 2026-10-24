@@ -16,7 +16,7 @@ import { PersonChip } from "@/components/ui/person-chip";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MessageBody } from "./MessageChip";
 
-// The Group chat widget names a leaver from the same constant.
+// The Trip chat widget names a leaver from the same constant.
 export { FORMER_MEMBER };
 
 /**
@@ -147,7 +147,7 @@ export function ChatMessage({
  * A message's face, as the chat draws one: its author's chip, then their name,
  * the time and whether it was edited, over `children`, the words and what
  * hangs off them. The panel's line wraps it in its controls; a notebook's
- * *Group chat* card (M52) draws it alone, so the card is this chat in small
+ * *Trip chat* card (M52) draws it alone, so the card is this chat in small
  * and not a likeness of it. `as="span"` is the card's: a widget renders inside
  * a paragraph, where a `div` may not go.
  */
@@ -196,7 +196,7 @@ export function MessageFace({
  * A change line (M52 decision 17): who changed what, linked to the stop, and
  * when. The line stores only what was done; its actor is named here, as their
  * messages are, and not at all until the members are known. The panel's is a
- * list item it can focus; a notebook's *Group chat* card draws it as a `span`,
+ * list item it can focus; a notebook's *Trip chat* card draws it as a `span`,
  * and without its link: the card is one control, and a chip would be a second
  * inside it.
  */

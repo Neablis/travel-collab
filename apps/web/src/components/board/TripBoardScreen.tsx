@@ -76,7 +76,7 @@ import type { RailTab } from "@/components/assistant/AssistantRail";
 import { readLastRailTab, rememberRailTab } from "@/components/assistant/lastTab";
 import { ChatPanel } from "@/components/chat/ChatPanel";
 import { useBoardFocusEntry } from "@/components/chat/boardFocus";
-import { hasTripChat, tripHasChat, useTripChat } from "@/components/chat/useTripChat";
+import { hasTripChat, tripHasChat, tripIsSolo, useTripChat } from "@/components/chat/useTripChat";
 import { personasOf } from "@/components/pages/people";
 import type { AssistantTurn } from "@/components/assistant/Transcript";
 import { proposalUndoFor, type ProposalState } from "@/components/assistant/ProposalCard";
@@ -337,8 +337,10 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
     openLastTab,
     hasChat ? chat.unread : undefined,
     assistant.open && railTab === "chat",
-    // For a notebook's *Group chat* widget (M52): absent without a chat.
+    // For a notebook's *Trip chat* widget (M52): absent without a chat,
+    // and saying how to get one on a solo trip.
     hasChat ? { onOpen: openChat, messages: chat.status === "ready" ? chat.messages : null, unread: chat.unread } : undefined,
+    tripIsSolo(tripId, memberCount),
   );
   // **⌘K's commands are this screen's own functions** (M41 D9, ADR-068 §1,
   // ADR-069 §4). Each is named here, above the early returns because the

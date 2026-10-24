@@ -71,8 +71,8 @@ const REMOVED = 409;
  * **Whether the trip has a chat at all**, the one rule the board and a
  * notebook both read, so they cannot disagree: not on /demo, and not on a trip
  * with one member, whose screens offer the assistant alone (Mitchell on PR
- * 537: no Chat tab, no ⌘K *Open chat*, no *Group chat*, reversing M46's solo
- * tab). `memberCount` is the trip's access read; `null` when that read said
+ * 537: no Chat tab, no ⌘K *Open chat*, no messages in *Trip chat*, reversing
+ * M46's solo tab). `memberCount` is the trip's access read; `null` when that read said
  * nothing of who is on the trip, so the chat stays and its own 403 answers a
  * stranger. The board passes `null` for any failed read: a reader the access
  * read refuses has had the trip itself refused, so never reaches it. Only a
@@ -84,10 +84,20 @@ export function tripHasChat(tripId: string, memberCount: number | null): boolean
 }
 
 /**
+ * **The one traveler on a trip with no chat for that reason** (Mitchell, PR
+ * 537 walk): their *Trip chat* widget says to add travelers. Not on /demo,
+ * where nobody can be added, nor for a reader the access read refused
+ * (counted as none) or has not answered (`null`): the widget is absent there.
+ */
+export function tripIsSolo(tripId: string, memberCount: number | null): boolean {
+  return !isDemoTripId(tripId) && memberCount === 1;
+}
+
+/**
  * **Whether this reader has someone to chat with**: a trip with a chat
  * (`tripHasChat`) whose members are known, and a chat that has not refused
  * them (`no-access`, its own role check). It gates the opener's unread count,
- * a remembered Chat reopening and the *Group chat* widget. The Chat tab is
+ * a remembered Chat reopening and the *Trip chat* widget. The Chat tab is
  * `tripHasChat`'s, so a removed member's still says why (M46,
  * KI-2026-10-05-h).
  */

@@ -8,10 +8,11 @@ import { usePhoneAsk } from "@/components/nav/phoneAsk";
  *
  * Read from what the trip's screen offers (`usePhoneAsk`), not decided here: a
  * screen offers its chat only where the reader can see it (`hasChat` on the
- * board). A share link's page offers none, so it is false there with no check
- * of its own.
+ * board), and says a trip is solo only to its one traveler. A share link's
+ * page offers neither, so it is false there with no check of its own.
  */
-export function useReaderCapabilities(): Pick<WidgetContext, "canChat" | "chat"> {
-  const chat = usePhoneAsk()?.chat;
-  return { canChat: chat !== undefined, chat: chat?.messages ?? null };
+export function useReaderCapabilities(): Pick<WidgetContext, "canChat" | "chat" | "soloTrip"> {
+  const entry = usePhoneAsk();
+  const soloTrip = entry?.soloTrip === true;
+  return { canChat: entry?.chat !== undefined || soloTrip, chat: entry?.chat?.messages ?? null, soloTrip };
 }

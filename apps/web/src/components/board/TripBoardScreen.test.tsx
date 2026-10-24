@@ -3199,11 +3199,12 @@ describe("⌘K runs the trip page's own actions", () => {
     expect(askCall(1).messages.at(-1)!.parts[0]!.text).toBe("and the quietest?");
   });
 
-  // The one line that keeps a notebook's *Group chat* off a trip with nobody
-  // to chat with (M52 decision 15): the board offers its chat only with `hasChat`.
-  // And ⌘K's *Open chat* with it: a solo trip has no chat anywhere (Mitchell
-  // on PR 537).
-  it("offers no chat, to ⌘K or a notebook, on a trip you are alone on", async () => {
+  // The one line that keeps a notebook's *Trip chat* from opening a chat on a
+  // trip with nobody to chat with (M52 decision 15): the board offers its chat
+  // only with `hasChat`, and says the trip is solo, so the widget says how to
+  // get one (Mitchell, PR 537 walk). And ⌘K's *Open chat* with it: a solo trip
+  // has no chat anywhere (Mitchell on PR 537).
+  it("offers no chat, to ⌘K or a notebook, on a trip you are alone on, and says it is solo", async () => {
     const solo = tripDetailFixture();
     server.use(...makeTripHandlers(solo));
     const page = renderWithPalette(solo.tripId);
@@ -3212,6 +3213,7 @@ describe("⌘K runs the trip page's own actions", () => {
     await waitFor(() => expect(page.ids()).toContain("view:Plan"));
     expect(page.ids()).not.toContain("chat");
     expect(page.offered()?.chat).toBeUndefined();
+    expect(page.offered()?.soloTrip).toBe(true);
   });
 
   it("offers its chat, to ⌘K and a notebook, on a shared trip", async () => {

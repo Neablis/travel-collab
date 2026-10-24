@@ -18,7 +18,7 @@ import type { ChatMessage } from "@tc/contracts";
 // notebook, the account pages). The entry is a value, not a flag the bar
 // holds — the route still decides which tabs exist (`tabsForScope`).
 //
-// **Not the tab bar's alone since M52**: a notebook's *Group chat* widget
+// **Not the tab bar's alone since M52**: a notebook's *Trip chat* widget
 // reads the entry at every width (`readerCapabilities.ts`), so what a screen
 // offers here decides whether it is drawn at all.
 
@@ -42,10 +42,16 @@ export type PhoneAskEntry = {
   /**
    * The trip's chat, where the reader can see it: opening the panel on Chat,
    * its messages (`null` until read) and how many are unread. A notebook's
-   * *Group chat* widget (M52) reads them from here: the screen holding the
+   * *Trip chat* widget (M52) reads them from here: the screen holding the
    * chat is several levels above the page that draws it.
    */
   chat?: PhoneChat;
+  /**
+   * The trip has one traveler, so no `chat`: the widget says how to get one
+   * (Mitchell, PR 537 walk) where, for a reader the chat is not for, it is
+   * absent.
+   */
+  soloTrip?: boolean;
 };
 
 /**
@@ -98,9 +104,9 @@ export function usePhoneAsk(): PhoneAskEntry | null {
  * Offers this screen's assistant as the tab bar's Ask while mounted. `onOpen`
  * `undefined` offers none; `onAsk`, sending a question as it opens, and
  * `onResume`, the bar's reopen, are optional beside it, as are `unread`,
- * `chatShown` and `chat`. Any function may be a fresh one each render: the
- * entry calls whichever is latest, so only a value, or whether each is
- * offered, changing re-registers.
+ * `chatShown`, `chat` and `soloTrip`. Any function may be a fresh one each
+ * render: the entry calls whichever is latest, so only a value, or whether
+ * each is offered, changing re-registers.
  */
 export function usePhoneAskEntry(
   onOpen: (() => void) | undefined,
@@ -110,6 +116,7 @@ export function usePhoneAskEntry(
   unread?: number,
   chatShown = false,
   chat?: PhoneChat,
+  soloTrip = false,
 ): void {
   const onChat = chat?.onOpen;
   const latest = useRef({ onOpen, onAsk, onResume, onChat });
@@ -132,6 +139,7 @@ export function usePhoneAskEntry(
       ...(unread === undefined ? {} : { unread }),
       ...(chatShown ? { chatShown } : {}),
       ...(chats ? { chat: { onOpen: () => latest.current.onChat?.(), messages, unread: chatUnread } } : {}),
+      ...(soloTrip ? { soloTrip } : {}),
     });
-  }, [offered, asks, resumes, open, unread, chatShown, chats, messages, chatUnread]);
+  }, [offered, asks, resumes, open, unread, chatShown, chats, messages, chatUnread, soloTrip]);
 }

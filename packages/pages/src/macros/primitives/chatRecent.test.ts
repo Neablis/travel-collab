@@ -5,10 +5,11 @@ import { renderMacro } from "../../registry";
 import type { ChatRecentPayload, WidgetContext } from "../../registry-types";
 import { chatRecent } from "./chatRecent";
 
-// "Group chat" (M52 decision 15). What a reader cannot check from the screen
+// "Trip chat" (M52 decision 15). What a reader cannot check from the screen
 // is who the widget is shown to at all (decision 20: never to a share-link
-// reader, nor where the chat is not theirs to see) and which three messages it
-// picks, so those are what is pinned.
+// reader, nor where the chat is not theirs to see), what it says on a trip
+// with no one to chat with, and which three messages it picks, so those are
+// what is pinned.
 
 function tripOf(ids: readonly string[]): TripDetail {
   return tripDetailFactory.build(
@@ -125,6 +126,13 @@ describe("chat.recent", () => {
   it("says nothing yet while the chat has not been read, and an empty list once it has", () => {
     expect(chatOf(ctx({ canChat: true, chat: null })).lines).toBeNull();
     expect(chatOf(ctx({ canChat: true, chat: [] })).lines).toEqual([]);
+  });
+
+  // Mitchell, PR 537 walk (2026-10-24): a solo trip has no chat, but the
+  // widget is still there, saying so, and holds no messages to show.
+  it("says the trip has no one to chat with on a solo trip, whatever the screen holds", () => {
+    expect(chatOf(ctx({ canChat: true, soloTrip: true, chat: [said("dana", "Landed!")] }))).toEqual({ kind: "chat-recent", solo: true, lines: null });
+    expect(chatOf(ctx({ canChat: true, chat: [] })).solo).toBe(false);
   });
 
   // Decision 20 and SPEC §27: absent, not disabled. A context that does not

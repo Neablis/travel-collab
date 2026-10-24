@@ -12,22 +12,24 @@ import { cn } from "@/lib/cn";
 import type { Persona } from "@/lib/persona";
 import { usePersonas } from "../people";
 
-// "Group chat" (M52 decision 15), as a mini chat card (Mitchell, PR 537
-// preview walk): a "Group chat" header, the last few messages drawn by the
+// "Trip chat" (M52 decision 15), as a mini chat card (Mitchell, PR 537
+// preview walk): a "Trip chat" header, the last few messages drawn by the
 // chat's own `MessageFace` and `ChangeLine`, so they look as they do in the
 // chat, and an "Open chat" footer. The whole card is one button into the
 // conversation, opening the screen's own panel on Chat in place, on the board
 // and on a notebook alike (`PhoneAskEntry.chat`; Mitchell, PR 537).
 // Nothing inside it is a control: a message's link is drawn as its words.
 // While the page is being edited a click selects the widget as it does any
-// other, so the card is drawn but is no control then.
+// other, so the card is drawn but is no control then. On a solo trip there is
+// no chat to open, so it is never a control: the same header, and a line
+// saying how to get one (Mitchell, PR 537 walk, 2026-10-24).
 //
 // Its name is the header and the footer it shows (WCAG 2.5.3): a voice user
 // says what they see. The unread count and the messages describe it.
 //
 // Spans rather than `<div>`s, `TripStripBlock`'s reason: a widget node is an
 // inline atom and renders inside a paragraph.
-/** Group chat: the newest messages as a card that opens the conversation. */
+/** Trip chat: the newest messages as a card that opens the conversation. */
 export function ChatRecentBlock({ payload, interactive = true }: { payload: ChatRecentPayload; interactive?: boolean }) {
   const chat = usePhoneAsk()?.chat;
   const personas = usePersonas();
@@ -42,30 +44,38 @@ export function ChatRecentBlock({ payload, interactive = true }: { payload: Chat
       <span className="flex items-center gap-2 border-b border-hairline px-3 py-2">
         <MessageCircle aria-hidden className="size-4 shrink-0 text-slate" />
         <span id={titleId} className="text-sm font-semibold text-ink">
-          Group chat
+          Trip chat
         </span>
         {unread > 0 && <span id={unreadId} className="ml-auto text-xs font-medium text-brand">{unreadWords(unread)}</span>}
       </span>
-      {payload.lines === null ? null : (
+      {payload.solo ? (
+        <span className="px-3 py-2.5">
+          <Text as="span" variant="secondary">
+            Add other travelers to see the trip chat
+          </Text>
+        </span>
+      ) : payload.lines === null ? null : (
         <span id={linesId} className="flex flex-col gap-3 px-3 py-2.5">
           {payload.lines.length === 0 ? (
             <Text as="span" variant="secondary">
-              No messages yet.
+              No messages yet
             </Text>
           ) : (
             payload.lines.map((line) => <Line key={line.message.messageId} line={line} persona={personas?.[line.message.authorId]} />)
           )}
         </span>
       )}
-      <span className="flex items-center justify-between border-t border-hairline px-3 py-2 text-sm font-medium text-brand">
-        <span id={footerId}>Open chat</span>
-        <ChevronRight aria-hidden className="size-4" />
-      </span>
+      {!payload.solo && (
+        <span className="flex items-center justify-between border-t border-hairline px-3 py-2 text-sm font-medium text-brand">
+          <span id={footerId}>Open chat</span>
+          <ChevronRight aria-hidden className="size-4" />
+        </span>
+      )}
     </>
   );
 
   const card = "flex w-full flex-col overflow-hidden rounded-md border border-hairline bg-surface text-left";
-  if (!interactive || chat === undefined) {
+  if (!interactive || payload.solo || chat === undefined) {
     return (
       <span role="group" aria-labelledby={titleId} className={card}>
         {content}

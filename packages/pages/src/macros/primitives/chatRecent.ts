@@ -5,14 +5,15 @@ import { blockOf } from "../../registry-types";
 import { ok, needsTrip, type MacroResult } from "../../result";
 import { personNames } from "./balances";
 
-// `chat.recent` — "Group chat" (M52 decision 15): the last few messages, as
+// `chat.recent` — "Trip chat" (M52 decision 15): the last few messages, as
 // many as its settings say, and a way into the conversation. **A registered widget, not a primitive**, for
 // `trip.people`'s reason: there is no entity to narrow.
 //
 // It is shown only to a reader who can see the chat (`requires`, decision 20),
-// and reads the messages the screen already holds (`WidgetContext.chat`). The
-// way in, the whole widget opening the chat, is the renderer's: it is a
-// control, not data.
+// and reads the messages the screen already holds (`WidgetContext.chat`). On a
+// solo trip, which has no chat, it is still shown, and says so (`soloTrip`;
+// Mitchell, PR 537 walk). The way in, the whole widget opening the chat, is
+// the renderer's: it is a control, not data.
 
 /** The design's three: enough to tell what is being talked about, and no more. */
 export const CHAT_RECENT_DEFAULT = 3;
@@ -43,7 +44,7 @@ function lineOf(message: Extract<ChatMessage, { removed: false }>, names: Readon
 
 export const chatRecent: MacroDef<ChatRecentParams, ChatRecentPayload> = {
   name: "chat.recent",
-  title: "Group chat",
+  title: "Trip chat",
   shape: "block",
   params: ChatRecentParams,
   inputs: [
@@ -54,13 +55,14 @@ export const chatRecent: MacroDef<ChatRecentParams, ChatRecentPayload> = {
   ],
   selection: undefined,
   requires: "canChat",
-  description: `The trip's group chat: its last messages (${CHAT_RECENT_DEFAULT} unless \`count\` says 1 to ${MOST}), and opening it opens the conversation. Shown only to people who can see the chat.`,
+  description: `The trip chat: its last messages (${CHAT_RECENT_DEFAULT} unless \`count\` says 1 to ${MOST}), and opening it opens the conversation. Shown only to people who can see the chat; on a trip with one traveler it says to add others.`,
   emptyText: "no messages yet",
   // Fixed, never computed (ADR-037 decision 5): nobody's words.
   preview: "the last few messages, opening the chat",
-  resolve: ({ trip, people, guests, chat }: WidgetContext, params): MacroResult<ChatRecentPayload> => {
+  resolve: ({ trip, people, guests, chat, soloTrip }: WidgetContext, params): MacroResult<ChatRecentPayload> => {
     if (!trip) return needsTrip();
-    if (chat == null) return ok({ kind: "chat-recent", lines: null });
+    if (soloTrip === true) return ok({ kind: "chat-recent", solo: true, lines: null });
+    if (chat == null) return ok({ kind: "chat-recent", solo: false, lines: null });
     // A removed message has no text (the contract gives it none), so it does
     // not take one of the places.
     const shown = chat.filter((m): m is Extract<ChatMessage, { removed: false }> => !m.removed).slice(-countOf(params.count));
@@ -71,7 +73,7 @@ export const chatRecent: MacroDef<ChatRecentParams, ChatRecentPayload> = {
     // every one "Former member", and a number here would be an index into the
     // shown window, changing as it slides (PR 537 round 8).
     const names = new Map(authors.map((id) => [id, personNames(trip, people, [id], guests).get(id)!] as const));
-    return ok({ kind: "chat-recent", lines: shown.map((m) => lineOf(m, names)) });
+    return ok({ kind: "chat-recent", solo: false, lines: shown.map((m) => lineOf(m, names)) });
   },
   render: blockOf,
 };

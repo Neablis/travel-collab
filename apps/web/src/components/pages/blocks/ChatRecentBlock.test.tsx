@@ -7,11 +7,12 @@ import { registerPhoneAsk, type PhoneChat } from "@/components/nav/phoneAsk";
 import { MacroView } from "../MacroView";
 import { ChatRecentBlock } from "./ChatRecentBlock";
 
-// "Group chat" (M52 decision 15) through the notebook's own renderer. Which
+// "Trip chat" (M52 decision 15) through the notebook's own renderer. Which
 // messages and whose names are `chatRecent.test.ts`'s; this holds what only
 // the app decides: that the board's chat reaches the widget, that it is drawn
-// as the chat draws a message, that the whole card opens the chat, and that a
-// reader with no chat (decision 20) is shown nothing.
+// as the chat draws a message, that the whole card opens the chat, that a solo
+// trip's says why there is none and opens nothing, and that a reader the chat
+// is not for (decision 20) is shown nothing.
 
 const trip = tripDetailFactory.build(
   { members: [{ userId: "dana", role: "owner" }, { userId: "sam", role: "editor" }] },
@@ -50,7 +51,7 @@ describe("ChatRecentBlock", () => {
     const onOpen = vi.fn();
     offer({ onOpen, messages: [message], unread: 0 });
     render(view());
-    const card = screen.getByRole("button", { name: "Group chat Open chat" });
+    const card = screen.getByRole("button", { name: "Trip chat Open chat" });
     expect(controls()).toEqual([card]);
     expect(within(card).getByText("Traveler 2")).toBeTruthy();
     expect(within(card).getByText(sentAt)).toBeTruthy();
@@ -64,14 +65,14 @@ describe("ChatRecentBlock", () => {
     const change: ChatMessage = { ...message, messageId: "00000000-0000-4000-8000-000000000002", kind: "system", body: "moved “Dinner” to 20:30" };
     offer({ onOpen: () => {}, messages: [change], unread: 0 });
     render(view());
-    expect(description(screen.getByRole("button", { name: "Group chat Open chat" }))).toMatch(/^Traveler 2 moved “Dinner” to 20:30 · /);
+    expect(description(screen.getByRole("button", { name: "Trip chat Open chat" }))).toMatch(/^Traveler 2 moved “Dinner” to 20:30 · /);
   });
 
   // In the description, not the name, so the name stays exactly the words shown.
   it("says how many are unread in its header, and to a screen reader", () => {
     offer({ onOpen: () => {}, messages: [message], unread: 2 });
     render(view());
-    const card = screen.getByRole("button", { name: "Group chat Open chat" });
+    const card = screen.getByRole("button", { name: "Trip chat Open chat" });
     expect(within(card).getByText("2 unread messages")).toBeTruthy();
     expect(description(card)).toMatch(/^2 unread messages /);
   });
@@ -79,26 +80,42 @@ describe("ChatRecentBlock", () => {
   it("still shows what it is while the chat is being read", () => {
     offer({ onOpen: () => {}, messages: null, unread: 0 });
     render(view());
-    expect(screen.getByRole("button", { name: "Group chat Open chat" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Trip chat Open chat" })).toBeTruthy();
   });
 
-  it("says so when nobody has written yet", () => {
-    offer({ onOpen: () => {}, messages: [], unread: 0 });
+  // Mitchell, PR 537 walk (2026-10-24): the same card, and still the way in.
+  it("says so when nobody has written yet, and still opens the chat", async () => {
+    const onOpen = vi.fn();
+    offer({ onOpen, messages: [], unread: 0 });
     render(view());
-    expect(within(screen.getByRole("button", { name: "Group chat Open chat" })).getByText("No messages yet.")).toBeTruthy();
+    const card = screen.getByRole("button", { name: "Trip chat Open chat" });
+    expect(within(card).getByText("No messages yet")).toBeTruthy();
+    await userEvent.click(card);
+    expect(onOpen).toHaveBeenCalledOnce();
+  });
+
+  // Mitchell, PR 537 walk (2026-10-24): a solo trip has no chat to open, so
+  // the card is there, saying how to get one, and is no control.
+  it("tells a reader alone on the trip how to get a chat, and opens nothing", () => {
+    unregister.push(registerPhoneAsk({ open: false, onOpen: () => {}, soloTrip: true }));
+    render(view());
+    const card = screen.getByRole("group", { name: "Trip chat" });
+    expect(within(card).getByText("Add other travelers to see the trip chat")).toBeTruthy();
+    expect(controls()).toEqual([]);
   });
 
   it("opens nothing from a click while the page is being edited", async () => {
     const onOpen = vi.fn();
     offer({ onOpen, messages: [message], unread: 0 });
-    render(<ChatRecentBlock payload={{ kind: "chat-recent", lines: [{ message, author: "Sam" }] }} interactive={false} />);
+    render(<ChatRecentBlock payload={{ kind: "chat-recent", solo: false, lines: [{ message, author: "Sam" }] }} interactive={false} />);
     expect(controls()).toEqual([]);
     await userEvent.click(screen.getByText("On the train"));
     expect(onOpen).not.toHaveBeenCalled();
   });
 
-  // A screen with nobody to chat with offers no chat, and a share link's page
-  // registers nothing at all: either way, no widget, not a disabled one.
+  // A member the chat refuses, or one whose membership is still being read, is
+  // offered no chat, and a share link's page registers nothing at all: either
+  // way, no widget, not a disabled one.
   it("is absent where the screen offers Ask and no chat", () => {
     unregister.push(registerPhoneAsk({ open: false, onOpen: () => {}, onAsk: () => {} }));
     render(<div data-testid="page">{view()}</div>);

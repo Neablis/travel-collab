@@ -89,7 +89,7 @@ const DEFS: AnyMacroDef[] = [
   // read the reader's clock and have nothing to narrow; *Directions* is a stop
   // primitive, so a page's Today scope reaches it.
   tripNowWidget, stopDirections, tripFlights,
-  // "Group chat" (M52 decision 15): no selection, on `trip.people`'s terms,
+  // "Trip chat" (M52 decision 15): no selection, on `trip.people`'s terms,
   // and shown only to a reader who can see the chat (`MacroDef.requires`).
   chatRecent,
 ] as unknown as AnyMacroDef[];
