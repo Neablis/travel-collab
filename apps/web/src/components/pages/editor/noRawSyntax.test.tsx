@@ -108,6 +108,13 @@ describe("no macro syntax reaches the DOM", () => {
     expect(rawSyntaxLeaks(prose)).toEqual([]);
   });
 
+  // Budgeted: one page holding every preset and every registered widget,
+  // mounted through the editor. Measured 2026-10-24 on a 4-CPU container: 1.0 to
+  // 1.6s alone, 2.5 to 4.2s with six copies running, and 3.3 to 9.5s with
+  // eight (load average 15 to 21), where Vitest's default 5s timed out three
+  // of sixteen (KI-2026-10-24-e). A timeout says nothing about syntax, so the
+  // budget is the page's own.
+  const WHOLE_PAGE_BUDGET_MS = 20_000;
   for (const editing of [false, true]) {
     it(`in ${editing ? "Editing" : "Reading"}`, async () => {
       // A screen offering its chat (M52), so "Trip chat" is drawn rather than absent.
@@ -125,7 +132,7 @@ describe("no macro syntax reaches the DOM", () => {
         chartsDrawn();
       });
       expect(rawSyntaxLeaks(container)).toEqual([]);
-    });
+    }, WHOLE_PAGE_BUDGET_MS);
   }
 
   // The authored repeat: a sentence for each day, stop and city, each naming

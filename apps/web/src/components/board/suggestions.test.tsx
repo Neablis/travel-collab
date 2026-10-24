@@ -93,11 +93,25 @@ const addGelato = (tripId: string) =>
   ]);
 
 /**
+ * How long the board may take to draw the trip. Measured 2026-10-24 on a 4-CPU
+ * container already at load 11 (KI-2026-10-11-c), the first mount of a run
+ * took 0.55 to 0.6s with one copy of this file running and 1.7 to 3.7s with
+ * eight. That was the failure: each test's first wait covered the board's
+ * whole mount AND the suggestions read behind it on Testing Library's default
+ * 1s, and the first test, which pays the cold mount, went red at its first
+ * `findByRole` in seven runs of eight with four copies running. The board gets
+ * its own budget here; each test's wait for a suggestion keeps the default, so
+ * it still bounds the read itself.
+ */
+const BOARD_DRAWN_BUDGET_MS = 10_000;
+
+/**
  * `before` is matched ahead of the trip's own handlers, to answer one route
  * differently. `reader` mounts the session provider the `(app)` board sits
- * under, which is the only identity Accept all reads.
+ * under, which is the only identity Accept all reads. Resolves once the board
+ * has drawn the trip (every fixture's day 1 holds the Colosseum tour).
  */
-function mount(myRole: TripRole, changes: (tripId: string) => SuggestionChange[], before: RequestHandler[] = [], reader?: string) {
+async function mount(myRole: TripRole, changes: (tripId: string) => SuggestionChange[], before: RequestHandler[] = [], reader?: string) {
   const fixture = trip();
   const seeded = changes(fixture.tripId);
   const resolved: { changeId: string; action: string }[] = [];
@@ -126,6 +140,7 @@ function mount(myRole: TripRole, changes: (tripId: string) => SuggestionChange[]
     </TripProvider>
   );
   render(reader === undefined ? board : <SessionUserProvider initialUser={{ id: reader }}>{board}</SessionUserProvider>);
+  await screen.findAllByText("Colosseum tour", undefined, { timeout: BOARD_DRAWN_BUDGET_MS });
   return { fixture, seeded, resolved, acceptedAll };
 }
 
@@ -133,7 +148,7 @@ afterEach(() => server.events.removeAllListeners());
 
 describe("suggestions on the board", () => {
   it("shows an owner a suggested stop whose Accept makes it real", async () => {
-    const { seeded, resolved } = mount("owner", (tripId) => [addGelato(tripId)]);
+    const { seeded, resolved } = await mount("owner", (tripId) => [addGelato(tripId)]);
 
     const ghost = await screen.findByRole("button", { name: "Suggested: Added Gelato to Day 2" });
     // A ghost is reviewed, never edited: no editable block exists for it yet.
@@ -147,7 +162,7 @@ describe("suggestions on the board", () => {
   });
 
   it("marks a moved stop where it is and draws where it would land", async () => {
-    mount("owner", (tripId) => [
+    await mount("owner", (tripId) => [
       change(tripId, "Moved Colosseum tour to Day 2", [{ type: "MoveActivity", tripId, activityId: COLOSSEUM, toDayId: DAY_2, position: 0 }]),
     ]);
 
@@ -161,7 +176,7 @@ describe("suggestions on the board", () => {
 
   // W79: a retime from the same suggestion is shown on the move, and decided there.
   it("draws a moved stop at the time a later change from its suggestion gives it, and offers that change on it", async () => {
-    mount("owner", (tripId) => [
+    await mount("owner", (tripId) => [
       change(tripId, "Moved Colosseum tour to Day 2", [{ type: "MoveActivity", tripId, activityId: COLOSSEUM, toDayId: DAY_2, position: 0 }]),
       change(tripId, "Changed the time of Colosseum tour", [
         { type: "UpdateActivity", tripId, activityId: COLOSSEUM, timeWindow: { start: "16:00", end: "17:00" } },
@@ -176,7 +191,7 @@ describe("suggestions on the board", () => {
 
   it("shows a suggester Withdraw on their own change, and no Accept or Dismiss", async () => {
     sessionUserId = "dev-sam";
-    const { seeded, resolved } = mount("suggester", (tripId) => [addGelato(tripId)]);
+    const { seeded, resolved } = await mount("suggester", (tripId) => [addGelato(tripId)]);
 
     fireEvent.click(await screen.findByRole("button", { name: "Suggested: Added Gelato to Day 2" }));
     fireEvent.click(await screen.findByRole("button", { name: "Withdraw: Added Gelato to Day 2" }));
@@ -189,7 +204,7 @@ describe("suggestions on the board", () => {
   // nothing added to it or moved onto it had anywhere to appear.
   it("draws a suggested new day after the trip's days, holding its stops, with the day's Accept and Dismiss", async () => {
     const DAY_3 = uuidFrom(9105, 7);
-    const { seeded, resolved } = mount("owner", (tripId) => {
+    const { seeded, resolved } = await mount("owner", (tripId) => {
       const addDay = change(tripId, "Added Day 3", [{ type: "AddDay", tripId, dayId: DAY_3 }]);
       const after = { dependsOn: [addDay.id] };
       return [
@@ -214,7 +229,7 @@ describe("suggestions on the board", () => {
   });
 
   it("shows a viewer neither ghosts nor the chip", async () => {
-    mount("viewer", (tripId) => [addGelato(tripId), change(tripId, 'Renamed the trip to "Roma"', [{ type: "SetTripName", tripId, name: "Roma" }])]);
+    await mount("viewer", (tripId) => [addGelato(tripId), change(tripId, 'Renamed the trip to "Roma"', [{ type: "SetTripName", tripId, name: "Roma" }])]);
 
     expect(await screen.findByText("Viewer")).toBeTruthy();
     expect(within(screen.getByRole("list", { name: "Day 1 timeline" })).getByText(/^Colosseum tour,/)).toBeTruthy();
@@ -235,7 +250,7 @@ describe("what is not on the trip yet reads as a placeholder", () => {
     screen.getAllByTestId(/^activity-card-/).find((card) => within(card).queryByRole("button", { name: title }) !== null)!;
 
   it("marks a suggestion Suggested, as a ghost and on the stop it would change", async () => {
-    mount("owner", (tripId) => [
+    await mount("owner", (tripId) => [
       addGelato(tripId),
       change(tripId, "Renamed Colosseum tour", [{ type: "UpdateActivity", tripId, activityId: COLOSSEUM, title: "Colosseum at dawn" }]),
     ]);
@@ -256,7 +271,7 @@ describe("what is not on the trip yet reads as a placeholder", () => {
   // block on the day it goes to is the suggestion.
   it("says where a moved stop is going, on the solid stop it leaves, and Suggested only on the block where it lands", async () => {
     const DAY_3 = uuidFrom(9105, 7);
-    mount("owner", (tripId) => {
+    await mount("owner", (tripId) => {
       const addDay = change(tripId, "Added Day 3", [{ type: "AddDay", tripId, dayId: DAY_3 }]);
       return [
         addDay,
@@ -276,7 +291,7 @@ describe("what is not on the trip yet reads as a placeholder", () => {
 
   it("marks a suggester's unsent stop Not sent, and an unsent edit to an existing stop too", async () => {
     sessionUserId = "dev-sam";
-    mount("suggester", () => []);
+    await mount("suggester", () => []);
     expect(await screen.findByText("Suggester")).toBeTruthy();
 
     fireEvent.doubleClick(screen.getAllByTestId("day-river")[0]!, { clientY: 44 });
@@ -310,7 +325,7 @@ describe("the suggestions chip", () => {
   // bulb and count, the desktop's words. jsdom applies neither, so what is
   // held here is that both exist and the name is the phrase either way.
   it("is named for its phrase, and carries the phone's count and the desktop's words", async () => {
-    mount("owner", (tripId) => [
+    await mount("owner", (tripId) => [
       change(tripId, 'Renamed the trip to "Roma"', [{ type: "SetTripName", tripId, name: "Roma" }]),
       change(tripId, "Removed Pantheon", [{ type: "RemoveActivity", tripId, activityId: uuidFrom(9999, 7) }]),
     ]);
@@ -321,7 +336,7 @@ describe("the suggestions chip", () => {
   });
 
   it("counts every pending change and lists the ones the board cannot draw", async () => {
-    mount("owner", (tripId) => {
+    await mount("owner", (tripId) => {
       const add = addGelato(tripId);
       return [
         add,
@@ -366,7 +381,7 @@ describe("the suggestions chip", () => {
   // board the chip said "Every suggestion is on the board." and offered
   // nothing, so an owner who opened it never found Accept or Dismiss.
   it("reads 1 suggestion, singular, accepts it from the list, and is gone once nothing is pending", async () => {
-    const { resolved, seeded } = mount("owner", (tripId) => [addGelato(tripId)]);
+    const { resolved, seeded } = await mount("owner", (tripId) => [addGelato(tripId)]);
     fireEvent.click(await screen.findByRole("button", { name: "1 suggestion" }));
     const onBoard = await screen.findByRole("list", { name: "Suggestions on the board" });
     expect(screen.queryByRole("list", { name: "Suggestions not on the board" })).toBeNull();
@@ -382,7 +397,7 @@ describe("the suggestions chip", () => {
     change(tripId, 'Renamed the trip to "Roma"', [{ type: "SetTripName", tripId, name: "Roma" }], { requestedBy: "dev-bea" }),
   ];
   it("offers the owner Dismiss and no Accept on a change another member asked the assistant for", async () => {
-    mount("owner", asked);
+    await mount("owner", asked);
     fireEvent.click(await screen.findByRole("button", { name: "1 suggestion" }));
     expect(await screen.findByRole("button", { name: 'Dismiss: Renamed the trip to "Roma"' })).toBeTruthy();
     expect(screen.queryByRole("button", { name: 'Accept: Renamed the trip to "Roma"' })).toBeNull();
@@ -390,7 +405,7 @@ describe("the suggestions chip", () => {
 
   it("offers another editor neither Accept nor Dismiss on a change someone else asked the assistant for", async () => {
     sessionUserId = "dev-cal";
-    mount("editor", asked);
+    await mount("editor", asked);
     fireEvent.click(await screen.findByRole("button", { name: "1 suggestion" }));
     expect(await screen.findByText(/^Suggested by /)).toBeTruthy();
     expect(screen.queryByRole("button", { name: /^(Accept|Dismiss): / })).toBeNull();
@@ -398,7 +413,7 @@ describe("the suggestions chip", () => {
 
   it("lets the author withdraw an on-board change from the list", async () => {
     sessionUserId = "dev-sam";
-    const { resolved, seeded } = mount("suggester", (tripId) => [addGelato(tripId)]);
+    const { resolved, seeded } = await mount("suggester", (tripId) => [addGelato(tripId)]);
     fireEvent.click(await screen.findByRole("button", { name: "1 suggestion" }));
     const onBoard = await screen.findByRole("list", { name: "Suggestions on the board" });
     expect(within(onBoard).queryByRole("button", { name: /^Accept/ })).toBeNull();
@@ -410,7 +425,7 @@ describe("the suggestions chip", () => {
   // Mitchell's preview comment, 2026-10-04 (W77): "the note from the
   // suggester ... looks like text from the website atm".
   it("shows a suggester's note as a message from them", async () => {
-    mount("owner", (tripId) => [change(tripId, 'Renamed the trip to "Roma"', [{ type: "SetTripName", tripId, name: "Roma" }], { note: "Shorter, please" })]);
+    await mount("owner", (tripId) => [change(tripId, 'Renamed the trip to "Roma"', [{ type: "SetTripName", tripId, name: "Roma" }], { note: "Shorter, please" })]);
     fireEvent.click(await screen.findByRole("button", { name: "1 suggestion" }));
 
     const note = await screen.findByRole("figure", { name: /^Note from / });
@@ -420,7 +435,7 @@ describe("the suggestions chip", () => {
   // ADR-067 decision 2: the author is the person who asked; the line says the
   // assistant acted for them.
   it("says a change came via the assistant, and says nothing of it for a person's own", async () => {
-    mount("owner", (id) => [addGelato(id), change(id, "Renamed the trip to Kyoto", [{ type: "SetTripName", tripId: id, name: "Kyoto" }], { via: "assistant", suggestionId: uuidFrom(9301, 7) })]);
+    await mount("owner", (id) => [addGelato(id), change(id, "Renamed the trip to Kyoto", [{ type: "SetTripName", tripId: id, name: "Kyoto" }], { via: "assistant", suggestionId: uuidFrom(9301, 7) })]);
     fireEvent.click(await screen.findByRole("button", { name: "2 suggestions" }));
     expect(await screen.findByText(/^Suggested by .+, via the assistant$/)).toBeTruthy();
     expect(screen.getAllByText(/^Suggested by /)).toHaveLength(2);
@@ -442,7 +457,7 @@ describe("the suggestions chip", () => {
         }),
       }),
     );
-    mount("owner", (id) => [addGelato(id)], [access]);
+    await mount("owner", (id) => [addGelato(id)], [access]);
     fireEvent.click(await screen.findByRole("button", { name: "1 suggestion" }));
 
     const onBoard = await screen.findByRole("list", { name: "Suggestions on the board" });
@@ -458,7 +473,7 @@ describe("the suggestions chip", () => {
 // entry and one undo, and a refusal lands nothing.
 describe("Accept all", () => {
   it("accepts every change that applies in one call, parents first, and skips one that no longer applies", async () => {
-    const { resolved, acceptedAll, seeded } = mount("owner", (tripId) => {
+    const { resolved, acceptedAll, seeded } = await mount("owner", (tripId) => {
       // In creation order, as the list always is; that a parent goes first
       // whatever the order is `acceptAll.test.ts`'s.
       const add = addGelato(tripId);
@@ -493,7 +508,7 @@ describe("Accept all", () => {
     change(tripId, "Set the start date", [{ type: "SetTripStartDate", tripId, startDate: "2027-05-01" }]),
   ];
   it("leaves out a change another member asked the assistant for", async () => {
-    const { acceptedAll, seeded } = mount("owner", askedByBea, [], "dev-alice");
+    const { acceptedAll, seeded } = await mount("owner", askedByBea, [], "dev-alice");
     fireEvent.click(await screen.findByRole("button", { name: "3 suggestions" }));
     fireEvent.click(await screen.findByRole("button", { name: "Accept all" }));
 
@@ -502,7 +517,7 @@ describe("Accept all", () => {
   });
 
   it("takes in the change the reader asked the assistant for", async () => {
-    const { acceptedAll, seeded } = mount("editor", askedByBea, [], "dev-bea");
+    const { acceptedAll, seeded } = await mount("editor", askedByBea, [], "dev-bea");
     fireEvent.click(await screen.findByRole("button", { name: "3 suggestions" }));
     fireEvent.click(await screen.findByRole("button", { name: "Accept all" }));
 
@@ -512,7 +527,7 @@ describe("Accept all", () => {
 
   it("is a reviewer's: the author is not offered it", async () => {
     sessionUserId = "dev-sam";
-    mount("suggester", (tripId) => [
+    await mount("suggester", (tripId) => [
       addGelato(tripId),
       change(tripId, 'Renamed the trip to "Roma"', [{ type: "SetTripName", tripId, name: "Roma" }]),
     ]);
@@ -522,7 +537,7 @@ describe("Accept all", () => {
   });
 
   it("shows the server's refusal, which names the change, and leaves every change pending", async () => {
-    const { acceptedAll } = mount("owner", (tripId) => [
+    const { acceptedAll } = await mount("owner", (tripId) => [
       change(tripId, 'Renamed the trip to "Roma"', [{ type: "SetTripName", tripId, name: "Roma" }]),
       change(tripId, "Set the currency to EUR", [{ type: "SetTripCurrency", tripId, currency: "EUR" }]),
       change(tripId, "Set the start date", [{ type: "SetTripStartDate", tripId, startDate: "2027-05-01" }]),
@@ -544,7 +559,7 @@ describe("Accept all", () => {
   // One call, so one pending state rather than "N of M": the button stays,
   // disabled, until the answer arrives.
   it("reads Accepting… while the call is in flight", async () => {
-    mount("owner", (tripId) => [
+    await mount("owner", (tripId) => [
       change(tripId, 'Renamed the trip to "Roma"', [{ type: "SetTripName", tripId, name: "Roma" }]),
       change(tripId, "Set the currency to EUR", [{ type: "SetTripCurrency", tripId, currency: "EUR" }]),
     ]);
@@ -571,7 +586,7 @@ describe("Accept all", () => {
 // names re-read for an author who joined after they were taken (W67).
 describe("a suggestion arriving by the poll", () => {
   it("opens the chip on the first click, and it stays open while the author's name is read", async () => {
-    const { fixture } = mount("owner", () => []);
+    const { fixture } = await mount("owner", () => []);
     const tripId = fixture.tripId;
     expect(await screen.findByRole("button", { name: /^Edit Colosseum tour/ })).toBeTruthy();
     const arrived = [
