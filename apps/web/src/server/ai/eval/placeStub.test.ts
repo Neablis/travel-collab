@@ -29,6 +29,37 @@ describe("the eval's place stub", () => {
     }
   });
 
+  // Models sentence-case a query, so a capital letter alone does not make a
+  // name: "Tea house" answered with a place called "Tea house" is the same
+  // "one place called coffee" that read as nothing found.
+  it("answers a capitalised kind of place with invented names, never the query itself", () => {
+    for (const query of ["Tea house", "Café", "Coffee"]) {
+      const names = stubPlaceSearch({ queries: [query], region: box })[0]!.places.map((place) => place.name);
+      expect(names).toHaveLength(PLACE_CANDIDATES_PER_QUERY);
+      expect(new Set(names).size).toBe(names.length);
+      expect(names.map((name) => name.toLowerCase())).not.toContain(query.toLowerCase());
+    }
+  });
+
+  it("answers an accented café the way it answers coffee", () => {
+    const namesOf = (query: string) => stubPlaceSearch({ queries: [query], region: box })[0]!.places.map((place) => place.name);
+    expect(namesOf("café")).toEqual(namesOf("coffee"));
+  });
+
+  it("finds a place someone named under its own name first", () => {
+    const [shrine] = stubPlaceSearch({ queries: ["Fushimi Inari Shrine"], region: box });
+    expect(shrine!.places[0]!.name).toBe("Fushimi Inari Shrine");
+  });
+
+  // "near X" is where the model says to look, not part of what it looks for.
+  it("builds names from the query without the near the model types", () => {
+    const [ramen] = stubPlaceSearch({ queries: ["ramen near Shibuya Station"], region: box });
+    for (const place of ramen!.places) {
+      expect(place.name).toMatch(/ramen/i);
+      expect(place.name).not.toMatch(/near|shibuya/i);
+    }
+  });
+
   it("places every candidate inside the region, and apart from each other", () => {
     const [lookup] = stubPlaceSearch({ queries: ["coffee"], region: box });
     for (const place of lookup!.places) {

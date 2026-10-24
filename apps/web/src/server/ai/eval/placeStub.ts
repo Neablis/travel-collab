@@ -15,23 +15,25 @@ import type { PlaceLookup, ResolvedPlace } from "@/server/assistant/deps";
 import { PLACE_CANDIDATES_PER_QUERY } from "@/server/assistant/tools/places";
 import type { BoundingBox } from "@/server/geocoding/geocoder";
 
-const COFFEE = /\b(coffee|caf[eé]|espresso|latte|cappuccino)\b/i;
+// Letters, not `\b`: a non-unicode `\b` sees no word end after "café".
+const COFFEE = /(?<!\p{L})(coffee|caf[eé]|espresso|latte|cappuccino)(?!\p{L})/iu;
 const CAFES = ["Little Owl Coffee", "Corner Roast Café", "Morning Lane Espresso"];
 
 // Where a search with no region is centred: the seeded Japan trip's Tokyo.
 const NO_REGION = { lat: 35.68, lng: 139.76 };
 
 /**
- * The names one query gets. A capitalised query is a place someone named, and
- * a real search finds it first; a lowercase one is a kind of place, which a
- * real search answers with places of that kind, never one called "ramen".
+ * The names one query gets. A query with a capital past its first word is a
+ * place someone named ("Fushimi Inari Shrine"), and a real search finds it
+ * first. Anything else is a kind of place, however it is cased ("Tea house"),
+ * which a real search answers with places of that kind, never one called "ramen".
  */
 function namesFor(query: string): string[] {
   // Without the city the near-now search appends, and the "near X" a model
   // types, neither of which a place is named after.
   const what = query.split(",")[0]!.replace(/\s+near\s.*$/i, "").trim() || query;
   if (COFFEE.test(what)) return CAFES;
-  if (/[A-Z]/.test(what)) return [what, `${what} North Gate`, `${what} South Gate`];
+  if (/\s\p{Lu}/u.test(what)) return [what, `${what} North Gate`, `${what} South Gate`];
   const title = what.replace(/\b\w/g, (letter) => letter.toUpperCase());
   return [`${title} House`, `The ${title} Room`, `${title} on the Corner`];
 }

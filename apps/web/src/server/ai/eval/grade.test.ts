@@ -86,6 +86,13 @@ describe("grade", () => {
     ]);
   });
 
+  it("passes a set of alternatives on any one of them, one check per set", () => {
+    const expectation = { mustCallOneOf: [["read_trip", "search_places"], ["x", "y"]] };
+    for (const tool of ["read_trip", "search_places"]) {
+      expect(failing(grade(turn({ toolCalls: [{ name: tool, input: {} }] }), expectation))).toEqual(["calls x or y"]);
+    }
+  });
+
   it("treats unreported input tokens as a failure, not as zero", () => {
     expect(failing(grade(turn({ usage: { inputTokens: null, outputTokens: null, totalTokens: null } }), { maxInputTokens: 10 }))).toEqual([
       "≤ 10 input tokens",
