@@ -13,12 +13,22 @@ import {
   tripDetailFromState,
   type TripState,
 } from "@tc/domain";
-import { JAPAN_STOPS } from "@tc/fixtures";
-import { clockIn } from "@tc/pages";
+import { JAPAN_STOPS, japanTripCommands } from "@tc/fixtures";
+import { clockIn, tripNow } from "@tc/pages";
 import type { AskAnalyticsRecord } from "@/server/assistant/askAnalytics";
 import { OVERVIEW_ABOVE_DAYS } from "@/server/assistant/tools/read";
 import { accountExpectationFor, expectationFor, mostFreeDays, playbookExpectationFor, type SeededAccountTrip } from "./cases";
-import { ACCOUNT_TRIPS, EVAL_TRIPS, LONG_TRIP_DAYS, accountTripCommands, evalInstant, japanTodayStart, longTripCommands } from "./trips";
+import {
+  ACCOUNT_TRIPS,
+  EVAL_TRIPS,
+  LONG_TRIP_DAYS,
+  accountTripCommands,
+  evalInstant,
+  japanTodayStart,
+  longTripCommands,
+  phaseFor,
+  planningStart,
+} from "./trips";
 import { grade, namesAmount, namesDayNumber, navigatedTo, retractedText, reviewedChanges, textBeforeToolCall, visibleText, type EvalTurn } from "./grade";
 
 // The fields `grade` reads, on an otherwise ordinary completed turn.
@@ -249,7 +259,7 @@ describe("the cases", () => {
     ACCOUNT_TRIPS.map((trip, i): SeededAccountTrip => {
       const tripId = `00000000-0000-4000-8000-${String(i + 1).padStart(12, "0")}`;
       let state: TripState | null = null;
-      for (const command of [TripCommand.parse({ type: "CreateTrip", tripId, name: trip.name }), ...accountTripCommands(tripId, trip)]) {
+      for (const command of [TripCommand.parse({ type: "CreateTrip", tripId, name: trip.name }), ...accountTripCommands(tripId, trip, "2027-05-01")]) {
         const decision = decideTripCommand(state, command, { actorId: asker });
         if (!decision.ok) throw new Error(`the domain refused ${command.type}: ${decision.rejection.message}`);
         for (const event of decision.events) state = evolveTrip(state, event);
@@ -361,7 +371,7 @@ describe("the cases", () => {
     expect(named.map((prompt) => prompt.id)).toEqual(["q-summarise-long-trip", "d-coffee-near-now", "d-running-late", "d-closed-find-similar"]);
     for (const prompt of named) expect(EVAL_TRIPS as readonly string[], prompt.id).toContain(prompt.trip);
 
-    const dates = longTripCommands("00000000-0000-4000-8000-000000000000").find((c) => c.type === "SetTripDates");
+    const dates = longTripCommands("00000000-0000-4000-8000-000000000000", "2027-04-01").find((c) => c.type === "SetTripDates");
     expect(dates?.type === "SetTripDates" && dates.newDayIds.length).toBe(LONG_TRIP_DAYS);
     expect(LONG_TRIP_DAYS).toBeGreaterThan(OVERVIEW_ABOVE_DAYS);
   });
@@ -397,6 +407,35 @@ describe("the cases", () => {
       expect(clockIn("Asia/Tokyo", at), started).toEqual({ date: "2026-10-24", time: "12:30" });
       expect(japanTodayStart(at), started).toBe("2026-10-23");
     }
+  });
+
+  // KI-2026-10-24-n: the planning trips were dated 2027-04-01, so from
+  // 2027-03-29 a case written for a trip months out ran on one soon, then
+  // under way, then ended. Each trip is folded by the domain, as seeded, and
+  // its phase read the way the server reads it, on run dates either side.
+  it("seeds every trip in the phase its case is written for, whatever day the run is", () => {
+    const tripId = "00000000-0000-4000-8000-0000000000aa";
+    const fold = (commands: TripCommand[]) => {
+      let state: TripState | null = null;
+      for (const command of [TripCommand.parse({ type: "CreateTrip", tripId, name: "eval" }), ...commands]) {
+        const decision = decideTripCommand(state, command, { actorId: "eval-actor" });
+        if (!decision.ok) throw new Error(`the domain refused ${command.type}: ${decision.rejection.message}`);
+        for (const event of decision.events) state = evolveTrip(state, event);
+      }
+      return tripDetailFromState(state!, "2026-10-01T00:00:00.000Z");
+    };
+    for (const run of ["2026-10-24", "2027-03-30", "2027-04-05", "2027-09-01", "2031-02-28"]) {
+      const at = evalInstant(Date.parse(`${run}T03:00:00Z`));
+      const phase = (commands: TripCommand[]) => tripNow(fold(commands), null, { at, deviceZone: "Asia/Tokyo" }).phase;
+      const seeded = {
+        japan: phase(japanTripCommands(tripId, { startDate: planningStart(at) })),
+        "long-100": phase(longTripCommands(tripId, planningStart(at))),
+        today: phase(japanTripCommands(tripId, { startDate: japanTodayStart(at) })),
+        account: phase(accountTripCommands(tripId, ACCOUNT_TRIPS[0]!, planningStart(at))),
+      };
+      expect(seeded, run).toEqual({ japan: phaseFor(undefined), "long-100": phaseFor("long-100"), today: phaseFor("today"), account: "planning" });
+    }
+    expect([phaseFor(undefined), phaseFor("today")]).toEqual(["planning", "underway"]);
   });
 
   // The summary is the overview's job: one look at a stay is fine, a read of

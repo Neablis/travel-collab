@@ -39,6 +39,7 @@ import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { japanTripCommands } from "@tc/fixtures";
 import type { TripDetail } from "@tc/contracts";
+import { tripNow } from "@tc/pages";
 import { executeTripCommand, executeTripCommandBatch } from "@/server/commands";
 import { db } from "@/server/db/client";
 import { rateLimitCounters } from "@/server/db/schema";
@@ -51,7 +52,7 @@ import { postMessage } from "@/server/chat/messages";
 import type { TurnOrigin } from "@/server/assistant/defineTool";
 import { grade, navigatedTo, retractedText, reviewedChanges, textBeforeToolCall, visibleText, type EvalCheck, type EvalTurn } from "./grade";
 import { capMicroUsdFrom, dollars, turnSpend, unpricedModels, type TurnSpend } from "./spend";
-import { ACCOUNT_TRIPS, accountTripCommands, evalInstant, japanTodayStart, longTripCommands, type EvalTripName } from "./trips";
+import { ACCOUNT_TRIPS, accountTripCommands, evalInstant, japanTodayStart, longTripCommands, phaseFor, planningStart, type EvalTripName } from "./trips";
 import { pinClock, type EvalClock } from "./evalClock";
 
 const ACTOR_ID = "eval-actor";
@@ -132,12 +133,18 @@ async function seedTripFor(prompt: LivePrompt): Promise<{ tripId: string; detail
   const name = prompt.trip === "long-100" ? "100 days in Japan (eval)" : "Japan (eval)";
   const created = await executeTripCommand({ type: "CreateTrip", tripId, name }, ACTOR_ID);
   if (!created.ok) throw new Error(`seed: ${created.error.message}`);
+  // `Date` is pinned to the turn's start here, so both dates follow the run.
   const commands =
     prompt.trip === "long-100"
-      ? longTripCommands(tripId)
-      : japanTripCommands(tripId, { startDate: prompt.trip === "today" ? japanTodayStart(Date.now()) : "2027-04-01" });
+      ? longTripCommands(tripId, planningStart(Date.now()))
+      : japanTripCommands(tripId, { startDate: prompt.trip === "today" ? japanTodayStart(Date.now()) : planningStart(Date.now()) });
   const seeded = await executeTripCommandBatch(commands, ACTOR_ID);
   if (!seeded.ok) throw new Error(`seed: ${seeded.error.message}`);
+  // Every stop is in Japan, so Tokyo's clock is each day's own.
+  const phase = tripNow(seeded.detail, null, { at: Date.now(), deviceZone: "Asia/Tokyo" }).phase;
+  if (phase !== phaseFor(prompt.trip)) {
+    throw new Error(`seed: ${prompt.id}'s trip is ${phase} as its turn starts; its case is written for one ${phaseFor(prompt.trip)}`);
+  }
   return { tripId, detail: seeded.detail };
 }
 
@@ -159,7 +166,7 @@ async function seedAccount(): Promise<{ userId: string; seeded: SeededAccountTri
     const tripId = randomUUID();
     const created = await executeTripCommand({ type: "CreateTrip", tripId, name: trip.name }, userId);
     if (!created.ok) throw new Error(`seed: ${created.error.message}`);
-    const built = await executeTripCommandBatch(accountTripCommands(tripId, trip), userId);
+    const built = await executeTripCommandBatch(accountTripCommands(tripId, trip, planningStart(Date.now())), userId);
     if (!built.ok) throw new Error(`seed: ${built.error.message}`);
     if (!trip.travelling) {
       await writeTravelling(db, { tripId, userId, travelling: false, updatedBy: userId, now: new Date().toISOString() });
@@ -186,7 +193,7 @@ async function seedPlaybook(): Promise<{ userId: string; savedDayId: string; sto
   const tripId = randomUUID();
   const created = await executeTripCommand({ type: "CreateTrip", tripId, name: "Kyoto" }, userId);
   if (!created.ok) throw new Error(`seed: ${created.error.message}`);
-  const built = await executeTripCommandBatch(japanTripCommands(tripId, { startDate: "2027-04-01" }), userId);
+  const built = await executeTripCommandBatch(japanTripCommands(tripId, { startDate: planningStart(Date.now()) }), userId);
   if (!built.ok) throw new Error(`seed: ${built.error.message}`);
   return { userId, savedDayId: kept.value.savedDayId, stopTitles: kept.value.stops.map((stop) => stop.title) };
 }

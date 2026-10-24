@@ -32,7 +32,7 @@ import { simulatedModel } from "@/server/ai/simulatedModel";
 import { replayTranscript, type AskTranscript } from "./transcript";
 import { accountExpectationFor, type SeededAccountTrip } from "./cases";
 import { grade, navigatedTo, retractedText, textBeforeToolCall, visibleText, type EvalCheck } from "./grade";
-import { ACCOUNT_TRIPS, accountTripCommands } from "./trips";
+import { ACCOUNT_TRIPS, accountTripCommands, planningStart } from "./trips";
 
 const ACTOR_ID = "replay-actor";
 
@@ -427,7 +427,7 @@ describe("the live set's account questions, on the simulated model", () => {
       const tripId = randomUUID();
       const created = await executeTripCommand({ type: "CreateTrip", tripId, name: trip.name }, ACCOUNT_ASKER);
       if (!created.ok) throw new Error(`seed: ${created.error.message}`);
-      const built = await executeTripCommandBatch(accountTripCommands(tripId, trip), ACCOUNT_ASKER);
+      const built = await executeTripCommandBatch(accountTripCommands(tripId, trip, planningStart(Date.now())), ACCOUNT_ASKER);
       if (!built.ok) throw new Error(`seed: ${built.error.message}`);
       if (!trip.travelling) {
         await writeTravelling(db, {

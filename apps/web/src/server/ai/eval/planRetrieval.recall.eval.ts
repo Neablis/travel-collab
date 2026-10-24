@@ -68,6 +68,7 @@ import { db } from "@/server/db/client";
 import { savedDays } from "@/server/db/schema";
 import { newSavedDayRow } from "@/server/savedDays";
 import { recordAdd } from "@/server/savedDayAdds";
+import { planningStart } from "./trips";
 import { enqueueDayChunksForEmbedding } from "@/server/ai/queue";
 import { runEmbedSweep } from "@/server/ai/sweep";
 import { embedText } from "@/server/ai/embeddings";
@@ -180,7 +181,7 @@ async function seedJapanTrip(): Promise<number> {
   );
   if (!created.ok) throw new Error(`seed: ${created.error.message}`);
   const seeded = await executeTripCommandBatch(
-    japanTripCommands(JAPAN_TRIP_ID, { startDate: "2027-04-01" }),
+    japanTripCommands(JAPAN_TRIP_ID, { startDate: planningStart(Date.now()) }),
     ACTOR_ID,
   );
   if (!seeded.ok) throw new Error(`seed: ${seeded.error.message}`);
