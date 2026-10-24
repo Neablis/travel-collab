@@ -41,6 +41,23 @@ describe("the eval's place stub", () => {
     }
   });
 
+  // Live run on 7d8e09f, 2026-10-24: "garden" came back as "Garden Park House"
+  // and "Japanese Garden Room", and the model refused to swap in "vague, generic
+  // names" it could not confirm were real gardens. A kind of place, known or
+  // not, gets names shaped like a business, not the query with a suffix.
+  it("answers a kind of place with business-like names, never the query plus a suffix", () => {
+    for (const query of ["garden", "park", "shrine", "temple", "museum", "ramen", "sushi", "izakaya", "bar", "bakery", "tea", "market", "onsen"]) {
+      const names = stubPlaceSearch({ queries: [query], region: box })[0]!.places.map((place) => place.name);
+      expect(names, query).toHaveLength(PLACE_CANDIDATES_PER_QUERY);
+      expect(new Set(names).size, query).toBe(names.length);
+      for (const name of names) {
+        expect(name, query).not.toMatch(/house|room|on the corner/i);
+        expect(name.toLowerCase(), query).not.toBe(query);
+        expect(name.toLowerCase(), query).not.toMatch(new RegExp(`^(the )?${query} `));
+      }
+    }
+  });
+
   it("answers an accented café the way it answers coffee", () => {
     const namesOf = (query: string) => stubPlaceSearch({ queries: [query], region: box })[0]!.places.map((place) => place.name);
     expect(namesOf("café")).toEqual(namesOf("coffee"));
