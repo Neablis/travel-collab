@@ -13,24 +13,26 @@ export interface EvalClock {
   restore(): void;
 }
 
+/**
+ * Swaps `globalThis.Date` for the offset clock and returns the handle that
+ * moves its origin at each turn's start and puts the real `Date` back.
+ */
 export function pinClock(): EvalClock {
   const RealDate = globalThis.Date;
   let offset = 0;
-  class PinnedDate extends RealDate {
-    constructor(...args: ConstructorParameters<DateConstructor> | []) {
-      if (args.length === 0) super(RealDate.now() + offset);
-      else super(...(args as ConstructorParameters<DateConstructor>));
-    }
-    static override now(): number {
-      return RealDate.now() + offset;
-    }
-    // A Date made before the swap, or by another module's captured `Date`,
-    // is still a Date to a driver's or a schema's `instanceof Date`.
-    static [Symbol.hasInstance](value: unknown): boolean {
-      return value instanceof RealDate;
-    }
+  // A function rather than a subclass, so `Date()` without `new` still works.
+  // It shares the real prototype, so a Date made before the swap, or by a
+  // module that captured `Date`, is still `instanceof Date` to a driver or a
+  // schema, and its `constructor` is the same.
+  function PinnedDate(this: unknown, ...args: unknown[]): Date | string {
+    if (!new.target) return new RealDate(RealDate.now() + offset).toString();
+    return Reflect.construct(RealDate, args.length ? args : [RealDate.now() + offset], new.target);
   }
-  globalThis.Date = PinnedDate as DateConstructor;
+  Object.setPrototypeOf(PinnedDate, RealDate);
+  PinnedDate.prototype = RealDate.prototype;
+  PinnedDate.now = () => RealDate.now() + offset;
+  Object.defineProperty(PinnedDate, "length", { value: RealDate.length });
+  globalThis.Date = PinnedDate as unknown as DateConstructor;
   return {
     startTurnAt: (at) => {
       offset = at - RealDate.now();
