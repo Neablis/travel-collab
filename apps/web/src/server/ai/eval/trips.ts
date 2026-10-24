@@ -12,11 +12,25 @@ import { clockIn } from "@tc/pages";
 
 /**
  * The trips a live-set prompt may name, beyond the default Japan trip.
- * `today` is that trip dated to start today (M52), so a day-of prompt runs on
- * a trip under way and is offered what only such a trip is.
+ * `today` is that trip dated so the run's pinned instant (`evalInstant`) falls
+ * inside one of its days (M52), so a day-of prompt runs on a trip under way and
+ * is offered what only such a trip is.
  */
 export const EVAL_TRIPS = ["long-100", "today"] as const;
 export type EvalTripName = (typeof EVAL_TRIPS)[number];
+
+/**
+ * The instant a live-set run's server sees as now: 12:30 in Tokyo on the
+ * run's own date there, whatever the hour it was started. Day 2 of the Japan
+ * trip has lunch under way then and a stop to come at 14:00, which every
+ * day-of case needs; reading the real clock left those cases out for nine and
+ * a half hours a day (M52 part 12). Only the hour is pinned: the date stays
+ * the run's, so model rates and the other trips' phases are what they are on
+ * the day it runs.
+ */
+export function evalInstant(realNow: number): number {
+  return Date.parse(`${clockIn("Asia/Tokyo", realNow).date}T12:30:00+09:00`);
+}
 
 /**
  * The start date that makes `today` under way at `at`, on the first Japan day
@@ -25,31 +39,16 @@ export type EvalTripName = (typeof EVAL_TRIPS)[number];
  * failed them for the hour of the run: nothing has begun on day 1 before
  * 14:30, and nothing is left after 21:00 (PR 534 review, finding 4).
  *
- * Null when no day has both, from 21:00 to 06:30 JST: the runner leaves the
- * day-of prompts out then (`notRunOnClock`).
+ * Throws when no day has both, from 21:00 to 06:30 JST, which `evalInstant`
+ * never is.
  */
-export function japanTodayStart(at: number): string | null {
+export function japanTodayStart(at: number): string {
   const { date, time } = clockIn("Asia/Tokyo", at);
   for (let day = 1; day <= JAPAN_TRIP_DAY_COUNT; day++) {
     const starts = JAPAN_STOPS.filter((stop) => stop.day === day).map((stop) => stop.start);
     if (starts.some((start) => start <= time) && starts.some((start) => start > time)) return addDays(date, 1 - day);
   }
-  return null;
-}
-
-/**
- * The day-of prompts among `prompts` that cannot run at `at`, each with the
- * line the run's summary names it on. Outside the hours `japanTodayStart`
- * covers, a full run leaves them out of its turns and its report rather than
- * refusing the whole set; a run that named one with `EVAL_ONLY` refuses.
- */
-export function notRunOnClock(
-  prompts: readonly { id: string; trip?: EvalTripName }[],
-  at: number,
-): { id: string; reason: string }[] {
-  if (japanTodayStart(at) !== null) return [];
-  const reason = `not run: clock (${clockIn("Asia/Tokyo", at).time} JST)`;
-  return prompts.filter((prompt) => prompt.trip === "today").map(({ id }) => ({ id, reason }));
+  throw new Error(`No Japan day has a stop begun and one to come at ${time} JST, so the day-of cases cannot run then.`);
 }
 
 // A hundred days through six stays, Tokyo twice: long enough to be well past
