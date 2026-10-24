@@ -141,7 +141,10 @@ describe("the turn's now", () => {
   const trip = tripDetailFactory.build({}, { transient: { dayCount: 1, activitiesPerDay: 3, located: true, startDate: "2026-06-10" } });
   const [first, second, third] = trip.days[0]!.activityIds;
   const inTokyo = {
-    days: [{ index: 0, date: "2026-06-10", cities: ["Rome"], activityCount: 3, costSubtotal: 0, place: { lat: 41.89, lng: 12.49, city: "Rome" }, timeZone: "Asia/Tokyo" }],
+    days: [{
+      index: 0, date: "2026-06-10", cities: ["Rome"], activityCount: 3, costSubtotal: 0, place: { lat: 41.89, lng: 12.49, city: "Rome" }, timeZone: "Asia/Tokyo",
+      weatherPlace: { lat: 41.89, lng: 12.49, city: "Rome", timeZone: "Asia/Tokyo" },
+    }],
   } as unknown as TripGlobals;
 
   it("reads the stops either side of now on the day's own clock", () => {
@@ -150,6 +153,36 @@ describe("the turn's now", () => {
     expect(now).toMatchObject({ phase: "underway", dayIndex: 0, local: { date: "2026-06-10", time: "10:30" } });
     expect([now.passed?.activityId, now.current?.activityId, now.next?.activityId]).toEqual([first, second, third]);
     expect(now.city).toEqual({ name: "Rome", lat: 41.89, lng: 12.49 });
+  });
+
+  // KI-2026-10-24-m. A departure day: the clock's stop is the flight out of
+  // New York (coordinates, no city), the first city is Tokyo. Today's city is
+  // Tokyo AT Tokyo — its name and its point from the one stop
+  // (`weatherPlace`), never Tokyo's name on the airport's coordinates.
+  it("names today's city and locates it at the same stop on a departure day", () => {
+    const departure = {
+      days: [{
+        ...inTokyo.days[0]!, cities: ["Tokyo"], timeZone: "America/New_York",
+        place: { lat: 40.6413, lng: -73.7781, city: null },
+        weatherPlace: { lat: 35.6812, lng: 139.7671, city: "Tokyo", timeZone: "Asia/Tokyo" },
+      }],
+    } as unknown as TripGlobals;
+    const now = turnNowOf(trip, departure, Date.parse("2026-06-10T14:30:00Z"));
+    expect(now.city).toEqual({ name: "Tokyo", lat: 35.6812, lng: 139.7671 });
+  });
+
+  // A city whose stops have no coordinates still names the day, but with no
+  // point: the one located stop is somewhere else, and its point is not Kyoto's.
+  it("names a city no located stop is in without lending it another stop's point", () => {
+    const unlocatedCity = {
+      days: [{
+        ...inTokyo.days[0]!, cities: ["Kyoto"], timeZone: "America/New_York",
+        place: { lat: 40.6413, lng: -73.7781, city: null },
+        weatherPlace: { lat: 40.6413, lng: -73.7781, city: null, timeZone: "America/New_York" },
+      }],
+    } as unknown as TripGlobals;
+    const now = turnNowOf(trip, unlocatedCity, Date.parse("2026-06-10T14:30:00Z"));
+    expect(now.city).toEqual({ name: "Kyoto", lat: null, lng: null });
   });
 
   // ADR-080 decision 1: a day with no zone is read on the device's. At 20:30
