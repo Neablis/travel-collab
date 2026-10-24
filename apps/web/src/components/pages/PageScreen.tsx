@@ -1060,6 +1060,12 @@ export function PageScreen({
   // feeds the tab and a notebook's *Trip chat*, which opens it in place.
   const memberCount = members !== null ? members.length : accessRefused === false ? null : 0;
   const offersChat = tripHasChat(tripId, memberCount);
+  // **Still asking whether there is a chat** (PR 537 round 17): a cold load
+  // draws the page before the access read answers, and a *Trip chat* card
+  // arriving then pushed the page down under the reader. Until it answers the
+  // card holds its place, opening nothing. Not on /demo, where it never comes:
+  // `tripHasChat` with nothing known is "a trip that can have a chat".
+  const accessPending = accessRefused === null && tripHasChat(tripId, null);
   const [railTab, setRailTab] = useState<RailTab>("ask");
   // As on the board: no Chat to be on without a chat.
   if (!offersChat && railTab === "chat") setRailTab("ask");
@@ -1148,7 +1154,11 @@ export function PageScreen({
     openLastTab,
     hasChat ? chat.unread : undefined,
     chatShown,
-    hasChat ? { onOpen: openChat, messages: chat.status === "ready" ? chat.messages : null, unread: chat.unread } : undefined,
+    hasChat
+      ? { onOpen: openChat, messages: chat.status === "ready" ? chat.messages : null, unread: chat.unread }
+      : accessPending
+        ? { onOpen: openChat, messages: null, unread: 0, pending: true }
+        : undefined,
     tripIsSolo(tripId, memberCount),
   );
   // **Leaving Editing no longer hangs up, and that is a reversal.** It did,

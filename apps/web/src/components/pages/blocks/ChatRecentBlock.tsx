@@ -7,6 +7,7 @@ import { MessageBody } from "@/components/chat/MessageChip";
 import { usePhoneAsk } from "@/components/nav/phoneAsk";
 import { unreadWords } from "@/components/nav/askOrChat";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/text";
 import { cn } from "@/lib/cn";
 import type { Persona } from "@/lib/persona";
@@ -22,7 +23,10 @@ import { usePersonas } from "../people";
 // While the page is being edited a click selects the widget as it does any
 // other, so the card is drawn but is no control then. On a solo trip there is
 // no chat to open, so it is never a control: the same header, and a line
-// saying how to get one (Mitchell, PR 537 walk, 2026-10-24).
+// saying how to get one (Mitchell, PR 537 walk, 2026-10-24). Nor while the
+// screen is still finding out whether there is a chat (`PhoneChat.pending`):
+// the frame holds the card's place, busy, so it does not arrive late and push
+// the page down (round 17).
 //
 // Its name is the header and the footer it shows (WCAG 2.5.3): a voice user
 // says what they see. The unread count and the messages describe it.
@@ -38,6 +42,7 @@ export function ChatRecentBlock({ payload, interactive = true }: { payload: Chat
   const linesId = useId();
   const unreadId = useId();
   const unread = chat?.unread ?? 0;
+  const pending = chat?.pending === true;
 
   const content = (
     <>
@@ -48,7 +53,12 @@ export function ChatRecentBlock({ payload, interactive = true }: { payload: Chat
         </span>
         {unread > 0 && <span id={unreadId} className="ml-auto text-xs font-medium text-brand">{unreadWords(unread)}</span>}
       </span>
-      {payload.solo ? (
+      {pending ? (
+        <span className="flex flex-col gap-3 px-3 py-2.5">
+          <Skeleton className="h-4 w-2/3" />
+          <Skeleton className="h-4 w-1/2" delay={2} />
+        </span>
+      ) : payload.solo ? (
         <span className="px-3 py-2.5">
           <Text as="span" variant="secondary">
             Add other travelers to see the trip chat
@@ -65,7 +75,7 @@ export function ChatRecentBlock({ payload, interactive = true }: { payload: Chat
           )}
         </span>
       )}
-      {!payload.solo && (
+      {!payload.solo && !pending && (
         <span className="flex items-center justify-between border-t border-hairline px-3 py-2 text-sm font-medium text-brand">
           <span id={footerId}>Open chat</span>
           <ChevronRight aria-hidden className="size-4" />
@@ -75,9 +85,9 @@ export function ChatRecentBlock({ payload, interactive = true }: { payload: Chat
   );
 
   const card = "flex w-full flex-col overflow-hidden rounded-md border border-hairline bg-surface text-left";
-  if (!interactive || payload.solo || chat === undefined) {
+  if (!interactive || payload.solo || chat === undefined || pending) {
     return (
-      <span role="group" aria-labelledby={titleId} className={card}>
+      <span role="group" aria-labelledby={titleId} aria-busy={pending || undefined} className={card}>
         {content}
       </span>
     );

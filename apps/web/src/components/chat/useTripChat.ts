@@ -95,14 +95,15 @@ export function tripIsSolo(tripId: string, memberCount: number | null): boolean 
 
 /**
  * **Whether this reader has someone to chat with**: a trip with a chat
- * (`tripHasChat`) whose members are known, and a chat that has not refused
- * them (`no-access`, its own role check). It gates the opener's unread count,
- * a remembered Chat reopening and the *Trip chat* widget. The Chat tab is
- * `tripHasChat`'s, so a removed member's still says why (M46,
- * KI-2026-10-05-h).
+ * (`tripHasChat`), and a chat that has not refused them (`no-access`, its own
+ * role check). It gates the opener's unread count, a remembered Chat reopening
+ * and the *Trip chat* widget. A failed access read (`null`) keeps them as it
+ * keeps the tab, or the page would say the chat is not for a reader the panel
+ * beside it offers it to (PR 537 round 17). The Chat tab is `tripHasChat`'s,
+ * so a removed member's still says why (M46, KI-2026-10-05-h).
  */
 export function hasTripChat(tripId: string, status: TripChatStatus, memberCount: number | null): boolean {
-  return memberCount !== null && tripHasChat(tripId, memberCount) && status !== "no-access";
+  return tripHasChat(tripId, memberCount) && status !== "no-access";
 }
 
 /**

@@ -57,9 +57,11 @@ export type PhoneAskEntry = {
 /**
  * What a screen offers of its trip's chat (`PhoneAskEntry.chat`): `onOpen`
  * opens the screen's own panel on Chat, the board's and a notebook's alike
- * (Mitchell, PR 537: the chat opens in place).
+ * (Mitchell, PR 537: the chat opens in place). `pending` while the screen has
+ * yet to learn whether there is a chat for this reader: the widget holds its
+ * place, opening nothing, rather than appearing late (PR 537 round 17).
  */
-export type PhoneChat = { onOpen: () => void; messages: readonly ChatMessage[] | null; unread: number };
+export type PhoneChat = { onOpen: () => void; messages: readonly ChatMessage[] | null; unread: number; pending?: boolean };
 
 let entry: PhoneAskEntry | null = null;
 const listeners = new Set<() => void>();
@@ -129,6 +131,7 @@ export function usePhoneAskEntry(
   const chats = chat !== undefined;
   const messages = chat?.messages ?? null;
   const chatUnread = chat?.unread ?? 0;
+  const chatPending = chat?.pending === true;
   useEffect(() => {
     if (!offered) return;
     return registerPhoneAsk({
@@ -138,8 +141,8 @@ export function usePhoneAskEntry(
       ...(resumes ? { onResume: () => latest.current.onResume?.() } : {}),
       ...(unread === undefined ? {} : { unread }),
       ...(chatShown ? { chatShown } : {}),
-      ...(chats ? { chat: { onOpen: () => latest.current.onChat?.(), messages, unread: chatUnread } } : {}),
+      ...(chats ? { chat: { onOpen: () => latest.current.onChat?.(), messages, unread: chatUnread, ...(chatPending ? { pending: true } : {}) } } : {}),
       ...(soloTrip ? { soloTrip } : {}),
     });
-  }, [offered, asks, resumes, open, unread, chatShown, chats, messages, chatUnread, soloTrip]);
+  }, [offered, asks, resumes, open, unread, chatShown, chats, messages, chatUnread, chatPending, soloTrip]);
 }

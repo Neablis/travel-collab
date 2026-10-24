@@ -2407,7 +2407,12 @@ describe("PageScreen: a notebook's Trip chat", () => {
     removed: false,
     body: "Train at nine?",
   });
-  function chatNotebook(members: { userId: string; role: "owner" | "viewer" }[], access: "member" | "refused" | "failed" = "member", me?: string) {
+  // `access` a promise: a member's read, answered once it settles.
+  function chatNotebook(
+    members: { userId: string; role: "owner" | "viewer" }[],
+    access: "member" | "refused" | "failed" | Promise<void> = "member",
+    me?: string,
+  ) {
     const trip = tripDetailFixture({ members });
     const widget = insertWidget("chat.recent");
     if (!widget.ok) throw new Error("could not build Trip chat");
@@ -2415,8 +2420,9 @@ describe("PageScreen: a notebook's Trip chat", () => {
     server.use(
       ...makePagesHandlers([page]),
       http.get("/api/trips/:tripId", () => HttpResponse.json({ trip })),
-      http.get("/api/trips/:tripId/access", ({ params }) =>
-        access === "refused"
+      http.get("/api/trips/:tripId/access", async ({ params }) => {
+        if (access instanceof Promise) await access;
+        return access === "refused"
           ? HttpResponse.json({ error: "forbidden" }, { status: 403 })
           : access === "failed"
             ? HttpResponse.json({ error: "internal" }, { status: 500 })
@@ -2430,8 +2436,8 @@ describe("PageScreen: a notebook's Trip chat", () => {
             collaboratorsEntitled: true,
             accessRev: `members-${members.length}`,
           },
-        }),
-      ),
+        });
+      }),
     );
     const screenEl = <PageScreen tripId={trip.tripId} pageId={page.id} />;
     render(me === undefined ? screenEl : <SessionUserProvider initialUser={{ id: me }}>{screenEl}</SessionUserProvider>);
@@ -2727,12 +2733,39 @@ describe("PageScreen: a notebook's Trip chat", () => {
   // The access read unanswered (a 5xx, a dropped connection) says nothing of
   // who this is, so the notebook keeps the board's tab, as the board does when
   // its own read fails: the chat's own refusal is what a stranger then sees.
-  it("keeps the Chat tab and Open chat when the trip's access read fails", async () => {
+  // And the card beside it (PR 537 round 17): a notebook that offers the chat
+  // in its panel does not say on the page that the chat is not for this reader.
+  it("keeps the Chat tab, Open chat and the Trip chat card when the trip's access read fails", async () => {
     server.use(...makeChatHandlers({ viewerId: "u1", messages: [said] }).handlers);
     chatNotebook(pair, "failed");
 
-    expect(await within(await openAssistant()).findByRole("tab", chatTab)).toBeTruthy();
+    const widget = await screen.findByRole("button", card);
+    await waitFor(() => expect(widget.textContent).toContain("Train at nine?"));
+    // Counted too, as for any member: the count is the chat's, not the access read's.
+    expect(await within(await openAssistant()).findByRole("tab", { name: "Chat, 1 unread message" })).toBeTruthy();
     expect(findPaletteCommand("chat")?.action).toBe("Open chat");
+    await userEvent.click(screen.getByRole("button", { name: "Edit page" }));
+    expect(await screen.findByRole("group", { name: "Trip chat" })).toBeTruthy();
+    expect(screen.queryByText(/shown to people who can see the trip's chat/)).toBeNull();
+  });
+
+  // A cold load reads the trip's access after the page has drawn. Until it
+  // answers, the card's frame holds its place and is no control (round 17), so
+  // nothing is pushed down under a reader's tap when it does.
+  it("holds the Trip chat card's place, and opens nothing, until the access read answers", async () => {
+    let answer!: () => void;
+    const answered = new Promise<void>((resolve) => (answer = resolve));
+    server.use(...makeChatHandlers({ viewerId: "u1", messages: [said] }).handlers);
+    chatNotebook(pair, answered);
+
+    const frame = await screen.findByRole("group", { name: "Trip chat" });
+    expect(frame.getAttribute("aria-busy")).toBe("true");
+    expect(screen.queryByRole("button", card)).toBeNull();
+    expect(within(frame).queryByText("Open chat")).toBeNull();
+
+    answer();
+    const widget = await screen.findByRole("button", card);
+    await waitFor(() => expect(widget.textContent).toContain("Train at nine?"));
   });
 
   // Removed from the trip while it still lists them: the chat's 403 is the

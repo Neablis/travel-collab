@@ -96,11 +96,25 @@ describe("ChatRecentBlock", () => {
 
   // Mitchell, PR 537 walk (2026-10-24): a solo trip has no chat to open, so
   // the card is there, saying how to get one, and is no control.
+  // Offered a chat as well, so that `solo` alone is what keeps the card from
+  // being a control, and from drawing "Open chat" as if it were one (round 17).
   it("tells a reader alone on the trip how to get a chat, and opens nothing", () => {
-    unregister.push(registerPhoneAsk({ open: false, onOpen: () => {}, soloTrip: true }));
+    unregister.push(registerPhoneAsk({ open: false, onOpen: () => {}, soloTrip: true, chat: { onOpen: () => {}, messages: [], unread: 0 } }));
     render(view());
     const card = screen.getByRole("group", { name: "Trip chat" });
     expect(within(card).getByText("Add other travelers to see the trip chat")).toBeTruthy();
+    expect(within(card).queryByText("Open chat")).toBeNull();
+    expect(controls()).toEqual([]);
+  });
+
+  // Whether there is a chat at all is still being read (a notebook's cold
+  // load): the card's frame holds its place, busy, and is no control yet.
+  it("holds its place, and opens nothing, while the screen is still finding out whether there is a chat", () => {
+    offer({ onOpen: () => {}, messages: null, unread: 0, pending: true });
+    render(view());
+    const card = screen.getByRole("group", { name: "Trip chat" });
+    expect(card.getAttribute("aria-busy")).toBe("true");
+    expect(within(card).queryByText("Open chat")).toBeNull();
     expect(controls()).toEqual([]);
   });
 
@@ -113,9 +127,8 @@ describe("ChatRecentBlock", () => {
     expect(onOpen).not.toHaveBeenCalled();
   });
 
-  // A member the chat refuses, or one whose membership is still being read, is
-  // offered no chat, and a share link's page registers nothing at all: either
-  // way, no widget, not a disabled one.
+  // A member the chat refuses is offered no chat, and a share link's page
+  // registers nothing at all: either way, no widget, not a disabled one.
   it("is absent where the screen offers Ask and no chat", () => {
     unregister.push(registerPhoneAsk({ open: false, onOpen: () => {}, onAsk: () => {} }));
     render(<div data-testid="page">{view()}</div>);
