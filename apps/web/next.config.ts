@@ -184,6 +184,19 @@ const nextConfig: NextConfig = {
       permanent: true,
     })),
     { source: "/welcome", destination: "/", permanent: true },
+    // The meal tag's display word is "Food" (TAG_LABEL.meal), so the food
+    // slug is the one a person guesses — but the tag's URL slug is the enum,
+    // `meal`, and `food` fails tag validation and 404s. Redirect it on every
+    // tag route shape, in config like /welcome, so the guess lands on the
+    // real page. Next carries the query across, so ?page= survives.
+    { source: "/playbooks/tag/food", destination: "/playbooks/tag/meal", permanent: true },
+    { source: "/playbooks/city/:slug/food", destination: "/playbooks/city/:slug/meal", permanent: true },
+    { source: "/playbooks/country/:slug/tag/food", destination: "/playbooks/country/:slug/tag/meal", permanent: true },
+    {
+      source: "/playbooks/country/:slug/city/:citySlug/tag/food",
+      destination: "/playbooks/country/:slug/city/:citySlug/tag/meal",
+      permanent: true,
+    },
   ],
   headers: async () => [
     { source: "/:path*", headers: securityHeaders },
