@@ -317,7 +317,10 @@ export function DiscoverScreen({
       after: pagesByLink ? after : null,
     });
     const url = `${window.location.pathname}${query === "" ? "" : `?${query}`}`;
-    window.history.replaceState(window.history.state, "", url);
+    // `null`, never `window.history.state`: that carries Next's own `__NA`,
+    // and Next takes a write with it for its own and does not sync it, so
+    // its router kept the old URL (`LensRouter.setView`, KI-2026-10-19-a).
+    window.history.replaceState(null, "", url);
   }, [cities, countries, scope, sort, length, rating, tag, after, pagesByLink]);
   // The conflict signal is the DAY LIST plus each day's adds — the two things a
   // reader is looking at that somebody else can move. Deliberately not the

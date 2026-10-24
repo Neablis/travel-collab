@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DiscoverResponse } from "@/lib/playbooks";
 import type { DiscoverDay } from "@/lib/playbooks";
+import { followHistory } from "@/test-support/nextHistory";
 
 const searchPlaybooksMock = vi.fn();
 const searchPlacesMock = vi.fn();
@@ -811,6 +812,27 @@ describe("Discover", () => {
     const url = new URLSearchParams(window.location.search);
     expect(url.get("sort")).toBe("most-reviewed");
     expect(url.getAll("country")).toEqual(["JP"]);
+  });
+
+  // The address bar is not the only reader: Next's router keeps its own idea
+  // of the URL, which a later router navigation or refresh starts from. Next
+  // syncs a native write into it unless the state carries Next's own `__NA`,
+  // which `window.history.state` always does on an app-router page — the
+  // trap KI-2026-10-19-a found in the trip header, and this screen had too.
+  it("writes a change where Next's router hears it, not only to the address bar", async () => {
+    const heard: string[] = [];
+    window.history.replaceState({ __NA: true }, "", "/playbooks");
+    const restore = followHistory((url) => heard.push(url));
+    try {
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      render(<DiscoverScreen initial={{ rating: "3" }} />);
+      await user.click(await screen.findByTestId("filter-chip-rating"));
+      await user.click(screen.getByTestId("filter-rating-4.5"));
+      await waitFor(() => expect(new URLSearchParams(window.location.search).get("rating")).toBe("4.5"));
+      expect(heard.at(-1)).toBe(`/playbooks${window.location.search}`);
+    } finally {
+      restore();
+    }
   });
 
   // Project rule 6, the sync-fail half. The previous results stay on screen —
