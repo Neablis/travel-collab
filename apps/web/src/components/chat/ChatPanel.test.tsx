@@ -269,6 +269,22 @@ describe("ChatPanel", () => {
       await answer(2, null);
       expect(field.value).toBe("");
     });
+
+    // PR 550 review: a retry of the first that fails again once the reader
+    // has started another message drops what was waiting behind it too.
+    it("is dropped when the first, sent again, fails while the reader has started another message", async () => {
+      const { field, post, answer } = await twoSent();
+      await answer(0, { body: "Train at nine?", behind: false });
+      await answer(1, { body: "or ten? @Day 1", behind: true });
+      await userEvent.type(field, "{Enter}x");
+      await answer(2, { body: "Train at nine?", behind: false });
+      expect(field.value).toBe("x");
+
+      await userEvent.type(field, "{Enter}");
+      expect(post).toHaveBeenLastCalledWith("x", undefined);
+      await answer(3, null);
+      expect(field.value).toBe("");
+    });
   });
 
   // PR 444 review, finding 3: what the reader has started since is theirs;

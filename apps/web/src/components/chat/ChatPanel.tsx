@@ -176,7 +176,9 @@ export function ChatPanel({
       if (!dropping.current) waiting.current = [...waiting.current, { body: unsent.body, held }];
     } else {
       dropping.current = composing.current;
-      if (!dropping.current) giveBack({ body: unsent.body, held });
+      // A retry dropped here takes what still waits behind it along.
+      if (dropping.current) waiting.current = [];
+      else giveBack({ body: unsent.body, held });
     }
   };
 
