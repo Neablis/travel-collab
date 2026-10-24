@@ -5,7 +5,7 @@ import { setupServer } from "msw/node";
 import { ChatMessage, type ChatPage } from "@tc/contracts";
 import { uuidFrom } from "@tc/factories";
 import { holdIdle } from "@/test-support/holdIdle";
-import { useTripChat } from "./useTripChat";
+import { hasTripChat, useTripChat } from "./useTripChat";
 
 // The reader, whose own sent lines these are.
 vi.mock("@/components/account/useSessionUser", () => ({ useKnownSessionUser: () => ({ id: "u-me" }) }));
@@ -38,6 +38,16 @@ const pageOf = (messages: ChatMessage[]): ChatPage => ({ messages, hasEarlier: f
 
 /** Long enough for a read the hook was going to make to reach the network. */
 const settle = () => act(() => new Promise((r) => setTimeout(r, 50)));
+
+// The rule the board and a notebook both read for the card, the count and a
+// remembered Chat. An access read that failed (`null`) refuses no one, so it
+// keeps them as it keeps the tab (PR 537 round 17); the chat's 403 drops them.
+describe("hasTripChat", () => {
+  it("keeps the chat when the access read said nothing of who is on the trip", () => {
+    expect(hasTripChat(TRIP, "ready", null)).toBe(true);
+    expect(hasTripChat(TRIP, "no-access", null)).toBe(false);
+  });
+});
 
 describe("useTripChat", () => {
   // M46 D1: a message shows on every open page without a refresh, and the

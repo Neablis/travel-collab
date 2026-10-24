@@ -170,13 +170,13 @@ test("solo delight: the Notebook and its default pages", async ({ page }) => {
   // the document and started inserting into it (ADR-035 decision 5).
   // The launcher is called "Ask" since SPEC §28 — a 92×44 bar, not a brand
   // tile. The PANEL keeps its name.
-  await page.getByRole("button", { name: "Ask" }).click();
+  await page.getByRole("button", { name: "Ask", exact: true }).click();
   await expect(page.getByRole("complementary", { name: "Assistant" })).toBeVisible();
   await expect(page.getByPlaceholder(/add to this page/i)).toBeVisible();
   await page.getByRole("button", { name: /hide/i }).click();
   await expect(page.getByRole("complementary", { name: "Assistant" })).toBeHidden();
   await page.getByRole("button", { name: "Edit page" }).click();
-  await page.getByRole("button", { name: "Ask" }).click();
+  await page.getByRole("button", { name: "Ask", exact: true }).click();
   await expect(page.getByRole("complementary", { name: "Assistant" })).toBeVisible();
   await page.getByRole("button", { name: "Done editing" }).click();
   // Still open across the mode change — the reversal, stated as an assertion.

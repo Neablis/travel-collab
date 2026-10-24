@@ -27,6 +27,7 @@ import { internalLink, externalLink } from "./macros/primitives/link";
 import { tripNowWidget } from "./macros/primitives/nowNext";
 import { stopDirections } from "./macros/primitives/directions";
 import { tripFlights } from "./macros/primitives/flights";
+import { chatRecent } from "./macros/primitives/chatRecent";
 
 // **Twelve primitives, and nothing else** (ADR-039 decision 1; spec §1's table).
 //
@@ -88,6 +89,9 @@ const DEFS: AnyMacroDef[] = [
   // read the reader's clock and have nothing to narrow; *Directions* is a stop
   // primitive, so a page's Today scope reaches it.
   tripNowWidget, stopDirections, tripFlights,
+  // "Trip chat" (M52 decision 15): no selection, on `trip.people`'s terms,
+  // and shown only to a reader who can see the chat (`MacroDef.requires`).
+  chatRecent,
 ] as unknown as AnyMacroDef[];
 
 export const MACRO_REGISTRY: Record<string, AnyMacroDef> = Object.fromEntries(DEFS.map((d) => [d.name, d]));
@@ -126,6 +130,9 @@ export type RenderOutcome =
   | { status: "unbound"; needs: UnboundNeeds; shape: readonly Seg[] }
   // No shape, and never one: ADR-052's `unavailable` is not a ghost.
   | { status: "unavailable"; reason: UnavailableReason }
+  // Not shown at all (M52 decision 20): the reader lacks what the widget
+  // `requires`. Never a chip — SPEC §27, nothing renders disabled.
+  | { status: "absent" }
   | { status: "unknown" }
   | { status: "bad-params"; message: string };
 
@@ -140,6 +147,7 @@ export function renderMacro(ctx: WidgetContext, name: string, rawParams: unknown
   if (!def) return { status: "unknown" };
   const parsed = def.params.safeParse(rawParams ?? {});
   if (!parsed.success) return { status: "bad-params", message: parsed.error.message };
+  if (def.requires !== undefined && ctx[def.requires] !== true) return { status: "absent" };
   const page = pageScope(ctx, def, parsed.data as Record<string, unknown>);
   const scope: WidgetScope | undefined =
     item?.kind === "city" && page !== undefined ? { kind: "city-in-scope", name: item.name, page } : (item ?? page);

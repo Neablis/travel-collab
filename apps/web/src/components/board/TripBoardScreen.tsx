@@ -76,7 +76,7 @@ import type { RailTab } from "@/components/assistant/AssistantRail";
 import { readLastRailTab, rememberRailTab } from "@/components/assistant/lastTab";
 import { ChatPanel } from "@/components/chat/ChatPanel";
 import { useBoardFocusEntry } from "@/components/chat/boardFocus";
-import { useTripChat } from "@/components/chat/useTripChat";
+import { hasTripChat, tripHasChat, tripIsSolo, useTripChat } from "@/components/chat/useTripChat";
 import { personasOf } from "@/components/pages/people";
 import type { AssistantTurn } from "@/components/assistant/Transcript";
 import { proposalUndoFor, type ProposalState } from "@/components/assistant/ProposalCard";
@@ -256,19 +256,27 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
     chooseTab("chat");
     assistant.show();
   };
+  const members = access?.members;
+  // Settled once the board is `ready`: the access read is part of its load,
+  // and `null` there is a read that failed, which keeps the chat.
+  const memberCount = access === null ? null : access.members.length;
+  // **A solo trip has no chat anywhere** (Mitchell on PR 537, reversing M46's
+  // solo tab): no read, no Chat tab, no ⌘K *Open chat*, the assistant alone.
+  const offersChat = tripHasChat(tripId, memberCount);
+  // A trip gone solo under an open Chat falls back to Ask, and someone
+  // joining again does not pull the panel back onto Chat.
+  if (!offersChat && railTab === "chat") setRailTab("ask");
   // Held here, not in the panel, so the button counts while it is closed.
   const chat = useTripChat({
     tripId,
-    enabled: status === "ready" && !isDemoTripId(tripId),
+    enabled: status === "ready" && offersChat,
     chatRev,
     reading: assistant.open && railTab === "chat",
     accessLost,
   });
-  const members = access?.members;
-  // Whether there is anyone to chat with: not on /demo, not once access is
-  // gone, and not on a trip you are alone on. Without, the button is Ask
-  // alone and a remembered Chat does not reopen; the tab stays, as before.
-  const hasChat = !isDemoTripId(tripId) && chat.status !== "no-access" && (members?.length ?? 0) > 1;
+  // Whether there is anyone to chat with, and the chat has not refused them.
+  // Without, the button is Ask alone and a remembered Chat does not reopen.
+  const hasChat = hasTripChat(tripId, chat.status, memberCount);
   const openLastTab = () => {
     setRailTab(hasChat ? readLastRailTab() : "ask");
     assistant.show();
@@ -329,6 +337,13 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
     openLastTab,
     hasChat ? chat.unread : undefined,
     assistant.open && railTab === "chat",
+    // For a notebook's *Trip chat* widget (M52): absent without a chat,
+    // and saying how to get one on a solo trip. Pending until the chat's
+    // first read answers, so the widget holds its place (PR 537 round 18).
+    hasChat
+      ? { onOpen: openChat, messages: chat.status === "ready" ? chat.messages : null, unread: chat.unread, pending: chat.status === "loading" }
+      : undefined,
+    tripIsSolo(tripId, memberCount),
   );
   // **⌘K's commands are this screen's own functions** (M41 D9, ADR-068 §1,
   // ADR-069 §4). Each is named here, above the early returns because the
@@ -504,7 +519,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
     boardRenders && activeTrip !== null && targets !== null
       ? [
           ...lensCommands(setView),
-          ...(isDemoTripId(tripId) ? [] : [chatCommand(openChat)]),
+          ...(offersChat ? [chatCommand(openChat)] : []),
           ...goToDayCommands(targets.days, focusDay),
           ...goToStopCommands(targets.stops, focusActivity),
           // Where the Notebooks menu's row links.
@@ -1838,14 +1853,18 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
               askUpgrade={ask.askErrorCode === AI_NOT_ENTITLED_CODE}
               simulated={ask.simulated}
               takeFocus={assistant.takeFocus}
-              chat={{
-                tab: railTab,
-                onTabChange: chooseTab,
-                panel: <ChatPanel chat={chat} personas={personas} touch={assistantPresentation === "sheet"} />,
-                // Gated as the button's is, so a removed member's tab drops its count too.
-                unread: hasChat ? chat.unread : 0,
-                ready: chat.status === "ready",
-              }}
+              {...(offersChat
+                ? {
+                    chat: {
+                      tab: railTab,
+                      onTabChange: chooseTab,
+                      panel: <ChatPanel chat={chat} personas={personas} touch={assistantPresentation === "sheet"} />,
+                      // Gated as the button's is, so a removed member's tab drops its count too.
+                      unread: hasChat ? chat.unread : 0,
+                      ready: chat.status === "ready",
+                    },
+                  }
+                : {})}
               onHide={assistant.hide}
             />
           </Suspense>

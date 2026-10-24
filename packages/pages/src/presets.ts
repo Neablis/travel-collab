@@ -626,6 +626,19 @@ export const PRESETS: readonly WidgetPreset[] = [
     keywords: ["open", "todo", "decide", "decisions", "waiting", "overlap", "conflict", "empty", "parked", "unscheduled"],
     preview: "one row per thing waiting on a decision",
   },
+  // ---- the group, on the day -------------------------------------------------
+  // M52 decision 15. Default params (Trip chat's count is its own setting).
+  // Each is absent for a reader it is not for
+  // (decision 20), so a page carrying them still reads whole to everyone.
+  {
+    id: "trip-chat",
+    widget: "chat.recent",
+    params: {},
+    title: "Trip chat",
+    summary: "Shows the trip chat's last few messages (three unless you choose), and opens the conversation when tapped.",
+    // "group chat" is what it was called until Mitchell's walk of PR 537.
+    keywords: ["chat", "messages", "message", "group", "group chat", "trip chat", "conversation", "talk", "recent"],
+  },
 ];
 
 const BY_ID: Record<string, WidgetPreset> = Object.fromEntries(PRESETS.map((p) => [p.id, p]));

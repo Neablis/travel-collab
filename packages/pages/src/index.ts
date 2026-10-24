@@ -30,7 +30,8 @@ export * from "./itineraryPayload";
 export { WebAddress, hostOf } from "./macros/primitives/link";
 // What a widget calls a member when `WidgetContext.people` has no name for them;
 // the person select in `apps/web` labels its options with the same rule.
-export { personNames } from "./macros/primitives/balances";
+export { FORMER_MEMBER, personNames } from "./macros/primitives/balances";
+export { ASSISTANT_NAME } from "./macros/primitives/chatRecent";
 // The one reader of an instant in a named zone; the server's weather cuts its
 // local days with it too, rather than a second `Intl` walk (review finding 6).
 export { clockIn, isKnownZone } from "./clock";

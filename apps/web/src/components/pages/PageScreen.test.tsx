@@ -1,15 +1,16 @@
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
 import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { setupServer } from "msw/node";
 import { http, HttpResponse } from "msw";
 import { PageScreen } from "./PageScreen";
 import { PhoneAskTab } from "@/components/nav/PhoneTabBar";
-import { CURRENT_PAGE_DOC_VERSION, SYSTEM_ACTOR_ID, type Page } from "@tc/contracts";
-import { pageFixture as sharedPageFixture, tripDetailFixture } from "@tc/factories";
-import { presetCatalog } from "@tc/pages";
-import { makePagesHandlers, makeAccountPlanHandler, makeWeatherHandler } from "@/mocks/handlers";
+import { ChatMessage, CURRENT_PAGE_DOC_VERSION, newPageDoc, SuggestionChange, SYSTEM_ACTOR_ID, type MacroNode, type Page } from "@tc/contracts";
+import { pageFixture as sharedPageFixture, tripDetailFixture, tripInviteFactory, uuidFrom } from "@tc/factories";
+import { insertWidget, presetCatalog } from "@tc/pages";
+import { makeChatHandlers, makePagesHandlers, makeAccountPlanHandler, makeWeatherHandler } from "@/mocks/handlers";
 import { PreferencesProvider } from "@/components/account/PreferencesProvider";
+import { SessionUserProvider } from "@/components/account/useSessionUser";
 import { SaveLightMark, SaveLightProvider } from "@/components/SaveLight";
 import { everyWidget, everyWidgetPage, rawSyntaxLeaks } from "@/test-support/rawSyntax";
 import { toStoredPageDoc } from "@/components/pages/editor/storedPageDoc";
@@ -17,6 +18,8 @@ import { fetchTripGlobals } from "@/lib/apiClient";
 import { cachedRead, DEDUPE } from "@/lib/queryCache";
 import { tripKeys } from "@/lib/queryKeys";
 import { findPaletteCommand, runPaletteCommand } from "@/components/palette/paletteRegistry";
+import { POLL_INTERVAL_MS } from "@/components/trip/context/broadcast";
+import { EDIT_SESSION_IDLE_MS } from "./useEditSession";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
@@ -82,6 +85,10 @@ const server = setupServer(
   // `PeopleProvider` reads the trip's guests beside the members (guests spec
   // P4); no notebook page names guests on its own, so the list is empty here.
   http.get("/api/v1/trips/:tripId/guests", () => HttpResponse.json({ items: [] })),
+  // And the trip's chat, which a page reads at idle for its Chat tab, as the
+  // board does, wherever the access read failed or found a second member:
+  // empty unless a test says otherwise.
+  http.get("/api/trips/:tripId/chat", () => HttpResponse.json({ messages: [], hasEarlier: false, unread: 0, canPost: true })),
 );
 
 // **Each test gets its own page id, and a request for any other page is
@@ -457,7 +464,11 @@ describe("PageScreen: no macro syntax on the screen", () => {
       // eslint-disable-next-line testing-library/no-node-access -- the witness is "every widget node view mounted"; no role or label names a node view.
       const views = document.body.querySelectorAll(".tc-page-editor [data-macro-name]");
       expect(views.length).toBeGreaterThanOrEqual(widgetCount);
-      for (const view of views) expect(view.textContent?.trim()).not.toBe("");
+      // Every widget draws something, *Trip chat* included: the trip has one
+      // member, so it says how to get a chat (Mitchell, PR 537 walk).
+      for (const view of views) {
+        expect(view.textContent?.trim(), (view as HTMLElement).dataset.macroName).not.toBe("");
+      }
     });
     expect(rawSyntaxLeaks(document.body)).toEqual([]);
 
@@ -866,6 +877,24 @@ describe("PageScreen: inserting and pointing a widget (item G)", () => {
     await userEvent.click(screen.getByTestId("assistant-launcher"));
     expect(screen.getByRole("complementary", { name: "Assistant" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: /^Assistant$/ })).toBeNull();
+  });
+
+  // The bubble is the notebook's usual opener, and Hide hands focus back to
+  // whatever opened the panel. A bubble that came back as a new element left
+  // a keyboard user on <body> (PR 537 round 11).
+  it("gives focus back to the bubble on Hide", async () => {
+    const trip = tripDetailFixture({ days: [] });
+    const page = pageFixture({
+      tripId: trip.tripId,
+      content: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Notes" }] }] },
+    });
+    server.use(...makePagesHandlers([page]), http.get("/api/trips/:tripId", () => HttpResponse.json({ trip })));
+    render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
+    await screen.findByText("Notes");
+
+    await userEvent.click(screen.getByTestId("assistant-launcher"));
+    await userEvent.click(within(screen.getByRole("complementary", { name: "Assistant" })).getByRole("button", { name: "Hide" }));
+    expect(screen.getByTestId("assistant-launcher").matches(":focus")).toBe(true);
   });
 
   // SPEC §23 gave the phone a sheet and changed nothing above 768px. Worth its
@@ -2356,5 +2385,779 @@ describe("PageScreen — Undo reset", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Done editing" }));
     expect(await screen.findByRole("button", { name: "Undo reset" })).toBeTruthy();
+  });
+});
+
+// M52, Mitchell on PR 537 (2026-10-23): the notebook's assistant panel holds
+// the trip's chat as the board's does, an *Ask · Chat* switch on the floating
+// panel and the phone's sheet alike, with the same reader's role behind it.
+// The tab is the board's rule (`tripHasChat`): a trip of two or more, never a
+// solo one, and kept for a member the chat refuses, whose 403 the tab says out
+// loud. A notebook's *Trip chat* shows the last messages and opens that tab in
+// place for a reader with someone to chat with (`hasTripChat`); on a solo trip
+// it says how to get a chat and opens nothing (Mitchell, PR 537 walk); a
+// reader the chat is not for gets none (decision 15, SPEC §27: nothing renders
+// disabled).
+describe("PageScreen: a notebook's Trip chat", () => {
+  const said = ChatMessage.parse({
+    messageId: "6e9a2c9e-0000-4b6e-9d3f-2b1a5c8d7e61",
+    authorId: "u-bea",
+    createdAt: "2026-10-13T10:00:00.000Z",
+    editedAt: null,
+    removed: false,
+    body: "Train at nine?",
+  });
+  // `access` a promise: a member's read, answered once it settles.
+  function chatNotebook(
+    members: { userId: string; role: "owner" | "viewer" }[],
+    access: "member" | "refused" | "failed" | Promise<void> = "member",
+    me?: string,
+  ) {
+    const trip = tripDetailFixture({ members });
+    const widget = insertWidget("chat.recent");
+    if (!widget.ok) throw new Error("could not build Trip chat");
+    const page = pageFixture({ tripId: trip.tripId, content: newPageDoc([{ type: "paragraph", content: [widget.node as MacroNode] }]) });
+    server.use(
+      ...makePagesHandlers([page]),
+      http.get("/api/trips/:tripId", () => HttpResponse.json({ trip })),
+      http.get("/api/trips/:tripId/access", async ({ params }) => {
+        if (access instanceof Promise) await access;
+        return access === "refused"
+          ? HttpResponse.json({ error: "forbidden" }, { status: 403 })
+          : access === "failed"
+            ? HttpResponse.json({ error: "internal" }, { status: 500 })
+            : HttpResponse.json({
+          access: {
+            tripId: params.tripId,
+            myRole: "owner",
+            members: members.map((m) => ({ ...m, name: null, email: null, image: null })),
+            invites: [],
+            guests: [],
+            collaboratorsEntitled: true,
+            accessRev: `members-${members.length}`,
+          },
+        });
+      }),
+    );
+    const screenEl = <PageScreen tripId={trip.tripId} pageId={page.id} />;
+    render(me === undefined ? screenEl : <SessionUserProvider initialUser={{ id: me }}>{screenEl}</SessionUserProvider>);
+    return trip;
+  }
+  const pair = [{ userId: "u1", role: "owner" as const }, { userId: "u-bea", role: "viewer" as const }];
+
+  const card = { name: "Trip chat Open chat" };
+  // "Edit page" waits out the role read, which says whether there is a chat.
+  const openAssistant = async () => {
+    await screen.findByRole("button", { name: "Edit page" });
+    await userEvent.click(screen.getByTestId("assistant-launcher"));
+    return screen.getByRole("complementary", { name: "Assistant" });
+  };
+  const chatTab = { name: "Chat" };
+  const chatPanel = () => within(screen.getByRole("complementary", { name: "Assistant" })).getByRole("tabpanel", { name: "Chat" });
+
+  it("gives a chat member's assistant panel a Chat tab beside Ask", async () => {
+    server.use(...makeChatHandlers({ viewerId: "u1", messages: [said] }).handlers);
+    chatNotebook(pair);
+
+    const panel = await openAssistant();
+    await within(panel).findByRole("tab", chatTab);
+    expect(within(panel).getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["Chat", "Ask"]);
+  });
+
+  it("opens the panel on Chat in place when the Trip chat card is tapped, with focus in its composer", async () => {
+    server.use(...makeChatHandlers({ viewerId: "u1", messages: [said] }).handlers);
+    chatNotebook(pair);
+    const widget = await screen.findByRole("button", card);
+    await waitFor(() => expect(widget.textContent).toContain("Train at nine?"));
+
+    await userEvent.click(widget);
+    // The board's own chat panel, reading the one subscription the card reads.
+    expect(await within(chatPanel()).findByText("Train at nine?")).toBeTruthy();
+    // Into the panel, as the board's opener takes it, not left on the card.
+    expect(within(chatPanel()).getByRole("combobox", { name: "Message" }).matches(":focus")).toBe(true);
+  });
+
+  // Mitchell, PR 537 walk (2026-10-24): a chat nobody has written in yet is
+  // the same card, saying so, and still the way into the conversation.
+  it("draws a chat with no messages as the card, which opens the panel on Chat", async () => {
+    server.use(...makeChatHandlers({ viewerId: "u1", messages: [] }).handlers);
+    chatNotebook(pair);
+    const widget = await screen.findByRole("button", card);
+    expect(await within(widget).findByText("No messages yet")).toBeTruthy();
+
+    await userEvent.click(widget);
+    expect(within(chatPanel()).getByRole("combobox", { name: "Message" })).toBeTruthy();
+  });
+
+  it("opens the phone's sheet on Chat when the Trip chat card is tapped", async () => {
+    Object.defineProperty(window, "matchMedia", {
+      configurable: true,
+      writable: true,
+      value: (query: string) => ({ matches: query === "(max-width: 767px)", media: query, addEventListener: () => {}, removeEventListener: () => {} }),
+    });
+    try {
+      server.use(...makeChatHandlers({ viewerId: "u1", messages: [said] }).handlers);
+      chatNotebook(pair);
+
+      await userEvent.click(await screen.findByRole("button", card));
+      const sheet = await screen.findByRole("dialog", { name: "Chat" });
+      expect(within(sheet).getByRole("tabpanel", { name: "Chat" })).toBeTruthy();
+    } finally {
+      Reflect.deleteProperty(window, "matchMedia");
+    }
+  });
+
+  // ADR-069: *Open chat* is the trip's, on whichever of its screens is up.
+  it("offers ⌘K's Open chat, which opens the panel on Chat", async () => {
+    server.use(...makeChatHandlers({ viewerId: "u1", messages: [said] }).handlers);
+    chatNotebook(pair);
+    await screen.findByRole("button", { name: "Edit page" });
+
+    await waitFor(() => expect(findPaletteCommand("chat")?.action).toBe("Open chat"));
+    act(() => void runPaletteCommand("chat"));
+    expect(await within(chatPanel()).findByText("Train at nine?")).toBeTruthy();
+  });
+
+  // D6, as on the board: the owner deletes anyone's message.
+  it("lets the trip's owner delete another member's message", async () => {
+    server.use(...makeChatHandlers({ viewerId: "u1", messages: [said] }).handlers);
+    chatNotebook(pair, "member", "u1");
+
+    await userEvent.click(await screen.findByRole("button", card));
+    await userEvent.click(await within(chatPanel()).findByRole("button", { name: /^Actions for .*'s message$/ }));
+    expect((await screen.findAllByRole("menuitem")).map((item) => item.textContent)).toEqual(["Delete"]);
+  });
+
+  // ADR-067's 2026-10-23 amendment: the asker accepts the assistant's
+  // suggestion where they read it, here as on the board.
+  it("offers the asker Accept on the assistant's suggestion", async () => {
+    const suggestionId = uuidFrom(9, 537);
+    const reply = ChatMessage.parse({
+      messageId: uuidFrom(2, 537),
+      authorId: "assistant",
+      kind: "assistant",
+      requestedBy: "u1",
+      replyTo: said.messageId,
+      suggestionId,
+      createdAt: "2026-10-13T10:01:00.000Z",
+      editedAt: null,
+      removed: false,
+      body: "I can push dinner back an hour.",
+    });
+    const trip = chatNotebook(pair, "member", "u1");
+    const change = SuggestionChange.parse({
+      id: uuidFrom(21, 537),
+      suggestionId,
+      tripId: trip.tripId,
+      authorId: "u1",
+      note: null,
+      createdAt: "2026-10-13T10:01:00.000Z",
+      commands: [{ type: "SetTripName", tripId: trip.tripId, name: "Lisbon" }],
+      description: "Rename the trip",
+      status: "pending",
+      dependsOn: [],
+      resolvedBy: null,
+      resolvedAt: null,
+      via: "assistant",
+      requestedBy: "u1",
+    });
+    server.use(
+      ...makeChatHandlers({ viewerId: "u1", messages: [said, reply] }).handlers,
+      http.get("/api/trips/:tripId/suggestions", () => HttpResponse.json({ changes: [change], rev: "1" })),
+    );
+
+    await userEvent.click(await screen.findByRole("button", card));
+    const suggestion = await within(chatPanel()).findByRole("group", { name: "The assistant's suggestion" });
+    expect(within(suggestion).getByRole("button", { name: "Accept" })).toBeTruthy();
+  });
+
+  // A second `@assistant` reply on a later poll: the chat re-reads on its
+  // revision, and only the suggestions' revision re-reads the list its Accept
+  // comes from. Without that, the new card offers nothing until a remount.
+  it("offers Accept on a suggestion that arrives on a later poll", async () => {
+    const trip = chatNotebook(pair, "member", "u1");
+    const suggested = (n: number) => {
+      const suggestionId = uuidFrom(9 + n, 537);
+      const reply = ChatMessage.parse({
+        messageId: uuidFrom(2 + n, 537),
+        authorId: "assistant",
+        kind: "assistant",
+        requestedBy: "u1",
+        replyTo: said.messageId,
+        suggestionId,
+        createdAt: `2026-10-13T10:0${n}:00.000Z`,
+        editedAt: null,
+        removed: false,
+        body: `Suggestion ${n}`,
+      });
+      const change = SuggestionChange.parse({
+        id: uuidFrom(21 + n, 537),
+        suggestionId,
+        tripId: trip.tripId,
+        authorId: "u1",
+        note: null,
+        createdAt: `2026-10-13T10:0${n}:00.000Z`,
+        commands: [{ type: "SetTripName", tripId: trip.tripId, name: `Lisbon ${n}` }],
+        description: "Rename the trip",
+        status: "pending",
+        dependsOn: [],
+        resolvedBy: null,
+        resolvedAt: null,
+        via: "assistant",
+        requestedBy: "u1",
+      });
+      return { reply, change };
+    };
+    const first = suggested(1);
+    const second = suggested(2);
+    let rev = "1";
+    let messages = [said, first.reply];
+    let changes = [first.change];
+    server.use(
+      http.get("/api/trips/:tripId/chat", () => HttpResponse.json({ messages, hasEarlier: false, unread: 0, canPost: true })),
+      http.get("/api/trips/:tripId/suggestions", () => HttpResponse.json({ changes, rev })),
+      http.get("/api/trips/:tripId/events", () =>
+        HttpResponse.json({ headSeq: 0, events: [], resync: false, suggestionsRev: rev, chatRev: rev }),
+      ),
+    );
+    await userEvent.click(await screen.findByRole("button", card));
+    await within(chatPanel()).findByRole("button", { name: "Accept" });
+
+    rev = "2";
+    messages = [said, first.reply, second.reply];
+    changes = [first.change, second.change];
+    // Coming back to the tab polls; dispatched on every retry, as above.
+    await waitFor(() => {
+      document.dispatchEvent(new Event("visibilitychange"));
+      expect(within(chatPanel()).getAllByRole("button", { name: "Accept" })).toHaveLength(2);
+    });
+  });
+
+  it("is no control while the page is being edited", async () => {
+    server.use(...makeChatHandlers({ viewerId: "u1", messages: [said] }).handlers);
+    chatNotebook(pair);
+    await screen.findByRole("button", card);
+
+    await userEvent.click(screen.getByRole("button", { name: "Edit page" }));
+    expect(await within(await screen.findByRole("group", { name: "Trip chat" })).findByText("Train at nine?")).toBeTruthy();
+    expect(screen.queryByRole("button", card)).toBeNull();
+  });
+
+  // A solo trip has no chat anywhere, board and notebook alike (Mitchell on
+  // PR 537): no ⌘K Open chat, and the assistant alone in the panel, a
+  // remembered Chat included. The card stays, saying how to get a chat, and
+  // opens nothing (Mitchell, PR 537 walk, 2026-10-24).
+  it("gives a reader alone on the trip only the assistant, and a Trip chat card saying why there is no chat", async () => {
+    window.localStorage.setItem("assistant:tab", "chat");
+    chatNotebook([{ userId: "u1", role: "owner" }]);
+
+    const solo = await screen.findByRole("group", { name: "Trip chat" });
+    expect(within(solo).getByText("Add other travelers to see the trip chat")).toBeTruthy();
+    expect(screen.queryByRole("button", card)).toBeNull();
+    const panel = await openAssistant();
+    expect(within(panel).queryAllByRole("tab")).toEqual([]);
+    expect(within(panel).getByRole("textbox", { name: "Question for the assistant" })).toBeTruthy();
+    expect(findPaletteCommand("chat")).toBeUndefined();
+  });
+
+  // Who is on the trip moves while the notebook is open: the poll's
+  // `accessRev`, and the access read it sends for, as on the board (PR 537
+  // round 12). Coming back to the tab polls; dispatched on every retry.
+  async function membersMove(members: { userId: string; role: "owner" | "viewer" }[], seen: () => void) {
+    const accessRev = `members-${members.length}`;
+    server.use(
+      http.get("/api/trips/:tripId/events", () => HttpResponse.json({ headSeq: 0, events: [], resync: false, accessRev })),
+      http.get("/api/trips/:tripId/access", ({ params }) =>
+        HttpResponse.json({
+          access: {
+            tripId: params.tripId,
+            myRole: "owner",
+            members: members.map((m) => ({ ...m, name: null, email: null, image: null })),
+            invites: [],
+            guests: [],
+            collaboratorsEntitled: true,
+            accessRev,
+          },
+        }),
+      ),
+    );
+    await waitFor(() => {
+      document.dispatchEvent(new Event("visibilitychange"));
+      seen();
+    });
+  }
+
+  it("takes the chat away when the last other member leaves: no Chat tab or Open chat, and the card says why", async () => {
+    server.use(...makeChatHandlers({ viewerId: "u1", messages: [said] }).handlers);
+    chatNotebook(pair);
+    await userEvent.click(await screen.findByRole("button", card));
+    await within(chatPanel()).findByText("Train at nine?");
+
+    const panel = screen.getByRole("complementary", { name: "Assistant" });
+    await membersMove([pair[0]!], () => expect(within(panel).queryAllByRole("tab")).toEqual([]));
+    expect(within(panel).getByRole("textbox", { name: "Question for the assistant" })).toBeTruthy();
+    // The card hears of it a render later (`usePhoneAskEntry` publishes in an effect).
+    await waitFor(() => expect(screen.queryByRole("button", card)).toBeNull());
+    expect(within(screen.getByRole("group", { name: "Trip chat" })).getByText("Add other travelers to see the trip chat")).toBeTruthy();
+    expect(findPaletteCommand("chat")).toBeUndefined();
+
+    // Someone joining again does not pull the panel back onto Chat.
+    await membersMove(pair, () => expect(within(panel).getByRole("tab", chatTab)).toBeTruthy());
+    expect(within(panel).getByRole("tab", { name: "Ask" }).getAttribute("aria-selected")).toBe("true");
+  });
+
+  it("offers the chat once someone joins a trip the reader was alone on", async () => {
+    server.use(...makeChatHandlers({ viewerId: "u1", messages: [said] }).handlers);
+    chatNotebook([pair[0]!]);
+    const panel = await openAssistant();
+    expect(within(panel).queryAllByRole("tab")).toEqual([]);
+
+    await membersMove(pair, () => expect(within(panel).getByRole("tab", chatTab)).toBeTruthy());
+    expect(await screen.findByRole("button", card)).toBeTruthy();
+    expect(findPaletteCommand("chat")?.action).toBe("Open chat");
+  });
+
+  // A share link's reader holds no role on the trip: its access read is
+  // refused, as it is for anyone who is not a member.
+  it("gives a reader the trip's access read refuses no Chat tab", async () => {
+    server.use(...makeChatHandlers({ viewerId: "u1", messages: [said] }).handlers);
+    chatNotebook(pair, "refused");
+
+    expect(within(await openAssistant()).queryByRole("tab", chatTab)).toBeNull();
+    expect(screen.queryByRole("button", card)).toBeNull();
+    // No member, so not a solo trip's card either: nothing at all.
+    expect(screen.queryByRole("group", { name: "Trip chat" })).toBeNull();
+    expect(findPaletteCommand("chat")).toBeUndefined();
+  });
+
+  // The access read unanswered (a 5xx, a dropped connection) says nothing of
+  // who this is, so the notebook keeps the board's tab, as the board does when
+  // its own read fails: the chat's own refusal is what a stranger then sees.
+  // And the card beside it (PR 537 round 17): a notebook that offers the chat
+  // in its panel does not say on the page that the chat is not for this reader.
+  it("keeps the Chat tab, Open chat and the Trip chat card when the trip's access read fails", async () => {
+    server.use(...makeChatHandlers({ viewerId: "u1", messages: [said] }).handlers);
+    chatNotebook(pair, "failed");
+
+    const widget = await screen.findByRole("button", card);
+    await waitFor(() => expect(widget.textContent).toContain("Train at nine?"));
+    // Counted too, as for any member: the count is the chat's, not the access read's.
+    expect(await within(await openAssistant()).findByRole("tab", { name: "Chat, 1 unread message" })).toBeTruthy();
+    expect(findPaletteCommand("chat")?.action).toBe("Open chat");
+    await userEvent.click(screen.getByRole("button", { name: "Edit page" }));
+    expect(await screen.findByRole("group", { name: "Trip chat" })).toBeTruthy();
+    expect(screen.queryByText(/shown to people who can see the trip's chat/)).toBeNull();
+  });
+
+  // A cold load reads the trip's access after the page has drawn. Until it
+  // answers, the card's frame holds its place and is no control (round 17), so
+  // nothing is pushed down under a reader's tap when it does.
+  it("holds the Trip chat card's place, and opens nothing, until the access read answers", async () => {
+    let answer!: () => void;
+    const answered = new Promise<void>((resolve) => (answer = resolve));
+    server.use(...makeChatHandlers({ viewerId: "u1", messages: [said] }).handlers);
+    chatNotebook(pair, answered);
+
+    const frame = await screen.findByRole("group", { name: "Trip chat" });
+    expect(frame.getAttribute("aria-busy")).toBe("true");
+    expect(within(frame).getAllByTestId("chat-recent-skeleton")).toHaveLength(2);
+    expect(screen.queryByRole("button", card)).toBeNull();
+    expect(within(frame).queryByText("Open chat")).toBeNull();
+
+    answer();
+    const widget = await screen.findByRole("button", card);
+    await waitFor(() => expect(widget.textContent).toContain("Train at nine?"));
+  });
+
+  // The access read answered and the chat's own first read still out (it
+  // waits for idle): the card keeps the skeleton until the messages are known,
+  // rather than dropping to an empty card and growing again (round 18).
+  it("holds the Trip chat card's place until the chat's first read answers", async () => {
+    let asked!: () => void;
+    const chatAsked = new Promise<void>((resolve) => (asked = resolve));
+    let answer!: () => void;
+    const answered = new Promise<void>((resolve) => (answer = resolve));
+    server.use(...makeChatHandlers({ viewerId: "u1", messages: [said] }).handlers);
+    // Registered after, so it comes first, holds the read, then hands it on.
+    server.use(
+      http.get("/api/trips/:tripId/chat", async () => {
+        asked();
+        await answered;
+        return undefined;
+      }),
+    );
+    chatNotebook(pair);
+
+    await screen.findByRole("button", { name: "Edit page" });
+    await chatAsked;
+    const frame = screen.getByRole("group", { name: "Trip chat" });
+    expect(frame.getAttribute("aria-busy")).toBe("true");
+    expect(within(frame).getAllByTestId("chat-recent-skeleton")).toHaveLength(2);
+    expect(screen.queryByRole("button", card)).toBeNull();
+
+    answer();
+    const widget = await screen.findByRole("button", card);
+    await waitFor(() => expect(widget.textContent).toContain("Train at nine?"));
+  });
+
+  // A first read that fails ends the wait: the card opens the chat, whose
+  // panel says what went wrong, rather than staying a skeleton for good.
+  it("stops holding the Trip chat card's place when the chat's first read fails", async () => {
+    server.use(http.get("/api/trips/:tripId/chat", () => HttpResponse.json({ error: "internal" }, { status: 500 })));
+    chatNotebook(pair);
+
+    const widget = await screen.findByRole("button", card);
+    expect(widget.getAttribute("aria-busy")).toBeNull();
+    expect(within(widget).queryAllByTestId("chat-recent-skeleton")).toEqual([]);
+  });
+
+  // Removed from the trip while it still lists them: the chat's 403 is the
+  // answer, and the tab is what says so (M46, KI-2026-10-05-h).
+  it("gives a reader the chat refuses no Trip chat, and a Chat tab that says why", async () => {
+    let asked!: () => void;
+    const refused = new Promise<void>((resolve) => (asked = resolve));
+    server.use(
+      http.get("/api/trips/:tripId/chat", () => {
+        asked();
+        return HttpResponse.json({ error: "forbidden" }, { status: 403 });
+      }),
+    );
+    chatNotebook(pair);
+
+    await refused;
+    const panel = await openAssistant();
+    await userEvent.click(await within(panel).findByRole("tab", chatTab));
+    expect(within(chatPanel()).getByRole("link", { name: "Back to your trips" })).toBeTruthy();
+    expect(screen.queryByRole("button", card)).toBeNull();
+    expect(screen.queryByRole("group", { name: "Trip chat" })).toBeNull();
+  });
+
+  // Removed while the panel is open on Chat: the panel stays on Chat and says
+  // why, rather than turning into Ask under a ⌘K that still thinks it is Chat.
+  it("keeps a panel open on Chat on Chat when a send is refused for access", async () => {
+    server.use(
+      http.post("/api/trips/:tripId/chat", () => HttpResponse.json({ error: "forbidden" }, { status: 403 })),
+      ...makeChatHandlers({ viewerId: "u1", messages: [said] }).handlers,
+    );
+    chatNotebook(pair, "member", "u1");
+
+    await userEvent.click(await screen.findByRole("button", card));
+    await userEvent.type(await within(chatPanel()).findByRole("combobox", { name: "Message" }), "Still here?{Enter}");
+    await waitFor(() => expect(within(chatPanel()).getByRole("link", { name: "Back to your trips" })).toBeTruthy());
+  });
+});
+
+// Who is on the trip, and as what, moves while a notebook is open: the poll's
+// `accessRev`, and the access read it sends for (PR 537 rounds 12 and 13).
+describe("PageScreen: the trip's access moving under an open page", () => {
+  type Member = { userId: string; role: "owner" | "editor" | "viewer" };
+  const pair: Member[] = [
+    { userId: "u1", role: "editor" },
+    { userId: "u-bea", role: "owner" },
+  ];
+  const accessBody = (tripId: unknown, myRole: Member["role"], members: Member[], accessRev: string, invites: object[] = []) => ({
+    access: {
+      tripId,
+      myRole,
+      members: members.map((m) => ({ ...m, name: null, email: null, image: null })),
+      invites,
+      guests: [],
+      collaboratorsEntitled: true,
+      accessRev,
+    },
+  });
+  // A trip id of its own each time: `cachedRead` keeps each trip's answer.
+  function notebook(members: Member[]) {
+    const trip = tripDetailFixture({ tripId: crypto.randomUUID(), members });
+    const page = pageFixture({ tripId: trip.tripId, title: "Packing" });
+    server.use(...makePagesHandlers([page]), http.get("/api/trips/:tripId", () => HttpResponse.json({ trip })));
+    render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
+    return page;
+  }
+  // Coming back to the tab polls; dispatched on every retry.
+  const pollUntil = (seen: () => void) =>
+    waitFor(() => {
+      document.dispatchEvent(new Event("visibilitychange"));
+      seen();
+    });
+
+  // Finding 1: the load's read is the one that settles the editing role, so a
+  // poll's re-read started while it is slow must not drop it. Here the re-read
+  // fails, which leaves the load's answer as the only one there will be.
+  it("still settles the editing role when a poll's re-read crosses a slow load and fails", async () => {
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => (release = resolve));
+    let reads = 0;
+    let polls = 0;
+    let rev = "r1";
+    server.use(
+      http.get("/api/trips/:tripId/events", () => {
+        polls++;
+        return HttpResponse.json({ headSeq: 0, events: [], resync: false, accessRev: rev });
+      }),
+      http.get("/api/trips/:tripId/access", async ({ params }) => {
+        if (++reads > 1) return HttpResponse.json({ error: "internal" }, { status: 500 });
+        await held;
+        return HttpResponse.json(accessBody(params.tripId, "editor", pair, "r1"));
+      }),
+    );
+    notebook(pair);
+    await screen.findByRole("article");
+
+    // The first poll is the baseline; one on a new rev re-reads.
+    await pollUntil(() => expect(polls).toBeGreaterThan(0));
+    rev = "r2";
+    await pollUntil(() => expect(reads).toBe(2));
+    release();
+
+    expect(await screen.findByRole("button", { name: "Edit page" })).toBeTruthy();
+  });
+
+  // Finding 2: an editor made a viewer leaves Editing, and loses the toggle,
+  // rather than keep typing into saves that come back 403. What they typed is
+  // kept in the browser by the refused save, as any refused save keeps it.
+  it("takes an editor made a viewer out of Editing, keeping what they typed", async () => {
+    server.use(
+      http.get("/api/trips/:tripId/events", () => HttpResponse.json({ headSeq: 0, events: [], resync: false, accessRev: "r1" })),
+      http.get("/api/trips/:tripId/access", ({ params }) => HttpResponse.json(accessBody(params.tripId, "editor", pair, "r1"))),
+    );
+    const page = notebook(pair);
+    await userEvent.click(await screen.findByRole("button", { name: "Edit page" }));
+    const box = screen.queryAllByRole("textbox").find((el) => el.getAttribute("contenteditable") === "true")!;
+    await userEvent.type(box, "Q");
+    await pollUntil(() => expect(screen.getByRole("button", { name: "Done editing" })).toBeTruthy());
+
+    const demoted: Member[] = [{ userId: "u1", role: "viewer" }, pair[1]!];
+    server.use(
+      http.patch("/api/trips/:tripId/pages/:pageId", () => HttpResponse.json({ error: "forbidden" }, { status: 403 })),
+      http.get("/api/trips/:tripId/events", () => HttpResponse.json({ headSeq: 0, events: [], resync: false, accessRev: "r2" })),
+      http.get("/api/trips/:tripId/access", ({ params }) => HttpResponse.json(accessBody(params.tripId, "viewer", demoted, "r2"))),
+    );
+    await pollUntil(() => expect(screen.queryByRole("button", { name: "Done editing" })).toBeNull());
+    expect(screen.queryByRole("button", { name: "Edit page" })).toBeNull();
+    expect(screen.getByRole("heading", { level: 1, name: "Packing" }).getAttribute("contenteditable")).toBe("false");
+    await waitFor(() => expect(localStorage.getItem(`page_draft:${page.id}`) ?? "").toContain("Q"));
+  });
+
+  // Round 14, finding 1: a save refused for the role is not retried every idle
+  // minute nor called something that "will be tried again". The page says the
+  // role changed, and given it back, offers what they typed.
+  it("tells a demoted editor plainly, stops retrying, and offers their words back on promotion", async () => {
+    let rev = "r1";
+    let role: Member["role"] = "editor";
+    const patches: string[] = [];
+    let refuse = false;
+    server.use(
+      http.get("/api/trips/:tripId/events", () => HttpResponse.json({ headSeq: 0, events: [], resync: false, accessRev: rev })),
+      http.get("/api/trips/:tripId/access", ({ params }) =>
+        HttpResponse.json(accessBody(params.tripId, role, [{ userId: "u1", role }, pair[1]!], rev)),
+      ),
+    );
+    const page = notebook(pair);
+    server.use(
+      http.patch("/api/trips/:tripId/pages/:pageId", async ({ request }) => {
+        const body = JSON.stringify(await request.json());
+        patches.push(body);
+        if (refuse) return HttpResponse.json({ error: "forbidden" }, { status: 403 });
+        return HttpResponse.json({ page: { ...page, updatedAt: page.updatedAt } });
+      }),
+    );
+    await userEvent.click(await screen.findByRole("button", { name: "Edit page" }));
+    const box = screen.queryAllByRole("textbox").find((el) => el.getAttribute("contenteditable") === "true")!;
+    await userEvent.type(box, "Q");
+    await pollUntil(() => expect(screen.getByRole("button", { name: "Done editing" })).toBeTruthy());
+
+    const idleTimers = vi.spyOn(globalThis, "setTimeout");
+    refuse = true;
+    role = "viewer";
+    rev = "r2";
+    await pollUntil(() => expect(screen.getByText(/You can no longer edit this page/)).toBeTruthy());
+    expect(screen.queryByRole("button", { name: "Retry saving" })).toBeNull();
+    expect(screen.queryByText(/will be tried again/)).toBeNull();
+    // A refused save that is still retried re-arms the idle commit.
+    expect(idleTimers.mock.calls.filter(([, ms]) => ms === EDIT_SESSION_IDLE_MS)).toHaveLength(0);
+    expect(localStorage.getItem(`page_draft:${page.id}`) ?? "").toContain("Q");
+
+    refuse = false;
+    role = "editor";
+    rev = "r3";
+    const sent = patches.length;
+    await pollUntil(() => expect(screen.getByRole("button", { name: "Restore mine" })).toBeTruthy());
+    await userEvent.click(screen.getByRole("button", { name: "Restore mine" }));
+    await waitFor(() => expect(patches.slice(sent).some((p) => p.includes("Q"))).toBe(true));
+  });
+
+  // A load held until a poll's re-read has answered: the shape findings 2 and
+  // 3 of round 14 are about.
+  async function reReadBeforeLoad(reRead: Member["role"], from: "overview" | null) {
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => (release = resolve));
+    let reads = 0;
+    let polls = 0;
+    let loadAnswered = false;
+    let rev = "r1";
+    server.use(
+      http.get("/api/trips/:tripId/events", () => {
+        polls++;
+        return HttpResponse.json({ headSeq: 0, events: [], resync: false, accessRev: rev });
+      }),
+      http.get("/api/trips/:tripId/access", async ({ params }) => {
+        if (++reads > 1) return HttpResponse.json(accessBody(params.tripId, reRead, [{ userId: "u1", role: reRead }, pair[1]!], "r2"));
+        await held;
+        loadAnswered = true;
+        return HttpResponse.json(accessBody(params.tripId, "editor", pair, "r1"));
+      }),
+    );
+    const trip = tripDetailFixture({ tripId: crypto.randomUUID(), members: pair });
+    const page = pageFixture({ tripId: trip.tripId, title: "Packing" });
+    server.use(...makePagesHandlers([page]), http.get("/api/trips/:tripId", () => HttpResponse.json({ trip })));
+    render(<PageScreen tripId={trip.tripId} pageId={page.id} from={from} />);
+    await screen.findByRole("article");
+    await pollUntil(() => expect(polls).toBeGreaterThan(0));
+    rev = "r2";
+    await pollUntil(() => expect(reads).toBe(2));
+    release();
+    await waitFor(() => expect(loadAnswered).toBe(true));
+  }
+
+  // Round 14, finding 2: Overview's Edit opens Editing whichever read settles
+  // the role first.
+  it("opens Overview's Edit in Editing when a poll's re-read answers before a slow load", async () => {
+    await reReadBeforeLoad("editor", "overview");
+    expect(await screen.findByRole("button", { name: "Done editing" })).toBeTruthy();
+  });
+
+  // Round 14, finding 3: once a re-read has answered, the slow load's older
+  // answer is dropped rather than put back over it.
+  it("keeps a re-read's viewer answer over a slow load's older editor one", async () => {
+    await reReadBeforeLoad("viewer", "overview");
+    await expect(screen.findByRole("button", { name: /^(Edit page|Done editing)$/ }, { timeout: 500 })).rejects.toThrow();
+  });
+
+  // Round 15, finding 2: Overview's Edit opens Editing once. Someone who has
+  // since pressed Done editing stays in Reading when a join or a leave
+  // re-reads the role and it is still editor.
+  it("keeps Overview's Edit in Reading after Done editing when a re-read answers editor", async () => {
+    let rev = "r1";
+    let reads = 0;
+    server.use(
+      http.get("/api/trips/:tripId/events", () => HttpResponse.json({ headSeq: 0, events: [], resync: false, accessRev: rev })),
+      http.get("/api/trips/:tripId/access", ({ params }) => {
+        reads++;
+        return HttpResponse.json(accessBody(params.tripId, "editor", pair, rev));
+      }),
+    );
+    const trip = tripDetailFixture({ tripId: crypto.randomUUID(), members: pair });
+    const page = pageFixture({ tripId: trip.tripId, title: "Packing" });
+    server.use(...makePagesHandlers([page]), http.get("/api/trips/:tripId", () => HttpResponse.json({ trip })));
+    render(<PageScreen tripId={trip.tripId} pageId={page.id} from="overview" />);
+    await userEvent.click(await screen.findByRole("button", { name: "Done editing" }));
+    await pollUntil(() => expect(screen.getByRole("button", { name: "Edit page" })).toBeTruthy());
+
+    rev = "r2";
+    await pollUntil(() => expect(reads).toBe(2));
+    await expect(screen.findByRole("button", { name: "Done editing" }, { timeout: 500 })).rejects.toThrow();
+    expect(screen.getByRole("button", { name: "Edit page" })).toBeTruthy();
+  });
+
+  // Round 15, finding 1: words typed while the refused save was on the wire
+  // are kept and offered with it, not dropped by `superseded`.
+  it("keeps what a demoted editor typed while their refused save was in flight", async () => {
+    let rev = "r1";
+    let role: Member["role"] = "editor";
+    const patches: string[] = [];
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => (release = resolve));
+    let refuse = true;
+    server.use(
+      http.get("/api/trips/:tripId/events", () => HttpResponse.json({ headSeq: 0, events: [], resync: false, accessRev: rev })),
+      http.get("/api/trips/:tripId/access", ({ params }) =>
+        HttpResponse.json(accessBody(params.tripId, role, [{ userId: "u1", role }, pair[1]!], rev)),
+      ),
+    );
+    const page = notebook(pair);
+    server.use(
+      http.patch("/api/trips/:tripId/pages/:pageId", async ({ request }) => {
+        patches.push(JSON.stringify(await request.json()));
+        if (!refuse) return HttpResponse.json({ page: { ...page, updatedAt: page.updatedAt } });
+        await held;
+        return HttpResponse.json({ error: "forbidden" }, { status: 403 });
+      }),
+    );
+    await userEvent.click(await screen.findByRole("button", { name: "Edit page" }));
+    const box = screen.queryAllByRole("textbox").find((el) => el.getAttribute("contenteditable") === "true")!;
+    const idleTimers = vi.spyOn(globalThis, "setTimeout");
+    await userEvent.type(box, "Q");
+    await pollUntil(() => expect(screen.getByRole("button", { name: "Done editing" })).toBeTruthy());
+    // The idle commit, sent now rather than a minute from now.
+    const idle = idleTimers.mock.calls.filter(([, ms]) => ms === EDIT_SESSION_IDLE_MS).at(-1)![0] as () => void;
+    act(() => idle());
+    await waitFor(() => expect(patches).toHaveLength(1));
+    await userEvent.type(box, "wombat");
+
+    role = "viewer";
+    rev = "r2";
+    await pollUntil(() => expect(screen.queryByRole("button", { name: "Done editing" })).toBeNull());
+    release();
+    expect(await screen.findByText(/You can no longer edit this page/)).toBeTruthy();
+    expect(localStorage.getItem(`page_draft:${page.id}`) ?? "").toContain("wombat");
+
+    refuse = false;
+    role = "editor";
+    rev = "r3";
+    const sent = patches.length;
+    await pollUntil(() => expect(screen.getByRole("button", { name: "Restore mine" })).toBeTruthy());
+    await userEvent.click(screen.getByRole("button", { name: "Restore mine" }));
+    await waitFor(() => expect(patches.slice(sent).some((p) => p.includes("wombat"))).toBe(true));
+  });
+
+  // Finding 3: the timed poll runs where a join can come — a second member, or
+  // an invite out on a solo trip — and nowhere else, as on the board.
+  describe("the timed poll", () => {
+    let setIntervalSpy: MockInstance<typeof setInterval>;
+    let clearIntervalSpy: MockInstance<typeof clearInterval>;
+    beforeEach(() => {
+      setIntervalSpy = vi.spyOn(globalThis, "setInterval");
+      clearIntervalSpy = vi.spyOn(globalThis, "clearInterval");
+    });
+    const runningPollTimers = () => {
+      const cleared = new Set(clearIntervalSpy.mock.calls.map(([id]) => id));
+      return setIntervalSpy.mock.calls.filter(([, ms], i) => ms === POLL_INTERVAL_MS && !cleared.has(setIntervalSpy.mock.results[i]!.value)).length;
+    };
+    const solo: Member[] = [{ userId: "u1", role: "owner" }];
+    async function settled(members: Member[], inviteOut = false) {
+      // The trip's own members say solo throughout: only the access read can start the poll.
+      const trip = tripDetailFixture({ tripId: crypto.randomUUID(), members: solo });
+      const page = pageFixture({ tripId: trip.tripId });
+      const invites = inviteOut ? [tripInviteFactory.build({ tripId: trip.tripId, status: "pending" })] : [];
+      let answered = false;
+      server.use(
+        ...makePagesHandlers([page]),
+        http.get("/api/trips/:tripId", () => HttpResponse.json({ trip })),
+        http.get("/api/trips/:tripId/events", () => HttpResponse.json({ headSeq: 0, events: [], resync: false, accessRev: "r1" })),
+        http.get("/api/trips/:tripId/access", ({ params }) => {
+          answered = true;
+          return HttpResponse.json(accessBody(params.tripId, "owner", members, "r1", invites));
+        }),
+      );
+      render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
+      await screen.findByRole("button", { name: "Edit page" });
+      expect(answered).toBe(true);
+    }
+
+    it("runs none on a solo trip with no invite out", async () => {
+      await settled(solo);
+      expect(runningPollTimers()).toBe(0);
+    });
+
+    it("runs one on a solo trip with an invite out", async () => {
+      await settled(solo, true);
+      await waitFor(() => expect(runningPollTimers()).toBe(1));
+    });
+
+    it("runs one once the access read finds a second member", async () => {
+      await settled(pair.map((m) => (m.userId === "u1" ? { ...m, role: "owner" as const } : { ...m, role: "viewer" as const })));
+      await waitFor(() => expect(runningPollTimers()).toBe(1));
+    });
   });
 });
