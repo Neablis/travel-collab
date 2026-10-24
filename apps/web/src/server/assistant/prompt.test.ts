@@ -96,7 +96,9 @@ describe("the untrusted-data fence", () => {
     // MEASURED, not guessed (`witness`'s own rule). Five runs of 1,000 observed
     // 187 / 192 / 218 / 219 / 234 cases carrying a delimiter; the floor is ~half
     // the smallest, which leaves room for fast-check's variance while still
-    // collapsing loudly if the generator drifts back toward plain text.
+    // collapsing loudly if the generator drifts back toward plain text. Under
+    // the pinned seed (`fastCheckSeed.setup.ts`, KI-2026-10-14-c) every run
+    // draws 197.
     carriedADelimiter.atLeast(90);
   });
 });

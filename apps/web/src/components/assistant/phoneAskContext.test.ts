@@ -325,6 +325,9 @@ describe("phoneAskContext", () => {
       { numRuns: 300 },
     );
     w.atLeast(150);
+    // Unseeded, `offered` once drew 21 and turned CI red on PR 481
+    // (KI-2026-10-14-c); under the pinned seed (`fastCheckSeed.setup.ts`)
+    // every run draws 300 / 30. Re-measure if the seed or the generator changes.
     offered.atLeast(23);
   });
 });
