@@ -1,7 +1,8 @@
 # ADR-080: A trip knows what day it is: one `tripNow`, and a notebook `dateScope`
 
 **Status:** **Accepted — 2026-10-23.** Mitchell answered M52's decisions 9, 10, 11, 12 and 19
-(2026-10-22 and at scoping on 2026-10-23).
+(2026-10-22 and at scoping on 2026-10-23). **Amended 2026-10-24** (twice, below; the second
+reverses decision 4's "an explicit binding still wins").
 **Deciders:** Mitchell (product); Claude — drafted
 Related: ADR-073 (trip chat), ADR-067 (a multi-change turn is stored as suggestions), M52
 (`docs/milestones/M52-the-trip-comes-with-you.md`).
@@ -48,6 +49,10 @@ or all' … so maybe dont make it a hook that 'just' does day scope."*
    *no day* off the trip's dates, where each widget renders its own empty state. `{ date }` is in
    the contract and has no control yet. Later notebook settings extend the same resolver rather
    than adding hooks of their own.
+   **Amended 2026-10-24 (Mitchell; M52 part 11, PR 542): "an explicit binding still wins" is
+   reversed.** A notebook setting now supersedes the widget's own param; see *Amendment —
+   2026-10-24: notebook settings supersede widget settings*, below. The text above is kept as
+   the rule that held from 2026-10-23 to 2026-10-24.
 5. **Overview swaps to the seeded *During the trip* notebook while the phase is `soon` or
    `underway`.** `pickOverviewPage` is the one place that decides. A trip without that notebook
    keeps its Overview.
@@ -88,3 +93,28 @@ own zone while the trip is under way, otherwise the first day's own zone, and wh
 none, the fallback above. The `today` endpoint reports it as `timeZone`, so a caller is told the
 clock its `date` was read on rather than guessing it (`docs/contracts/CHANGELOG.md`, 2026-10-23,
 part 10).
+
+## Amendment — 2026-10-24: notebook settings supersede widget settings (M52 part 11, PR 542)
+
+Mitchell, 2026-10-24, on the order in which settings apply: *"Notebook level settings > manually
+set widget settings > defaults."* This reverses decision 4's "an explicit binding still wins".
+
+- **One general mechanism.** `NOTEBOOK_SETTINGS` in `packages/pages/src/dateScope.ts` lists each
+  notebook setting and the widget filters it takes over while it is set; `supersededParams` is
+  its one reader. A superseded param is dropped from the widget's stored params when it renders
+  (`withoutSuperseded`, in `renderMacro`) and is not offered in the widget's settings panel or a
+  repeat's (`inputsFor`). A later notebook setting is a row in that list, not a hook.
+- **`dateScope: "today"` supersedes `day` and `dates`** on any widget that selects by them, so on
+  a Today page the date param disappears from widget settings and a day stored before is read as
+  unset. A render with no reader's clock (the invite card) supersedes nothing, since the page
+  scopes nothing there and dropping the stored day would leave the widget reading every day.
+- **Weather and sunrise/sunset follow the real day.** Mitchell: *"the logic should not be 'before
+  or after trip' just the day is locked to today. Having no events makes sense though."* On a
+  Today page they show today's date before, during and after the trip, at the place of the trip
+  day nearest today (today clamped into `[start, end]`, `nearestTripDay`); Mitchell: *"Good with
+  that decision."* The device's location is still not read (M52 decision 6). Widgets of events
+  keep decision 4's *no day* off the trip's dates and their empty states. The weather route
+  gains one point dated today for this (`docs/contracts/CHANGELOG.md`, 2026-10-24, part 11).
+- **The Today template's *Weather and light* becomes *Weather Report* and *Sunrise/Sunset*.**
+  With no template-version tracking (M52 decision 9, amended 2026-10-24), an existing Today
+  notebook keeps the old heading until it is reset.

@@ -1,8 +1,12 @@
 # M52 — The trip comes with you: a notebook for today, and an assistant the group can ask
 
-**Status (2026-10-24): built and merged, gate 11 of 13.** Parts 1–10 are merged (PRs 530–537,
-539, 540, and PR 541, part 9's follow-up). Two boxes wait on Mitchell: the live M33 day-of eval
-and the [walk] (*Exit gate*); `pnpm milestone close M52` refuses until they are ticked.
+**Status (2026-10-24): gate 10 of 13.** Parts 1–10 are merged (PRs 530–537, 539, 540, and
+PR 541, part 9's follow-up). **Part 11** (PR 542, `claude/m52-part11-today-weather-settings`:
+Today's weather on the real day, *Weather Report* and *Sunrise/Sunset*, notebook settings
+supersede widget settings) is in review, from Mitchell's 2026-10-24 decisions (decisions 9 and
+10, amended); it reopened the Today-scope box. Three boxes are open: that one (part 11's merged
+CI), the live M33 day-of eval and the [walk] (*Exit gate*); `pnpm milestone close M52` refuses
+until they are ticked.
 **Scoped 2026-10-23 with Mitchell: every decision is answered** (the third review,
 recorded under each decision below). The plan, `docs/plans/2026-10-23-M52-the-trip-comes-with-you.md`, was deleted at the close (it is in git history; what it held worth keeping is in the retro's *Leftovers*).
 Proposed 2026-10-22 by Mitchell, placed after M51 and ahead of M49. His answers are below under *Answered*: what it is for, where it lives (a *During the
@@ -60,7 +64,8 @@ widgets**. Nothing else in the chrome changes:
 - **A seeded template, *During the trip*.** It is a notebook like *Before you go*. It can be
   edited, reset, and found in the notebook index.
 - **A Today scope on the page.** Every widget on it with a day input left unset reads **today's
-  day**, through the same `narrow` a repeat uses. A widget given an explicit day keeps it. So
+  day**, through the same `narrow` a repeat uses. A widget given an explicit day keeps it
+  (*reversed 2026-10-24: the notebook's setting wins; decision 10, amended*). So
   today's schedule, weather, sunset and spend are the existing widgets, scoped by the page, with
   no new versions of them.
 - **New widgets for what is not there yet**: now and next, directions, flights and the Trip chat
@@ -76,7 +81,8 @@ reads "Day 3 of 7". Overview shows *During the trip*:
    40 min. [Directions]"*
 2. **Today's flight**, only on a day with one.
 3. **The rest of today**: the itinerary widget, scoped to today.
-4. Weather and sunset, scoped to today.
+4. Weather and sunset, scoped to today (*amended 2026-10-24, decision 9: two sections,
+   Weather Report and Sunrise/Sunset, on the real day*).
 5. **Trip chat**: the last few messages, with *Open chat* (on a solo trip, *Add other travelers
    to see the trip chat*; decision 15 as amended).
 6. ~~**Ask**: chips such as *Running late*, *Move dinner later* and *Something closed*. Each opens
@@ -157,6 +163,10 @@ chips do.
      its next notebook-index load (no "was deleted" skip). The bullet above no longer applies.
      It is titled **Today** (seed key `today`), confirmed by Mitchell 2026-10-23; this replaces
      *During the trip* / `during-the-trip` above.
+   - **Amended by Mitchell, 2026-10-24 (part 11, PR 542): the *Weather and light* section is
+     split into two, *Weather Report* and *Sunrise/Sunset*.** Existing Today notebooks keep the
+     old heading until someone resets them: there is no template-version tracking (the
+     amendment above), so a reset is the only way a trip's copy picks up the new default.
 10. **What the Today scope is.** **Answered at scoping, 2026-10-23 (Mitchell): a general
     notebook setting, not a today-only hook.** *"Someday i want to have settings for a notebook,
     where we trigger 'is this dynamic (follows current date), scoped to some specific date, or
@@ -181,6 +191,28 @@ chips do.
     recommendation read day 1 before the trip), and there is no page-level banner. Every widget
     the template seeds, and every new widget (decision 15), therefore needs a written
     empty-today state, as the seeding rule already demands of an empty trip (`templates.ts:34`).
+
+    **Amended by Mitchell, 2026-10-24 (part 11, PR 542): weather and sunrise/sunset follow the
+    real day, not the trip's dates.** *"the logic should not be 'before or after trip' just the
+    day is locked to today. Having no events makes sense though."* On a Today notebook, the
+    weather and sunrise/sunset widgets show **today's** date before, during and after the trip;
+    the itinerary-style widgets keep their empty-today states off the trip's dates, as above. The
+    place is the trip day nearest today (today clamped into `[start, end]`; `nearestTripDay`,
+    `packages/pages/src/dateScope.ts`). Mitchell: *"Good with that decision."* The device's
+    location is not read (decision 6). The weather route gains one point for that (the contracts
+    changelog, 2026-10-24, part 11).
+
+    **Amended by Mitchell, 2026-10-24 (part 11, PR 542): a notebook setting supersedes a widget
+    setting.** *"Notebook level settings > manually set widget settings > defaults."* This
+    reverses *"an explicit binding still wins"* above and ADR-080 §4 (amended there, dated). One
+    general mechanism does it: `NOTEBOOK_SETTINGS` and `supersededParams`
+    (`packages/pages/src/dateScope.ts`) name the widget params each notebook setting takes over,
+    and those params are dropped from the widget's stored params when it renders and are not
+    offered in its settings panel (or a repeat's). Under `dateScope: "today"` a widget's day
+    (and dates) param therefore disappears from its settings, and a stored day no longer
+    applies. A page rendered with no reader's clock (the invite card) supersedes nothing, so a
+    stored day stands there. Later notebook settings add a row to `NOTEBOOK_SETTINGS` rather
+    than a hook.
 11. **When the swap happens, and what *soon* does.** **Answered by Mitchell, 2026-10-22: as
     recommended. Amended at scoping, 2026-10-23: Overview swaps from *soon*, not only under way**
     (decision 9). The *soon* bullet below is replaced by: Overview shows *During the trip*, whose
@@ -378,13 +410,16 @@ chips do.
       *Evidence:* `packages/pages/src/now.test.ts:194-212` (arbitraries over day zones, a null zone,
       device zone and clock); PR 530's body: zone conversion removed in `now.ts` → "9 of 12 failed";
       CI run 39881259798 green on its head `dc128f6`, merged `e50669c`.
-- [x] **The Today scope narrows only unset days**: on a page with the scope, an unbound
-      `day.detail` shows today, and one bound to day 1 still shows day 1. Seen red with the
-      scope removed.
-      *Evidence:* `packages/pages/src/registry.test.ts:727` "shows today in an unbound day.detail, and
-      day 1 in one bound to day 1"; PR 533's body: `renderMacro` passes `item` instead of
-      `item ?? pageScope(...)` → `expected { status: 'ok', … } to deeply equal …`; CI run
-      39913262997 green on `d386be6`, merged `7485b3f`.
+- [ ] **The Today scope supersedes a widget's day** (reworded 2026-10-24, decision 10 as
+      amended: *"Notebook level settings > manually set widget settings > defaults"*): on a page
+      with the scope, an unbound `day.detail` shows today, **and so does one bound to day 1**;
+      the day param is not offered in the widget's settings there. Seen red with the supersede
+      removed. On a Today page, weather and sunrise/sunset show today's date off the trip's dates
+      too, at the nearest trip day's place.
+      *Reopened 2026-10-24:* this box first read "one bound to day 1 still shows day 1" and was
+      ticked on PR 533 (`registry.test.ts:727`; CI run 39913262997 green on `d386be6`, merged
+      `7485b3f`). Mitchell reversed that rule; the new rule is part 11's (PR 542, in review). It
+      ticks on part 11's merged CI and the red-first edit in its body.
 - [x] **Overview swaps from *soon* through the end date**: a unit test over `pickOverviewPage`
       for a planning, soon, under-way and ended trip (decision 9, amended).
       *Evidence:* `apps/web/src/lib/overviewPage.test.ts:20-25` (planning and ended → Overview, soon
@@ -454,11 +489,14 @@ chips do.
       *Open (2026-10-24 close), Mitchell's.* Also waiting on him, and folded into this box:
       - a two-member trip with no messages shows *No messages yet* and opens the chat (not walked:
         a free preview account cannot invite, 402);
-      - Today cannot be deleted, and an existing trip gains it, on production (his walk of PR 537's
-        preview saw a deletable Today, but that preview lacked part 9; not rechecked);
+      - ~~Today cannot be deleted, and an existing trip gains it, on production~~ **Seen by
+        Mitchell, 2026-10-24:** *"Today can't be deleted on production now."* (He did not say
+        separately that an older trip gained it; a Today on a pre-part-9 trip that cannot be
+        deleted implies it.)
       - `@assistant`'s reply, written in `after()`, reads the session with Auth.js `auth()` on
         production (part 3; not seen on a deployment);
-      - `GET /v1/trips?active=true` and `/today` called with a token on a deployment (part 10);
+      - ~~`GET /v1/trips?active=true` and `/today` called with a token on a deployment (part
+        10)~~ **Done by Mitchell, 2026-10-24:** *"Confirmed the api works."*
       - no browser walk of PR 537 at its final head `4301073`, or of PR 541 (Trip chat on Today).
 - [x] A retro is appended at gate close. *Evidence:* *Retro*, below (2026-10-24).
 
@@ -467,6 +505,10 @@ chips do.
 Written at the close on part 0 (PR 529), with two boxes open and both Mitchell's: the live M33
 day-of eval and the [walk]. `pnpm milestone close M52` refuses until they are ticked; the boxes
 above say what each waits on.
+*Since (2026-10-24):* Mitchell reversed the Today scope's precedence and moved Today's weather to
+the real day (decisions 9 and 10, amended), so the Today-scope box is reopened for part 11
+(PR 542) and the gate stands at 10 of 13. His same-day word covers two [walk] items: Today
+undeletable on production, and part 10's API on a deployment.
 
 ### What went well
 
@@ -513,15 +555,17 @@ above say what each waits on.
   (KI-2026-10-24-d); `noRawSyntax` hit its 5 s timeout once (KI-2026-10-24-e). None was re-run to
   a cause, because job logs cannot be read from the cloud proxy (KI-2026-10-13-f).
 - **Part 10's API was never called on a deployment.** A token has to be minted on the preview,
-  and no session did it (PR 539's body: "Not called against the preview").
+  and no session did it (PR 539's body: "Not called against the preview"). Mitchell called it
+  himself afterwards (2026-10-24: *"Confirmed the api works."*).
 
 ### Leftovers
 
 - **The live M33 day-of eval** (box 8): Mitchell runs it from `main`; PR 534 ran the cases only on
   the simulated model.
-- **The [walk] and the five items folded into it** (two-member *No messages yet*, Today
-  undeletable and backfilled on production, `auth()` inside `after()` on production, the API on a
-  deployment, PR 537's final head and PR 541 unwalked): Mitchell's.
+- **The [walk] and the items still folded into it** (two-member *No messages yet*, `auth()`
+  inside `after()` on production, PR 537's final head and PR 541 unwalked): Mitchell's. Today
+  undeletable on production and the API on a deployment were confirmed by him on 2026-10-24.
+- **Part 11** (PR 542): merge it, then tick the reopened Today-scope box on its merged CI.
 - **Per-row Accept still reads `useSessionUser`**, not `useKnownSessionUser`
   (`apps/web/src/components/board/SuggestionActions.tsx:28`, checked on `main` at the close;
   `useAcceptAll.ts:39` and the chat already use `useKnownSessionUser`). Part 6's review round 6
