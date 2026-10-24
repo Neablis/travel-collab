@@ -130,6 +130,22 @@ describe("Discover's tag filter", () => {
     expect([card.tags, card.namedTags]).toEqual([["meal", "nightlife"], ["meal"]]);
   });
 
+  // A card links every tag with a global page, not only the ones its
+  // description names: four meals and one drink names Food, and Drinks has
+  // a page because another day names it — so both chips link.
+  it("links on each card the tags with a page, named or not", async () => {
+    const city = `Taglinked${randomUUID().slice(0, 6)}`;
+    const id = await day(city, [...stops(4, ["meal"]), ...stops(1, ["drinks"])]);
+    await day(city, stops(4, ["drinks"]));
+    const { days } = await discoverDays({ ...newestIn(city), tag: "any" });
+    const card = days.find((d) => d.savedDayId === id)!;
+    expect([card.tags, card.namedTags, card.linkedTags]).toEqual([
+      ["meal", "drinks"],
+      ["meal"],
+      ["meal", "drinks"],
+    ]);
+  });
+
   // Tag pages list published days only, so the author's private day on
   // *Yours* is described but names no tag a chip could link to.
   it("names no tag on a private day in its author's Discover", async () => {
@@ -138,7 +154,7 @@ describe("Discover's tag filter", () => {
     await db.insert(savedDays).values(row);
     const { days } = await discoverDays({ ...newestIn(city), tag: "any", scope: "yours", readerId: OWNER });
     const card = days.find((d) => d.savedDayId === row.id)!;
-    expect([card.description, card.namedTags]).toEqual(["Late-night", []]);
+    expect([card.description, card.namedTags, card.linkedTags]).toEqual(["Late-night", [], []]);
   });
 
   // A filtered-out row where one page ends: page one still holds a full page,

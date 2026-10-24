@@ -1,7 +1,7 @@
 import { describeByTags, describedTags } from "@tc/domain";
-import type { SavedStop } from "@tc/contracts";
+import type { ActivityTagDescribed, SavedStop } from "@tc/contracts";
 import type { SharedDayView } from "@/lib/sharedDayView";
-import { publicAuthor } from "./playbooks";
+import { globalPageTags, publicAuthor } from "./playbooks";
 import { getSavedDayCover } from "./savedDayCovers";
 import { schedulePinBackfill } from "./savedDayPinBackfill";
 import { readableSavedDayWithStanding } from "./savedDays";
@@ -40,27 +40,37 @@ export async function sharedDayRead(
     moderation,
     cover,
     // On a tag page only if published and not hidden by an operator.
-    ...whatKindOfDay(day.stops, day.visibility === "public" && moderation === null),
+    ...whatKindOfDay(day.stops, day.visibility === "public" && moderation === null, await globalPageTags()),
   };
 }
 
 /**
- * What kind of day these stops make (M42 D9), the categories they carry and
- * the ones the description names, for `SharedDayView`. One place, so the
- * page's cached read and the live one cannot word the same day two ways.
+ * What kind of day these stops make (M42 D9), the categories they carry, the
+ * ones the description names, and the ones with a global tag page, for
+ * `SharedDayView`. One place, so the page's cached read and the live one
+ * cannot word the same day two ways.
  *
  * `listed` is whether the day is in the public library, which is all tag
- * pages list: off it, no tag is a page this day is on, so none is named.
+ * pages list: off it, no tag is a page this day is on, so none is named —
+ * and none links either, so a private day's chips stay text as they did.
+ * `pageTags` is the lattice's global pages, read once per read by the
+ * caller, never per chip.
  */
 export function whatKindOfDay(
   stops: readonly SavedStop[],
   listed: boolean,
-): Pick<SharedDayView, "description" | "tags" | "namedTags"> {
+  pageTags: readonly ActivityTagDescribed[] = [],
+): Pick<SharedDayView, "description" | "tags" | "namedTags" | "linkedTags"> {
   const described = describeByTags(stops);
+  const tags = describedTags(stops);
+  // Read as strings: `tags` are `ActivityTag` and the set holds described
+  // ones, so a typed set would refuse the membership test.
+  const pageTagSet: ReadonlySet<string> = new Set(pageTags);
   return {
     description: described?.text ?? null,
-    tags: describedTags(stops),
+    tags,
     namedTags: listed ? [...(described?.named ?? [])] : [],
+    linkedTags: listed ? tags.filter((tag): tag is ActivityTagDescribed => pageTagSet.has(tag)) : [],
   };
 }
 

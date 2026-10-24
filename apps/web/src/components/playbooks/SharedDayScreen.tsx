@@ -44,7 +44,7 @@ import type { SharedDayView } from "@/lib/sharedDayView";
 import { takePlaybookAdd } from "@/lib/pendingPlaybookAdd";
 import { addDayToNewTrip, type NewTripLatch } from "@/lib/addDayToNewTrip";
 import { cn } from "@/lib/cn";
-import { cityPath, dayPath, daySegment, namedTagPath } from "@/lib/playbookUrls";
+import { cityPath, dayPath, daySegment, linkedTagPath } from "@/lib/playbookUrls";
 import { dayLength, savedDayFacts, DAY_LENGTH_LABELS } from "@/lib/savedDayFacts";
 import { toClockLabel, toClockRange } from "@/lib/time";
 import { useTimeFormat } from "@/components/account/PreferencesProvider";
@@ -198,6 +198,7 @@ async function readDay(savedDayId: string): Promise<ApiResult<SharedDayView>> {
       description: dayResult.value.description ?? null,
       tags: dayResult.value.tags ?? [],
       namedTags: dayResult.value.namedTags ?? [],
+      linkedTags: dayResult.value.linkedTags ?? [],
     },
   };
 }
@@ -515,7 +516,7 @@ export function SharedDayScreen({
     );
   }
 
-  const { day, isAuthor, author, moderation, cover, description, tags, namedTags } = feed.data;
+  const { day, isAuthor, author, moderation, cover, description, tags, linkedTags } = feed.data;
   // The title's description to a screen reader, as on a Discover card.
   const describedBy = description === null ? undefined : descriptionId;
   const facts = savedDayFacts(day.stops, day.dayCount);
@@ -659,7 +660,7 @@ export function SharedDayScreen({
                       {description}
                     </Text>
                   )}
-                  <StopTagChips activityId={day.savedDayId} tags={tags} focusedTag={null} hrefOf={namedTagPath(namedTags)} />
+                  <StopTagChips activityId={day.savedDayId} tags={tags} focusedTag={null} hrefOf={linkedTagPath(linkedTags)} />
                 </div>
               )}
               {/* The author's own paragraph (`saved_days.summary`). It is also

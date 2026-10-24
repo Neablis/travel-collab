@@ -23,6 +23,7 @@ import { publicNameFor } from "@/lib/displayName";
 import { db, type Queryable } from "./db/client";
 import { users } from "./db/schema";
 import { isUuid } from "./ids";
+import { LIBRARY_TAG, libraryCached } from "./libraryCache";
 import { SAVED_DAY_COVER_JOIN, SAVED_DAY_COVER_JSON } from "./savedDayCovers";
 import { isoOf, toDiscoverDay, type DiscoverRow, type OwnerNames } from "./discoverDay";
 import { parseSavedDayColumns } from "./savedDayRow";
@@ -526,6 +527,11 @@ const discoverColumns = sql`
  * window, as before Discover paged.
  */
 export async function discoverDays(query: DiscoverQuery, after: string | null = null): Promise<DiscoverResponse> {
+  // The lattice first, so the page's cards and the candidates agree on which
+  // chips link: one read for the whole list, shared with the tag pages'
+  // through the cache (see `globalPageTags`). In production this is a cache
+  // hit, so the two reads below still start together in practice.
+  const pageTags = await globalPageTags();
   const [rows, page] = await Promise.all([
     db.execute<DiscoverRow>(sql`
       select ${discoverColumns}, ${matchedCount(query)}::int as matched_count,
@@ -536,7 +542,7 @@ export async function discoverDays(query: DiscoverQuery, after: string | null = 
       limit ${CANDIDATE_LIMIT}
     `),
     // One past the page, so the last page knows it is the last.
-    discoverPage(query, { limit: DISCOVER_PAGE_SIZE + 1, after }),
+    discoverPage(query, { limit: DISCOVER_PAGE_SIZE + 1, after }, pageTags),
   ]);
   // `count(*) over ()` is evaluated before `limit`, so every row carries the
   // number of rows the WHERE matched — the whole library's answer to these
@@ -546,7 +552,7 @@ export async function discoverDays(query: DiscoverQuery, after: string | null = 
   const windowFull = rows.rows.length === CANDIDATE_LIMIT;
 
   const candidates = [...rows.rows]
-    .map((row) => toDiscoverDay(row, query.cities, query.readerId))
+    .map((row) => toDiscoverDay(row, query.cities, query.readerId, pageTags))
     .filter((day): day is DiscoverDay => day !== null);
 
   // The one currency every matched day agrees on, or null. Decided over the
@@ -680,6 +686,12 @@ function rankKeys(query: DiscoverQuery): SQL {
 export async function discoverPage(
   query: Omit<DiscoverQuery, "budget"> & { budget?: BudgetBand },
   page: { limit: number; after: string | null },
+  /**
+   * The tags with a global tag page, from `discoverDays`' one lattice read.
+   * Empty on the public API's direct call, which strips the field anyway —
+   * so its cards carry no links to leak.
+   */
+  pageTags: readonly DescribedTag[] = [],
 ): Promise<DiscoverDay[]> {
   const full: DiscoverQuery = { budget: "any", ...query };
   const keys = rankKeys(full);
@@ -706,7 +718,7 @@ export async function discoverPage(
       limit ${want}
     `);
     for (const row of rows.rows) {
-      const day = toDiscoverDay(row, query.cities, query.readerId);
+      const day = toDiscoverDay(row, query.cities, query.readerId, pageTags);
       if (day !== null && keeps(full, day)) out.push(day);
       // Stop at the page: the next one starts after its last card, not after
       // the last row this read happened to fetch.
@@ -1055,6 +1067,22 @@ function latticeSlugs(day: PublishedDay): { cities: Set<string>; countries: Set<
 }
 
 /**
+ * The tags with a global tag page (`/playbooks/tag/<tag>`): the lattice's
+ * unscoped entries, each once. What a card's chips link by — `toDiscoverDay`
+ * intersects the day's tags with this, so a chip is never text for a page
+ * that exists nor a link to one that does not.
+ *
+ * Read once per list call, never per card, and under the same cache key as
+ * `publicLibrary.ts`'s `publishedTagPages`, so in production every list on
+ * one request shares one compute; outside production `libraryCached` runs
+ * the read each time, as every other library read does.
+ */
+export async function globalPageTags(): Promise<readonly DescribedTag[]> {
+  const pages = await libraryCached(["tags"], [LIBRARY_TAG], publishedTagPages);
+  return [...new Set(pages.filter((page) => page.city === null && page.country === null).map((page) => page.tag))];
+}
+
+/**
  * Every tag page with a day on it: one per tag a published day's description
  * names (ADR-070 §4), and one per city page, country page, and country×city
  * pair and such a tag. A city is its page — every spelling that slugs alike —
@@ -1173,8 +1201,11 @@ export async function publishedDaysPage(
     order by ${orderBy(query.sort)}
   `);
   const within = filter.citiesWithin === undefined ? null : new Set(filter.citiesWithin);
+  // One lattice read for the whole page, so every card agrees on which chips
+  // link — shared with the tag pages' nav through the cache.
+  const pageTags = await globalPageTags();
   const readable = [...rows.rows]
-    .map((row) => toDiscoverDay(row, query.cities, null))
+    .map((row) => toDiscoverDay(row, query.cities, null, pageTags))
     .filter(
       (day): day is DiscoverDay =>
         day !== null && keeps(query, day) && (within === null || day.cities.some((city) => within.has(city))),

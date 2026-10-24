@@ -509,7 +509,7 @@ describe("a shared day", () => {
         savedDayId={DAY_ID}
         backHref="/playbooks"
         backLabel="Discover"
-        initial={{ day: savedDay(), isAuthor: false, author: profile().author, pinning: false, publishedAt: null, moderation: null, cover: null, description: null, tags: [], namedTags: [] }}
+        initial={{ day: savedDay(), isAuthor: false, author: profile().author, pinning: false, publishedAt: null, moderation: null, cover: null, description: null, tags: [], namedTags: [], linkedTags: [] }}
       />,
     );
     expect(screen.getByRole("heading", { level: 1, name: "Kyoto temples on foot" })).toBeTruthy();
@@ -1771,8 +1771,9 @@ describe("a day's cover", () => {
 });
 
 // M42 D9: what kind of day it is, and the tags that say so, as the server
-// worked them out (`describeByTags`). A chip links to its tag's page when the
-// description names the tag, so the page lists this day (part 5).
+// worked them out (`describeByTags`). A chip links to its tag's global page
+// when the tag has one (`linkedTags`, from the lattice) — not only when the
+// description names it.
 describe("what kind of day it is", () => {
   const described = {
     savedDay: savedDay(),
@@ -1780,10 +1781,11 @@ describe("what kind of day it is", () => {
     description: "Sightseeing",
     tags: ["sight", "meal"],
     namedTags: ["sight"],
+    linkedTags: ["sight", "meal"],
   };
   const chips = () => within(screen.getByTestId(`tag-chips-${DAY_ID}`)).getAllByTestId(/^tag-chip-/).map((c) => c.textContent);
 
-  it("describes the day under its title and shows its tags, most used first, linking the one it names", async () => {
+  it("describes the day under its title and shows its tags, most used first, linking every tag with a page", async () => {
     fetchSavedDayMock.mockResolvedValue(ok(described));
     renderDay();
     expect(
@@ -1793,7 +1795,8 @@ describe("what kind of day it is", () => {
     // between chips, so the expectation spells it, not a typo.
     expect(chips()).toEqual(["Sight ", "Food "]);
     const links = within(screen.getByTestId(`tag-chips-${DAY_ID}`)).getAllByRole("link");
-    expect(links.map((link) => link.getAttribute("href"))).toEqual(["/playbooks/tag/sight"]);
+    // Meal links although the description does not name it: its page exists.
+    expect(links.map((link) => link.getAttribute("href"))).toEqual(["/playbooks/tag/sight", "/playbooks/tag/meal"]);
   });
 
   it("describes it the same way on a day with a cover", async () => {

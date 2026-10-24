@@ -211,7 +211,7 @@ describe("GET /v1/discover/playbooks", () => {
       expect(api.map((d) => d.savedDayId), sort).toEqual(ordered.days.map((d) => d.savedDayId));
       // The app's card, field for field, less the owner's name and the chip
       // links the API never sends (the last test in this file).
-      expect(api, sort).toEqual(app.days.map(({ ownerDisplayName: _name, namedTags: _named, ...day }) => day));
+      expect(api, sort).toEqual(app.days.map(({ ownerDisplayName: _name, namedTags: _named, linkedTags: _linked, ...day }) => day));
     }
   });
 

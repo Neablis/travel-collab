@@ -7,7 +7,9 @@ import { e2eTripName } from "./tripNames";
 // M42 part 5, signed out: a tag page, a city's tag page, and Discover's tag
 // filter and its next page. A day belongs to a tag when its description names
 // the tag (ADR-070 §4), so the city holds one day of meals with a bar on it,
-// which carries a Nightlife stop and is no nightlife day.
+// which carries a Nightlife stop and is no nightlife day. Its chips still
+// link to every tag with a page, named or not — the chip names the page,
+// not the day's membership of it.
 //
 // The city is minted per run: the published library is global to the run's
 // database (`m12-discover.spec.ts`).
@@ -58,7 +60,8 @@ test("signed out: a tag page, a city's tag page, and Discover's tag filter and n
     const late = await tripDay(page, city, ["nightlife", "nightlife", "nightlife", "nightlife"]);
     for (let i = 0; i < LATE_DAYS; i += 1) ids.push(await publish(page, late, `Late night ${city} ${i}`));
     const food = await tripDay(page, city, ["meal", "meal", "meal", "meal", "nightlife"]);
-    ids.push(await publish(page, food, `Dinner ${city}`));
+    const dinnerId = await publish(page, food, `Dinner ${city}`);
+    ids.push(dinnerId);
 
     const visitor = await stranger(browser);
     const dinner = visitor.getByRole("link", { name: `Dinner ${city}` });
@@ -77,6 +80,17 @@ test("signed out: a tag page, a city's tag page, and Discover's tag filter and n
     await visitor.getByRole("link", { name: "Next", exact: true }).click();
     await expect(visitor).toHaveURL(new RegExp(`/playbooks/city/${slug}/nightlife\\?page=2$`));
     await expect(visitor.getByTestId("place-days").getByTestId("discover-card")).toHaveCount(1);
+
+    // The city's meal page: the dinner alone, and both its chips link to
+    // their GLOBAL pages — Food, which its description names, and Nightlife,
+    // which it does not but which has a page (the late nights name it). A
+    // chip for a tag with no page would stay text instead.
+    await visitor.goto(`/playbooks/city/${slug}/meal`);
+    await expect(visitor.getByRole("heading", { level: 1, name: `Food days in ${city}` })).toBeVisible();
+    await expect(dinner).toBeVisible();
+    const dinnerChips = visitor.getByTestId(`tag-chips-${dinnerId}`);
+    await expect(dinnerChips.getByRole("link", { name: "Food days" })).toHaveAttribute("href", "/playbooks/tag/meal");
+    await expect(dinnerChips.getByRole("link", { name: "Nightlife days" })).toHaveAttribute("href", "/playbooks/tag/nightlife");
 
     // Discover: the city's 26 days, then its 25 nightlife days, then their second page.
     await visitor.goto(`/playbooks?city=${city}`);
