@@ -349,17 +349,16 @@ function PhoneTabBarView({
     <nav
       ref={barRef}
       aria-label="Phone navigation"
-      // `z-20`, NOT `z-30`. `.assistant-rail` (globals.css) is a `position:
-      // fixed; inset: 0` full-screen takeover at `z-index: 30` below 768px,
-      // and its own comment records why that number: "z-index: 30 here clears
-      // both stacking competitors already on this page — TripHeader's 10 and
-      // `.unscheduled-rack`'s 20 — so nothing can paint over the rail again."
+      // `z-20`, NOT `z-30`. The phone's assistant sits in the 30 tier
+      // (`.assistant-sheet` and its scrim, 30/31; before §23 it was
+      // `.assistant-rail`'s full-screen takeover at 30, which is where this
+      // was learned), above TripHeader's 10 and `.unscheduled-rack`'s 20.
       // A bar at `z-30` ties that and wins on DOM order (it is mounted after
       // `children` in the layout), so it painted over the open assistant and
       // covered the bottom 83px — the composer and Ask. That is Mitchell's own
       // "the input is unselectable" bug re-made, and `m16-mobile-assistant`
       // caught it. 20 puts the bar in the rack's tier: above page content,
-      // under the takeover that is meant to cover everything.
+      // under the assistant that is meant to cover it.
       className="phone-tab-bar fixed inset-x-0 bottom-0 z-20 flex border-t border-hairline bg-surface pt-2 md:hidden"
     >
       {tabsForScope(scopeOf(pathname)).map((id) => {

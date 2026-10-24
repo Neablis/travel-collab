@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 
 // 768px is the line the rest of this app already draws between "narrow but
-// still a shrinkable plan" and "phone" — see `.assistant-rail` and
-// `.unscheduled-rack` in globals.css, and SPEC §13's mobile-foundations
+// still a shrinkable plan" and "phone" — see `.unscheduled-rack` in
+// globals.css, and SPEC §13's mobile-foundations
 // framing. Reused here rather than picking a new one.
 const PHONE_MAX_WIDTH_PX = 767;
 
