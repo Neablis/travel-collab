@@ -1,4 +1,4 @@
-### KI-2026-10-19-g — Share's "Copied" is not announced to screen readers
+### KI-2026-10-19-g — Share's "Copied" is not announced to screen readers — RESOLVED
 
 - **Severity:** cosmetic (accessibility). A sighted user sees the confirmation; a screen-reader
   user hears nothing after pressing *Copy share link*.
@@ -15,3 +15,11 @@
   Test: assert the status text with `getByRole("status")`, seen red first.
 - **Cross-reference:** M50 part 8 (PR 498).
 - **First noted:** 2026-10-19, during M50 part 8 (PR 498).
+- **Proof (resolved 2026-10-24, KI sweep):** `ShareButton.tsx` now mounts an empty
+  `role="status"` region in the share panel, as `ReferralNudge` does; a copy fills it with
+  "Link copied.", a refused clipboard with "Couldn't copy it. The link is in the box below." The
+  button keeps its stable `aria-label`. Reproduced first: the new `ShareButton.test.tsx` case
+  *announces a successful copy in a status region* failed on the old code with `Unable to find an
+  accessible element with the role "status"`. With the region's contents disabled, it and the
+  extended *reveals the link… when the clipboard is denied* failed with `expected '' to be 'Link
+  copied.'`; both pass with the fix (14/14).

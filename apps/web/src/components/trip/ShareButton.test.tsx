@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TripShare } from "@tc/contracts";
@@ -110,6 +110,17 @@ describe("ShareButton", () => {
     expect(writeText).toHaveBeenCalledWith("http://test/s/share-tok");
   });
 
+  // KI-2026-10-19-g: the button's name stays "Copy share link" (the stable
+  // name every row shares), so only a live region tells a screen reader the
+  // copy worked. It is mounted empty first, so the announcement is a change.
+  it("announces a successful copy in a status region", async () => {
+    render(<ShareButton tripId={tripId} />);
+    const panel = await openPanel();
+    expect(within(panel).getByRole("status").textContent).toBe("");
+    await userEvent.click(await screen.findByRole("button", { name: "Copy share link" }));
+    await waitFor(() => expect(within(panel).getByRole("status").textContent).toBe("Link copied."));
+  });
+
   it("turns a link off", async () => {
     render(<ShareButton tripId={tripId} />);
     await openPanel();
@@ -139,6 +150,8 @@ describe("ShareButton", () => {
     expect((fallback as HTMLInputElement).value).toBe("http://test/s/share-tok");
     expect(fallback.hasAttribute("readonly")).toBe(true);
     expect(screen.queryByText("denied")).toBeNull();
+    // The box appearing is silent to a screen reader; the status says why.
+    expect(screen.getByRole("status").textContent).toBe("Couldn't copy it. The link is in the box below.");
   });
 
   it("clears a previous error once a reload succeeds", async () => {
