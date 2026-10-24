@@ -82,6 +82,18 @@ assertions and fails a property that skipped every generated case. **Measure
 the floor, never guess it** — set it near half the observed minimum. A guessed
 floor either flaps or is too low to catch anything; both have happened here.
 
+**Every property draws from one pinned seed.** Each lane's setup file,
+`fastCheckSeed.setup.ts` (next to `witness.ts`), calls `fc.configureGlobal`
+with a fixed seed, so a property draws the same cases every run and a floor
+holds or fails for a reason. Unseeded, a floor counting a branch only some
+cases reach (`rolled`, `refused`, the weather table's six modes) tripped in CI
+on rare low draws, on PRs that touched none of it (KI-2026-10-14-c). Don't pass
+`seed` per test. Measure a new floor under the pinned seed, and also over a few
+`FC_SEED=random` runs. A floor that only passes on the pinned seed is a draw,
+not a margin. `FC_SEED=random` explores and prints the seed it used.
+`FC_SEED=<n>` replays that seed. Changing the seed or a generator moves every
+count, so re-measure.
+
 There is no `witness` for an example-based test. Red-first is its equivalent,
 and `pnpm redfirst` runs the drill as one command:
 

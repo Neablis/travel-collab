@@ -40,6 +40,12 @@ export function witness(label: string) {
      * count to ~zero, so half is plenty of signal and leaves room for
      * fast-check's run-to-run variance. A property with no guard clauses ticks
      * exactly `numRuns` times and can use that number exactly.
+     *
+     * **Half the minimum of a few runs still misses a wide count's tail**, and
+     * four floors tripped in CI on a rare draw (KI-2026-10-14-c). So every
+     * lane pins fast-check's seed (`fastCheckSeed.setup.ts`): a run draws the
+     * same cases every time, and a floor that held when it was set holds until
+     * the seed, the generator or the code under test changes.
      */
     atLeast(min: number): void {
       if (observed < min) {

@@ -718,6 +718,9 @@ describe("the optimistic queue loses nothing under any interleaving (KI-2026-09-
     // Floors measured, not guessed (testing.md): over eight runs of 200 the
     // observed minimums were 2770 steps, 24 runs reaching retention, 74
     // reconciles over a queue and 14 server refusals. Each floor is about half.
+    // Unseeded, the refusal count's low tail reached 6 and turned CI red
+    // (KI-2026-10-14-c); under the pinned seed (`fastCheckSeed.setup.ts`)
+    // every run draws 2890 / 23 / 82 / 17. Re-measure if either changes.
     w.atLeast(1400);
     retained.atLeast(12);
     adoptedOverQueue.atLeast(37);

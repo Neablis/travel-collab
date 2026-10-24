@@ -242,7 +242,10 @@ describe("reserve and settle keep every counter at its exact net charge", () => 
     );
     // Floors at ~half the observed minimum over five runs (2026-09-24): 1,365-
     // 1,436 checked steps, 809-864 admitted, 90-147 refused, 133-183 in-window
-    // refunds, 16-28 settlements after a roll.
+    // refunds, 16-28 settlements after a roll. Unseeded, the roll count's low
+    // tail reached 6 and turned CI red (PR 552, KI-2026-10-14-c); under the
+    // pinned seed (`fastCheckSeed.setup.ts`) every run draws 1378 / 790 / 146 /
+    // 164 / 19. Change the seed or the generator and re-measure.
     w.atLeast(650);
     admitted.atLeast(400);
     refused.atLeast(45);
