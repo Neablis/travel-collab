@@ -105,3 +105,8 @@
     M52 part 8 (PR 537), green on re-run. Not a property; more likely a poll or focus timing race
     like KI-2026-10-19-c. The same file logs unhandled `/chat` and `/chat/read` requests
     (KI-2026-10-24-f), which is worth ruling out first.
+- **Added 2026-10-24 (M52, part 12 follow-up):** `apps/web/src/components/front/LandingSea.test.tsx`'s
+  tab-order test timed out once in CI (`test / unit`, 15 s) on PR 546 at `31835b8`. Its sixty Tab
+  presses were five laps of an 11-stop sea and took 9 s alone; `12e73db` stops the walk when Tab
+  wraps to a stop it has seen (one lap, 2 s), and CI run 40138571257 is green on that head. A
+  slow test near its timeout, not a cause-unknown red like the others here.

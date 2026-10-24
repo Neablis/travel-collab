@@ -1,12 +1,11 @@
 # M52 — The trip comes with you: a notebook for today, and an assistant the group can ask
 
-**Status (2026-10-24): gate 10 of 13.** Parts 1–10 are merged (PRs 530–537, 539, 540, and
-PR 541, part 9's follow-up). **Part 11** (PR 542, `claude/m52-part11-today-weather-settings`:
-Today's weather on the real day, *Weather Report* and *Sunrise/Sunset*, notebook settings
-supersede widget settings) is in review, from Mitchell's 2026-10-24 decisions (decisions 9 and
-10, amended); it reopened the Today-scope box. Three boxes are open: that one (part 11's merged
-CI), the live M33 day-of eval and the [walk] (*Exit gate*); `pnpm milestone close M52` refuses
-until they are ticked.
+**Status (2026-10-24, late): gate 12 of 13.** Parts 1–11 are merged (PRs 530–537, 539, 540,
+PR 541, part 9's follow-up, and PR 542). **Part 12** (PR 545, merged `45017f2`: the eval's
+day-of trip runs on a clock pinned to 12:30 in Tokyo) and its follow-up **PR 546** (a realistic
+place stub, the closed stop swapped in place, the sea's tab-order test bounded to one lap) let
+the live M33 day-of cases run, and Mitchell's live runs of 2026-10-24 tick box 8. One box is
+open, the [walk] (*Exit gate*); `pnpm milestone close M52` refuses until it is ticked.
 **Scoped 2026-10-23 with Mitchell: every decision is answered** (the third review,
 recorded under each decision below). The plan, `docs/plans/2026-10-23-M52-the-trip-comes-with-you.md`, was deleted at the close (it is in git history; what it held worth keeping is in the retro's *Leftovers*).
 Proposed 2026-10-22 by Mitchell, placed after M51 and ahead of M49. His answers are below under *Answered*: what it is for, where it lives (a *During the
@@ -268,6 +267,13 @@ chips do.
     - (c) **"X is closed, find something similar"** is `find_places_near_now` (or a search near
       the stop), filtered by the stop's tags, then a proposal that marks the old stop `pending`
       and adds the new one.
+      **Amended by Mitchell, 2026-10-24 (PR 546): the closed stop is swapped in place.** *"Option
+      2, the swap seems much more logical, we dont need to remember the closed stop, thats for
+      the history"*. So (c) is one `UpdateActivity` of the closed stop to the new place, in the
+      same slot; the trip's history keeps the original. Every live run had already swapped. The
+      eval case `d-closed-find-similar` requires `UpdateActivity` and one of the two place
+      searches, and forbids `AddActivity` and `RemoveActivity`
+      (`apps/web/src/server/ai/eval/cases.ts`, PR 546).
 
     There are two eval cases for (b) and (c).
 15. **The new widgets.** **Answered at scoping, 2026-10-23: all five, as recommended.** each is a preset in `packages/pages/src/presets.ts` and
@@ -470,16 +476,31 @@ chips do.
 - [x] **A trip replayed from a log written before `flightNumber` equals its stored projection.**
       *Evidence:* `packages/domain/test/m52-flight-number.test.ts:39` "replays to the trip its stored
       projection says"; PR 531, CI run 39885558036 green on `5d30d79`, merged `15f0d38`.
-- [ ] **`find_places_near_now` is offered only while the trip is under way, and `read_chat` only
+- [x] **`find_places_near_now` is offered only while the trip is under way, and `read_chat` only
       on a chat-started turn**: a test of the offered tools for a planning trip, an under-way
       trip, an Ask turn and a chat turn. `read_chat`'s default and its ceiling are read from
       `limits.ts`, which a test changing the constant shows. The M33 day-of cases pass, at their
       stated cost.
-      *Open (2026-10-24 close):* the tests are in — `apps/web/src/server/assistant/admission.test.ts:528`
-      (`read_chat` on chat turns only) and `:548` (`find_places_near_now` only under way),
-      `tools/chat.test.ts:12-13` (default and ceiling from a mocked `limits.ts`) — but the M33 day-of
-      cases have run only on the simulated model (PR 534). The live eval is Mitchell's to run from
-      `main`; this box ticks on its result and cost.
+      *Evidence (ticked 2026-10-24, late):* the offered-tools tests,
+      `apps/web/src/server/assistant/admission.test.ts:528` (`read_chat` on chat turns only) and
+      `:548` (`find_places_near_now` only under way), `tools/chat.test.ts:12-13` (default and
+      ceiling from a mocked `limits.ts`); PR 534, CI run 39964482034 green on `69544ba`. **The live
+      M33 cases, run by Mitchell on 2026-10-24** on `anthropic/claude-sonnet-5.5` (mid tier), the
+      clock pinned at 12:30 JST by part 12 (PR 545):
+      - on `main` `45017f2` (21:24Z): `h-chat-fix-problem` PASS ($0.0562, 9.7 s, calls
+        `read_chat`); `d-running-late` PASS ($0.0270, 10.6 s, `UpdateActivity` only, 3 commands);
+      - on PR 546's `7d8e09f` (21:54Z, `EVAL_REPEAT=3`, $0.1666 for the run):
+        `d-coffee-near-now` 3/3 (one `find_places_near_now` each, about $0.012 a turn, 3.9–5.8 s);
+        `d-near-before-the-trip` 3/3 (`read_trip` only, never offered `find_places_near_now`);
+        `d-closed-find-similar` 2/3 (run 3 refused to swap in the stub's fake-looking "Garden
+        Park House"/"Japanese Garden Room"; the stub fixed in `31835b8`);
+      - on PR 546's `31835b8`: `d-closed-find-similar` 5/5 (Mitchell: *"All 5 passed this
+        time"*).
+      *"At their stated cost":* no dollar figure is stated anywhere for these cases. What the cases
+      state is a call and latency budget (`cases.ts`: a question at most 4 tool calls and 60 s, a
+      change at most 10 and 120 s, plus each case's `mustCall`/`maxCallsOf`), and every passing
+      run met it; the per-turn dollars above are recorded for the next comparison. PR 546
+      (`12e73db`, CI run 40138571257, `ci-ok` green) is not yet merged at this update (open on that head; Mitchell is merging it).
 - [x] **Only the asker can accept an `@assistant` proposal**: an integration test is refused
       for another editor and accepted for the asker. **A free member's `@assistant` spends
       nothing**, and a paid asker's turn is recorded against the asker.
@@ -525,7 +546,7 @@ chips do.
       - no browser walk of PR 537 at its final head `4301073`, or of PR 541 (Trip chat on Today).
 - [x] A retro is appended at gate close. *Evidence:* *Retro*, below (2026-10-24).
 
-## Retro — written 2026-10-24 (11 of 13 boxes ticked)
+## Retro — written 2026-10-24 (12 of 13 boxes ticked)
 
 Written at the close on part 0 (PR 529), with two boxes open and both Mitchell's: the live M33
 day-of eval and the [walk]. `pnpm milestone close M52` refuses until they are ticked; the boxes
@@ -537,6 +558,19 @@ undeletable on production, and part 10's API on a deployment.
 *Since (2026-10-24, later):* part 11 merged (PR 542, `8632207`) and the Today-scope box is ticked
 on its CI and Mitchell's walk of its preview, so the gate stands at **11 of 13**; the two open
 boxes are both Mitchell's.
+*Since (2026-10-24, late):* the live M33 day-of cases could not run at most hours, because the
+day-of trip was dated from the wall clock. **Part 12** (PR 545, merged `45017f2` 21:22Z, CI run
+40133300859 green) pins each eval turn's clock to 12:30 in Tokyo by an offset on `Date` alone
+(`apps/web/src/server/ai/eval/evalClock.ts`), so latency and timers stay real; Mitchell on the
+first version, built on fake timers: *"a great way to introduce a really frustrating flakey
+test"*. Its follow-up **PR 546** (`claude/m52-part12b-eval-places-swap`, head `12e73db`, CI run 40138571257
+`ci-ok` green; not yet merged at this update, Mitchell is merging it) gives the eval a place stub that answers like production
+(`placeStub.ts`), swaps a closed stop in place (decision 14(c), amended), and bounds
+`LandingSea.test.tsx`'s tab-order test to one lap after it timed out once in CI on `31835b8`.
+Mitchell's live runs then passed every M52 case (box 8's evidence), so the gate stands at
+**12 of 13**; the [walk] is the only open box. Two known issues came out of it:
+KI-2026-10-24-n (the eval's planning trips are dated 2027-04-01) and -o (the stub echoes a
+title-cased category as a named place).
 
 ### What went well
 
@@ -598,10 +632,17 @@ boxes are both Mitchell's.
   and no session did it (PR 539's body: "Not called against the preview"). Mitchell called it
   himself afterwards (2026-10-24: *"Confirmed the api works."*).
 
+- **One fix became three PRs' worth of churn before Mitchell stopped it.** Part 12's live run
+  found the place stub and the closed-stop rule wrong, and the first instinct was a new PR per
+  fix. Mitchell: *"We dont need a new PR for every single change, this is very closely tied to the
+  same change we were trying to fix"*. The rule: a follow-up closely tied to an open PR's change
+  goes on that PR; only a merged parent forces a new PR (PR 546 exists because PR 545 had
+  merged). It also carried the `LandingSea` tab-order fix that its own CI run needed.
+
 ### Leftovers
 
-- **The live M33 day-of eval** (box 8): Mitchell runs it from `main`; PR 534 ran the cases only on
-  the simulated model.
+- **The live M33 day-of eval** (box 8) is done: Mitchell's runs of 2026-10-24 on `main` and
+  PR 546 (box 8's evidence). PR 546 is not yet merged at this update (open on that head; Mitchell is merging it).
 - **The [walk] and the items still folded into it** (two-member *No messages yet*, `auth()`
   inside `after()` on production, PR 537's final head and PR 541 unwalked): Mitchell's. Today
   undeletable on production and the API on a deployment were confirmed by him on 2026-10-24.
@@ -616,7 +657,7 @@ boxes are both Mitchell's.
   would all change. Optional; Mitchell's call.
 - **Known issues filed during M52:** KI-2026-10-23-a (an applied library day insert posts no
   change line), KI-2026-10-23-b (a flight stop cannot cross midnight or record its arrival, home
-  M44), and KI-2026-10-24-a to -m.
+  M44), and KI-2026-10-24-a to -o.
 - **From the plan, kept here because the plan is deleted:** a page's `context` (so `dateScope`)
   is not editable through events (`EditPage`/`PageEdited` carry none,
   `packages/contracts/src/pageEvents.ts`); it is set when a template is instantiated and restored
@@ -651,6 +692,9 @@ was generated in its own container and is pasted below unchanged. Recorded dolla
 - After the block below was generated, this close session also orchestrated part 11 (PR 542)
   and its part 0 updates: about 4 `part-reviewer`, 4 `phase-implementer` and 3 `general-purpose`
   dispatches more, counted by hand and not in the block or the targets.
+- Since that update, for part 12 (PR 545), its follow-up (PR 546) and these part 0 updates:
+  about 7 `phase-implementer`, 6 `part-reviewer` and 2 `general-purpose` dispatches more, also
+  counted by hand and not in the block or the targets.
 - This close, `session_019uYS9r…` (the block below covers its transcripts at the time it ran; its
   recorded cost was $2.28 at that point and grew after):
 
