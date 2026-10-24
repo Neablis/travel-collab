@@ -86,6 +86,13 @@ describe("grade", () => {
     ]);
   });
 
+  it("passes a set of alternatives on any one of them, one check per set", () => {
+    const expectation = { mustCallOneOf: [["read_trip", "search_places"], ["x", "y"]] };
+    for (const tool of ["read_trip", "search_places"]) {
+      expect(failing(grade(turn({ toolCalls: [{ name: tool, input: {} }] }), expectation))).toEqual(["calls x or y"]);
+    }
+  });
+
   it("treats unreported input tokens as a failure, not as zero", () => {
     expect(failing(grade(turn({ usage: { inputTokens: null, outputTokens: null, totalTokens: null } }), { maxInputTokens: 10 }))).toEqual([
       "≤ 10 input tokens",
@@ -283,7 +290,7 @@ describe("the cases", () => {
   // M52 decisions 13 and 14: the day-of cases run on a trip under way, and the
   // one before the trip asks the same question where the near-now search is
   // not offered. Each fails the turn that took the other road.
-  it("holds the day-of cases to the near-now search, the time moves and the pending swap", () => {
+  it("holds the day-of cases to the near-now search, the time moves and the swap in place", () => {
     const set = JSON.parse(readFileSync(join(import.meta.dirname, "live-set.json"), "utf8")) as {
       prompts: { id: string; text: string; trip?: string }[];
     };
@@ -300,11 +307,17 @@ describe("the cases", () => {
     expect(graded("d-near-before-the-trip", ["find_places_near_now"])).toEqual(["never calls find_places_near_now"]);
     expect(graded("d-running-late", ["read_day", "UpdateActivity", "UpdateActivity"], 2)).toEqual([]);
     expect(graded("d-running-late", ["read_day", "MoveActivity"], 1)).toEqual(["calls UpdateActivity", "never calls MoveActivity"]);
-    expect(graded("d-closed-find-similar", ["find_places_near_now", "UpdateActivity", "AddActivity"], 2)).toEqual([]);
+    expect(graded("d-closed-find-similar", ["read_day", "find_places_near_now", "UpdateActivity"], 1)).toEqual([]);
+    expect(graded("d-closed-find-similar", ["read_day", "search_places", "UpdateActivity"], 1)).toEqual([]);
+    expect(graded("d-closed-find-similar", ["read_day", "find_places_near_now", "UpdateActivity", "AddActivity"], 2)).toEqual([
+      "never calls AddActivity",
+    ]);
     expect(graded("d-closed-find-similar", ["find_places_near_now", "RemoveActivity", "AddActivity"], 2)).toEqual([
       "calls UpdateActivity",
+      "never calls AddActivity",
       "never calls RemoveActivity",
     ]);
+    expect(graded("d-closed-find-similar", ["read_day", "UpdateActivity"], 1)).toEqual(["calls find_places_near_now or search_places"]);
   });
 
   // A prompt that names a trip the runner cannot seed would fail only on a

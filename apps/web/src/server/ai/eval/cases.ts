@@ -147,10 +147,18 @@ export function expectationFor(id: string, trip: TripDetail): EvalExpectation | 
     // another day.
     case "d-running-late":
       return { ...CHANGE, mustCall: ["UpdateActivity"], mustNotCall: ["AddActivity", "RemoveActivity", "MoveActivity"] };
-    // 14(c): a closed stop is kept, marked pending, and something like it near
-    // here is added beside it. Removing it would lose the booking it may hold.
+    // 14(c): the closed stop is swapped in place for something like it nearby,
+    // found by either place search: one UpdateActivity, nothing added beside
+    // it and nothing removed. Expected "mark pending and add" until every run
+    // swapped on 2026-10-24, and Mitchell chose the swap: "we dont need to
+    // remember the closed stop, thats for the history".
     case "d-closed-find-similar":
-      return { ...CHANGE, mustCall: ["UpdateActivity", "AddActivity"], mustNotCall: ["RemoveActivity"] };
+      return {
+        ...CHANGE,
+        mustCall: ["UpdateActivity"],
+        mustCallOneOf: [["find_places_near_now", "search_places"]],
+        mustNotCall: ["AddActivity", "RemoveActivity"],
+      };
     default:
       return undefined;
   }

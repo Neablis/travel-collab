@@ -60,36 +60,12 @@ const ACTOR_ID = "eval-actor";
 const session = vi.hoisted(() => ({ userId: "eval-actor" }));
 vi.mock("@/server/auth", () => ({ auth: async () => ({ user: { id: session.userId } }) }));
 
-// Place search answers from a stub at its port, so a run needs no LocationIQ
-// key and spends no lookups. The stub must not lie about geography: the first
-// full run's stub put every place in Kyoto, and the model correctly refused to
-// cite a "Kyoto" lunch for Shibuya, which read as a model failure. So the place
-// is the query itself, at the centre of the region the trip is in (the bias the
-// real search is given), with no city to contradict the question.
+// Place search answers from a stub at its port (`placeStub.ts`, which says
+// what it must and must not do to stay out of the grade).
 vi.mock("@/server/ai/assistantPorts", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/server/ai/assistantPorts")>();
-  return {
-    ...actual,
-    placeSearchPort: {
-      search: async ({
-        queries,
-        region,
-      }: {
-        queries: readonly string[];
-        region: { minLat: number; maxLat: number; minLng: number; maxLng: number } | null;
-      }) =>
-        queries.map((query) => ({
-          query,
-          places: [
-            {
-              name: query,
-              lat: region ? (region.minLat + region.maxLat) / 2 : 35.68,
-              lng: region ? (region.minLng + region.maxLng) / 2 : 139.76,
-            },
-          ],
-        })),
-    },
-  };
+  const { stubPlaceSearch } = await import("./placeStub");
+  return { ...actual, placeSearchPort: { search: async (input: Parameters<typeof stubPlaceSearch>[0]) => stubPlaceSearch(input) } };
 });
 
 const { handleBeyondTripAskRequest, handleAskRequest } = await import("@/server/ai/handleAskRequest");
