@@ -182,8 +182,9 @@ export interface EvalExpectation {
    */
   mentionsOneOf?: readonly string[];
   /**
-   * The answer names one of these as a whole word, in any case: a place name,
-   * where a substring would let "romantic" name Oman and "scuba" Cuba.
+   * The answer names one of these as a whole word, case-sensitively: a place
+   * name, where a substring would let "romantic" name Oman and "scuba" Cuba,
+   * and any case would let "fine china" name China.
    */
   namesOneOf?: readonly string[];
   /** The turn takes the person to this palette command and nowhere else (`go:trip:<id>:view:Map`). Computed from the seeded trips. */
@@ -197,10 +198,26 @@ export interface EvalCheck {
   detail: string;
 }
 
-/** `name` in `text`, in any case, with no letter on either side of it. */
+/**
+ * Text as a name is compared: composed accents (NFC, so a decomposed
+ * "Curaçao" is the listed one), every apostrophe as `'` (models write
+ * "Côte d’Ivoire"), and any run of whitespace — a non-breaking space, a line
+ * break — as one space.
+ */
+function forNames(text: string): string {
+  return text.normalize("NFC").replace(/[‘’ʼ′]/g, "'").replace(/\s+/g, " ");
+}
+
+/**
+ * `name` in `text` as a whole word, with no letter on either side of it.
+ * Case-sensitive, because a place name is a proper noun: "fine china" is not
+ * China, nor "a jersey" Jersey (KI-2026-10-12-c). A capitalised common word
+ * ("Guinea fowl" opening a sentence, "New Jersey", "Georgia") still passes;
+ * no text rule tells those apart.
+ */
 function namesWholeWord(text: string, name: string): boolean {
-  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return new RegExp(`(?<!\\p{L})${escaped}(?!\\p{L})`, "iu").test(text);
+  const escaped = forNames(name).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`(?<!\\p{L})${escaped}(?!\\p{L})`, "u").test(forNames(text));
 }
 
 function countCalls(record: AskAnalyticsRecord): Map<string, number> {

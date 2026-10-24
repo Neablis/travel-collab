@@ -140,13 +140,32 @@ describe("mentionsOneOf", () => {
 // A place name inside another word is not the place: "romantic" is not Oman,
 // "scuba" is not Cuba, "Indian" is not India.
 describe("namesOneOf", () => {
-  it("passes a whole name in any case, and fails one found only inside a word", () => {
-    expect(failing(grade(turn({}, "Try oman, then Jordan."), { namesOneOf: ["Oman"] }))).toEqual([]);
+  it("passes a whole name, and fails one found only inside a word", () => {
+    expect(failing(grade(turn({}, "Try Oman, then Jordan."), { namesOneOf: ["Oman"] }))).toEqual([]);
     expect(failing(grade(turn({}, "Côte d'Ivoire next."), { namesOneOf: ["Côte d'Ivoire"] }))).toEqual([]);
     expect(failing(grade(turn({}, "A romantic return to Japan."), { namesOneOf: ["Oman"] }))).toEqual(['names "Oman"']);
     expect(failing(grade(turn({}, "Scuba off Okinawa, an Indian summer."), { namesOneOf: ["Cuba", "India"] }))).toEqual([
       'names "Cuba" or "India"',
     ]);
+  });
+
+  // KI-2026-10-12-c: a place name is a proper noun, so the check is
+  // case-sensitive — "fine china" is not China, "a jersey" is not Jersey.
+  it("fails a common noun that is spelled like a place", () => {
+    expect(failing(grade(turn({}, "Pack fine china and a jersey."), { namesOneOf: ["China", "Jersey"] }))).toEqual([
+      'names "China" or "Jersey"',
+    ]);
+    expect(failing(grade(turn({}, "Try the guinea fowl."), { namesOneOf: ["Guinea"] }))).toEqual(['names "Guinea"']);
+  });
+
+  // The way a model writes a name is not always the way the list stores it:
+  // a typographic apostrophe, decomposed accents, a non-breaking space or a
+  // line break inside a two-word name.
+  it("passes a name written with another apostrophe, accent encoding or space", () => {
+    expect(failing(grade(turn({}, "Côte d’Ivoire next."), { namesOneOf: ["Côte d'Ivoire"] }))).toEqual([]);
+    expect(failing(grade(turn({}, "Curaçao next."), { namesOneOf: ["Curaçao"] }))).toEqual([]);
+    expect(failing(grade(turn({}, "South Korea next."), { namesOneOf: ["South Korea"] }))).toEqual([]);
+    expect(failing(grade(turn({}, "South\nKorea next."), { namesOneOf: ["South Korea"] }))).toEqual([]);
   });
 });
 
@@ -209,6 +228,17 @@ describe("the cases", () => {
       `names one of ${next.namesOneOf!.length} places`,
     ]);
     expect(said("Portugal, for the food.")).toEqual([]);
+  });
+
+  // KI-2026-10-12-c: a right answer under its everyday name passes, though
+  // the list stores Türkiye, South Korea, Czechia, Macao, Cabo Verde, Côte
+  // d'Ivoire and the United Kingdom.
+  it("passes a next country named the way people say it", () => {
+    const next = accountExpectationFor("a-next-country", [{ detail: japan, travelling: true }], japan.members[0]!.userId)!;
+    const said = (text: string) => failing(grade(turn({ toolCalls: [{ name: "suggest_next_country", input: {} }] }, text), next));
+    for (const answer of ["Turkey", "Korea", "the Czech Republic", "Macau", "Cape Verde", "the Ivory Coast", "Scotland", "the UK", "the USA"]) {
+      expect(said(`Try ${answer} next.`), answer).toEqual([]);
+    }
   });
 
   // The trip the asker is not going on outranks the right answer to both: an

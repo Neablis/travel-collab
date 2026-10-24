@@ -183,6 +183,28 @@ const ACCOUNT_QUESTION: EvalExpectation = {
 const COUNT_WORDS = ["no", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"];
 
 /**
+ * What people, and models, call a country the list names otherwise
+ * (KI-2026-10-12-c): "Turkey" is as right an answer as "Türkiye". Eval-only;
+ * the product's list keeps one name per code. Nothing here is a common word
+ * that a sentence could use for something else ("Czech", "US", "America").
+ */
+const COUNTRY_ALIASES: Readonly<Record<string, readonly string[]>> = {
+  TR: ["Turkey"],
+  KR: ["Korea"],
+  CZ: ["Czech Republic"],
+  MO: ["Macau"],
+  CV: ["Cape Verde"],
+  CI: ["Ivory Coast"],
+  GB: ["UK", "Britain", "England", "Scotland", "Wales", "Northern Ireland"],
+  US: ["USA", "U.S.A."],
+  MM: ["Burma"],
+  SZ: ["Swaziland"],
+  TL: ["East Timor"],
+  NL: ["Holland"],
+  VA: ["Vatican"],
+};
+
+/**
  * Expectations for the account prompts, from the trips the runner seeded.
  *
  * **The trip the asker is not going on is dropped HERE, by the fixture's own
@@ -261,7 +283,10 @@ export function accountExpectationFor(
       return {
         ...ACCOUNT_QUESTION,
         mustCall: ["suggest_next_country"],
-        namesOneOf: COUNTRIES.filter((country) => !been.has(country.code)).map((country) => country.name),
+        namesOneOf: COUNTRIES.filter((country) => !been.has(country.code)).flatMap((country) => [
+          country.name,
+          ...(COUNTRY_ALIASES[country.code] ?? []),
+        ]),
       };
     }
     case "a-open-trip": {
