@@ -32,6 +32,14 @@ export type TripChatStatus = "loading" | "ready" | "no-access" | "failed";
  */
 export type ChatLine = ChatMessage & { pending?: true };
 
+/**
+ * A send that was not stored, given back with its own words. `behind` is a
+ * send queued after the one that failed and taken back with it: each send
+ * resolves on its own, in the order sent, so the panel can give every one
+ * back with its own @ link (KI-2026-10-14-b) rather than as one joined draft.
+ */
+export type Unsent = { body: string; behind: boolean };
+
 /** A pending line, and the messages already on the page when it was sent. */
 type Sending = { line: Extract<ChatLine, { removed: false }>; before: ReadonlySet<string> };
 
@@ -48,11 +56,12 @@ export type TripChat = {
    * Shows the message at once, as `pending`, and sends it after any still
    * sending, so they are stored in the order they were sent. Resolves `null`
    * once stored. One not stored is taken back with every send queued behind
-   * it, and resolves to all their text, joined, for the composer to give back;
-   * those queued sends resolve `null`. `assistant` asks the assistant too
-   * (M52 decision 18), on the poster's own plan.
+   * it, and each of them resolves to its own text (`Unsent`), the failed one
+   * first and the rest `behind` it in the order sent, for the composer to give
+   * back. `assistant` asks the assistant too (M52 decision 18), on the
+   * poster's own plan.
    */
-  post: (body: string, link?: ChatLink, assistant?: boolean) => Promise<string | null>;
+  post: (body: string, link?: ChatLink, assistant?: boolean) => Promise<Unsent | null>;
   postError: string | null;
   /** The author's new text; resolves false when it was not stored. */
   edit: (messageId: string, body: string) => Promise<boolean>;
@@ -242,9 +251,9 @@ export function useTripChat({
       setQueued([...queued.current, { line, before: new Set(latestPage.current?.messages.map((m) => m.messageId)) }]);
       setPostError(null);
       setChangeError(null);
-      const turn = queue.current.then(async (): Promise<string | null> => {
+      const turn = queue.current.then(async (): Promise<Unsent | null> => {
         // Taken back with an earlier send that was not stored.
-        if (!queued.current.some((s) => s.line === line)) return null;
+        if (!queued.current.some((s) => s.line === line)) return { body, behind: true };
         const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
         const result = await postChatMessage(tripId, { body, ...(link === undefined ? {} : { link }), ...(assistant ? { assistant: true as const } : {}), timeZone });
         if (result.ok) {
@@ -259,8 +268,9 @@ export function useTripChat({
           return null;
         }
         // This send is the queue's head, so every line still pending was sent
-        // after it. They go back with it rather than be stored without it.
-        const unsent = queued.current.map((s) => s.line.body).join(" ");
+        // after it. They go back with it rather than be stored without it, and
+        // each one's own turn, run next, resolves to its own text.
+        const unsent: Unsent = { body, behind: false };
         setQueued([]);
         if (refused(result.error)) return unsent;
         // An ask is refused 402 for the asker's own plan as well, which leaves
