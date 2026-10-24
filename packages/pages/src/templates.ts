@@ -252,7 +252,8 @@ const overviewPage: TemplateSeed = {
  * unbound, so the page hands each one today's day, and on a date that is no
  * trip day each says its own "nothing today" (`resolveDateScope`). The flights
  * widget is the one that speaks before the trip, with its countdown or *Add
- * your flight*, which is what *soon* is for.
+ * your flight*, which is what *soon* is for. The trip chat reads no day, so
+ * it is the same on every date (and absent to a reader who cannot chat).
  *
  * **Undeletable, like the Overview** (Mitchell, 2026-10-23), by its seed key
  * (`isUndeletablePage`), so it can always be reset to this and never lost.
@@ -260,7 +261,7 @@ const overviewPage: TemplateSeed = {
 const todayPage: TemplateSeed = {
   key: TODAY_SEED_KEY,
   title: "Today",
-  description: "Comes with the trip: what is on now and next, today's flights, schedule and weather.",
+  description: "Comes with the trip: what is on now and next, today's flights, schedule and weather, and the trip chat.",
   seedIntoNewTrips: true,
   buildContext: (tripId) => ({ tripId, dateScope: "today" }),
   content: newPageDoc([
@@ -273,6 +274,9 @@ const todayPage: TemplateSeed = {
     heading("Weather and light"),
     block("day.weather"),
     block("day.sun"),
+    // No heading: the card carries its own "Trip chat", and a reader who cannot
+    // see the chat (a share link) gets nothing here, not an orphaned heading.
+    block("chat.recent"),
     heading("The whole trip"),
     notebookLink("overview"),
   ]),
