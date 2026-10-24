@@ -100,9 +100,12 @@ export interface RefusedInsert {
  * constructed it. As a declared `needs: ["proposalBuffer"]` it is stated on the
  * tool instead, which is the first place the `needs` rule pays for itself.
  *
- * Handing back a COPY from `collected()`/`inserts()` rather than the live array
- * keeps the same guarantee the closure had: a reader cannot mutate a turn's
- * record of what the model asked for.
+ * Every record is copied in and copied out — the intents deeply, because
+ * `RawToolIntent.args` is an open, nested object — so neither a reader nor
+ * the caller that handed an intent in can mutate a turn's record of what the
+ * model asked for (KI-2026-09-12-f). Copying the array alone shared every
+ * record. A turn collects tens of intents at most, so the clone costs nothing
+ * that matters.
  */
 export interface ProposalBuffer {
   collect(intent: RawToolIntent): void;
@@ -203,21 +206,22 @@ export function newProposalBuffer(dryRun: ProposalDryRun | null = null): Proposa
   const insertCalls: (string | null)[] = [];
   return {
     collect: (intent) => {
-      intents.push(intent);
+      intents.push(structuredClone(intent));
       intentCalls.push(currentCallId());
     },
     refusalOf: (intent) => {
       if (dryRun === null) return null;
       const next = intents.length;
-      const drop = dryRun([...intents, intent]).find((entry) => entry.index === next);
+      const drop = dryRun([...structuredClone(intents), intent]).find((entry) => entry.index === next);
       return drop === undefined || drop.noOp ? null : drop.message;
     },
-    collected: () => [...intents],
+    collected: () => structuredClone(intents),
     addInsert: (insert) => {
-      inserts.push(insert);
+      inserts.push({ ...insert });
       insertCalls.push(currentCallId());
     },
-    inserts: () => [...inserts],
+    // `CollectedInsert` is flat, so one spread per record is a whole copy.
+    inserts: () => inserts.map((insert) => ({ ...insert })),
     collectedBy: () => [...intentCalls],
     insertsBy: () => [...insertCalls],
   };

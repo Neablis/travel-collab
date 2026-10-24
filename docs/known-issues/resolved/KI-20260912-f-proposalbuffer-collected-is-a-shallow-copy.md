@@ -1,4 +1,4 @@
-### KI-2026-09-12-f — `ProposalBuffer.collected()` copies the array but not the records, so the guarantee its own comment states is only half true
+### KI-2026-09-12-f — `ProposalBuffer.collected()` copies the array but not the records, so the guarantee its own comment states is only half true — RESOLVED
 
 - **Severity:** correctness — latent. No caller is known to mutate a record it reads back; this is the same defect class as `KI-2026-09-11-d`, in the file that entry cited as the *correct* example.
 - **Milestone:** **M9, carried (assigned 2026-09-24, KI pass)** — owned by M9, not a gate box. Parked under Mitchell's 2026-09-01 rule that every open AI known issue belongs to M9; filed after that audit, so it had no owner until now. Listed in `docs/milestones/M9-ai-planning-partner.md` § *Parked 2026-09-24*.
@@ -10,3 +10,13 @@
 - **Cross-reference:** `KI-2026-09-11-d` (resolved, the same class in `ledger.ts`); PR #165's CodeRabbit thread on `ledger.ts:211`.
 - **First noted:** 2026-09-12, while addressing CodeRabbit's review of PR #165.
 - **Re-verified 2026-09-25 (overnight sweep):** STILL TRUE. `deps.ts:106` `collected: () => [...intents]` and `:108` `inserts: () => [...inserts]` are still array-only spreads under the "Handing back a COPY" comment (`:76`); `RawToolIntent.args` is still a mutable `Record<string, unknown>` (`batchResolver.ts:40-45`). Line numbers corrected (were 104/106/74). The consumer at `handleAskRequest.ts:339` reads `intent.args` straight off the returned records.
+- **Resolved, 2026-10-24 (KI sweep):** depth decided as a deep copy on both sides.
+  `newProposalBuffer` stores `structuredClone(intent)` on `collect`, hands back
+  `structuredClone(intents)` from `collected()` and a clone to the dry run in `refusalOf`, and
+  copies each flat `CollectedInsert` (one spread) on `addInsert` and `inserts()`. `args` is parsed
+  model input, so it is always cloneable, and a turn collects tens of intents at most. The comment
+  now says what the code does. Proven by the new `apps/web/src/server/assistant/deps.test.ts`:
+  before the change its three tests failed (`expected [ { type: 'RemoveActivity', …(1) } ] to
+  deeply equal [ { type: 'AddActivity', …(1) } ]` for a mutated read, and the same for a
+  caller mutating the intent it handed in and for a mutated insert); after it, 3/3 pass, along
+  with the buffer's other unit tests (119) and the three ask integration files (196).
