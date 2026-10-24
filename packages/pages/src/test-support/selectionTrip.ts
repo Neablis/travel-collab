@@ -108,7 +108,7 @@ export function selectionTrip(): SelectionTrip {
 
   // No stop here carries coordinates, so no day has a place or a zone — which
   // is what the server would say. The clock widgets have their own trip.
-  const NO_PLACE = { place: null, timeZone: null };
+  const NO_PLACE = { place: null, timeZone: null, weatherPlace: null };
   const globals: TripGlobals = {
     days: [
       { index: 0, date: "2027-06-01", cities: ["Rome"], activityCount: 2, costSubtotal: trip.days[0]!.costSubtotal, ...NO_PLACE },

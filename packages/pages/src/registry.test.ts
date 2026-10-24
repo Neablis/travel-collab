@@ -248,6 +248,7 @@ describe("every widget renders (ADR-037 decision 2)", () => {
     days: [{
       index: 0, date: "2026-08-01", cities: ["Tokyo"], activityCount: 1, costSubtotal: 5000,
       place: { lat: 35.7188, lng: 139.7765, city: "Tokyo" }, timeZone: "Asia/Tokyo",
+      weatherPlace: { lat: 35.7188, lng: 139.7765, city: "Tokyo", timeZone: "Asia/Tokyo" },
     }],
     cities: [{ name: "Tokyo", dayIndexes: [0], activityCount: 1 }],
     tags: [],
@@ -715,7 +716,10 @@ describe("distinctApplies", () => {
 });
 
 // M52's gate box (decision 10, ADR-080 §4): on a page scoped to today, a widget
-// that left its day open reads today, and one its author bound reads that day.
+// that left its day open reads today. Since 2026-10-24 so does one bound to a
+// day: the page's scope supersedes the widget's day (`supersededParams`), whose
+// control the settings panel no longer offers, so a binding stored before
+// cannot hold a widget on a day nobody can see chosen (Mitchell).
 describe("renderMacro on a page scoped to today", () => {
   const { trip, globals } = selectionTrip();
   const plain: WidgetContext = { trip, globals, page: { tripId: trip.tripId }, user: null, today: null };
@@ -724,10 +728,10 @@ describe("renderMacro on a page scoped to today", () => {
   });
   const day = (index: number) => ({ day: { kind: "index", index } });
 
-  it("shows today in an unbound day.detail, and day 1 in one bound to day 1", () => {
+  it("shows today in an unbound day.detail, and in one stored bound to day 1", () => {
     const onDay2 = scopedAt("2027-06-02T12:00:00Z");
     expect(renderMacro(onDay2, "day.detail", {})).toEqual(renderMacro(plain, "day.detail", day(1)));
-    expect(renderMacro(onDay2, "day.detail", day(0))).toEqual(renderMacro(plain, "day.detail", day(0)));
+    expect(renderMacro(onDay2, "day.detail", day(0))).toEqual(renderMacro(plain, "day.detail", day(1)));
   });
 
   // Rome is on days 1 and 2, so a Rome line that dropped the page's day would

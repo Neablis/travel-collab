@@ -775,6 +775,7 @@ describe("NextTripHero — the badge reads where the trip is", () => {
         costSubtotal: 0,
         place: { lat: 38.71, lng: -9.14, city: "Lisbon" },
         timeZone: zone,
+        weatherPlace: { lat: 38.71, lng: -9.14, city: "Lisbon", timeZone: zone },
       })),
       cities: [],
       tags: [],

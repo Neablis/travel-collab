@@ -33,6 +33,11 @@ import { usePersonas } from "../people";
 //
 // Spans rather than `<div>`s, `TripStripBlock`'s reason: a widget node is an
 // inline atom and renders inside a paragraph.
+//
+// **It is a section heading of its own** (PR 541 review), at a page section's
+// level, so in the outline it does not sit under the heading before it. A
+// button's content is presentational, so as a control the heading wraps the
+// button and reads as its name; as a card that opens nothing, the header is it.
 /** Trip chat: the newest messages as a card that opens the conversation. */
 export function ChatRecentBlock({ payload, interactive = true }: { payload: ChatRecentPayload; interactive?: boolean }) {
   const chat = usePhoneAsk()?.chat;
@@ -43,12 +48,15 @@ export function ChatRecentBlock({ payload, interactive = true }: { payload: Chat
   const unreadId = useId();
   const unread = chat?.unread ?? 0;
   const pending = chat?.pending === true;
+  const opens = interactive && !payload.solo && chat !== undefined && !pending;
+  // The header is the heading only where it is not inside the button.
+  const asHeading = opens ? {} : { role: "heading", "aria-level": SECTION_LEVEL };
 
   const content = (
     <>
       <span className="flex items-center gap-2 border-b border-hairline px-3 py-2">
         <MessageCircle aria-hidden className="size-4 shrink-0 text-slate" />
-        <span id={titleId} className="text-sm font-semibold text-ink">
+        <span id={titleId} {...asHeading} className="text-sm font-semibold text-ink">
           Trip chat
         </span>
         {unread > 0 && <span id={unreadId} className="ml-auto text-xs font-medium text-brand">{unreadWords(unread)}</span>}
@@ -85,7 +93,7 @@ export function ChatRecentBlock({ payload, interactive = true }: { payload: Chat
   );
 
   const card = "flex w-full flex-col overflow-hidden rounded-md border border-hairline bg-surface text-left";
-  if (!interactive || payload.solo || chat === undefined || pending) {
+  if (!opens || chat === undefined) {
     return (
       <span role="group" aria-labelledby={titleId} aria-busy={pending || undefined} className={card}>
         {content}
@@ -100,11 +108,16 @@ export function ChatRecentBlock({ payload, interactive = true }: { payload: Chat
     className: cn(card, "h-auto items-stretch justify-start gap-0 p-0 font-normal whitespace-normal"),
   };
   return (
-    <Button variant="ghost" onClick={chat.onOpen} {...control}>
-      {content}
-    </Button>
+    <span role="heading" aria-level={SECTION_LEVEL} className="flex w-full">
+      <Button variant="ghost" onClick={chat.onOpen} {...control}>
+        {content}
+      </Button>
+    </span>
   );
 }
+
+/** A notebook's section headings are `heading(…)`'s default, level 2 (`templates.ts`). */
+const SECTION_LEVEL = 2;
 
 /** One message as the chat draws it, read-only; the app's own change line as the chat's quiet one. */
 function Line({ line, persona }: { line: ChatRecentLine; persona: Persona | undefined | null }): ReactNode {

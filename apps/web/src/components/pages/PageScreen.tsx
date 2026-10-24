@@ -1797,7 +1797,7 @@ export function PageScreen({
                 ) : null}
               </>
             ) : (
-              <WidgetSettings selection={selectedWidget} detail={trip} globals={globals} />
+              <WidgetSettings selection={selectedWidget} detail={trip} globals={globals} page={page.context} />
             )}
           </Card>
         </aside>
@@ -1816,7 +1816,7 @@ export function PageScreen({
         title="Widget settings"
       >
         {selectedWidget === null ? null : (
-          <WidgetSettings selection={selectedWidget} detail={trip} globals={globals} />
+          <WidgetSettings selection={selectedWidget} detail={trip} globals={globals} page={page.context} />
         )}
       </Sheet>
       {/* **The assistant floats in the corner and is available in both modes.**

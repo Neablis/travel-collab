@@ -29,6 +29,7 @@ function setup(days: DaySpec[], homeTimeZone: string | null = "America/Los_Angel
     days: days.map((spec, index) => ({
       index, date: spec.date, cities: spec.cities ?? (spec.city ? [spec.city] : []), activityCount: 1, costSubtotal: 0,
       place: spec.place ? { ...spec.place, city: spec.placeCity ?? spec.city ?? null } : null, timeZone: spec.zone ?? null,
+      weatherPlace: spec.place && spec.zone ? { ...spec.place, city: spec.placeCity ?? spec.city ?? null, timeZone: spec.zone } : null,
     })),
     cities: [], tags: [], description: null, homeTimeZone,
   };
@@ -186,6 +187,29 @@ describe("day.sun", () => {
 
   it("has nothing to show before the globals arrive, rather than guessing a place", () => {
     expect(renderMacro(contextOf({ ...trip(), globals: null }), "day.sun", {}).status).toBe("empty");
+  });
+});
+
+// Mitchell, 2026-10-24: a Today page shows today's sunrise and sunset off the
+// trip's dates too, at the place of the trip day nearest today
+// (`nearestTripDay`): day 1's before the trip, the last day's after it.
+describe("day.sun on a page scoped to today, off the trip's dates", () => {
+  const tokyoThenReykjavik = () =>
+    setup([
+      { date: "2026-06-21", city: "Tokyo", place: TOKYO, zone: "Asia/Tokyo" },
+      { date: "2026-06-22", city: "Reykjavik", place: REYKJAVIK, zone: "Atlantic/Reykjavik" },
+    ]);
+  const todayAt = (iso: string): WidgetContext => {
+    const ctx = contextOf(tokyoThenReykjavik());
+    return { ...ctx, page: { tripId: ctx.trip!.tripId, dateScope: "today" }, now: { at: Date.parse(iso), deviceZone: "UTC" } };
+  };
+
+  it("is today's sun at day 1's place before the trip, and at the last day's after it", () => {
+    const before = sun(todayAt("2026-03-20T03:00:00Z")).rows;
+    expect(before.map((r) => [r.label, r.city])).toEqual([["Today", "Tokyo"]]);
+    // The equinox in Tokyo: about twelve hours of light, not June's fourteen and a half.
+    expect(before[0]!.sunrise).toMatch(/^5:4\d am$/);
+    expect(sun(todayAt("2026-12-21T12:00:00Z")).rows.map((r) => [r.label, r.city, r.daylight])).toEqual([["Today", "Reykjavik", "4h 7m"]]);
   });
 });
 

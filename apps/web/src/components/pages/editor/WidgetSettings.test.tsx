@@ -2,7 +2,7 @@ import { cleanup, render, screen, waitFor, within } from "@testing-library/react
 import userEvent from "@testing-library/user-event";
 import { useCallback, useRef, useState } from "react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { newPageDoc, type PageDoc, type TripGlobals } from "@tc/contracts";
+import { newPageDoc, type PageContext, type PageDoc, type TripGlobals } from "@tc/contracts";
 import { tripDetailFixture } from "@tc/factories";
 import type { Editor } from "@tiptap/react";
 import { NodeSelection } from "@tiptap/pm/state";
@@ -28,8 +28,8 @@ const detail = tripDetailFixture({
 });
 const globals: TripGlobals = {
   days: [
-    { index: 0, date: "2027-06-01", cities: ["Tokyo"], activityCount: 0, costSubtotal: 0, place: null, timeZone: null },
-    { index: 1, date: "2027-06-02", cities: ["Kyoto"], activityCount: 0, costSubtotal: 0, place: null, timeZone: null },
+    { index: 0, date: "2027-06-01", cities: ["Tokyo"], activityCount: 0, costSubtotal: 0, place: null, timeZone: null, weatherPlace: null },
+    { index: 1, date: "2027-06-02", cities: ["Kyoto"], activityCount: 0, costSubtotal: 0, place: null, timeZone: null, weatherPlace: null },
   ],
   cities: [
     { name: "Tokyo", dayIndexes: [0], activityCount: 0 },
@@ -66,7 +66,7 @@ const doc = newPageDoc([
 // re-ran widget 1's node view, which reported "not selected", and the panel
 // closed under the person using it. Every report is resolved per microtask by
 // the screen's own rule (`winningReport`), so this is that, not a stand-in.
-function Harness({ onEditor, value = doc }: { onEditor: (editor: Editor) => void; value?: PageDoc }) {
+function Harness({ onEditor, value = doc, context = { tripId: detail.tripId } }: { onEditor: (editor: Editor) => void; value?: PageDoc; context?: PageContext }) {
   const [selection, setSelection] = useState<SelectedWidget | null>(null);
   const pending = useRef<(SelectedWidget | null)[]>([]);
   const onWidgetSelected = useCallback((next: SelectedWidget | null) => {
@@ -86,13 +86,13 @@ function Harness({ onEditor, value = doc }: { onEditor: (editor: Editor) => void
       <PageEditor
         detail={detail}
         globals={globals}
-        context={{ tripId: detail.tripId }}
+        context={context}
         value={value}
         onChange={() => {}}
         onEditorReady={onEditorReady}
         onWidgetSelected={onWidgetSelected}
       />
-      {selection ? <WidgetSettings selection={selection} detail={detail} globals={globals} /> : null}
+      {selection ? <WidgetSettings selection={selection} detail={detail} globals={globals} page={context} /> : null}
     </>
   );
 }
@@ -217,9 +217,9 @@ describe("WidgetSettings for a sentence for each…", () => {
   const repeatDoc = (name: string, params: Record<string, unknown>) =>
     newPageDoc([{ type: "repeat", attrs: { name, params }, content: [] }]);
 
-  async function openRepeat(value: PageDoc): Promise<Editor> {
+  async function openRepeat(value: PageDoc, context?: PageContext): Promise<Editor> {
     let editor: Editor | undefined;
-    render(<Harness onEditor={(e) => (editor = e)} value={value} />);
+    render(<Harness onEditor={(e) => (editor = e)} value={value} context={context} />);
     await waitFor(() => expect(editor).toBeDefined());
     editor!.view.dispatch(editor!.state.tr.setSelection(NodeSelection.create(editor!.state.doc, 0)));
     await screen.findByTestId("widget-settings");
@@ -301,6 +301,17 @@ describe("WidgetSettings for a sentence for each…", () => {
     expect(lines()).toEqual(["Welcome to Kyoto"]);
   });
 
+  // Review of PR 542: the repeat's panel reads the page's settings as every
+  // other widget's does, so a Today page offers no day the lines would ignore.
+  it("offers no days control on a page scoped to today, and offers it at all days", async () => {
+    await openRepeat(repeatDoc("day.rows", { template: "{index}" }), { tripId: detail.tripId, dateScope: "today" });
+    const panel = within(screen.getByTestId("widget-settings"));
+    expect(panel.queryByRole("button", { name: "A sentence for each day: dates" })).toBeNull();
+    cleanup();
+    await openRepeat(repeatDoc("day.rows", { template: "{index}" }));
+    expect(within(screen.getByTestId("widget-settings")).getByRole("button", { name: "A sentence for each day: dates" })).toBeTruthy();
+  });
+
   it("shows a stored filter and clears it back to every item, and offers no table columns", async () => {
     const editor = await openRepeat(repeatDoc("stop.rows", { kind: "pending", template: "{title}" }));
     const panel = within(screen.getByTestId("widget-settings"));
@@ -357,5 +368,30 @@ describe("WidgetSettings for a spend breakdown", () => {
 
     editor!.commands.undo();
     expect(paramsInDocument(editor!)).toEqual([stored]);
+  });
+});
+
+// Mitchell, 2026-10-24: *"when we have a dynamic today lock to the notebook,
+// selecting a date in the widget doesn't make sense, so remove that setting."*
+// The panel reads the page's settings through `inputsFor`, the one filter.
+describe("WidgetSettings on a page scoped to today", () => {
+  const weatherDoc = newPageDoc([{ type: "paragraph", content: [{ type: "macro", attrs: { name: "day.weather", params: {} } }] }]);
+  const openWeather = async (context: PageContext) => {
+    let editor: Editor | undefined;
+    render(<Harness onEditor={(e) => (editor = e)} value={weatherDoc} context={context} />);
+    await waitFor(() => expect(editor).toBeDefined());
+    editor!.view.dispatch(editor!.state.tr.setSelection(NodeSelection.create(editor!.state.doc, 1)));
+    return within(await screen.findByTestId("widget-settings"));
+  };
+
+  it("offers no days control there, and keeps the rest", async () => {
+    const panel = await openWeather({ tripId: detail.tripId, dateScope: "today" });
+    expect(panel.queryByRole("button", { name: "Weather: dates" })).toBeNull();
+    expect(panel.getByRole("combobox", { name: "City" })).toBeTruthy();
+  });
+
+  it("offers it on a page at all days", async () => {
+    const panel = await openWeather({ tripId: detail.tripId });
+    expect(panel.getByRole("button", { name: "Weather: dates" })).toBeTruthy();
   });
 });

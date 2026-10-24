@@ -178,10 +178,10 @@ function todayValues(day: ForecastDay, units: Units) {
   };
 }
 
-function rowOf(point: TripWeatherPoint, mode: WeatherMode, dayIndex: number, units: Units): WeatherRow {
+function rowOf(point: TripWeatherPoint, mode: WeatherMode, dayIndex: number | "today", units: Units): WeatherRow {
   const base = {
     key: `${dayIndex}:${point.city ?? ""}`,
-    label: dayLabel(dayIndex),
+    label: dayIndex === "today" ? "Today" : dayLabel(dayIndex),
     date: formatShortDate(point.date) ?? point.date,
     city: point.city,
     mode,
@@ -297,7 +297,17 @@ export const dayWeather: MacroDef<WeatherParams, WeatherPayload> = {
 
     const city = pinnedCity(selection.value, item);
     let undated = false;
-    const picked: { point: TripWeatherPoint; mode: WeatherMode; index: number }[] = [];
+    const picked: { point: TripWeatherPoint; mode: WeatherMode; index: number | "today" }[] = [];
+    // A Today page off the trip's dates: today's point, which the route adds
+    // at the trip day nearest today (`todayPointOf`; Mitchell, 2026-10-24).
+    // None, and `narrow`'s empty selection says "nothing today".
+    if (item?.kind === "no-day") {
+      for (const point of slot.value.points) {
+        if (point.placeToday === undefined || point.date !== point.placeToday) continue;
+        if (city !== undefined && point.city !== city) continue;
+        picked.push({ point, mode: weatherModeOf(point, point.placeToday), index: "today" });
+      }
+    }
     for (const index of selection.value.days) {
       const date = trip.days[index]!.date;
       if (date === null) {

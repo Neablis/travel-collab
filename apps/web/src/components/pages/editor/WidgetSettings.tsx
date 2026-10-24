@@ -1,6 +1,6 @@
 "use client";
 import { useEditorState } from "@tiptap/react";
-import type { TripDetail, TripGlobals } from "@tc/contracts";
+import type { PageContext, TripDetail, TripGlobals } from "@tc/contracts";
 import { REPEAT_WIDGETS, getMacro, repeatOver, rescopeRows, type RepeatOver } from "@tc/pages";
 import { Button } from "@/components/ui/button";
 import { Heading } from "@/components/ui/heading";
@@ -54,10 +54,13 @@ export function WidgetSettings({
   selection,
   detail,
   globals,
+  page,
 }: {
   selection: SelectedWidget;
   detail: TripDetail;
   globals: TripGlobals | null;
+  /** The page's settings, which can take over a widget's own (`inputsFor`). */
+  page: PageContext;
 }) {
   const { editor } = selection;
   // Read live from the editor, not from `selection`: that report is
@@ -67,7 +70,7 @@ export function WidgetSettings({
   // keystroke elsewhere in the page does not re-render the panel.
   const widget = useEditorState({ editor, selector: ({ editor: e }) => selectedWidget(e.state) });
   const repeat = useEditorState({ editor, selector: ({ editor: e }) => selectedRepeat(e.state) });
-  if (repeat !== null) return <RepeatSettings editor={editor} repeat={repeat} detail={detail} globals={globals} />;
+  if (repeat !== null) return <RepeatSettings editor={editor} repeat={repeat} detail={detail} globals={globals} page={page} />;
   // A frame where the report has landed and the editor's selection has already
   // moved on (the selected widget was just removed). The screen closes the
   // panel on the next flush; rendering nothing until then beats rendering
@@ -84,7 +87,7 @@ export function WidgetSettings({
           someone may still expect the old behaviour, where one control at the
           top of the page moved every widget on it (§18 removed that). Carried
           over verbatim from the phone bind sheet, which §19 quotes. */}
-      {bindableInputs(widget.name).length > 0 ? (
+      {bindableInputs(widget.name, {}, page).length > 0 ? (
         <Text variant="secondary">This widget only — everything else on the page keeps what it is pointed at.</Text>
       ) : null}
 
@@ -92,6 +95,7 @@ export function WidgetSettings({
         entry={widget}
         detail={detail}
         globals={globals}
+        page={page}
         onChange={(params) => editor.view.dispatch(rebindWidget(editor.state, widget.pos, params))}
         onRescope={(over) =>
           editor.view.dispatch(rescopeWidgetAt(editor.state, widget.pos, REPEAT_WIDGETS[over], rescopeRows(over, widget.params)))
@@ -110,6 +114,7 @@ function WidgetEntry({
   entry,
   detail,
   globals,
+  page,
   onChange,
   onRescope,
   onRemove,
@@ -117,6 +122,7 @@ function WidgetEntry({
   entry: SelectedInline;
   detail: TripDetail;
   globals: TripGlobals | null;
+  page: PageContext;
   onChange: (params: Record<string, unknown>) => void;
   onRescope: (over: RepeatOver) => void;
   onRemove: () => void;
@@ -124,7 +130,8 @@ function WidgetEntry({
   const def = getMacro(entry.name);
   // What names the entry and its Remove button.
   const label = titleOf(entry);
-  const hasInputs = bindableInputs(entry.name).length > 0;
+  const inputs = bindableInputs(entry.name, entry.params, page);
+  const hasInputs = inputs.length > 0;
   // `day.rows`, `stop.rows`, `city.rows` — a table whose collection is a choice.
   const over = repeatOver(entry.name);
 
@@ -143,6 +150,7 @@ function WidgetEntry({
           onChange={onChange}
           layout="stacked"
           idPrefix="widget-settings"
+          inputs={inputs}
         />
       ) : (
         // ADR-035 decision 2: `inputs: []` is a real answer, not an unfinished
