@@ -18,6 +18,7 @@ afterEach(() => {
   server.events.removeAllListeners();
   cleanup();
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 afterAll(() => server.close());
 
@@ -65,19 +66,32 @@ function pendingAddDay(tripId: string): SuggestionChange {
   };
 }
 
+/**
+ * Renders the provider and waits until the poll listens for `focus`.
+ *
+ * The trip on screen is not enough: the poll subscribes in an effect, which
+ * can run after the render that drew the days, so a `focus` dispatched in
+ * between reached no listener (KI-2026-10-19-c, red on CI on PR 499 and PR
+ * 510).
+ */
 async function mount(myRole: TripRole, suggestions: (tripId: string) => SuggestionChange[] = () => []) {
   const fixture = tripDetailFixture();
   const seeded = suggestions(fixture.tripId);
   server.use(...makeTripHandlers(fixture, { myRole, suggestions: seeded }));
   const seen = suggestionRequests();
+  const listens = vi.spyOn(window, "addEventListener");
   render(
     <TripProvider tripId={fixture.tripId}>
       <Probe changeId={seeded[0]?.id} />
     </TripProvider>,
   );
   await waitFor(() => expect(screen.getByTestId("days").textContent).not.toBe("-"));
+  await waitFor(() => expect(listens).toHaveBeenCalledWith("focus", expect.any(Function)));
   return { fixture, seen };
 }
+
+/** The mount's idle read is scheduled in an effect too, so `fire` waits for it. */
+const idleScheduled = (idle: ReturnType<typeof holdIdle>) => waitFor(() => expect(idle.waiting()).toBe(1));
 
 /** Long enough for any read the provider was going to make to reach the network. */
 const settle = () => act(() => new Promise((r) => setTimeout(r, 50)));
@@ -92,6 +106,7 @@ describe("useTripSuggestions, through TripProvider", () => {
     await settle();
     expect(seen).toEqual([]);
 
+    await idleScheduled(idle);
     idle.fire();
     await waitFor(() => expect(screen.getByTestId("suggestions").textContent).toBe("empty"));
     expect(seen).toEqual(["GET suggestions"]);
@@ -108,6 +123,7 @@ describe("useTripSuggestions, through TripProvider", () => {
     act(() => void window.dispatchEvent(new Event("focus")));
     await waitFor(() => expect(seen).toEqual(["GET suggestions"]));
 
+    await idleScheduled(idle);
     idle.fire();
     await settle();
     expect(seen).toEqual(["GET suggestions"]);
@@ -133,6 +149,7 @@ describe("useTripSuggestions, through TripProvider", () => {
         HttpResponse.json({ headSeq: 0, events: [], resync: false, suggestionsRev: "moved" }),
       ),
     );
+    await idleScheduled(idle);
     idle.fire();
     await waitFor(() => expect(seen).toEqual(["GET suggestions"]));
 
@@ -146,7 +163,9 @@ describe("useTripSuggestions, through TripProvider", () => {
   it("reads nothing when it unmounts before idle", async () => {
     const idle = holdIdle();
     const { seen } = await mount("owner");
+    await idleScheduled(idle);
     cleanup();
+    expect(idle.waiting()).toBe(0);
     idle.fire();
     await settle();
     expect(seen).toEqual([]);
