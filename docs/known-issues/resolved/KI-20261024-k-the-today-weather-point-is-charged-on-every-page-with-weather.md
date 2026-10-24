@@ -1,4 +1,4 @@
-### KI-2026-10-24-k — the today weather point is fetched, and charged to `weather-daily`, on every page with weather, not only on Today
+### KI-2026-10-24-k — the today weather point is fetched, and charged to `weather-daily`, on every page with weather, not only on Today — RESOLVED
 
 - **Severity:** cleanup. A small, bounded quota cost; nothing a reader sees.
 - **Area:** `apps/web/src/server/external/weather/tripWeather.ts` (`todayPointOf`, about line 92,
@@ -23,3 +23,15 @@
 - **Cross-reference:** M52 decision 10 (amended 2026-10-24); `docs/contracts/CHANGELOG.md`,
   2026-10-24, "The weather route answers today off the trip's dates"; ADR-052 (MET's limits).
 - **First noted:** 2026-10-24, review of PR 542, rounds 1 and 2.
+- **Resolved:** 2026-10-24, KI sweep, by the entry's fix direction. `buildTripWeather` takes
+  `{ today }` and adds `todayPointOf`'s point only then; the route sets it from `?today=1`;
+  `fetchTripWeather(tripId, { today })` sends it and `tripKeys.weather(tripId, { today })` caches
+  the two answers apart (`trip:<id>:weather:today`, under the same prefix); `useExternalInputs`
+  takes `{ today }` and `PageEditor` passes `context.dateScope === "today"`. Contracts CHANGELOG
+  entry of the same date. Proof, each seen red first: `tripWeather.test.ts`, a non-Today request
+  for a trip with no day in the horizon (`expected [ Array(3) ] to deeply equal [ Array(2) ]`
+  before; after, two points, the forecast port not called, one charge of 2);
+  `useExternalInputs.test.tsx`, an Overview then a Today page (`expected [ null ] to deeply equal
+  [ null, '1' ]`: the Today page was served the Overview's cached answer); and
+  `route.int.test.ts`, a trip three weeks out answering two dates without the flag or with
+  `?today=0` and three with `?today=1`, red both with the flag ignored as true and as false.

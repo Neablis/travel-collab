@@ -163,7 +163,10 @@ export interface TurnNow {
   next: TripNowStop | null;
   /** The last of today's stops whose window has closed. */
   passed: TripNowStop | null;
-  /** Today's city, and where it is when a stop on the day has coordinates (`TripGlobalsDay.place`). */
+  /**
+   * Today's city, and where it is when a stop in it has coordinates
+   * (`TripGlobalsDay.weatherPlace`, so the name and the point are one stop's).
+   */
   city: { name: string; lat: number | null; lng: number | null } | null;
 }
 
@@ -191,7 +194,17 @@ export function turnNowOf(
     timedStops(detail, globals, fallback)
       .filter((stop) => stop.dayId === now.dayId && stop.end <= at)
       .at(-1) ?? null;
-  const cityName = today?.place?.city ?? today?.cities[0] ?? null;
+  // The name and the point from ONE stop: `weatherPlace`, the first city's
+  // located stop (`placesOfDay`), not `place`, which is the clock's and on a
+  // departure day the home airport's (KI-2026-10-24-m). A city no located stop
+  // names keeps its name and gets no point rather than another stop's.
+  const sky = today?.weatherPlace;
+  const city =
+    sky?.city != null
+      ? { name: sky.city, lat: sky.lat, lng: sky.lng }
+      : today?.cities[0] != null
+        ? { name: today.cities[0], lat: null, lng: null }
+        : null;
   return {
     phase: now.phase,
     dayIndex,
@@ -199,7 +212,7 @@ export function turnNowOf(
     current: now.current,
     next: now.next,
     passed,
-    city: cityName === null ? null : { name: cityName, lat: today?.place?.lat ?? null, lng: today?.place?.lng ?? null },
+    city,
   };
 }
 

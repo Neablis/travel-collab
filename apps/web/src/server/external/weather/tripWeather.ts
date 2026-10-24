@@ -178,10 +178,16 @@ async function pool<T>(items: readonly T[], limit: number, work: (item: T) => Pr
  * forecast is asked for only when the date is within `[UTC today − 1, UTC
  * today + 11]` — the horizon with a day's slack either side for time zones;
  * normals are asked for every point.
+ *
+ * `today` is set by a Today page's request (`?today=1`), the one page that
+ * reads `todayPointOf`'s point: any other page would fetch, and charge to the
+ * reader's weather quota, a forecast it never shows (KI-2026-10-24-k).
  */
-export async function buildTripWeather(detail: TripDetail, deps: WeatherDeps): Promise<TripWeather> {
+export async function buildTripWeather(
+  detail: TripDetail, deps: WeatherDeps, { today: withToday = false }: { today?: boolean } = {},
+): Promise<TripWeather> {
   const trips = weatherPointsOf(detail);
-  const todayPoint = todayPointOf(detail, trips, deps.now);
+  const todayPoint = withToday ? todayPointOf(detail, trips, deps.now) : null;
   const planned = todayPoint === null ? trips : [...trips, todayPoint];
   const today = deps.now.getTime();
   const [earliest, latest] = [isoDay(today - DAY_MS), isoDay(today + 11 * DAY_MS)];
