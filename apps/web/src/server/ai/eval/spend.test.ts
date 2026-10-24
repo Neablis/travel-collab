@@ -1,15 +1,20 @@
 import { describe, expect, it } from "vitest";
 import type { TurnLedger } from "@/server/assistant/ledger";
 import { microUsdFor } from "@/server/entitlements/modelRates";
-import { capMicroUsdFrom, DEFAULT_CAP_MICRO_USD, dollars, turnMicroUsd, unpricedModels } from "./spend";
+import { MAX_STEP_OUTPUT_TOKENS } from "@/server/ai/handleAskRequest";
+import { capMicroUsdFrom, DEFAULT_CAP_MICRO_USD, dollars, turnSpend, UNREPORTED_INPUT_TOKENS, unpricedModels } from "./spend";
 
 const AT = new Date("2026-10-05T12:00:00Z");
 
-function ledger(steps: { model: string; tokensIn: number | null; tokensOut: number | null; cacheRead?: number }[], classifier: TurnLedger["cost"]["classifier"]): TurnLedger {
+function ledger(
+  steps: { model: string; tokensIn: number | null; tokensOut: number | null; cacheRead?: number }[],
+  classifier: TurnLedger["cost"]["classifier"],
+  turnTokensIn: number | null = null,
+): TurnLedger {
   return {
     cost: {
       turnId: "t1", userId: "u", endpoint: "ask", outcome: "completed", taskClass: "question", classifierCertainty: null,
-      turn: { model: steps[0]?.model ?? "x", tokensIn: null, tokensOut: null },
+      turn: { model: steps[0]?.model ?? "x", tokensIn: turnTokensIn, tokensOut: null },
       classifier, steps: steps.length, planVersionRef: null, latencyMs: 1, planExamples: null,
     },
     capacity: [],
@@ -24,7 +29,9 @@ function ledger(steps: { model: string; tokensIn: number | null; tokensOut: numb
 
 // The cap is only as good as this number, so it is the ledger's own price,
 // not a second rule: per step at the model each ran on, plus the classifier.
-describe("turnMicroUsd", () => {
+const turnMicroUsd = (turn: TurnLedger, at: Date) => turnSpend(turn, at).microUsd;
+
+describe("turnSpend", () => {
   it("prices each step at its own model, cached reads at the cached rate, and adds the classifier", () => {
     const turn = ledger(
       [
@@ -39,6 +46,58 @@ describe("turnMicroUsd", () => {
       microUsdFor("zai/glm-4.7-flash", 300, 40, AT)!;
     expect(turnMicroUsd(turn, AT)).toBe(expected);
     expect(expected).toBeGreaterThan(0);
+  });
+
+  // KI-2026-10-13-c: a step on a priced model that reported no usage was
+  // null, and the runner added null to nothing — the cap never saw it.
+  const OPUS = "anthropic/claude-opus-5.5";
+  // Opus has a rate from 2026-10-10 on.
+  const LATER = new Date("2026-10-20T12:00:00Z");
+  const opus = (tokensIn: number, tokensOut: number) => microUsdFor(OPUS, tokensIn, tokensOut, LATER)!;
+
+  it("charges a step that reported no usage the turn's unattributed input and the step output ceiling, and says so", () => {
+    const turn = ledger(
+      [
+        { model: OPUS, tokensIn: 5_000, tokensOut: 100 },
+        { model: OPUS, tokensIn: null, tokensOut: null },
+      ],
+      null,
+      20_000,
+    );
+    expect(turnSpend(turn, LATER)).toEqual({
+      microUsd: opus(5_000, 100) + opus(15_000, MAX_STEP_OUTPUT_TOKENS),
+      estimated: [`step 2 (${OPUS}) reported no usage; charged 15000 in / ${MAX_STEP_OUTPUT_TOKENS} out`],
+    });
+  });
+
+  // A turn total that leaves nothing over (the steps it summed were only the
+  // reported ones) must not price the silent step's input at zero.
+  it("charges at least the largest input another step reported", () => {
+    const turn = ledger(
+      [
+        { model: OPUS, tokensIn: 12_000, tokensOut: 100 },
+        { model: OPUS, tokensIn: null, tokensOut: 80 },
+      ],
+      null,
+      12_000,
+    );
+    expect(turnSpend(turn, LATER).microUsd).toBe(opus(12_000, 100) + opus(12_000, 80));
+  });
+
+  it("charges the input ceiling when nothing in the turn says how large a step was", () => {
+    const { microUsd, estimated } = turnSpend(
+      ledger([{ model: OPUS, tokensIn: null, tokensOut: null }], { model: "zai/glm-4.7-flash", tokensIn: null, tokensOut: null }),
+      LATER,
+    );
+    expect(microUsd).toBe(
+      opus(UNREPORTED_INPUT_TOKENS, MAX_STEP_OUTPUT_TOKENS) + microUsdFor("zai/glm-4.7-flash", UNREPORTED_INPUT_TOKENS, MAX_STEP_OUTPUT_TOKENS, LATER)!,
+    );
+    expect(estimated).toHaveLength(2);
+    expect(estimated[1]).toMatch(/^the classifier \(zai\/glm-4\.7-flash\) reported no usage/);
+  });
+
+  it("estimates nothing for a turn that reported everything", () => {
+    expect(turnSpend(ledger([{ model: OPUS, tokensIn: 5_000, tokensOut: 100 }], null, 5_000), LATER).estimated).toEqual([]);
   });
 
   it("is null, not zero, when any part has no rate", () => {
