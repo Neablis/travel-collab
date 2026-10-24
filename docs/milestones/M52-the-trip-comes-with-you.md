@@ -1,7 +1,10 @@
 # M52 — The trip comes with you: a notebook for today, and an assistant the group can ask
 
-**Status:** **Scoped 2026-10-23 with Mitchell: every decision is answered** (the third review,
-recorded under each decision below). The plan is `docs/plans/2026-10-23-M52-the-trip-comes-with-you.md`.
+**Status (2026-10-24): built and merged, gate 11 of 13.** Parts 1–10 are merged (PRs 530–537,
+539, 540, and PR 541, part 9's follow-up). Two boxes wait on Mitchell: the live M33 day-of eval
+and the [walk] (*Exit gate*); `pnpm milestone close M52` refuses until they are ticked.
+**Scoped 2026-10-23 with Mitchell: every decision is answered** (the third review,
+recorded under each decision below). The plan, `docs/plans/2026-10-23-M52-the-trip-comes-with-you.md`, was deleted at the close (it is in git history; what it held worth keeping is in the retro's *Leftovers*).
 Proposed 2026-10-22 by Mitchell, placed after M51 and ahead of M49. His answers are below under *Answered*: what it is for, where it lives (a *During the
 trip* notebook that Overview swaps to), five of the first set of recommendations, and the
 assistant in the group chat. In a second review the same day he answered decisions 11, 12, 17
@@ -235,7 +238,10 @@ chips do.
     - **`trip.flights`**, *Your flights*: today's flights, or the next one. It shows the flight
       number, times in each end's local zone, the countdown to departure, and the confirmation for
       editors. With none, it offers *Add your flight*, which opens the stop editor prefilled as a
-      flight.
+      flight. **As built (part 7, PR 536):** the flight number, the route, the departure time in the leg's
+      zone and the countdown; no arrival time, because a flight stop's window is one day's
+      `HH:MM` and cannot cross midnight (KI-2026-10-23-b, home M44), and no confirmation, which
+      stayed in M44 with `booking` (decision 5, as amended).
     - **`chat.recent`**, *Trip chat* (first written as *Group chat*; amended below: a mini chat
       card, N a setting): the last few messages and *Open chat*. On a solo trip it shows *Add
       other travelers to see the trip chat* instead. It is absent only for a reader the chat
@@ -360,43 +366,272 @@ chips do.
 
 ## Exit gate
 
-- [ ] **Every decision is answered and recorded here** (done at scoping, 2026-10-23), with:
+- [x] **Every decision is answered and recorded here** (done at scoping, 2026-10-23), with:
       - ADR-080 for the phase, *now* and the notebook `dateScope`;
       - ADR-073 and ADR-067 amended for `@assistant`;
       - the contracts changelog entries for `flightNumber` and `dateScope`.
-- [ ] **`tripNow` is right across zones and midnight**: a `fast-check` property over day zones,
+      *Evidence:* decisions 1–21 above, each marked answered; `docs/architecture/ADR-080-a-trip-knows-what-day-it-is.md`;
+      `ADR-073-trip-chat-is-its-own-store.md:94` and `ADR-067-a-multi-change-assistant-turn-is-stored-as-suggestions.md:67`
+      (*Amendment — 2026-10-23 (M52)*); `docs/contracts/CHANGELOG.md:41` (`dateScope`) and `:94` (`flightNumber`).
+- [x] **`tripNow` is right across zones and midnight**: a `fast-check` property over day zones,
       device zones and clock times, seen red with the zone conversion removed.
-- [ ] **The Today scope narrows only unset days**: on a page with the scope, an unbound
+      *Evidence:* `packages/pages/src/now.test.ts:194-212` (arbitraries over day zones, a null zone,
+      device zone and clock); PR 530's body: zone conversion removed in `now.ts` → "9 of 12 failed";
+      CI run 39881259798 green on its head `dc128f6`, merged `e50669c`.
+- [x] **The Today scope narrows only unset days**: on a page with the scope, an unbound
       `day.detail` shows today, and one bound to day 1 still shows day 1. Seen red with the
       scope removed.
-- [ ] **Overview swaps from *soon* through the end date**: a unit test over `pickOverviewPage`
+      *Evidence:* `packages/pages/src/registry.test.ts:727` "shows today in an unbound day.detail, and
+      day 1 in one bound to day 1"; PR 533's body: `renderMacro` passes `item` instead of
+      `item ?? pageScope(...)` → `expected { status: 'ok', … } to deeply equal …`; CI run
+      39913262997 green on `d386be6`, merged `7485b3f`.
+- [x] **Overview swaps from *soon* through the end date**: a unit test over `pickOverviewPage`
       for a planning, soon, under-way and ended trip (decision 9, amended).
-- [ ] **Every trip has *During the trip***: a new trip is seeded with it, and an existing trip
+      *Evidence:* `apps/web/src/lib/overviewPage.test.ts:20-25` (planning and ended → Overview, soon
+      and under way → Today); PR 540, CI run 40029849919 green on `c30298d`, merged `a06fe13`.
+- [x] **Every trip has *During the trip***: a new trip is seeded with it, and an existing trip
       gains it once on its next index load and not again after a delete. An integration test
       shows both.
-- [ ] **Off a trip day, every widget on the seeded page renders its empty-today state**:
+      *Evidence (as amended, decision 9: titled Today, undeletable, so "not again after a delete"
+      became "refused, and restored on a log that shows it deleted"):*
+      `apps/web/src/server/defaultNotebooks.int.test.ts:120` (seeded into a new trip), `:129` (gained
+      once by an older trip), `:149` (refuses delete; comes back under its old id), `:178` (resets);
+      PR 540, CI run 40029849919 (`test / integration` green) on `c30298d`, merged `a06fe13`.
+      Not seen on production: the backfill and the missing delete control wait on the [walk] box.
+- [x] **Off a trip day, every widget on the seeded page renders its empty-today state**:
       `templates.test.ts`, which already renders every seeded widget against new trips, renders
       this page with a clock before the trip and after it. Seen red with one widget's empty
       state removed.
-- [ ] **A trip replayed from a log written before `flightNumber` equals its stored projection.**
+      *Evidence:* `packages/pages/src/templates.test.ts:399` "renders every widget on Today as its
+      empty-today state, before the trip and after it"; PR 540's body: deleting the no-day line in
+      `renderMacro` → `- "day.detail": "Nothing planned today"` / `+ "day.detail": "no days yet"`
+      (it removed every scoped widget's empty-today state at once, not one widget's); CI run
+      40029849919 green on `c30298d`.
+- [x] **A trip replayed from a log written before `flightNumber` equals its stored projection.**
+      *Evidence:* `packages/domain/test/m52-flight-number.test.ts:39` "replays to the trip its stored
+      projection says"; PR 531, CI run 39885558036 green on `5d30d79`, merged `15f0d38`.
 - [ ] **`find_places_near_now` is offered only while the trip is under way, and `read_chat` only
       on a chat-started turn**: a test of the offered tools for a planning trip, an under-way
       trip, an Ask turn and a chat turn. `read_chat`'s default and its ceiling are read from
       `limits.ts`, which a test changing the constant shows. The M33 day-of cases pass, at their
       stated cost.
-- [ ] **Only the asker can accept an `@assistant` proposal**: an integration test is refused
+      *Open (2026-10-24 close):* the tests are in — `apps/web/src/server/assistant/admission.test.ts:528`
+      (`read_chat` on chat turns only) and `:548` (`find_places_near_now` only under way),
+      `tools/chat.test.ts:12-13` (default and ceiling from a mocked `limits.ts`) — but the M33 day-of
+      cases have run only on the simulated model (PR 534). The live eval is Mitchell's to run from
+      `main`; this box ticks on its result and cost.
+- [x] **Only the asker can accept an `@assistant` proposal**: an integration test is refused
       for another editor and accepted for the asker. **A free member's `@assistant` spends
       nothing**, and a paid asker's turn is recorded against the asker.
-- [ ] **The e2e spec passes on `pnpm --filter web test:e2e:ci-like`**, with a trip frozen
+      *Evidence:* `apps/web/src/server/suggestions/suggestions.int.test.ts:673` "refuses another
+      editor a change a chat asker requested, and accepts it from the asker" (and `:490`);
+      `apps/web/src/server/quota.int.test.ts:452` "spends nothing for a free member" and `:463`
+      "charges and records a paid asker's turn against the asker"; PR 532, CI run 39909692730 green
+      on `4605670`, merged `81ed56d`. Not seen on production: Auth.js `auth()` inside `after()` (the
+      reply is written after the response) waits on the [walk] box.
+- [x] **The e2e spec passes on `pnpm --filter web test:e2e:ci-like`**, with a trip frozen
       mid-day: Overview shows *During the trip* with Now and Next; Directions has the right link;
       `@assistant push dinner back an hour` in the chat posts a reply and a card that the asker
       accepts.
-- [ ] **The API answers *now* (decision 21)**: an integration test lists a trip under way for
+      *Evidence:* `apps/web/e2e/m52-today.spec.ts:50` (clock frozen at noon `:53`, Now/Next `:72-74`,
+      the Google Maps link `:78`, `@assistant move dinner back an hour` and Accept `:92-100`);
+      PR 540's body: ci-like "2 passed (setup + spec), no retry", and red with `null` phase; CI run
+      40029849919 (`test / e2e (1/2)` and `(2/2)` green) on `c30298d`, merged `a06fe13`; still green
+      after the follow-up, CI run 40065856615 on PR 541's `9f9b202`, merged `fd00d7f`.
+- [x] **The API answers *now* (decision 21)**: an integration test lists a trip under way for
   `GET /v1/trips?active=true` and not a planning, *soon*, ended or undated one (and one whose zone
   is already tomorrow where UTC is still today), and `GET /v1/trips/{tripId}/today` names the same
   now and next as `tripNow` at a frozen clock, answers a viewer, and refuses a non-member; the
   OpenAPI version and fingerprint move with a changelog line.
+  *Evidence:* `apps/web/src/server/public-api/today.int.test.ts:136` (under way listed; planning,
+  soon, ended, undated not), `:141`/`:146` (its own zone either side of UTC), `:193` (same now and next
+  as `tripNow`), `:225` (a viewer), `:233` (a non-member refused); `API_VERSION = "1.23.0"`
+  (`server/public-api/openapi.ts:43`); `docs/contracts/CHANGELOG.md:16`. PR 539, CI run 39996552313
+  green on `1934399`, merged `dbf7041`. Not called on a deployment: Mitchell checks (the [walk] box).
 - [ ] **[walk]** On a phone, against the PR preview, with a trip dated today: open it from Home,
       tap Directions, and ask `@assistant` in the chat to find lunch nearby. Accept as the asker,
       and see the change line from a second account, which could not accept it.
-- [ ] A retro is appended at gate close.
+      *Open (2026-10-24 close), Mitchell's.* Also waiting on him, and folded into this box:
+      - a two-member trip with no messages shows *No messages yet* and opens the chat (not walked:
+        a free preview account cannot invite, 402);
+      - Today cannot be deleted, and an existing trip gains it, on production (his walk of PR 537's
+        preview saw a deletable Today, but that preview lacked part 9; not rechecked);
+      - `@assistant`'s reply, written in `after()`, reads the session with Auth.js `auth()` on
+        production (part 3; not seen on a deployment);
+      - `GET /v1/trips?active=true` and `/today` called with a token on a deployment (part 10);
+      - no browser walk of PR 537 at its final head `4301073`, or of PR 541 (Trip chat on Today).
+- [x] A retro is appended at gate close. *Evidence:* *Retro*, below (2026-10-24).
+
+## Retro — written 2026-10-24 (11 of 13 boxes ticked)
+
+Written at the close on part 0 (PR 529), with two boxes open and both Mitchell's: the live M33
+day-of eval and the [walk]. `pnpm milestone close M52` refuses until they are ticked; the boxes
+above say what each waits on.
+
+### What went well
+
+- **Ten parts and a follow-up merged in about 33 hours**, 2026-10-23 05:49 UTC (PR 530, `e50669c`)
+  to 2026-10-24 14:46 UTC (PR 541, `fd00d7f`). Every part's `ci` run was green on the head that
+  merged: PR 530 run 39881259798, 531 39885558036, 532 39909692730, 533 39913262997, 534
+  39964482034, 535 39967673321, 536 39976895832, 537 40051346313, 539 39996552313, 540
+  40029849919, 541 40065856615.
+- **Four migrations reached production the day they merged**: `0062`–`0064` (PR 532) by
+  `migrate-production` run 39910676118 at 06:18 UTC, and `0065` (PR 533) by runs 39966013831 and
+  39967934976 from `25a06b6`. PRs 534–541 added none.
+- **The gate tests carry their red evidence in the PR bodies**: PR 530 (zone conversion removed,
+  9 of 12 properties failed), PR 533 (the scope removed from `renderMacro`), PR 540 (the no-day
+  line deleted from `renderMacro`; the e2e red with a `null` phase), PR 531 (two review rounds of
+  red-first `flightNumber` cases).
+- **One pure function answers *now* everywhere.** `tripNow` (`packages/pages/src/now.ts`) feeds
+  Home's badge, the Today scope, the Now and next widget, the assistant's *now* line and the API's
+  `/today`, and `today.int.test.ts:193` checks the API against it at a frozen clock.
+- **Dollars per 1,000 lines added: $11.5** by the guideline's rule (see *Spend*), against M51's
+  $38.6.
+
+### What could be better
+
+- **PR 537 (part 8) took 18 review rounds**, the most of any part (PR 535 took 6, PR 536 took 4).
+  Its scope moved under it three times on Mitchell's walks of the preview (decision 15's
+  amendments of 2026-10-23 and 2026-10-24: the Ask widget dropped, *Group chat* became a mini
+  card titled *Trip chat*, and a solo trip lost its chat everywhere). Each ruling restarted
+  review on new UI. The change: walk a UI part's interaction sketch with Mitchell before review
+  round 1, not on its preview after several rounds.
+- **A part was walked on a preview that lacked the part it depended on.** Mitchell saw a
+  deletable Today on PR 537's preview; undeletable Today is part 9's (PR 540), which that
+  preview did not contain. Nobody rechecked after PR 540 merged, so the box stays open. A walk
+  item should name the part that delivers it and be walked only once that part is in the
+  preview.
+- **The build sessions' spend blocks were not generated before their hand-offs.** Each hand-off
+  carried a few figures (requests, cache reads, agent counts) instead of the block that
+  `writing-a-retro.md` asks for, so the per-type tables, orchestrator share and builder context
+  cannot be computed for five of the six build sessions (*Spend*). The change is the one the
+  guideline already states: run `pnpm -s session-metrics --milestone` before every hand-off and
+  paste the block.
+- **Once-only reds with no cause.** E2E went red once on PRs 533 and 537 and passed on re-run
+  (KI-2026-10-24-c); `prompt.test.ts` and a part 8 test failed once each (two occurrences added
+  to KI-2026-10-14-c); `MacroView`'s paragraph sweep fails about one local run in four
+  (KI-2026-10-24-d); `noRawSyntax` hit its 5 s timeout once (KI-2026-10-24-e). None was re-run to
+  a cause, because job logs cannot be read from the cloud proxy (KI-2026-10-13-f).
+- **Part 10's API was never called on a deployment.** A token has to be minted on the preview,
+  and no session did it (PR 539's body: "Not called against the preview").
+
+### Leftovers
+
+- **The live M33 day-of eval** (box 8): Mitchell runs it from `main`; PR 534 ran the cases only on
+  the simulated model.
+- **The [walk] and the five items folded into it** (two-member *No messages yet*, Today
+  undeletable and backfilled on production, `auth()` inside `after()` on production, the API on a
+  deployment, PR 537's final head and PR 541 unwalked): Mitchell's.
+- **Per-row Accept still reads `useSessionUser`**, not `useKnownSessionUser`
+  (`apps/web/src/components/board/SuggestionActions.tsx:28`, checked on `main` at the close;
+  `useAcceptAll.ts:39` and the chat already use `useKnownSessionUser`). Part 6's review round 6
+  called it minor: the swap is neutral under the provider, but the per-row tests mount none and
+  would all change. Optional; Mitchell's call.
+- **Known issues filed during M52:** KI-2026-10-23-a (an applied library day insert posts no
+  change line), KI-2026-10-23-b (a flight stop cannot cross midnight or record its arrival, home
+  M44), and KI-2026-10-24-a to -j.
+- **From the plan, kept here because the plan is deleted:** a page's `context` (so `dateScope`)
+  is not editable through events (`EditPage`/`PageEdited` carry none,
+  `packages/contracts/src/pageEvents.ts`); it is set when a template is instantiated and restored
+  by a reset. A notebook settings control for `dateScope` therefore needs an edit path first.
+  `dateScope: { date }` is in the contract with no control (decision 10, *Out of scope*).
+
+## Spend
+<!-- session-metrics:milestone v1 -->
+
+Seven sessions. The six build sessions' transcripts went with their containers and none ran
+`session-metrics --milestone` before its hand-off, so their lines are **the figures carried in
+the hand-off text, summed by hand, not generated blocks**. The seventh is this close, whose block
+was generated in its own container and is pasted below unchanged. Recorded dollars are
+`list_sessions` → `external_metadata.usage.cost_usd`, read 2026-10-24.
+
+- `7e2bc2ed`: 54 model requests; cache write 591,774, cache read 7,144,496 (≈ 1.45M units without
+  input); 8 dispatches: 3 `part-reviewer`, 2 `phase-implementer`, 2 `general-purpose` (1 stopped
+  early), 1 `phase-verifier`.
+- `902eb9ce`: 101 requests, 18.04M cache read.
+- `2a2984e3`: 91 requests, 16.5M cache read.
+- `298ccf04`: 113 requests, 20.5M cache read.
+- `9ba33ff6`: 107 requests, 18.85M cache read.
+- `a3966077`: 19 agents, 16.65M units.
+- Summed, where the figures allow: 466 requests and 81.03M cache read over the first five.
+  Units cannot be summed across all six: four report cache reads only, and their cache writes
+  and input are unknown.
+- Recorded cost of the six build sessions (`session_012kApmh…` $59.37, `session_01Lb8nz…` $61.56,
+  `session_01PNNS2…` $52.22, `session_01GkaTE…` $39.17, `session_015dhvK…` $60.84,
+  `session_01QANgL…` $16.32): **$289.48**; their recorded usage is 85.97M units (input + 1.25 ×
+  cache write + 0.1 × cache read). Which transcript id above belongs to which session id was not
+  carried, so the per-session pairing is not stated.
+- This close, `session_019uYS9r…` (the block below covers its transcripts at the time it ran; its
+  recorded cost was $2.28 at that point and grew after):
+
+2 agents, 52 API calls, 881k units. One call is one assistant `message.id`; units = input + 1.25 × cache write + 0.1 × cache read (output excluded, transcripts understate it).
+
+**By agent type**
+
+| Who | Agents | Calls | Avg context | Peak context | Units | Share |
+|---|---|---|---|---|---|---|
+| `general-purpose` | 1 | 48 | 125k | 165k | 788k | 89.4% |
+| `orchestrator` | 1 | 4 | 101k | 104k | 93k | 10.6% |
+
+**Costliest agents**
+
+| Agent (description) | Type | Calls | Avg context | Peak context | Units |
+|---|---|---|---|---|---|
+| Close M52 gate on part 0 | `general-purpose` | 48 | 125k | 165k | 788k |
+
+**Orchestrator turns, by what started them**
+
+| What started the turn | Turns | Units | Share of orchestrator | Idle |
+|---|---|---|---|---|
+| GitHub / trigger notification | 0 | 0 | 0.0% | 0 of 0 (0 units) |
+| Subagent report | 0 | 0 | 0.0% | – |
+| Subagent finished | 0 | 0 | 0.0% | – |
+| Harness | 0 | 0 | 0.0% | – |
+| Human | 3 | 93k | 100.0% | – |
+| Other (unrecognised frame) | 0 | 0 | 0.0% | – |
+
+**Follow-ups and cache re-writes**
+
+| Measure | Count | Tokens |
+|---|---|---|
+| `SendMessage` calls by the orchestrator | 0 | – |
+| Coordinator messages received mid-life, by 0 subagent(s) | 0 | – |
+| Full cache re-writes in subagents | 0 | 0 |
+| — directly after a coordinator message | 0 | 0 |
+
+**Guard hooks**
+
+None recorded.
+
+**Targets**
+
+| Target | Result | Measured |
+|---|---|---|
+| Orchestrator share of units < 15% | met | 10.6% |
+| No phase-implementer averaging > 250k context | not measurable | no phase-implementer transcripts |
+| GitHub wakes per merged part < 5 | met | 0 / 10 = 0.0 |
+| Dollars per 1k lines added < 20 | not measurable | needs --cost-usd and --lines-added |
+| Coordinator-message re-writes <= 2 | met | 0 |
+
+### Spend against the last milestone
+
+M51 has no block (closed with `--no-spend`), so it compares on recorded dollars only: the three M51
+build sessions `list_sessions` shows (`session_013GYZSS…` $68.57, `session_01SL6xKY…` $69.48, `session_01RjW6kg…`
+$220.74, read 2026-10-24) are $358.79 for about 9,300 lines. Lines added for
+M52, by the guideline's rule (PRs 530–537 and 539–541 by GitHub's per-file count, without
+`docs/`, `*.generated.json` and `pnpm-lock.yaml`): 25,222, of which 14,516 are Drizzle snapshots
+in `apps/web/drizzle/meta/`; 10,706 without them.
+
+- **Dollars per 1,000 lines added (under 20):** met by the rule, $11.5 ($289.48 / 25.2k; M51
+  $38.6). Missed without the four migration snapshots, $27.0, which is the fairer reading (as M47
+  read its own).
+- **Orchestrator's share (under 15%):** not measured. Estimated from the carried figures: at least
+  10% (cache reads alone) and about 19% if `7e2bc2ed`'s write-to-read ratio holds for the other
+  four, against the six sessions' 85.97M units, and leaving out `a3966077`'s orchestrator. Read as
+  probably missed. The close session's own block measures 10.6% (met), but it is one session.
+- **A builder's average context (none over 250k):** not measurable; no `phase-implementer`
+  transcript survived.
+- **GitHub wakes per merged part (under 5):** not measurable for the build sessions; 0 in the
+  close.
+- **Cache re-writes after a coordinator message (2 or fewer):** not measurable for the build
+  sessions; 0 in the close.
