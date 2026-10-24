@@ -2,7 +2,7 @@ import { cleanup, render, screen, waitFor, within } from "@testing-library/react
 import userEvent from "@testing-library/user-event";
 import { useCallback, useRef, useState } from "react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { newPageDoc, type PageDoc, type TripGlobals } from "@tc/contracts";
+import { newPageDoc, type PageContext, type PageDoc, type TripGlobals } from "@tc/contracts";
 import { tripDetailFixture } from "@tc/factories";
 import type { Editor } from "@tiptap/react";
 import { NodeSelection } from "@tiptap/pm/state";
@@ -66,7 +66,7 @@ const doc = newPageDoc([
 // re-ran widget 1's node view, which reported "not selected", and the panel
 // closed under the person using it. Every report is resolved per microtask by
 // the screen's own rule (`winningReport`), so this is that, not a stand-in.
-function Harness({ onEditor, value = doc }: { onEditor: (editor: Editor) => void; value?: PageDoc }) {
+function Harness({ onEditor, value = doc, context = { tripId: detail.tripId } }: { onEditor: (editor: Editor) => void; value?: PageDoc; context?: PageContext }) {
   const [selection, setSelection] = useState<SelectedWidget | null>(null);
   const pending = useRef<(SelectedWidget | null)[]>([]);
   const onWidgetSelected = useCallback((next: SelectedWidget | null) => {
@@ -86,13 +86,13 @@ function Harness({ onEditor, value = doc }: { onEditor: (editor: Editor) => void
       <PageEditor
         detail={detail}
         globals={globals}
-        context={{ tripId: detail.tripId }}
+        context={context}
         value={value}
         onChange={() => {}}
         onEditorReady={onEditorReady}
         onWidgetSelected={onWidgetSelected}
       />
-      {selection ? <WidgetSettings selection={selection} detail={detail} globals={globals} /> : null}
+      {selection ? <WidgetSettings selection={selection} detail={detail} globals={globals} page={context} /> : null}
     </>
   );
 }
@@ -357,5 +357,30 @@ describe("WidgetSettings for a spend breakdown", () => {
 
     editor!.commands.undo();
     expect(paramsInDocument(editor!)).toEqual([stored]);
+  });
+});
+
+// Mitchell, 2026-10-24: *"when we have a dynamic today lock to the notebook,
+// selecting a date in the widget doesn't make sense, so remove that setting."*
+// The panel reads the page's settings through `inputsFor`, the one filter.
+describe("WidgetSettings on a page scoped to today", () => {
+  const weatherDoc = newPageDoc([{ type: "paragraph", content: [{ type: "macro", attrs: { name: "day.weather", params: {} } }] }]);
+  const openWeather = async (context: PageContext) => {
+    let editor: Editor | undefined;
+    render(<Harness onEditor={(e) => (editor = e)} value={weatherDoc} context={context} />);
+    await waitFor(() => expect(editor).toBeDefined());
+    editor!.view.dispatch(editor!.state.tr.setSelection(NodeSelection.create(editor!.state.doc, 1)));
+    return within(await screen.findByTestId("widget-settings"));
+  };
+
+  it("offers no days control there, and keeps the rest", async () => {
+    const panel = await openWeather({ tripId: detail.tripId, dateScope: "today" });
+    expect(panel.queryByRole("button", { name: "Weather: dates" })).toBeNull();
+    expect(panel.getByRole("combobox", { name: "City" })).toBeTruthy();
+  });
+
+  it("offers it on a page at all days", async () => {
+    const panel = await openWeather({ tripId: detail.tripId });
+    expect(panel.getByRole("button", { name: "Weather: dates" })).toBeTruthy();
   });
 });

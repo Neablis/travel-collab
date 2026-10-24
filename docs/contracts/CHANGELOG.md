@@ -13,6 +13,16 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-10-24 — The weather route answers today off the trip's dates (M52 part 11)
+- **Changed** (`apps/web`, `GET /api/trips/[tripId]/weather` only; no `packages/contracts`
+  schema changed): when today is none of the trip's days, `TripWeather.points` carries one more
+  `TripWeatherPoint`, dated today at the place of the trip day nearest today (`nearestTripDay`,
+  `@tc/pages`), with `placeToday` equal to its `date`. `TripWeatherPoint`'s "one (day, city) of
+  the trip" now has that one exception.
+- Why: Mitchell, 2026-10-24: a notebook scoped to today shows today's weather before and after
+  the trip too. `day.weather` reads that point only on a Today page off the trip's dates.
+- Consumers updated: `@tc/pages` (`day.weather`); nothing else reads the route.
+- Breaking? no — an older client finds no trip day on that date and shows no row for it.
 ## 2026-10-23 — The trip under way over the API (M52 part 10; public API 1.23.0)
 - **Added** (`apps/web`, the v1 surface only; no `packages/contracts` schema changed):
   `GET /v1/trips?active=true`, the list narrowed to the trips whose `tripNow` phase is

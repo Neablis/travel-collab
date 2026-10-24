@@ -270,6 +270,35 @@ describe("buildTripWeather", () => {
 // server knew the place's zone and the resolver chose from the reader's date.
 // 16:03 UTC on the 27th is 01:03 on the 28th in Kyoto and 06:03 on the 27th in
 // Honolulu.
+// Mitchell, 2026-10-24: a Today page shows today's weather before and after
+// the trip too, at the place of the trip day nearest today (`nearestTripDay`).
+// The route adds that one point; a page without a Today scope never reads it.
+describe("today's point off the trip's dates", () => {
+  const datesAndForecast = (weather: Awaited<ReturnType<typeof buildTripWeather>>) =>
+    weather.points.map((p) => [p.date, p.city, "unavailable" in p.forecast ? p.forecast.unavailable : "forecast"]);
+
+  it("is today at day 1's place before the trip, forecast, beside the trip's own days", async () => {
+    const before = tripOf([{ date: "2026-10-20", stops: [OSLO] }, { date: "2026-10-21", stops: [BERGEN] }]);
+    expect(datesAndForecast(await buildTripWeather(before, deps().deps))).toEqual([
+      ["2026-10-20", "Oslo", "not-in-horizon"],
+      ["2026-10-21", "Bergen", "not-in-horizon"],
+      ["2026-09-24", "Oslo", "forecast"],
+    ]);
+  });
+
+  it("is today at the last day's place after it", async () => {
+    const after = tripOf([{ date: "2026-08-01", stops: [OSLO] }, { date: "2026-08-02", stops: [BERGEN] }]);
+    expect(datesAndForecast(await buildTripWeather(after, deps().deps)).at(-1)).toEqual(["2026-09-24", "Bergen", "forecast"]);
+  });
+
+  it("is not added while today is one of the trip's days, nor for a nearest day with no place", async () => {
+    const during = tripOf([{ date: "2026-09-24", stops: [OSLO] }]);
+    expect(datesAndForecast(await buildTripWeather(during, deps().deps))).toEqual([["2026-09-24", "Oslo", "forecast"]]);
+    const unplaced = tripOf([{ date: "2026-10-20", stops: [] }, { date: "2026-10-21", stops: [BERGEN] }]);
+    expect(datesAndForecast(await buildTripWeather(unplaced, deps().deps))).toEqual([["2026-10-21", "Bergen", "not-in-horizon"]]);
+  });
+});
+
 describe("the place's today, not the reader's (KI-2026-09-27-c)", () => {
   const AT = new Date("2026-09-27T16:03:00Z");
   const KYOTO = { lat: 35.0116, lng: 135.7681, city: "Kyoto" };

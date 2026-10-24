@@ -250,10 +250,17 @@ const overviewPage: TemplateSeed = {
  *
  * `dateScope: "today"` is the whole trick: every widget below leaves its day
  * unbound, so the page hands each one today's day, and on a date that is no
- * trip day each says its own "nothing today" (`resolveDateScope`). The flights
- * widget is the one that speaks before the trip, with its countdown or *Add
- * your flight*, which is what *soon* is for. The trip chat reads no day, so
- * it is the same on every date (and absent to a reader who cannot chat).
+ * trip day each widget about the plan says its own "nothing today"
+ * (`resolveDateScope`). The weather and the sun still show today, at the
+ * place of the trip day nearest it (`nearestTripDay`; Mitchell, 2026-10-24).
+ * The flights widget speaks before the trip, with its countdown or *Add your
+ * flight*, which is what *soon* is for. The trip chat reads no day, so it is
+ * the same on every date (and absent to a reader who cannot chat).
+ *
+ * Its headings changed on 2026-10-24 (*"Weather Report and Sunrise/Sunset"*).
+ * A Today notebook seeded before keeps "Weather and light" until it is reset:
+ * a seeded notebook is the trip's own copy, and there is no template version
+ * to migrate by (decision 9, amended 2026-10-24).
  *
  * **Undeletable, like the Overview** (Mitchell, 2026-10-23), by its seed key
  * (`isUndeletablePage`), so it can always be reset to this and never lost.
@@ -265,17 +272,19 @@ const todayPage: TemplateSeed = {
   seedIntoNewTrips: true,
   buildContext: (tripId) => ({ tripId, dateScope: "today" }),
   content: newPageDoc([
-    para(text("The trip, today: where you are now, what comes next and how to get there. Before the trip and after it, there is nothing here yet.")),
+    para(text("The trip, today: where you are now, what comes next and how to get there. Before the trip and after it, today's weather and light are still here.")),
     block("trip.now"),
     heading("Flights"),
     block("trip.flights"),
     heading("The rest of today"),
     block("day.detail", { view: "schedule" }),
-    heading("Weather and light"),
+    heading("Weather Report"),
     block("day.weather"),
+    heading("Sunrise/Sunset"),
     block("day.sun"),
-    // No heading: the card carries its own "Trip chat", and a reader who cannot
-    // see the chat (a share link) gets nothing here, not an orphaned heading.
+    // No heading: the card is its own "Trip chat" heading (`ChatRecentBlock`),
+    // and a reader who cannot see the chat (a share link) gets nothing here,
+    // not an orphaned heading.
     block("chat.recent"),
     heading("The whole trip"),
     notebookLink("overview"),

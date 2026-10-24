@@ -7,7 +7,7 @@ import type { UnboundNeeds } from "./result";
 import { getMacro } from "./registry";
 import { insertWidget, type InsertResult } from "./insert";
 import { narrow } from "./select";
-import { pageScope } from "./dateScope";
+import { pageScope, withoutSuperseded } from "./dateScope";
 import { needsBooking } from "./needsBooking";
 import { sentenceFieldAt } from "./sentence";
 
@@ -111,7 +111,7 @@ export function resolveRepeat(ctx: WidgetContext, name: string, rawParams: unkno
   if (!split.ok) return { status: "invalid", message: split.message };
   const parsed = def.params.safeParse(split.filters ?? {});
   if (!parsed.success) return { status: "invalid", message: parsed.error.message };
-  const params = parsed.data as Record<string, unknown>;
+  const params = withoutSuperseded(ctx.page, def, parsed.data as Record<string, unknown>);
   const { trip, globals } = ctx;
   if (!trip) return { status: "unbound", over, needs: "trip" };
 

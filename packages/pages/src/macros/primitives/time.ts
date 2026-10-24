@@ -12,6 +12,7 @@ import { dayLabel } from "../../format";
 import { readerClock, toClockLabel } from "../../clockLabel";
 import { sunEvents, type SunEvents, type SunTime } from "../../sun";
 import { VIEW_INPUT, viewParam } from "../../widgetView";
+import { standInDay } from "../../dateScope";
 
 // The two clock widgets of M14 link 11 (widget brainstorm tier B): the sun on a
 // day, and how far a day's clock is from home. Both are day primitives — entity
@@ -96,11 +97,11 @@ function onDay(instant: number, zone: string, date: string, format: TimeFormat):
  * that never climbs that high, or never drops that low, has no edge to draw.
  */
 function sunRow(
-  sun: SunEvents, index: number, city: string | null, at: (t: number) => { minute: number; label: string }, currency: string,
+  sun: SunEvents, index: number | "today", city: string | null, at: (t: number) => { minute: number; label: string }, currency: string,
 ): SunRow {
   const minuteOf = (t: SunTime) => (typeof t === "number" ? at(t).minute : null);
   const base = {
-    key: String(index), label: dayLabel(index), city,
+    key: String(index), label: index === "today" ? "Today" : dayLabel(index), city,
     goldenMorningEndMinute: minuteOf(sun.goldenMorningEnd),
     goldenEveningStartMinute: minuteOf(sun.goldenEveningStart),
   };
@@ -183,8 +184,21 @@ export const daySun: MacroDef<SunParams, SunPayload> = {
   emptyText: "add a stop with a place to see this",
   // Fixed, never computed (ADR-037 decision 5).
   preview: "a ribbon of daylight for each day, sunrise to sunset",
-  resolve: ({ trip, globals, user }: WidgetContext, params, item): MacroResult<SunPayload> => {
+  resolve: ({ trip, globals, user, now }: WidgetContext, params, item): MacroResult<SunPayload> => {
     if (!trip) return needsTrip();
+    // A Today page off the trip's dates: today's sun, at the place of the trip
+    // day nearest today (Mitchell, 2026-10-24). With no place there, the
+    // page's "nothing today".
+    if (item?.kind === "no-day") {
+      const index = globals && now ? standInDay(trip, globals, now) : null;
+      const located = globals && index !== null ? locatedDay(globals, index, params.city) : null;
+      if (!located || !now) return empty();
+      const date = clockIn(located.zone, now.at).date;
+      const format = readerClock(user);
+      const sun = sunEvents(date, located.place.lat, located.place.lng, located.zone);
+      const rows = [sunRow(sun, "today", located.city, (t) => onDay(t, located.zone, date, format), trip.currency)];
+      return ok({ kind: "sun", view: params.view ?? "graphic", axis: axisOf(rows, format), rows, summary: "Sunrise and sunset today." });
+    }
     const selection = narrow(trip, globals, params, item);
     if (selection.status !== "ok") return selection;
     if (!globals) return empty();

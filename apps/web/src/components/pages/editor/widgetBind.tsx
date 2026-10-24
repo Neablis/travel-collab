@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { useLateFocus } from "./useLateFocus";
-import { ActivityKind, travellerIds, type Guest, type TripDetail, type TripGlobals } from "@tc/contracts";
+import { ActivityKind, travellerIds, type Guest, type PageContext, type TripDetail, type TripGlobals } from "@tc/contracts";
 import { LinkTarget, WebAddress, distinctApplies, enumLabel, fieldChoices, getMacro, getPreset, inputsFor, personNames, presetParams, withoutWithheld } from "@tc/pages";
 import type { WidgetInput } from "@tc/pages";
 import { CheckboxField } from "@/components/ui/checkbox";
@@ -42,9 +42,14 @@ import { usePeople, useGuests } from "../people";
 //
 // `params` because a widget's own params can withhold a filter (`inputsFor`):
 // "Spend by tag" has no tag control, "Spend by kind" no kind control. `{}` is
-// the widget with every param at its default.
-export function bindableInputs(name: string, params: Readonly<Record<string, unknown>> = {}): readonly WidgetInput[] {
-  return collapseDays(inputsFor(name, params));
+// the widget with every param at its default. `page` because the page's
+// settings can take one over: no days control on a page scoped to today.
+export function bindableInputs(
+  name: string,
+  params: Readonly<Record<string, unknown>> = {},
+  page?: Pick<PageContext, "dateScope">,
+): readonly WidgetInput[] {
+  return collapseDays(inputsFor(name, params, page));
 }
 
 /**
@@ -88,10 +93,10 @@ export function presetTarget(id: string): { widget: string; params: Record<strin
  * None for a sentence: which collection it reads decides which filters apply,
  * and that is chosen in its settings once it lands (`presetInputs`).
  */
-export function presetBindableInputs(id: string): readonly WidgetInput[] {
+export function presetBindableInputs(id: string, page?: Pick<PageContext, "dateScope">): readonly WidgetInput[] {
   const preset = getPreset(id);
   if (!preset || preset.repeat) return [];
-  return bindableInputs(preset.widget, preset.params).filter((input) => !(input.name in preset.params));
+  return bindableInputs(preset.widget, preset.params, page).filter((input) => !(input.name in preset.params));
 }
 
 // Reading a param back into a select value, kept beside the writer below so the

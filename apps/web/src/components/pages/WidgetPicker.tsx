@@ -1,6 +1,6 @@
 "use client";
 import { useMemo, useRef, useState } from "react";
-import { followsDateScope, getMacro, presetCatalog } from "@tc/pages";
+import { followsDateScope, getMacro, presetCatalog, withoutSuperseded } from "@tc/pages";
 import type { DateScope, WidgetShape } from "@tc/contracts";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -288,7 +288,10 @@ export function WidgetPicker({
   const widgets = useMemo(() => presetCatalog(), []);
   const shown = widgets.filter((w) => widgetMatches(w, query) && (shape === null || w.shape === shape));
   // By the rule the render applies, so the mark cannot promise what it does not do.
-  const followsToday = (w: (typeof widgets)[number]) => dateScope === "today" && followsDateScope(getMacro(w.widget), w.params);
+  const followsToday = (w: (typeof widgets)[number]) => {
+    const def = getMacro(w.widget);
+    return dateScope === "today" && followsDateScope(def, withoutSuperseded({ dateScope }, def, w.params));
+  };
 
   return (
     // **The rail is a header and a scrolling body, not one long column**

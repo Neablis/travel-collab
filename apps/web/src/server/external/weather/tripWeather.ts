@@ -1,5 +1,5 @@
 import { citiesOfDay, stopsInTimeOrder } from "@tc/domain";
-import { clockIn } from "@tc/pages";
+import { clockIn, nearestTripDay } from "@tc/pages";
 import type { ForecastDay, TripDetail, TripWeather, TripWeatherPoint, TypicalMonth } from "@tc/contracts";
 import { readThrough, wouldCharge, type CacheRow, type CacheStore } from "../cache";
 import { pointText, roundForExport, type RoundedPoint } from "../roundedPoint";
@@ -101,6 +101,24 @@ export function weatherPointsOf(detail: TripDetail): PlannedPoint[] {
   return points;
 }
 
+/**
+ * Today's point, when today is none of the trip's days: at the place of the
+ * trip day nearest today (`nearestTripDay`, the clamp a Today page reads its
+ * sun by too), dated today there. A Today page shows it before the trip and
+ * after it (Mitchell, 2026-10-24); no other page reads a point off the trip's
+ * dates. `null` when that day has no place, or today is a trip day already.
+ * Today is read on the first point's clock, as `tripNow` counts to the start.
+ */
+export function todayPointOf(detail: TripDetail, planned: readonly PlannedPoint[], now: Date): PlannedPoint | null {
+  const [first] = planned;
+  if (first === undefined) return null;
+  const index = nearestTripDay(detail.days, localOf(first.zone, now.getTime()).date);
+  const near = index === null ? undefined : planned.find((p) => p.date === detail.days[index]!.date);
+  if (near === undefined) return null;
+  const date = localOf(near.zone, now.getTime()).date;
+  return planned.some((p) => p.date === date) ? null : { ...near, date };
+}
+
 // `power:normals2`: the value changed meaning on 2026-09-27 (KI-2026-09-27-b,
 // extremes → typical days). A new key strands the old rows, which held
 // extremes for up to a month (TTL 30 days), instead of serving them.
@@ -182,7 +200,9 @@ async function pool<T>(items: readonly T[], limit: number, work: (item: T) => Pr
  * normals are asked for every point.
  */
 export async function buildTripWeather(detail: TripDetail, deps: WeatherDeps): Promise<TripWeather> {
-  const planned = weatherPointsOf(detail);
+  const trips = weatherPointsOf(detail);
+  const todayPoint = todayPointOf(detail, trips, deps.now);
+  const planned = todayPoint === null ? trips : [...trips, todayPoint];
   const today = deps.now.getTime();
   const [earliest, latest] = [isoDay(today - DAY_MS), isoDay(today + 11 * DAY_MS)];
   const inHorizon = (date: string) => date >= earliest && date <= latest;

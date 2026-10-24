@@ -390,13 +390,36 @@ describe("templates", () => {
     }
     expect(TEMPLATE_LIBRARY.flatMap((t) => widgetsIn(t.content)).length).toBeGreaterThan(20);
   });
+  // Mitchell, 2026-10-24: *"Instead call it Weather Report and Sunrise/Sunset"*,
+  // two headings each over its own widget. The trip chat takes no heading of
+  // the page's: the card is its own (`ChatRecentBlock`), so a reader who
+  // cannot see the chat gets no orphaned one.
+  it("gives Today's weather and its sunrise and sunset a heading each", () => {
+    const today = DEFAULT_TEMPLATES.find((t) => t.key === "today")!;
+    const outline = (today.content.content ?? []).flatMap((node) =>
+      node.type === "heading" ? [`# ${node.content?.map((n) => ("text" in n ? n.text : "")).join("")}`] : widgetsIn(node).map((w) => String(w.attrs?.name)),
+    );
+    expect(outline).toEqual([
+      "trip.now",
+      "# Flights", "trip.flights",
+      "# The rest of today", "day.detail",
+      "# Weather Report", "day.weather",
+      "# Sunrise/Sunset", "day.sun",
+      "chat.recent",
+      "# The whole trip", "link.internal",
+    ]);
+  });
+
   // M52 decision 10 (Mitchell, 2026-10-22): *"a day filter before trip should
   // show lots of nothing today default values."* Today is always the real
-  // today, so on a date that is no trip day every widget on the page says its
+  // today, so on a date that is no trip day a widget about the plan says its
   // own "nothing today". A trip WITH stops, a flight among them, so an empty
-  // line here is the scope's doing and not an empty plan's. The one widget
-  // that speaks before the trip is the flights countdown (decision 9).
-  it("renders every widget on Today as its empty-today state, before the trip and after it", () => {
+  // line here is the scope's doing and not an empty plan's. The flights
+  // countdown speaks before the trip (decision 9), and the sun does on both
+  // sides of it (Mitchell, 2026-10-24: *"there's still weather and sunsets
+  // today"*), at the nearest trip day's place. The weather would too; the route
+  // here sent no point for today, so it has nothing to show.
+  it("renders the plan's widgets on Today as their empty-today state, before the trip and after it", () => {
     const LISBON = "Europe/Lisbon";
     const castle = { name: "Castelo de São Jorge", lat: 38.7139, lng: -9.1334, city: "Lisbon" };
     const lisbon = dayTrip([
@@ -435,7 +458,7 @@ describe("templates", () => {
       "trip.now": "Nothing planned today",
       "day.detail": "Nothing planned today",
       "day.weather": "Nothing planned today",
-      "day.sun": "Nothing planned today",
+      "day.sun": { status: "ok", rendered: { kind: "block", block: expect.objectContaining({ kind: "sun", rows: [expect.objectContaining({ label: "Today", city: "Lisbon" })] }) } },
     };
     // The chat reads no day, so it is there before the trip and after it.
     const chat = { status: "ok", rendered: { kind: "block", block: expect.objectContaining({ kind: "chat-recent" }) } };
