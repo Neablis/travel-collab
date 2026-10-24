@@ -13,8 +13,9 @@
 // and auth, mocked as the integration lane mocks it; and the clock. Every turn
 // starts at the same instant, 12:30 in Tokyo on the run's date
 // (`evalInstant`), so a day-of prompt meets the same hour of its trip whenever
-// the run is started. Only `Date` is faked, and it still advances, so timers,
-// fetch, deadlines and latencies are real.
+// the run is started. Only `Date`'s origin is moved (`evalClock.ts`): it runs
+// at real speed from there, so timers, fetch, deadlines and every duration and
+// latency are real milliseconds; only the instants it reads are shifted.
 //
 // No model is injected into `handleAskRequest`. That is the point of this
 // lane, and the difference from `replay.int.test.ts`, which replays a
@@ -51,6 +52,7 @@ import type { TurnOrigin } from "@/server/assistant/defineTool";
 import { grade, navigatedTo, retractedText, reviewedChanges, textBeforeToolCall, visibleText, type EvalCheck, type EvalTurn } from "./grade";
 import { capMicroUsdFrom, dollars, turnMicroUsd, unpricedModels } from "./spend";
 import { ACCOUNT_TRIPS, accountTripCommands, evalInstant, japanTodayStart, longTripCommands, type EvalTripName } from "./trips";
+import { pinClock, type EvalClock } from "./evalClock";
 
 const ACTOR_ID = "eval-actor";
 
@@ -135,8 +137,11 @@ const plan =
 let spentMicroUsd = 0;
 let unpricedTurns = 0;
 
-// Read from the real clock as the run loads, before `Date` is faked.
-const pinnedAt = evalInstant(Date.now());
+// Read from the real clock as the run loads, before `Date` is pinned. The
+// report carries both, since the pinned instant says nothing of when it ran.
+const startedAt = Date.now();
+const pinnedAt = evalInstant(startedAt);
+let clock: EvalClock | undefined;
 
 /**
  * A fresh copy of the trip `prompt` runs on, through the real command path:
@@ -304,33 +309,37 @@ beforeAll(async () => {
   if (unpriced.length > 0 && process.env.EVAL_ALLOW_UNPRICED !== "1") {
     throw new Error(`No rate in modelRates.ts for ${unpriced.join(", ")}, so this run's spend cannot be capped. Add the rate, or set EVAL_ALLOW_UNPRICED=1.`);
   }
-  // `shouldAdvanceTime` keeps it moving, so a step deadline can still fire and
-  // chat messages posted in a row are not all at one instant.
-  vi.useFakeTimers({ toFake: ["Date"], shouldAdvanceTime: true });
-  vi.setSystemTime(pinnedAt);
+  clock = pinClock();
+  clock.startTurnAt(pinnedAt);
   await enrol(ACTOR_ID);
 });
 
 afterAll(() => {
   // The report is named for when the run really happened.
-  vi.useRealTimers();
+  clock?.restore();
+  const finishedAt = Date.now();
   const dir = join(import.meta.dirname, "../../../../eval-results");
   mkdirSync(dir, { recursive: true });
-  const file = join(dir, `${new Date().toISOString().replace(/[:.]/g, "-")}.json`);
+  const file = join(dir, `${new Date(finishedAt).toISOString().replace(/[:.]/g, "-")}.json`);
   const models = {
     cheap: process.env.AI_MODEL_CHEAP,
     mid: process.env.AI_MODEL_MID,
     strong: process.env.AI_MODEL_STRONG,
     classifier: process.env.AI_CLASSIFIER_MODEL,
   };
-  writeFileSync(file, `${JSON.stringify({ models, repeat, spentMicroUsd, unpricedTurns, rows, pinnedAt: new Date(pinnedAt).toISOString() }, null, 2)}\n`);
+  const clockReport = {
+    pinnedAt: new Date(pinnedAt).toISOString(),
+    startedAt: new Date(startedAt).toISOString(),
+    finishedAt: new Date(finishedAt).toISOString(),
+  };
+  writeFileSync(file, `${JSON.stringify({ models, repeat, spentMicroUsd, unpricedTurns, rows, ...clockReport }, null, 2)}\n`);
   const failed = rows.flatMap((row) => row.checks.filter((check) => !check.pass).map((check) => `${row.id}#${row.run}: ${check.name}`));
   console.log(
     [
       "",
       `eval: ${rows.length} turns, ${rows.reduce((n, row) => n + row.checks.length, 0)} checks, ${failed.length} failed`,
       `models: ${JSON.stringify(models)}`,
-      `clock: every turn started at ${new Date(pinnedAt).toISOString()} (12:30 JST)`,
+      `clock: every turn started at ${clockReport.pinnedAt} (12:30 JST); the run really ran ${clockReport.startedAt} to ${clockReport.finishedAt}`,
       `retracted: ${rows.reduce((n, row) => n + row.retracted.parts, 0)} text parts, ${rows.reduce((n, row) => n + row.retracted.chars, 0)} chars, across ${rows.filter((row) => row.retracted.parts > 0).length} turns (KI-2026-10-12-h; not a failure)`,
       `spent: ${dollars(spentMicroUsd)} of a ${capMicroUsd === null ? "invalid" : dollars(capMicroUsd)} cap${unpricedTurns > 0 ? ` (+ ${unpricedTurns} unpriced turn(s))` : ""}`,
       ...rows.map(
@@ -355,7 +364,7 @@ describe.skipIf(!confirmed)("the live set, on production's models", () => {
           return;
         }
         // Back to the pinned instant: a turn late in a long run would otherwise meet a later hour of the day.
-        vi.setSystemTime(pinnedAt);
+        clock!.startTurnAt(pinnedAt);
         let turn: Awaited<ReturnType<typeof runTurn>>;
         let expected;
         if (prompt.surface === "account") {
