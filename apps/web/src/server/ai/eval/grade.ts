@@ -151,6 +151,8 @@ export interface EvalExpectation {
   /** A ceiling per tool name, e.g. `{ find_free_time: 1 }`. */
   maxCallsOf?: Record<string, number>;
   mustCall?: readonly string[];
+  /** Each entry is a set of tools of which at least one is called, e.g. either place search. */
+  mustCallOneOf?: readonly (readonly string[])[];
   mustNotCall?: readonly string[];
   /** A change prompt proposes at least one command; a question proposes none. */
   proposes?: boolean;
@@ -261,6 +263,9 @@ export function grade(turn: EvalTurn, expect: EvalExpectation): EvalCheck[] {
   }
   for (const tool of expect.mustCall ?? []) {
     checks.push({ name: `calls ${tool}`, pass: counts.has(tool), detail: trace });
+  }
+  for (const tools of expect.mustCallOneOf ?? []) {
+    checks.push({ name: `calls ${tools.join(" or ")}`, pass: tools.some((tool) => counts.has(tool)), detail: trace });
   }
   for (const tool of expect.mustNotCall ?? []) {
     checks.push({ name: `never calls ${tool}`, pass: !counts.has(tool), detail: trace });
