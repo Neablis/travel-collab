@@ -183,19 +183,26 @@ export function PreferencesProvider({
   // own trip, and the second would store without the first. Carried into
   // every later patch, an earlier dismissal survives whichever answer lands.
   const dismissedHere = useRef<string[]>([]);
+  // **One dismissal save at a time** (KI-2026-10-19-k). A failed one keeps its
+  // offer up with the error, and is dropped from `dismissedHere` so the next
+  // trip's save does not store it and make the offer vanish unasked. That only
+  // holds if the next save is BUILT after the failure is known: sent at once,
+  // it already carried the trip. So each waits for the one before it.
+  const dismissalQueue = useRef<Promise<unknown>>(Promise.resolve());
   const stored = preferences.dismissedPublishOffers;
   const dismissPublishOffer = useCallback(
-    async (tripId: string) => {
-      dismissedHere.current = [...dismissedHere.current, tripId];
-      const all = [...new Set([...(stored ?? []), ...dismissedHere.current])];
-      // Oldest first, so a full list loses the trip dismissed longest ago.
-      const result = await save({ dismissedPublishOffers: all.slice(-MAX_DISMISSED_PUBLISH_OFFERS) });
-      // A failed one keeps its offer up with the error; carried on, the next
-      // trip's save would store it and the offer would vanish unasked.
-      // Overlapping saves can still store it, via a later save sent first;
-      // accepted, as the reader did ask to dismiss that trip.
-      if (!result.ok) dismissedHere.current = dismissedHere.current.filter((id) => id !== tripId);
-      return result;
+    (tripId: string) => {
+      const run = dismissalQueue.current.then(async () => {
+        dismissedHere.current = [...dismissedHere.current, tripId];
+        const all = [...new Set([...(stored ?? []), ...dismissedHere.current])];
+        // Oldest first, so a full list loses the trip dismissed longest ago.
+        const result = await save({ dismissedPublishOffers: all.slice(-MAX_DISMISSED_PUBLISH_OFFERS) });
+        if (!result.ok) dismissedHere.current = dismissedHere.current.filter((id) => id !== tripId);
+        return result;
+      });
+      // `save` resolves and never rejects, so the queue cannot jam on a failure.
+      dismissalQueue.current = run;
+      return run;
     },
     [save, stored],
   );

@@ -20,11 +20,12 @@ import { SIGNUP_REF_COOKIE, normalizeSignupRef, signupRefCookieOptions } from "@
 // the runtime: Next 16 builds a `proxy` file for Node only, never Edge.
 //
 // M15 (ADR-024, superseding ADR-023): this builds its own lightweight
-// Auth.js instance from the shared edge-safe config in `@/lib/authConfig`,
+// Auth.js instance from the shared proxy-safe config in `@/lib/authConfig`,
 // rather than importing `@/server/auth`'s live singleton. This is Auth.js
-// v5's own documented split-config pattern for edge-compatible request
-// interception — it depends on configuration (data), not on the server's
-// auth instance or any server internal, so it needs no lint-wall exemption.
+// v5's own documented split-config pattern for request interception (written
+// for Edge, which no longer applies here) — it depends on configuration
+// (data), not on the server's auth instance or any server internal, so it
+// needs no lint-wall exemption.
 // `authConfig` has no `@/server/*` imports and no database, so this instance
 // stays cheap to construct in front of every matched request.
 const { auth } = NextAuth(authConfig);
@@ -212,6 +213,10 @@ function tripInviteToken(pathname: string): string | null {
 // exactly the `(app)` routes that need a session, plus the invite links:
 //   - `/home`             — Home (apps/web/src/app/(app)/home/page.tsx). Not
 //     `/home/:path*`: nothing lives under it.
+//   - `/plans`            — the plan chooser (`(app)/plans/page.tsx`). It reads
+//     the account's own plan, so signed out it could only say "Your plan
+//     could not be loaded just now" (KI-2026-10-11-b). Its `?checkout=` rides
+//     the callback. A public catalogue for visitors is a separate feature.
 //   - `/trips/:path*`     — matches `/trips/:tripId` and the nested notebook
 //     routes under `/trips/:tripId/pages/...` (Next.js treats a `:path*`
 //     segment as zero-or-more, so the bare prefix matches too, not just
@@ -236,6 +241,8 @@ function tripInviteToken(pathname: string): string | null {
 export const config = {
   matcher: [
     "/home",
+    "/plans",
+    "/account",
     "/trips/:path*",
     "/invite/:path*",
     "/playbooks/:path*",

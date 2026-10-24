@@ -203,15 +203,20 @@ describe("usePublishOfferDismissals", () => {
     isAdmin: false,
   });
 
-  // Two cards on Home, dismissed faster than the first save answers.
-  it("carries an earlier dismissal whose save has not answered into the next", async () => {
+  // Two cards on Home, dismissed faster than the first save answers. The second
+  // save waits for the first (KI-2026-10-19-k), then carries it.
+  it("carries an earlier dismissal into the next, sent after the first has answered", async () => {
     render(
       <PreferencesProvider initialRead={served(["x"])}>
         <DismissProbe />
       </PreferencesProvider>,
     );
-    void dismiss!("a");
+    const first = dismiss!("a");
     void dismiss!("b");
+    await waitFor(() => expect(pending).toHaveLength(1));
+    expect(pending[0]!.patch).toEqual({ dismissedPublishOffers: ["x", "a"] });
+    pending[0]!.settle({ ...served(["x", "a"]).preferences });
+    await first;
     await waitFor(() => expect(pending).toHaveLength(2));
     expect(pending[1]!.patch).toEqual({ dismissedPublishOffers: ["x", "a", "b"] });
   });
@@ -229,6 +234,24 @@ describe("usePublishOfferDismissals", () => {
     pending[0]!.fail();
     await first;
     void dismiss!("b");
+    await waitFor(() => expect(pending).toHaveLength(2));
+    expect(pending[1]!.patch).toEqual({ dismissedPublishOffers: ["b"] });
+  });
+
+  // KI-2026-10-19-k: the same, when the second Dismiss comes before the first
+  // has answered. Sent at once, it carried "a" and stored it although "a"'s
+  // own save failed. Queued behind it, it is built after the failure is known.
+  it("does not store a dismissal whose save failed with one pressed while it was in flight", async () => {
+    render(
+      <PreferencesProvider initialRead={served([])}>
+        <DismissProbe />
+      </PreferencesProvider>,
+    );
+    const first = dismiss!("a");
+    void dismiss!("b");
+    await waitFor(() => expect(pending.length).toBeGreaterThanOrEqual(1));
+    pending[0]!.fail();
+    await first;
     await waitFor(() => expect(pending).toHaveLength(2));
     expect(pending[1]!.patch).toEqual({ dismissedPublishOffers: ["b"] });
   });

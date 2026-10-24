@@ -8,7 +8,7 @@
 // plan claim baked into a token lets a downgraded account keep paid access
 // until the token refreshes, which is an entitlement bug that reads as a
 // billing bug. Sessions are JWT-only (ADR-025) and carry an id and nothing
-// else; the Edge proxy has no database (ADR-024) and its matcher covers no
+// else; the proxy reads no database (ADR-024) and its matcher covers no
 // `/api` path. So this is the only implementation available anyway — stating it
 // is what stops a later "optimisation" from reintroducing the defect.
 //
