@@ -129,22 +129,6 @@ here two days later.
   behaves on a shared trip. It depends on the eve port (the entry above), which is
   deferred.
 
-- **Structured booking fields on a stop — confirmation number, provider, link
-  (asked 2026-09-30).** From an external API consumer's feedback: confirmation
-  numbers live in `notes` today. A stop has `cost`, `bookedBy` (a member id) and
-  `pendingReason: "book"`, but nothing structured for *what* was booked. Mitchell,
-  2026-09-30, chose **not now** over a notes convention (`Confirmation: …` lines
-  a card recognises) — parsing free text is fragile and gives API callers nothing
-  typed. The shape if it comes: an optional `booking: { confirmation?, provider?,
-  url? }` on the activity contract. Additive, but it enters the event payloads
-  that are replayed forever (invariants 1 and 2), so it is placed as a small
-  milestone, not a PR.
-
-  Open questions: which fields actually render (card, editor, the Money notebook?),
-  whether check-in/out times belong here or in the time window, and whether a
-  confirmation number is sensitive enough to hide from viewers and share links.
-  *Placed 2026-10-06 → M44; moved 2026-10-22 → `docs/milestones/M52-the-trip-comes-with-you.md` (decision 5; proposed, not yet scoped). M52's gate deletes this entry at close.*
-
 - **An architecture map that is generated, drift-checked, and annotated at gate
   close (designed 2026-09-18 — `docs/specs/2026-09-18-architecture-map-and-drift-audit-design.md`).**
   Mitchell's ask: a skill that reviews the codebase and keeps an up-to-date

@@ -1,11 +1,13 @@
 # M52 — The trip comes with you: a notebook for today, and an assistant the group can ask
 
-**Status (2026-10-24, late): gate 12 of 13.** Parts 1–11 are merged (PRs 530–537, 539, 540,
+**Status (2026-10-24): closed, gate 13 of 13.** Parts 1–11 are merged (PRs 530–537, 539, 540,
 PR 541, part 9's follow-up, and PR 542). **Part 12** (PR 545, merged `45017f2`: the eval's
 day-of trip runs on a clock pinned to 12:30 in Tokyo) and its follow-up **PR 546** (a realistic
 place stub, the closed stop swapped in place, the sea's tab-order test bounded to one lap) let
-the live M33 day-of cases run, and Mitchell's live runs of 2026-10-24 tick box 8. One box is
-open, the [walk] (*Exit gate*); `pnpm milestone close M52` refuses until it is ticked.
+the live M33 day-of cases run, and Mitchell's live runs of 2026-10-24 tick box 8. The [walk]
+was ticked on his word the same day (*"Confirmed, check them all and finish up"*), and
+`pnpm milestone close M52 --confirm` closed the milestone on part 0 (PR 529). PR 546 awaits
+Mitchell's merge (head `12e73db`, CI run 40138571257 `ci-ok` green).
 **Scoped 2026-10-23 with Mitchell: every decision is answered** (the third review,
 recorded under each decision below). The plan, `docs/plans/2026-10-23-M52-the-trip-comes-with-you.md`, was deleted at the close (it is in git history; what it held worth keeping is in the retro's *Leftovers*).
 Proposed 2026-10-22 by Mitchell, placed after M51 and ahead of M49. His answers are below under *Answered*: what it is for, where it lives (a *During the
@@ -500,7 +502,7 @@ chips do.
       state is a call and latency budget (`cases.ts`: a question at most 4 tool calls and 60 s, a
       change at most 10 and 120 s, plus each case's `mustCall`/`maxCallsOf`), and every passing
       run met it; the per-turn dollars above are recorded for the next comparison. PR 546
-      (`12e73db`, CI run 40138571257, `ci-ok` green) is not yet merged at this update (open on that head; Mitchell is merging it).
+      (`12e73db`, CI run 40138571257, `ci-ok` green) is still open at the close (2026-10-24, re-read over REST: open, unmerged, on that head) and awaits Mitchell's merge.
 - [x] **Only the asker can accept an `@assistant` proposal**: an integration test is refused
       for another editor and accepted for the asker. **A free member's `@assistant` spends
       nothing**, and a paid asker's turn is recorded against the asker.
@@ -529,21 +531,22 @@ chips do.
   as `tripNow`), `:225` (a viewer), `:233` (a non-member refused); `API_VERSION = "1.23.0"`
   (`server/public-api/openapi.ts:43`); `docs/contracts/CHANGELOG.md:16`. PR 539, CI run 39996552313
   green on `1934399`, merged `dbf7041`. Not called on a deployment: Mitchell checks (the [walk] box).
-- [ ] **[walk]** On a phone, against the PR preview, with a trip dated today: open it from Home,
+- [x] **[walk]** On a phone, against the PR preview, with a trip dated today: open it from Home,
       tap Directions, and ask `@assistant` in the chat to find lunch nearby. Accept as the asker,
       and see the change line from a second account, which could not accept it.
-      *Open (2026-10-24 close), Mitchell's.* Also waiting on him, and folded into this box:
-      - a two-member trip with no messages shows *No messages yet* and opens the chat (not walked:
-        a free preview account cannot invite, 402);
-      - ~~Today cannot be deleted, and an existing trip gains it, on production~~ **Seen by
-        Mitchell, 2026-10-24:** *"Today can't be deleted on production now."* (He did not say
-        separately that an older trip gained it; a Today on a pre-part-9 trip that cannot be
-        deleted implies it.)
-      - `@assistant`'s reply, written in `after()`, reads the session with Auth.js `auth()` on
-        production (part 3; not seen on a deployment);
-      - ~~`GET /v1/trips?active=true` and `/today` called with a token on a deployment (part
-        10)~~ **Done by Mitchell, 2026-10-24:** *"Confirmed the api works."*
-      - no browser walk of PR 537 at its final head `4301073`, or of PR 541 (Trip chat on Today).
+      *Evidence (ticked 2026-10-24, on Mitchell's word):* asked to confirm the three items still
+      folded into this box, (1) a two-member trip with no messages shows *No messages yet* and
+      opens the chat, (2) `@assistant`'s reply, written in `after()`, reads the session with
+      Auth.js `auth()` on production (part 3), and (3) browser walks of PR 537 at its final head
+      `4301073` and of PR 541 (Trip chat on Today), Mitchell answered on 2026-10-24: *"Confirmed,
+      check them all and finish up"*. His earlier confirmations the same day stand:
+      - **Today undeletable on production:** *"Today can't be deleted on production now."* (He did
+        not say separately that an older trip gained it; a Today on a pre-part-9 trip that cannot
+        be deleted implies it.)
+      - **Part 10's API on a deployment** (`GET /v1/trips?active=true` and `/today` with a token):
+        *"Confirmed the api works."*
+      - **Part 11** (PR 542, Today's weather and sun at the real day's place): *"Merged, confirmed
+        fixed"*.
 - [x] A retro is appended at gate close. *Evidence:* *Retro*, below (2026-10-24).
 
 ## Retro — written 2026-10-24 (12 of 13 boxes ticked)
@@ -564,13 +567,17 @@ day-of trip was dated from the wall clock. **Part 12** (PR 545, merged `45017f2`
 (`apps/web/src/server/ai/eval/evalClock.ts`), so latency and timers stay real; Mitchell on the
 first version, built on fake timers: *"a great way to introduce a really frustrating flakey
 test"*. Its follow-up **PR 546** (`claude/m52-part12b-eval-places-swap`, head `12e73db`, CI run 40138571257
-`ci-ok` green; not yet merged at this update, Mitchell is merging it) gives the eval a place stub that answers like production
+`ci-ok` green; still open at the close, awaiting Mitchell's merge) gives the eval a place stub that answers like production
 (`placeStub.ts`), swaps a closed stop in place (decision 14(c), amended), and bounds
 `LandingSea.test.tsx`'s tab-order test to one lap after it timed out once in CI on `31835b8`.
 Mitchell's live runs then passed every M52 case (box 8's evidence), so the gate stands at
 **12 of 13**; the [walk] is the only open box. Two known issues came out of it:
 KI-2026-10-24-n (the eval's planning trips are dated 2027-04-01) and -o (the stub echoes a
 title-cased category as a named place).
+*Closed (2026-10-24):* Mitchell confirmed the three items left in the [walk] box (*"Confirmed,
+check them all and finish up"*), the box is ticked on his word, and `pnpm milestone close M52
+--confirm` closed the gate at **13 of 13** on part 0 (PR 529). PR 546 was still open at the
+close and awaits his merge.
 
 ### What went well
 
@@ -642,10 +649,12 @@ title-cased category as a named place).
 ### Leftovers
 
 - **The live M33 day-of eval** (box 8) is done: Mitchell's runs of 2026-10-24 on `main` and
-  PR 546 (box 8's evidence). PR 546 is not yet merged at this update (open on that head; Mitchell is merging it).
-- **The [walk] and the items still folded into it** (two-member *No messages yet*, `auth()`
-  inside `after()` on production, PR 537's final head and PR 541 unwalked): Mitchell's. Today
-  undeletable on production and the API on a deployment were confirmed by him on 2026-10-24.
+  PR 546 (box 8's evidence). PR 546 is still open at the close (2026-10-24, re-read over REST: open, unmerged, on that head) and awaits Mitchell's merge.
+- **The [walk]** is ticked on Mitchell's word of 2026-10-24 (*"Confirmed, check them all and
+  finish up"*), covering two-member *No messages yet*, `auth()` inside `after()` on production,
+  and PR 537's final head and PR 541; Today undeletable on production and the API on a
+  deployment were confirmed by him earlier the same day.
+- **PR 546** (box 8's follow-up) is open at the close and awaits Mitchell's merge.
 - **Part 11** (PR 542) merged and its box is ticked. Its review left three known issues:
   KI-2026-10-24-k (the today weather point is charged on every page with weather), -l (no test
   pins `day.sun` to `weatherPlace.timeZone`) and -m (the assistant names today's city with the
@@ -689,61 +698,73 @@ was generated in its own container and is pasted below unchanged. Recorded dolla
   `session_01QANgL…` $16.32): **$289.48**; their recorded usage is 85.97M units (input + 1.25 ×
   cache write + 0.1 × cache read). Which transcript id above belongs to which session id was not
   carried, so the per-session pairing is not stated.
-- After the block below was generated, this close session also orchestrated part 11 (PR 542)
-  and its part 0 updates: about 4 `part-reviewer`, 4 `phase-implementer` and 3 `general-purpose`
-  dispatches more, counted by hand and not in the block or the targets.
-- Since that update, for part 12 (PR 545), its follow-up (PR 546) and these part 0 updates:
-  about 7 `phase-implementer`, 6 `part-reviewer` and 2 `general-purpose` dispatches more, also
-  counted by hand and not in the block or the targets.
-- This close, `session_019uYS9r…` (the block below covers its transcripts at the time it ran; its
-  recorded cost was $2.28 at that point and grew after):
+- This close, `session_019uYS9r…`, also orchestrated part 11 (PR 542), part 12 (PR 545), its
+  follow-up (PR 546) and the part 0 updates. An earlier version of this block covered only its
+  first 52 calls (2 agents, 881k units, orchestrator 10.6%) and the later dispatches were counted
+  by hand; the block below replaces both, regenerated at the close (2026-10-24, 22:39Z) with
+  `pnpm -s session-metrics --milestone <this session's transcript> --parts 12` over the whole
+  session, its 27 subagents included. Its recorded cost was not re-read at the close.
 
-2 agents, 52 API calls, 881k units. One call is one assistant `message.id`; units = input + 1.25 × cache write + 0.1 × cache read (output excluded, transcripts understate it).
+28 agents, 958 API calls, 13.02M units. One call is one assistant `message.id`; units = input + 1.25 × cache write + 0.1 × cache read (output excluded, transcripts understate it).
 
 **By agent type**
 
 | Who | Agents | Calls | Avg context | Peak context | Units | Share |
 |---|---|---|---|---|---|---|
-| `general-purpose` | 1 | 48 | 125k | 165k | 788k | 89.4% |
-| `orchestrator` | 1 | 4 | 101k | 104k | 93k | 10.6% |
+| `phase-implementer` | 11 | 421 | 82k | 200k | 4.54M | 34.9% |
+| `orchestrator` | 1 | 152 | 221k | 343k | 3.82M | 29.3% |
+| `general-purpose` | 7 | 187 | 105k | 177k | 2.87M | 22.0% |
+| `part-reviewer` | 9 | 198 | 56k | 105k | 1.80M | 13.8% |
 
 **Costliest agents**
 
 | Agent (description) | Type | Calls | Avg context | Peak context | Units |
 |---|---|---|---|---|---|
-| Close M52 gate on part 0 | `general-purpose` | 48 | 125k | 165k | 788k |
+| M52 part 11: Today weather/settings | `phase-implementer` | 101 | 128k | 200k | 1.53M |
+| Close M52 gate on part 0 | `general-purpose` | 59 | 133k | 177k | 991k |
+| Diagnose+fix sun vs weather place | `phase-implementer` | 61 | 83k | 113k | 636k |
+| Fix PR 542 round 3 blocker | `phase-implementer` | 58 | 86k | 120k | 627k |
+| Part 0: box 8 and 14(c) | `general-purpose` | 31 | 103k | 122k | 459k |
+| Part 0 update after part 11 merge | `general-purpose` | 28 | 102k | 126k | 431k |
+| Review M52 part 11 PR 542 | `part-reviewer` | 35 | 78k | 105k | 393k |
+| M52 part 12: pin eval clock | `phase-implementer` | 38 | 70k | 95k | 373k |
+| Audit .env.example against code | `general-purpose` | 23 | 90k | 114k | 338k |
+| M52 part 13: eval stub + swap | `phase-implementer` | 38 | 59k | 78k | 313k |
 
 **Orchestrator turns, by what started them**
 
 | What started the turn | Turns | Units | Share of orchestrator | Idle |
 |---|---|---|---|---|
 | GitHub / trigger notification | 0 | 0 | 0.0% | 0 of 0 (0 units) |
-| Subagent report | 0 | 0 | 0.0% | – |
-| Subagent finished | 0 | 0 | 0.0% | – |
+| Subagent report | 26 | 1.25M | 32.7% | – |
+| Subagent finished | 12 | 645k | 16.9% | – |
 | Harness | 0 | 0 | 0.0% | – |
-| Human | 3 | 93k | 100.0% | – |
+| Human | 29 | 1.92M | 50.4% | – |
 | Other (unrecognised frame) | 0 | 0 | 0.0% | – |
 
 **Follow-ups and cache re-writes**
 
 | Measure | Count | Tokens |
 |---|---|---|
-| `SendMessage` calls by the orchestrator | 0 | – |
+| `SendMessage` calls by the orchestrator | 4 | – |
 | Coordinator messages received mid-life, by 0 subagent(s) | 0 | – |
 | Full cache re-writes in subagents | 0 | 0 |
 | — directly after a coordinator message | 0 | 0 |
 
 **Guard hooks**
 
-None recorded.
+| Hook | deny | note |
+|---|---|---|
+| `implementer-brief-check` | 1 | 0 |
+| `orchestrator-context-limit` | 0 | 29 |
 
 **Targets**
 
 | Target | Result | Measured |
 |---|---|---|
-| Orchestrator share of units < 15% | met | 10.6% |
-| No phase-implementer averaging > 250k context | not measurable | no phase-implementer transcripts |
-| GitHub wakes per merged part < 5 | met | 0 / 10 = 0.0 |
+| Orchestrator share of units < 15% | missed | 29.3% |
+| No phase-implementer averaging > 250k context | met | worst 128k |
+| GitHub wakes per merged part < 5 | met | 0 / 12 = 0.0 |
 | Dollars per 1k lines added < 20 | not measurable | needs --cost-usd and --lines-added |
 | Coordinator-message re-writes <= 2 | met | 0 |
 
@@ -762,10 +783,10 @@ in `apps/web/drizzle/meta/`; 10,706 without them.
 - **Orchestrator's share (under 15%):** not measured. Estimated from the carried figures: at least
   10% (cache reads alone) and about 19% if `7e2bc2ed`'s write-to-read ratio holds for the other
   four, against the six sessions' 85.97M units, and leaving out `a3966077`'s orchestrator. Read as
-  probably missed. The close session's own block measures 10.6% (met), but it is one session.
+  probably missed. The close session's own block measures 29.3% (missed): it orchestrated parts 11 and 12 as well as the close.
 - **A builder's average context (none over 250k):** not measurable; no `phase-implementer`
   transcript survived.
 - **GitHub wakes per merged part (under 5):** not measurable for the build sessions; 0 in the
-  close.
+  close session.
 - **Cache re-writes after a coordinator message (2 or fewer):** not measurable for the build
   sessions; 0 in the close.

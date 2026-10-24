@@ -21,33 +21,25 @@ general setup.
 
 ## Where the work is right now
 
-**M52 — The trip comes with you — is the current milestone: parts 1–12 merged; the gate
-(12 of 13) waits only on Mitchell's walk** (`docs/milestones/M52-the-trip-comes-with-you.md`).
-Parts 1–10 merged 2026-10-23/24 (PRs 530–537, 539, 540, and PR 541, part 9's follow-up),
-migrations `0062`–`0065` applied in production. **Part 11** (PR 542, merged `8632207`
-2026-10-24, CI run 40121847661 green, no migration) built Mitchell's 2026-10-24 decisions (M52
-decisions 9 and 10, amended; ADR-080 amended): Today's weather and sunrise/sunset on the real
-day at the nearest trip day's place, sun and weather at one place (`TripGlobalsDay.weatherPlace`,
-public API 1.24.0) while the day's clock is unchanged, and notebook settings superseding widget
-settings (`NOTEBOOK_SETTINGS`). The Today-scope box is ticked on it, with Mitchell's walk of its
-preview (*"Merged, confirmed fixed"*). Its leftovers are KI-2026-10-24-k, -l and -m.
-**Part 12** (PR 545, merged `45017f2` 2026-10-24, CI run 40133300859 green) pins the eval's
-day-of clock to 12:30 in Tokyo by an offset on `Date`; its follow-up **PR 546**
-(`claude/m52-part12b-eval-places-swap`, head `12e73db`, CI run 40138571257 `ci-ok` green; not yet
-merged at this update, Mitchell is merging it) adds a realistic eval place stub, swaps a closed
-stop in place (decision 14(c), amended by Mitchell 2026-10-24) and bounds `LandingSea`'s
-tab-order test to one lap. Mitchell's live runs on 2026-10-24 passed every M52 case, so box 8
-(the M33 day-of cases) is ticked. New known issues: KI-2026-10-24-n and -o. Part 0 is PR 529
-(`claude/serene-tesla-quoyte`, draft), carrying the boxes and the retro; the plan is deleted.
-`pnpm milestone close M52` refuses on the one open box, as it should.
+**M49 — A cover can come from anywhere, and be framed where you want it — is the current
+milestone** (`TODO.md`'s order after M52, M48 skipped as parked; `pnpm milestone close M52`
+moved the marker). It is proposed, not scoped: `docs/milestones/M49-covers-from-anywhere.md`.
 
-**Next action:** Mitchell's: merge PR 546, then the [walk] on a phone with a trip dated today, which also covers: a
-two-member trip's *No messages yet* opening the chat (a free preview account cannot invite,
-402); `@assistant`'s reply under Auth.js `auth()` inside `after()` on production; walks of PR
-537 at its final head `4301073` and of PR 541. (Mitchell confirmed on 2026-10-24 that Today
-cannot be deleted on production and that part 10's API works on a deployment.) Then tick the
-box, `pnpm milestone close M52 --confirm`, mark PR 529 ready, and Mitchell merges it. After
-M52 the order is M49 → M43 → M44, with M48 parked.
+**M52 closed 2026-10-24, gate 13 of 13**, by `pnpm milestone close M52 --confirm` on part 0
+(PR 529, `claude/serene-tesla-quoyte`). Parts 1–12 merged 2026-10-23/24 (PRs 530–537, 539–542,
+545), migrations `0062`–`0065` applied in production. The [walk] box was ticked on Mitchell's
+word, 2026-10-24: *"Confirmed, check them all and finish up"* (two-member *No messages yet*,
+`auth()` inside `after()` on production, walks of PR 537 at `4301073` and PR 541), beside his
+earlier confirmations (Today undeletable on production; part 10's API; part 11 *"Merged,
+confirmed fixed"*). Evidence, retro and spend are in
+`docs/milestones/M52-the-trip-comes-with-you.md`.
+
+**Next action:** Mitchell's: merge PR 546 (part 12's follow-up: eval place stub, closed stop
+swapped in place, `LandingSea` tab-order bound; head `12e73db`, CI run 40138571257 `ci-ok` green,
+still open at the close), then merge part 0, PR 529. Then plan M49 with him (`plan-a-milestone`).
+Open follow-ups from M52: KI-2026-10-24-a to -o (`docs/known-issues/open/`). Outside M52:
+PR 491 (dependabot) is red, and GitHub reports 5 dependabot vulnerabilities on `main` (2 high,
+3 moderate). After M49 the order is M43 → M44, with M48 parked.
 
 **M51 closed 2026-10-22, gate 11 of 11**, on Mitchell's ruling at the close: his walk at 390, 1440
 and 3440 works, and the parts are merged (PRs 506–511, 513, 514, 516; part 0 PR 505 merged early;
@@ -97,7 +89,7 @@ Also merged beside it: `docs/guidelines/building-with-judgment.md` (PR 468).
 **M45 closed 2026-10-13, gate 12 of 12** (part 0 PR 420); evidence and retro in
 `docs/milestones/M45-the-assistant-beyond-one-trip.md`. Accepted gap: KI-2026-10-13-a.
 
-Order: `… M42 ✓ → M45 ✓ → M46 ✓ → M47 ✓ → M50 ✓ → M51 ✓ → M52 → M48 (parked) → M49 → M43 → M44`; the M51 reorder is in
+Order: `… M42 ✓ → M45 ✓ → M46 ✓ → M47 ✓ → M50 ✓ → M51 ✓ → M52 ✓ → M48 (parked) → M49 → M43 → M44`; the M51 reorder is in
 `docs/milestones/README.md`, *2026-10-20 — minted: M51, ahead of M49*. Earlier closed milestones'
 narrative is in `docs/retros/2026-10-16-status-archive.md` and each milestone's own file.
 
