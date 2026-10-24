@@ -44,6 +44,7 @@ function day(over: Partial<DiscoverDay> = {}): DiscoverDay {
     description: null,
     tags: [],
     namedTags: [],
+    linkedTags: [],
     ...over,
   };
 }

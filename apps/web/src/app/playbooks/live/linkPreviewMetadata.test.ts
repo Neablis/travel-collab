@@ -200,6 +200,7 @@ describe("/playbooks/day/<slug>-<id> metadata", () => {
       description: null,
       tags: [],
       namedTags: [],
+      linkedTags: [],
     } satisfies SharedDayView,
     rating: { rating: null, reviewCount: 0 },
   });

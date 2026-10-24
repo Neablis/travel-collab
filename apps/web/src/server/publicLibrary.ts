@@ -90,7 +90,7 @@ export async function dayPageView(
       // In the day's cache entry, so a pick or a clear clears `dayTag` too.
       cover,
       // Listed: this path serves only days in the public library.
-      ...whatKindOfDay(day.stops, true),
+      ...whatKindOfDay(day.stops, true, await live.globalPageTags()),
     },
   };
 }

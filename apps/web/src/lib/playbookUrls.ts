@@ -137,14 +137,16 @@ export function countryCityPath(countryPageSlug: string, citySlug: string): stri
 }
 
 /**
- * Where a day's tag chip leads: its tag's page when the day's description
- * names the tag, so the day is on that page (ADR-070 §4); null otherwise. A
- * day of meals with one bar carries a Nightlife chip, and the Nightlife page
- * does not list it, or does not exist.
+ * Where a day's tag chip leads: its tag's global page when the tag has one
+ * (the day's `linkedTags`, from the published lattice), so a chip is never
+ * text for a page that exists nor a link to one that does not. A day of
+ * meals with one bar links its Drinks chip when Drinks has a page, even
+ * though the day is on no Drinks page — the chip names the page, not the
+ * day's membership of it.
  */
-export function namedTagPath(named: readonly ActivityTagDescribed[]): (tag: ActivityTag) => string | null {
+export function linkedTagPath(linked: readonly ActivityTagDescribed[]): (tag: ActivityTag) => string | null {
   return (tag) => {
-    const page = named.find((name) => name === tag);
+    const page = linked.find((name) => name === tag);
     return page === undefined ? null : tagPath(page);
   };
 }

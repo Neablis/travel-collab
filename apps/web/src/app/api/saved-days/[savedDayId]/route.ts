@@ -60,6 +60,7 @@ export async function GET(
     description: view.description,
     tags: view.tags,
     namedTags: view.namedTags,
+    linkedTags: view.linkedTags,
   });
 }
 

@@ -1326,6 +1326,7 @@ export async function fetchSavedDay(
     description: string | null;
     tags: ActivityTag[];
     namedTags: ActivityTagDescribed[];
+    linkedTags: ActivityTagDescribed[];
   }>
 > {
   try {
@@ -1341,12 +1342,16 @@ export async function fetchSavedDay(
         description?: unknown;
         tags?: unknown;
         namedTags?: unknown;
+        linkedTags?: unknown;
       };
       return {
         // What kind of day it is (M42 D9). Absent (an older server) is none.
         description: typeof body.description === "string" ? body.description : null,
         tags: body.tags == null ? [] : z.array(ActivityTag).parse(body.tags),
         namedTags: body.namedTags == null ? [] : z.array(ActivityTagDescribed).parse(body.namedTags),
+        // Which chips link (the lattice's global pages). Absent (an older
+        // server) is none, as `namedTags` above.
+        linkedTags: body.linkedTags == null ? [] : z.array(ActivityTagDescribed).parse(body.linkedTags),
         // An operator hid it, and why — sent to the author only
         // (KI-2026-09-23-i). Absent (an older server) reads as "not hidden".
         moderation: body.moderation == null ? null : SavedDayModeration.parse(body.moderation),
