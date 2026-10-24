@@ -16,6 +16,17 @@ not by anybody remembering. That automation exists because the rule was being
 skipped: M23's entry survived its own gate closing on 2026-09-19 and was still
 here two days later.
 
+- **Recently deleted: restore any notebook (asked 2026-10-24).** Considered for M52 and not
+  taken: Mitchell chose *Reset to default* for the undeletable *Today* notebook instead
+  (decision 9). The idea is a *Recently deleted* list in the notebook index, from which any
+  deleted notebook comes back: fold the page's events up to just before its `PageDeleted`, and
+  recreate it under the **same page id**, so links, history and anything citing the id keep
+  working. Open questions: how long a deleted notebook stays restorable, who may restore it (the
+  editor rule that deletes it, or the owner only), and how it meets
+  `instantiateMissingDefaults`, which re-adds a deleted seed under its old id.
+  KI-2026-09-22-c records what folding a page's history back must not do. Template-version tracking is **not** part of this:
+  Mitchell ruled it out on 2026-10-24 (M52 decision 9).
+
 - **Live flight status: delays, gate changes and a heads-up when they change (asked
   2026-10-22).** Left out of M52 by Mitchell (decision 4). M52 gives a flight leg its number, its
   times in each end's zone and a countdown, with no vendor. Live status needs a paid flight-data
@@ -117,22 +128,6 @@ here two days later.
   §6 leaves open: whether conversation text is stored at all, and how memory
   behaves on a shared trip. It depends on the eve port (the entry above), which is
   deferred.
-
-- **Structured booking fields on a stop — confirmation number, provider, link
-  (asked 2026-09-30).** From an external API consumer's feedback: confirmation
-  numbers live in `notes` today. A stop has `cost`, `bookedBy` (a member id) and
-  `pendingReason: "book"`, but nothing structured for *what* was booked. Mitchell,
-  2026-09-30, chose **not now** over a notes convention (`Confirmation: …` lines
-  a card recognises) — parsing free text is fragile and gives API callers nothing
-  typed. The shape if it comes: an optional `booking: { confirmation?, provider?,
-  url? }` on the activity contract. Additive, but it enters the event payloads
-  that are replayed forever (invariants 1 and 2), so it is placed as a small
-  milestone, not a PR.
-
-  Open questions: which fields actually render (card, editor, the Money notebook?),
-  whether check-in/out times belong here or in the time window, and whether a
-  confirmation number is sensitive enough to hide from viewers and share links.
-  *Placed 2026-10-06 → M44; moved 2026-10-22 → `docs/milestones/M52-the-trip-comes-with-you.md` (decision 5; proposed, not yet scoped). M52's gate deletes this entry at close.*
 
 - **An architecture map that is generated, drift-checked, and annotated at gate
   close (designed 2026-09-18 — `docs/specs/2026-09-18-architecture-map-and-drift-audit-design.md`).**

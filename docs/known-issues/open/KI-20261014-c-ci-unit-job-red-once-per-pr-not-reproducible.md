@@ -94,3 +94,19 @@
   duplicates: KI-2026-10-05-b, KI-2026-10-11-a, KI-2026-10-12-a, KI-2026-10-12-f.
 - **First noted:** 2026-10-14, during M46's walk changes; the four instances from 2026-10-05 to
   2026-10-12.
+- **Added 2026-10-24 (M52), two more once-only reds, neither re-run to a cause:**
+  - `apps/web/src/server/assistant/prompt.test.ts`, the untrusted-value fence: it failed once
+    and passed unchanged. The failing test was not recorded. The file's only generated case is the
+    unseeded property *holds over generated strings: nothing closes it, and nothing is lost*
+    (about line 78), so it belongs with the seed-pinning fix above unless a recorded failure says
+    otherwise.
+  - `apps/web/src/components/board/TripBoardScreen.test.tsx:1987`, *carries the unread count on
+    the button, the tab bar's Ask and the Chat tab, and clears it once read*: red once during
+    M52 part 8 (PR 537), green on re-run. Not a property; more likely a poll or focus timing race
+    like KI-2026-10-19-c. The same file logs unhandled `/chat` and `/chat/read` requests
+    (KI-2026-10-24-f), which is worth ruling out first.
+- **Added 2026-10-24 (M52, part 12 follow-up):** `apps/web/src/components/front/LandingSea.test.tsx`'s
+  tab-order test timed out once in CI (`test / unit`, 15 s) on PR 546 at `31835b8`. Its sixty Tab
+  presses were five laps of an 11-stop sea and took 9 s alone; `12e73db` stops the walk when Tab
+  wraps to a stop it has seen (one lap, 2 s), and CI run 40138571257 is green on that head. A
+  slow test near its timeout, not a cause-unknown red like the others here.

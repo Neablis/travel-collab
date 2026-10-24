@@ -1,7 +1,16 @@
 # M52 — The trip comes with you: a notebook for today, and an assistant the group can ask
 
-**Status:** **Proposed 2026-10-22 by Mitchell, placed after M51 and ahead of M49. Not scoped
-yet.** His answers are below under *Answered*: what it is for, where it lives (a *During the
+**Status (2026-10-24): closed, gate 13 of 13.** Parts 1–11 are merged (PRs 530–537, 539, 540,
+PR 541, part 9's follow-up, and PR 542). **Part 12** (PR 545, merged `45017f2`: the eval's
+day-of trip runs on a clock pinned to 12:30 in Tokyo) and its follow-up **PR 546** (a realistic
+place stub, the closed stop swapped in place, the sea's tab-order test bounded to one lap) let
+the live M33 day-of cases run, and Mitchell's live runs of 2026-10-24 tick box 8. The [walk]
+was ticked on his word the same day (*"Confirmed, check them all and finish up"*), and
+`pnpm milestone close M52 --confirm` closed the milestone on part 0 (PR 529). PR 546 awaits
+Mitchell's merge (head `12e73db`, CI run 40138571257 `ci-ok` green).
+**Scoped 2026-10-23 with Mitchell: every decision is answered** (the third review,
+recorded under each decision below). The plan, `docs/plans/2026-10-23-M52-the-trip-comes-with-you.md`, was deleted at the close (it is in git history; what it held worth keeping is in the retro's *Leftovers*).
+Proposed 2026-10-22 by Mitchell, placed after M51 and ahead of M49. His answers are below under *Answered*: what it is for, where it lives (a *During the
 trip* notebook that Overview swaps to), five of the first set of recommendations, and the
 assistant in the group chat. In a second review the same day he answered decisions 11, 12, 17
 and 18, and each is marked **Answered** where it stands. The rest under *Open* are
@@ -56,11 +65,12 @@ widgets**. Nothing else in the chrome changes:
 - **A seeded template, *During the trip*.** It is a notebook like *Before you go*. It can be
   edited, reset, and found in the notebook index.
 - **A Today scope on the page.** Every widget on it with a day input left unset reads **today's
-  day**, through the same `narrow` a repeat uses. A widget given an explicit day keeps it. So
+  day**, through the same `narrow` a repeat uses. A widget given an explicit day keeps it
+  (*reversed 2026-10-24: the notebook's setting wins; decision 10, amended*). So
   today's schedule, weather, sunset and spend are the existing widgets, scoped by the page, with
   no new versions of them.
-- **New widgets for what is not there yet**: now and next, directions, flights, the group chat,
-  and day-of prompts for the assistant (*Widgets*, below).
+- **New widgets for what is not there yet**: now and next, directions, flights and the Trip chat
+  card (*Widgets*, below; the day-of prompts for the assistant were dropped, decision 15).
 - **Overview swaps.** While the trip is under way, the Overview tab shows *During the trip*
   instead of the Overview notebook. `pickOverviewPage` is the one place that decides. Nothing else
   moves: the tab bar, Plan, Map, the Ask/Chat button and Home stay as they are.
@@ -72,10 +82,12 @@ reads "Day 3 of 7". Overview shows *During the trip*:
    40 min. [Directions]"*
 2. **Today's flight**, only on a day with one.
 3. **The rest of today**: the itinerary widget, scoped to today.
-4. Weather and sunset, scoped to today.
-5. **The group chat**: the last few messages, with *Open chat*.
-6. **Ask**: chips such as *Running late*, *Move dinner later* and *Something closed*. Each opens
-   the assistant sheet with the prompt filled in.
+4. Weather and sunset, scoped to today (*amended 2026-10-24, decision 9: two sections,
+   Weather Report and Sunrise/Sunset, on the real day*).
+5. **Trip chat**: the last few messages, with *Open chat* (on a solo trip, *Add other travelers
+   to see the trip chat*; decision 15 as amended).
+6. ~~**Ask**: chips such as *Running late*, *Move dinner later* and *Something closed*. Each opens
+   the assistant sheet with the prompt filled in.~~ Dropped by Mitchell, 2026-10-23 (decision 15).
 7. A link to the full Overview.
 
 Tapping *Directions* leaves for the maps app. Tapping a stop focuses it on the board, as chat
@@ -100,6 +112,11 @@ chips do.
    confirmation code, and share links and published days never do. M44 keeps containment only.
    *(Read from "Flight details: Agreed keep there", answering the recommendation to take
    `booking` into M52; confirm at scoping.)*
+
+   **Superseded at scoping, 2026-10-23 (Mitchell): flight number only.** A transit stop gains an
+   optional `flightNumber`, shown and edited on a flight leg. The `booking` object, the
+   confirmation code and its access rule stay in **M44**. A flight number is not secret, so it
+   travels wherever the stop does (share links, published days, the API, export).
 6. **No device location.** Instead, **"nearby" means where the plan says you are now**. A tool
    that knows this is offered to the assistant **only while the trip is under way**, so no other
    turn carries it. Mitchell: *"make sure we have tools that understand 'Im on the trip, so when i
@@ -134,12 +151,34 @@ chips do.
      that deleted it is not given it again, and it can be re-added from the template gallery.
    - The seeded content is the default described above (*Where it lives*). The notebook is the
      trip's own copy after that, like every seeded notebook. A reset restores the default.
-   - **The 3-day mark** is when it starts to *surface*: Home's departure countdown and its
-     *Add your flight* prompt (decision 11). The Overview swap is decision 11's, under way only.
-     *(Read from "3 days sounds good to swap it in", alongside decision 11's earlier answer;
-     confirm at scoping whether Overview should swap at 3 days instead.)*
+     **Amended by Mitchell, 2026-10-24: no template-version tracking.** A reset restores the
+     *current* default. There is no restoring a specific earlier version, and no notice or roll
+     forward when the default changes after a trip got its copy. Pages keep only `seedKey`.
+   - **The 3-day mark is when Overview swaps.** **Confirmed at scoping, 2026-10-23 (Mitchell):
+     from 3 days before.** Overview shows *During the trip* from *soon* through the end date
+     (decision 11 is amended to match). Before day 1 its widgets show their empty-today states,
+     except the flights widget's countdown and *Add your flight*.
    - A trip whose *During the trip* notebook was deleted keeps its ordinary Overview throughout.
-10. **What the Today scope is.** *Recommended:* a page context flag (`scope: "today"`, beside
+   - **Amended by Mitchell, 2026-10-23: it cannot be deleted**, like Overview (`page-undeletable`).
+     So every trip has it: new trips are seeded with it, and every existing trip gains it once on
+     its next notebook-index load (no "was deleted" skip). The bullet above no longer applies.
+     It is titled **Today** (seed key `today`), confirmed by Mitchell 2026-10-23; this replaces
+     *During the trip* / `during-the-trip` above.
+   - **Amended by Mitchell, 2026-10-24 (part 11, PR 542): the *Weather and light* section is
+     split into two, *Weather Report* and *Sunrise/Sunset*.** Existing Today notebooks keep the
+     old heading until someone resets them: there is no template-version tracking (the
+     amendment above), so a reset is the only way a trip's copy picks up the new default.
+10. **What the Today scope is.** **Answered at scoping, 2026-10-23 (Mitchell): a general
+    notebook setting, not a today-only hook.** *"Someday i want to have settings for a notebook,
+    where we trigger 'is this dynamic (follows current date), scoped to some specific date, or
+    all' … and that can trigger settings for some widgets … so maybe dont make it a hook that
+    'just' does day scope, and more its a 'global', to the current notebook setting that we can
+    reuse later."* So the page carries **`dateScope: "all" | "today" | { date }`**, default `"all"`
+    (today's behaviour), read by every widget through **one resolver** that later notebook
+    settings extend. The contract carries all three. This milestone builds and tests `"all"` and
+    `"today"`. `{ date }` is accepted but has no settings control until a notebook settings panel
+    exists. The template sets `"today"`. The rest below stands, with "the scope" meaning
+    `dateScope: "today"`. *Earlier recommendation:* a page context flag (`scope: "today"`, beside
     `kind: "overview"`), which every new page can be given and the template sets. *Today* is the
     trip day whose date is today, by decision 12's clock. Every widget on the page with an unset
     `day` (or `dates`) input is narrowed to it, the way `repeat` narrows. The widget picker marks
@@ -153,8 +192,44 @@ chips do.
     recommendation read day 1 before the trip), and there is no page-level banner. Every widget
     the template seeds, and every new widget (decision 15), therefore needs a written
     empty-today state, as the seeding rule already demands of an empty trip (`templates.ts:34`).
+
+    **Amended by Mitchell, 2026-10-24 (part 11, PR 542): weather and sunrise/sunset follow the
+    real day, not the trip's dates.** *"the logic should not be 'before or after trip' just the
+    day is locked to today. Having no events makes sense though."* On a Today notebook, the
+    weather and sunrise/sunset widgets show **today's** date before, during and after the trip;
+    the itinerary-style widgets keep their empty-today states off the trip's dates, as above. The
+    place is the trip day nearest today (today clamped into `[start, end]`; `nearestTripDay`,
+    `packages/pages/src/dateScope.ts`). Mitchell: *"Good with that decision."* The device's
+    location is not read (decision 6). The weather route gains one point for that (the contracts
+    changelog, 2026-10-24, part 11).
+
+    **Where the sun and the weather are read (part 11, PR 542; public API 1.24.0).** Sun and
+    weather share one place rule: a day's **first city's earliest located stop, else its first
+    located stop** (`placesOfDay`, `apps/web/src/server/tripGlobals.ts`), carried as
+    `TripGlobalsDay.weatherPlace` (`{ lat, lng, city, timeZone } | null`) and read by `day.sun`
+    and the weather points alike. The day's clock is unchanged: `place` and `timeZone` stay the
+    earliest located stop, so the phase, which day is today, and now and next do not move.
+    Found on Mitchell's walk of the preview (a departure day: a flight out of the home airport
+    put the sunrise at home while the weather was Tokyo); moving `place` instead was review
+    round 3's blocker, since it made a trip under way the evening before it leaves. ADR-080,
+    *Amendment — notebook settings supersede widget settings*, carries the same note.
+
+    **Amended by Mitchell, 2026-10-24 (part 11, PR 542): a notebook setting supersedes a widget
+    setting.** *"Notebook level settings > manually set widget settings > defaults."* This
+    reverses *"an explicit binding still wins"* above and ADR-080 §4 (amended there, dated). One
+    general mechanism does it: `NOTEBOOK_SETTINGS` and `supersededParams`
+    (`packages/pages/src/dateScope.ts`) name the widget params each notebook setting takes over,
+    and those params are dropped from the widget's stored params when it renders and are not
+    offered in its settings panel (or a repeat's). Under `dateScope: "today"` a widget's day
+    (and dates) param therefore disappears from its settings, and a stored day no longer
+    applies. A page rendered with no reader's clock (the invite card) supersedes nothing, so a
+    stored day stands there. Later notebook settings add a row to `NOTEBOOK_SETTINGS` rather
+    than a hook.
 11. **When the swap happens, and what *soon* does.** **Answered by Mitchell, 2026-10-22: as
-    recommended.**
+    recommended. Amended at scoping, 2026-10-23: Overview swaps from *soon*, not only under way**
+    (decision 9). The *soon* bullet below is replaced by: Overview shows *During the trip*, whose
+    flights widget offers *Add your flight* if the trip has none, and Home's badge counts down to
+    the first departure.
     - **Under way** (start date to end date): Overview shows *During the trip*, with a quiet
       *Whole trip →* link to the usual Overview.
     - **Soon** (up to 3 days before): Overview stays as it is. The notebook is planted, and its
@@ -168,12 +243,12 @@ chips do.
 12. **How *now* is computed when times carry no zone.** **Answered by Mitchell, 2026-10-22:
     every time is local time, as recommended.** A stop's `HH:MM` is local
     to **its day's zone** (`TripGlobalsDay.timeZone`), falling back to the device's zone. *Now*
-    is the device clock converted into that zone. One pure function in `packages/domain`,
+    is the device clock converted into that zone. One pure function in `packages/pages` (moved from `packages/domain` at scoping: the client may not import the domain; ADR-080),
     `tripNow(trip, globals, now) → { phase, dayId, current, next }`, with the clock passed in
     (invariant 4). The Today scope, the now-and-next widget, Home's badge and the assistant all
     read it. Its property test covers midnight, a day with no zone, and a flight that lands in
     another zone.
-13. **The *near me now* tool (decision 6).** *Recommended:* **`find_places_near_now`**, added to
+13. **The *near me now* tool (decision 6).** **Answered at scoping, 2026-10-23: as recommended.** **`find_places_near_now`**, added to
     the offered tools in `handleAskRequest.ts`'s `activeTools` **only when `tripNow` says under
     way**. It resolves *here* in this order:
     1. the current stop's location;
@@ -186,7 +261,7 @@ chips do.
     quota is involved. It is cheaper in tokens than teaching every turn's prompt about *here*. It
     is one more tool in the M33 evals, with a day-of case that must choose it, and a planning-phase
     case that must not see it.
-14. **What else the assistant gains.** *Recommended:*
+14. **What else the assistant gains.** **Answered at scoping, 2026-10-23: as recommended.**
     - (a) Every turn on an under-way trip carries **now**: the local date and time, the phase, and
       today's current and next stops, from `tripNow`.
     - (b) **"We're 45 minutes late"** is one Accept-all suggestion of `UpdateActivity` time moves
@@ -194,9 +269,16 @@ chips do.
     - (c) **"X is closed, find something similar"** is `find_places_near_now` (or a search near
       the stop), filtered by the stop's tags, then a proposal that marks the old stop `pending`
       and adds the new one.
+      **Amended by Mitchell, 2026-10-24 (PR 546): the closed stop is swapped in place.** *"Option
+      2, the swap seems much more logical, we dont need to remember the closed stop, thats for
+      the history"*. So (c) is one `UpdateActivity` of the closed stop to the new place, in the
+      same slot; the trip's history keeps the original. Every live run had already swapped. The
+      eval case `d-closed-find-similar` requires `UpdateActivity` and one of the two place
+      searches, and forbids `AddActivity` and `RemoveActivity`
+      (`apps/web/src/server/ai/eval/cases.ts`, PR 546).
 
     There are two eval cases for (b) and (c).
-15. **The new widgets.** *Recommended:* each is a preset in `packages/pages/src/presets.ts` and
+15. **The new widgets.** **Answered at scoping, 2026-10-23: all five, as recommended.** each is a preset in `packages/pages/src/presets.ts` and
     reads well with no data, as the seeding rule demands (`templates.ts:34`):
     - **`trip.now`**, *Now and next*: the current and next stop, the time until it, and
       Directions. It re-renders each minute while visible. Today's widget context carries a date
@@ -207,12 +289,33 @@ chips do.
     - **`trip.flights`**, *Your flights*: today's flights, or the next one. It shows the flight
       number, times in each end's local zone, the countdown to departure, and the confirmation for
       editors. With none, it offers *Add your flight*, which opens the stop editor prefilled as a
-      flight.
-    - **`chat.recent`**, *Group chat*: the last three messages and *Open chat*. It is absent on a
-      trip whose chat the reader cannot see.
-    - **`assistant.prompts`**, *Ask*: day-of chips that open the sheet prefilled. It is absent for
+      flight. **As built (part 7, PR 536):** the flight number, the route, the departure time in the leg's
+      zone and the countdown; no arrival time, because a flight stop's window is one day's
+      `HH:MM` and cannot cross midnight (KI-2026-10-23-b, home M44), and no confirmation, which
+      stayed in M44 with `booking` (decision 5, as amended).
+    - **`chat.recent`**, *Trip chat* (first written as *Group chat*; amended below: a mini chat
+      card, N a setting): the last few messages and *Open chat*. On a solo trip it shows *Add
+      other travelers to see the trip chat* instead. It is absent only for a reader the chat
+      refuses (a share link's).
+    - ~~**`assistant.prompts`**, *Ask*~~ (**dropped by Mitchell, 2026-10-23; see the amendment below**): day-of chips that open the sheet prefilled. It is absent for
       a reader with no assistant, and per SPEC §27 nothing renders disabled.
-16. **Which maps app Directions opens.** *Recommended:* Google Maps' universal URL
+    **Amended by Mitchell after walking part 8's preview, 2026-10-23:** the *Ask* widget is
+    dropped (no widget prefills the AI assistant); *Group chat* is a mini chat card, the last N
+    messages (a setting, default 3) in the chat's own message style with an *Open chat* row, the
+    whole card one control that opens the chat where it lives. Under the Today scope an unbound
+    Weather widget shows only today.
+    **Amended by Mitchell, 2026-10-23 (later the same day):** the notebook page's assistant
+    panel gets the board's *Chat | Ask* switch, and the card opens that Chat tab in place
+    (`?chat=open` is gone). **A solo trip has no chat anywhere**, board and notebook alike: no
+    Chat tab, no ⌘K *Open chat*, no chat card that opens a chat, only the assistant (the card's
+    solo empty state is the 2026-10-24 amendment below). This reverses M46's solo Chat tab on
+    the board.
+    **Amended by Mitchell after walking part 8's preview, 2026-10-24:** the widget is titled
+    **Trip chat** (not *Group chat*; preset key `chat.recent` unchanged). It always renders:
+    on a solo trip it shows an empty state, *Add other travelers to see the trip chat*, and is
+    not a chat control; on a trip with chat but no messages it shows the chat card with
+    *No messages yet* and still opens the chat.
+16. **Which maps app Directions opens.** **Answered at scoping, 2026-10-23: Google Maps, as recommended.** Google Maps' universal URL
     (`https://www.google.com/maps/dir/?api=1&destination=<lat>,<lng>`). It falls back to the name
     and address at `city` precision, and takes `travelmode` from the leg's `mode` when a transit
     stop leads in. It opens the app on Android and iOS when installed. There is no per-account
@@ -222,8 +325,13 @@ chips do.
     2026-10-22: yes**, while under way only. An accepted change to today's or tomorrow's stops posts a system line ("Mitchell
     moved Dinner at Tasca to 20:30") that links the stop and cannot be edited. With decision 18,
     an `@assistant` change accepted in the chat says so in the same thread.
-18. **How `@assistant` in the chat works (decision 8).** *Recommended*, except for what it reads,
-    which is **answered**:
+    **Amended by Mitchell, 2026-10-24: only a change that comes from the chat posts a line**: a
+    suggestion accepted there, or an `@assistant` change made there. A direct edit (moving or
+    retiming a stop on the board or a notebook) posts nothing. *"If people are chatting, post to
+    chat; if someone is chatting with AI in chat, post to chat. Otherwise don't."* That is how
+    it is built (part 7), so no code changes.
+18. **How `@assistant` in the chat works (decision 8).** **Answered at scoping, 2026-10-23: as
+    recommended**, with what it reads answered earlier:
     - **Store.** The answer is a message in `trip_messages`, with an author `kind` of
       `assistant` and a `requested_by` naming the asker. ADR-073 is amended. A migration adds the
       columns, and the same `kind` serves decision 17's system lines.
@@ -250,19 +358,36 @@ chips do.
         thread. The M33 evals gain a chat case whose problem is stated only in earlier messages,
         and which therefore has to call `read_chat`.
     - **Accepting.** Its proposal appears in the chat as a card that **only the asker may accept
-      or dismiss**. Everyone else sees *"Waiting on Mitchell"*. That is a new rule on a
+      or dismiss**. Everyone else sees *"Waiting on Mitchell"* (as built in part 6, PR 535: editors
+      and the owner read it on the card while it is pending; a viewer or suggester reads *"Only
+      Mitchell can accept this"*). That is a new rule on a
       suggestion (`requested_by`), enforced in `acceptSuggestionChanges`, beside its editor check
       (`accept.ts:57`). The asker must also be an editor to accept, as today. A viewer's
       `@assistant` gets answers only.
+    - **When the asker can no longer accept. Answered by Mitchell, 2026-10-23:** the trip owner
+      can always **dismiss** an asker-only proposal, so one whose asker left the trip or lost edit
+      access does not sit on the board for 90 days. Only the asker can ever accept it.
+    - **The Ask tab gets the same `ai.command` gate. Answered by Mitchell, 2026-10-23: fix inside
+      M52** (part 5). Before M52 the Ask tab never checked `ai.command`, so a Studio account could
+      propose changes there; the chat route checks it, and Ask turns now do too.
     - **While it works.** The thread shows *"Assistant is thinking…"* and the reply lands whole.
       It is not streamed into the chat.
     - **Lapses.** When the owner's `trip.collaborators` lapses, the chat is read-only (M46
       decision 2), and so `@assistant` is unavailable.
-19. **What "soon" means.** *Recommended:* 3 days before the start date, the "couple days before"
+19. **What "soon" means.** **Answered at scoping, 2026-10-23: as recommended.** 3 days before the start date, the "couple days before"
     of the ask.
-20. **Who sees the notebook.** *Recommended:* every member, whatever their role. Reading today's
+20. **Who sees the notebook.** **Answered at scoping, 2026-10-23: as recommended.** every member, whatever their role. Reading today's
     plan is reading, and Directions is a link. A share-link reader sees it as read-only, without
-    the chat or Ask widgets.
+    the Trip chat widget (the Ask widget was dropped, decision 15).
+21. **The trip under way, over the public API.** **Added and answered by Mitchell, 2026-10-23.**
+    Two endpoints, not one: **`GET /v1/trips?active=true`** filters the existing list to the trips
+    whose `tripNow` phase is `underway` (today, in the trip's own zone, by ADR-080's fallback, falls
+    within its dates; an undated trip is never active), and **`GET /v1/trips/{tripId}/today`**
+    (`trips:read`, `viewer`) answers today's date and zone, the phase, the day (or none), today's
+    stops in order in the shape the API already uses for a stop, and which stop is **now** and which
+    is **next**, computed by `tripNow`, so the API and the *Now and next* widget agree. An optional
+    `?timeZone=` is ADR-080's asker zone: validated, never stored. Off a trip day it answers 200 with
+    the phase and no stops. Its own part (10), independent of part 9.
 
 ## Scope
 
@@ -270,16 +395,19 @@ chips do.
 - The Today page scope (decision 10), and the *During the trip* template planted at *soon*
   (decisions 9 and 11).
 - The Overview swap and Home's phase badge (decision 11).
-- `booking` and the flight number (decision 5): the contract, the domain, the editor, the card,
-  the Money notebook's booked list, the public API, and trip export (M25), with its access rule.
+- The flight number (decision 5, as amended): the contract, the domain, the editor, the card,
+  the public API, and trip export (M25). The `booking` object stays in M44.
 - The five widgets (decision 15) and Directions on the stop sheet (decision 16).
 - The assistant's *now*, `find_places_near_now` offered only under way, and the eval cases
   (decisions 13 and 14).
-- `@assistant` in the chat (decision 18), and the change lines (decision 17) if they are
-  answered yes.
+- `@assistant` in the chat (decision 18), and the change lines (decision 17).
+- The trip under way over the public API: `?active=true` and `/today` (decision 21).
 
 ## Out of scope
 
+- The `booking` object and confirmation codes (decision 5, as amended; M44).
+- A notebook settings control, and `dateScope: { date }` behaviour (decision 10; the contract
+  carries it).
 - A live flight-status vendor, polling, and flight alerts (decision 4; a candidate).
 - Push notifications, and offline access to the trip (decision 7; candidates).
 - The device's location (decision 6).
@@ -289,42 +417,376 @@ chips do.
 
 ## Exit gate
 
-- [ ] **Decisions 10 (the scope's shape), 13–16 and 18–20 are answered and recorded here** (9,
-      11, 12, 17 and 10's empty days are),
-      with:
-      - an ADR for the phase, *now* and the Today scope;
+- [x] **Every decision is answered and recorded here** (done at scoping, 2026-10-23), with:
+      - ADR-080 for the phase, *now* and the notebook `dateScope`;
       - ADR-073 and ADR-067 amended for `@assistant`;
-      - the contracts changelog entry for `booking`.
-- [ ] **`tripNow` is right across zones and midnight**: a `fast-check` property over day zones,
+      - the contracts changelog entries for `flightNumber` and `dateScope`.
+      *Evidence:* decisions 1–21 above, each marked answered; `docs/architecture/ADR-080-a-trip-knows-what-day-it-is.md`;
+      `ADR-073-trip-chat-is-its-own-store.md:94` and `ADR-067-a-multi-change-assistant-turn-is-stored-as-suggestions.md:67`
+      (*Amendment — 2026-10-23 (M52)*); `docs/contracts/CHANGELOG.md:41` (`dateScope`) and `:94` (`flightNumber`).
+- [x] **`tripNow` is right across zones and midnight**: a `fast-check` property over day zones,
       device zones and clock times, seen red with the zone conversion removed.
-- [ ] **The Today scope narrows only unset days**: on a page with the scope, an unbound
-      `day.detail` shows today, and one bound to day 1 still shows day 1. Seen red with the
-      scope removed.
-- [ ] **Overview swaps only while the trip is under way**: a unit test over `pickOverviewPage`
-      for a planning, soon, under-way and ended trip.
-- [ ] **Every trip has *During the trip***: a new trip is seeded with it, and an existing trip
+      *Evidence:* `packages/pages/src/now.test.ts:194-212` (arbitraries over day zones, a null zone,
+      device zone and clock); PR 530's body: zone conversion removed in `now.ts` → "9 of 12 failed";
+      CI run 39881259798 green on its head `dc128f6`, merged `e50669c`.
+- [x] **The Today scope supersedes a widget's day** (reworded 2026-10-24, decision 10 as
+      amended: *"Notebook level settings > manually set widget settings > defaults"*): on a page
+      with the scope, an unbound `day.detail` shows today, **and so does one bound to day 1**;
+      the day param is not offered in the widget's settings there. Seen red with the supersede
+      removed. On a Today page, weather and sunrise/sunset show today's date off the trip's dates
+      too, at the nearest trip day's place.
+      *Reopened 2026-10-24:* this box first read "one bound to day 1 still shows day 1" and was
+      ticked on PR 533 (`registry.test.ts:727`; CI run 39913262997 green on `d386be6`, merged
+      `7485b3f`). Mitchell reversed that rule; the new rule is part 11's (PR 542).
+      *Evidence (ticked 2026-10-24):* `packages/pages/src/registry.test.ts:731` "shows today in an
+      unbound day.detail, and in one stored bound to day 1"; `apps/web/src/components/pages/MacroView.test.tsx:454`
+      (the same through the view); `packages/pages/src/repeat.test.ts:431` "iterates today even when
+      the repeat was bound to another day"; `packages/pages/src/dateScope.test.ts:82-91`
+      (`supersededParams`: `day` and `dates` under `"today"`, nothing otherwise);
+      `apps/web/src/components/pages/editor/WidgetSettings.test.tsx:306` and `:387` (no days control
+      on a Today page, in the widget's and a repeat's settings); off the dates,
+      `packages/pages/src/macros/primitives/weather.test.ts:423` and `time.test.ts:207`, and
+      `apps/web/src/server/external/weather/tripWeather.test.ts:306` (sun and weather at the same
+      place). Red in PR 542's body: `withoutSuperseded` removed from `resolveRepeat` → `expected [ {
+      kind: 'day', index: +0 } ] to deeply equal [ { kind: 'day', index: 1 } ]`; `isSet(page)`
+      negated → `expected [] to deeply equal [ 'day', 'dates' ]`. CI run 40121847661 green on its
+      final head `d717423` (`ci-ok`, unit, integration, `test / e2e (1/2)` and `(2/2)`), merged
+      `8632207` (2026-10-24 19:07 UTC). **Walked by Mitchell on PR 542's preview, 2026-10-24:**
+      *"Merged, confirmed fixed"*, sunrise/sunset and weather both at Tokyo on his trip.
+- [x] **Overview swaps from *soon* through the end date**: a unit test over `pickOverviewPage`
+      for a planning, soon, under-way and ended trip (decision 9, amended).
+      *Evidence:* `apps/web/src/lib/overviewPage.test.ts:20-25` (planning and ended → Overview, soon
+      and under way → Today); PR 540, CI run 40029849919 green on `c30298d`, merged `a06fe13`.
+- [x] **Every trip has *During the trip***: a new trip is seeded with it, and an existing trip
       gains it once on its next index load and not again after a delete. An integration test
       shows both.
-- [ ] **Off a trip day, every widget on the seeded page renders its empty-today state**:
+      *Evidence (as amended, decision 9: titled Today, undeletable, so "not again after a delete"
+      became "refused, and restored on a log that shows it deleted"):*
+      `apps/web/src/server/defaultNotebooks.int.test.ts:120` (seeded into a new trip), `:129` (gained
+      once by an older trip), `:149` (refuses delete; comes back under its old id), `:178` (resets);
+      PR 540, CI run 40029849919 (`test / integration` green) on `c30298d`, merged `a06fe13`.
+      Not seen on production: the backfill and the missing delete control wait on the [walk] box.
+- [x] **Off a trip day, every widget on the seeded page renders its empty-today state**:
       `templates.test.ts`, which already renders every seeded widget against new trips, renders
       this page with a clock before the trip and after it. Seen red with one widget's empty
       state removed.
-- [ ] **A trip replayed from a log written before `booking` equals its stored projection.**
-- [ ] **A confirmation number never reaches a share link or a published day**: an integration
-      test reads both.
-- [ ] **`find_places_near_now` is offered only while the trip is under way, and `read_chat` only
+      *Evidence:* `packages/pages/src/templates.test.ts:399` "renders every widget on Today as its
+      empty-today state, before the trip and after it"; PR 540's body: deleting the no-day line in
+      `renderMacro` → `- "day.detail": "Nothing planned today"` / `+ "day.detail": "no days yet"`
+      (it removed every scoped widget's empty-today state at once, not one widget's); CI run
+      40029849919 green on `c30298d`.
+- [x] **A trip replayed from a log written before `flightNumber` equals its stored projection.**
+      *Evidence:* `packages/domain/test/m52-flight-number.test.ts:39` "replays to the trip its stored
+      projection says"; PR 531, CI run 39885558036 green on `5d30d79`, merged `15f0d38`.
+- [x] **`find_places_near_now` is offered only while the trip is under way, and `read_chat` only
       on a chat-started turn**: a test of the offered tools for a planning trip, an under-way
       trip, an Ask turn and a chat turn. `read_chat`'s default and its ceiling are read from
       `limits.ts`, which a test changing the constant shows. The M33 day-of cases pass, at their
       stated cost.
-- [ ] **Only the asker can accept an `@assistant` proposal**: an integration test is refused
+      *Evidence (ticked 2026-10-24, late):* the offered-tools tests,
+      `apps/web/src/server/assistant/admission.test.ts:528` (`read_chat` on chat turns only) and
+      `:548` (`find_places_near_now` only under way), `tools/chat.test.ts:12-13` (default and
+      ceiling from a mocked `limits.ts`); PR 534, CI run 39964482034 green on `69544ba`. **The live
+      M33 cases, run by Mitchell on 2026-10-24** on `anthropic/claude-sonnet-5.5` (mid tier), the
+      clock pinned at 12:30 JST by part 12 (PR 545):
+      - on `main` `45017f2` (21:24Z): `h-chat-fix-problem` PASS ($0.0562, 9.7 s, calls
+        `read_chat`); `d-running-late` PASS ($0.0270, 10.6 s, `UpdateActivity` only, 3 commands);
+      - on PR 546's `7d8e09f` (21:54Z, `EVAL_REPEAT=3`, $0.1666 for the run):
+        `d-coffee-near-now` 3/3 (one `find_places_near_now` each, about $0.012 a turn, 3.9–5.8 s);
+        `d-near-before-the-trip` 3/3 (`read_trip` only, never offered `find_places_near_now`);
+        `d-closed-find-similar` 2/3 (run 3 refused to swap in the stub's fake-looking "Garden
+        Park House"/"Japanese Garden Room"; the stub fixed in `31835b8`);
+      - on PR 546's `31835b8`: `d-closed-find-similar` 5/5 (Mitchell: *"All 5 passed this
+        time"*).
+      *"At their stated cost":* no dollar figure is stated anywhere for these cases. What the cases
+      state is a call and latency budget (`cases.ts`: a question at most 4 tool calls and 60 s, a
+      change at most 10 and 120 s, plus each case's `mustCall`/`maxCallsOf`), and every passing
+      run met it; the per-turn dollars above are recorded for the next comparison. PR 546
+      (`12e73db`, CI run 40138571257, `ci-ok` green) is still open at the close (2026-10-24, re-read over REST: open, unmerged, on that head) and awaits Mitchell's merge.
+- [x] **Only the asker can accept an `@assistant` proposal**: an integration test is refused
       for another editor and accepted for the asker. **A free member's `@assistant` spends
       nothing**, and a paid asker's turn is recorded against the asker.
-- [ ] **The e2e spec passes on `pnpm --filter web test:e2e:ci-like`**, with a trip frozen
+      *Evidence:* `apps/web/src/server/suggestions/suggestions.int.test.ts:673` "refuses another
+      editor a change a chat asker requested, and accepts it from the asker" (and `:490`);
+      `apps/web/src/server/quota.int.test.ts:452` "spends nothing for a free member" and `:463`
+      "charges and records a paid asker's turn against the asker"; PR 532, CI run 39909692730 green
+      on `4605670`, merged `81ed56d`. Not seen on production: Auth.js `auth()` inside `after()` (the
+      reply is written after the response) waits on the [walk] box.
+- [x] **The e2e spec passes on `pnpm --filter web test:e2e:ci-like`**, with a trip frozen
       mid-day: Overview shows *During the trip* with Now and Next; Directions has the right link;
       `@assistant push dinner back an hour` in the chat posts a reply and a card that the asker
       accepts.
-- [ ] **[walk]** On a phone, against the PR preview, with a trip dated today: open it from Home,
+      *Evidence:* `apps/web/e2e/m52-today.spec.ts:50` (clock frozen at noon `:53`, Now/Next `:72-74`,
+      the Google Maps link `:78`, `@assistant move dinner back an hour` and Accept `:92-100`);
+      PR 540's body: ci-like "2 passed (setup + spec), no retry", and red with `null` phase; CI run
+      40029849919 (`test / e2e (1/2)` and `(2/2)` green) on `c30298d`, merged `a06fe13`; still green
+      after the follow-up, CI run 40065856615 on PR 541's `9f9b202`, merged `fd00d7f`.
+- [x] **The API answers *now* (decision 21)**: an integration test lists a trip under way for
+  `GET /v1/trips?active=true` and not a planning, *soon*, ended or undated one (and one whose zone
+  is already tomorrow where UTC is still today), and `GET /v1/trips/{tripId}/today` names the same
+  now and next as `tripNow` at a frozen clock, answers a viewer, and refuses a non-member; the
+  OpenAPI version and fingerprint move with a changelog line.
+  *Evidence:* `apps/web/src/server/public-api/today.int.test.ts:136` (under way listed; planning,
+  soon, ended, undated not), `:141`/`:146` (its own zone either side of UTC), `:193` (same now and next
+  as `tripNow`), `:225` (a viewer), `:233` (a non-member refused); `API_VERSION = "1.23.0"`
+  (`server/public-api/openapi.ts:43`); `docs/contracts/CHANGELOG.md:16`. PR 539, CI run 39996552313
+  green on `1934399`, merged `dbf7041`. Not called on a deployment: Mitchell checks (the [walk] box).
+- [x] **[walk]** On a phone, against the PR preview, with a trip dated today: open it from Home,
       tap Directions, and ask `@assistant` in the chat to find lunch nearby. Accept as the asker,
       and see the change line from a second account, which could not accept it.
-- [ ] A retro is appended at gate close.
+      *Evidence (ticked 2026-10-24, on Mitchell's word):* asked to confirm the three items still
+      folded into this box, (1) a two-member trip with no messages shows *No messages yet* and
+      opens the chat, (2) `@assistant`'s reply, written in `after()`, reads the session with
+      Auth.js `auth()` on production (part 3), and (3) browser walks of PR 537 at its final head
+      `4301073` and of PR 541 (Trip chat on Today), Mitchell answered on 2026-10-24: *"Confirmed,
+      check them all and finish up"*. His earlier confirmations the same day stand:
+      - **Today undeletable on production:** *"Today can't be deleted on production now."* (He did
+        not say separately that an older trip gained it; a Today on a pre-part-9 trip that cannot
+        be deleted implies it.)
+      - **Part 10's API on a deployment** (`GET /v1/trips?active=true` and `/today` with a token):
+        *"Confirmed the api works."*
+      - **Part 11** (PR 542, Today's weather and sun at the real day's place): *"Merged, confirmed
+        fixed"*.
+- [x] A retro is appended at gate close. *Evidence:* *Retro*, below (2026-10-24).
+
+## Retro — written 2026-10-24 (12 of 13 boxes ticked)
+
+Written at the close on part 0 (PR 529), with two boxes open and both Mitchell's: the live M33
+day-of eval and the [walk]. `pnpm milestone close M52` refuses until they are ticked; the boxes
+above say what each waits on.
+*Since (2026-10-24):* Mitchell reversed the Today scope's precedence and moved Today's weather to
+the real day (decisions 9 and 10, amended), so the Today-scope box is reopened for part 11
+(PR 542) and the gate stands at 10 of 13. His same-day word covers two [walk] items: Today
+undeletable on production, and part 10's API on a deployment.
+*Since (2026-10-24, later):* part 11 merged (PR 542, `8632207`) and the Today-scope box is ticked
+on its CI and Mitchell's walk of its preview, so the gate stands at **11 of 13**; the two open
+boxes are both Mitchell's.
+*Since (2026-10-24, late):* the live M33 day-of cases could not run at most hours, because the
+day-of trip was dated from the wall clock. **Part 12** (PR 545, merged `45017f2` 21:22Z, CI run
+40133300859 green) pins each eval turn's clock to 12:30 in Tokyo by an offset on `Date` alone
+(`apps/web/src/server/ai/eval/evalClock.ts`), so latency and timers stay real; Mitchell on the
+first version, built on fake timers: *"a great way to introduce a really frustrating flakey
+test"*. Its follow-up **PR 546** (`claude/m52-part12b-eval-places-swap`, head `12e73db`, CI run 40138571257
+`ci-ok` green; still open at the close, awaiting Mitchell's merge) gives the eval a place stub that answers like production
+(`placeStub.ts`), swaps a closed stop in place (decision 14(c), amended), and bounds
+`LandingSea.test.tsx`'s tab-order test to one lap after it timed out once in CI on `31835b8`.
+Mitchell's live runs then passed every M52 case (box 8's evidence), so the gate stands at
+**12 of 13**; the [walk] is the only open box. Two known issues came out of it:
+KI-2026-10-24-n (the eval's planning trips are dated 2027-04-01) and -o (the stub echoes a
+title-cased category as a named place).
+*Closed (2026-10-24):* Mitchell confirmed the three items left in the [walk] box (*"Confirmed,
+check them all and finish up"*), the box is ticked on his word, and `pnpm milestone close M52
+--confirm` closed the gate at **13 of 13** on part 0 (PR 529). PR 546 was still open at the
+close and awaits his merge.
+
+### What went well
+
+- **Ten parts and a follow-up merged in about 33 hours**, 2026-10-23 05:49 UTC (PR 530, `e50669c`)
+  to 2026-10-24 14:46 UTC (PR 541, `fd00d7f`). Every part's `ci` run was green on the head that
+  merged: PR 530 run 39881259798, 531 39885558036, 532 39909692730, 533 39913262997, 534
+  39964482034, 535 39967673321, 536 39976895832, 537 40051346313, 539 39996552313, 540
+  40029849919, 541 40065856615. Part 11, added mid-gate, followed the same day: PR 542 run
+  40121847661 on `d717423`, merged `8632207` at 19:07 UTC, no migration.
+- **Four migrations reached production the day they merged**: `0062`–`0064` (PR 532) by
+  `migrate-production` run 39910676118 at 06:18 UTC, and `0065` (PR 533) by runs 39966013831 and
+  39967934976 from `25a06b6`. PRs 534–541 added none.
+- **The gate tests carry their red evidence in the PR bodies**: PR 530 (zone conversion removed,
+  9 of 12 properties failed), PR 533 (the scope removed from `renderMacro`), PR 540 (the no-day
+  line deleted from `renderMacro`; the e2e red with a `null` phase), PR 531 (two review rounds of
+  red-first `flightNumber` cases).
+- **One pure function answers *now* everywhere.** `tripNow` (`packages/pages/src/now.ts`) feeds
+  Home's badge, the Today scope, the Now and next widget, the assistant's *now* line and the API's
+  `/today`, and `today.int.test.ts:193` checks the API against it at a frozen clock.
+- **Dollars per 1,000 lines added: $11.5** by the guideline's rule (see *Spend*), against M51's
+  $38.6.
+
+### What could be better
+
+- **PR 537 (part 8) took 18 review rounds**, the most of any part (PR 535 took 6, PR 536 took 4).
+  Its scope moved under it three times on Mitchell's walks of the preview (decision 15's
+  amendments of 2026-10-23 and 2026-10-24: the Ask widget dropped, *Group chat* became a mini
+  card titled *Trip chat*, and a solo trip lost its chat everywhere). Each ruling restarted
+  review on new UI. The change: walk a UI part's interaction sketch with Mitchell before review
+  round 1, not on its preview after several rounds.
+- **A part was walked on a preview that lacked the part it depended on.** Mitchell saw a
+  deletable Today on PR 537's preview; undeletable Today is part 9's (PR 540), which that
+  preview did not contain. Nobody rechecked after PR 540 merged, so the box stays open. A walk
+  item should name the part that delivers it and be walked only once that part is in the
+  preview.
+- **The build sessions' spend blocks were not generated before their hand-offs.** Each hand-off
+  carried a few figures (requests, cache reads, agent counts) instead of the block that
+  `writing-a-retro.md` asks for, so the per-type tables, orchestrator share and builder context
+  cannot be computed for five of the six build sessions (*Spend*). The change is the one the
+  guideline already states: run `pnpm -s session-metrics --milestone` before every hand-off and
+  paste the block.
+- **Once-only reds with no cause.** E2E went red once on PRs 533 and 537 and passed on re-run
+  (KI-2026-10-24-c); `prompt.test.ts` and a part 8 test failed once each (two occurrences added
+  to KI-2026-10-14-c); `MacroView`'s paragraph sweep fails about one local run in four
+  (KI-2026-10-24-d); `noRawSyntax` hit its 5 s timeout once (KI-2026-10-24-e). None was re-run to
+  a cause, because job logs cannot be read from the cloud proxy (KI-2026-10-13-f).
+- **Part 11 was a mid-gate ask, and its walk found what four review rounds' tests had not.**
+  Mitchell asked on 2026-10-24, after the retro was first written, for Today's weather and sun on
+  the real day and for notebook settings to supersede widget settings (decisions 9 and 10,
+  amended). On his walk of PR 542's preview his Today page showed Tokyo's weather with the
+  sunrise at home (Watkins Glen): the sun read the day's first located stop, a flight out of the
+  home airport, and the weather its first city. The first fix moved `place` itself, and review
+  round 3 caught it as a blocker: the clock moved with it and a trip became under way the
+  evening before it left. Round 4 settled on a separate `weatherPlace` (public API 1.24.0), the
+  clock unchanged. Four review rounds; Mitchell: *"Merged, confirmed fixed"*. The change: a part
+  that moves a place a widget reads should ask, in its brief, which other readers (the clock,
+  `tripNow`, the assistant) share that place.
+- **Part 10's API was never called on a deployment.** A token has to be minted on the preview,
+  and no session did it (PR 539's body: "Not called against the preview"). Mitchell called it
+  himself afterwards (2026-10-24: *"Confirmed the api works."*).
+
+- **One fix became three PRs' worth of churn before Mitchell stopped it.** Part 12's live run
+  found the place stub and the closed-stop rule wrong, and the first instinct was a new PR per
+  fix. Mitchell: *"We dont need a new PR for every single change, this is very closely tied to the
+  same change we were trying to fix"*. The rule: a follow-up closely tied to an open PR's change
+  goes on that PR; only a merged parent forces a new PR (PR 546 exists because PR 545 had
+  merged). It also carried the `LandingSea` tab-order fix that its own CI run needed.
+
+### Leftovers
+
+- **The live M33 day-of eval** (box 8) is done: Mitchell's runs of 2026-10-24 on `main` and
+  PR 546 (box 8's evidence). PR 546 is still open at the close (2026-10-24, re-read over REST: open, unmerged, on that head) and awaits Mitchell's merge.
+- **The [walk]** is ticked on Mitchell's word of 2026-10-24 (*"Confirmed, check them all and
+  finish up"*), covering two-member *No messages yet*, `auth()` inside `after()` on production,
+  and PR 537's final head and PR 541; Today undeletable on production and the API on a
+  deployment were confirmed by him earlier the same day.
+- **PR 546** (box 8's follow-up) is open at the close and awaits Mitchell's merge.
+- **Part 11** (PR 542) merged and its box is ticked. Its review left three known issues:
+  KI-2026-10-24-k (the today weather point is charged on every page with weather), -l (no test
+  pins `day.sun` to `weatherPlace.timeZone`) and -m (the assistant names today's city with the
+  first located stop's coordinates, pre-existing).
+- **Per-row Accept still reads `useSessionUser`**, not `useKnownSessionUser`
+  (`apps/web/src/components/board/SuggestionActions.tsx:28`, checked on `main` at the close;
+  `useAcceptAll.ts:39` and the chat already use `useKnownSessionUser`). Part 6's review round 6
+  called it minor: the swap is neutral under the provider, but the per-row tests mount none and
+  would all change. Optional; Mitchell's call.
+- **Known issues filed during M52:** KI-2026-10-23-a (an applied library day insert posts no
+  change line), KI-2026-10-23-b (a flight stop cannot cross midnight or record its arrival, home
+  M44), and KI-2026-10-24-a to -o.
+- **From the plan, kept here because the plan is deleted:** a page's `context` (so `dateScope`)
+  is not editable through events (`EditPage`/`PageEdited` carry none,
+  `packages/contracts/src/pageEvents.ts`); it is set when a template is instantiated and restored
+  by a reset. A notebook settings control for `dateScope` therefore needs an edit path first.
+  `dateScope: { date }` is in the contract with no control (decision 10, *Out of scope*).
+
+## Spend
+<!-- session-metrics:milestone v1 -->
+
+Seven sessions. The six build sessions' transcripts went with their containers and none ran
+`session-metrics --milestone` before its hand-off, so their lines are **the figures carried in
+the hand-off text, summed by hand, not generated blocks**. The seventh is this close, whose block
+was generated in its own container and is pasted below unchanged. Recorded dollars are
+`list_sessions` → `external_metadata.usage.cost_usd`, read 2026-10-24.
+
+- `7e2bc2ed`: 54 model requests; cache write 591,774, cache read 7,144,496 (≈ 1.45M units without
+  input); 8 dispatches: 3 `part-reviewer`, 2 `phase-implementer`, 2 `general-purpose` (1 stopped
+  early), 1 `phase-verifier`.
+- `902eb9ce`: 101 requests, 18.04M cache read.
+- `2a2984e3`: 91 requests, 16.5M cache read.
+- `298ccf04`: 113 requests, 20.5M cache read.
+- `9ba33ff6`: 107 requests, 18.85M cache read.
+- `a3966077`: 19 agents, 16.65M units.
+- Summed, where the figures allow: 466 requests and 81.03M cache read over the first five.
+  Units cannot be summed across all six: four report cache reads only, and their cache writes
+  and input are unknown.
+- Recorded cost of the six build sessions (`session_012kApmh…` $59.37, `session_01Lb8nz…` $61.56,
+  `session_01PNNS2…` $52.22, `session_01GkaTE…` $39.17, `session_015dhvK…` $60.84,
+  `session_01QANgL…` $16.32): **$289.48**; their recorded usage is 85.97M units (input + 1.25 ×
+  cache write + 0.1 × cache read). Which transcript id above belongs to which session id was not
+  carried, so the per-session pairing is not stated.
+- This close, `session_019uYS9r…`, also orchestrated part 11 (PR 542), part 12 (PR 545), its
+  follow-up (PR 546) and the part 0 updates. An earlier version of this block covered only its
+  first 52 calls (2 agents, 881k units, orchestrator 10.6%) and the later dispatches were counted
+  by hand; the block below replaces both, regenerated at the close (2026-10-24, 22:39Z) with
+  `pnpm -s session-metrics --milestone <this session's transcript> --parts 12` over the whole
+  session, its 27 subagents included. Its recorded cost was not re-read at the close.
+
+28 agents, 958 API calls, 13.02M units. One call is one assistant `message.id`; units = input + 1.25 × cache write + 0.1 × cache read (output excluded, transcripts understate it).
+
+**By agent type**
+
+| Who | Agents | Calls | Avg context | Peak context | Units | Share |
+|---|---|---|---|---|---|---|
+| `phase-implementer` | 11 | 421 | 82k | 200k | 4.54M | 34.9% |
+| `orchestrator` | 1 | 152 | 221k | 343k | 3.82M | 29.3% |
+| `general-purpose` | 7 | 187 | 105k | 177k | 2.87M | 22.0% |
+| `part-reviewer` | 9 | 198 | 56k | 105k | 1.80M | 13.8% |
+
+**Costliest agents**
+
+| Agent (description) | Type | Calls | Avg context | Peak context | Units |
+|---|---|---|---|---|---|
+| M52 part 11: Today weather/settings | `phase-implementer` | 101 | 128k | 200k | 1.53M |
+| Close M52 gate on part 0 | `general-purpose` | 59 | 133k | 177k | 991k |
+| Diagnose+fix sun vs weather place | `phase-implementer` | 61 | 83k | 113k | 636k |
+| Fix PR 542 round 3 blocker | `phase-implementer` | 58 | 86k | 120k | 627k |
+| Part 0: box 8 and 14(c) | `general-purpose` | 31 | 103k | 122k | 459k |
+| Part 0 update after part 11 merge | `general-purpose` | 28 | 102k | 126k | 431k |
+| Review M52 part 11 PR 542 | `part-reviewer` | 35 | 78k | 105k | 393k |
+| M52 part 12: pin eval clock | `phase-implementer` | 38 | 70k | 95k | 373k |
+| Audit .env.example against code | `general-purpose` | 23 | 90k | 114k | 338k |
+| M52 part 13: eval stub + swap | `phase-implementer` | 38 | 59k | 78k | 313k |
+
+**Orchestrator turns, by what started them**
+
+| What started the turn | Turns | Units | Share of orchestrator | Idle |
+|---|---|---|---|---|
+| GitHub / trigger notification | 0 | 0 | 0.0% | 0 of 0 (0 units) |
+| Subagent report | 26 | 1.25M | 32.7% | – |
+| Subagent finished | 12 | 645k | 16.9% | – |
+| Harness | 0 | 0 | 0.0% | – |
+| Human | 29 | 1.92M | 50.4% | – |
+| Other (unrecognised frame) | 0 | 0 | 0.0% | – |
+
+**Follow-ups and cache re-writes**
+
+| Measure | Count | Tokens |
+|---|---|---|
+| `SendMessage` calls by the orchestrator | 4 | – |
+| Coordinator messages received mid-life, by 0 subagent(s) | 0 | – |
+| Full cache re-writes in subagents | 0 | 0 |
+| — directly after a coordinator message | 0 | 0 |
+
+**Guard hooks**
+
+| Hook | deny | note |
+|---|---|---|
+| `implementer-brief-check` | 1 | 0 |
+| `orchestrator-context-limit` | 0 | 29 |
+
+**Targets**
+
+| Target | Result | Measured |
+|---|---|---|
+| Orchestrator share of units < 15% | missed | 29.3% |
+| No phase-implementer averaging > 250k context | met | worst 128k |
+| GitHub wakes per merged part < 5 | met | 0 / 12 = 0.0 |
+| Dollars per 1k lines added < 20 | not measurable | needs --cost-usd and --lines-added |
+| Coordinator-message re-writes <= 2 | met | 0 |
+
+### Spend against the last milestone
+
+M51 has no block (closed with `--no-spend`), so it compares on recorded dollars only: the three M51
+build sessions `list_sessions` shows (`session_013GYZSS…` $68.57, `session_01SL6xKY…` $69.48, `session_01RjW6kg…`
+$220.74, read 2026-10-24) are $358.79 for about 9,300 lines. Lines added for
+M52, by the guideline's rule (PRs 530–537 and 539–541 by GitHub's per-file count, without
+`docs/`, `*.generated.json` and `pnpm-lock.yaml`): 25,222, of which 14,516 are Drizzle snapshots
+in `apps/web/drizzle/meta/`; 10,706 without them.
+
+- **Dollars per 1,000 lines added (under 20):** met by the rule, $11.5 ($289.48 / 25.2k; M51
+  $38.6). Missed without the four migration snapshots, $27.0, which is the fairer reading (as M47
+  read its own).
+- **Orchestrator's share (under 15%):** not measured. Estimated from the carried figures: at least
+  10% (cache reads alone) and about 19% if `7e2bc2ed`'s write-to-read ratio holds for the other
+  four, against the six sessions' 85.97M units, and leaving out `a3966077`'s orchestrator. Read as
+  probably missed. The close session's own block measures 29.3% (missed): it orchestrated parts 11 and 12 as well as the close.
+- **A builder's average context (none over 250k):** not measurable; no `phase-implementer`
+  transcript survived.
+- **GitHub wakes per merged part (under 5):** not measurable for the build sessions; 0 in the
+  close session.
+- **Cache re-writes after a coordinator message (2 or fewer):** not measurable for the build
+  sessions; 0 in the close.
