@@ -458,8 +458,13 @@ export function DiscoverScreen({
           query but to scroll back. `bg-paper` so the list does not show through
           it, and `-mx-6 px-6` to bleed the background to the page edges while
           the content keeps `PageContainer`'s gutter. Not sticky from `md` up,
-          where the whole header is on screen at once. */}
-      <div className="sticky top-0 z-10 -mx-6 flex flex-col gap-5 bg-paper px-6 pt-1 pb-1 md:static md:mx-0 md:px-0 md:pt-0 md:pb-0">
+          where the whole header is on screen at once.
+
+          `below-app-header`, not `top-0` (KI-2026-10-09-c): AppHeader is
+          sticky at `top: 0` too, a tier above, so at the same `top` this bar
+          pinned underneath it and was hidden exactly when it was needed. The
+          trip header pins below AppHeader the same way. */}
+      <div className="sticky below-app-header z-10 -mx-6 flex flex-col gap-5 bg-paper px-6 pt-1 pb-1 md:static md:mx-0 md:px-0 md:pt-0 md:pb-0">
       {!signedOut && (
         <UnderlineTabs
           value={scope}

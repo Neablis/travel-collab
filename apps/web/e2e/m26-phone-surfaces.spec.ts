@@ -111,6 +111,24 @@ test.describe("Playbooks on a phone", () => {
     await expect(page.getByRole("tab", { name: "Saved" })).toBeVisible();
   });
 
+  // KI-2026-10-09-c: the tabs and the search are sticky on a phone so a long
+  // list never strands you, and AppHeader is sticky too, a tier above. Pinned
+  // at the same `top: 0`, the bar slid under the header and was hidden exactly
+  // when it was meant to help. Read off the computed `top` rather than a
+  // scroll, so it holds however short the run's library is.
+  test("pins its tabs and search under the app header, not behind it", async ({ page }) => {
+    await page.goto("/playbooks");
+    const tabs = page.getByRole("tablist", { name: "Whose days" });
+    await expect(tabs).toBeVisible();
+    const pinnedAt = await tabs.evaluate((el) => {
+      let node: Element | null = el;
+      while (node !== null && getComputedStyle(node).position !== "sticky") node = node.parentElement;
+      return node === null ? null : parseFloat(getComputedStyle(node).top);
+    });
+    const header = (await page.locator(".app-header").boundingBox())!;
+    expect(pinnedAt).toBe(header.height);
+  });
+
   test("does not scroll sideways at 411px", async ({ page }) => {
     await page.goto("/playbooks");
     await expect(page.getByTestId("discover-phone-filters")).toBeVisible();
