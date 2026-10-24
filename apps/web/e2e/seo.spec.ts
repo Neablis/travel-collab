@@ -208,7 +208,7 @@ test("a day's HTML holds its name and its stops without JavaScript", async ({ pa
   }
 });
 
-test("a day's head: name and first city in the title, the facts line, a slugged canonical", async ({ page, browser }) => {
+test("a day's head: name and first city in the title, the arc sentence, a slugged canonical", async ({ page, browser }) => {
   test.slow();
   const city = `Seoe2e${randomUUID().slice(0, 6)}`;
   const name = `Crawlable day ${randomUUID().slice(0, 8)}`;
@@ -220,7 +220,7 @@ test("a day's head: name and first city in the title, the facts line, a slugged 
     expect(html).toContain(`<title>${name} · ${city} — Caesura</title>`);
     // No summary on this day, so the arc sentence: its one morning stop, as the day's story.
     expect(html).toContain(
-      `<meta name="description" content="A day in ${city}: Stop in ${city}, planned by someone who lived it. Borrow it for your trip.">`,
+      `<meta name="description" content="A day in ${city}: Stop in ${city}, planned by someone who lived it. Borrow it for your trip."/>`,
     );
     expect(html).toMatch(new RegExp(`<link rel="canonical" href="[^"]*${slugged}"`));
     // The card's title stays the bare name: og:site_name carries the brand.

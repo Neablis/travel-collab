@@ -65,14 +65,14 @@ test("signed out: a tag page, a city's tag page, and Discover's tag filter and n
 
     // The library's nightlife page lists the late nights, and not the dinner.
     await visitor.goto("/playbooks/tag/nightlife");
-    await expect(visitor.getByRole("heading", { level: 1, name: "Nightlife playbooks" })).toBeVisible();
+    await expect(visitor.getByRole("heading", { level: 1, name: "Nightlife days worth borrowing" })).toBeVisible();
     await expect(visitor.getByRole("link", { name: new RegExp(`^Late night ${city} `) }).first()).toBeVisible();
     await expect(dinner).toHaveCount(0);
 
     // The city's nightlife page: its 25 days over two pages, the dinner on neither.
     await visitor.goto(`/playbooks/city/${slug}/nightlife`);
-    await expect(visitor.getByRole("heading", { level: 1, name: `${city} nightlife playbooks` })).toBeVisible();
-    await expect(visitor.getByText(`${LATE_DAYS} nightlife days other travelers planned in ${city}.`)).toBeVisible();
+    await expect(visitor.getByRole("heading", { level: 1, name: `Nightlife days in ${city}` })).toBeVisible();
+    await expect(visitor.getByText(`${city} nightlife: nightlife 0, nightlife 1, nightlife 2. A real day, ready to drop into your trip.`)).toBeVisible();
     await expect(dinner).toHaveCount(0);
     await visitor.getByRole("link", { name: "Next", exact: true }).click();
     await expect(visitor).toHaveURL(new RegExp(`/playbooks/city/${slug}/nightlife\\?page=2$`));
