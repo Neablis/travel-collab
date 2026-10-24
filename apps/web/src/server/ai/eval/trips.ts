@@ -8,7 +8,7 @@ import { randomUUID } from "node:crypto";
 import type { ActivityTag, Location, TripCommand } from "@tc/contracts";
 import { commandsFor } from "@tc/factories";
 import { JAPAN_STOPS, JAPAN_TRIP_DAY_COUNT, addDays } from "@tc/fixtures";
-import { clockIn } from "@tc/pages";
+import { clockIn, type TripPhase } from "@tc/pages";
 
 /**
  * The trips a live-set prompt may name, beyond the default Japan trip.
@@ -30,6 +30,33 @@ export type EvalTripName = (typeof EVAL_TRIPS)[number];
  */
 export function evalInstant(realNow: number): number {
   return Date.parse(`${clockIn("Asia/Tokyo", realNow).date}T12:30:00+09:00`);
+}
+
+/**
+ * How far after the run a planning trip starts: half a year, so it is in
+ * planning (more than `SOON_DAYS` out) on whatever day the run happens.
+ */
+export const PLANNING_LEAD_DAYS = 180;
+
+/**
+ * The start date of every eval trip a case needs in planning — the Japan trip
+ * of every prompt not on `today`, `long-100`, the account trips: months after
+ * the run's own date in Tokyo. These were a fixed 2027-04-01, which made them
+ * "soon" from 2027-03-29 and under way from 2027-04-01, and the cases written
+ * for a trip months out would have run on one under way (KI-2026-10-24-n).
+ */
+export function planningStart(at: number): string {
+  return addDays(clockIn("Asia/Tokyo", at).date, PLANNING_LEAD_DAYS);
+}
+
+/**
+ * The phase a prompt's trip must be in as its turn starts: under way for
+ * `today`, planning for every other. The runner refuses a seeded trip in any
+ * other, so a date that drifts fails the run loudly instead of quietly
+ * grading a case on a trip it was not written for.
+ */
+export function phaseFor(trip: EvalTripName | undefined): TripPhase {
+  return trip === "today" ? "underway" : "planning";
 }
 
 /**
@@ -73,13 +100,13 @@ export const LONG_TRIP_DAYS = LEGS.reduce((sum, leg) => sum + leg.days, 0);
  * timed stops a day in that day's city, through `commandsFor` — the factory's
  * command twin, so the trip is folded by the real pipeline like any other.
  */
-export function longTripCommands(tripId: string): TripCommand[] {
+export function longTripCommands(tripId: string, startDate: string): TripCommand[] {
   const legOfDay = LEGS.flatMap((leg) => Array.from({ length: leg.days }, () => leg));
   const stopsPerDay = 2;
   return commandsFor("threeDayTrip", tripId, {
     dayCount: legOfDay.length,
     activitiesPerDay: stopsPerDay,
-    startDate: "2027-04-01",
+    startDate,
     // `commandsFor` cycles locations across every stop in emission order, so
     // one entry per stop puts each day's two stops in that day's city.
     locations: legOfDay.flatMap((leg): Location[] =>
@@ -169,15 +196,15 @@ export const ACCOUNT_TRIPS: readonly AccountEvalTrip[] = [
   },
 ];
 
-/** One account trip as the commands that build it after `CreateTrip`: dated days, then their stops. */
-export function accountTripCommands(tripId: string, trip: AccountEvalTrip): TripCommand[] {
+/** One account trip as the commands that build it after `CreateTrip`: days from `startDate`, then their stops. */
+export function accountTripCommands(tripId: string, trip: AccountEvalTrip, startDate: string): TripCommand[] {
   const dayIds = trip.days.map(() => randomUUID());
   return [
     {
       type: "SetTripDates",
       tripId,
-      startDate: "2027-05-01",
-      endDate: `2027-05-${String(trip.days.length).padStart(2, "0")}`,
+      startDate,
+      endDate: addDays(startDate, trip.days.length - 1),
       newDayIds: dayIds,
     },
     ...trip.days.flatMap((stops, day) =>

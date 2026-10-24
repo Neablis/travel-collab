@@ -39,6 +39,7 @@ import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { japanTripCommands } from "@tc/fixtures";
 import type { TripDetail } from "@tc/contracts";
+import { tripNow } from "@tc/pages";
 import { executeTripCommand, executeTripCommandBatch } from "@/server/commands";
 import { db } from "@/server/db/client";
 import { rateLimitCounters } from "@/server/db/schema";
@@ -50,8 +51,8 @@ import { saveDay, setSavedDayVisibility } from "@/server/savedDays";
 import { postMessage } from "@/server/chat/messages";
 import type { TurnOrigin } from "@/server/assistant/defineTool";
 import { grade, navigatedTo, retractedText, reviewedChanges, textBeforeToolCall, visibleText, type EvalCheck, type EvalTurn } from "./grade";
-import { capMicroUsdFrom, dollars, turnMicroUsd, unpricedModels } from "./spend";
-import { ACCOUNT_TRIPS, accountTripCommands, evalInstant, japanTodayStart, longTripCommands, type EvalTripName } from "./trips";
+import { capMicroUsdFrom, dollars, turnSpend, unpricedModels, type TurnSpend } from "./spend";
+import { ACCOUNT_TRIPS, accountTripCommands, evalInstant, japanTodayStart, longTripCommands, phaseFor, planningStart, type EvalTripName } from "./trips";
 import { pinClock, type EvalClock } from "./evalClock";
 
 const ACTOR_ID = "eval-actor";
@@ -71,6 +72,7 @@ vi.mock("@/server/ai/assistantPorts", async (importOriginal) => {
 const { handleBeyondTripAskRequest, handleAskRequest } = await import("@/server/ai/handleAskRequest");
 const { upsertUser } = await import("@/server/users");
 const { issueGrant } = await import("@/server/entitlements/grants");
+const { addNonTraveller } = await import("./seedMembers");
 
 interface LivePrompt {
   id: string;
@@ -110,8 +112,12 @@ const unpriced = unpricedModels(configuredModels, new Date());
 const plan =
   `eval plan: ${prompts.length} prompt(s) x ${repeat} = ${prompts.length * repeat} paid turn(s), ` +
   `cap ${capMicroUsd === null ? `invalid (EVAL_MAX_USD=${process.env.EVAL_MAX_USD})` : dollars(capMicroUsd)}, models ${[...new Set(configuredModels)].join(", ")}`;
+// An estimated turn (a part reported no usage) is in `spentMicroUsd` at its
+// estimate, so the cap counts it (KI-2026-10-13-c); `estimatedTurns` says how
+// many such guesses the total holds.
 let spentMicroUsd = 0;
 let unpricedTurns = 0;
+let estimatedTurns = 0;
 
 // Read from the real clock as the run loads, before `Date` is pinned. The
 // report carries both, since the pinned instant says nothing of when it ran.
@@ -128,13 +134,22 @@ async function seedTripFor(prompt: LivePrompt): Promise<{ tripId: string; detail
   const name = prompt.trip === "long-100" ? "100 days in Japan (eval)" : "Japan (eval)";
   const created = await executeTripCommand({ type: "CreateTrip", tripId, name }, ACTOR_ID);
   if (!created.ok) throw new Error(`seed: ${created.error.message}`);
+  // `Date` is pinned to the turn's start here, so both dates follow the run.
   const commands =
     prompt.trip === "long-100"
-      ? longTripCommands(tripId)
-      : japanTripCommands(tripId, { startDate: prompt.trip === "today" ? japanTodayStart(Date.now()) : "2027-04-01" });
+      ? longTripCommands(tripId, planningStart(Date.now()))
+      : japanTripCommands(tripId, { startDate: prompt.trip === "today" ? japanTodayStart(Date.now()) : planningStart(Date.now()) });
   const seeded = await executeTripCommandBatch(commands, ACTOR_ID);
   if (!seeded.ok) throw new Error(`seed: ${seeded.error.message}`);
-  return { tripId, detail: seeded.detail };
+  // Every stop is in Japan, so Tokyo's clock is each day's own.
+  const phase = tripNow(seeded.detail, null, { at: Date.now(), deviceZone: "Asia/Tokyo" }).phase;
+  if (phase !== phaseFor(prompt.trip)) {
+    throw new Error(`seed: ${prompt.id}'s trip is ${phase} as its turn starts; its case is written for one ${phaseFor(prompt.trip)}`);
+  }
+  // A member who is not travelling, as the demo has Kenji, so a split over the
+  // travellers and one over the members differ (KI-2026-10-05-j). Every trip
+  // prompt's baseline moved with this on 2026-10-24: say so in the next run's record.
+  return { tripId, detail: await addNonTraveller(tripId, ACTOR_ID, seeded.detail) };
 }
 
 /** The eval actor's grant, so every account is on the same plan and tiers. */
@@ -155,7 +170,7 @@ async function seedAccount(): Promise<{ userId: string; seeded: SeededAccountTri
     const tripId = randomUUID();
     const created = await executeTripCommand({ type: "CreateTrip", tripId, name: trip.name }, userId);
     if (!created.ok) throw new Error(`seed: ${created.error.message}`);
-    const built = await executeTripCommandBatch(accountTripCommands(tripId, trip), userId);
+    const built = await executeTripCommandBatch(accountTripCommands(tripId, trip, planningStart(Date.now())), userId);
     if (!built.ok) throw new Error(`seed: ${built.error.message}`);
     if (!trip.travelling) {
       await writeTravelling(db, { tripId, userId, travelling: false, updatedBy: userId, now: new Date().toISOString() });
@@ -182,7 +197,7 @@ async function seedPlaybook(): Promise<{ userId: string; savedDayId: string; sto
   const tripId = randomUUID();
   const created = await executeTripCommand({ type: "CreateTrip", tripId, name: "Kyoto" }, userId);
   if (!created.ok) throw new Error(`seed: ${created.error.message}`);
-  const built = await executeTripCommandBatch(japanTripCommands(tripId, { startDate: "2027-04-01" }), userId);
+  const built = await executeTripCommandBatch(japanTripCommands(tripId, { startDate: planningStart(Date.now()) }), userId);
   if (!built.ok) throw new Error(`seed: ${built.error.message}`);
   return { userId, savedDayId: kept.value.savedDayId, stopTitles: kept.value.stops.map((stop) => stop.title) };
 }
@@ -208,7 +223,7 @@ async function runTurn(
   beyondTrip: { kind: "account" } | { kind: "playbook"; page: { kind: "day"; savedDayId: string } } = { kind: "account" },
   /** On a trip, where the turn was asked: the Ask tab, or the trip chat. */
   origin: TurnOrigin = "ask",
-): Promise<EvalTurn & { stepDurationsMs: (number | null)[]; providers: (string | null)[]; generationIds: (string | null)[]; microUsd: number | null }> {
+): Promise<EvalTurn & { stepDurationsMs: (number | null)[]; providers: (string | null)[]; generationIds: (string | null)[]; spend: TurnSpend }> {
   // Keyed by actor, and every turn here is the same actor (see replay.int.test.ts).
   await db.delete(rateLimitCounters);
   const records: AskAnalyticsRecord[] = [];
@@ -248,7 +263,7 @@ async function runTurn(
     stepDurationsMs: ledgers[0]?.stepSpend.map((step) => step.durationMs) ?? [],
     providers: ledgers[0]?.stepSpend.map((step) => step.provider) ?? [],
     generationIds: ledgers[0]?.stepSpend.map((step) => step.gatewayGenerationId) ?? [],
-    microUsd: ledgers[0] ? turnMicroUsd(ledgers[0], new Date()) : null,
+    spend: ledgers[0] ? turnSpend(ledgers[0], new Date()) : { microUsd: null, estimated: ["no ledger was written for the turn"] },
   };
 }
 
@@ -267,6 +282,10 @@ interface RunRow {
   inputTokens: number | null;
   outputTokens: number | null;
   answer: string;
+  /** What the cap counted for the turn; null where a model had no rate. */
+  microUsd: number | null;
+  /** Each part that reported no usage and was charged an estimate (KI-2026-10-13-c). Empty when all were measured. */
+  costEstimated: string[];
   /** Text that streamed and was taken back (KI-2026-10-12-h). Reported, never failed. */
   retracted: { parts: number; chars: number };
   checks: EvalCheck[];
@@ -308,7 +327,7 @@ afterAll(() => {
     startedAt: new Date(startedAt).toISOString(),
     finishedAt: new Date(finishedAt).toISOString(),
   };
-  writeFileSync(file, `${JSON.stringify({ models, repeat, spentMicroUsd, unpricedTurns, rows, ...clockReport }, null, 2)}\n`);
+  writeFileSync(file, `${JSON.stringify({ models, repeat, spentMicroUsd, estimatedTurns, unpricedTurns, rows, ...clockReport }, null, 2)}\n`);
   const failed = rows.flatMap((row) => row.checks.filter((check) => !check.pass).map((check) => `${row.id}#${row.run}: ${check.name}`));
   console.log(
     [
@@ -317,7 +336,7 @@ afterAll(() => {
       `models: ${JSON.stringify(models)}`,
       `clock: every turn started at ${clockReport.pinnedAt} (12:30 JST); the run really ran ${clockReport.startedAt} to ${clockReport.finishedAt}`,
       `retracted: ${rows.reduce((n, row) => n + row.retracted.parts, 0)} text parts, ${rows.reduce((n, row) => n + row.retracted.chars, 0)} chars, across ${rows.filter((row) => row.retracted.parts > 0).length} turns (KI-2026-10-12-h; not a failure)`,
-      `spent: ${dollars(spentMicroUsd)} of a ${capMicroUsd === null ? "invalid" : dollars(capMicroUsd)} cap${unpricedTurns > 0 ? ` (+ ${unpricedTurns} unpriced turn(s))` : ""}`,
+      `spent: ${dollars(spentMicroUsd)} of a ${capMicroUsd === null ? "invalid" : dollars(capMicroUsd)} cap${estimatedTurns > 0 ? `, ${estimatedTurns} turn(s) of it estimated` : ""}${unpricedTurns > 0 ? ` (+ ${unpricedTurns} unpriced turn(s))` : ""}`,
       ...rows.map(
         (row) =>
           `  ${row.checks.every((check) => check.pass) ? "PASS" : "FAIL"} ${row.id}#${row.run}  ${row.model}  ${row.steps} steps  ` +
@@ -371,9 +390,14 @@ describe.skipIf(!confirmed)("the live set, on production's models", () => {
           turn = await runTurn(prompt, tripId);
           expected = expectationFor(prompt.id, detail);
         }
-        if (turn.microUsd === null) unpricedTurns += 1;
-        else spentMicroUsd += turn.microUsd;
-        console.log(`    cost: ${turn.microUsd === null ? "unpriced" : dollars(turn.microUsd)} (run so far ${dollars(spentMicroUsd)})`);
+        const { microUsd, estimated } = turn.spend;
+        if (microUsd === null) unpricedTurns += 1;
+        else spentMicroUsd += microUsd;
+        if (microUsd !== null && estimated.length > 0) estimatedTurns += 1;
+        console.log(
+          `    cost: ${microUsd === null ? "unpriced" : `${estimated.length > 0 ? "~" : ""}${dollars(microUsd)}`} (run so far ${dollars(spentMicroUsd)})`,
+        );
+        for (const line of estimated) console.log(`    estimated: ${line}`);
         const checks = grade(turn, expected!);
         rows.push({
           id: prompt.id,
@@ -388,6 +412,8 @@ describe.skipIf(!confirmed)("the live set, on production's models", () => {
           inputTokens: turn.record.usage.inputTokens,
           outputTokens: turn.record.usage.outputTokens,
           answer: turn.text,
+          microUsd,
+          costEstimated: estimated,
           retracted: turn.retracted,
           checks,
         });

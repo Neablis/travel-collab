@@ -1,4 +1,4 @@
-### KI-2026-10-13-c — an unpriced live-eval turn counts as nothing against `EVAL_MAX_USD`, so a run can pass its cap unnoticed
+### KI-2026-10-13-c — an unpriced live-eval turn counts as nothing against `EVAL_MAX_USD`, so a run can pass its cap unnoticed — RESOLVED
 
 - **Severity:** correctness. The cap is the eval runner's one guard on paid spend, and a turn it
   cannot price does not count towards it. Each case seen so far cost cents, but nothing bounds
@@ -33,3 +33,18 @@
   (`docs/milestones/M45-the-assistant-beyond-one-trip.md`); PR 420, PR 429.
 - **First noted:** 2026-10-13, M45 close: the live eval at `940df19`, then PR 429's live eval at
   `87c01b0`.
+- **Proof (resolved 2026-10-24, KI sweep):** reproduced without a paid call: on `main`,
+  `turnMicroUsd` of a ledger whose second Opus 5.5 step reported `tokensIn: null, tokensOut:
+  null` returned `null` (`TypeError: actual value must be number or bigint, received "object"`
+  from `toBeGreaterThan(0)`), and `live.eval.ts` added a null to `unpricedTurns` and nothing to
+  `spentMicroUsd`. Fix: `spend.ts`'s `turnSpend` replaces it and charges a part that reported no
+  usage an estimate at its model's rate — input the larger of the turn's unattributed input and
+  the largest input any step reported (`UNREPORTED_INPUT_TOKENS`, 100,000, when the turn offers
+  neither; the classifier always gets the ceiling), output `MAX_STEP_OUTPUT_TOKENS` — and returns
+  one `estimated` line per guessed part naming the step and model. The runner adds the estimate
+  to `spentMicroUsd`, prints `cost: ~$…` and each `estimated:` line, and the results JSON gains
+  `estimatedTurns` and per-row `microUsd` / `costEstimated`. Null remains only for a model with no
+  rate, which a run must opt into (`EVAL_ALLOW_UNPRICED`). Four new `spend.test.ts` cases, seen
+  red against the old behaviour (`expected null to be 99600`, `expected { microUsd: null, … }`)
+  and the largest-step rule seen red on its own (`expected 451600 to be 99600`). Which provider
+  step drops its usage is now named in the turn's output; finding it needs the next paid run.
