@@ -1,9 +1,9 @@
-import { citiesOfDay, stopsInTimeOrder } from "@tc/domain";
-import { clockIn } from "@tc/pages";
+import { clockIn, nearestTripDay } from "@tc/pages";
 import type { ForecastDay, TripDetail, TripWeather, TripWeatherPoint, TypicalMonth } from "@tc/contracts";
 import { readThrough, wouldCharge, type CacheRow, type CacheStore } from "../cache";
 import { pointText, roundForExport, type RoundedPoint } from "../roundedPoint";
 import { timeZoneAt } from "../../timeZones";
+import { placesOfDay } from "../../tripGlobals";
 import { ForecastSeries, MonthlyNormals, type Climate, type Forecast } from "./ports";
 
 // A trip's weather, as `GET /api/trips/[tripId]/weather` answers it (ADR-052
@@ -66,39 +66,37 @@ export interface PlannedPoint {
   zone: string | null;
 }
 
-type Located = { lat: number; lng: number; city: string | null };
-
-/** A day's located stops in time order — `stopsInTimeOrder`, the walk `citiesOfDay` makes, not a copy of it. */
-function locatedInTimeOrder(detail: TripDetail, activityIds: readonly string[]): Located[] {
-  const stops = activityIds.flatMap((id) => (detail.activities[id] ? [detail.activities[id]] : []));
-  return stopsInTimeOrder(stops).flatMap(({ location }) =>
-    location?.lat === undefined || location.lng === undefined
+/**
+ * The trip's points: each dated day's places (`placesOfDay`, the rule the
+ * day's sun is placed by too). A day with no located stop has none — the
+ * widget says "add a place to a stop to see this", which the author can fix.
+ */
+export function weatherPointsOf(detail: TripDetail): PlannedPoint[] {
+  return detail.days.flatMap((day, index) =>
+    day.date === null
       ? []
-      : [{ lat: location.lat, lng: location.lng, city: location.city ?? null }],
+      : placesOfDay(detail, index).map(({ lat, lng, city }) => ({
+          date: day.date!, city, point: roundForExport(lat, lng), zone: timeZoneAt(lat, lng),
+        })),
   );
 }
 
 /**
- * The trip's points. A day with no located stop has none — the widget says
- * "add a place to a stop to see this", which the author can fix. A day whose located stops
- * name no city gets one point, at its first, with no city.
+ * Today's point, when today is none of the trip's days: at the place of the
+ * trip day nearest today (`nearestTripDay`, the clamp a Today page reads its
+ * sun by too), dated today there. A Today page shows it before the trip and
+ * after it (Mitchell, 2026-10-24); no other page reads a point off the trip's
+ * dates. `null` when that day has no place, or today is a trip day already.
+ * Today is read on the first point's clock, as `tripNow` counts to the start.
  */
-export function weatherPointsOf(detail: TripDetail): PlannedPoint[] {
-  const points: PlannedPoint[] = [];
-  detail.days.forEach((day, index) => {
-    if (day.date === null) return;
-    const stops = locatedInTimeOrder(detail, day.activityIds);
-    if (stops.length === 0) return;
-    const planned = (stop: Located, city: string | null): PlannedPoint => ({
-      date: day.date!, city, point: roundForExport(stop.lat, stop.lng), zone: timeZoneAt(stop.lat, stop.lng),
-    });
-    const byCity = citiesOfDay(detail, index).flatMap((city) => {
-      const first = stops.find((stop) => stop.city === city);
-      return first ? [planned(first, city)] : [];
-    });
-    points.push(...(byCity.length > 0 ? byCity : [planned(stops[0]!, null)]));
-  });
-  return points;
+export function todayPointOf(detail: TripDetail, planned: readonly PlannedPoint[], now: Date): PlannedPoint | null {
+  const [first] = planned;
+  if (first === undefined) return null;
+  const index = nearestTripDay(detail.days, localOf(first.zone, now.getTime()).date);
+  const near = index === null ? undefined : planned.find((p) => p.date === detail.days[index]!.date);
+  if (near === undefined) return null;
+  const date = localOf(near.zone, now.getTime()).date;
+  return planned.some((p) => p.date === date) ? null : { ...near, date };
 }
 
 // `power:normals2`: the value changed meaning on 2026-09-27 (KI-2026-09-27-b,
@@ -182,7 +180,9 @@ async function pool<T>(items: readonly T[], limit: number, work: (item: T) => Pr
  * normals are asked for every point.
  */
 export async function buildTripWeather(detail: TripDetail, deps: WeatherDeps): Promise<TripWeather> {
-  const planned = weatherPointsOf(detail);
+  const trips = weatherPointsOf(detail);
+  const todayPoint = todayPointOf(detail, trips, deps.now);
+  const planned = todayPoint === null ? trips : [...trips, todayPoint];
   const today = deps.now.getTime();
   const [earliest, latest] = [isoDay(today - DAY_MS), isoDay(today + 11 * DAY_MS)];
   const inHorizon = (date: string) => date >= earliest && date <= latest;

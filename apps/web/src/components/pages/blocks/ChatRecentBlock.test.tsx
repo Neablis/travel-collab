@@ -131,6 +131,20 @@ describe("ChatRecentBlock", () => {
 
   // A member the chat refuses is offered no chat, and a share link's page
   // registers nothing at all: either way, no widget, not a disabled one.
+  // PR 541's review: the card sat in the page's outline under the heading
+  // before it ("Sunrise/Sunset" on Today), since its "Trip chat" was no
+  // heading. It is one, at the level of a page's section headings, as the
+  // control and as the card that opens nothing.
+  it("is a section heading of its own in the page's outline", () => {
+    offer({ onOpen: () => {}, messages: [message], unread: 0 });
+    render(view());
+    expect(screen.getByRole("heading", { level: 2, name: "Trip chat Open chat" })).toBeTruthy();
+    cleanup();
+    unregister.push(registerPhoneAsk({ open: false, onOpen: () => {}, soloTrip: true, chat: { onOpen: () => {}, messages: [], unread: 0 } }));
+    render(view());
+    expect(screen.getByRole("heading", { level: 2, name: "Trip chat" })).toBeTruthy();
+  });
+
   it("is absent where the screen offers Ask and no chat", () => {
     unregister.push(registerPhoneAsk({ open: false, onOpen: () => {}, onAsk: () => {} }));
     render(<div data-testid="page">{view()}</div>);

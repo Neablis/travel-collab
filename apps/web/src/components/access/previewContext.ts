@@ -151,7 +151,7 @@ function globalsOf(preview: TripPreview): TripGlobals {
       const city = stop.location?.city === undefined ? undefined : cities.get(stop.location.city);
       if (city) city.activityCount += 1;
     }
-    return { index, date: day.date, cities: touched, activityCount: day.stops.length, costSubtotal: 0, place: null, timeZone: null };
+    return { index, date: day.date, cities: touched, activityCount: day.stops.length, costSubtotal: 0, place: null, timeZone: null, weatherPlace: null };
   });
   return { days, cities: [...cities.values()], tags: [], description: null, homeTimeZone: null };
 }

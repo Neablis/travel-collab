@@ -1,8 +1,8 @@
 import { z } from "zod";
-import type { WidgetShape } from "@tc/contracts";
+import type { PageContext, WidgetShape } from "@tc/contracts";
 import { FilterDimension } from "@tc/contracts";
 import type { AnyMacroDef, ItemScope, Rendered, Seg, WidgetContext, WidgetInput, WidgetScope, WidgetSelection } from "./registry-types";
-import { pageScope } from "./dateScope";
+import { pageScope, supersededParams, withoutSuperseded } from "./dateScope";
 import { ghost, text } from "./registry-types";
 import type { UnavailableReason, UnboundNeeds } from "./result";
 import { fieldAt, fieldChoices } from "./fields";
@@ -149,10 +149,12 @@ export function renderMacro(ctx: WidgetContext, name: string, rawParams: unknown
   const parsed = def.params.safeParse(rawParams ?? {});
   if (!parsed.success) return { status: "bad-params", message: parsed.error.message };
   if (def.requires !== undefined && ctx[def.requires] !== true) return { status: "absent" };
-  const page = pageScope(ctx, def, parsed.data as Record<string, unknown>);
+  // What the page's settings take over is read as unset, so they win.
+  const params = withoutSuperseded(ctx.page, def, parsed.data as Record<string, unknown>, ctx.now ?? null);
+  const page = pageScope(ctx, def, params);
   const scope: WidgetScope | undefined =
     item?.kind === "city" && page !== undefined ? { kind: "city-in-scope", name: item.name, page } : (item ?? page);
-  const outcome = def.resolve(ctx, parsed.data as never, scope);
+  const outcome = def.resolve(ctx, params as never, scope);
   if (outcome.status === "ok") return { status: "ok", rendered: def.render(outcome.value) };
   // Off the trip's dates a widget following a Today page has nothing because
   // today is no trip day, not because the trip lacks days or places, so it
@@ -299,13 +301,19 @@ export function distinctApplies(name: string, params: Record<string, unknown>): 
 /**
  * The inputs a widget offers as it is bound: its declared ones, minus any
  * filter its params withhold (`WidgetSelection.withheld`) — "Spend by tag"
- * offers no tag control, "Spend by kind" no kind control. The settings panel,
- * the insert step and a preset's catalogue entry all read this, so none of
- * them offers a control the resolver would ignore.
+ * offers no tag control, "Spend by kind" no kind control — and, given its
+ * page, any its page's settings take over (`supersededParams`): no day on a
+ * page scoped to today. The settings panel, the insert step and a preset's
+ * catalogue entry all read this, so none of them offers a control the
+ * resolver would ignore.
  */
-export function inputsFor(name: string, params: Readonly<Record<string, unknown>>): readonly WidgetInput[] {
+export function inputsFor(
+  name: string,
+  params: Readonly<Record<string, unknown>>,
+  page?: Pick<PageContext, "dateScope">,
+): readonly WidgetInput[] {
   const def = getMacro(name);
   if (!def) return [];
-  const withheld = new Set<string>(withheldFilters(def.selection, params).map(paramKeyOf));
-  return withheld.size === 0 ? def.inputs : def.inputs.filter((input) => !withheld.has(input.name));
+  const hidden = new Set<string>([...withheldFilters(def.selection, params).map(paramKeyOf), ...supersededParams(page, def)]);
+  return hidden.size === 0 ? def.inputs : def.inputs.filter((input) => !hidden.has(input.name));
 }

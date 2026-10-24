@@ -3,6 +3,7 @@ import type { TripDetail } from "@tc/contracts";
 import { tripDetailFixture } from "@tc/factories";
 import { demoTripDetail } from "./demoTrip";
 import { DEMO_TRIP_ID } from "@/lib/demoTrip";
+import { tripNow } from "@tc/pages";
 import { buildTripGlobals } from "./tripGlobals";
 
 // A trip whose middle day travels: it ends in a second city, so it appears in
@@ -191,6 +192,53 @@ describe("buildTripGlobals and time zones", () => {
 
   it("falls back to stored order among untimed stops", () => {
     expect(buildTripGlobals(flightDay()).days[2]).toMatchObject({ place: HONOLULU, timeZone: "Pacific/Honolulu" });
+  });
+
+  // A departure day: a 06:00 flight out of the home airport, a located stop
+  // naming no city, then Tokyo in the evening. The clock is the morning's, so
+  // at 22:00 New York time the evening before, the trip is still to come and
+  // the flight is next (PR 542, review round 3: moving the clock to Tokyo made
+  // it under way a day early, with the flight already past).
+  function departureDay(): TripDetail {
+    const base = tripDetailFixture();
+    const stop = (id: string, location: object, start: string) => ({
+      activityId: id, tripId: base.tripId, title: `Stop ${id}`, dayId: "d0", position: 0,
+      timeWindow: { start, end: start }, location, notes: null, anchors: [], kind: "planned", tags: [], cost: null,
+    });
+    return {
+      ...base,
+      days: [
+        { dayId: "d0", activityIds: ["flight", "tokyo"], date: "2026-10-20", costSubtotal: 0 },
+        { dayId: "d1", activityIds: ["only"], date: "2026-10-21", costSubtotal: 0 },
+        { dayId: "d2", activityIds: ["home1", "home2"], date: "2026-10-22", costSubtotal: 0 },
+      ],
+      activities: {
+        flight: stop("flight", { name: "ELM", ...HOME }, "06:00"),
+        tokyo: stop("tokyo", { city: "Tokyo", ...TOKYO }, "18:00"),
+        only: stop("only", { city: "Tokyo", ...TOKYO }, "09:00"),
+        home1: stop("home1", { name: "ELM", ...HOME }, "08:00"),
+        home2: stop("home2", { name: "Somewhere else", ...HONOLULU }, "09:00"),
+      } as unknown as TripDetail["activities"],
+    };
+  }
+  const HOME = { lat: 42.1599, lng: -76.8916 };
+
+  it("keeps a departure day's clock at its first located stop, so the eve of the trip is not under way", () => {
+    const trip = departureDay();
+    const globals = buildTripGlobals(trip);
+    const eve = tripNow(trip, globals, { at: Date.parse("2026-10-20T02:00:00Z"), deviceZone: "America/New_York" });
+    expect({ phase: eve.phase, dayId: eve.dayId, next: eve.next?.activityId }).toEqual({ phase: "soon", dayId: null, next: "flight" });
+    expect(globals.days[0]).toMatchObject({ place: { ...HOME, city: null }, timeZone: "America/New_York" });
+  });
+
+  // The sun and the weather read one place per day (`placesOfDay`'s first):
+  // the first city's earliest located stop, so a departure day's sky is where
+  // the traveller sleeps that night, not the airport they leave from.
+  it("puts a day's weather place at its first city's earliest located stop, and at its first located stop when none names a city", () => {
+    const days = buildTripGlobals(departureDay()).days;
+    expect(days[0]!.weatherPlace).toEqual({ ...TOKYO, city: "Tokyo", timeZone: "Asia/Tokyo" });
+    expect(days[2]!.weatherPlace).toEqual({ ...HOME, city: null, timeZone: "America/New_York" });
+    expect(buildTripGlobals(flightDay()).days[1]!.weatherPlace).toBeNull();
   });
 
   it("gives the reader's home zone from their home airport, and none without one", () => {

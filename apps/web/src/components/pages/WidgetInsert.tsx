@@ -151,7 +151,7 @@ export function WidgetInsert({
   const showing =
     pending === null || pendingTarget === null
       ? null
-      : bindSummary(pendingTarget.widget, { ...pendingTarget.params, ...params }, detail, globals, presetBindableInputs(pending), people, guests);
+      : bindSummary(pendingTarget.widget, { ...pendingTarget.params, ...params }, detail, globals, presetBindableInputs(pending, { dateScope }), people, guests);
 
   return (
     <>
@@ -169,7 +169,7 @@ export function WidgetInsert({
               // A preset whose name already answers every dimension is finished
               // the moment it lands, so §19 has it skip step 2 entirely rather
               // than showing an empty "point it at" with nothing in it.
-              if (presetBindableInputs(presetId).length === 0) {
+              if (presetBindableInputs(presetId, { dateScope }).length === 0) {
                 insert(presetId, {});
                 return;
               }
@@ -204,7 +204,7 @@ export function WidgetInsert({
               // Only the dimensions the preset has NOT already answered. "A
               // line for every booking" does not offer to stop being about
               // bookings on the way in.
-              inputs={presetBindableInputs(pending)}
+              inputs={presetBindableInputs(pending, { dateScope })}
             />
             <div>
               <Text variant="muted">Reads as</Text>
