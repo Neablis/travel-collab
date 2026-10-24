@@ -23,8 +23,10 @@ import { standInDay } from "../../dateScope";
 // clock, or the same rows as a table. The difference from home is a sentence.
 //
 // **Everything about WHERE comes from the globals projection**: a day's
-// `place` (its first located stop, in time order) and its `timeZone` are
-// computed on the server, because the zone lookup is a boundary dataset that
+// `place` (its first located stop, in time order) and its `timeZone`, which
+// the difference from home reads, and its `weatherPlace` (its first city's),
+// which the sun reads so it rises where the weather is. All are computed on
+// the server, because the zone lookup is a boundary dataset that
 // does not ship to the browser (M14 "Decided 2026-09-24"). This package only
 // does arithmetic on the zone NAME with `Intl`. With no globals there is no
 // place, which is `empty()` — the same honest degradation `city.detail` takes.
@@ -38,25 +40,29 @@ const TimeParams = filterParams(TIME_FILTERS);
 type TimeParams = z.infer<typeof TimeParams>;
 
 /**
- * A day's place and zone, when the server found both and this runtime knows the zone.
+ * A day's place and zone, when the server found both and this runtime knows the zone:
+ * the clock's (`place`), or the sky's (`weatherPlace`) for the sun.
  *
  * `city` is the selection's pinned city (`pinnedCity`). The projection holds
- * ONE place per day — its first located stop — so on a Paris → Lyon travel day
- * it is Paris's, and the Lyon line of a city repeat must not print Paris's sun
+ * ONE place of each kind per day, so on a Paris → Lyon travel day the sun's is
+ * Paris's, and the Lyon line of a city repeat must not print Paris's sun
  * under Lyon's name. That day is left out for Lyon rather than guessed: the
  * zone is not even the same on a London → New York day, and a second place per
  * day is a `TripGlobalsDay` contract change, not this widget's to make.
  */
-function locatedDay(globals: TripGlobals, index: number, city: string | undefined) {
+function locatedDay(globals: TripGlobals, index: number, city: string | undefined, of: "clock" | "sky") {
   const day = globals.days[index];
-  if (!day?.place || !day.timeZone || !isKnownZone(day.timeZone)) return null;
+  if (!day) return null;
+  const place = of === "sky" ? day.weatherPlace : day.place;
+  const zone = of === "sky" ? day.weatherPlace?.timeZone : day.timeZone;
+  if (!place || !zone || !isKnownZone(zone)) return null;
   // The city of the stop that gave the place, never `cities[0]`: that can be
   // an earlier stop with a city and no coordinates, and would put its name on
-  // another city's sunrise (CodeRabbit on #223). A pinned city is checked
+  // another city's sunrise (CodeRabbit on PR 223). A pinned city is checked
   // against the same stop, for the same reason.
-  const placeCity = day.place.city ?? null;
+  const placeCity = place.city ?? null;
   if (city !== undefined && placeCity !== city) return null;
-  return { place: day.place, zone: day.timeZone, city: placeCity };
+  return { place, zone, city: placeCity };
 }
 
 // ---------------------------------------------------------------------------
@@ -167,7 +173,7 @@ function axisOf(rows: readonly SunRow[], format: TimeFormat): SunAxis {
 
 /**
  * `day.sun` — sunrise, sunset and the length of the day, one row per selected
- * day, in that day's local time at its first located stop. The golden hour is
+ * day, in local time at the day's first city's first located stop. The golden hour is
  * drawn on the ribbon, not written.
  *
  * A day with no located stop is left out rather than printed as dashes: it has
@@ -180,7 +186,7 @@ export const daySun: MacroDef<SunParams, SunPayload> = {
   params: SunParams, inputs: SUN_INPUTS,
   selection: { entity: "day", filters: TIME_FILTERS },
   description:
-    "Sunrise, sunset and the length of the day for each selected day, in that day's local time, at its first stop with a place — drawn as a ribbon of daylight with the golden hour marked on it, or as a table. Filter it to a day for that day's sun.",
+    "Sunrise, sunset and the length of the day for each selected day, in local time at the day's first city (its first stop with a place when none names a city) — drawn as a ribbon of daylight with the golden hour marked on it, or as a table. Filter it to a day for that day's sun.",
   emptyText: "add a stop with a place to see this",
   // Fixed, never computed (ADR-037 decision 5).
   preview: "a ribbon of daylight for each day, sunrise to sunset",
@@ -191,7 +197,7 @@ export const daySun: MacroDef<SunParams, SunPayload> = {
     // page's "nothing today".
     if (item?.kind === "no-day") {
       const index = globals && now ? standInDay(trip, globals, now) : null;
-      const located = globals && index !== null ? locatedDay(globals, index, params.city) : null;
+      const located = globals && index !== null ? locatedDay(globals, index, params.city, "sky") : null;
       if (!located || !now) return empty();
       const date = clockIn(located.zone, now.at).date;
       const format = readerClock(user);
@@ -207,7 +213,7 @@ export const daySun: MacroDef<SunParams, SunPayload> = {
     let undated = false;
     const rows: SunRow[] = [];
     for (const index of selection.value.days) {
-      const located = locatedDay(globals, index, city);
+      const located = locatedDay(globals, index, city, "sky");
       if (!located) continue;
       const date = trip.days[index]!.date;
       if (date === null) {
@@ -302,7 +308,7 @@ export const dayFromHome: MacroDef<TimeParams, readonly HomeDifference[]> = {
     const entries: HomeDifference[] = [];
     const said = new Set<string>();
     for (const index of selection.value.days) {
-      const located = locatedDay(globals, index, city);
+      const located = locatedDay(globals, index, city, "clock");
       const date = trip.days[index]!.date ?? today;
       if (!located || date === null) continue;
       const minutes = differenceOnDay(located.zone, home, date);

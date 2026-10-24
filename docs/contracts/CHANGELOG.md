@@ -13,16 +13,23 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
-## 2026-10-24 — A day's place is its first city's (M52 part 11, PR 542's preview; public API 1.23.1)
-- **Changed** (`packages/contracts` `TripGlobalsDay.place`, description and comment only; no shape
-  change; public API description text): the place is the earliest located stop *of the day's
-  first city*, or the earliest located stop when none names a city, where it was the earliest
-  located stop of any. `timeZone` follows it.
+## 2026-10-24 — A day's `weatherPlace`, where its sun and weather are read (M52 part 11, PR 542's preview; public API 1.24.0)
+- **Added** (`packages/contracts` `TripGlobalsDay.weatherPlace`, optional, `{ lat, lng, city,
+  timeZone } | null`, default `null`; public API: the field on every response carrying
+  `TripGlobals`): the earliest located stop of the day's first city, or the earliest located stop
+  when none names a city, with the IANA zone there. `null` exactly when `place` is.
+- Unchanged: `TripGlobalsDay.place` and `timeZone` (still the earliest located stop, the day's
+  clock), and so the trip's phase, which day is today, now and next, and
+  `GET /v1/trips/{tripId}/today`.
 - Why: a stop with coordinates and no city (a flight out of the home airport) put a Today page's
-  sunrise at home while its weather was at the day's first city. `placesOfDay`
-  (`apps/web/src/server/tripGlobals.ts`) is now the one rule for both.
-- Consumers updated: `apps/web` (`buildTripGlobals`, `weatherPointsOf`, `openapi.json`).
-- Breaking? no — same shape; only a day that opens at a city-less stop moves.
+  sunrise at home while its weather was at the day's first city. Moving `place` instead moved the
+  clock, and made a trip under way the evening before it leaves. `placesOfDay`
+  (`apps/web/src/server/tripGlobals.ts`) is the one rule for both widgets.
+- Consumers updated: `apps/web` (`buildTripGlobals`, `weatherPointsOf`, `openapi.json`),
+  `@tc/pages` (`day.sun` reads `weatherPlace`; `day.fromHome` keeps `place`).
+- Breaking? no — additive; an older response parses with `weatherPlace: null`, and the sun then
+  shows nothing for that day.
+
 ## 2026-10-24 — The weather route answers today off the trip's dates (M52 part 11)
 - **Changed** (`apps/web`, `GET /api/trips/[tripId]/weather` only; no `packages/contracts`
   schema changed): when today is none of the trip's days, `TripWeather.points` carries one more

@@ -28,8 +28,8 @@ const detail = tripDetailFixture({
 });
 const globals: TripGlobals = {
   days: [
-    { index: 0, date: "2027-06-01", cities: ["Tokyo"], activityCount: 0, costSubtotal: 0, place: null, timeZone: null },
-    { index: 1, date: "2027-06-02", cities: ["Kyoto"], activityCount: 0, costSubtotal: 0, place: null, timeZone: null },
+    { index: 0, date: "2027-06-01", cities: ["Tokyo"], activityCount: 0, costSubtotal: 0, place: null, timeZone: null, weatherPlace: null },
+    { index: 1, date: "2027-06-02", cities: ["Kyoto"], activityCount: 0, costSubtotal: 0, place: null, timeZone: null, weatherPlace: null },
   ],
   cities: [
     { name: "Tokyo", dayIndexes: [0], activityCount: 0 },

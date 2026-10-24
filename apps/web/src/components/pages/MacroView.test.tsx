@@ -313,7 +313,7 @@ describe("MacroView", () => {
       const globals = {
         days: [{
           index: 0, date: "2026-08-01", cities: ["Kyoto"], activityCount: 1, costSubtotal: 12345,
-          place: null, timeZone: null,
+          place: null, timeZone: null, weatherPlace: null,
         }],
         cities: [{ name: "Kyoto", dayIndexes: [0], activityCount: 1 }],
         tags: [], description: null, homeTimeZone: null,
@@ -574,6 +574,7 @@ flightNumber: null,
     days: [{
       index: 0, date: "2026-08-01", cities: ["Kyoto"], activityCount: 2, costSubtotal: 12345,
       place: { lat: 35.0116, lng: 135.7681, city: "Kyoto" }, timeZone: "Asia/Tokyo",
+      weatherPlace: { lat: 35.0116, lng: 135.7681, city: "Kyoto", timeZone: "Asia/Tokyo" },
     }],
     cities: [{ name: "Kyoto", dayIndexes: [0], activityCount: 2 }],
     tags: [],

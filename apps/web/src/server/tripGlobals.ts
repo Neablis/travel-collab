@@ -29,7 +29,8 @@ export function buildTripGlobals(
     cities: citiesOfDay(detail, index),
     activityCount: day.activityIds.length,
     costSubtotal: day.costSubtotal,
-    ...placeOfDay(detail, index),
+    ...placeOfDay(detail, day.activityIds),
+    weatherPlace: weatherPlaceOf(detail, index),
   }));
 
   // A city's days and its stop count, accumulated in one pass over the days
@@ -97,19 +98,50 @@ function descriptionOf(detail: TripDetail): TripGlobalsDescription | null {
   return { text: described.text, counted, tags: tags.map(({ tag, count }) => ({ tag, activityCount: count })) };
 }
 
+/**
+ * Where a day is: its first located stop in TIME order, untimed stops after
+ * timed ones in stored order — the walk `citiesOfDay` makes, so a day's place
+ * and its first city come from the same ordering rather than two that agree
+ * by luck. The first stop because the morning is where a sunrise is asked
+ * about, and a travel day's evening is somewhere else.
+ *
+ * Stored order would be simpler and wrong the same way `citiesOfDay`'s header
+ * says it is: `activityIds` is display order, which a person can shuffle
+ * without anything happening at a different time.
+ */
+function placeOfDay(detail: TripDetail, activityIds: readonly string[]): Pick<TripGlobalsDay, "place" | "timeZone"> {
+  let best: { lat: number; lng: number; city: string | null; start: string | null } | null = null;
+  for (const id of activityIds) {
+    const activity = detail.activities[id];
+    const lat = activity?.location?.lat;
+    const lng = activity?.location?.lng;
+    if (lat === undefined || lng === undefined) continue;
+    const start = activity!.timeWindow?.start ?? null;
+    // An untimed stop never displaces a candidate; a timed one displaces an
+    // untimed candidate or a later one. `HH:mm` compares as strings.
+    if (best === null || (start !== null && (best.start === null || start < best.start))) {
+      best = { lat, lng, city: activity!.location?.city ?? null, start };
+    }
+  }
+  if (best === null) return { place: null, timeZone: null };
+  // The city travels with the coordinates: `cities[0]` can be an earlier stop
+  // that has a city and no coordinates (CodeRabbit on PR 223).
+  return { place: { lat: best.lat, lng: best.lng, city: best.city }, timeZone: timeZoneAt(best.lat, best.lng) };
+}
+
 type Located = { lat: number; lng: number; city: string | null };
 
 /**
- * **Where a day is, as the sun and the weather both read it**: for each of its
+ * Where a day's sky is read, for its weather and its sun: for each of its
  * cities in `citiesOfDay` order, that city's first located stop in time order
  * (`stopsInTimeOrder`, the walk `citiesOfDay` makes); a day whose located
- * stops name no city is at its first. The first is the day's place.
+ * stops name no city is at its first. The first is `weatherPlace`; the
+ * weather has a point at each.
  *
- * By city, not by the first located stop: a stop naming no city (a flight out
- * of the home airport) put a Today page's sunrise at home while its weather was
- * at the day's first city (PR 542's preview). One rule, so the two cannot part.
- * Time order, not `activityIds`' display order, which a person can shuffle
- * without anything happening at a different time.
+ * By city, not `placeOfDay`'s first located stop: a stop naming no city (a
+ * flight out of the home airport) put a Today page's sunrise at home while its
+ * weather was at the day's first city (PR 542's preview). The clock stays on
+ * `placeOfDay`, where the morning is, because it decides which day is today.
  */
 export function placesOfDay(detail: TripDetail, dayIndex: number): Located[] {
   const day = detail.days[dayIndex];
@@ -121,7 +153,9 @@ export function placesOfDay(detail: TripDetail, dayIndex: number): Located[] {
   return byCity.length > 0 ? byCity : stops.slice(0, 1);
 }
 
-function placeOfDay(detail: TripDetail, dayIndex: number): Pick<TripGlobalsDay, "place" | "timeZone"> {
+function weatherPlaceOf(detail: TripDetail, dayIndex: number): TripGlobalsDay["weatherPlace"] {
   const [place] = placesOfDay(detail, dayIndex);
-  return place === undefined ? { place: null, timeZone: null } : { place, timeZone: timeZoneAt(place.lat, place.lng) };
+  const timeZone = place === undefined ? null : timeZoneAt(place.lat, place.lng);
+  // No zone, no sun to read on it: the same day `place` keeps with `timeZone: null`.
+  return place === undefined || timeZone === null ? null : { ...place, timeZone };
 }

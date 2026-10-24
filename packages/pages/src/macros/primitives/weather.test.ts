@@ -51,6 +51,7 @@ function setup(dates: (string | null)[], points: TripWeatherPoint[]) {
     days: dates.map((date, index) => ({
       index, date, cities: ["Kyoto"], activityCount: 1, costSubtotal: 0,
       place: { lat: 35.01, lng: 135.77, city: "Kyoto" }, timeZone: "Asia/Tokyo",
+      weatherPlace: { lat: 35.01, lng: 135.77, city: "Kyoto", timeZone: "Asia/Tokyo" },
     })),
     cities: [], tags: [], description: null, homeTimeZone: null,
   };

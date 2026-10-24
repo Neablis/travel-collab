@@ -244,7 +244,7 @@ describe("templates", () => {
     };
     const datedGlobals = {
       days: dated.days.map((day, index) => ({
-        index, date: day.date, cities: [], activityCount: 0, costSubtotal: 0, place: null, timeZone: null,
+        index, date: day.date, cities: [], activityCount: 0, costSubtotal: 0, place: null, timeZone: null, weatherPlace: null,
       })),
       cities: [],
       tags: [],
