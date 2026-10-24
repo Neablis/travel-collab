@@ -64,8 +64,29 @@ describe("the eval's place stub", () => {
   });
 
   it("finds a place someone named under its own name first", () => {
-    const [shrine] = stubPlaceSearch({ queries: ["Fushimi Inari Shrine"], region: box });
-    expect(shrine!.places[0]!.name).toBe("Fushimi Inari Shrine");
+    for (const query of ["Fushimi Inari Shrine", "Shinjuku Gyoen Garden", "Ichiran Ramen"]) {
+      const [lookup] = stubPlaceSearch({ queries: [query], region: box });
+      expect(lookup!.places[0]!.name, query).toBe(query);
+    }
+  });
+
+  // KI-2026-10-24-o: "Japanese Garden" is a kind of place a model title-cased,
+  // not a garden called that, and echoing it back ("Japanese Garden North
+  // Gate") reads as nothing found, the failure the coffee case was.
+  it("answers a title-cased kind of place with that kind's names, never the query echoed", () => {
+    const namesOf = (query: string) => stubPlaceSearch({ queries: [query], region: box })[0]!.places.map((place) => place.name);
+    for (const [query, kind] of [
+      ["Japanese Garden", "garden"],
+      ["Zen Garden", "garden"],
+      ["Botanical Gardens", "garden"],
+      ["Traditional Tea House", "tea"],
+      ["Local Izakaya", "izakaya"],
+      ["Art Museum", "museum"],
+    ] as const) {
+      const names = namesOf(query);
+      expect(names, query).toEqual(namesOf(kind));
+      for (const name of names) expect(name, query).not.toContain(query);
+    }
   });
 
   // "near X" is where the model says to look, not part of what it looks for.

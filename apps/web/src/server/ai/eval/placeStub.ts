@@ -46,19 +46,34 @@ const NAME_WORDS = ["Hinode", "Sakura", "Kotobuki"];
 // Where a search with no region is centred: the seeded Japan trip's Tokyo.
 const NO_REGION = { lat: 35.68, lng: 139.76 };
 
+// Words that say what sort of place, never which one: a model title-cases
+// "Japanese Garden" or "Local Izakaya" as readily as it names a place.
+const DESCRIBES =
+  /^(japanese|traditional|zen|botanical|stroll|moss|rock|buddhist|shinto|local|famous|popular|quiet|hidden|small|old|historic|public|art|craft|modern|history|science|national|night|morning|food|fish|flower|street|nearby|good|best|cheap|other|similar|alternative|open|indoor|outdoor|house|houses|place|places|spot|spots|shop|shops|stand|stall|hall|restaurant|restaurants|onsen)$/i;
+
+/**
+ * A title-cased kind of place rather than a name (KI-2026-10-24-o): every word
+ * either describes a place or is a kind in `KINDS`. "Japanese Garden" is one;
+ * "Fushimi Inari Shrine" is not, since nothing describes "Fushimi".
+ */
+function isDescribedKind(what: string): boolean {
+  return what.split(/\s+/).every((part) => DESCRIBES.test(part) || KINDS.some(({ match }) => match.test(part)));
+}
+
 /**
  * The names one query gets. A query with a capital past its first word is a
  * place someone named ("Fushimi Inari Shrine"), and a real search finds it
- * first. Anything else is a kind of place, however it is cased ("Tea house"),
- * which a real search answers with places of that kind, never one called "ramen"
- * or "Ramen House".
+ * first, unless its every word only describes a kind ("Japanese Garden").
+ * Anything else is a kind of place, however it is cased ("Tea house"), which a
+ * real search answers with places of that kind, never one called "ramen" or
+ * "Ramen House".
  */
 function namesFor(query: string): string[] {
   // Without the city the near-now search appends, and the "near X" a model
   // types, neither of which a place is named after.
   const what = query.split(",")[0]!.replace(/\s+near\s.*$/i, "").trim() || query;
   if (COFFEE.test(what)) return CAFES;
-  if (/\s\p{Lu}/u.test(what)) return [what, `${what} North Gate`, `${what} South Gate`];
+  if (/\s\p{Lu}/u.test(what) && !isDescribedKind(what)) return [what, `${what} North Gate`, `${what} South Gate`];
   const kind = KINDS.find(({ match }) => match.test(what));
   if (kind) return kind.names;
   const title = what.replace(/\b\w/g, (letter) => letter.toUpperCase());
