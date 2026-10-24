@@ -72,6 +72,7 @@ vi.mock("@/server/ai/assistantPorts", async (importOriginal) => {
 const { handleBeyondTripAskRequest, handleAskRequest } = await import("@/server/ai/handleAskRequest");
 const { upsertUser } = await import("@/server/users");
 const { issueGrant } = await import("@/server/entitlements/grants");
+const { addNonTraveller } = await import("./seedMembers");
 
 interface LivePrompt {
   id: string;
@@ -145,7 +146,10 @@ async function seedTripFor(prompt: LivePrompt): Promise<{ tripId: string; detail
   if (phase !== phaseFor(prompt.trip)) {
     throw new Error(`seed: ${prompt.id}'s trip is ${phase} as its turn starts; its case is written for one ${phaseFor(prompt.trip)}`);
   }
-  return { tripId, detail: seeded.detail };
+  // A member who is not travelling, as the demo has Kenji, so a split over the
+  // travellers and one over the members differ (KI-2026-10-05-j). Every trip
+  // prompt's baseline moved with this on 2026-10-24: say so in the next run's record.
+  return { tripId, detail: await addNonTraveller(tripId, ACTOR_ID, seeded.detail) };
 }
 
 /** The eval actor's grant, so every account is on the same plan and tiers. */
