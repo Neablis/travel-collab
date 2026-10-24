@@ -30,8 +30,16 @@ export default defineConfig({
   testDir: "./e2e",
   // `line` in both lanes; locally a second reporter appends the lane warning
   // to a failing run. See e2e/laneReporter.ts for why this is a reporter and
-  // not another paragraph of guidelines.
-  reporter: process.env.CI ? "line" : [["line"], ["./e2e/laneReporter.ts"]],
+  // not another paragraph of guidelines. On GitHub Actions, `github` as well:
+  // it turns each failure into a check-run annotation naming the spec, test
+  // and message, which a cloud session can read when it cannot read the job
+  // log (KI-2026-10-24-c, KI-2026-10-13-f). `test:e2e:ci-like` sets `CI` but
+  // not `GITHUB_ACTIONS`, so the local lane is unchanged.
+  reporter: process.env.CI
+    ? process.env.GITHUB_ACTIONS
+      ? [["line"], ["github"]]
+      : "line"
+    : [["line"], ["./e2e/laneReporter.ts"]],
   // KI-25: runs once, after webServer is up but before every project
   // (including "setup") — refuses to proceed if the running server would
   // make a real, billable model call, independent of how that server was
