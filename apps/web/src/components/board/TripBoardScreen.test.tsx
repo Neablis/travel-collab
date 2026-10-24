@@ -3225,6 +3225,29 @@ describe("⌘K runs the trip page's own actions", () => {
     expect(page.ids()).toContain("chat");
   });
 
+  // The chat's first read still out: a notebook's *Trip chat* holds its place
+  // rather than drawing an empty card that grows (PR 537 round 18). A failed
+  // read ends the wait, so the card is never a skeleton for good.
+  it("offers its chat as pending until the chat's first read answers, and not after it fails", async () => {
+    const shared = tripDetailFixture({ members: [{ userId: "dev-alice", role: "owner" }, { userId: "u-bea", role: "viewer" }] });
+    let answer!: () => void;
+    const answered = new Promise<void>((resolve) => (answer = resolve));
+    server.use(
+      http.get("/api/trips/:tripId/chat", async () => {
+        await answered;
+        return HttpResponse.json({ error: "internal" }, { status: 500 });
+      }),
+      ...makeTripHandlers(shared),
+    );
+    const page = renderWithPalette(shared.tripId);
+    expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+    await waitFor(() => expect(page.offered()?.chat?.pending).toBe(true));
+
+    answer();
+    await waitFor(() => expect(page.offered()?.chat?.pending).toBeUndefined());
+    expect(page.offered()?.chat?.messages).toBeNull();
+  });
+
   // Every batch posted, as one list of commands each. Registered after the
   // trip's handlers, so it comes first (`server.use` prepends) and hands each
   // request on to them.

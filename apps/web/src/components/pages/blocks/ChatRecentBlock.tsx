@@ -24,9 +24,9 @@ import { usePersonas } from "../people";
 // other, so the card is drawn but is no control then. On a solo trip there is
 // no chat to open, so it is never a control: the same header, and a line
 // saying how to get one (Mitchell, PR 537 walk, 2026-10-24). Nor while the
-// screen is still finding out whether there is a chat (`PhoneChat.pending`):
-// the frame holds the card's place, busy, so it does not arrive late and push
-// the page down (round 17).
+// screen is still finding out whether there is a chat, or what it says
+// (`PhoneChat.pending`): the frame holds the card's place, busy, so it does
+// not arrive late and push the page down (rounds 17 and 18).
 //
 // Its name is the header and the footer it shows (WCAG 2.5.3): a voice user
 // says what they see. The unread count and the messages describe it.
@@ -55,8 +55,8 @@ export function ChatRecentBlock({ payload, interactive = true }: { payload: Chat
       </span>
       {pending ? (
         <span className="flex flex-col gap-3 px-3 py-2.5">
-          <Skeleton className="h-4 w-2/3" />
-          <Skeleton className="h-4 w-1/2" delay={2} />
+          <Skeleton className="h-4 w-2/3" data-testid="chat-recent-skeleton" />
+          <Skeleton className="h-4 w-1/2" delay={2} data-testid="chat-recent-skeleton" />
         </span>
       ) : payload.solo ? (
         <span className="px-3 py-2.5">

@@ -58,8 +58,9 @@ export type PhoneAskEntry = {
  * What a screen offers of its trip's chat (`PhoneAskEntry.chat`): `onOpen`
  * opens the screen's own panel on Chat, the board's and a notebook's alike
  * (Mitchell, PR 537: the chat opens in place). `pending` while the screen has
- * yet to learn whether there is a chat for this reader: the widget holds its
- * place, opening nothing, rather than appearing late (PR 537 round 17).
+ * yet to learn whether there is a chat for this reader (PR 537 round 17), or
+ * what it says, until its first read answers (round 18): the widget holds its
+ * place, opening nothing, rather than appearing late.
  */
 export type PhoneChat = { onOpen: () => void; messages: readonly ChatMessage[] | null; unread: number; pending?: boolean };
 

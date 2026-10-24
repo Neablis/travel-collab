@@ -1063,7 +1063,9 @@ export function PageScreen({
   // **Still asking whether there is a chat** (PR 537 round 17): a cold load
   // draws the page before the access read answers, and a *Trip chat* card
   // arriving then pushed the page down under the reader. Until it answers the
-  // card holds its place, opening nothing. Not on /demo, where it never comes:
+  // card holds its place, opening nothing, and goes on holding it through the
+  // chat's own first read (round 18), so it does not drop to its header and
+  // grow again. Not on /demo, where it never comes:
   // `tripHasChat` with nothing known is "a trip that can have a chat".
   const accessPending = accessRefused === null && tripHasChat(tripId, null);
   const [railTab, setRailTab] = useState<RailTab>("ask");
@@ -1155,7 +1157,7 @@ export function PageScreen({
     hasChat ? chat.unread : undefined,
     chatShown,
     hasChat
-      ? { onOpen: openChat, messages: chat.status === "ready" ? chat.messages : null, unread: chat.unread }
+      ? { onOpen: openChat, messages: chat.status === "ready" ? chat.messages : null, unread: chat.unread, pending: chat.status === "loading" }
       : accessPending
         ? { onOpen: openChat, messages: null, unread: 0, pending: true }
         : undefined,

@@ -87,7 +87,8 @@ export function tripHasChat(tripId: string, memberCount: number | null): boolean
  * **The one traveler on a trip with no chat for that reason** (Mitchell, PR
  * 537 walk): their *Trip chat* widget says to add travelers. Not on /demo,
  * where nobody can be added, nor for a reader the access read refused
- * (counted as none) or has not answered (`null`): the widget is absent there.
+ * (counted as none), whose widget is absent. A failed read (`null`) is not
+ * solo either: its widget is the chat's card (`hasTripChat`).
  */
 export function tripIsSolo(tripId: string, memberCount: number | null): boolean {
   return !isDemoTripId(tripId) && memberCount === 1;

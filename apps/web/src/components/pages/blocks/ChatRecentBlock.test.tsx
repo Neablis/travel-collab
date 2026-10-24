@@ -114,6 +114,8 @@ describe("ChatRecentBlock", () => {
     render(view());
     const card = screen.getByRole("group", { name: "Trip chat" });
     expect(card.getAttribute("aria-busy")).toBe("true");
+    // The place held is the body's: the two lines a card with messages fills.
+    expect(within(card).getAllByTestId("chat-recent-skeleton")).toHaveLength(2);
     expect(within(card).queryByText("Open chat")).toBeNull();
     expect(controls()).toEqual([]);
   });

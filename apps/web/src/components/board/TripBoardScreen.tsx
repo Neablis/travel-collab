@@ -338,8 +338,11 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
     hasChat ? chat.unread : undefined,
     assistant.open && railTab === "chat",
     // For a notebook's *Trip chat* widget (M52): absent without a chat,
-    // and saying how to get one on a solo trip.
-    hasChat ? { onOpen: openChat, messages: chat.status === "ready" ? chat.messages : null, unread: chat.unread } : undefined,
+    // and saying how to get one on a solo trip. Pending until the chat's
+    // first read answers, so the widget holds its place (PR 537 round 18).
+    hasChat
+      ? { onOpen: openChat, messages: chat.status === "ready" ? chat.messages : null, unread: chat.unread, pending: chat.status === "loading" }
+      : undefined,
     tripIsSolo(tripId, memberCount),
   );
   // **⌘K's commands are this screen's own functions** (M41 D9, ADR-068 §1,

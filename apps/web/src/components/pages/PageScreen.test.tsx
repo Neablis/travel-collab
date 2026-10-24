@@ -2760,12 +2760,55 @@ describe("PageScreen: a notebook's Trip chat", () => {
 
     const frame = await screen.findByRole("group", { name: "Trip chat" });
     expect(frame.getAttribute("aria-busy")).toBe("true");
+    expect(within(frame).getAllByTestId("chat-recent-skeleton")).toHaveLength(2);
     expect(screen.queryByRole("button", card)).toBeNull();
     expect(within(frame).queryByText("Open chat")).toBeNull();
 
     answer();
     const widget = await screen.findByRole("button", card);
     await waitFor(() => expect(widget.textContent).toContain("Train at nine?"));
+  });
+
+  // The access read answered and the chat's own first read still out (it
+  // waits for idle): the card keeps the skeleton until the messages are known,
+  // rather than dropping to an empty card and growing again (round 18).
+  it("holds the Trip chat card's place until the chat's first read answers", async () => {
+    let asked!: () => void;
+    const chatAsked = new Promise<void>((resolve) => (asked = resolve));
+    let answer!: () => void;
+    const answered = new Promise<void>((resolve) => (answer = resolve));
+    server.use(...makeChatHandlers({ viewerId: "u1", messages: [said] }).handlers);
+    // Registered after, so it comes first, holds the read, then hands it on.
+    server.use(
+      http.get("/api/trips/:tripId/chat", async () => {
+        asked();
+        await answered;
+        return undefined;
+      }),
+    );
+    chatNotebook(pair);
+
+    await screen.findByRole("button", { name: "Edit page" });
+    await chatAsked;
+    const frame = screen.getByRole("group", { name: "Trip chat" });
+    expect(frame.getAttribute("aria-busy")).toBe("true");
+    expect(within(frame).getAllByTestId("chat-recent-skeleton")).toHaveLength(2);
+    expect(screen.queryByRole("button", card)).toBeNull();
+
+    answer();
+    const widget = await screen.findByRole("button", card);
+    await waitFor(() => expect(widget.textContent).toContain("Train at nine?"));
+  });
+
+  // A first read that fails ends the wait: the card opens the chat, whose
+  // panel says what went wrong, rather than staying a skeleton for good.
+  it("stops holding the Trip chat card's place when the chat's first read fails", async () => {
+    server.use(http.get("/api/trips/:tripId/chat", () => HttpResponse.json({ error: "internal" }, { status: 500 })));
+    chatNotebook(pair);
+
+    const widget = await screen.findByRole("button", card);
+    expect(widget.getAttribute("aria-busy")).toBeNull();
+    expect(within(widget).queryAllByTestId("chat-recent-skeleton")).toEqual([]);
   });
 
   // Removed from the trip while it still lists them: the chat's 403 is the
