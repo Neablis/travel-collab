@@ -118,3 +118,12 @@ set widget settings > defaults."* This reverses decision 4's "an explicit bindin
 - **The Today template's *Weather and light* becomes *Weather Report* and *Sunrise/Sunset*.**
   With no template-version tracking (M52 decision 9, amended 2026-10-24), an existing Today
   notebook keeps the old heading until it is reset.
+- **Sun and weather share one place; the clock does not move** (PR 542, public API 1.24.0).
+  `TripGlobalsDay.weatherPlace` is a day's first city's earliest located stop, else its first
+  located stop (`placesOfDay`, `apps/web/src/server/tripGlobals.ts`), with the IANA zone there;
+  `day.sun` and the weather points both read it, and the sun is quoted in that zone. `place` and
+  `timeZone` are unchanged (decision 1: the earliest located stop), so `tripNow`'s phase, today
+  and now and next stay on the day's clock. A departure day shows why they differ: its first
+  located stop is the home airport, its first city Tokyo. Moving `place` to the city instead
+  made the trip under way the evening before it leaves (review round 3). Contracts changelog,
+  2026-10-24.

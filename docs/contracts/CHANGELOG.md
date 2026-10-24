@@ -40,6 +40,7 @@ Format:
   the trip too. `day.weather` reads that point only on a Today page off the trip's dates.
 - Consumers updated: `@tc/pages` (`day.weather`); nothing else reads the route.
 - Breaking? no — an older client finds no trip day on that date and shows no row for it.
+
 ## 2026-10-23 — The trip under way over the API (M52 part 10; public API 1.23.0)
 - **Added** (`apps/web`, the v1 surface only; no `packages/contracts` schema changed):
   `GET /v1/trips?active=true`, the list narrowed to the trips whose `tripNow` phase is

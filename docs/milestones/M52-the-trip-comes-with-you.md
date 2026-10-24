@@ -202,6 +202,17 @@ chips do.
     location is not read (decision 6). The weather route gains one point for that (the contracts
     changelog, 2026-10-24, part 11).
 
+    **Where the sun and the weather are read (part 11, PR 542; public API 1.24.0).** Sun and
+    weather share one place rule: a day's **first city's earliest located stop, else its first
+    located stop** (`placesOfDay`, `apps/web/src/server/tripGlobals.ts`), carried as
+    `TripGlobalsDay.weatherPlace` (`{ lat, lng, city, timeZone } | null`) and read by `day.sun`
+    and the weather points alike. The day's clock is unchanged: `place` and `timeZone` stay the
+    earliest located stop, so the phase, which day is today, and now and next do not move.
+    Found on Mitchell's walk of the preview (a departure day: a flight out of the home airport
+    put the sunrise at home while the weather was Tokyo); moving `place` instead was review
+    round 3's blocker, since it made a trip under way the evening before it leaves. ADR-080,
+    *Amendment — notebook settings supersede widget settings*, carries the same note.
+
     **Amended by Mitchell, 2026-10-24 (part 11, PR 542): a notebook setting supersedes a widget
     setting.** *"Notebook level settings > manually set widget settings > defaults."* This
     reverses *"an explicit binding still wins"* above and ADR-080 §4 (amended there, dated). One
@@ -410,7 +421,7 @@ chips do.
       *Evidence:* `packages/pages/src/now.test.ts:194-212` (arbitraries over day zones, a null zone,
       device zone and clock); PR 530's body: zone conversion removed in `now.ts` → "9 of 12 failed";
       CI run 39881259798 green on its head `dc128f6`, merged `e50669c`.
-- [ ] **The Today scope supersedes a widget's day** (reworded 2026-10-24, decision 10 as
+- [x] **The Today scope supersedes a widget's day** (reworded 2026-10-24, decision 10 as
       amended: *"Notebook level settings > manually set widget settings > defaults"*): on a page
       with the scope, an unbound `day.detail` shows today, **and so does one bound to day 1**;
       the day param is not offered in the widget's settings there. Seen red with the supersede
@@ -418,8 +429,22 @@ chips do.
       too, at the nearest trip day's place.
       *Reopened 2026-10-24:* this box first read "one bound to day 1 still shows day 1" and was
       ticked on PR 533 (`registry.test.ts:727`; CI run 39913262997 green on `d386be6`, merged
-      `7485b3f`). Mitchell reversed that rule; the new rule is part 11's (PR 542, in review). It
-      ticks on part 11's merged CI and the red-first edit in its body.
+      `7485b3f`). Mitchell reversed that rule; the new rule is part 11's (PR 542).
+      *Evidence (ticked 2026-10-24):* `packages/pages/src/registry.test.ts:731` "shows today in an
+      unbound day.detail, and in one stored bound to day 1"; `apps/web/src/components/pages/MacroView.test.tsx:454`
+      (the same through the view); `packages/pages/src/repeat.test.ts:431` "iterates today even when
+      the repeat was bound to another day"; `packages/pages/src/dateScope.test.ts:82-91`
+      (`supersededParams`: `day` and `dates` under `"today"`, nothing otherwise);
+      `apps/web/src/components/pages/editor/WidgetSettings.test.tsx:306` and `:387` (no days control
+      on a Today page, in the widget's and a repeat's settings); off the dates,
+      `packages/pages/src/macros/primitives/weather.test.ts:423` and `time.test.ts:207`, and
+      `apps/web/src/server/external/weather/tripWeather.test.ts:306` (sun and weather at the same
+      place). Red in PR 542's body: `withoutSuperseded` removed from `resolveRepeat` → `expected [ {
+      kind: 'day', index: +0 } ] to deeply equal [ { kind: 'day', index: 1 } ]`; `isSet(page)`
+      negated → `expected [] to deeply equal [ 'day', 'dates' ]`. CI run 40121847661 green on its
+      final head `d717423` (`ci-ok`, unit, integration, `test / e2e (1/2)` and `(2/2)`), merged
+      `8632207` (2026-10-24 19:07 UTC). **Walked by Mitchell on PR 542's preview, 2026-10-24:**
+      *"Merged, confirmed fixed"*, sunrise/sunset and weather both at Tokyo on his trip.
 - [x] **Overview swaps from *soon* through the end date**: a unit test over `pickOverviewPage`
       for a planning, soon, under-way and ended trip (decision 9, amended).
       *Evidence:* `apps/web/src/lib/overviewPage.test.ts:20-25` (planning and ended → Overview, soon
@@ -509,6 +534,9 @@ above say what each waits on.
 the real day (decisions 9 and 10, amended), so the Today-scope box is reopened for part 11
 (PR 542) and the gate stands at 10 of 13. His same-day word covers two [walk] items: Today
 undeletable on production, and part 10's API on a deployment.
+*Since (2026-10-24, later):* part 11 merged (PR 542, `8632207`) and the Today-scope box is ticked
+on its CI and Mitchell's walk of its preview, so the gate stands at **11 of 13**; the two open
+boxes are both Mitchell's.
 
 ### What went well
 
@@ -516,7 +544,8 @@ undeletable on production, and part 10's API on a deployment.
   to 2026-10-24 14:46 UTC (PR 541, `fd00d7f`). Every part's `ci` run was green on the head that
   merged: PR 530 run 39881259798, 531 39885558036, 532 39909692730, 533 39913262997, 534
   39964482034, 535 39967673321, 536 39976895832, 537 40051346313, 539 39996552313, 540
-  40029849919, 541 40065856615.
+  40029849919, 541 40065856615. Part 11, added mid-gate, followed the same day: PR 542 run
+  40121847661 on `d717423`, merged `8632207` at 19:07 UTC, no migration.
 - **Four migrations reached production the day they merged**: `0062`–`0064` (PR 532) by
   `migrate-production` run 39910676118 at 06:18 UTC, and `0065` (PR 533) by runs 39966013831 and
   39967934976 from `25a06b6`. PRs 534–541 added none.
@@ -554,6 +583,17 @@ undeletable on production, and part 10's API on a deployment.
   to KI-2026-10-14-c); `MacroView`'s paragraph sweep fails about one local run in four
   (KI-2026-10-24-d); `noRawSyntax` hit its 5 s timeout once (KI-2026-10-24-e). None was re-run to
   a cause, because job logs cannot be read from the cloud proxy (KI-2026-10-13-f).
+- **Part 11 was a mid-gate ask, and its walk found what four review rounds' tests had not.**
+  Mitchell asked on 2026-10-24, after the retro was first written, for Today's weather and sun on
+  the real day and for notebook settings to supersede widget settings (decisions 9 and 10,
+  amended). On his walk of PR 542's preview his Today page showed Tokyo's weather with the
+  sunrise at home (Watkins Glen): the sun read the day's first located stop, a flight out of the
+  home airport, and the weather its first city. The first fix moved `place` itself, and review
+  round 3 caught it as a blocker: the clock moved with it and a trip became under way the
+  evening before it left. Round 4 settled on a separate `weatherPlace` (public API 1.24.0), the
+  clock unchanged. Four review rounds; Mitchell: *"Merged, confirmed fixed"*. The change: a part
+  that moves a place a widget reads should ask, in its brief, which other readers (the clock,
+  `tripNow`, the assistant) share that place.
 - **Part 10's API was never called on a deployment.** A token has to be minted on the preview,
   and no session did it (PR 539's body: "Not called against the preview"). Mitchell called it
   himself afterwards (2026-10-24: *"Confirmed the api works."*).
@@ -565,7 +605,10 @@ undeletable on production, and part 10's API on a deployment.
 - **The [walk] and the items still folded into it** (two-member *No messages yet*, `auth()`
   inside `after()` on production, PR 537's final head and PR 541 unwalked): Mitchell's. Today
   undeletable on production and the API on a deployment were confirmed by him on 2026-10-24.
-- **Part 11** (PR 542): merge it, then tick the reopened Today-scope box on its merged CI.
+- **Part 11** (PR 542) merged and its box is ticked. Its review left three known issues:
+  KI-2026-10-24-k (the today weather point is charged on every page with weather), -l (no test
+  pins `day.sun` to `weatherPlace.timeZone`) and -m (the assistant names today's city with the
+  first located stop's coordinates, pre-existing).
 - **Per-row Accept still reads `useSessionUser`**, not `useKnownSessionUser`
   (`apps/web/src/components/board/SuggestionActions.tsx:28`, checked on `main` at the close;
   `useAcceptAll.ts:39` and the chat already use `useKnownSessionUser`). Part 6's review round 6
@@ -573,7 +616,7 @@ undeletable on production, and part 10's API on a deployment.
   would all change. Optional; Mitchell's call.
 - **Known issues filed during M52:** KI-2026-10-23-a (an applied library day insert posts no
   change line), KI-2026-10-23-b (a flight stop cannot cross midnight or record its arrival, home
-  M44), and KI-2026-10-24-a to -j.
+  M44), and KI-2026-10-24-a to -m.
 - **From the plan, kept here because the plan is deleted:** a page's `context` (so `dateScope`)
   is not editable through events (`EditPage`/`PageEdited` carry none,
   `packages/contracts/src/pageEvents.ts`); it is set when a template is instantiated and restored
@@ -605,6 +648,9 @@ was generated in its own container and is pasted below unchanged. Recorded dolla
   `session_01QANgL…` $16.32): **$289.48**; their recorded usage is 85.97M units (input + 1.25 ×
   cache write + 0.1 × cache read). Which transcript id above belongs to which session id was not
   carried, so the per-session pairing is not stated.
+- After the block below was generated, this close session also orchestrated part 11 (PR 542)
+  and its part 0 updates: about 4 `part-reviewer`, 4 `phase-implementer` and 3 `general-purpose`
+  dispatches more, counted by hand and not in the block or the targets.
 - This close, `session_019uYS9r…` (the block below covers its transcripts at the time it ran; its
   recorded cost was $2.28 at that point and grew after):
 
