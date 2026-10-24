@@ -111,6 +111,18 @@ export function ChatPanel({
   useEffect(() => {
     composing.current = draft !== "" || picked;
   }, [draft, picked]);
+  // Sends taken back behind a failed one, in the order sent, each with the
+  // picker as it was at its Send; and whether the failed one was dropped, so
+  // those behind it are too. Refs: `send` reads them after its await.
+  const waiting = useRef<{ body: string; held: typeof picker.held }[]>([]);
+  const dropping = useRef(false);
+  const giveBack = (unsent: { body: string; held: typeof picker.held }) => {
+    // At once, not on the next render: a send taken back behind this one
+    // resolves before then, and must find the composer taken.
+    composing.current = true;
+    setDraft(unsent.body);
+    picker.restore(unsent.held);
+  };
   const scrollport = useRef<HTMLDivElement>(null);
   usePinToBottom(scrollport, [chat.messages.length]);
   // Who is reading decides what each line offers (D6). Neither is a request of
@@ -138,10 +150,14 @@ export function ChatPanel({
   // A send that was not stored gives its text back, with its @ link (any kind),
   // unless the reader has started another message by then: that one is not
   // overwritten, and the failed text is dropped, with the hook's "Couldn't
-  // send" alert still up to say so. Only the first unsent line's link comes
-  // back: a second send queued behind a failing one returns with it as words
-  // only, its link lost (KI-2026-10-14-b). A send that never answers holds
-  // every later one at "Sending…" (KI-2026-10-14-a).
+  // send" alert still up to say so.
+  //
+  // Sends queued behind the failed one come back too, one at a time, each with
+  // its own link (KI-2026-10-14-b): the composer holds one draft and one
+  // link, so the next waits until the one before it is stored, and comes back
+  // then if the composer is empty. They are dropped with the failed one when
+  // it was. A send that never answers holds every later one at "Sending…"
+  // (KI-2026-10-14-a).
   const send = async () => {
     const body = draft.trim();
     if (body === "") return;
@@ -151,9 +167,17 @@ export function ChatPanel({
     setDraft("");
     picker.clear();
     const unsent = await (asks ? chat.post(body, link, true) : chat.post(body, link));
-    if (unsent === null || composing.current) return;
-    setDraft(unsent);
-    picker.restore(held);
+    if (unsent === null) {
+      const next = waiting.current[0];
+      if (next === undefined || composing.current) return;
+      waiting.current = waiting.current.slice(1);
+      giveBack(next);
+    } else if (unsent.behind) {
+      if (!dropping.current) waiting.current = [...waiting.current, { body: unsent.body, held }];
+    } else {
+      dropping.current = composing.current;
+      if (!dropping.current) giveBack({ body: unsent.body, held });
+    }
   };
 
   return (

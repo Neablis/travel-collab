@@ -5,7 +5,7 @@ import { setupServer } from "msw/node";
 import { ChatMessage, type ChatPage } from "@tc/contracts";
 import { uuidFrom } from "@tc/factories";
 import { holdIdle } from "@/test-support/holdIdle";
-import { hasTripChat, useTripChat } from "./useTripChat";
+import { hasTripChat, useTripChat, type Unsent } from "./useTripChat";
 
 // The reader, whose own sent lines these are.
 vi.mock("@/components/account/useSessionUser", () => ({ useKnownSessionUser: () => ({ id: "u-me" }) }));
@@ -259,12 +259,12 @@ describe("useTripChat", () => {
       const { result } = renderHook(() => useTripChat({ tripId: TRIP, enabled: true, chatRev: "1", reading: false, accessLost: false }));
       await waitFor(() => expect(result.current.status).toBe("ready"));
 
-      let unsent = Promise.resolve<string | null>(null);
+      let unsent = Promise.resolve<Unsent | null>(null);
       act(() => void (unsent = result.current.post("Train at nine?")));
       expect(result.current.messages).toHaveLength(2);
       await act(async () => {
         await answer(HttpResponse.json({ error: "Something went wrong." }, { status: 500 }));
-        expect(await unsent).toBe("Train at nine?");
+        expect(await unsent).toEqual({ body: "Train at nine?", behind: false });
       });
       expect(ids(result.current.messages)).toEqual([message(1).messageId]);
       expect(result.current.postError).toBe("Something went wrong.");
@@ -288,7 +288,7 @@ describe("useTripChat", () => {
       });
       await waitFor(() => expect(result.current.status).toBe("ready"));
 
-      let unsent = Promise.resolve<string | null>("not answered");
+      let unsent = Promise.resolve<Unsent | null>({ body: "not answered", behind: false });
       act(() => void (unsent = result.current.post("message 2")));
       served = pageOf([message(1), mine]);
       rerender("2");
@@ -378,13 +378,16 @@ describe("useTripChat", () => {
         await waitFor(() => expect(arrived).toEqual(["Train at nine?", "or ten?"]));
       });
 
-      it("go back together when the first is not stored, and the second is never sent", async () => {
+      // Each comes back as its own send, the second marked as behind the
+      // first, so the panel can give each back with its own link. Joined into
+      // one, the second's link had nowhere to go (KI-2026-10-14-b).
+      it("go back together when the first is not stored, each with its own text, and the second is never sent", async () => {
         const { arrived, answer } = twoSends();
         const { result } = renderHook(() => useTripChat({ tripId: TRIP, enabled: true, chatRev: "1", reading: false, accessLost: false }));
         await waitFor(() => expect(result.current.status).toBe("ready"));
 
-        let first = Promise.resolve<string | null>(null);
-        let second = Promise.resolve<string | null>("not answered");
+        let first = Promise.resolve<Unsent | null>(null);
+        let second = Promise.resolve<Unsent | null>({ body: "not answered", behind: false });
         act(() => {
           first = result.current.post("Train at nine?");
           second = result.current.post("or ten?");
@@ -392,8 +395,8 @@ describe("useTripChat", () => {
         await waitFor(() => expect(arrived).toHaveLength(1));
         await act(async () => {
           answer(0, HttpResponse.error());
-          expect(await first).toBe("Train at nine? or ten?");
-          expect(await second).toBeNull();
+          expect(await first).toEqual({ body: "Train at nine?", behind: false });
+          expect(await second).toEqual({ body: "or ten?", behind: true });
         });
         expect(ids(result.current.messages)).toEqual([message(1).messageId]);
         expect(arrived).toEqual(["Train at nine?"]);
@@ -408,8 +411,8 @@ describe("useTripChat", () => {
         const { result } = renderHook(() => useTripChat({ tripId: TRIP, enabled: true, chatRev: "1", reading: false, accessLost: false }));
         await waitFor(() => expect(result.current.status).toBe("ready"));
 
-        let first = Promise.resolve<string | null>("not answered");
-        let second = Promise.resolve<string | null>(null);
+        let first = Promise.resolve<Unsent | null>({ body: "not answered", behind: false });
+        let second = Promise.resolve<Unsent | null>(null);
         act(() => {
           first = result.current.post("Train at nine?");
           second = result.current.post("or ten?");
@@ -422,7 +425,7 @@ describe("useTripChat", () => {
         await waitFor(() => expect(arrived).toHaveLength(2));
         await act(async () => {
           answer(1, HttpResponse.error());
-          expect(await second).toBe("or ten?");
+          expect(await second).toEqual({ body: "or ten?", behind: false });
         });
         expect(ids(result.current.messages)).toEqual([message(1).messageId, stored.messageId]);
       });
@@ -469,7 +472,7 @@ describe("useTripChat, asking the assistant", () => {
     const { result } = renderHook(() => useTripChat({ tripId: TRIP, enabled: true, chatRev: "1", reading: false, accessLost: false }));
     await waitFor(() => expect(result.current.status).toBe("ready"));
 
-    let sent = Promise.resolve<string | null>(null);
+    let sent = Promise.resolve<Unsent | null>(null);
     act(() => void (sent = result.current.post("@assistant push dinner back", undefined, true)));
     expect(result.current.messages.at(-1)).toMatchObject({ pending: true, asksAssistant: true });
     await act(async () => expect(await sent).toBeNull());
@@ -514,7 +517,7 @@ describe("useTripChat, asking the assistant", () => {
     const { result } = renderHook(() => useTripChat({ tripId: TRIP, enabled: true, chatRev: "1", reading: false, accessLost: false }));
     await waitFor(() => expect(result.current.status).toBe("ready"));
 
-    await act(async () => expect(await result.current.post("@assistant hi", undefined, true)).toBe("@assistant hi"));
+    await act(async () => expect(await result.current.post("@assistant hi", undefined, true)).toEqual({ body: "@assistant hi", behind: false }));
     expect(result.current.canPost).toBe(true);
     expect(result.current.postError).toBe("The assistant is part of Plus.");
   });

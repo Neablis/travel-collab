@@ -11,7 +11,7 @@ import { tripKeys } from "@/lib/queryKeys";
 import { registerBoardFocus } from "./boardFocus";
 import { FORMER_MEMBER } from "./ChatMessage";
 import { ChatPanel, NO_ACCESS_LINE, READ_ONLY_LINE } from "./ChatPanel";
-import type { TripChat } from "./useTripChat";
+import type { TripChat, Unsent } from "./useTripChat";
 
 // Who is reading, and their role on the trip: what the line's actions are
 // decided from (M46 D6).
@@ -188,15 +188,15 @@ describe("ChatPanel", () => {
   // composer empties then, not when the server answers; a send that was not
   // stored gives the words back.
   it("empties the composer at once, and gives the text back when the send was not stored", async () => {
-    let answered: (unsent: string | null) => void = () => {};
-    const post = vi.fn(() => new Promise<string | null>((resolve) => (answered = resolve)));
+    let answered: (unsent: Unsent | null) => void = () => {};
+    const post = vi.fn(() => new Promise<Unsent | null>((resolve) => (answered = resolve)));
     render(<ChatPanel chat={chat({ post })} personas={null} />);
     const field = screen.getByRole("combobox", { name: "Message" }) as HTMLInputElement;
     await userEvent.type(field, "Train at nine?{Enter}");
     expect(post).toHaveBeenCalledWith("Train at nine?", undefined);
     expect(field.value).toBe("");
 
-    answered("Train at nine?");
+    answered({ body: "Train at nine?", behind: false });
     await vi.waitFor(() => expect(field.value).toBe("Train at nine?"));
   });
 
@@ -209,7 +209,7 @@ describe("ChatPanel", () => {
       const unregister = registerBoardFocus({ ...tripTargets(trip, { focusedActivityId: null, focusedDayId: null, selectedDayId: null }), focusDay: vi.fn(), focusActivity: vi.fn() });
       onTestFinished(() => act(() => unregister()));
     });
-    const post = vi.fn(async (body: string): Promise<string | null> => (post.mock.calls.length === 1 ? body : null));
+    const post = vi.fn(async (body: string): Promise<Unsent | null> => (post.mock.calls.length === 1 ? { body, behind: false } : null));
     render(<ChatPanel chat={chat({ post })} personas={null} />);
     const field = screen.getByRole("combobox", { name: "Message" }) as HTMLInputElement;
     await userEvent.type(field, "@day 1{Enter}dinner here?{Enter}");
@@ -220,16 +220,67 @@ describe("ChatPanel", () => {
     expect(post).toHaveBeenLastCalledWith("@Day 1 dinner here?", { kind: "day", id: day });
   });
 
+  // KI-2026-10-14-b: a send queued behind a failed one came back joined to
+  // it, as one draft with the first send's link, and its own @day link lost.
+  // Each now comes back alone, the second once the first is stored.
+  describe("a send queued behind one that fails", () => {
+    const day = uuidFrom(3, 46);
+    const twoSent = async () => {
+      const trip = tripDetailFixture({ days: [{ dayId: day, activityIds: [], date: null, costSubtotal: 0 }] });
+      act(() => {
+        const unregister = registerBoardFocus({ ...tripTargets(trip, { focusedActivityId: null, focusedDayId: null, selectedDayId: null }), focusDay: vi.fn(), focusActivity: vi.fn() });
+        onTestFinished(() => act(() => unregister()));
+      });
+      // As the hook answers: one call at a time, in the order sent.
+      const answers: ((unsent: Unsent | null) => void)[] = [];
+      const post = vi.fn((..._args: unknown[]) => new Promise<Unsent | null>((resolve) => answers.push(resolve)));
+      render(<ChatPanel chat={chat({ post })} personas={null} />);
+      const field = screen.getByRole("combobox", { name: "Message" }) as HTMLInputElement;
+      await userEvent.type(field, "Train at nine?{Enter}or ten? @day 1{Enter}{Enter}");
+      expect(post.mock.calls).toEqual([["Train at nine?", undefined], ["or ten? @Day 1", { kind: "day", id: day }]]);
+      return { field, post, answer: (n: number, unsent: Unsent | null) => act(async () => answers[n]!(unsent)) };
+    };
+
+    it("comes back on its own, with its own link, once the first is sent again and stored", async () => {
+      const { field, post, answer } = await twoSent();
+      await answer(0, { body: "Train at nine?", behind: false });
+      await answer(1, { body: "or ten? @Day 1", behind: true });
+      expect(field.value).toBe("Train at nine?");
+
+      await userEvent.type(field, "{Enter}");
+      expect(post).toHaveBeenLastCalledWith("Train at nine?", undefined);
+      expect(field.value).toBe("");
+      await answer(2, null);
+      expect(field.value).toBe("or ten? @Day 1");
+
+      await userEvent.type(field, "{Enter}");
+      expect(post).toHaveBeenLastCalledWith("or ten? @Day 1", { kind: "day", id: day });
+    });
+
+    it("is dropped with the first when the reader has started another message", async () => {
+      const { field, post, answer } = await twoSent();
+      await userEvent.type(field, "x");
+      await answer(0, { body: "Train at nine?", behind: false });
+      await answer(1, { body: "or ten? @Day 1", behind: true });
+      expect(field.value).toBe("x");
+
+      await userEvent.type(field, "{Enter}");
+      expect(post).toHaveBeenLastCalledWith("x", undefined);
+      await answer(2, null);
+      expect(field.value).toBe("");
+    });
+  });
+
   // PR 444 review, finding 3: what the reader has started since is theirs;
   // the failed text does not overwrite it, and the alert says it was not sent.
   it("keeps what the reader has typed since when the send fails", async () => {
-    let answered: (unsent: string | null) => void = () => {};
-    const post = vi.fn(() => new Promise<string | null>((resolve) => (answered = resolve)));
+    let answered: (unsent: Unsent | null) => void = () => {};
+    const post = vi.fn(() => new Promise<Unsent | null>((resolve) => (answered = resolve)));
     const { rerender } = render(<ChatPanel chat={chat({ post })} personas={null} />);
     const field = screen.getByRole("combobox", { name: "Message" }) as HTMLInputElement;
     await userEvent.type(field, "Train at nine?{Enter}x");
 
-    await act(async () => answered("Train at nine?"));
+    await act(async () => answered({ body: "Train at nine?", behind: false }));
     rerender(<ChatPanel chat={chat({ post, postError: "Couldn't send. Check your connection and try again." })} personas={null} />);
     expect(field.value).toBe("x");
     expect(screen.getByRole("alert").textContent).toContain("Couldn't send");
