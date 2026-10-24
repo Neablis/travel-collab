@@ -187,9 +187,9 @@ export function LandingPricing({ id, ref }: { id?: string; ref?: Ref<HTMLElement
           })}
         </div>
       </div>
-      {/* `/plans` is a signed-in route: opened signed out it cannot load a
-          plan and says so. Through sign-in, as the proxy sends every other
-          signed-out visitor to an account route. */}
+      {/* `/plans` is a signed-in route, and the proxy sends a signed-out
+          visitor to it through sign-in. Linked there directly to save the
+          hop. */}
       <Link
         href={`/signin?callbackUrl=${encodeURIComponent("/plans")}`}
         className={cn(buttonVariants({ variant: "secondary", size: "sm" }), PHONE_TOUCH, "self-start no-underline md:self-end")}

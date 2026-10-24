@@ -157,9 +157,9 @@ test.describe("signed in", () => {
   });
 });
 
-// The `(app)` shell is the hint's only setter (the proxy only deletes it), and
-// `/plans` is a page the proxy does not even see: a sign-in that lands there
-// is hinted by the shell once it knows who is reading (`SessionUserProvider`),
+// The `(app)` shell is the hint's only setter (the proxy only deletes it, and
+// only signed out): a sign-in that lands on `/plans` rather than Home is
+// hinted by the shell once it knows who is reading (`SessionUserProvider`),
 // so the bare domain still opens Home.
 test("a sign-in that lands outside Home still sends / on to Home", async ({ page }) => {
   await page.goto(`/signin?callbackUrl=${encodeURIComponent("/plans")}`);

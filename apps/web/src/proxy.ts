@@ -213,6 +213,10 @@ function tripInviteToken(pathname: string): string | null {
 // exactly the `(app)` routes that need a session, plus the invite links:
 //   - `/home`             — Home (apps/web/src/app/(app)/home/page.tsx). Not
 //     `/home/:path*`: nothing lives under it.
+//   - `/plans`            — the plan chooser (`(app)/plans/page.tsx`). It reads
+//     the account's own plan, so signed out it could only say "Your plan
+//     could not be loaded just now" (KI-2026-10-11-b). Its `?checkout=` rides
+//     the callback. A public catalogue for visitors is a separate feature.
 //   - `/trips/:path*`     — matches `/trips/:tripId` and the nested notebook
 //     routes under `/trips/:tripId/pages/...` (Next.js treats a `:path*`
 //     segment as zero-or-more, so the bare prefix matches too, not just
@@ -237,6 +241,7 @@ function tripInviteToken(pathname: string): string | null {
 export const config = {
   matcher: [
     "/home",
+    "/plans",
     "/trips/:path*",
     "/invite/:path*",
     "/playbooks/:path*",
