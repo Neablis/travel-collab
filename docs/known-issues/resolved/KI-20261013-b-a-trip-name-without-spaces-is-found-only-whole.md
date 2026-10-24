@@ -1,4 +1,4 @@
-### KI-2026-10-13-b — a trip name in a script without spaces is found only by its whole name
+### KI-2026-10-13-b — a trip name in a script without spaces is found only by its whole name — RESOLVED
 
 - **Severity:** minor. It fails safe: the assistant asks which trip, and never picks a wrong one.
   The UI is `en_US` only (`apps/web/src/app/layout.tsx`), so such names arrive only when a person
@@ -21,3 +21,13 @@
   Note that ทริปเชียงใหม่ starts with "trip", so the leading-words rule still would not find it
   from เชียงใหม่. Stripping "my … trip" in Japanese or Thai is a separate question.
 - **First noted:** 2026-10-13, M45, PR 429 review round 3.
+- **Resolved, 2026-10-24 (KI sweep):** `wordsOf` now runs its spaced result through
+  `Intl.Segmenter(undefined, { granularity: "word" })` and keeps the `isWordLike` segments, so
+  "京都" finds "京都旅行" and "京都と大阪" by their leading word. A spaced script reads as before,
+  because the segmenter only splits what the punctuation rule already left. Still refused, as
+  intended: "私の京都旅行" from "京都" (not the leading word) and "京都旅行" from "京" (part of a
+  word). ทริปเชียงใหม่ from เชียงใหม่ still asks, because only the English "trip" is read off; that
+  is the separate question this entry named. Proven in `navigate.test.ts` (*finds the trip whose
+  name starts with the word … in a script without spaces*): before the change it failed with
+  `expected [] to deeply equal [ { name: '京都旅行' } ]` and the same for `京都と大阪`; after it,
+  90/90 pass.

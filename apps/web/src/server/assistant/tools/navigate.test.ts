@@ -170,6 +170,25 @@ describe("tripsCalled", () => {
     expect(tripsCalled(named("दिल"), "देला")).toEqual([]);
   });
 
+  // Japanese, Chinese and Thai are written without spaces, so a name's words
+  // come from a word segmenter, not from the spaces (KI-2026-10-13-b).
+  it.each([
+    [["京都旅行", "大阪"], "京都", "京都旅行"],
+    [["京都と大阪", "東京"], "京都", "京都と大阪"],
+    [["京都", "京都旅行"], "京都", "京都"],
+    [["เชียงใหม่ 2026", "ภูเก็ต"], "เชียงใหม่", "เชียงใหม่ 2026"],
+  ])("from %j, finds the trip whose name starts with the word %j in a script without spaces", (names, typed, meant) => {
+    expect(tripsCalled(named(...names), typed)).toEqual([{ name: meant }]);
+  });
+
+  // Still only the leading words, and never part of one.
+  it.each([
+    [["私の京都旅行"], "京都"],
+    [["京都旅行"], "京"],
+  ])("from %j, picks no trip from %j in a script without spaces", (names, typed) => {
+    expect(tripsCalled(named(...names), typed)).toEqual([]);
+  });
+
   it("finds a name typed decomposed, as the same name composed", () => {
     expect(tripsCalled(named("Café"), "Cafe\u0301")).toEqual([{ name: "Café" }]);
   });
