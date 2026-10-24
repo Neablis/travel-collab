@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import type { PlaybooksReader } from "@/lib/playbooksReader";
 
 // The page half of `playbooksReader.ts`, apart because `proxy.ts` imports that
-// one into the Edge runtime and has no use for `next/navigation`.
+// one and has no use for `next/navigation`.
 
 /** The params every library page is handed: its own segments, and `copy` when it is the cached copy. */
 export type LibraryParams = { copy?: string };

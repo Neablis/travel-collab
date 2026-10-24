@@ -20,11 +20,12 @@ import { SIGNUP_REF_COOKIE, normalizeSignupRef, signupRefCookieOptions } from "@
 // the runtime: Next 16 builds a `proxy` file for Node only, never Edge.
 //
 // M15 (ADR-024, superseding ADR-023): this builds its own lightweight
-// Auth.js instance from the shared edge-safe config in `@/lib/authConfig`,
+// Auth.js instance from the shared proxy-safe config in `@/lib/authConfig`,
 // rather than importing `@/server/auth`'s live singleton. This is Auth.js
-// v5's own documented split-config pattern for edge-compatible request
-// interception — it depends on configuration (data), not on the server's
-// auth instance or any server internal, so it needs no lint-wall exemption.
+// v5's own documented split-config pattern for request interception (written
+// for Edge, which no longer applies here) — it depends on configuration
+// (data), not on the server's auth instance or any server internal, so it
+// needs no lint-wall exemption.
 // `authConfig` has no `@/server/*` imports and no database, so this instance
 // stays cheap to construct in front of every matched request.
 const { auth } = NextAuth(authConfig);

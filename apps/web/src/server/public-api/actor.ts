@@ -56,10 +56,10 @@ const BEARER = /^Bearer[ \t]+(\S+)[ \t]*$/i;
  * a dead token must not appear to succeed, because that is how a broken
  * integration looks healthy in exactly one environment: the developer's own.
  *
- * **There is no edge check and there should not be.** JWT sessions have no
- * adapter and the Edge runtime has no database (`proxy.ts:63-66`), so a token
- * must be verified against Postgres — which means it is verified in the route,
- * where every other check in this app already happens.
+ * **There is no proxy check and there should not be.** JWT sessions have no
+ * adapter and the proxy reads no database (ADR-024; `proxy.ts`, above
+ * `guarded`), so a token must be verified against Postgres — which means it is
+ * verified in the route, where every other check in this app already happens.
  */
 export async function resolveActor(request: Request, now: Date = new Date()): Promise<ActorResolution> {
   const header = request.headers.get("authorization");

@@ -27,9 +27,9 @@ import { inviteCodes, tripInvites } from "./db/schema";
 // never spends a code it still holds. That check lives in `recordSignIn`,
 // which is the only place that can do it before `upsertUser` creates the row.
 //
-// This module must never be imported from `src/proxy.ts`. The proxy runs in
-// the Edge runtime with no database (ADR-024); it stores the credential in a
-// cookie and validates nothing.
+// This module must never be imported from `src/proxy.ts`. The proxy is kept
+// free of the database (ADR-024); it stores the credential in a cookie and
+// validates nothing.
 
 /** The cookie that carries an admission credential across the OAuth round trip. */
 

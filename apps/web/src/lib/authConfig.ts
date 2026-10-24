@@ -5,14 +5,17 @@ import type { Provider } from "next-auth/providers";
 import type { NextAuthConfig } from "next-auth";
 import { isDevLoginEnabled } from "@/lib/devLogin";
 
-// Edge-safe Auth.js configuration (ADR-024, superseding ADR-023). This is
+// Proxy-safe Auth.js configuration (ADR-024, superseding ADR-023). This is
 // deliberately just data: providers, callbacks, and the pages map — nothing
-// here reaches into `@/server/*` or anything Node-only, so it is safe to
-// import from the Edge runtime `apps/web/src/proxy.ts` runs in as well
-// as from `apps/web/src/server/auth.ts`. This is Auth.js v5's own documented
-// split-config shape for edge-compatible request interception: a shared config object,
-// with each consumer building its own `NextAuth(authConfig)` instance rather
-// than the proxy importing the server's live singleton.
+// here reaches into `@/server/*` or the database, so `apps/web/src/proxy.ts`
+// can build an instance from it in front of every matched request and stay
+// cheap, as `apps/web/src/server/auth.ts` builds the full one. (ADR-024 also
+// gave the Edge runtime as a reason; Next 16 runs `proxy.ts` on Node only, so
+// the reason that still holds is keeping the database and server internals
+// out of the proxy.) This is Auth.js v5's own documented split-config shape: a
+// shared config object, with each consumer building its own
+// `NextAuth(authConfig)` instance rather than the proxy importing the server's
+// live singleton.
 //
 // Moving this out of `src/server/auth.ts` makes it importable by genuine UI
 // too, which is the one real cost of this restructure — closed by a
