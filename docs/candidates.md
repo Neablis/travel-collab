@@ -16,6 +16,17 @@ not by anybody remembering. That automation exists because the rule was being
 skipped: M23's entry survived its own gate closing on 2026-09-19 and was still
 here two days later.
 
+- **Recently deleted: restore any notebook (asked 2026-10-24).** Considered for M52 and not
+  taken: Mitchell chose *Reset to default* for the undeletable *Today* notebook instead
+  (decision 9). The idea is a *Recently deleted* list in the notebook index, from which any
+  deleted notebook comes back: fold the page's events up to just before its `PageDeleted`, and
+  recreate it under the **same page id**, so links, history and anything citing the id keep
+  working. Open questions: how long a deleted notebook stays restorable, who may restore it (the
+  editor rule that deletes it, or the owner only), and how it meets
+  `instantiateMissingDefaults`, which re-adds a deleted seed under its old id.
+  KI-2026-09-22-c records what folding a page's history back must not do. Template-version tracking is **not** part of this:
+  Mitchell ruled it out on 2026-10-24 (M52 decision 9).
+
 - **Live flight status: delays, gate changes and a heads-up when they change (asked
   2026-10-22).** Left out of M52 by Mitchell (decision 4). M52 gives a flight leg its number, its
   times in each end's zone and a countdown, with no vendor. Live status needs a paid flight-data

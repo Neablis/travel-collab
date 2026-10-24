@@ -176,8 +176,12 @@ Theme: decisions 17 and 18, as seen in the thread.
   the offer *"Asking the assistant in chat comes with Plus"* and an upgrade link (copy pattern
   `AssistantRail.tsx:71` `UPGRADE_LEAD`). Test `TargetPicker.test.tsx`.
 - `components/chat/ChatMessage.tsx:38` — assistant and system messages; the proposal card via
-  `components/assistant/ProposalCard.tsx:105,206`, accept/dismiss for the asker only, *"Waiting on
-  <name>"* for others. Test `ChatMessage.test.tsx`.
+  `components/assistant/ProposalCard.tsx:105,206`. **As merged (PR 535):** the asker, if an editor,
+  may accept or dismiss; the owner may dismiss and never accept; other editors and the owner read
+  *"Waiting on <name>"* as the card's lead while it is pending; a viewer or suggester, who is not
+  served the suggestion list, reads the plain line *"Only <name> can accept this"*; when the asker
+  has left, every reader gets *"Asked by a member who has left: only the owner can dismiss
+  this"*. Test `ChatMessage.test.tsx`.
 - `components/chat/ChatPanel.tsx:34` — *"Assistant is thinking…"*; `useTripChat.ts:84`. Tests
   `ChatPanel.test.tsx`, `useTripChat.test.tsx`.
 - Change lines (decision 17): after `executeTripCommandBatch` in `server/suggestions/accept.ts:131`
@@ -187,7 +191,12 @@ Theme: decisions 17 and 18, as seen in the thread.
   `chat.int.test.ts`.
 
 Preview: with two accounts on a trip dated today, `@assistant push dinner back an hour`; the asker
-accepts, the other sees *Waiting on* and then the change line.
+accepts, the other (an editor) sees *Waiting on <asker>* and then the change line.
+
+Left over from PR 535 (optional, not done): per-row Accept in `suggestions` still reads
+`useSessionUser` rather than `useKnownSessionUser` (review round 6, minor). The swap is neutral
+under the provider, but the per-row tests mount none and would all change. An applied library
+day insert posts no change line: KI-2026-10-23-a.
 
 ## Part 7 — Widgets: Now and next, Directions, Flights · `claude/m52-part7-day-widgets` · Needs 1, 2, 4
 
@@ -210,16 +219,25 @@ Theme: decision 15's first three widgets. Each has a written empty-today state.
 
 Preview: add each widget to a notebook on a trip dated today, and on one dated next month.
 
-## Part 8 — Widgets: Group chat and Ask · `claude/m52-part8-chat-ask-widgets` · Needs 4
+## Part 8 — Widgets: Trip chat (Ask dropped) · `claude/m52-part8-chat-ask-widgets` · Needs 4
 
-Theme: decision 15's last two widgets and decision 20's share-link rule.
+Theme: decision 15's last two widgets and decision 20's share-link rule. **As merged (PR 537),
+after Mitchell's walks:** the *Ask* widget was dropped (no widget prefills the assistant), and
+the chat card is titled **Trip chat** (preset key `chat.recent`). It is a mini chat card, the
+last N messages (a setting, default 3) with *Open chat*, opening the screen's own *Chat | Ask*
+panel on Chat in place, on the board and the notebook alike. A solo trip has no chat anywhere
+(no Chat tab, no ⌘K *Open chat*); there the card shows *Add other travelers to see the trip
+chat* and is not a control. A trip with chat and no messages shows *No messages yet*. The bullets
+below are the plan as first written.
 
 - `WidgetContext` gains reader capabilities (`canChat`, `canAsk`), filled where the context is
   built (part 4's render sites) from `lib/useAiEntitled.ts` and `hasChat`
-  (`TripBoardScreen.tsx:271`); absent for a share-link reader.
-- `chat.recent` *Group chat*: the last three messages and *Open chat*; absent when `canChat` is
-  false.
-- `assistant.prompts` *Ask*: *Running late*, *Move dinner later*, *Something closed*; each calls
+  (`TripBoardScreen.tsx:271`); absent for a share-link reader. As merged: `canChat`, `chat` and `soloTrip`, no
+  `canAsk`, read from what the screen registers (`components/pages/readerCapabilities.ts`).
+- `chat.recent` *Trip chat* (planned as *Group chat*): the last three messages and *Open chat*;
+  absent when `canChat` is false (as merged: `canChat` is true on a solo trip too, for the empty
+  state, and false only for a reader the chat refuses).
+- ~~`assistant.prompts` *Ask*~~ (dropped): *Running late*, *Move dinner later*, *Something closed*; each calls
   `usePhoneAsk().onAsk(text)` (`components/nav/phoneAsk.ts:68` → `TripBoardScreen.tsx:321-327` →
   `AssistantRail.tsx:809-823`); absent when `canAsk` is false (SPEC §27).
 - Same files as part 7 for presets, defs, payloads and blocks, with tests.

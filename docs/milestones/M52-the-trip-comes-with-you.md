@@ -60,8 +60,8 @@ widgets**. Nothing else in the chrome changes:
   day**, through the same `narrow` a repeat uses. A widget given an explicit day keeps it. So
   today's schedule, weather, sunset and spend are the existing widgets, scoped by the page, with
   no new versions of them.
-- **New widgets for what is not there yet**: now and next, directions, flights, the group chat,
-  and day-of prompts for the assistant (*Widgets*, below).
+- **New widgets for what is not there yet**: now and next, directions, flights and the Trip chat
+  card (*Widgets*, below; the day-of prompts for the assistant were dropped, decision 15).
 - **Overview swaps.** While the trip is under way, the Overview tab shows *During the trip*
   instead of the Overview notebook. `pickOverviewPage` is the one place that decides. Nothing else
   moves: the tab bar, Plan, Map, the Ask/Chat button and Home stay as they are.
@@ -74,9 +74,10 @@ reads "Day 3 of 7". Overview shows *During the trip*:
 2. **Today's flight**, only on a day with one.
 3. **The rest of today**: the itinerary widget, scoped to today.
 4. Weather and sunset, scoped to today.
-5. **The group chat**: the last few messages, with *Open chat*.
-6. **Ask**: chips such as *Running late*, *Move dinner later* and *Something closed*. Each opens
-   the assistant sheet with the prompt filled in.
+5. **Trip chat**: the last few messages, with *Open chat* (on a solo trip, *Add other travelers
+   to see the trip chat*; decision 15 as amended).
+6. ~~**Ask**: chips such as *Running late*, *Move dinner later* and *Something closed*. Each opens
+   the assistant sheet with the prompt filled in.~~ Dropped by Mitchell, 2026-10-23 (decision 15).
 7. A link to the full Overview.
 
 Tapping *Directions* leaves for the maps app. Tapping a stop focuses it on the board, as chat
@@ -235,8 +236,10 @@ chips do.
       number, times in each end's local zone, the countdown to departure, and the confirmation for
       editors. With none, it offers *Add your flight*, which opens the stop editor prefilled as a
       flight.
-    - **`chat.recent`**, *Group chat* (amended below: a mini chat card, N a setting): the last three messages and *Open chat*. It is absent on a
-      trip whose chat the reader cannot see.
+    - **`chat.recent`**, *Trip chat* (first written as *Group chat*; amended below: a mini chat
+      card, N a setting): the last few messages and *Open chat*. On a solo trip it shows *Add
+      other travelers to see the trip chat* instead. It is absent only for a reader the chat
+      refuses (a share link's).
     - ~~**`assistant.prompts`**, *Ask*~~ (**dropped by Mitchell, 2026-10-23; see the amendment below**): day-of chips that open the sheet prefilled. It is absent for
       a reader with no assistant, and per SPEC §27 nothing renders disabled.
     **Amended by Mitchell after walking part 8's preview, 2026-10-23:** the *Ask* widget is
@@ -247,8 +250,9 @@ chips do.
     **Amended by Mitchell, 2026-10-23 (later the same day):** the notebook page's assistant
     panel gets the board's *Chat | Ask* switch, and the card opens that Chat tab in place
     (`?chat=open` is gone). **A solo trip has no chat anywhere**, board and notebook alike: no
-    Chat tab, no ⌘K *Open chat*, no *Group chat* card, only the assistant. This reverses M46's
-    solo Chat tab on the board.
+    Chat tab, no ⌘K *Open chat*, no chat card that opens a chat, only the assistant (the card's
+    solo empty state is the 2026-10-24 amendment below). This reverses M46's solo Chat tab on
+    the board.
     **Amended by Mitchell after walking part 8's preview, 2026-10-24:** the widget is titled
     **Trip chat** (not *Group chat*; preset key `chat.recent` unchanged). It always renders:
     on a solo trip it shows an empty state, *Add other travelers to see the trip chat*, and is
@@ -297,7 +301,9 @@ chips do.
         thread. The M33 evals gain a chat case whose problem is stated only in earlier messages,
         and which therefore has to call `read_chat`.
     - **Accepting.** Its proposal appears in the chat as a card that **only the asker may accept
-      or dismiss**. Everyone else sees *"Waiting on Mitchell"*. That is a new rule on a
+      or dismiss**. Everyone else sees *"Waiting on Mitchell"* (as built in part 6, PR 535: editors
+      and the owner read it on the card while it is pending; a viewer or suggester reads *"Only
+      Mitchell can accept this"*). That is a new rule on a
       suggestion (`requested_by`), enforced in `acceptSuggestionChanges`, beside its editor check
       (`accept.ts:57`). The asker must also be an editor to accept, as today. A viewer's
       `@assistant` gets answers only.
@@ -315,7 +321,7 @@ chips do.
     of the ask.
 20. **Who sees the notebook.** **Answered at scoping, 2026-10-23: as recommended.** every member, whatever their role. Reading today's
     plan is reading, and Directions is a link. A share-link reader sees it as read-only, without
-    the chat or Ask widgets.
+    the Trip chat widget (the Ask widget was dropped, decision 15).
 21. **The trip under way, over the public API.** **Added and answered by Mitchell, 2026-10-23.**
     Two endpoints, not one: **`GET /v1/trips?active=true`** filters the existing list to the trips
     whose `tripNow` phase is `underway` (today, in the trip's own zone, by ADR-080's fallback, falls

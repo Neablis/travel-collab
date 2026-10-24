@@ -61,3 +61,30 @@ or all' … so maybe dont make it a hook that 'just' does day scope."*
 - `dateScope` is stored on the page, so a reset of the seeded notebook restores `"today"`, and a
   copy of the page keeps it.
 - Adding `{ date }` later is a control and a resolver branch, not a migration.
+
+## Amendment — 2026-10-24: the zone fallback, as built (M52 part 10, PR 539)
+
+Decision 1's "falling back to the device's zone" holds on the client, where `tripNow` is given
+the device's own zone. The server has no device, so it reads `tripNow` through one helper,
+`turnNowOf` (`apps/web/src/server/assistant/context.ts`), which the assistant's turns, the chat's
+`@assistant` turns, `GET /v1/trips/{tripId}/today` and `GET /v1/trips?active=true` all share.
+Its order:
+
+1. **A day's own zone**, `TripGlobalsDay.timeZone`, from where its stops are placed.
+2. **The asker's zone**, when the request brought one: the client's zone on an assistant turn,
+   the poster's `PostChatMessage.timeZone` on a chat ask, `?timeZone=` on the `today` endpoint.
+   It is read for that answer only and never stored.
+3. **The trip's zone**: the first day, in order, that has one of its own.
+4. **UTC**, when no stop on the trip has coordinates.
+
+A zone the runtime does not know (`isKnownZone`) is passed over at each step, never an error,
+except `?timeZone=` on the API, which answers 400 because the caller sent it. Steps 2 to 4 form
+the fallback handed to `tripNow` as its `deviceZone`, so they decide which day is today on a trip
+whose days have no zone. `?active=true` brings no asker's zone, so a trip there is under way by
+its own zone, else UTC.
+
+**`TurnNow.local.timeZone`** is the zone `local.date` and `local.time` are read in: today's day's
+own zone while the trip is under way, otherwise the first day's own zone, and when that day has
+none, the fallback above. The `today` endpoint reports it as `timeZone`, so a caller is told the
+clock its `date` was read on rather than guessing it (`docs/contracts/CHANGELOG.md`, 2026-10-23,
+part 10).
