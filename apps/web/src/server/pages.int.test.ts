@@ -46,15 +46,15 @@ describe("pages repository", () => {
     expect(second).toHaveLength(DEFAULT_TEMPLATES.length);
   });
 
-  // M30 (ADR-056, amended 2026-10-03): four notebooks, in order, and the
+  // M30 (ADR-056, amended 2026-10-03): the notebooks, in order, and the
   // Overview's cards name the other three by the seed key each row was written
   // with — read back from the database, so a seeder whose links name a key no
-  // row carries fails here. Only the Overview refuses to go.
-  it("seeds four notebooks, links the Overview to the other three by seed key, and lets those three be deleted", async () => {
+  // row carries fails here. The Overview and Today (M52) refuse to go.
+  it("seeds the notebooks, links the Overview to the other three by seed key, and lets those three be deleted", async () => {
     const { tripId } = await seedTrip();
     const entries = await listPageEntries(tripId);
     expect(entries.map((p) => p.title)).toEqual(SEEDED_TITLES);
-    const [overview, ...siblings] = entries;
+    const [overview, , ...siblings] = entries;
     const doc = (await getPage(overview!.id))!.content;
     const linked = [...JSON.stringify(doc).matchAll(/"kind":"seed","seedKey":"([^"]+)"/g)].map((m) => m[1]);
     expect(linked).toEqual(siblings.map((s) => s.seedKey));
@@ -69,7 +69,7 @@ describe("pages repository", () => {
     const money = siblings.find((p) => p.title === "Money")!;
     const outcome = await executePageCommand({ type: "DeletePage", tripId, pageId: money.id }, "user-1");
     expect(outcome.ok).toBe(true);
-    expect((await listPages(tripId)).map((p) => p.title)).toEqual(["Overview", "Before you go", "Bookings"]);
+    expect((await listPages(tripId)).map((p) => p.title)).toEqual(["Overview", "Today", "Before you go", "Bookings"]);
   });
 
   // §25: the Overview *"appears in the Notebook index like any other page"* and

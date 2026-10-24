@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { TEMPLATE_LIBRARY, isOverviewPage, missingDefaultTemplates, type TemplateSeed } from "@tc/pages";
+import { TEMPLATE_LIBRARY, isUndeletablePage, missingDefaultTemplates, type TemplateSeed } from "@tc/pages";
 import { newPageDoc } from "@tc/contracts";
 import type { AssistantSuggested, PageContext, PageDoc, PageListEntry, SavedNotebookSummary, TripDetail, TripRole } from "@tc/contracts";
 import { addMissingDefaultNotebooks, createPage, deletePage, fetchPages } from "@/lib/pagesClient";
@@ -702,10 +702,11 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
                       page"*, which is about it being LISTED, not about it
                       carrying a control it cannot honour.
                       
-                      Read through `isOverviewPage` rather than by title: a
+                      Read through `isUndeletablePage` rather than by title: a
                       reader may rename this page, and the marker is what
-                      identity means here. */}
-                  {isOverviewPage(page.context) || !mayWrite ? null : (
+                      identity means here. Today (M52) is the other page that
+                      cannot go. */}
+                  {isUndeletablePage(page) || !mayWrite ? null : (
                     <Button size="sm" variant="ghost" onClick={() => handleDelete(page.id)} aria-label={`Delete ${page.title}`}>
                       Delete
                     </Button>

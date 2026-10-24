@@ -209,6 +209,18 @@ describe("/api/trips/:id/pages", () => {
       expect(getRes.status).toBe(404);
     });
 
+    // M52 (Mitchell, 2026-10-23): Today cannot be deleted, like the Overview.
+    // 409 with the reason, the Overview's answer (the route says why not 403).
+    it("409s a DELETE on Today, and says why", async () => {
+      const tripId = await seedTrip();
+      const today = (await listPages(tripId)).find((p) => p.seedKey === "today")!;
+      const req = new Request(`http://test/api/trips/${tripId}/pages/${today.id}`, { method: "DELETE" });
+      const res = await DELETE(req, { params: Promise.resolve({ tripId, pageId: today.id }) });
+      expect(res.status).toBe(409);
+      expect(await res.json()).toEqual({ error: "Today comes with the trip and cannot be deleted. You can reset it to its default instead." });
+      expect((await listPages(tripId)).some((p) => p.id === today.id)).toBe(true);
+    });
+
     it("404s a PATCH on a page belonging to a different trip", async () => {
       const tripId = await seedTrip();
       const otherTripId = await seedTrip();

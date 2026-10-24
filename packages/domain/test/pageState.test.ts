@@ -244,6 +244,22 @@ describe("decidePageCommand", () => {
     expect(!decision.ok && decision.rejection.code).toBe("page-undeletable");
   });
 
+  // M52 (Mitchell, 2026-10-23): Today comes with the trip like the Overview,
+  // and is known by its seed key, whatever it has been renamed to.
+  it("refuses to delete Today, by its seed key, and still deletes another seed", () => {
+    const state: PagesState = {
+      ...overview,
+      [P2]: { title: "Renamed", context: { tripId: TRIP, dateScope: "today" }, content: doc("a"), actorId: "system", seedKey: "today" },
+    };
+    const refused = decidePageCommand(state, { type: "DeletePage", tripId: TRIP, pageId: P2 }, ALICE);
+    expect(!refused.ok && refused.rejection).toEqual({
+      code: "page-undeletable",
+      message: "Today comes with the trip and cannot be deleted. You can reset it to its default instead.",
+    });
+    const money: PagesState = { [P2]: { ...state[P2]!, seedKey: "money" } };
+    expect(decidePageCommand(money, { type: "DeletePage", tripId: TRIP, pageId: P2 }, ALICE).ok).toBe(true);
+  });
+
   it("makes the caller the owner of a page they create", () => {
     const decision = decidePageCommand({}, {
       type: "CreatePage", tripId: TRIP, pageId: P2, title: "Packing", context: ctx(), content: doc("x"),

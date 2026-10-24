@@ -265,6 +265,25 @@ export const OVERVIEW_UNDELETABLE =
   "The Overview comes with the trip and cannot be deleted. You can empty it instead.";
 
 /**
+ * Today's seed key (M52; `TODAY_SEED_KEY` in `@tc/pages`, which this package
+ * cannot import). Today is undeletable by its key rather than a `kind`: its
+ * context already carries `dateScope`, and a key no edit moves is identity
+ * enough. `apps/web/src/server/undeletablePages.contract.test.ts` fails if this
+ * rule and `isUndeletablePage` disagree.
+ */
+const TODAY_SEED_KEY = "today";
+
+export const TODAY_UNDELETABLE =
+  "Today comes with the trip and cannot be deleted. You can reset it to its default instead.";
+
+/** The refusal for deleting this page, or `null` for a page that may go. */
+export function undeletableReason(page: { context: PageContext; seedKey: string | null }): string | null {
+  if (page.context.kind === "overview") return OVERVIEW_UNDELETABLE;
+  if (page.seedKey === TODAY_SEED_KEY) return TODAY_UNDELETABLE;
+  return null;
+}
+
+/**
  * A page command against the page aggregate.
  *
  * The refusals mirror `deletePage`'s in `server/pages.ts`, which is where they
@@ -354,8 +373,9 @@ export function decidePageCommand(
       if (current === undefined) {
         return { ok: false, rejection: { code: "page-not-found", message: "No such page." } };
       }
-      if (current.context.kind === "overview") {
-        return { ok: false, rejection: { code: "page-undeletable", message: OVERVIEW_UNDELETABLE } };
+      const undeletable = undeletableReason(current);
+      if (undeletable !== null) {
+        return { ok: false, rejection: { code: "page-undeletable", message: undeletable } };
       }
       return {
         ok: true,

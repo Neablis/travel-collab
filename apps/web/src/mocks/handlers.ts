@@ -1,5 +1,5 @@
 import { HttpResponse, http } from "msw";
-import { defaultDocumentFor, instantiateMissingDefaults, notebookPreviewOf } from "@tc/pages";
+import { defaultDocumentFor, instantiateMissingDefaults, isUndeletablePage, notebookPreviewOf } from "@tc/pages";
 import type { AccountPlanView } from "@/lib/accountPlan";
 import type { AdminReportQueueItem } from "@/lib/reports";
 import type { PlaceMatch, PlaceSearchResponse } from "@/lib/cities";
@@ -724,6 +724,8 @@ export function makePagesHandlers(
     http.delete("/api/trips/:tripId/pages/:pageId", ({ params }) => {
       const idx = pages.findIndex((p) => p.id === params.pageId && p.tripId === params.tripId);
       if (idx === -1) return HttpResponse.json({ error: "not-found" }, { status: 404 });
+      // The Overview and Today refuse, with the route's 409 (`decidePageCommand`).
+      if (isUndeletablePage(pages[idx]!)) return HttpResponse.json({ error: "This notebook comes with the trip and cannot be deleted." }, { status: 409 });
       options?.onDelete?.(params.pageId as string);
       pages = pages.filter((_, i) => i !== idx);
       return HttpResponse.json({ ok: true });

@@ -368,6 +368,20 @@ describe("NotebookScreen", () => {
       await waitFor(() => expect(screen.queryByRole("button", ADD)).toBeNull());
     });
 
+    // The Overview and Today come with the trip for good (SPEC §25; M52,
+    // Mitchell 2026-10-23), so neither offers a Delete the server would refuse.
+    it("offers no Delete on the Overview or on Today, and one on every other default", async () => {
+      accessRole = "owner";
+      const all = defaults();
+      server.use(...makePagesHandlers(all));
+
+      render(<NotebookScreen tripId={TRIP_ID} />);
+      const list = await screen.findByRole("region", { name: "Your notebooks" });
+      await within(list).findByText("Today");
+      const deletable = within(list).getAllByRole("button", { name: /^Delete / }).map((button) => button.getAttribute("aria-label"));
+      expect(deletable).toEqual(all.filter((p) => p.seedKey !== "overview" && p.seedKey !== "today").map((p) => `Delete ${p.title}`));
+    });
+
     it("does not offer it to an editor, even with a default missing", async () => {
       server.use(...makePagesHandlers(defaults().slice(0, 1)));
 

@@ -1,7 +1,9 @@
 import { randomUUID } from "node:crypto";
+import { and, eq } from "drizzle-orm";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { executeTripCommand } from "@/server/commands";
 import { db } from "@/server/db/client";
+import { pages } from "@/server/db/schema";
 import { grantMembership } from "@/server/access/members";
 import { createInvite } from "@/server/access/invites";
 import { entitleAccounts } from "@/server/test-support/entitledAccount";
@@ -9,6 +11,7 @@ import { setTripCover } from "@/server/tripCovers";
 import { upsertUser, writePreferences } from "@/server/users";
 import { tripCoverFactory } from "@tc/factories";
 import { DEMO_TRIP_ID } from "@/lib/demoTrip";
+import { isoDateInDays } from "@/lib/seedDate";
 
 // The trip page's server read (`tripFirstData`) against the GET routes it
 // stands in for. Its claim is "one policy, one shape": it lets in exactly whom
@@ -88,6 +91,40 @@ describe("tripFirstData", () => {
     expect(await tripFirstData(randomUUID())).toBeNull();
     expect(await tripFirstData("not-a-trip")).toBeNull();
     expect(await tripFirstData(DEMO_TRIP_ID)).toBeNull();
+  });
+
+  // M52 decision 11, as amended: the Overview tab shows Today from three days
+  // before the start through the end date, so the page sends that notebook.
+  // A day either side of today: no trip zone (no stop is placed) runs on UTC,
+  // and today in UTC is inside the trip whatever the runner's own zone.
+  it("sends Today as the Overview of a trip under way, and the Overview notebook otherwise", async () => {
+    const underway = await seedTrip();
+    await executeTripCommand(
+      { type: "SetTripDates", tripId: underway, startDate: isoDateInDays(-1), endDate: isoDateInDays(1), newDayIds: [randomUUID(), randomUUID()] },
+      OWNER,
+    );
+    const sent = await tripFirstData(underway);
+    expect(sent?.overview?.page).toMatchObject({ seedKey: "today", context: { dateScope: "today" } });
+
+    const planning = await tripFirstData(await seedTrip());
+    expect(planning?.overview?.page).toMatchObject({ seedKey: "overview", context: { kind: "overview" } });
+  });
+
+  // Mitchell's walk: Home, then a trip made before Today, under way. The page's
+  // own read plants Today and sends it as the Overview in the same response,
+  // with no visit to the notebook index first. Read as the viewer, the reader
+  // least able to add a notebook.
+  it("plants Today on a trip made before it, and sends it as the Overview of that trip under way", async () => {
+    const tripId = await seedTrip();
+    await db.delete(pages).where(and(eq(pages.tripId, tripId), eq(pages.seedKey, "today")));
+    await executeTripCommand(
+      { type: "SetTripDates", tripId, startDate: isoDateInDays(-1), endDate: isoDateInDays(1), newDayIds: [randomUUID(), randomUUID()] },
+      OWNER,
+    );
+    currentUserId = VIEWER;
+    const sent = await tripFirstData(tripId);
+    expect(sent?.overview?.page).toMatchObject({ seedKey: "today", context: { dateScope: "today" } });
+    expect(sent?.pages.pages.filter((p) => p.seedKey === "today")).toHaveLength(1);
   });
 
   // The "one shape" claim: each field is the body its route answers, for the

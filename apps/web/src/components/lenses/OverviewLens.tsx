@@ -5,7 +5,9 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { Page, PageDoc, PageSummary, TripDetail, TripGlobals } from "@tc/contracts";
 import { fetchPage, fetchPages, type NotebookList } from "@/lib/pagesClient";
-import { pickOverviewPage } from "@/lib/overviewPage";
+import { overviewShowsToday, pickOverviewPage } from "@/lib/overviewPage";
+import { useMinuteClock } from "@/lib/useMinuteClock";
+import { isOverviewPage, tripNow } from "@tc/pages";
 import { useTripSeed } from "@/components/trip/context/tripSeed";
 import { fetchTripGlobals } from "@/lib/apiClient";
 import { DEDUPE, cachedRead, invalidate, peekCached } from "@/lib/queryCache";
@@ -21,11 +23,13 @@ import { cn } from "@/lib/cn";
 import { PeopleProvider } from "@/components/pages/people";
 import { useIsPhone } from "@/lib/useIsPhone";
 
+// `wholeTripId`: the Overview notebook, while the tab shows Today in its place
+// (M52), for *Whole trip →*; `null` otherwise.
 type OverviewState =
   | { status: "loading" }
   | { status: "error"; message: string }
-  | { status: "ready"; page: PageSummary; doc: PageDoc }
-  | { status: "unreadable"; page: PageSummary };
+  | { status: "ready"; page: PageSummary; doc: PageDoc; wholeTripId: string | null }
+  | { status: "unreadable"; page: PageSummary; wholeTripId: string | null };
 
 // ADR-038 decision 4: whoever mounts `PageEditor` has already been told
 // the document is mountable. A page someone has edited into a shape this
@@ -37,11 +41,12 @@ type OverviewState =
 // This tab does not mount an editor — `editable={false}` — so the node
 // renders as decision 3's inert placeholder and the rest of the page is
 // readable, which is the whole point of a read-only presentation.
-function stateFor(summary: PageSummary, page: Page): OverviewState {
+function stateFor(summary: PageSummary, page: Page, pages: readonly PageSummary[]): OverviewState {
   const inspected = inspectStoredPageDoc(page.content);
+  const wholeTripId = isOverviewPage(summary.context) ? null : (pages.find((p) => isOverviewPage(p.context))?.id ?? null);
   return inspected.status === "unreadable"
-    ? { status: "unreadable", page: summary }
-    : { status: "ready", page: summary, doc: inspected.doc };
+    ? { status: "unreadable", page: summary, wholeTripId }
+    : { status: "ready", page: summary, doc: inspected.doc, wholeTripId };
 }
 
 // SPEC §25: **Overview IS a notebook page.**
@@ -154,14 +159,20 @@ export function OverviewLens({
   // and mounting the editor before them drew those widgets twice, the second
   // time at a different height, under the reader's eyes.
   const [globalsSettled, setGlobalsSettled] = useState(globals !== null);
+  // **Which notebook, by where the trip is** (M52 decision 11): Today from
+  // three days before the start through the last day. Read on the first
+  // render too, which is a client one (the lens mounts after hydration), so
+  // the first frame is already the right page.
+  const [firstClock] = useState(() => ({ at: Date.now(), deviceZone: Intl.DateTimeFormat().resolvedOptions().timeZone }));
+  const phase = tripNow(detail, globals, useMinuteClock() ?? firstClock).phase;
   const [state, setState] = useState<OverviewState>(() => {
     if (seed === null) return { status: "loading" };
     const list = peekCached<NotebookList>(tripKeys.pages(tripId)) ?? seed.pages;
-    const pick = pickOverviewPage(list.pages, linkedPageId);
+    const pick = pickOverviewPage(list.pages, linkedPageId, phase);
     if (!pick.ok) return { status: "loading" };
     const sent = seed.overview?.id === pick.page.id ? seed.overview : undefined;
     const page = peekCached<Page>(tripKeys.page(tripId, pick.page.id)) ?? sent;
-    return page === undefined ? { status: "loading" } : stateFor(pick.page, page);
+    return page === undefined ? { status: "loading" } : stateFor(pick.page, page, list.pages);
   });
 
   // Read through the cache, because this component is UNMOUNTED whenever you
@@ -223,7 +234,7 @@ export function OverviewLens({
       if (!list.ok) return setState({ status: "error", message: "Couldn't load this trip's Overview." });
       // The pick the server makes too (`lib/overviewPage.ts`), with its two
       // misses: a linked notebook gone, and a trip with no Overview.
-      const pick = pickOverviewPage(list.value.pages, linkedPageId);
+      const pick = pickOverviewPage(list.value.pages, linkedPageId, phase);
       if (!pick.ok) return setState({ status: "error", message: pick.message });
       const summary = pick.page;
       const page = await cachedRead(
@@ -233,12 +244,12 @@ export function OverviewLens({
       );
       if (!live) return;
       if (!page.ok) return setState({ status: "error", message: "Couldn't load this trip's Overview." });
-      setState(stateFor(summary, page.value));
+      setState(stateFor(summary, page.value, list.value.pages));
     })();
     return () => {
       live = false;
     };
-  }, [tripId, attempt, remoteRevision, linkedPageId]);
+  }, [tripId, attempt, remoteRevision, linkedPageId, phase]);
 
   // **The globals, in an effect of their own, also keyed on your own
   // commands.** `day.sun` and `day.fromHome` read a day's place and zone from
@@ -288,6 +299,9 @@ export function OverviewLens({
   // comes back here. A query parameter rather than state, because the page is
   // a different route and a reload must not forget how you got there.
   const shown = state.status === "ready" || state.status === "unreadable" ? state.page : null;
+  const wholeTripId = state.status === "ready" || state.status === "unreadable" ? state.wholeTripId : null;
+  // The tab's own name for what it shows: Today while it has swapped.
+  const tabLabel = overviewShowsToday(phase) ? "Today" : "Overview";
   const pageId = shown?.id ?? null;
   const openInNotebook = readOnly ? null : (
     <Link
@@ -371,13 +385,22 @@ export function OverviewLens({
       <div className="tc-overview-letter">
         <div className="mb-6.5 flex min-h-7 items-center justify-between gap-4 border-b border-hairline pb-4.5">
           {linkedPageId === null ? (
-            <span className="font-mono text-2xs tracking-widest text-slate uppercase">Overview</span>
+            <span className="flex min-w-0 items-baseline gap-3">
+              <span className="font-mono text-2xs tracking-widest text-slate uppercase">{wholeTripId === null ? "Overview" : "Today"}</span>
+              {/* Decision 11's quiet way to the usual Overview, as a link card
+                  reaches another notebook here (`?page=`). */}
+              {wholeTripId === null ? null : (
+                <Link href={`${pathname ?? ""}?view=Overview&page=${wholeTripId}`} className="text-sm text-slate hover:text-ink">
+                  Whole trip <span aria-hidden="true">→</span>
+                </Link>
+              )}
+            </span>
           ) : (
             // The way back: the demo draws no Notebooks menu, so without it a
             // visitor who followed a card had only the Overview tab to leave by.
             <span className="flex min-w-0 items-center gap-2 font-mono text-2xs tracking-widest text-slate uppercase">
               <Link href={`${pathname ?? ""}?view=Overview`} className="text-slate hover:text-ink">
-                Overview
+                {tabLabel}
               </Link>
               {shown === null ? null : (
                 <>

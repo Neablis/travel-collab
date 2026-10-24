@@ -170,10 +170,11 @@ describe("NotebooksMenu", () => {
     render(<NotebooksMenu tripId={TRIP_ID} />);
 
     // First open: nothing is known yet, and every trip is seeded with the
-    // default notebooks — four of them — so that many rows, the likeliest list.
+    // default notebooks — five of them since M52's Today — so that many rows,
+    // the likeliest list.
     hold();
     fireEvent.click(trigger());
-    expect(await placeholderRows()).toBe(4);
+    expect(await placeholderRows()).toBe(5);
     release();
     expect(await screen.findByRole("link", { name: /^Day Sheet .+/ })).toBeTruthy();
     expect(screen.queryByRole("status", { name: "Loading notebooks" })).toBeNull();
