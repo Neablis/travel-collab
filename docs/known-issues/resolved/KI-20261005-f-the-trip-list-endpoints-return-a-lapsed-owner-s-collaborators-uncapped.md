@@ -1,4 +1,4 @@
-### KI-2026-10-05-f — `GET /api/trips` and `GET /v1/trips` return a lapsed owner's collaborators uncapped
+### KI-2026-10-05-f — `GET /api/trips` and `GET /v1/trips` return a lapsed owner's collaborators uncapped — RESOLVED
 
 - **Severity:** correctness, low reach. An API answer carries a role that the trip's own reads do
   not. No screen shows it today, because the Home cards read no role. Nothing becomes writable
@@ -21,3 +21,18 @@
   e2e and docs.
 - **Cross-reference:** ADR-045 (Entitlements answers `can`), M20 link 6 (the lapse cap), spec W21.
 - **First noted:** 2026-10-05, travellers spec T9. No existing entry mentioned `capGranted`.
+- **Resolved, 2026-10-24 (KI sweep):** the `travelling` half was already closed:
+  `withEffectiveMembersByTrip`, which both lists now share, overlays `travellingByTrip`. The cap
+  was still missing, and is now `capGrantedOnLapseByTrip` in `members.ts`, applied before
+  `mergeMembers`: every owner of a trip on the page that has someone granted is asked about in
+  one `entitlementsForMany` read (three statements however many owners), and a list of solo
+  trips asks nothing, as `capGrantedOnLapse` asks nothing. Proven by a new test in
+  `collaborationGate.int.test.ts` (*caps them in the trip lists too, per owner*): a lapsed and a
+  paid owner each share a trip with one editor. Before the change it failed with
+  `expected 'editor' to be 'viewer'` on the list, while the trip's own read said `viewer`; after
+  it, the list and `GET /api/trips` both say `viewer` for the lapsed trip and `editor` for the paid
+  one. Forcing every trip capped turns it red with `expected 'viewer' to be 'editor'`. In
+  `app/api/trips/route.int.test.ts`, three tests had seeded an unentitled owner and asserted their
+  invited editors as `editor` in the list, which is the disagreement this entry describes. Their
+  owners are now premium, so every assertion stands unchanged. The statement-count test moves from
+  7 to 10, still the same for five trips and six.

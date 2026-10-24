@@ -19,7 +19,7 @@ import { withTripColors } from "./personaColors";
 // allows: the gate lives here, because this module is the one that knows an
 // invite is a collaboration; `trip.collaborators` is an opaque capability
 // string on the other side of the call.
-import { accountCan } from "../entitlements/resolver";
+import { accountCan, can, entitlementsForMany } from "../entitlements/resolver";
 
 // Declared in `db/client.ts` since a second module needed it (the referral
 // loop). Re-exported here so this file's own callers are unaffected.
@@ -570,7 +570,8 @@ function personaOf(
 
 /**
  * **The trips list's members** for `GET /v1/trips`: each summary's projected
- * members merged with the granted ones, and who is travelling — and no persona.
+ * members merged with the granted ones, capped on the owner's lapse as the
+ * trip's own reads cap them, and who is travelling — and no persona.
  * `/v1` does not name co-members (M38, Mitchell's decision 2026-10-07): a
  * token is a third party's, and this is the read that would tell it who else
  * is on every trip at once. `withListedMembers` is this plus the names.
@@ -588,10 +589,41 @@ export async function withEffectiveMembersByTrip<T extends { tripId: string; mem
   if (rows.length === 0) return [];
   const tripIds = rows.map((r) => r.tripId);
   const [granted, travelling] = await Promise.all([grantedMembersByTrip(tx, tripIds), travellingByTrip(tx, tripIds)]);
+  const capped = await capGrantedOnLapseByTrip(rows, granted);
   return rows.map((r) => ({
     ...r,
-    members: withTravelling(mergeMembers(r.members, granted.get(r.tripId) ?? []), travelling.get(r.tripId) ?? new Map()),
+    members: withTravelling(mergeMembers(r.members, capped.get(r.tripId) ?? []), travelling.get(r.tripId) ?? new Map()),
   }));
+}
+
+/**
+ * `capGrantedOnLapse` for a whole list (KI-2026-10-05-f): without it the trip
+ * lists reported a lapsed owner's collaborators at their stored role while the
+ * trip's own reads capped them to `viewer`. Each trip's owner is asked about
+ * once, in one batched Entitlements read for every owner on the page, and only
+ * owners of a trip with something granted are asked, so a list of solo trips
+ * never reaches the gate — `capGrantedOnLapse`'s rule.
+ */
+async function capGrantedOnLapseByTrip(
+  rows: readonly { tripId: string; members: readonly TripMember[] }[],
+  granted: ReadonlyMap<string, TripMember[]>,
+): Promise<Map<string, TripMember[]>> {
+  const ownerOf = new Map<string, string>();
+  for (const r of rows) {
+    const owner = billingSubject(r.members);
+    if (owner !== null && (granted.get(r.tripId)?.length ?? 0) > 0) ownerOf.set(r.tripId, owner);
+  }
+  if (ownerOf.size === 0) return new Map(granted);
+  const accounts = await entitlementsForMany([...ownerOf.values()]);
+  return new Map(
+    [...granted].map(([tripId, members]) => {
+      const owner = ownerOf.get(tripId);
+      const account = owner === undefined ? undefined : accounts.get(owner);
+      // A trip with no owner on its list is answered entitled, as `collaboratorsEntitled` answers it.
+      const entitled = account === undefined || can(account.entitlements, "trip.collaborators");
+      return [tripId, capGranted(members, entitled)];
+    }),
+  );
 }
 
 /**
