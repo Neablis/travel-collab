@@ -32,8 +32,30 @@ import { AIRPORT_CODES_BY_ZONE } from "./airportTimeZones.generated";
  */
 export function timeZoneAt(lat: number, lng: number): string | null {
   if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
+  for (const box of DATE_LINE_CORRECTIONS) {
+    if (lat >= box.south && lat <= box.north && lng >= box.west && lng <= box.east) return box.zone;
+  }
   return tzLookup(lat, lng);
 }
+
+/**
+ * Boxes where the coarse grid draws a border on the wrong side of an inhabited
+ * island, and the zone that is right inside them (KI-2026-10-24-h).
+ *
+ * Only borders that cross the date line are here, because only there is a few
+ * tenths of a degree a whole calendar day. The grid puts the Samoa / American
+ * Samoa border at about 170.63°W, through Pago Pago, and the Tokelau / American
+ * Samoa one at about 9.35°S, through Fakaofo. Each box spans just the open sea
+ * between the two territories' nearest islands, so its edges need not be exact:
+ * Upolu ends at 171.39°W, Tutuila starts at 170.85°W, Fakaofo is at 9.38°S and
+ * Swains Island at 11.06°S. `timeZones.test.ts` pins a town on each side.
+ */
+const DATE_LINE_CORRECTIONS: readonly { south: number; north: number; west: number; east: number; zone: string }[] = [
+  // Tutuila and Aunu'u, up to the open sea east of Upolu.
+  { south: -15, north: -13, west: -171.1, east: -170.6, zone: "Pacific/Pago_Pago" },
+  // Fakaofo, up to the open sea north of Swains Island.
+  { south: -10.2, north: -9.3, west: -171.6, east: -170.8, zone: "Pacific/Fakaofo" },
+];
 
 let zoneByAirport: Map<string, string> | undefined;
 
