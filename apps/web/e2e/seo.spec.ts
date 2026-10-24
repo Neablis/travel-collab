@@ -208,7 +208,7 @@ test("a day's HTML holds its name and its stops without JavaScript", async ({ pa
   }
 });
 
-test("a day's head: name and first city in the title, the facts line, a slugged canonical", async ({ page, browser }) => {
+test("a day's head: name and first city in the title, the arc sentence, a slugged canonical", async ({ page, browser }) => {
   test.slow();
   const city = `Seoe2e${randomUUID().slice(0, 6)}`;
   const name = `Crawlable day ${randomUUID().slice(0, 8)}`;
@@ -218,8 +218,10 @@ test("a day's head: name and first city in the title, the facts line, a slugged 
     const slugged = sluggedPath(name, savedDayId);
     const html = await (await visitor.request.get(slugged)).text();
     expect(html).toContain(`<title>${name} · ${city} — Caesura</title>`);
-    // No summary on this day, so the facts line; the author as the library names them.
-    expect(html).toMatch(new RegExp(`<meta name="description" content="${city} · 1 stop · by [^"·]+"`));
+    // No summary on this day, so the arc sentence: its one morning stop, as the day's story.
+    expect(html).toContain(
+      `<meta name="description" content="A day in ${city}: Stop in ${city}, planned by someone who lived it. Borrow it for your trip."/>`,
+    );
     expect(html).toMatch(new RegExp(`<link rel="canonical" href="[^"]*${slugged}"`));
     // The card's title stays the bare name: og:site_name carries the brand.
     expect(html).toContain(`<meta property="og:title" content="${name}"`);
@@ -465,7 +467,17 @@ test("a city page lists its days in the HTML and, once indexable, as an ItemList
     const response = await visitor.request.get(path);
     expect(response.status()).toBe(200);
     const html = await response.text();
-    expect(html).toMatch(new RegExp(`>${city} playbooks</h1>`));
+    expect(html).toMatch(new RegExp(`>${city} trips from real travelers</h1>`));
+    expect(html).toContain(`<title>${city} trips from real travelers — Caesura</title>`);
+    // The trail above the list, as structured data: the same crumbs the
+    // visitor sees, on a thin page as on an indexable one.
+    const trail = ldJson(html).find((n) => (n as { "@type": string })["@type"] === "BreadcrumbList") as {
+      itemListElement: { name: string; item: string }[];
+    };
+    expect(trail.itemListElement.map((c) => [c.name, new URL(c.item).pathname])).toEqual([
+      ["Playbooks", "/playbooks"],
+      [city, path],
+    ]);
     expect(html).toContain(sluggedPath(name, savedDayId));
     expect(html).toMatch(new RegExp(`<link rel="canonical" href="[^"]*${path}"`));
 

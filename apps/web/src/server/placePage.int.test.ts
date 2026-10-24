@@ -70,16 +70,18 @@ describe("placeMetadata and placeListing", () => {
     const id = await day("In Nauru", { countries: ["NR"] });
 
     const listing = await placeListing("country", props("nauru"));
+    // The day names no city (its stops are empty), so the breadth sentence
+    // has no place to name and the description falls back to the count.
     expect(listing).toMatchObject({
-      heading: "Nauru playbooks",
-      summary: "1 day a traveler planned in Nauru.",
+      heading: "Nauru trips from real travelers",
+      summary: "1 day a traveler planned in Nauru. Open it and drop it into your trip.",
       path: "/playbooks/country/nauru",
       total: 1,
       page: 1,
     });
     expect(listing.days.map((d) => d.savedDayId)).toEqual([id]);
     const meta = await placeMetadata("country", props("nauru"));
-    expect(meta.title).toBe("Nauru playbooks");
+    expect(meta.title).toBe("Nauru trips from real travelers");
     expect(meta.openGraph?.images).toContainEqual(expect.objectContaining({ url: "/api/og/playbooks/country/NR" }));
   });
 });

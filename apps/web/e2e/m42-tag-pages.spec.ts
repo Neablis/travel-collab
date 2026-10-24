@@ -65,14 +65,14 @@ test("signed out: a tag page, a city's tag page, and Discover's tag filter and n
 
     // The library's nightlife page lists the late nights, and not the dinner.
     await visitor.goto("/playbooks/tag/nightlife");
-    await expect(visitor.getByRole("heading", { level: 1, name: "Nightlife playbooks" })).toBeVisible();
+    await expect(visitor.getByRole("heading", { level: 1, name: "Nightlife days worth borrowing" })).toBeVisible();
     await expect(visitor.getByRole("link", { name: new RegExp(`^Late night ${city} `) }).first()).toBeVisible();
     await expect(dinner).toHaveCount(0);
 
     // The city's nightlife page: its 25 days over two pages, the dinner on neither.
     await visitor.goto(`/playbooks/city/${slug}/nightlife`);
-    await expect(visitor.getByRole("heading", { level: 1, name: `${city} nightlife playbooks` })).toBeVisible();
-    await expect(visitor.getByText(`${LATE_DAYS} nightlife days other travelers planned in ${city}.`)).toBeVisible();
+    await expect(visitor.getByRole("heading", { level: 1, name: `Nightlife days in ${city}` })).toBeVisible();
+    await expect(visitor.getByText(`${city} nightlife: nightlife 0, nightlife 1, nightlife 2. A real day, ready to drop into your trip.`)).toBeVisible();
     await expect(dinner).toHaveCount(0);
     await visitor.getByRole("link", { name: "Next", exact: true }).click();
     await expect(visitor).toHaveURL(new RegExp(`/playbooks/city/${slug}/nightlife\\?page=2$`));
@@ -96,5 +96,33 @@ test("signed out: a tag page, a city's tag page, and Discover's tag filter and n
     await visitor.context().close();
   } finally {
     await Promise.all(ids.map((id) => forget(page, id)));
+  }
+});
+
+// The meal tag's display word is "Food", so the food slug is the one a
+// person guesses — but the tag's URL slug is the enum, `meal`. The guess
+// redirects to the real page on every tag route shape, like /welcome does
+// for the landing's old address. Slugs here are arbitrary: a redirect fires
+// before routing, so the target need not exist.
+test("food, the tag's display word, redirects to meal on every tag route shape", async ({ browser }) => {
+  const visitor = await stranger(browser);
+  try {
+    const cases: [string, string][] = [
+      ["/playbooks/tag/food", "/playbooks/tag/meal"],
+      ["/playbooks/city/paris/food", "/playbooks/city/paris/meal"],
+      ["/playbooks/country/france/tag/food", "/playbooks/country/france/tag/meal"],
+      ["/playbooks/country/france/city/paris/tag/food", "/playbooks/country/france/city/paris/tag/meal"],
+    ];
+    for (const [from, to] of cases) {
+      const response = await visitor.request.get(from, { maxRedirects: 0 });
+      expect(response.status()).toBe(308);
+      expect(new URL(response.headers().location ?? "", "http://x").pathname).toBe(to);
+    }
+    // The query carries across, so a paginated guess lands on the same page.
+    const paged = await visitor.request.get("/playbooks/city/paris/food?page=2", { maxRedirects: 0 });
+    expect(paged.status()).toBe(308);
+    expect(new URL(paged.headers().location ?? "", "http://x").search).toBe("?page=2");
+  } finally {
+    await visitor.context().close();
   }
 });

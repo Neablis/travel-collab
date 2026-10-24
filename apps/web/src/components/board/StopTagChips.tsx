@@ -11,6 +11,11 @@ import { TAG_CHIP_CLASS, TAG_LABEL, tagFocusHint } from "@/lib/activityTags";
  * Moved verbatim out of the day column's old `ActivityCard` (M29 part 2), which
  * shared it until PR #269 retired that card; the reasoning each line carried
  * there is kept with it.
+ *
+ * Each label carries a trailing space: the chips are flex items with only a
+ * CSS gap between them, so an extracted snippet ran them together
+ * ("FoodBeachDrinksSightTour"). The space collapses visually inside the pill,
+ * so the chips look unchanged, and it is what separates them in text.
  */
 export function StopTagChips({
   activityId,
@@ -47,18 +52,20 @@ export function StopTagChips({
               key={tag}
               href={href}
               data-testid={`tag-chip-${tag}`}
-              aria-label={`${TAG_LABEL[tag]} playbooks`}
+              // The page the chip names, in its new title family ("Beach
+              // days worth borrowing"), not the old "playbooks" one.
+              aria-label={`${TAG_LABEL[tag]} days`}
               // The toggle's 44px reach around a 20px chip, below.
               className="group/chip inline-flex min-h-11 -my-3 items-center fine:my-0 fine:min-h-0"
             >
-              <span className={cn(chipClass, "group-hover/chip:underline")}>{TAG_LABEL[tag]}</span>
+              <span className={cn(chipClass, "group-hover/chip:underline")}>{TAG_LABEL[tag]}{" "}</span>
             </Link>
           );
         }
         if (!onToggleTag) {
           return (
             <span key={tag} data-testid={`tag-chip-${tag}`} className={chipClass}>
-              {TAG_LABEL[tag]}
+              {TAG_LABEL[tag]}{" "}
             </span>
           );
         }
@@ -105,7 +112,7 @@ export function StopTagChips({
                 isFocused && "ring-2 ring-brand ring-inset",
               )}
             >
-              {TAG_LABEL[tag]}
+              {TAG_LABEL[tag]}{" "}
             </span>
           </button>
         );

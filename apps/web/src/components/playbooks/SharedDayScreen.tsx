@@ -822,8 +822,12 @@ export function SharedDayScreen({
                                 {/* The START, as the artboard's column shows it:
                                     a full range wraps to two lines in 86px, and
                                     the next row's start already says when this
-                                    one gives way. */}
-                                {stop.timeWindow !== null ? toClockLabel(stop.timeWindow.start, clock) : ""}
+                                    one gives way. The trailing space is the
+                                    crawler's separator: the flex gap leaves no
+                                    character between time and title, so an
+                                    extracted snippet ran them together. It
+                                    collapses visually, so the row looks unchanged. */}
+                                {stop.timeWindow !== null ? `${toClockLabel(stop.timeWindow.start, clock)} ` : ""}
                               </DataText>
                               {/* §33.1's continuous numbering. Scoped to one day
                                   it restarts at 1 — see `playbookDays`. */}

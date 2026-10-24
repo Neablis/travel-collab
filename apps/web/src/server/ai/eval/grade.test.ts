@@ -18,7 +18,7 @@ import { clockIn } from "@tc/pages";
 import type { AskAnalyticsRecord } from "@/server/assistant/askAnalytics";
 import { OVERVIEW_ABOVE_DAYS } from "@/server/assistant/tools/read";
 import { accountExpectationFor, expectationFor, mostFreeDays, playbookExpectationFor, type SeededAccountTrip } from "./cases";
-import { ACCOUNT_TRIPS, EVAL_TRIPS, LONG_TRIP_DAYS, accountTripCommands, japanTodayStart, longTripCommands, notRunOnClock } from "./trips";
+import { ACCOUNT_TRIPS, EVAL_TRIPS, LONG_TRIP_DAYS, accountTripCommands, evalInstant, japanTodayStart, longTripCommands } from "./trips";
 import { grade, namesAmount, namesDayNumber, navigatedTo, retractedText, reviewedChanges, textBeforeToolCall, visibleText, type EvalTurn } from "./grade";
 
 // The fields `grade` reads, on an otherwise ordinary completed turn.
@@ -330,7 +330,6 @@ describe("the cases", () => {
   it("dates the today trip so the run lands inside a day with a stop begun and one to come", () => {
     const dayOfRun = (at: number) => {
       const start = japanTodayStart(at);
-      if (start === null) return null;
       const { date, time } = clockIn("Asia/Tokyo", at);
       const day = (Date.parse(date) - Date.parse(start)) / 86_400_000 + 1;
       const starts = JAPAN_STOPS.filter((stop) => stop.day === day).map((stop) => stop.start);
@@ -341,18 +340,20 @@ describe("the cases", () => {
       const at = Date.parse("2026-10-23T00:00:00+09:00") + minutes * 60_000;
       expect(dayOfRun(at), `${Math.floor(minutes / 60)}:${String(minutes % 60).padStart(2, "0")} JST`).toMatchObject({ begun: true, toCome: true });
     }
-    // 22:45 JST: no day has a stop left, so the runner leaves those prompts out rather than spends.
-    expect(japanTodayStart(Date.parse("2026-10-23T22:45:00+09:00"))).toBeNull();
+    // 22:45 JST: no day has a stop left, so no date makes the trip one the day-of cases can run on.
+    expect(() => japanTodayStart(Date.parse("2026-10-23T22:45:00+09:00"))).toThrow("22:45");
   });
 
-  // Refusing a whole run for three day-of prompts kept the live set off nine
-  // and a half hours a day, and a silent skip would shrink the comparison
-  // without a word (PR 534 review 2, finding 3). Outside the hours they are
-  // left out and named; inside them, nothing is.
-  it("names the day-of prompts a run leaves out on the clock, and only those, only outside the hours", () => {
-    const prompts = [{ id: "q-busiest" }, { id: "d-coffee-near-now", trip: "today" as const }, { id: "q-long", trip: "long-100" as const }];
-    expect(notRunOnClock(prompts, Date.parse("2026-10-23T22:45:00+09:00"))).toEqual([{ id: "d-coffee-near-now", reason: "not run: clock (22:45 JST)" }]);
-    expect(notRunOnClock(prompts, Date.parse("2026-10-23T12:00:00+09:00"))).toEqual([]);
+  // The day-of cases once read the real clock, so a run before 06:30 or after
+  // 21:00 in Tokyo left them out (Mitchell: "a great way to introduce a really
+  // frustrating flakey test"). The run's clock is pinned instead, and a run
+  // started at any hour must land on the same hour of a Japan day.
+  it("pins the run to half past noon in Tokyo whatever the hour it starts, inside a day with a stop begun and one to come", () => {
+    for (const started of ["2026-10-24T05:42:00+09:00", "2026-10-24T12:00:00+09:00", "2026-10-24T23:59:00+09:00"]) {
+      const at = evalInstant(Date.parse(started));
+      expect(clockIn("Asia/Tokyo", at), started).toEqual({ date: "2026-10-24", time: "12:30" });
+      expect(japanTodayStart(at), started).toBe("2026-10-23");
+    }
   });
 
   // The summary is the overview's job: one look at a stay is fine, a read of

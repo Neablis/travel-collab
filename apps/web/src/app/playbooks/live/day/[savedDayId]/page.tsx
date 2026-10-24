@@ -35,16 +35,22 @@ const loadDay = cache(async (segment: string, reader: PlaybooksReader) => {
 // One sentence for the meta description and the structured data's, so a
 // search engine is never told two things about the same day.
 const describe = ({ day, author }: SharedDayView) =>
-  dayDescription(day.summary, {
-    cities: day.cities.slice(0, CITIES_SHOWN),
-    dayCount: day.dayCount,
-    stopCount: day.stops.length,
-    author: author.displayName,
-    rating: null,
-    reviewCount: 0,
-  });
+  dayDescription(
+    day.summary,
+    {
+      cities: day.cities.slice(0, CITIES_SHOWN),
+      dayCount: day.dayCount,
+      stopCount: day.stops.length,
+      author: author.displayName,
+      rating: null,
+      reviewCount: 0,
+    },
+    // The arc fallback reads the stops' times: a summary-less day describes
+    // itself as its morning, midday and evening, not as its facts line.
+    day.stops,
+  );
 
-/** Metadata for a shared day: its name and first city, its summary or facts line, its own card. */
+/** Metadata for a shared day: its name and first city, its summary or arc sentence, its own card. */
 export async function generateMetadata({ params }: Params) {
   const [reader, { savedDayId }] = await Promise.all([readerOf(params), params]);
   const loaded = await loadDay(savedDayId, reader);
