@@ -52,7 +52,7 @@ export function formatShortDate(iso: string | null): string | null {
  * midnights are always an exact multiple of a day apart, so the division is
  * integral rather than rounded.
  */
-function isoDaysBetween(from: string, to: string): number | null {
+export function isoDaysBetween(from: string, to: string): number | null {
   const a = isoToUtcMs(from);
   const b = isoToUtcMs(to);
   if (a === null || b === null) return null;

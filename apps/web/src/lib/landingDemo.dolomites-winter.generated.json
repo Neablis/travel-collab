@@ -51,7 +51,8 @@
         "addedBy": "Lena",
         "mode": null,
         "endLocation": null,
-        "pendingReason": null
+        "pendingReason": null,
+        "flightNumber": null
       },
       "00000000-0000-4000-8001-000000000015": {
         "activityId": "00000000-0000-4000-8001-000000000015",
@@ -78,7 +79,8 @@
         "addedBy": "Lena",
         "mode": null,
         "endLocation": null,
-        "pendingReason": null
+        "pendingReason": null,
+        "flightNumber": null
       },
       "00000000-0000-4000-8001-000000000016": {
         "activityId": "00000000-0000-4000-8001-000000000016",
@@ -107,7 +109,8 @@
         "addedBy": "Lena",
         "mode": null,
         "endLocation": null,
-        "pendingReason": null
+        "pendingReason": null,
+        "flightNumber": null
       },
       "00000000-0000-4000-8001-000000000017": {
         "activityId": "00000000-0000-4000-8001-000000000017",
@@ -136,7 +139,8 @@
         "addedBy": "Lena",
         "mode": null,
         "endLocation": null,
-        "pendingReason": null
+        "pendingReason": null,
+        "flightNumber": null
       },
       "00000000-0000-4000-8001-000000000018": {
         "activityId": "00000000-0000-4000-8001-000000000018",
@@ -166,7 +170,8 @@
         "addedBy": "Lena",
         "mode": null,
         "endLocation": null,
-        "pendingReason": null
+        "pendingReason": null,
+        "flightNumber": null
       },
       "00000000-0000-4000-8001-000000000019": {
         "activityId": "00000000-0000-4000-8001-000000000019",
@@ -195,7 +200,8 @@
         "addedBy": "Lena",
         "mode": null,
         "endLocation": null,
-        "pendingReason": null
+        "pendingReason": null,
+        "flightNumber": null
       },
       "00000000-0000-4000-8001-000000000020": {
         "activityId": "00000000-0000-4000-8001-000000000020",
@@ -224,7 +230,8 @@
         "addedBy": "Lena",
         "mode": null,
         "endLocation": null,
-        "pendingReason": null
+        "pendingReason": null,
+        "flightNumber": null
       }
     },
     "people": {

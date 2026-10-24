@@ -37,6 +37,7 @@
 // rather than a second manifest.
 import type { z } from "zod";
 import type { TripRole } from "@tc/contracts";
+import type { TripPhase } from "@tc/pages";
 import type { AssistantDeps, DepKey } from "./deps";
 import type { TaskClass } from "./taskClass";
 import type { AskToolPosture } from "./grants";
@@ -101,6 +102,9 @@ export const EFFECT_LEVEL: Readonly<Record<ToolEffect, EffectLevel>> = {
  * registry rather than something a reviewer has to notice.
  */
 export type ToolSpend = "none" | "vendor";
+
+/** Where a turn was asked: the Ask tab or a page's rail, or the trip chat's `@assistant` (M52). */
+export type TurnOrigin = "ask" | "chat";
 
 export interface ToolSpec<
   Input extends z.ZodTypeAny,
@@ -208,6 +212,23 @@ export interface ToolSpec<
    * off it, and this tag cannot put anything back.
    */
   onReadOnlyTurns?: false;
+  /**
+   * **Where the turn was started, when that is the tool's one condition** (M52
+   * decision 18): `read_chat` is offered only on a turn an `@assistant` in the
+   * trip chat started, and `go_to` only on an Ask turn, whose rail can move the
+   * page. Omitted means every origin. `toolsFor` reads an absent origin as
+   * `ask`: a caller that does not know where the turn came from is not one the
+   * chat started.
+   */
+  origins?: readonly TurnOrigin[];
+  /**
+   * **Which phases of the trip this tool is offered in** (M52 decision 6):
+   * `find_places_near_now` only while the trip is under way, so no turn before
+   * or after it pays for the schema. An absent phase is read as `postures`
+   * reads an absent posture, as not knowing it: a tagged tool is not offered.
+   * Omitted means every phase.
+   */
+  phases?: readonly TripPhase[];
   /**
    * Input properties the MODEL is not shown, as dot paths (`"location.lat"`).
    * They stay in `input` and are still accepted and validated when sent; the

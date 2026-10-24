@@ -6,7 +6,8 @@ import { presetCatalog } from "./presets";
 import { LEGAL_FILTERS } from "./filters";
 import { fieldChoices } from "./fields";
 import { insertWidget } from "./insert";
-import type { WidgetInput } from "./registry-types";
+import type { WidgetContext, WidgetInput } from "./registry-types";
+import { selectionTrip } from "./test-support/selectionTrip";
 
 const detail = { tripId: "11111111-1111-1111-1111-111111111111", name: "T", startDate: null, currency: "USD", budget: null, status: "active", members: [{ userId: "u1", role: "owner" }], forkedFrom: null, days: [], backlog: [], activities: {}, conflicts: [], dismissedConflictIds: [], createdAt: "2026-07-20T00:00:00.000Z", unscheduledCostSubtotal: 0, tripCostTotal: 0, budgetRemaining: null } as TripDetail;
 
@@ -37,9 +38,11 @@ describe("registry", () => {
     expect([...MACRO_NAMES].sort()).toEqual([
       "attribute", "city", "city.detail", "city.rows", "cost", "cost.balances", "cost.breakdown", "cost.chart", "cost.rows",
       "count", "country.facts", "dates", "day.detail", "day.fromHome", "day.rows", "day.sun", "day.weather", "field", "hours",
-      "link.external", "link.internal", "open", "person.share", "stop.rows", "tag.breakdown", "tag.byDay",
-      "trip.description", "trip.people", "trip.strip",
-    ]);
+      "link.external", "link.internal", "open", "person.share", "stop.directions", "stop.rows", "tag.breakdown", "tag.byDay",
+      "trip.description", "trip.flights", "trip.now", "trip.people", "trip.strip",
+      // M52 decision 15, on `trip.people`'s terms.
+      "chat.recent",
+    ].sort());
     for (const name of MACRO_NAMES) expect(getMacro(name)!.name).toBe(name);
   });
   // `renderMacro` is the one dispatcher. `resolveMacro` sat beside it with only
@@ -193,8 +196,9 @@ describe("every widget renders (ADR-037 decision 2)", () => {
       a1: {
         activityId: "a1", tripId: detail.tripId, title: "Museum", dayId: "d0", position: 0,
         // Located, so "Know before you go" has a country to card rather than
-        // resolving to `empty` — the witness floor below, once more.
-        timeWindow: { start: "09:00", end: "17:00" }, location: { name: "Tokyo National Museum", countryCode: "JP" },
+        // resolving to `empty` — the witness floor below, once more — and placed,
+        // so "Directions" has somewhere to send Maps.
+        timeWindow: { start: "09:00", end: "17:00" }, location: { name: "Tokyo National Museum", countryCode: "JP", lat: 35.7188, lng: 139.7765 },
         cost: { amountMinor: 5000, currency: "USD" },
         // `booked`, not `null`: `booking.line` resolves to `empty` for a day
         // whose stops are all merely planned, so with a null kind it never
@@ -292,7 +296,10 @@ describe("every widget renders (ADR-037 decision 2)", () => {
   // which is exactly what the person clicking it gets.
   const presetOutcome = (entry: ReturnType<typeof presetCatalog>[number]) =>
     renderMacro(
-      { trip: populated, page: { tripId: populated.tripId }, user, globals, today: "2027-06-01", external },
+      // A reader who may chat (M52): without, Trip chat is `absent`.
+      // `now` is 10:00 in Tokyo on the trip's one day, mid-museum, so the
+      // day-of widgets (M52) have a stop under way to show.
+      { trip: populated, page: { tripId: populated.tripId }, user, globals, today: "2027-06-01", now: { at: Date.parse("2026-08-01T01:00:00Z"), deviceZone: "Asia/Tokyo" }, external, canChat: true, chat: [] },
       entry.widget,
       // Bind anything still asking for a day to the one day above, so block
       // widgets reach `ok` instead of `unbound`. A field the preset leaves for
@@ -443,8 +450,9 @@ describe("every primitive declares a legal selection (ADR-039 decision 3)", () =
     // registered widget without a selection is not a primitive.
     expect([...MACRO_NAMES].sort()).toEqual(expect.arrayContaining([...PRIMITIVE_NAMES].sort()));
     expect(MACRO_NAMES.filter((n) => getMacro(n)!.selection === undefined).sort()).toEqual([
-      "country.facts", "link.external", "link.internal", "open", "trip.description", "trip.people", "trip.strip",
-    ]);
+      "country.facts", "link.external", "link.internal", "open", "trip.description", "trip.flights", "trip.now", "trip.people", "trip.strip",
+      "chat.recent",
+    ].sort());
   });
 
   it("declares only dimensions its entity permits", () => {
@@ -703,5 +711,35 @@ describe("distinctApplies", () => {
       expect(distinctApplies(name, { field: "stop.title", columns: ["stop.title"] }), name).toBe(false);
     }
     expect(distinctApplies("nope", { field: "stop.title" })).toBe(false);
+  });
+});
+
+// M52's gate box (decision 10, ADR-080 §4): on a page scoped to today, a widget
+// that left its day open reads today, and one its author bound reads that day.
+describe("renderMacro on a page scoped to today", () => {
+  const { trip, globals } = selectionTrip();
+  const plain: WidgetContext = { trip, globals, page: { tripId: trip.tripId }, user: null, today: null };
+  const scopedAt = (iso: string): WidgetContext => ({
+    ...plain, page: { tripId: trip.tripId, dateScope: "today" }, now: { at: Date.parse(iso), deviceZone: "UTC" },
+  });
+  const day = (index: number) => ({ day: { kind: "index", index } });
+
+  it("shows today in an unbound day.detail, and day 1 in one bound to day 1", () => {
+    const onDay2 = scopedAt("2027-06-02T12:00:00Z");
+    expect(renderMacro(onDay2, "day.detail", {})).toEqual(renderMacro(plain, "day.detail", day(1)));
+    expect(renderMacro(onDay2, "day.detail", day(0))).toEqual(renderMacro(plain, "day.detail", day(0)));
+  });
+
+  // Rome is on days 1 and 2, so a Rome line that dropped the page's day would
+  // sum both, where the same widget outside the repeat reads day 2 alone.
+  it("reads today's cost in its city on a for-each-city line", () => {
+    const romeLine = { kind: "city", name: "Rome" } as const;
+    const todayInRome = renderMacro(plain, "cost", { city: "Rome", ...day(1) });
+    expect(renderMacro(plain, "cost", {}, romeLine)).not.toEqual(todayInRome);
+    expect(renderMacro(scopedAt("2027-06-02T12:00:00Z"), "cost", {}, romeLine)).toEqual(todayInRome);
+  });
+
+  it("renders an empty state that says today is no trip day, off the trip's dates, not a removed day", () => {
+    expect(renderMacro(scopedAt("2027-05-30T12:00:00Z"), "day.detail", {})).toEqual({ status: "empty", because: "Nothing planned today" });
   });
 });

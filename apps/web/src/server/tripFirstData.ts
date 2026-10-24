@@ -12,6 +12,7 @@ import {
 } from "@/server/tripViews";
 import { isDemoTripId } from "@/lib/demoTrip";
 import { pickOverviewPage } from "@/lib/overviewPage";
+import { turnNowOf } from "@/server/assistant/context";
 import type { TripFirstData } from "@/lib/tripFirstData";
 
 /**
@@ -41,9 +42,13 @@ export async function tripFirstData(tripId: string): Promise<TripFirstData | nul
     const access = await requireTripAccess(tripId, "viewer", { allowDemo: true });
     if ("error" in access) return null;
     const pagesRead = tripPagesView(tripId, access);
-    // The Overview notebook is the one the lens would pick out of that list.
-    const overviewRead = pagesRead.then((list) => {
-      const pick = pickOverviewPage(list.pages, null);
+    // Not the demo, so the reader `requireTripAccess` resolved is the session's.
+    const globalsRead = tripGlobalsView(access, access.userId);
+    // The Overview notebook is the one the lens would pick out of that list,
+    // Today included (M52): on the trip's own zone, the reader's being
+    // unknown here (ADR-080). A lens whose clock disagrees reads its own.
+    const overviewRead = Promise.all([pagesRead, globalsRead]).then(([list, { globals }]) => {
+      const pick = pickOverviewPage(list.pages, null, turnNowOf(access.detail, globals, Date.now()).phase);
       return pick.ok ? tripPageView(tripId, pick.page.id) : null;
     });
     const [history, accessView, cover, pages, overview, globals] = await Promise.all([
@@ -52,8 +57,7 @@ export async function tripFirstData(tripId: string): Promise<TripFirstData | nul
       tripCoverView(tripId),
       pagesRead,
       overviewRead,
-      // Not the demo, so the reader `requireTripAccess` resolved is the session's.
-      tripGlobalsView(access, access.userId),
+      globalsRead,
     ]);
     if (history === null) return null;
     const first: TripFirstData = {

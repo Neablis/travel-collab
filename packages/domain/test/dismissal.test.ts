@@ -19,8 +19,8 @@ function conflictedState(): TripState {
     days: [{ dayId: DAY, activityIds: [A1, A2] }],
     backlog: [],
     activities: {
-      [A1]: { title: "Colosseum", timeWindow: { start: "09:00", end: "11:00" }, location: null, notes: null, anchors: [], kind: "planned" as const, tags: [], cost: null, bookedBy: null, participants: [], mode: null, endLocation: null, pendingReason: null },
-      [A2]: { title: "Vatican", timeWindow: { start: "10:00", end: "12:00" }, location: null, notes: null, anchors: [], kind: "planned" as const, tags: [], cost: null, bookedBy: null, participants: [], mode: null, endLocation: null, pendingReason: null },
+      [A1]: { title: "Colosseum", timeWindow: { start: "09:00", end: "11:00" }, location: null, notes: null, anchors: [], kind: "planned" as const, tags: [], cost: null, bookedBy: null, participants: [], mode: null, endLocation: null, pendingReason: null, flightNumber: null },
+      [A2]: { title: "Vatican", timeWindow: { start: "10:00", end: "12:00" }, location: null, notes: null, anchors: [], kind: "planned" as const, tags: [], cost: null, bookedBy: null, participants: [], mode: null, endLocation: null, pendingReason: null, flightNumber: null },
     },
     dismissedConflictIds: [],
     currency: "USD",
@@ -201,6 +201,7 @@ describe("conflict dismissal lapses when the conflict stops being detected (KI-1
     activityId: A2,
     kind,
     pendingReason: null,
+    flightNumber: null,
   });
 
   it("brings the overlap back when a pending stop is confirmed", () => {

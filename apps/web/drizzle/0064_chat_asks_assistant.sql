@@ -1,0 +1,1 @@
+ALTER TABLE "trip_messages" ADD COLUMN "asks_assistant" boolean DEFAULT false NOT NULL;

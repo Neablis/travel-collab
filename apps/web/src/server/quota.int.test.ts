@@ -1,9 +1,12 @@
 import { randomUUID } from "node:crypto";
 import fc from "fast-check";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { eq, like, sql } from "drizzle-orm";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { and, eq, like, sql } from "drizzle-orm";
 import { db } from "./db/client";
-import { rateLimitCounters } from "./db/schema";
+import { aiUsage, rateLimitCounters, tripMessages } from "./db/schema";
+import { executeTripCommand } from "./commands";
+import { grantMembership } from "./access/members";
+import { entitleAccounts } from "./test-support/entitledAccount";
 import {
   consumeQuota,
   linkPreviewQuota,
@@ -15,6 +18,17 @@ import {
 } from "./quota";
 import { referenceCounters } from "@/server/test-support/quotaCounters";
 import { witness } from "@/test-support/witness";
+
+// For the chat's `@assistant` below (M52): who is signed in, and the work the
+// route hands `after()`, held here so a test can run it and read what it spent.
+const session = vi.hoisted(() => ({ userId: "", after: [] as (() => Promise<unknown>)[] }));
+vi.mock("@/server/auth", () => ({
+  auth: vi.fn(async () => (session.userId ? { user: { id: session.userId } } : null)),
+}));
+vi.mock("next/server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("next/server")>()),
+  after: (task: () => Promise<unknown>) => void session.after.push(task),
+}));
 
 // What quota.test.ts cannot cover: the upsert itself. The whole design rests on
 // `ON CONFLICT DO UPDATE ... RETURNING` being one atomic statement — an
@@ -397,5 +411,66 @@ describe("sweepExpiredCounters", () => {
       });
 
     expect(plan).toContain(`"Index Name":"${indexName}"`);
+  });
+});
+
+// M52 decision 8: "applies to that person's quota". The turn an `@assistant`
+// starts is charged to whoever asked, and an asker whose plan holds no
+// assistant spends nothing at all. On the simulated model (`AI_LIVE` off), so
+// the whole turn runs and is recorded without a provider.
+describe("the chat's @assistant", () => {
+  const chat = () => import("@/app/api/trips/[tripId]/chat/route");
+
+  async function tripWith(asker: string) {
+    const owner = `dev-quota-owner-${randomUUID()}`;
+    await entitleAccounts([owner]);
+    const tripId = randomUUID();
+    expect((await executeTripCommand({ type: "CreateTrip", tripId, name: "Lisbon" }, owner)).ok).toBe(true);
+    await grantMembership(db, { tripId, userId: asker, role: "editor", invitedBy: owner, now: new Date().toISOString() });
+    return tripId;
+  }
+
+  async function ask(tripId: string, asker: string) {
+    session.userId = asker;
+    session.after = [];
+    const { POST } = await chat();
+    const response = await POST(
+      new Request(`http://test/api/trips/${tripId}/chat`, {
+        method: "POST",
+        body: JSON.stringify({ body: "@assistant what is on day 1?", assistant: true }),
+      }),
+      { params: Promise.resolve({ tripId }) },
+    );
+    for (const task of session.after) await task();
+    return response;
+  }
+
+  const counted = async (userId: string) =>
+    (await db.select().from(rateLimitCounters).where(like(rateLimitCounters.bucket, `ai-%:user:${userId}`))).length;
+  const recorded = (userId: string) => db.select().from(aiUsage).where(eq(aiUsage.userId, userId));
+
+  it("spends nothing for a free member, and posts nothing", async () => {
+    const free = `dev-quota-free-${randomUUID()}`;
+    const tripId = await tripWith(free);
+    const response = await ask(tripId, free);
+    expect(response.status).toBe(402);
+    expect(session.after).toEqual([]);
+    expect(await counted(free)).toBe(0);
+    expect(await recorded(free)).toEqual([]);
+    expect(await db.select().from(tripMessages).where(eq(tripMessages.tripId, tripId))).toEqual([]);
+  });
+
+  it("charges and records a paid asker's turn against the asker", async () => {
+    const asker = `dev-quota-paid-${randomUUID()}`;
+    await entitleAccounts([asker]);
+    const tripId = await tripWith(asker);
+    expect((await ask(tripId, asker)).status).toBe(201);
+    expect(await counted(asker)).toBeGreaterThan(0);
+    expect(await recorded(asker)).toMatchObject([{ userId: asker, endpoint: "ask.chat" }]);
+    const replies = await db
+      .select()
+      .from(tripMessages)
+      .where(and(eq(tripMessages.tripId, tripId), eq(tripMessages.kind, "assistant")));
+    expect(replies).toMatchObject([{ requestedBy: asker }]);
   });
 });

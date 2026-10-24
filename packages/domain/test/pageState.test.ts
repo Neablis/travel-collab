@@ -177,6 +177,19 @@ describe("pageStatesEqual", () => {
   });
 });
 
+describe("pageStatesEqual and the date scope", () => {
+  // Equality is field for field, and the scope is a field of the page's
+  // context (ADR-080), so two pages that differ only in it are not the same
+  // page. Absent is "all", so a page stored before the field equals one at "all".
+  it("sees a page scoped to today as a different page, and absent as all", () => {
+    const page = (dateScope?: "all" | "today") => ({
+      title: "T", context: { ...ctx(), ...(dateScope === undefined ? {} : { dateScope }) }, content: doc("one"), actorId: ALICE, seedKey: null,
+    });
+    expect(pageStatesEqual(page(), page("today"))).toBe(false);
+    expect(pageStatesEqual(page(), page("all"))).toBe(true);
+  });
+});
+
 describe("diffPageStates — the events that make undo cover notebooks", () => {
   const page = (title: string, text: string) => ({ title, context: ctx(), content: doc(text), actorId: ALICE, seedKey: null });
 
@@ -229,6 +242,22 @@ describe("decidePageCommand", () => {
     const decision = decidePageCommand(overview, { type: "DeletePage", tripId: TRIP, pageId: P1 }, ALICE);
     expect(decision.ok).toBe(false);
     expect(!decision.ok && decision.rejection.code).toBe("page-undeletable");
+  });
+
+  // M52 (Mitchell, 2026-10-23): Today comes with the trip like the Overview,
+  // and is known by its seed key, whatever it has been renamed to.
+  it("refuses to delete Today, by its seed key, and still deletes another seed", () => {
+    const state: PagesState = {
+      ...overview,
+      [P2]: { title: "Renamed", context: { tripId: TRIP, dateScope: "today" }, content: doc("a"), actorId: "system", seedKey: "today" },
+    };
+    const refused = decidePageCommand(state, { type: "DeletePage", tripId: TRIP, pageId: P2 }, ALICE);
+    expect(!refused.ok && refused.rejection).toEqual({
+      code: "page-undeletable",
+      message: "Today comes with the trip and cannot be deleted. You can reset it to its default instead.",
+    });
+    const money: PagesState = { [P2]: { ...state[P2]!, seedKey: "money" } };
+    expect(decidePageCommand(money, { type: "DeletePage", tripId: TRIP, pageId: P2 }, ALICE).ok).toBe(true);
   });
 
   it("makes the caller the owner of a page they create", () => {

@@ -92,11 +92,13 @@ function durationLabel(window: TimeWindow): string {
 }
 
 /** What a stop looks like on the river — the table at the top of this file. */
-function riverLook(stop: Pick<ActivityView, "kind" | "mode" | "pendingReason" | "title">, window: TimeWindow): RiverLook {
+function riverLook(stop: Pick<ActivityView, "kind" | "mode" | "pendingReason" | "flightNumber" | "title">, window: TimeWindow): RiverLook {
   if (stop.kind === "transit") {
     const mode = stop.mode === null ? KIND_LABEL.transit : MODE_DISPLAY[stop.mode].label;
     const duration = durationLabel(window);
-    return { tone: "transit", title: `${mode} · ${stop.title}`, tag: duration, kindWord: `${mode}, ${duration}` };
+    // M52: "Flight TP 1234", the line a traveller matches to the departures board.
+    const travel = stop.mode === "flight" && stop.flightNumber !== null ? `${mode} ${stop.flightNumber}` : mode;
+    return { tone: "transit", title: `${travel} · ${stop.title}`, tag: duration, kindWord: `${mode}, ${duration}` };
   }
   if (stop.kind === "pending") {
     // A pending stop written before ADR-055 has no reason; it reads the way the

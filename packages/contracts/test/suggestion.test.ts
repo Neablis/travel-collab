@@ -99,6 +99,13 @@ describe("SuggestionChange / TripSuggestionsResponse", () => {
     }
     expect(SuggestionChange.safeParse({ ...change, status: "stale" }).success).toBe(false);
   });
+
+  // ADR-067's 2026-10-23 amendment: a chat `@assistant`'s change names its
+  // asker, the one member offered Accept; every other change goes without.
+  it("keeps the asker a chat change is waiting on", () => {
+    expect(SuggestionChange.parse({ ...change, via: "assistant", requestedBy: "dev-bea" }).requestedBy).toBe("dev-bea");
+    expect(SuggestionChange.parse(change)).not.toHaveProperty("requestedBy");
+  });
 });
 
 // ADR-064: an accepted change is replayed by the reviewer, and the envelope's

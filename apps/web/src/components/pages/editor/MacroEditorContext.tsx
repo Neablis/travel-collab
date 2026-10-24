@@ -2,7 +2,8 @@
 import { createContext, useContext } from "react";
 import type { Editor } from "@tiptap/react";
 import type { TripDetail, PageContext, TripGlobals, UserPreferences } from "@tc/contracts";
-import type { ExternalInputs } from "@tc/pages";
+import type { ExternalInputs, TripNowClock } from "@tc/pages";
+import { localTodayIso, useToday } from "@/lib/today";
 
 // Carries the `detail`/`context` that every `macro` NodeView needs to resolve
 // itself, from `PageEditor` down to `MacroNodeView` — without threading them
@@ -24,6 +25,13 @@ export interface MacroEditorContextValue {
   // Outside data (ADR-052) — every slot pending until `useExternalInputs`
   // hears back, and never fetched for a page with no widget that needs it.
   external?: ExternalInputs;
+  /**
+   * The reader's clock, for the page's `dateScope` (ADR-080 §4), its day-of
+   * widgets and its `today` (`usePageToday`). One read per page each minute,
+   * so two widgets cannot straddle midnight and disagree about which day is
+   * today. Absent scopes nothing.
+   */
+  now?: TripNowClock | null;
   // Reading vs Editing (§18: one control, two states). Reading is the
   // traveller's view and shows no chrome, so the chrome row reads this rather
   // than each widget guessing.
@@ -105,4 +113,16 @@ export function useMacroEditorContext(): MacroEditorContextValue {
     throw new Error("useMacroEditorContext must be used within a MacroEditorContext.Provider (PageEditor)");
   }
   return value;
+}
+
+/**
+ * The reader's calendar day as the page sees it: the page clock's, so the
+ * countdown moves on at midnight with *Now and next* and the Today scope
+ * rather than staying on the day the page was opened. Outside a page (the
+ * invite card) there is no page clock, and `useToday` stands in.
+ */
+export function usePageToday(): string {
+  const fallback = useToday();
+  const now = useContext(MacroEditorContext)?.now ?? null;
+  return now == null ? fallback : localTodayIso(new Date(now.at));
 }

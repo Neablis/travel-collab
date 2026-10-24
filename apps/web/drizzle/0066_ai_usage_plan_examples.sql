@@ -1,0 +1,1 @@
+ALTER TABLE "ai_usage" ADD COLUMN "plan_examples" integer;

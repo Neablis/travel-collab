@@ -270,3 +270,28 @@ SELECT sp.endpoint,
 FROM spend sp
 JOIN per_endpoint e ON e.endpoint = sp.endpoint
 ORDER BY sp.endpoint, sp.part DESC, sp.model;
+
+-- 12. Plan turns and their example days (M48, migration 0066): per day, how
+--     many plan turns ran, how many had retrieval on (`plan_examples` not
+--     null), how many examples their prompts carried on average, and the
+--     turn's own tokens at p50 for each group, flag-on beside flag-off. Null
+--     is "retrieval never ran" (flag off, or a row from before 0066); 0 is
+--     "it ran and nothing reached the prompt", which also counts a lookup that
+--     failed or timed out: read `rag: plan example lookup failed` in the logs
+--     before calling a run of zeros an empty corpus. Price the token columns
+--     as query 11 says.
+WITH window_ AS (SELECT now() - interval '30 days' AS since)
+SELECT date_trunc('day', u.created_at)::date AS day,
+       (u.plan_examples IS NOT NULL) AS retrieval_ran,
+       count(*) AS plan_turns,
+       round(avg(u.plan_examples), 2) AS avg_examples,
+       count(*) FILTER (WHERE u.plan_examples = 0) AS found_nothing,
+       percentile_cont(0.5) WITHIN GROUP (ORDER BY u.turn_tokens_in) AS p50_tokens_in,
+       percentile_cont(0.5) WITHIN GROUP (ORDER BY u.turn_tokens_out) AS p50_tokens_out,
+       round(avg(u.steps), 1) AS avg_steps
+FROM ai_usage u, window_ w
+WHERE u.created_at >= w.since
+  AND u.turn_model NOT LIKE 'simulated/%'
+  AND u.task_class = 'plan'
+GROUP BY 1, 2
+ORDER BY 1 DESC, 2;

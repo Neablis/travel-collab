@@ -13,6 +13,107 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-10-23 — The trip under way over the API (M52 part 10; public API 1.23.0)
+- **Added** (`apps/web`, the v1 surface only; no `packages/contracts` schema changed):
+  `GET /v1/trips?active=true`, the list narrowed to the trips whose `tripNow` phase is
+  `underway`, and `GET /v1/trips/{tripId}/today` (`trips:read`, `viewer`), answering
+  `{ date, timeZone, phase, dayId, stops, now, next }` with `stops` as `ActivityView` and an
+  optional `?timeZone=` read and never stored. The `active` description says a short or empty
+  page can still carry a `nextCursor`, since the scan stops after a fixed number of rows.
+  `openapi.json` regenerated, `info.version` 1.22.0 → 1.23.0.
+- Why: M52 decision 21. Both read `tripNow` through `turnNowOf` (ADR-080's server zone
+  fallback), so the API names the same now and next as the *Now and next* widget.
+  `TurnNow.local` gained the `timeZone` it reads the date in, so the endpoint reports it rather
+  than working it out again.
+- Consumers updated: none outside the endpoints; `apps/web`'s assistant reads `TurnNow` as before.
+- Breaking? no — a new query parameter and a new endpoint.
+## 2026-10-23 — A chat message carries the poster's zone to its `@assistant` turn (M52 part 5)
+- **Added** (`packages/contracts/src/chat.ts`): `PostChatMessage.timeZone` (optional, 1 to 64
+  characters), the poster's IANA zone as their device reads it.
+- Why: an `@assistant` turn read a trip day without a zone of its own on UTC, so in a New York
+  evening its "today" was tomorrow while Home's badge showed today (PR 534 review 2, finding 1).
+  The turn now reads such a day on the poster's zone, as the Ask tab's turn does (ADR-080
+  decision 1). The server reads it only on an `@assistant` message and never stores it; a zone
+  it does not know is passed over (`turnNowOf`), so it never refuses the message.
+- Consumers updated: `apps/web` (`chat/route.ts` hands it to `runChatAskTurn`; `useTripChat`
+  sends it on every post).
+- Breaking? no — optional, and an older client simply sends none.
+## 2026-10-23 — A notebook page's `dateScope` (M52 part 4; public API 1.22.0)
+- **Added** (`pages.ts`): `DateScope`, `"all" | "today" | { date }` (`date` a calendar
+  `YYYY-MM-DD`), and an optional `dateScope` on `PageContext`, so on `Page`, `CreatePageInput`,
+  `PageCreatedV1` and the v1 pages endpoints. **Absent means `"all"`**, rather than a schema
+  default, so every stored page and every `PageCreated` reads back exactly as written.
+  `openapi.json` regenerated, `info.version` 1.21.0 → 1.22.0.
+- Why: M52 decision 10, ADR-080 §4. One resolver (`resolveDateScope` in `@tc/pages`) turns the
+  page's scope into the scope `narrow` hands every widget that left its day and dates unbound;
+  `"today"` is `tripNow`'s day, or *no day* (each widget's own empty state) off the trip's dates.
+  `{ date }` is accepted and scopes nothing until a settings control exists. No edit path: the
+  template sets it when instantiated (part 9).
+- Consumers updated: `@tc/domain` (`pageStatesEqual` compares it), `@tc/pages` (`dateScope.ts`,
+  `WidgetContext.now`, `NoDay`/`WidgetScope`, `narrow`, `renderMacro`, `resolveRepeat`),
+  `apps/web` (the editor's clock through `MacroEditorContext`, `MacroView`, `RepeatNodeView`,
+  the widget picker's *follows today*, and a saved template, which keeps the scope in
+  `saved_notebooks.date_scope`, migration 0065), the public API document.
+- Breaking? no, **minor**: an optional field on a request body and on responses.
+
+## 2026-10-23 — A chat message has an author kind, and can ask the assistant (M52 part 3)
+- **Added** (`packages/contracts/src/chat.ts`): `ChatMessageKind` (`member | assistant | system`).
+  `ChatMessage` gains `kind` (`.default("member")`), and `requestedBy`, `replyTo` and
+  `suggestionId` (each `string | null`, `.default(null)`), on both variants: an `assistant`
+  message names the member whose `@assistant` it answers, that member's message, and the
+  suggestion its turn stored, which is what the thread renders the asker's card from (part 6).
+  `ChatMessage` also gains `asksAssistant` (`boolean`, `.default(false)`): a member's message
+  that was an `@assistant`, so every member can see a reply is on its way until an `assistant`
+  message names it in `replyTo`, and only while `createdAt` is within `ASK_MAX_DURATION_SECONDS`:
+  a turn the platform killed, or whose reply could not be posted, is never answered. `PostChatMessage` gains `assistant: true` (optional), the
+  `@assistant` target.
+- **Added** (`packages/contracts/src/assistant.ts`): `STOPPED_EMPTY`, the sentence a turn stopped
+  at its hard deadline with nothing said ends on. It moved here from `useAskThread.ts`, which the
+  Ask tab still reads it from, so the chat's `@assistant` reply says the same.
+  `ASK_MAX_DURATION_SECONDS` (300) moved here from `server/ai/askDeadline.ts`, which still derives
+  its deadlines from it, so a client can bound `asksAssistant`'s pending state (part 6).
+- **Added** (`packages/contracts/src/suggestion.ts`): `SuggestionChange.requestedBy` (optional,
+  absent like `via` for a change any editor decides): the one member who may accept a change a
+  chat `@assistant` stored (they or the trip's owner may dismiss it, ADR-067's amendment), so a client can offer Accept to them and *Waiting on* to
+  everyone else instead of an Accept that answers 403.
+- Why: M52 decisions 8 and 18, ADR-073's 2026-10-23 amendment. An `@assistant` message starts a
+  turn on the poster's own plan, quota and ledger, and its reply is posted whole as an `assistant`
+  message. A poster whose plan has no `ai.ask` is refused 402 `ai-not-entitled` before anything is
+  posted. `system` is decision 17's change lines, which part 6 writes. Stored in migrations 0062
+  (`trip_messages.kind` and `.requested_by`, `trip_suggestions.requested_by`), 0063
+  (`trip_messages.reply_to` and `.suggestion_id`) and 0064 (`trip_messages.asks_assistant`).
+- Consumers updated: `apps/web` (`server/chat/messages.ts` serves the five message fields and
+  `server/suggestions/shared.ts` the change's `requestedBy`; `app/api/trips/[tripId]/chat/route.ts`
+  takes `assistant`; `components/chat/useTripChat.ts`'s optimistic line and `mocks/handlers.ts`
+  build a member's message with them; `components/assistant/useAskThread.ts` imports
+  `STOPPED_EMPTY`). Neither the chat nor suggestions are on the public API, so
+  `openapi.json` does not move.
+- Breaking? no: every new field is defaulted or optional, so a body from a server before this
+  parses as a member's message or an any-editor change, and `assistant` is optional.
+
+## 2026-10-23 — A transit stop's `flightNumber` (M52 part 2; public API 1.21.0)
+- **Added** (`activity.ts`): `FlightNumber` (trimmed, 1–20 characters, free text), and an optional
+  `flightNumber` on `AddActivity`, nullable-optional on `UpdateActivity` (omitted = unchanged,
+  null = cleared), defaulted `null` on `ActivitySnapshot` (so on `ActivityAddedV1` and
+  `ActivityUpdatedV1`), `ActivityView` (`detail.ts`) and `SavedStop` (`saved.ts`). A third
+  `KIND_DETAIL_FIELDS` entry, `flightNumber: "transit"`, so the command unions, the decider
+  (`travel-leg-off-transit`), the saved-day write path and `clearDetailFieldsForKind` all ask the
+  rule `mode` follows without being edited. `@tc/fixtures`' `BundleStop` gains it too.
+  `openapi.json` regenerated, `info.version` 1.20.0 → 1.21.0.
+- Why: M52 decision 5 as amended at scoping (Mitchell, 2026-10-23): flight number only, not M44's
+  `booking` object. It is not secret, so it travels wherever the stop does: share links,
+  published days, the API and export. The editor asks for it on a flight leg only, labelled
+  *Flight number*, and the river block shows it ("Flight TP 1234 · Fly home").
+- Consumers updated: `@tc/domain` (decide, evolve, `FIELD_EQUAL`, diff, hydrate, detail),
+  `@tc/factories`, `@tc/fixtures` (bundle schema, export, import, playbooks), `apps/web` (the
+  editor and its command builders, the river block, clone, saved days and their stops, the
+  assistant's `read_day` readout, fenced, and its `UpdateActivity` description, the MSW handlers,
+  the preview context). The v1 add and patch bodies take it from the contract schemas.
+- Breaking? no, **minor**: an optional field on two request bodies and a nullable one on
+  responses. Every event, `trip_details.doc` and `saved_days` row written before it reads as
+  `null` (`packages/domain/test/m52-flight-number.test.ts` replays a pre-M52 log against its
+  stored projection).
+
 ## 2026-10-21 — Discover previews carry up to twelve stops (M51 part 9; public API 1.20.0)
 - **Widened** (`apps/web/src/lib/playbooks.ts`, not `packages/contracts`): `DiscoverDay.preview`
   is day one's first `DISCOVER_PREVIEW_STOPS` stops, now 12 (was 3). On the wire in

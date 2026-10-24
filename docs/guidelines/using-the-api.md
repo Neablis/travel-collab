@@ -310,6 +310,15 @@ rule as a travel leg (ADR-055, "Callers").
 Omitted means no reason given, which is what every stop written before the
 field existed reads as.
 
+**A travel leg can carry a flight number.** A stop with `"kind": "transit"`
+may carry a `flightNumber` of 1 to 20 characters, such as `"TP 1234"`. The
+board card and the edit form show it only on a leg whose `mode` is `flight`; the
+stop's read-only view shows it on any leg, labelled by mode (`Train ICE 578`),
+or `Number ICE 578` when the leg has no mode. On any other kind it is refused
+with a `400`, and a `PATCH` that moves a stop off `transit` clears it unless the
+body names it, the same rule as the rest of the leg. A stop written before the
+field existed reads as `null`.
+
 **To check a place before writing it**, `GET /v1/trips/{tripId}/geocode?q=…`
 (optionally `&countryCode=JP`) returns up to five candidates — without
 `countryCode`, preferring the trip's countries by the same rule as above. Each is a complete
@@ -342,6 +351,27 @@ biases it — send `countryCode` if you know the country.
 The per-token number is `PLACE_SEARCH_RATE_LIMIT_PER_TOKEN_DAILY` on the
 server (default 100); the account's is `GEOCODE_RATE_LIMIT_PER_USER_DAILY`
 (default 300).
+
+### The trip under way: `?active=true` and `/today`
+
+M52 decision 21. Both answer from `tripNow` (ADR-080), the one function the
+*Now and next* widget, Home's badge and the assistant read, so they agree.
+
+- **`GET /v1/trips?active=true`** lists only the trips under way: today, on the
+  trip's own clock, falls within its dates. A day's clock is the zone where its
+  stops are placed, else the first such zone on the trip, else UTC. An
+  undated trip is never under way. A page may be short, or empty, and still
+  carry a `nextCursor`: the scan stops after a fixed number of rows. Keep paging
+  until `nextCursor` is null. `active=false` or no parameter is the whole list.
+- **`GET /v1/trips/{tripId}/today`** (`trips:read`, `viewer`) answers
+  `{ date, timeZone, phase, dayId, stops, now, next }`: today's date and the zone
+  it is read in, the phase (`planning`, `soon`, `underway`, `ended`), today's day
+  and its stops in the day's order, in the shape a stop has in `GET
+  /v1/trips/{tripId}`, and the ids of the stop under way and the next one to
+  begin. Off the trip's days it is a 200 with the phase, `dayId: null`, no stops
+  and no `now` or `next`. `?timeZone=` (IANA) is your zone, used for a day with
+  no place yet; it is read for that answer and never stored, and a name that is
+  not a zone is a 400.
 
 ### Taking a trip out, and putting one back
 

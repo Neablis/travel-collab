@@ -1,6 +1,7 @@
 import { expect, test } from "./fixtures/test";
 import { commandsFor } from "@tc/factories";
 import { newPageDoc } from "@tc/contracts";
+import { DEFAULT_TEMPLATES } from "@tc/pages";
 import { e2eTripName } from "./tripNames";
 import { createMappedTrip, stripOverhang, TWENTY_DAYS_IN_JAPAN } from "./helpers";
 
@@ -339,10 +340,11 @@ test.describe("the phone's widget affordances have geometry (SPEC §26)", () => 
     // message rather than a loss, which is still a control that always says no.
     await page.goto(`/trips/${tripId}/pages`);
     const mine = page.getByRole("region", { name: "Your notebooks" });
-    // Four since M30, and the other three delete like any notebook — which is
-    // what makes the Overview's missing button a claim about the Overview.
-    await expect(mine.getByRole("listitem")).toHaveCount(4);
-    await expect(mine.getByRole("button", { name: /^Delete / })).toHaveCount(3);
+    // Every seed, and all but the two that stay (the Overview and Today) delete
+    // like any notebook — which is what makes the Overview's missing button a
+    // claim about the Overview.
+    await expect(mine.getByRole("listitem")).toHaveCount(DEFAULT_TEMPLATES.length);
+    await expect(mine.getByRole("button", { name: /^Delete / })).toHaveCount(DEFAULT_TEMPLATES.length - 2);
     // Named per row, so this is the Overview's own button rather than any.
     await expect(mine.getByRole("listitem").filter({ hasText: /^Overview/ }).getByRole("button", { name: /^Delete / })).toHaveCount(0);
 

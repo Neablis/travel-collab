@@ -22,6 +22,9 @@
 // One with `"surface": "playbook"` (M45 D9) is asked at the same door on a
 // playbook day's page: the Japan trip's first day, published by the eval
 // actor, asked about by a fresh account whose own copy of the trip is "Kyoto".
+// One with `"surface": "chat"` (M52) is an `@assistant` in the seeded trip's
+// chat: its `chat` messages and then its own are posted there, and the turn
+// runs as the chat route runs it, offered `read_chat`.
 //
 // It writes a JSON report to `eval-results/` (git-ignored) and prints one line
 // per check. A failed check fails the run, so a regression is a red exit code.
@@ -39,9 +42,11 @@ import type { AskAnalyticsRecord } from "@/server/assistant/askAnalytics";
 import type { TurnLedger } from "@/server/assistant/ledger";
 import { accountExpectationFor, expectationFor, playbookExpectationFor, type SeededAccountTrip } from "./cases";
 import { saveDay, setSavedDayVisibility } from "@/server/savedDays";
+import { postMessage } from "@/server/chat/messages";
+import type { TurnOrigin } from "@/server/assistant/defineTool";
 import { grade, navigatedTo, retractedText, reviewedChanges, textBeforeToolCall, visibleText, type EvalCheck, type EvalTurn } from "./grade";
 import { capMicroUsdFrom, dollars, turnMicroUsd, unpricedModels } from "./spend";
-import { ACCOUNT_TRIPS, accountTripCommands, longTripCommands, type EvalTripName } from "./trips";
+import { ACCOUNT_TRIPS, accountTripCommands, japanTodayStart, longTripCommands, notRunOnClock, type EvalTripName } from "./trips";
 
 const ACTOR_ID = "eval-actor";
 
@@ -91,8 +96,10 @@ interface LivePrompt {
   text: string;
   /** The trip it runs on (`trips.ts`); absent, the seeded Japan trip. */
   trip?: EvalTripName;
-  /** `account`: asked at the account door, across `ACCOUNT_TRIPS` (M45); `playbook`: on a published day's page (D9). */
-  surface?: "account" | "playbook";
+  /** `account`: asked at the account door, across `ACCOUNT_TRIPS` (M45); `playbook`: on a published day's page (D9); `chat`: an `@assistant` in the trip chat (M52). */
+  surface?: "account" | "playbook" | "chat";
+  /** On a `chat` prompt, what was said before it, oldest first. */
+  chat?: string[];
 }
 
 const liveSet = JSON.parse(readFileSync(join(import.meta.dirname, "live-set.json"), "utf8")) as {
@@ -124,6 +131,17 @@ const plan =
 let spentMicroUsd = 0;
 let unpricedTurns = 0;
 
+// The day-of prompts left out on the clock, named in the summary and the report
+// so a comparison is not made over a smaller set without a word.
+const notRun: { id: string; run: number; reason: string }[] = [];
+
+/** `japanTodayStart` now. The turn checked the clock just before, so null is the instant it crossed 21:00 JST. */
+function todayStart(): string {
+  const start = japanTodayStart(Date.now());
+  if (start === null) throw new Error("The day-of cases need 06:30 to 21:00 in Tokyo, when a Japan day has a stop begun and one to come.");
+  return start;
+}
+
 /**
  * A fresh copy of the trip `prompt` runs on, through the real command path:
  * the Japan demo trip as db:seed builds it, or a named one from `trips.ts`.
@@ -134,7 +152,9 @@ async function seedTripFor(prompt: LivePrompt): Promise<{ tripId: string; detail
   const created = await executeTripCommand({ type: "CreateTrip", tripId, name }, ACTOR_ID);
   if (!created.ok) throw new Error(`seed: ${created.error.message}`);
   const commands =
-    prompt.trip === "long-100" ? longTripCommands(tripId) : japanTripCommands(tripId, { startDate: "2027-04-01" });
+    prompt.trip === "long-100"
+      ? longTripCommands(tripId)
+      : japanTripCommands(tripId, { startDate: prompt.trip === "today" ? todayStart() : "2027-04-01" });
   const seeded = await executeTripCommandBatch(commands, ACTOR_ID);
   if (!seeded.ok) throw new Error(`seed: ${seeded.error.message}`);
   return { tripId, detail: seeded.detail };
@@ -209,6 +229,8 @@ async function runTurn(
   tripId: string | null,
   /** At that door, the scope: the account's unless a playbook page is named. */
   beyondTrip: { kind: "account" } | { kind: "playbook"; page: { kind: "day"; savedDayId: string } } = { kind: "account" },
+  /** On a trip, where the turn was asked: the Ask tab, or the trip chat. */
+  origin: TurnOrigin = "ask",
 ): Promise<EvalTurn & { stepDurationsMs: (number | null)[]; providers: (string | null)[]; generationIds: (string | null)[]; microUsd: number | null }> {
   // Keyed by actor, and every turn here is the same actor (see replay.int.test.ts).
   await db.delete(rateLimitCounters);
@@ -229,7 +251,9 @@ async function runTurn(
     if (ledger) ledgers.push(ledger);
   };
   const response =
-    tripId === null ? await handleBeyondTripAskRequest(request, undefined, sink) : await handleAskRequest(request, tripId, undefined, sink);
+    tripId === null
+      ? await handleBeyondTripAskRequest(request, undefined, sink)
+      : await handleAskRequest(request, tripId, undefined, sink, undefined, undefined, origin);
   const body = await response.text();
   const record = records[0];
   if (record === undefined) {
@@ -281,6 +305,12 @@ beforeAll(async () => {
   if (!confirmed) {
     throw new Error(`${plan}\nNothing was sent. Set EVAL_CONFIRM=1 to spend it (and EVAL_MAX_USD to change the cap).`);
   }
+  // A full run leaves the day-of prompts out outside their hours, turn by turn;
+  // one that named them asked for them, so it refuses before anything is sent.
+  const late = only.length > 0 ? notRunOnClock(prompts, Date.now()) : [];
+  if (late.length > 0) {
+    throw new Error(`EVAL_ONLY names ${late.map(({ id }) => id).join(", ")}, which need 06:30 to 21:00 in Tokyo (${late[0]!.reason}). Nothing was sent.`);
+  }
   if (unpriced.length > 0 && process.env.EVAL_ALLOW_UNPRICED !== "1") {
     throw new Error(`No rate in modelRates.ts for ${unpriced.join(", ")}, so this run's spend cannot be capped. Add the rate, or set EVAL_ALLOW_UNPRICED=1.`);
   }
@@ -297,12 +327,12 @@ afterAll(() => {
     strong: process.env.AI_MODEL_STRONG,
     classifier: process.env.AI_CLASSIFIER_MODEL,
   };
-  writeFileSync(file, `${JSON.stringify({ models, repeat, spentMicroUsd, unpricedTurns, rows }, null, 2)}\n`);
+  writeFileSync(file, `${JSON.stringify({ models, repeat, spentMicroUsd, unpricedTurns, rows, notRun }, null, 2)}\n`);
   const failed = rows.flatMap((row) => row.checks.filter((check) => !check.pass).map((check) => `${row.id}#${row.run}: ${check.name}`));
   console.log(
     [
       "",
-      `eval: ${rows.length} turns, ${rows.reduce((n, row) => n + row.checks.length, 0)} checks, ${failed.length} failed`,
+      `eval: ${rows.length} turns, ${rows.reduce((n, row) => n + row.checks.length, 0)} checks, ${failed.length} failed, ${notRun.length} not run`,
       `models: ${JSON.stringify(models)}`,
       `retracted: ${rows.reduce((n, row) => n + row.retracted.parts, 0)} text parts, ${rows.reduce((n, row) => n + row.retracted.chars, 0)} chars, across ${rows.filter((row) => row.retracted.parts > 0).length} turns (KI-2026-10-12-h; not a failure)`,
       `spent: ${dollars(spentMicroUsd)} of a ${capMicroUsd === null ? "invalid" : dollars(capMicroUsd)} cap${unpricedTurns > 0 ? ` (+ ${unpricedTurns} unpriced turn(s))` : ""}`,
@@ -313,6 +343,7 @@ afterAll(() => {
           `[${row.stepDurationsMs.map((ms) => (ms === null ? "?" : (ms / 1000).toFixed(1))).join(" + ")}]  ${row.inputTokens ?? "?"} in  via ${[...new Set(row.providers)].join(",") || "?"}` +
           `  retracted ${row.retracted.parts}/${row.retracted.chars}ch`,
       ),
+      ...notRun.map((row) => `  NOT RUN ${row.id}#${row.run}  ${row.reason}`),
       `report: ${file}`,
     ].join("\n"),
   );
@@ -324,6 +355,14 @@ describe.skipIf(!confirmed)("the live set, on production's models", () => {
       it(`${prompt.id}#${run}: ${prompt.text}`, async (context) => {
         if (capMicroUsd === null || spentMicroUsd >= capMicroUsd) {
           console.log(`    skipped: the run has spent ${dollars(spentMicroUsd)}, its cap is ${capMicroUsd === null ? "invalid" : dollars(capMicroUsd)}`);
+          context.skip();
+          return;
+        }
+        // Checked as the turn starts, not once: a run begun at 20:40 JST reaches the day-of prompts last.
+        const late = notRunOnClock([prompt], Date.now())[0];
+        if (late !== undefined) {
+          notRun.push({ id: prompt.id, run, reason: late.reason });
+          console.log(`    ${late.reason}`);
           context.skip();
           return;
         }
@@ -347,6 +386,11 @@ describe.skipIf(!confirmed)("the live set, on production's models", () => {
             session.userId = ACTOR_ID;
           }
           expected = playbookExpectationFor(prompt.id, stopTitles);
+        } else if (prompt.surface === "chat") {
+          const { tripId, detail } = await seedTripFor(prompt);
+          for (const body of [...(prompt.chat ?? []), prompt.text]) await postMessage(tripId, ACTOR_ID, { body });
+          turn = await runTurn(prompt, tripId, undefined, "chat");
+          expected = expectationFor(prompt.id, detail);
         } else {
           const { tripId, detail } = await seedTripFor(prompt);
           turn = await runTurn(prompt, tripId);

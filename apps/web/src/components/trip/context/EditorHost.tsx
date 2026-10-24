@@ -1,5 +1,6 @@
 "use client";
 import { createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
+import type { ActivityKind, ActivityMode } from "@tc/contracts";
 
 export type ActivityPrefill = {
   dayId?: string;
@@ -8,6 +9,9 @@ export type ActivityPrefill = {
   notes?: string;
   location?: { name: string; lat?: number; lng?: number };
   timeWindow?: { start: string; end: string };
+  /** A stop of a given kind: *Add your flight* opens a transit leg by air (M52 decision 15). */
+  kind?: ActivityKind;
+  mode?: ActivityMode;
 };
 type EditorState = { mode: "create" | "edit" | null; prefill?: ActivityPrefill; activityId?: string };
 type EditorCtx = {
@@ -30,6 +34,9 @@ export const useEditor = () => {
   if (!v) throw new Error("useEditor outside EditorHost");
   return v;
 };
+
+/** `useEditor` for a component that also renders where no editor is hosted (a notebook's own page): `null` there. */
+export const useOptionalEditor = (): EditorCtx | null => useContext(Ctx);
 
 export function EditorHost({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<EditorState>({ mode: null });

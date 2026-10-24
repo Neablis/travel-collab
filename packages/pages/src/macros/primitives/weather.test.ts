@@ -241,6 +241,21 @@ describe("day.weather", () => {
     expect(payload.rows.map((r) => r.label)).toEqual(["Day 3"]);
   });
 
+  // M52 decision 10: on a page scoped to today an unbound weather reads today
+  // and a bound one keeps its day. The scope reaches it only through the
+  // `item` it hands `narrow`, which no other widget's test would miss.
+  it("reads only today on a page scoped to today, unless bound to a day", () => {
+    const t = trip();
+    // Noon in Kyoto on 2026-11-10, the trip's day 2.
+    const scoped: WidgetContext = {
+      ...ctxOf(t, "2026-11-10"),
+      page: { tripId: t.trip.tripId, dateScope: "today" },
+      now: { at: Date.parse("2026-11-10T03:00:00Z"), deviceZone: "Asia/Tokyo" },
+    };
+    expect(payloadOf(scoped).rows.map((r) => r.label)).toEqual(["Day 2"]);
+    expect(payloadOf(scoped, { day: { kind: "index", index: 2 } }).rows.map((r) => r.label)).toEqual(["Day 3"]);
+  });
+
   // Mitchell, on the #221 preview: *"Make sure we are respecting the account
   // settings for fahrenheit vs celsius, or metric vs imperial."* The account
   // has one unit setting, `distanceUnit`, and the weather reads it: miles is

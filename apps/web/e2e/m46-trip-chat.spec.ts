@@ -217,17 +217,38 @@ test("the owner edits and deletes in place, the viewer reports a message, and th
 
 // M46 D3: a message can carry one day or stop. Its chip goes to it on Plan,
 // and once the stop is deleted the words stay and the chip goes.
-test("a message's @stop is a chip that focuses the stop on Plan, and plain text once the stop is deleted", async ({ page }) => {
+//
+// It starts solo, which has no chat at all (M52, Mitchell on PR 537, reversing
+// M46's solo tab): the panel is the assistant alone. Then Bea joins.
+test("a message's @stop is a chip that focuses the stop on Plan, and plain text once the stop is deleted", async ({ page, browser }) => {
+  // Two contexts and two sign-ins, as the first test.
+  test.slow();
   const tripName = e2eTripName("Chat chip");
   const tripId = await createMappedTrip(page, tripName, 1);
   const { trip } = (await (await page.request.get(`/api/trips/${tripId}`)).json()) as { trip: { days: { activityIds: string[] }[] } };
   const stopId = trip.days[0]!.activityIds[0]!;
+  const panel = page.getByRole("complementary", { name: "Assistant" });
 
   await page.goto(`/trips/${tripId}?view=Overview`);
   await expect(page.getByRole("heading", { name: tripName, level: 1 })).toBeVisible();
-  // A trip with one member: the one button opens on Ask, and Chat is its tab.
   await page.getByTestId("ask-pill").click();
-  const panel = page.getByRole("complementary", { name: "Assistant" });
+  await expect(panel.getByRole("textbox", { name: "Question for the assistant" })).toBeVisible();
+  await expect(panel.getByRole("tab")).toHaveCount(0);
+
+  const invite = await page.request.post(`/api/trips/${tripId}/invites`, { data: { email: null, role: "viewer" } });
+  expect(invite.ok()).toBe(true);
+  const { token } = ((await invite.json()) as { invite: { token: string } }).invite;
+  const bea = await signedInAs(browser, newcomer("bea"), `/invite/${token}`);
+  try {
+    await bea.getByRole("button", { name: "Join the trip" }).click();
+    await expect(bea.getByRole("heading", { name: tripName, level: 1 })).toBeVisible();
+  } finally {
+    await bea.context().close();
+  }
+
+  await page.reload();
+  await expect(page.getByRole("heading", { name: tripName, level: 1 })).toBeVisible();
+  await page.getByTestId("ask-pill").click();
   await panel.getByRole("tab", { name: "Chat" }).click();
   const field = panel.getByRole("combobox", { name: "Message" });
   await field.pressSequentially("Meet at @stop on day");

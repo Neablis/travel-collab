@@ -8,12 +8,12 @@
 // so what runs is the importer and not a re-creation of it.
 import { describe, expect, it } from "vitest";
 import { randomUUID } from "node:crypto";
-import { asc, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { locationFactory, tripCoverFactory } from "@tc/factories";
 import { parseBundle, playbookIdFor, tripIdFor, type ContentBundleV1 } from "@tc/fixtures";
 import type { Location } from "@tc/contracts";
 import { db } from "./db/client";
-import { events, savedDayCovers, savedDays } from "./db/schema";
+import { events, pendingEmbeddings, savedDayCovers, savedDays } from "./db/schema";
 import { getTripDetail } from "./projections";
 import { getSavedDayCover, setSavedDayCover } from "./savedDayCovers";
 import { importBundles, importPlaybooks, importTrips } from "../../scripts/import-content-production";
@@ -173,6 +173,66 @@ describe("importPlaybooks — the declared day count (KI-2026-09-24-b)", () => {
       .where(eq(savedDays.id, playbookIdFor(id, "slow")));
     expect((row!.stops as { dayIndex: number }[]).map((s) => s.dayIndex)).toEqual([0, 2]);
     expect(row!.dayCount).toBe(4);
+  });
+});
+
+// 2026-10-23: four Italy playbooks imported on 2026-10-21 never reached
+// `day_embeddings`. The importer inserts `saved_days` directly, past
+// `storeSavedDay`'s enqueue, so retrieval could not find them.
+describe("importPlaybooks — the embed queue", () => {
+  it("queues every day it writes, and re-queues a pruned day so the sweep tombstones it", async () => {
+    const id = `playbook-embed-${randomUUID().slice(0, 8)}`;
+    const twoDays = [{ stops: [{ title: "Fushimi Inari" }] }, { stops: [] }];
+    const bundle = (keys: string[], days: { stops: { title: string }[] }[] = twoDays) =>
+      parseBundle({
+        $schema: "travel-collab/content-bundle/v1",
+        bundle: { id, name: "Embed queue", origin: "ai" },
+        playbooks: keys.map((key) => ({
+          key,
+          name: `Day ${key}`,
+          ownerId: owner,
+          sourceTrip: { name: "Kyoto" },
+          days,
+        })),
+      });
+    const queued = async (savedDayId: string) =>
+      (
+        await db
+          .select({ dayIndex: pendingEmbeddings.dayIndex, status: pendingEmbeddings.status })
+          .from(pendingEmbeddings)
+          .where(and(eq(pendingEmbeddings.sourceType, "playbook"), eq(pendingEmbeddings.sourceId, savedDayId)))
+          .orderBy(asc(pendingEmbeddings.dayIndex))
+      ).map((r) => `${r.dayIndex}:${r.status}`);
+    const pruned = playbookIdFor(id, "pruned");
+
+    await importPlaybooks(bundle(["kept", "pruned"]), false);
+    expect(await queued(playbookIdFor(id, "kept"))).toEqual(["0:pending", "1:pending"]);
+
+    await db.update(pendingEmbeddings).set({ status: "done" }).where(eq(pendingEmbeddings.sourceId, pruned));
+    await importPlaybooks(bundle(["kept"]), true);
+    expect(await queued(pruned)).toEqual(["0:pending", "1:pending"]);
+  });
+
+  it("re-queues the days a shortened re-import drops, so the sweep tombstones them", async () => {
+    const id = `playbook-shrink-${randomUUID().slice(0, 8)}`;
+    const bundle = (days: { stops: { title: string }[] }[]) =>
+      parseBundle({
+        $schema: "travel-collab/content-bundle/v1",
+        bundle: { id, name: "Shrink", origin: "ai" },
+        playbooks: [{ key: "day", name: "Day", ownerId: owner, sourceTrip: { name: "Kyoto" }, days }],
+      });
+    const savedDayId = playbookIdFor(id, "day");
+
+    await importPlaybooks(bundle([{ stops: [{ title: "Fushimi Inari" }] }, { stops: [{ title: "Arashiyama" }] }]), false);
+    await db.update(pendingEmbeddings).set({ status: "done" }).where(eq(pendingEmbeddings.sourceId, savedDayId));
+    await importPlaybooks(bundle([{ stops: [{ title: "Fushimi Inari" }] }]), false);
+
+    const rows = await db
+      .select({ dayIndex: pendingEmbeddings.dayIndex, status: pendingEmbeddings.status })
+      .from(pendingEmbeddings)
+      .where(eq(pendingEmbeddings.sourceId, savedDayId))
+      .orderBy(asc(pendingEmbeddings.dayIndex));
+    expect(rows.map((r) => `${r.dayIndex}:${r.status}`)).toEqual(["0:pending", "1:pending"]);
   });
 });
 

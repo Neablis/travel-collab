@@ -517,6 +517,8 @@ export interface StopReadout {
    * `pending` clears it, the same way.
    */
   pendingReason: PendingReason | null;
+  /** A flight leg's flight number (M52), so "which flight are we on?" has an answer. */
+  flightNumber: string | null;
 }
 
 type PlaceReadout = {
@@ -595,6 +597,8 @@ export const DayReadoutSchema: z.ZodType<DayReadout, z.ZodTypeDef, unknown> = z.
       endLocation: PlaceReadoutSchema.nullable().default(null),
       // Defaulted for the same reason, for a result produced before ADR-055.
       pendingReason: PendingReason.nullable().default(null),
+      // And for one produced before M52.
+      flightNumber: z.string().nullable().default(null),
       // And for one produced before the travellers spec.
       headcount: z.number().nullable().default(null),
     }),
@@ -649,6 +653,7 @@ export function readDay(detail: TripDetail, day: number, guests: readonly Guest[
           mode: activity.mode,
           endLocation: placeReadout(activity.endLocation),
           pendingReason: activity.pendingReason,
+          flightNumber: activity.flightNumber,
         },
       ];
     }),
@@ -1233,6 +1238,8 @@ function fencedDay(readout: DayReadout): DayReadout {
       // M24: a leg's destination is typed by a person exactly as its origin
       // is, so it is fenced the same way. `mode` is a closed enum.
       endLocation: fencedPlace(stop.endLocation),
+      // M52: typed by a person, so fenced like the title.
+      flightNumber: untrustedOrNull(stop.flightNumber),
     })),
     conflicts: fencedConflicts(readout.conflicts),
   };

@@ -42,6 +42,7 @@ import {
   type AiGrantRecord,
 } from "./admission";
 import { NO_CEILINGS, PERMITS_EVERYTHING, type EntitlementCeilings } from "./entitlements";
+import { turnNowOf } from "./context";
 
 const TRIP_ID = "11111111-1111-4111-8111-111111111111";
 const PAGE_ID = "22222222-2222-4222-8222-222222222222";
@@ -520,6 +521,108 @@ describe("the grant a turn holds", () => {
     expect(names).toContain("insert_widget");
     expect(names).not.toContain("RemoveActivity");
     expect(admission.grant.page?.id).toBe(PAGE_ID);
+  });
+
+  // M52 decision 18: the chat is read by a tool only a chat-started turn
+  // holds. An Ask turn never carries it, escalated or not.
+  it("offers read_chat on a turn the chat started, and never on an Ask turn", async () => {
+    const tools = async (origin: "chat" | undefined, ports: AdmissionPorts) => {
+      const admission = await evaluateAiGrant({ request: askFor(TRIP_TURN), tripId: TRIP_ID, ports, ...(origin ? { origin } : {}) });
+      if (!admission.ok) throw new Error(admission.refusal.reason);
+      return [...admission.grant.tools, ...(admission.grant.escalation?.tools ?? [])].map((tool) => tool.name);
+    };
+    const asQuestion = () => spyPorts({ classify: async () => ({ ...CLASSIFIED_AS_WRITE, intent: "question" as const }) }).ports;
+    const viewer = () =>
+      spyPorts({ identifyActor: async () => ({ userId: VIEWER, detail: detailFor("viewer", VIEWER) }) }).ports;
+
+    expect(await tools("chat", spyPorts().ports)).toContain("read_chat");
+    expect(await tools("chat", viewer())).toContain("read_chat");
+    expect(await tools(undefined, spyPorts().ports)).not.toContain("read_chat");
+    expect(await tools(undefined, asQuestion())).not.toContain("read_chat");
+    expect(await tools(undefined, viewer())).not.toContain("read_chat");
+  });
+
+  // M52 decisions 6 and 13: *near here* means where the plan says the trip is,
+  // so the tool that knows it is offered only while the trip is under way, and
+  // a planning turn never pays for its schema.
+  it("offers find_places_near_now only while the trip is under way", async () => {
+    const trip = tripDetailFactory.build(
+      { tripId: TRIP_ID, members: [tripMemberFactory.build({ userId: EDITOR, role: "editor" })] },
+      { transient: { dayCount: 1, activitiesPerDay: 3, located: true, startDate: "2026-06-10" } },
+    );
+    const offered = async (at: string | null, classify?: AdmissionPorts["classify"]) => {
+      const { ports } = spyPorts({
+        identifyActor: async () => ({ userId: EDITOR, detail: trip }),
+        ...(classify ? { classify } : {}),
+      });
+      const admission = await evaluateAiGrant({
+        request: askFor(TRIP_TURN),
+        tripId: TRIP_ID,
+        ports,
+        ...(at === null ? {} : { now: (detail: TripDetail) => turnNowOf(detail, null, Date.parse(at)) }),
+      });
+      if (!admission.ok) throw new Error(admission.refusal.reason);
+      return [...admission.grant.tools, ...(admission.grant.escalation?.tools ?? [])].map((tool) => tool.name);
+    };
+    const asQuestion = async () => ({ ...CLASSIFIED_AS_WRITE, intent: "question" as const });
+
+    expect(await offered("2026-06-10T10:30:00Z")).toContain("find_places_near_now");
+    expect(await offered("2026-06-10T10:30:00Z", asQuestion)).toContain("find_places_near_now");
+    expect(await offered("2026-05-01T10:30:00Z")).not.toContain("find_places_near_now");
+    expect(await offered("2026-05-01T10:30:00Z", asQuestion)).not.toContain("find_places_near_now");
+    expect(await offered("2026-06-12T10:30:00Z")).not.toContain("find_places_near_now");
+    // No clock handed in is no phase known, and the tool stays off.
+    expect(await offered(null)).not.toContain("find_places_near_now");
+    // `search_places` is offered either way: only *here* is the under-way trip's.
+    expect(await offered("2026-05-01T10:30:00Z")).toContain("search_places");
+  });
+
+  // `go_to` moves the asker's page through the finish chunk's palette
+  // commands, which a chat reply has nowhere to carry: offered there, the
+  // thread read "Taking you to Day 3." and nobody's page moved.
+  it("offers go_to on an Ask turn, and never on a turn the chat started", async () => {
+    const offered = async (origin: "chat" | undefined) => {
+      const admission = await evaluateAiGrant({ request: askFor(TRIP_TURN), tripId: TRIP_ID, ports: spyPorts().ports, ...(origin ? { origin } : {}) });
+      if (!admission.ok) throw new Error(admission.refusal.reason);
+      return [...admission.grant.tools, ...(admission.grant.escalation?.tools ?? [])].map((tool) => tool.name);
+    };
+    expect(await offered(undefined)).toContain("go_to");
+    expect(await offered("chat")).not.toContain("go_to");
+  });
+
+  // The asker's plan decides what a turn may do: `ai.ask` answers, and only
+  // `ai.command` proposes, on the Ask tab as in the chat (Mitchell,
+  // 2026-10-23). Escalating lifts the classifier's cap and no other, so a
+  // question on that plan must not be offered a way to the change tools either.
+  it("holds a turn to answers when the asker's plan has no ai.command, from either door", async () => {
+    const answersOnly = (classify?: AdmissionPorts["classify"]) =>
+      spyPorts({
+        ...(classify ? { classify } : {}),
+        selectModel: async () => ({
+          outcome: "live",
+          models: { cheap: "test/model" as LanguageModel, mid: "test/model" as LanguageModel, strong: "test/model" as LanguageModel },
+          classifierModel: "test/classifier" as LanguageModel,
+          entitlements: { has: (capability) => capability === "ai.ask", ceilings: NO_CEILINGS, planVersionRef: null },
+        }),
+      }).ports;
+    const chat = await evaluateAiGrant({ request: askFor(TRIP_TURN), tripId: TRIP_ID, ports: answersOnly(), origin: "chat" });
+    if (!chat.ok) throw new Error(chat.refusal.reason);
+    expect(chat.grant.grants.itinerary).toBe("read");
+    expect(chat.grant.tools.map((tool) => tool.name)).not.toContain("AddActivity");
+
+    const asked = answersOnly(async () => ({ ...CLASSIFIED_AS_WRITE, intent: "question" as const }));
+    const question = await evaluateAiGrant({ request: askFor(TRIP_TURN), tripId: TRIP_ID, ports: asked, origin: "chat" });
+    if (!question.ok) throw new Error(question.refusal.reason);
+    expect(question.grant.tools.map((tool) => tool.name)).not.toContain("request_change_tools");
+    expect(question.grant.escalation).toBeNull();
+
+    const ask = await evaluateAiGrant({ request: askFor(TRIP_TURN), tripId: TRIP_ID, ports: answersOnly() });
+    if (!ask.ok) throw new Error(ask.refusal.reason);
+    expect(ask.grant.grants.itinerary).toBe("read");
+    expect(ask.grant.tools.map((tool) => tool.name)).not.toContain("AddActivity");
+    const askedOnAsk = await evaluateAiGrant({ request: askFor(TRIP_TURN), tripId: TRIP_ID, ports: asked });
+    if (!askedOnAsk.ok) throw new Error(askedOnAsk.refusal.reason);
+    expect(askedOnAsk.grant.escalation).toBeNull();
   });
 
   it("refuses a viewer's page turn without reaching a model", async () => {

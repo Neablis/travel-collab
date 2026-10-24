@@ -1,11 +1,13 @@
 import { and, eq, inArray } from "drizzle-orm";
 import type { ResolveSuggestionChangeInput, SuggestionChange } from "@tc/contracts";
 import { roleAtLeast } from "../accessPolicy";
+import { announceChange } from "../chat/changeLine";
 import { executeTripCommandBatch } from "../commands";
 import { db } from "../db/client";
 import { tripSuggestionChanges, tripSuggestions } from "../db/schema";
 import { isUuid } from "../ids";
-import { expireStale, isExpired, refuse, roleOn, SUGGESTION_TTL_DAYS, toChanges, type ChangeRow, type SuggestionResult, type SuggestionRow } from "./shared";
+import { getTripDetail } from "../projections";
+import { ASKER_ONLY, expireStale, isExpired, mayReview, refuse, roleOn, SUGGESTION_TTL_DAYS, toChanges, type ChangeRow, type SuggestionResult, type SuggestionRow } from "./shared";
 
 /**
  * Thrown from inside the accept batch's transaction when the change is no
@@ -73,6 +75,8 @@ export async function resolveSuggestionChange(
     return refuse("expired", `This suggestion expired: nobody decided it within ${SUGGESTION_TTL_DAYS} days.`);
   }
   if (change.status !== "pending") return refuse("already-resolved", "This suggestion was already resolved.");
+  // Beside the editor check above (ADR-067's 2026-10-23 amendment).
+  if (action !== "withdraw" && !mayReview(suggestion, { userId: actorId, role }, action)) return refuse("forbidden", `This change ${ASKER_ONLY}`);
 
   return action === "accept"
     ? accept(change, suggestion, actorId, now)
@@ -110,6 +114,8 @@ async function accept(
       .returning({ id: tripSuggestionChanges.id });
     if (marked.length === 0) throw new SuggestionAlreadyResolved(change.id);
   };
+  // The trip before the change, for its change line (M52 decision 17).
+  const before = await getTripDetail(suggestion.tripId);
   try {
     const result = await executeTripCommandBatch(change.commands, reviewerId, mark, {
       origin: {
@@ -134,6 +140,7 @@ async function accept(
       if (result.error.code === "forbidden") return refuse("forbidden", result.error.message);
       return refuse("no-longer-applies", result.error.message);
     }
+    if (result.ok && before !== null) await announceChange(suggestion.tripId, reviewerId, change.commands, before, result.detail, new Date(now));
   } catch (error) {
     if (error instanceof SuggestionAlreadyResolved) {
       return refuse("already-resolved", "This suggestion was already resolved.");

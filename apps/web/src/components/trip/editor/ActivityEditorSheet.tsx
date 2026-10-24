@@ -2,7 +2,7 @@
 
 import { travellerIds, type ActivityView, type NearbyStop } from "@tc/contracts";
 import { useEffect, useRef, useState } from "react";
-import { personNames } from "@tc/pages";
+import { hasDirections, personNames } from "@tc/pages";
 import { Banner } from "@/components/ui/banner";
 import { Sheet } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
@@ -22,6 +22,10 @@ import { fetchNearbyStops } from "@/lib/apiClient";
 import { formatMoney } from "@/lib/formatMoney";
 import { stopTotalLine } from "@/lib/cost";
 import { displayPlace, legEnd } from "@/lib/place";
+import { directionsUrl } from "@/lib/directions";
+import { MODE_LABEL } from "@/lib/travelMode";
+import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/cn";
 
 // Behavior change #2 (M5 wave 2, resolves PR #11 comment #9): the activity
 // editor is now a portable Sheet raised from EditorHost's own state, not
@@ -83,7 +87,7 @@ export function ActivityEditorSheet() {
           location: state.prefill.location ?? null,
           notes: state.prefill.notes ?? null,
           anchors: [],
-          kind: "pending" as const,
+          kind: state.prefill.kind ?? ("pending" as const),
           tags: [],
           cost: null,
           // M13 link 5. A stop being created is attributed to nobody until
@@ -92,9 +96,10 @@ export function ActivityEditorSheet() {
           bookedBy: null,
           participants: [],
           addedBy: null,
-          mode: null,
+          mode: state.prefill.mode ?? null,
           endLocation: null,
           pendingReason: null,
+          flightNumber: null,
         }
       : null;
 
@@ -106,6 +111,16 @@ export function ActivityEditorSheet() {
   // to the first day in create mode, stays unselected in edit mode) rather
   // than this component guessing one.
   const editingActivityId = state.mode === "edit" ? state.activityId : undefined;
+  // M52 decision 16: whenever the stop has coordinates, for an editor and a
+  // viewer alike; a bare typed name gives Maps nothing to find. A transit stop
+  // just before it on its day says how to get there.
+  const editingDay = editingActivityId === undefined ? undefined : activeTrip?.days.find((d) => d.activityIds.includes(editingActivityId));
+  const leadingIn = editingDay?.activityIds[editingDay.activityIds.indexOf(editingActivityId!) - 1];
+  const leadingLeg = leadingIn === undefined ? undefined : activeTrip?.activities[leadingIn];
+  const place = editingActivity?.location;
+  const directionsHref = hasDirections(place)
+    ? directionsUrl(place, leadingLeg?.kind === "transit" ? leadingLeg.mode : null)
+    : null;
   // A suggester has no rack (W71), so a stop they add with no day named — the
   // header's bare "Add stop" — starts on the first day rather than in a drawer
   // they cannot open. The Day select then offers no "Unscheduled" at all.
@@ -271,6 +286,18 @@ export function ActivityEditorSheet() {
           activityId={editingActivityId}
         />
       )}
+      {open && directionsHref !== null && (
+        // Leaves for the maps app, so a new tab, and Maps gets neither this
+        // window nor the trip's URL.
+        <a
+          href={directionsHref}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={cn(buttonVariants({ variant: "secondary", size: "sm" }), "mb-3 self-start")}
+        >
+          Directions
+        </a>
+      )}
       {open && readOnly && (
         <ReadOnlyActivity
           activity={editingActivity}
@@ -367,6 +394,12 @@ function ReadOnlyActivity({
               field; a viewer, who gets no form, read only the origin here. */}
           {destination !== null && (
             <Text as="p" variant="secondary">Going to {displayPlace(destination)}</Text>
+          )}
+          {activity.kind === "transit" && activity.flightNumber !== null && (
+            // Labelled by mode: the contract lets a train leg carry one too.
+            <Text as="p" variant="secondary">
+              {activity.mode === null ? "Number" : MODE_LABEL[activity.mode]} {activity.flightNumber}
+            </Text>
           )}
           <DataText size="xs" className="block">
             {activity.cost === null ? "No cost yet" : `${formatMoney(activity.cost.amountMinor, currency)} per person`}

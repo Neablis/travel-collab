@@ -285,9 +285,12 @@ export async function storeSavedDay(input: {
   await db.insert(savedDays).values(row);
   // Embed-on-write (RAG Part 2): every day of the new Playbook joins the
   // embed queue. Fail-open — `enqueueDayChunksForEmbedding` catches its own
-  // failures, so a queue outage never fails a save. One hook site covers all
-  // creators: the public API, the library route, the app's keep, and the
-  // content importer all write through `storeSavedDay`.
+  // failures, so a queue outage never fails a save. One hook site covers the
+  // public API, the library route and the app's keep, which all write through
+  // `storeSavedDay`. The production content importer inserts its rows directly
+  // and queues them itself (`scripts/import-content-production.ts`); the dev
+  // content route (`app/api/dev/content/playbooks`) inserts directly and does
+  // not, so a dev database's library is unembedded until a backfill.
   const dayIndexes = Array.from({ length: row.dayCount }, (_, dayIndex) => dayIndex);
   await enqueueDayChunksForEmbedding("playbook", row.id, dayIndexes);
   return { ok: true, value: toDto(row, validated.data) };
@@ -1118,6 +1121,7 @@ export function insertCommands(
         mode: stop.mode ?? undefined,
         endLocation: stop.endLocation ?? undefined,
         pendingReason: stop.pendingReason ?? undefined,
+        flightNumber: stop.flightNumber ?? undefined,
       }),
   );
   return [

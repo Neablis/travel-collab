@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { and, count, desc, eq, inArray, isNull, ne, or, sql } from "drizzle-orm";
-import type { ChatLink, ChatMessage, PostChatMessage, TripDetail, TripRole } from "@tc/contracts";
+import { CHAT_MESSAGE_MAX, type ChatLink, type ChatMessage, type PostChatMessage, type TripDetail, type TripRole } from "@tc/contracts";
 import { db, type Queryable } from "../db/client";
 import { pages, tripChatReads, tripMessages } from "../db/schema";
 import { isUuid } from "../ids";
@@ -24,6 +24,11 @@ function toMessage(row: Row): ChatMessage {
   const meta = {
     messageId: row.id,
     authorId: row.authorId,
+    kind: row.kind,
+    requestedBy: row.requestedBy,
+    replyTo: row.replyTo,
+    suggestionId: row.suggestionId,
+    asksAssistant: row.asksAssistant,
     createdAt: row.createdAt.toISOString(),
     editedAt: row.editedAt?.toISOString() ?? null,
   };
@@ -41,15 +46,28 @@ export async function listMessages(
   tripId: string,
   userId: string,
 ): Promise<{ messages: ChatMessage[]; hasEarlier: boolean; unread: number }> {
-  const rows = await db
+  const rows = await newestRows(tripId, CHAT_PAGE_LIMIT + 1);
+  const hasEarlier = rows.length > CHAT_PAGE_LIMIT;
+  const messages = rows.slice(0, CHAT_PAGE_LIMIT).reverse().map(toMessage);
+  return { messages, hasEarlier, unread: await unreadCount(tripId, userId) };
+}
+
+/**
+ * The newest `limit` messages, oldest first: what the assistant's `read_chat`
+ * reads (M52 decision 18). A removed message keeps its place with no text, as
+ * a member reads it.
+ */
+export async function recentMessages(tripId: string, limit: number): Promise<ChatMessage[]> {
+  return (await newestRows(tripId, limit)).reverse().map(toMessage);
+}
+
+function newestRows(tripId: string, limit: number): Promise<Row[]> {
+  return db
     .select()
     .from(tripMessages)
     .where(eq(tripMessages.tripId, tripId))
     .orderBy(desc(tripMessages.createdAt), desc(tripMessages.id))
-    .limit(CHAT_PAGE_LIMIT + 1);
-  const hasEarlier = rows.length > CHAT_PAGE_LIMIT;
-  const messages = rows.slice(0, CHAT_PAGE_LIMIT).reverse().map(toMessage);
-  return { messages, hasEarlier, unread: await unreadCount(tripId, userId) };
+    .limit(limit);
 }
 
 async function unreadCount(tripId: string, userId: string): Promise<number> {
@@ -109,20 +127,90 @@ export async function postMessage(
   input: PostChatMessage,
   now: Date = new Date(),
 ): Promise<ChatMessage> {
+  return insertMessage({
+    tripId,
+    authorId,
+    body: input.body,
+    linkKind: input.link?.kind ?? null,
+    linkId: input.link?.id ?? null,
+    asksAssistant: input.assistant === true,
+    createdAt: now,
+  });
+}
+
+/**
+ * The author id on the assistant's messages (M52). Not a `users.id`: nobody
+ * signs in as it, so nobody edits one as its author, and the owner's delete
+ * reaches it as it reaches any message.
+ */
+export const ASSISTANT_AUTHOR_ID = "assistant";
+
+/** Who an assistant reply answers: the asker, their message, and any suggestion the turn stored. */
+export interface AssistantReplyTo {
+  requestedBy: string;
+  replyTo: string;
+  suggestionId?: string | null;
+}
+
+/**
+ * An `@assistant` turn's reply, posted whole (decision 18) and naming the
+ * member who asked. A reply past `CHAT_MESSAGE_MAX` is cut there rather than
+ * lost: the turn has already been paid for.
+ *
+ * The model's text never passed `ChatMessageBody`, so its NUL refine is done
+ * here: Postgres refuses U+0000 in a text column, and the insert would throw.
+ */
+export async function postAssistantReply(
+  tripId: string,
+  { requestedBy, replyTo, suggestionId = null }: AssistantReplyTo,
+  body: string,
+  now: Date = new Date(),
+): Promise<ChatMessage> {
+  const clean = body.replaceAll("\u0000", "");
+  const text = clean.length <= CHAT_MESSAGE_MAX ? clean : `${clean.slice(0, CHAT_MESSAGE_MAX - 1).trimEnd()}…`;
+  return insertMessage({
+    tripId,
+    authorId: ASSISTANT_AUTHOR_ID,
+    kind: "assistant",
+    requestedBy,
+    replyTo,
+    suggestionId,
+    body: text,
+    createdAt: now,
+  });
+}
+
+/**
+ * A change line (M52 decision 17): the app's announcement of a change someone
+ * made, authored by them so it is not unread to them, and nobody's to edit or
+ * delete (`editMessage`, `deleteMessage`). `body` is only what was done; the
+ * chat names the author in front of it, as it does on their messages.
+ */
+export async function postSystemLine(
+  tripId: string,
+  actorId: string,
+  body: string,
+  link: ChatLink | undefined,
+  now: Date = new Date(),
+): Promise<ChatMessage> {
+  return insertMessage({
+    tripId,
+    authorId: actorId,
+    kind: "system",
+    body,
+    linkKind: link?.kind ?? null,
+    linkId: link?.id ?? null,
+    createdAt: now,
+  });
+}
+
+async function insertMessage(values: Omit<typeof tripMessages.$inferInsert, "id">): Promise<ChatMessage> {
   return db.transaction(async (tx) => {
     const [row] = await tx
       .insert(tripMessages)
-      .values({
-        id: randomUUID(),
-        tripId,
-        authorId,
-        body: input.body,
-        linkKind: input.link?.kind ?? null,
-        linkId: input.link?.id ?? null,
-        createdAt: now,
-      })
+      .values({ id: randomUUID(), ...values })
       .returning();
-    await bumpChatRev(tx, tripId);
+    await bumpChatRev(tx, values.tripId);
     return toMessage(row!);
   });
 }
@@ -148,7 +236,8 @@ export async function editMessage(
 ): Promise<MessageOutcome<ChatMessage>> {
   const row = await messageOnTrip(tripId, messageId);
   if (row === null) return { ok: false, error: "not-found" };
-  if (row.authorId !== userId) return { ok: false, error: "forbidden" };
+  // A change line names its actor as author, and still says what the app saw.
+  if (row.authorId !== userId || row.kind === "system") return { ok: false, error: "forbidden" };
   if (isRemoved(row)) return { ok: false, error: "removed" };
   return db.transaction(async (tx) => {
     const [updated] = await tx
@@ -165,9 +254,9 @@ export async function editMessage(
 }
 
 /**
- * Soft-delete: the author deletes their own, the owner any (M46 D6). The row
- * stays and reads as removed. Deleting a message already removed changes
- * nothing and moves no revision.
+ * Soft-delete: the author deletes their own, the owner any but a change line
+ * (M46 D6, M52 decision 17). The row stays and reads as removed. Deleting a
+ * message already removed changes nothing and moves no revision.
  */
 export async function deleteMessage(
   tripId: string,
@@ -178,7 +267,7 @@ export async function deleteMessage(
 ): Promise<MessageOutcome<ChatMessage>> {
   const row = await messageOnTrip(tripId, messageId);
   if (row === null) return { ok: false, error: "not-found" };
-  if (row.authorId !== userId && role !== "owner") return { ok: false, error: "forbidden" };
+  if (row.kind === "system" || (row.authorId !== userId && role !== "owner")) return { ok: false, error: "forbidden" };
   if (isRemoved(row)) return { ok: true, value: toMessage(row) };
   return db.transaction(async (tx) => {
     const [updated] = await tx

@@ -22,6 +22,7 @@ import type {
   ApiScope,
   AvatarKey,
   BatchableCommand,
+  DateScope,
   DistanceUnit,
   GrantSource,
   PlanId,
@@ -41,6 +42,7 @@ import type {
   PageContent,
   PageContext,
   ChatLink,
+  ChatMessageKind,
 } from "@tc/contracts";
 
 // M11 link 1 (ADR-025). Identity is an ordinary CRUD module (AGENTS.md module
@@ -557,6 +559,19 @@ export const tripMessages = pgTable(
     tripId: uuid("trip_id").notNull(),
     // A `users.id`, on the same no-foreign-key terms as `trip_memberships`.
     authorId: text("author_id").notNull(),
+    // M52 (ADR-073's 2026-10-23 amendment): who wrote it, and on an assistant
+    // message the member whose `@assistant` it answers.
+    kind: text("kind").$type<ChatMessageKind>().notNull().default("member"),
+    requestedBy: text("requested_by"),
+    // On an assistant message, the member's message it answers and the
+    // `trip_suggestions` row its turn stored, so the thread can pair a reply
+    // with its question and put the asker's card under it. No foreign keys, as
+    // above: a message is never deleted, and neither is a suggestion.
+    replyTo: uuid("reply_to"),
+    suggestionId: uuid("suggestion_id"),
+    // On a member's message, that it was an `@assistant` (M52, migration 0064),
+    // so the thread can show everyone a reply is on its way.
+    asksAssistant: boolean("asks_assistant").notNull().default(false),
     body: text("body").notNull(),
     linkKind: text("link_kind").$type<ChatLink["kind"]>(),
     linkId: text("link_id"),
@@ -576,6 +591,7 @@ export const tripMessages = pgTable(
     index("trip_messages_trip_created_id").on(t.tripId, t.createdAt, t.id),
     check("trip_messages_link_kind", sql`${t.linkKind} in ('day', 'stop', 'notebook', 'person')`),
     check("trip_messages_link_whole", sql`(${t.linkKind} is null) = (${t.linkId} is null)`),
+    check("trip_messages_kind", sql`${t.kind} in ('member', 'assistant', 'system')`),
   ],
 );
 
@@ -720,6 +736,10 @@ export const tripSuggestions = pgTable(
     // decision 2); null for one a person sent. No CHECK: like `status` below,
     // the contract's enum is what a row is parsed against on the way out.
     via: text("via"),
+    // The one member who may accept it, and dismiss it beside the owner: the
+    // asker of the chat's `@assistant` turn that stored it (ADR-067's
+    // 2026-10-23 amendment). Null keeps the old rule, any editor.
+    requestedBy: text("requested_by"),
   },
   // No index on `trip_id`: every read goes through the changes table below.
 );
@@ -1147,6 +1167,9 @@ export const savedNotebooks = pgTable(
     // The snapshot's `v`, written in the same insert (ADR-038). A column so the
     // list can carry it without reading every document.
     docVersion: integer("doc_version").notNull(),
+    // The page's `dateScope` (ADR-080 §4), which a copy of the page keeps.
+    // Null for a page that reads every day, as absent is on the page itself.
+    dateScope: jsonb("date_scope").$type<DateScope>(),
     // Private by default, and the only value today (`SavedNotebookVisibility`).
     // `text` with a `$type`, following `saved_days.visibility`.
     visibility: text("visibility").$type<SavedNotebookVisibility>().notNull().default("private"),
@@ -1326,6 +1349,12 @@ export const aiUsage = pgTable(
     // Null on rows written before it existed. The parity gate's p75 latency
     // is read from here rather than from a log nobody keeps (ADR-062 §7).
     latencyMs: integer("latency_ms"),
+    // How many retrieved example days went into a plan turn's prompt (M48,
+    // ADR-075). 0 means retrieval ran and nothing reached the prompt, which
+    // includes a lookup that failed or timed out (the `rag: plan example
+    // lookup failed` log tells those apart); null means it never ran — not a
+    // plan turn, or `RAG_PLAN_RETRIEVAL` off. A count, never the ids.
+    planExamples: integer("plan_examples"),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
   },
   (t) => [

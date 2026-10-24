@@ -58,12 +58,14 @@ import {
   NoContentGeneratedError,
   NoOutputGeneratedError,
   NoSuchToolError,
+  parseJsonEventStream,
   RetryError,
   safeValidateUIMessages,
   StreamProviderError,
   ToolLoopAgent,
   type ToolCallRepairFunction,
   type UIMessageChunk,
+  uiMessageChunkSchema,
 } from "ai";
 import { GatewayError } from "@ai-sdk/gateway";
 import { WIDGET_SHAPE_WORDS } from "@/server/assistant/tools/widgets";
@@ -71,7 +73,8 @@ import { isDemoTripId } from "@/lib/demoTrip";
 import { guard } from "@/server/pages-guard";
 import { settleAiSteps } from "@/server/quota";
 import { OFF_TOPIC } from "@/server/ai/askIntent";
-import { clockTimesLine, type AskScope } from "@/server/assistant/context";
+import { clockTimesLine, nowBlocks, turnNowOf, type AskScope } from "@/server/assistant/context";
+import { buildTripGlobals } from "@/server/tripGlobals";
 import type { SurfaceKind } from "@/server/assistant/grants";
 import { readPreferences } from "@/server/users";
 import { MAX_DAYS_READ_PER_TURN, MAX_PROPOSAL_INSERTS } from "@/server/assistant/limits";
@@ -89,6 +92,7 @@ import {
   detectUsedExamples,
   formatExampleBlocks,
   getPlanExamples,
+  planRetrievalEnabled,
   selectPromptExamples,
   type DayChunk,
 } from "@/server/ai/planExamples";
@@ -96,10 +100,12 @@ import {
   askOutcomeRecord,
   recordAskOutcome,
   storesAsSuggestion,
+  storesFromChat,
   suggestProposal,
   type ProposalOutcome,
 } from "@/server/ai/suggestProposal";
 import {
+  chatLogFor,
   notebookDirectory,
   placeSearchPort,
   playbookLibrary,
@@ -134,7 +140,10 @@ import {
 } from "@/server/assistant/prompt";
 import { ASSISTANT_TOOLS, aiToolsFor, ambientContextFor, type AssistantToolSet } from "@/server/assistant/registry";
 import { listGuests } from "@/server/access/guests";
+import { postAssistantReply } from "@/server/chat/messages";
+import { announceChange } from "@/server/chat/changeLine";
 import type { AskToolPosture } from "@/server/assistant/grants";
+import type { TurnOrigin } from "@/server/assistant/defineTool";
 import {
   APPLY_MINIMUM_ROLE,
   DEMO_TRIP_UNSUPPORTED_CODE,
@@ -148,8 +157,12 @@ import { admissionPorts } from "@/server/ai/admissionPorts";
 import {
   ASK_FAILED_MESSAGE,
   ASK_INTERNAL_ERROR_MESSAGE,
+  ASK_RETRACT_CHUNK,
+  type AskRetractData,
+  type ChatMessage,
   ASK_PROPOSAL_FAILED_MESSAGE,
   SIMULATED_HEADER,
+  STOPPED_EMPTY,
   type AskStreamMetadata,
   type AssistantProposal,
   type Page,
@@ -285,6 +298,10 @@ export function inputTokensSpent(steps: readonly { usage?: { inputTokens?: numbe
  * the recorder's latch started — on every end path, including the abort and
  * error paths that used to be best-effort. A test passes a collector and
  * awaits it. Omitted, the completed path still awaits in `onEnd`, as before.
+ *
+ * `origin` is `chat` only from `runChatAskTurn` below (M52 decision 18):
+ * the turn is offered `read_chat`, is recorded as `ask.chat`, and stores any
+ * change it proposes as a suggestion only the asker may accept.
  */
 export async function handleAskRequest(
   request: Request,
@@ -293,6 +310,7 @@ export async function handleAskRequest(
   sink?: AskAnalyticsSink,
   deadlines: AskDeadlines = { stepMs: ASK_STEP_DEADLINE_MS, hardMs: ASK_HARD_DEADLINE_MS },
   afterResponse?: (task: () => Promise<void>) => void,
+  origin: TurnOrigin = "ask",
 ): Promise<Response> {
   // The clock the deadlines run on starts HERE, before admission: the
   // classifier's round-trip and every read admission makes are inside the
@@ -319,10 +337,15 @@ export async function handleAskRequest(
     // on every classified turn. `billableRoundTrips` counts it, so the
     // reservation has to as well. (CodeRabbit, PR #178.)
     stepBudget: MAX_ASK_STEPS + CLASSIFIER_ROUND_TRIPS,
+    origin,
+    // Where the trip is at the turn's own start (M52 decision 14a): the tool
+    // set, the *now* line and `find_places_near_now` all read this one value.
+    now: (trip, deviceZone) => turnNowOf(trip, buildTripGlobals(trip), startedAt, deviceZone),
   });
   if (!admission.ok) return admission.refusal.response;
   const { grant } = admission;
   const { userId, detail, scope, page, messages, question, turn, classification } = grant;
+  const fromChat = origin === "chat";
   // The trip's guests, read beside the turn's detail — `commands.ts`' pattern
   // from guests spec P2: a committed read, not in the admission transaction,
   // with the same freshness story `accessRev` gives every other reader. The
@@ -453,6 +476,10 @@ export async function handleAskRequest(
       intent,
       readBudget,
       paletteCommands,
+      // Only where `read_chat` can be offered, which is only here.
+      ...(fromChat ? { chatLog: chatLogFor(detail, userId) } : {}),
+      // Null only on a turn about no trip, where nothing that reads it is offered.
+      ...(grant.now === null ? {} : { now: grant.now }),
     },
     meter,
   );
@@ -495,11 +522,15 @@ export async function handleAskRequest(
   // (the off-topic refusal finishes the recorder straight away), and reading
   // a `let` declared further down is a TDZ throw on exactly that path.
   let wrapUpReason: AskWrapUp | null = null;
+  // The plan turn's example count for the ledger, set once retrieval has run
+  // further down; declared here for the same reason as `wrapUpReason`.
+  let planExampleCount: number | null = null;
   const recorder = createAskRecorder({
     turnId,
     // The request's own start, read before admission, so the turn's latency
     // includes admission and the classifier's round-trip (Copilot on #301).
     startedAt,
+    ...(fromChat ? { endpoint: "ask.chat" as const } : {}),
     tier: grant.tier,
     stepPlan: (index) => stepPlans.get(index),
     // **Which write calls reached the proposal**: a call whose collected
@@ -539,6 +570,7 @@ export async function handleAskRequest(
     pivots: () => pivotsOf(intent.pivots(), escalation.escalated(), grant.taskClass),
     // Set in `prepareStep`, several frames after this recorder is built.
     wrapUp: () => wrapUpReason,
+    planExamples: () => planExampleCount,
     // **Read at write time, so an aborted step's writes are still in the
     // record.** Both buffers hand back copies, so this cannot mutate the turn's
     // own account of what the model asked for. The insert carries the saved
@@ -718,6 +750,9 @@ export async function handleAskRequest(
   // candidate set. The retrieved log above keeps the wider picture; the
   // model and the used-detection only ever see these.
   const promptExamples = selectPromptExamples(planExamples);
+  // Null unless retrieval ran, so a flag-off plan turn and one that found
+  // nothing do not read the same in the ledger.
+  if (grant.taskClass === "plan" && planRetrievalEnabled()) planExampleCount = promptExamples.length;
 
   const agent = new ToolLoopAgent({
     model: grant.model,
@@ -780,6 +815,7 @@ export async function handleAskRequest(
       standingOf(detail),
       clock,
       promptExamples,
+      nowBlocks(grant.now, detail),
     ),
     tools,
     // The narrow set is what step 1 sends. `prepareStep` below is the only
@@ -1090,7 +1126,8 @@ export async function handleAskRequest(
       stream: stream.pipeThrough(retractTextBesideTools()).pipeThrough(
         suggestOnFinish(
           () => finalProposal,
-          (proposal) => suggestProposal(proposal, { tripId, userId, question }),
+          fromChat ? storesFromChat : storesAsSuggestion,
+          (proposal) => suggestProposal(proposal, { tripId, userId, question, ...(fromChat ? { requestedBy: userId } : {}) }),
           (proposal, outcome) => recordAskOutcome(askOutcomeRecord({ turnId, tripId, userId }, proposal.commands.length, outcome)),
         ),
       ),
@@ -1117,6 +1154,150 @@ export async function handleAskRequest(
       { status: modelSide ? 503 : 500 },
     );
   }
+}
+
+/**
+ * What a chat turn's reply adds when its change could not go on the board (an
+ * insert from the library, or storing refused): a card only the Ask tab can
+ * show, so the asker is told where to ask instead.
+ */
+export const CHAT_CHANGE_NOT_STORED =
+  "I couldn't put that change up for review from the chat. Ask me in the Ask tab to review it there.";
+
+/**
+ * **An `@assistant` in the trip chat, answered there** (M52 decision 18).
+ *
+ * The chat route posts the asker's message, then hands this the rest once the
+ * response has gone. It is the Ask tab's turn, through the same admission, so
+ * on the asker's own plan, quota, ledger and role, with `origin: "chat"`. Its
+ * stream is read to the end here instead of being sent anywhere, and what it
+ * said is posted whole as one `assistant` message naming the asker. A change
+ * it proposed is on the board already, as a suggestion only they can accept.
+ *
+ * A turn refused, failed or thrown still answers in the thread, with the
+ * sentence the Ask tab would have shown: the asker is waiting on a reply. The
+ * reply names the message that asked and any suggestion the turn stored, which
+ * is what the thread renders the asker's card from.
+ *
+ * `timeZone` is the poster's device zone, carried on their message, so a
+ * zone-less trip reads today as the Ask tab and Home's badge do.
+ *
+ * `model` is `handleAskRequest`'s test seam.
+ */
+export async function runChatAskTurn(
+  {
+    tripId,
+    askerId,
+    question,
+    messageId,
+    timeZone = null,
+  }: { tripId: string; askerId: string; question: string; messageId: string; timeZone?: string | null },
+  model?: LanguageModel,
+): Promise<ChatMessage | null> {
+  const writes: (() => Promise<void>)[] = [];
+  const to = { requestedBy: askerId, replyTo: messageId, suggestionId: null as string | null };
+  try {
+    const request = new Request(`http://chat.internal/api/trips/${tripId}/ask`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        messages: [{ id: crypto.randomUUID(), role: "user", parts: [{ type: "text", text: question }] }],
+        scope: { kind: "trip" },
+        ...(timeZone === null ? {} : { timeZone }),
+      }),
+    });
+    const response = await handleAskRequest(request, tripId, model, undefined, undefined, (task) => writes.push(task), "chat");
+    const reply = await chatReplyOf(response);
+    to.suggestionId = reply.suggestionId;
+    return await postAssistantReply(tripId, to, reply.text);
+  } catch (error) {
+    console.error("chat: the @assistant turn failed", { tripId, error });
+    try {
+      return await postAssistantReply(tripId, to, ASK_FAILED_MESSAGE);
+    } catch (postError) {
+      console.error("chat: the @assistant turn's failure reply failed", { tripId, error: postError });
+      return null;
+    }
+  } finally {
+    // The ledger row and the step refund, which a response normally outlives:
+    // awaited on every path, a throw included, or `after()` resolves first and
+    // the platform can freeze the function before they are written.
+    await Promise.allSettled(writes.map((task) => task()));
+  }
+}
+
+/**
+ * What a chat turn's reply says when it was refused for too many requests:
+ * the quota's own wording is a lower-case fragment written for the Ask tab's
+ * error line, not a sentence for a shared thread.
+ */
+export const CHAT_ASK_LIMITED = "The assistant has had too many questions just now. Try again later.";
+
+// The fixed sentences the Ask tab itself shows for a failure.
+const ASK_FAILURE_SENTENCES: readonly string[] = [ASK_FAILED_MESSAGE, ASK_INTERNAL_ERROR_MESSAGE];
+
+/**
+ * A refusal as the whole thread reads it. A coded refusal's `error` is written
+ * for people (the demo, a deleted trip, a plan without the assistant); an
+ * uncoded one can be a bare code like `forbidden`, so it is said by status.
+ */
+async function refusalSentence(response: Response): Promise<string> {
+  const refused = (await response.json().catch(() => null)) as { error?: unknown; code?: unknown } | null;
+  const error = typeof refused?.error === "string" ? refused.error : null;
+  if (error !== null && (typeof refused?.code === "string" || ASK_FAILURE_SENTENCES.includes(error))) return error;
+  return response.status === 429 ? CHAT_ASK_LIMITED : ASK_FAILED_MESSAGE;
+}
+
+/**
+ * What a chat turn says, read off its response as the rail would show it:
+ * each text part the stream kept (a retracted note is gone), then any outcome
+ * that would have been said beside them, and the id of the suggestion it
+ * stored. A refusal is its own sentence. A stream that failed after some text
+ * says so after it, as the Ask tab's error line would: posted alone, the part
+ * would read as the whole answer. A turn stopped at its deadline with nothing
+ * said says so, as the rail does.
+ *
+ * Never throws once the stream has started: a read that fails part-way is a
+ * failed stream, and keeps the suggestion id already read, since that change
+ * is on the board whatever happens to the reply.
+ */
+export async function chatReplyOf(response: Response): Promise<{ text: string; suggestionId: string | null }> {
+  if (!response.ok || response.body === null) return { text: await refusalSentence(response), suggestionId: null };
+  const parts = new Map<string, string>();
+  const notes: string[] = [];
+  let suggestionId: string | null = null;
+  let stopped = false;
+  const chunks = parseJsonEventStream({ stream: response.body, schema: uiMessageChunkSchema }).getReader();
+  try {
+    for (let read = await chunks.read(); !read.done; read = await chunks.read()) {
+      if (!read.value.success) continue;
+      const chunk = read.value.value;
+      if (chunk.type === "text-delta") parts.set(chunk.id, (parts.get(chunk.id) ?? "") + chunk.delta);
+      else if (chunk.type === ASK_RETRACT_CHUNK) for (const id of (chunk.data as AskRetractData).ids) parts.delete(id);
+      // A chat turn has no request of its own to cancel: an abort is its hard deadline.
+      else if (chunk.type === "abort") stopped = true;
+      else if (chunk.type === "error") {
+        notes.push(ASK_FAILURE_SENTENCES.includes(chunk.errorText) ? chunk.errorText : ASK_FAILED_MESSAGE);
+      } else if (chunk.type === "finish" && chunk.messageMetadata !== undefined) {
+        const outcome = chunk.messageMetadata as AskStreamMetadata;
+        if ("suggested" in outcome) {
+          suggestionId = outcome.suggested.suggestionId;
+          const { skipped, snapshotSkipped } = outcome.suggested;
+          notes.push(...skipped, ...(snapshotSkipped === undefined ? [] : [snapshotSkipped]));
+        }
+        if ("proposal" in outcome) notes.push(CHAT_CHANGE_NOT_STORED);
+        if ("proposalFailed" in outcome) notes.push(outcome.proposalFailed.message);
+        if ("notApplied" in outcome) notes.push(...outcome.notApplied.skipped);
+      }
+    }
+  } catch (error) {
+    console.error("chat: reading the @assistant turn's stream failed", { error });
+    notes.push(ASK_FAILED_MESSAGE);
+  }
+  const said = [...parts.values(), ...notes].map((part) => part.trim()).filter((part) => part !== "");
+  // Nothing kept: the sentence the Ask tab's rail would show.
+  if (said.length === 0) return { text: stopped ? STOPPED_EMPTY : ASK_FAILED_MESSAGE, suggestionId };
+  return { text: said.join("\n\n"), suggestionId };
 }
 
 /**
@@ -1407,6 +1588,7 @@ function replyStream(text: string, simulated: boolean): Response {
  */
 function suggestOnFinish(
   finalProposal: () => AssistantProposal | null,
+  storesAs: (proposal: AssistantProposal) => boolean,
   store: (proposal: AssistantProposal) => Promise<{ metadata: AskStreamMetadata; outcome: ProposalOutcome }>,
   record: (proposal: AssistantProposal, outcome: ProposalOutcome) => void,
 ): TransformStream<UIMessageChunk, UIMessageChunk> {
@@ -1414,7 +1596,7 @@ function suggestOnFinish(
     async transform(chunk, controller) {
       const proposal = chunk.type === "finish" ? finalProposal() : null;
       if (chunk.type !== "finish" || proposal === null) return controller.enqueue(chunk);
-      if (!storesAsSuggestion(proposal)) {
+      if (!storesAs(proposal)) {
         record(proposal, { kind: "card" });
         return controller.enqueue(chunk);
       }
@@ -1728,6 +1910,8 @@ export async function handleApplyProposalRequest(
     );
   }
   sink({ ...record, outcome: "applied", code: null });
+  // `detail` is the trip the guard read, before the batch (M52 decision 17).
+  await announceChange(tripId, userId, commands.commands, detail, committed.value.detail);
   // The same `{ detail, history }` every command endpoint answers with, so the
   // board reconciles an approved plan through `applyOutcome` rather than
   // through a second, assistant-shaped path.
@@ -1802,8 +1986,10 @@ export function instructionsFor(
   // [] — and `formatExampleBlocks([])` is [] — so every existing caller,
   // which passes nothing, gets byte-identically today's instruction.
   examples: DayChunk[] = [],
+  // M52: the under-way trip's *now* (`nowBlocks`), and nothing on any other.
+  now: PromptBlock[] = [],
 ): string {
-  return renderPrompt(instructionBlocks(scope, dayCount, posture, page, classWithheld, standing, clock, examples));
+  return renderPrompt(instructionBlocks(scope, dayCount, posture, page, classWithheld, standing, clock, examples, now));
 }
 
 /**
@@ -1898,6 +2084,9 @@ export function instructionBlocks(
   // and the example text itself arrives as a `data` block, as ADR-043
   // requires for text other users wrote.
   examples: DayChunk[] = [],
+  // `nowBlocks`, beside the asker's clock. Empty off an under-way trip, so
+  // every other turn is told byte-identically what it was told before.
+  now: PromptBlock[] = [],
 ): PromptBlock[] {
   // A page turn is a different job, not a variant of this one: it composes a
   // document rather than answering, and every planning rule below (activityRef,
@@ -2055,7 +2244,7 @@ export function instructionBlocks(
   ];
   // `formatExampleBlocks([])` is `[]`: with no examples this is the same
   // array of blocks as before Part 4, which is the flag-off guarantee.
-  return [...rules.map(rule), scopeBlock(scope), ...formatExampleBlocks(examples)];
+  return [...rules.map(rule), ...now, scopeBlock(scope), ...formatExampleBlocks(examples)];
 }
 
 /**

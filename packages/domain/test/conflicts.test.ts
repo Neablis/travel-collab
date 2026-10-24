@@ -48,6 +48,7 @@ function boardState(dayActivities: ActivitySpec[], backlogActivities: ActivitySp
           mode: null,
           endLocation: a.end ?? null,
           pendingReason: null,
+          flightNumber: null,
         },
       ]),
     ),

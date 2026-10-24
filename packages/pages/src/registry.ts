@@ -1,12 +1,14 @@
 import { z } from "zod";
 import type { WidgetShape } from "@tc/contracts";
 import { FilterDimension } from "@tc/contracts";
-import type { AnyMacroDef, ItemScope, Rendered, Seg, WidgetContext, WidgetInput, WidgetSelection } from "./registry-types";
+import type { AnyMacroDef, ItemScope, Rendered, Seg, WidgetContext, WidgetInput, WidgetScope, WidgetSelection } from "./registry-types";
+import { pageScope } from "./dateScope";
 import { ghost, text } from "./registry-types";
 import type { UnavailableReason, UnboundNeeds } from "./result";
 import { fieldAt, fieldChoices } from "./fields";
 import { VALUE_KIND_FORMATS } from "./kinds";
 import { paramKeyOf, withheldFilters } from "./filters";
+import { isNoDay } from "./select";
 import { cost, count, dates, hours, city } from "./macros/primitives/single";
 import { attribute } from "./macros/primitives/attribute";
 import { dayDetail, cityDetail } from "./macros/primitives/block";
@@ -23,6 +25,10 @@ import { field } from "./macros/primitives/field";
 import { daySun, dayFromHome } from "./macros/primitives/time";
 import { dayWeather } from "./macros/primitives/weather";
 import { internalLink, externalLink } from "./macros/primitives/link";
+import { tripNowWidget } from "./macros/primitives/nowNext";
+import { NOTHING_TODAY, stopDirections } from "./macros/primitives/directions";
+import { tripFlights } from "./macros/primitives/flights";
+import { chatRecent } from "./macros/primitives/chatRecent";
 
 // **Twelve primitives, and nothing else** (ADR-039 decision 1; spec §1's table).
 //
@@ -80,6 +86,13 @@ const DEFS: AnyMacroDef[] = [
   // The two link widgets (M30, ADR-056): no selection, so not primitives. In
   // the assistant's vocabulary since ADR-057, behind its `insert_widget` guards.
   internalLink, externalLink,
+  // The day-of widgets (M52 decision 15): *Now and next* and *Your flights*
+  // read the reader's clock and have nothing to narrow; *Directions* is a stop
+  // primitive, so a page's Today scope reaches it.
+  tripNowWidget, stopDirections, tripFlights,
+  // "Trip chat" (M52 decision 15): no selection, on `trip.people`'s terms,
+  // and shown only to a reader who can see the chat (`MacroDef.requires`).
+  chatRecent,
 ] as unknown as AnyMacroDef[];
 
 export const MACRO_REGISTRY: Record<string, AnyMacroDef> = Object.fromEntries(DEFS.map((d) => [d.name, d]));
@@ -118,19 +131,33 @@ export type RenderOutcome =
   | { status: "unbound"; needs: UnboundNeeds; shape: readonly Seg[] }
   // No shape, and never one: ADR-052's `unavailable` is not a ghost.
   | { status: "unavailable"; reason: UnavailableReason }
+  // Not shown at all (M52 decision 20): the reader lacks what the widget
+  // `requires`. Never a chip — SPEC §27, nothing renders disabled.
+  | { status: "absent" }
   | { status: "unknown" }
   | { status: "bad-params"; message: string };
 
 // `item` is the repeat line this widget is being rendered on, when it sits in a
 // repeat's template (ADR-035 decision 4). Render-time only: it never reaches
-// the stored node.
+// the stored node. Without one, the widget is handed its page's date scope
+// (ADR-080 §4). A day or a stop line already names a day the scope narrowed
+// it to, through `resolveRepeat`, so it wins; a city line names no day, so it
+// carries the page's too.
 export function renderMacro(ctx: WidgetContext, name: string, rawParams: unknown, item?: ItemScope): RenderOutcome {
   const def = getMacro(name);
   if (!def) return { status: "unknown" };
   const parsed = def.params.safeParse(rawParams ?? {});
   if (!parsed.success) return { status: "bad-params", message: parsed.error.message };
-  const outcome = def.resolve(ctx, parsed.data as never, item);
+  if (def.requires !== undefined && ctx[def.requires] !== true) return { status: "absent" };
+  const page = pageScope(ctx, def, parsed.data as Record<string, unknown>);
+  const scope: WidgetScope | undefined =
+    item?.kind === "city" && page !== undefined ? { kind: "city-in-scope", name: item.name, page } : (item ?? page);
+  const outcome = def.resolve(ctx, parsed.data as never, scope);
   if (outcome.status === "ok") return { status: "ok", rendered: def.render(outcome.value) };
+  // Off the trip's dates a widget following a Today page has nothing because
+  // today is no trip day, not because the trip lacks days or places, so it
+  // says that rather than its empty-trip line (M52 decision 10).
+  if (outcome.status === "empty" && isNoDay(scope)) return { status: "empty", because: NOTHING_TODAY };
   if (outcome.status === "unbound") return { ...outcome, shape: outcome.shape ?? fallbackShape(def) };
   return outcome;
 }

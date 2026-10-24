@@ -1,5 +1,5 @@
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
-import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, onTestFinished } from "vitest";
 import { scenarios } from "@tc/factories";
 import { MACRO_NAMES, PRESETS } from "@tc/pages";
 import { newPageDoc, type MacroNode, type TripGlobals } from "@tc/contracts";
@@ -16,6 +16,7 @@ import {
 } from "@/test-support/rawSyntax";
 import { PageEditor } from "./PageEditor";
 import { ReadOnlyPageDoc } from "./ReadOnlyPageDoc";
+import { registerPhoneAsk } from "@/components/nav/phoneAsk";
 
 // The M14 gate box *"No user-visible macro syntax anywhere, in either mode"*,
 // at the document: both modes of the editor, and the read-only fallback. What
@@ -109,6 +110,8 @@ describe("no macro syntax reaches the DOM", () => {
 
   for (const editing of [false, true]) {
     it(`in ${editing ? "Editing" : "Reading"}`, async () => {
+      // A screen offering its chat (M52), so "Trip chat" is drawn rather than absent.
+      onTestFinished(registerPhoneAsk({ open: false, onOpen: () => {}, chat: { onOpen: () => {}, messages: [], unread: 0 } }));
       const { container } = render(
         <PageEditor detail={trip} context={context} user={user} value={doc} onChange={() => {}} editable={editing} />,
       );

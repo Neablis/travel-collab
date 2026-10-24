@@ -13,10 +13,12 @@ import {
   tripDetailFromState,
   type TripState,
 } from "@tc/domain";
+import { JAPAN_STOPS } from "@tc/fixtures";
+import { clockIn } from "@tc/pages";
 import type { AskAnalyticsRecord } from "@/server/assistant/askAnalytics";
 import { OVERVIEW_ABOVE_DAYS } from "@/server/assistant/tools/read";
 import { accountExpectationFor, expectationFor, mostFreeDays, playbookExpectationFor, type SeededAccountTrip } from "./cases";
-import { ACCOUNT_TRIPS, EVAL_TRIPS, LONG_TRIP_DAYS, accountTripCommands, longTripCommands } from "./trips";
+import { ACCOUNT_TRIPS, EVAL_TRIPS, LONG_TRIP_DAYS, accountTripCommands, japanTodayStart, longTripCommands, notRunOnClock } from "./trips";
 import { grade, namesAmount, namesDayNumber, navigatedTo, retractedText, reviewedChanges, textBeforeToolCall, visibleText, type EvalTurn } from "./grade";
 
 // The fields `grade` reads, on an otherwise ordinary completed turn.
@@ -259,6 +261,52 @@ describe("the cases", () => {
     }
   });
 
+  // M52 decision 18: the chat case states its problem only in the messages
+  // before the ask, so a turn passes it only by reading them.
+  it("holds the chat case to read_chat, with its problem only in the earlier messages", () => {
+    const set = JSON.parse(readFileSync(join(import.meta.dirname, "live-set.json"), "utf8")) as {
+      prompts: { id: string; text: string; surface?: string; chat?: string[] }[];
+    };
+    const chatCases = set.prompts.filter((prompt) => prompt.surface === "chat");
+    expect(chatCases.map((prompt) => prompt.id)).toEqual(["h-chat-fix-problem"]);
+    const [asked] = chatCases;
+    expect(asked!.chat!.join(" ")).toContain("Fushimi Inari");
+    expect(asked!.text).not.toContain("Fushimi Inari");
+
+    const expected = expectationFor(asked!.id, japan)!;
+    const fixed = (toolCalls: { name: string; input: object }[]) =>
+      failing(grade(turn({ toolCalls }, "I've put moving Fushimi Inari to the next day up for review.", 1), expected));
+    expect(fixed([{ name: "read_chat", input: {} }, { name: "MoveActivity", input: {} }])).toEqual([]);
+    expect(fixed([{ name: "read_trip", input: {} }, { name: "MoveActivity", input: {} }])).toEqual(["calls read_chat"]);
+  });
+
+  // M52 decisions 13 and 14: the day-of cases run on a trip under way, and the
+  // one before the trip asks the same question where the near-now search is
+  // not offered. Each fails the turn that took the other road.
+  it("holds the day-of cases to the near-now search, the time moves and the pending swap", () => {
+    const set = JSON.parse(readFileSync(join(import.meta.dirname, "live-set.json"), "utf8")) as {
+      prompts: { id: string; text: string; trip?: string }[];
+    };
+    const prompt = (id: string) => set.prompts.find((entry) => entry.id === id)!;
+    expect(prompt("d-near-before-the-trip").text).toBe(prompt("d-coffee-near-now").text);
+    expect(prompt("d-near-before-the-trip").trip).toBeUndefined();
+    expect(prompt("d-running-late").text).toContain("45 minutes late");
+
+    const graded = (id: string, toolCalls: string[], proposed = 0) =>
+      failing(grade(turn({ toolCalls: toolCalls.map((name) => ({ name, input: {} })) }, "Near the Forum: Sant'Eustachio.", proposed), expectationFor(id, japan)!));
+    expect(graded("d-coffee-near-now", ["find_places_near_now"])).toEqual([]);
+    expect(graded("d-coffee-near-now", ["search_places"])).toEqual(["calls find_places_near_now"]);
+    expect(graded("d-near-before-the-trip", ["search_places"])).toEqual([]);
+    expect(graded("d-near-before-the-trip", ["find_places_near_now"])).toEqual(["never calls find_places_near_now"]);
+    expect(graded("d-running-late", ["read_day", "UpdateActivity", "UpdateActivity"], 2)).toEqual([]);
+    expect(graded("d-running-late", ["read_day", "MoveActivity"], 1)).toEqual(["calls UpdateActivity", "never calls MoveActivity"]);
+    expect(graded("d-closed-find-similar", ["find_places_near_now", "UpdateActivity", "AddActivity"], 2)).toEqual([]);
+    expect(graded("d-closed-find-similar", ["find_places_near_now", "RemoveActivity", "AddActivity"], 2)).toEqual([
+      "calls UpdateActivity",
+      "never calls RemoveActivity",
+    ]);
+  });
+
   // A prompt that names a trip the runner cannot seed would fail only on a
   // paid run, after every prompt before it had spent; so would a "long" trip
   // that was not long enough to get the overview it exists to test.
@@ -267,12 +315,44 @@ describe("the cases", () => {
       prompts: { id: string; trip?: string }[];
     };
     const named = set.prompts.filter((prompt) => prompt.trip !== undefined);
-    expect(named.map((prompt) => prompt.id)).toEqual(["q-summarise-long-trip"]);
+    expect(named.map((prompt) => prompt.id)).toEqual(["q-summarise-long-trip", "d-coffee-near-now", "d-running-late", "d-closed-find-similar"]);
     for (const prompt of named) expect(EVAL_TRIPS as readonly string[], prompt.id).toContain(prompt.trip);
 
     const dates = longTripCommands("00000000-0000-4000-8000-000000000000").find((c) => c.type === "SetTripDates");
     expect(dates?.type === "SetTripDates" && dates.newDayIds.length).toBe(LONG_TRIP_DAYS);
     expect(LONG_TRIP_DAYS).toBeGreaterThan(OVERVIEW_ABOVE_DAYS);
+  });
+
+  // The day-of cases need a stop begun and one still to come today, or a
+  // correct model fails them for the hour the run started (PR 534 review,
+  // finding 4): a Japan trip simply started today has nothing begun before
+  // 14:30 JST and nothing left after 21:00.
+  it("dates the today trip so the run lands inside a day with a stop begun and one to come", () => {
+    const dayOfRun = (at: number) => {
+      const start = japanTodayStart(at);
+      if (start === null) return null;
+      const { date, time } = clockIn("Asia/Tokyo", at);
+      const day = (Date.parse(date) - Date.parse(start)) / 86_400_000 + 1;
+      const starts = JAPAN_STOPS.filter((stop) => stop.day === day).map((stop) => stop.start);
+      return { day, begun: starts.some((s) => s <= time), toCome: starts.some((s) => s > time) };
+    };
+    // Every half hour from 06:30 to 20:30 JST, 10:00 JST among them.
+    for (let minutes = 6 * 60 + 30; minutes <= 20 * 60 + 30; minutes += 30) {
+      const at = Date.parse("2026-10-23T00:00:00+09:00") + minutes * 60_000;
+      expect(dayOfRun(at), `${Math.floor(minutes / 60)}:${String(minutes % 60).padStart(2, "0")} JST`).toMatchObject({ begun: true, toCome: true });
+    }
+    // 22:45 JST: no day has a stop left, so the runner leaves those prompts out rather than spends.
+    expect(japanTodayStart(Date.parse("2026-10-23T22:45:00+09:00"))).toBeNull();
+  });
+
+  // Refusing a whole run for three day-of prompts kept the live set off nine
+  // and a half hours a day, and a silent skip would shrink the comparison
+  // without a word (PR 534 review 2, finding 3). Outside the hours they are
+  // left out and named; inside them, nothing is.
+  it("names the day-of prompts a run leaves out on the clock, and only those, only outside the hours", () => {
+    const prompts = [{ id: "q-busiest" }, { id: "d-coffee-near-now", trip: "today" as const }, { id: "q-long", trip: "long-100" as const }];
+    expect(notRunOnClock(prompts, Date.parse("2026-10-23T22:45:00+09:00"))).toEqual([{ id: "d-coffee-near-now", reason: "not run: clock (22:45 JST)" }]);
+    expect(notRunOnClock(prompts, Date.parse("2026-10-23T12:00:00+09:00"))).toEqual([]);
   });
 
   // The summary is the overview's job: one look at a stay is fine, a read of

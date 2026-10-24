@@ -1,5 +1,6 @@
 import type { z } from "zod";
 import type { AvatarKey, FilterDimension, Guest, ManifestObject, PersonColor, TripDetail, PageContext, TripGlobals, UserPreferences, ValueKind, WidgetShape } from "@tc/contracts";
+import type { ActivityMode, Location } from "@tc/contracts";
 import type { WidgetEntity } from "./filters";
 import type { MacroResult, UnboundNeeds } from "./result";
 import type { ExternalInputs, ExternalNeed } from "./external";
@@ -10,6 +11,8 @@ import type { WeatherPayload } from "./weatherPayload";
 import type { SunPayload } from "./sunPayload";
 import type { LinkCardPayload, MissingNotebookPayload } from "./linkTarget";
 import type { ItineraryPayload } from "./itineraryPayload";
+import type { TripNowClock } from "./now";
+import type { ChatMessage } from "@tc/contracts";
 import { VALUE_KIND_FORMATS } from "./kinds";
 
 // Inline payloads are display-ready strings; block payloads are structured data
@@ -111,6 +114,33 @@ export interface TripStripPayload { kind: "trip-strip"; runs: TripStripRun[]; su
 // chip (`PersonChip`), as it turns a city name into a colour.
 export interface TripPeoplePerson { name: string; avatar: AvatarKey | null; color: PersonColor | null; }
 export interface TripPeoplePayload { kind: "trip-people"; stack: TripPeoplePerson[]; sentence: string; }
+// The day-of widgets (M52 decision 15). A stop carries its place and the leg
+// leading in, and `apps/web` turns them into a link (`directionsUrl`): the URL
+// is the app's, as a colour is. Instants are ms since the epoch, so the block
+// can count down, and re-pick *now* and *next*, on the page's minute clock.
+export interface NowStop {
+  activityId: string; title: string; start: number; end: number;
+  /** Its window, in the reader's clock. */
+  time: string;
+  place: Location | null;
+  /** The leg leading in, when a transit stop does (`directionsUrl`'s `mode`). */
+  mode: ActivityMode | null;
+}
+export interface TripNowPayload { kind: "trip-now"; stops: NowStop[]; }
+export interface StopDirectionsPayload {
+  kind: "stop-directions"; activityId: string; title: string; time: string | null; place: Location; mode: ActivityMode | null;
+}
+export interface FlightLine {
+  activityId: string; title: string; flightNumber: string | null;
+  /** Each end's city, or its place's name. */
+  from: string | null; to: string | null;
+  /** When it leaves, as typed. No arrival: a stop's window ends the day it starts. */
+  departs: string | null;
+  /** When it leaves, for the countdown; `null` untimed. */
+  startsAt: number | null;
+}
+/** `none` is a trip with no flight at all, and `dayId` the day *Add your flight* opens the editor on. */
+export interface TripFlightsPayload { kind: "trip-flights"; heading: "today" | "next" | "none"; flights: FlightLine[]; dayId: string | null; }
 
 // A DISCRIMINATED union, and the `kind` tags are the whole reason `MacroView`
 // no longer switches on a widget's name.
@@ -140,7 +170,21 @@ export type BlockPayload =
   | SunPayload
   | LinkCardPayload
   | MissingNotebookPayload
-  | ItineraryPayload;
+  | ItineraryPayload
+  | TripNowPayload | StopDirectionsPayload | TripFlightsPayload
+  | ChatRecentPayload;
+
+// "Trip chat" (`chat.recent`, M52 decision 15): the newest messages, oldest
+// first. Each is the message itself, which the app draws with its chat's own
+// line (Mitchell, PR 537 preview walk), and its author named here as every
+// widget names people. On the app's own line (a change announced, decision
+// 17) it is whoever made the change, whom the chat names in front of what
+// was done. `lines` is `null` while the chat has not been read, so the block
+// says nothing rather than "no messages yet" about a conversation it has not
+// seen. `solo` is a trip with one traveler, which has no chat to show or open
+// (Mitchell, PR 537 walk), and then `lines` is `null`.
+export interface ChatRecentLine { message: Extract<ChatMessage, { removed: false }>; author: string; }
+export interface ChatRecentPayload { kind: "chat-recent"; solo: boolean; lines: ChatRecentLine[] | null; }
 
 // What a REPEAT widget resolves to: one entry per item, each a lead phrase and
 // the resolved values that follow it. Kept apart from `BlockPayload` on purpose
@@ -498,6 +542,13 @@ export interface WidgetContext {
    */
   today: string | null;
   /**
+   * The instant and the device's zone, for a page's `dateScope` (ADR-080 §4),
+   * which `renderMacro` resolves through `tripNow`. Passed in for `today`'s
+   * reason. **Optional, and absent scopes nothing**: the server's and the
+   * assistant's contexts have no reader's clock, and read a page as stored.
+   */
+  now?: TripNowClock | null;
+  /**
    * Data the trip does not hold — weather — fetched by the client and handed
    * in as slots (ADR-052 decision 3). Read it through `readSlot`.
    *
@@ -551,7 +602,32 @@ export interface WidgetContext {
    * by `travellerIds(trip.members)`.
    */
   personas?: Readonly<Record<string, WidgetPersona>> | null;
+  /**
+   * Whether the reader may see the trip's chat (M52 decisions 15 and 20): a
+   * member it does not refuse, including the one traveler on a solo trip,
+   * who would see it if the trip had one. A widget that declares it in
+   * `MacroDef.requires` is **absent** without it — not disabled (SPEC §27).
+   *
+   * **Optional, and absent is "may not"**: a share-link reader's context, the
+   * invite preview's, the server's and the assistant's never say, and none of
+   * them has a chat to open.
+   */
+  canChat?: boolean;
+  /**
+   * The trip's chat, oldest first, for `chat.recent`; `null` until it has been
+   * read. Handed in by the screen that already holds it, rather than read a
+   * second time per widget.
+   */
+  chat?: readonly ChatMessage[] | null;
+  /**
+   * The trip has one traveler, so no chat (Mitchell on PR 537): *Trip chat*
+   * says how to get one rather than showing any. Absent is "not solo".
+   */
+  soloTrip?: boolean;
 }
+
+/** A `WidgetContext` capability a widget can require (`MacroDef.requires`). */
+export type ReaderCapability = "canChat";
 
 /** One member as `WidgetContext.personas` carries them. */
 export interface WidgetPersona {
@@ -575,6 +651,24 @@ export type ItemScope =
   | { kind: "day"; index: number }
   | { kind: "city"; name: string }
   | { kind: "stop"; activityId: string; dayIndex: number | null };
+
+/**
+ * A page scoped to today, read on a date that is no trip day (`resolveDateScope`).
+ * Not an `ItemScope`, because no repeat iterates it: `narrow` turns it into an
+ * empty selection, so each widget renders its own empty state, never
+ * `unbound("day")`, which says a day was removed.
+ */
+export type NoDay = { kind: "no-day" };
+
+/**
+ * A *for each city* line on a page with a date scope. A city item leaves `day`
+ * open, unlike a day or a stop item, so the line fills `city` and the page
+ * still fills `day` (ADR-080 §4); either alone would sum every day in the city.
+ */
+export type CityInScope = { kind: "city-in-scope"; name: string; page: Extract<ItemScope, { kind: "day" }> | NoDay };
+
+/** What a widget is handed beside its params: its repeat line, its page's date scope, or a city line and the scope together. */
+export type WidgetScope = ItemScope | NoDay | CityInScope;
 
 /**
  * What a PRIMITIVE selects over (ADR-039 decision 1: `widget = entity + filters
@@ -640,6 +734,11 @@ export interface MacroDef<P, T> {
   // fetches an input only when one of its widgets names it here, so absent is
   // the answer for every widget that reads only the trip.
   needs?: readonly ExternalNeed[];
+  /**
+   * The reader capability this widget is shown only with (M52 decision 20).
+   * `renderMacro` answers `absent` without it, before `resolve` runs.
+   */
+  requires?: ReaderCapability;
   description: string;             // human- AND machine-readable (AI + autocomplete)
   emptyText: string;               // declarative empty-state copy
   // The insert sidebar's sample. **A fixed string, never a computed value**
@@ -647,7 +746,7 @@ export interface MacroDef<P, T> {
   // makes the sidebar and the page contradict each other in one session, which
   // is why the design phrases person previews generically.
   preview: string;
-  resolve(ctx: WidgetContext, params: P, item?: ItemScope): MacroResult<T>;
+  resolve(ctx: WidgetContext, params: P, item?: WidgetScope): MacroResult<T>;
   // `resolve` and `render` are deliberately TWO functions, not one (ADR-037
   // decision 1). `resolve` answers "what does this mean against the current
   // trip"; `render` answers "what does that look like". Keeping them apart is

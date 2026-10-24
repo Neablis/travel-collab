@@ -7,6 +7,7 @@ import type { UnboundNeeds } from "./result";
 import { getMacro } from "./registry";
 import { insertWidget, type InsertResult } from "./insert";
 import { narrow } from "./select";
+import { pageScope } from "./dateScope";
 import { needsBooking } from "./needsBooking";
 import { sentenceFieldAt } from "./sentence";
 
@@ -114,7 +115,8 @@ export function resolveRepeat(ctx: WidgetContext, name: string, rawParams: unkno
   const { trip, globals } = ctx;
   if (!trip) return { status: "unbound", over, needs: "trip" };
 
-  const selection = narrow(trip, globals, params);
+  // The page's date scope narrows the items, so each line is one of today's.
+  const selection = narrow(trip, globals, params, pageScope(ctx, def, params));
   if (selection.status === "unbound") return { status: "unbound", over, needs: selection.needs };
   if (selection.status !== "ok") return { status: "empty", over, emptyText: def.emptyText };
 

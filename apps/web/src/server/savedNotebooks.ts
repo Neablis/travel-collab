@@ -93,6 +93,7 @@ export async function saveNotebook(
     title: input.title ?? page.title,
     content: serializePageDoc(doc.data) as PageContent,
     docVersion: doc.data.v,
+    dateScope: page.context.dateScope ?? null,
     sourceTripId: detail.tripId,
     sourceTripName: detail.name,
     sourcePageId: page.id,
@@ -118,13 +119,18 @@ export async function listSavedNotebooks(ownerId: string): Promise<SavedNotebook
  * indistinguishable from one that never existed — `getSavedDay`'s rule.
  */
 export async function getSavedNotebook(savedNotebookId: string, ownerId: string): Promise<SavedNotebook | null> {
+  const row = await mineById(savedNotebookId, ownerId);
+  return row === null ? null : toDto(row);
+}
+
+async function mineById(savedNotebookId: string, ownerId: string): Promise<SavedNotebookRow | null> {
   // A non-uuid would reach a uuid column and raise 22P02 (KI-2026-09-05-x).
   if (!isUuid(savedNotebookId)) return null;
   const [row] = await db
     .select()
     .from(savedNotebooks)
     .where(and(eq(savedNotebooks.id, savedNotebookId), mine(ownerId)));
-  return row === undefined ? null : toDto(row);
+  return row ?? null;
 }
 
 /**
@@ -163,20 +169,23 @@ export type InstantiateResult =
  *
  * `instantiateTemplate` does the rest: migrate the snapshot forward, re-bind
  * any day pinned by an id the target trip lacks, and give the page the target
- * trip's context and nothing else.
+ * trip's context with the template's date scope.
  */
 export async function instantiateSavedNotebook(
   savedNotebookId: string,
   detail: TripDetail,
   actorId: string,
 ): Promise<InstantiateResult> {
-  const template = await getSavedNotebook(savedNotebookId, actorId);
+  // The row, not the DTO: the date scope is the page's, and the library's
+  // contract does not carry it.
+  const template = await mineById(savedNotebookId, actorId);
   if (template === null) return { ok: false, error: { code: "not-found", message: "That template is not in your library." } };
 
-  const made = instantiateTemplate(template.content, {
-    tripId: detail.tripId,
-    dayIds: detail.days.map((d) => d.dayId),
-  });
+  const made = instantiateTemplate(
+    template.content,
+    { tripId: detail.tripId, dayIds: detail.days.map((d) => d.dayId) },
+    template.dateScope ?? undefined,
+  );
   if (!made.ok) return { ok: false, error: { code: "invalid-page", message: made.message } };
 
   // The wire form, not the parse output: `executePageCommand` parses again, and

@@ -10,7 +10,7 @@ function ledger(steps: { model: string; tokensIn: number | null; tokensOut: numb
     cost: {
       turnId: "t1", userId: "u", endpoint: "ask", outcome: "completed", taskClass: "question", classifierCertainty: null,
       turn: { model: steps[0]?.model ?? "x", tokensIn: null, tokensOut: null },
-      classifier, steps: steps.length, planVersionRef: null, latencyMs: 1,
+      classifier, steps: steps.length, planVersionRef: null, latencyMs: 1, planExamples: null,
     },
     capacity: [],
     toolCalls: [],

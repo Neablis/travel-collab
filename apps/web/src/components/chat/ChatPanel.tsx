@@ -1,8 +1,9 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { ASK_MAX_DURATION_SECONDS } from "@tc/contracts";
 import { useKnownSessionUser } from "@/components/account/useSessionUser";
-import type { Persona } from "@/components/pages/people";
+import type { Persona } from "@/lib/persona";
 import { usePinToBottom } from "@/components/assistant/usePinToBottom";
 import { useOptionalTrip } from "@/components/trip/context/TripProvider";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -13,15 +14,47 @@ import { cn } from "@/lib/cn";
 import { fetchPages } from "@/lib/pagesClient";
 import { cachedRead, DEDUPE } from "@/lib/queryCache";
 import { tripKeys } from "@/lib/queryKeys";
-import { ChatMessage, type MessageViewer } from "./ChatMessage";
+import { useAiEntitled } from "@/lib/useAiEntitled";
+import { ChatMessage, type ChatReader, type MessageViewer } from "./ChatMessage";
 import { ChatMentionsProvider, type ChatMentions } from "./MessageChip";
 import { useTargetPicker } from "./TargetPicker";
-import type { TripChat } from "./useTripChat";
+import type { ChatLine, TripChat } from "./useTripChat";
 import { HOME_PATH } from "@/lib/homePath";
 
 /** The read-only line after the owner's lapse (M46 D2): why, not just that. */
 export const READ_ONLY_LINE = "This chat is read-only: the trip owner's plan no longer includes collaborators.";
 export const NO_ACCESS_LINE = "You no longer have access to this trip";
+/** While an `@assistant` is unanswered (M52 decision 18): its reply lands whole, never streamed. */
+export const THINKING_LINE = "Assistant is thinking…";
+
+/**
+ * When the last unanswered `@assistant` in `messages` stops counting as one,
+ * or null when none is waiting at `now`. An ask waits until a reply names it
+ * in `replyTo`, and no longer than a turn can run: one the platform killed, or
+ * whose reply could not be posted, is never answered.
+ */
+export function thinkingUntil(messages: readonly ChatLine[], now: number): number | null {
+  const answered = new Set(messages.flatMap((m) => (m.kind === "assistant" && m.replyTo !== null ? [m.replyTo] : [])));
+  const ends = messages
+    .filter((m) => m.asksAssistant && !answered.has(m.messageId))
+    .map((m) => Date.parse(m.createdAt) + ASK_MAX_DURATION_SECONDS * 1000)
+    .filter((end) => end > now);
+  return ends.length === 0 ? null : Math.max(...ends);
+}
+
+/** Whether the thread shows the assistant at work, read again the moment the last ask stops counting. */
+function useThinking(messages: readonly ChatLine[]): boolean {
+  // The clock as of the last expiry, not read in render: an ask newer than it
+  // still counts, and the timeout below moves it past the last one to end.
+  const [now, setNow] = useState(() => Date.now());
+  const until = thinkingUntil(messages, now);
+  useEffect(() => {
+    if (until === null) return;
+    const timer = setTimeout(() => setNow(Date.now()), Math.max(0, until - Date.now()));
+    return () => clearTimeout(timer);
+  }, [until]);
+  return until !== null;
+}
 
 /**
  * The Chat tab's body: the conversation, pinned to its newest line, and the
@@ -29,17 +62,21 @@ export const NO_ACCESS_LINE = "You no longer have access to this trip";
  * caller's (`useTripChat`), so it outlives this panel being closed.
  *
  * `touch` is the sheet's: its controls take SPEC §13.1's 44px floor, as the
- * Ask tab's do.
+ * Ask tab's do. `reader` is who is reading where no `TripProvider` says (a
+ * notebook), so the owner's Delete and the asker's Accept are there too.
  */
 export function ChatPanel({
   chat,
   personas,
   touch = false,
+  reader,
 }: {
   chat: TripChat;
   personas: Readonly<Record<string, Persona>> | null;
   touch?: boolean;
+  reader?: ChatReader | undefined;
 }) {
+  const trip = useOptionalTrip();
   const [draft, setDraft] = useState("");
   const [editing, setEditing] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
@@ -52,7 +89,7 @@ export function ChatPanel({
   // board's own read of them, shared through the cache rather than asked again,
   // and read again on `remoteRevision`, as the board's is, so a notebook added
   // since is offered and resolves without the panel remounting.
-  const remoteRevision = useOptionalTrip()?.remoteRevision;
+  const remoteRevision = trip?.remoteRevision;
   const [notebooks, setNotebooks] = useState<ChatMentions["notebooks"]>([]);
   useEffect(() => {
     let live = true;
@@ -64,7 +101,9 @@ export function ChatPanel({
     };
   }, [chat.tripId, remoteRevision]);
   const mentions = useMemo<ChatMentions>(() => ({ tripId: chat.tripId, personas, notebooks }), [chat.tripId, personas, notebooks]);
-  const picker = useTargetPicker(draft, setDraft, mentions);
+  // Offered to everyone; `null`, not yet known, reads as entitled, as the rail does.
+  const picker = useTargetPicker(draft, setDraft, mentions, { entitled: useAiEntitled() !== false });
+  const thinking = useThinking(chat.messages);
   // Whether the composer holds anything as last rendered: `send` asks after
   // its await, when the draft it closed over is stale.
   const composing = useRef(false);
@@ -77,11 +116,12 @@ export function ChatPanel({
   // Who is reading decides what each line offers (D6). Neither is a request of
   // its own: the `(app)` layout's session, and the trip's own access read.
   const me = useKnownSessionUser()?.id ?? null;
-  const isOwner = useOptionalTrip()?.myRole === "owner";
+  const isOwner = (reader ?? trip)?.myRole === "owner";
   const viewerOf = (authorId: string): MessageViewer | null =>
     me === null
       ? null
       : { mine: authorId === me, mayEdit: authorId === me && chat.canPost, mayDelete: authorId === me || isOwner };
+  const personaOf = (userId: string | null) => (personas === null ? null : userId === null ? undefined : personas[userId]);
 
   if (chat.status === "no-access") {
     return (
@@ -106,10 +146,11 @@ export function ChatPanel({
     const body = draft.trim();
     if (body === "") return;
     const link = picker.linkFor(body);
+    const asks = picker.asks(body);
     const held = picker.held;
     setDraft("");
     picker.clear();
-    const unsent = await chat.post(body, link);
+    const unsent = await (asks ? chat.post(body, link, true) : chat.post(body, link));
     if (unsent === null || composing.current) return;
     setDraft(unsent);
     picker.restore(held);
@@ -138,7 +179,9 @@ export function ChatPanel({
                     return () => void lines.current.delete(message.messageId);
                   }}
                   message={message}
-                  persona={personas === null ? null : personas[message.authorId]}
+                  persona={personaOf(message.authorId)}
+                  askedBy={personaOf(message.requestedBy)}
+                  reader={reader}
                   tripId={chat.tripId}
                   // A pending line's id is this page's own: nothing on it
                   // would reach a stored message.
@@ -168,6 +211,11 @@ export function ChatPanel({
             </ol>
           </>
         )}
+        {/* Mounted empty, out of the flow until it speaks: a live region that
+            arrives holding its words is often not read out. */}
+        <p role="status" className={cn("text-xs text-slate", !thinking && "sr-only")}>
+          {thinking ? THINKING_LINE : null}
+        </p>
       </div>
       <Dialog
         open={deleting !== null}
@@ -208,6 +256,7 @@ export function ChatPanel({
             </p>
           ) : (
             <>
+              {picker.offer}
               {chat.postError !== null && (
                 <p role="alert" className="mb-1.5 text-xs text-danger">
                   {chat.postError}

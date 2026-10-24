@@ -1,5 +1,5 @@
 import { HttpResponse, http } from "msw";
-import { defaultDocumentFor, instantiateMissingDefaults, notebookPreviewOf } from "@tc/pages";
+import { defaultDocumentFor, instantiateMissingDefaults, isUndeletablePage, notebookPreviewOf } from "@tc/pages";
 import type { AccountPlanView } from "@/lib/accountPlan";
 import type { AdminReportQueueItem } from "@/lib/reports";
 import type { PlaceMatch, PlaceSearchResponse } from "@/lib/cities";
@@ -132,6 +132,7 @@ function applyMock(detail: TripDetail, command: TripCommand): TripDetail {
         mode: command.mode ?? null,
         endLocation: command.endLocation ?? null,
         pendingReason: command.pendingReason ?? null,
+        flightNumber: command.flightNumber ?? null,
       };
       if (command.dayId !== undefined) {
         next.days.find((d) => d.dayId === command.dayId)?.activityIds.push(command.activityId);
@@ -167,6 +168,7 @@ function applyMock(detail: TripDetail, command: TripCommand): TripDetail {
         if (command.mode !== undefined) activity.mode = command.mode;
         if (command.endLocation !== undefined) activity.endLocation = command.endLocation;
         if (command.pendingReason !== undefined) activity.pendingReason = command.pendingReason;
+        if (command.flightNumber !== undefined) activity.flightNumber = command.flightNumber;
       }
       rerollup(next);
       break;
@@ -722,6 +724,8 @@ export function makePagesHandlers(
     http.delete("/api/trips/:tripId/pages/:pageId", ({ params }) => {
       const idx = pages.findIndex((p) => p.id === params.pageId && p.tripId === params.tripId);
       if (idx === -1) return HttpResponse.json({ error: "not-found" }, { status: 404 });
+      // The Overview and Today refuse, with the route's 409 (`decidePageCommand`).
+      if (isUndeletablePage(pages[idx]!)) return HttpResponse.json({ error: "This notebook comes with the trip and cannot be deleted." }, { status: 409 });
       options?.onDelete?.(params.pageId as string);
       pages = pages.filter((_, i) => i !== idx);
       return HttpResponse.json({ ok: true });
@@ -1205,6 +1209,11 @@ export function makeChatHandlers(options: {
       const message: ChatMessage = {
         messageId: crypto.randomUUID(),
         authorId: options.viewerId,
+        kind: "member",
+        requestedBy: null,
+        replyTo: null,
+        suggestionId: null,
+        asksAssistant: input.data.assistant === true,
         createdAt: new Date().toISOString(),
         editedAt: null,
         removed: false,
@@ -1236,8 +1245,19 @@ export function makeChatHandlers(options: {
       if (target.authorId !== options.viewerId && role !== "owner") {
         return HttpResponse.json({ error: "forbidden" }, { status: 403 });
       }
-      const { messageId, authorId, createdAt, editedAt } = target;
-      const removed: ChatMessage = { messageId, authorId, createdAt, editedAt, removed: true };
+      const { messageId, authorId, kind, requestedBy, replyTo, suggestionId, asksAssistant, createdAt, editedAt } = target;
+      const removed: ChatMessage = {
+        messageId,
+        authorId,
+        kind,
+        requestedBy,
+        replyTo,
+        suggestionId,
+        asksAssistant,
+        createdAt,
+        editedAt,
+        removed: true,
+      };
       if (!target.removed) rev += 1;
       messages[index] = removed;
       return HttpResponse.json({ message: removed });

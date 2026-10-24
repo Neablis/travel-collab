@@ -5,7 +5,7 @@ import type { BatchableCommand, CreateSuggestionInput } from "@tc/contracts";
 import { executeTripCommand, executeTripCommandBatch } from "../commands";
 import { grantMembership } from "../access/members";
 import { db } from "../db/client";
-import { tripDetails, tripSuggestionChanges, tripSuggestions, users } from "../db/schema";
+import { tripDetails, tripMessages, tripSuggestionChanges, tripSuggestions, users } from "../db/schema";
 import { readStream } from "../eventStore";
 import { getTripHistory } from "../history";
 import { getTripDetail } from "../projections";
@@ -485,6 +485,24 @@ describe("resolveSuggestionChange — accept", () => {
     expect(await statusOf(change!.id)).toBe("accepted");
   });
 
+  // ADR-067's 2026-10-23 amendment: the owner may always clear one, whose
+  // asker may have left or lost edit access, but never decide it for them.
+  it("lets only a chat asker accept the change they requested, and the owner dismiss it", async () => {
+    const otherEditor = `dev-edna-${randomUUID().slice(0, 8)}`;
+    await grantMembership(db, { tripId, userId: otherEditor, role: "editor", invitedBy: OWNER, now: new Date().toISOString() });
+    const created = await createSuggestion(tripId, EDITOR, draft([rename("Kyoto in spring")], [rename("Kyoto again")]), undefined, {
+      via: "assistant",
+      requestedBy: EDITOR,
+    });
+    const [first, second] = created.ok ? created.value : [];
+    for (const action of ["accept", "dismiss"] as const) {
+      expect(await resolveSuggestionChange(tripId, first!.id, otherEditor, action)).toMatchObject({ ok: false, error: { code: "forbidden" } });
+    }
+    expect(await resolveSuggestionChange(tripId, first!.id, OWNER, "accept")).toMatchObject({ ok: false, error: { code: "forbidden" } });
+    expect((await resolveSuggestionChange(tripId, first!.id, EDITOR, "accept")).ok).toBe(true);
+    expect((await resolveSuggestionChange(tripId, second!.id, OWNER, "dismiss")).ok).toBe(true);
+  });
+
   it("carries the assistant on the origin of a change it stored, so History can say so", async () => {
     const created = await createSuggestion(tripId, EDITOR, draft([rename("Kyoto in spring")]), undefined, { via: "assistant" });
     const [change] = created.ok ? created.value : [];
@@ -649,6 +667,31 @@ describe("acceptSuggestionChanges", () => {
   async function historyLength(): Promise<number> {
     return (await getTripHistory(tripId))!.entries.length;
   }
+
+  // ADR-067's 2026-10-23 amendment: what a chat `@assistant` proposed is its
+  // asker's to decide, beside the editor check. The owner is another editor too.
+  it("refuses another editor a change a chat asker requested, and accepts it from the asker", async () => {
+    const otherEditor = `dev-edna-${randomUUID().slice(0, 8)}`;
+    await grantMembership(db, { tripId, userId: otherEditor, role: "editor", invitedBy: OWNER, now: new Date().toISOString() });
+    const created = await createSuggestion(tripId, EDITOR, draft([rename("Asked in the chat")]), undefined, {
+      via: "assistant",
+      requestedBy: EDITOR,
+    });
+    if (!created.ok) throw new Error(JSON.stringify(created.error));
+    const ids = created.value.map((change) => change.id);
+
+    for (const reviewer of [otherEditor, OWNER]) {
+      expect(await acceptSuggestionChanges(tripId, ids, reviewer)).toMatchObject({
+        ok: false,
+        error: { code: "forbidden", changeId: ids[0] },
+      });
+    }
+    expect(await statusOf(ids[0]!)).toBe("pending");
+    expect((await getTripDetail(tripId))!.name).toBe("Kyoto");
+
+    expect(await acceptSuggestionChanges(tripId, ids, EDITOR)).toMatchObject({ ok: true });
+    expect((await getTripDetail(tripId))!.name).toBe("Asked in the chat");
+  });
 
   it("accepts ten changes as one History entry, which one undo takes back whole, leaving them accepted", async () => {
     const newDay = randomUUID();
@@ -872,6 +915,64 @@ describe("resolveSuggestionChange — dismiss and withdraw", () => {
       ok: true,
       value: [{ id: change!.id, status: "withdrawn", resolvedBy: SUGGESTER }],
     });
+  });
+});
+
+// M52 decision 17: while the trip is under way, an accepted change to today's
+// or tomorrow's stops is announced in the chat, by the reviewer, linking it.
+describe("change lines", () => {
+  const dateIn = (days: number) => new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10);
+  const startOn = async (startDate: string) =>
+    expect((await executeTripCommand({ type: "SetTripStartDate", tripId, startDate }, OWNER)).ok).toBe(true);
+  const retime = (activityId: string): BatchableCommand[] => [
+    { type: "UpdateActivity", tripId, activityId, timeWindow: { start: "20:30", end: "22:00" } },
+  ];
+  const lines = () => db.select().from(tripMessages).where(eq(tripMessages.tripId, tripId));
+
+  it("announces an accepted change to today's stop while under way, as the reviewer, linking the stop", async () => {
+    await startOn(dateIn(0));
+    const [change] = await suggest(draft(retime(stopId)));
+    expect((await resolveSuggestionChange(tripId, change!.id, EDITOR, "accept")).ok).toBe(true);
+    expect(await lines()).toMatchObject([
+      // Only what was done: the chat names the reviewer as it draws the line.
+      { kind: "system", authorId: EDITOR, linkKind: "stop", linkId: stopId, body: "moved “Fushimi Inari” to 20:30" },
+    ]);
+  });
+
+  // Fresh review of PR 535: after the owner's lapse the chat is read-only
+  // (ADR-073 §5), and the owner may still accept what was pending.
+  it("posts nothing into a chat that is read-only", async () => {
+    await startOn(dateIn(0));
+    const [change] = await suggest(draft(retime(stopId)));
+    await db.update(users).set({ planId: "free" }).where(eq(users.id, OWNER));
+    expect((await resolveSuggestionChange(tripId, change!.id, OWNER, "accept")).ok).toBe(true);
+    expect(await lines()).toEqual([]);
+  });
+
+  it("says nothing before the trip is under way, or about a stop after tomorrow", async () => {
+    const dayAfter = randomUUID();
+    const kinkakuji = randomUUID();
+    const added = await executeTripCommandBatch(
+      [
+        { type: "AddDay", tripId, dayId: randomUUID() },
+        { type: "AddDay", tripId, dayId: dayAfter },
+        { type: "AddActivity", tripId, activityId: kinkakuji, dayId: dayAfter, title: "Kinkaku-ji" },
+      ],
+      OWNER,
+    );
+    expect(added.ok).toBe(true);
+    await startOn(dateIn(10));
+    const [early] = await suggest(draft(retime(stopId)));
+    expect((await acceptSuggestionChanges(tripId, [early!.id], EDITOR)).ok).toBe(true);
+    await startOn(dateIn(0));
+    const [later] = await suggest(draft(retime(kinkakuji)));
+    expect((await acceptSuggestionChanges(tripId, [later!.id], EDITOR)).ok).toBe(true);
+    expect(await lines()).toEqual([]);
+
+    // The batch accept announces as the single one does.
+    const [today] = await suggest(draft([{ type: "UpdateActivity", tripId, activityId: stopId, title: "Inari at dusk" }]));
+    expect((await acceptSuggestionChanges(tripId, [today!.id], EDITOR)).ok).toBe(true);
+    expect(await lines()).toMatchObject([{ kind: "system", linkId: stopId }]);
   });
 });
 

@@ -654,6 +654,8 @@ export interface AskRecorderParams {
   pivots?: () => readonly AskPivot[];
   /** Why the turn was wrapped up, read at write time: it is decided mid-run, in `prepareStep`. */
   wrapUp?: () => AskWrapUp | null;
+  /** Example days in the prompt, read at write time: retrieval runs after the recorder is built. */
+  planExamples?: () => number | null;
   /**
    * The turn's id, minted by the handler (M31 Phase 1) and carried on the
    * ledger, so the `ai.ask` line, the `ai_usage` row and its step and tool-call
@@ -942,6 +944,7 @@ export function createAskRecorder(params: AskRecorderParams): AskRecorder {
         steps,
         planVersionRef: params.planVersionRef ?? null,
         latencyMs,
+        planExamples: params.planExamples?.() ?? null,
       },
       capacity: meter.capacity(),
       toolCalls: meter.toolCalls().map((call) => ({

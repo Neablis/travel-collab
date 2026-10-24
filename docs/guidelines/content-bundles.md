@@ -449,6 +449,14 @@ automatically on every build (without `--prune`; see
    playbook days it rewrites; this fills the rows it does not (days people
    saved) and prints the coverage numbers M12's gate asks for.
 
+**Plan retrieval sees an imported playbook only once it is embedded** (ADR-075).
+The import queues every playbook day it writes, unchanged ones included, and the
+daily 04:00 UTC sweep drains 50 rows a run, oldest first. A full library
+(~240 days) therefore takes about five sweeps, and a new playbook waits behind
+the re-queued ones. Unchanged days cost no provider call, so to make new content
+retrievable the same day, drain by hand until the summary's `pending` is 0:
+`curl -H "Authorization: Bearer $CRON_SECRET" https://<prod>/api/cron/embed-days`.
+
 Needs one secret: `PRODUCTION_DATABASE_URL`, which the migration workflow
 already uses.
 

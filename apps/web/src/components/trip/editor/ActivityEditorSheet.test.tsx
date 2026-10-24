@@ -92,6 +92,7 @@ function fixture() {
         mode: null,
         endLocation: null,
         pendingReason: null,
+        flightNumber: null,
       },
       [UNSCHEDULED_ACTIVITY_ID]: {
         activityId: UNSCHEDULED_ACTIVITY_ID,
@@ -109,6 +110,7 @@ function fixture() {
         mode: null,
         endLocation: null,
         pendingReason: null,
+        flightNumber: null,
       },
     },
   });
@@ -217,6 +219,13 @@ describe("ActivityEditorSheet", () => {
     expect(((await screen.findByLabelText("What or where")) as HTMLInputElement).value).toBe("Ramen at Ichiran");
     expect((screen.getByLabelText("Notes") as HTMLTextAreaElement).value).toBe("Cash only");
     expect(sendTripUnitsMock).not.toHaveBeenCalled();
+  });
+
+  // M52 decision 15: *Your flights*' *Add your flight* opens a leg by air,
+  // so the flight number is asked for at once.
+  it("opens as a flight when the prefill says so", async () => {
+    renderEditorSheet({ mode: "create", prefill: { dayId: DAY_1, title: "Flight", kind: "transit", mode: "flight" } });
+    expect(await screen.findByLabelText("Flight number")).toBeTruthy();
   });
 
   it("offers day, start and duration rather than two raw times", () => {
@@ -610,6 +619,53 @@ describe("ActivityEditorSheet conflicts", () => {
   });
 });
 
+// M52 decision 16: a placed stop's sheet links to directions, travelling the
+// way the leg into it does.
+describe("ActivityEditorSheet — Directions", () => {
+  const LEG_ID = "activity-leg";
+  function placedAfterLeg() {
+    const trip = fixture();
+    trip.days[0]!.activityIds = [LEG_ID, SCHEDULED_ACTIVITY_ID];
+    trip.activities[LEG_ID] = activityFactory.build({ activityId: LEG_ID, title: "Train to Sintra", kind: "transit", mode: "train" });
+    trip.activities[SCHEDULED_ACTIVITY_ID] = activityFactory.build({
+      activityId: SCHEDULED_ACTIVITY_ID,
+      title: "Pena Palace",
+      location: { name: "Pena Palace", lat: 38.7876, lng: -9.3906, precision: "venue" },
+    });
+    vi.mocked(fetchTripDetail).mockResolvedValue({ ok: true, value: trip });
+  }
+
+  it("links a placed stop to directions, by the leg leading in", async () => {
+    placedAfterLeg();
+    renderEditorSheet({ mode: "edit", activityId: SCHEDULED_ACTIVITY_ID });
+    const link = await screen.findByRole("link", { name: "Directions" });
+    const url = new URL(link.getAttribute("href")!);
+    expect(url.searchParams.get("destination")).toBe("38.7876,-9.3906");
+    expect(url.searchParams.get("travelmode")).toBe("transit");
+  });
+
+  it("offers none for a stop with no place", async () => {
+    renderEditorSheet({ mode: "edit", activityId: SCHEDULED_ACTIVITY_ID });
+    await screen.findByDisplayValue("Existing stop");
+    expect(screen.queryByRole("link", { name: "Directions" })).toBeNull();
+  });
+
+  // A typed name with no coordinates ("Dinner") would send Maps searching for
+  // the word itself.
+  it("offers none for a place with only a name", async () => {
+    const trip = fixture();
+    trip.activities[SCHEDULED_ACTIVITY_ID] = activityFactory.build({
+      activityId: SCHEDULED_ACTIVITY_ID,
+      title: "Dinner",
+      location: { name: "Dinner" },
+    });
+    vi.mocked(fetchTripDetail).mockResolvedValue({ ok: true, value: trip });
+    renderEditorSheet({ mode: "edit", activityId: SCHEDULED_ACTIVITY_ID });
+    await screen.findByDisplayValue("Dinner");
+    expect(screen.queryByRole("link", { name: "Directions" })).toBeNull();
+  });
+});
+
 // docs/reviews/2026-08-28-m11-pr71-review.md §5: the sheet took `dispatch`
 // ungated, so a viewer opened a full editable form and typed into it — every
 // save refused at dispatch with "You have view-only access". This gate is also
@@ -707,6 +763,61 @@ describe("ActivityEditorSheet — a viewer gets no form", () => {
     expect(await screen.findByText("Shinkansen")).toBeTruthy();
     expect(screen.getByText("Odawara Station, Odawara, Japan")).toBeTruthy();
     expect(screen.getByText("Going to Kyoto Station, Kyoto, Japan")).toBeTruthy();
+  });
+
+  // M52 decision 5: the number travels wherever the stop does, and the card
+  // above this sheet already shows it.
+  it("names a leg's flight number", async () => {
+    asViewer();
+    const trip = fixture();
+    trip.activities[SCHEDULED_ACTIVITY_ID] = activityFactory.build({
+      activityId: SCHEDULED_ACTIVITY_ID,
+      title: "To Lisbon",
+      kind: "transit",
+      mode: "flight",
+      flightNumber: "TP 1234",
+    });
+    vi.mocked(fetchTripDetail).mockResolvedValue({ ok: true, value: trip });
+    renderEditorSheet({ mode: "edit", activityId: SCHEDULED_ACTIVITY_ID });
+
+    expect(await screen.findByText("To Lisbon")).toBeTruthy();
+    expect(screen.getByText("Flight TP 1234")).toBeTruthy();
+  });
+
+  // The contract lets any leg carry a number; a train's is not a flight's.
+  it("names a non-flight leg's number by its mode, not as a flight", async () => {
+    asViewer();
+    const trip = fixture();
+    trip.activities[SCHEDULED_ACTIVITY_ID] = activityFactory.build({
+      activityId: SCHEDULED_ACTIVITY_ID,
+      title: "To Berlin",
+      kind: "transit",
+      mode: "train",
+      flightNumber: "ICE 578",
+    });
+    vi.mocked(fetchTripDetail).mockResolvedValue({ ok: true, value: trip });
+    renderEditorSheet({ mode: "edit", activityId: SCHEDULED_ACTIVITY_ID });
+
+    expect(await screen.findByText("To Berlin")).toBeTruthy();
+    expect(screen.getByText("Train ICE 578")).toBeTruthy();
+    expect(screen.queryByText("Flight ICE 578")).toBeNull();
+  });
+
+  it("names a mode-less leg's number plainly, not as a flight", async () => {
+    asViewer();
+    const trip = fixture();
+    trip.activities[SCHEDULED_ACTIVITY_ID] = activityFactory.build({
+      activityId: SCHEDULED_ACTIVITY_ID,
+      title: "To Lisbon",
+      kind: "transit",
+      mode: null,
+      flightNumber: "TP 1234",
+    });
+    vi.mocked(fetchTripDetail).mockResolvedValue({ ok: true, value: trip });
+    renderEditorSheet({ mode: "edit", activityId: SCHEDULED_ACTIVITY_ID });
+
+    expect(await screen.findByText("To Lisbon")).toBeTruthy();
+    expect(screen.getByText("Number TP 1234")).toBeTruthy();
   });
 
   it("gives an owner the editable form at the same call site", async () => {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { ChatLink, ChatMessage, ChatPage } from "@tc/contracts";
+import { ChatReadOnlyReason, type ChatLink, type ChatMessage, type ChatPage } from "@tc/contracts";
 import { useKnownSessionUser } from "@/components/account/useSessionUser";
 import {
   deleteChatMessage,
@@ -13,6 +13,7 @@ import {
   type ApiResult,
 } from "@/lib/apiClient";
 import { whenIdle } from "@/lib/whenIdle";
+import { isDemoTripId } from "@/lib/demoTrip";
 
 /**
  * - `loading`: the first read has not answered.
@@ -48,9 +49,10 @@ export type TripChat = {
    * sending, so they are stored in the order they were sent. Resolves `null`
    * once stored. One not stored is taken back with every send queued behind
    * it, and resolves to all their text, joined, for the composer to give back;
-   * those queued sends resolve `null`.
+   * those queued sends resolve `null`. `assistant` asks the assistant too
+   * (M52 decision 18), on the poster's own plan.
    */
-  post: (body: string, link?: ChatLink) => Promise<string | null>;
+  post: (body: string, link?: ChatLink, assistant?: boolean) => Promise<string | null>;
   postError: string | null;
   /** The author's new text; resolves false when it was not stored. */
   edit: (messageId: string, body: string) => Promise<boolean>;
@@ -64,6 +66,46 @@ const READ_ONLY = 402;
 const NO_ACCESS = 403;
 // An edit of a message deleted or hidden since this page last read it.
 const REMOVED = 409;
+
+/**
+ * **Whether the trip has a chat at all**, the one rule the board and a
+ * notebook both read, so they cannot disagree: not on /demo, and not on a trip
+ * with one member, whose screens offer the assistant alone (Mitchell on PR
+ * 537: no Chat tab, no ⌘K *Open chat*, no messages in *Trip chat*, reversing
+ * M46's solo tab). `memberCount` is the trip's access read; `null` when that read said
+ * nothing of who is on the trip, so the chat stays and its own 403 answers a
+ * stranger. The board passes `null` for any failed read: a reader the access
+ * read refuses has had the trip itself refused, so never reaches it. Only a
+ * notebook tells them apart, counting none for a refusal (a share link's
+ * reader, who is no member) and `null` for a 5xx or a dropped connection.
+ */
+export function tripHasChat(tripId: string, memberCount: number | null): boolean {
+  return !isDemoTripId(tripId) && (memberCount === null || memberCount > 1);
+}
+
+/**
+ * **The one traveler on a trip with no chat for that reason** (Mitchell, PR
+ * 537 walk): their *Trip chat* widget says to add travelers. Not on /demo,
+ * where nobody can be added, nor for a reader the access read refused
+ * (counted as none), whose widget is absent. A failed read (`null`) is not
+ * solo either: its widget is the chat's card (`hasTripChat`).
+ */
+export function tripIsSolo(tripId: string, memberCount: number | null): boolean {
+  return !isDemoTripId(tripId) && memberCount === 1;
+}
+
+/**
+ * **Whether this reader has someone to chat with**: a trip with a chat
+ * (`tripHasChat`), and a chat that has not refused them (`no-access`, its own
+ * role check). It gates the opener's unread count, a remembered Chat reopening
+ * and the *Trip chat* widget. A failed access read (`null`) keeps them as it
+ * keeps the tab, or the page would say the chat is not for a reader the panel
+ * beside it offers it to (PR 537 round 17). The Chat tab is `tripHasChat`'s,
+ * so a removed member's still says why (M46, KI-2026-10-05-h).
+ */
+export function hasTripChat(tripId: string, status: TripChatStatus, memberCount: number | null): boolean {
+  return tripHasChat(tripId, memberCount) && status !== "no-access";
+}
 
 /**
  * A trip's chat, held by the board so the header's pill can count it while the
@@ -180,11 +222,16 @@ export function useTripChat({
   }, [tripId, enabled, reading, newest, status, refused]);
 
   const post = useCallback(
-    (body: string, link?: ChatLink) => {
+    (body: string, link?: ChatLink, assistant = false) => {
       sent.current += 1;
       const line: Sending["line"] = {
         messageId: `pending-${sent.current}`,
         authorId: me,
+        kind: "member",
+        requestedBy: null,
+        replyTo: null,
+        suggestionId: null,
+        asksAssistant: assistant,
         createdAt: new Date().toISOString(),
         editedAt: null,
         removed: false,
@@ -198,7 +245,8 @@ export function useTripChat({
       const turn = queue.current.then(async (): Promise<string | null> => {
         // Taken back with an earlier send that was not stored.
         if (!queued.current.some((s) => s.line === line)) return null;
-        const result = await postChatMessage(tripId, link === undefined ? { body } : { body, link });
+        const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        const result = await postChatMessage(tripId, { body, ...(link === undefined ? {} : { link }), ...(assistant ? { assistant: true as const } : {}), timeZone });
         if (result.ok) {
           setQueued(queued.current.filter((s) => s.line !== line));
           // In the pending line's place, in the same render. A re-read may have
@@ -215,7 +263,9 @@ export function useTripChat({
         const unsent = queued.current.map((s) => s.line.body).join(" ");
         setQueued([]);
         if (refused(result.error)) return unsent;
-        if (result.error.status === READ_ONLY) {
+        // An ask is refused 402 for the asker's own plan as well, which leaves
+        // the chat open to them; only the owner's lapse closes it.
+        if (result.error.status === READ_ONLY && (!assistant || result.error.code === ChatReadOnlyReason.enum["collaborators-not-entitled"])) {
           // The owner lapsed since the last read: the panel turns read-only now
           // rather than on the next one.
           setPage((current) => (current === null ? current : { ...current, canPost: false }));

@@ -62,7 +62,7 @@ import type {
 // dates at all, and dated days with no stops (what the wizard makes) — each at
 // first paint and after everything has loaded, to hold exactly that line.
 //
-// --- Four notebooks come with a trip, since M30 ---
+// --- Five notebooks come with a trip: four since M30, Today since M52 ---
 // **Reversed 2026-09-26.** On 2026-09-12 Mitchell set *"Only 1 notebook per
 // trip is always generated, this is undeletable notebook that needs to be
 // created on every new trip"*, and for two weeks the Overview was the one page
@@ -70,7 +70,7 @@ import type {
 // dump of information … Maybe the issue is trying to make the overview do
 // everything, and instead we have several notebooks, with different
 // purposes."* Asked, he chose: **seed several notebooks into every new trip.**
-// So a new trip gets four, each with one job:
+// So a new trip got four, each with one job:
 //
 //   - **Overview** — the itinerary: a short letter, then every day as a timed
 //     schedule, then links to the other three. Undeletable (SPEC §25).
@@ -80,16 +80,19 @@ import type {
 //     what needs you.
 //   - **Money** — what it costs, day by day, against the budget.
 //
-// Only the Overview is undeletable: its `kind: "overview"` is what
-// `deletePage` refuses on, and the other three carry no `kind`. Nothing
-// migrates: `listPages` seeds only into a trip with zero pages, so every
-// existing trip keeps exactly the notebooks it has. `docs/milestones/M30-notebooks-and-links.md`
-// and ADR-056 carry the decision.
+// M52 added a fifth, **Today**, so a new trip now gets five.
+//
+// Two of the five are undeletable (`isUndeletablePage`): the Overview by its
+// `kind: "overview"`, and Today by its seed key. The other three delete like
+// any notebook. `listPages` seeds only into a trip with zero pages, so an
+// existing trip keeps the notebooks it has, with one exception: a trip made
+// before Today gains it once, on its next notebook read (`tripPagesView`).
+// `docs/milestones/M30-notebooks-and-links.md` and ADR-056 carry the decision.
 //
 // --- Two lists, and the split is the point ---
 // `DEFAULT_TEMPLATES` is what a new trip is SEEDED with; `TEMPLATE_LIBRARY` is
-// what the gallery OFFERS. Apart from the Overview, the first is a subset of
-// the second — so a notebook somebody deleted can be started again from the
+// what the gallery OFFERS. Apart from the Overview and Today, the first is a
+// subset of the second — so a notebook somebody deleted can be started again from the
 // gallery — and it stays small deliberately: a library that plants every entry
 // in every trip stops being a library, and every seed it plants is one more
 // notebook each trip keeps a permanent key for (`Page.seedKey`).
@@ -227,6 +230,9 @@ const overviewContent: PageDoc = newPageDoc([
   notebookLink("money"),
 ]);
 
+/** Today's seed key: what makes a page the trip's Today, whatever it is called now. */
+export const TODAY_SEED_KEY = "today";
+
 const overviewPage: TemplateSeed = {
   key: "overview",
   title: "Overview",
@@ -235,6 +241,45 @@ const overviewPage: TemplateSeed = {
   seedIntoNewTrips: true,
   buildContext: (tripId) => ({ tripId, kind: "overview" }),
   content: overviewContent,
+};
+
+/**
+ * **Today** — the trip on the day you are living it (M52 decisions 9, 10, 15).
+ * Seeded into every trip, and the page the Overview tab shows from three days
+ * before the start through the last day (`pickOverviewPage`).
+ *
+ * `dateScope: "today"` is the whole trick: every widget below leaves its day
+ * unbound, so the page hands each one today's day, and on a date that is no
+ * trip day each says its own "nothing today" (`resolveDateScope`). The flights
+ * widget is the one that speaks before the trip, with its countdown or *Add
+ * your flight*, which is what *soon* is for. The trip chat reads no day, so
+ * it is the same on every date (and absent to a reader who cannot chat).
+ *
+ * **Undeletable, like the Overview** (Mitchell, 2026-10-23), by its seed key
+ * (`isUndeletablePage`), so it can always be reset to this and never lost.
+ */
+const todayPage: TemplateSeed = {
+  key: TODAY_SEED_KEY,
+  title: "Today",
+  description: "Comes with the trip: what is on now and next, today's flights, schedule and weather, and the trip chat.",
+  seedIntoNewTrips: true,
+  buildContext: (tripId) => ({ tripId, dateScope: "today" }),
+  content: newPageDoc([
+    para(text("The trip, today: where you are now, what comes next and how to get there. Before the trip and after it, there is nothing here yet.")),
+    block("trip.now"),
+    heading("Flights"),
+    block("trip.flights"),
+    heading("The rest of today"),
+    block("day.detail", { view: "schedule" }),
+    heading("Weather and light"),
+    block("day.weather"),
+    block("day.sun"),
+    // No heading: the card carries its own "Trip chat", and a reader who cannot
+    // see the chat (a share link) gets nothing here, not an orphaned heading.
+    block("chat.recent"),
+    heading("The whole trip"),
+    notebookLink("overview"),
+  ]),
 };
 
 /**
@@ -494,7 +539,9 @@ export const TEMPLATE_LIBRARY: TemplateSeed[] = [
   // template", and a second copy of the page that comes with the trip is not a
   // template anybody wants — there can only be one page marked
   // `kind: "overview"`, and offering a button that makes another would be
-  // offering a broken outcome (rule 2: no purposeless UI).
+  // offering a broken outcome (rule 2: no purposeless UI). `todayPage` is
+  // not here either, for the same reason: it cannot be deleted, so there is
+  // never one to bring back, and a second would be a second Today.
   beforeYouGo,
   bookings,
   money,
@@ -514,6 +561,7 @@ export const TEMPLATE_LIBRARY: TemplateSeed[] = [
  */
 export const DEFAULT_TEMPLATES: TemplateSeed[] = [
   overviewPage,
+  todayPage,
   ...TEMPLATE_LIBRARY.filter((t) => t.seedIntoNewTrips),
 ];
 
@@ -534,6 +582,16 @@ export const OVERVIEW_KIND = "overview";
 /** Whether this page is the trip's undeletable Overview (SPEC §25). */
 export function isOverviewPage(context: PageContext): boolean {
   return context.kind === OVERVIEW_KIND;
+}
+
+/**
+ * Whether this page comes with the trip for good: the Overview, and Today
+ * (M52, Mitchell 2026-10-23). The rule `decidePageCommand` refuses a delete
+ * on, read here for the index's control so it offers no delete the server
+ * would refuse.
+ */
+export function isUndeletablePage(page: { context: PageContext; seedKey?: string | null | undefined }): boolean {
+  return isOverviewPage(page.context) || page.seedKey === TODAY_SEED_KEY;
 }
 
 /**

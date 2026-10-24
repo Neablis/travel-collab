@@ -27,6 +27,23 @@
       "totalChars": 10165,
       "approxTokens": 3071
     },
+    "trip · question · under way": {
+      "tools": [
+        "read_trip",
+        "read_day",
+        "find_days",
+        "find_free_time",
+        "search_playbooks",
+        "search_places",
+        "find_places_near_now",
+        "go_to",
+        "request_change_tools"
+      ],
+      "toolChars": 8457,
+      "instructionChars": 3106,
+      "totalChars": 11563,
+      "approxTokens": 3493
+    },
     "trip · edit": {
       "tools": [
         "read_trip",
@@ -50,10 +67,10 @@
         "insert_playbook_day",
         "go_to"
       ],
-      "toolChars": 22628,
+      "toolChars": 23139,
       "instructionChars": 4205,
-      "totalChars": 26833,
-      "approxTokens": 8107
+      "totalChars": 27344,
+      "approxTokens": 8261
     },
     "trip · plan": {
       "tools": [
@@ -75,10 +92,10 @@
         "insert_playbook_day",
         "go_to"
       ],
-      "toolChars": 21569,
+      "toolChars": 22080,
       "instructionChars": 4512,
-      "totalChars": 26081,
-      "approxTokens": 7879
+      "totalChars": 26592,
+      "approxTokens": 8034
     },
     "trip · unsure": {
       "tools": [
@@ -103,10 +120,10 @@
         "insert_playbook_day",
         "go_to"
       ],
-      "toolChars": 22628,
+      "toolChars": 23139,
       "instructionChars": 4205,
-      "totalChars": 26833,
-      "approxTokens": 8107
+      "totalChars": 27344,
+      "approxTokens": 8261
     },
     "page · compose": {
       "tools": [
@@ -119,10 +136,10 @@
         "go_to",
         "propose_notebook_editing"
       ],
-      "toolChars": 5840,
+      "toolChars": 5898,
       "instructionChars": 3564,
-      "totalChars": 9404,
-      "approxTokens": 2841
+      "totalChars": 9462,
+      "approxTokens": 2859
     },
     "page · question": {
       "tools": [
@@ -143,12 +160,12 @@
   },
   "tools": {
     "UpdateActivity": {
-      "chars": 6283,
-      "approxTokens": 1898
+      "chars": 6624,
+      "approxTokens": 2001
     },
     "AddActivity": {
-      "chars": 5626,
-      "approxTokens": 1700
+      "chars": 5796,
+      "approxTokens": 1751
     },
     "search_widgets": {
       "chars": 1288,
@@ -163,12 +180,16 @@
       "approxTokens": 374
     },
     "insert_widget": {
-      "chars": 1167,
-      "approxTokens": 353
+      "chars": 1225,
+      "approxTokens": 370
     },
     "find_days": {
       "chars": 1072,
       "approxTokens": 324
+    },
+    "find_places_near_now": {
+      "chars": 983,
+      "approxTokens": 297
     },
     "search_places": {
       "chars": 950,
@@ -225,6 +246,10 @@
     "DismissConflict": {
       "chars": 470,
       "approxTokens": 142
+    },
+    "read_chat": {
+      "chars": 426,
+      "approxTokens": 129
     },
     "search_this_page": {
       "chars": 418,

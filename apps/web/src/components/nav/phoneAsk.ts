@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useSyncExternalStore } from "react";
+import type { ChatMessage } from "@tc/contracts";
 
 // **The phone's Ask lives in the bottom tab bar** (Mitchell, 2026-10-10
 // preview pass: the phone trip header was "way too crowded", and he chose
@@ -16,6 +17,10 @@ import { useEffect, useRef, useSyncExternalStore } from "react";
 // the bar never offers an Ask with nothing behind it (`/demo`, a locked
 // notebook, the account pages). The entry is a value, not a flag the bar
 // holds — the route still decides which tabs exist (`tabsForScope`).
+//
+// **Not the tab bar's alone since M52**: a notebook's *Trip chat* widget
+// reads the entry at every width (`readerCapabilities.ts`), so what a screen
+// offers here decides whether it is drawn at all.
 
 /**
  * What the tab bar's Ask item needs: whether the assistant is up, and how to
@@ -34,7 +39,30 @@ export type PhoneAskEntry = {
   onResume?: () => void;
   unread?: number;
   chatShown?: boolean;
+  /**
+   * The trip's chat, where the reader can see it: opening the panel on Chat,
+   * its messages (`null` until read) and how many are unread. A notebook's
+   * *Trip chat* widget (M52) reads them from here: the screen holding the
+   * chat is several levels above the page that draws it.
+   */
+  chat?: PhoneChat;
+  /**
+   * The trip has one traveler, so no `chat`: the widget says how to get one
+   * (Mitchell, PR 537 walk) where, for a reader the chat is not for, it is
+   * absent.
+   */
+  soloTrip?: boolean;
 };
+
+/**
+ * What a screen offers of its trip's chat (`PhoneAskEntry.chat`): `onOpen`
+ * opens the screen's own panel on Chat, the board's and a notebook's alike
+ * (Mitchell, PR 537: the chat opens in place). `pending` while the screen has
+ * yet to learn whether there is a chat for this reader (PR 537 round 17), or
+ * what it says, until its first read answers (round 18): the widget holds its
+ * place, opening nothing, rather than appearing late.
+ */
+export type PhoneChat = { onOpen: () => void; messages: readonly ChatMessage[] | null; unread: number; pending?: boolean };
 
 let entry: PhoneAskEntry | null = null;
 const listeners = new Set<() => void>();
@@ -78,10 +106,10 @@ export function usePhoneAsk(): PhoneAskEntry | null {
 /**
  * Offers this screen's assistant as the tab bar's Ask while mounted. `onOpen`
  * `undefined` offers none; `onAsk`, sending a question as it opens, and
- * `onResume`, the bar's reopen, are optional beside it, as are `unread` and
- * `chatShown`. Any function may be a fresh one each render: the entry calls
- * whichever is latest, so only a value, or whether each is offered, changing
- * re-registers.
+ * `onResume`, the bar's reopen, are optional beside it, as are `unread`,
+ * `chatShown`, `chat` and `soloTrip`. Any function may be a fresh one each
+ * render: the entry calls whichever is latest, so only a value, or whether
+ * each is offered, changing re-registers.
  */
 export function usePhoneAskEntry(
   onOpen: (() => void) | undefined,
@@ -90,14 +118,21 @@ export function usePhoneAskEntry(
   onResume?: () => void,
   unread?: number,
   chatShown = false,
+  chat?: PhoneChat,
+  soloTrip = false,
 ): void {
-  const latest = useRef({ onOpen, onAsk, onResume });
+  const onChat = chat?.onOpen;
+  const latest = useRef({ onOpen, onAsk, onResume, onChat });
   useEffect(() => {
-    latest.current = { onOpen, onAsk, onResume };
+    latest.current = { onOpen, onAsk, onResume, onChat };
   });
   const offered = onOpen !== undefined;
   const asks = onAsk !== undefined;
   const resumes = onResume !== undefined;
+  const chats = chat !== undefined;
+  const messages = chat?.messages ?? null;
+  const chatUnread = chat?.unread ?? 0;
+  const chatPending = chat?.pending === true;
   useEffect(() => {
     if (!offered) return;
     return registerPhoneAsk({
@@ -107,6 +142,8 @@ export function usePhoneAskEntry(
       ...(resumes ? { onResume: () => latest.current.onResume?.() } : {}),
       ...(unread === undefined ? {} : { unread }),
       ...(chatShown ? { chatShown } : {}),
+      ...(chats ? { chat: { onOpen: () => latest.current.onChat?.(), messages, unread: chatUnread, ...(chatPending ? { pending: true } : {}) } } : {}),
+      ...(soloTrip ? { soloTrip } : {}),
     });
-  }, [offered, asks, resumes, open, unread, chatShown]);
+  }, [offered, asks, resumes, open, unread, chatShown, chats, messages, chatUnread, chatPending, soloTrip]);
 }

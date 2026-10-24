@@ -33,7 +33,9 @@
 import { z } from "zod";
 import { defineTool } from "@/server/assistant/defineTool";
 import { untrusted } from "@/server/assistant/prompt";
-import { tripRegionOf } from "@/server/geocoding/region";
+import type { TripDetail } from "@tc/contracts";
+import { boundingBoxAround, plausibleCoords, tripRegionOf, type LatLng } from "@/server/geocoding/region";
+import type { TurnNow } from "@/server/assistant/context";
 import type { PlaceCandidate, PlaceLookup } from "@/server/assistant/deps";
 
 /**
@@ -193,4 +195,97 @@ export const searchPlacesTool = defineTool({
   },
 });
 
-export const PLACE_TOOLS = [searchPlacesTool] as const;
+/** The near-now search's name, for the simulated model, which picks it by name. */
+export const FIND_PLACES_NEAR_NOW_TOOL_NAME = "find_places_near_now";
+
+/**
+ * How far around *here* `find_places_near_now` biases its search, in km: a
+ * walk or a short ride, which is what "near here" asks for. `search_places`
+ * biases on the whole trip's region (`TRIP_REGION_MARGIN_KM`), which is a
+ * country's worth on a long one.
+ */
+export const NEAR_NOW_MARGIN_KM = 3;
+
+/** Where *here* is, as the readout names it: a stop's place or today's city, and which of the four it was. */
+const NearNowAnchor = z.object({
+  name: z.string(),
+  is: z.enum(["the stop under way", "the last stop today", "the next stop", "today's city"]),
+});
+
+const NearNowReadout = PlaceSearchReadout.extend({
+  /** Null when the plan says nowhere: no stop near now, and no city today. */
+  near: NearNowAnchor.nullable(),
+});
+
+type NearNowReadout = z.infer<typeof NearNowReadout>;
+
+/**
+ * **Where *here* is, in M52 decision 13's order**: the stop under way, else
+ * the last stop today that has passed, else the next stop, else today's city.
+ * A stop with no location is passed over for the next rule rather than
+ * answering with nowhere. Exported for its test.
+ */
+export function nearNowAnchor(
+  trip: Pick<TripDetail, "activities">,
+  now: TurnNow,
+): { name: string; is: z.infer<typeof NearNowAnchor>["is"]; point: LatLng | null } | null {
+  const stops = [
+    [now.current, "the stop under way"],
+    [now.passed, "the last stop today"],
+    [now.next, "the next stop"],
+  ] as const;
+  for (const [stop, is] of stops) {
+    const activity = stop === null ? undefined : trip.activities[stop.activityId];
+    const location = activity?.location;
+    if (activity === undefined || location == null) continue;
+    return { name: location.name || activity.title, is, point: plausibleCoords(location) };
+  }
+  if (now.city === null) return null;
+  return { name: now.city.name, is: "today's city", point: plausibleCoords(now.city) };
+}
+
+/**
+ * **`search_places`, with *here* resolved by the server** (M52 decisions 6
+ * and 13). Offered only while the trip is under way (`phases`), so no other
+ * turn pays for its schema. It calls the same port, charges the same quota and
+ * numbers into the same cache, so a `placeRef` cites what it found exactly as
+ * it cites a `search_places` candidate. *Here* is the plan's, never the
+ * device's: the app reads no location (decision 6).
+ */
+export const findPlacesNearNowTool = defineTool({
+  name: FIND_PLACES_NEAR_NOW_TOOL_NAME,
+  description: `Look up real places NEAR WHERE THE TRIP IS RIGHT NOW — use it whenever they say "near here", "nearby", "around us" or "close by". Same numbered candidates as search_places, cited the same way as \`placeRef\`. The result's \`near\` names where it searched — the stop under way, else the last stop today, else the next stop, else today's city — so say that in your answer. Put every place into ONE call's \`queries\` (up to ${MAX_PLACE_QUERIES}), without a city: the search is already around here.`,
+  domain: "places",
+  effect: "spend",
+  spend: "vendor",
+  input: SearchPlacesInput,
+  output: NearNowReadout,
+  needs: ["trip", "actor", "placeSearch", "placeCache", "now"] as const,
+  minimumRole: "viewer",
+  phases: ["underway"],
+  // The candidates as `search_places` fences them, and the anchor too: a
+  // stop's place and a city are somebody's text.
+  taint: (readout: NearNowReadout) => ({
+    ...searchPlacesTool.taint!(readout),
+    near: readout.near === null ? null : { ...readout.near, name: untrusted(readout.near.name) },
+  }),
+  run: async (input, deps) => {
+    const anchor = nearNowAnchor(deps.trip, deps.now);
+    const lookups = await deps.placeSearch.search({
+      // A city with no coordinates biases nothing, so it rides in the query
+      // the way a person would type it.
+      queries: anchor !== null && anchor.point === null ? input.queries.map((query) => `${query}, ${anchor.name}`) : input.queries,
+      region: anchor?.point ? boundingBoxAround([anchor.point], NEAR_NOW_MARGIN_KM) : tripRegionOf(deps.trip),
+      userId: deps.actor.userId,
+    });
+    const numbered = lookups.map((lookup) => deps.placeCache.add(lookup.places));
+    const readout = readoutFor(lookups, numbered);
+    return {
+      // The model's own queries, not the suffixed ones: it reads back what it asked.
+      results: readout.results.map((result, index) => ({ ...result, query: input.queries[index] ?? result.query })),
+      near: anchor === null ? null : { name: anchor.name, is: anchor.is },
+    };
+  },
+});
+
+export const PLACE_TOOLS = [searchPlacesTool, findPlacesNearNowTool] as const;

@@ -2,7 +2,8 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { CreatePageInput, PageDoc } from "@tc/contracts";
-import { DEFAULT_TEMPLATES, TEMPLATE_LIBRARY, getTemplate, instantiateDefaults } from "./templates";
+import { DEFAULT_TEMPLATES, TEMPLATE_LIBRARY, getTemplate, instantiateDefaults, isUndeletablePage } from "./templates";
+import { dayTrip, wallAt } from "./test-support/dayTrip";
 import { notebookPreviewOf } from "./linkTarget";
 import { insertWidget } from "./insert";
 import { getMacro, renderMacro } from "./registry";
@@ -24,22 +25,28 @@ describe("templates", () => {
   // **Four, since M30** — Mitchell, 2026-09-26, reversing his 2026-09-12 *"Only
   // 1 notebook per trip is always generated"*: *"Maybe the issue is trying to
   // make the overview do everything, and instead we have several notebooks,
-  // with different purposes."* Only the first is marked, and so only it is
-  // undeletable (`deletePage` refuses on the marker, not on the title).
-  it("seeds four notebooks into a new trip, and only the Overview is marked", () => {
-    expect(DEFAULT_TEMPLATES.map((t) => t.title)).toEqual(["Overview", "Before you go", "Bookings", "Money"]);
-    expect(DEFAULT_TEMPLATES.map((t) => t.buildContext("t").kind)).toEqual(["overview", undefined, undefined, undefined]);
+  // with different purposes."* Only the first is marked. M52 added Today, the
+  // one page scoped to today, and it and the Overview are the two a trip
+  // cannot delete (Mitchell, 2026-10-23).
+  it("seeds five notebooks into a new trip; only the Overview is marked, and only Today is scoped to today", () => {
+    expect(DEFAULT_TEMPLATES.map((t) => t.title)).toEqual(["Overview", "Today", "Before you go", "Bookings", "Money"]);
+    expect(DEFAULT_TEMPLATES.map((t) => t.buildContext("t").kind)).toEqual(["overview", undefined, undefined, undefined, undefined]);
+    expect(DEFAULT_TEMPLATES.map((t) => t.buildContext("t").dateScope)).toEqual([undefined, "today", undefined, undefined, undefined]);
+    const undeletable = instantiateDefaults("t", () => "id").filter(isUndeletablePage).map((p) => p.seedKey);
+    expect(undeletable).toEqual(["overview", "today"]);
   });
 
-  // **The Overview is not IN the gallery; every other seeded notebook is.**
-  // There can be exactly one page marked `kind: "overview"` per trip, so a
-  // gallery button that made a second would offer a broken outcome (rule 2).
-  // The other three are offered, which is how a notebook somebody deleted comes
-  // back — and they lead the gallery, where a returning reader recognises them.
-  it("offers every seeded notebook but the Overview in the gallery, first", () => {
+  // **The Overview and Today are not IN the gallery; every other seeded
+  // notebook is.** Neither can be deleted, so there is never one to bring
+  // back, and a gallery button that made a second would offer a broken outcome
+  // (rule 2). The other three are offered, which is how a notebook somebody
+  // deleted comes back — and they lead the gallery, where a returning reader
+  // recognises them.
+  it("offers every seeded notebook but the Overview and Today in the gallery, first", () => {
     const libraryKeys = TEMPLATE_LIBRARY.map((t) => t.key);
-    const [overview, ...rest] = DEFAULT_TEMPLATES.map((t) => t.key);
+    const [overview, today, ...rest] = DEFAULT_TEMPLATES.map((t) => t.key);
     expect(libraryKeys).not.toContain(overview);
+    expect(libraryKeys).not.toContain(today);
     expect(libraryKeys.slice(0, rest.length)).toEqual(rest);
     for (const t of TEMPLATE_LIBRARY) expect(t.seedIntoNewTrips).toBe(rest.includes(t.key));
     expect(libraryKeys.length).toBeGreaterThan(rest.length);
@@ -68,7 +75,11 @@ describe("templates", () => {
     for (const input of inputs) expect(CreatePageInput.safeParse(input).success).toBe(true);
     // A page is trip-bound and carries no scope (SPEC §18) — `kind` is not a
     // scope, it is which page this is (§25), and only the Overview has one.
-    expect(inputs.map((i) => i.context)).toEqual([{ tripId, kind: "overview" }, { tripId }, { tripId }, { tripId }]);
+    // Today's `dateScope` is a page setting, not a scope in §18's sense: it
+    // names no day, and hands each widget the one it is read on.
+    expect(inputs.map((i) => i.context)).toEqual([
+      { tripId, kind: "overview" }, { tripId, dateScope: "today" }, { tripId }, { tripId }, { tripId },
+    ]);
   });
 
   // M19 gate, part 2: *"The Money notebook seeded into a new trip carries the
@@ -82,13 +93,17 @@ describe("templates", () => {
   // ADR-056, amended 2026-10-03: the Overview names its siblings by SEED KEY,
   // so a trip that gains one later finds it with no edit to the Overview.
   // Every key must be a seeded template's, or the card can never resolve.
-  it("links the seeded Overview to the other three seeded notebooks, by their seed keys", () => {
-    const [overview, ...siblings] = instantiateDefaults(crypto.randomUUID(), () => crypto.randomUUID());
-    const targets = widgetsIn(overview!.content)
-      .filter((node) => node.attrs?.name === "link.internal")
-      .map((node) => (node.attrs?.params as { to: unknown }).to);
-    expect(targets).toEqual(siblings.map((s) => ({ kind: "seed", seedKey: s.seedKey })));
-    for (const s of siblings) expect(widgetsIn(s.content).some((node) => node.attrs?.name === "link.internal")).toBe(false);
+  // Today links back the other way, to the whole trip, and is not among the
+  // Overview's cards: the Overview tab swaps to it on its own (M52).
+  it("links the seeded Overview to the other three seeded notebooks, and Today to the Overview, by their seed keys", () => {
+    const [overview, today, ...siblings] = instantiateDefaults(crypto.randomUUID(), () => crypto.randomUUID());
+    const linksIn = (page: { content: unknown }) =>
+      widgetsIn(page.content)
+        .filter((node) => node.attrs?.name === "link.internal")
+        .map((node) => (node.attrs?.params as { to: unknown }).to);
+    expect(linksIn(overview!)).toEqual(siblings.map((s) => ({ kind: "seed", seedKey: s.seedKey })));
+    expect(linksIn(today!)).toEqual([{ kind: "seed", seedKey: "overview" }]);
+    for (const s of siblings) expect(linksIn(s)).toEqual([]);
   });
 
   // Every template — not only the seeded pair — has to survive the write path,
@@ -294,7 +309,9 @@ describe("templates", () => {
           const macro = getMacro(name);
           expect(macro, `${t.key} seeds an unregistered widget: ${name}`).toBeDefined();
 
-          const outcome = renderMacro(ctx, name, node.attrs?.params ?? {});
+          // Read as the trip's creator, who can see the chat; a reader who
+          // cannot gets `absent` from `chat.recent`, which says nothing at all.
+          const outcome = renderMacro({ ...ctx, canChat: true }, name, node.attrs?.params ?? {});
           // `unbound` is the state this test exists to refuse: it renders as a
           // chip asking for a binding the seeded page never made.
           expect(
@@ -342,8 +359,8 @@ describe("templates", () => {
     // it is not a rule nothing exercises. If this drops to zero, the moment
     // has stopped modelling the wizard's trip.
     expect(loadingSeen).toBeGreaterThan(0);
-    // Three links, after load, on each of the two trips.
-    expect(linksFound).toBe(6);
+    // Four links (the Overview's three, Today's one), after load, on each of the two trips.
+    expect(linksFound).toBe(8);
 
     // Non-vacuous, and it pins the composition: each seeded notebook is built
     // out of widgets and this is which ones, in reading order. A change here is
@@ -353,6 +370,9 @@ describe("templates", () => {
     ).toEqual({
       // The letter's facts, the printed schedule, the three notebook cards.
       Overview: ["dates", "city", "day.detail", "link.internal", "link.internal", "link.internal"],
+      // The sketch's blocks (M52, "Where it lives"), the trip chat after the
+      // weather. *Reset to default* restores this too ("Today's default").
+      Today: ["trip.now", "trip.flights", "day.detail", "day.weather", "day.sun", "chat.recent", "link.internal"],
       "Before you go": ["day.fromHome", "day.sun", "day.weather", "country.facts"],
       Bookings: ["stop.rows", "stop.rows", "stop.rows", "open"],
       // "Who owes what" last, before the notes (M19 part 2).
@@ -369,5 +389,61 @@ describe("templates", () => {
       expect(widgetsIn(t.content).length, `${t.key} is a gallery template and should build itself`).toBeGreaterThan(0);
     }
     expect(TEMPLATE_LIBRARY.flatMap((t) => widgetsIn(t.content)).length).toBeGreaterThan(20);
+  });
+  // M52 decision 10 (Mitchell, 2026-10-22): *"a day filter before trip should
+  // show lots of nothing today default values."* Today is always the real
+  // today, so on a date that is no trip day every widget on the page says its
+  // own "nothing today". A trip WITH stops, a flight among them, so an empty
+  // line here is the scope's doing and not an empty plan's. The one widget
+  // that speaks before the trip is the flights countdown (decision 9).
+  it("renders every widget on Today as its empty-today state, before the trip and after it", () => {
+    const LISBON = "Europe/Lisbon";
+    const castle = { name: "Castelo de São Jorge", lat: 38.7139, lng: -9.1334, city: "Lisbon" };
+    const lisbon = dayTrip([
+      {
+        date: "2026-06-10", zone: LISBON, city: "Lisbon",
+        stops: [
+          { title: "Flight to Lisbon", kind: "transit", mode: "flight", timeWindow: { start: "08:00", end: "10:00" } },
+          { title: "Castle", timeWindow: { start: "12:00", end: "13:00" }, location: castle },
+        ],
+      },
+      { date: "2026-06-11", zone: LISBON, city: "Lisbon", stops: [{ title: "Dinner", timeWindow: { start: "20:00", end: "22:00" }, location: castle }] },
+    ]);
+    const today = instantiateDefaults(lisbon.trip.tripId, () => crypto.randomUUID()).find((p) => p.seedKey === "today")!;
+    const notebooks = {
+      state: "ready" as const,
+      value: { pages: [{ id: "00000000-0000-4000-8000-000000000001", seedKey: "overview", title: "Overview", ...notebookPreviewOf(today.content) }] },
+    };
+    const external = { weather: { state: "ready" as const, value: { points: [] } }, notebooks };
+
+    const said: Record<string, Record<string, unknown>> = {};
+    for (const [moment, date] of [["before", "2026-06-07"], ["after", "2026-06-14"]] as const) {
+      const ctx: WidgetContext = {
+        trip: lisbon.trip, globals: lisbon.globals, page: today.context, user: null, today: date, external, canChat: true,
+        now: { at: wallAt(LISBON, date, "12:00"), deviceZone: LISBON },
+      };
+      said[moment] = Object.fromEntries(
+        widgetsIn(today.content)
+          .filter((node) => node.attrs?.name !== "link.internal")
+          .map((node) => {
+            const outcome = renderMacro(ctx, String(node.attrs?.name), node.attrs?.params ?? {});
+            return [String(node.attrs?.name), outcome.status === "empty" ? outcome.because ?? getMacro(String(node.attrs?.name))!.emptyText : outcome];
+          }),
+      );
+    }
+    const nothingToday = {
+      "trip.now": "Nothing planned today",
+      "day.detail": "Nothing planned today",
+      "day.weather": "Nothing planned today",
+      "day.sun": "Nothing planned today",
+    };
+    // The chat reads no day, so it is there before the trip and after it.
+    const chat = { status: "ok", rendered: { kind: "block", block: expect.objectContaining({ kind: "chat-recent" }) } };
+    expect(said.before).toEqual({
+      ...nothingToday,
+      "chat.recent": chat,
+      "trip.flights": { status: "ok", rendered: { kind: "block", block: expect.objectContaining({ kind: "trip-flights", heading: "next" }) } },
+    });
+    expect(said.after).toEqual({ ...nothingToday, "chat.recent": chat, "trip.flights": "No flight today" });
   });
 });

@@ -16,7 +16,7 @@ import {
 import type { z } from "zod";
 import { formatShortDate } from "./format";
 import { ok, unbound, type MacroResult } from "./result";
-import type { ItemScope } from "./registry-types";
+import type { WidgetScope } from "./registry-types";
 
 // **The selection, in one place.** ADR-039 decision 1 says a widget is a
 // selection over one entity plus a shape; every primitive shares the selection
@@ -155,6 +155,11 @@ const NARROWS: Record<FilterDimension, "days" | "contents" | "days and contents"
   person: "refused",
 };
 
+/** A page scoped to today, read on a date that is no trip day (`resolveDateScope`). */
+export function isNoDay(item: WidgetScope | undefined): boolean {
+  return item?.kind === "no-day" || (item?.kind === "city-in-scope" && item.page.kind === "no-day");
+}
+
 /**
  * Narrow the trip to what a widget's filters select, or refuse.
  *
@@ -181,13 +186,19 @@ export function narrow(
   trip: TripDetail,
   globals: TripGlobals | null,
   bound: WidgetFilterValues,
-  item?: ItemScope,
+  item?: WidgetScope,
 ): MacroResult<Narrowed> {
   if (bound.person !== undefined) return unbound("person");
   const filters = scoped(bound, item);
 
   const boundDay = filters.day === undefined ? null : dayIndexOf(trip, filters.day);
   if (filters.day !== undefined && boundDay === null) return unbound("day");
+  // A page scoped to today on a date that is no trip day: nothing, so the
+  // widget renders its own empty state. Only a day the widget left open, as
+  // every scope here: a bound one is read as bound.
+  if (isNoDay(item) && filters.day === undefined) {
+    return ok({ filters, days: [], stops: [], cities: [], narrowed: true, contentNarrowed: false });
+  }
 
   const citiesOfDay = (index: number): readonly string[] => globals?.days[index]?.cities ?? [];
 
@@ -318,7 +329,7 @@ export function narrow(
  * pins the stop's own city when it has one, which is how `narrow` already
  * narrowed `cities` for it.
  */
-export function pinnedCity(selection: Narrowed, item?: ItemScope): CityRef | undefined {
+export function pinnedCity(selection: Narrowed, item?: WidgetScope): CityRef | undefined {
   if (selection.filters.city !== undefined) return selection.filters.city;
   if (item?.kind === "stop" && selection.cities.length === 1) return selection.cities[0]!.name;
   return undefined;
@@ -332,13 +343,17 @@ export function pinnedCity(selection: Narrowed, item?: ItemScope): CityRef | und
  * every line, which is what pointing it meant. A stop item fills `day` with
  * the stop's own day, and `narrow` then keeps the one stop.
  */
-function scoped(filters: WidgetFilterValues, item: ItemScope | undefined): WidgetFilterValues {
+function scoped(filters: WidgetFilterValues, item: WidgetScope | undefined): WidgetFilterValues {
   if (item === undefined) return filters;
   switch (item.kind) {
+    case "no-day":
+      return filters;
     case "day":
       return filters.day === undefined ? { ...filters, day: { kind: "index", index: item.index } } : filters;
     case "city":
       return filters.city === undefined ? { ...filters, city: item.name } : filters;
+    case "city-in-scope":
+      return scoped(scoped(filters, { kind: "city", name: item.name }), item.page);
     case "stop":
       return filters.day === undefined && item.dayIndex !== null
         ? { ...filters, day: { kind: "index", index: item.dayIndex } }

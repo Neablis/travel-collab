@@ -58,6 +58,11 @@ export const SuggestionChange = z.object({
   // sent; `assistant` for one an editor's assistant turn stored (ADR-067).
   // Optional rather than nullable so a client older than it still parses.
   via: SuggestionVia.optional(),
+  // The suggestion's asker, repeated like `via`: the one member who may accept
+  // a change a chat `@assistant` stored, and dismiss it beside the trip's owner
+  // (ADR-067's 2026-10-23 amendment). Absent for every other change, which
+  // any editor decides.
+  requestedBy: z.string().min(1).optional(),
 });
 export type SuggestionChange = z.infer<typeof SuggestionChange>;
 

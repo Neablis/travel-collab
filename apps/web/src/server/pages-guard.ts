@@ -21,6 +21,10 @@ type GuardResult = { error: Response } | { userId: string; role: TripRole; detai
  * everywhere: reads pass `"viewer"`, every write and the assistant pass
  * `"editor"`. Making the parameter required means the next route that calls
  * this cannot inherit the old default by forgetting to think about it.
+ *
+ * One read does write: the notebook list plants Today on a trip made before it
+ * (`addTodayPage`), whoever reads first. That write is the system's, not the
+ * viewer's, and the log records it so.
  */
 export async function guard(
   tripId: string,

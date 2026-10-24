@@ -128,6 +128,29 @@ export function expectationFor(id: string, trip: TripDetail): EvalExpectation | 
     // NOTHING, which `completes` (answered) still fails; a draft is not required.
     case "t-reads-and-says-nothing":
       return { ...CHANGE, proposes: undefined, maxToolCalls: 40, maxLatencyMs: 240_000 };
+    // M52 decision 18: "can you fix this problem?" in the chat, whose problem
+    // (Fushimi Inari closed on its day) is only in the messages before it. A
+    // turn that never read the chat cannot know what to fix.
+    case "h-chat-fix-problem":
+      return { ...CHANGE, mustCall: ["read_chat"] };
+    // M52 decisions 13 and 14, on the Japan trip dated today (`today`): "near
+    // here" is the plan's here, which only the near-now search knows. One call
+    // of it, since every place goes in one call's queries.
+    case "d-coffee-near-now":
+      return { ...QUESTION, mustCall: ["find_places_near_now"], maxCallsOf: { find_places_near_now: 1 } };
+    // The same question on the trip as seeded, months out: the tool is not
+    // offered, so a turn that reaches for it is calling a tool it never saw.
+    case "d-near-before-the-trip":
+      return { ...QUESTION, mustNotCall: ["find_places_near_now"] };
+    // 14(b): running late is today's later stops' times moved, as one card of
+    // UpdateActivity calls (ADR-067). Nothing is added, removed or moved to
+    // another day.
+    case "d-running-late":
+      return { ...CHANGE, mustCall: ["UpdateActivity"], mustNotCall: ["AddActivity", "RemoveActivity", "MoveActivity"] };
+    // 14(c): a closed stop is kept, marked pending, and something like it near
+    // here is added beside it. Removing it would lose the booking it may hold.
+    case "d-closed-find-similar":
+      return { ...CHANGE, mustCall: ["UpdateActivity", "AddActivity"], mustNotCall: ["RemoveActivity"] };
     default:
       return undefined;
   }

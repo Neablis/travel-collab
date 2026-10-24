@@ -19,6 +19,8 @@ import { z } from "zod";
 import {
   isAssistantCommandId,
   type AssistantProposal,
+  type ChatLink,
+  type ChatMessageKind,
   type Guest,
   type PageNode,
   type PaletteCommandRef,
@@ -27,7 +29,7 @@ import {
 } from "@tc/contracts";
 import type { DiscoverDay } from "@/lib/playbooks";
 import type { RawToolIntent } from "@/server/assistant/batchResolver";
-import type { AskScope, PlaybookPage } from "@/server/assistant/context";
+import type { AskScope, PlaybookPage, TurnNow } from "@/server/assistant/context";
 import type { BoundingBox } from "@/server/geocoding/geocoder";
 import type { TypedAddresses } from "@/server/assistant/typedAddresses";
 import type { IntentLatch } from "@/server/assistant/intents";
@@ -647,6 +649,29 @@ export function newPlaybookProposalBuffer(): PlaybookProposalBuffer {
   };
 }
 
+/** One chat message as the edge reads it for `read_chat`. */
+export interface ChatLine {
+  /** Who wrote it: a member, the assistant, or the app. */
+  authorKind: ChatMessageKind;
+  /** Their name: a member's display name, never an address, or "Assistant". */
+  author: string;
+  /** ISO time it was posted. */
+  at: string;
+  /** Null for a message removed by its author, the owner or an admin. */
+  text: string | null;
+  /** What it links, by id; `read_chat` names a day or stop from the trip. */
+  link?: ChatLink;
+}
+
+/**
+ * How `read_chat` reaches the trip's chat (M52 decision 18): the newest
+ * `limit` messages, oldest first. The edge names each author, since a name is
+ * a `users` read the kernel cannot make.
+ */
+export interface ChatLog {
+  recent(limit: number): Promise<readonly ChatLine[]>;
+}
+
 /**
  * Everything any tool may reach. `defineTool`'s `needs` indexes into this and
  * nothing else, so "what can this tool touch?" is one line of its definition
@@ -705,6 +730,10 @@ export interface AssistantDeps {
   playbookPage: PlaybookPageReads;
   /** Where a shared day's write lands (M45 D9). */
   playbookProposal: PlaybookProposalBuffer;
+  /** The trip's chat, as `read_chat` reads it (M52). Supplied only on a turn the chat started. */
+  chatLog: ChatLog;
+  /** Where the trip is as the turn starts (M52). Supplied only on a turn about a trip. */
+  now: TurnNow;
 }
 
 export type DepKey = keyof AssistantDeps;
@@ -753,6 +782,8 @@ const TURN_DEP_KEY_SET: Record<TurnDepKey, true> = {
   paletteCommands: true,
   playbookPage: true,
   playbookProposal: true,
+  chatLog: true,
+  now: true,
 };
 export const TURN_DEP_KEYS = Object.keys(TURN_DEP_KEY_SET) as readonly TurnDepKey[];
 

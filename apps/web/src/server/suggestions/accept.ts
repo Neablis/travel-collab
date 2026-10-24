@@ -2,14 +2,17 @@ import { and, eq, inArray } from "drizzle-orm";
 import { BatchableCommand, type Origin, type SuggestionChange, type TripDetail } from "@tc/contracts";
 import { predictBatch } from "@tc/domain/predict";
 import { roleAtLeast } from "../accessPolicy";
+import { announceChange } from "../chat/changeLine";
 import { executeTripCommandBatch } from "../commands";
 import { db } from "../db/client";
 import { tripSuggestionChanges, tripSuggestions } from "../db/schema";
 import { getTripDetail } from "../projections";
 import { SuggestionAlreadyResolved } from "./resolve";
 import {
+  ASKER_ONLY,
   expireStale,
   isExpired,
+  mayReview,
   refuse,
   roleOn,
   SUGGESTION_TTL_DAYS,
@@ -72,6 +75,10 @@ export async function acceptSuggestionChanges(
   }
   const resolved = found.find((r) => r.change.status !== "pending");
   if (resolved !== undefined) return refuseFor("already-resolved", resolved, "was already resolved.");
+  // Beside the editor check, never instead of it (ADR-067's 2026-10-23
+  // amendment): a chat `@assistant`'s change is its asker's to decide.
+  const notTheirs = found.find((r) => !mayReview(r.suggestion, { userId: reviewerId, role: access.value }, "accept"));
+  if (notTheirs !== undefined) return refuseFor("forbidden", notTheirs, ASKER_ONLY);
 
   // A parent outside the set must already be accepted. A dismissed one took
   // its children with it, so any other status here is pending.
@@ -127,9 +134,12 @@ export async function acceptSuggestionChanges(
       throw new SuggestionAlreadyResolved(ids.find((id) => !won.has(id)));
     }
   };
+  const commands = ordered.flatMap((r) => commandsOf.get(r.change.id)!);
+  // The trip before the change, for its change line (M52 decision 17).
+  const before = await getTripDetail(tripId);
   try {
     const result = await executeTripCommandBatch(
-      ordered.flatMap((r) => commandsOf.get(r.change.id)!),
+      commands,
       reviewerId,
       mark,
       { origin, runOnNoOp: true },
@@ -140,6 +150,7 @@ export async function acceptSuggestionChanges(
       if (result.error.code === "forbidden") return refuse("forbidden", result.error.message);
       return await whichNoLongerApplies(tripId, ordered, commandsOf, result.error.message);
     }
+    if (result.ok && before !== null) await announceChange(tripId, reviewerId, commands, before, result.detail, new Date(now));
   } catch (error) {
     if (error instanceof SuggestionAlreadyResolved) {
       return refuseFor("already-resolved", byId.get(error.message) ?? error.message, "was already resolved.");

@@ -4,6 +4,8 @@ import type { TripDetail, PageContext, TripGlobals, UserPreferences } from "@tc/
 import { fieldChoices, getMacro, presetCatalog, renderMacro, type ExternalInputs } from "@tc/pages";
 import { withCostRollups } from "@tc/factories";
 import { MacroView } from "./MacroView";
+import { MacroEditorContext } from "./editor/MacroEditorContext";
+import { registerPhoneAsk } from "@/components/nav/phoneAsk";
 
 afterEach(cleanup);
 
@@ -61,6 +63,7 @@ const costedDetail: TripDetail = withCostRollups({
       mode: null,
       endLocation: null,
       pendingReason: null,
+      flightNumber: null,
     },
   },
 });
@@ -88,6 +91,7 @@ const backloggedDetail: TripDetail = withCostRollups({
       mode: null,
       endLocation: null,
       pendingReason: null,
+      flightNumber: null,
     },
   },
   backlog: ["u1"],
@@ -401,6 +405,73 @@ describe("MacroView", () => {
   });
 });
 
+// M52 decision 20: a widget the reader may not use is absent while reading
+// (SPEC §27), but its author still has to see what they put there. Without a
+// screen offering its chat, Editing names the widget and who it is for;
+// Reading shows nothing.
+describe("a widget for readers who are not this one", () => {
+  it("is named, with who it is for, while editing", () => {
+    render(<MacroView detail={baseDetail} context={ctx} name="chat.recent" params={{}} editing />);
+    expect(screen.getByText(/^Trip chat/).textContent).toMatch(/can see the trip's chat/);
+  });
+
+  it("is not there at all while reading", () => {
+    render(<div data-testid="page"><MacroView detail={baseDetail} context={ctx} name="chat.recent" params={{}} /></div>);
+    expect(screen.getByTestId("page").textContent).toBe("");
+  });
+});
+
+// M52's gate box (decision 10, ADR-080 §4), as a reader sees it: on a page
+// scoped to today, a day.detail left unbound reads today, and one bound to day 1
+// reads day 1. The clock reaches the widget through the editor's context.
+describe("on a page scoped to today", () => {
+  const twoDated: TripDetail = withCostRollups({
+    ...costedDetail,
+    days: [
+      { ...costedDetail.days[0]!, activityIds: ["a1"], date: "2026-08-01" },
+      { dayId: "33333333-3333-3333-3333-333333333333", activityIds: ["a2"], date: "2026-08-02", costSubtotal: 0 },
+    ],
+    activities: { ...costedDetail.activities, a2: { ...costedDetail.activities.a1!, activityId: "a2", title: "Shrine" } },
+  });
+  const scoped: PageContext = { ...ctx, dateScope: "today" };
+  const onDay2 = (params: Record<string, unknown>) =>
+    render(
+      <MacroEditorContext.Provider
+        value={{ detail: twoDated, context: scoped, user: null, globals: null, editing: false, now: { at: Date.parse("2026-08-02T12:00:00Z"), deviceZone: "UTC" } }}
+      >
+        <MacroView detail={twoDated} context={scoped} name="day.detail" params={params} />
+      </MacroEditorContext.Provider>,
+    );
+
+  it("shows today in an unbound day.detail", () => {
+    onDay2({});
+    expect(screen.getByText("Shrine")).toBeTruthy();
+    expect(screen.queryByText("Museum")).toBeNull();
+  });
+
+  it("shows day 1 in one bound to day 1", () => {
+    onDay2({ day: { kind: "index", index: 0 } });
+    expect(screen.getByText("Museum")).toBeTruthy();
+    expect(screen.queryByText("Shrine")).toBeNull();
+  });
+});
+
+// One clock per page: the countdown reads today off the page's clock, which
+// moves each minute, so it cannot still say "starts tomorrow" once *Now and
+// next* has moved on to day 1. Noon UTC is the same date in any test zone.
+describe("the countdown on a page with a clock", () => {
+  it("counts from the page's day, not the day the page was opened", () => {
+    render(
+      <MacroEditorContext.Provider
+        value={{ detail: costedDetail, context: ctx, user: null, globals: null, editing: false, now: { at: Date.parse("2026-07-31T12:00:00Z"), deviceZone: "UTC" } }}
+      >
+        <MacroView detail={costedDetail} context={ctx} name="attribute" params={{ field: "trip.countdown" }} />
+      </MacroEditorContext.Provider>,
+    );
+    expect(screen.getByText("starts tomorrow")).toBeTruthy();
+  });
+});
+
 // **Every widget must be legal inside a paragraph, because that is where every
 // widget goes.** `MacroNodeExtension` is an inline atom, so a widget node sits
 // in the text flow — and a block-level element there is not merely unusual
@@ -469,8 +540,9 @@ describe("every widget is legal where widgets actually go", () => {
       a1: { ...costedDetail.activities.a1!, kind: "pending", tags: ["ticketed"] },
       booked: {
         activityId: "booked", title: "Ryokan", timeWindow: { start: "15:00", end: "23:00" },
-        // Located, so "Know before you go" has a country to card.
-        location: { name: "Ryokan, Kyoto", countryCode: "JP" }, notes: null, anchors: [], kind: "planned", tags: [],
+        // Located, so "Know before you go" has a country to card, and placed,
+        // so "Directions" has somewhere to send Maps.
+        location: { name: "Ryokan, Kyoto", countryCode: "JP", lat: 35.0037, lng: 135.7788 }, notes: null, anchors: [], kind: "planned", tags: [],
         cost: { amountMinor: 12000, currency: "USD" },
         bookedBy: null,
         participants: [],
@@ -478,6 +550,7 @@ describe("every widget is legal where widgets actually go", () => {
         mode: null,
         endLocation: null,
         pendingReason: null,
+        flightNumber: null,
       },
       parked: {
         activityId: "parked", title: "Ghibli Museum", timeWindow: null,
@@ -488,6 +561,7 @@ addedBy: null,
 mode: null,
 endLocation: null,
 pendingReason: null,
+flightNumber: null,
       },
     },
   };
@@ -531,6 +605,10 @@ pendingReason: null,
     },
   };
 
+  // 9:30 in Kyoto on the fixture's day, mid-museum, so the day-of widgets
+  // (M52) have a stop under way, a place to go and a clock to count from.
+  const richNow = { at: Date.parse("2026-08-01T00:30:00Z"), deviceZone: "Asia/Tokyo" };
+
   it("resolves every widget in the registry against this fixture", () => {
     // The witness for the test below, and a real assertion in its own right: if
     // one entry stops resolving here, the nesting walk quietly stops covering
@@ -540,7 +618,8 @@ pendingReason: null,
         // A fixed `today` well before the fixture's dates, so `trip.countdown`
         // resolves rather than reporting "no dates set yet" — and so this
         // sweep's answer does not change with the calendar.
-        { trip: richDetail, page: ctx, user: richUser, globals: richGlobals, today: "2027-01-01", external: richExternal },
+        // A reader who may chat (M52): without, Trip chat is `absent`.
+        { trip: richDetail, page: ctx, user: richUser, globals: richGlobals, today: "2027-01-01", now: richNow, external: richExternal, canChat: true, chat: [] },
         widget.widget,
         boundParams(widget),
       );
@@ -562,20 +641,24 @@ pendingReason: null,
     const spy = vi.spyOn(console, "error").mockImplementation((...args: unknown[]) => {
       errors.push(args.map(String).join(" "));
     });
+    // A screen offering its chat (M52), so "Trip chat" is drawn rather than absent.
+    const unregister = registerPhoneAsk({ open: false, onOpen: () => {}, chat: { onOpen: () => {}, messages: [], unread: 0 } });
     try {
       for (const widget of presetCatalog()) {
         const { unmount } = render(
-          <p>
-            <MacroView
-              detail={richDetail}
-              context={ctx}
-              user={richUser}
-              globals={richGlobals}
-              external={richExternal}
-              name={widget.widget}
-              params={boundParams(widget)}
-            />
-          </p>,
+          <MacroEditorContext.Provider value={{ detail: richDetail, context: ctx, user: richUser, globals: richGlobals, editing: false, now: richNow }}>
+            <p>
+              <MacroView
+                detail={richDetail}
+                context={ctx}
+                user={richUser}
+                globals={richGlobals}
+                external={richExternal}
+                name={widget.widget}
+                params={boundParams(widget)}
+              />
+            </p>
+          </MacroEditorContext.Provider>,
         );
         // A chart's code is loaded lazily (`SpendByDayBlock`), and until it
         // arrives only its placeholder is in the paragraph. Unmounting then
@@ -584,11 +667,16 @@ pendingReason: null,
         unmount();
       }
     } finally {
+      unregister();
       spy.mockRestore();
     }
     const nesting = errors.filter((e) => /cannot be a descendant of|cannot contain a nested/i.test(e));
     expect(nesting, `block-level markup inside <p>:\n${nesting.join("\n")}`).toEqual([]);
-  });
+    // Every preset, one after another, in one test: 2.5s idle and 3.2s with
+    // four copies running (measured, M52 part 8), against the unit lane's
+    // default 5s, which a saturated CI box can run out. A timeout says nothing
+    // about nesting, so the budget is the sweep's own.
+  }, 20_000);
 });
 
 // ADR-056: the one rendered value that carries an address. A new tab, and

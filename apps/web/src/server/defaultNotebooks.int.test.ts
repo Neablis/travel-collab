@@ -8,7 +8,7 @@
 import { newPageDoc, PageDoc, SYSTEM_ACTOR_ID } from "@tc/contracts";
 import { foldPages } from "@tc/domain";
 import { DEFAULT_TEMPLATES, OVERVIEW_TEMPLATE } from "@tc/pages";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { randomUUID } from "node:crypto";
 import { executeTripCommand } from "./commands";
 import { appendToStream, readStream } from "./eventStore";
@@ -19,6 +19,8 @@ import { events, pages } from "./db/schema";
 import { applyPageEvents, rebuildProjections } from "./projections";
 import { db } from "./db/client";
 import { listPages } from "./pages";
+import { tripPagesView } from "./tripViews";
+import { tripAccessFor } from "./access/trip-access";
 import { grantMembership } from "./access/members";
 import { entitleAccounts } from "./test-support/entitledAccount";
 import {
@@ -27,6 +29,10 @@ import {
   resetPageToDefault,
   restorePageVersion,
 } from "./pageCommands";
+
+// The index read's access check reaches the session module, which this file
+// never asks: every reader here is named directly (`tripAccessFor`).
+vi.mock("@/server/auth", () => ({ auth: vi.fn(async () => null) }));
 
 const docWith = (text: string) => ({
   ...newPageDoc(),
@@ -84,6 +90,101 @@ describe("addMissingDefaultPages", () => {
   });
 });
 
+// M52 decision 9, as amended (Mitchell, 2026-10-23): every trip has Today. A
+// new trip is seeded with it; one made before it gains it on its next
+// notebook-index load, whoever reads it, and once; and it cannot be deleted,
+// so there is no "deleted, so not again" to honour.
+describe("Today, on every trip", () => {
+  /**
+   * A trip as one seeded before Today looks: its notebooks are rows with no
+   * events (lazy seeding writes none) and none of them is Today. A viewer is
+   * on it, who will be the one to load the index.
+   */
+  async function tripFromBeforeToday() {
+    const ownerId = owner();
+    await entitleAccounts([ownerId]);
+    const tripId = await tripOwnedBy(ownerId);
+    const viewerId = `viewer-${randomUUID()}`;
+    await grantMembership(db, { tripId, userId: viewerId, role: "viewer", invitedBy: ownerId, now: new Date().toISOString() });
+    await listPages(tripId);
+    await db.delete(pages).where(and(eq(pages.tripId, tripId), eq(pages.seedKey, "today")));
+    return { tripId, ownerId, viewerId };
+  }
+
+  async function loadIndexAs(userId: string, tripId: string) {
+    const access = await tripAccessFor(userId, tripId, "viewer");
+    if (!access.ok) throw new Error(`expected ${userId} to read ${tripId}`);
+    return (await tripPagesView(tripId, access)).pages;
+  }
+
+  it("is seeded into a new trip, scoped to today, beside the Overview", async () => {
+    const tripId = await tripOwnedBy(owner());
+    const seeded = await listPages(tripId);
+    expect(seeded.slice(0, 2).map((p) => [p.seedKey, p.context])).toEqual([
+      ["overview", { tripId, kind: "overview" }],
+      ["today", { tripId, dateScope: "today" }],
+    ]);
+  });
+
+  it("is gained once by a trip made before it, on a viewer's index load, through the log", async () => {
+    const { tripId, viewerId } = await tripFromBeforeToday();
+    const before = (await readStream(db, tripId)).length;
+
+    const listed = await loadIndexAs(viewerId, tripId);
+    const today = listed.find((p) => p.seedKey === "today");
+    expect(today).toMatchObject({ title: "Today", context: { tripId, dateScope: "today" }, actorId: SYSTEM_ACTOR_ID });
+    // Into the log, so a rebuild keeps it (Invariant 2). The whole batch,
+    // backfilled genesis included, is the system's: a viewer may not add a
+    // notebook, so History must not say this one did (PR 540 review).
+    const added = (await readStream(db, tripId)).slice(before);
+    expect(added.filter((e) => e.type === "PageCreated" && (e.payload as { seedKey?: string }).seedKey === "today")).toHaveLength(1);
+    expect([...new Set(added.map((e) => e.actorId))]).toEqual([SYSTEM_ACTOR_ID]);
+
+    // Once: the next load writes nothing.
+    const head = (await readStream(db, tripId)).length;
+    expect((await loadIndexAs(viewerId, tripId)).filter((p) => p.seedKey === "today")).toHaveLength(1);
+    expect((await readStream(db, tripId)).length).toBe(head);
+  });
+
+  it("refuses to be deleted, and comes back under its old id on a trip whose log shows it deleted", async () => {
+    const { tripId, ownerId, viewerId } = await tripFromBeforeToday();
+    const today = (await loadIndexAs(ownerId, tripId)).find((p) => p.seedKey === "today")!;
+    expect(await executePageCommand({ type: "DeletePage", tripId, pageId: today.id }, ownerId)).toMatchObject({
+      ok: false,
+      error: { code: "page-undeletable" },
+    });
+
+    // No command can delete it now, so the old delete is written as one was:
+    // straight into the log, and projected.
+    const appended = await appendToStream(db, {
+      streamId: tripId,
+      expectedSeq: (await readStream(db, tripId)).length,
+      events: [{ type: "PageDeleted", version: 1, payload: { tripId, pageId: today.id } }],
+      actorId: ownerId,
+      occurredAt: new Date().toISOString(),
+      batchId: randomUUID(),
+      origin: { kind: "user" },
+    });
+    if (!appended.ok) throw new Error("append failed");
+    await applyPageEvents(db, appended.envelopes);
+    expect((await listPages(tripId)).some((p) => p.seedKey === "today")).toBe(false);
+
+    const back = (await loadIndexAs(viewerId, tripId)).find((p) => p.seedKey === "today");
+    expect(back?.id).toBe(today.id);
+  });
+
+  // *Reset to default* (Mitchell, 2026-10-23: "restore to base"): Today is a
+  // seed, so it has one, like every notebook that came with the trip.
+  it("resets to its default, as every seed does", async () => {
+    const ownerId = owner();
+    const tripId = await tripOwnedBy(ownerId);
+    const today = (await listPages(tripId)).find((p) => p.seedKey === "today")!;
+    await executePageCommand({ type: "EditPage", tripId, pageId: today.id, title: "Our day", content: docWith("ours") }, ownerId);
+    const reset = await resetPageToDefault(tripId, today.id, ownerId);
+    expect(reset.ok && reset.page).toMatchObject({ id: today.id, title: "Today", context: { tripId, dateScope: "today" } });
+  });
+});
+
 // A link card to a missing default adds that one notebook (Mitchell,
 // 2026-10-03). The others stay missing: the card asked for Money, not for
 // everything the index's button would add.
@@ -91,12 +192,12 @@ describe("addMissingDefaultPages, asked for one default", () => {
   it("adds that notebook and leaves the other missing ones missing", async () => {
     const ownerId = owner();
     const tripId = await tripOwnedBy(ownerId);
-    for (const page of (await listPages(tripId)).filter((p) => p.context.kind !== "overview")) {
+    for (const page of (await listPages(tripId)).filter((p) => p.context.kind !== "overview" && p.seedKey !== "today")) {
       expect((await executePageCommand({ type: "DeletePage", tripId, pageId: page.id }, ownerId)).ok).toBe(true);
     }
 
     expect((await addMissingDefaultPages(tripId, ownerId, "money")).ok).toBe(true);
-    expect((await listPages(tripId)).map((p) => p.seedKey).sort()).toEqual(["money", "overview"]);
+    expect((await listPages(tripId)).map((p) => p.seedKey).sort()).toEqual(["money", "overview", "today"]);
 
     // Asked again for the one it now has: nothing written.
     const again = await addMissingDefaultPages(tripId, ownerId, "money");
@@ -234,13 +335,21 @@ describe("the default-notebook actions are the owner's", () => {
 // "Add missing" copy beside it, and a trip the log has never heard of — keys
 // wiped, the migration's own backfill statement run, then a rebuild.
 describe("the seed-key backfill (migration 0032)", () => {
+  /** A trip's notebooks as they were seeded before Today existed: the rows, less Today's. */
+  async function seededBeforeToday(tripId: string) {
+    await listPages(tripId);
+    await db.delete(pages).where(and(eq(pages.tripId, tripId), eq(pages.seedKey, "today")));
+    return listPages(tripId);
+  }
+
   const migration = readFileSync(fileURLToPath(new URL("../../drizzle/0032_notebook_seed_key.sql", import.meta.url)), "utf8");
   const backfill = /-- seed-key backfill: begin\n([\s\S]*?)-- seed-key backfill: end/.exec(migration)![1]!;
 
   it("keys the seeds that existed, the renamed one included, and a rebuild keys them alike", async () => {
     const ownerId = owner();
     const tripId = await tripOwnedBy(ownerId);
-    const seeded = await listPages(tripId);
+    // Seeded as a trip was then: Today came with M52, long after the key.
+    const seeded = await seededBeforeToday(tripId);
     const money = seeded.find((p) => p.seedKey === "money")!;
     // Renamed through the command, which gives every page its genesis first.
     await executePageCommand({ type: "EditPage", tripId, pageId: money.id, title: "Budget" }, ownerId);
@@ -270,7 +379,7 @@ describe("the seed-key backfill (migration 0032)", () => {
     await applyPageEvents(db, appended.envelopes);
     // A trip nobody has commanded a notebook on: rows, no events.
     const untouched = await tripOwnedBy(ownerId);
-    await listPages(untouched);
+    await seededBeforeToday(untouched);
 
     const trips = [tripId, untouched];
     await db.update(pages).set({ seedKey: null }).where(inArray(pages.tripId, trips));
@@ -280,7 +389,7 @@ describe("the seed-key backfill (migration 0032)", () => {
       Object.fromEntries((await listPages(trip)).map((p) => [p.id, p.seedKey ?? null]));
     const expected = Object.fromEntries(seeded.map((p) => [p.id, p.seedKey!]));
     expect(await keysOf(tripId)).toEqual({ ...expected, [copyId]: null });
-    expect(Object.values(await keysOf(untouched)).sort()).toEqual(DEFAULT_TEMPLATES.map((t) => t.key).sort());
+    expect(Object.values(await keysOf(untouched)).sort()).toEqual(seeded.map((p) => p.seedKey).sort());
 
     const backfilled = await db.select().from(pages).where(inArray(pages.tripId, trips)).orderBy(asc(pages.id));
     await rebuildProjections();
