@@ -10,7 +10,11 @@
 // the proposal builder and a migrated Postgres holding the seeded Japan trip.
 // What is not: place search, which answers from a fixed stub at its port, so a
 // turn that searches gets a place without a LocationIQ key or a paid lookup;
-// and auth, mocked as the integration lane mocks it.
+// and auth, mocked as the integration lane mocks it; and the clock. Every turn
+// starts at the same instant, 12:30 in Tokyo on the run's date
+// (`evalInstant`), so a day-of prompt meets the same hour of its trip whenever
+// the run is started. Only `Date` is faked, and it still advances, so timers,
+// fetch, deadlines and latencies are real.
 //
 // No model is injected into `handleAskRequest`. That is the point of this
 // lane, and the difference from `replay.int.test.ts`, which replays a
@@ -46,7 +50,7 @@ import { postMessage } from "@/server/chat/messages";
 import type { TurnOrigin } from "@/server/assistant/defineTool";
 import { grade, navigatedTo, retractedText, reviewedChanges, textBeforeToolCall, visibleText, type EvalCheck, type EvalTurn } from "./grade";
 import { capMicroUsdFrom, dollars, turnMicroUsd, unpricedModels } from "./spend";
-import { ACCOUNT_TRIPS, accountTripCommands, japanTodayStart, longTripCommands, notRunOnClock, type EvalTripName } from "./trips";
+import { ACCOUNT_TRIPS, accountTripCommands, evalInstant, japanTodayStart, longTripCommands, type EvalTripName } from "./trips";
 
 const ACTOR_ID = "eval-actor";
 
@@ -131,16 +135,8 @@ const plan =
 let spentMicroUsd = 0;
 let unpricedTurns = 0;
 
-// The day-of prompts left out on the clock, named in the summary and the report
-// so a comparison is not made over a smaller set without a word.
-const notRun: { id: string; run: number; reason: string }[] = [];
-
-/** `japanTodayStart` now. The turn checked the clock just before, so null is the instant it crossed 21:00 JST. */
-function todayStart(): string {
-  const start = japanTodayStart(Date.now());
-  if (start === null) throw new Error("The day-of cases need 06:30 to 21:00 in Tokyo, when a Japan day has a stop begun and one to come.");
-  return start;
-}
+// Read from the real clock as the run loads, before `Date` is faked.
+const pinnedAt = evalInstant(Date.now());
 
 /**
  * A fresh copy of the trip `prompt` runs on, through the real command path:
@@ -154,7 +150,7 @@ async function seedTripFor(prompt: LivePrompt): Promise<{ tripId: string; detail
   const commands =
     prompt.trip === "long-100"
       ? longTripCommands(tripId)
-      : japanTripCommands(tripId, { startDate: prompt.trip === "today" ? todayStart() : "2027-04-01" });
+      : japanTripCommands(tripId, { startDate: prompt.trip === "today" ? japanTodayStart(Date.now()) : "2027-04-01" });
   const seeded = await executeTripCommandBatch(commands, ACTOR_ID);
   if (!seeded.ok) throw new Error(`seed: ${seeded.error.message}`);
   return { tripId, detail: seeded.detail };
@@ -305,19 +301,19 @@ beforeAll(async () => {
   if (!confirmed) {
     throw new Error(`${plan}\nNothing was sent. Set EVAL_CONFIRM=1 to spend it (and EVAL_MAX_USD to change the cap).`);
   }
-  // A full run leaves the day-of prompts out outside their hours, turn by turn;
-  // one that named them asked for them, so it refuses before anything is sent.
-  const late = only.length > 0 ? notRunOnClock(prompts, Date.now()) : [];
-  if (late.length > 0) {
-    throw new Error(`EVAL_ONLY names ${late.map(({ id }) => id).join(", ")}, which need 06:30 to 21:00 in Tokyo (${late[0]!.reason}). Nothing was sent.`);
-  }
   if (unpriced.length > 0 && process.env.EVAL_ALLOW_UNPRICED !== "1") {
     throw new Error(`No rate in modelRates.ts for ${unpriced.join(", ")}, so this run's spend cannot be capped. Add the rate, or set EVAL_ALLOW_UNPRICED=1.`);
   }
+  // `shouldAdvanceTime` keeps it moving, so a step deadline can still fire and
+  // chat messages posted in a row are not all at one instant.
+  vi.useFakeTimers({ toFake: ["Date"], shouldAdvanceTime: true });
+  vi.setSystemTime(pinnedAt);
   await enrol(ACTOR_ID);
 });
 
 afterAll(() => {
+  // The report is named for when the run really happened.
+  vi.useRealTimers();
   const dir = join(import.meta.dirname, "../../../../eval-results");
   mkdirSync(dir, { recursive: true });
   const file = join(dir, `${new Date().toISOString().replace(/[:.]/g, "-")}.json`);
@@ -327,13 +323,14 @@ afterAll(() => {
     strong: process.env.AI_MODEL_STRONG,
     classifier: process.env.AI_CLASSIFIER_MODEL,
   };
-  writeFileSync(file, `${JSON.stringify({ models, repeat, spentMicroUsd, unpricedTurns, rows, notRun }, null, 2)}\n`);
+  writeFileSync(file, `${JSON.stringify({ models, repeat, spentMicroUsd, unpricedTurns, rows, pinnedAt: new Date(pinnedAt).toISOString() }, null, 2)}\n`);
   const failed = rows.flatMap((row) => row.checks.filter((check) => !check.pass).map((check) => `${row.id}#${row.run}: ${check.name}`));
   console.log(
     [
       "",
-      `eval: ${rows.length} turns, ${rows.reduce((n, row) => n + row.checks.length, 0)} checks, ${failed.length} failed, ${notRun.length} not run`,
+      `eval: ${rows.length} turns, ${rows.reduce((n, row) => n + row.checks.length, 0)} checks, ${failed.length} failed`,
       `models: ${JSON.stringify(models)}`,
+      `clock: every turn started at ${new Date(pinnedAt).toISOString()} (12:30 JST)`,
       `retracted: ${rows.reduce((n, row) => n + row.retracted.parts, 0)} text parts, ${rows.reduce((n, row) => n + row.retracted.chars, 0)} chars, across ${rows.filter((row) => row.retracted.parts > 0).length} turns (KI-2026-10-12-h; not a failure)`,
       `spent: ${dollars(spentMicroUsd)} of a ${capMicroUsd === null ? "invalid" : dollars(capMicroUsd)} cap${unpricedTurns > 0 ? ` (+ ${unpricedTurns} unpriced turn(s))` : ""}`,
       ...rows.map(
@@ -343,7 +340,6 @@ afterAll(() => {
           `[${row.stepDurationsMs.map((ms) => (ms === null ? "?" : (ms / 1000).toFixed(1))).join(" + ")}]  ${row.inputTokens ?? "?"} in  via ${[...new Set(row.providers)].join(",") || "?"}` +
           `  retracted ${row.retracted.parts}/${row.retracted.chars}ch`,
       ),
-      ...notRun.map((row) => `  NOT RUN ${row.id}#${row.run}  ${row.reason}`),
       `report: ${file}`,
     ].join("\n"),
   );
@@ -358,14 +354,8 @@ describe.skipIf(!confirmed)("the live set, on production's models", () => {
           context.skip();
           return;
         }
-        // Checked as the turn starts, not once: a run begun at 20:40 JST reaches the day-of prompts last.
-        const late = notRunOnClock([prompt], Date.now())[0];
-        if (late !== undefined) {
-          notRun.push({ id: prompt.id, run, reason: late.reason });
-          console.log(`    ${late.reason}`);
-          context.skip();
-          return;
-        }
+        // Back to the pinned instant: a turn late in a long run would otherwise meet a later hour of the day.
+        vi.setSystemTime(pinnedAt);
         let turn: Awaited<ReturnType<typeof runTurn>>;
         let expected;
         if (prompt.surface === "account") {
