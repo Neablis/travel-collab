@@ -140,6 +140,9 @@ chips do.
      that deleted it is not given it again, and it can be re-added from the template gallery.
    - The seeded content is the default described above (*Where it lives*). The notebook is the
      trip's own copy after that, like every seeded notebook. A reset restores the default.
+     **Amended by Mitchell, 2026-10-24: no template-version tracking.** A reset restores the
+     *current* default. There is no restoring a specific earlier version, and no notice or roll
+     forward when the default changes after a trip got its copy. Pages keep only `seedKey`.
    - **The 3-day mark is when Overview swaps.** **Confirmed at scoping, 2026-10-23 (Mitchell):
      from 3 days before.** Overview shows *During the trip* from *soon* through the end date
      (decision 11 is amended to match). Before day 1 its widgets show their empty-today states,
@@ -261,6 +264,11 @@ chips do.
     2026-10-22: yes**, while under way only. An accepted change to today's or tomorrow's stops posts a system line ("Mitchell
     moved Dinner at Tasca to 20:30") that links the stop and cannot be edited. With decision 18,
     an `@assistant` change accepted in the chat says so in the same thread.
+    **Amended by Mitchell, 2026-10-24: only a change that comes from the chat posts a line**: a
+    suggestion accepted there, or an `@assistant` change made there. A direct edit (moving or
+    retiming a stop on the board or a notebook) posts nothing. *"If people are chatting, post to
+    chat; if someone is chatting with AI in chat, post to chat. Otherwise don't."* That is how
+    it is built (part 7), so no code changes.
 18. **How `@assistant` in the chat works (decision 8).** **Answered at scoping, 2026-10-23: as
     recommended**, with what it reads answered earlier:
     - **Store.** The answer is a message in `trip_messages`, with an author `kind` of
