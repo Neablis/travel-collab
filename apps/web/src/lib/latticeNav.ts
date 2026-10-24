@@ -1,5 +1,6 @@
 import type { ActivityTagDescribed } from "@tc/contracts";
 import { TAG_LABEL } from "./activityTags";
+import { countryCityTitle, placeTitle, tagTitle } from "./playbooksPreview";
 import { countryCityPath, placePath, tagPath } from "./playbookUrls";
 
 // The SEO lattice's navigation, as pure data: which pages sit one dimension
@@ -9,10 +10,10 @@ import { countryCityPath, placePath, tagPath } from "./playbookUrls";
 // structural, so no import from `server/` is needed to pass a `TagPage` or a
 // `CountryCityPage` in.
 //
-// Labels repeat the pages' own headings (`server/tagPage.ts`'s `wordsFor`,
-// `server/placePage.ts`'s place headings): link text that disagrees with the
-// page it names is a lie a crawler reads, so if a heading changes, change
-// its label here too.
+// Labels ARE the pages' own headings, built by the same title builders
+// (`lib/playbooksPreview.ts`) the listing functions use: link text that
+// disagrees with the page it names is a lie a crawler reads, so a heading
+// change here is a heading change there, never a second edit to remember.
 
 /** One link up or down the lattice: the target page's heading, and its path. */
 export type LatticeLink = { label: string; href: string };
@@ -48,22 +49,16 @@ const MAX_CHILDREN = 12;
 /** A refinement candidate, ordered days-descending, then slug-ascending, then country-ascending on a slug tie, before the cap. */
 type Child = { slug: string; tiebreak?: string; days: number; label: string; href: string };
 
-const placeLabel = (name: string): string => `${name} playbooks`;
+const placeLabel = (name: string): string => placeTitle(name);
 
 const tagLabel = (
   tag: ActivityTagDescribed,
   city: { name: string } | null,
   country: { name: string } | null,
-): string => {
-  const label = TAG_LABEL[tag];
-  if (city === null) return country === null ? `${label} playbooks` : `${label} playbooks in ${country.name}`;
-  return country === null
-    ? `${city.name} ${label.toLowerCase()} playbooks`
-    : `${city.name} ${label.toLowerCase()} playbooks in ${country.name}`;
-};
+): string => tagTitle(TAG_LABEL[tag], city?.name ?? null, country?.name ?? null);
 
 const countryCityLabel = (city: { name: string }, country: { name: string }): string =>
-  `${city.name} playbooks in ${country.name}`;
+  countryCityTitle(city.name, country.name);
 
 const tagChild = (page: LatticeData["tags"][number], slug: string): Child => ({
   slug,

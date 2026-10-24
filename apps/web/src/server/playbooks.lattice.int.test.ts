@@ -119,7 +119,7 @@ describe("the SEO lattice", () => {
       searchParams: Promise.resolve({}),
     });
     expect(pair).toMatchObject({
-      heading: `${ROME} playbooks in Nauru`,
+      heading: `${ROME}, Nauru: trips from real travelers`,
       path: `/playbooks/country/nauru/city/${rome}`,
       total: 4,
       page: 1,
@@ -133,7 +133,7 @@ describe("the SEO lattice", () => {
       searchParams: Promise.resolve({}),
     });
     expect(tagged).toMatchObject({
-      heading: `${ROME} food playbooks in Nauru`,
+      heading: `Food days in ${ROME}, Nauru`,
       path: `/playbooks/country/nauru/city/${rome}/tag/meal`,
       total: 4,
       page: 1,
@@ -151,7 +151,7 @@ describe("the SEO lattice", () => {
       searchParams: Promise.resolve({}),
     });
     expect(countryTag).toMatchObject({
-      heading: "Food playbooks in Nauru",
+      heading: "Food days in Nauru",
       path: "/playbooks/country/nauru/tag/meal",
       total: 5,
       page: 1,

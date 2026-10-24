@@ -1789,7 +1789,9 @@ describe("what kind of day it is", () => {
     expect(
       await screen.findByRole("heading", { level: 1, name: "Kyoto temples on foot", description: "Sightseeing" }),
     ).toBeTruthy();
-    expect(chips()).toEqual(["Sight", "Food"]);
+    // A chip's label carries a trailing space: it is the crawler's separator
+    // between chips, so the expectation spells it, not a typo.
+    expect(chips()).toEqual(["Sight ", "Food "]);
     const links = within(screen.getByTestId(`tag-chips-${DAY_ID}`)).getAllByRole("link");
     expect(links.map((link) => link.getAttribute("href"))).toEqual(["/playbooks/tag/sight"]);
   });
@@ -1799,7 +1801,7 @@ describe("what kind of day it is", () => {
     renderDay();
     const band = await screen.findByTestId("day-cover");
     expect(within(band).getByRole("heading", { level: 1, name: "Kyoto temples on foot", description: "Sightseeing" })).toBeTruthy();
-    expect(chips()).toEqual(["Sight", "Food"]);
+    expect(chips()).toEqual(["Sight ", "Food "]);
   });
 
   it("says nothing, and draws no tags, for a day too lightly tagged to describe", async () => {

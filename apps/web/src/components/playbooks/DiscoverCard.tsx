@@ -383,7 +383,11 @@ export function DiscoverCard({
           {day.preview.map((stop, i) => (
             <li key={i} className={cn("flex gap-2.5 text-sm", sea === null && "w-full")}>
               <DataText size="xs" className="w-15.5 shrink-0 pt-0.5 text-2xs" data-testid="preview-time">
-                {stop.start !== null ? toClockLabel(stop.start, clock) : ""}
+                {/* The trailing space is the crawler's separator: the flex
+                    gap leaves no character between time and title, so an
+                    extracted snippet ran them together ("7:30 amSantarosa").
+                    It collapses visually, so the row looks unchanged. */}
+                {stop.start !== null ? `${toClockLabel(stop.start, clock)} ` : ""}
               </DataText>
               <span className={cn("text-ink", sea === null && "min-w-0 truncate")} data-testid="preview-title">
                 {stop.title}

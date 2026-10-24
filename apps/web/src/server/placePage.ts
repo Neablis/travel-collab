@@ -3,7 +3,15 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import type { PlaceDaysList } from "@/components/playbooks/PlaceDaysList";
 import { PLACE_PAGE_SIZE, countryCityPath, placeIndexable, placePagePath, placePath } from "@/lib/playbookUrls";
+import type { BreadcrumbCrumb } from "@/lib/jsonLd";
 import { latticeNav } from "@/lib/latticeNav";
+import {
+  cityDescription,
+  countryCityDescription,
+  countryCityTitle,
+  countryDescription,
+  placeTitle,
+} from "@/lib/playbooksPreview";
 import { NOINDEX_FOLLOW, pageMetadata } from "@/lib/siteMetadata";
 import type { PlacePage } from "./playbooks";
 // Cached for a day, and cleared on publish (ADR-063).
@@ -51,17 +59,20 @@ async function resolve(kind: PlacePage["kind"], { params, searchParams }: PlaceR
   return { page, data: await load(kind, slug, page) };
 }
 
-/** Metadata for a city or country page: its name and count, its card, self-canonical per page. */
+/** Metadata for a city or country page: its title and description, its card, self-canonical per page. */
 export async function placeMetadata(kind: PlacePage["kind"], props: PlaceRouteProps): Promise<Metadata> {
   const { page, data } = await resolve(kind, props);
   if (data === null) return {};
   const { place } = data;
+  // The description is the page's own list summary, so the meta description
+  // and the sentence under the heading never tell a search engine two things.
+  const title = placeTitle(place.name);
   return pageMetadata({
-    title: page === 1 ? `${place.name} playbooks` : `${place.name} playbooks, page ${page}`,
+    title: page === 1 ? title : `${title}, page ${page}`,
     description:
-      place.days === 1
-        ? `1 day a traveler planned in ${place.name}. Open it and drop it into your trip.`
-        : `${place.days} days other travelers planned in ${place.name}. Find one and drop it into your trip.`,
+      place.kind === "city"
+        ? cityDescription(place.name, place.days, data.days)
+        : countryDescription(place.name, place.days, data.days),
     // The card each kind draws. The city card matches a stored spelling
     // exactly, which `name` is; the country card is keyed by ISO code.
     image: {
@@ -87,10 +98,18 @@ export async function placeListing(
   if (data === null) notFound();
   const { name, days: total } = data.place;
   const [tags, countryCities] = await Promise.all([publishedTagPages(), publishedCountryCityPages()]);
+  const path = placePath(data.place);
+  // The last crumb is this page at its own URL: on `?page=N` the trail
+  // ends at page N, as the page's canonical does, not at page one.
+  const crumbs: BreadcrumbCrumb[] = [
+    { name: "Playbooks", path: "/playbooks" },
+    { name, path: placePagePath(path, page) },
+  ];
   return {
-    heading: `${name} playbooks`,
-    summary: total === 1 ? `1 day a traveler planned in ${name}.` : `${total} days other travelers planned in ${name}.`,
-    path: placePath(data.place),
+    heading: placeTitle(name),
+    summary: kind === "city" ? cityDescription(name, total, data.days) : countryDescription(name, total, data.days),
+    path,
+    crumbs,
     days: data.days,
     total,
     page,
@@ -126,18 +145,15 @@ async function resolveCountryCity({ params, searchParams }: CountryCityRouteProp
   return { page, data: await countryCityLoad(slug, citySlug, page) };
 }
 
-/** Metadata for a country×city page: its name and count, its card, self-canonical per page. */
+/** Metadata for a country×city page: its title and description, its card, self-canonical per page. */
 export async function countryCityMetadata(props: CountryCityRouteProps): Promise<Metadata> {
   const { page, data } = await resolveCountryCity(props);
   if (data === null) return {};
   const { pair } = data;
-  const heading = `${pair.city.name} playbooks in ${pair.country.name}`;
+  const heading = countryCityTitle(pair.city.name, pair.country.name);
   return pageMetadata({
     title: page === 1 ? heading : `${heading}, page ${page}`,
-    description:
-      pair.days === 1
-        ? `1 day a traveler planned in ${pair.city.name}, ${pair.country.name}. Open it and drop it into your trip.`
-        : `${pair.days} days other travelers planned in ${pair.city.name}, ${pair.country.name}. Find one and drop it into your trip.`,
+    description: countryCityDescription(pair.city.name, pair.days, data.days),
     // The city card, as its city page draws: the pair is one city's days.
     image: {
       url: `/api/og/playbooks/city/${encodeURIComponent(pair.city.name)}`,
@@ -156,13 +172,18 @@ export async function countryCityListing(props: CountryCityRouteProps): Promise<
   if (data === null) notFound();
   const { pair } = data;
   const [tags, countryCities] = await Promise.all([publishedTagPages(), publishedCountryCityPages()]);
+  const path = countryCityPath(pair.country.slug, pair.city.slug);
+  // The last crumb is this page at its own URL, as on the place pages.
+  const crumbs: BreadcrumbCrumb[] = [
+    { name: "Playbooks", path: "/playbooks" },
+    { name: pair.country.name, path: placePath({ kind: "country", slug: pair.country.slug }) },
+    { name: pair.city.name, path: placePagePath(path, page) },
+  ];
   return {
-    heading: `${pair.city.name} playbooks in ${pair.country.name}`,
-    summary:
-      pair.days === 1
-        ? `1 day a traveler planned in ${pair.city.name}, ${pair.country.name}.`
-        : `${pair.days} days other travelers planned in ${pair.city.name}, ${pair.country.name}.`,
-    path: countryCityPath(pair.country.slug, pair.city.slug),
+    heading: countryCityTitle(pair.city.name, pair.country.name),
+    summary: countryCityDescription(pair.city.name, pair.days, data.days),
+    path,
+    crumbs,
     days: data.days,
     total: pair.days,
     page,

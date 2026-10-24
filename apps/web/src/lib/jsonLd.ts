@@ -82,6 +82,38 @@ export function dayJsonLd(input: DayJsonLdInput): JsonLdNode[] {
 }
 
 /**
+ * One crumb of a page's visible trail: its name, and the page's own path —
+ * page-aware on a paginated page, so the trail ends where the visitor is,
+ * not where page one is. The trail a list page shows and the BreadcrumbList
+ * it emits are the same array, so a crawler never reads crumbs the visitor
+ * cannot see. The shape matches `dayJsonLd`'s crumbs, so a list page's
+ * trail and a day page's trail read as one lattice.
+ */
+export type BreadcrumbCrumb = {
+  name: string;
+  path: string;
+};
+
+/**
+ * A page's BreadcrumbList, from its visible trail: each crumb at its
+ * position, its item the absolute URL of the crumb's page. The last crumb is
+ * the page itself, so its item is the page's own URL even though the trail
+ * renders it as plain text.
+ */
+export function breadcrumbJsonLd(crumbs: readonly BreadcrumbCrumb[], origin: string): JsonLdNode {
+  return {
+    "@context": CONTEXT,
+    "@type": "BreadcrumbList",
+    itemListElement: crumbs.map((crumb, i) => ({
+      "@type": "ListItem",
+      position: i + 1,
+      name: crumb.name,
+      item: `${origin}${crumb.path}`,
+    })),
+  };
+}
+
+/**
  * A city or country page's days as an `ItemList` of links, the summary-page
  * shape Google reads a list from: each `ListItem` carries only a `url` (the
  * day's canonical one) and a `name`, since the day describes itself there.

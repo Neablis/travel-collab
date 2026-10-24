@@ -60,7 +60,11 @@ function day(over: Partial<DiscoverDay> = {}): DiscoverDay {
 
 afterEach(cleanup);
 
-/** Each row as `[time cell, title]`, read off the screen. */
+/**
+ * Each row as `[time cell, title]`, read off the screen. The time cell
+ * carries a trailing space: it is the crawler's separator between time and
+ * title, so the expectations spell it, not a typo.
+ */
 function rows(): [string, string][] {
   return within(screen.getByTestId("discover-preview"))
     .getAllByRole("listitem")
@@ -74,9 +78,9 @@ describe("a Discover card's stop preview", () => {
   it("draws each stop as its clock time and its title, in order", () => {
     render(<DiscoverCard day={day()} origin={{ from: "playbooks" }} />);
     expect(rows()).toEqual([
-      ["6:30 am", "Fushimi Inari before the crowds"],
-      ["9 am", "% Arabica, Higashiyama"],
-      ["10:30 am", "Kiyomizu-dera and Sannenzaka"],
+      ["6:30 am ", "Fushimi Inari before the crowds"],
+      ["9 am ", "% Arabica, Higashiyama"],
+      ["10:30 am ", "Kiyomizu-dera and Sannenzaka"],
     ]);
     // No "+N more": the design draws none, and the facts line already says 5.
     expect(screen.queryByText(/more/i)).toBeNull();
@@ -87,9 +91,9 @@ describe("a Discover card's stop preview", () => {
   it("draws a multi-day Playbook's rows the same way", () => {
     render(<DiscoverCard day={day({ dayCount: 3, window: null })} origin={{ from: "playbooks" }} />);
     expect(rows()).toEqual([
-      ["6:30 am", "Fushimi Inari before the crowds"],
-      ["9 am", "% Arabica, Higashiyama"],
-      ["10:30 am", "Kiyomizu-dera and Sannenzaka"],
+      ["6:30 am ", "Fushimi Inari before the crowds"],
+      ["9 am ", "% Arabica, Higashiyama"],
+      ["10:30 am ", "Kiyomizu-dera and Sannenzaka"],
     ]);
   });
 
@@ -234,6 +238,8 @@ describe("a Discover card's title", () => {
 
 // M42 D9: what kind of day it is, and the tags that say so, from the server
 // (`describeByTags`). Plain chips until the tag pages exist (part 5).
+// A chip's label carries a trailing space: it is the crawler's separator
+// between chips, so the expectations below spell it, not a typo.
 describe("a Discover card's description", () => {
   it("describes the day under its title and shows its tags, most used first", () => {
     const described = day({ description: "Sightseeing", tags: ["sight", "meal"] });
@@ -242,7 +248,7 @@ describe("a Discover card's description", () => {
       screen.getByRole("link", { name: "Kyoto temples on foot", description: "Sightseeing" }),
     ).toBeTruthy();
     const chips = within(screen.getByTestId(`tag-chips-${described.savedDayId}`)).getAllByTestId(/^tag-chip-/);
-    expect(chips.map((chip) => chip.textContent)).toEqual(["Sight", "Food"]);
+    expect(chips.map((chip) => chip.textContent)).toEqual(["Sight ", "Food "]);
   });
 
   // M42 part 5: a chip links to its tag's page only when the day's
@@ -254,9 +260,9 @@ describe("a Discover card's description", () => {
     render(<DiscoverCard day={foodie} origin={{ from: "playbooks" }} />);
     const chips = within(screen.getByTestId(`tag-chips-${foodie.savedDayId}`));
     expect(chips.getAllByRole("link").map((link) => [link.textContent, link.getAttribute("href")])).toEqual([
-      ["Food", "/playbooks/tag/meal"],
+      ["Food ", "/playbooks/tag/meal"],
     ]);
-    expect(chips.getByTestId("tag-chip-nightlife").textContent).toBe("Nightlife");
+    expect(chips.getByTestId("tag-chip-nightlife").textContent).toBe("Nightlife ");
   });
 
   // A day whose description names nothing ("A bit of everything") is on no
@@ -266,7 +272,7 @@ describe("a Discover card's description", () => {
     render(<DiscoverCard day={mixed} origin={{ from: "playbooks" }} />);
     const chips = within(screen.getByTestId(`tag-chips-${mixed.savedDayId}`));
     expect(chips.queryAllByRole("link")).toEqual([]);
-    expect(chips.getAllByTestId(/^tag-chip-/).map((chip) => chip.textContent)).toEqual(["Shopping", "Food"]);
+    expect(chips.getAllByTestId(/^tag-chip-/).map((chip) => chip.textContent)).toEqual(["Shopping ", "Food "]);
   });
 
   it("says nothing, and draws no tags, for a day too lightly tagged to describe", () => {
