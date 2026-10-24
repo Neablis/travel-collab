@@ -117,7 +117,7 @@ export function PageEditor({ detail, context, user = null, globals = null, value
     () => new Set(needsKey === "" ? [] : (needsKey.split(",") as ExternalNeed[])),
     [needsKey],
   );
-  const external = useExternalInputs(context.tripId, needs);
+  const external = useExternalInputs(context.tripId, needs, { today: context.dateScope === "today" });
   // The reader's clock for the page's `dateScope`, its `today` and its day-of
   // widgets: the one clock they all read (ADR-068), read again each minute so
   // a page left open moves on with the day. The first frame reads it during
