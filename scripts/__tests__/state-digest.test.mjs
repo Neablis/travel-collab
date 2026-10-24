@@ -358,6 +358,46 @@ test("PROD MIGRATIONS says unverified, never NOT applied, when the last run's he
   assert.match(stdout, /PROD MIGRATIONS: unverified \(last run's head f179043 is not fetched — git fetch origin main\)/);
 });
 
+test("PROD MIGRATIONS counts the journal on origin/main, not the checked-out branch's", () => {
+  // KI-2026-10-24-a: a branch cut before main's newest migrations merged read
+  // its own journal, so it said "all 62 applied" while main's branch said 67,
+  // and it called its own unmerged migration NOT applied.
+  const dir = makeFixture();
+  const git = (...args) => {
+    const r = spawnSync("git", args, { cwd: dir, encoding: "utf8" });
+    assert.equal(r.status, 0, r.stderr);
+    return r.stdout.trim();
+  };
+  const drizzle = join(dir, "apps/web/drizzle");
+  const commit = (tags, message) => {
+    mkdirSync(join(drizzle, "meta"), { recursive: true });
+    for (const tag of tags) writeFileSync(join(drizzle, `${tag}.sql`), "select 1;\n");
+    writeFileSync(join(drizzle, "meta/_journal.json"), JSON.stringify({ entries: tags.map((tag, idx) => ({ idx, tag })) }));
+    git("add", "-A");
+    git("commit", "-q", "-m", message);
+  };
+  git("init", "-q", "-b", "main");
+  git("config", "user.email", "t@t");
+  git("config", "user.name", "t");
+  commit(["0000_first"], "0000");
+  git("checkout", "-q", "-b", "feature");
+  commit(["0000_first", "0001_branch_own"], "branch adds its own");
+  git("checkout", "-q", "main");
+  commit(["0000_first", "0001_second"], "0001");
+  commit(["0000_first", "0001_second", "0002_third"], "0002");
+  const mainTip = git("rev-parse", "HEAD");
+  git("update-ref", "refs/remotes/origin/main", mainTip);
+  git("checkout", "-q", "feature");
+
+  const run = JSON.stringify([{ headSha: mainTip, createdAt: "2026-10-24T07:00:00Z" }]);
+  const bin = makeBin({ gh: `#!/bin/sh\ncase "$1" in run) echo '${run}';; *) echo '[]';; esac\n` });
+  const { status, stdout } = runDigest([dir], { env: { ...process.env, PATH: `${bin}:${process.env.PATH}` } });
+
+  assert.equal(status, 0);
+  assert.match(stdout, /PROD MIGRATIONS: all 3 applied — last migrate-production run \w{7} 2026-10-24 contains 0002_third {2}\[journal at origin\/main\]/);
+  assert.match(stdout, /  this branch adds 1 migration not on origin\/main \(0001_branch_own\); production does not count it until it merges/);
+});
+
 test("PROD MIGRATIONS without gh says unverified, never applied or pending", () => {
   const { stdout } = runDigest(["--no-gh", REPO]);
   assert.match(stdout, /PROD MIGRATIONS: unverified \(--no-gh\) — newest is \d{4}_\w+, added in \w{7}/);

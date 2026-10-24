@@ -257,14 +257,43 @@ function readPullRequests(root, { skip }) {
 const MIGRATIONS_DIR = "apps/web/drizzle";
 const PENDING_MAX = 5;
 
-function readProductionMigrations(root, { skip }) {
-  let entries;
+const JOURNAL = `${MIGRATIONS_DIR}/meta/_journal.json`;
+const MAIN_REF = "origin/main";
+
+/** A journal's entries, or null when the source is missing or not a journal. */
+function journalEntries(source) {
   try {
-    entries = JSON.parse(readFileSync(join(root, MIGRATIONS_DIR, "meta/_journal.json"), "utf8")).entries;
+    const entries = JSON.parse(source).entries;
+    return Array.isArray(entries) && entries.length > 0 ? entries : null;
   } catch {
     return null;
   }
-  if (!Array.isArray(entries) || entries.length === 0) return null;
+}
+
+function readProductionMigrations(root, { skip }) {
+  // Production migrates from main, so the count is main's journal, not the
+  // checked-out branch's. Reading the working tree once said "all 62 applied"
+  // on one M52 branch and "all 67" on another at the same moment, and called
+  // a branch's own unmerged migration NOT applied (KI-2026-10-24-a). The
+  // working tree is the fallback only where there is no origin/main (a fresh
+  // repo, a test fixture), and the line names which one it read.
+  let worktreeEntries = null;
+  try {
+    worktreeEntries = journalEntries(readFileSync(join(root, JOURNAL), "utf8"));
+  } catch {
+    worktreeEntries = null;
+  }
+  const mainEntries = journalEntries(
+    run("git", ["show", `${MAIN_REF}:${JOURNAL}`], { cwd: root, timeout: GIT_TIMEOUT_MS }),
+  );
+  const ref = mainEntries ? MAIN_REF : "the working tree";
+  const entries = mainEntries ?? worktreeEntries;
+  if (!entries) return null;
+  // Its own migrations are what a branch adds; they reach production only
+  // after merging, so they get their own line and never count as pending.
+  const onMain = new Set(entries.map((e) => e.tag));
+  const branchAdds = mainEntries && worktreeEntries ? worktreeEntries.map((e) => e.tag).filter((t) => !onMain.has(t)) : [];
+  const rev = mainEntries ? [MAIN_REF] : [];
   // A migration can arrive only in a merge commit: renumbered while resolving
   // a collision with main (0035 → 0036, 2026-10-03). Plain `--diff-filter=A`
   // never reports a merge, so it answered nothing and the digest said "added
@@ -274,13 +303,13 @@ function readProductionMigrations(root, { skip }) {
   // stays first because on a branch it names the commit that wrote the file,
   // where the fallback would name the branch's merge of main.
   const addedBy = (extra, tag) =>
-    run("git", ["log", ...extra, "--diff-filter=A", "--format=%H", "-1", "--", `${MIGRATIONS_DIR}/${tag}.sql`], {
+    run("git", ["log", ...extra, "--diff-filter=A", "--format=%H", "-1", ...rev, "--", `${MIGRATIONS_DIR}/${tag}.sql`], {
       cwd: root,
       timeout: GIT_TIMEOUT_MS,
     }) || null;
   const added = (tag) => addedBy([], tag) ?? addedBy(["-m", "--first-parent"], tag);
   const newest = { tag: entries[entries.length - 1].tag, sha: added(entries[entries.length - 1].tag) };
-  const base = { total: entries.length, newest };
+  const base = { total: entries.length, newest, ref, branchAdds };
   if (skip) return { ...base, unverified: "--no-gh" };
 
   const out = run(
@@ -427,21 +456,30 @@ function render(d) {
   if (d.prod) {
     const short = (sha) => (sha ? sha.slice(0, 7) : "?");
     const p = d.prod;
+    // Which journal was counted is part of the fact: main's, or — with no
+    // origin/main — the working tree's (KI-2026-10-24-a).
+    const cite = `  [journal at ${p.ref}]`;
     if (p.unverified) {
       out.push(
         `PROD MIGRATIONS: unverified (${p.unverified}) — newest is ${p.newest.tag}, added in ` +
-          `${short(p.newest.sha)}; it is applied iff the last successful migrate-production run's head contains that commit. STATUS prose is not evidence.`,
+          `${short(p.newest.sha)}; it is applied iff the last successful migrate-production run's head contains that commit. STATUS prose is not evidence.${cite}`,
       );
     } else if (!p.lastRun) {
-      out.push(`PROD MIGRATIONS: no successful migrate-production run found — dispatch it from main.`);
+      out.push(`PROD MIGRATIONS: no successful migrate-production run found — dispatch it from main.${cite}`);
     } else if (p.pending.length === 0) {
       out.push(
-        `PROD MIGRATIONS: all ${p.total} applied — last migrate-production run ${short(p.lastRun.sha)} ${p.lastRun.date} contains ${p.newest.tag}`,
+        `PROD MIGRATIONS: all ${p.total} applied — last migrate-production run ${short(p.lastRun.sha)} ${p.lastRun.date} contains ${p.newest.tag}${cite}`,
       );
     } else {
       out.push(
         `PROD MIGRATIONS: ${p.pending.length}${p.pending.length === PENDING_MAX ? "+" : ""} NOT applied (${p.pending.join(", ")}) — ` +
-          `last run ${short(p.lastRun.sha)} ${p.lastRun.date}; dispatch migrate-production from main.`,
+          `last run ${short(p.lastRun.sha)} ${p.lastRun.date}; dispatch migrate-production from main.${cite}`,
+      );
+    }
+    if (p.branchAdds.length > 0) {
+      const n = p.branchAdds.length;
+      out.push(
+        `  this branch adds ${n} migration${n === 1 ? "" : "s"} not on ${p.ref} (${p.branchAdds.slice(0, PENDING_MAX).join(", ")}${n > PENDING_MAX ? ", …" : ""}); production does not count it until it merges`,
       );
     }
   }
