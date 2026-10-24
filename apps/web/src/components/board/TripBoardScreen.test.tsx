@@ -196,7 +196,18 @@ const server = setupServer(
 // The lenses, the rail and the editor load on demand; warm them once so a
 // first render does not pay a cold transform inside a `findBy`.
 beforeAll(() => preloadTripBoardModules());
-beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
+// `"error"` alone only prints: the read fails, the board shrugs, and the test
+// passes against a state it never meant to set up (KI-2026-10-24-f, the chat
+// reads M52 added). So each test also fails on any request no handler answered.
+const unhandled: string[] = [];
+beforeAll(() =>
+  server.listen({
+    onUnhandledRequest: (request, print) => {
+      unhandled.push(`${request.method} ${new URL(request.url).pathname}`);
+      print.error();
+    },
+  }),
+);
 beforeEach(() => {
   // **`view=Plan`, not "" — and this is the single change SPEC §24 makes to
   // almost every test in this file.** A bare trip URL lands on Overview now
@@ -224,6 +235,8 @@ afterEach(() => {
   server.resetHandlers();
   cleanup();
   listeners.clear();
+  // Last, so a failure here still leaves the next test a clean slate.
+  expect(unhandled.splice(0), "requests no handler answered").toEqual([]);
 });
 afterAll(() => server.close());
 
