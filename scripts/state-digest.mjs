@@ -301,6 +301,15 @@ function readProductionMigrations(root, { skip }) {
   if (!last?.headSha) return { ...base, lastRun: null, pending: entries.slice(-PENDING_MAX).map((e) => e.tag) };
 
   const lastRun = { sha: String(last.headSha), date: String(last.createdAt ?? "").slice(0, 10) };
+  // `merge-base --is-ancestor` against a commit this clone does not have
+  // fails, and `run` cannot tell that failure from "not an ancestor" — so an
+  // unfetched head once read as "5+ NOT applied" for a run that had applied
+  // every one of them (KI-2026-10-18-c). Absent is unknown, not pending.
+  // Fetching it here would put the network on the session-start path, so the
+  // line names the fetch instead.
+  if (run("git", ["cat-file", "-e", `${lastRun.sha}^{commit}`], { cwd: root, timeout: GIT_TIMEOUT_MS }) === null) {
+    return { ...base, unverified: `last run's head ${lastRun.sha.slice(0, 7)} is not fetched — git fetch origin main` };
+  }
   const contains = (sha) =>
     sha !== null &&
     run("git", ["merge-base", "--is-ancestor", sha, lastRun.sha], { cwd: root, timeout: GIT_TIMEOUT_MS }) !== null;
