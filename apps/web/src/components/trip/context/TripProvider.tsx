@@ -948,7 +948,11 @@ export function TripProvider({
       const units = unsentUnits();
       if (units.length === 0) return;
       for (const unit of units) handed.add(unit.id);
-      void drainAfter(tripId, inFlightSend.current, units);
+      // The head the sender has on the wire goes with the drain too, by key,
+      // so a `pagehide` while the drain runs can flush it ahead of the rest
+      // (window 6); the sender only ever sends `pending[0]`.
+      const onWire = inFlight.current ? (optimisticRef.current?.pending[0] ?? null) : null;
+      void drainAfter(tripId, inFlightSend.current && { send: inFlightSend.current, unit: onWire }, units);
     };
   }, [flushOnPageHide, unsentUnits, tripId]);
 
@@ -1105,9 +1109,22 @@ export function TripProvider({
   const trip = optimistic?.confirmed.detail ?? null;
   const activeTrip = previewSeq !== null && previewTrip !== null ? previewTrip : confirmedDetail;
   const suggestionChanges = suggestions?.changes ?? null;
+  // Predicted on the confirmed trip, placed on the days the board draws
+  // (KI-2026-10-04-a, `placeGhosts`). Keyed on the drawn trip's days and stops,
+  // not on `activeTrip`: `activeDetail` copies the trip on every render while
+  // a remote conflict is open, and placement reads neither conflicts nor fields.
+  const drawnDays = activeTrip?.days;
+  const drawnStops = activeTrip?.activities;
   const suggestionGhosts = useMemo(
-    () => (trip === null || suggestionChanges === null ? null : placeGhosts(trip, suggestionChanges)),
-    [trip, suggestionChanges],
+    () =>
+      trip === null || suggestionChanges === null
+        ? null
+        : placeGhosts(
+            trip,
+            suggestionChanges,
+            drawnDays === undefined || drawnStops === undefined ? trip : { ...trip, days: drawnDays, activities: drawnStops },
+          ),
+    [trip, suggestionChanges, drawnDays, drawnStops],
   );
 
   // One object for the context and for the header's save light, so the two

@@ -3,8 +3,8 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
 import { useState } from "react";
-import { SUGGESTION_UNIT_COMMANDS_MAX, SUGGESTION_UNITS_MAX, type CreateSuggestionInput, type TripCommand } from "@tc/contracts";
-import { tripDetailFixture } from "@tc/factories";
+import { SUGGESTION_UNIT_COMMANDS_MAX, SUGGESTION_UNITS_MAX, type CreateSuggestionInput, type SuggestionChange, type TripCommand } from "@tc/contracts";
+import { costedTripDetailFixture, tripDetailFixture, uuidFrom } from "@tc/factories";
 import { makeTripHandlers } from "@/mocks/handlers";
 import { TripProvider, useTrip } from "./TripProvider";
 
@@ -371,5 +371,56 @@ describe("TripProvider — a draft stays inside what the route accepts", () => {
       `One suggested change holds up to ${SUGGESTION_UNIT_COMMANDS_MAX} edits. Make it in smaller steps.`,
     );
     expect(screen.getByTestId("count").textContent).toBe("0");
+  });
+});
+
+// KI-2026-10-04-a: ghosts are predicted on the confirmed trip but placed on
+// the one the board draws. A suggester's draft that removes a stop someone
+// else's pending change is about must not leave that change marked on a stop
+// the board no longer draws — it goes to the chip, so it is still reachable (W42).
+describe("TripProvider — ghosts are placed where the board draws", () => {
+  function GhostProbe({ stop }: { stop: string }) {
+    const { activeTrip, dispatch, suggestionGhosts } = useTrip();
+    return (
+      <div>
+        <span data-testid="drawn">{activeTrip?.activities[stop] ? "yes" : "no"}</span>
+        <span data-testid="marked">{suggestionGhosts?.board.stops.has(stop) ? "yes" : "no"}</span>
+        <span data-testid="chip">{suggestionGhosts?.offBoard.map((g) => g.description).join(",") ?? "none"}</span>
+        <button onClick={() => void dispatch({ type: "RemoveActivity", tripId: activeTrip!.tripId, activityId: stop })}>remove</button>
+      </div>
+    );
+  }
+
+  it("lists a change to a stop the reader's draft removed in the chip, not as a marker on it", async () => {
+    const fixture = costedTripDetailFixture();
+    const stop = fixture.days[0]!.activityIds[0]!;
+    const retitle: SuggestionChange = {
+      id: uuidFrom(8301, 3),
+      suggestionId: uuidFrom(8302, 3),
+      tripId: fixture.tripId,
+      authorId: "dev-bob",
+      note: null,
+      createdAt: "2026-10-03T10:00:00.000Z",
+      commands: [{ type: "UpdateActivity", tripId: fixture.tripId, activityId: stop, title: "Elsewhere" }],
+      description: "Retitled a stop",
+      status: "pending",
+      dependsOn: [],
+      resolvedBy: null,
+      resolvedAt: null,
+    };
+    server.use(...makeTripHandlers(fixture, { myRole: "suggester", suggestions: [retitle] }));
+    render(
+      <TripProvider tripId={fixture.tripId}>
+        <GhostProbe stop={stop} />
+      </TripProvider>,
+    );
+    await waitFor(() => expect(screen.getByTestId("marked").textContent).toBe("yes"));
+    expect(screen.getByTestId("chip").textContent).toBe("");
+
+    fireEvent.click(screen.getByRole("button", { name: "remove" }));
+
+    expect(screen.getByTestId("drawn").textContent).toBe("no");
+    expect(screen.getByTestId("marked").textContent).toBe("no");
+    expect(screen.getByTestId("chip").textContent).toBe("Retitled a stop");
   });
 });
