@@ -10,6 +10,7 @@ import { BlockList, isIP, type LookupFunction } from "node:net";
 /** Why a remote image was refused. Part of the API's `cover-url-rejected` answer, so each is stable. */
 export type RemoteImageRefusalReason =
   | "invalid-url"
+  | "url-too-long"
   | "not-https"
   | "private-address"
   | "unresolvable"
@@ -19,7 +20,8 @@ export type RemoteImageRefusalReason =
   | "svg"
   | "too-large"
   | "timeout"
-  | "unreachable";
+  | "unreachable"
+  | "offline";
 
 /** A remote image the guard or the fetcher would not take, and why. */
 export class RemoteImageRefused extends Error {

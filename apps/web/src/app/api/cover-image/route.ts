@@ -36,7 +36,9 @@ export async function GET(request: Request): Promise<Response> {
         "Cache-Control": IMAGE_CACHE,
         "CDN-Cache-Control": IMAGE_CDN_CACHE,
         "X-Content-Type-Options": "nosniff",
-        // Opened as a document, it still runs nothing.
+        // Opened as a document, it still runs nothing. Under Next the same
+        // policy is served by `next.config.ts`, whose headers win over a
+        // route's; this one holds wherever the route is served without it.
         "Content-Security-Policy": "default-src 'none'; sandbox",
       },
     });

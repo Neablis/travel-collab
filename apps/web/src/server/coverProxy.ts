@@ -24,7 +24,24 @@ export function verifyCoverUrl(url: string, signature: string): boolean {
   return expected.length === presented.length && timingSafeEqual(expected, presented);
 }
 
+const pathFor = (url: string, signature: string) => `/api/cover-image?u=${encodeURIComponent(url)}&s=${signature}`;
+
 /** The same-origin path a browser loads a URL cover from. */
 export function coverProxySrc(url: string): string {
-  return `/api/cover-image?u=${encodeURIComponent(url)}&s=${signCoverUrl(url)}`;
+  return pathFor(url, signCoverUrl(url));
+}
+
+// `TripCover.proxySrc`'s cap in `@tc/contracts`, and the length of every
+// signature: SHA-256 is 32 bytes, 43 characters of unpadded base64url.
+const PROXY_SRC_MAX = 2048;
+const SIGNATURE_LENGTH = 43;
+
+/**
+ * Whether the path minted for `url` fits the contract. Encoding can triple a
+ * URL, so a URL within its own cap can still mint a path a client refuses to
+ * parse; setting a cover checks this first. Needs no key, so it answers even
+ * where signing would throw.
+ */
+export function coverProxySrcFits(url: string): boolean {
+  return pathFor(url, "x".repeat(SIGNATURE_LENGTH)).length <= PROXY_SRC_MAX;
 }

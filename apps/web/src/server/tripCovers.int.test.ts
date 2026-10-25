@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { executeTripCommand } from "./commands";
 import { verifyCoverUrl } from "./coverProxy";
 import { db } from "./db/client";
@@ -49,6 +49,11 @@ async function reasonFor(promise: Promise<unknown>): Promise<string> {
   return (error as RemoteImageRefused).reason;
 }
 
+afterEach(() => {
+  vi.unstubAllEnvs();
+  vi.restoreAllMocks();
+});
+
 describe("setTripCoverFromUrl", () => {
   it.each([
     ["a URL that is not an image", "https://cdn.example.com/page.html", "not-an-image"],
@@ -57,6 +62,17 @@ describe("setTripCoverFromUrl", () => {
   ])("refuses %s and saves nothing", async (_what, url, reason) => {
     const tripId = await seedTrip();
     expect(await reasonFor(setTripCoverFromUrl(tripId, { url }, OWNER, { fetchImage }))).toBe(reason);
+    expect(await rowsOf(tripId)).toEqual([]);
+  });
+
+  it("refuses a URL whose signed path would not fit the contract, before fetching it", async () => {
+    const tripId = await seedTrip();
+    // Every `/` triples when the path encodes it, so 1,000 characters of URL
+    // make a path well past the 2,048 a `proxySrc` may be.
+    const url = `https://cdn.example.com/${"a/".repeat(500)}x.png`;
+    const fetchSpy = vi.fn(fetchImage);
+    expect(await reasonFor(setTripCoverFromUrl(tripId, { url }, OWNER, { fetchImage: fetchSpy }))).toBe("url-too-long");
+    expect(fetchSpy).not.toHaveBeenCalled();
     expect(await rowsOf(tripId)).toEqual([]);
   });
 
@@ -104,5 +120,22 @@ describe("setTripCoverFromUrl", () => {
       expect(src.searchParams.get("u")).toBe(url);
       expect(verifyCoverUrl(url, src.searchParams.get("s")!)).toBe(true);
     }
+  });
+
+  it("lists a URL cover without its path when production has no signing key, rather than failing the listing", async () => {
+    const tripId = await seedTrip();
+    const url = "https://cdn.example.com/harbour.png";
+    await setTripCoverFromUrl(tripId, { url }, OWNER, { fetchImage });
+    vi.stubEnv("VERCEL_ENV", "production");
+    vi.stubEnv("COVER_PROXY_SECRET", "");
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const listed = (await listTripSummariesVisibleTo(OWNER)).find((trip) => trip.tripId === tripId);
+    const fromGetter = await getTripCover(tripId);
+    for (const cover of [listed?.cover, fromGetter]) {
+      expect(cover).toMatchObject({ source: "url", url });
+      expect(cover).not.toHaveProperty("proxySrc");
+    }
+    expect(logged.mock.calls.filter(([message]) => String(message).includes("without proxySrc"))).toHaveLength(1);
   });
 });

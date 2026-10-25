@@ -14,7 +14,33 @@ export type Fetcher = (url: URL, init: FetchInit) => Promise<Response>;
 export type RemoteImageLimits = { maxBytes: number; maxRedirects: number; timeoutMs: number };
 export const REMOTE_IMAGE_LIMITS: RemoteImageLimits = { maxBytes: 10 * 1024 * 1024, maxRedirects: 3, timeoutMs: 8_000 };
 
-export type RemoteImage = { contentType: string; bytes: Uint8Array<ArrayBuffer> };
+/**
+ * The raster types a cover may be, each spelled as we serve it. The proxy
+ * sends this string, never upstream's header: a browser reads
+ * `image/png,text/html` as HTML, and `image/*+xml` as a document that can
+ * carry script, so a type is taken only when its whole media type is one of
+ * these.
+ */
+const RASTER_TYPES = {
+  "image/jpeg": "image/jpeg",
+  // Not a registered type, but servers send it and every browser decodes it as JPEG.
+  "image/jpg": "image/jpeg",
+  "image/png": "image/png",
+  "image/webp": "image/webp",
+  "image/gif": "image/gif",
+  "image/avif": "image/avif",
+} as const;
+export type RasterImageType = (typeof RASTER_TYPES)[keyof typeof RASTER_TYPES];
+
+export type RemoteImage = { contentType: RasterImageType; bytes: Uint8Array<ArrayBuffer> };
+
+/** The raster type a `Content-Type` header names, by our spelling, or null for anything else. */
+function rasterType(header: string): RasterImageType | null {
+  const essence = header.split(";")[0]!.trim().toLowerCase();
+  return Object.hasOwn(RASTER_TYPES, essence) ? RASTER_TYPES[essence as keyof typeof RASTER_TYPES] : null;
+}
+
+const offline = () => process.env.EXTERNAL_DATA_OFFLINE === "true";
 
 const REDIRECTS = new Set([301, 302, 303, 307, 308]);
 
@@ -110,14 +136,17 @@ async function readCapped(response: Response, maxBytes: number): Promise<Uint8Ar
  * Fetch the image at `url`, or throw `RemoteImageRefused`. https only, on the
  * default port; every hop's address is checked before it is fetched, and
  * redirects are followed by hand, at most `maxRedirects`. The answer must be
- * a raster `image/*` (never SVG, which can carry script) within `maxBytes`,
- * all within `timeoutMs`. Buffered, so a refusal is never half a response.
+ * one of `RASTER_TYPES` (never SVG, which can carry script) within
+ * `maxBytes`, all within `timeoutMs`. Buffered, so a refusal is never half a response.
  */
 export async function fetchRemoteImage(
   url: string,
   limits: Partial<RemoteImageLimits> = {},
   deps: { fetch?: Fetcher; resolve?: Resolve } = {},
 ): Promise<RemoteImage> {
+  // Like every `external/*` source, no network while external data is
+  // offline (the e2e server): a URL cover there shows as the no-cover state.
+  if (offline()) throw new RemoteImageRefused("offline");
   const { maxBytes, maxRedirects, timeoutMs } = { ...REMOTE_IMAGE_LIMITS, ...limits };
   const resolve = deps.resolve ?? resolveHost;
   const fetch = deps.fetch ?? guardedHttpsFetcher(resolve);
@@ -153,11 +182,12 @@ export async function fetchRemoteImage(
       await response.body?.cancel();
       throw new RemoteImageRefused("upstream-status", String(response.status));
     }
-    const contentType = (response.headers.get("content-type") ?? "").split(";")[0]!.trim().toLowerCase();
-    const refusedType = !contentType.startsWith("image/") ? "not-an-image" : contentType.includes("svg") ? "svg" : null;
-    if (refusedType !== null) {
+    const header = response.headers.get("content-type") ?? "";
+    const contentType = rasterType(header);
+    if (contentType === null) {
       await response.body?.cancel();
-      throw new RemoteImageRefused(refusedType, contentType);
+      // SVG keeps its own reason, so the editor is told why a vector is refused.
+      throw new RemoteImageRefused(/svg/i.test(header) ? "svg" : "not-an-image", header);
     }
     let bytes: Uint8Array<ArrayBuffer>;
     try {

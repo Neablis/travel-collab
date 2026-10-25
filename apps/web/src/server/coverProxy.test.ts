@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { coverProxySrc, signCoverUrl, verifyCoverUrl } from "./coverProxy";
+import { coverProxySrc, coverProxySrcFits, signCoverUrl, verifyCoverUrl } from "./coverProxy";
 
 // The signature that keeps `/api/cover-image` from being an open proxy
 // (ADR-081 item 3): it serves a URL only with the HMAC the server minted when
@@ -42,5 +42,18 @@ describe("cover proxy signatures", () => {
     expect(src.pathname).toBe("/api/cover-image");
     expect(src.searchParams.get("u")).toBe(url);
     expect(verifyCoverUrl(url, src.searchParams.get("s")!)).toBe(true);
+  });
+
+  it("says a URL fits exactly when its minted path is within the contract's 2,048 characters", () => {
+    vi.stubEnv("COVER_PROXY_SECRET", "k1");
+    const seen = new Set<boolean>();
+    // Across the boundary, with a `/` (encoded as three characters) on every other step.
+    for (let length = 950; length < 1000; length += 1) {
+      const url = `https://cdn.example.com/${"a/".repeat(length).slice(0, length)}`;
+      const fits = coverProxySrc(url).length <= 2048;
+      expect(coverProxySrcFits(url), String(length)).toBe(fits);
+      seen.add(fits);
+    }
+    expect([...seen].sort()).toEqual([false, true]);
   });
 });

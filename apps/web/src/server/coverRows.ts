@@ -21,9 +21,24 @@ type UrlCover = Extract<TripCover, { source: "url" }>;
 /** What setting a cover from a URL takes: the URL, and optionally its alt, credit and framing. */
 export type UrlCoverInput = Pick<UrlCover, "url"> & Partial<Pick<UrlCover, "alt" | "credit" | "position">>;
 
-/** `cover`, with the signed same-origin path a browser loads it from when it is a URL cover. */
+let unsignedLogged = false;
+
+/**
+ * `cover`, with the signed same-origin path a browser loads it from when it
+ * is a URL cover. Without a signing key (production with `COVER_PROXY_SECRET`
+ * unset) the cover goes without one and shows as none: a listing that threw
+ * would cost the page over a decoration. Logged once per process, not per row;
+ * the proxy route itself still refuses with a 500.
+ */
 function withProxySrc(cover: TripCover): TripCover {
-  return cover.source === "url" ? { ...cover, proxySrc: coverProxySrc(cover.url) } : cover;
+  if (cover.source !== "url") return cover;
+  try {
+    return { ...cover, proxySrc: coverProxySrc(cover.url) };
+  } catch (error) {
+    if (!unsignedLogged) console.error("URL covers served without proxySrc", { error: String(error) });
+    unsignedLogged = true;
+    return cover;
+  }
 }
 
 /**

@@ -45,12 +45,13 @@ describe("GET /api/cover-image", () => {
     expect(fetchRemoteImage).toHaveBeenCalledWith(URL_A);
   });
 
-  it("streams a signed URL's image from our origin, typed by upstream and not sniffed", async () => {
+  it("serves a signed URL's image from our origin, typed by the fetcher, not sniffed, and inert as a document", async () => {
     const response = await get(coverProxySrc(URL_A));
     expect(response.status).toBe(200);
     expect(new Uint8Array(await response.arrayBuffer())).toEqual(PNG);
     expect(response.headers.get("content-type")).toBe("image/png");
     expect(response.headers.get("x-content-type-options")).toBe("nosniff");
+    expect(response.headers.get("content-security-policy")).toBe("default-src 'none'; sandbox");
     expect(response.headers.get("cache-control")).toMatch(/public, max-age=\d{5,}/);
     expect(response.headers.get("cdn-cache-control")).toMatch(/public, max-age=\d{6,}/);
     // Only the URL reaches the fetcher: none of the viewer's request does.
