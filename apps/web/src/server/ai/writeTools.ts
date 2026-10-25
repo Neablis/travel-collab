@@ -664,7 +664,20 @@ export async function commitProposal(
   // one call site that matters — the apply route — cannot accidentally meter
   // the wrong person, and a test can drive the ceiling without a database.
   charge: GeocodeCharge = () => chargeGeocodeQuota(actorId),
-): Promise<{ ok: true; value: ProposalCommitResult } | { ok: false; error: { code: string; message: string } }> {
+): Promise<
+  | {
+      ok: true;
+      value: ProposalCommitResult;
+      /**
+       * Every command the batch ran, the inserts' expansion included, in
+       * batch order. Beside `value` rather than in it, because `value` is the
+       * apply endpoint's response body. The change line reads this
+       * (KI-2026-10-23-a): an insert's stops are named by no posted command.
+       */
+      ran: BatchableCommand[];
+    }
+  | { ok: false; error: { code: string; message: string } }
+> {
   const days: SavedDay[] = [];
   for (const { savedDayId } of inserts) {
     const saved = await readableSavedDay(savedDayId, actorId);
@@ -700,8 +713,9 @@ export async function commitProposal(
   // one-line pass-through with an unused `tripId` (KI-2026-09-05-w item 2).
   // The executor's third argument is its existing transaction seam.
   const counted: { savedDayId: string; ownerId: string }[] = [];
+  const ran = [...enriched, ...inserted];
   const batch = await executeTripCommandBatch(
-    [...enriched, ...inserted],
+    ran,
     actorId,
     days.length === 0
       ? undefined
@@ -762,6 +776,7 @@ export async function commitProposal(
       detail: batch.detail,
       history: batch.history,
     },
+    ran,
   };
 }
 

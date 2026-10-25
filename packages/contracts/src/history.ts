@@ -132,6 +132,21 @@ export const HistoryEntry = z.object({
    * valid and every existing consumer is unaffected.
    */
   pageId: z.string().uuid().optional(),
+  /**
+   * **`true` when the batch carries no trip events** — a notebook save, or a
+   * backfill creating several notebooks at once. Absent on every batch that
+   * changes the trip.
+   *
+   * Such a batch is never undone: `UndoLastChange` steps over it to the newest
+   * trip change. So a control bound to one change (an assistant card's Undo,
+   * M27 D17) must step over it too when deciding whether its change is still
+   * the one Undo would take back. `pageId` cannot say this on its own: it is
+   * absent on a page-only batch touching two or more pages
+   * (KI-2026-09-24-h).
+   *
+   * Optional, so every existing consumer is unaffected.
+   */
+  pageOnly: z.literal(true).optional(),
 });
 export type HistoryEntry = z.infer<typeof HistoryEntry>;
 

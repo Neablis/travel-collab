@@ -63,8 +63,11 @@ export function proposalUndoFor(state: ProposalState, history: TripHistory | nul
   // The head the SERVER would undo: the newest entry that is not a page-only
   // batch. A notebook save lands on top of `entries`, but `deriveUndoRedo`
   // never stacks it (KI-2026-09-22-c), so it does not stand between this card
-  // and its undo (KI-2026-09-23-f).
-  const head = history.entries.find((entry) => entry.pageId === undefined);
+  // and its undo (KI-2026-09-23-f). Keyed on `pageOnly`, not `pageId`: a
+  // page-only batch touching two notebooks has no `pageId` and is stepped over
+  // all the same (KI-2026-09-24-h). `pageId` stays as a fallback for an entry
+  // served before `pageOnly` existed.
+  const head = history.entries.find((entry) => entry.pageOnly !== true && entry.pageId === undefined);
   return head !== undefined && head.batchId === state.batchId && history.canUndo ? "available" : "changed";
 }
 
