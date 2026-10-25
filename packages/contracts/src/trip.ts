@@ -21,7 +21,7 @@ import {
   RevertToState,
   UndoLastChange,
 } from "./history.ts";
-import { Money } from "./money.ts";
+import { Money, MoneyInput } from "./money.ts";
 
 // Where a trip came from, when it came from somewhere (M11 link 5, ADR-028).
 //
@@ -225,7 +225,7 @@ export type TripCurrencySetV1 = z.infer<typeof TripCurrencySetV1>;
 export const SetTripBudget = z.object({
   type: z.literal("SetTripBudget"),
   tripId: z.string().guid(),
-  budget: Money.nullable(), // null clears
+  budget: MoneyInput.nullable(), // null clears
 });
 export type SetTripBudget = z.infer<typeof SetTripBudget>;
 
@@ -264,9 +264,10 @@ export type TripEvent = z.infer<typeof TripEvent>;
  * leaves one behind on a stop whose stored kind changes is the decider's to
  * refuse, because only it can see the stored stop.
  *
- * On the UNION, the pattern `Anchor` uses (activity.ts), because zod 3's
- * `discriminatedUnion` accepts only plain objects as members — a refinement on
- * `AddActivity` itself would take it out of both unions below.
+ * On the UNION, the pattern `Anchor` uses (activity.ts). It was put there
+ * because zod 3's `discriminatedUnion` accepted only plain objects as members,
+ * so a refinement on `AddActivity` itself would have taken it out of both
+ * unions below; zod 4 lifts that, and the check stays where it is.
  */
 function refuseKindDetailOffKind(command: { type: string }, ctx: z.RefinementCtx): void {
   if (command.type !== "AddActivity" && command.type !== "UpdateActivity") return;

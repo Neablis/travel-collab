@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { Money, TripDetail } from "@tc/contracts";
+import { MoneyInput, TripDetail } from "@tc/contracts";
 import {
   orThrow,
   runBatch,
@@ -56,7 +56,7 @@ export const { GET, PATCH, DELETE } = route({
         startDate: z.string().nullable().optional(),
         endDate: z.string().nullable().optional(),
         currency: z.string().regex(/^[A-Z]{3}$/).optional(),
-        budget: Money.nullable().optional(),
+        budget: MoneyInput.nullable().optional(),
       })
       .strict(),
     response: TripDetail,
@@ -66,7 +66,7 @@ export const { GET, PATCH, DELETE } = route({
         startDate?: string | null;
         endDate?: string | null;
         currency?: string;
-        budget?: z.infer<typeof Money> | null;
+        budget?: z.infer<typeof MoneyInput> | null;
       };
       const tripId = params["tripId"]!;
       const commands: CommandInput[] = [];
