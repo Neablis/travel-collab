@@ -141,8 +141,8 @@ describe("unread and the read cursor", () => {
   it("orders a tie by id, and marking the first of two read leaves the second unread", async () => {
     const { tripId, owner, viewer } = await sharedTrip();
     const now = new Date();
-    const a = await postMessage(tripId, owner, { body: "One" }, now);
-    const b = await postMessage(tripId, owner, { body: "Two" }, now);
+    const { message: a } = await postMessage(tripId, owner, { body: "One" }, now);
+    const { message: b } = await postMessage(tripId, owner, { body: "Two" }, now);
     const [first, second] = [a, b].sort((x, y) => (x.messageId < y.messageId ? -1 : 1));
 
     expect((await page(tripId, viewer)).messages.map((m) => m.messageId)).toEqual([first!.messageId, second!.messageId]);
