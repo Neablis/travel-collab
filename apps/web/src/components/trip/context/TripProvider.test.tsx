@@ -1911,6 +1911,97 @@ describe("TripProvider unload flush (KI-5)", () => {
     expect(sendTripUnitsMock).not.toHaveBeenCalled();
   });
 
+  // KI-5 window 6: the tab closes while that drain is still running. The
+  // provider took its `pagehide` listener with it, and the drain's sends are
+  // ordinary fetches, so the unit on the wire could be cancelled and the ones
+  // behind it were never sent. The drain now flushes what it still holds, as
+  // the provider would have: one keepalive batch, the unit on the wire first,
+  // under the key it was sent with (ADR-066).
+  it("on pagehide during an in-app drain, sends what the drain still holds as one keepalive batch, by key", async () => {
+    let answerFlush: (v: unknown) => void = () => {};
+    sendTripUnitsMock.mockImplementationOnce(() => new Promise((res) => { answerFlush = res; }));
+    const { view, settleHead } = await queueBehindAnInFlightHead();
+    view.unmount();
+    await act(async () => { await new Promise((r) => setTimeout(r, 20)); });
+
+    window.dispatchEvent(new Event("pagehide"));
+
+    expect(sendTripUnitsMock).toHaveBeenCalledTimes(1);
+    const [tripId, units, options] = sendTripUnitsMock.mock.calls[0]!;
+    expect(tripId).toBe("x");
+    expect(options).toEqual({ keepalive: true });
+    expect(units.map((u: { commands: unknown[] }) => u.commands)).toEqual([
+      [addDayCommand("d-a")],
+      [addDayCommand("d-b")],
+      [addDayCommand("d-c")],
+    ]);
+    expect(units[0].key).toBe(headKey());
+    // The drain is module-level and outlives this test: let it end, so the
+    // next test's drain of the same trip is not queued behind it.
+    await act(async () => { settleHead(confirmedOutcome()); });
+    await act(async () => { answerFlush(confirmedOutcome()); });
+    await act(async () => { await new Promise((r) => setTimeout(r, 20)); });
+    expect(sendTripCommandMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("on pagehide part-way through an in-app drain, flushes from the unit on the wire, and the drain does not send a flushed unit again", async () => {
+    let answerFlush: (v: unknown) => void = () => {};
+    sendTripUnitsMock.mockImplementationOnce(() => new Promise((res) => { answerFlush = res; }));
+    const answers: ((v: unknown) => void)[] = [];
+    const { view, settleHead } = await queueBehindAnInFlightHead();
+    sendTripCommandMock.mockImplementation(() => new Promise((res) => answers.push(res)));
+    view.unmount();
+    await act(async () => { settleHead(confirmedOutcome()); });
+    await waitFor(() => expect(sendTripCommandMock).toHaveBeenCalledTimes(2)); // d-b on the wire
+    const onWireKey = (sendTripCommandMock.mock.calls[1]![1] as { idempotencyKey: string }).idempotencyKey;
+
+    window.dispatchEvent(new Event("pagehide"));
+
+    expect(sendTripUnitsMock).toHaveBeenCalledTimes(1);
+    const [, units, options] = sendTripUnitsMock.mock.calls[0]!;
+    expect(options).toEqual({ keepalive: true });
+    expect(units.map((u: { commands: unknown[] }) => u.commands)).toEqual([[addDayCommand("d-b")], [addDayCommand("d-c")]]);
+    expect(units[0].key).toBe(onWireKey);
+    // The page survived (the back/forward cache). d-b answers; d-c is the
+    // flush's now, so the drain waits for the batch, which applied it.
+    await act(async () => { answers[0]!(confirmedOutcome()); });
+    await act(async () => { await new Promise((r) => setTimeout(r, 20)); });
+    expect(sendTripCommandMock).toHaveBeenCalledTimes(2);
+    await act(async () => { answerFlush(confirmedOutcome()); });
+    await act(async () => { await new Promise((r) => setTimeout(r, 20)); });
+    expect(sendTripCommandMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("sends what a refused pagehide batch held one unit at a time, if the page survives the drain's flush", async () => {
+    sendTripUnitsMock.mockResolvedValueOnce({
+      ok: false,
+      error: { status: 409, message: "Someone else changed this trip. Retry.", code: "concurrency-conflict" },
+    });
+    const { view, settleHead } = await queueBehindAnInFlightHead();
+    sendTripCommandMock.mockResolvedValue(confirmedOutcome());
+    view.unmount();
+    await act(async () => { await new Promise((r) => setTimeout(r, 20)); });
+    window.dispatchEvent(new Event("pagehide"));
+
+    await act(async () => { settleHead(confirmedOutcome()); });
+
+    await waitFor(() => expect(sendTripCommandMock).toHaveBeenCalledTimes(3));
+    expect(sendTripCommandMock.mock.calls.slice(1).map(([c]) => c)).toEqual([addDayCommand("d-b"), addDayCommand("d-c")]);
+  });
+
+  it("a finished drain flushes nothing on a later pagehide", async () => {
+    const { view, settleHead } = await queueBehindAnInFlightHead();
+    sendTripCommandMock.mockResolvedValue(confirmedOutcome());
+    view.unmount();
+    await act(async () => { settleHead(confirmedOutcome()); });
+    await waitFor(() => expect(sendTripCommandMock).toHaveBeenCalledTimes(3));
+    await act(async () => { await new Promise((r) => setTimeout(r, 20)); });
+
+    window.dispatchEvent(new Event("pagehide"));
+
+    expect(sendTripUnitsMock).not.toHaveBeenCalled();
+  });
+
   it("on an in-app navigation, a unit the server refuses does not stop the ones behind it", async () => {
     const { view, settleHead } = await queueBehindAnInFlightHead();
     sendTripCommandMock

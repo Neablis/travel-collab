@@ -29,6 +29,10 @@ export async function GET(_request: Request, { params }: { params: Promise<{ tri
 /**
  * Post a message; 201 with it. Any member while the owner is entitled; 402 after a lapse.
  *
+ * A repeat of a send already stored (the same `clientKey`, KI-2026-10-14-a)
+ * is answered 201 with that message, so a retry whose first answer was lost
+ * reads exactly as that answer would have.
+ *
  * An `@assistant` message (M52 decision 18) also starts a turn on the poster's
  * own plan, run once the response has gone, whose reply lands in the thread.
  * A poster whose plan has no assistant is refused 402 before anything is
@@ -48,8 +52,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ tri
   if (asksAssistant && !(await resolveAiEntitlements({ userId: access.userId })).has("ai.ask")) {
     return deniedResponse(AI_NOT_ENTITLED_REASON);
   }
-  const message = await postMessage(tripId, access.userId, body.data);
-  if (asksAssistant) {
+  const { message, created } = await postMessage(tripId, access.userId, body.data);
+  // A repeat of a stored send (its `clientKey`) asked once, when first stored.
+  if (asksAssistant && created) {
     const { body: question, timeZone = null } = body.data;
     after(() => runChatAskTurn({ tripId, askerId: access.userId, question, messageId: message.messageId, timeZone }));
   }

@@ -156,8 +156,9 @@ export function ChatPanel({
   // its own link (KI-2026-10-14-b): the composer holds one draft and one
   // link, so the next waits until the one before it is stored, and comes back
   // then if the composer is empty. They are dropped with the failed one when
-  // it was. A send that never answers holds every later one at "Sending…"
-  // (KI-2026-10-14-a).
+  // it was. A send that never answers fails once its timeout passes, and the
+  // ones behind it come back with it (KI-2026-10-14-a); sent again, it goes
+  // under the same key, so one that had landed is not stored twice.
   const send = async () => {
     const body = draft.trim();
     if (body === "") return;

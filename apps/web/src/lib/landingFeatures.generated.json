@@ -66,7 +66,8 @@
       "meal",
       "outdoors"
     ],
-    "namedTags": []
+    "namedTags": [],
+    "linkedTags": []
   },
   "shelf": {
     "savedDayId": "a0f7662e-c84d-4a18-8606-a37c5bfa60ea",
@@ -117,7 +118,8 @@
       "shopping",
       "tour"
     ],
-    "namedTags": []
+    "namedTags": [],
+    "linkedTags": []
   },
   "assistant": {
     "trip": "Two days in Rome",

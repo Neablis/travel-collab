@@ -16,7 +16,7 @@ import { toClockLabel, toClockRange } from "@/lib/time";
 import { useTimeFormat } from "@/components/account/PreferencesProvider";
 import { cn } from "@/lib/cn";
 import { PHONE_TOUCH } from "@/components/ui/button";
-import { cityPath, dayPath, namedTagPath } from "@/lib/playbookUrls";
+import { cityPath, dayPath, linkedTagPath } from "@/lib/playbookUrls";
 import { backQuery, type BackOrigin } from "./backLink";
 
 // One day in the public library, as Discover and a public profile both render
@@ -327,7 +327,7 @@ export function DiscoverCard({
             </Text>
           )}
           {sea === null ? (
-            <StopTagChips activityId={day.savedDayId} tags={day.tags} focusedTag={null} hrefOf={namedTagPath(day.namedTags)} />
+            <StopTagChips activityId={day.savedDayId} tags={day.tags} focusedTag={null} hrefOf={linkedTagPath(day.linkedTags)} />
           ) : (
             <div className={cn("landing-one-row flex", late)}>
               <StopTagChips activityId={day.savedDayId} tags={day.tags} focusedTag={null} />

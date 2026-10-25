@@ -297,6 +297,38 @@ describe("a suggested new day", () => {
   });
 });
 
+// KI-2026-10-04-a: the reader's own unconfirmed edits are what the board
+// draws, so a ghost is placed on that trip. What it predicts stays on the
+// confirmed one (W5): nothing below changes a ghost's outcome or staleness.
+describe("placeGhosts on the trip the board draws", () => {
+  it("lists a change to a stop the reader has removed, unconfirmed, in the chip instead of marking a stop that is not drawn", () => {
+    const trip = confirmedTrip();
+    const stop = trip.days[0]!.activityIds[0]!;
+    const retitle = change(trip, [{ type: "UpdateActivity", tripId: trip.tripId, activityId: stop, title: "Elsewhere" }]);
+    const drawn = predictBatch(trip, [{ type: "RemoveActivity", tripId: trip.tripId, activityId: stop }]);
+    if (!drawn.ok) throw new Error("the removal should predict");
+
+    const ghosts = placeGhosts(trip, [retitle], drawn.detail);
+
+    expect(ghosts.board.stops.has(stop)).toBe(false);
+    expect(ghosts.offBoard.map((g) => g.changeId)).toEqual([retitle.id]);
+    expect(ghosts.onBoard).toEqual([]);
+    expect(ghosts.stale).toEqual([]);
+  });
+
+  it("does not say a stop is moving to the day the reader has already moved it to", () => {
+    const trip = confirmedTrip();
+    const [from, to] = trip.days;
+    const stop = from!.activityIds[0]!;
+    const move = change(trip, [{ type: "MoveActivity", tripId: trip.tripId, activityId: stop, toDayId: to!.dayId, position: 0 }]);
+    const drawn = predictBatch(trip, [{ type: "MoveActivity", tripId: trip.tripId, activityId: stop, toDayId: to!.dayId, position: 0 }]);
+    if (!drawn.ok) throw new Error("the move should predict");
+
+    expect(placeGhosts(trip, [move]).board.movingTo.get(stop)).toBe(to!.dayId);
+    expect(placeGhosts(trip, [move], drawn.detail).board.movingTo.has(stop)).toBe(false);
+  });
+});
+
 // Review of #311, finding 3.7: each change used to be predicted from the
 // confirmed trip up through every ancestor, so a chain of n cost n(n+1)/2
 // predictions. A change's base is now its latest ancestor's outcome whenever
