@@ -27,7 +27,7 @@ vi.mock("@/lib/apiClient", async (orig) => {
 import { TripProvider } from "@/components/trip/context/TripProvider";
 import { EditorHost } from "@/components/trip/context/EditorHost";
 import { TripHeader } from "./TripHeader";
-import { cachedRead } from "@/lib/queryCache";
+import { cachedRead, peekCached } from "@/lib/queryCache";
 import { coverKeys } from "@/lib/queryKeys";
 import { setViewportMatches } from "../../../vitest.setup";
 import { tripFirstDataFixture } from "@/test-support/tripFirstData";
@@ -403,7 +403,7 @@ describe("TripHeader — the cover band", () => {
     });
   });
 
-  it("gives a reader the band but no way to change it, and no Add cover", async () => {
+  it("gives a reader the band but no way to change it", async () => {
     myRole = "viewer";
     server.use(...makeCoverHandlers({ cover: tripCoverFactory.build({ alt: "Dunes at dusk" }) }));
     await renderHeader();
@@ -413,5 +413,15 @@ describe("TripHeader — the cover band", () => {
     // is any cover control at all, so no menu can open.
     expect(screen.queryAllByRole("button", { name: /cover/i })).toEqual([]);
     expect(screen.queryByRole("menu")).toBeNull();
+  });
+
+  // *Add cover* draws only once the read says "none", so a reader with a
+  // cover never reaches its role gate: this one has none.
+  it("gives a reader with no cover no Add cover", async () => {
+    myRole = "viewer";
+    server.use(...makeCoverHandlers({ cover: null }));
+    await renderHeader();
+    await waitFor(() => expect(peekCached(coverKeys.trip(TRIP))).toBeNull());
+    expect(addCover()).toBeNull();
   });
 });
