@@ -13,9 +13,12 @@ import { readerOn } from "../../test-support/reader";
 const TOKYO = { lat: 35.6812, lng: 139.7671 };
 const REYKJAVIK = { lat: 64.1466, lng: -21.9426 };
 const LONGYEARBYEN = { lat: 78.22, lng: 15.65 };
+const NEW_YORK_JFK = { lat: 40.6413, lng: -73.7781 };
 
 type DaySpec = {
   date: string | null; city?: string; cities?: string[]; place?: { lat: number; lng: number }; placeCity?: string; zone?: string;
+  // The day's first city's stop, when it is not the clock's stop: a departure day.
+  sky?: { lat: number; lng: number; city: string; timeZone: string };
 };
 
 // The trip comes from the factory; only its dates are set here, and the
@@ -29,12 +32,21 @@ function setup(days: DaySpec[], homeTimeZone: string | null = "America/Los_Angel
     days: days.map((spec, index) => ({
       index, date: spec.date, cities: spec.cities ?? (spec.city ? [spec.city] : []), activityCount: 1, costSubtotal: 0,
       place: spec.place ? { ...spec.place, city: spec.placeCity ?? spec.city ?? null } : null, timeZone: spec.zone ?? null,
-      weatherPlace: spec.place && spec.zone ? { ...spec.place, city: spec.placeCity ?? spec.city ?? null, timeZone: spec.zone } : null,
+      weatherPlace: spec.sky
+        ?? (spec.place && spec.zone ? { ...spec.place, city: spec.placeCity ?? spec.city ?? null, timeZone: spec.zone } : null),
     })),
     cities: [], tags: [], description: null, homeTimeZone,
   };
   return { trip, globals };
 }
+
+// A flight out of New York (coordinates, no city) is the day's first located
+// stop, so the CLOCK is New York's; its first city is Tokyo, so the SKY is.
+const departureDay = () =>
+  setup([{
+    date: "2026-06-21", cities: ["Tokyo"], place: NEW_YORK_JFK, zone: "America/New_York",
+    sky: { ...TOKYO, city: "Tokyo", timeZone: "Asia/Tokyo" },
+  }]);
 
 const contextOf = (
   { trip, globals }: { trip: TripDetail; globals: TripGlobals | null },
@@ -152,6 +164,15 @@ describe("day.sun", () => {
     expect(row!.sunset).toMatch(/^(7 pm|7:0[1-4] pm)$/);
   });
 
+  // KI-2026-10-24-l. A departure day: the clock's place is the flight out of
+  // New York, the sky's is Tokyo. The sun is Tokyo's on Tokyo's clock; read on
+  // New York's, the same sunrise would print as the afternoon of the day before.
+  it("reads the sun on the weather place's clock, not the day's clock, on a departure day", () => {
+    const [row] = sun(contextOf(departureDay())).rows;
+    expect(row).toMatchObject({ city: "Tokyo", state: "normal" });
+    expect(row!.sunrise).toMatch(/^4:2[4-7] am$/);
+  });
+
   it("leaves out a day with no located stop, and is empty when that is every day", () => {
     expect(sun(contextOf(trip())).rows.map((row) => row.label)).toEqual(["Day 1", "Day 2"]);
     const outcome = renderMacro(contextOf(trip()), "day.sun", { day: { kind: "index", index: 2 } });
@@ -203,6 +224,19 @@ describe("day.sun on a page scoped to today, off the trip's dates", () => {
     const ctx = contextOf(tokyoThenReykjavik());
     return { ...ctx, page: { tripId: ctx.trip!.tripId, dateScope: "today" }, now: { at: Date.parse(iso), deviceZone: "UTC" } };
   };
+
+  // KI-2026-10-24-l: today's date and times are read on the sky's clock too.
+  // At 20:00 UTC on 20 March it is 05:00 on the 21st in Tokyo and 16:00 on the
+  // 20th in New York; the row is Tokyo's morning, in Tokyo time.
+  it("reads today's sun on the weather place's clock when the day's clock is elsewhere", () => {
+    const ctx = contextOf(departureDay());
+    const today: WidgetContext = {
+      ...ctx, page: { tripId: ctx.trip!.tripId, dateScope: "today" }, now: { at: Date.parse("2026-03-20T20:00:00Z"), deviceZone: "UTC" },
+    };
+    const [row] = sun(today).rows;
+    expect(row).toMatchObject({ label: "Today", city: "Tokyo" });
+    expect(row!.sunrise).toMatch(/^5:4\d am$/);
+  });
 
   it("is today's sun at day 1's place before the trip, and at the last day's after it", () => {
     const before = sun(todayAt("2026-03-20T03:00:00Z")).rows;

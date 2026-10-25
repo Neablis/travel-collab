@@ -13,6 +13,20 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-10-24 — Only a Today page's weather request carries today's point (KI-2026-10-24-k)
+- **Changed** (`apps/web`, `GET /api/trips/[tripId]/weather` only; no `packages/contracts`
+  schema changed): the extra point dated today off the trip's dates (entry below) is added only
+  when the request says `?today=1`. Without it the route answers the trip's own days alone, and
+  makes and charges no forecast call for today.
+- Why: only `day.weather` on a page scoped to today reads that point, but every page holding a
+  weather widget fetched it, and for a trip with no day in the forecast's horizon that was a MET
+  call charged to the reader's `weather-daily` quota that nothing showed.
+- Consumers updated: `apps/web` (`fetchTripWeather(tripId, { today })`, `tripKeys.weather(tripId,
+  { today })` so the two answers are cached apart, `useExternalInputs`, `PageEditor` passing
+  `context.dateScope === "today"`).
+- Breaking? no — internal route; a client that sends no flag gets the trip's days, which every
+  page but Today already read alone.
+
 ## 2026-10-24 — A day's `weatherPlace`, where its sun and weather are read (M52 part 11, PR 542's preview; public API 1.24.0)
 - **Added** (`packages/contracts` `TripGlobalsDay.weatherPlace`, optional, `{ lat, lng, city,
   timeZone } | null`, default `null`; public API: the field on every response carrying

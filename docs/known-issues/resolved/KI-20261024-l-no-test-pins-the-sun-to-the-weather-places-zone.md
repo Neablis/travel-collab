@@ -1,4 +1,4 @@
-### KI-2026-10-24-l — no test pins `day.sun` to `weatherPlace.timeZone`; reading the clock's zone instead stays green
+### KI-2026-10-24-l — no test pins `day.sun` to `weatherPlace.timeZone`; reading the clock's zone instead stays green — RESOLVED
 
 - **Severity:** correctness (test gap). The code is right today; a regression would ship unseen.
 - **Area:** `packages/pages/src/macros/primitives/time.ts` (`locatedDay`, about line 57: `const
@@ -19,3 +19,11 @@
   *Amendment — notebook settings supersede widget settings*; `docs/contracts/CHANGELOG.md`,
   2026-10-24, `weatherPlace`.
 - **First noted:** 2026-10-24, review of PR 542, round 4 (break C), at `d717423`.
+- **Resolved:** 2026-10-24, KI sweep. Reproduced first: with the line replaced by `const zone =
+  day.timeZone;`, `time.test.ts` stayed `21 passed (21)`. `time.test.ts` now builds a departure
+  day (`departureDay`: `place` at JFK on `America/New_York`, no city; `weatherPlace` in Tokyo on
+  `Asia/Tokyo`) and pins it in two cases: the dated row's sunrise is Tokyo-local, and on a Today
+  page off the trip's dates (20:00 UTC on 20 March, already the 21st in Tokyo) today's row is too.
+  Under the same edit both go red for this reason, `expected '3:26 pm' to match /^4:2[4-7] am$/` and
+  `expected '4:44 pm' to match /^5:4\d am$/`; restored, `23 passed (23)`. No product code changed:
+  the code was right, the test gap was the defect.

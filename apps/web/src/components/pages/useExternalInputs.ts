@@ -42,8 +42,14 @@ export function notebooksChanged(): void {
  * `unavailable("source")`: a 404 while T24's route does not exist yet reads the
  * same as MET not answering, and neither is the author's problem. No polling —
  * the as-of line says how old the data is, and reopening refreshes.
+ *
+ * `today` is set for a page scoped to today, the one page that reads the
+ * weather's point for today off the trip's dates: it asks for it, under its
+ * own cache key, and no other page pays for its forecast (KI-2026-10-24-k).
  */
-export function useExternalInputs(tripId: string, needs: ReadonlySet<ExternalNeed>): ExternalInputs {
+export function useExternalInputs(
+  tripId: string, needs: ReadonlySet<ExternalNeed>, { today = false }: { today?: boolean } = {},
+): ExternalInputs {
   const wantsWeather = needs.has("weather");
   // Keyed by the trip it was fetched for, so another trip reads `pending` on
   // its first render rather than this one's forecast until its own lands
@@ -54,7 +60,7 @@ export function useExternalInputs(tripId: string, needs: ReadonlySet<ExternalNee
   useEffect(() => {
     if (!wantsWeather) return;
     let live = true;
-    void cachedRead(tripKeys.weather(tripId), () => fetchTripWeather(tripId), {
+    void cachedRead(tripKeys.weather(tripId, { today }), () => fetchTripWeather(tripId, { today }), {
       dedupeMs: DEDUPE.DOCUMENT,
     }).then((r) => {
       if (live) setFetched({ tripId, slot: r.ok ? { state: "ready", value: r.value } : { state: "failed" } });
@@ -62,7 +68,7 @@ export function useExternalInputs(tripId: string, needs: ReadonlySet<ExternalNee
     return () => {
       live = false;
     };
-  }, [tripId, wantsWeather]);
+  }, [tripId, wantsWeather, today]);
 
   // **The trip's notebooks, for a link card (ADR-056).** The same read, under
   // the same key, as the Overview tab and the Notebook index make — so a page

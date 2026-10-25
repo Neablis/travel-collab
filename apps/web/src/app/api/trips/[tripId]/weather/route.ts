@@ -38,8 +38,14 @@ function forecastOrNull(): Forecast | null {
   }
 }
 
-/** Answers `{ weather }` (a `TripWeatherResponse`) for a trip the caller may read; 401/403/404 as `globals` does. */
-export async function GET(_request: Request, { params }: { params: Promise<{ tripId: string }> }) {
+/**
+ * Answers `{ weather }` (a `TripWeatherResponse`) for a trip the caller may read; 401/403/404 as `globals` does.
+ *
+ * `?today=1` is a Today page's request, and adds today's point off the trip's
+ * dates (`todayPointOf`). Only that page reads it, so no other page pays for
+ * its forecast call (KI-2026-10-24-k). Any other value is no.
+ */
+export async function GET(request: Request, { params }: { params: Promise<{ tripId: string }> }) {
   const { tripId } = await params;
   const access = await requireTripAccess(tripId, "viewer", { allowDemo: true });
   if ("error" in access) return access.error;
@@ -54,6 +60,6 @@ export async function GET(_request: Request, { params }: { params: Promise<{ tri
     charge: (count) => consumeQuotaUnits(weatherQuota(), access.userId, count),
     now: new Date(started),
     outOfTime: () => Date.now() - started > START_BUDGET_MS,
-  });
+  }, { today: new URL(request.url).searchParams.get("today") === "1" });
   return Response.json({ weather: TripWeather.parse(weather) });
 }

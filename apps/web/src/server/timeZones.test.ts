@@ -44,6 +44,28 @@ describe("timeZoneAt", () => {
     expect(timeZoneAt(27.7172, 85.324)).toBe("Asia/Kathmandu");
   });
 
+  // KI-2026-10-24-h. Either side of the date line in the South Pacific the
+  // coarse grid draws its borders a few tenths of a degree off, which is a
+  // calendar day: Pago Pago (UTC-11) came back as Apia (UTC+13), Fakaofo
+  // (UTC+13) as Pago Pago. Real places, each checked against its tz zone.
+  it("puts the towns on either side of the Samoan date line in their own zones", () => {
+    expect(timeZoneAt(-14.2794, -170.7006), "Pago Pago").toBe("Pacific/Pago_Pago");
+    expect(timeZoneAt(-14.335, -170.784), "Leone, Tutuila").toBe("Pacific/Pago_Pago");
+    expect(timeZoneAt(-14.2793, -170.5629), "Aunu'u").toBe("Pacific/Pago_Pago");
+    expect(timeZoneAt(-14.2333, -169.5083), "Ta'u").toBe("Pacific/Pago_Pago");
+    expect(timeZoneAt(-11.0556, -171.0833), "Swains Island").toBe("Pacific/Pago_Pago");
+    expect(timeZoneAt(-13.8333, -171.7667), "Apia").toBe("Pacific/Apia");
+    expect(timeZoneAt(-14.057, -171.412), "Lalomanu, Upolu").toBe("Pacific/Apia");
+    expect(timeZoneAt(-13.73, -172.2), "Salelologa, Savai'i").toBe("Pacific/Apia");
+    expect(timeZoneAt(-9.3803, -171.2181), "Fakaofo").toBe("Pacific/Fakaofo");
+    expect(timeZoneAt(-9.1667, -171.8167), "Nukunonu").toBe("Pacific/Fakaofo");
+    expect(timeZoneAt(-8.5425, -172.5167), "Atafu").toBe("Pacific/Fakaofo");
+    expect(timeZoneAt(-21.139, -175.204), "Nuku'alofa").toBe("Pacific/Tongatapu");
+    expect(timeZoneAt(-19.0544, -169.9187), "Alofi").toBe("Pacific/Niue");
+    expect(timeZoneAt(-13.2825, -176.1736), "Mata-Utu").toBe("Pacific/Wallis");
+    expect(timeZoneAt(-18.1416, 178.4419), "Suva").toBe("Pacific/Fiji");
+  });
+
   it("answers null for a pair that is not a point, rather than throwing", () => {
     expect(timeZoneAt(Number.NaN, 0)).toBeNull();
     expect(timeZoneAt(95, 0)).toBeNull();

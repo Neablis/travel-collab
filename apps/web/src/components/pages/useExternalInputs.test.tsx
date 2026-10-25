@@ -11,9 +11,11 @@ const WEATHER = new Set<ExternalNeed>(["weather"]);
 const NOTHING = new Set<ExternalNeed>();
 
 let weatherCalls = 0;
+let todayQueries: (string | null)[] = [];
 const server = setupServer(
-  http.get("/api/trips/:tripId/weather", () => {
+  http.get("/api/trips/:tripId/weather", ({ request }) => {
     weatherCalls += 1;
+    todayQueries.push(new URL(request.url).searchParams.get("today"));
     return HttpResponse.json({ weather: { points: [] } });
   }),
 );
@@ -22,6 +24,7 @@ afterEach(() => {
   server.resetHandlers();
   clearQueryCache();
   weatherCalls = 0;
+  todayQueries = [];
 });
 afterAll(() => server.close());
 
@@ -64,6 +67,17 @@ describe("useExternalInputs (ADR-052)", () => {
     await waitFor(() => expect(result.current.weather.state).toBe("ready"));
     rerender({ tripId: OTHER });
     expect(result.current.weather).toEqual({ state: "pending" });
+  });
+
+  // KI-2026-10-24-k: only a Today page is answered today's point off the
+  // trip's dates, so only it asks for it — and an Overview's cached answer,
+  // which lacks that point, is not what the Today page opened next is given.
+  it("asks for today's point on a Today page only, and caches the two answers apart", async () => {
+    const overview = renderHook(() => useExternalInputs(TRIP, WEATHER));
+    await waitFor(() => expect(overview.result.current.weather.state).toBe("ready"));
+    const today = renderHook(() => useExternalInputs(TRIP, WEATHER, { today: true }));
+    await waitFor(() => expect(today.result.current.weather.state).toBe("ready"));
+    expect(todayQueries).toEqual([null, "1"]);
   });
 
   it("asks once a weather widget arrives on a page that had none", async () => {
