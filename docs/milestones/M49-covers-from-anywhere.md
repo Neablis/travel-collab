@@ -72,6 +72,25 @@ Candidates absorbed (each deleted by this gate):
     for every cover, so a URL cover can be repositioned in the UI too, though only the API can set
     one. The band is desktop-only today, so a phone has no reposition.
 
+    **Amended 2026-10-25 by Mitchell**, to simplify the UI: *"remove the add, remove, change buttons
+    for cover and make a more hidden experience, maybe a on hover to show that clicking lets you
+    add/change. Something that might need a little discovery but makes the ui cleaner."* He chose
+    the first of three models offered: a hover hint, with a click that opens a menu. The other two
+    were a click that opens the picker directly, and dragging anywhere with a click to change.
+    - **No visible cover buttons.** *Change cover*, *Remove* and *Reposition* leave the band.
+    - **Hover (editors only):** the cover dims slightly, and a faint *Edit cover ✎* caption shows in
+      a corner.
+    - **Click:** opens a small menu with *Change cover* · *Reposition* · *Remove*. *Reposition*
+      enters the reposition mode above, which is otherwise unchanged.
+    - **No cover:** hovering the top of the header shows a faint *+ Add cover* line. Clicking it
+      opens the picker.
+    - **Keyboard:** the cover is focusable, and `Enter` opens the same menu.
+    - **Touch:** where there is no hover, a tap on the cover opens the menu.
+    - **Viewers:** no hint, and clicking does nothing.
+    - **Where it applies:** the same pattern goes on every surface that shows cover
+      add/change/remove buttons, including the phone `CoverSection` and the playbook-day cover. It
+      ships in part 4, and the e2e spec opens the menu before choosing *Reposition*.
+
 ## Scope
 
 - The URL cover: the contract union, the migration, the set-time check, how browsers load it,
