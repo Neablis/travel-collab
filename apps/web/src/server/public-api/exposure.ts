@@ -58,6 +58,8 @@ export const EXPOSURE: Readonly<Record<string, Exposure>> = {
   "trips/[tripId]/saved-days/[savedDayId]": { status: "public", v1: ["trips/[tripId]/playbook-applications"] },
   "trips/[tripId]/shares": { status: "public", v1: ["trips/[tripId]/shares"] },
   "trips/[tripId]/shares/[shareId]": { status: "public", v1: ["trips/[tripId]/shares/[shareId]"] },
+  // M49 decision 8: set from a URL, moved, read and cleared over the API.
+  "trips/[tripId]/cover": { status: "public", v1: ["trips/[tripId]/cover"] },
 
   // ── Planned (Mitchell, 2026-09-30) ───────────────────────────────────────
   "account/preferences": PLANNED("Units and the 12/24-hour clock"),
@@ -98,13 +100,6 @@ export const EXPOSURE: Readonly<Record<string, Exposure>> = {
   "trips/[tripId]/membership": PLANNED("Undecided — leaving a trip"),
   // M34 D15: an internal route first; features ship before their endpoints.
   "trips/[tripId]/nearby-stops": PLANNED("Undecided — library stops near a trip day (M34)"),
-  // M37: a cover on the internal API first; its search spends an Unsplash
-  // quota, so publishing it is a decision, not a default.
-  "trips/[tripId]/cover": PLANNED("Undecided — a trip's cover photo (M37)"),
-  "trips/[tripId]/cover/search": PLANNED("Undecided — searching Unsplash for a cover; spends the vendor's quota (M37)"),
-  // M37 part 5: the trip cover routes' terms, for a playbook day's author.
-  "saved-days/[savedDayId]/cover": PLANNED("Undecided — a playbook day's cover photo (M37)"),
-  "saved-days/[savedDayId]/cover/search": PLANNED("Undecided — searching Unsplash for a day's cover; spends the vendor's quota (M37)"),
   // M40 part 2: named snapshots on the internal API first.
   "trips/[tripId]/snapshots": PLANNED("Undecided — a trip's named snapshots (M40)"),
   "trips/[tripId]/snapshots/[snapshotId]": PLANNED("Undecided — renaming and deleting a snapshot (M40)"),
@@ -183,9 +178,30 @@ export const EXPOSURE: Readonly<Record<string, Exposure>> = {
     why: "Sign-in; a token is already signed in",
     reaches: [{ module: "@/server/auth", symbols: ["handlers", "signIn", "signOut"] }],
   },
+  // M49 decision 8: the API takes a cover found elsewhere, not a search.
+  "trips/[tripId]/cover/search": {
+    status: "never",
+    why: "Searching Unsplash would spend Caesura's quota on another program's behalf (ADR-081 item 7)",
+    reaches: [{ module: "@/server/coverRoutes", symbols: ["coverSearch"] }, { module: "@/server/external/unsplash" }],
+  },
+  // M49 decision 8: playbook-day covers stay off the API, and the day's
+  // search spends the same quota the trip search would.
+  "saved-days/[savedDayId]/cover": {
+    status: "never",
+    why: "Playbook-day covers stay off the API (M49 decision 8)",
+    reaches: [{ module: "@/server/savedDayCovers" }],
+  },
+  "saved-days/[savedDayId]/cover/search": {
+    status: "never",
+    why: "Searching Unsplash would spend Caesura's quota on another program's behalf (ADR-081 item 7)",
+    reaches: [{ module: "@/server/coverRoutes", symbols: ["coverSearch"] }, { module: "@/server/external/unsplash" }],
+  },
   "dev/content/playbooks": { status: "never", why: "Development-only seeding", reaches: [] },
   "dev/reset-demo-data": { status: "never", why: "Development-only seeding", reaches: [] },
   "dev/saved-days": { status: "never", why: "Development-only seeding", reaches: [] },
+  // M49: the bytes of a URL cover, served to a browser on a signature the
+  // serializer minted; the API answers the cover itself, `proxySrc` included.
+  "cover-image": { status: "never", why: "A cover's image bytes for a browser, not data", reaches: [] },
   "og/invite/[token]": { status: "never", why: "Link-preview images for chat apps, not data", reaches: [] },
   "og/invite/[token]/meta": { status: "never", why: "Link-preview images for chat apps, not data", reaches: [] },
   "og/referral/[code]": { status: "never", why: "Link-preview images for chat apps, not data", reaches: [] },

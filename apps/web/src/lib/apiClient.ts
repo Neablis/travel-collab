@@ -970,6 +970,20 @@ export function setTripCover(tripId: string, candidate: CoverCandidate): Promise
   return putCover(tripCoverPath(tripId), candidate);
 }
 
+/** Moves the trip's cover to `position` (0–100), and answers the stored cover. */
+export async function setTripCoverPosition(tripId: string, position: number): Promise<ApiResult<TripCover>> {
+  try {
+    const res = await fetch(apiUrl(tripCoverPath(tripId)), {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ position }),
+    });
+    return await readJson(res, (data) => TripCover.parse(TripCoverResponse.parse(data).cover));
+  } catch (err) {
+    return networkError(err);
+  }
+}
+
 /** Removes the trip's cover. */
 export function clearTripCover(tripId: string): Promise<ApiResult<null>> {
   return deleteCover(tripCoverPath(tripId));

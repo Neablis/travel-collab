@@ -25,6 +25,7 @@ import {
   AcceptSuggestionChangesInput,
   RestorePageInput,
   SetCoverBody,
+  SetCoverPositionBody,
   SetTravellingInput,
   SYSTEM_ACTOR_ID,
   stopTotal,
@@ -1101,9 +1102,9 @@ const UPSTREAM_429 = () =>
   );
 
 /**
- * The cover routes (M37): `GET`, `PUT` and `DELETE /api/trips/:tripId/cover`
+ * The cover routes (M37): `GET`, `PUT`, `PATCH` and `DELETE /api/trips/:tripId/cover`
  * and `GET …/cover/search` — or a saved day's, `/api/saved-days/:id/cover`,
- * with `at: "saved-day"` — over one in-memory cover. Search answers `pages[n-1]`
+ * with `at: "saved-day"`, which has no `PATCH` — over one in-memory cover. Search answers `pages[n-1]`
  * for `?page=n` and nothing past the last. `search: "unavailable"` answers the
  * route's 503 (no Unsplash key here), `"quota"` our quota's 429 and
  * `"upstream-limit"` Unsplash's — the refusals the picker words differently.
@@ -1161,6 +1162,16 @@ export function makeCoverHandlers(
       };
       return HttpResponse.json({ cover });
     }),
+    ...(options.at === "saved-day"
+      ? []
+      : [
+          http.patch(base, async ({ request }) => {
+            const { position } = SetCoverPositionBody.parse(await request.json());
+            if (cover === null) return HttpResponse.json({ error: "no-cover" }, { status: 404 });
+            cover = { ...cover, position };
+            return HttpResponse.json({ cover });
+          }),
+        ]),
     http.delete(base, () => {
       options.onClear?.();
       cover = null;

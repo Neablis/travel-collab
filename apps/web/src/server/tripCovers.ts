@@ -1,12 +1,16 @@
 import { eq } from "drizzle-orm";
 import type { CoverCandidate, CoverPosition, TripCover } from "@tc/contracts";
-import { coverJson, coverOf, coverValues, storedCover } from "./coverRows";
+import { coverProxySrcFits } from "./coverProxy";
+import { coverJson, coverOf, coverValues, storedCover, urlCoverValues, type UrlCoverInput } from "./coverRows";
 import { db } from "./db/client";
 import { tripCovers } from "./db/schema";
+import { fetchRemoteImage } from "./external/remoteImage/fetchImage";
+import { RemoteImageRefused } from "./external/remoteImage/guard";
 
 // A trip's cover photo (M37 D1): ordinary CRUD on `trip_covers`, never an
-// event. The routes under `app/api/trips/[tripId]/cover/` are the only callers
-// that write; the listing query reads the same table through
+// event. The routes under `app/api/trips/[tripId]/cover/` and the public API's
+// `app/api/v1/trips/[tripId]/cover/` are the only callers that write; the
+// listing query reads the same table through
 // `TRIP_COVER_JSON` (`projections.ts`). What a cover row is, in this table and
 // in `saved_day_covers` alike, is `coverRows.ts`.
 
@@ -31,6 +35,31 @@ export async function setTripCover(
   now: Date = new Date(),
 ): Promise<TripCover> {
   const values = coverValues(candidate, userId, now);
+  const [row] = await db
+    .insert(tripCovers)
+    .values({ tripId, ...values })
+    .onConflictDoUpdate({ target: tripCovers.tripId, set: values })
+    .returning();
+  return storedCover(row);
+}
+
+/**
+ * Make the image at `input.url` the trip's cover, replacing any it had. The
+ * URL is fetched once through the guarded fetcher first, and a refusal throws
+ * its `RemoteImageRefused` (with the reason) having saved nothing, so a trip
+ * never holds a cover that was not an image when it was set. A URL whose
+ * signed path would not fit the contract is refused `url-too-long` before
+ * that. The image itself is not kept: the cover is the URL (ADR-081 item 2).
+ */
+export async function setTripCoverFromUrl(
+  tripId: string,
+  input: UrlCoverInput,
+  userId: string,
+  { fetchImage = fetchRemoteImage, now = new Date() }: { fetchImage?: (url: string) => Promise<unknown>; now?: Date } = {},
+): Promise<TripCover> {
+  if (!coverProxySrcFits(input.url)) throw new RemoteImageRefused("url-too-long");
+  await fetchImage(input.url);
+  const values = urlCoverValues(input, userId, now);
   const [row] = await db
     .insert(tripCovers)
     .values({ tripId, ...values })

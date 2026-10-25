@@ -5,8 +5,10 @@ import { locationFactory } from "@tc/factories";
 import type { PlaceMatch } from "@/lib/cities";
 import type { DiscoverResponse } from "@/lib/playbooks";
 import { executeTripCommand } from "@/server/commands";
+import { forgetCitySearches } from "@/server/cities";
 import { db } from "@/server/db/client";
 import { savedDays } from "@/server/db/schema";
+import { forgetCountrySearches } from "@/server/places";
 
 // Place search (M12 link 7), against the real index and the real save path —
 // so `countries` here is whatever `newSavedDayRow` derived, not a value the
@@ -144,6 +146,12 @@ describe("GET /api/places", () => {
     await publish(moderated);
     expect(await countryDays("Monaco", "MC")).toBe(before + 1);
     await db.update(savedDays).set({ moderatedAt: new Date() }).where(eq(savedDays.id, moderated));
+    // That update writes straight to the table, bypassing the moderation
+    // path that owns index invalidation — so drop both place memos here,
+    // the way every service write does, or the next read answers from the
+    // pre-moderation memo and this assertion fails.
+    forgetCitySearches();
+    forgetCountrySearches();
     expect(await countryDays("Monaco", "MC")).toBe(before);
   });
 

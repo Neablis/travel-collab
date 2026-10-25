@@ -16,6 +16,23 @@ not by anybody remembering. That automation exists because the rule was being
 skipped: M23's entry survived its own gate closing on 2026-09-19 and was still
 here two days later.
 
+- **Live assistant progress in trip chat (asked 2026-10-25).** Left out of the motion pass
+  (`docs/specs/2026-10-25-motion-pass-design.md`, decision 13). Ask shows a status line per tool
+  step because its turn streams. Trip chat's `@assistant` reply lands whole (M52 decision 18),
+  so the motion pass gives it only the dots (`ChatPanel.tsx`'s `thinkingUntil`). Showing
+  "Searching places…" there means getting tool progress into the chat thread: streamed, or
+  carried on the events poll. That meets the same poll limits as *X is typing* below
+  (ADR-049), so the two may want one transport decision.
+
+- **"X is typing" in trip chat (asked 2026-10-25).** Left out of the motion pass (decision 14).
+  Mitchell's design: on focus and first keystroke, send a short-lived invisible signal that
+  expires after a few seconds, or as soon as that person sends. Others see "X is typing" until
+  then. The app has no live transport: chat refreshes on the events poll (ADR-049), and presence
+  rides that poll with a 5-minute heartbeat (ADR-073 §6). ADR-049 names presence as the one
+  thing a poll serves worse than a stream, so this reopens its Decision 2. Open questions: the
+  freshness to accept (a 2–5s lag at today's interval), the write cost of a typing signal per
+  member, and whether it rides with live assistant progress (above).
+
 - **Recently deleted: restore any notebook (asked 2026-10-24).** Considered for M52 and not
   taken: Mitchell chose *Reset to default* for the undeletable *Today* notebook instead
   (decision 9). The idea is a *Recently deleted* list in the notebook index, from which any
@@ -350,25 +367,20 @@ here two days later.
   (`docs/milestones/M33-evals.md`); the 2026-10-05 cheap-tier switch was chosen that way. What
   is left is only a sweep of several models in one run, and a table of the results.
 
-- **Reposition a cover: drag the photo to choose what the band shows (asked 2026-10-10).**
-  Mitchell, on the trip page's cover: *"i want to do the adjusted photo crop like notion option
-  later"*. The desktop trip page now shows the cover as a 384px band that fades into the page
-  under the header (`TripCoverBanner`, the playbook day's treatment). It is still a center crop,
-  and the fade hides the bottom third, so a photo whose subject sits low (a beach, a street,
-  people) can lose it. Unsplash gives no focal point to aim at.
-  - **What exists.** `TripCover` (`packages/contracts/src/cover.ts`) holds the photo's URLs and
-    credit, stored in the CRUD side table `trip_covers`, not in the event log. `CoverImage`
-    renders it with `object-cover` and no `object-position`.
-  - **The idea.** Notion's *Reposition*: from the band, an editor drags the photo up or down and
-    saves. Store one vertical position (0–100%) with the cover and render it as
-    `object-position: center <y>%`. A playbook day's cover could use the same thing.
-  - **Decisions it needs.** The field and its default (50%, today's crop) in `TripCover`, a
-    `trip_covers` migration, and a contract change logged in `docs/contracts/CHANGELOG.md`.
-    Whether a horizontal position is worth storing too (the home card's crop is the other
-    shape). Where the control lives: on the band itself, or in Trip settings' Cover photo
-    preview. Whether choosing a new photo resets the position. Keyboard and phone handling for
-    the drag. Whether the stored position also applies to the card on Home.
-  *Placed 2026-10-12 → `docs/milestones/M49-covers-from-anywhere.md` (proposed, not yet scoped). M49's gate deletes this entry at close.*
+- **Reposition a playbook day's cover, as the trip band does (asked 2026-10-25).** Mitchell,
+  walking M49's preview: *"Is it expected i cant reposition the playbook covers?"*, then *"make it
+  a follow-up"*.
+  - **What exists.** M49 shipped *Reposition* for the trip cover only. `TripCover.position`
+    (0–100, default 50) came with migration 0068, and the trip band's drag mode lives in
+    `RepositionCover.tsx`, reached from the hidden cover menu of decision 10 as amended. The day
+    band uses the same `CoverMenu`, but it offers only *Change cover* and *Remove*.
+    Playbook-day covers stay off the public API (M49 decision 8).
+  - **The idea.** Put *Reposition* in the day band's menu, reuse the drag mode, and render the
+    saved position on every surface the day cover appears on.
+  - **Decisions it needs.** Whether the day cover's stored shape already carries `position`. If
+    it does not, this needs a migration and a contract change logged in
+    `docs/contracts/CHANGELOG.md`. Also whether choosing a new photo resets the position, as it
+    does for trips.
 
 - **The assistant knows which surface started the conversation, and can start a trip from scratch
   (asked 2026-10-13).** Mitchell, walking M45 on production: *"it should be conscious of what tab

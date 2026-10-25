@@ -39,8 +39,8 @@ import { IDEMPOTENCY_KEY_MAX_LENGTH, REPLAYED_HEADER } from "./idempotency";
  * fingerprint the failure printed into `API_FINGERPRINT`, and add a line to
  * `docs/contracts/CHANGELOG.md`. Change both constants in the same diff.
  */
-export const API_VERSION = "1.28.0";
-export const API_FINGERPRINT = "3a3f121cce8efe07e8a0f90b3aeeef4a5fe309b2461a376a49e07c9903a35a8a";
+export const API_VERSION = "1.29.0";
+export const API_FINGERPRINT = "35b9f74a5e46f1061f5be690cd763e27a3653e0b130d2049643b154937a7e867";
 
 /**
  * sha256 of the document with `info.version` left out, keys sorted at every
@@ -64,7 +64,7 @@ function canonicalJson(value: unknown): string {
   return JSON.stringify(value);
 }
 
-const HTTP_METHODS = ["GET", "POST", "PATCH", "DELETE"] as const;
+const HTTP_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE"] as const;
 
 /** Every `route.ts` under `v1/` — the directory IS the registry (Decision 1). */
 export function routeModulePaths(v1Dir: string): string[] {

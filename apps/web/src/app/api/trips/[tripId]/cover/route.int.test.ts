@@ -49,7 +49,7 @@ vi.mock("@/server/external/unsplash", async (importOriginal) => {
   };
 });
 
-const { GET: COVER_GET, PUT, DELETE } = await import("./route");
+const { GET: COVER_GET, PUT, PATCH, DELETE } = await import("./route");
 const { GET: SEARCH } = await import("./search/route");
 const { GET: LIST_TRIPS } = await import("../../route");
 const { GET: TRIP_DETAIL } = await import("../route");
@@ -78,6 +78,15 @@ const pick = (tripId: string, candidate: CoverCandidate) =>
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ candidate }),
+    }),
+    at(tripId),
+  );
+const reposition = (tripId: string, body: unknown) =>
+  PATCH(
+    new Request(`http://test/api/trips/${tripId}/cover`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
     }),
     at(tripId),
   );
@@ -201,7 +210,7 @@ describe("GET /api/trips/:id/cover/search", () => {
   });
 });
 
-describe("PUT and DELETE /api/trips/:id/cover", () => {
+describe("PUT, PATCH and DELETE /api/trips/:id/cover", () => {
   it("stores a pick and pings its download location exactly once, after the response", async () => {
     const tripId = await seedTrip();
     const [first] = await candidates(tripId);
@@ -260,6 +269,29 @@ describe("PUT and DELETE /api/trips/:id/cover", () => {
     expect((await coverOf(tripId))?.position).toBe(50);
   });
 
+  // M49 decision 10: the band's *Save position*.
+  it("PATCH moves an editor's cover, leaving the photo as it was", async () => {
+    const tripId = await seedTrip();
+    const [first] = await candidates(tripId);
+    const picked = TripCoverResponse.parse(await (await pick(tripId, first!)).json()).cover;
+    currentUserId = EDITOR;
+    const res = await reposition(tripId, { position: 20 });
+    expect(res.status).toBe(200);
+    expect(TripCoverResponse.parse(await res.json()).cover).toEqual({ ...picked, position: 20 });
+    expect(await coverOf(tripId)).toEqual({ ...picked, position: 20 });
+  });
+
+  it("PATCH refuses a position outside 0–100, and 404s a trip with no cover", async () => {
+    const tripId = await seedTrip();
+    for (const position of [-1, 101, 12.5, "30"]) {
+      expect((await reposition(tripId, { position })).status).toBe(400);
+    }
+    const res = await reposition(tripId, { position: 30 });
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({ error: "no-cover" });
+    expect(await coverOf(tripId)).toBeNull();
+  });
+
   it("moves no cover on a trip that has none", async () => {
     const tripId = await seedTrip();
     expect(await setTripCoverPosition(tripId, 30)).toBeNull();
@@ -312,7 +344,7 @@ describe("PUT and DELETE /api/trips/:id/cover", () => {
   it.each([
     ["viewer", VIEWER],
     ["suggester", SUGGESTER],
-  ])("403s a %s on search, pick and clear", async (_role, userId) => {
+  ])("403s a %s on search, pick, reposition and clear", async (_role, userId) => {
     const tripId = await seedTrip();
     const [first] = await candidates(tripId);
     await pick(tripId, first!);
@@ -322,18 +354,20 @@ describe("PUT and DELETE /api/trips/:id/cover", () => {
     currentUserId = userId;
     expect((await search(tripId)).status).toBe(403);
     expect((await pick(tripId, first!)).status).toBe(403);
+    expect((await reposition(tripId, { position: 10 })).status).toBe(403);
     expect((await clear(tripId)).status).toBe(403);
     await settle();
     expect(offlineCoverPhotos.pings).toEqual([]);
-    // They may still see it.
-    expect(await coverOf(tripId)).toMatchObject({ unsplashId: first!.id });
+    // They may still see it, framed where it was.
+    expect(await coverOf(tripId)).toMatchObject({ unsplashId: first!.id, position: 50 });
   });
 
-  it("400s a pick or a clear on a deleted trip", async () => {
+  it("400s a pick, a reposition or a clear on a deleted trip", async () => {
     const tripId = await seedTrip();
     const [first] = await candidates(tripId);
     await executeTripCommand({ type: "DeleteTrip", tripId }, OWNER);
     expect((await pick(tripId, first!)).status).toBe(400);
+    expect((await reposition(tripId, { position: 10 })).status).toBe(400);
     expect((await clear(tripId)).status).toBe(400);
     await settle();
     expect(offlineCoverPhotos.pings).toEqual([]);

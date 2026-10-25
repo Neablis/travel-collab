@@ -49,6 +49,54 @@ async function publishedCountries(): Promise<{ countryCode: string; days: number
   return [...rows.rows].map((row) => ({ countryCode: String(row.code), days: Number(row.days) }));
 }
 
+// The per-process memo in front of the countries aggregate, mirroring
+// `cities.ts`'s memo (KI-2026-09-14-d) for the same reason: the place
+// typeahead re-asks on every keystroke, and the aggregate scans every
+// published day's `countries` array. The window is the same 30s, so the two
+// halves of one list go stale together, and the invalidation bound is the
+// same too: `forgetCountrySearches` is called alongside every
+// `forgetCitySearches` call, so the instance that took a publish, unpublish,
+// moderation or re-seed answers the next search fresh. Another serverless
+// instance, or a write from the import script, is seen within the window —
+// a day count up to that stale, never a day that was never public. A single
+// key, because the aggregate takes no query argument: the name filtering
+// happens in JS, in `searchPlaces`, after the memo.
+/** The countries memo's window, matching `MEMO_TTL_MS` in `cities.ts`. */
+const MEMO_TTL_MS = 30_000;
+let memo: { answer: Promise<{ countryCode: string; days: number }[]>; expires: number } | undefined;
+
+/**
+ * Drop the memoised countries aggregate. Call alongside `forgetCitySearches`
+ * after a write that can change which published, undeleted, unmoderated days
+ * exist — the countries half of the place index moves with the city half.
+ */
+export function forgetCountrySearches(): void {
+  memo = undefined;
+}
+
+/** The aggregate through the memo: one scan per window, not one per keystroke. */
+async function publishedCountriesMemoised(): Promise<{ countryCode: string; days: number }[]> {
+  const now = Date.now();
+  if (memo !== undefined && memo.expires > now) return copied(memo.answer);
+  const answer = publishedCountries();
+  const entry = { answer, expires: now + MEMO_TTL_MS };
+  memo = entry;
+  // A failure is not an answer: drop it so the next keystroke asks again rather
+  // than replaying the error for the rest of the window. Only if the entry is
+  // still this one — a `forgetCountrySearches` in between already removed it.
+  answer.catch(() => {
+    if (memo === entry) memo = undefined;
+  });
+  return copied(answer);
+}
+
+/** Each caller gets its own rows, so one that sorts or edits them cannot rewrite the memo. */
+function copied(
+  answer: Promise<{ countryCode: string; days: number }[]>,
+): Promise<{ countryCode: string; days: number }[]> {
+  return answer.then((rows) => rows.map((row) => ({ ...row })));
+}
+
 /** The name a searcher types towards and the sort ties on, whichever kind the place is. */
 function labelOf(place: PlaceMatch): string {
   return place.kind === "city" ? place.city : place.name;
@@ -79,7 +127,7 @@ function labelOf(place: PlaceMatch): string {
  */
 export async function searchPlaces(q: string): Promise<PlaceMatch[]> {
   const needle = q.toLowerCase();
-  const [cities, countries] = await Promise.all([searchCities(q), publishedCountries()]);
+  const [cities, countries] = await Promise.all([searchCities(q), publishedCountriesMemoised()]);
 
   const places: PlaceMatch[] = [
     ...cities.map((c): PlaceMatch => ({ kind: "city", city: c.city, days: c.days })),

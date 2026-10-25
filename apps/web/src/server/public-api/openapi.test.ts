@@ -88,7 +88,7 @@ describe("openapi.json is derived from the declarations", () => {
     for (const file of routeModulePaths(V1)) {
       const url = urlOf(V1, file);
       const exported = (await import(file)) as Record<string, unknown>;
-      for (const method of ["GET", "POST", "PATCH", "DELETE"] as const) {
+      for (const method of ["GET", "POST", "PUT", "PATCH", "DELETE"] as const) {
         const handler = exported[method] as DeclaredHandler | undefined;
         if (handler?.[DECLARED] !== undefined) declared.push(`${method} ${url}`);
       }

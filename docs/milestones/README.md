@@ -199,7 +199,7 @@ Placement notes (decided 2026-07-07):
   questions stay open — start-only trip dates, first-run vs. the four-step
   wizard, and whether the landing copy may sell M11/M12 — see the review's §8.
 
-Current milestone: M49 — A cover can come from anywhere, and be framed where y…
+Current milestone: M43 — A trip's notebooks keep up with their templates
 
 ### Archived decision notes
 
@@ -239,9 +239,9 @@ instruction, and they were 56% of this file.
 **Asked 2026-10-25.** An SEO audit of `caesura.today` (every sitemap URL fetched, plus the
 metadata, sitemap and robots code) scored the site at about 82/100. Mitchell: *"Create a new
 milestone listing all these issues to fix as one big milestone."* **M53 is minted, not scoped**,
-and placed **last**, after M44, since he named no place for it. M49 stays current. The findings
-and seven recommended decisions are in `M53-search-reads-every-public-page.md`. Order: M49 → M43 →
-M44 → M53, with M48 parked.
+and placed **last**, after M44, since he named no place for it. M43 stays current (M49 closed the same day). The
+findings and seven recommended decisions are in `M53-search-reads-every-public-page.md`. Order:
+M43 → M44 → M53, with M48 parked.
 
 ### 2026-10-22 — minted: M52, the trip comes with you
 
