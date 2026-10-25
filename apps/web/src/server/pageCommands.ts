@@ -1,4 +1,5 @@
 import {
+  CURRENT_PAGE_DOC_VERSION,
   PAGE_CHANGED_CODE,
   PageCommand,
   PageContext as PageContextSchema,
@@ -398,12 +399,10 @@ async function missingGenesis(
     // rewrites, at the old row's `v`. A row from a newer build cannot be
     // migrated; it is backfilled as parsed, as it always was, rather than
     // turned into a page no command can reach while a deploy rolls.
-    let doc = content.data;
-    try {
-      doc = migratePageDoc(content.data);
-    } catch {
-      // Newer than this build: kept as parsed (above).
-    }
+    // Only the version is tested, not caught: a migration step that throws on
+    // an older row must surface, not quietly backfill it at its old `v`.
+    const doc =
+      content.data.v > CURRENT_PAGE_DOC_VERSION ? content.data : migratePageDoc(content.data);
     genesis.push({
       type: "PageCreated",
       version: 1,
