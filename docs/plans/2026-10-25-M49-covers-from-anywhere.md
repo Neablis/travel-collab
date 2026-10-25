@@ -11,7 +11,7 @@ merges last.
 |---|---|---|---|
 | 1 | `claude/m49-part1-cover-union` | The union, `position`, migration 0068, rendering | — |
 | 2 | `claude/m49-part2-guarded-proxy` | The guarded fetcher, the signed proxy, setting from a URL | 1 |
-| 3 | `claude/m49-part3-public-api-cover` | `/v1/trips/{tripId}/cover`, 1.27.0 | 2 |
+| 3 | `claude/m49-part3-public-api-cover` | `/v1/trips/{tripId}/cover`, 1.28.0 | 2 |
 | 4 | `claude/m49-part4-reposition-band` | Reposition on the band, the e2e spec | 1 |
 
 ## Part 1 — the cover becomes a union, and carries a position
@@ -20,7 +20,10 @@ merges last.
 alt?, credit?: { name, url? }, position, proxySrc? }`. `proxySrc` is the signed same-origin path
 that part 2 mints; until then, a URL cover with no `proxySrc` renders the fallback. Migration 0068
 covers both cover tables. `CoverImage` renders `object-position` and falls back on `onError`.
-Picking a new Unsplash photo resets `position` to 50. `setTripCoverPosition(tripId, position)` lands
+Picking a new Unsplash photo resets `position` to 50. `TripCover` already appears in the published
+document (`DiscoverDay.cover`, `TripSummary.cover`), so this part ships the union as public API
+**1.27.0** with its `docs/contracts/CHANGELOG.md` entry; part 3's endpoint is 1.28.0 (found by the
+first builder, 2026-10-25). `setTripCoverPosition(tripId, position)` lands
 here so that parts 3 and 4 share it.
 
 | File | Entry point | Test |
@@ -63,8 +66,8 @@ without `s` answers 403.
 | `web/app/api/v1/trips/[tripId]/cover/route.ts` | `GET` (viewer), `PUT`, `PATCH { position }` and `DELETE` (editor, `trips:write`) via `route()` (copy `v1/trips/[tripId]/pages/[pageId]/route.ts`) | `web/server/public-api/cover.int.test.ts` (drives the route with a token: PUT then GET; a non-image and a private address each 422 with nothing saved; PATCH moves the position; DELETE clears it) |
 | `web/server/public-api/exposure.ts` | `:103` → `public`, `v1`; `:104` search → `never` with `reaches` | `conformance.test.ts` |
 | `packages/contracts/src/publicApi.ts` | `ApiErrorCode` gains `cover-url-rejected` | contract test |
-| `web/server/public-api/openapi.ts` | `API_VERSION = "1.27.0"`, fingerprint; `pnpm --filter web openapi:generate` | `openapi.test.ts` |
-| `docs/contracts/CHANGELOG.md` | the union, the endpoint, the error code, 1.27.0 | — |
+| `web/server/public-api/openapi.ts` | `API_VERSION = "1.28.0"`, fingerprint; `pnpm --filter web openapi:generate` | `openapi.test.ts` |
+| `docs/contracts/CHANGELOG.md` | the endpoint and the error code, 1.28.0 (the union's entry, 1.27.0, landed with part 1) | — |
 | `docs/guidelines/using-the-api.md` | the cover endpoint in the endpoint list, if it keeps one | — |
 
 **Preview:** with an API token, `curl -X PUT …/v1/trips/<id>/cover -d '{"url":"https://…jpg"}'`.
