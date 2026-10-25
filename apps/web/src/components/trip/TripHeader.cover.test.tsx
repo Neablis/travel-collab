@@ -124,6 +124,52 @@ describe("TripHeader — the cover band", () => {
     expect(addCover()).toBeNull();
   });
 
+  // M49 decision 10: Reposition beside Change cover, for an editor.
+  describe("Reposition", () => {
+    const photo = (alt: string) => screen.getByRole("img", { name: alt });
+    const patches = () => {
+      const sent: unknown[] = [];
+      server.events.on("request:start", async ({ request }) => {
+        if (request.method === "PATCH") sent.push(await request.clone().json());
+      });
+      return sent;
+    };
+
+    it("moves the photo live and saves it on Enter, which the band then keeps", async () => {
+      const sent = patches();
+      server.use(...makeCoverHandlers({ cover: tripCoverFactory.build({ alt: "Lake roofs", position: 50 }) }));
+      await renderHeader();
+      await userEvent.click(await screen.findByRole("button", { name: "Reposition" }));
+      expect(screen.getByText("Drag image to reposition")).toBeTruthy();
+      expect(band()).toBeNull();
+
+      await userEvent.keyboard("{Shift>}{ArrowDown}{/Shift}{ArrowDown}");
+      expect(photo("Lake roofs").style.objectPosition).toBe("center 39%");
+      await userEvent.keyboard("{Enter}");
+
+      await waitFor(() => expect(screen.queryByRole("slider", { name: "Cover position" })).toBeNull());
+      expect(sent).toEqual([{ position: 39 }]);
+      expect(photo("Lake roofs").style.objectPosition).toBe("center 39%");
+      expect(band()).not.toBeNull();
+      server.events.removeAllListeners();
+    });
+
+    it("puts the photo back on Esc, sending nothing", async () => {
+      const sent = patches();
+      server.use(...makeCoverHandlers({ cover: tripCoverFactory.build({ alt: "Lake roofs", position: 30 }) }));
+      await renderHeader();
+      await userEvent.click(await screen.findByRole("button", { name: "Reposition" }));
+      await userEvent.keyboard("{ArrowUp}{ArrowUp}");
+      expect(photo("Lake roofs").style.objectPosition).toBe("center 32%");
+
+      await userEvent.keyboard("{Escape}");
+      expect(screen.queryByRole("slider", { name: "Cover position" })).toBeNull();
+      expect(photo("Lake roofs").style.objectPosition).toBe("center 30%");
+      expect(sent).toEqual([]);
+      server.events.removeAllListeners();
+    });
+  });
+
   // PR #384 review: the banner kept a store of its own beside the cache Trip
   // settings reads, so a newer cover read there (a co-editor's) never reached
   // the band, and the band's read never spared Settings its first one.
@@ -246,7 +292,7 @@ describe("TripHeader — the cover band", () => {
       // fetched there.
       // React's own preload of an eager image is lost inside a `<picture>`, so
       // the banner preloads it for desktop only: a phone fetches nothing.
-      const html = renderToStaticMarkup(<TripCoverBanner cover={tripCoverFactory.build()} />);
+      const html = renderToStaticMarkup(<TripCoverBanner tripId={TRIP} cover={tripCoverFactory.build()} />);
       expect(html).toMatch(/^<link rel="preload" as="image"[^>]* media="\(min-width: 768px\)"[^>]*\/>/);
       expect(html.match(/<link /g)).toHaveLength(1);
       expect(html).toMatch(/\/><div class="[^"]*\bmax-md:hidden\b/);
@@ -263,6 +309,7 @@ describe("TripHeader — the cover band", () => {
     await renderHeader();
     expect(await screen.findByRole("img", { name: "Dunes at dusk" })).toBeTruthy();
     expect(band()).toBeNull();
+    expect(screen.queryByRole("button", { name: "Reposition" })).toBeNull();
     expect(addCover()).toBeNull();
   });
 });

@@ -1,12 +1,16 @@
 "use client";
 
-import type { Ref } from "react";
+import { useRef, useState, type Ref } from "react";
 import { ImagePlus } from "lucide-react";
 import type { TripCover } from "@tc/contracts";
 import { CoverCredit } from "@/components/cover/CoverCredit";
 import { CoverImage } from "@/components/cover/CoverImage";
 import { Button } from "@/components/ui/button";
+import { setTripCoverPosition } from "@/lib/apiClient";
 import { cn } from "@/lib/cn";
+import { primeCached } from "@/lib/queryCache";
+import { coverKeys } from "@/lib/queryKeys";
+import { PILL, RepositionCover } from "./RepositionCover";
 
 /**
  * The band's three heights, shared with `TripHeader` (which pulls itself up by
@@ -33,8 +37,7 @@ export const COVER_BAND = { BAND: "h-96", EXPOSED: "h-60", OVERLAP: "md:-mt-36 m
  * foot: the playbook day's treatment (`SharedDayScreen`, `veil="paper"`, with
  * the fade pulled up to finish under the header — `.cover-veil-trip`),
  * chosen from mockups on 2026-10-10 over a colour wash and an inset photo.
- * Still center-cropped; letting an editor drag the crop is a candidate
- * (`docs/candidates.md`, *Reposition a cover*).
+ * Framed at the cover's `position`, which an editor drags (M49 decision 10).
  *
  * From 768px up only. A phone keeps its one-row pinned header and gets no
  * band: a photo above it would push the plan down on the screen that has least
@@ -54,34 +57,88 @@ export const COVER_BAND = { BAND: "h-96", EXPOSED: "h-60", OVERLAP: "md:-mt-36 m
  *
  * For whoever may change the cover, the exposed part of the band is the button
  * that opens Trip settings at Cover photo; the faded foot belongs to the
- * header's own controls. Unsplash's credit stays on it, as their guidelines
- * require wherever the photo appears, on a chip above the button so its two
- * links stay their own targets.
+ * header's own controls. Hovering it shows *Change cover* and, beside it,
+ * *Reposition*, which lays `RepositionCover` over the band: the photo moves
+ * as it is dragged, and a saved position is stored into the cover's cache
+ * entry, as a pick is, so the band keeps it without a read. Unsplash's credit
+ * stays on it, as their guidelines require wherever the photo appears, on a
+ * chip above the button so its two links stay their own targets.
  *
  * `sentinelRef` gets a 1px line where the header's top sits before it pins:
  * `TripHeader` watches it to know when it has pinned, and only then paints its
  * own background (until then it is see-through, so the photo shows under it).
  */
 export function TripCoverBanner({
+  tripId,
   cover,
   onChangeCover,
   sentinelRef,
 }: {
+  tripId: string;
   cover: TripCover;
   /** Opens the cover picker; `undefined` for a reader, whose band is not a control. */
   onChangeCover?: () => void;
   sentinelRef?: Ref<HTMLDivElement>;
 }) {
+  // The position being tried while repositioning; `null` when not.
+  const [draft, setDraft] = useState<number | null>(null);
+  const reposition = useRef<HTMLButtonElement>(null);
+  const done = () => {
+    setDraft(null);
+    // Back to where the mode was entered from, not to <body>.
+    requestAnimationFrame(() => reposition.current?.focus());
+  };
+  const save = async (position: number) => {
+    const result = await setTripCoverPosition(tripId, position);
+    if (!result.ok) return false;
+    primeCached(coverKeys.trip(tripId), result.value);
+    done();
+    return true;
+  };
   return (
-    <CoverImage photo={cover} priority notOnPhone sizes="100vw" className={cn(COVER_BAND.BAND, "shrink-0 max-md:hidden")}>
+    <CoverImage
+      photo={draft === null ? cover : { ...cover, position: draft }}
+      priority
+      notOnPhone
+      sizes="100vw"
+      className={cn(COVER_BAND.BAND, "group shrink-0 max-md:hidden")}
+    >
       <div aria-hidden className="cover-veil-trip absolute inset-0" />
-      {onChangeCover !== undefined && (
-        <Button
-          variant="ghost"
-          onClick={onChangeCover}
-          aria-label="Change cover photo"
-          title="Change cover photo"
-          className={cn(COVER_BAND.EXPOSED, "absolute inset-x-0 top-0 w-full rounded-none p-0 hover:bg-transparent")}
+      {onChangeCover !== undefined && draft === null && (
+        <>
+          <Button
+            variant="ghost"
+            onClick={onChangeCover}
+            aria-label="Change cover photo"
+            title="Change cover photo"
+            className={cn(COVER_BAND.EXPOSED, "absolute inset-x-0 top-0 w-full rounded-none p-0 hover:bg-transparent")}
+          />
+          {/* Notion's pair, on hover. *Change cover* is a label on the band's own button, which is already the way to the picker. */}
+          <div className={cn(COVER_BAND.EXPOSED, "pointer-events-none absolute inset-x-0 top-0")}>
+            <div className="absolute right-3 bottom-3 flex gap-2 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100">
+              <span aria-hidden className={cn(PILL, "flex h-7 items-center")}>
+                Change cover
+              </span>
+              <Button
+                ref={reposition}
+                variant="ghost"
+                size="sm"
+                onClick={() => setDraft(cover.position)}
+                className={cn(PILL, "pointer-events-auto")}
+              >
+                Reposition
+              </Button>
+            </div>
+          </div>
+        </>
+      )}
+      {draft !== null && (
+        <RepositionCover
+          initial={cover.position}
+          onChange={setDraft}
+          onSave={save}
+          onCancel={done}
+          className={COVER_BAND.EXPOSED}
         />
       )}
       <div className="absolute top-2 right-3 rounded-md bg-surface/85 px-2">

@@ -351,6 +351,7 @@ export function TripHeader({
           `TripCoverBanner`). */}
       {cover != null && (
         <TripCoverBanner
+          tripId={tripId}
           cover={cover}
           onChangeCover={coverEditable ? openCoverPicker : undefined}
           sentinelRef={setCoverSentinel}

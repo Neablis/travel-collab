@@ -1,18 +1,19 @@
-import { TripCoverResponse } from "@tc/contracts";
+import { SetCoverPositionBody, TripCoverResponse } from "@tc/contracts";
 import { requireTripAccess } from "@/server/access/trip-access";
 import { coverPick, tripDeleted } from "@/server/coverRoutes";
 import { getCoverPhotos } from "@/server/external/unsplash";
-import { clearTripCover, setTripCover } from "@/server/tripCovers";
+import { readBody } from "@/server/readBody";
+import { clearTripCover, setTripCover, setTripCoverPosition } from "@/server/tripCovers";
 import { tripCoverView } from "@/server/tripViews";
 
 // A trip's cover photo (M37). Not a planning command: a cover is a decoration
 // on the trip, kept in its own table and never in the event log (D1), so these
 // handlers write it directly, the way the Access routes write memberships.
 //
-// Setting or clearing one is an editor's call, the line shares draw: it changes
-// how the trip looks to everyone on it, which is within what a planning
-// participant already does. A viewer and a suggester are refused by the same
-// rank comparison every write route uses.
+// Setting, moving or clearing one is an editor's call, the line shares draw:
+// it changes how the trip looks to everyone on it, which is within what a
+// planning participant already does. A viewer and a suggester are refused by
+// the same rank comparison every write route uses.
 
 /** Answers `{ cover }` (a `TripCoverResponse`) for a trip the caller may read. Asks Unsplash nothing. */
 export async function GET(_request: Request, { params }: { params: Promise<{ tripId: string }> }) {
@@ -34,6 +35,22 @@ export async function PUT(request: Request, { params }: { params: Promise<{ trip
   return coverPick(request, access.userId, getCoverPhotos(), (candidate) =>
     setTripCover(tripId, candidate, access.userId),
   );
+}
+
+/**
+ * Moves the trip's cover to `{ position }` (0–100, M49 decision 9) and answers
+ * `{ cover }`; a 404 `no-cover` when there is none to move.
+ */
+export async function PATCH(request: Request, { params }: { params: Promise<{ tripId: string }> }) {
+  const { tripId } = await params;
+  const access = await requireTripAccess(tripId, "editor");
+  if ("error" in access) return access.error;
+  if (access.detail.status === "deleted") return tripDeleted();
+  const body = await readBody(request, SetCoverPositionBody, "position is a whole number from 0 to 100");
+  if ("error" in body) return body.error;
+  const cover = await setTripCoverPosition(tripId, body.data.position);
+  if (cover === null) return Response.json({ error: "no-cover" }, { status: 404 });
+  return Response.json(TripCoverResponse.parse({ cover }));
 }
 
 /** Removes the trip's cover; answers `{ cover: null }`. */
