@@ -14,6 +14,7 @@ import {
 } from "@tc/contracts";
 import { citiesOfSequence, countriesOfStops, foldEnvelopes } from "@tc/domain";
 import { forgetCitySearches } from "./cities";
+import { forgetCountrySearches } from "./places";
 import { db } from "./db/client";
 import { savedDays } from "./db/schema";
 import { enqueueDayChunksForEmbedding } from "./ai/queue";
@@ -740,6 +741,7 @@ export async function setSavedDayVisibility(
   // Committed (no transaction here): the city index just gained or lost a day,
   // and so did the cached library (ADR-063).
   forgetCitySearches();
+  forgetCountrySearches();
   await invalidatePublicDay(savedDayId, ownerId);
   const day = fromRow(updated[0]);
   if (day === null) {
@@ -877,7 +879,10 @@ export async function updatePlaybookContent(
     .returning();
   if (updated[0] !== undefined) {
     // Only visibility can move the city index: `days` is refused on a public day.
-    if (edit.visibility !== undefined) forgetCitySearches();
+    if (edit.visibility !== undefined) {
+      forgetCitySearches();
+      forgetCountrySearches();
+    }
     // The cached library (ADR-063) lets a summary go stale for a day, but not
     // whether the day is in it, and not its name: the name is the slug, and a
     // reader served the old one is 308'd from the new URL to the old, which a

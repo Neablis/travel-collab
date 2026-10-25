@@ -12,6 +12,7 @@ import { displayNameFor } from "@/lib/displayName";
 import { isDemoTripId } from "@/lib/demoTrip";
 import { setMessageHidden } from "./chat/messages";
 import { forgetCitySearches } from "./cities";
+import { forgetCountrySearches } from "./places";
 import { db, type Queryable } from "./db/client";
 import { contentReports, savedDayReviews, savedDays, tripMessages } from "./db/schema";
 import { isUuid } from "./ids";
@@ -435,6 +436,7 @@ export async function actOnReport(
   // read in between would re-cache the library the same way (ADR-063).
   if (result.ok && dayOwner !== undefined) {
     forgetCitySearches();
+    forgetCountrySearches();
     await invalidatePublicDay(dayOwner.savedDayId, dayOwner.ownerId);
   }
   return result;
