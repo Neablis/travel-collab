@@ -9,6 +9,7 @@ import { StopTagChips } from "@/components/board/StopTagChips";
 import { Badge } from "@/components/ui/badge";
 import { CoverCredit } from "@/components/cover/CoverCredit";
 import { CoverImage } from "@/components/cover/CoverImage";
+import { AddCoverLine, CoverMenu, type CoverAction } from "@/components/cover/CoverMenu";
 import { CoverPicker, type CoverApi } from "@/components/cover/CoverPicker";
 import { SharedDayMap } from "./SharedDayMap";
 import { mapPanel } from "./sharedDayFacts";
@@ -285,9 +286,10 @@ export function SharedDayScreen({
   // The cover picker (M37 part 5): the trip settings picker, pointed at this
   // day's cover routes. Only its author ever opens it.
   const [choosingCover, setChoosingCover] = useState(false);
-  // *Add cover* or *Change cover*, whichever the page has now. A pick or a
-  // removal swaps one for the other under the open dialog, so the one that
-  // opened it is gone when it closes, and focus would fall to `<body>`.
+  const [coverError, setCoverError] = useState(false);
+  // *Add cover* or the cover's own *Edit cover*, whichever the page has now. A
+  // pick or a removal swaps one for the other under the open dialog, so the
+  // one that opened it is gone when it closes, and focus would fall to `<body>`.
   const coverControl = useRef<HTMLButtonElement>(null);
   const descriptionId = useId();
   const coverApi = useMemo<CoverApi>(
@@ -565,10 +567,18 @@ export function SharedDayScreen({
     .filter((part) => part !== null)
     .join(" · ");
   const share = <ShareDayButton path={dayPath(day)} title={day.name} overPhoto={cover !== null} />;
-  // The author's way into the picker: *Add cover* beside Share on a day with
-  // none, *Change cover* over the photo on a day with one. Nobody else is
-  // offered either; the routes refuse them regardless.
+  // The author's way into the picker: a faint *Add cover* beside Share on a
+  // day with none, the photo's own menu on a day with one (`CoverMenu`).
+  // Nobody else is offered either; the routes refuse them regardless.
   const openPicker = () => setChoosingCover(true);
+  const removeCover = async () => {
+    setCoverError(false);
+    const result = await clearSavedDayCover(savedDayId);
+    if (!result.ok) return setCoverError(true);
+    feed.patch((view) => ({ ...view, cover: null }));
+    // The band went with the cover; *Add cover* is drawn in its place.
+    requestAnimationFrame(() => coverControl.current?.focus());
+  };
 
   return (
     <div className={cn("flex flex-col gap-4", cover === null && cn(COLUMN, "pt-8"))}>
@@ -578,7 +588,7 @@ export function SharedDayScreen({
         <CoverBand
           cover={cover}
           back={{ href: backHref, label: backLabel }}
-          onChangeCover={isAuthor ? openPicker : null}
+          onCoverAction={isAuthor ? (action) => (action === "change" ? openPicker() : void removeCover()) : null}
           controlRef={coverControl}
           cities={day.cities.length > 0 ? cityLinks : null}
           title={day.name}
@@ -591,6 +601,7 @@ export function SharedDayScreen({
 
       <div className={cn("flex flex-col gap-4", cover !== null && COLUMN)}>
         <SyncFailure read={feed} what="this day" />
+        {coverError && <Banner variant="warning">Couldn’t remove the cover. Try again.</Banner>}
         <LibraryMoved read={feed}>
           This day has changed since you opened it — its author published, withdrew or someone took it.
         </LibraryMoved>
@@ -636,9 +647,7 @@ export function SharedDayScreen({
                     {day.visibility === "private" && <Badge variant="neutral">Private</Badge>}
                     {isAuthor ? (
                       <span className="ml-auto flex items-center gap-2">
-                        <Button ref={coverControl} variant="secondary" size="sm" onClick={openPicker}>
-                          Add cover
-                        </Button>
+                        <AddCoverLine ref={coverControl} onClick={openPicker} />
                         {share}
                       </span>
                     ) : (
@@ -1287,8 +1296,10 @@ const PILL = "rounded-full border-0 bg-surface/90 px-3.5 text-sm font-medium tex
  * edge to edge — 440px, 360px on a phone — and the paper rises through its
  * foot (`.cover-veil-paper`, the front door's veil turned to rise), so the
  * title block stands on the fade rather than in a box: the cities, the `h1`,
- * the meta line and Share. The way back and the author's *Change cover* are
- * pills over the top of it.
+ * the meta line and Share. The way back is a pill over the top of it. For the
+ * author the photo itself is the cover's control (`CoverMenu`, M49 decision
+ * 10): laid under the words, which a click passes through to it, while the
+ * links and buttons on it stay their own targets.
  *
  * The credit sits wherever the photo is (Unsplash's guidelines): at the
  * title's right on a desktop, under the band on a phone, where the right of
@@ -1298,7 +1309,7 @@ const PILL = "rounded-full border-0 bg-surface/90 px-3.5 text-sm font-medium tex
 function CoverBand({
   cover,
   back,
-  onChangeCover,
+  onCoverAction,
   controlRef,
   cities,
   title,
@@ -1309,9 +1320,9 @@ function CoverBand({
 }: {
   cover: TripCover;
   back: { href: string; label: string };
-  /** The author's *Change cover*, or null for every other reader. */
-  onChangeCover: (() => void) | null;
-  /** Given *Change cover*, where the picker's dialog hands focus back. */
+  /** What the author chose from the photo's menu, or null for every other reader, who gets no menu. */
+  onCoverAction: ((action: CoverAction) => void) | null;
+  /** Given a menu, its trigger: where the picker's dialog hands focus back. */
   controlRef: React.Ref<HTMLButtonElement>;
   cities: React.ReactNode | null;
   title: string;
@@ -1324,8 +1335,22 @@ function CoverBand({
   return (
     <div data-testid="day-cover">
       <CoverImage photo={cover} veil="paper" priority sizes="100vw" className="h-90 md:h-110">
+        {onCoverAction !== null && (
+          <CoverMenu
+            actions={["change", "remove"]}
+            onAction={onCoverAction}
+            triggerRef={controlRef}
+            caption="top-right"
+            className="inset-0 size-full"
+          />
+        )}
         {/* Positioned, so the phone's Share pill is placed against the band. */}
-        <div className="absolute inset-0 flex flex-col">
+        <div
+          className={cn(
+            "absolute inset-0 flex flex-col",
+            onCoverAction !== null && "pointer-events-none [&_a]:pointer-events-auto [&_button]:pointer-events-auto",
+          )}
+        >
           <div className={cn(COLUMN, "flex items-center justify-between gap-3 px-2.5 pt-2.5 md:px-6 md:pt-4.5")}>
             {/* The back link as a pill: an arrow alone on a phone, named for
                 where it goes to a screen reader at every width. */}
@@ -1339,19 +1364,6 @@ function CoverBand({
                 {back.label}
               </span>
             </Link>
-            {/* `pr-13` keeps clear of the phone's Share in the corner. */}
-            {onChangeCover !== null && (
-              <span className="pr-13 md:pr-0">
-                <Button
-                  ref={controlRef}
-                  variant="ghost"
-                  className={cn(PILL, "font-semibold md:py-2")}
-                  onClick={onChangeCover}
-                >
-                  Change cover
-                </Button>
-              </span>
-            )}
           </div>
           <div className={cn(COLUMN, "mt-auto flex items-end justify-between gap-6 px-4 pb-3.5 md:px-6 md:pb-5.5")}>
             <div className="min-w-0 max-w-170">

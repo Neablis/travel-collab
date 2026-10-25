@@ -62,6 +62,13 @@ No server code fetches a user-supplied URL today, so Caesura has no SSRF guard t
   security-sensitive code in M49 and gets the extra review pass.
 - A CDN miss costs one upstream fetch. A source that goes away shows the no-cover state, and the
   cover is not cleared.
+- A signed path outlives its cover. The signature binds only the URL, with no expiry and no trip,
+  so once a cover is cleared or replaced, or its trip deleted, the old `/api/cover-image?u=…&s=…`
+  still serves that URL until `COVER_PROXY_SECRET` is rotated, which revokes every path at once.
+  This is accepted: anyone holding the path has already seen the image, the guard still bounds it
+  to a public https raster image under 10 MB, the route accepts only the one spelling the server
+  minted so each path is one CDN entry, and revoking per cover would need a database read on every
+  miss, the per-request check the rejected trip-keyed proxy would have needed.
 - The CSP test (`next.config.test.ts`) does not change. M49's gate proves the privacy property by
   showing the rendered `src` is same-origin instead.
 

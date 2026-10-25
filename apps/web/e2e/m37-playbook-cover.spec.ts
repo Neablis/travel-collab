@@ -70,9 +70,10 @@ test("the author adds a cover to a published day; a stranger sees it, credited, 
 
     const band = await addCover(page, savedDayId);
     await expectLoaded(band.getByRole("img", { name: "Sand dunes under a pale sun" }));
-    // The title stands on the photo, and the author can change it from there.
+    // The title stands on the photo, and the author can change it from there:
+    // the photo itself opens the cover's menu (M49 decision 10, amended).
     await expect(band.getByRole("heading", { level: 1, name })).toBeVisible();
-    await expect(band.getByRole("button", { name: "Change cover" })).toBeVisible();
+    await expect(band.getByRole("button", { name: "Edit cover" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Add cover" })).toHaveCount(0);
 
     // The stranger's next visit: the cover, its credit, and no way to change it.
@@ -84,7 +85,7 @@ test("the author adds a cover to a published day; a stranger sees it, credited, 
       "href",
       "https://unsplash.com/@ada-offline?utm_source=caesura&utm_medium=referral",
     );
-    await expect(theirs.getByRole("button", { name: "Change cover" })).toHaveCount(0);
+    await expect(theirs.getByRole("button", { name: "Edit cover" })).toHaveCount(0);
 
     // The day's card on its city page leads with the same photo, credited.
     await visitor.goto(`/playbooks/city/${city.toLowerCase()}`);
@@ -114,7 +115,7 @@ test("a day's cover on a 390px phone: the band fits, its controls are 44px, the 
     expect(photoBox?.height).toBe(360);
     for (const control of [
       band.getByRole("link", { name: /^Back to / }),
-      band.getByRole("button", { name: "Change cover" }),
+      band.getByRole("button", { name: "Edit cover" }),
       band.getByTestId("share-day"),
       // The way to the day's city, over the photo (PR #354's preview walk measured it 15px).
       band.getByRole("link", { name: city, exact: true }),

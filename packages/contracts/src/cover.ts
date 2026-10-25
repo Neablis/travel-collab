@@ -61,21 +61,59 @@ export const SetCoverBody = z.object({
 export type SetCoverBody = z.infer<typeof SetCoverBody>;
 
 /**
- * A chosen cover — a trip's, or a playbook day's (M37 part 5) — as every
- * surface that shows it reads it: the images and the credit (photographer and
- * photo page), stored with the choice so a page never asks Unsplash for them
- * (D2). Named for the trip, which had one first.
+ * Where a cover is framed vertically, as `object-position: center <y>%`: 0 is
+ * the photo's top edge, 100 its bottom, 50 the centre crop every cover had
+ * before M49 (decision 9). Horizontal framing waits for a surface that needs it.
  */
-export const TripCover = z.object({
-  /** Unsplash's photo id, so the picker can mark the current one. */
-  unsplashId: z.string().min(1),
-  urls: CoverUrls,
-  alt: z.string().nullable().default(null),
-  photographerName: z.string().min(1),
-  photographerUrl: Href,
-  photoPageUrl: Href,
+export const CoverPosition = z.number().int().min(0).max(100);
+export type CoverPosition = z.infer<typeof CoverPosition>;
+
+/** Who to credit for a URL cover, and where their name links (ADR-081 item 1). */
+export const CoverCredit = z.object({
+  name: z.string().min(1).max(200),
+  url: Href.nullable().default(null),
 });
+export type CoverCredit = z.infer<typeof CoverCredit>;
+
+/**
+ * A chosen cover — a trip's, or a playbook day's (M37 part 5) — as every
+ * surface that shows it reads it. Named for the trip, which had one first.
+ *
+ * `"unsplash"` is a photo picked in the app: the images and the credit
+ * (photographer and photo page), stored with the choice so a page never asks
+ * Unsplash for them (D2). `"url"` is an image referenced by its address,
+ * set through the public API (M49, ADR-081): a browser never loads `url`
+ * itself, only `proxySrc`, the signed same-origin path the server mints when
+ * it serializes the cover. Without one the cover renders as none.
+ */
+export const TripCover = z.discriminatedUnion("source", [
+  z.object({
+    source: z.literal("unsplash"),
+    /** Unsplash's photo id, so the picker can mark the current one. */
+    unsplashId: z.string().min(1),
+    urls: CoverUrls,
+    alt: z.string().nullable().default(null),
+    photographerName: z.string().min(1),
+    photographerUrl: Href,
+    photoPageUrl: Href,
+    position: CoverPosition.default(50),
+  }),
+  z.object({
+    source: z.literal("url"),
+    url: Href,
+    alt: z.string().max(1000).nullable().default(null),
+    credit: CoverCredit.nullable().default(null),
+    position: CoverPosition.default(50),
+    proxySrc: Href.optional(),
+  }),
+]);
 export type TripCover = z.infer<typeof TripCover>;
+
+/** The body that moves a cover's framing, and nothing else about it. */
+export const SetCoverPositionBody = z.object({
+  position: CoverPosition,
+});
+export type SetCoverPositionBody = z.infer<typeof SetCoverPositionBody>;
 
 /** `GET` and `PUT` on a trip's or a saved day's `/cover` — its cover, or `null` for none. */
 export const TripCoverResponse = z.object({

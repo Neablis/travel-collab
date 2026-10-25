@@ -16,6 +16,23 @@ not by anybody remembering. That automation exists because the rule was being
 skipped: M23's entry survived its own gate closing on 2026-09-19 and was still
 here two days later.
 
+- **Live assistant progress in trip chat (asked 2026-10-25).** Left out of the motion pass
+  (`docs/specs/2026-10-25-motion-pass-design.md`, decision 13). Ask shows a status line per tool
+  step because its turn streams. Trip chat's `@assistant` reply lands whole (M52 decision 18),
+  so the motion pass gives it only the dots (`ChatPanel.tsx`'s `thinkingUntil`). Showing
+  "Searching places…" there means getting tool progress into the chat thread: streamed, or
+  carried on the events poll. That meets the same poll limits as *X is typing* below
+  (ADR-049), so the two may want one transport decision.
+
+- **"X is typing" in trip chat (asked 2026-10-25).** Left out of the motion pass (decision 14).
+  Mitchell's design: on focus and first keystroke, send a short-lived invisible signal that
+  expires after a few seconds, or as soon as that person sends. Others see "X is typing" until
+  then. The app has no live transport: chat refreshes on the events poll (ADR-049), and presence
+  rides that poll with a 5-minute heartbeat (ADR-073 §6). ADR-049 names presence as the one
+  thing a poll serves worse than a stream, so this reopens its Decision 2. Open questions: the
+  freshness to accept (a 2–5s lag at today's interval), the write cost of a typing signal per
+  member, and whether it rides with live assistant progress (above).
+
 - **Recently deleted: restore any notebook (asked 2026-10-24).** Considered for M52 and not
   taken: Mitchell chose *Reset to default* for the undeletable *Today* notebook instead
   (decision 9). The idea is a *Recently deleted* list in the notebook index, from which any

@@ -332,7 +332,7 @@ describe("importPlaybooks — a playbook day's cover", () => {
 
     await importPlaybooks(bundle(["kept"]), true);
 
-    expect((await getSavedDayCover(kept))?.unsplashId).toBe(candidate.id);
+    expect(await getSavedDayCover(kept)).toMatchObject({ source: "unsplash", unsplashId: candidate.id });
     expect(await db.select().from(savedDays).where(eq(savedDays.id, pruned))).toEqual([]);
     expect(await db.select().from(savedDayCovers).where(eq(savedDayCovers.savedDayId, pruned))).toEqual([]);
   });

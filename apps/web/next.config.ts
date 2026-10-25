@@ -227,6 +227,16 @@ const nextConfig: NextConfig = {
       ],
     },
     {
+      // A URL cover's image, served from our origin (ADR-081 item 3). Next
+      // sets these headers before the route runs and keeps them over any the
+      // route sets under the same name, so the route's own sandbox is dropped
+      // and this entry is what reaches the browser. Opened as a document, the
+      // image runs, loads and submits nothing. The global entry still
+      // supplies nosniff and the rest; only the policy is replaced.
+      source: "/api/cover-image",
+      headers: [{ key: "Content-Security-Policy", value: "default-src 'none'; sandbox" }],
+    },
+    {
       // The manifest is static (`src/app/manifest.ts` reads nothing per
       // request), yet Next serves it `max-age=0, must-revalidate`, so every
       // page load revalidated it — and Lighthouse found it at the end of the

@@ -68,19 +68,21 @@ test("pick a cover for an empty trip in Trip settings, and see it credited on Ho
     pick.click(),
   ]);
   await expect(pick).toHaveAttribute("aria-pressed", "true");
-  await expect(section.getByRole("button", { name: "Remove cover" })).toBeVisible();
+  // The picked cover is its own control now (M49 decision 10, amended).
+  await expect(section.getByRole("button", { name: "Edit cover" })).toBeVisible();
 
   // **And on the trip, at once** (Mitchell, 2026-10-10 preview: "adding a cover
   // photo makes no changes right away"). Closing the sheet shows the band above
-  // the desktop header with the photo just picked — no reload — and the band is
-  // the way back into the picker.
+  // the desktop header with the photo just picked — no reload — and the band's
+  // menu is the way back into the picker.
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog", { name: "Trip settings" })).toBeHidden();
-  const band = page.getByRole("button", { name: "Change cover photo" });
+  const band = page.getByRole("button", { name: "Edit cover" });
   await expect(band).toBeVisible();
   await expect(page.getByRole("img", { name: "Sand dunes under a pale sun" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Add cover" })).toHaveCount(0);
   await band.click();
+  await page.getByRole("menuitem", { name: "Change cover" }).click();
   await expect(page.getByRole("dialog", { name: "Trip settings" }).getByRole("region", { name: "Cover photo" })).toBeVisible();
 
   // Home reads the cover off the trip list, on its next load.

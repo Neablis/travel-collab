@@ -13,6 +13,64 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-10-25 — `/v1/trips/{tripId}/cover`, and the `cover-url-rejected` error code (M49 part 3; public API 1.29.0)
+- **New** (`packages/contracts/src/publicApi.ts`): `ApiErrorCode` gains `cover-url-rejected`, a
+  422 for a cover URL that failed the set-time check. `details.reason` is the guard's refusal
+  reason (`not-https`, `private-address`, `not-an-image`, `too-large`, …) and nothing else: the
+  address a host resolved to is never in the answer.
+- **New endpoint**: `GET` (`trips:read`, viewer), `PUT { url, alt?, credit?, position? }`,
+  `PATCH { position }` and `DELETE` (`trips:write`, editor) on `/v1/trips/{tripId}/cover`, each
+  answering `TripCoverResponse`. `PUT` fetches the URL once through the guarded fetcher and saves
+  nothing on a refusal. `PATCH` on a trip with no cover is a 404. Its body is the `"url"`
+  variant of `TripCover`, without `proxySrc`, so no new schema.
+- `route()` takes `PUT` (`HttpMethod`), the first `v1` endpoint to need it.
+- `exposure.ts`: `trips/[tripId]/cover` is `public`; `trips/[tripId]/cover/search` is `never`
+  (it would spend Caesura's Unsplash quota on another program's behalf).
+- Why: M49 decision 8 and ADR-081 item 7, so a program can set a trip's cover from an image it
+  found elsewhere.
+- Consumers updated: `apps/web` (the route, `openapi.json`, `openapi.test.ts`'s method walk).
+- Public API: `API_VERSION` 1.29.0 with its new `API_FINGERPRINT`.
+- Breaking? no. Additive: one endpoint and one error code.
+
+## 2026-10-25 — `TripCover` becomes a union on `source`, and every cover carries a `position` (M49 part 1; public API 1.28.0)
+- **Changed** (`packages/contracts/src/cover.ts`): `TripCover` is a discriminated union on
+  `source`. `"unsplash"` is today's picked photo, its fields unchanged; `"url"` is an image
+  referenced by its address (`url`, `alt`, `credit: { name, url } | null`, and `proxySrc`, the
+  signed same-origin path part 2 mints). Both carry `position`, the vertical framing 0–100,
+  default 50. **New:** `CoverPosition`, `CoverCredit`, `SetCoverPositionBody`.
+- Stored covers: migration 0068 adds `source`, `url`, `credit_name`, `credit_url` and
+  `position` to `trip_covers` and `saved_day_covers`, and trades the Unsplash columns' `NOT NULL`
+  for a check per source, so every existing cover reads as
+  `source: "unsplash"`, `position: 50`. Picking a new Unsplash photo resets `position` to 50.
+- `source` and `position` are now always present on a cover a route answers, and `source` is
+  required on one parsed as a `TripCover`.
+- Why: covers from anywhere (M49, ADR-081), set through the public API in a later part and
+  framed on the band in another; the union lands first so those parts share one shape.
+- Consumers updated: `apps/web` (`coverRows`, `tripCovers.setTripCoverPosition`, `CoverImage`,
+  `CoverCredit`, `CoverPicker`, the MSW cover handler, `scripts/landing-day.json` and
+  `landingFeatures.generated.json`, `openapi.json`), `@tc/factories` (`tripCoverFactory` builds
+  the Unsplash variant).
+- Public API: `DiscoverDay.cover` and `TripSummary.cover` gain `source` and `position`, and the
+  `url` variant; `API_VERSION` 1.28.0 with its new `API_FINGERPRINT`.
+- Breaking? no for a reader of today's covers, which all answer as `"unsplash"` with their
+  fields unchanged. A caller that parses covers strictly must accept the two new fields and the
+  `url` variant.
+
+## 2026-10-25 — A command's money is capped at 100,000,000,000 minor units (public API 1.27.0)
+- **Added** (`packages/contracts` `MAX_AMOUNT_MINOR`, `MoneyInput`): `MoneyInput` is `Money` with
+  `amountMinor` at most `MAX_AMOUNT_MINOR`. `AddActivity.cost`, `UpdateActivity.cost` and
+  `SetTripBudget.budget` take it, and so does `PATCH /v1/trips/{tripId}`'s `budget`
+  (`maximum: 100000000000` in `openapi.json`).
+- Why: zod 4's `.int()` refuses anything past `Number.MAX_SAFE_INTEGER`, where zod 3 did not
+  (entry below), and a trip's derived totals are parsed with it. Two stops of 5e15 each made a
+  `TripDetail` that no longer parsed, so every member of that trip got `malformed-trip`.
+  Found reviewing PR 579.
+- Consumers updated: `apps/web` (`MoneyInput` holds a typed amount at the cap instead of
+  sending one the server refuses; the v1 trip route).
+- Breaking? In principle — a command above the cap is now a 400 where it was accepted — but
+  such a command made the trip unreadable, so nothing that worked stops working. `Money` itself,
+  the shape of stored events, is unchanged: a stored amount above the cap still replays.
+
 ## 2026-10-25 — zod 3 → zod 4 (public API 1.26.1)
 - **Changed** (every `packages/contracts` schema, by the library under it): zod is `^4.6.6` in
   `apps/web` and every package (Dependabot's PR 561 and PR 563, done by hand). What each schema
@@ -50,6 +108,7 @@ Format:
   (`openapi.ts`, `modelFacingSchema.ts`, `repairToolInput.ts` reads `too_big`'s `origin`,
   `valueKind.ts` and `containsStrictObject` read zod 4 defs).
 - Breaking? no schema change. A caller parsing `error.details` of a 400 sees zod 4 issues.
+
 ## 2026-10-25 — `POST /v1/library` strips calendar-date anchors and says so (KI-2026-09-25-b; public API 1.26.0)
 - **Changed** (`apps/web`, the v1 surface only; no `packages/contracts` schema changed): a day
   kept through `POST /v1/library` no longer stores a stop's `dateRange` anchor. Its answer is the

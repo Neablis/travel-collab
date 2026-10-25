@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { Money, TripCommand, TripEvent, TripDetail } from "../src";
+import { MAX_AMOUNT_MINOR, Money, TripCommand, TripEvent, TripDetail } from "../src";
 
 const TRIP = "7d9a1f8e-0000-4000-8000-00000000000a";
 const A1 = "7d9a1f8e-0000-4000-8000-0000000000a1";
@@ -24,6 +24,19 @@ describe("M4 money contracts", () => {
     expect(TripCommand.parse({ type: "SetTripCurrency", tripId: TRIP, currency: "EUR" }).type).toBe("SetTripCurrency");
     expect(TripCommand.parse({ type: "SetTripBudget", tripId: TRIP, budget: { amountMinor: 250000, currency: "EUR" } }).type).toBe("SetTripBudget");
     expect(TripCommand.parse({ type: "SetTripBudget", tripId: TRIP, budget: null }).type).toBe("SetTripBudget");
+  });
+
+  // zod 4's `.int()` stops at 2^53, and a trip's derived total is parsed with
+  // it: two stops of 5e15 made a `TripDetail` that no longer parsed, so every
+  // member got `malformed-trip`. Commands are capped; stored events are not.
+  it("caps what a command may carry, and still replays a stored event above the cap", () => {
+    const cost = (amountMinor: number) => ({ amountMinor, currency: "USD" });
+    const add = (amountMinor: number) => ({ type: "AddActivity", tripId: TRIP, activityId: A1, title: "Museum", cost: cost(amountMinor) });
+    expect(TripCommand.safeParse(add(MAX_AMOUNT_MINOR)).success).toBe(true);
+    expect(TripCommand.safeParse(add(MAX_AMOUNT_MINOR + 1)).success).toBe(false);
+    expect(TripCommand.safeParse({ type: "UpdateActivity", tripId: TRIP, activityId: A1, cost: cost(5e15) }).success).toBe(false);
+    expect(TripCommand.safeParse({ type: "SetTripBudget", tripId: TRIP, budget: cost(5e15) }).success).toBe(false);
+    expect(TripEvent.parse({ type: "TripBudgetSet", version: 1, payload: { tripId: TRIP, budget: cost(5e15) } }).type).toBe("TripBudgetSet");
   });
 
   it("TripCurrencySet/TripBudgetSet events parse", () => {
