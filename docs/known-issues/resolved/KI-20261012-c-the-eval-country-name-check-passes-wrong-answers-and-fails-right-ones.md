@@ -1,4 +1,4 @@
-### KI-2026-10-12-c — the eval's country-name check passes some wrong answers and fails some right ones
+### KI-2026-10-12-c — the eval's country-name check passes some wrong answers and fails some right ones — RESOLVED
 
 - **Severity:** correctness, of the eval's verdict only. No product behaviour is wrong; an eval
   case can be graded the wrong way in either direction.
@@ -27,3 +27,15 @@
   run to one space). Prove each with a red-first case in the grade tests.
 - **Cross-reference:** M45 part 3 (PR 421); the review is at round 3 on `29de655`.
 - **First noted:** 2026-10-12, M45 (PR 421 review round 3, n1-r3).
+- **Proof (resolved 2026-10-24, KI sweep):** the code had merged to `main`, and all three halves
+  reproduced there as red tests in `grade.test.ts`: *fails a common noun that is spelled like a
+  place* (`expected [] to deeply equal [ 'names "China" or "Jersey"' ]`), *passes a name written
+  with another apostrophe, accent encoding or space* (`expected [ 'names "Côte d\'Ivoire"' ] to
+  deeply equal []`) and *passes a next country named the way people say it*
+  (`Turkey: expected [ 'names one of 243 places' ] to deeply equal []`). Fix as directed:
+  `namesWholeWord` drops the `i` flag and compares both sides through `forNames` (NFC, every
+  apostrophe as `'`, any whitespace run as one space); `cases.ts`'s `a-next-country` adds a
+  `COUNTRY_ALIASES` map (Turkey, Korea, Czech Republic, Macau, Cape Verde, Ivory Coast, UK and
+  its nations, USA, …). All 44 grade tests green, NFC and whitespace each seen red on their own
+  by removing that step; `replay.int.test.ts` 70/70. Left as stated in the code: a capitalised
+  common word ("New Jersey", "Georgia", "Guinea fowl" opening a sentence) still passes.
