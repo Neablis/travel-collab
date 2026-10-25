@@ -14,8 +14,17 @@
      form was stored — in the `pages` row and in the event log. Those rows and
      events are not repaired. A stored `{type:"unknown",raw:…}` round-trips as
      is and converges only when a client re-sends the original node.
-  2. **A backfilled genesis event is serialized but not migrated**, so it keeps
-     the old row's own `v`.
+  2. ~~**A backfilled genesis event is serialized but not migrated**, so it keeps
+     the old row's own `v`.~~ **Fixed 2026-10-25 (KI sweep 2) for every genesis
+     written from now on.** `missingGenesis` runs `migratePageDoc` on what it
+     parsed, so the event and the row it rewrites are at the current version. A
+     row from a newer build, which cannot be migrated, is backfilled as parsed,
+     as before. Proof (`pageCommands.int.test.ts`, "backfills an old row's
+     document at the current version"): before the fix it failed with
+     `expected 1 to be 5`, and it passes after. The GOLDEN rebuild test had
+     pinned `v: 1` on its backfilled row and now expects the current version.
+     Genesis events already in the log keep their `v`. Read-side migration
+     covers them, and the scan below would find them.
   3. ~~**`repeat` nodes are not checked.** They carry `attrs.name` and
      `attrs.params` like a widget, but `findWidgetError` (like the `walkForError`
      it was lifted from) judges only `type:"macro"`. Nothing writes a `repeat`

@@ -1,10 +1,12 @@
 import {
+  CURRENT_PAGE_DOC_VERSION,
   PAGE_CHANGED_CODE,
   PageCommand,
   PageContext as PageContextSchema,
   PageDoc as PageDocSchema,
   PageEvent as PageEventSchema,
   SYSTEM_ACTOR_ID,
+  migratePageDoc,
   seedKeyOf,
   serializePageDoc,
   type EventEnvelope,
@@ -392,6 +394,15 @@ async function missingGenesis(
     // that are fine.
     const content = PageDocSchema.safeParse(row.content);
     if (!content.success) continue;
+    // **Migrated, as every document the write path stores is**
+    // (KI-2026-09-24-d item 2). A parse alone left the genesis, and the row it
+    // rewrites, at the old row's `v`. A row from a newer build cannot be
+    // migrated; it is backfilled as parsed, as it always was, rather than
+    // turned into a page no command can reach while a deploy rolls.
+    // Only the version is tested, not caught: a migration step that throws on
+    // an older row must surface, not quietly backfill it at its old `v`.
+    const doc =
+      content.data.v > CURRENT_PAGE_DOC_VERSION ? content.data : migratePageDoc(content.data);
     genesis.push({
       type: "PageCreated",
       version: 1,
@@ -400,7 +411,7 @@ async function missingGenesis(
         pageId: row.id,
         title: row.title,
         context: row.context,
-        content: content.data,
+        content: doc,
         actorId: row.actorId,
         // Written out, `null` included, so the log says which default this
         // row is rather than leaving a replay to work it out from the title.
