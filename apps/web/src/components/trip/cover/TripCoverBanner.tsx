@@ -90,7 +90,9 @@ export function TripCoverBanner({
   // read): no retry can store a position on it, so the mode closes and says
   // so. Held against the cover it was found for, so any newer read clears it.
   const [removed, setRemoved] = useState<TripCover | null>(null);
-  const [removeFailed, setRemoveFailed] = useState(false);
+  // The cover a *Remove* failed on. Held against it, as `removed` is, so a
+  // saved position or a new cover (each a newer cover) drops the alert.
+  const [removeFailed, setRemoveFailed] = useState<TripCover | null>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   // Back to the cover itself, not to <body>: the mode's controls are gone.
   const done = () => {
@@ -110,10 +112,10 @@ export function TripCoverBanner({
     return true;
   };
   const remove = async () => {
-    setRemoveFailed(false);
+    setRemoveFailed(null);
     const result = await clearTripCover(tripId);
     if (!result.ok) {
-      setRemoveFailed(true);
+      setRemoveFailed(cover);
       trigger.current?.focus();
       return;
     }
@@ -128,7 +130,7 @@ export function TripCoverBanner({
   const notice =
     removed === cover
       ? "This cover was removed, so its position wasn’t saved."
-      : removeFailed
+      : removeFailed === cover
         ? "Couldn’t remove the cover. Try again."
         : null;
   return (

@@ -417,7 +417,7 @@ export function TripHeader({
                 header above this one, which is where a signed-out reader's way
                 onward belongs. */}
             {!isDemoTripId(tripId) && (
-              <nav aria-label="Trip" className="flex w-full items-center justify-between gap-3 max-md:contents">
+              <nav aria-label="Trip" className="group/addcover flex w-full items-center justify-between gap-3 max-md:contents">
                 {/* `min-h-11` and the inline-flex that makes it apply: §22 made
                     this link load-bearing on a phone. Scoping the tab bar removed
                     the Trips tab from inside a trip, so this is now the ONLY way
@@ -447,9 +447,9 @@ export function TripHeader({
                     beside Add stop, and on a phone it is the tab bar's — see
                     the action cluster below. What ends it instead, on a
                     desktop with no cover yet, is the cover band's stand-in:
-                    a faint *+ Add cover*, shown on hover, for whoever may set
-                    one. Only once the read has said "none" (`null`), never
-                    while unknown. */}
+                    a faint *+ Add cover*, shown on hovering this row (its
+                    `group/addcover`), for whoever may set one. Only once the
+                    read has said "none" (`null`), never while unknown. */}
                 {cover === null && coverEditable && (
                   <AddCoverLine ref={addCover} onClick={openCoverPicker} className="hidden md:inline-flex" />
                 )}
