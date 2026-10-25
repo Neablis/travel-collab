@@ -91,8 +91,9 @@ export function CoverMenu({
 
 /**
  * Where a cover would be, for whoever may set one: a faint *+ Add cover*,
- * shown by a mouse only on hover and by a keyboard on focus. A touch screen
- * has no hover, so there it stays, faint.
+ * shown by a mouse on hovering the row it sits in (an ancestor marked
+ * `group/addcover`; the trip header's top row) or the button itself, and by a
+ * keyboard on focus. A touch screen has no hover, so there it stays, faint.
  */
 export function AddCoverLine({
   onClick,
@@ -110,7 +111,7 @@ export function AddCoverLine({
       size="sm"
       onClick={onClick}
       className={cn(
-        "gap-1 text-slate opacity-70 transition-opacity fine:opacity-0 fine:hover:opacity-70 focus-visible:opacity-100 fine:focus-visible:opacity-100",
+        "gap-1 text-slate opacity-70 transition-opacity fine:opacity-0 fine:hover:opacity-70 fine:group-hover/addcover:opacity-70 fine:group-focus-within/addcover:opacity-70 focus-visible:opacity-100 fine:focus-visible:opacity-100",
         className,
       )}
     >

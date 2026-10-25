@@ -27,7 +27,7 @@ vi.mock("@/lib/apiClient", async (orig) => {
 import { TripProvider } from "@/components/trip/context/TripProvider";
 import { EditorHost } from "@/components/trip/context/EditorHost";
 import { TripHeader } from "./TripHeader";
-import { cachedRead } from "@/lib/queryCache";
+import { cachedRead, peekCached } from "@/lib/queryCache";
 import { coverKeys } from "@/lib/queryKeys";
 import { setViewportMatches } from "../../../vitest.setup";
 import { tripFirstDataFixture } from "@/test-support/tripFirstData";
@@ -150,6 +150,39 @@ describe("TripHeader — the cover band", () => {
     await waitFor(() => expect(screen.queryByRole("img", { name: "Lake roofs" })).toBeNull());
     expect(cleared).toBe(1);
     await waitFor(() => expect(addCover()!.matches(":focus")).toBe(true));
+  });
+
+  // Review of PR 585: a failed Remove's alert outlived the cover it was about,
+  // and still showed over a reframed or a new photo.
+  it("drops a failed Remove's alert once a later save succeeds", async () => {
+    server.use(...makeCoverHandlers({ cover: tripCoverFactory.build({ alt: "Lake roofs", position: 30 }) }));
+    server.use(http.delete(`/api/trips/${TRIP}/cover`, () => HttpResponse.json({ error: "internal error" }, { status: 500 })));
+    await renderHeader();
+    await choose("Remove");
+    expect((await screen.findByRole("alert")).textContent).toMatch(/Couldn’t remove/);
+
+    await choose("Reposition");
+    await userEvent.keyboard("{ArrowUp}{Enter}");
+    await waitFor(() => expect(screen.queryByRole("slider", { name: "Cover position" })).toBeNull());
+    expect(screen.getByRole("img", { name: "Lake roofs" }).style.objectPosition).toBe("center 31%");
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  // Decision 10 amended: hovering the top of the header shows *+ Add cover*,
+  // not hovering the button's own few pixels. jsdom applies no `:hover`, so
+  // this pins the wiring: the nav row is the group, and the button's mouse
+  // visibility is keyed to it.
+  it("shows Add cover on hovering or focusing the header's top row, not only the button", async () => {
+    server.use(...makeCoverHandlers({ cover: null }));
+    await renderHeader();
+    const add = await waitFor(() => {
+      const button = addCover();
+      expect(button).not.toBeNull();
+      return button!;
+    });
+    expect(screen.getByRole("navigation", { name: "Trip" }).matches(".group\\/addcover")).toBe(true);
+    expect(add.matches(".fine\\:group-hover\\/addcover\\:opacity-70")).toBe(true);
+    expect(add.matches(".fine\\:group-focus-within\\/addcover\\:opacity-70")).toBe(true);
   });
 
   it("offers Add cover where there is none, and a pick in the picker shows on the trip at once", async () => {
@@ -370,14 +403,25 @@ describe("TripHeader — the cover band", () => {
     });
   });
 
-  it("gives a reader the band but no way to change it, and no Add cover", async () => {
+  it("gives a reader the band but no way to change it", async () => {
     myRole = "viewer";
     server.use(...makeCoverHandlers({ cover: tripCoverFactory.build({ alt: "Dunes at dusk" }) }));
     await renderHeader();
-    const photo = await screen.findByRole("img", { name: "Dunes at dusk" });
-    expect(band()).toBeNull();
-    await userEvent.click(photo);
+    await screen.findByRole("img", { name: "Dunes at dusk" });
+    // Not a click on the photo: jsdom does no hit-testing, so a click on the
+    // <img> never reaches a trigger laid over it. What a reader must not have
+    // is any cover control at all, so no menu can open.
+    expect(screen.queryAllByRole("button", { name: /cover/i })).toEqual([]);
     expect(screen.queryByRole("menu")).toBeNull();
+  });
+
+  // *Add cover* draws only once the read says "none", so a reader with a
+  // cover never reaches its role gate: this one has none.
+  it("gives a reader with no cover no Add cover", async () => {
+    myRole = "viewer";
+    server.use(...makeCoverHandlers({ cover: null }));
+    await renderHeader();
+    await waitFor(() => expect(peekCached(coverKeys.trip(TRIP))).toBeNull());
     expect(addCover()).toBeNull();
   });
 });
