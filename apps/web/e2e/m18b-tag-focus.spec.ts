@@ -97,7 +97,7 @@ test.describe("tag focus", () => {
     // The Clear control's own name, distinct from the chips' `Stop focusing
     // on food` — 27 chips carry that hint on this fixture, so the two must not
     // collide (they did, and this walk is what found it).
-    await expect(page.getByRole("button", { name: "Clear meal focus" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Clear food focus" })).toBeVisible();
 
     // Dim, never hide: the untagged and wrong-tagged stops go faint and stay
     // on the page, in place, with all their content.
@@ -145,7 +145,7 @@ test.describe("tag focus", () => {
     await expectOpacity(haneda, 0.32);
 
     // --- Clear ----------------------------------------------------------
-    await page.getByRole("button", { name: "Clear meal focus" }).click();
+    await page.getByRole("button", { name: "Clear food focus" }).click();
     await expect(page.getByTestId("tag-focus-line")).toHaveCount(0);
     await expectOpacity(card(page, "Land at Haneda"), 1);
   });

@@ -67,7 +67,7 @@ export function TagFocusLine() {
         // name, and no screen-reader user could tell the one that clears from
         // the thirty-three that toggle. Caught by the `/demo` walk, where
         // Playwright's strict mode refused the ambiguity outright.
-        aria-label={`Clear ${focusedTag} focus`}
+        aria-label={`Clear ${TAG_LABEL[focusedTag].toLowerCase()} focus`}
         className="shrink-0"
       >
         <X className="size-3.5" aria-hidden />
