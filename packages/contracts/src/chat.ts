@@ -98,6 +98,14 @@ export const PostChatMessage = z.object({
    * does not know is passed over there, so it cannot refuse the message.
    */
   timeZone: z.string().min(1).max(64).optional(),
+  /**
+   * The send's own key (KI-2026-10-14-a, after ADR-066): minted once per send
+   * and sent again with any retry of it. The server stores a message once per
+   * poster and key, and answers a repeat with the message it already stored,
+   * so a send whose answer was lost can be retried without posting it twice.
+   * Optional: a caller without one posts exactly as before.
+   */
+  clientKey: z.string().uuid().optional(),
 });
 export type PostChatMessage = z.infer<typeof PostChatMessage>;
 

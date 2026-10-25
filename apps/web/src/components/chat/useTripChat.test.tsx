@@ -5,6 +5,7 @@ import { setupServer } from "msw/node";
 import { ChatMessage, type ChatPage } from "@tc/contracts";
 import { uuidFrom } from "@tc/factories";
 import { holdIdle } from "@/test-support/holdIdle";
+import { CHAT_POST_TIMEOUT_MS } from "@/lib/apiClient";
 import { hasTripChat, useTripChat, type Unsent } from "./useTripChat";
 
 // The reader, whose own sent lines these are.
@@ -270,6 +271,44 @@ describe("useTripChat", () => {
       expect(result.current.postError).toBe("Something went wrong.");
     });
 
+    // KI-2026-10-14-a: a send that failed may have been stored all the same (a
+    // timeout after the server's commit). Sent again, the same words go under
+    // the same key, which the server stores once; other words are another
+    // message, under their own.
+    it("sends a retry of the same words under the same key, and anything else under a new one", async () => {
+      const keys: string[] = [];
+      let fail = true;
+      server.use(
+        http.get(`/api/trips/${TRIP}/chat`, () => HttpResponse.json(pageOf([message(1)]))),
+        http.post(`/api/trips/${TRIP}/chat`, async ({ request }) => {
+          const sent = (await request.json()) as { body: string; clientKey: string };
+          keys.push(sent.clientKey);
+          if (fail) return HttpResponse.error();
+          return HttpResponse.json({ message: { ...message(keys.length + 1, "u-me"), body: sent.body } }, { status: 201 });
+        }),
+      );
+      const { result } = renderHook(() => useTripChat({ tripId: TRIP, enabled: true, chatRev: "1", reading: false, accessLost: false }));
+      await waitFor(() => expect(result.current.status).toBe("ready"));
+
+      await act(async () => {
+        expect(await result.current.post("Train at nine?")).toEqual({ body: "Train at nine?", behind: false });
+      });
+      fail = false;
+      await act(async () => {
+        expect(await result.current.post("Train at nine?")).toBeNull();
+      });
+      // Its key was spent on the retry that stored it: the same words again
+      // are a new message.
+      await act(async () => {
+        expect(await result.current.post("Train at nine?")).toBeNull();
+        expect(await result.current.post("or ten?")).toBeNull();
+      });
+      expect(keys).toHaveLength(4);
+      expect(keys[1]).toBe(keys[0]);
+      expect(new Set(keys).size).toBe(3);
+      for (const key of keys) expect(key).toMatch(/^[0-9a-f-]{36}$/);
+    });
+
     // The poll can bring the stored message back before the POST answers, and
     // does again after: either way it is one line, where the pending one was.
     it("becomes the server's message once, however the re-reads land", async () => {
@@ -402,6 +441,41 @@ describe("useTripChat", () => {
         expect(arrived).toEqual(["Train at nine?"]);
       });
 
+      // KI-2026-10-14-a: a POST that stalls rather than drops. Before its
+      // timeout the head held every line behind it at "Sending…" for the life
+      // of the page; now it fails as a dropped connection does, and the lines
+      // behind it come back to the composer, none of them sent.
+      it("go back together when the first never answers, once its timeout passes", async () => {
+        const { arrived } = twoSends();
+        vi.useFakeTimers({ toFake: ["setTimeout", "setInterval"], shouldAdvanceTime: true });
+        // Node's own `AbortSignal.timeout` runs on timers the fakes do not
+        // reach; this one runs on the faked `setTimeout`, as the real one would.
+        vi.spyOn(AbortSignal, "timeout").mockImplementation((ms) => {
+          const controller = new AbortController();
+          setTimeout(() => controller.abort(new DOMException("The operation timed out.", "TimeoutError")), ms);
+          return controller.signal;
+        });
+        const { result } = renderHook(() => useTripChat({ tripId: TRIP, enabled: true, chatRev: "1", reading: false, accessLost: false }));
+        await waitFor(() => expect(result.current.status).toBe("ready"));
+
+        const sends: Promise<Unsent | null>[] = [];
+        act(() => {
+          sends.push(result.current.post("Train at nine?"), result.current.post("or ten?"), result.current.post("or eleven?"));
+        });
+        await waitFor(() => expect(arrived).toHaveLength(1));
+        await act(() => vi.advanceTimersByTimeAsync(CHAT_POST_TIMEOUT_MS));
+        await waitFor(() => expect(result.current.messages.map((m) => (m.removed ? m.messageId : m.body))).toEqual(["message 1"]));
+        await act(async () => {
+          expect(await Promise.all(sends)).toEqual([
+            { body: "Train at nine?", behind: false },
+            { body: "or ten?", behind: true },
+            { body: "or eleven?", behind: true },
+          ]);
+        });
+        expect(result.current.postError).toBe("Couldn't send. Check your connection and try again.");
+        expect(arrived).toEqual(["Train at nine?"]);
+      });
+
       // A stored send leaves the queue. Were it still there, the later failure
       // would give its text back too, and Send would store it a second time
       // (PR 444 review).
@@ -476,7 +550,9 @@ describe("useTripChat, asking the assistant", () => {
     act(() => void (sent = result.current.post("@assistant push dinner back", undefined, true)));
     expect(result.current.messages.at(-1)).toMatchObject({ pending: true, asksAssistant: true });
     await act(async () => expect(await sent).toBeNull());
-    expect(bodies).toEqual([{ body: "@assistant push dinner back", assistant: true, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone }]);
+    expect(bodies).toEqual([
+      { body: "@assistant push dinner back", assistant: true, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone, clientKey: expect.any(String) },
+    ]);
   });
 
   // M52 part 5: a zone-less trip reads today in the poster's own zone, so every
@@ -500,8 +576,8 @@ describe("useTripChat, asking the assistant", () => {
     await act(async () => void (await result.current.post("Dinner at eight?")));
     await act(async () => void (await result.current.post("@assistant push dinner back", undefined, true)));
     expect(bodies).toEqual([
-      { body: "Dinner at eight?", timeZone: "Asia/Tokyo" },
-      { body: "@assistant push dinner back", assistant: true, timeZone: "Asia/Tokyo" },
+      { body: "Dinner at eight?", timeZone: "Asia/Tokyo", clientKey: expect.any(String) },
+      { body: "@assistant push dinner back", assistant: true, timeZone: "Asia/Tokyo", clientKey: expect.any(String) },
     ]);
   });
 
