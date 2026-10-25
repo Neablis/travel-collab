@@ -1,4 +1,4 @@
-import { newPageDoc } from "@tc/contracts";
+import { CURRENT_PAGE_DOC_VERSION, newPageDoc } from "@tc/contracts";
 import { describe, expect, it } from "vitest";
 import { randomUUID } from "node:crypto";
 import { asc, eq, inArray } from "drizzle-orm";
@@ -234,6 +234,31 @@ describe("executePageCommand", () => {
     expect((created?.payload as { actorId: string }).actorId).toBe("system");
   });
 
+  // KI-2026-09-24-d item 2. A row written at an older document version
+  // (`trip.dates` is v1's name for `dates`) used to be backfilled as it
+  // parsed, so the log's genesis, and the row it rewrites, kept the old `v`.
+  // It is migrated like every other document the write path stores.
+  it("backfills an old row's document at the current version", async () => {
+    const tripId = await seedTrip();
+    const legacyId = randomUUID();
+    const now = new Date().toISOString();
+    const v1 = { v: 1, type: "doc", content: [{ type: "paragraph", content: [{ type: "macro", attrs: { name: "trip.dates", params: {} } }] }] };
+    await db.insert(pages).values({
+      id: legacyId, tripId, title: "Old", context: { tripId }, content: v1 as never, createdAt: now, updatedAt: now, actorId: OWNER,
+    });
+
+    await createPageVia(tripId, "Packing", "socks");
+
+    const genesis = (await readStream(db, tripId)).find(
+      (e) => e.type === "PageCreated" && (e.payload as { pageId: string }).pageId === legacyId,
+    );
+    const content = (genesis?.payload as { content: { v: number } }).content;
+    expect(content.v).toBe(CURRENT_PAGE_DOC_VERSION);
+    expect(JSON.stringify(content)).toContain('"name":"dates"');
+    const [row] = await db.select().from(pages).where(eq(pages.id, legacyId));
+    expect(row!.content).toMatchObject({ v: CURRENT_PAGE_DOC_VERSION });
+  });
+
   // **Undo/revert do NOT touch notebooks yet, and this pins that on purpose.**
   // `decideHistoryCommand` diffs the trip aggregate only. Wiring
   // `diffPageStates` into it is the remaining half of "the same functionality",
@@ -339,9 +364,13 @@ describe("executePageCommand", () => {
       "2026-01-02T00:00:00.000Z",
     ]);
     // Nor wrapped its pre-fix node a second time — also invisible to the
-    // comparison, since live and rebuilt would wrap alike. It did gain the `v`
-    // its genesis parse defaulted, which is the log's document and is right.
-    expect(legacy.content).toMatchObject({ v: 1, content: [{ type: "unknown", raw: { type: "fromANewerBuild" } }, {}] });
+    // comparison, since live and rebuilt would wrap alike. It did gain a `v`:
+    // the current one, since the genesis migrates what it parsed
+    // (KI-2026-09-24-d item 2), which is the log's document and is right.
+    expect(legacy.content).toMatchObject({
+      v: CURRENT_PAGE_DOC_VERSION,
+      content: [{ type: "unknown", raw: { type: "fromANewerBuild" } }, {}],
+    });
 
     // Drift, of every kind a rebuild has to undo: a lost row, a changed row
     // (one edited, one only ever backfilled), and a row the log deleted.
