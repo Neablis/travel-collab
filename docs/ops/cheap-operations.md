@@ -151,13 +151,13 @@ No repo artifact answers these. They are the difference between guessing and
 knowing, and they should be read before acting on §3–§5 beyond the free
 config checks.
 
-1. **Vercel Usage, last 30 days, by path/function.** Vercel → Usage /
+1. **Vercel Usage (§2.1), last 30 days, by path/function.** Vercel → Usage /
    Functions / Logs: total invocations and GB-seconds, top 10 paths. This
    alone separates "the 2-second board poll is the bill" from "anonymous
    library crawling is the bill" from "a few 300-second AI/cron invocations
    dominate duration." Also split production vs. preview build minutes, and
    confirm whether proxy executions are billed as function invocations.
-2. **Neon branch metrics, same period.** Neon dashboard: peak concurrent
+2. **Neon branch metrics (§2.2), same period.** Neon dashboard: peak concurrent
    connections, compute active hours and scale-to-zero suspensions, storage
    size — and whether `DATABASE_URL` points at the pooler host (report the
    hostname pattern only, never the value). This answers whether the
@@ -165,7 +165,7 @@ config checks.
    whether query volume is trivial and Neon is already near-free. Also
    confirm the current plan (Launch vs. Scale) and whether scale-to-zero is
    enabled.
-3. **Repo visibility (one click).** GitHub repo Settings: public vs.
+3. **Repo visibility (§2.3, one click).** GitHub repo Settings: public vs.
    private. CI minutes are $0 only while public; if the repo ever goes
    private, CI becomes a real (if small) line item and the draft-gating in
    `ci.yml` matters more.
@@ -558,7 +558,8 @@ cost — and never run it without asking).
 2. **This week, small code PRs:** the place-countries memo (attempted
    alongside this doc; doc-only if it does not land cleanly), then §3.3 (Discover single-read), §3.4 (owner
    join), §3.5 (library-cache the hot JSON surfaces), each as its own
-   draft PR with its own review. Expected effect: fewer DB queries per
+   draft PR with its own review, with §3.6 (lattice single-pass) as the
+   medium-effort follow-on once the small ones land. Expected effect: fewer DB queries per
    request on the hottest paths; the saving shows up as Neon compute
    hours and Vercel duration, measurable only via §2 after shipping.
 3. **Next, behavior calls (Mitchell only):** the board poll interval
