@@ -13,6 +13,20 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-10-25 — A history entry says when Undo steps over it (KI-2026-09-24-h; public API 1.25.0)
+- **Added** (`packages/contracts` `HistoryEntry.pageOnly`, optional, `true` or absent; public
+  API: the field on `GET /v1/trips/{tripId}/history`'s entries): `true` exactly when the batch
+  carries no trip events, which is the test `deriveUndoRedo` skips on, so `UndoLastChange`
+  never takes it back. Absent on every batch that changes the trip.
+- Why: an assistant card offers Undo only while its batch is the newest one Undo would take
+  back, and it found that batch by skipping entries with a `pageId`. A page-only batch touching
+  two or more notebooks (the first save on a trip whose legacy pages are backfilled) has no
+  `pageId`, so it hid an Undo that still worked.
+- Consumers updated: `@tc/domain` (`buildHistoryEntries` sets it), `apps/web` (`proposalUndoFor`
+  skips `pageOnly` entries; `openapi.json`).
+- Breaking? no — additive; history entries are derived from the event log on every read, so
+  no stored row lacks it, and a consumer that ignores it reads exactly what it did.
+
 ## 2026-10-24 — Only a Today page's weather request carries today's point (KI-2026-10-24-k)
 - **Changed** (`apps/web`, `GET /api/trips/[tripId]/weather` only; no `packages/contracts`
   schema changed): the extra point dated today off the trip's dates (entry below) is added only

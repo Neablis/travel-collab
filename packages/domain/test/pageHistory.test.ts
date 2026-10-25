@@ -161,4 +161,28 @@ describe("buildHistoryEntries", () => {
     const entries = buildHistoryEntries([genesis, pageCreated, deleted]);
     expect(entries[2]?.description).toBe("Deleted the notebook \"Overview\"");
   });
+
+  // KI-2026-09-24-h. `pageId` is absent on a page-only batch touching two
+  // notebooks, so it cannot tell a client which entries `UndoLastChange` steps
+  // over; `pageOnly` is the same test `deriveUndoRedo` skips on.
+  it("marks every batch with no trip events page-only, however many notebooks it touches", () => {
+    const P2 = "7f8b3d0f-4a8b-4c7f-8e4a-3c2b6d9e8f71";
+    const dayAdded = env(2, "DayAdded", { tripId: TRIP, dayId: DAY }, 2);
+    const backfill = [
+      env(3, "PageCreated", {
+        tripId: TRIP, pageId: P1, title: "A", context: { tripId: TRIP }, content: doc("a"), actorId: ALICE,
+      }, 3),
+      env(4, "PageCreated", {
+        tripId: TRIP, pageId: P2, title: "B", context: { tripId: TRIP }, content: doc("b"), actorId: ALICE,
+      }, 3),
+    ];
+    const entries = buildHistoryEntries([genesis, dayAdded, ...backfill]);
+    expect(entries.map((e) => [e.pageId, e.pageOnly])).toEqual([
+      [undefined, undefined],
+      [undefined, undefined],
+      [undefined, true],
+    ]);
+    // And it is exactly the batch the server steps over.
+    expect(deriveUndoRedo(groupBatches([genesis, dayAdded, ...backfill])).undo?.batchId).toBe(B(2));
+  });
 });
