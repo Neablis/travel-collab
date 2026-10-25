@@ -948,7 +948,11 @@ export function TripProvider({
       const units = unsentUnits();
       if (units.length === 0) return;
       for (const unit of units) handed.add(unit.id);
-      void drainAfter(tripId, inFlightSend.current, units);
+      // The head the sender has on the wire goes with the drain too, by key,
+      // so a `pagehide` while the drain runs can flush it ahead of the rest
+      // (window 6); the sender only ever sends `pending[0]`.
+      const onWire = inFlight.current ? (optimisticRef.current?.pending[0] ?? null) : null;
+      void drainAfter(tripId, inFlightSend.current && { send: inFlightSend.current, unit: onWire }, units);
     };
   }, [flushOnPageHide, unsentUnits, tripId]);
 
