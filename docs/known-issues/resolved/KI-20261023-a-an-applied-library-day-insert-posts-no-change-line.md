@@ -1,4 +1,4 @@
-### KI-2026-10-23-a — An applied library day inserted as tomorrow posts no change line
+### KI-2026-10-23-a — An applied library day inserted as tomorrow posts no change line — RESOLVED
 
 - **Severity:** correctness. Narrow: a line M52 decision 17 promises is missing in one case.
 - **Area:**
@@ -23,3 +23,12 @@
   new day. See it red without the change.
 - **Cross-reference:** M52 decision 17; ADR-073's 2026-10-23 amendment; PR 535.
 - **First noted:** 2026-10-23, review of M52 part 6, round 2.
+- **Resolved:** 2026-10-25, KI sweep 2, by the entry's fix direction. `commitProposal` returns
+  `ran` — every command the batch ran, the inserts' expansion included — beside `value` (the
+  response body, unchanged), and `handleApplyProposalRequest` passes `committed.ran` to
+  `announceChange`. Chat internals untouched. Regression test in
+  `apps/web/src/app/api/trips/[tripId]/ask/apply/route.int.test.ts` ("announces the inserted
+  stops in the chat when the inserted day becomes tomorrow") rather than `chat.int.test.ts`, to
+  keep the fix out of the chat files: a trip whose only day is today, an inserts-only approval,
+  and the line `added “Fushimi Inari” to day 2, and changed 1 more stop` linked to that stop. Red
+  before the change as `expected [] to match object [ { kind: 'system', …(4) } ]`; green after.

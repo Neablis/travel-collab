@@ -1911,7 +1911,9 @@ export async function handleApplyProposalRequest(
   }
   sink({ ...record, outcome: "applied", code: null });
   // `detail` is the trip the guard read, before the batch (M52 decision 17).
-  await announceChange(tripId, userId, commands.commands, detail, committed.value.detail);
+  // The commands the batch RAN, not the ones posted: a library insert's stops
+  // are named only by the commands it expanded into (KI-2026-10-23-a).
+  await announceChange(tripId, userId, committed.ran, detail, committed.value.detail);
   // The same `{ detail, history }` every command endpoint answers with, so the
   // board reconciles an approved plan through `applyOutcome` rather than
   // through a second, assistant-shaped path.

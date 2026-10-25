@@ -1,4 +1,4 @@
-### KI-2026-09-24-h — a page-only batch touching two or more pages still hides an accepted card's Undo
+### KI-2026-09-24-h — a page-only batch touching two or more pages still hides an accepted card's Undo — RESOLVED
 
 - **Severity:** correctness, narrow — the residue of KI-2026-09-23-f's first half.
 - **Milestone:** **M9, carried (assigned 2026-09-24, KI pass)** — the assistant
@@ -30,3 +30,13 @@
   (`packages/contracts/src/history.ts`, `pageId` optional at `:99`).
   Area corrected: `buildHistoryEntries` lives in
   `packages/domain/src/trip/history.ts`, not `apps/web/src/server/history`.
+- **Resolved:** 2026-10-25, KI sweep 2, by the entry's own direction. `HistoryEntry` gained an
+  optional `pageOnly: true` (`packages/contracts/src/history.ts`; CHANGELOG entry, public API
+  1.25.0), set by `buildHistoryEntries` on exactly the batches `deriveUndoRedo` skips (no trip
+  events). `proposalUndoFor` now takes the head as the first entry that is neither `pageOnly` nor
+  carries a `pageId`. Reproduced first: for a log of a trip change followed by one batch creating
+  two notebooks, `deriveUndoRedo` undid the trip change while the served head entry carried no
+  `pageId`, so the card answered `changed`. Proven by `ProposalCard.test.tsx` ("stays available
+  when a page-only batch touching two notebooks has landed on top"; red as `expected 'changed' to
+  be 'available'` before the card change) and `pageHistory.test.ts` ("marks every batch with no
+  trip events page-only…"; red with the domain line removed).

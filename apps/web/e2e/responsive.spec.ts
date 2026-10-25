@@ -932,13 +932,27 @@ test.describe("responsive (narrow viewport, signed out)", () => {
     // feedback the same evening, because four fit the moment where six did
     // not. A row counts only if it is laid out and inside the panel's box
     // on every side, so a hidden row is not counted as shown.
+    //
+    // **Counted on the panel the page keeps, not the server's** (KI-2026-10-24-c,
+    // PR 565's CI: `Received: 0` on both attempts). The Rome link is visible
+    // from the server's HTML, before the sea repacks for CSS's columns, and
+    // when the repack reaches the panel before its lazy chunk has loaded,
+    // React renders that panel afresh: the server's is detached, the drawing
+    // stands in, then the real panel mounts. `locator.evaluate` is two round
+    // trips, resolve then run, so a resolve before the swap and a run after it
+    // measured a detached panel, every box zero, and 0 rows. So: packed first
+    // (as the accents test waits), then counted until a live panel answers.
     test(`the find moment's banner shows all four stop rows at ${width}px`, async ({ page }) => {
       await page.setViewportSize({ width, height: 1000 });
       await page.goto("/");
       const banner = page.getByTestId("desktop-landing").getByRole("region", { name: "Find a day worth borrowing." });
       await expect(banner.getByRole("link", { name: /^3 days in Rome: emperors, gladiators/ }).first()).toBeVisible();
+      const grid = page.getByTestId("desktop-landing").getByTestId("sea-grid");
+      await expect
+        .poll(() => grid.evaluate((el) => el.getAttribute("data-cols") === getComputedStyle(el).getPropertyValue("--cols").trim()))
+        .toBe(true);
       const panel = banner.getByTestId("find-a-day-panel");
-      const shown = await panel.evaluate((card) => {
+      const shown = () => panel.evaluate((card) => {
         const box = card.getBoundingClientRect();
         return [...card.querySelectorAll("[data-testid=find-a-day-timeline] li")].filter((row) => {
           const r = row.getBoundingClientRect();
@@ -951,7 +965,7 @@ test.describe("responsive (narrow viewport, signed out)", () => {
           );
         }).length;
       });
-      expect(shown).toBe(4);
+      await expect.poll(shown).toBe(4);
     });
 
     // Mitchell's fourth walk of PR 510: *"show activities up till they dont

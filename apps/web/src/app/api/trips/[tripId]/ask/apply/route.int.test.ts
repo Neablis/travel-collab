@@ -7,7 +7,8 @@ import { getTripDetail } from "@/server/projections";
 import { getTripHistory } from "@/server/history";
 import { saveDay, setSavedDayVisibility } from "@/server/savedDays";
 import { db } from "@/server/db/client";
-import { rateLimitCounters, savedDayAdds, savedDays, tripMemberships } from "@/server/db/schema";
+import { rateLimitCounters, savedDayAdds, savedDays, tripMemberships, tripMessages } from "@/server/db/schema";
+import { entitleAccounts } from "@/server/test-support/entitledAccount";
 import { DEMO_TRIP_ID } from "@/lib/demoTrip";
 import type { Geocoder, GeocodeResult } from "@/server/geocoding";
 import { MAX_PROPOSAL_INSERTS } from "@/server/assistant/limits";
@@ -430,6 +431,44 @@ describe("POST /api/trips/:id/ask/apply", () => {
       if (!undone.ok) return;
       expect(undone.detail.days).toHaveLength(2);
       expect(Object.keys(undone.detail.activities)).toHaveLength(0);
+    });
+
+    // KI-2026-10-23-a, M52 decision 17. `AddDay` has no position, so on a trip
+    // whose last day is today the inserted day becomes tomorrow, with its
+    // stops. The change line has to name them, and only the commands the insert
+    // expanded into do: the approval posted none.
+    it("announces the inserted stops in the chat when the inserted day becomes tomorrow", async () => {
+      await entitleAccounts([ACTOR_ID]);
+      const savedDayId = await publishedDay(AUTHOR_ID);
+      const tripId = randomUUID();
+      const today = new Date().toISOString().slice(0, 10);
+      for (const command of [
+        { type: "CreateTrip", tripId, name: "Last day" },
+        { type: "SetTripDates", tripId, startDate: today, endDate: today, newDayIds: [randomUUID()] },
+      ] as const) {
+        expect((await executeTripCommand(command, ACTOR_ID)).ok).toBe(true);
+      }
+
+      const res = await handleApplyProposalRequest(
+        req(tripId, { commands: [], inserts: [{ savedDayId }] }),
+        tripId,
+        undefined,
+        silent,
+      );
+      expect(res.status).toBe(200);
+      const after = await getTripDetail(tripId);
+      const [fushimi] = after!.days[1]!.activityIds;
+
+      const lines = await db.select().from(tripMessages).where(eq(tripMessages.tripId, tripId));
+      expect(lines).toMatchObject([
+        {
+          kind: "system",
+          authorId: ACTOR_ID,
+          body: "added “Fushimi Inari” to day 2, and changed 1 more stop",
+          linkKind: "stop",
+          linkId: fushimi,
+        },
+      ]);
     });
 
     it("commits the model's own commands and the inserted day in the SAME batch", async () => {

@@ -217,6 +217,18 @@ describe("proposalUndoFor", () => {
     expect(proposalUndoFor(applied, history([notebookSave, entry(MINE)]))).toBe("available");
   });
 
+  // KI-2026-09-24-h. A page-only batch touching two notebooks (the first save
+  // on a trip whose legacy pages are backfilled, a `PageCreated` each) has no
+  // single `pageId`, but the server steps over it all the same. The entry is
+  // the one `buildHistoryEntries` serves for that batch.
+  it("stays available when a page-only batch touching two notebooks has landed on top", () => {
+    const backfill = entry(THEIRS, {
+      description: 'Added the notebook "A" and 1 more notebook change',
+      pageOnly: true,
+    });
+    expect(proposalUndoFor(applied, history([backfill, entry(MINE)]))).toBe("available");
+  });
+
   it("reads undone off the history, however it was undone", () => {
     const undoneBatch = entry(UUID, { origin: { kind: "undo", undoesBatchId: MINE } });
     expect(proposalUndoFor(applied, history([undoneBatch, entry(MINE, { undone: true })]))).toBe("undone");
