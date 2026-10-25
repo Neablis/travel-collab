@@ -1,4 +1,4 @@
-### KI-2026-10-21-a — `m46-trip-chat.spec.ts:77` once found the owner's Ask pill named "Ask", not "Ask or chat", then passed on retry
+### KI-2026-10-21-a — `m46-trip-chat.spec.ts:77` once found the owner's Ask pill named "Ask", not "Ask or chat", then passed on retry — RESOLVED
 
 - **Severity:** reliability. One e2e red that passed on retry; no product behaviour is known to
   be wrong. Seen once.
@@ -26,3 +26,19 @@
   red first by delaying that read.
 - **Cross-reference:** KI-2026-10-14-c (one-off CI reds); M46 (the combined Ask and chat button).
 - **First noted:** 2026-10-21, M51 part 9 (PR 513) at `07f1f68`.
+- **Resolved:** 2026-10-25, KI sweep 2. The cause was the spec's wait, not the page.
+  `await expect(bea.getByRole("heading", { name: tripName, level: 1 })).toBeVisible()` after
+  *Join the trip* proves nothing: the invite landing's own `<h1>` is the trip's name
+  (`InviteLandingScreen.tsx`), so it passes before the accept has answered, and the owner's page
+  could load while the trip still had one member, where `tripHasChat` is false and
+  `askOrChatName(undefined)` names the pill "Ask" (correctly). The page recovers only once its
+  2s poll sees the `accessRev` move and re-reads access. Reproduced by holding the accept 15s on
+  Bea's context under `test:e2e:ci-like`: `Expected: "Ask or chat" / Received: "Ask"` at the same
+  line, on the run and its retry. Fix (`e2e/m46-trip-chat.spec.ts`): a `join` helper that clicks,
+  waits for the trip's own URL (the landing leaves for it only once the accept is ok,
+  `useInviteJoin`), then the heading; used at all three join sites in the spec (the third closes
+  Bea's context right after, which could also abort the accept). `askOrChat.tsx` unchanged. Proof:
+  with the accept held 3s the new walk passes; and the ci-like run of `m42-demo-trips`,
+  `m37-trip-covers`, `m46-trip-chat`, `m14-notebook-widgets` and `responsive`, 104 passed, none
+  flaky. The same heading-only wait after *Join the trip* is in `travellers.spec.ts:128` and
+  `m52-today.spec.ts:46` (which closes the context next); left alone, reported.

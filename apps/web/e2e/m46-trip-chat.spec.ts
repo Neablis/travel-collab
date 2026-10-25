@@ -33,6 +33,18 @@ async function signedInAs(browser: Browser, username: string, link: string): Pro
   return page;
 }
 
+// *Join the trip*, and the trip's own page: the join has committed. Not the
+// trip's name as a heading alone, which the invite landing's own `<h1>` already
+// is before the click: waiting on that let the owner's page load while the trip
+// still had one member, its Ask named "Ask" and not "Ask or chat"
+// (KI-2026-10-21-a). The landing leaves for the trip only once the accept has
+// answered (`useInviteJoin`).
+async function join(page: Page, tripId: string, tripName: string): Promise<void> {
+  await page.getByRole("button", { name: "Join the trip" }).click();
+  await expect(page).toHaveURL(new RegExp(`/trips/${tripId}(?:[?#]|$)`));
+  await expect(page.getByRole("heading", { name: tripName, level: 1 })).toBeVisible();
+}
+
 // The configured operator, admitted on the super code (m12-moderation's `signedInAs`).
 async function operator(browser: Browser): Promise<Page> {
   const page = await (await browser.newContext({ storageState: undefined })).newPage();
@@ -67,8 +79,7 @@ test("a viewer's message reaches the owner's open page within one poll, and the 
   const bea = await signedInAs(browser, newcomer("bea"), `/invite/${token}`);
   let read: Awaited<ReturnType<Locator["boundingBox"]>> = null;
   try {
-    await bea.getByRole("button", { name: "Join the trip" }).click();
-    await expect(bea.getByRole("heading", { name: tripName, level: 1 })).toBeVisible();
+    await join(bea, tripId, tripName);
 
     // The owner's page, opened once the trip has two members, so it polls on a
     // timer, and never reloaded after this.
@@ -137,8 +148,7 @@ test("the owner edits and deletes in place, the viewer reports a message, and th
 
   const bea = await signedInAs(browser, newcomer("bea"), `/invite/${token}`);
   try {
-    await bea.getByRole("button", { name: "Join the trip" }).click();
-    await expect(bea.getByRole("heading", { name: tripName, level: 1 })).toBeVisible();
+    await join(bea, tripId, tripName);
     await say(page, `Hotel is sorted ${run}`);
     await say(page, `Wrong chat ${run}`);
     await say(bea, `Train at nine? ${run}`);
@@ -240,8 +250,7 @@ test("a message's @stop is a chip that focuses the stop on Plan, and plain text 
   const { token } = ((await invite.json()) as { invite: { token: string } }).invite;
   const bea = await signedInAs(browser, newcomer("bea"), `/invite/${token}`);
   try {
-    await bea.getByRole("button", { name: "Join the trip" }).click();
-    await expect(bea.getByRole("heading", { name: tripName, level: 1 })).toBeVisible();
+    await join(bea, tripId, tripName);
   } finally {
     await bea.context().close();
   }
