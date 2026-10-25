@@ -119,9 +119,11 @@ function fromRow(row: SavedDayRow): SavedDay | null {
  * **`dateAnchors: "strip"` is the app's keep** (KI-2026-09-24-c): it runs the
  * same `withoutDateAnchors` step `/v1/playbooks` does, so a Playbook kept in the
  * app no longer carries "only 3–5 May" into every trip it is added to. The
- * Keep dialog says which stops lose one before the button acts. The default is
- * `"keep"` only because `POST /v1/library` also calls this and its behaviour is
- * not changed here.
+ * Keep dialog says which stops lose one before the button acts. **Stripping is
+ * the default**: `POST /v1/library` was the last keep that did not strip, and
+ * since KI-2026-09-25-b it does, through the same two halves so it can report
+ * what went. `"keep"` stays for a caller that captures a day verbatim; no keep
+ * path passes it.
  */
 export async function saveDay(
   input: { name: string; dayIds: readonly string[]; dateAnchors?: "keep" | "strip" },
@@ -131,7 +133,7 @@ export async function saveDay(
 ): Promise<AccessResult<SavedDay>> {
   const captured = captureDays(detail, input.dayIds);
   if (!captured.ok) return captured;
-  const stops = input.dateAnchors === "strip" ? withoutDateAnchors(captured.value).stops : captured.value;
+  const stops = input.dateAnchors === "keep" ? captured.value : withoutDateAnchors(captured.value).stops;
   return storeSavedDay({
     ownerId,
     name: input.name,
@@ -929,8 +931,8 @@ export type RemovedDateAnchor = { stopIndex: number; title: string; from: string
  * time-of-day and public-holiday anchors describe the place rather than the
  * trip, and are kept.
  *
- * `/v1/playbooks` applies this, and so does the app's keep (`saveDay` with
- * `dateAnchors: "strip"`, KI-2026-09-24-c); `POST /v1/library` does not.
+ * Every keep applies this: `/v1/playbooks`, the app's keep (`saveDay`,
+ * KI-2026-09-24-c) and `POST /v1/library` (`keepDays`, KI-2026-09-25-b).
  */
 export function withoutDateAnchors(stops: readonly SavedStop[]): {
   stops: SavedStop[];

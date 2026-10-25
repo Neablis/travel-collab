@@ -105,11 +105,16 @@ export function tagFocusOpacity(tags: readonly ActivityTag[], focusedTag: Activi
 }
 
 /**
- * The chip's hover hint, from M18b's scope ("the hover hint the handoff
- * writes"). It names the raw tag, not `TAG_LABEL` — the handoff's copy is
- * `Dim everything that is not meal`, lowercase, reading as the tag rather than
- * as a proper noun.
+ * The chip's hover hint and accessible name, from M18b's scope ("the hover
+ * hint the handoff writes"): `Dim everything that is not food`.
+ *
+ * It names the tag as the chip prints it, `TAG_LABEL`, lowercased as the
+ * handoff wrote it (the tag, not a proper noun). It used to name the raw key,
+ * so the `Food` chip was named for `meal`; WCAG 2.5.3 (Label in Name; axe
+ * 4.14's `label-content-name-mismatch`) wants the printed word in the name, so
+ * a voice-control user can say the word they see.
  */
 export function tagFocusHint(tag: ActivityTag, isFocused: boolean): string {
-  return isFocused ? `Stop focusing on ${tag}` : `Dim everything that is not ${tag}`;
+  const label = TAG_LABEL[tag].toLowerCase();
+  return isFocused ? `Stop focusing on ${label}` : `Dim everything that is not ${label}`;
 }

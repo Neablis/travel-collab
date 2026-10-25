@@ -1,4 +1,6 @@
 import { execFileSync } from "node:child_process";
+import { createRequire } from "node:module";
+import path from "node:path";
 import { PassThrough } from "node:stream";
 import { createElement, Suspense, use } from "react";
 import { renderToPipeableStream } from "react-dom/server";
@@ -122,5 +124,49 @@ describe("onRequestError (KI-2026-10-03-a)", () => {
     await onRequestError(thrown, request, context);
 
     expect(Sentry.captureRequestError).toHaveBeenCalledWith(thrown, request, context);
+  });
+});
+
+// Since next@16.4 the Flight wrapper aborts the render with `ResponseAborted`
+// when its stream closes, before React's own plain "closed early" error, and
+// Next's `isAbortError` drops that one before `onRequestError` or the `⨯ Error`
+// log line. Every traced occurrence of KI-2026-10-03-a was a Flight (RSC
+// prefetch) render, so this is what keeps the log line gone: a Next that
+// stopped doing it turns this red. The Flight server cannot load beside
+// react-dom/server in one process (it needs the `react-server` condition), so
+// the renderer under Next's wrapper is Fizz, whose pipe/close/abort contract
+// is the same — its plain close error is the one the tests above pin.
+describe("Next's Flight wrapper drops an abandoned render itself (KI-2026-10-03-a)", () => {
+  const nextDir = path.dirname(createRequire(import.meta.url).resolve("next/package.json"));
+  const fromNext = createRequire(path.join(nextDir, "package.json"));
+  const { renderToNodeFlightStream } = fromNext("./dist/server/app-render/stream-ops.node.js") as {
+    renderToNodeFlightStream: (
+      mod: { renderToPipeableStream: (payload: unknown, clientModules: unknown, opts: object) => unknown },
+      payload: unknown,
+      clientModules: unknown,
+      opts: { onError: (err: unknown) => void },
+    ) => PassThrough;
+  };
+  const { isAbortError } = fromNext("./dist/server/pipe-readable.js") as { isAbortError: (e: unknown) => boolean };
+
+  it("hands onError an abort Next filters, not React's plain close error", async () => {
+    const never = new Promise<never>(() => {});
+    function Pending() {
+      use(never);
+      return null;
+    }
+    const err = await new Promise<unknown>((resolve) => {
+      const destination = renderToNodeFlightStream(
+        { renderToPipeableStream: (payload, _clientModules, opts) => renderToPipeableStream(payload as never, opts) },
+        createElement(Suspense, { fallback: "loading" }, createElement(Pending)),
+        {},
+        { onError: (e) => void resolve(e) },
+      );
+      destination.on("error", () => {});
+      setImmediate(() => destination.destroy());
+    });
+
+    expect(err).toMatchObject({ name: "ResponseAborted" });
+    expect(isAbortError(err)).toBe(true);
   });
 });

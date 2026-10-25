@@ -314,6 +314,8 @@ describe("Discover", () => {
         expect(searchPlaybooksMock).toHaveBeenLastCalledWith(expect.objectContaining({ sort: value })),
       );
       expect(screen.getByTestId("discover-sort").textContent).toBe(`${label} ▾`);
+      // The order shown is in its name too (WCAG 2.5.3, axe `label-content-name-mismatch`).
+      expect(screen.getByRole("button", { name: `Sort: ${label}` })).toBe(screen.getByTestId("discover-sort"));
     }
   });
 

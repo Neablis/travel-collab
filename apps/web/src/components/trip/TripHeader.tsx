@@ -1,10 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Clock, MoreHorizontal } from "lucide-react";
 import { travellerIds, type TripAccess } from "@tc/contracts";
-import { PersonChip } from "@/components/ui/person-chip";
+import { PersonChip, personChipText } from "@/components/ui/person-chip";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DataText } from "@/components/ui/data-text";
@@ -850,33 +850,47 @@ function TravellerStack({
   if (travellers.length === 0) return null;
   const more = travellers.length - STACK_AVATARS;
   const onlineNames = travellers.filter((m) => online.has(m.userId)).map(displayNameFor);
+  // What the stack prints, in its order: the faces' initials (a glyph prints
+  // nothing) and the count. WCAG 2.5.3 (axe 4.14's
+  // `label-content-name-mismatch`) wants those words in the name, together, so
+  // a voice-control user can say what they see.
+  const shown = [
+    ...travellers.slice(0, STACK_AVATARS).map((m) => personChipText(displayNameFor(m), m.avatar, "md")),
+    more > 0 ? `+${more} more` : "",
+  ].filter((text) => text !== "");
   return (
     <Button
       variant="ghost"
       onClick={onOpen}
-      aria-label={
-        onlineNames.length === 0
-          ? "Travellers on this trip"
-          : `Travellers on this trip, online: ${onlineNames.join(", ")}`
-      }
+      aria-label={[
+        "Travellers on this trip",
+        shown.length > 0 ? `: ${shown.join(", ")}` : "",
+        onlineNames.length > 0 ? `, online: ${onlineNames.join(", ")}` : "",
+      ].join("")}
       title="Travellers on this trip"
       className="hidden h-8 px-1 sm:inline-flex"
     >
-      {/* Its own row, so the overlap is not undone by the button's gap. */}
+      {/* Its own row, so the overlap is not undone by the button's gap. The
+          space between faces is for the stack's TEXT, not its look (flex
+          drops a whitespace-only item): without it the initials run together
+          as "AABBCC+1", which is the visible label axe reads above. */}
       <span className="flex">
         {travellers.slice(0, STACK_AVATARS).map((member, index) => (
-          <PersonChip
-            key={member.userId}
-            name={displayNameFor(member)}
-            avatar={member.avatar}
-            color={member.color}
-            size="md"
-            ring
-            online={online.has(member.userId)}
-            className={cn(index > 0 && "-ml-2")}
-          />
+          <Fragment key={member.userId}>
+            {index > 0 ? " " : null}
+            <PersonChip
+              name={displayNameFor(member)}
+              avatar={member.avatar}
+              color={member.color}
+              size="md"
+              ring
+              online={online.has(member.userId)}
+              className={cn(index > 0 && "-ml-2")}
+            />
+          </Fragment>
         ))}
       </span>
+      {more > 0 ? " " : null}
       {more > 0 ? <span className="text-xs font-semibold text-slate">+{more}</span> : null}
     </Button>
   );

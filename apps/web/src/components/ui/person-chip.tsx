@@ -64,14 +64,13 @@ const ONLINE_DOT =
  */
 export function PersonChip({ name, avatar, color, size = "sm", ring, title, online, className }: PersonChipProps) {
   const Glyph = avatar ? AVATAR_GLYPHS[avatar] : null;
-  const initials = initialsFor(name);
   return (
     <Avatar
       name={name}
       size={size}
       tone={null}
       title={title}
-      initials={size === "xs" ? initials.slice(0, 1) : initials}
+      initials={personChipText(name, null, size)}
       icon={Glyph ? <Glyph aria-hidden {...GLYPH[size]} /> : undefined}
       className={cn(
         PERSON_BG[color ?? "slate"],
@@ -82,4 +81,19 @@ export function PersonChip({ name, avatar, color, size = "sm", ring, title, onli
       )}
     />
   );
+}
+
+/**
+ * The text a chip prints: its initials, or "" when a glyph is drawn instead.
+ *
+ * For a control whose face is chips. `aria-hidden` hides them from a screen
+ * reader but not from sight, and WCAG 2.5.3 (Label in Name; axe
+ * `label-content-name-mismatch`) wants the words a person can see inside the
+ * control's accessible name, so a voice-control user can say them. The same
+ * rule the chip draws by, so the name cannot disagree with the face.
+ */
+export function personChipText(name: string, avatar: AvatarKey | null, size: PersonChipSize = "sm"): string {
+  if (avatar) return "";
+  const initials = initialsFor(name);
+  return size === "xs" ? initials.slice(0, 1) : initials;
 }

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { keepDays, LibraryDay, savedDayCollection } from "@/server/public-api/library";
+import { keepDays, LibraryDay, LibraryKept, savedDayCollection } from "@/server/public-api/library";
 import { route } from "@/server/public-api/route";
 
 // **Your saved-days library** — a clean collection already.
@@ -29,13 +29,15 @@ export const { GET, POST } = route({
   GET: savedDayCollection("List the days you have saved to your library, newest first", { item: LibraryDay }),
   POST: {
     summary: "Save one day of a trip you can see into your library",
+    description:
+      "A saved day has no dates, so a stop's calendar-date (`dateRange`) anchor is removed on the way in and named in `warnings` (`date-anchor-removed`), as `POST /v1/playbooks` does. Weekday, time-of-day and public-holiday anchors are kept. `warnings` is on this answer only; the stored day does not carry it.",
     scope: "library:write",
     body: SaveDayBody,
     // The trip is in the body, so the wrapper gates it there: a token confined
     // to that trip may save from it, and one confined elsewhere may not.
     trip: { body: (body) => (body as z.infer<typeof SaveDayBody>).tripId },
     role: "viewer",
-    response: LibraryDay,
+    response: LibraryKept,
     handle: (ctx) => {
       const input = ctx.body as z.infer<typeof SaveDayBody>;
       return keepDays(ctx, { name: input.name, dayIds: [input.dayId] });

@@ -669,8 +669,9 @@ describe("TripHeader — the avatar stack (D10)", () => {
       person("dev-eve", "Eve Ellis", false),
     ];
     await renderHeader();
-    const stack = await screen.findByRole("button", { name: "Travellers on this trip" });
-    expect(stack.textContent).toBe("AABBCC+1");
+    // What it prints is in its name, in order (WCAG 2.5.3, axe `label-content-name-mismatch`).
+    const stack = await screen.findByRole("button", { name: "Travellers on this trip: AA, BB, CC, +1 more" });
+    expect(stack.textContent).toBe("AA BB CC +1");
     // Hidden below `sm` (640px); jsdom loads no stylesheet, so the class is the assertion.
     // eslint-disable-next-line no-restricted-syntax -- the breakpoint is the claim, as in "TripHeader on a phone" above
     expect(stack.className).toMatch(/\bhidden\b.*\bsm:inline-flex\b/);
@@ -684,15 +685,16 @@ describe("TripHeader — the avatar stack (D10)", () => {
       { ...person("dev-bob", "Bob Burns"), displayName: "Kenji Watanabe" },
     ];
     await renderHeader();
-    const stack = await screen.findByRole("button", { name: "Travellers on this trip" });
+    // A glyph prints no words, so only the initials are named.
+    const stack = await screen.findByRole("button", { name: "Travellers on this trip: KW" });
     expect(stack.innerHTML).toContain("lucide-mountain");
-    expect(stack.textContent).toBe("KW");
+    expect(stack.textContent?.trim()).toBe("KW");
   });
 
   it("opens Trip settings scrolled to People", async () => {
     accessMembers = [person("dev-alice", "Alice Ames"), person("dev-bob", "Bob Burns")];
     await renderHeader();
-    await userEvent.click(await screen.findByRole("button", { name: "Travellers on this trip" }));
+    await userEvent.click(await screen.findByRole("button", { name: /^Travellers on this trip/ }));
 
     expect(screen.getByRole("dialog", { name: /trip settings/i })).toBeTruthy();
     // Once on opening, and again if Cover's reads settle first (`SettingsSheet`
@@ -704,7 +706,7 @@ describe("TripHeader — the avatar stack (D10)", () => {
   it("does not scroll when the sheet is opened from the title", async () => {
     accessMembers = [person("dev-alice", "Alice Ames")];
     await renderHeader();
-    await screen.findByRole("button", { name: "Travellers on this trip" });
+    await screen.findByRole("button", { name: /^Travellers on this trip/ });
     await userEvent.click(screen.getByRole("button", { name: /trip settings/i }));
 
     // Witness: the sheet and its People section are there to be scrolled to.
@@ -719,14 +721,14 @@ describe("TripHeader — the avatar stack (D10)", () => {
     await renderHeader();
     // Witness: the access read has answered, and the header rendered.
     await screen.findByRole("button", { name: /^Trip dates:/ });
-    expect(screen.queryByRole("button", { name: "Travellers on this trip" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Travellers on this trip/ })).toBeNull();
 
     // As between tests (`vitest.setup.ts`), so the second mount reads afresh.
     cleanup();
     clearQueryCache();
     accessMembers = [person("dev-alice", "Alice Ames")];
     await renderHeader();
-    expect(await screen.findByRole("button", { name: "Travellers on this trip" })).toBeTruthy();
+    expect(await screen.findByRole("button", { name: /^Travellers on this trip/ })).toBeTruthy();
   });
 
   // M46 D7. The stack's own label is all a screen reader hears of it, so who
@@ -736,14 +738,14 @@ describe("TripHeader — the avatar stack (D10)", () => {
     onlineIds = ["dev-bob"];
     const listening = vi.spyOn(document, "addEventListener");
     await renderHeader();
-    await screen.findByRole("button", { name: "Travellers on this trip" });
+    await screen.findByRole("button", { name: /^Travellers on this trip/ });
     // The poll's listener is attached in a later task than the render
     // (KI-2026-09-22-e); a tab coming back is then what makes it poll.
     await waitFor(() => expect(listening).toHaveBeenCalledWith("visibilitychange", expect.any(Function)));
     Object.defineProperty(document, "visibilityState", { value: "visible", configurable: true });
     try {
       document.dispatchEvent(new Event("visibilitychange"));
-      const stack = await screen.findByRole("button", { name: "Travellers on this trip, online: Bob Burns" });
+      const stack = await screen.findByRole("button", { name: "Travellers on this trip: AA, BB, online: Bob Burns" });
       // The label is built from its own list, so the faces' dots are checked
       // apart from it; the dot is a pseudo-element, drawn by a class alone.
       // eslint-disable-next-line no-restricted-syntax -- the dot exists only as a class, as in person-chip.test.tsx
