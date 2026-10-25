@@ -777,6 +777,15 @@ test("a sentence inserted mid-sentence lands after it, never splitting it", asyn
   const heading = page.locator(".tc-page-editor h2").first();
   const title = (await heading.textContent()) ?? "";
   await heading.click();
+  // **The click has landed before a key is pressed** (KI-2026-10-06-a). The
+  // repeat just inserted is selected, as a node, and ProseMirror adopts the
+  // caret a click puts in the heading only when Chrome's `selectionchange`
+  // reaches it, a task later. Pressed in that gap, Home and the arrows moved
+  // from the repeat instead, and the second ArrowRight selected the day widget
+  // after it: its settings kept the column, and `search.fill` waited for a
+  // rail that never came back (3 in 12, under load, always this fill). The
+  // rail returning is the product's own word that nothing is selected.
+  await expect(search).toBeVisible();
   await page.keyboard.press("Home");
   await page.keyboard.press("ArrowRight");
   await page.keyboard.press("ArrowRight");

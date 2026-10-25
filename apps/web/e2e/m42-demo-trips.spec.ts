@@ -1,6 +1,26 @@
+import { fileURLToPath } from "node:url";
 import AxeBuilder from "@axe-core/playwright";
 import type { Locator, Page } from "@playwright/test";
-import { expect, test } from "./fixtures/test";
+import { expect, test as base } from "./fixtures/test";
+
+// **The browser draws text as CI's runner does** (KI-2026-10-24-b). The
+// baselines below are CI's, and Chromium on Linux takes its hinting and
+// anti-aliasing from the host's fontconfig, even for web fonts. The Claude Code
+// cloud image adds `/etc/fonts/conf.d/12-unhinted-grayscale.conf`, which
+// assigns unhinted grayscale text, and every shot here failed against CI's on
+// glyph edges alone (49,377 pixels at 1440, the same on retry, layout
+// identical). `fonts/ci-hinting.conf` reassigns Ubuntu's stock defaults; on
+// CI it restates what is already set. The browser's own environment only, so
+// `launchOptions`' args from playwright.config.ts are kept.
+const test = base.extend({
+  launchOptions: [
+    async ({ launchOptions }, provide) => {
+      const fontconfig = fileURLToPath(new URL("./fonts/ci-hinting.conf", import.meta.url));
+      await provide({ ...launchOptions, env: { ...process.env, ...launchOptions.env, FONTCONFIG_FILE: fontconfig } });
+    },
+    { scope: "worker" },
+  ],
+});
 
 // M42's front door, walked by somebody with no account: the `/demo` picker,
 // every demo trip it offers (D1), and the landing's prices (D3).
