@@ -117,7 +117,14 @@ describe("previewContext — what D4 hides stays hidden", () => {
     for (const who of ["p0", "p1", "p2"]) {
       expect(renderMacro(ctx, "person.share", { who }).status).toBe("empty");
     }
-    expect(renderMacro(ctx, "cost.balances", {}).status).toBe("empty");
+    // Not `empty` any more, and that is the KI-2026-10-05-e fix showing: a
+    // total the board counts is now always owed by somebody, so the total's
+    // stop is picked for a stand-in and its money sits on that stand-in's row.
+    // What D4 hides is any PERSON's money, and none of them has any.
+    const out = rendered(renderMacro(ctx, "cost.balances", {}));
+    if (out.kind !== "rows") throw new Error(`expected rows, got ${out.kind}`);
+    const byName = new Map(out.rows.map((row) => [textOf(row.lead), row.cells.map(textOf)]));
+    for (const name of ["Mitchell", "Priya", "Sam"]) expect(byName.get(name)).toEqual(["", "", "even"]);
   });
 
   it("no day, city or stop has a cost — only the whole trip does", () => {

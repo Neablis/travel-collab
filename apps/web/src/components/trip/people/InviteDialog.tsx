@@ -13,10 +13,11 @@ import { ReferralNudge } from "@/components/account/ReferralNudge";
 import { createTripInvite, inviteLink } from "@/lib/apiClient";
 import { RolePicker } from "./RoleDialog";
 
-// D3: an editor is usually coming; a suggester or a viewer is usually advising
-// from home — #314's suggester doubled every per-person total by joining. The
-// owner can flip it before sending.
-const travelsByDefault = (role: InviteRole) => role === "editor";
+// D3, superseded 2026-10-25 by Mitchell (KI-2026-10-05-e): whoever is invited
+// is coming unless the owner unticks it, whatever the role — travelling is
+// opt-out. A trip nobody is travelling on prices a stop nobody picked at zero,
+// so nobody may end up off the count without someone choosing it. An advisor
+// who is not coming (PR 314's case) is an untick before sending.
 
 /**
  * `+ Invite` (spec §4): an optional address, a role, whether they are coming,
@@ -66,16 +67,12 @@ function InviteForm({
 }) {
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<InviteRole>("editor");
-  const [travelling, setTravelling] = useState(travelsByDefault("editor"));
+  // One default for every role, so a role change leaves the owner's choice alone.
+  const [travelling, setTravelling] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [created, setCreated] = useState<{ invite: TripInvite; link: string } | null>(null);
   const [copy, setCopy] = useState<"copied" | "denied" | null>(null);
-
-  function chooseRole(next: InviteRole) {
-    setRole(next);
-    setTravelling(travelsByDefault(next));
-  }
 
   async function copyLink(link: string) {
     try {
@@ -166,7 +163,7 @@ function InviteForm({
             onChange={(e) => setEmail(e.target.value)}
           />
         </FormField>
-        <RolePicker value={role} onChange={chooseRole} />
+        <RolePicker value={role} onChange={setRole} />
         <CheckboxField
           checked={travelling}
           onCheckedChange={setTravelling}

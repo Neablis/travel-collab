@@ -38,9 +38,13 @@ count it.
    changes.
 3. **Everyone already on a trip is travelling** (D2). There is no backfill, so no live total moves
    on deploy. A new invite carries the choice, preset by role (D3). Accepting the invite writes it.
+   **Superseded 2026-10-25 by Mitchell** (KI-2026-10-05-e): the preset is travelling for every
+   role. Travelling is opt-out, so nobody leaves the count unless somebody unticks them.
 4. **The owner may set it for anyone, including themselves. Each member may set it for
    themselves, and nobody else may** (D4). It is one rule on the AccessPolicy seam,
    `maySetTravelling`. The owner may be not travelling (D5), and totals then floor at one person.
+   **Superseded 2026-10-25 by Mitchell** (KI-2026-10-05-e): there is no floor. With nobody
+   travelling, a stop nobody picked is priced at zero, which is what balances charge for it.
 5. **An explicit *Who is in* pick stands** (D6). If someone picked on a stop is later marked not
    travelling, they still count on that stop. Removing the pick would rewrite planning state from
    an Access change. Travelling only decides who "nobody picked" means.
@@ -62,7 +66,9 @@ ADR-060 decision 2 now reads "empty = all *travellers*".
   People section is where to see it.
 - **Zero travellers is priced for one person, but balances charge nobody** (spec W4). The two
   disagree in a state reachable only by marking everyone, owner included, not travelling.
-  KI-2026-10-05-e.
+  KI-2026-10-05-e. **Resolved 2026-10-25** (Mitchell): zero travellers prices a stop nobody
+  picked at zero, so the board and balances agree, on the condition that every member and every
+  new invite defaults to travelling (decisions 3 and 4 above carry the dated notes).
 - **The public API's totals mean something different** (1.6.0, `docs/contracts/CHANGELOG.md`):
   `cost × headcount` now counts travellers, and `GET /v1/trips/:id/members` returns `travelling`.
 - **The first `accessRev` a client sees is a baseline** (spec W19). An Access write made before

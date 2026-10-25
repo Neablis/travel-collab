@@ -135,9 +135,10 @@ function shiftedColorTitle(
 }
 
 function travellersLine(count: number): string {
-  // D5: totals floor at one person, so a trip with nobody travelling is still
-  // priced for one — said, rather than "split across 0".
-  if (count === 0) return "Nobody is marked as travelling, so costs are priced for one person.";
+  // A trip with nobody travelling prices a stop nobody picked at zero
+  // (Mitchell, 2026-10-25, superseding D5's one-person floor) — said, rather
+  // than "split across 0", so a board of zeros is never a surprise.
+  if (count === 0) return "Nobody is marked as travelling, so a stop nobody is picked for costs nothing until someone is.";
   return `Costs are split across ${count} traveller${count === 1 ? "" : "s"}.`;
 }
 

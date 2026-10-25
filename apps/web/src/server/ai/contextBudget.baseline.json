@@ -6,10 +6,10 @@
         "read_trip",
         "read_day"
       ],
-      "toolChars": 2123,
+      "toolChars": 2106,
       "instructionChars": 2094,
-      "totalChars": 4217,
-      "approxTokens": 1274
+      "totalChars": 4200,
+      "approxTokens": 1269
     },
     "trip · question": {
       "tools": [
@@ -22,10 +22,10 @@
         "go_to",
         "request_change_tools"
       ],
-      "toolChars": 7474,
+      "toolChars": 7457,
       "instructionChars": 2691,
-      "totalChars": 10165,
-      "approxTokens": 3071
+      "totalChars": 10148,
+      "approxTokens": 3066
     },
     "trip · question · under way": {
       "tools": [
@@ -39,10 +39,10 @@
         "go_to",
         "request_change_tools"
       ],
-      "toolChars": 8457,
+      "toolChars": 8440,
       "instructionChars": 3106,
-      "totalChars": 11563,
-      "approxTokens": 3493
+      "totalChars": 11546,
+      "approxTokens": 3488
     },
     "trip · edit": {
       "tools": [
@@ -67,10 +67,10 @@
         "insert_playbook_day",
         "go_to"
       ],
-      "toolChars": 23139,
+      "toolChars": 23122,
       "instructionChars": 4205,
-      "totalChars": 27344,
-      "approxTokens": 8261
+      "totalChars": 27327,
+      "approxTokens": 8256
     },
     "trip · plan": {
       "tools": [
@@ -92,10 +92,10 @@
         "insert_playbook_day",
         "go_to"
       ],
-      "toolChars": 22080,
+      "toolChars": 22063,
       "instructionChars": 4512,
-      "totalChars": 26592,
-      "approxTokens": 8034
+      "totalChars": 26575,
+      "approxTokens": 8029
     },
     "trip · unsure": {
       "tools": [
@@ -120,10 +120,10 @@
         "insert_playbook_day",
         "go_to"
       ],
-      "toolChars": 23139,
+      "toolChars": 23122,
       "instructionChars": 4205,
-      "totalChars": 27344,
-      "approxTokens": 8261
+      "totalChars": 27327,
+      "approxTokens": 8256
     },
     "page · compose": {
       "tools": [
@@ -136,10 +136,10 @@
         "go_to",
         "propose_notebook_editing"
       ],
-      "toolChars": 5898,
+      "toolChars": 5881,
       "instructionChars": 3564,
-      "totalChars": 9462,
-      "approxTokens": 2859
+      "totalChars": 9445,
+      "approxTokens": 2853
     },
     "page · question": {
       "tools": [
@@ -152,10 +152,10 @@
         "go_to",
         "propose_notebook_editing"
       ],
-      "toolChars": 6832,
+      "toolChars": 6815,
       "instructionChars": 1712,
-      "totalChars": 8544,
-      "approxTokens": 2581
+      "totalChars": 8527,
+      "approxTokens": 2576
     }
   },
   "tools": {
@@ -199,13 +199,13 @@
       "chars": 942,
       "approxTokens": 285
     },
-    "read_trip": {
-      "chars": 878,
-      "approxTokens": 265
-    },
     "search_playbooks": {
       "chars": 877,
       "approxTokens": 265
+    },
+    "read_trip": {
+      "chars": 861,
+      "approxTokens": 260
     },
     "add_playbook_to_trip": {
       "chars": 854,

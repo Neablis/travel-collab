@@ -73,15 +73,15 @@ function toDto(row: InviteRow): TripInvite {
 }
 
 /**
- * Whether someone joining at `role` is travelling, when the owner did not say
- * (travellers spec D3): an editor is coming on the trip; a suggester or viewer
- * most often joined to advise or to follow along. The invite dialog presets
- * its switch the same way, so this is only the answer for a caller that sent
- * no choice at all — the public API, or an older client.
+ * Whether someone joining is travelling, when the owner did not say: yes,
+ * whatever the role. Travelling is opt-out (Mitchell, 2026-10-25, superseding
+ * travellers spec D3's preset by role; KI-2026-10-05-e). A trip with nobody
+ * travelling prices a stop nobody picked at zero, so nobody leaves the count
+ * unless someone chose it. The invite dialog presets its switch the same way,
+ * so this is only the answer for a caller that sent no choice at all — the
+ * public API, or an older client.
  */
-function presetTravelling(role: InviteRole): boolean {
-  return role === "editor";
-}
+const PRESET_TRAVELLING = true;
 
 export async function createInvite(
   tripId: string,
@@ -101,7 +101,7 @@ export async function createInvite(
     acceptedBy: null,
     acceptedAt: null,
     revokedAt: null,
-    travelling: input.travelling ?? presetTravelling(input.role),
+    travelling: input.travelling ?? PRESET_TRAVELLING,
   };
   // A new pending invite is in the People list, so the poll has to see it.
   await db.transaction(async (tx) => {

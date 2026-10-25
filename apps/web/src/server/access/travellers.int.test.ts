@@ -58,19 +58,40 @@ async function seedWithGuest(role: InviteRole, travelling?: boolean): Promise<st
 }
 
 describe("the invite's travelling choice (D3)", () => {
-  it.each([
-    ["editor", true],
-    ["suggester", false],
-    ["viewer", false],
-  ] as const)("presets a %s invite to travelling=%s when the owner does not choose", async (role, expected) => {
+  // Superseded 2026-10-25 by Mitchell (KI-2026-10-05-e): travelling is
+  // opt-out, so every role joins travelling unless the owner unticks it. A
+  // trip with nobody travelling now prices a stop nobody picked at zero, and
+  // that must only ever happen because somebody chose it.
+  it.each(["editor", "suggester", "viewer"] as const)(
+    "presets a %s invite to travelling when the owner does not choose",
+    async (role) => {
+      const tripId = await seedTrip();
+      const invite = await createInvite(tripId, OWNER, { email: null, role });
+      expect(invite.travelling).toBe(true);
+      // Stored, not just echoed: the list reads it back from the column.
+      expect((await listInvites(tripId)).map((i) => i.travelling)).toEqual([true]);
+      // And joined with: the accept writes what the invite says.
+      expect((await acceptInvite(invite.token, GUEST)).ok).toBe(true);
+      expect((await members(tripId)).map((m) => m.travelling)).toEqual([true, true]);
+    },
+  );
+
+  // The owner creates the trip and has no `trip_travellers` row: a missing
+  // row reads as travelling (D2), with no step of anyone's.
+  it("counts the owner as travelling from the moment the trip is created", async () => {
     const tripId = await seedTrip();
-    const invite = await createInvite(tripId, OWNER, { email: null, role });
-    expect(invite.travelling).toBe(expected);
-    // Stored, not just echoed: the list reads it back from the column.
-    expect((await listInvites(tripId)).map((i) => i.travelling)).toEqual([expected]);
+    expect(await members(tripId)).toEqual([{ userId: OWNER, role: "owner", travelling: true }]);
   });
 
-  it("keeps the owner's explicit choice over the role's preset", async () => {
+  // A grant made without an invite (`grantMembership`, as the eval seed and
+  // any future join path use it) writes no traveller row either.
+  it("counts a member granted directly as travelling", async () => {
+    const tripId = await seedTrip();
+    await grantMembership(db, { tripId, userId: CARA, role: "viewer", invitedBy: OWNER, now: new Date().toISOString() });
+    expect((await members(tripId)).find((m) => m.userId === CARA)?.travelling).toBe(true);
+  });
+
+  it("keeps the owner's explicit choice over the preset", async () => {
     const tripId = await seedTrip();
     const editor = await createInvite(tripId, OWNER, { email: null, role: "editor", travelling: false });
     const viewer = await createInvite(tripId, OWNER, { email: null, role: "viewer", travelling: true });
@@ -90,7 +111,8 @@ describe("the invite's travelling choice (D3)", () => {
 
 describe("setTravelling (D4)", () => {
   it("lets a member change it for themselves", async () => {
-    const tripId = await seedWithGuest("viewer");
+    // Joined not travelling on purpose, so turning it on is a change.
+    const tripId = await seedWithGuest("viewer", false);
     expect(await setTravelling(tripId, GUEST, GUEST, true)).toMatchObject({ ok: true });
     expect((await members(tripId)).find((m) => m.userId === GUEST)?.travelling).toBe(true);
   });
