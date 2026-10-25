@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import type { Money } from "@tc/contracts";
+import { MAX_AMOUNT_MINOR, type Money } from "@tc/contracts";
 import { Input } from "@/components/ui/input";
 import { formatAmount } from "@/lib/formatMoney";
 
@@ -18,7 +18,8 @@ function moneyEqual(a: Money | null, b: Money | null): boolean {
 function parseMoney(raw: string, currency: string): Money | null {
   const trimmed = raw.replace(/,/g, "").trim(); // strip grouping separators
   if (trimmed === "") return null;
-  const amountMinor = Math.max(0, Math.round(Number(trimmed) * 100));
+  // Held at the most a command may carry (`MAX_AMOUNT_MINOR`), not sent and refused.
+  const amountMinor = Math.min(MAX_AMOUNT_MINOR, Math.max(0, Math.round(Number(trimmed) * 100)));
   return Number.isFinite(amountMinor) ? { amountMinor, currency } : null;
 }
 
