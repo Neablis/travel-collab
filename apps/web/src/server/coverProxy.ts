@@ -24,7 +24,11 @@ export function verifyCoverUrl(url: string, signature: string): boolean {
   return expected.length === presented.length && timingSafeEqual(expected, presented);
 }
 
-const queryFor = (url: string, signature: string) => `?u=${encodeURIComponent(url)}&s=${signature}`;
+// Spelled as the URL parser spells it, because that is what the route
+// compares against: `encodeURIComponent` leaves `'` raw, which the parser
+// escapes, and parsing a query it has already serialized changes nothing.
+const queryFor = (url: string, signature: string) =>
+  new URL(`?u=${encodeURIComponent(url)}&s=${signature}`, "https://cover.invalid").search;
 const pathFor = (url: string, signature: string) => `/api/cover-image${queryFor(url, signature)}`;
 
 /**

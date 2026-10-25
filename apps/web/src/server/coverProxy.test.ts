@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { coverProxySrc, coverProxySrcFits, signCoverUrl, verifyCoverUrl } from "./coverProxy";
+import { coverProxySrc, coverProxySrcFits, isCanonicalCoverQuery, signCoverUrl, verifyCoverUrl } from "./coverProxy";
 
 // The signature that keeps `/api/cover-image` from being an open proxy
 // (ADR-081 item 3): it serves a URL only with the HMAC the server minted when
@@ -51,6 +51,21 @@ describe("cover proxy signatures", () => {
     expect(src.searchParams.get("u")).toBe(url);
     expect(verifyCoverUrl(url, src.searchParams.get("s")!)).toBe(true);
   });
+
+  // The route compares the query it parsed with the one minted, so a minted
+  // query the URL parser would respell is refused on every view.
+  it.each(["'", " ", '"', "<", ">", "`", "#", "&", "+", "%", "é", "|", "{", "^"])(
+    "mints, for a URL holding %s, the query the URL parser leaves as it is",
+    (character) => {
+      vi.stubEnv("COVER_PROXY_SECRET", "k1");
+      const url = `https://cdn.example.com/a${character}b.jpg?q=${character}`;
+      const minted = coverProxySrc(url);
+      const parsed = new URL(minted, "https://caesura.test");
+      expect(parsed.search).toBe(minted.slice(minted.indexOf("?")));
+      expect(parsed.searchParams.get("u")).toBe(url);
+      expect(isCanonicalCoverQuery(parsed.search, url, signCoverUrl(url))).toBe(true);
+    },
+  );
 
   it("says a URL fits exactly when its minted path is within the contract's 2,048 characters", () => {
     vi.stubEnv("COVER_PROXY_SECRET", "k1");

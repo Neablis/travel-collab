@@ -49,6 +49,15 @@ describe("GET /api/cover-image", () => {
     expect(fetchRemoteImage).not.toHaveBeenCalled();
   });
 
+  // `encodeURIComponent` leaves `'` raw and URL parsing escapes it, so a path
+  // minted unparsed is never the spelling the route sees.
+  it("serves a signed URL whose path the URL parser rewrites", async () => {
+    const url = "https://cdn.example.com/o'neil.jpg";
+    const response = await get(coverProxySrc(url));
+    expect(response.status).toBe(200);
+    expect(fetchRemoteImage).toHaveBeenCalledWith(url);
+  });
+
   it("answers 502 when the fetcher refuses the URL", async () => {
     fetchRemoteImage.mockRejectedValue(new RemoteImageRefused("private-address"));
     const response = await get(coverProxySrc(URL_A));
