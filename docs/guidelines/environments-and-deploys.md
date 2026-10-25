@@ -157,26 +157,39 @@ Rules (ADR-004 + M1 retro):
 
 ## Which pushes build a preview
 
-**Vercel builds `main` on every push, and nothing else on its own.** Since
-2026-09-25, `apps/web/vercel.json` sets `git.deploymentEnabled` to
+**Vercel builds `main` on every push, and a preview only when someone asks.**
+Since 2026-09-25, `apps/web/vercel.json` sets `git.deploymentEnabled` to
 `{ "main": true, "**": false }`: a branch that matches any `true` rule deploys,
 so only `main` does. Previews come from `.github/workflows/vercel-preview.yml`,
-which asks Vercel's API for one on every push to an open, non-draft pull
-request, and when a PR is opened, reopened or marked ready. Prose-only PRs get
-none: its `paths-ignore` lists the same prose set as `ci.yml`'s `changes` job.
-Once Vercel reports a preview built, `.github/workflows/preview-link-check.yml`
-requests every link the landing sea draws on it, and its `sea-links` job fails
-naming each one that does not answer 200. It is not a required check.
+and since 2026-10-25 only on request, because Vercel bills preview compute and
+most ready PRs were never walked (Mitchell). Opening a PR, marking it ready and
+pushing to it build nothing. Two ways to ask:
 
-Why: every push to every branch used to build a preview. On 2026-09-24 that
-came to about 130 deployments against the Hobby plan's 100 a day, and Vercel
-refused the push that merged #227 without creating any deployment record.
-Production stayed a commit behind until it was deployed by hand. An Ignored
-Build Step would not have helped: a skipped build is still a created
-deployment, and it counts.
+- **The `preview` label** — add it in the PR's sidebar. It builds the PR's
+  current head, and every later push while the label stays on builds again so
+  the preview keeps up. Remove the label to stop.
+- **A manual run** — Actions → *vercel-preview* → *Run workflow*, with the PR
+  number. One build of the current head, no label. From a session:
 
-- **A draft PR, or a branch with no PR, has no preview.** Mark the PR ready
-  when you need one, for `phase-verifier` or a browser walk.
+      gh api -X POST repos/Neablis/travel-collab/actions/workflows/vercel-preview.yml/dispatches \
+        -f ref=main -f inputs[pr]=<n>
+
+The job's summary shows the deployment id and URL. Once Vercel reports a
+preview built, `.github/workflows/preview-link-check.yml` requests every link
+the landing sea draws on it, and its `sea-links` job fails naming each one
+that does not answer 200. It is not a required check, and it runs only where a
+preview was asked for.
+
+Why on demand: every push to every branch used to build a preview. On
+2026-09-24 that came to about 130 deployments against the Hobby plan's 100 a
+day, and Vercel refused the push that merged #227 without creating any
+deployment record. Production stayed a commit behind until it was deployed by
+hand. An Ignored Build Step would not have helped: a skipped build is still a
+created deployment, and it counts. Building one per ready PR fixed that, and
+then paid for previews nobody opened.
+
+- **No PR has a preview by default.** Ask for one when a walk is about to
+  happen — yours, `phase-verifier`'s or Mitchell's — not "in case".
 - **The workflow needs a `VERCEL_TOKEN` repository secret.** Without it, it warns
   and passes, and no PR gets a preview. Dependabot PRs never get repository
   secrets, so they never have previews.
@@ -185,8 +198,8 @@ deployment, and it counts.
   expiry. A token limited to the one project also works, and is narrower:
   `vercel tokens add "GitHub preview deploys" --project prj_UoxcnmAsWMtHXx8jLXyespRqSULM`.
   Store it in GitHub → Settings → Secrets and variables → Actions as `VERCEL_TOKEN`.
-- **A preview the workflow missed** (say the secret was added after the PR
-  opened): push to the branch, or mark the PR draft and back to ready.
+- **A preview that failed or went stale**: run the workflow again with the PR
+  number (or, with the label on, push).
 
 ## Testing against a preview deployment
 

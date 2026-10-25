@@ -56,10 +56,16 @@ Report each check by name, with its conclusion and the run it came from.
 M10 Phases 5 and 6 skipped it. Phase 7 ran it and immediately found a crash
 (`RangeError: Invalid time value`) that the entire unit suite missed.
 
-You do not need local infra. Every PR gets a Vercel preview, at
+You do not need local infra, but **a PR has no preview until one is asked for**
+(2026-10-25: previews are billed compute, so they are built on demand). Ask for one when you
+are about to walk, not before: `gh api -X POST
+repos/Neablis/travel-collab/actions/workflows/vercel-preview.yml/dispatches -f ref=main -f
+inputs[pr]=<n>` builds the PR's current head once (`environments-and-deploys.md`, *Which
+pushes build a preview*). It lands at
 `https://travel-collab-git-<branch>-neablis-projects.vercel.app`; the exact URL is the
 `READY` deployment for the head sha in `mcp__Vercel__list_deployments` (`review-a-part`
-step 6 has the project and team ids). Vercel's PR comment is off.
+step 6 has the project and team ids). Vercel's PR comment is off. If the walk is not going
+to happen, do not request the preview.
 
 **In a cloud session the walk is `pnpm --filter web walk:preview <url> [path ...]`**
 (`docs/guidelines/cloud-agent-sessions.md`, *The Vercel preview IS reachable from here*):
