@@ -967,6 +967,31 @@ describe("a shared day", () => {
     expect(screen.getByRole("button", { name: "Try again" })).toBeTruthy();
   });
 
+  // KI-2026-10-19-j: two reads in flight, and the older one's 404 lands after
+  // the newer one's 500. The page shows the newer read's failure, so its copy
+  // must be the newer read's too. StrictMode is what puts two first reads in
+  // flight here; a double retry does the same in the field.
+  it("words the failure from the latest read when an older one answers last", async () => {
+    let older: (value: unknown) => void = () => {};
+    let newer: (value: unknown) => void = () => {};
+    fetchSavedDayMock
+      .mockReset()
+      .mockImplementationOnce(() => new Promise((resolve) => (older = resolve)))
+      .mockImplementationOnce(() => new Promise((resolve) => (newer = resolve)));
+    render(
+      <StrictMode>
+        <SharedDayScreen savedDayId={DAY_ID} backHref="/playbooks" backLabel="Discover" />
+      </StrictMode>,
+    );
+    await waitFor(() => expect(fetchSavedDayMock).toHaveBeenCalledTimes(2));
+
+    await act(async () => newer({ ok: false, error: { status: 500, message: "failed" } }));
+    await act(async () => older({ ok: false, error: { status: 404, message: "not-found" } }));
+
+    expect(await screen.findByRole("heading", { name: "This day did not load" })).toBeTruthy();
+    expect(screen.queryByText("This day is not shared")).toBeNull();
+  });
+
   it("returns to wherever it was entered from", async () => {
     render(
       <SharedDayScreen savedDayId={DAY_ID} backHref="/playbooks/board" backLabel="Who shares the most" />,
