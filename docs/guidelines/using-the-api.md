@@ -173,6 +173,7 @@ One envelope, always:
 | 403 | `insufficient-scope`, `trip-out-of-scope`, `forbidden` | The first two are the token's limits; the last is yours |
 | 404 | `not-found` | No such thing, or not yours |
 | 409 | `conflict` | Somebody else changed this trip first. **Re-read and retry** — this is the one refusal worth sending again unchanged |
+| 422 | `cover-url-rejected` | The cover URL failed its check. `details.reason` says which; nothing was saved |
 | 429 | `rate-limited` | Honour `Retry-After` |
 | 5xx | `server-error`, `service-unavailable` | Ours. Retry `service-unavailable` |
 
@@ -372,6 +373,23 @@ M52 decision 21. Both answer from `tripNow` (ADR-080), the one function the
   and no `now` or `next`. `?timeZone=` (IANA) is your zone, used for a day with
   no place yet; it is read for that answer and never stored, and a name that is
   not a zone is a 400.
+
+### A trip's cover
+
+`/v1/trips/{tripId}/cover` (M49, ADR-081): `GET` (`trips:read`, `viewer`) answers
+`{ cover }`, `null` for none. `PUT { url, alt?, credit?: { name, url? }, position? }`,
+`PATCH { position }` and `DELETE` need `trips:write` and an editor.
+
+- **`PUT` sets a cover from an image URL, and checks it first.** `https` only; the host must
+  resolve to public addresses on every hop, at most 3 redirects; the answer must be a raster
+  image (no SVG) under 10 MB. A URL that fails is a **422 `cover-url-rejected`** with
+  `details.reason`, and nothing is saved.
+- **The URL is kept, not the image.** A browser loads it through this host's own
+  `/api/cover-image` (the cover's `proxySrc`), never from the image's host.
+- **`position`** is where the photo is framed vertically, 0 (top) to 100 (bottom), default 50.
+  `PATCH` moves it on any cover, and is a 404 when the trip has none.
+- **There is no cover search on the API.** It would spend Caesura's Unsplash quota for another
+  program; find the image elsewhere and `PUT` its URL.
 
 ### Taking a trip out, and putting one back
 

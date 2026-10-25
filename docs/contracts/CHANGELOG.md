@@ -13,6 +13,25 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-10-25 — `/v1/trips/{tripId}/cover`, and the `cover-url-rejected` error code (M49 part 3; public API 1.29.0)
+- **New** (`packages/contracts/src/publicApi.ts`): `ApiErrorCode` gains `cover-url-rejected`, a
+  422 for a cover URL that failed the set-time check. `details.reason` is the guard's refusal
+  reason (`not-https`, `private-address`, `not-an-image`, `too-large`, …) and nothing else: the
+  address a host resolved to is never in the answer.
+- **New endpoint**: `GET` (`trips:read`, viewer), `PUT { url, alt?, credit?, position? }`,
+  `PATCH { position }` and `DELETE` (`trips:write`, editor) on `/v1/trips/{tripId}/cover`, each
+  answering `TripCoverResponse`. `PUT` fetches the URL once through the guarded fetcher and saves
+  nothing on a refusal. `PATCH` on a trip with no cover is a 404. Its body is the `"url"`
+  variant of `TripCover`, without `proxySrc`, so no new schema.
+- `route()` takes `PUT` (`HttpMethod`), the first `v1` endpoint to need it.
+- `exposure.ts`: `trips/[tripId]/cover` is `public`; `trips/[tripId]/cover/search` is `never`
+  (it would spend Caesura's Unsplash quota on another program's behalf).
+- Why: M49 decision 8 and ADR-081 item 7, so a program can set a trip's cover from an image it
+  found elsewhere.
+- Consumers updated: `apps/web` (the route, `openapi.json`, `openapi.test.ts`'s method walk).
+- Public API: `API_VERSION` 1.29.0 with its new `API_FINGERPRINT`.
+- Breaking? no. Additive: one endpoint and one error code.
+
 ## 2026-10-25 — `TripCover` becomes a union on `source`, and every cover carries a `position` (M49 part 1; public API 1.28.0)
 - **Changed** (`packages/contracts/src/cover.ts`): `TripCover` is a discriminated union on
   `source`. `"unsplash"` is today's picked photo, its fields unchanged; `"url"` is an image

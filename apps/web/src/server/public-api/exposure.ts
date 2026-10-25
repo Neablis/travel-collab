@@ -58,6 +58,8 @@ export const EXPOSURE: Readonly<Record<string, Exposure>> = {
   "trips/[tripId]/saved-days/[savedDayId]": { status: "public", v1: ["trips/[tripId]/playbook-applications"] },
   "trips/[tripId]/shares": { status: "public", v1: ["trips/[tripId]/shares"] },
   "trips/[tripId]/shares/[shareId]": { status: "public", v1: ["trips/[tripId]/shares/[shareId]"] },
+  // M49 decision 8: set from a URL, moved, read and cleared over the API.
+  "trips/[tripId]/cover": { status: "public", v1: ["trips/[tripId]/cover"] },
 
   // ── Planned (Mitchell, 2026-09-30) ───────────────────────────────────────
   "account/preferences": PLANNED("Units and the 12/24-hour clock"),
@@ -98,10 +100,6 @@ export const EXPOSURE: Readonly<Record<string, Exposure>> = {
   "trips/[tripId]/membership": PLANNED("Undecided — leaving a trip"),
   // M34 D15: an internal route first; features ship before their endpoints.
   "trips/[tripId]/nearby-stops": PLANNED("Undecided — library stops near a trip day (M34)"),
-  // M37: a cover on the internal API first; its search spends an Unsplash
-  // quota, so publishing it is a decision, not a default.
-  "trips/[tripId]/cover": PLANNED("Undecided — a trip's cover photo (M37)"),
-  "trips/[tripId]/cover/search": PLANNED("Undecided — searching Unsplash for a cover; spends the vendor's quota (M37)"),
   // M37 part 5: the trip cover routes' terms, for a playbook day's author.
   "saved-days/[savedDayId]/cover": PLANNED("Undecided — a playbook day's cover photo (M37)"),
   "saved-days/[savedDayId]/cover/search": PLANNED("Undecided — searching Unsplash for a day's cover; spends the vendor's quota (M37)"),
@@ -182,6 +180,12 @@ export const EXPOSURE: Readonly<Record<string, Exposure>> = {
     status: "never",
     why: "Sign-in; a token is already signed in",
     reaches: [{ module: "@/server/auth", symbols: ["handlers", "signIn", "signOut"] }],
+  },
+  // M49 decision 8: the API takes a cover found elsewhere, not a search.
+  "trips/[tripId]/cover/search": {
+    status: "never",
+    why: "Searching Unsplash would spend Caesura's quota on another program's behalf (ADR-081 item 7)",
+    reaches: [{ module: "@/server/coverRoutes", symbols: ["coverSearch"] }, { module: "@/server/external/unsplash" }],
   },
   "dev/content/playbooks": { status: "never", why: "Development-only seeding", reaches: [] },
   "dev/reset-demo-data": { status: "never", why: "Development-only seeding", reaches: [] },
