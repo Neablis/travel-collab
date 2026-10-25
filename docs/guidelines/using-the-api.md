@@ -513,8 +513,10 @@ generated reference shows them as `anyOf`; the generator has no `oneOf`.)
     "title": "Flea market", "message": "…" } ] }
 ```
 
-  Weekday, time-of-day and public-holiday anchors are kept. (The app's own keep
-  does not strip them yet; see ADR-050.)
+  Weekday, time-of-day and public-holiday anchors are kept. Every keep does
+  this: the app's own keep, and since API `1.25.0` `POST /v1/library`, whose
+  answer is the saved day with the same `warnings` array beside its fields
+  (`GET` reads the day back without it). ADR-050 decision 8.
 
 **Editing is versioned.** Every Playbook carries `version`, starting at 1.
 `PATCH` takes any of `{ name, summary, visibility, days, expectedVersion }`:

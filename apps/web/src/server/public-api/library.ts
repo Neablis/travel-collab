@@ -1,11 +1,14 @@
 import { z } from "zod";
 import { SavedDay, SavedDayVisibility, type TripDetail } from "@tc/contracts";
 import {
+  captureDays,
   deleteSavedDay,
   getSavedDay,
   listSavedDays,
-  saveDay,
   setSavedDayVisibility,
+  storeSavedDay,
+  withoutDateAnchors,
+  type RemovedDateAnchor,
 } from "@/server/savedDays";
 import { PublicApiError } from "./commands";
 import {
@@ -109,16 +112,65 @@ export function sourceTrip({ trip }: HandlerContext): TripDetail {
   return trip;
 }
 
-/** Keep `dayIds` of the gated source trip as one saved day, or throw the refusal. */
+/**
+ * One calendar-date anchor a write removed (ADR-050 decision 8). Every keep over
+ * `v1` answers these — `/v1/playbooks`' creates, edits and imports, and since
+ * API 1.25.0 `POST /v1/library` (KI-2026-09-25-b).
+ */
+export const PlaybookWarning = z.object({
+  code: z.literal("date-anchor-removed"),
+  /** The stop's index in `stops`. */
+  stopIndex: z.number().int().nonnegative(),
+  title: z.string(),
+  message: z.string(),
+});
+
+/** What `withoutDateAnchors` removed, as the warnings a write answers with. */
+export function warningsFor(removed: readonly RemovedDateAnchor[]): z.infer<typeof PlaybookWarning>[] {
+  return removed.map((r) => ({
+    code: "date-anchor-removed" as const,
+    stopIndex: r.stopIndex,
+    title: r.title,
+    message: `"${r.title}" was anchored to ${r.from} to ${r.to}. A Playbook has no dates, so that anchor was removed; its other anchors were kept.`,
+  }));
+}
+
+/**
+ * `POST /v1/library`'s answer: the saved day as the library publishes it, plus
+ * the anchors the keep removed. The field is on the create's answer only — the
+ * day as stored, read back by `GET`, has no `warnings`.
+ */
+export const LibraryKept = LibraryDay.extend({ warnings: z.array(PlaybookWarning) });
+
+/**
+ * Keep `dayIds` of the gated source trip as one saved day, or throw the refusal.
+ *
+ * **Calendar-date anchors are stripped and reported**, as every other keep does
+ * (`/v1/playbooks`, and the app's `POST /api/saved-days`): a saved day has no
+ * dates, so "only 3–5 May" kept as-is would conflict in every other month
+ * (KI-2026-09-25-b, ADR-050 decision 8).
+ */
 export async function keepDays(
   ctx: HandlerContext,
   input: { name: string; dayIds: readonly string[] },
-): Promise<z.infer<typeof SavedDay>> {
+): Promise<z.infer<typeof LibraryKept>> {
   const { actor } = ctx;
   const detail = sourceTrip(ctx);
-  const saved = await saveDay({ name: input.name, dayIds: input.dayIds }, detail, actor.userId);
+  const captured = captureDays(detail, input.dayIds);
+  if (!captured.ok) throw new PublicApiError(400, captured.error.message);
+  const stripped = withoutDateAnchors(captured.value);
+  const saved = await storeSavedDay({
+    ownerId: actor.userId,
+    name: input.name,
+    stops: stripped.stops,
+    dayCount: input.dayIds.length,
+    sourceTripId: detail.tripId,
+    sourceTripName: detail.name,
+    now: new Date().toISOString(),
+    context: { tripId: detail.tripId, dayIds: input.dayIds },
+  });
   if (!saved.ok) throw new PublicApiError(400, saved.error.message);
-  return saved.value;
+  return LibraryKept.parse({ ...saved.value, warnings: warningsFor(stripped.removed) });
 }
 
 /**
