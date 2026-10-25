@@ -1,6 +1,6 @@
 # M49 — A cover can come from anywhere, and be framed where you want it
 
-**Status:** **Scoped 2026-10-25 with Mitchell; current milestone.** Decisions 4–10 were answered
+**Status:** **Closed 2026-10-25, gate 9 of 9**, by `pnpm milestone close M49 --confirm` on part 0 (PR 581). **Scoped 2026-10-25 with Mitchell.** Decisions 4–10 were answered
 as recommended and decision 2 was confirmed at scoping (2026-10-25). The design is ADR-081, and the
 plan is `docs/plans/2026-10-25-M49-covers-from-anywhere.md` (deleted at gate close). Proposed
 2026-10-12 and minted on Mitchell's ask (see `docs/milestones/README.md`, *2026-10-12 — reordered
@@ -150,17 +150,20 @@ Candidates absorbed (each deleted by this gate):
       `:136` (keyboard, Enter and Esc), "3 passed" on ci-like in PR 585's body; in CI, `test / e2e`
       (1/2) and (2/2) green in run 40213790458 on PR 585's 76f5332 and run 40217156846 on 23f3d62,
       which main carries as cc93447.)*
-- [ ] **[walk]** On the PR preview, a cover set by `curl` with an API token appears on the trip, and
-      an Unsplash cover is repositioned from the band.
+- [x] **[walk]** On the PR preview, a cover set by `curl` with an API token appears on the trip, and
+      an Unsplash cover is repositioned from the band. *(Ticked on Mitchell's word, 2026-10-25
+      17:59Z, in session `session_01KUvY39meF1HrYJTTwCzKeJ`: "Confirmed, and walked. Closed out the
+      gate".)*
 - [x] A retro is appended at gate close. *(Below.)*
 
-## Retro — written 2026-10-25 (8 of 9 boxes ticked)
+## Retro — written 2026-10-25 (9 of 9 boxes ticked)
 
-Written at the close on part 0 (PR 581), with one box open, and it is Mitchell's: the [walk]. His
-walk covers a cover set by `curl` with an API token showing on the trip, the Home card and the Home
-hero; an Unsplash cover repositioned through the hover menu; and the proxy's canonical
-`/api/cover-image?…` URL answering 200, with the same URL plus `&x=1` answering 403.
-`pnpm milestone close M49` waits on it.
+Written at the close on part 0 (PR 581). The last box, the [walk], is ticked on Mitchell's word,
+2026-10-25 17:59Z: "Confirmed, and walked. Closed out the gate". His walk covered a cover set by
+`curl` with an API token showing on the trip, the Home card and the Home hero; an Unsplash cover
+repositioned through the hover menu; and the proxy's canonical `/api/cover-image?…` URL answering
+200, with the same URL plus `&x=1` answering 403. `pnpm milestone close M49 --confirm` closed the
+gate, 9 of 9.
 
 ### What went well
 
@@ -201,7 +204,6 @@ hero; an Unsplash cover repositioned through the hover menu; and the proxy's can
 - **Reposition a playbook day's cover**: `docs/candidates.md`, asked by Mitchell on M49's preview.
 - **The unit flake**: KI-20261025-w.
 - **The API walk on a preview**: KI-20260916-d.
-- **The [walk] box**: Mitchell's call.
 - The plan (`docs/plans/2026-10-25-M49-covers-from-anywhere.md`) is deleted in this commit. Its
   design lives in ADR-081 and its decisions in this file; nothing else in it needed promoting.
 

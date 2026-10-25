@@ -21,13 +21,14 @@ general setup.
 
 ## Where the work is right now
 
-**M49 — A cover can come from anywhere, and be framed where you want it — is the current
-milestone, built and waiting on Mitchell's walk** (gate 8 of 9, 2026-10-25). All four parts are on
+**M49 closed 2026-10-25, gate 9 of 9**, by `pnpm milestone close M49 --confirm` on part 0
+(PR 581, `claude/cool-goodall-p53ykz`), which waits on Mitchell's merge. All four parts are on
 `main`: part 1 (PR 580, `fc07b46`, migration `0068` applied in production by `migrate-production`
 run 40169051627), then parts 2, 4 and 3 (PRs 584, 585, 588, stacked, merged together as
-`cc93447`). Part 0 (PR 581, `claude/cool-goodall-p53ykz`) carries the evidence and the retro in
-`docs/milestones/M49-covers-from-anywhere.md`; the plan is deleted. `pnpm milestone close M49`
-refuses until the [walk] box is ticked.
+`cc93447`). The [walk] box was ticked on Mitchell's word, 2026-10-25 17:59Z: *"Confirmed, and
+walked. Closed out the gate"*. Evidence, retro and spend are in
+`docs/milestones/M49-covers-from-anywhere.md`; the plan is deleted. **M43 is now the current
+milestone** (`docs/milestones/M43-notebooks-keep-up.md`), proposed and not yet scoped.
 
 **M52 closed 2026-10-24, gate 13 of 13**, by `pnpm milestone close M52 --confirm` on part 0
 (PR 529, `claude/serene-tesla-quoyte`). Parts 1–12 merged 2026-10-23/24 (PRs 530–537, 539–542,
@@ -38,14 +39,13 @@ earlier confirmations (Today undeletable on production; part 10's API; part 11 *
 confirmed fixed"*). Evidence, retro and spend are in
 `docs/milestones/M52-the-trip-comes-with-you.md`.
 
-**Next action:** Mitchell walks M49 on a deployment (a cover set by `curl` with an API token shows
-on the trip, the Home card and the hero; an Unsplash cover repositioned through the hover menu;
-`/api/cover-image?…` answers 200, and 403 with `&x=1`). Then tick the [walk] box on his word, run
-`pnpm milestone close M49 --confirm` on PR 581, and he merges it. Open follow-ups from M49:
-KI-20261025-w, and the candidate *Reposition a playbook day's cover*.
+**Next action:** Mitchell merges PR 581 (M49's part 0). Then scope M43 with him
+(`plan-a-milestone`): the Overview's identity in the database, its derived title, and the `open`
+widget's design and filters. Open follow-ups from M49: KI-20261025-w, and the candidate
+*Reposition a playbook day's cover*.
 Open follow-ups from M52: KI-2026-10-24-a to -o (`docs/known-issues/open/`). Outside M52:
 PR 491 (dependabot) is red, and GitHub reports 5 dependabot vulnerabilities on `main` (2 high,
-3 moderate). After M49 the order is M43 → M44, with M48 parked.
+3 moderate). The order is M43 → M44, with M48 parked.
 
 **M51 closed 2026-10-22, gate 11 of 11**, on Mitchell's ruling at the close: his walk at 390, 1440
 and 3440 works, and the parts are merged (PRs 506–511, 513, 514, 516; part 0 PR 505 merged early;
