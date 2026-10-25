@@ -2,6 +2,7 @@ import type { WeatherAxis, WeatherPayload, WeatherRow } from "@tc/pages";
 import { DataText } from "@/components/ui/data-text";
 import { cn } from "@/lib/cn";
 import { CITY_FILL, CITY_INK, CITY_OUTLINE, type CityAccents } from "../cityAccents";
+import { ReadHeadings } from "./tableCells";
 
 // The weather block's graphic (design 2a, "temperature rows"): one row per
 // (day, city), each a bar from its low to its high on ONE scale shared by the
@@ -41,6 +42,8 @@ import { CITY_FILL, CITY_INK, CITY_OUTLINE, type CityAccents } from "../cityAcce
 // "-20°" do not fit side by side over 115px.
 
 const SOURCE = { forecast: "Forecast", typical: "Typical" } as const;
+// The columns a reader is told, in the cells' order: the low hangs off the bar's left.
+const COLUMNS = ["Day", "Low", "High", "Rain"] as const;
 
 const ROW = "flex w-full flex-wrap content-center items-center gap-x-2 gap-y-0.5 px-3 @md:flex-nowrap @md:gap-x-3 @md:px-4";
 const LABEL = "w-full min-w-0 @md:w-40 @md:shrink-0";
@@ -81,8 +84,8 @@ function Range({ row, axis, accents }: { row: WeatherRow; axis: WeatherAxis; acc
   if (row.lowValue === null || row.highValue === null) {
     return (
       <span className="flex h-5 items-center justify-center gap-2">
-        <DataText role="cell" aria-label="low" size="xs">—</DataText>
-        <DataText role="cell" aria-label="high" size="xs">—</DataText>
+        <DataText role="cell" size="xs">—</DataText>
+        <DataText role="cell" size="xs">—</DataText>
       </span>
     );
   }
@@ -99,7 +102,6 @@ function Range({ row, axis, accents }: { row: WeatherRow; axis: WeatherAxis; acc
       ))}
       <DataText
         role="cell"
-        aria-label="low"
         size="xs"
         className="absolute top-1/2 -translate-y-1/2"
         // eslint-disable-next-line no-restricted-syntax -- the low hangs off the bar's left end, which is the row's own low
@@ -119,7 +121,6 @@ function Range({ row, axis, accents }: { row: WeatherRow; axis: WeatherAxis; acc
       />
       <DataText
         role="cell"
-        aria-label="high"
         size="xs"
         className="absolute top-1/2 -translate-y-1/2 font-semibold text-ink"
         // eslint-disable-next-line no-restricted-syntax -- the high hangs off the bar's right end, which is the row's own high
@@ -161,7 +162,7 @@ function Row({ row, axis, accents }: { row: WeatherRow; axis: WeatherAxis; accen
       <span role="presentation" className="min-w-0 flex-1">
         <Range row={row} axis={axis} accents={accents} />
       </span>
-      <span role="cell" aria-label="rain" className={cn(RAIN, "flex items-center justify-end gap-1.5")}>
+      <span role="cell" className={cn(RAIN, "flex items-center justify-end gap-1.5")}>
         <DataText size="xs" className={row.rain === null ? undefined : "text-info-ink"}>
           {row.rain ?? "—"}
         </DataText>
@@ -181,6 +182,7 @@ export function WeatherGraphic({ payload, accents }: { payload: WeatherPayload; 
   return (
     <span role="table" aria-label={payload.summary} className="@container flex flex-col pt-3">
       <Ticks axis={payload.axis} />
+      <ReadHeadings names={COLUMNS} />
       {payload.rows.map((row) => (
         <Row key={row.key} row={row} axis={payload.axis} accents={accents} />
       ))}

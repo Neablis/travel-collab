@@ -28,9 +28,9 @@ const COL = {
 } as const;
 const VALUE = "text-xs leading-tight @md:text-sm";
 
-function Value({ text, label, width }: { text: string; label: string; width: string }) {
+function Value({ text, width }: { text: string; width: string }) {
   return (
-    <span role="cell" aria-label={label} className={width}>
+    <span role="cell" className={width}>
       <DataText className={cn(VALUE, text !== "—" && "text-ink")}>{text}</DataText>
     </span>
   );
@@ -56,9 +56,9 @@ function Row({ row }: { row: SunRow }) {
       <span role="presentation" className={TABLE_VALUES}>
         {/* A polar day's words take the sunrise column, and leave the sunset
             column a dash: a column that moves per row is not a column. */}
-        <Value text={row.words ?? row.sunrise ?? "—"} label="sunrise" width={COL.time} />
-        <Value text={row.sunset ?? "—"} label="sunset" width={COL.time} />
-        <Value text={row.daylight} label="daylight" width={COL.daylight} />
+        <Value text={row.words ?? row.sunrise ?? "—"} width={COL.time} />
+        <Value text={row.sunset ?? "—"} width={COL.time} />
+        <Value text={row.daylight} width={COL.daylight} />
       </span>
     </span>
   );

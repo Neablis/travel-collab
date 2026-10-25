@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TripDetail, TripWeather, TripWeatherPoint, UserPreferences } from "@tc/contracts";
 import { tripDetailFactory } from "@tc/factories";
 import { MacroView } from "../MacroView";
+import { cellIn, columnNames } from "@/test-support/tableColumns";
 import { asOfText } from "./WeatherBlock";
 
 // "Weather" (M14 link 11) end to end in the browser half: a `TripWeather` as
@@ -60,7 +61,7 @@ const view = (
 const dataRows = () =>
   screen.getAllByRole("row").filter((row) => within(row).queryAllByRole("columnheader").length === 0);
 const cellsOf = (row: HTMLElement) =>
-  ["high", "low", "rain"].map((name) => within(row).getByRole("cell", { name }).textContent);
+  ["High", "Low", "Rain"].map((name) => cellIn(row, name).textContent);
 
 const BEYOND = { forecast: { unavailable: "not-in-horizon" } } as const;
 const DOWN = { forecast: { unavailable: "source" }, typical: { unavailable: "source" } } as const;
@@ -96,9 +97,17 @@ describe("the weather block", () => {
     expect(within(unknownRow!).queryByRole("rowheader", { name: /Forecast|Typical/ })).toBeNull();
   });
 
-  it("has no column headers in the graphic, whatever `headings` says", () => {
-    view(trip(), { points: [point("2026-11-13")] }, false, { params: { headings: true } });
-    expect(screen.queryAllByRole("columnheader")).toEqual([]);
+  // KI-2026-10-01-a. `aria-label` REPLACES a cell's accessible name: a cell
+  // labelled "high" that held "18°C" was named "high", and a reader that speaks
+  // the name never said the number. A value cell is named by its content, and
+  // its column by a column header — drawn or not — the way any table is read.
+  it.each([
+    ["graphic", {}],
+    ["table", { view: "table" }],
+    ["table without headings", { view: "table", headings: false }],
+  ] as const)("names each value by its content and each column by a header, in the %s", (_, params) => {
+    view(trip(), { points: [point("2026-11-13")] }, false, { params });
+    expect(columnNames(dataRows()[0]!)).toMatchObject({ High: "18°C", Low: "8°C", Rain: "2.14 mm" });
   });
 
   // Mitchell, on the #221 preview: *"I have no idea what the columns are
@@ -110,7 +119,7 @@ describe("the weather block", () => {
       "Day", "City", "High", "Low", "Rain", "Source",
     ]);
     const rows = dataRows();
-    expect(rows.map((row) => within(row).getByRole("cell", { name: "source" }).textContent)).toEqual([
+    expect(rows.map((row) => cellIn(row, "Source").textContent)).toEqual([
       "Forecast",
       "Typical",
     ]);
@@ -120,8 +129,9 @@ describe("the weather block", () => {
     ]);
     expect(screen.queryAllByTestId("weather-range")).toEqual([]);
     cleanup();
+    // Off, the headings are read and not drawn (KI-2026-10-01-a): what is not
+    // drawn is the e2e's to see, which counts the heading cells on screen.
     view(trip(), weather, false, { params: { view: "table", headings: false } });
-    expect(screen.queryAllByRole("columnheader")).toEqual([]);
     expect(dataRows()).toHaveLength(2);
   });
 
@@ -134,7 +144,7 @@ describe("the weather block", () => {
     expect(cellsOf(unknown!)).toEqual(["—", "—", "—"]);
     expect(unknown!.hasAttribute("data-source")).toBe(false);
     expect(within(unknown!).queryByTestId("weather-range")).toBeNull();
-    if (shown === "table") expect(within(unknown!).getByRole("cell", { name: "source" }).textContent).toBe("—");
+    if (shown === "table") expect(cellIn(unknown!, "Source").textContent).toBe("—");
   });
 
   // *"Make sure we are respecting the account settings for fahrenheit vs

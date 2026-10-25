@@ -2,6 +2,7 @@ import { cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import type { TripDetail, TripGlobals } from "@tc/contracts";
 import { tripDetailFactory } from "@tc/factories";
+import { cellIn, columnNames } from "@/test-support/tableColumns";
 import { MacroView } from "../MacroView";
 
 // "Sunrise and sunset" (M14 link 11) end to end in the browser half: a trip
@@ -49,7 +50,7 @@ const view = (params: Record<string, unknown> = {}) => {
 const dataRows = () =>
   screen.getAllByRole("row").filter((row) => within(row).queryAllByRole("columnheader").length === 0);
 const cellsOf = (row: HTMLElement) =>
-  ["sunrise", "sunset", "daylight"].map((name) => within(row).getByRole("cell", { name }).textContent);
+  ["Sunrise", "Sunset", "Daylight"].map((name) => cellIn(row, name).textContent);
 
 describe("the sun block", () => {
   // The graphic is what an absent `view` means, so a `day.sun` saved when the
@@ -65,7 +66,6 @@ describe("the sun block", () => {
     expect(sunset).toMatch(/^5:5\d pm$/);
     expect(daylight).toMatch(/^12h \d+m$/);
     expect(within(tokyo!).getAllByTestId("sun-ribbon")).toHaveLength(1);
-    expect(screen.queryAllByRole("columnheader")).toEqual([]);
   });
 
   // A polar day has no two times to print, so the row says which it is in
@@ -79,6 +79,18 @@ describe("the sun block", () => {
     expect(cellsOf(rows[2]!)).toEqual(["sun down all day", "", "0h"]);
     expect(within(rows[1]!).getAllByTestId("sun-ribbon")).toHaveLength(1);
     expect(within(rows[2]!).queryByTestId("sun-ribbon")).toBeNull();
+  });
+
+  // KI-2026-10-01-a. A polar day's Sunrise cell holds "sun up all day"; once
+  // `aria-label="sunrise"` named it, and a reader that speaks the name heard
+  // "sunrise" for a day that has none. A value cell is named by its content,
+  // and its column by a column header — drawn in the table, read in the graphic.
+  it.each([
+    ["graphic", {}],
+    ["table", { view: "table" }],
+  ] as const)("names each value by its content and each column by a header, in the %s", (_, params) => {
+    view(params);
+    expect(columnNames(dataRows()[1]!)).toMatchObject({ Sunrise: "sun up all day", Daylight: "24h" });
   });
 
   it("as a table, heads Day, City, Sunrise, Sunset and Daylight over the same rows", () => {
