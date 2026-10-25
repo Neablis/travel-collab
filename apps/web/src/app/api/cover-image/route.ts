@@ -4,7 +4,7 @@
 // serves only a URL the server signed while serializing a cover that holds
 // it (`server/coverProxy.ts`), so it is not an open proxy; and every fetch
 // goes through the guarded fetcher, on each CDN miss.
-import { verifyCoverUrl } from "@/server/coverProxy";
+import { isCanonicalCoverQuery, verifyCoverUrl } from "@/server/coverProxy";
 import { fetchRemoteImage } from "@/server/external/remoteImage/fetchImage";
 import { RemoteImageRefused } from "@/server/external/remoteImage/guard";
 
@@ -19,12 +19,17 @@ const IMAGE_CDN_CACHE = "public, max-age=2592000, stale-while-revalidate=86400";
 // upstream fetch a minute rather than one per viewer.
 const REFUSAL_CACHE = "public, max-age=60";
 
-/** The image a signed cover URL names, or 403 for a bad signature and 502 for an image the fetcher refused. */
+/** The image a signed cover URL names, or 403 for a bad signature or a query not spelled as minted, and 502 for an image the fetcher refused. */
 export async function GET(request: Request): Promise<Response> {
-  const params = new URL(request.url).searchParams;
-  const url = params.get("u");
-  const signature = params.get("s");
-  if (url === null || signature === null || !verifyCoverUrl(url, signature)) {
+  const { search, searchParams } = new URL(request.url);
+  const url = searchParams.get("u");
+  const signature = searchParams.get("s");
+  if (
+    url === null ||
+    signature === null ||
+    !isCanonicalCoverQuery(search, url, signature) ||
+    !verifyCoverUrl(url, signature)
+  ) {
     return new Response(null, { status: 403, headers: { "Cache-Control": "no-store" } });
   }
   try {

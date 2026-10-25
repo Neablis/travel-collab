@@ -95,6 +95,20 @@ function failure(error: unknown, signal: AbortSignal): RemoteImageRefused {
   return refusalIn(error) ?? new RemoteImageRefused(signal.aborted ? "timeout" : "unreachable", String(error));
 }
 
+/**
+ * `pending`, or a `timeout` refusal once `signal` fires. The pre-flight
+ * resolve takes no signal of its own, so a resolver that never answers would
+ * otherwise hold a request past `timeoutMs`.
+ */
+function beforeDeadline<T>(pending: Promise<T>, signal: AbortSignal): Promise<T> {
+  if (signal.aborted) return Promise.reject(new RemoteImageRefused("timeout"));
+  return new Promise((done, fail) => {
+    const onAbort = () => fail(new RemoteImageRefused("timeout"));
+    signal.addEventListener("abort", onAbort, { once: true });
+    pending.then(done, fail).finally(() => signal.removeEventListener("abort", onAbort));
+  });
+}
+
 function parsed(href: string, base?: URL): URL {
   try {
     return new URL(href, base);
@@ -159,7 +173,7 @@ export async function fetchRemoteImage(
     if (current.port !== "" || current.username !== "" || current.password !== "") {
       throw new RemoteImageRefused("invalid-url");
     }
-    await assertPublicAddress(current.hostname, resolve);
+    await beforeDeadline(assertPublicAddress(current.hostname, resolve), signal);
     let response: Response;
     try {
       response = await fetch(current, {

@@ -38,6 +38,17 @@ describe("GET /api/cover-image", () => {
     expect(fetchRemoteImage).not.toHaveBeenCalled();
   });
 
+  // The CDN keys on the whole query string, so any second spelling of a
+  // signed path would be a cache miss, and an upstream fetch, of its own.
+  it.each([
+    ["a parameter appended", (path: string) => `${path}&x=1`],
+    ["u re-encoded", (path: string) => path.replace("harbour", "h%61rbour")],
+  ])("answers 403 on a signed path with %s, and fetches nothing", async (_what, respell) => {
+    const response = await get(respell(coverProxySrc(URL_A)));
+    expect(response.status).toBe(403);
+    expect(fetchRemoteImage).not.toHaveBeenCalled();
+  });
+
   it("answers 502 when the fetcher refuses the URL", async () => {
     fetchRemoteImage.mockRejectedValue(new RemoteImageRefused("private-address"));
     const response = await get(coverProxySrc(URL_A));

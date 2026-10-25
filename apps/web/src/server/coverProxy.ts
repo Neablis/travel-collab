@@ -24,7 +24,19 @@ export function verifyCoverUrl(url: string, signature: string): boolean {
   return expected.length === presented.length && timingSafeEqual(expected, presented);
 }
 
-const pathFor = (url: string, signature: string) => `/api/cover-image?u=${encodeURIComponent(url)}&s=${signature}`;
+const queryFor = (url: string, signature: string) => `?u=${encodeURIComponent(url)}&s=${signature}`;
+const pathFor = (url: string, signature: string) => `/api/cover-image${queryFor(url, signature)}`;
+
+/**
+ * Whether `search`, a request's raw query string, is byte for byte the one
+ * `coverProxySrc` mints for `url` and `signature`. The CDN keys on the whole
+ * query, so a second spelling that still verifies (a parameter appended, `u`
+ * percent-encoded another way) would be a cache miss, and an upstream fetch,
+ * of its own; the route refuses every spelling but this one.
+ */
+export function isCanonicalCoverQuery(search: string, url: string, signature: string): boolean {
+  return search === queryFor(url, signature);
+}
 
 /** The same-origin path a browser loads a URL cover from. */
 export function coverProxySrc(url: string): string {

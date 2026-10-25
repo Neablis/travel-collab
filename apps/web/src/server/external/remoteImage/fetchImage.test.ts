@@ -167,6 +167,15 @@ describe("fetchRemoteImage", () => {
       "timeout",
     );
   });
+
+  it("answers a timeout when the resolver never answers, within the deadline", async () => {
+    const stalled: Resolve = () => new Promise(() => {});
+    const fetch = fakeFetch({});
+    expect(await refusal(fetchRemoteImage("https://cdn.example.com/a.png", { timeoutMs: 5 }, { fetch, resolve: stalled }))).toBe(
+      "timeout",
+    );
+    expect(fetch).not.toHaveBeenCalled();
+  }, 1_000);
 });
 
 describe("guardedHttpsFetcher", () => {

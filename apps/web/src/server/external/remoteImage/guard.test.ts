@@ -40,6 +40,10 @@ describe("assertPublicAddress", () => {
     ["IPv4-mapped IPv6 of a private address", "::ffff:10.0.0.1"],
     ["IPv4-mapped IPv6 of the metadata address, hex form", "::ffff:a9fe:a9fe"],
     ["NAT64 of a private address", "64:ff9b::a00:1"],
+    ["IPv6 Teredo 2001::/32, inside 2001::/23", "2001:0:4136:e378::1"],
+    ["IPv6 documentation 2001:db8::/32", "2001:db8::1"],
+    ["IPv6 6to4 2002::/16 of a private address", "2002:a00:1::1"],
+    ["IPv6 documentation 3fff::/20", "3fff::1"],
   ])("refuses a host resolving into %s", async (_range, address) => {
     expect(await reasonFor("images.example.com", resolvesTo(address))).toBe("private-address");
   });
