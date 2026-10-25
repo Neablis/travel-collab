@@ -20,7 +20,7 @@
 
 // The same set `ci.yml`'s `paths-ignore` listed. `*.md` there was root-level
 // only, and stays so: `.design-sync/**` is a build input even where it is
-// markdown. `vercel-preview.yml` and AGENTS.md's Tier 1 use the same set.
+// markdown. AGENTS.md's Tier 1 uses the same set.
 const PROSE = [/^docs\//, /^\.agents\//, /^\.claude\//, /^[^/]+\.md$/, /^\.github\/.*\.md$/];
 
 /** True when `path` is prose that no `ci.yml` job reads. */

@@ -163,7 +163,9 @@ What each tool does, why it exists and what it measured:
 - **Subagents** (`.claude/agents/`): `phase-implementer`, `part-reviewer`,
   `phase-verifier`, `ki-fixer`. Dispatch these rather than writing the prompt again —
   `phase-verifier` drives the PR's Vercel preview, so the browser walk needs no
-  local infra.
+  local infra. Previews are built on demand, not per ready PR (2026-10-25,
+  billed compute): request one only for a walk that will happen
+  (`environments-and-deploys.md`, *Which pushes build a preview*).
 - **Skills** (`.claude/skills/`): `github-rest`, `minimal-check-subset`,
   `ci-triage`, `worktree-hygiene`, `write-a-test`, `ai-usage`, and
   `build-a-milestone` with its sub-skills `plan-a-milestone`, `build-a-part`,

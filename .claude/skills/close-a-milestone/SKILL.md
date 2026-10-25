@@ -16,7 +16,8 @@ call.
    every event; never post a comment per event (`working-a-review.md`, *What we post to GitHub is
    short*).
 2. **Support Mitchell's walk** of each part's preview, mouse and keyboard-only. The link is in the
-   PR body's "Ready to merge" section (`review-a-part` step 6), not a Vercel comment. Read his comments
+   PR body's "Ready to merge" section (`review-a-part` step 6), not a Vercel comment. A part with
+   no preview yet gets one when he adds the `preview` label (previews are on demand). Read his comments
    with `mcp__Vercel__list_toolbar_threads`. Each fix goes on that part's branch (`build-a-part`),
    with a reply on the thread naming the commit. He resolves the threads.
 3. **Merges.** Mitchell merges each part unless he says otherwise. After a part with a migration,

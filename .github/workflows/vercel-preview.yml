@@ -1,13 +1,24 @@
 name: vercel-preview
 
-# The ONLY way a Vercel preview gets built (2026-09-25). `apps/web/vercel.json`
-# turns off Vercel's automatic deploys for every branch except `main`, so a
-# push to any other branch creates no deployment at all, and this asks Vercel
-# for one when a pull request is open and not a draft.
+# The ONLY way a Vercel preview gets built (2026-09-25), and since 2026-10-25
+# only when someone asks for one. `apps/web/vercel.json` turns off Vercel's
+# automatic deploys for every branch except `main`, so a push to any other
+# branch creates no deployment at all; this workflow asks Vercel for one.
+#
+# ON DEMAND (Mitchell, 2026-10-25): Vercel bills preview compute, and most
+# ready PRs were never walked, so a preview per ready PR was mostly waste.
+# Two ways to ask, both building the PR's current head:
+#   - Add the `preview` label to the PR (one click in its sidebar). While the
+#     label stays on, each new push builds a fresh preview; take it off to stop.
+#   - Actions → vercel-preview → Run workflow, with the PR number. One build,
+#     no label. Agents: `gh api -X POST
+#     repos/Neablis/travel-collab/actions/workflows/vercel-preview.yml/dispatches
+#     -f ref=main -f inputs[pr]=<n>`.
+# Opening a PR, marking it ready and pushing to it build nothing on their own.
 #
 # Why not let Vercel build and skip in an Ignored Build Step: a skipped build
-# is still a created deployment, and those count against the Hobby plan's 100
-# deployments a day. On 2026-09-24 previews used that up and Vercel refused
+# is still a created deployment, and those count against the plan's daily
+# deployment limit. On 2026-09-24 previews used that up and Vercel refused
 # the push that merged #227, so production silently stayed a commit behind.
 #
 # Needs a `VERCEL_TOKEN` repository secret (see
@@ -16,39 +27,66 @@ name: vercel-preview
 # passes, and that PR has no preview.
 on:
   pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
-    # The same prose-only set as ci.yml's `changes` job (`scripts/ci-gate.mjs`):
-    # a PR that only moves docs has nothing to preview. Keep the two in step.
-    # `paths-ignore` is fine here and not there because this check is not
-    # required: one that never starts blocks nothing.
-    paths-ignore:
-      - 'docs/**'
-      - '.agents/**'
-      - '.claude/**'
-      - '*.md'
-      - '.github/**/*.md'
+    types: [labeled, synchronize]
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: Pull request number to build a preview of
+        required: true
+        type: number
 
-# A newer push supersedes a request that has not been sent yet.
-concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
-  cancel-in-progress: true
-
-permissions: {}
+permissions:
+  pull-requests: read
 
 jobs:
   deploy-preview:
-    if: ${{ !github.event.pull_request.draft && github.event.pull_request.head.repo.full_name == github.repository }}
+    # A label event builds only when the label just added is `preview`; a push
+    # builds only while the PR carries it. A manual run always builds. Forks
+    # never: they have no secrets, and their code is not ours to deploy.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.pull_request.head.repo.full_name == github.repository &&
+       ((github.event.action == 'labeled' && github.event.label.name == 'preview') ||
+        (github.event.action == 'synchronize' && contains(github.event.pull_request.labels.*.name, 'preview'))))
+    # A newer request for the same PR supersedes one not yet sent. On the job,
+    # not the workflow: a run whose `if` skips (any other label added, a push
+    # without `preview`) never joins the group, so it cannot cancel a request
+    # in flight (PR 559 review).
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.event.pull_request.number || inputs.pr }}
+      cancel-in-progress: true
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Ask Vercel for a preview of the PR head
+      - name: Find the PR head
+        id: head
         # An explicit `shell: bash` runs with `-eo pipefail`; the default does
         # not, and a failed curl piped into jq would otherwise pass the step.
         shell: bash
         env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_REF: ${{ github.event.pull_request.head.ref }}
+          EVENT_SHA: ${{ github.event.pull_request.head.sha }}
+          PR: ${{ inputs.pr }}
+        run: |
+          if [ -n "$EVENT_SHA" ]; then
+            ref="$EVENT_REF"; sha="$EVENT_SHA"
+          else
+            pr=$(gh api "repos/${{ github.repository }}/pulls/$PR")
+            if [ "$(jq -r .head.repo.full_name <<<"$pr")" != "${{ github.repository }}" ]; then
+              echo "::error::PR $PR is from a fork; its head is not deployed."
+              exit 1
+            fi
+            ref=$(jq -r .head.ref <<<"$pr"); sha=$(jq -r .head.sha <<<"$pr")
+          fi
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+      - name: Ask Vercel for a preview of the PR head
+        shell: bash
+        env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          REF: ${{ github.event.pull_request.head.ref }}
-          SHA: ${{ github.event.pull_request.head.sha }}
+          REF: ${{ steps.head.outputs.ref }}
+          SHA: ${{ steps.head.outputs.sha }}
         run: |
           if [ -z "$VERCEL_TOKEN" ]; then
             echo "::warning::VERCEL_TOKEN is not set, so no preview was requested for $REF."
@@ -63,4 +101,4 @@ jobs:
             "https://api.vercel.com/v13/deployments?teamId=team_FOAEiiLfMMxICIFszLWvzfzF" \
             -H "Authorization: Bearer $VERCEL_TOKEN" \
             -H "Content-Type: application/json" \
-            -d "$body" | jq '{id, url, readyState}'
+            -d "$body" | jq '{id, url, readyState}' | tee -a "$GITHUB_STEP_SUMMARY"
