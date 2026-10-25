@@ -15,16 +15,16 @@ export type SuggestionVia = z.infer<typeof SuggestionVia>;
 // vocabulary (ADR-005).
 export const Origin = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("user") }),
-  z.object({ kind: z.literal("undo"), undoesBatchId: z.string().uuid() }),
-  z.object({ kind: z.literal("redo"), redoesBatchId: z.string().uuid() }),
+  z.object({ kind: z.literal("undo"), undoesBatchId: z.string().guid() }),
+  z.object({ kind: z.literal("redo"), redoesBatchId: z.string().guid() }),
   z.object({ kind: z.literal("revert"), toSeq: z.number().int().positive() }),
   // An accepted suggestion (ADR-064). The envelope's actor is the reviewer who
   // accepted it; the person who asked for it survives only here, so history
   // can say "Suggested by …". The domain treats it exactly like `user`.
   z.object({
     kind: z.literal("suggestion"),
-    suggestionId: z.string().uuid(),
-    changeId: z.string().uuid(),
+    suggestionId: z.string().guid(),
+    changeId: z.string().guid(),
     authorId: z.string().min(1),
     // Absent for a person's own draft, and on every envelope from before
     // ADR-067: "Suggested by Ana, via the assistant".
@@ -37,7 +37,7 @@ export const Origin = z.discriminatedUnion("kind", [
   // envelope. The domain treats it exactly like `user`.
   z.object({
     kind: z.literal("suggestions"),
-    changes: z.array(z.object({ suggestionId: z.string().uuid(), changeId: z.string().uuid() })).min(1),
+    changes: z.array(z.object({ suggestionId: z.string().guid(), changeId: z.string().guid() })).min(1),
     authorIds: z.array(z.string().min(1)).min(1),
     // Set only when EVERY change accepted came through the assistant
     // (ADR-067), so the line can say so without being wrong about any one.
@@ -50,7 +50,7 @@ export type Origin = z.infer<typeof Origin>;
 
 export const UndoLastChange = z.object({
   type: z.literal("UndoLastChange"),
-  tripId: z.string().uuid(),
+  tripId: z.string().guid(),
   /**
    * **A precondition: undo THIS batch, or nothing.** Without it the server
    * undoes whichever batch is on top when the command arrives — right for the
@@ -61,19 +61,19 @@ export const UndoLastChange = z.object({
    *
    * Optional, so every existing `{ type, tripId }` caller is unchanged.
    */
-  undoesBatchId: z.string().uuid().optional(),
+  undoesBatchId: z.string().guid().optional(),
 });
 export type UndoLastChange = z.infer<typeof UndoLastChange>;
 
 export const RedoChange = z.object({
   type: z.literal("RedoChange"),
-  tripId: z.string().uuid(),
+  tripId: z.string().guid(),
 });
 export type RedoChange = z.infer<typeof RedoChange>;
 
 export const RevertToState = z.object({
   type: z.literal("RevertToState"),
-  tripId: z.string().uuid(),
+  tripId: z.string().guid(),
   toSeq: z.number().int().positive(),
 });
 export type RevertToState = z.infer<typeof RevertToState>;
@@ -82,7 +82,7 @@ export type RevertToState = z.infer<typeof RevertToState>;
 
 export const DismissConflict = z.object({
   type: z.literal("DismissConflict"),
-  tripId: z.string().uuid(),
+  tripId: z.string().guid(),
   conflictId: z.string().min(1),
 });
 export type DismissConflict = z.infer<typeof DismissConflict>;
@@ -90,7 +90,7 @@ export type DismissConflict = z.infer<typeof DismissConflict>;
 export const ConflictDismissedV1 = z.object({
   type: z.literal("ConflictDismissed"),
   version: z.literal(1),
-  payload: z.object({ tripId: z.string().uuid(), conflictId: z.string().min(1) }),
+  payload: z.object({ tripId: z.string().guid(), conflictId: z.string().min(1) }),
 });
 export type ConflictDismissedV1 = z.infer<typeof ConflictDismissedV1>;
 
@@ -99,14 +99,14 @@ export type ConflictDismissedV1 = z.infer<typeof ConflictDismissedV1>;
 export const ConflictUndismissedV1 = z.object({
   type: z.literal("ConflictUndismissed"),
   version: z.literal(1),
-  payload: z.object({ tripId: z.string().uuid(), conflictId: z.string().min(1) }),
+  payload: z.object({ tripId: z.string().guid(), conflictId: z.string().min(1) }),
 });
 export type ConflictUndismissedV1 = z.infer<typeof ConflictUndismissedV1>;
 
 // ---- History read DTOs ----
 
 export const HistoryEntry = z.object({
-  batchId: z.string().uuid(),
+  batchId: z.string().guid(),
   fromSeq: z.number().int().positive(),
   toSeq: z.number().int().positive(),
   actorId: z.string().min(1),
@@ -131,7 +131,7 @@ export const HistoryEntry = z.object({
    * Optional, so every stored and served entry written before this is still
    * valid and every existing consumer is unaffected.
    */
-  pageId: z.string().uuid().optional(),
+  pageId: z.string().guid().optional(),
   /**
    * **`true` when the batch carries no trip events** — a notebook save, or a
    * backfill creating several notebooks at once. Absent on every batch that
@@ -151,7 +151,7 @@ export const HistoryEntry = z.object({
 export type HistoryEntry = z.infer<typeof HistoryEntry>;
 
 export const TripHistory = z.object({
-  tripId: z.string().uuid(),
+  tripId: z.string().guid(),
   entries: z.array(HistoryEntry), // newest first as served by the API
   canUndo: z.boolean(),
   canRedo: z.boolean(),

@@ -9,12 +9,12 @@ export const ApplicationWarning = z.discriminatedUnion("code", [
   z.object({
     code: z.literal("conflict"),
     conflictId: z.string(),
-    activityIds: z.array(z.string().uuid()),
+    activityIds: z.array(z.string().guid()),
     message: z.string(),
   }),
   z.object({
     code: z.literal("weekday-mismatch"),
-    activityId: z.string().uuid(),
+    activityId: z.string().guid(),
     message: z.string(),
   }),
 ]);

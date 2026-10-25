@@ -9,7 +9,7 @@ const KYOTO = { name: "Kyoto Station", lat: 34.9858, lng: 135.7588 };
 // by the SCHEMA, not by convention. Both unions carry the refinement (trip.ts),
 // so both are asked — the assistant's proposals parse through the batchable one.
 const add = (fields: Record<string, unknown>) => ({ type: "AddActivity", tripId: TRIP, activityId: A1, title: "Shinkansen", ...fields });
-const issuePaths = (r: { success: boolean; error?: { issues: { path: (string | number)[] }[] } }) =>
+const issuePaths = (r: { success: boolean; error?: { issues: { path: PropertyKey[] }[] } }) =>
   r.success ? [] : r.error!.issues.map((i) => i.path.join("."));
 
 describe("a travel-leg field is legal only on a transit stop", () => {

@@ -36,7 +36,7 @@ export const NearbyStop = z.object({
   lengthMinutes: z.number().int().positive().nullable(),
   // The published day it was taken from, and its name (D10). Where duplicates
   // collapsed (D9), the first day's copy.
-  savedDayId: z.string().uuid(),
+  savedDayId: z.string().guid(),
   savedDayName: z.string(),
   // How many published days carry the same stop — same title and place name,
   // compared case-insensitively (D9).

@@ -45,7 +45,7 @@ const InsertTextParams = z.object({
 
 const InsertWidgetParams = z.object({
   name: macroNameEnum,
-  params: z.record(z.unknown()).optional(),
+  params: z.record(z.string(), z.unknown()).optional(),
 });
 
 // `insertWidget`'s refusal is a TYPED reason, not a sentence — and `output`

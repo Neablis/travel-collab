@@ -39,7 +39,7 @@ import { Money } from "./money.ts";
 // holding the copy — which is the normal case when the copy came from a share
 // link handed to a stranger.
 export const TripLineage = z.object({
-  tripId: z.string().uuid(),
+  tripId: z.string().guid(),
   // The ancestor's history point this was copied from. 1-based, matching
   // `events.seq`.
   atSeq: z.number().int().min(1),
@@ -49,7 +49,7 @@ export type TripLineage = z.infer<typeof TripLineage>;
 
 export const CreateTrip = z.object({
   type: z.literal("CreateTrip"),
-  tripId: z.string().uuid(),
+  tripId: z.string().guid(),
   name: z.string().min(1).max(200),
   // Only ever set by the server's clone path (`server/cloneTrip.ts`). No
   // client can forge it: `POST /api/trips` accepts a name and nothing else,
@@ -62,7 +62,7 @@ export const TripCreatedV1 = z.object({
   type: z.literal("TripCreated"),
   version: z.literal(1),
   payload: z.object({
-    tripId: z.string().uuid(),
+    tripId: z.string().guid(),
     name: z.string().min(1).max(200),
     createdBy: z.string().min(1),
     // `.default(null)` rather than `.optional()`: every TripCreated row
@@ -77,15 +77,15 @@ export type TripCreatedV1 = z.infer<typeof TripCreatedV1>;
 
 export const AddDay = z.object({
   type: z.literal("AddDay"),
-  tripId: z.string().uuid(),
-  dayId: z.string().uuid(),
+  tripId: z.string().guid(),
+  dayId: z.string().guid(),
 });
 export type AddDay = z.infer<typeof AddDay>;
 
 export const RemoveDay = z.object({
   type: z.literal("RemoveDay"),
-  tripId: z.string().uuid(),
-  dayId: z.string().uuid(),
+  tripId: z.string().guid(),
+  dayId: z.string().guid(),
 });
 export type RemoveDay = z.infer<typeof RemoveDay>;
 
@@ -123,14 +123,14 @@ const TripDateInput = z.string().regex(ISO_DATE).refine(isCalendarDate, "not a c
 // Display-only until M3: the domain and conflict engine never read this.
 export const SetTripStartDate = z.object({
   type: z.literal("SetTripStartDate"),
-  tripId: z.string().uuid(),
+  tripId: z.string().guid(),
   startDate: TripDateInput.nullable(), // null clears
 });
 export type SetTripStartDate = z.infer<typeof SetTripStartDate>;
 
 export const SetTripName = z.object({
   type: z.literal("SetTripName"),
-  tripId: z.string().uuid(),
+  tripId: z.string().guid(),
   name: z.string().min(1).max(200),
 });
 export type SetTripName = z.infer<typeof SetTripName>;
@@ -138,7 +138,7 @@ export type SetTripName = z.infer<typeof SetTripName>;
 export const TripNameSetV1 = z.object({
   type: z.literal("TripNameSet"),
   version: z.literal(1),
-  payload: z.object({ tripId: z.string().uuid(), name: z.string().min(1).max(200) }),
+  payload: z.object({ tripId: z.string().guid(), name: z.string().min(1).max(200) }),
 });
 export type TripNameSetV1 = z.infer<typeof TripNameSetV1>;
 
@@ -148,10 +148,10 @@ export type TripNameSetV1 = z.infer<typeof TripNameSetV1>;
 // (Invariant 4), the same reason AddDay carries its own dayId.
 export const SetTripDates = z.object({
   type: z.literal("SetTripDates"),
-  tripId: z.string().uuid(),
+  tripId: z.string().guid(),
   startDate: TripDateInput.nullable(),
   endDate: TripDateInput.nullable(),
-  newDayIds: z.array(z.string().uuid()).default([]),
+  newDayIds: z.array(z.string().guid()).default([]),
 });
 export type SetTripDates = z.infer<typeof SetTripDates>;
 
@@ -159,27 +159,27 @@ export type SetTripDates = z.infer<typeof SetTripDates>;
 // summaries read model filters it out. RestoreTrip is the exact inverse.
 export const DeleteTrip = z.object({
   type: z.literal("DeleteTrip"),
-  tripId: z.string().uuid(),
+  tripId: z.string().guid(),
 });
 export type DeleteTrip = z.infer<typeof DeleteTrip>;
 
 export const TripDeletedV1 = z.object({
   type: z.literal("TripDeleted"),
   version: z.literal(1),
-  payload: z.object({ tripId: z.string().uuid() }),
+  payload: z.object({ tripId: z.string().guid() }),
 });
 export type TripDeletedV1 = z.infer<typeof TripDeletedV1>;
 
 export const RestoreTrip = z.object({
   type: z.literal("RestoreTrip"),
-  tripId: z.string().uuid(),
+  tripId: z.string().guid(),
 });
 export type RestoreTrip = z.infer<typeof RestoreTrip>;
 
 export const TripRestoredV1 = z.object({
   type: z.literal("TripRestored"),
   version: z.literal(1),
-  payload: z.object({ tripId: z.string().uuid() }),
+  payload: z.object({ tripId: z.string().guid() }),
 });
 export type TripRestoredV1 = z.infer<typeof TripRestoredV1>;
 
@@ -189,7 +189,7 @@ export type TripStatus = z.infer<typeof TripStatus>;
 export const DayAddedV1 = z.object({
   type: z.literal("DayAdded"),
   version: z.literal(1),
-  payload: z.object({ tripId: z.string().uuid(), dayId: z.string().uuid() }),
+  payload: z.object({ tripId: z.string().guid(), dayId: z.string().guid() }),
 });
 export type DayAddedV1 = z.infer<typeof DayAddedV1>;
 
@@ -197,20 +197,20 @@ export type DayAddedV1 = z.infer<typeof DayAddedV1>;
 export const DayRemovedV1 = z.object({
   type: z.literal("DayRemoved"),
   version: z.literal(1),
-  payload: z.object({ tripId: z.string().uuid(), dayId: z.string().uuid() }),
+  payload: z.object({ tripId: z.string().guid(), dayId: z.string().guid() }),
 });
 export type DayRemovedV1 = z.infer<typeof DayRemovedV1>;
 
 export const TripStartDateSetV1 = z.object({
   type: z.literal("TripStartDateSet"),
   version: z.literal(1),
-  payload: z.object({ tripId: z.string().uuid(), startDate: z.string().regex(ISO_DATE).nullable() }),
+  payload: z.object({ tripId: z.string().guid(), startDate: z.string().regex(ISO_DATE).nullable() }),
 });
 export type TripStartDateSetV1 = z.infer<typeof TripStartDateSetV1>;
 
 export const SetTripCurrency = z.object({
   type: z.literal("SetTripCurrency"),
-  tripId: z.string().uuid(),
+  tripId: z.string().guid(),
   currency: z.string().regex(/^[A-Z]{3}$/),
 });
 export type SetTripCurrency = z.infer<typeof SetTripCurrency>;
@@ -218,13 +218,13 @@ export type SetTripCurrency = z.infer<typeof SetTripCurrency>;
 export const TripCurrencySetV1 = z.object({
   type: z.literal("TripCurrencySet"),
   version: z.literal(1),
-  payload: z.object({ tripId: z.string().uuid(), currency: z.string().regex(/^[A-Z]{3}$/) }),
+  payload: z.object({ tripId: z.string().guid(), currency: z.string().regex(/^[A-Z]{3}$/) }),
 });
 export type TripCurrencySetV1 = z.infer<typeof TripCurrencySetV1>;
 
 export const SetTripBudget = z.object({
   type: z.literal("SetTripBudget"),
-  tripId: z.string().uuid(),
+  tripId: z.string().guid(),
   budget: Money.nullable(), // null clears
 });
 export type SetTripBudget = z.infer<typeof SetTripBudget>;
@@ -232,7 +232,7 @@ export type SetTripBudget = z.infer<typeof SetTripBudget>;
 export const TripBudgetSetV1 = z.object({
   type: z.literal("TripBudgetSet"),
   version: z.literal(1),
-  payload: z.object({ tripId: z.string().uuid(), budget: Money.nullable() }),
+  payload: z.object({ tripId: z.string().guid(), budget: Money.nullable() }),
 });
 export type TripBudgetSetV1 = z.infer<typeof TripBudgetSetV1>;
 
@@ -407,7 +407,7 @@ export const TripSummaryMember = TripMember.extend({
 export type TripSummaryMember = z.infer<typeof TripSummaryMember>;
 
 export const TripSummary = z.object({
-  tripId: z.string().uuid(),
+  tripId: z.string().guid(),
   name: z.string(),
   status: TripStatus,
   members: z.array(TripSummaryMember).min(1),

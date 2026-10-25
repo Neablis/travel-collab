@@ -114,13 +114,13 @@ const FromTrip = z
     name: Name,
     summary: Summary.optional(),
     source: z.object({
-      tripId: z.string().uuid(),
+      tripId: z.string().guid(),
       days: z
         .array(
           z.object({
-            dayId: z.string().uuid(),
+            dayId: z.string().guid(),
             activityIds: z
-              .array(z.string().uuid())
+              .array(z.string().guid())
               .optional()
               .describe(
                 "Keep only these activities of the day, in the trip's order (not this list's). Omitted = the whole day; [] = keep the day, empty.",
@@ -148,9 +148,9 @@ const Inline = z
 /**
  * **Exactly one of two bodies.** Both objects are strict, so a body carrying
  * `source` AND `days` matches neither and is a 400 — the union is exclusive in
- * behaviour. The generator (`zod-to-json-schema`, openApi3 target) renders
- * every union as `anyOf`, and says so in the description rather than claiming a
- * `oneOf` it did not emit.
+ * behaviour. The generator (`openapi.ts`, over zod's `z.toJSONSchema`) renders
+ * a plain union as `anyOf`, and says so in the description rather than claiming
+ * a `oneOf` it did not emit.
  */
 export const CreatePlaybookBody = z
   .union([FromTrip, Inline])

@@ -9,7 +9,7 @@ const A1 = "7d9a1f8e-0000-4000-8000-0000000000a1";
 // batchable one) — the same rule, asked the same way, as M24's travel leg.
 const add = (fields: Record<string, unknown>) => ({ type: "AddActivity", tripId: TRIP, activityId: A1, title: "Kikunoi Roan", ...fields });
 const upd = (fields: Record<string, unknown>) => ({ type: "UpdateActivity", tripId: TRIP, activityId: A1, ...fields });
-const issues = (r: { success: boolean; error?: { issues: { path: (string | number)[]; message: string }[] } }) =>
+const issues = (r: { success: boolean; error?: { issues: { path: PropertyKey[]; message: string }[] } }) =>
   r.success ? [] : r.error!.issues.map((i) => `${i.path.join(".")}: ${i.message}`);
 
 describe("a pending reason is legal only on a pending stop", () => {
