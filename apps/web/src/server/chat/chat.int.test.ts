@@ -597,3 +597,64 @@ describe("a change line", () => {
     expect((await oneMessage.DELETE(new Request("http://test/x", { method: "DELETE" }), params)).status).toBe(403);
   });
 });
+
+// KI-2026-10-14-a, after ADR-066: a send whose answer was lost (the client's
+// timeout, a dropped connection) is retried under the same key, and must not
+// be stored twice, nor ask the assistant twice.
+describe("a keyed send", () => {
+  const rows = (tripId: string) => db.select().from(tripMessages).where(eq(tripMessages.tripId, tripId));
+  const answered = async (res: Response) => {
+    expect(res.status).toBe(201);
+    return ((await res.json()) as { message: ChatMessage }).message;
+  };
+
+  it("is stored once, and a repeat is answered with the message it stored, moving no revision", async () => {
+    const { tripId, editor, viewer } = await sharedTrip();
+    const clientKey = randomUUID();
+    const first = await answered(await post(tripId, editor, { body: "Train at nine?", clientKey }));
+    const rev = await chatRev(tripId, viewer);
+    const again = await answered(await post(tripId, editor, { body: "Train at nine?", clientKey }));
+
+    expect(again).toEqual(first);
+    expect(await rows(tripId)).toHaveLength(1);
+    expect(await chatRev(tripId, viewer)).toBe(rev);
+  });
+
+  it("asks the assistant once, however often the ask is repeated", async () => {
+    const { tripId, owner } = await sharedTrip();
+    const ask = { body: "@assistant anything?", assistant: true, clientKey: randomUUID() };
+    const first = await answered(await post(tripId, owner, ask));
+    expect((await answered(await post(tripId, owner, ask))).messageId).toBe(first.messageId);
+    expect(afterResponse).toHaveLength(1);
+  });
+
+  it("is stored once when two sends of it race", async () => {
+    const { tripId, editor } = await sharedTrip();
+    const send = JSON.stringify({ body: "Train at nine?", clientKey: randomUUID() });
+    currentUserId = editor;
+    const both = await Promise.all(
+      [0, 1].map(() => chat.POST(new Request(`http://test/api/trips/${tripId}/chat`, { method: "POST", body: send }), tripParams(tripId))),
+    );
+    const [a, b] = await Promise.all(both.map(answered));
+    expect(a!.messageId).toBe(b!.messageId);
+    expect(await rows(tripId)).toHaveLength(1);
+  });
+
+  // Per poster: another member's send under the same key is their own message,
+  // and is never answered with somebody else's.
+  it("is each poster's own: the same key from another member is another message", async () => {
+    const { tripId, owner, editor } = await sharedTrip();
+    const clientKey = randomUUID();
+    const mine = await answered(await post(tripId, owner, { body: "Mine", clientKey }));
+    const theirs = await answered(await post(tripId, editor, { body: "Theirs", clientKey }));
+    expect(theirs.messageId).not.toBe(mine.messageId);
+    expect(!theirs.removed && theirs.body).toBe("Theirs");
+    expect(await rows(tripId)).toHaveLength(2);
+  });
+
+  it("refuses a key that is not a uuid, and stores nothing", async () => {
+    const { tripId, owner } = await sharedTrip();
+    expect((await post(tripId, owner, { body: "hi", clientKey: "c1" })).status).toBe(400);
+    expect(await rows(tripId)).toHaveLength(0);
+  });
+});

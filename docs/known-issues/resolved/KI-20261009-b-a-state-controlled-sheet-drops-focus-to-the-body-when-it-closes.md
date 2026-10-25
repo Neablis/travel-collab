@@ -1,4 +1,4 @@
-### KI-2026-10-09-b — a state-controlled `Sheet` drops keyboard focus to `<body>` when it closes
+### KI-2026-10-09-b — a state-controlled `Sheet` drops keyboard focus to `<body>` when it closes — RESOLVED
 
 - **Severity:** accessibility. A keyboard or switch user who closes one of these sheets has to
   tab from the top of the page to get back to where they were.
@@ -27,3 +27,16 @@
   sheet a command opens closes back onto the control the person was on, for the editor today
   and for the others once each is fixed.
 - **First noted:** 2026-10-09, M39 Part 6's fix for its own sheet.
+- **Resolved, 2026-10-25 (KI sweep 2):** in `ui/sheet.tsx` itself, not per caller, so every
+  remaining caller above is fixed with no change of its own. The sheet keeps what had focus in
+  Radix's `onOpenAutoFocus` (fired before focus moves in, so the opener still has it) and, on
+  close, focuses it again while it is still in the page. A caller's own `onCloseAutoFocus` runs
+  first, and one that calls `preventDefault()` keeps the last word, as `ConflictsChip`'s does for a
+  neighbour when the chip went away. An opener that has left the page, or a sheet opened with
+  focus nowhere (the double-click on a river), still falls to `<body>`: there the caller has to say
+  where focus belongs. Reproduced first, through the keyboard: three new cases in
+  `ui/overlays.test.tsx` (*a state-controlled Sheet gives focus back to what opened it*). On the
+  unfixed sheet, Escape and the ✕ each left Enter with nothing to reopen
+  (`Unable to find role="dialog" and name "Trip settings"`, at the reopen); fixed, they pass. The
+  third, a caller placing focus itself, went red (`expected "vi.fn()" to be called 1 times, but got
+  0 times`) with the `defaultPrevented` guard removed.

@@ -120,14 +120,25 @@ export async function linkOnTrip(detail: TripDetail, link: ChatLink): Promise<bo
   return page !== undefined;
 }
 
-/** Store a message and move the trip's `chatRev`, in one transaction. */
+/**
+ * Store a member's message and move the trip's `chatRev`, in one transaction.
+ *
+ * **A keyed send is stored once** (KI-2026-10-14-a, after ADR-066): a repeat
+ * of `input.clientKey` by the same poster on the same trip stores nothing,
+ * moves no revision, and answers with the message already stored under it,
+ * as that message now stands (edited, or removed). `created` says which, so
+ * the route starts an `@assistant` turn only for the first. Two racing sends
+ * of one key meet at `trip_messages_client_key`: the second waits for the
+ * first's commit, inserts nothing, and reads its row. The key, not the text,
+ * decides: a repeat with other words is still the message first stored.
+ */
 export async function postMessage(
   tripId: string,
   authorId: string,
   input: PostChatMessage,
   now: Date = new Date(),
-): Promise<ChatMessage> {
-  return insertMessage({
+): Promise<{ message: ChatMessage; created: boolean }> {
+  const values = {
     tripId,
     authorId,
     body: input.body,
@@ -135,6 +146,27 @@ export async function postMessage(
     linkId: input.link?.id ?? null,
     asksAssistant: input.assistant === true,
     createdAt: now,
+  };
+  const { clientKey } = input;
+  if (clientKey === undefined) return { message: await insertMessage(values), created: true };
+  return db.transaction(async (tx) => {
+    const [row] = await tx
+      .insert(tripMessages)
+      .values({ id: randomUUID(), ...values, clientKey })
+      .onConflictDoNothing({
+        target: [tripMessages.tripId, tripMessages.authorId, tripMessages.clientKey],
+        where: sql`${tripMessages.clientKey} is not null`,
+      })
+      .returning();
+    if (row !== undefined) {
+      await bumpChatRev(tx, tripId);
+      return { message: toMessage(row), created: true };
+    }
+    const [stored] = await tx
+      .select()
+      .from(tripMessages)
+      .where(and(eq(tripMessages.tripId, tripId), eq(tripMessages.authorId, authorId), eq(tripMessages.clientKey, clientKey)));
+    return { message: toMessage(stored!), created: false };
   });
 }
 
