@@ -87,10 +87,12 @@ export function TripCoverBanner({
   // so. Held against the cover it was found for, so any newer read clears it.
   const [removed, setRemoved] = useState<TripCover | null>(null);
   const reposition = useRef<HTMLButtonElement>(null);
+  const change = useRef<HTMLButtonElement>(null);
   const done = () => {
     setDraft(null);
-    // Back to where the mode was entered from, not to <body>.
-    requestAnimationFrame(() => reposition.current?.focus());
+    // Back to where the mode was entered from, not to <body>; when the cover
+    // was found removed Reposition is not rendered, so to the picker instead.
+    requestAnimationFrame(() => (reposition.current ?? change.current)?.focus());
   };
   const save = async (position: number) => {
     const result = await setTripCoverPosition(tripId, position);
@@ -116,6 +118,7 @@ export function TripCoverBanner({
       {onChangeCover !== undefined && draft === null && (
         <>
           <Button
+            ref={change}
             variant="ghost"
             onClick={onChangeCover}
             aria-label="Change cover photo"

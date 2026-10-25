@@ -181,6 +181,11 @@ describe("TripHeader — the cover band", () => {
       expect(screen.queryByRole("slider", { name: "Cover position" })).toBeNull();
       expect(screen.queryByRole("button", { name: "Reposition" })).toBeNull();
       expect(photo("Lake roofs").style.objectPosition).toBe("center 30%");
+      // Reposition is gone, so focus lands on the band's next step, not <body>.
+      // `:focus`, because the test-quality wall bans `document.activeElement`.
+      await waitFor(() =>
+        expect(screen.getByRole("button", { name: "Change cover photo" }).matches(":focus")).toBe(true),
+      );
     });
   });
 
