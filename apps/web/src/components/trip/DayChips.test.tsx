@@ -386,11 +386,19 @@ describe("DayChips", () => {
     expect(screen.getByText("Tokyo")).toBeTruthy();
   });
 
-  it("announces the move on a travel chip's accessible name", () => {
+  // The name says what the chip prints, in the order it prints it, then its
+  // stops (WCAG 2.5.3, axe `label-content-name-mismatch`): "Wed 2" and
+  // "Tokyo → Osaka" read together, as a voice-control user would say them.
+  it("announces the date and the move on a chip's accessible name, in the order it prints them", () => {
     render(<DayChips days={days} focusedDay={null} onSelect={() => {}} />);
 
-    expect(screen.getByRole("button", { name: "Tue, Tokyo, 2 stops" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Wed, Tokyo to Osaka, 1 stop" })).toBeTruthy();
+    const stay = screen.getByRole("button", { name: "Tue 1, Tokyo, 2 stops" });
+    const move = screen.getByRole("button", { name: "Wed 2, Tokyo → Osaka, 1 stop" });
+    // And the printed words are apart in its text, which is what axe reads as
+    // the visible label: "Tue1Tokyo" is one word, in no name.
+    const words = (el: HTMLElement) => el.textContent!.replace(/\s+/g, " ").trim();
+    expect(words(stay)).toBe("Tue 1 Tokyo");
+    expect(words(move)).toBe("Wed 2 Tokyo → Osaka");
   });
 
   it("shows the date number and the city as separate elements", () => {

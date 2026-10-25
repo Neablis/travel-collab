@@ -425,6 +425,7 @@ export function DiscoverScreen({
   // What the days on screen were asked for. With nothing read yet there are no
   // days, and the empty state speaks for the search as it stands.
   const shown: AskedFor = feed.data?.askedFor ?? { scope, sort, narrowed };
+  const sortLabel = SORTS.find((o) => o.value === sort)?.label ?? "";
 
   return (
     <div className="flex flex-col gap-5">
@@ -787,11 +788,14 @@ export function DiscoverScreen({
               type="button"
               variant="ghost"
               size="sm"
-              aria-label="Sort"
+              // The order it shows is in its name (WCAG 2.5.3; axe 4.14's
+              // `label-content-name-mismatch`): a voice-control user says
+              // "Most added", and a screen reader hears the current order.
+              aria-label={`Sort: ${sortLabel}`}
               data-testid="discover-sort"
               className="h-auto px-1 py-0 text-sm font-normal"
             >
-              {SORTS.find((o) => o.value === sort)?.label} ▾
+              {sortLabel} ▾
             </Button>
           }
         >

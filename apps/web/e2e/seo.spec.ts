@@ -439,7 +439,7 @@ test("Discover hydrates from the server's list and makes no first search", async
     // the Sort menu changes no search, and a click that lands before hydration
     // is lost, so it is retried until the menu is open. A first fetch is sent
     // from an effect on that same pass, so it has been sent by then.
-    const sort = visitor.getByRole("button", { name: "Sort" });
+    const sort = visitor.getByRole("button", { name: /^Sort: / });
     await expect(async () => {
       await sort.click();
       await expect(sort).toHaveAttribute("aria-expanded", "true", { timeout: 500 });

@@ -13,7 +13,7 @@ import { Dialog, DialogFooter } from "@/components/ui/dialog";
 import { Text } from "@/components/ui/text";
 import { useIsAdmin, usePreferences, useShownColor } from "@/components/account/PreferencesProvider";
 import { useSessionUser, type SessionUser } from "@/components/account/useSessionUser";
-import { PersonChip } from "@/components/ui/person-chip";
+import { PersonChip, personChipText } from "@/components/ui/person-chip";
 import { displayNameFor } from "@/lib/displayName";
 import { resetDemoData } from "@/lib/apiClient";
 import { pathAfterDemoReset } from "@/lib/demoDataReset";
@@ -28,6 +28,12 @@ import { clearSignedInHint } from "@/lib/sessionHint";
 // CalendarLens's CELL_MIN_HEIGHT (no token equivalent, so a style object
 // rather than an arbitrary `h-[30px]` className the color wall bans).
 const AVATAR_SIZE = { height: "30px", width: "30px" };
+
+/** The account button's name: `Account menu`, then the initials its chip shows, if any. */
+function accountMenuLabel(name: string, avatar: AvatarKey | null): string {
+  const shown = personChipText(name, avatar, "md");
+  return shown === "" ? "Account menu" : `Account menu, ${shown}`;
+}
 
 // Handoff `…dc.html:94-103, 3091-3095`: the header's avatar button, opening
 // a Popover with the signed-in identity and Sign out. Self-contained — no
@@ -97,7 +103,10 @@ export function AccountMenu({
         type="button"
         variant="ghost"
         size="icon"
-        aria-label="Account menu"
+        // The initials the chip prints are in the name too (WCAG 2.5.3, axe
+        // 4.14's `label-content-name-mismatch`): a voice-control user says
+        // what they see. A glyph prints nothing, so the name is the bare one.
+        aria-label={accountMenuLabel(name, avatar)}
         title={name}
         // `phone-hit-44` (globals.css) grows the TAP target to 44px below
         // 768px without moving the 30px circle — see that rule for why the

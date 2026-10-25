@@ -80,7 +80,7 @@ afterEach(cleanup);
 describe("AccountMenu", () => {
   it("shows the signed-in identity behind the avatar", async () => {
     render(<AccountMenu name="Sam K" email="sam@example.com" />);
-    await userEvent.click(screen.getByRole("button", { name: "Account menu" }));
+    await userEvent.click(screen.getByRole("button", { name: /^Account menu/ }));
     expect(screen.getByText("sam@example.com")).toBeTruthy();
   });
 
@@ -89,7 +89,7 @@ describe("AccountMenu", () => {
   // screenshot. No email means no line, not a blank one.
   it("draws no email line for an account without an email", async () => {
     render(<AccountMenu name="Dev Alice" email={null} />);
-    await userEvent.click(screen.getByRole("button", { name: "Account menu" }));
+    await userEvent.click(screen.getByRole("button", { name: /^Account menu/ }));
     const menu = within(screen.getByRole("dialog"));
     expect(menu.getByText("Dev Alice")).toBeTruthy();
     // An element whose own text is empty is the blank line itself — the email
@@ -113,7 +113,7 @@ describe("AccountMenu", () => {
         <AccountMenu name="Sam K" email="sam@example.com" />
       </PreferencesProvider>,
     );
-    await userEvent.click(screen.getByRole("button", { name: "Account menu" }));
+    await userEvent.click(screen.getByRole("button", { name: /^Account menu/ }));
 
     const link = screen.getByRole("link", { name: "Your account" });
     expect(link.getAttribute("href")).toBe("/account");
@@ -122,7 +122,7 @@ describe("AccountMenu", () => {
   it("signs out", async () => {
     const onSignOut = vi.fn();
     render(<AccountMenu name="Sam K" email="sam@example.com" onSignOut={onSignOut} />);
-    await userEvent.click(screen.getByRole("button", { name: "Account menu" }));
+    await userEvent.click(screen.getByRole("button", { name: /^Account menu/ }));
     await userEvent.click(screen.getByRole("button", { name: "Sign out" }));
     expect(onSignOut).toHaveBeenCalled();
   });
@@ -133,14 +133,14 @@ describe("AccountMenu", () => {
   // trace.
   it("hides the reset item when demoResetEnabled is false", async () => {
     render(<AccountMenu name="Sam K" email="sam@example.com" />);
-    await userEvent.click(screen.getByRole("button", { name: "Account menu" }));
+    await userEvent.click(screen.getByRole("button", { name: /^Account menu/ }));
     expect(screen.queryByRole("button", { name: "Reset to demo data" })).toBeNull();
   });
 
   it("requires confirmation before calling onResetDemoData", async () => {
     const onResetDemoData = vi.fn().mockResolvedValue(undefined);
     render(<AccountMenu name="Sam K" email="sam@example.com" demoResetEnabled onResetDemoData={onResetDemoData} />);
-    await userEvent.click(screen.getByRole("button", { name: "Account menu" }));
+    await userEvent.click(screen.getByRole("button", { name: /^Account menu/ }));
     await userEvent.click(screen.getByRole("button", { name: "Reset to demo data" }));
     expect(onResetDemoData).not.toHaveBeenCalled();
 
@@ -152,7 +152,7 @@ describe("AccountMenu", () => {
   it("cancels the reset confirmation without calling onResetDemoData", async () => {
     const onResetDemoData = vi.fn();
     render(<AccountMenu name="Sam K" email="sam@example.com" demoResetEnabled onResetDemoData={onResetDemoData} />);
-    await userEvent.click(screen.getByRole("button", { name: "Account menu" }));
+    await userEvent.click(screen.getByRole("button", { name: /^Account menu/ }));
     await userEvent.click(screen.getByRole("button", { name: "Reset to demo data" }));
     await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(onResetDemoData).not.toHaveBeenCalled();
@@ -171,7 +171,7 @@ describe("AccountMenu", () => {
         }),
     );
     render(<AccountMenu name="Sam K" email="sam@example.com" demoResetEnabled onResetDemoData={onResetDemoData} />);
-    await userEvent.click(screen.getByRole("button", { name: "Account menu" }));
+    await userEvent.click(screen.getByRole("button", { name: /^Account menu/ }));
     await userEvent.click(screen.getByRole("button", { name: "Reset to demo data" }));
     await userEvent.click(screen.getByRole("button", { name: "Reset" }));
 
@@ -192,7 +192,7 @@ describe("AccountMenu", () => {
         }),
     );
     render(<AccountMenu name="Sam K" email="sam@example.com" demoResetEnabled onResetDemoData={onResetDemoData} />);
-    await userEvent.click(screen.getByRole("button", { name: "Account menu" }));
+    await userEvent.click(screen.getByRole("button", { name: /^Account menu/ }));
     await userEvent.click(screen.getByRole("button", { name: "Reset to demo data" }));
     await userEvent.click(screen.getByRole("button", { name: "Reset" }));
     await screen.findByRole("button", { name: "Resetting…" });
@@ -213,7 +213,7 @@ describe("AccountMenu", () => {
         }),
     );
     render(<AccountMenu name="Sam K" email="sam@example.com" demoResetEnabled onResetDemoData={onResetDemoData} />);
-    await userEvent.click(screen.getByRole("button", { name: "Account menu" }));
+    await userEvent.click(screen.getByRole("button", { name: /^Account menu/ }));
     await userEvent.click(screen.getByRole("button", { name: "Reset to demo data" }));
 
     const resetButton = screen.getByRole("button", { name: "Reset" });
@@ -231,7 +231,7 @@ describe("AccountMenu", () => {
   it("shows an error inline when the reset fails, without closing the dialog", async () => {
     const onResetDemoData = vi.fn().mockRejectedValue(new Error("boom"));
     render(<AccountMenu name="Sam K" email="sam@example.com" demoResetEnabled onResetDemoData={onResetDemoData} />);
-    await userEvent.click(screen.getByRole("button", { name: "Account menu" }));
+    await userEvent.click(screen.getByRole("button", { name: /^Account menu/ }));
     await userEvent.click(screen.getByRole("button", { name: "Reset to demo data" }));
     await userEvent.click(screen.getByRole("button", { name: "Reset" }));
 
@@ -251,7 +251,7 @@ describe("HeaderSessionChrome's account menu", () => {
     render(<HeaderSessionChrome />);
 
     await waitFor(() => expect(vi.mocked(getSession)).toHaveBeenCalled());
-    expect(screen.queryByRole("button", { name: "Account menu" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Account menu/ })).toBeNull();
   });
 
   // axe `landmark-unique` on trip pages: this nav and the trip header's were
@@ -317,7 +317,7 @@ describe("HeaderSessionChrome's account menu", () => {
     document.cookie = "tc_signed_in=1; Path=/";
     render(<HeaderSessionChrome />);
 
-    await userEvent.click(await screen.findByRole("button", { name: "Account menu" }));
+    await userEvent.click(await screen.findByRole("button", { name: /^Account menu/ }));
     await userEvent.click(screen.getByRole("button", { name: "Sign out" }));
 
     // To the static landing, with the signed-in hint gone first so its script
@@ -333,8 +333,10 @@ describe("HeaderSessionChrome's account menu", () => {
   // M38 part 4: the header button is the person's own chip, so a glyph chosen
   // on Account shows up here from the provider's one read. The chip is
   // `aria-hidden` inside a button named "Account menu", so it is read for what
-  // a sighted person sees: the glyph, or the initials.
-  it("draws the chosen glyph on the account button, and initials without one", async () => {
+  // a sighted person sees: the glyph, or the initials. Initials it prints are
+  // in its name as well (WCAG 2.5.3, axe `label-content-name-mismatch`), so a
+  // voice-control user can say them; a glyph prints nothing and adds nothing.
+  it("draws the chosen glyph on the account button, and initials without one, naming what it prints", async () => {
     const { getSession } = await import("next-auth/react");
     vi.mocked(getSession).mockResolvedValueOnce({ user: { name: "Sam K", email: "sam@example.com" }, expires: "" });
     fetchPreferencesMock.mockResolvedValueOnce({
@@ -351,13 +353,14 @@ describe("HeaderSessionChrome's account menu", () => {
       </PreferencesProvider>,
     );
 
-    const button = await screen.findByRole("button", { name: "Account menu" });
+    const button = await screen.findByRole("button", { name: /^Account menu/ });
     await waitFor(() => expect(button.innerHTML).toContain("lucide-compass"));
     expect(button.textContent).toBe("");
+    expect(button.getAttribute("aria-label")).toBe("Account menu");
 
     cleanup();
     render(<AccountMenu name="Sam K" email="sam@example.com" />);
-    expect(screen.getByRole("button", { name: "Account menu" }).textContent).toBe("SK");
+    expect(screen.getByRole("button", { name: "Account menu, SK" }).textContent).toBe("SK");
   });
 
   // With no colour stored, the header chip is the colour every trip draws for
@@ -380,7 +383,7 @@ describe("HeaderSessionChrome's account menu", () => {
       </PreferencesProvider>,
     );
 
-    const button = await screen.findByRole("button", { name: "Account menu" });
+    const button = await screen.findByRole("button", { name: /^Account menu/ });
     await waitFor(() => expect(within(button).getByTestId("person-chip").getAttribute("data-color")).toBe("sky"));
   });
 
@@ -393,7 +396,7 @@ describe("HeaderSessionChrome's account menu", () => {
 
     render(<HeaderSessionChrome />);
 
-    await userEvent.click(await screen.findByRole("button", { name: "Account menu" }));
+    await userEvent.click(await screen.findByRole("button", { name: /^Account menu/ }));
     expect(screen.queryByRole("button", { name: "Reset to demo data" })).toBeNull();
   });
 
@@ -416,7 +419,7 @@ describe("HeaderSessionChrome's account menu", () => {
 
     render(<HeaderSessionChrome demoResetEnabled />);
 
-    await userEvent.click(await screen.findByRole("button", { name: "Account menu" }));
+    await userEvent.click(await screen.findByRole("button", { name: /^Account menu/ }));
     await userEvent.click(screen.getByRole("button", { name: "Reset to demo data" }));
     await userEvent.click(screen.getByRole("button", { name: "Reset" }));
 
@@ -444,7 +447,7 @@ describe("HeaderSessionChrome's account menu", () => {
 
     render(<HeaderSessionChrome demoResetEnabled />);
 
-    await userEvent.click(await screen.findByRole("button", { name: "Account menu" }));
+    await userEvent.click(await screen.findByRole("button", { name: /^Account menu/ }));
     await userEvent.click(screen.getByRole("button", { name: "Reset to demo data" }));
     await userEvent.click(screen.getByRole("button", { name: "Reset" }));
 

@@ -33,7 +33,7 @@ function fireInstallable() {
 }
 
 async function openMenu() {
-  await userEvent.click(screen.getByRole("button", { name: "Account menu" }));
+  await userEvent.click(screen.getByRole("button", { name: /^Account menu/ }));
 }
 
 describe("AccountMenu — Install app", () => {
