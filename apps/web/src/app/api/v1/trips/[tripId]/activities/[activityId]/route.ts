@@ -28,7 +28,7 @@ import { route } from "@/server/public-api/route";
 const PatchStopBody = UpdateActivity.omit({ type: true, tripId: true, activityId: true, placeRef: true })
   .extend({
     // The move half, in the same flat object. `dayId: null` is the backlog.
-    dayId: z.string().uuid().nullable().optional(),
+    dayId: z.string().guid().nullable().optional(),
     position: z.number().int().nonnegative().optional(),
   })
   .strict();

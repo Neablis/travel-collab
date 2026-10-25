@@ -166,7 +166,7 @@ export interface CollectionDef<I = unknown> extends BaseDef {
     // Any input: an item schema with a defaulted field anywhere in it
     // (`TripCover.alt`, inside `DiscoverDay.cover`) takes less than it gives,
     // and only what it gives is published.
-    readonly item: z.ZodType<I, z.ZodTypeDef, unknown>;
+    readonly item: z.ZodType<I, unknown>;
     /**
      * The opaque cursor for an item — whatever the handler orders by.
      *

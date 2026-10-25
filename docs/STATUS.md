@@ -22,8 +22,10 @@ general setup.
 ## Where the work is right now
 
 **M49 — A cover can come from anywhere, and be framed where you want it — is the current
-milestone** (`TODO.md`'s order after M52, M48 skipped as parked; `pnpm milestone close M52`
-moved the marker). It is proposed, not scoped: `docs/milestones/M49-covers-from-anywhere.md`.
+milestone, scoped 2026-10-25** with Mitchell (decisions 4–10 as recommended; ADR-081). Plan:
+`docs/plans/2026-10-25-M49-covers-from-anywhere.md`, four parts. Part 1 (the union and migration
+`0068`) goes first, then parts 2 and 4 in parallel, then part 3. Part 0 is the draft PR from
+`claude/cool-goodall-p53ykz` and merges last.
 
 **M52 closed 2026-10-24, gate 13 of 13**, by `pnpm milestone close M52 --confirm` on part 0
 (PR 529, `claude/serene-tesla-quoyte`). Parts 1–12 merged 2026-10-23/24 (PRs 530–537, 539–542,
@@ -34,9 +36,7 @@ earlier confirmations (Today undeletable on production; part 10's API; part 11 *
 confirmed fixed"*). Evidence, retro and spend are in
 `docs/milestones/M52-the-trip-comes-with-you.md`.
 
-**Next action:** Mitchell's: merge PR 546 (part 12's follow-up: eval place stub, closed stop
-swapped in place, `LandingSea` tab-order bound; head `12e73db`, CI run 40138571257 `ci-ok` green,
-still open at the close), then merge part 0, PR 529. Then plan M49 with him (`plan-a-milestone`).
+**Next action:** build M49's part 1 (`build-a-part`).
 Open follow-ups from M52: KI-2026-10-24-a to -o (`docs/known-issues/open/`). Outside M52:
 PR 491 (dependabot) is red, and GitHub reports 5 dependabot vulnerabilities on `main` (2 high,
 3 moderate). After M49 the order is M43 → M44, with M48 parked.

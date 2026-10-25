@@ -172,7 +172,7 @@ export type BundleTrip = z.infer<typeof BundleTrip>;
  * should not be asked to invent one.
  */
 export const BundleAdd = z.object({
-  tripId: z.string().uuid().optional(),
+  tripId: z.string().guid().optional(),
   addedBy: z.string().min(1),
 });
 export type BundleAdd = z.infer<typeof BundleAdd>;
@@ -198,7 +198,7 @@ export const BundlePlaybook = z.object({
    */
   keptOn: z.string().optional(),
   /** The trip it was lifted out of: a SNAPSHOT of a name, never a row (ADR-028). */
-  sourceTrip: z.object({ id: z.string().uuid().optional(), name: z.string().min(1).max(200) }),
+  sourceTrip: z.object({ id: z.string().guid().optional(), name: z.string().min(1).max(200) }),
   addedBy: z.array(BundleAdd).default([]),
   /**
    * The content revision the playbook was at when this file was written

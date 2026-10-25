@@ -20,10 +20,10 @@ const TripToday = z.object({
   date: z.string().describe("Today's date (`YYYY-MM-DD`) on the trip's clock."),
   timeZone: z.string().describe("The IANA zone `date` is read in: the day's own (the first day's off the trip), else the asker's, else the trip's, else UTC."),
   phase: TripPhaseSchema,
-  dayId: z.string().uuid().nullable().describe("Today's day while the trip is under way; null otherwise."),
+  dayId: z.string().guid().nullable().describe("Today's day while the trip is under way; null otherwise."),
   stops: z.array(ActivityView).describe("Today's stops in the day's order; empty off the trip's days."),
-  now: z.string().uuid().nullable().describe("The stop under way, while the trip is."),
-  next: z.string().uuid().nullable().describe("The next stop to begin, while the trip is under way."),
+  now: z.string().guid().nullable().describe("The stop under way, while the trip is."),
+  next: z.string().guid().nullable().describe("The next stop to begin, while the trip is under way."),
 });
 
 export const { GET } = route({

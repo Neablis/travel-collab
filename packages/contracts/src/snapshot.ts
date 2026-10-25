@@ -16,8 +16,8 @@ const SnapshotName = z.string().trim().min(1).max(SNAPSHOT_NAME_MAX);
 
 /** One saved position in a trip's log, as the snapshot routes serve it. */
 export const TripSnapshot = z.object({
-  id: z.string().uuid(),
-  tripId: z.string().uuid(),
+  id: z.string().guid(),
+  tripId: z.string().guid(),
   /** The head of the trip's stream when it was saved: what a restore reverts to. */
   seq: z.number().int().positive(),
   name: z.string(),

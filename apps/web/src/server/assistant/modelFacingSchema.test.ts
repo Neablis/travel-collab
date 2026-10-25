@@ -46,6 +46,20 @@ describe("what a model reads", () => {
     expect(containsStrictObject(input)).toBe(false);
     expect(await read(nested)).toContain('"additionalProperties":false');
   });
+
+  // zod 4 spells two things differently from zod 3 (PR 561 was the bump); the
+  // model reads them as it always did, so no tool's text moved with the upgrade.
+  it("reads a discriminated union as anyOf and a record without propertyNames", async () => {
+    const json = await read(
+      z.object({
+        anchor: z.discriminatedUnion("kind", [z.object({ kind: z.literal("a") }), z.object({ kind: z.literal("b"), n: z.number() })]),
+        params: z.record(z.string(), z.unknown()),
+      }),
+    );
+    expect(json).toContain('"anyOf"');
+    expect(json).not.toContain('"oneOf"');
+    expect(json).not.toContain('"propertyNames"');
+  });
 });
 
 describe("what the server checks", () => {

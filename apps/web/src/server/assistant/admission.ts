@@ -156,7 +156,7 @@ const AskScopeSchema = z.discriminatedUnion("kind", [
   // schema says it could be a page id, not that it is one. `uuid()` rather than
   // a bare string because `pages.id` is a uuid column: a malformed id would
   // otherwise reach Postgres as a query it cannot run.
-  z.object({ kind: z.literal("page"), pageId: z.string().uuid() }),
+  z.object({ kind: z.literal("page"), pageId: z.string().guid() }),
   // M45. Accepted only at the account door — `resolveSurface` holds each scope
   // to the door it arrived at.
   z.object({ kind: z.literal("account") }),
@@ -167,7 +167,7 @@ const AskScopeSchema = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("playbook"),
     page: z.discriminatedUnion("kind", [
-      z.object({ kind: z.literal("day"), savedDayId: z.string().uuid() }),
+      z.object({ kind: z.literal("day"), savedDayId: z.string().guid() }),
       z.object({ kind: z.literal("discover"), search: DiscoverSearchSchema }),
       z.object({ kind: z.literal("city"), slug: z.string().min(1).max(200), page: ListPageNumber }),
       z.object({

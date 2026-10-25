@@ -6,7 +6,7 @@ import { tripCoverFactory, tripDetailFactory, tripSummaryFactory } from "./trip"
 
 // The standing guard KI-38 did not have. `TripDetail` is a real runtime Zod
 // schema, but the repo only ever imports it as `import type` — and `z.infer` of
-// `z.string().uuid()` is just `string`. So for as long as the factory built
+// `z.string().guid()` is just `string`. So for as long as the factory built
 // malformed uuids for every activity and backlog id, TypeScript was content and
 // nothing at runtime ever looked. This file is the "ever looks" part: it is a
 // VALUE import of the same schema every server response is validated against,

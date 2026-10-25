@@ -209,7 +209,7 @@ function sequenceRefusal(issues: readonly ZodIssue[], sentence: string): string 
       Object.hasOwn(KIND_DETAIL_FIELDS, issue.path[1]),
   );
   if (named.length === 0) return `${sentence}.`;
-  return `${sentence}: ${named.map((issue) => `${issue.message} (stop ${issue.path[0]})`).join("; ")}.`;
+  return `${sentence}: ${named.map((issue) => `${issue.message} (stop ${String(issue.path[0])})`).join("; ")}.`;
 }
 
 /**

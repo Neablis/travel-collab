@@ -10,15 +10,16 @@ function isUuidField(schema: z.ZodTypeAny): boolean {
   let s: z.ZodTypeAny = schema;
   // Unwrap optional/nullable/default wrappers.
   while (s instanceof z.ZodOptional || s instanceof z.ZodNullable || s instanceof z.ZodDefault) {
-    s = s._def.innerType;
+    s = s.unwrap() as z.ZodTypeAny;
   }
   if (!(s instanceof z.ZodString)) return false;
-  return (s._def.checks ?? []).some((c: { kind: string }) => c.kind === "uuid");
+  // The contracts spell an id `z.string().guid()` (zod 3's lenient `.uuid()`).
+  return s.format === "guid" || s.format === "uuid";
 }
 
 describe("ID_FIELDS manifest", () => {
   it("classifies every uuid-bearing command field (except tripId)", () => {
-    for (const option of BatchableCommand.innerType().options) {
+    for (const option of BatchableCommand.options) {
       const type = option.shape.type.value as keyof typeof ID_FIELDS;
       const spec = ID_FIELDS[type];
       for (const [field, fieldSchema] of Object.entries(option.shape)) {
@@ -31,7 +32,7 @@ describe("ID_FIELDS manifest", () => {
   });
 
   it("has an entry for every command type", () => {
-    const types = BatchableCommand.innerType().options.map((o) => o.shape.type.value).sort();
+    const types = BatchableCommand.options.map((o) => o.shape.type.value).sort();
     expect(Object.keys(ID_FIELDS).sort()).toEqual(types);
   });
 });

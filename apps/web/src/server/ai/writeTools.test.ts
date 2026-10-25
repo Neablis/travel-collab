@@ -126,7 +126,7 @@ describe("the write tool set", () => {
   // exception cannot quietly grow a second member.
   it("is the derived planning tool set, plus the one hand-written tool", () => {
     expect(Object.keys(buildWriteTools().tools).sort()).toEqual(
-      [...BatchableCommand.innerType().options.map((o) => o.shape.type.value as string), INSERT_PLAYBOOK_DAY].sort(),
+      [...BatchableCommand.options.map((o) => o.shape.type.value as string), INSERT_PLAYBOOK_DAY].sort(),
     );
   });
 
@@ -492,7 +492,7 @@ describe("describeProposedChange", () => {
   // absent from PHRASES and every row keeps passing while covering less.
   it("covers every BatchableCommand type, with a command the contract accepts", () => {
     const covered = PHRASES.map(([command]) => command.type).sort();
-    const all = BatchableCommand.innerType().options.map((o) => o.shape.type.value as string).sort();
+    const all = BatchableCommand.options.map((o) => o.shape.type.value as string).sort();
     expect(covered).toEqual(all);
     for (const [command] of PHRASES) expect(BatchableCommand.safeParse(command).success).toBe(true);
   });

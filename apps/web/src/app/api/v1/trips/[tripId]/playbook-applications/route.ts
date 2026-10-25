@@ -37,7 +37,7 @@ const Placement = z
         mode: z.literal("startingAt"),
         dayId: z
           .string()
-          .uuid()
+          .guid()
           .describe("A day already in the trip. The Playbook's day 0 goes onto it, day 1 onto the next, and so on."),
       })
       .strict(),
@@ -50,7 +50,7 @@ const Placement = z
   );
 
 const Body = z.object({
-  playbookId: z.string().uuid(),
+  playbookId: z.string().guid(),
   version: z
     .number()
     .int()
@@ -72,20 +72,20 @@ const Body = z.object({
 type Body = z.infer<typeof Body>;
 
 const Application = z.object({
-  tripId: z.string().uuid(),
-  playbookId: z.string().uuid(),
+  tripId: z.string().guid(),
+  playbookId: z.string().guid(),
   playbookVersion: z.number().int().positive().describe("The Playbook `version` that was applied."),
   dayIds: z
-    .array(z.string().uuid())
+    .array(z.string().guid())
     .describe(
       "Per Playbook day, in order, the trip day it landed on — new days on an append; existing days, " +
         "then any new ones, on a `startingAt` merge. Empty days included.",
     ),
   createdDayIds: z
-    .array(z.string().uuid())
+    .array(z.string().guid())
     .describe("Only the days this application added, in order. Equal to `dayIds` on an append."),
   activityIds: z
-    .array(z.string().uuid())
+    .array(z.string().guid())
     .describe("The new stops' ids, in the same order as the Playbook's `stops`."),
   historySeq: z
     .number()

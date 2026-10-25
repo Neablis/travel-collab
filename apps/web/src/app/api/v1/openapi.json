@@ -221,9 +221,9 @@
             "schema": {
               "type": "string",
               "enum": [
-                "any",
                 "3",
                 "4",
+                "any",
                 "4.5"
               ],
               "description": "Minimum average rating; any floor drops unrated Playbooks. Default any."
@@ -316,6 +316,7 @@
                             "nullable": true
                           },
                           "preview": {
+                            "maxItems": 12,
                             "type": "array",
                             "items": {
                               "type": "object",
@@ -333,8 +334,7 @@
                                 "start"
                               ],
                               "additionalProperties": false
-                            },
-                            "maxItems": 12
+                            }
                           },
                           "totalCost": {
                             "type": "object",
@@ -538,11 +538,6 @@
                             ],
                             "nullable": true
                           },
-                          "description": {
-                            "type": "string",
-                            "nullable": true,
-                            "default": null
-                          },
                           "tags": {
                             "type": "array",
                             "items": {
@@ -565,6 +560,11 @@
                               ]
                             },
                             "default": []
+                          },
+                          "description": {
+                            "type": "string",
+                            "nullable": true,
+                            "default": null
                           }
                         },
                         "required": [
@@ -708,14 +708,14 @@
                                 "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
                               },
                               "lines": {
+                                "minItems": 1,
+                                "maxItems": 4,
                                 "type": "array",
                                 "items": {
                                   "type": "string",
                                   "minLength": 1,
                                   "maxLength": 200
                                 },
-                                "minItems": 1,
-                                "maxItems": 4,
                                 "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
                               },
                               "dependentLocality": {
@@ -892,14 +892,14 @@
                                     "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
                                   },
                                   "lines": {
+                                    "minItems": 1,
+                                    "maxItems": 4,
                                     "type": "array",
                                     "items": {
                                       "type": "string",
                                       "minLength": 1,
                                       "maxLength": 200
                                     },
-                                    "minItems": 1,
-                                    "maxItems": 4,
                                     "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
                                   },
                                   "dependentLocality": {
@@ -958,6 +958,7 @@
                                       ]
                                     },
                                     "days": {
+                                      "minItems": 1,
                                       "type": "array",
                                       "items": {
                                         "type": "string",
@@ -970,8 +971,7 @@
                                           "sat",
                                           "sun"
                                         ]
-                                      },
-                                      "minItems": 1
+                                      }
                                     }
                                   },
                                   "required": [
@@ -1182,14 +1182,14 @@
                                     "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
                                   },
                                   "lines": {
+                                    "minItems": 1,
+                                    "maxItems": 4,
                                     "type": "array",
                                     "items": {
                                       "type": "string",
                                       "minLength": 1,
                                       "maxLength": 200
                                     },
-                                    "minItems": 1,
-                                    "maxItems": 4,
                                     "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
                                   },
                                   "dependentLocality": {
@@ -1468,14 +1468,14 @@
                                     "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
                                   },
                                   "lines": {
+                                    "minItems": 1,
+                                    "maxItems": 4,
                                     "type": "array",
                                     "items": {
                                       "type": "string",
                                       "minLength": 1,
                                       "maxLength": 200
                                     },
-                                    "minItems": 1,
-                                    "maxItems": 4,
                                     "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
                                   },
                                   "dependentLocality": {
@@ -1534,6 +1534,7 @@
                                       ]
                                     },
                                     "days": {
+                                      "minItems": 1,
                                       "type": "array",
                                       "items": {
                                         "type": "string",
@@ -1546,8 +1547,7 @@
                                           "sat",
                                           "sun"
                                         ]
-                                      },
-                                      "minItems": 1
+                                      }
                                     }
                                   },
                                   "required": [
@@ -1758,14 +1758,14 @@
                                     "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
                                   },
                                   "lines": {
+                                    "minItems": 1,
+                                    "maxItems": 4,
                                     "type": "array",
                                     "items": {
                                       "type": "string",
                                       "minLength": 1,
                                       "maxLength": 200
                                     },
-                                    "minItems": 1,
-                                    "maxItems": 4,
                                     "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
                                   },
                                   "dependentLocality": {
@@ -2096,14 +2096,14 @@
                                           "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
                                         },
                                         "lines": {
+                                          "minItems": 1,
+                                          "maxItems": 4,
                                           "type": "array",
                                           "items": {
                                             "type": "string",
                                             "minLength": 1,
                                             "maxLength": 200
                                           },
-                                          "minItems": 1,
-                                          "maxItems": 4,
                                           "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
                                         },
                                         "dependentLocality": {
@@ -2162,6 +2162,7 @@
                                             ]
                                           },
                                           "days": {
+                                            "minItems": 1,
                                             "type": "array",
                                             "items": {
                                               "type": "string",
@@ -2174,8 +2175,7 @@
                                                 "sat",
                                                 "sun"
                                               ]
-                                            },
-                                            "minItems": 1
+                                            }
                                           }
                                         },
                                         "required": [
@@ -2386,14 +2386,14 @@
                                           "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
                                         },
                                         "lines": {
+                                          "minItems": 1,
+                                          "maxItems": 4,
                                           "type": "array",
                                           "items": {
                                             "type": "string",
                                             "minLength": 1,
                                             "maxLength": 200
                                           },
-                                          "minItems": 1,
-                                          "maxItems": 4,
                                           "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
                                         },
                                         "dependentLocality": {
@@ -2677,14 +2677,14 @@
                                     "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
                                   },
                                   "lines": {
+                                    "minItems": 1,
+                                    "maxItems": 4,
                                     "type": "array",
                                     "items": {
                                       "type": "string",
                                       "minLength": 1,
                                       "maxLength": 200
                                     },
-                                    "minItems": 1,
-                                    "maxItems": 4,
                                     "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
                                   },
                                   "dependentLocality": {
@@ -2743,6 +2743,7 @@
                                       ]
                                     },
                                     "days": {
+                                      "minItems": 1,
                                       "type": "array",
                                       "items": {
                                         "type": "string",
@@ -2755,8 +2756,7 @@
                                           "sat",
                                           "sun"
                                         ]
-                                      },
-                                      "minItems": 1
+                                      }
                                     }
                                   },
                                   "required": [
@@ -2967,14 +2967,14 @@
                                     "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
                                   },
                                   "lines": {
+                                    "minItems": 1,
+                                    "maxItems": 4,
                                     "type": "array",
                                     "items": {
                                       "type": "string",
                                       "minLength": 1,
                                       "maxLength": 200
                                     },
-                                    "minItems": 1,
-                                    "maxItems": 4,
                                     "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
                                   },
                                   "dependentLocality": {
@@ -3200,10 +3200,6 @@
                           "minLength": 1,
                           "maxLength": 200
                         },
-                        "description": {
-                          "type": "string",
-                          "maxLength": 1000
-                        },
                         "origin": {
                           "type": "string",
                           "enum": [
@@ -3220,6 +3216,10 @@
                         },
                         "generatedAt": {
                           "type": "string"
+                        },
+                        "description": {
+                          "type": "string",
+                          "maxLength": 1000
                         }
                       },
                       "required": [
@@ -3231,12 +3231,14 @@
                     },
                     "trips": {
                       "type": "array",
-                      "minItems": 0,
-                      "maxItems": 0,
                       "items": {},
+                      "maxItems": 0,
+                      "minItems": 0,
                       "default": []
                     },
                     "playbooks": {
+                      "minItems": 1,
+                      "maxItems": 1,
                       "type": "array",
                       "items": {
                         "type": "object",
@@ -3322,6 +3324,7 @@
                             "minimum": 1
                           },
                           "stops": {
+                            "minItems": 1,
                             "type": "array",
                             "items": {
                               "type": "object",
@@ -3401,14 +3404,14 @@
                                           "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
                                         },
                                         "lines": {
+                                          "minItems": 1,
+                                          "maxItems": 4,
                                           "type": "array",
                                           "items": {
                                             "type": "string",
                                             "minLength": 1,
                                             "maxLength": 200
                                           },
-                                          "minItems": 1,
-                                          "maxItems": 4,
                                           "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
                                         },
                                         "dependentLocality": {
@@ -3466,6 +3469,7 @@
                                             ]
                                           },
                                           "days": {
+                                            "minItems": 1,
                                             "type": "array",
                                             "items": {
                                               "type": "string",
@@ -3478,8 +3482,7 @@
                                                 "sat",
                                                 "sun"
                                               ]
-                                            },
-                                            "minItems": 1
+                                            }
                                           }
                                         },
                                         "required": [
@@ -3682,14 +3685,14 @@
                                           "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
                                         },
                                         "lines": {
+                                          "minItems": 1,
+                                          "maxItems": 4,
                                           "type": "array",
                                           "items": {
                                             "type": "string",
                                             "minLength": 1,
                                             "maxLength": 200
                                           },
-                                          "minItems": 1,
-                                          "maxItems": 4,
                                           "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
                                         },
                                         "dependentLocality": {
@@ -3746,10 +3749,10 @@
                                 "title"
                               ],
                               "additionalProperties": false
-                            },
-                            "minItems": 1
+                            }
                           },
                           "days": {
+                            "minItems": 1,
                             "type": "array",
                             "items": {
                               "type": "object",
@@ -3839,14 +3842,14 @@
                                                 "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
                                               },
                                               "lines": {
+                                                "minItems": 1,
+                                                "maxItems": 4,
                                                 "type": "array",
                                                 "items": {
                                                   "type": "string",
                                                   "minLength": 1,
                                                   "maxLength": 200
                                                 },
-                                                "minItems": 1,
-                                                "maxItems": 4,
                                                 "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
                                               },
                                               "dependentLocality": {
@@ -3904,6 +3907,7 @@
                                                   ]
                                                 },
                                                 "days": {
+                                                  "minItems": 1,
                                                   "type": "array",
                                                   "items": {
                                                     "type": "string",
@@ -3916,8 +3920,7 @@
                                                       "sat",
                                                       "sun"
                                                     ]
-                                                  },
-                                                  "minItems": 1
+                                                  }
                                                 }
                                               },
                                               "required": [
@@ -4120,14 +4123,14 @@
                                                 "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
                                               },
                                               "lines": {
+                                                "minItems": 1,
+                                                "maxItems": 4,
                                                 "type": "array",
                                                 "items": {
                                                   "type": "string",
                                                   "minLength": 1,
                                                   "maxLength": 200
                                                 },
-                                                "minItems": 1,
-                                                "maxItems": 4,
                                                 "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
                                               },
                                               "dependentLocality": {
@@ -4191,8 +4194,7 @@
                                 "stops"
                               ],
                               "additionalProperties": false
-                            },
-                            "minItems": 1
+                            }
                           }
                         },
                         "required": [
@@ -4202,22 +4204,20 @@
                           "sourceTrip"
                         ],
                         "additionalProperties": false
-                      },
-                      "minItems": 1,
-                      "maxItems": 1
+                      }
                     },
                     "notebooks": {
                       "type": "array",
-                      "minItems": 0,
-                      "maxItems": 0,
                       "items": {},
+                      "maxItems": 0,
+                      "minItems": 0,
                       "default": []
                     },
                     "activities": {
                       "type": "array",
-                      "minItems": 0,
-                      "maxItems": 0,
                       "items": {},
+                      "maxItems": 0,
+                      "minItems": 0,
                       "default": []
                     }
                   },
@@ -4358,14 +4358,14 @@
                                     "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
                                   },
                                   "lines": {
+                                    "minItems": 1,
+                                    "maxItems": 4,
                                     "type": "array",
                                     "items": {
                                       "type": "string",
                                       "minLength": 1,
                                       "maxLength": 200
                                     },
-                                    "minItems": 1,
-                                    "maxItems": 4,
                                     "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
                                   },
                                   "dependentLocality": {
@@ -4424,6 +4424,7 @@
                                       ]
                                     },
                                     "days": {
+                                      "minItems": 1,
                                       "type": "array",
                                       "items": {
                                         "type": "string",
@@ -4436,8 +4437,7 @@
                                           "sat",
                                           "sun"
                                         ]
-                                      },
-                                      "minItems": 1
+                                      }
                                     }
                                   },
                                   "required": [
@@ -4648,14 +4648,14 @@
                                     "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
                                   },
                                   "lines": {
+                                    "minItems": 1,
+                                    "maxItems": 4,
                                     "type": "array",
                                     "items": {
                                       "type": "string",
                                       "minLength": 1,
                                       "maxLength": 200
                                     },
-                                    "minItems": 1,
-                                    "maxItems": 4,
                                     "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
                                   },
                                   "dependentLocality": {
@@ -4854,6 +4854,8 @@
                     ]
                   },
                   "days": {
+                    "minItems": 1,
+                    "maxItems": 366,
                     "type": "array",
                     "items": {
                       "type": "object",
@@ -4939,14 +4941,14 @@
                                         "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
                                       },
                                       "lines": {
+                                        "minItems": 1,
+                                        "maxItems": 4,
                                         "type": "array",
                                         "items": {
                                           "type": "string",
                                           "minLength": 1,
                                           "maxLength": 200
                                         },
-                                        "minItems": 1,
-                                        "maxItems": 4,
                                         "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
                                       },
                                       "dependentLocality": {
@@ -5006,6 +5008,7 @@
                                           ]
                                         },
                                         "days": {
+                                          "minItems": 1,
                                           "type": "array",
                                           "items": {
                                             "type": "string",
@@ -5018,8 +5021,7 @@
                                               "sat",
                                               "sun"
                                             ]
-                                          },
-                                          "minItems": 1
+                                          }
                                         }
                                       },
                                       "required": [
@@ -5225,14 +5227,14 @@
                                         "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
                                       },
                                       "lines": {
+                                        "minItems": 1,
+                                        "maxItems": 4,
                                         "type": "array",
                                         "items": {
                                           "type": "string",
                                           "minLength": 1,
                                           "maxLength": 200
                                         },
-                                        "minItems": 1,
-                                        "maxItems": 4,
                                         "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
                                       },
                                       "dependentLocality": {
@@ -5308,8 +5310,6 @@
                       ],
                       "additionalProperties": false
                     },
-                    "minItems": 1,
-                    "maxItems": 366,
                     "description": "Replaces every day and stop. Only while the Playbook is private."
                   },
                   "expectedVersion": {
@@ -5426,14 +5426,14 @@
                                         "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
                                       },
                                       "lines": {
+                                        "minItems": 1,
+                                        "maxItems": 4,
                                         "type": "array",
                                         "items": {
                                           "type": "string",
                                           "minLength": 1,
                                           "maxLength": 200
                                         },
-                                        "minItems": 1,
-                                        "maxItems": 4,
                                         "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
                                       },
                                       "dependentLocality": {
@@ -5492,6 +5492,7 @@
                                           ]
                                         },
                                         "days": {
+                                          "minItems": 1,
                                           "type": "array",
                                           "items": {
                                             "type": "string",
@@ -5504,8 +5505,7 @@
                                               "sat",
                                               "sun"
                                             ]
-                                          },
-                                          "minItems": 1
+                                          }
                                         }
                                       },
                                       "required": [
@@ -5716,14 +5716,14 @@
                                         "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
                                       },
                                       "lines": {
+                                        "minItems": 1,
+                                        "maxItems": 4,
                                         "type": "array",
                                         "items": {
                                           "type": "string",
                                           "minLength": 1,
                                           "maxLength": 200
                                         },
-                                        "minItems": 1,
-                                        "maxItems": 4,
                                         "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
                                       },
                                       "dependentLocality": {
@@ -6018,10 +6018,6 @@
                         "minLength": 1,
                         "maxLength": 200
                       },
-                      "description": {
-                        "type": "string",
-                        "maxLength": 1000
-                      },
                       "origin": {
                         "type": "string",
                         "enum": [
@@ -6038,6 +6034,10 @@
                       },
                       "generatedAt": {
                         "type": "string"
+                      },
+                      "description": {
+                        "type": "string",
+                        "maxLength": 1000
                       }
                     },
                     "required": [
@@ -6139,6 +6139,7 @@
                           "minimum": 1
                         },
                         "stops": {
+                          "minItems": 1,
                           "type": "array",
                           "items": {
                             "type": "object",
@@ -6218,14 +6219,14 @@
                                         "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
                                       },
                                       "lines": {
+                                        "minItems": 1,
+                                        "maxItems": 4,
                                         "type": "array",
                                         "items": {
                                           "type": "string",
                                           "minLength": 1,
                                           "maxLength": 200
                                         },
-                                        "minItems": 1,
-                                        "maxItems": 4,
                                         "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
                                       },
                                       "dependentLocality": {
@@ -6283,6 +6284,7 @@
                                           ]
                                         },
                                         "days": {
+                                          "minItems": 1,
                                           "type": "array",
                                           "items": {
                                             "type": "string",
@@ -6295,8 +6297,7 @@
                                               "sat",
                                               "sun"
                                             ]
-                                          },
-                                          "minItems": 1
+                                          }
                                         }
                                       },
                                       "required": [
@@ -6499,14 +6500,14 @@
                                         "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
                                       },
                                       "lines": {
+                                        "minItems": 1,
+                                        "maxItems": 4,
                                         "type": "array",
                                         "items": {
                                           "type": "string",
                                           "minLength": 1,
                                           "maxLength": 200
                                         },
-                                        "minItems": 1,
-                                        "maxItems": 4,
                                         "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
                                       },
                                       "dependentLocality": {
@@ -6563,10 +6564,10 @@
                               "title"
                             ],
                             "additionalProperties": false
-                          },
-                          "minItems": 1
+                          }
                         },
                         "days": {
+                          "minItems": 1,
                           "type": "array",
                           "items": {
                             "type": "object",
@@ -6656,14 +6657,14 @@
                                               "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
                                             },
                                             "lines": {
+                                              "minItems": 1,
+                                              "maxItems": 4,
                                               "type": "array",
                                               "items": {
                                                 "type": "string",
                                                 "minLength": 1,
                                                 "maxLength": 200
                                               },
-                                              "minItems": 1,
-                                              "maxItems": 4,
                                               "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
                                             },
                                             "dependentLocality": {
@@ -6721,6 +6722,7 @@
                                                 ]
                                               },
                                               "days": {
+                                                "minItems": 1,
                                                 "type": "array",
                                                 "items": {
                                                   "type": "string",
@@ -6733,8 +6735,7 @@
                                                     "sat",
                                                     "sun"
                                                   ]
-                                                },
-                                                "minItems": 1
+                                                }
                                               }
                                             },
                                             "required": [
@@ -6937,14 +6938,14 @@
                                               "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
                                             },
                                             "lines": {
+                                              "minItems": 1,
+                                              "maxItems": 4,
                                               "type": "array",
                                               "items": {
                                                 "type": "string",
                                                 "minLength": 1,
                                                 "maxLength": 200
                                               },
-                                              "minItems": 1,
-                                              "maxItems": 4,
                                               "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
                                             },
                                             "dependentLocality": {
@@ -7008,8 +7009,7 @@
                               "stops"
                             ],
                             "additionalProperties": false
-                          },
-                          "minItems": 1
+                          }
                         }
                       },
                       "required": [
@@ -7143,14 +7143,14 @@
                                         "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
                                       },
                                       "lines": {
+                                        "minItems": 1,
+                                        "maxItems": 4,
                                         "type": "array",
                                         "items": {
                                           "type": "string",
                                           "minLength": 1,
                                           "maxLength": 200
                                         },
-                                        "minItems": 1,
-                                        "maxItems": 4,
                                         "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
                                       },
                                       "dependentLocality": {
@@ -7209,6 +7209,7 @@
                                           ]
                                         },
                                         "days": {
+                                          "minItems": 1,
                                           "type": "array",
                                           "items": {
                                             "type": "string",
@@ -7221,8 +7222,7 @@
                                               "sat",
                                               "sun"
                                             ]
-                                          },
-                                          "minItems": 1
+                                          }
                                         }
                                       },
                                       "required": [
@@ -7433,14 +7433,14 @@
                                         "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
                                       },
                                       "lines": {
+                                        "minItems": 1,
+                                        "maxItems": 4,
                                         "type": "array",
                                         "items": {
                                           "type": "string",
                                           "minLength": 1,
                                           "maxLength": 200
                                         },
-                                        "minItems": 1,
-                                        "maxItems": 4,
                                         "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
                                       },
                                       "dependentLocality": {
@@ -7816,14 +7816,14 @@
                                           "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
                                         },
                                         "lines": {
+                                          "minItems": 1,
+                                          "maxItems": 4,
                                           "type": "array",
                                           "items": {
                                             "type": "string",
                                             "minLength": 1,
                                             "maxLength": 200
                                           },
-                                          "minItems": 1,
-                                          "maxItems": 4,
                                           "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
                                         },
                                         "dependentLocality": {
@@ -7882,6 +7882,7 @@
                                             ]
                                           },
                                           "days": {
+                                            "minItems": 1,
                                             "type": "array",
                                             "items": {
                                               "type": "string",
@@ -7894,8 +7895,7 @@
                                                 "sat",
                                                 "sun"
                                               ]
-                                            },
-                                            "minItems": 1
+                                            }
                                           }
                                         },
                                         "required": [
@@ -8106,14 +8106,14 @@
                                           "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
                                         },
                                         "lines": {
+                                          "minItems": 1,
+                                          "maxItems": 4,
                                           "type": "array",
                                           "items": {
                                             "type": "string",
                                             "minLength": 1,
                                             "maxLength": 200
                                           },
-                                          "minItems": 1,
-                                          "maxItems": 4,
                                           "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
                                         },
                                         "dependentLocality": {
@@ -8323,6 +8323,8 @@
                             "format": "uuid"
                           },
                           "days": {
+                            "minItems": 1,
+                            "maxItems": 366,
                             "type": "array",
                             "items": {
                               "type": "object",
@@ -8345,8 +8347,6 @@
                               ],
                               "additionalProperties": false
                             },
-                            "minItems": 1,
-                            "maxItems": 366,
                             "description": "The days to keep, in the order the Playbook will run them."
                           }
                         },
@@ -8383,6 +8383,8 @@
                         "description": "Credited as the Playbook's source. Defaults to `name`."
                       },
                       "days": {
+                        "minItems": 1,
+                        "maxItems": 366,
                         "type": "array",
                         "items": {
                           "type": "object",
@@ -8468,14 +8470,14 @@
                                             "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
                                           },
                                           "lines": {
+                                            "minItems": 1,
+                                            "maxItems": 4,
                                             "type": "array",
                                             "items": {
                                               "type": "string",
                                               "minLength": 1,
                                               "maxLength": 200
                                             },
-                                            "minItems": 1,
-                                            "maxItems": 4,
                                             "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
                                           },
                                           "dependentLocality": {
@@ -8535,6 +8537,7 @@
                                               ]
                                             },
                                             "days": {
+                                              "minItems": 1,
                                               "type": "array",
                                               "items": {
                                                 "type": "string",
@@ -8547,8 +8550,7 @@
                                                   "sat",
                                                   "sun"
                                                 ]
-                                              },
-                                              "minItems": 1
+                                              }
                                             }
                                           },
                                           "required": [
@@ -8754,14 +8756,14 @@
                                             "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
                                           },
                                           "lines": {
+                                            "minItems": 1,
+                                            "maxItems": 4,
                                             "type": "array",
                                             "items": {
                                               "type": "string",
                                               "minLength": 1,
                                               "maxLength": 200
                                             },
-                                            "minItems": 1,
-                                            "maxItems": 4,
                                             "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
                                           },
                                           "dependentLocality": {
@@ -8836,9 +8838,7 @@
                             "stops"
                           ],
                           "additionalProperties": false
-                        },
-                        "minItems": 1,
-                        "maxItems": 366
+                        }
                       }
                     },
                     "required": [
@@ -8964,14 +8964,14 @@
                                         "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
                                       },
                                       "lines": {
+                                        "minItems": 1,
+                                        "maxItems": 4,
                                         "type": "array",
                                         "items": {
                                           "type": "string",
                                           "minLength": 1,
                                           "maxLength": 200
                                         },
-                                        "minItems": 1,
-                                        "maxItems": 4,
                                         "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
                                       },
                                       "dependentLocality": {
@@ -9030,6 +9030,7 @@
                                           ]
                                         },
                                         "days": {
+                                          "minItems": 1,
                                           "type": "array",
                                           "items": {
                                             "type": "string",
@@ -9042,8 +9043,7 @@
                                               "sat",
                                               "sun"
                                             ]
-                                          },
-                                          "minItems": 1
+                                          }
                                         }
                                       },
                                       "required": [
@@ -9254,14 +9254,14 @@
                                         "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
                                       },
                                       "lines": {
+                                        "minItems": 1,
+                                        "maxItems": 4,
                                         "type": "array",
                                         "items": {
                                           "type": "string",
                                           "minLength": 1,
                                           "maxLength": 200
                                         },
-                                        "minItems": 1,
-                                        "maxItems": 4,
                                         "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
                                       },
                                       "dependentLocality": {
@@ -9575,14 +9575,14 @@
                             "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
                           },
                           "lines": {
+                            "minItems": 1,
+                            "maxItems": 4,
                             "type": "array",
                             "items": {
                               "type": "string",
                               "minLength": 1,
                               "maxLength": 200
                             },
-                            "minItems": 1,
-                            "maxItems": 4,
                             "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
                           },
                           "dependentLocality": {
@@ -9642,6 +9642,7 @@
                               ]
                             },
                             "days": {
+                              "minItems": 1,
                               "type": "array",
                               "items": {
                                 "type": "string",
@@ -9654,8 +9655,7 @@
                                   "sat",
                                   "sun"
                                 ]
-                              },
-                              "minItems": 1
+                              }
                             }
                           },
                           "required": [
@@ -9863,14 +9863,14 @@
                             "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
                           },
                           "lines": {
+                            "minItems": 1,
+                            "maxItems": 4,
                             "type": "array",
                             "items": {
                               "type": "string",
                               "minLength": 1,
                               "maxLength": 200
                             },
-                            "minItems": 1,
-                            "maxItems": 4,
                             "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
                           },
                           "dependentLocality": {
@@ -10006,6 +10006,7 @@
                       "nullable": true
                     },
                     "members": {
+                      "minItems": 1,
                       "type": "array",
                       "items": {
                         "type": "object",
@@ -10032,8 +10033,7 @@
                           "role"
                         ],
                         "additionalProperties": false
-                      },
-                      "minItems": 1
+                      }
                     },
                     "forkedFrom": {
                       "type": "object",
@@ -10191,14 +10191,14 @@
                                     "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
                                   },
                                   "lines": {
+                                    "minItems": 1,
+                                    "maxItems": 4,
                                     "type": "array",
                                     "items": {
                                       "type": "string",
                                       "minLength": 1,
                                       "maxLength": 200
                                     },
-                                    "minItems": 1,
-                                    "maxItems": 4,
                                     "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
                                   },
                                   "dependentLocality": {
@@ -10257,6 +10257,7 @@
                                       ]
                                     },
                                     "days": {
+                                      "minItems": 1,
                                       "type": "array",
                                       "items": {
                                         "type": "string",
@@ -10269,8 +10270,7 @@
                                           "sat",
                                           "sun"
                                         ]
-                                      },
-                                      "minItems": 1
+                                      }
                                     }
                                   },
                                   "required": [
@@ -10496,14 +10496,14 @@
                                     "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
                                   },
                                   "lines": {
+                                    "minItems": 1,
+                                    "maxItems": 4,
                                     "type": "array",
                                     "items": {
                                       "type": "string",
                                       "minLength": 1,
                                       "maxLength": 200
                                     },
-                                    "minItems": 1,
-                                    "maxItems": 4,
                                     "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
                                   },
                                   "dependentLocality": {
@@ -10597,14 +10597,14 @@
                               "type": "string"
                             }
                           },
-                          "description": {
-                            "type": "string"
-                          },
                           "resolutions": {
                             "type": "array",
                             "items": {
                               "type": "string"
                             }
+                          },
+                          "description": {
+                            "type": "string"
                           }
                         },
                         "required": [
@@ -10743,6 +10743,7 @@
                       "nullable": true
                     },
                     "members": {
+                      "minItems": 1,
                       "type": "array",
                       "items": {
                         "type": "object",
@@ -10769,8 +10770,7 @@
                           "role"
                         ],
                         "additionalProperties": false
-                      },
-                      "minItems": 1
+                      }
                     },
                     "forkedFrom": {
                       "type": "object",
@@ -10928,14 +10928,14 @@
                                     "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
                                   },
                                   "lines": {
+                                    "minItems": 1,
+                                    "maxItems": 4,
                                     "type": "array",
                                     "items": {
                                       "type": "string",
                                       "minLength": 1,
                                       "maxLength": 200
                                     },
-                                    "minItems": 1,
-                                    "maxItems": 4,
                                     "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
                                   },
                                   "dependentLocality": {
@@ -10994,6 +10994,7 @@
                                       ]
                                     },
                                     "days": {
+                                      "minItems": 1,
                                       "type": "array",
                                       "items": {
                                         "type": "string",
@@ -11006,8 +11007,7 @@
                                           "sat",
                                           "sun"
                                         ]
-                                      },
-                                      "minItems": 1
+                                      }
                                     }
                                   },
                                   "required": [
@@ -11233,14 +11233,14 @@
                                     "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
                                   },
                                   "lines": {
+                                    "minItems": 1,
+                                    "maxItems": 4,
                                     "type": "array",
                                     "items": {
                                       "type": "string",
                                       "minLength": 1,
                                       "maxLength": 200
                                     },
-                                    "minItems": 1,
-                                    "maxItems": 4,
                                     "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
                                   },
                                   "dependentLocality": {
@@ -11334,14 +11334,14 @@
                               "type": "string"
                             }
                           },
-                          "description": {
-                            "type": "string"
-                          },
                           "resolutions": {
                             "type": "array",
                             "items": {
                               "type": "string"
                             }
+                          },
+                          "description": {
+                            "type": "string"
                           }
                         },
                         "required": [
@@ -11521,14 +11521,14 @@
                             "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
                           },
                           "lines": {
+                            "minItems": 1,
+                            "maxItems": 4,
                             "type": "array",
                             "items": {
                               "type": "string",
                               "minLength": 1,
                               "maxLength": 200
                             },
-                            "minItems": 1,
-                            "maxItems": 4,
                             "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
                           },
                           "dependentLocality": {
@@ -11586,6 +11586,7 @@
                               ]
                             },
                             "days": {
+                              "minItems": 1,
                               "type": "array",
                               "items": {
                                 "type": "string",
@@ -11598,8 +11599,7 @@
                                   "sat",
                                   "sun"
                                 ]
-                              },
-                              "minItems": 1
+                              }
                             }
                           },
                           "required": [
@@ -11805,14 +11805,14 @@
                             "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
                           },
                           "lines": {
+                            "minItems": 1,
+                            "maxItems": 4,
                             "type": "array",
                             "items": {
                               "type": "string",
                               "minLength": 1,
                               "maxLength": 200
                             },
-                            "minItems": 1,
-                            "maxItems": 4,
                             "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
                           },
                           "dependentLocality": {
@@ -11939,6 +11939,7 @@
                       "nullable": true
                     },
                     "members": {
+                      "minItems": 1,
                       "type": "array",
                       "items": {
                         "type": "object",
@@ -11965,8 +11966,7 @@
                           "role"
                         ],
                         "additionalProperties": false
-                      },
-                      "minItems": 1
+                      }
                     },
                     "forkedFrom": {
                       "type": "object",
@@ -12124,14 +12124,14 @@
                                     "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
                                   },
                                   "lines": {
+                                    "minItems": 1,
+                                    "maxItems": 4,
                                     "type": "array",
                                     "items": {
                                       "type": "string",
                                       "minLength": 1,
                                       "maxLength": 200
                                     },
-                                    "minItems": 1,
-                                    "maxItems": 4,
                                     "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
                                   },
                                   "dependentLocality": {
@@ -12190,6 +12190,7 @@
                                       ]
                                     },
                                     "days": {
+                                      "minItems": 1,
                                       "type": "array",
                                       "items": {
                                         "type": "string",
@@ -12202,8 +12203,7 @@
                                           "sat",
                                           "sun"
                                         ]
-                                      },
-                                      "minItems": 1
+                                      }
                                     }
                                   },
                                   "required": [
@@ -12429,14 +12429,14 @@
                                     "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
                                   },
                                   "lines": {
+                                    "minItems": 1,
+                                    "maxItems": 4,
                                     "type": "array",
                                     "items": {
                                       "type": "string",
                                       "minLength": 1,
                                       "maxLength": 200
                                     },
-                                    "minItems": 1,
-                                    "maxItems": 4,
                                     "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
                                   },
                                   "dependentLocality": {
@@ -12530,14 +12530,14 @@
                               "type": "string"
                             }
                           },
-                          "description": {
-                            "type": "string"
-                          },
                           "resolutions": {
                             "type": "array",
                             "items": {
                               "type": "string"
                             }
+                          },
+                          "description": {
+                            "type": "string"
                           }
                         },
                         "required": [
@@ -12678,6 +12678,7 @@
                       "nullable": true
                     },
                     "members": {
+                      "minItems": 1,
                       "type": "array",
                       "items": {
                         "type": "object",
@@ -12704,8 +12705,7 @@
                           "role"
                         ],
                         "additionalProperties": false
-                      },
-                      "minItems": 1
+                      }
                     },
                     "forkedFrom": {
                       "type": "object",
@@ -12863,14 +12863,14 @@
                                     "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
                                   },
                                   "lines": {
+                                    "minItems": 1,
+                                    "maxItems": 4,
                                     "type": "array",
                                     "items": {
                                       "type": "string",
                                       "minLength": 1,
                                       "maxLength": 200
                                     },
-                                    "minItems": 1,
-                                    "maxItems": 4,
                                     "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
                                   },
                                   "dependentLocality": {
@@ -12929,6 +12929,7 @@
                                       ]
                                     },
                                     "days": {
+                                      "minItems": 1,
                                       "type": "array",
                                       "items": {
                                         "type": "string",
@@ -12941,8 +12942,7 @@
                                           "sat",
                                           "sun"
                                         ]
-                                      },
-                                      "minItems": 1
+                                      }
                                     }
                                   },
                                   "required": [
@@ -13168,14 +13168,14 @@
                                     "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
                                   },
                                   "lines": {
+                                    "minItems": 1,
+                                    "maxItems": 4,
                                     "type": "array",
                                     "items": {
                                       "type": "string",
                                       "minLength": 1,
                                       "maxLength": 200
                                     },
-                                    "minItems": 1,
-                                    "maxItems": 4,
                                     "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
                                   },
                                   "dependentLocality": {
@@ -13269,14 +13269,14 @@
                               "type": "string"
                             }
                           },
-                          "description": {
-                            "type": "string"
-                          },
                           "resolutions": {
                             "type": "array",
                             "items": {
                               "type": "string"
                             }
+                          },
+                          "description": {
+                            "type": "string"
                           }
                         },
                         "required": [
@@ -13417,6 +13417,7 @@
                       "nullable": true
                     },
                     "members": {
+                      "minItems": 1,
                       "type": "array",
                       "items": {
                         "type": "object",
@@ -13443,8 +13444,7 @@
                           "role"
                         ],
                         "additionalProperties": false
-                      },
-                      "minItems": 1
+                      }
                     },
                     "forkedFrom": {
                       "type": "object",
@@ -13602,14 +13602,14 @@
                                     "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
                                   },
                                   "lines": {
+                                    "minItems": 1,
+                                    "maxItems": 4,
                                     "type": "array",
                                     "items": {
                                       "type": "string",
                                       "minLength": 1,
                                       "maxLength": 200
                                     },
-                                    "minItems": 1,
-                                    "maxItems": 4,
                                     "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
                                   },
                                   "dependentLocality": {
@@ -13668,6 +13668,7 @@
                                       ]
                                     },
                                     "days": {
+                                      "minItems": 1,
                                       "type": "array",
                                       "items": {
                                         "type": "string",
@@ -13680,8 +13681,7 @@
                                           "sat",
                                           "sun"
                                         ]
-                                      },
-                                      "minItems": 1
+                                      }
                                     }
                                   },
                                   "required": [
@@ -13907,14 +13907,14 @@
                                     "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
                                   },
                                   "lines": {
+                                    "minItems": 1,
+                                    "maxItems": 4,
                                     "type": "array",
                                     "items": {
                                       "type": "string",
                                       "minLength": 1,
                                       "maxLength": 200
                                     },
-                                    "minItems": 1,
-                                    "maxItems": 4,
                                     "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
                                   },
                                   "dependentLocality": {
@@ -14008,14 +14008,14 @@
                               "type": "string"
                             }
                           },
-                          "description": {
-                            "type": "string"
-                          },
                           "resolutions": {
                             "type": "array",
                             "items": {
                               "type": "string"
                             }
+                          },
+                          "description": {
+                            "type": "string"
                           }
                         },
                         "required": [
@@ -14148,6 +14148,7 @@
                       "nullable": true
                     },
                     "members": {
+                      "minItems": 1,
                       "type": "array",
                       "items": {
                         "type": "object",
@@ -14174,8 +14175,7 @@
                           "role"
                         ],
                         "additionalProperties": false
-                      },
-                      "minItems": 1
+                      }
                     },
                     "forkedFrom": {
                       "type": "object",
@@ -14333,14 +14333,14 @@
                                     "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
                                   },
                                   "lines": {
+                                    "minItems": 1,
+                                    "maxItems": 4,
                                     "type": "array",
                                     "items": {
                                       "type": "string",
                                       "minLength": 1,
                                       "maxLength": 200
                                     },
-                                    "minItems": 1,
-                                    "maxItems": 4,
                                     "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
                                   },
                                   "dependentLocality": {
@@ -14399,6 +14399,7 @@
                                       ]
                                     },
                                     "days": {
+                                      "minItems": 1,
                                       "type": "array",
                                       "items": {
                                         "type": "string",
@@ -14411,8 +14412,7 @@
                                           "sat",
                                           "sun"
                                         ]
-                                      },
-                                      "minItems": 1
+                                      }
                                     }
                                   },
                                   "required": [
@@ -14638,14 +14638,14 @@
                                     "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
                                   },
                                   "lines": {
+                                    "minItems": 1,
+                                    "maxItems": 4,
                                     "type": "array",
                                     "items": {
                                       "type": "string",
                                       "minLength": 1,
                                       "maxLength": 200
                                     },
-                                    "minItems": 1,
-                                    "maxItems": 4,
                                     "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
                                   },
                                   "dependentLocality": {
@@ -14739,14 +14739,14 @@
                               "type": "string"
                             }
                           },
-                          "description": {
-                            "type": "string"
-                          },
                           "resolutions": {
                             "type": "array",
                             "items": {
                               "type": "string"
                             }
+                          },
+                          "description": {
+                            "type": "string"
                           }
                         },
                         "required": [
@@ -14866,10 +14866,6 @@
                           "minLength": 1,
                           "maxLength": 200
                         },
-                        "description": {
-                          "type": "string",
-                          "maxLength": 1000
-                        },
                         "origin": {
                           "type": "string",
                           "enum": [
@@ -14886,6 +14882,10 @@
                         },
                         "generatedAt": {
                           "type": "string"
+                        },
+                        "description": {
+                          "type": "string",
+                          "maxLength": 1000
                         }
                       },
                       "required": [
@@ -14896,6 +14896,8 @@
                       "additionalProperties": false
                     },
                     "trips": {
+                      "minItems": 1,
+                      "maxItems": 1,
                       "type": "array",
                       "items": {
                         "type": "object",
@@ -15036,14 +15038,14 @@
                                                 "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
                                               },
                                               "lines": {
+                                                "minItems": 1,
+                                                "maxItems": 4,
                                                 "type": "array",
                                                 "items": {
                                                   "type": "string",
                                                   "minLength": 1,
                                                   "maxLength": 200
                                                 },
-                                                "minItems": 1,
-                                                "maxItems": 4,
                                                 "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
                                               },
                                               "dependentLocality": {
@@ -15101,6 +15103,7 @@
                                                   ]
                                                 },
                                                 "days": {
+                                                  "minItems": 1,
                                                   "type": "array",
                                                   "items": {
                                                     "type": "string",
@@ -15113,8 +15116,7 @@
                                                       "sat",
                                                       "sun"
                                                     ]
-                                                  },
-                                                  "minItems": 1
+                                                  }
                                                 }
                                               },
                                               "required": [
@@ -15317,14 +15319,14 @@
                                                 "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
                                               },
                                               "lines": {
+                                                "minItems": 1,
+                                                "maxItems": 4,
                                                 "type": "array",
                                                 "items": {
                                                   "type": "string",
                                                   "minLength": 1,
                                                   "maxLength": 200
                                                 },
-                                                "minItems": 1,
-                                                "maxItems": 4,
                                                 "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
                                               },
                                               "dependentLocality": {
@@ -15470,14 +15472,14 @@
                                           "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
                                         },
                                         "lines": {
+                                          "minItems": 1,
+                                          "maxItems": 4,
                                           "type": "array",
                                           "items": {
                                             "type": "string",
                                             "minLength": 1,
                                             "maxLength": 200
                                           },
-                                          "minItems": 1,
-                                          "maxItems": 4,
                                           "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
                                         },
                                         "dependentLocality": {
@@ -15535,6 +15537,7 @@
                                             ]
                                           },
                                           "days": {
+                                            "minItems": 1,
                                             "type": "array",
                                             "items": {
                                               "type": "string",
@@ -15547,8 +15550,7 @@
                                                 "sat",
                                                 "sun"
                                               ]
-                                            },
-                                            "minItems": 1
+                                            }
                                           }
                                         },
                                         "required": [
@@ -15751,14 +15753,14 @@
                                           "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
                                         },
                                         "lines": {
+                                          "minItems": 1,
+                                          "maxItems": 4,
                                           "type": "array",
                                           "items": {
                                             "type": "string",
                                             "minLength": 1,
                                             "maxLength": 200
                                           },
-                                          "minItems": 1,
-                                          "maxItems": 4,
                                           "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
                                         },
                                         "dependentLocality": {
@@ -15825,29 +15827,27 @@
                           "days"
                         ],
                         "additionalProperties": false
-                      },
-                      "minItems": 1,
-                      "maxItems": 1
+                      }
                     },
                     "playbooks": {
                       "type": "array",
-                      "minItems": 0,
-                      "maxItems": 0,
                       "items": {},
+                      "maxItems": 0,
+                      "minItems": 0,
                       "default": []
                     },
                     "notebooks": {
                       "type": "array",
-                      "minItems": 0,
-                      "maxItems": 0,
                       "items": {},
+                      "maxItems": 0,
+                      "minItems": 0,
                       "default": []
                     },
                     "activities": {
                       "type": "array",
-                      "minItems": 0,
-                      "maxItems": 0,
                       "items": {},
+                      "maxItems": 0,
+                      "minItems": 0,
                       "default": []
                     }
                   },
@@ -15977,14 +15977,14 @@
                                 "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
                               },
                               "lines": {
+                                "minItems": 1,
+                                "maxItems": 4,
                                 "type": "array",
                                 "items": {
                                   "type": "string",
                                   "minLength": 1,
                                   "maxLength": 200
                                 },
-                                "minItems": 1,
-                                "maxItems": 4,
                                 "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
                               },
                               "dependentLocality": {
@@ -16133,8 +16133,8 @@
                             "type": "string",
                             "minLength": 1,
                             "nullable": true,
-                            "description": "The day's time zone",
-                            "default": null
+                            "default": null,
+                            "description": "The day's time zone"
                           },
                           "weatherPlace": {
                             "type": "object",
@@ -16254,6 +16254,13 @@
                       },
                       "description": "Every tag in use on this trip"
                     },
+                    "homeTimeZone": {
+                      "type": "string",
+                      "minLength": 1,
+                      "nullable": true,
+                      "default": null,
+                      "description": "The caller's IANA time zone, from their account's home airport. Null when that is unset or unknown, and for an API token without `account:read` or restricted to specific trips."
+                    },
                     "description": {
                       "type": "object",
                       "properties": {
@@ -16264,8 +16271,8 @@
                         },
                         "counted": {
                           "type": "integer",
-                          "exclusiveMinimum": true,
                           "minimum": 0,
+                          "exclusiveMinimum": true,
                           "description": "How many activities the description counted: those with a category other than Lodging, travel left out"
                         },
                         "tags": {
@@ -16317,13 +16324,6 @@
                       "nullable": true,
                       "default": null,
                       "description": "What kind of trip it is, from its activities' tags. Null when too few carry a category to say."
-                    },
-                    "homeTimeZone": {
-                      "type": "string",
-                      "minLength": 1,
-                      "nullable": true,
-                      "default": null,
-                      "description": "The caller's IANA time zone, from their account's home airport. Null when that is unset or unknown, and for an API token without `account:read` or restricted to specific trips."
                     }
                   },
                   "required": [
@@ -17014,6 +17014,7 @@
                       "nullable": true
                     },
                     "members": {
+                      "minItems": 1,
                       "type": "array",
                       "items": {
                         "type": "object",
@@ -17040,8 +17041,7 @@
                           "role"
                         ],
                         "additionalProperties": false
-                      },
-                      "minItems": 1
+                      }
                     },
                     "forkedFrom": {
                       "type": "object",
@@ -17199,14 +17199,14 @@
                                     "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
                                   },
                                   "lines": {
+                                    "minItems": 1,
+                                    "maxItems": 4,
                                     "type": "array",
                                     "items": {
                                       "type": "string",
                                       "minLength": 1,
                                       "maxLength": 200
                                     },
-                                    "minItems": 1,
-                                    "maxItems": 4,
                                     "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
                                   },
                                   "dependentLocality": {
@@ -17265,6 +17265,7 @@
                                       ]
                                     },
                                     "days": {
+                                      "minItems": 1,
                                       "type": "array",
                                       "items": {
                                         "type": "string",
@@ -17277,8 +17278,7 @@
                                           "sat",
                                           "sun"
                                         ]
-                                      },
-                                      "minItems": 1
+                                      }
                                     }
                                   },
                                   "required": [
@@ -17504,14 +17504,14 @@
                                     "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
                                   },
                                   "lines": {
+                                    "minItems": 1,
+                                    "maxItems": 4,
                                     "type": "array",
                                     "items": {
                                       "type": "string",
                                       "minLength": 1,
                                       "maxLength": 200
                                     },
-                                    "minItems": 1,
-                                    "maxItems": 4,
                                     "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
                                   },
                                   "dependentLocality": {
@@ -17605,14 +17605,14 @@
                               "type": "string"
                             }
                           },
-                          "description": {
-                            "type": "string"
-                          },
                           "resolutions": {
                             "type": "array",
                             "items": {
                               "type": "string"
                             }
+                          },
+                          "description": {
+                            "type": "string"
                           }
                         },
                         "required": [
@@ -17745,6 +17745,7 @@
                       "nullable": true
                     },
                     "members": {
+                      "minItems": 1,
                       "type": "array",
                       "items": {
                         "type": "object",
@@ -17771,8 +17772,7 @@
                           "role"
                         ],
                         "additionalProperties": false
-                      },
-                      "minItems": 1
+                      }
                     },
                     "forkedFrom": {
                       "type": "object",
@@ -17930,14 +17930,14 @@
                                     "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
                                   },
                                   "lines": {
+                                    "minItems": 1,
+                                    "maxItems": 4,
                                     "type": "array",
                                     "items": {
                                       "type": "string",
                                       "minLength": 1,
                                       "maxLength": 200
                                     },
-                                    "minItems": 1,
-                                    "maxItems": 4,
                                     "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
                                   },
                                   "dependentLocality": {
@@ -17996,6 +17996,7 @@
                                       ]
                                     },
                                     "days": {
+                                      "minItems": 1,
                                       "type": "array",
                                       "items": {
                                         "type": "string",
@@ -18008,8 +18009,7 @@
                                           "sat",
                                           "sun"
                                         ]
-                                      },
-                                      "minItems": 1
+                                      }
                                     }
                                   },
                                   "required": [
@@ -18235,14 +18235,14 @@
                                     "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
                                   },
                                   "lines": {
+                                    "minItems": 1,
+                                    "maxItems": 4,
                                     "type": "array",
                                     "items": {
                                       "type": "string",
                                       "minLength": 1,
                                       "maxLength": 200
                                     },
-                                    "minItems": 1,
-                                    "maxItems": 4,
                                     "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
                                   },
                                   "dependentLocality": {
@@ -18336,14 +18336,14 @@
                               "type": "string"
                             }
                           },
-                          "description": {
-                            "type": "string"
-                          },
                           "resolutions": {
                             "type": "array",
                             "items": {
                               "type": "string"
                             }
+                          },
+                          "description": {
+                            "type": "string"
                           }
                         },
                         "required": [
@@ -18436,8 +18436,8 @@
                 "properties": {
                   "toSeq": {
                     "type": "integer",
-                    "exclusiveMinimum": true,
-                    "minimum": 0
+                    "minimum": 0,
+                    "exclusiveMinimum": true
                   }
                 },
                 "required": [
@@ -18497,6 +18497,7 @@
                       "nullable": true
                     },
                     "members": {
+                      "minItems": 1,
                       "type": "array",
                       "items": {
                         "type": "object",
@@ -18523,8 +18524,7 @@
                           "role"
                         ],
                         "additionalProperties": false
-                      },
-                      "minItems": 1
+                      }
                     },
                     "forkedFrom": {
                       "type": "object",
@@ -18682,14 +18682,14 @@
                                     "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
                                   },
                                   "lines": {
+                                    "minItems": 1,
+                                    "maxItems": 4,
                                     "type": "array",
                                     "items": {
                                       "type": "string",
                                       "minLength": 1,
                                       "maxLength": 200
                                     },
-                                    "minItems": 1,
-                                    "maxItems": 4,
                                     "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
                                   },
                                   "dependentLocality": {
@@ -18748,6 +18748,7 @@
                                       ]
                                     },
                                     "days": {
+                                      "minItems": 1,
                                       "type": "array",
                                       "items": {
                                         "type": "string",
@@ -18760,8 +18761,7 @@
                                           "sat",
                                           "sun"
                                         ]
-                                      },
-                                      "minItems": 1
+                                      }
                                     }
                                   },
                                   "required": [
@@ -18987,14 +18987,14 @@
                                     "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
                                   },
                                   "lines": {
+                                    "minItems": 1,
+                                    "maxItems": 4,
                                     "type": "array",
                                     "items": {
                                       "type": "string",
                                       "minLength": 1,
                                       "maxLength": 200
                                     },
-                                    "minItems": 1,
-                                    "maxItems": 4,
                                     "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
                                   },
                                   "dependentLocality": {
@@ -19088,14 +19088,14 @@
                               "type": "string"
                             }
                           },
-                          "description": {
-                            "type": "string"
-                          },
                           "resolutions": {
                             "type": "array",
                             "items": {
                               "type": "string"
                             }
+                          },
+                          "description": {
+                            "type": "string"
                           }
                         },
                         "required": [
@@ -19202,13 +19202,13 @@
                           },
                           "fromSeq": {
                             "type": "integer",
-                            "exclusiveMinimum": true,
-                            "minimum": 0
+                            "minimum": 0,
+                            "exclusiveMinimum": true
                           },
                           "toSeq": {
                             "type": "integer",
-                            "exclusiveMinimum": true,
-                            "minimum": 0
+                            "minimum": 0,
+                            "exclusiveMinimum": true
                           },
                           "actorId": {
                             "type": "string",
@@ -19285,8 +19285,8 @@
                                   },
                                   "toSeq": {
                                     "type": "integer",
-                                    "exclusiveMinimum": true,
-                                    "minimum": 0
+                                    "minimum": 0,
+                                    "exclusiveMinimum": true
                                   }
                                 },
                                 "required": [
@@ -19341,6 +19341,7 @@
                                     ]
                                   },
                                   "changes": {
+                                    "minItems": 1,
                                     "type": "array",
                                     "items": {
                                       "type": "object",
@@ -19359,16 +19360,15 @@
                                         "changeId"
                                       ],
                                       "additionalProperties": false
-                                    },
-                                    "minItems": 1
+                                    }
                                   },
                                   "authorIds": {
+                                    "minItems": 1,
                                     "type": "array",
                                     "items": {
                                       "type": "string",
                                       "minLength": 1
-                                    },
-                                    "minItems": 1
+                                    }
                                   },
                                   "via": {
                                     "type": "string",
@@ -19386,9 +19386,6 @@
                               }
                             ]
                           },
-                          "description": {
-                            "type": "string"
-                          },
                           "undone": {
                             "type": "boolean"
                           },
@@ -19401,6 +19398,9 @@
                             "enum": [
                               true
                             ]
+                          },
+                          "description": {
+                            "type": "string"
                           }
                         },
                         "required": [
@@ -19510,6 +19510,7 @@
                       "nullable": true
                     },
                     "members": {
+                      "minItems": 1,
                       "type": "array",
                       "items": {
                         "type": "object",
@@ -19536,8 +19537,7 @@
                           "role"
                         ],
                         "additionalProperties": false
-                      },
-                      "minItems": 1
+                      }
                     },
                     "forkedFrom": {
                       "type": "object",
@@ -19695,14 +19695,14 @@
                                     "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
                                   },
                                   "lines": {
+                                    "minItems": 1,
+                                    "maxItems": 4,
                                     "type": "array",
                                     "items": {
                                       "type": "string",
                                       "minLength": 1,
                                       "maxLength": 200
                                     },
-                                    "minItems": 1,
-                                    "maxItems": 4,
                                     "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
                                   },
                                   "dependentLocality": {
@@ -19761,6 +19761,7 @@
                                       ]
                                     },
                                     "days": {
+                                      "minItems": 1,
                                       "type": "array",
                                       "items": {
                                         "type": "string",
@@ -19773,8 +19774,7 @@
                                           "sat",
                                           "sun"
                                         ]
-                                      },
-                                      "minItems": 1
+                                      }
                                     }
                                   },
                                   "required": [
@@ -20000,14 +20000,14 @@
                                     "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
                                   },
                                   "lines": {
+                                    "minItems": 1,
+                                    "maxItems": 4,
                                     "type": "array",
                                     "items": {
                                       "type": "string",
                                       "minLength": 1,
                                       "maxLength": 200
                                     },
-                                    "minItems": 1,
-                                    "maxItems": 4,
                                     "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
                                   },
                                   "dependentLocality": {
@@ -20101,14 +20101,14 @@
                               "type": "string"
                             }
                           },
-                          "description": {
-                            "type": "string"
-                          },
                           "resolutions": {
                             "type": "array",
                             "items": {
                               "type": "string"
                             }
+                          },
+                          "description": {
+                            "type": "string"
                           }
                         },
                         "required": [
@@ -20465,8 +20465,8 @@
                 "properties": {
                   "email": {
                     "type": "string",
-                    "format": "email",
                     "maxLength": 320,
+                    "format": "email",
                     "nullable": true
                   },
                   "role": {
@@ -20923,8 +20923,8 @@
                     "properties": {
                       "v": {
                         "type": "integer",
-                        "exclusiveMinimum": true,
                         "minimum": 0,
+                        "exclusiveMinimum": true,
                         "default": 1
                       },
                       "type": {
@@ -21382,8 +21382,8 @@
                     "properties": {
                       "v": {
                         "type": "integer",
-                        "exclusiveMinimum": true,
                         "minimum": 0,
+                        "exclusiveMinimum": true,
                         "default": 1
                       },
                       "type": {
@@ -21670,8 +21670,8 @@
                     },
                     "playbookVersion": {
                       "type": "integer",
-                      "exclusiveMinimum": true,
                       "minimum": 0,
+                      "exclusiveMinimum": true,
                       "description": "The Playbook `version` that was applied."
                     },
                     "dayIds": {
@@ -21700,8 +21700,8 @@
                     },
                     "historySeq": {
                       "type": "integer",
-                      "exclusiveMinimum": true,
                       "minimum": 0,
+                      "exclusiveMinimum": true,
                       "description": "The revision the trip stands at after this application (its history entry's `toSeq`). The whole application is that one entry, so one undo removes all of it."
                     },
                     "warnings": {
@@ -21859,6 +21859,7 @@
                       "nullable": true
                     },
                     "members": {
+                      "minItems": 1,
                       "type": "array",
                       "items": {
                         "type": "object",
@@ -21885,8 +21886,7 @@
                           "role"
                         ],
                         "additionalProperties": false
-                      },
-                      "minItems": 1
+                      }
                     },
                     "forkedFrom": {
                       "type": "object",
@@ -22044,14 +22044,14 @@
                                     "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
                                   },
                                   "lines": {
+                                    "minItems": 1,
+                                    "maxItems": 4,
                                     "type": "array",
                                     "items": {
                                       "type": "string",
                                       "minLength": 1,
                                       "maxLength": 200
                                     },
-                                    "minItems": 1,
-                                    "maxItems": 4,
                                     "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
                                   },
                                   "dependentLocality": {
@@ -22110,6 +22110,7 @@
                                       ]
                                     },
                                     "days": {
+                                      "minItems": 1,
                                       "type": "array",
                                       "items": {
                                         "type": "string",
@@ -22122,8 +22123,7 @@
                                           "sat",
                                           "sun"
                                         ]
-                                      },
-                                      "minItems": 1
+                                      }
                                     }
                                   },
                                   "required": [
@@ -22349,14 +22349,14 @@
                                     "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
                                   },
                                   "lines": {
+                                    "minItems": 1,
+                                    "maxItems": 4,
                                     "type": "array",
                                     "items": {
                                       "type": "string",
                                       "minLength": 1,
                                       "maxLength": 200
                                     },
-                                    "minItems": 1,
-                                    "maxItems": 4,
                                     "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
                                   },
                                   "dependentLocality": {
@@ -22450,14 +22450,14 @@
                               "type": "string"
                             }
                           },
-                          "description": {
-                            "type": "string"
-                          },
                           "resolutions": {
                             "type": "array",
                             "items": {
                               "type": "string"
                             }
+                          },
+                          "description": {
+                            "type": "string"
                           }
                         },
                         "required": [
@@ -22590,6 +22590,7 @@
                       "nullable": true
                     },
                     "members": {
+                      "minItems": 1,
                       "type": "array",
                       "items": {
                         "type": "object",
@@ -22616,8 +22617,7 @@
                           "role"
                         ],
                         "additionalProperties": false
-                      },
-                      "minItems": 1
+                      }
                     },
                     "forkedFrom": {
                       "type": "object",
@@ -22775,14 +22775,14 @@
                                     "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
                                   },
                                   "lines": {
+                                    "minItems": 1,
+                                    "maxItems": 4,
                                     "type": "array",
                                     "items": {
                                       "type": "string",
                                       "minLength": 1,
                                       "maxLength": 200
                                     },
-                                    "minItems": 1,
-                                    "maxItems": 4,
                                     "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
                                   },
                                   "dependentLocality": {
@@ -22841,6 +22841,7 @@
                                       ]
                                     },
                                     "days": {
+                                      "minItems": 1,
                                       "type": "array",
                                       "items": {
                                         "type": "string",
@@ -22853,8 +22854,7 @@
                                           "sat",
                                           "sun"
                                         ]
-                                      },
-                                      "minItems": 1
+                                      }
                                     }
                                   },
                                   "required": [
@@ -23080,14 +23080,14 @@
                                     "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
                                   },
                                   "lines": {
+                                    "minItems": 1,
+                                    "maxItems": 4,
                                     "type": "array",
                                     "items": {
                                       "type": "string",
                                       "minLength": 1,
                                       "maxLength": 200
                                     },
-                                    "minItems": 1,
-                                    "maxItems": 4,
                                     "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
                                   },
                                   "dependentLocality": {
@@ -23181,14 +23181,14 @@
                               "type": "string"
                             }
                           },
-                          "description": {
-                            "type": "string"
-                          },
                           "resolutions": {
                             "type": "array",
                             "items": {
                               "type": "string"
                             }
+                          },
+                          "description": {
+                            "type": "string"
                           }
                         },
                         "required": [
@@ -23368,6 +23368,7 @@
                       "nullable": true
                     },
                     "members": {
+                      "minItems": 1,
                       "type": "array",
                       "items": {
                         "type": "object",
@@ -23394,8 +23395,7 @@
                           "role"
                         ],
                         "additionalProperties": false
-                      },
-                      "minItems": 1
+                      }
                     },
                     "forkedFrom": {
                       "type": "object",
@@ -23553,14 +23553,14 @@
                                     "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
                                   },
                                   "lines": {
+                                    "minItems": 1,
+                                    "maxItems": 4,
                                     "type": "array",
                                     "items": {
                                       "type": "string",
                                       "minLength": 1,
                                       "maxLength": 200
                                     },
-                                    "minItems": 1,
-                                    "maxItems": 4,
                                     "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
                                   },
                                   "dependentLocality": {
@@ -23619,6 +23619,7 @@
                                       ]
                                     },
                                     "days": {
+                                      "minItems": 1,
                                       "type": "array",
                                       "items": {
                                         "type": "string",
@@ -23631,8 +23632,7 @@
                                           "sat",
                                           "sun"
                                         ]
-                                      },
-                                      "minItems": 1
+                                      }
                                     }
                                   },
                                   "required": [
@@ -23858,14 +23858,14 @@
                                     "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
                                   },
                                   "lines": {
+                                    "minItems": 1,
+                                    "maxItems": 4,
                                     "type": "array",
                                     "items": {
                                       "type": "string",
                                       "minLength": 1,
                                       "maxLength": 200
                                     },
-                                    "minItems": 1,
-                                    "maxItems": 4,
                                     "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
                                   },
                                   "dependentLocality": {
@@ -23959,14 +23959,14 @@
                               "type": "string"
                             }
                           },
-                          "description": {
-                            "type": "string"
-                          },
                           "resolutions": {
                             "type": "array",
                             "items": {
                               "type": "string"
                             }
+                          },
+                          "description": {
+                            "type": "string"
                           }
                         },
                         "required": [
@@ -24097,6 +24097,7 @@
                       "nullable": true
                     },
                     "members": {
+                      "minItems": 1,
                       "type": "array",
                       "items": {
                         "type": "object",
@@ -24123,8 +24124,7 @@
                           "role"
                         ],
                         "additionalProperties": false
-                      },
-                      "minItems": 1
+                      }
                     },
                     "forkedFrom": {
                       "type": "object",
@@ -24282,14 +24282,14 @@
                                     "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
                                   },
                                   "lines": {
+                                    "minItems": 1,
+                                    "maxItems": 4,
                                     "type": "array",
                                     "items": {
                                       "type": "string",
                                       "minLength": 1,
                                       "maxLength": 200
                                     },
-                                    "minItems": 1,
-                                    "maxItems": 4,
                                     "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
                                   },
                                   "dependentLocality": {
@@ -24348,6 +24348,7 @@
                                       ]
                                     },
                                     "days": {
+                                      "minItems": 1,
                                       "type": "array",
                                       "items": {
                                         "type": "string",
@@ -24360,8 +24361,7 @@
                                           "sat",
                                           "sun"
                                         ]
-                                      },
-                                      "minItems": 1
+                                      }
                                     }
                                   },
                                   "required": [
@@ -24587,14 +24587,14 @@
                                     "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
                                   },
                                   "lines": {
+                                    "minItems": 1,
+                                    "maxItems": 4,
                                     "type": "array",
                                     "items": {
                                       "type": "string",
                                       "minLength": 1,
                                       "maxLength": 200
                                     },
-                                    "minItems": 1,
-                                    "maxItems": 4,
                                     "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
                                   },
                                   "dependentLocality": {
@@ -24688,14 +24688,14 @@
                               "type": "string"
                             }
                           },
-                          "description": {
-                            "type": "string"
-                          },
                           "resolutions": {
                             "type": "array",
                             "items": {
                               "type": "string"
                             }
+                          },
+                          "description": {
+                            "type": "string"
                           }
                         },
                         "required": [
@@ -25175,14 +25175,14 @@
                                     "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
                                   },
                                   "lines": {
+                                    "minItems": 1,
+                                    "maxItems": 4,
                                     "type": "array",
                                     "items": {
                                       "type": "string",
                                       "minLength": 1,
                                       "maxLength": 200
                                     },
-                                    "minItems": 1,
-                                    "maxItems": 4,
                                     "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
                                   },
                                   "dependentLocality": {
@@ -25241,6 +25241,7 @@
                                       ]
                                     },
                                     "days": {
+                                      "minItems": 1,
                                       "type": "array",
                                       "items": {
                                         "type": "string",
@@ -25253,8 +25254,7 @@
                                           "sat",
                                           "sun"
                                         ]
-                                      },
-                                      "minItems": 1
+                                      }
                                     }
                                   },
                                   "required": [
@@ -25480,14 +25480,14 @@
                                     "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
                                   },
                                   "lines": {
+                                    "minItems": 1,
+                                    "maxItems": 4,
                                     "type": "array",
                                     "items": {
                                       "type": "string",
                                       "minLength": 1,
                                       "maxLength": 200
                                     },
-                                    "minItems": 1,
-                                    "maxItems": 4,
                                     "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
                                   },
                                   "dependentLocality": {
@@ -25628,10 +25628,6 @@
                         "minLength": 1,
                         "maxLength": 200
                       },
-                      "description": {
-                        "type": "string",
-                        "maxLength": 1000
-                      },
                       "origin": {
                         "type": "string",
                         "enum": [
@@ -25648,6 +25644,10 @@
                       },
                       "generatedAt": {
                         "type": "string"
+                      },
+                      "description": {
+                        "type": "string",
+                        "maxLength": 1000
                       }
                     },
                     "required": [
@@ -25798,14 +25798,14 @@
                                               "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
                                             },
                                             "lines": {
+                                              "minItems": 1,
+                                              "maxItems": 4,
                                               "type": "array",
                                               "items": {
                                                 "type": "string",
                                                 "minLength": 1,
                                                 "maxLength": 200
                                               },
-                                              "minItems": 1,
-                                              "maxItems": 4,
                                               "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
                                             },
                                             "dependentLocality": {
@@ -25863,6 +25863,7 @@
                                                 ]
                                               },
                                               "days": {
+                                                "minItems": 1,
                                                 "type": "array",
                                                 "items": {
                                                   "type": "string",
@@ -25875,8 +25876,7 @@
                                                     "sat",
                                                     "sun"
                                                   ]
-                                                },
-                                                "minItems": 1
+                                                }
                                               }
                                             },
                                             "required": [
@@ -26079,14 +26079,14 @@
                                               "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
                                             },
                                             "lines": {
+                                              "minItems": 1,
+                                              "maxItems": 4,
                                               "type": "array",
                                               "items": {
                                                 "type": "string",
                                                 "minLength": 1,
                                                 "maxLength": 200
                                               },
-                                              "minItems": 1,
-                                              "maxItems": 4,
                                               "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
                                             },
                                             "dependentLocality": {
@@ -26232,14 +26232,14 @@
                                         "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
                                       },
                                       "lines": {
+                                        "minItems": 1,
+                                        "maxItems": 4,
                                         "type": "array",
                                         "items": {
                                           "type": "string",
                                           "minLength": 1,
                                           "maxLength": 200
                                         },
-                                        "minItems": 1,
-                                        "maxItems": 4,
                                         "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
                                       },
                                       "dependentLocality": {
@@ -26297,6 +26297,7 @@
                                           ]
                                         },
                                         "days": {
+                                          "minItems": 1,
                                           "type": "array",
                                           "items": {
                                             "type": "string",
@@ -26309,8 +26310,7 @@
                                               "sat",
                                               "sun"
                                             ]
-                                          },
-                                          "minItems": 1
+                                          }
                                         }
                                       },
                                       "required": [
@@ -26513,14 +26513,14 @@
                                         "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
                                       },
                                       "lines": {
+                                        "minItems": 1,
+                                        "maxItems": 4,
                                         "type": "array",
                                         "items": {
                                           "type": "string",
                                           "minLength": 1,
                                           "maxLength": 200
                                         },
-                                        "minItems": 1,
-                                        "maxItems": 4,
                                         "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
                                       },
                                       "dependentLocality": {
@@ -26649,6 +26649,7 @@
                       "nullable": true
                     },
                     "members": {
+                      "minItems": 1,
                       "type": "array",
                       "items": {
                         "type": "object",
@@ -26675,8 +26676,7 @@
                           "role"
                         ],
                         "additionalProperties": false
-                      },
-                      "minItems": 1
+                      }
                     },
                     "forkedFrom": {
                       "type": "object",
@@ -26834,14 +26834,14 @@
                                     "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
                                   },
                                   "lines": {
+                                    "minItems": 1,
+                                    "maxItems": 4,
                                     "type": "array",
                                     "items": {
                                       "type": "string",
                                       "minLength": 1,
                                       "maxLength": 200
                                     },
-                                    "minItems": 1,
-                                    "maxItems": 4,
                                     "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
                                   },
                                   "dependentLocality": {
@@ -26900,6 +26900,7 @@
                                       ]
                                     },
                                     "days": {
+                                      "minItems": 1,
                                       "type": "array",
                                       "items": {
                                         "type": "string",
@@ -26912,8 +26913,7 @@
                                           "sat",
                                           "sun"
                                         ]
-                                      },
-                                      "minItems": 1
+                                      }
                                     }
                                   },
                                   "required": [
@@ -27139,14 +27139,14 @@
                                     "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
                                   },
                                   "lines": {
+                                    "minItems": 1,
+                                    "maxItems": 4,
                                     "type": "array",
                                     "items": {
                                       "type": "string",
                                       "minLength": 1,
                                       "maxLength": 200
                                     },
-                                    "minItems": 1,
-                                    "maxItems": 4,
                                     "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
                                   },
                                   "dependentLocality": {
@@ -27240,14 +27240,14 @@
                               "type": "string"
                             }
                           },
-                          "description": {
-                            "type": "string"
-                          },
                           "resolutions": {
                             "type": "array",
                             "items": {
                               "type": "string"
                             }
+                          },
+                          "description": {
+                            "type": "string"
                           }
                         },
                         "required": [
@@ -27388,6 +27388,7 @@
                             ]
                           },
                           "members": {
+                            "minItems": 1,
                             "type": "array",
                             "items": {
                               "type": "object",
@@ -27414,8 +27415,7 @@
                                 "role"
                               ],
                               "additionalProperties": false
-                            },
-                            "minItems": 1
+                            }
                           },
                           "createdAt": {
                             "type": "string"
@@ -27705,6 +27705,7 @@
                       "nullable": true
                     },
                     "members": {
+                      "minItems": 1,
                       "type": "array",
                       "items": {
                         "type": "object",
@@ -27731,8 +27732,7 @@
                           "role"
                         ],
                         "additionalProperties": false
-                      },
-                      "minItems": 1
+                      }
                     },
                     "forkedFrom": {
                       "type": "object",
@@ -27890,14 +27890,14 @@
                                     "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
                                   },
                                   "lines": {
+                                    "minItems": 1,
+                                    "maxItems": 4,
                                     "type": "array",
                                     "items": {
                                       "type": "string",
                                       "minLength": 1,
                                       "maxLength": 200
                                     },
-                                    "minItems": 1,
-                                    "maxItems": 4,
                                     "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
                                   },
                                   "dependentLocality": {
@@ -27956,6 +27956,7 @@
                                       ]
                                     },
                                     "days": {
+                                      "minItems": 1,
                                       "type": "array",
                                       "items": {
                                         "type": "string",
@@ -27968,8 +27969,7 @@
                                           "sat",
                                           "sun"
                                         ]
-                                      },
-                                      "minItems": 1
+                                      }
                                     }
                                   },
                                   "required": [
@@ -28195,14 +28195,14 @@
                                     "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
                                   },
                                   "lines": {
+                                    "minItems": 1,
+                                    "maxItems": 4,
                                     "type": "array",
                                     "items": {
                                       "type": "string",
                                       "minLength": 1,
                                       "maxLength": 200
                                     },
-                                    "minItems": 1,
-                                    "maxItems": 4,
                                     "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
                                   },
                                   "dependentLocality": {
@@ -28296,14 +28296,14 @@
                               "type": "string"
                             }
                           },
-                          "description": {
-                            "type": "string"
-                          },
                           "resolutions": {
                             "type": "array",
                             "items": {
                               "type": "string"
                             }
+                          },
+                          "description": {
+                            "type": "string"
                           }
                         },
                         "required": [
@@ -28566,7 +28566,112 @@
               "content": {
                 "type": "array",
                 "items": {
-                  "$ref": "#/components/schemas/PageNode/anyOf/0/properties/content/items"
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "enum": [
+                            "text"
+                          ]
+                        },
+                        "text": {
+                          "type": "string"
+                        },
+                        "marks": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "type": {
+                                "type": "string",
+                                "minLength": 1
+                              },
+                              "attrs": {
+                                "type": "object",
+                                "additionalProperties": {}
+                              }
+                            },
+                            "required": [
+                              "type"
+                            ],
+                            "additionalProperties": false
+                          }
+                        }
+                      },
+                      "required": [
+                        "type",
+                        "text"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "enum": [
+                            "macro"
+                          ]
+                        },
+                        "attrs": {
+                          "type": "object",
+                          "properties": {
+                            "name": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "params": {
+                              "type": "object",
+                              "additionalProperties": {},
+                              "default": {}
+                            }
+                          },
+                          "required": [
+                            "name"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "type",
+                        "attrs"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "enum": [
+                            "hardBreak"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "type"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "enum": [
+                            "unknown"
+                          ]
+                        },
+                        "raw": {}
+                      },
+                      "required": [
+                        "type"
+                      ],
+                      "additionalProperties": false
+                    }
+                  ]
                 },
                 "default": []
               }
@@ -28578,7 +28683,38 @@
             "additionalProperties": false
           },
           {
-            "$ref": "#/components/schemas/PageNode/anyOf/0/properties/content/items/anyOf/1"
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "macro"
+                ]
+              },
+              "attrs": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "params": {
+                    "type": "object",
+                    "additionalProperties": {},
+                    "default": {}
+                  }
+                },
+                "required": [
+                  "name"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "type",
+              "attrs"
+            ],
+            "additionalProperties": false
           },
           {
             "type": "object",
@@ -28590,12 +28726,132 @@
                 ]
               },
               "attrs": {
-                "$ref": "#/components/schemas/PageNode/anyOf/0/properties/content/items/anyOf/1/properties/attrs"
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "params": {
+                    "type": "object",
+                    "additionalProperties": {},
+                    "default": {}
+                  }
+                },
+                "required": [
+                  "name"
+                ],
+                "additionalProperties": false
               },
               "content": {
                 "type": "array",
                 "items": {
-                  "$ref": "#/components/schemas/PageNode/anyOf/0/properties/content/items"
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "enum": [
+                            "text"
+                          ]
+                        },
+                        "text": {
+                          "type": "string"
+                        },
+                        "marks": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "type": {
+                                "type": "string",
+                                "minLength": 1
+                              },
+                              "attrs": {
+                                "type": "object",
+                                "additionalProperties": {}
+                              }
+                            },
+                            "required": [
+                              "type"
+                            ],
+                            "additionalProperties": false
+                          }
+                        }
+                      },
+                      "required": [
+                        "type",
+                        "text"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "enum": [
+                            "macro"
+                          ]
+                        },
+                        "attrs": {
+                          "type": "object",
+                          "properties": {
+                            "name": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "params": {
+                              "type": "object",
+                              "additionalProperties": {},
+                              "default": {}
+                            }
+                          },
+                          "required": [
+                            "name"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "type",
+                        "attrs"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "enum": [
+                            "hardBreak"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "type"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "enum": [
+                            "unknown"
+                          ]
+                        },
+                        "raw": {}
+                      },
+                      "required": [
+                        "type"
+                      ],
+                      "additionalProperties": false
+                    }
+                  ]
                 },
                 "default": []
               }
@@ -28655,7 +28911,20 @@
                       "additionalProperties": false
                     },
                     {
-                      "$ref": "#/components/schemas/PageNode/anyOf/0/properties/content/items/anyOf/3"
+                      "type": "object",
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "enum": [
+                            "unknown"
+                          ]
+                        },
+                        "raw": {}
+                      },
+                      "required": [
+                        "type"
+                      ],
+                      "additionalProperties": false
                     }
                   ]
                 },
@@ -28729,7 +28998,7 @@
                         "content": {
                           "type": "array",
                           "items": {
-                            "$ref": "#/components/schemas/PageNode/anyOf/6/properties/content/items"
+                            "$ref": "#/components/schemas/PageNode"
                           },
                           "default": []
                         }
@@ -28740,7 +29009,20 @@
                       "additionalProperties": false
                     },
                     {
-                      "$ref": "#/components/schemas/PageNode/anyOf/0/properties/content/items/anyOf/3"
+                      "type": "object",
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "enum": [
+                            "unknown"
+                          ]
+                        },
+                        "raw": {}
+                      },
+                      "required": [
+                        "type"
+                      ],
+                      "additionalProperties": false
                     }
                   ]
                 },
@@ -28785,7 +29067,46 @@
               "content": {
                 "type": "array",
                 "items": {
-                  "$ref": "#/components/schemas/PageNode/anyOf/7/properties/content/items"
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "enum": [
+                            "listItem"
+                          ]
+                        },
+                        "content": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/PageNode"
+                          },
+                          "default": []
+                        }
+                      },
+                      "required": [
+                        "type"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "enum": [
+                            "unknown"
+                          ]
+                        },
+                        "raw": {}
+                      },
+                      "required": [
+                        "type"
+                      ],
+                      "additionalProperties": false
+                    }
+                  ]
                 },
                 "default": []
               }
@@ -28796,7 +29117,20 @@
             "additionalProperties": false
           },
           {
-            "$ref": "#/components/schemas/PageNode/anyOf/0/properties/content/items/anyOf/3"
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "unknown"
+                ]
+              },
+              "raw": {}
+            },
+            "required": [
+              "type"
+            ],
+            "additionalProperties": false
           }
         ]
       }

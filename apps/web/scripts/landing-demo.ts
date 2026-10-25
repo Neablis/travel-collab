@@ -234,7 +234,7 @@ export function buildLandingDemo(slug: string): LandingDemo {
 const LANDING_DAY_PATH = new URL("./landing-day.json", import.meta.url);
 
 const LandingDay = z.object({
-  savedDayId: z.string().uuid(),
+  savedDayId: z.string().guid(),
   ownerId: z.string().min(1),
   ownerDisplayName: z.string().min(1),
   name: z.string().min(1),

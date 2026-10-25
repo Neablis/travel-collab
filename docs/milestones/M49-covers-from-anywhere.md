@@ -1,9 +1,10 @@
 # M49 — A cover can come from anywhere, and be framed where you want it
 
-**Status:** **Waits for M51 from 2026-10-20** (Mitchell: M51 goes ahead of M49; nothing here has started). **Proposed 2026-10-12, placed after M48 and before M43 and M44. Not scoped yet**:
-decisions 1–3 were answered by Mitchell when it was minted; the rest are recommendations and none
-has been answered. Minted on Mitchell's ask the same day (see `docs/milestones/README.md`,
-*2026-10-12 — reordered and minted*).
+**Status:** **Scoped 2026-10-25 with Mitchell; current milestone.** Decisions 4–10 were answered
+as recommended and decision 2 was confirmed at scoping (2026-10-25). The design is ADR-081, and the
+plan is `docs/plans/2026-10-25-M49-covers-from-anywhere.md` (deleted at gate close). Proposed
+2026-10-12 and minted on Mitchell's ask (see `docs/milestones/README.md`, *2026-10-12 — reordered
+and minted*). It waited for M51 and then M52, both closed.
 
 ## Why this exists
 
@@ -29,43 +30,46 @@ Candidates absorbed (each deleted by this gate):
 
 1. **A cover can come from any image URL**, not only Unsplash.
 2. **A URL cover is referenced, not uploaded and stored.** Caesura keeps the URL and shows the image
-   from it. It does not copy the image into its own storage. *(Read from "we shouldnt assume upload
-   and store, but also including a url of a image to reference"; confirm at scoping.)*
-3. **Reposition ships in both places**: as a field on the API, and as a drag in the UI on Unsplash
-   covers.
+   from it, and never copies the image into its own storage. **Confirmed at scoping, 2026-10-25:**
+   the proxy (decision 4) caches at the CDN and writes nothing to blob storage.
+3. **Reposition ships in both places**: as a field on the API, and as a drag in the UI.
 
-**Open (recommendations; none answered):**
+**Answered by Mitchell at scoping, 2026-10-25, each as recommended:**
 
-4. **How a browser loads a URL cover**, given the CSP admits only Unsplash. *Recommended:* through
-   a pass-through route on Caesura's own origin that fetches the image and streams it back, with
-   CDN cache headers and nothing written to storage. The CSP stays as it is, a viewer's IP and
-   referrer never reach a third-party host, and the route can refuse a non-image. The alternative
-   is to widen `img-src` to `https:`. It is cheaper, but any editor could then place a tracking
-   pixel in front of everyone on the trip, including share-link viewers.
-5. **What setting a URL cover checks.** *Recommended:* `https` only; one fetch at set time, which
-   must answer `image/*` under a size cap; the SSRF guard any server-side fetch of a user URL needs
-   (no private, loopback or link-local addresses, a bounded number of redirects). A URL that fails
-   is a 422 with a reason, and nothing is saved.
-6. **The contract shape.** *Recommended:* `TripCover` becomes a union on `source`:
-   `"unsplash"` (today's fields) or `"url"` (`url`, optional `alt`, optional
-   `credit: { name, url? }`). Both carry `position`. That means a `trip_covers` migration making the
-   Unsplash columns nullable, a `docs/contracts/CHANGELOG.md` entry and a public API minor version.
-   Unsplash's attribution rules keep applying to Unsplash covers only.
-7. **A link that dies.** *Recommended:* the cover falls back to the designed no-cover state when
-   the image fails to load. Nothing re-checks URLs in the background.
-8. **The API surface.** *Recommended:* `GET`, `PUT` and `DELETE /v1/trips/{tripId}/cover`, with
-   `PUT` taking `{ url, alt?, credit?, position? }`, and `PATCH` taking `{ position }` alone. The
-   caller's token needs write access to the trip, and an editor is the minimum role, as in the app.
-   **No Unsplash search on the API**: the caller finds images itself, and a search would spend
-   Caesura's Unsplash quota on another program's behalf. Playbook-day covers stay off the API.
-9. **The reposition field.** *Recommended:* one vertical position, `0–100`, default `50` (today's
-   crop), rendered as `object-position: center <y>%` wherever the cover shows (the trip band, the
-   Home card, the playbook day). A new photo resets it to `50`. Horizontal position is left out
+4. **A browser loads a URL cover through a pass-through route on Caesura's own origin.** The route
+   fetches the image and streams it back with CDN cache headers, writing nothing to storage. The
+   CSP's `img-src` stays as it is, and a viewer's IP and referrer never reach a third-party host.
+   The route serves only URLs Caesura itself signed when it serialized a cover, so it is not an
+   open proxy (ADR-081).
+5. **Setting a URL cover checks it.** `https` only. One fetch at set time must answer `image/*`
+   under a size cap. An SSRF guard refuses private, loopback and link-local addresses on every
+   hop and allows at most 3 redirects. A URL that fails is a 422 with the new error code
+   `cover-url-rejected` and a reason, and nothing is saved. The proxy applies the same guard on
+   every fetch.
+6. **`TripCover` becomes a union on `source`.** It is either `"unsplash"` (today's fields) or
+   `"url"` (`url`, optional `alt`, optional `credit: { name, url? }`), and both carry `position`.
+   Migration `0068` makes the Unsplash columns nullable and adds `source`, `url`, `credit_name`,
+   `credit_url` and `position` to `trip_covers` and `saved_day_covers`. Existing rows read as
+   `source: "unsplash"`, `position: 50`. It is recorded in a `docs/contracts/CHANGELOG.md` entry, as
+   public API **1.27.0**. Unsplash's attribution rules keep applying to Unsplash covers only.
+7. **A dead link falls back** to the designed no-cover state when the image fails to load
+   (`onError` on `CoverImage`, which today has none, so a broken Unsplash image is fixed too).
+   Nothing re-checks URLs in the background.
+8. **The API surface** is `GET`, `PUT` and `DELETE /v1/trips/{tripId}/cover`, with `PUT` taking
+   `{ url, alt?, credit?, position? }`, and `PATCH` taking `{ position }` alone. The token needs
+   `trips:write`, and an editor is the minimum role, as in the app. **No Unsplash search on the
+   API**: `exposure.ts` marks the search route `never`. Playbook-day covers stay off the API.
+9. **`position` is one vertical value**, `0–100`, default `50` (today's crop). It renders as
+   `object-position: center <y>%` in `CoverImage`, so the trip band, the Home card, the Home hero
+   (`NextTripHero`) and the playbook day all follow. A new photo resets it to `50`. Playbook-day
+   covers carry the column too, so the shared row types line up. Horizontal position is left out
    until a surface needs it.
-10. **The reposition control.** *Recommended:* Notion's pattern on the band itself: *Reposition*,
-    drag up or down, then *Save* or *Cancel*. Arrow keys move it, and a touch drag works on the
-    phone. It is the same control for every cover, so a URL cover can be repositioned in the UI
-    too, though only the API can set one.
+10. **The control is Notion's pattern on the band.** An editor hovering the band sees *Reposition*
+    beside *Change cover*. Clicking it shows *Drag image to reposition*, with a grab cursor. A mouse
+    or touch drag moves the photo vertically, live. `↑`/`↓` move it 1%, and with `Shift` 10%.
+    *Save position* (or `Enter`) saves it, and *Cancel* (or `Esc`) reverts. It is the same control
+    for every cover, so a URL cover can be repositioned in the UI too, though only the API can set
+    one. The band is desktop-only today, so a phone has no reposition.
 
 ## Scope
 
@@ -84,9 +88,10 @@ Candidates absorbed (each deleted by this gate):
 ## Exit gate
 
 - [ ] **Decisions 4–10 are answered and recorded here**, with the contracts changelog entry and the
-      API version.
-- [ ] **A cover set through `PUT /v1/trips/{tripId}/cover` from an image URL shows on the trip page
-      and the Home card**, and `GET` returns it. An integration test drives the route with a token.
+      API version. *(Answered and recorded 2026-10-25 with ADR-081. The changelog entry and 1.27.0
+      land with part 3, so the box is ticked then.)*
+- [ ] **A cover set through `PUT /v1/trips/{tripId}/cover` from an image URL shows on the trip page,
+      the Home card and the Home hero**, and `GET` returns it. An integration test drives the route with a token.
 - [ ] **A URL that is not an image, or that points at a private address, is refused and nothing is
       saved.** Each case has a test that was seen red.
 - [ ] **No third-party host is sent a viewer's request for a URL cover** (or, if decision 4 goes the
