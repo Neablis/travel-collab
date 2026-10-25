@@ -36,6 +36,7 @@ export class RemoteImageRefused extends Error {
 /** Every address a host name resolves to. Injected, so no test asks DNS. */
 export type Resolve = (host: string) => Promise<LookupAddress[]>;
 
+/** Every address `host` resolves to, from the system resolver, in its own order. */
 export const resolveHost: Resolve = (host) =>
   new Promise((resolve, reject) =>
     dnsLookup(host, { all: true, order: "verbatim" }, (error, addresses) => (error ? reject(error) : resolve(addresses))),

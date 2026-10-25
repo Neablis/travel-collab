@@ -186,6 +186,9 @@ export const EXPOSURE: Readonly<Record<string, Exposure>> = {
   "dev/content/playbooks": { status: "never", why: "Development-only seeding", reaches: [] },
   "dev/reset-demo-data": { status: "never", why: "Development-only seeding", reaches: [] },
   "dev/saved-days": { status: "never", why: "Development-only seeding", reaches: [] },
+  // M49: the bytes of a URL cover, served to a browser on a signature the
+  // serializer minted; the API answers the cover itself, `proxySrc` included.
+  "cover-image": { status: "never", why: "A cover's image bytes for a browser, not data", reaches: [] },
   "og/invite/[token]": { status: "never", why: "Link-preview images for chat apps, not data", reaches: [] },
   "og/invite/[token]/meta": { status: "never", why: "Link-preview images for chat apps, not data", reaches: [] },
   "og/referral/[code]": { status: "never", why: "Link-preview images for chat apps, not data", reaches: [] },

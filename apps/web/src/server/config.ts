@@ -124,10 +124,11 @@ export const serverConfig = {
 /**
  * The key `server/coverProxy.ts` signs cover URLs with (ADR-081 item 3).
  *
- * **Read per call**, as `API_TOKEN_PEPPER` is, so a test can set it. Outside
- * Vercel's production a fixed development key stands in, so local runs, CI
- * and previews need nothing set; a preview's signatures can then be minted by
- * anyone who reads this file, which buys them only the guarded fetcher. In
+ * **Read per call**, as `API_TOKEN_PEPPER` is, so a test can set it. Wherever
+ * it is set it is the key, a preview included. Unset outside Vercel's
+ * production, a fixed development key stands in, so local runs and CI need
+ * nothing; signatures there can be minted by anyone who reads this file,
+ * which buys them only the guarded fetcher. In
  * production an unset key **throws**: a public key there would make the proxy
  * open to every URL, and a signature nobody can check is worse than a 500.
  */

@@ -34,6 +34,14 @@ describe("cover proxy signatures", () => {
     expect(() => signCoverUrl(URL_A)).toThrow(/COVER_PROXY_SECRET is not set/);
   });
 
+  it("signs with COVER_PROXY_SECRET wherever it is set, a preview included", () => {
+    vi.stubEnv("VERCEL_ENV", "preview");
+    vi.stubEnv("COVER_PROXY_SECRET", "");
+    const devKeySignature = signCoverUrl(URL_A);
+    vi.stubEnv("COVER_PROXY_SECRET", "preview-key");
+    expect(signCoverUrl(URL_A)).not.toBe(devKeySignature);
+  });
+
   it("mints a same-origin path that carries the URL and its signature", () => {
     vi.stubEnv("COVER_PROXY_SECRET", "k1");
     const url = "https://cdn.example.com/a b.jpg?w=1&h=2#frag";
