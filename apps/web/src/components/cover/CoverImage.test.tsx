@@ -108,4 +108,40 @@ describe("CoverImage", () => {
     fireEvent(window, new Event("online"));
     expect(screen.getByRole("img")).not.toBe(failed);
   });
+
+  // On a phone a `notOnPhone` image loads the blank GIF, not the photo, so its
+  // load says nothing about whether the photo is back.
+  it("keeps a failed photo hidden when a phone's blank stand-in loads", () => {
+    const photo = { ...unsplash, urls: { ...unsplash.urls, regular: "https://images.unsplash.com/blank-1" } };
+    render(
+      <>
+        <CoverImage photo={photo} sizes="100vw" />
+        <CoverImage photo={photo} sizes="100vw" notOnPhone />
+      </>,
+    );
+    fireEvent.error(screen.getAllByRole("img")[0]!);
+    vi.spyOn(HTMLImageElement.prototype, "currentSrc", "get").mockReturnValue(
+      "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7",
+    );
+    fireEvent.load(screen.getAllByRole("img", { hidden: true })[1]!);
+    expect(screen.queryAllByRole("img")).toHaveLength(0);
+  });
+
+  // Only a copy that failed holds a dead request; the copy that loaded is kept,
+  // not remounted, so the photo does not blink as it comes back.
+  it("asks again from the copy that failed and keeps the copy that loaded", () => {
+    const photo = { ...unsplash, urls: { ...unsplash.urls, regular: "https://images.unsplash.com/blip-2" } };
+    render(
+      <>
+        <CoverImage photo={photo} sizes="100vw" />
+        <CoverImage photo={photo} sizes="100vw" />
+      </>,
+    );
+    fireEvent.error(screen.getAllByRole("img")[0]!);
+    const [failed, loaded] = screen.getAllByRole("img", { hidden: true });
+    fireEvent.load(loaded!);
+    const [retried, kept] = screen.getAllByRole("img");
+    expect(kept).toBe(loaded);
+    expect(retried).not.toBe(failed);
+  });
 });

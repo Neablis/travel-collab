@@ -1,6 +1,6 @@
 "use client";
 
-import { useSyncExternalStore, type ReactNode } from "react";
+import { useState, useSyncExternalStore, type ReactNode } from "react";
 import { preload } from "react-dom";
 import type { TripCover } from "@tc/contracts";
 import { cn } from "@/lib/cn";
@@ -65,9 +65,6 @@ export function coverImageSrc(
 // failure is forgotten when the browser comes back online. Only a browser
 // event writes it, so a server render always shows the photo.
 const failedSrcs = new Set<string>();
-// Bumped when a failed src is forgotten, to key its `<img>`s afresh: a broken
-// element holds its failed request and asks for nothing more on its own.
-const retries = new Map<string, number>();
 const failListeners = new Set<() => void>();
 
 function notifyFailures() {
@@ -80,20 +77,14 @@ function markFailed(src: string | undefined) {
   notifyFailures();
 }
 
-function forget(src: string) {
-  failedSrcs.delete(src);
-  retries.set(src, (retries.get(src) ?? 0) + 1);
-}
-
 function markLoaded(src: string | undefined) {
-  if (src === undefined || !failedSrcs.has(src)) return;
-  forget(src);
+  if (src === undefined || !failedSrcs.delete(src)) return;
   notifyFailures();
 }
 
 function forgetFailures() {
   if (failedSrcs.size === 0) return;
-  failedSrcs.forEach(forget);
+  failedSrcs.clear();
   notifyFailures();
 }
 
@@ -184,11 +175,20 @@ export function CoverImage({
   const url = photo.source === "url";
   const src = coverImageSrc(photo);
   const shown = useCoverShown(src);
-  const retry = useSyncExternalStore(
-    subscribeToFailures,
-    () => (src === undefined ? 0 : (retries.get(src) ?? 0)),
-    () => 0,
-  );
+  // Whether this copy's own request failed, and how often it has asked again.
+  // A broken element holds its failed request and asks for nothing more, so
+  // once the src is forgotten it is keyed afresh; a copy that never failed,
+  // such as the one whose load forgot it, keeps its element.
+  const [broken, setBroken] = useState(false);
+  const [retry, setRetry] = useState(0);
+  if (broken && shown) {
+    setBroken(false);
+    setRetry(retry + 1);
+  }
+  const fail = () => {
+    setBroken(true);
+    markFailed(src);
+  };
   const srcSet = url ? undefined : WIDTHS.map((w) => `${coverSrc(photo.urls.raw, w)} ${w}w`).join(", ");
   if (notOnPhone && priority && src !== undefined) {
     preload(src, {
@@ -210,14 +210,17 @@ export function CoverImage({
       loading={eager || priority ? "eager" : "lazy"}
       fetchPriority={priority ? "high" : undefined}
       decoding="async"
-      onLoad={() => markLoaded(src)}
-      onError={() => markFailed(src)}
+      // A phone's blank stand-in loading says nothing about the photo.
+      onLoad={(e) => {
+        if (e.currentTarget.currentSrc !== BLANK) markLoaded(src);
+      }}
+      onError={fail}
       // A server-rendered image can fail before hydration, and React attaches
       // `onError` only then, without replaying it: check once it is ours. Only
       // a requested image has a `currentSrc`, so a lazy one the browser has
       // deferred is never taken for a broken one.
       ref={(el) => {
-        if (el?.complete && el.naturalWidth === 0 && el.currentSrc !== "") markFailed(src);
+        if (!broken && el?.complete && el.naturalWidth === 0 && el.currentSrc !== "") fail();
       }}
       // A failed photo stays in the box, hidden, so that mounting it again
       // asks again, and its `load` brings it and its credit back.
