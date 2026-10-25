@@ -51,8 +51,8 @@ Candidates absorbed (each deleted by this gate):
    Migration `0068` makes the Unsplash columns nullable and adds `source`, `url`, `credit_name`,
    `credit_url` and `position` to `trip_covers` and `saved_day_covers`. Existing rows read as
    `source: "unsplash"`, `position: 50`. It is recorded in a `docs/contracts/CHANGELOG.md` entry, as
-   public API **1.27.0** (part 1, since `TripCover` is already in the published document). The
-   cover endpoint (decision 8) and its error code follow as **1.28.0** (part 3). Unsplash's attribution rules keep applying to Unsplash covers only.
+   public API **1.28.0** (part 1, since `TripCover` is already in the published document). The
+   cover endpoint (decision 8) and its error code follow as the next minor (part 3). Unsplash's attribution rules keep applying to Unsplash covers only.
 7. **A dead link falls back** to the designed no-cover state when the image fails to load
    (`onError` on `CoverImage`, which today has none, so a broken Unsplash image is fixed too).
    Nothing re-checks URLs in the background.
@@ -90,7 +90,7 @@ Candidates absorbed (each deleted by this gate):
 
 - [ ] **Decisions 4–10 are answered and recorded here**, with the contracts changelog entry and the
       API version. *(Answered and recorded 2026-10-25 with ADR-081. The union's changelog entry and
-      1.27.0 land with part 1, the endpoint's and 1.28.0 with part 3; the box is ticked then.)*
+      1.28.0 land with part 1, the endpoint's and the next minor with part 3; the box is ticked then.)*
 - [ ] **A cover set through `PUT /v1/trips/{tripId}/cover` from an image URL shows on the trip page,
       the Home card and the Home hero**, and `GET` returns it. An integration test drives the route with a token.
 - [ ] **A URL that is not an image, or that points at a private address, is refused and nothing is
