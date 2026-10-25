@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { Money } from "./money.ts";
+import { Money, MoneyInput } from "./money.ts";
 import { described } from "./valueKind.ts";
 
 const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -33,9 +33,9 @@ export type Anchor = z.infer<typeof Anchor>;
 /**
  * What a `Location`'s coordinates DESCRIBE. Declared as its own schema so a
  * consumer needing the enum imports it, rather than reaching through
- * `Location.innerType().shape.precision.unwrap()` — `Location` carries a
- * `.refine()`, so every such reach has to know that and breaks if the refinement
- * moves. `read.ts` was doing exactly that before this existed.
+ * `Location.innerType().shape.precision.unwrap()`, which under zod 3 had to
+ * know `Location` carries a `.refine()` and broke if the refinement moved.
+ * `read.ts` was doing exactly that before this existed.
  *
  * **`area` is currently unreachable at runtime, and that is honest rather than
  * aspirational.** `GeocodeResult` carries no granularity of its own, so
@@ -438,7 +438,7 @@ export const AddActivity = z.object({
   anchors: z.array(Anchor).optional(),
   kind: ActivityKind.optional().describe(KIND_DOC + " Omitted = `planned`."),
   tags: z.array(ActivityTag).optional(), // omitted = none
-  cost: Money.optional().describe(COST_DOC + " Omitted = no cost."),
+  cost: MoneyInput.optional().describe(COST_DOC + " Omitted = no cost."),
   // M24. Legal only with `kind: "transit"` — refused on the command unions in
   // trip.ts and again by the decider (see `kindDetailFieldsOffKind`).
   mode: ActivityMode.optional().describe(
@@ -486,7 +486,7 @@ export const UpdateActivity = z.object({
       "patch names them.",
   ),
   tags: z.array(ActivityTag).optional(), // omitted = unchanged; whole-array replace, like anchors
-  cost: Money.nullable().optional().describe(COST_DOC + " Omitted = unchanged; null = cleared."),
+  cost: MoneyInput.nullable().optional().describe(COST_DOC + " Omitted = unchanged; null = cleared."),
   // M24. Omitted = unchanged, null = cleared. Whether the RESULT is legal
   // depends on the stored `kind`, so the decider checks it, not this schema.
   // The decider refuses a stray one rather than clearing it; the caller edges
