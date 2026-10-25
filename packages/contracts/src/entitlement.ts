@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isoDateTime } from "./isoDateTime.ts";
 
 /**
  * The Entitlements module's cross-boundary vocabulary (AGENTS.md module map,
@@ -171,7 +172,7 @@ export const AdminGrantInput = z.object({
    * *"grant a plan at a version with an expiry and a reason"* — all three are
    * present in the request, and one of them may be `null` on purpose.
    */
-  expiresAt: z.string().datetime().nullable(),
+  expiresAt: isoDateTime().nullable(),
   /**
    * Why, in the operator's words. A comp nobody can explain six months later
    * is a billing dispute with no evidence, so it is required and non-empty.
