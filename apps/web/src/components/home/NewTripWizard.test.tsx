@@ -127,6 +127,7 @@ function published(overrides: Partial<DiscoverDay> & Pick<DiscoverDay, "savedDay
     description: null,
     tags: [],
     namedTags: [],
+    linkedTags: [],
     ...overrides,
   };
 }

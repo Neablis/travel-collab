@@ -1,5 +1,5 @@
 import { describeByTags, describedTags } from "@tc/domain";
-import { TripCover } from "@tc/contracts";
+import { TripCover, type ActivityTagDescribed } from "@tc/contracts";
 import { DISCOVER_PREVIEW_STOPS, type DiscoverDay } from "@/lib/playbooks";
 import { savedDayFacts } from "@/lib/savedDayFacts";
 import { publicNameFor } from "@/lib/displayName";
@@ -66,7 +66,18 @@ export function isoOf(value: unknown): string | null {
  * whole page — one unreadable fragment must not take the other twenty-three
  * with it.
  */
-export function toDiscoverDay(row: DiscoverRow, queryCities: string[], readerId: string | null): DiscoverDay | null {
+export function toDiscoverDay(
+  row: DiscoverRow,
+  queryCities: string[],
+  readerId: string | null,
+  /**
+   * The tags with a global tag page, from the published lattice
+   * (`playbooks.ts`'s `globalPageTags`, read once per list call, never per
+   * card). Empty when the caller has no lattice — the landing's snapshot
+   * days, and the public API's page — so their chips stay text.
+   */
+  pageTags: readonly ActivityTagDescribed[] = [],
+): DiscoverDay | null {
   // **The same helper `savedDays.ts`'s `fromRow` calls** (F-F05, and ADR-048
   // makes it a prerequisite of M23). This was a hand-copied duplicate of that
   // function's parses, with identical log strings, until the sequence work gave
@@ -84,6 +95,20 @@ export function toDiscoverDay(row: DiscoverRow, queryCities: string[], readerId:
   if (parsed === null) return null;
   const facts = savedDayFacts(parsed.stops, parsed.dayCount);
   const described = describeByTags(parsed.stops);
+  const tags = describedTags(parsed.stops);
+  // A chip links only to a page that exists: the day's tags that are in the
+  // published lattice's global pages. A tag with no page (today Lodging,
+  // Ticketed, Sports) stays text, so no chip leads to a 404 — and a tag the
+  // description does not name still links when its page exists, so a day of
+  // meals with one bar links its Drinks chip. Public days only, as
+  // `namedTags`: a private day's chips stay text.
+  // Read as strings: `tags` are `ActivityTag` and the set holds described
+  // ones, so a typed set would refuse the membership test.
+  const pageTagSet: ReadonlySet<string> = new Set(pageTags);
+  const linkedTags =
+    parsed.visibility === "public"
+      ? tags.filter((tag): tag is ActivityTagDescribed => pageTagSet.has(tag))
+      : [];
   const wanted = new Set(queryCities);
   return {
     savedDayId: row.id,
@@ -136,10 +161,11 @@ export function toDiscoverDay(row: DiscoverRow, queryCities: string[], readerId:
     isMine: row.owner_id === readerId,
     cover: coverOfRow(row),
     description: described?.text ?? null,
-    tags: describedTags(parsed.stops),
+    tags,
     // Tag pages list published days only, so a private day's chip would lead
     // to a page without it, or to a 404.
     namedTags: parsed.visibility === "public" ? [...(described?.named ?? [])] : [],
+    linkedTags,
   };
 }
 

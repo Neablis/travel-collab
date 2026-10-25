@@ -28,6 +28,13 @@ export type SharedDayView = {
    */
   description: string | null;
   tags: ActivityTag[];
-  /** The tags the description names: the chips that link to a tag page, which lists this day (ADR-070 §4). */
+  /** The tags the description names: the tag pages and tag searches the day is on (ADR-070 §4). */
   namedTags: ActivityTagDescribed[];
+  /**
+   * The day's tags with a global tag page (`/playbooks/tag/<tag>`): the chips
+   * that link. From the published lattice, not from the description — a tag
+   * the description does not name still links when its page exists, and a
+   * tag with no page stays text. Public, listed days only, as `namedTags`.
+   */
+  linkedTags: ActivityTagDescribed[];
 };
