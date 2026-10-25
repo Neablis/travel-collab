@@ -17,15 +17,20 @@ export function dragToPosition(start: number, dy: number, travel: number): numbe
 const clamp = (position: number) => Math.min(100, Math.max(0, position));
 
 /**
- * How far, in pixels, the photo in `band` can move: its overflow below the
- * band, as `object-fit: cover` scales it to the band's width. A photo not yet
- * loaded, or one no taller than the band, has none, and then a drag the
- * band's height moves it end to end.
+ * How far, in pixels, the photo in `band` can move: how much of it
+ * `object-fit: cover` hides above and below once it is scaled to fill the
+ * band. A drag of that many pixels takes it from one end to the other, so the
+ * photo keeps pace with the pointer. A photo not yet loaded, or one no taller
+ * than the band, has none, and then a drag the band's height moves it end to
+ * end.
  */
 function travelIn(band: HTMLElement): number {
   const { width, height } = band.getBoundingClientRect();
   const img = band.querySelector("img");
-  const overflow = img && img.naturalWidth > 0 ? (width * img.naturalHeight) / img.naturalWidth - height : 0;
+  const overflow =
+    img && img.naturalWidth > 0 && img.naturalHeight > 0
+      ? Math.max(width / img.naturalWidth, height / img.naturalHeight) * img.naturalHeight - height
+      : 0;
   return overflow >= 1 ? overflow : Math.max(height, 1);
 }
 
@@ -58,6 +63,7 @@ export function RepositionCover({
   const [failed, setFailed] = useState(false);
   const drag = useRef<{ pointerId: number; y: number; from: number; travel: number } | null>(null);
   const slider = useRef<HTMLDivElement>(null);
+  const root = useRef<HTMLDivElement>(null);
   const hint = useId();
 
   useEffect(() => slider.current?.focus(), []);
@@ -76,14 +82,20 @@ export function RepositionCover({
     setFailed(!saved);
   };
 
+  // While a save is in flight the position on its way is the one shown: a
+  // move would be drawn and then dropped, and an Esc would revert a framing
+  // the save is about to store.
   const onPointerDown = (e: PointerEvent<HTMLDivElement>) => {
-    const band = e.currentTarget.parentElement ?? e.currentTarget;
+    if (saving) return;
+    // The band is the box this overlay is laid over, which holds the photo
+    // beside it; the slider's own parent is the overlay, with no photo in it.
+    const band = root.current?.parentElement ?? e.currentTarget;
     drag.current = { pointerId: e.pointerId, y: e.clientY, from: position, travel: travelIn(band) };
     e.currentTarget.setPointerCapture?.(e.pointerId);
   };
   const onPointerMove = (e: PointerEvent<HTMLDivElement>) => {
     const d = drag.current;
-    if (d === null || d.pointerId !== e.pointerId) return;
+    if (d === null || saving || d.pointerId !== e.pointerId) return;
     move(dragToPosition(d.from, e.clientY - d.y, d.travel));
   };
   const endDrag = () => {
@@ -91,6 +103,7 @@ export function RepositionCover({
   };
 
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    if (saving) return;
     const step = e.shiftKey ? 10 : 1;
     if (e.key === "ArrowUp") move(clamp(position + step));
     else if (e.key === "ArrowDown") move(clamp(position - step));
@@ -101,7 +114,7 @@ export function RepositionCover({
   };
 
   return (
-    <div className={cn("absolute inset-x-0 top-0", className)}>
+    <div ref={root} className={cn("absolute inset-x-0 top-0", className)}>
       <div
         ref={slider}
         role="slider"
@@ -117,7 +130,7 @@ export function RepositionCover({
         onPointerUp={endDrag}
         onPointerCancel={endDrag}
         onKeyDown={onKeyDown}
-        className="absolute inset-0 cursor-grab touch-none outline-none select-none active:cursor-grabbing"
+        className="absolute inset-0 cursor-grab touch-none select-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand active:cursor-grabbing"
       />
       <p
         id={hint}

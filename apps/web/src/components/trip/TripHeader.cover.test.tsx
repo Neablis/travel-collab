@@ -1,5 +1,6 @@
 import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { CoverCandidate } from "@tc/contracts";
@@ -45,6 +46,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   server.resetHandlers();
+  server.events.removeAllListeners();
   // No cover reset of its own: the cover lives in the query cache, which
   // `vitest.setup.ts` clears after every test.
 });
@@ -151,7 +153,6 @@ describe("TripHeader — the cover band", () => {
       expect(sent).toEqual([{ position: 39 }]);
       expect(photo("Lake roofs").style.objectPosition).toBe("center 39%");
       expect(band()).not.toBeNull();
-      server.events.removeAllListeners();
     });
 
     it("puts the photo back on Esc, sending nothing", async () => {
@@ -166,7 +167,20 @@ describe("TripHeader — the cover band", () => {
       expect(screen.queryByRole("slider", { name: "Cover position" })).toBeNull();
       expect(photo("Lake roofs").style.objectPosition).toBe("center 30%");
       expect(sent).toEqual([]);
-      server.events.removeAllListeners();
+    });
+
+    it("closes and says so when the cover was removed meanwhile, offering no retry", async () => {
+      server.use(...makeCoverHandlers({ cover: tripCoverFactory.build({ alt: "Lake roofs", position: 30 }) }));
+      await renderHeader();
+      await userEvent.click(await screen.findByRole("button", { name: "Reposition" }));
+      // A co-editor removes it after the band read it.
+      server.use(http.patch(`/api/trips/${TRIP}/cover`, () => HttpResponse.json({ error: "no-cover" }, { status: 404 })));
+      await userEvent.keyboard("{ArrowUp}{Enter}");
+
+      expect((await screen.findByRole("alert")).textContent).toMatch(/cover was removed/);
+      expect(screen.queryByRole("slider", { name: "Cover position" })).toBeNull();
+      expect(screen.queryByRole("button", { name: "Reposition" })).toBeNull();
+      expect(photo("Lake roofs").style.objectPosition).toBe("center 30%");
     });
   });
 
@@ -197,7 +211,6 @@ describe("TripHeader — the cover band", () => {
       await cachedRead(coverKeys.trip(TRIP), () => Promise.resolve({ ok: true as const, value: newer }), { dedupeMs: 0 });
     });
     expect(await screen.findByRole("img", { name: "New harbour" })).toBeTruthy();
-    server.events.removeAllListeners();
   });
 
   // PR #384 review: the band was `hidden md:block`, so a phone still read the
@@ -214,7 +227,6 @@ describe("TripHeader — the cover band", () => {
     await new Promise((resolve) => setTimeout(resolve, 50));
     expect(reads).toBe(0);
     expect(screen.queryByRole("img", { name: "Unseen roofs" })).toBeNull();
-    server.events.removeAllListeners();
   });
 
   // Mitchell, 2026-10-10: the header sits on the photo's faded foot, as a
@@ -279,7 +291,6 @@ describe("TripHeader — the cover band", () => {
       expect(screen.getByRole("img", { name: "Seeded roofs" })).toBeTruthy();
       await new Promise((resolve) => setTimeout(resolve, 50));
       expect(reads.count).toBe(0);
-      server.events.removeAllListeners();
     });
 
     it("keeps the band off a phone by CSS, with a blank phone source, and reads no cover", async () => {
@@ -299,7 +310,6 @@ describe("TripHeader — the cover band", () => {
       expect(html).toMatch(/<picture><source media="\(max-width: 767px\)" srcSet="data:image\/gif;base64,[^"]+"\/><img /);
       await new Promise((resolve) => setTimeout(resolve, 50));
       expect(reads.count).toBe(0);
-      server.events.removeAllListeners();
     });
   });
 

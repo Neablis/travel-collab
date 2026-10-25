@@ -82,6 +82,10 @@ export function TripCoverBanner({
 }) {
   // The position being tried while repositioning; `null` when not.
   const [draft, setDraft] = useState<number | null>(null);
+  // The photo a save found gone (a co-editor removed the cover since it was
+  // read): no retry can store a position on it, so the mode closes and says
+  // so. Held against the cover it was found for, so any newer read clears it.
+  const [removed, setRemoved] = useState<TripCover | null>(null);
   const reposition = useRef<HTMLButtonElement>(null);
   const done = () => {
     setDraft(null);
@@ -90,7 +94,12 @@ export function TripCoverBanner({
   };
   const save = async (position: number) => {
     const result = await setTripCoverPosition(tripId, position);
-    if (!result.ok) return false;
+    if (!result.ok) {
+      if (result.error.message !== "no-cover") return false;
+      setRemoved(cover);
+      done();
+      return false;
+    }
     primeCached(coverKeys.trip(tripId), result.value);
     done();
     return true;
@@ -119,16 +128,23 @@ export function TripCoverBanner({
               <span aria-hidden className={cn(PILL, "flex h-7 items-center")}>
                 Change cover
               </span>
-              <Button
-                ref={reposition}
-                variant="ghost"
-                size="sm"
-                onClick={() => setDraft(cover.position)}
-                className={cn(PILL, "pointer-events-auto")}
-              >
-                Reposition
-              </Button>
+              {removed !== cover && (
+                <Button
+                  ref={reposition}
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setDraft(cover.position)}
+                  className={cn(PILL, "pointer-events-auto")}
+                >
+                  Reposition
+                </Button>
+              )}
             </div>
+            {removed === cover && (
+              <p role="alert" className={cn(PILL, "absolute bottom-3 left-3 py-1.5")}>
+                This cover was removed, so its position wasn’t saved.
+              </p>
+            )}
           </div>
         </>
       )}

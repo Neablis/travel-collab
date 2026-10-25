@@ -6,11 +6,23 @@ import { dragToPosition, RepositionCover } from "./RepositionCover";
 // M49 decision 10: the band's reposition mode. Each test drives the control
 // as a person would and reads the position off the slider it exposes.
 
-function renderAt(position: number) {
+function renderAt(position: number, { onBand = false } = {}) {
   const onChange = vi.fn();
   const onSave = vi.fn(async () => true);
   const onCancel = vi.fn();
-  render(<RepositionCover initial={position} onChange={onChange} onSave={onSave} onCancel={onCancel} />);
+  const control = <RepositionCover initial={position} onChange={onChange} onSave={onSave} onCancel={onCancel} />;
+  // On the band as `TripCoverBanner` lays it: over the box, the photo beside it.
+  render(
+    onBand ? (
+      <div>
+        {/* eslint-disable-next-line @next/next/no-img-element -- a bare photo for the control to measure, as `CoverImage` draws one */}
+        <img src="/dunes.svg" alt="Dunes" />
+        {control}
+      </div>
+    ) : (
+      control
+    ),
+  );
   const slider = screen.getByRole("slider", { name: "Cover position" });
   const at = () => Number(slider.getAttribute("aria-valuenow"));
   return { slider, at, onChange, onSave, onCancel };
@@ -28,10 +40,10 @@ describe("dragToPosition", () => {
 
 describe("RepositionCover", () => {
   beforeEach(() => {
-    // jsdom lays nothing out: the band is 384px tall here, with no photo
-    // measured, so a drag's travel is the band's height.
+    // jsdom lays nothing out: the band is 1280×384 here. With no photo
+    // measured, a drag's travel is the band's height.
     vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(
-      DOMRect.fromRect({ x: 0, y: 0, width: 0, height: 384 }),
+      DOMRect.fromRect({ x: 0, y: 0, width: 1280, height: 384 }),
     );
   });
   afterEach(() => vi.restoreAllMocks());
@@ -47,6 +59,19 @@ describe("RepositionCover", () => {
     fireEvent.pointerMove(slider, { clientY: 400, pointerId: 1 });
     expect(at()).toBe(25);
     expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it("keeps pace with the pointer over a photo: a drag of N px moves it N px", () => {
+    const { slider, at } = renderAt(50, { onBand: true });
+    // A 5:4 photo fills the 1280px band 1024px tall: 640px of it is hidden,
+    // so 64px is a tenth of its travel.
+    Object.defineProperties(screen.getByRole("img", { name: "Dunes" }), {
+      naturalWidth: { value: 1280 },
+      naturalHeight: { value: 1024 },
+    });
+    fireEvent.pointerDown(slider, { clientY: 100, pointerId: 1 });
+    fireEvent.pointerMove(slider, { clientY: 164, pointerId: 1 });
+    expect(at()).toBe(40);
   });
 
   it("moves 1% per arrow and 10% with Shift, held to 0–100", async () => {
@@ -75,6 +100,18 @@ describe("RepositionCover", () => {
     await userEvent.keyboard("{Escape}");
     expect(onCancel).toHaveBeenCalledTimes(1);
     expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it("takes no move and no Esc while the save is on its way", async () => {
+    const { slider, at, onSave, onCancel } = renderAt(50);
+    onSave.mockReturnValue(new Promise<boolean>(() => {}));
+    await userEvent.keyboard("{ArrowUp}{Enter}");
+    expect(onSave).toHaveBeenCalledWith(51);
+    await userEvent.keyboard("{ArrowUp}{Escape}");
+    fireEvent.pointerDown(slider, { clientY: 100, pointerId: 1 });
+    fireEvent.pointerMove(slider, { clientY: 200, pointerId: 1 });
+    expect(at()).toBe(51);
+    expect(onCancel).not.toHaveBeenCalled();
   });
 
   it("saves the moved position on Enter, and on Save position", async () => {
