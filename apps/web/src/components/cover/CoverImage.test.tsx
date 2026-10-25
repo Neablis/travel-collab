@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { CoverImage, coverSrc } from "./CoverImage";
 
 const unsplash = {
@@ -13,6 +13,10 @@ const unsplash = {
 };
 
 describe("CoverImage", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it("hotlinks Unsplash's own URLs, sized through imgix on the raw one", () => {
     render(<CoverImage photo={unsplash} sizes="100vw" />);
     const img = screen.getByRole("img", { name: "Maples over a temple roof" });
@@ -75,6 +79,7 @@ describe("CoverImage", () => {
   // `onError` only then, without replaying it: the box must still fall back.
   it("drops a photo that had already failed when it mounted, and keeps one that had loaded", () => {
     vi.spyOn(HTMLImageElement.prototype, "complete", "get").mockReturnValue(true);
+    vi.spyOn(HTMLImageElement.prototype, "currentSrc", "get").mockReturnValue("https://images.unsplash.com/requested");
     const naturalWidth = vi.spyOn(HTMLImageElement.prototype, "naturalWidth", "get").mockReturnValue(1200);
     const { unmount } = render(<CoverImage photo={unsplash} sizes="100vw" />);
     expect(screen.getByRole("img")).toBeTruthy();
@@ -82,6 +87,25 @@ describe("CoverImage", () => {
     naturalWidth.mockReturnValue(0);
     render(<CoverImage photo={{ ...unsplash, urls: { ...unsplash.urls, regular: "https://images.unsplash.com/gone-2" } }} sizes="100vw" />);
     expect(screen.queryByRole("img")).toBeNull();
-    vi.restoreAllMocks();
+  });
+
+  // A lazy image the browser has not requested yet has no width either. If a
+  // browser called it complete, every cover below the fold would vanish.
+  it("keeps a lazy photo the browser has not requested yet", () => {
+    vi.spyOn(HTMLImageElement.prototype, "complete", "get").mockReturnValue(true);
+    vi.spyOn(HTMLImageElement.prototype, "naturalWidth", "get").mockReturnValue(0);
+    vi.spyOn(HTMLImageElement.prototype, "currentSrc", "get").mockReturnValue("");
+    render(<CoverImage photo={{ ...unsplash, urls: { ...unsplash.urls, regular: "https://images.unsplash.com/deferred-1" } }} sizes="100vw" />);
+    expect(screen.getByRole("img")).toBeTruthy();
+  });
+
+  // Coming back online asks again for every photo that failed, with a new
+  // request: the old element only ever holds the failed one.
+  it("asks again for a failed photo when the browser comes back online", () => {
+    render(<CoverImage photo={{ ...unsplash, urls: { ...unsplash.urls, regular: "https://images.unsplash.com/blip-1" } }} sizes="100vw" />);
+    fireEvent.error(screen.getByRole("img"));
+    const failed = screen.getByRole("img", { hidden: true });
+    fireEvent(window, new Event("online"));
+    expect(screen.getByRole("img")).not.toBe(failed);
   });
 });

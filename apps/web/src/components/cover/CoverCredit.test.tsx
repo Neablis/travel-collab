@@ -58,4 +58,23 @@ describe("CoverCredit", () => {
     render(<CoverCredit photo={{ source: "url", credit: { name: "Port of Leith", url: null } }} />);
     expect(screen.queryByText("Port of Leith")).toBeNull();
   });
+
+  // A failure is usually a dropped connection, not a deleted photo: the next
+  // image of that src to load, here a remount retrying it, brings both back.
+  it("comes back with its photo once an image of that src loads after failing", () => {
+    const cover = tripCoverFactory.build({ photographerName: "Aiko Tanaka" });
+    const { unmount } = render(<CoverImage photo={cover} sizes="100vw" />);
+    fireEvent.error(screen.getByRole("img"));
+    unmount();
+    render(
+      <>
+        <CoverImage photo={cover} sizes="100vw" />
+        <CoverCredit photo={cover} />
+      </>,
+    );
+    expect(screen.queryByRole("link", { name: "Aiko Tanaka" })).toBeNull();
+    fireEvent.load(screen.getByRole("img", { hidden: true }));
+    expect(screen.getByRole("img")).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Aiko Tanaka" })).toBeTruthy();
+  });
 });

@@ -58,22 +58,52 @@ export function coverImageSrc(
   return photo.source === "url" ? photo.proxySrc : photo.urls.regular;
 }
 
-// Srcs that failed to load in this tab. Shared rather than one image's state,
-// so the credit, which sits elsewhere on each surface, hides with the photo it
-// credits (decision 7). Keyed by src, so a new photo gets its own chance.
-// Only a browser event writes it, so a server render always shows the photo.
+// Srcs whose last request failed. Shared rather than one image's state, so the
+// credit, which sits elsewhere on each surface, hides with the photo it
+// credits (decision 7). Most failures are a dropped connection, not a deleted
+// photo, so a src is forgotten as soon as any image of it loads, and every
+// failure is forgotten when the browser comes back online. Only a browser
+// event writes it, so a server render always shows the photo.
 const failedSrcs = new Set<string>();
+// Bumped when a failed src is forgotten, to key its `<img>`s afresh: a broken
+// element holds its failed request and asks for nothing more on its own.
+const retries = new Map<string, number>();
 const failListeners = new Set<() => void>();
+
+function notifyFailures() {
+  for (const listener of failListeners) listener();
+}
 
 function markFailed(src: string | undefined) {
   if (src === undefined || failedSrcs.has(src)) return;
   failedSrcs.add(src);
-  for (const listener of failListeners) listener();
+  notifyFailures();
+}
+
+function forget(src: string) {
+  failedSrcs.delete(src);
+  retries.set(src, (retries.get(src) ?? 0) + 1);
+}
+
+function markLoaded(src: string | undefined) {
+  if (src === undefined || !failedSrcs.has(src)) return;
+  forget(src);
+  notifyFailures();
+}
+
+function forgetFailures() {
+  if (failedSrcs.size === 0) return;
+  failedSrcs.forEach(forget);
+  notifyFailures();
 }
 
 function subscribeToFailures(listener: () => void) {
+  if (failListeners.size === 0) window.addEventListener("online", forgetFailures);
   failListeners.add(listener);
-  return () => failListeners.delete(listener);
+  return () => {
+    failListeners.delete(listener);
+    if (failListeners.size === 0) window.removeEventListener("online", forgetFailures);
+  };
 }
 
 /** Whether a cover's photo is on screen: it has a src to load, and that src has not failed. */
@@ -154,6 +184,11 @@ export function CoverImage({
   const url = photo.source === "url";
   const src = coverImageSrc(photo);
   const shown = useCoverShown(src);
+  const retry = useSyncExternalStore(
+    subscribeToFailures,
+    () => (src === undefined ? 0 : (retries.get(src) ?? 0)),
+    () => 0,
+  );
   const srcSet = url ? undefined : WIDTHS.map((w) => `${coverSrc(photo.urls.raw, w)} ${w}w`).join(", ");
   if (notOnPhone && priority && src !== undefined) {
     preload(src, {
@@ -167,6 +202,7 @@ export function CoverImage({
   const img = (
     // eslint-disable-next-line @next/next/no-img-element -- hotlinked from Unsplash's CDN by its guidelines (D3), or already same-origin through the cover proxy; next/image would proxy it
     <img
+      key={retry}
       src={src}
       srcSet={srcSet}
       sizes={srcSet === undefined ? undefined : sizes}
@@ -174,20 +210,26 @@ export function CoverImage({
       loading={eager || priority ? "eager" : "lazy"}
       fetchPriority={priority ? "high" : undefined}
       decoding="async"
+      onLoad={() => markLoaded(src)}
       onError={() => markFailed(src)}
       // A server-rendered image can fail before hydration, and React attaches
-      // `onError` only then, without replaying it: check once it is ours.
+      // `onError` only then, without replaying it: check once it is ours. Only
+      // a requested image has a `currentSrc`, so a lazy one the browser has
+      // deferred is never taken for a broken one.
       ref={(el) => {
-        if (el?.complete && el.naturalWidth === 0) markFailed(src);
+        if (el?.complete && el.naturalWidth === 0 && el.currentSrc !== "") markFailed(src);
       }}
+      // A failed photo stays in the box, hidden, so that mounting it again
+      // asks again, and its `load` brings it and its credit back.
+      aria-hidden={shown ? undefined : true}
       // eslint-disable-next-line no-restricted-syntax -- the cover's stored framing, 0–100 per photo (M49 decision 9): data, not a style a token could name
       style={{ objectPosition: `center ${photo.position ?? 50}%` }}
-      className="absolute inset-0 size-full object-cover"
+      className={cn("absolute inset-0 size-full object-cover", !shown && "invisible")}
     />
   );
   return (
     <div className={cn("relative overflow-hidden bg-moss", className)}>
-      {!shown ? null : notOnPhone ? (
+      {src === undefined ? null : notOnPhone ? (
         <picture>
           <source media={PHONE_MEDIA} srcSet={BLANK} />
           {img}
