@@ -232,8 +232,12 @@ beforeEach(() => {
 });
 afterEach(() => {
   restoreHistory();
-  server.resetHandlers();
+  // Unmount BEFORE dropping the test's handlers: the board polls chat,
+  // suggestions and events, and a poll landing between the two met no handler
+  // and failed whichever test was running (`/chat` on PR 569's CI, a different
+  // test each run; with the gap widened to 3 s all three polls hit it).
   cleanup();
+  server.resetHandlers();
   listeners.clear();
   // Last, so a failure here still leaves the next test a clean slate.
   expect(unhandled.splice(0), "requests no handler answered").toEqual([]);
