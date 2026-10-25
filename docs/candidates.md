@@ -370,6 +370,21 @@ here two days later.
     the drag. Whether the stored position also applies to the card on Home.
   *Placed 2026-10-12 → `docs/milestones/M49-covers-from-anywhere.md` (proposed, not yet scoped). M49's gate deletes this entry at close.*
 
+- **Reposition a playbook day's cover, as the trip band does (asked 2026-10-25).** Mitchell,
+  walking M49's preview: *"Is it expected i cant reposition the playbook covers?"*, then *"make it
+  a follow-up"*.
+  - **What exists.** M49 shipped *Reposition* for the trip cover only. `TripCover.position`
+    (0–100, default 50) came with migration 0068, and the trip band's drag mode lives in
+    `RepositionCover.tsx`, reached from the hidden cover menu of decision 10 as amended. The day
+    band uses the same `CoverMenu`, but it offers only *Change cover* and *Remove*.
+    Playbook-day covers stay off the public API (M49 decision 8).
+  - **The idea.** Put *Reposition* in the day band's menu, reuse the drag mode, and render the
+    saved position on every surface the day cover appears on.
+  - **Decisions it needs.** Whether the day cover's stored shape already carries `position`. If
+    it does not, this needs a migration and a contract change logged in
+    `docs/contracts/CHANGELOG.md`. Also whether choosing a new photo resets the position, as it
+    does for trips.
+
 - **The assistant knows which surface started the conversation, and can start a trip from scratch
   (asked 2026-10-13).** Mitchell, walking M45 on production: *"it should be conscious of what tab
   started the conversation and outside a specific trip should be a place to have the tool to start
