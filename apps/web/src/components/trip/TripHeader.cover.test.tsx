@@ -1,5 +1,6 @@
 import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { CoverCandidate } from "@tc/contracts";
@@ -26,7 +27,7 @@ vi.mock("@/lib/apiClient", async (orig) => {
 import { TripProvider } from "@/components/trip/context/TripProvider";
 import { EditorHost } from "@/components/trip/context/EditorHost";
 import { TripHeader } from "./TripHeader";
-import { cachedRead } from "@/lib/queryCache";
+import { cachedRead, peekCached } from "@/lib/queryCache";
 import { coverKeys } from "@/lib/queryKeys";
 import { setViewportMatches } from "../../../vitest.setup";
 import { tripFirstDataFixture } from "@/test-support/tripFirstData";
@@ -45,6 +46,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   server.resetHandlers();
+  server.events.removeAllListeners();
   // No cover reset of its own: the cover lives in the query cache, which
   // `vitest.setup.ts` clears after every test.
 });
@@ -77,8 +79,14 @@ async function renderHeader() {
   await screen.findByRole("heading", { level: 1, name: /Japan/ });
 }
 
-const band = () => screen.queryByRole("button", { name: "Change cover photo" });
+const band = () => screen.queryByRole("button", { name: "Edit cover" });
 const addCover = () => screen.queryByRole("button", { name: "Add cover" });
+const items = () => screen.queryAllByRole("menuitem").map((item) => item.textContent);
+/** Opens the band's menu by mouse and chooses `item` from it. */
+async function choose(item: string) {
+  await userEvent.click(await screen.findByRole("button", { name: "Edit cover" }));
+  await userEvent.click(await screen.findByRole("menuitem", { name: item }));
+}
 
 // Mitchell, 2026-10-10 preview: "I dont like that adding a cover photo makes
 // no changes right away, the header of the trip on desktop should also have the
@@ -95,9 +103,86 @@ describe("TripHeader — the cover band", () => {
     expect(screen.getByRole("link", { name: "Aiko Tanaka" })).toBeTruthy();
     expect(addCover()).toBeNull();
 
-    await userEvent.click(band()!);
+    await choose("Change cover");
     const sheet = await screen.findByRole("dialog", { name: /Trip settings/ });
     expect(within(sheet).getByRole("region", { name: "Cover photo" })).toBeTruthy();
+  });
+
+  // M49 decision 10, amended 2026-10-25 (Mitchell): no buttons on the band
+  // until the cover is activated, then one menu holds all three.
+  it("shows an editor no cover buttons until the cover is clicked, then a menu of Change cover, Reposition and Remove", async () => {
+    server.use(...makeCoverHandlers({ cover: tripCoverFactory.build() }));
+    await renderHeader();
+    await waitFor(() => expect(band()).not.toBeNull());
+    for (const name of [/change cover/i, /^reposition$/i, /remove/i]) {
+      expect(screen.queryByRole("button", { name })).toBeNull();
+    }
+    expect(items()).toEqual([]);
+
+    await userEvent.click(band()!);
+    expect(await screen.findByRole("menu")).toBeTruthy();
+    expect(items()).toEqual(["Change cover", "Reposition", "Remove"]);
+  });
+
+  it("opens the same menu from the keyboard, moves through it with the arrows, and Esc hands focus back to the cover", async () => {
+    server.use(...makeCoverHandlers({ cover: tripCoverFactory.build() }));
+    await renderHeader();
+    await waitFor(() => expect(band()).not.toBeNull());
+    band()!.focus();
+    await userEvent.keyboard("{Enter}");
+    await screen.findByRole("menu");
+    expect(items()).toEqual(["Change cover", "Reposition", "Remove"]);
+    const item = (name: string) => screen.getByRole("menuitem", { name });
+    await waitFor(() => expect(item("Change cover").matches(":focus")).toBe(true));
+    await userEvent.keyboard("{ArrowDown}");
+    expect(item("Reposition").matches(":focus")).toBe(true);
+
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
+    await waitFor(() => expect(band()!.matches(":focus")).toBe(true));
+  });
+
+  it("removes the cover from the menu, leaving Add cover in its place with focus on it", async () => {
+    let cleared = 0;
+    server.use(...makeCoverHandlers({ cover: tripCoverFactory.build({ alt: "Lake roofs" }), onClear: () => cleared++ }));
+    await renderHeader();
+    await choose("Remove");
+    await waitFor(() => expect(screen.queryByRole("img", { name: "Lake roofs" })).toBeNull());
+    expect(cleared).toBe(1);
+    await waitFor(() => expect(addCover()!.matches(":focus")).toBe(true));
+  });
+
+  // Review of PR 585: a failed Remove's alert outlived the cover it was about,
+  // and still showed over a reframed or a new photo.
+  it("drops a failed Remove's alert once a later save succeeds", async () => {
+    server.use(...makeCoverHandlers({ cover: tripCoverFactory.build({ alt: "Lake roofs", position: 30 }) }));
+    server.use(http.delete(`/api/trips/${TRIP}/cover`, () => HttpResponse.json({ error: "internal error" }, { status: 500 })));
+    await renderHeader();
+    await choose("Remove");
+    expect((await screen.findByRole("alert")).textContent).toMatch(/Couldn’t remove/);
+
+    await choose("Reposition");
+    await userEvent.keyboard("{ArrowUp}{Enter}");
+    await waitFor(() => expect(screen.queryByRole("slider", { name: "Cover position" })).toBeNull());
+    expect(screen.getByRole("img", { name: "Lake roofs" }).style.objectPosition).toBe("center 31%");
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  // Decision 10 amended: hovering the top of the header shows *+ Add cover*,
+  // not hovering the button's own few pixels. jsdom applies no `:hover`, so
+  // this pins the wiring: the nav row is the group, and the button's mouse
+  // visibility is keyed to it.
+  it("shows Add cover on hovering or focusing the header's top row, not only the button", async () => {
+    server.use(...makeCoverHandlers({ cover: null }));
+    await renderHeader();
+    const add = await waitFor(() => {
+      const button = addCover();
+      expect(button).not.toBeNull();
+      return button!;
+    });
+    expect(screen.getByRole("navigation", { name: "Trip" }).matches(".group\\/addcover")).toBe(true);
+    expect(add.matches(".fine\\:group-hover\\/addcover\\:opacity-70")).toBe(true);
+    expect(add.matches(".fine\\:group-focus-within\\/addcover\\:opacity-70")).toBe(true);
   });
 
   it("offers Add cover where there is none, and a pick in the picker shows on the trip at once", async () => {
@@ -116,12 +201,77 @@ describe("TripHeader — the cover band", () => {
     // No reload and no second read: the band is drawn from what the pick
     // answered, and the stand-in is gone — already behind the open sheet
     // (`hidden: true`, since the modal marks everything outside it hidden),
-    // and there when the sheet closes.
-    expect(await screen.findByRole("button", { name: "Change cover photo", hidden: true })).toBeTruthy();
+    // and there when the sheet closes. Two covers: the band's and the
+    // picker's own preview, each its own *Edit cover*.
+    await waitFor(() => expect(screen.getAllByRole("button", { name: "Edit cover", hidden: true })).toHaveLength(2));
     await userEvent.keyboard("{Escape}");
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     expect(band()).not.toBeNull();
     expect(addCover()).toBeNull();
+  });
+
+  // M49 decision 10: Reposition, from the cover's menu, for an editor.
+  describe("Reposition", () => {
+    const photo = (alt: string) => screen.getByRole("img", { name: alt });
+    const patches = () => {
+      const sent: unknown[] = [];
+      server.events.on("request:start", async ({ request }) => {
+        if (request.method === "PATCH") sent.push(await request.clone().json());
+      });
+      return sent;
+    };
+
+    it("moves the photo live and saves it on Enter, which the band then keeps", async () => {
+      const sent = patches();
+      server.use(...makeCoverHandlers({ cover: tripCoverFactory.build({ alt: "Lake roofs", position: 50 }) }));
+      await renderHeader();
+      await choose("Reposition");
+      expect(screen.getByText("Drag image to reposition")).toBeTruthy();
+      expect(band()).toBeNull();
+
+      await userEvent.keyboard("{Shift>}{ArrowDown}{/Shift}{ArrowDown}");
+      expect(photo("Lake roofs").style.objectPosition).toBe("center 39%");
+      await userEvent.keyboard("{Enter}");
+
+      await waitFor(() => expect(screen.queryByRole("slider", { name: "Cover position" })).toBeNull());
+      expect(sent).toEqual([{ position: 39 }]);
+      expect(photo("Lake roofs").style.objectPosition).toBe("center 39%");
+      expect(band()).not.toBeNull();
+    });
+
+    it("puts the photo back on Esc, sending nothing", async () => {
+      const sent = patches();
+      server.use(...makeCoverHandlers({ cover: tripCoverFactory.build({ alt: "Lake roofs", position: 30 }) }));
+      await renderHeader();
+      await choose("Reposition");
+      await userEvent.keyboard("{ArrowUp}{ArrowUp}");
+      expect(photo("Lake roofs").style.objectPosition).toBe("center 32%");
+
+      await userEvent.keyboard("{Escape}");
+      expect(screen.queryByRole("slider", { name: "Cover position" })).toBeNull();
+      expect(photo("Lake roofs").style.objectPosition).toBe("center 30%");
+      expect(sent).toEqual([]);
+      await waitFor(() => expect(band()!.matches(":focus")).toBe(true));
+    });
+
+    it("closes and says so when the cover was removed meanwhile, offering no retry", async () => {
+      server.use(...makeCoverHandlers({ cover: tripCoverFactory.build({ alt: "Lake roofs", position: 30 }) }));
+      await renderHeader();
+      await choose("Reposition");
+      // A co-editor removes it after the band read it.
+      server.use(http.patch(`/api/trips/${TRIP}/cover`, () => HttpResponse.json({ error: "no-cover" }, { status: 404 })));
+      await userEvent.keyboard("{ArrowUp}{Enter}");
+
+      expect((await screen.findByRole("alert")).textContent).toMatch(/cover was removed/);
+      expect(screen.queryByRole("slider", { name: "Cover position" })).toBeNull();
+      expect(photo("Lake roofs").style.objectPosition).toBe("center 30%");
+      // Back on the cover, not <body>; `:focus`, because the test-quality wall
+      // bans `document.activeElement`. Its menu no longer offers Reposition.
+      await waitFor(() => expect(band()!.matches(":focus")).toBe(true));
+      await userEvent.click(band()!);
+      await screen.findByRole("menu");
+      expect(items()).toEqual(["Change cover", "Remove"]);
+    });
   });
 
   // PR #384 review: the banner kept a store of its own beside the cache Trip
@@ -137,7 +287,7 @@ describe("TripHeader — the cover band", () => {
     await waitFor(() => expect(band()).not.toBeNull());
     expect(reads.count).toBe(1);
 
-    await userEvent.click(band()!);
+    await choose("Change cover");
     const sheet = await screen.findByRole("dialog", { name: /Trip settings/ });
     expect(await within(sheet).findByRole("img", { name: "Old roofs" })).toBeTruthy();
     expect(reads.count).toBe(1);
@@ -151,7 +301,6 @@ describe("TripHeader — the cover band", () => {
       await cachedRead(coverKeys.trip(TRIP), () => Promise.resolve({ ok: true as const, value: newer }), { dedupeMs: 0 });
     });
     expect(await screen.findByRole("img", { name: "New harbour" })).toBeTruthy();
-    server.events.removeAllListeners();
   });
 
   // PR #384 review: the band was `hidden md:block`, so a phone still read the
@@ -168,7 +317,6 @@ describe("TripHeader — the cover band", () => {
     await new Promise((resolve) => setTimeout(resolve, 50));
     expect(reads).toBe(0);
     expect(screen.queryByRole("img", { name: "Unseen roofs" })).toBeNull();
-    server.events.removeAllListeners();
   });
 
   // Mitchell, 2026-10-10: the header sits on the photo's faded foot, as a
@@ -233,7 +381,6 @@ describe("TripHeader — the cover band", () => {
       expect(screen.getByRole("img", { name: "Seeded roofs" })).toBeTruthy();
       await new Promise((resolve) => setTimeout(resolve, 50));
       expect(reads.count).toBe(0);
-      server.events.removeAllListeners();
     });
 
     it("keeps the band off a phone by CSS, with a blank phone source, and reads no cover", async () => {
@@ -246,23 +393,35 @@ describe("TripHeader — the cover band", () => {
       // fetched there.
       // React's own preload of an eager image is lost inside a `<picture>`, so
       // the banner preloads it for desktop only: a phone fetches nothing.
-      const html = renderToStaticMarkup(<TripCoverBanner cover={tripCoverFactory.build()} />);
+      const html = renderToStaticMarkup(<TripCoverBanner tripId={TRIP} cover={tripCoverFactory.build()} />);
       expect(html).toMatch(/^<link rel="preload" as="image"[^>]* media="\(min-width: 768px\)"[^>]*\/>/);
       expect(html.match(/<link /g)).toHaveLength(1);
       expect(html).toMatch(/\/><div class="[^"]*\bmax-md:hidden\b/);
       expect(html).toMatch(/<picture><source media="\(max-width: 767px\)" srcSet="data:image\/gif;base64,[^"]+"\/><img /);
       await new Promise((resolve) => setTimeout(resolve, 50));
       expect(reads.count).toBe(0);
-      server.events.removeAllListeners();
     });
   });
 
-  it("gives a reader the band but no way to change it, and no Add cover", async () => {
+  it("gives a reader the band but no way to change it", async () => {
     myRole = "viewer";
     server.use(...makeCoverHandlers({ cover: tripCoverFactory.build({ alt: "Dunes at dusk" }) }));
     await renderHeader();
-    expect(await screen.findByRole("img", { name: "Dunes at dusk" })).toBeTruthy();
-    expect(band()).toBeNull();
+    await screen.findByRole("img", { name: "Dunes at dusk" });
+    // Not a click on the photo: jsdom does no hit-testing, so a click on the
+    // <img> never reaches a trigger laid over it. What a reader must not have
+    // is any cover control at all, so no menu can open.
+    expect(screen.queryAllByRole("button", { name: /cover/i })).toEqual([]);
+    expect(screen.queryByRole("menu")).toBeNull();
+  });
+
+  // *Add cover* draws only once the read says "none", so a reader with a
+  // cover never reaches its role gate: this one has none.
+  it("gives a reader with no cover no Add cover", async () => {
+    myRole = "viewer";
+    server.use(...makeCoverHandlers({ cover: null }));
+    await renderHeader();
+    await waitFor(() => expect(peekCached(coverKeys.trip(TRIP))).toBeNull());
     expect(addCover()).toBeNull();
   });
 });

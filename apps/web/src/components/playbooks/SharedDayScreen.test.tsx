@@ -1714,23 +1714,29 @@ describe("a day's cover", () => {
     expect(within(credits[0]!).getByRole("link", { name: "Aiko Tanaka" })).toBeTruthy();
     // The way back is a pill over the photo, named for where it goes.
     expect(within(band).getByRole("link", { name: "Back to Discover" }).getAttribute("href")).toBe("/playbooks");
-    expect(screen.queryByRole("button", { name: "Change cover" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Edit cover" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Add cover" })).toBeNull();
   });
 
-  it("offers its author Change cover over the photo, which opens the picker on this day's routes", async () => {
+  // M49 decision 10, amended 2026-10-25: no cover buttons on the photo; the
+  // photo itself opens a menu, as the trip's band does, with no Reposition.
+  it("offers its author the photo as a menu of Change cover and Remove, and Change cover opens the picker on this day's routes", async () => {
     withCover(true);
     searchCoversMock.mockResolvedValue(ok([]));
     renderDay();
     const band = await screen.findByTestId("day-cover");
-    await userEvent.click(within(band).getByRole("button", { name: "Change cover" }));
+    expect(within(band).queryByRole("button", { name: /change cover|remove/i })).toBeNull();
+    await userEvent.click(within(band).getByRole("button", { name: "Edit cover" }));
+    await screen.findByRole("menu");
+    expect(screen.getAllByRole("menuitem").map((item) => item.textContent)).toEqual(["Change cover", "Remove"]);
+    await userEvent.click(screen.getByRole("menuitem", { name: "Change cover" }));
     const dialog = await screen.findByRole("dialog", { name: "Cover photo" });
-    // Trip settings' picker: the same search row, the same Remove cover.
+    // Trip settings' picker: the same search row, the same cover menu.
     await userEvent.type(within(dialog).getByRole("searchbox", { name: "Search photos" }), "kamo");
     await userEvent.click(within(dialog).getByRole("button", { name: "Search" }));
     await waitFor(() => expect(searchCoversMock).toHaveBeenCalledWith(DAY_ID, "kamo", 1));
     // The page's cover, handed in: shown at once, and not read again.
-    expect(within(dialog).getByRole("button", { name: "Remove cover" })).toBeTruthy();
+    expect(within(dialog).getByRole("button", { name: "Edit cover" })).toBeTruthy();
     expect(fetchCoverMock).not.toHaveBeenCalled();
   });
 
@@ -1740,13 +1746,14 @@ describe("a day's cover", () => {
     expect(screen.queryByTestId("day-cover")).toBeNull();
     expect(screen.queryByRole("img")).toBeNull();
     expect(screen.queryByRole("button", { name: "Add cover" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Edit cover" })).toBeNull();
     expect(screen.getByRole("link", { name: "← Discover" })).toBeTruthy();
   });
 
   // PR #354 review: the route answers the stored cover in full, so a pick
   // patches it in rather than re-reading the day and its author's numbers;
   // and the dialog hands focus to the control that now exists, not `<body>`.
-  it("offers its author Add cover without one; a pick patches the band in, and closing focuses Change cover", async () => {
+  it("offers its author Add cover without one; a pick patches the band in, and closing focuses the cover", async () => {
     const candidate: CoverCandidate = {
       id: cover.unsplashId,
       urls: cover.urls,
@@ -1775,17 +1782,31 @@ describe("a day's cover", () => {
     expect(fetchCoverMock).not.toHaveBeenCalled();
 
     await userEvent.click(within(dialog).getByRole("button", { name: "Close" }));
-    const change = within(band).getByRole("button", { name: "Change cover" });
-    await waitFor(() => expect(change.matches(":focus")).toBe(true));
+    const edit = within(band).getByRole("button", { name: "Edit cover" });
+    await waitFor(() => expect(edit.matches(":focus")).toBe(true));
   });
 
-  it("removes the cover from the band, and closing focuses Add cover", async () => {
+  it("removes the cover from the photo's menu, leaving Add cover with focus on it", async () => {
     withCover(true);
     renderDay();
     const band = await screen.findByTestId("day-cover");
-    await userEvent.click(within(band).getByRole("button", { name: "Change cover" }));
+    await userEvent.click(within(band).getByRole("button", { name: "Edit cover" }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: "Remove" }));
+    await waitFor(() => expect(screen.queryByTestId("day-cover")).toBeNull());
+    expect(clearCoverMock).toHaveBeenCalledWith(DAY_ID);
+    const add = screen.getByRole("button", { name: "Add cover" });
+    await waitFor(() => expect(add.matches(":focus")).toBe(true));
+  });
+
+  it("removes the cover in the picker, and closing focuses Add cover", async () => {
+    withCover(true);
+    renderDay();
+    const band = await screen.findByTestId("day-cover");
+    await userEvent.click(within(band).getByRole("button", { name: "Edit cover" }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: "Change cover" }));
     const dialog = await screen.findByRole("dialog", { name: "Cover photo" });
-    await userEvent.click(within(dialog).getByRole("button", { name: "Remove cover" }));
+    await userEvent.click(within(dialog).getByRole("button", { name: "Edit cover" }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: "Remove" }));
     await waitFor(() => expect(screen.queryByTestId("day-cover")).toBeNull());
     expect(clearCoverMock).toHaveBeenCalledWith(DAY_ID);
 

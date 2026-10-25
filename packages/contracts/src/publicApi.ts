@@ -202,6 +202,12 @@ export const ApiErrorCode = z.enum([
    * it actually was, was early.
    */
   "conflict",
+  /**
+   * 422 — a cover URL failed the set-time check (ADR-081 item 4) and nothing
+   * was saved. `details.reason` says which check, and never what the host
+   * resolved to.
+   */
+  "cover-url-rejected",
   /** 429 — rate limited. Carries `Retry-After`. */
   "rate-limited",
   /** 500 — ours, and unexplained. */

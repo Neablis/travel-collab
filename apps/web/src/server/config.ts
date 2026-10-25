@@ -120,3 +120,23 @@ export const serverConfig = {
   ragPlanExamplePromptCount: parsePositiveInt(process.env.RAG_PLAN_EXAMPLE_PROMPT_COUNT, 3),
   ragPlanExampleChars: parsePositiveInt(process.env.RAG_PLAN_EXAMPLE_CHARS, 250),
 };
+
+/**
+ * The key `server/coverProxy.ts` signs cover URLs with (ADR-081 item 3).
+ *
+ * **Read per call**, as `API_TOKEN_PEPPER` is, so a test can set it. Wherever
+ * it is set it is the key, a preview included. Unset outside Vercel's
+ * production, a fixed development key stands in, so local runs and CI need
+ * nothing; signatures there can be minted by anyone who reads this file,
+ * which buys them only the guarded fetcher. In
+ * production an unset key **throws**: a public key there would make the proxy
+ * open to every URL, and a signature nobody can check is worse than a 500.
+ */
+export function coverProxySecret(): string {
+  const value = process.env.COVER_PROXY_SECRET ?? "";
+  if (value !== "") return value;
+  if (process.env.VERCEL_ENV === "production") {
+    throw new Error("COVER_PROXY_SECRET is not set. URL covers are signed with it, and production has no default.");
+  }
+  return "dev-cover-proxy-secret-not-for-production";
+}

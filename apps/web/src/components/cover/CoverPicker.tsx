@@ -5,6 +5,7 @@ import { Check } from "lucide-react";
 import { UNSPLASH_HOME, unsplashCreditHref, type CoverCandidate, type TripCover } from "@tc/contracts";
 import { CoverCredit } from "@/components/cover/CoverCredit";
 import { CoverImage, coverSrc } from "@/components/cover/CoverImage";
+import { CoverMenu } from "@/components/cover/CoverMenu";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -123,7 +124,7 @@ export function CoverPicker({
   const headingId = useId();
   // `undefined` until the first read lands; `null` is "no cover". A failed
   // read leaves it `undefined` and sets `readFailed`: not knowing is not "no
-  // cover", and must not hide *Remove cover* from a cover that exists.
+  // cover", and must not hide *Remove* from a cover that exists.
   const [cover, setCover] = useState<TripCover | null | undefined>(() =>
     initial !== undefined ? initial : api.peek?.(),
   );
@@ -149,8 +150,8 @@ export function CoverPicker({
   const headingRef = useRef<HTMLSpanElement>(null);
   const sectionRef = useRef<HTMLElement>(null);
   const noMoreRef = useRef<HTMLSpanElement>(null);
-  // Where focus goes once the control that had it is gone: *Remove cover*
-  // and *More results* both unmount under the press that used them.
+  // Where focus goes once the control that had it is gone: the cover's
+  // *Remove* and *More results* both unmount what was pressed.
   const refocus = useRef<"after-remove" | "no-more" | null>(null);
   const settled = useRef(false);
 
@@ -300,30 +301,17 @@ export function CoverPicker({
       aria-label={heading ? undefined : "Cover photo"}
       className="flex flex-col gap-3 outline-none"
     >
-      <div className={cn("flex items-center gap-3", heading ? "justify-between" : "justify-end empty:hidden")}>
-        {/* Focusable: where focus lands once *Remove cover* is gone and there is no search to land in. */}
-        {heading && (
-          <span
-            id={headingId}
-            ref={headingRef}
-            tabIndex={-1}
-            className="block text-xs font-semibold uppercase tracking-wider text-slate outline-none"
-          >
-            Cover photo
-          </span>
-        )}
-        {canEdit && cover && (
-          <Button
-            variant="ghost"
-            size="sm"
-            disabled={busy}
-            onClick={() => void remove()}
-            className="font-semibold text-danger-ink hover:text-danger-ink"
-          >
-            Remove cover
-          </Button>
-        )}
-      </div>
+      {/* Focusable: where focus lands once the cover is removed and there is no search to land in. */}
+      {heading && (
+        <span
+          id={headingId}
+          ref={headingRef}
+          tabIndex={-1}
+          className="block text-xs font-semibold uppercase tracking-wider text-slate outline-none"
+        >
+          Cover photo
+        </span>
+      )}
 
       {readFailed && cover === undefined ? (
         <div className="flex items-center justify-between gap-3">
@@ -356,7 +344,18 @@ export function CoverPicker({
             photo={cover}
             className="h-33 rounded-lg border border-hairline"
             sizes="(min-width: 768px) 472px, 100vw"
-          />
+          >
+            {/* The cover is its own control (`CoverMenu`): no Remove button
+                beside it. *Change cover* is the search below, so it goes
+                there; without one (covers unavailable) only *Remove* is left. */}
+            {canEdit && !busy && (
+              <CoverMenu
+                actions={unavailable ? ["remove"] : ["change", "remove"]}
+                onAction={(action) => (action === "change" ? searchRef.current?.focus() : void remove())}
+                className="inset-0 size-full"
+              />
+            )}
+          </CoverImage>
           <CoverCredit photo={cover} />
         </div>
       ) : (

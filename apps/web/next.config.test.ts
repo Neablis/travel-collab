@@ -218,6 +218,24 @@ describe("the web manifest", () => {
   });
 });
 
+describe("the cover image proxy", () => {
+  // Next sets these headers before a route handler runs and then drops any the
+  // handler sets under the same name (`send-response.js`), so the sandbox the
+  // route sets itself never reached a browser: this entry is what serves it.
+  // A cover URL's image opened as a document must run, load and submit nothing.
+  it("serves a sandboxed policy that loads nothing, and keeps nosniff", async () => {
+    const served = await headersServedAt("/api/cover-image");
+    expect(served.get("content-security-policy")).toBe("default-src 'none'; sandbox");
+    expect(served.get("x-content-type-options")).toBe("nosniff");
+  });
+
+  it("lends its policy to no other path", async () => {
+    for (const pathname of ["/trips/abc", "/api/cover-images", "/api/trips/abc/cover"]) {
+      expect((await headersServedAt(pathname)).get("content-security-policy"), pathname).toMatch(/^default-src 'self'/);
+    }
+  });
+});
+
 /**
  * KI-2026-09-24-v: when the Sentry build plugin's own telemetry is left at its
  * default (on), every `next build`, including the one e2e serves, sends that

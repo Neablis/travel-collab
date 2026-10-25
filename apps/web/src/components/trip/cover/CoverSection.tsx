@@ -10,7 +10,7 @@ import { readTripCover } from "./useTripCover";
 
 // Trip settings → Cover photo (M37 part 4): the shared picker
 // (`components/cover/CoverPicker.tsx`), pointed at the trip's cover routes.
-// Shown to every member; only an editor gets the search and *Remove cover*.
+// Shown to every member; only an editor gets the search and the cover's menu.
 
 /**
  * The trip's cover in Trip settings: editable for an editor, read-only for

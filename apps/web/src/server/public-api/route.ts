@@ -51,7 +51,7 @@ import {
 // `v1/**` and fails on an export that did not come through this function.
 
 /** The HTTP methods a `v1` route may export. */
-export type HttpMethod = "GET" | "POST" | "PATCH" | "DELETE";
+export type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
 /**
  * Where the wrapper finds the trip id a trip-scoped endpoint is about.
