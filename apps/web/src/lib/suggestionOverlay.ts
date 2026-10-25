@@ -345,19 +345,26 @@ export type SuggestionGhosts = {
 // else goes to the chip, so every pending change is reachable once (W42).
 /**
  * The trip's pending suggestions, placed (spec §2.4). `TripProvider` runs it
- * once per list and trip, on the CONFIRMED trip — a suggester's unsent draft
- * is already their optimistic board, and is not a ghost — and the board and
- * the header chip both read that one result.
+ * once per list and trip, and the board and the header chip both read that
+ * one result.
+ *
+ * Every change is PREDICTED on `trip`, the confirmed trip — a suggester's
+ * unsent draft is already their optimistic board, and is not a ghost, and a
+ * suggestion is never predicted on top of edits nobody has accepted (W5). It
+ * is PLACED on `shown`, the trip the board draws, which carries the reader's
+ * own unconfirmed edits (KI-2026-10-04-a): a marker can only sit on a stop the
+ * board draws, so a change to a stop the reader has removed or taken off the
+ * river is listed in the chip, not left on a marker nobody can see (W42).
  */
-export function placeGhosts(trip: TripDetail, changes: SuggestionChange[]): SuggestionGhosts {
+export function placeGhosts(trip: TripDetail, changes: SuggestionChange[], shown: TripDetail = trip): SuggestionGhosts {
   const overlay = suggestionOverlay(trip, changes);
   const tripLevel = new Set(overlay.tripLevel.map((g) => g.changeId));
   const days = new Map<string, Ghost[]>();
   const stops = new Map<string, Ghost[]>();
   const drawn = new Set<string>();
   // A suggested day is somewhere to land, as a day on the trip is.
-  const dayIds = new Set([...trip.days.map((d) => d.dayId), ...overlay.newDays.map((g) => g.dayId!)]);
-  const onRiver = new Set(trip.days.flatMap((d) => d.activityIds.filter((id) => trip.activities[id]?.timeWindow)));
+  const dayIds = new Set([...shown.days.map((d) => d.dayId), ...overlay.newDays.map((g) => g.dayId!)]);
+  const onRiver = new Set(shown.days.flatMap((d) => d.activityIds.filter((id) => shown.activities[id]?.timeWindow)));
   const first = new Map<string, Ghost>();
   // The ghost each drawn change was first drawn by: a move is a marker where
   // the stop is and a block where it lands, and the chip lists it once.
@@ -366,7 +373,7 @@ export function placeGhosts(trip: TripDetail, changes: SuggestionChange[]): Sugg
   // update shown on it (W79) is drawn there, not as a marker on the stop it
   // only moves away from.
   const landedAt = new Map<string, string>();
-  const dayOf = new Map(trip.days.flatMap((d) => d.activityIds.map((id) => [id, d.dayId] as const)));
+  const dayOf = new Map(shown.days.flatMap((d) => d.activityIds.map((id) => [id, d.dayId] as const)));
   const movingTo = new Map<string, string>();
   for (const day of overlay.newDays) {
     drawn.add(day.changeId);

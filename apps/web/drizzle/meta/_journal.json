@@ -470,6 +470,13 @@
       "when": 1792769944655,
       "tag": "0066_ai_usage_plan_examples",
       "breakpoints": true
+    },
+    {
+      "idx": 67,
+      "version": "7",
+      "when": 1792889493120,
+      "tag": "0067_chat_client_key",
+      "breakpoints": true
     }
   ]
 }

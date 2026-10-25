@@ -1,0 +1,2 @@
+ALTER TABLE "trip_messages" ADD COLUMN "client_key" uuid;--> statement-breakpoint
+CREATE UNIQUE INDEX "trip_messages_client_key" ON "trip_messages" USING btree ("trip_id","author_id","client_key") WHERE "trip_messages"."client_key" is not null;
