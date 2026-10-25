@@ -249,9 +249,14 @@ export function useTripChat({
       const kept = unsentKeys.current.get(send) ?? [];
       const clientKey = kept.shift() ?? crypto.randomUUID();
       if (kept.length === 0) unsentKeys.current.delete(send);
-      // Every way out below that is not "stored" gives the text back.
+      // Every way out below that is not "stored" gives the text back. A failed
+      // head goes back FIRST: it is what the composer gives back first, so its
+      // retry must take its own key, not that of an identical send queued
+      // behind it (PR 565 review: a head failing twice would otherwise swap
+      // keys with it, and a head the server did store be stored again).
       const giveBack = (unsent: Unsent) => {
-        unsentKeys.current.set(send, [...(unsentKeys.current.get(send) ?? []), clientKey]);
+        const others = unsentKeys.current.get(send) ?? [];
+        unsentKeys.current.set(send, unsent.behind ? [...others, clientKey] : [clientKey, ...others]);
         return unsent;
       };
       const line: Sending["line"] = {

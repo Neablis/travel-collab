@@ -309,6 +309,46 @@ describe("useTripChat", () => {
       for (const key of keys) expect(key).toMatch(/^[0-9a-f-]{36}$/);
     });
 
+    // PR 565 review: two queued sends of the same words, the first failing
+    // twice. Its retry must keep its own key, not take the second one's,
+    // or a first send the server did store would be stored again.
+    it("keeps a twice-failed send's own key ahead of an identical send queued behind it", async () => {
+      const keys: string[] = [];
+      let fails = 2;
+      server.use(
+        http.get(`/api/trips/${TRIP}/chat`, () => HttpResponse.json(pageOf([message(1)]))),
+        http.post(`/api/trips/${TRIP}/chat`, async ({ request }) => {
+          const sent = (await request.json()) as { body: string; clientKey: string };
+          keys.push(sent.clientKey);
+          if (fails > 0) {
+            fails -= 1;
+            return HttpResponse.error();
+          }
+          return HttpResponse.json({ message: { ...message(keys.length + 1, "u-me"), body: sent.body } }, { status: 201 });
+        }),
+      );
+      const { result } = renderHook(() => useTripChat({ tripId: TRIP, enabled: true, chatRev: "1", reading: false, accessLost: false }));
+      await waitFor(() => expect(result.current.status).toBe("ready"));
+
+      await act(async () => {
+        const first = result.current.post("ok");
+        const second = result.current.post("ok");
+        expect(await first).toEqual({ body: "ok", behind: false });
+        expect(await second).toEqual({ body: "ok", behind: true });
+      });
+      // The head again, failing a second time.
+      await act(async () => {
+        expect(await result.current.post("ok")).toEqual({ body: "ok", behind: false });
+      });
+      // And once more: it goes under the head's key still.
+      await act(async () => {
+        expect(await result.current.post("ok")).toBeNull();
+      });
+      expect(keys).toHaveLength(3);
+      expect(keys[1]).toBe(keys[0]);
+      expect(keys[2]).toBe(keys[0]);
+    });
+
     // The poll can bring the stored message back before the POST answers, and
     // does again after: either way it is one line, where the pending one was.
     it("becomes the server's message once, however the re-reads land", async () => {
