@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 // Which reads each entry point makes; what they answer is the route's
 // integration test.
 const publicAuthor = vi.fn();
-vi.mock("./playbooks", () => ({ publicAuthor: (...a: unknown[]) => publicAuthor(...a) }));
+vi.mock("./playbooks", () => ({ publicAuthor: (...a: unknown[]) => publicAuthor(...a), globalPageTags: async () => [] }));
 // Three sights and a meal that is also one: enough to say what kind of day.
 const STOPS = [...Array.from({ length: 3 }, () => ({ kind: "planned", tags: ["sight"] })), { kind: "planned", tags: ["meal", "sight"] }];
 vi.mock("./savedDayPinBackfill", () => ({ schedulePinBackfill: () => false }));
