@@ -171,19 +171,29 @@ const OpenTripInput = z.object({
   view: z.enum(TRIP_VIEWS).optional(),
 });
 
+// Built once: a segmenter loads ICU's break rules.
+const WORDS = new Intl.Segmenter(undefined, { granularity: "word" });
+
 /**
  * Lower case, "&" read as "and", and every run of punctuation and spaces one
  * space: "Kyoto & Osaka, 2026!" is "kyoto and osaka 2026". Combining marks
  * are kept, composed (NFC), because in many scripts they are what tells two
- * words apart.
+ * words apart. A script written without spaces is split by a word
+ * segmenter, so "京都旅行" is "京都 旅行" and "京都" finds it
+ * (KI-2026-10-13-b). The segmenter only splits what the spaces left, so a
+ * name in a spaced script reads as it did before.
  */
 function wordsOf(text: string): string {
-  return text
+  const spaced = text
     .normalize("NFC")
     .toLowerCase()
     .replace(/&/g, " and ")
     .replace(/[^\p{L}\p{M}\p{N}]+/gu, " ")
     .trim();
+  return Array.from(WORDS.segment(spaced))
+    .filter((part) => part.isWordLike)
+    .map((part) => part.segment)
+    .join(" ");
 }
 
 /** "my Kyoto trip" and "The Kyoto trip" are both "kyoto": words without a leading article or a trailing "trip". */
@@ -216,8 +226,9 @@ function keyOf(words: string): string {
  * Nor is a trip found because its name is one of the words typed: "Kyoto trip
  * from Tokyo" names some other trip, not "Tokyo". More than one is for the
  * caller to ask about, never to choose between. A script written without
- * spaces is one word to this, so there only the whole name is found
- * (KI-2026-10-13-b).
+ * spaces is split into words by a segmenter, so "京都" finds "京都旅行"
+ * (KI-2026-10-13-b). Only the English "trip" is read off a name, so
+ * "ทริปเชียงใหม่", which starts with "trip" in Thai, still needs its whole name.
  */
 export function tripsCalled<T extends { name: string }>(trips: readonly T[], name: string): T[] {
   const typed = wordsOf(name);

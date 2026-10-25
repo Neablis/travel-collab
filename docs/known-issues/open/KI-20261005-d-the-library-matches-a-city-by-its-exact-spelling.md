@@ -21,3 +21,19 @@
   already merges those spellings for city pages. A folded key should use that rule, not a new one.
 - **First noted:** 2026-10-05, by the M34 part 2 implementer and by CodeRabbit on #333
   (`nearbyStops.ts:203-224`).
+- **Re-scoped 2026-10-24 (KI sweep): the nearby-stops half is fixed, Discover's is open.**
+  `nearbyStopsFor` now widens the trip's cities to every spelling a city page merges
+  (`spellingsOf`: `publishedPlaces()` by `slugify`, read from the library cache) before its
+  `cities &&`, and ranks with the same list. The SQL still overlaps exact strings, so the GIN
+  index stays, and there is no migration. That works there because nearby stops reads only
+  published days, and those are what the city pages are built from. Proven in
+  `nearby-stops/route.int.test.ts` (*spelled in another case or with an accent*): a day stored
+  as `nearbytown…` failed with `expected [ 'Published temple', …(5) ] to include 'Lowercase …'`,
+  and with the widening stubbed out, both spellings fail. Both pass after the change.
+  **Still open: Discover** (`playbooks.ts`, `matchPredicate` and `matchedCount`). The same
+  widening does not carry over. Discover is entered by three paths that do not pass through
+  `publicLibrary.ts` (`/api/playbooks`, the profile route and the assistant's `discoverDays`),
+  so it would need an uncached read of every published day on each search, or an import cycle.
+  It also searches private scopes (*Yours*, *Saved*) that the city pages do not cover, and its
+  sibling chips and match count would count two spellings of one city as two cities. The
+  folded column described above is still the fix for Discover.
