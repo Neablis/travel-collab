@@ -258,9 +258,9 @@ export function ActivityEditor({
   const [bookedBy, setBookedBy] = useState<string | null>(initial?.bookedBy ?? null);
   const [participants, setParticipants] = useState<string[]>(initial?.participants ?? []);
   const [cost, setCost] = useState<Money | null>(initial?.cost ?? null);
-  // Nobody picked is every traveller (travellers spec D1); with no member list
-  // to hand (a caller that passes none) `stopHeadcount` reads it as the one
-  // person who is here. Guests ride the same set through `travellerIds`'s
+  // Nobody picked is every traveller (travellers spec D1); with no traveller
+  // (or a caller that passes no members) that is nobody, and the line reads
+  // "× 0 people" (2026-10-25, KI-2026-10-05-e). Guests ride the same set through `travellerIds`'s
   // second argument: a claimed guest counts as their member, so the picker
   // and the line below price exactly what the server's overlay does.
   const travelling = new Set(travellerIds(members, guests));

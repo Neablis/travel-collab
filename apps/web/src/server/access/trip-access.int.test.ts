@@ -405,7 +405,7 @@ describe("a trip's totals follow its members at read time", () => {
         params,
       );
 
-    // An editor, so the role's own preset (travelling) is not what decides.
+    // Not travelling by the owner's choice: the preset for every role is travelling.
     const invite = await createInvite(tripId, OWNER, { email: null, role: "editor", travelling: false });
     expect((await acceptInvite(invite.token, GUEST)).ok).toBe(true);
 

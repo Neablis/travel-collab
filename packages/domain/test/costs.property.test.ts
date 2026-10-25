@@ -78,7 +78,8 @@ describe("recostDetail", () => {
   // charged (D6), so the picks have to reach them for that rule to be tested.
   const PICKABLE = ["u1", "u2", "u3", "adviser1", "adviser2"];
   // The two cases the travellers spec adds, each where it changes an answer:
-  // nobody travelling on a priced stop nobody picked prices one person (D5),
+  // nobody travelling on a priced stop nobody picked prices it at zero
+  // (2026-10-25, superseding D5's one-person floor; KI-2026-10-05-e),
   // and a priced stop that picks an adviser on the trip charges them (D6).
   const nobodyTravelling = (members: number, stops: { cost: number; picked: string[] }[]) =>
     members === 0 && stops.some((s) => s.cost > 0 && s.picked.length === 0);

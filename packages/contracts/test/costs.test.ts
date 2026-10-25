@@ -26,8 +26,10 @@ describe("stopHeadcount", () => {
     expect(stopTotal({ cost: YEN(3000), participants: ["u1", "u1"] }, 5)).toBe(3000);
   });
 
-  it("is never 0: a trip always has its owner, so a zero member count reads as one", () => {
-    expect(stopHeadcount({ participants: [] }, 0)).toBe(1);
+  // Mitchell, 2026-10-25 (KI-2026-10-05-e): D5's floor of one person is gone.
+  // A stop nobody picked on a trip nobody is travelling on is for nobody.
+  it("is 0 when nobody is picked and nobody is travelling", () => {
+    expect(stopHeadcount({ participants: [] }, 0)).toBe(0);
   });
 
   // Guests spec P2: a guest id is a plain string in `participants`, and a
@@ -38,14 +40,17 @@ describe("stopHeadcount", () => {
   });
 
   // Travellers spec D5: the owner may be planning a trip they are not on, so
-  // a trip can have no traveller at all. Its prices must not vanish.
-  it("floors at one person when nobody on the trip is travelling", () => {
+  // a trip can have no traveller at all. Since 2026-10-25 (Mitchell, superseding
+  // D5's floor) a stop nobody picked then costs nothing, which is what
+  // `balances` charges for it; a stop somebody is picked for keeps its price.
+  it("prices a stop nobody picked at zero when nobody on the trip is travelling", () => {
     const members = [
       { userId: "owner", travelling: false },
       { userId: "advisor", travelling: false },
     ];
-    expect(stopHeadcount({ participants: [] }, travellerIds(members).length)).toBe(1);
-    expect(stopTotal({ cost: YEN(3000), participants: [] }, travellerIds(members).length)).toBe(3000);
+    expect(stopHeadcount({ participants: [] }, travellerIds(members).length)).toBe(0);
+    expect(stopTotal({ cost: YEN(3000), participants: [] }, travellerIds(members).length)).toBe(0);
+    expect(stopTotal({ cost: YEN(3000), participants: ["advisor"] }, travellerIds(members).length)).toBe(3000);
   });
 });
 
@@ -231,24 +236,43 @@ describe("balances", () => {
 
   it("charges each person exactly what stopTotal says the stop costs, for every trip", () => {
     // The one rule (`stopTotal`) and the split must agree: the shares of a
-    // stop's people add up to that stop's total.
+    // stop's people add up to that stop's total. Any subset of the members is
+    // travelling, none included (KI-2026-10-05-e): with nobody travelling and
+    // nobody picked, the board's total and "who owes what" are both zero.
     let runs = 0;
+    let nobodyTravelling = 0;
     fc.assert(
       fc.property(
         fc.uniqueArray(fc.string({ minLength: 1, maxLength: 3 }), { minLength: 1, maxLength: 5 }),
+        fc.func(fc.boolean()),
         fc.nat({ max: 100_000 }),
         fc.boolean(),
-        (members, amountMinor, pickSome) => {
+        (members, travels, amountMinor, pickSome) => {
+          const travellers = members.filter((id) => travels(id));
           const participants = pickSome ? members.slice(0, 1) : [];
           const activity = { cost: YEN(amountMinor), participants, bookedBy: null };
-          const shares = balances([activity], members, members).perMember.reduce((sum, m) => sum + m.share, 0);
+          const shares = balances([activity], members, travellers).perMember.reduce((sum, m) => sum + m.share, 0);
           runs += 1;
-          expect(shares).toBe(stopTotal(activity, members.length));
+          if (travellers.length === 0 && !pickSome && amountMinor > 0) nobodyTravelling += 1;
+          expect(shares).toBe(stopTotal(activity, travellers.length));
         },
       ),
     );
     // Witness: no guard clause, so every generated case asserts.
     expect(runs).toBe(100);
+    // And the case the KI is about (nobody travelling, nobody picked, priced)
+    // is really drawn, not just possible.
+    expect(nobodyTravelling).toBeGreaterThanOrEqual(3);
+  });
+
+  // KI-2026-10-05-e, Mitchell 2026-10-25: a stop nobody is travelling for is
+  // priced at zero, so the board and "who owes what" agree — both nothing.
+  it("prices a stop nobody picked at zero when nobody is travelling, as balances charges it", () => {
+    const activity = stop(3000, [], "ana");
+    const result = balances([activity], MEMBERS, []);
+    expect(stopTotal(activity, 0)).toBe(0);
+    expect(result.perMember.every((m) => m.share === 0 && m.paid === 0)).toBe(true);
+    expect(result.unpaid).toBe(0);
   });
 
   it("splits a stop nobody picked across the travellers only, and lets anyone pay", () => {

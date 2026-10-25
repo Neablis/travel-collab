@@ -290,6 +290,21 @@ describe("PeopleSection", () => {
       expect(await screen.findByText("Costs are split across 1 traveller.")).toBeTruthy();
     });
 
+    // KI-2026-10-05-e, Mitchell 2026-10-25: with nobody travelling, a stop
+    // nobody picked is priced at zero. The line says so rather than "split
+    // across 0", so a board of zeros is never a surprise.
+    it("says an unpicked stop costs nothing while nobody is travelling", async () => {
+      fetchTripAccessMock.mockResolvedValue({
+        ok: true,
+        value: access({ members: [{ ...alice, travelling: false }, { ...bob, travelling: false }] }),
+      });
+      render(<PeopleSection tripId={tripId} />);
+      expect(
+        await screen.findByText("Nobody is marked as travelling, so a stop nobody is picked for costs nothing until someone is."),
+      ).toBeTruthy();
+      expect(screen.queryByText(/split across 0/)).toBeNull();
+    });
+
     it("describes a pending invite in words: role, whether they travel, and when it was sent", async () => {
       fetchTripAccessMock.mockResolvedValue({
         ok: true,
@@ -738,7 +753,9 @@ describe("PeopleSection", () => {
         expect(createTripInviteMock).toHaveBeenCalledWith(tripId, {
           email: "cara@example.com",
           role: "viewer",
-          travelling: false,
+          // Travelling is opt-out for every role (KI-2026-10-05-e, Mitchell
+          // 2026-10-25): a viewer invite starts as coming on the trip.
+          travelling: true,
         }),
       );
       // Copying is what actually delivers the invite — an email is a courtesy.

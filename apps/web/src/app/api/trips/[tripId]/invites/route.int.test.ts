@@ -69,26 +69,28 @@ describe("POST /api/trips/:tripId/invites — email", () => {
 });
 
 // Travellers spec D3: the invite carries whether its taker joins as a
-// traveller. The preset itself is `createInvite`'s (invites.int.test.ts); this
-// proves the body field reaches it, and that leaving it out is what presets.
+// traveller. The preset itself is `createInvite`'s (travellers.int.test.ts);
+// this proves the body field reaches it, and that leaving it out is what
+// presets. Since 2026-10-25 (Mitchell) the preset is travelling for every role:
+// opt-out, so a trip priced at zero for nobody travelling is never a surprise.
 describe("POST /api/trips/:tripId/invites — travelling", () => {
-  it("stores the choice the body names, over the role's preset", async () => {
+  it("stores the choice the body names, over the preset", async () => {
     const { ownerId, tripId } = await ownerWithTrip();
     currentUserId = ownerId;
 
-    const res = await invite(tripId, { email: null, role: "viewer", travelling: true });
+    const res = await invite(tripId, { email: null, role: "viewer", travelling: false });
 
     expect(res.status).toBe(201);
-    expect((await res.json()).invite.travelling).toBe(true);
+    expect((await res.json()).invite.travelling).toBe(false);
   });
 
-  it("presets it from the role when the body leaves it out", async () => {
+  it("presets it to travelling when the body leaves it out, a viewer included", async () => {
     const { ownerId, tripId } = await ownerWithTrip();
     currentUserId = ownerId;
 
     const res = await invite(tripId, { email: null, role: "viewer" });
 
     expect(res.status).toBe(201);
-    expect((await res.json()).invite.travelling).toBe(false);
+    expect((await res.json()).invite.travelling).toBe(true);
   });
 });

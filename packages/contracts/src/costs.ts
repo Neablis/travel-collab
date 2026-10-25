@@ -49,9 +49,11 @@ export function travellerIds(
  * (D6).
  *
  * `travellerCount` is `travellerIds(members).length` over the EFFECTIVE members
- * at read time, not the log's. It is never trusted below 1 (D5): the owner may
- * be planning a trip nobody on it is travelling, and a zero would make every
- * price vanish.
+ * at read time, not the log's. It may be 0: the owner may be planning a trip
+ * nobody on it is travelling (D5), and then a stop nobody picked is for nobody,
+ * so it costs nothing — the same answer `balances` gives (Mitchell,
+ * 2026-10-25, KI-2026-10-05-e; this replaces D5's floor of one person). Every
+ * member is travelling unless marked otherwise, so a zero is an explicit choice.
  *
  * People are counted by distinct id. `participants` is not constrained unique
  * and the log keeps what it was given, so a repeated id is one person, not two
@@ -59,7 +61,7 @@ export function travellerIds(
  */
 export function stopHeadcount(activity: { participants: readonly string[] }, travellerCount: number): number {
   const picked = new Set(activity.participants).size;
-  return picked > 0 ? picked : Math.max(travellerCount, 1);
+  return picked > 0 ? picked : Math.max(travellerCount, 0);
 }
 
 /**
@@ -86,9 +88,9 @@ export function isCommittedCost(kind: ActivityKind): boolean {
 /**
  * Who is in a stop: the people picked in *Who is in*, each once, or every
  * traveller when nobody is (ADR-060 decision 2; travellers spec D6).
- * `stopHeadcount` is this list's length whenever the trip has a traveller.
- * With none (D5) this is empty while `stopHeadcount` floors at 1: there is
- * nobody to charge, though the board still prices the stop for one.
+ * `stopHeadcount` over the same travellers is always this list's length: with
+ * no traveller and nobody picked both are empty/0, so the board prices the stop
+ * at nothing and nobody is charged for it (KI-2026-10-05-e).
  */
 export function stopPeople(
   activity: { participants: readonly string[] },

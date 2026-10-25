@@ -44,17 +44,28 @@ export function previewContext(preview: TripPreview, today: string): WidgetConte
   // the backlog is counted only when no day, date or city is bound, so
   // `cost{}` reads the total and `cost{day}` / `cost{city}` read nothing.
   //
-  // What keeps it off every person is that **no member travels here**. A stop
-  // nobody picked is split between the travellers (`stopPeople`), so with none
-  // it lands on nobody: `balances` skips it, and `person.share` and
-  // `cost.balances` are empty. `stopHeadcount` floors at one, which is what
-  // makes the sum `total × 1` exactly. Who is really travelling stays on the
+  // What keeps it off every person in the preview is that it is **picked for
+  // one stand-in id that is none of them**: a picked stop is priced for who is
+  // picked, so the sum is `total × 1` exactly, and `person.share` for any of
+  // the preview's people is empty. No member travels here either, so no other
+  // stop could land on anyone. Who is really travelling stays on the
   // preview's own `people[].travelling`; nothing in the fixed set reads it
   // from `trip.members`.
+  //
+  // It used to ride unpicked on D5's one-person floor, which priced a stop
+  // nobody was travelling for at one head while `balances` charged nobody.
+  // That disagreement was KI-2026-10-05-e, and since 2026-10-25 such a stop is
+  // priced at zero, so the stand-in is what carries the total now. The price
+  // of that: `cost.balances` (not in the fixed set) would show the total
+  // against the stand-in, the one row it can name, as "Former member".
   const backlog: string[] = [];
   if (preview.total.amountMinor !== 0) {
     const activityId = ids();
-    activities[activityId] = { ...stopView(activityId, "The trip's total", null), cost: preview.total };
+    activities[activityId] = {
+      ...stopView(activityId, "The trip's total", null),
+      cost: preview.total,
+      participants: [TOTAL_STAND_IN],
+    };
     backlog.push(activityId);
   }
 
@@ -100,6 +111,9 @@ const TRIP_ID = "00000000-0000-4000-8000-000000000000";
 const EPOCH = "1970-01-01T00:00:00.000Z";
 
 const personId = (index: number) => `p${index}`;
+
+/** Who the total's stop is picked for: not `p<n>`, so never one of the preview's people. */
+const TOTAL_STAND_IN = "total";
 
 /** Fixed UUIDs, counted from `start`. */
 function idsFrom(start: number): () => string {

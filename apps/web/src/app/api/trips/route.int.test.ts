@@ -202,11 +202,12 @@ describe("GET /api/trips visibility", () => {
     const b = trips.find((t) => t.tripId === shared)!;
     expect(Object.keys(a).sort()).toEqual(Object.keys(b).sort());
     expect(a.members).toEqual(unnamed([{ userId: GUEST, role: "owner", travelling: true }]));
-    // A viewer joins not travelling unless the invite said otherwise (D3).
+    // A viewer joins travelling unless the invite said otherwise (D3, as
+    // superseded 2026-10-25: travelling is opt-out for every role).
     expect(b.members).toEqual(
       unnamed([
         { userId: OWNER, role: "owner", travelling: true },
-        { userId: GUEST, role: "viewer", travelling: false },
+        { userId: GUEST, role: "viewer", travelling: true },
       ]),
     );
   });

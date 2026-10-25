@@ -96,13 +96,17 @@ test("a suggester joins without moving the totals, and counts once marked as tra
   await expect(people.getByText("Costs are split across 1 traveller.")).toBeVisible();
   await expect(sheet.getByText("$9,130.00 of $50,000.00")).toBeVisible();
 
-  // D3: "Coming on the trip" is preset by the role — on for an editor, off for
-  // a suggester. Both halves, so a preset that is simply always off fails.
+  // D3, superseded 2026-10-25 (Mitchell, KI-2026-10-05-e): "Coming on the
+  // trip" is on for every role — travelling is opt-out. The owner unticks it
+  // for an advisor who is not coming, and that untick is what this journey
+  // then proves keeps the totals still.
   await people.getByRole("button", { name: "Invite", exact: true }).click();
   const invite = page.getByRole("dialog", { name: "Invite someone" });
   const coming = invite.getByRole("checkbox", { name: /Coming on the trip/ });
   await expect(coming).toBeChecked();
   await invite.getByRole("radiogroup", { name: "Role" }).getByRole("radio", { name: "Can suggest" }).click();
+  await expect(coming).toBeChecked();
+  await coming.click();
   await expect(coming).not.toBeChecked();
   await Promise.all([
     page.waitForResponse(

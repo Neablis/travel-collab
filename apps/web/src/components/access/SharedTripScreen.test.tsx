@@ -98,14 +98,14 @@ describe("SharedTripScreen", () => {
     expect(screen.getByText("2 days")).toBeTruthy();
   });
 
-  // Travellers spec D5 and W14: the owner can be not travelling, and the
-  // totals are then priced for one person. "0 travellers" beside a total
-  // would read as a price for nobody.
-  it("says a trip nobody is travelling on is priced for one person", async () => {
+  // Travellers spec D5 and W14: the owner can be not travelling, and since
+  // 2026-10-25 (KI-2026-10-05-e) a stop nobody picked is then priced at zero.
+  // A bare "0 travellers" would leave a board of zeros unexplained.
+  it("says a trip nobody is travelling on shows its costs as zero", async () => {
     fetchSharedTripMock.mockResolvedValue({ ok: true, value: view({ travellerCount: 0 }) });
     render(<SharedTripScreen token="tok" />);
     expect(
-      await screen.findByText("Nobody is marked as travelling, so costs are priced for one person."),
+      await screen.findByText("Nobody is marked as travelling, so a stop nobody is picked for costs nothing until someone is."),
     ).toBeTruthy();
     expect(screen.queryByText("0 travellers")).toBeNull();
   });
