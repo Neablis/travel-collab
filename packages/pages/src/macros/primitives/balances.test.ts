@@ -139,6 +139,27 @@ describe("cost.balances — Who owes what", () => {
     ]);
   });
 
+  // KI-2026-10-05-e (Mitchell, 2026-10-25): with nobody travelling, a stop
+  // nobody picked is priced at zero — so the total says nothing and "Who owes
+  // what" credits nobody for it, even its Booked by. A picked stop keeps its
+  // price, and the total and the table agree on it.
+  it("agrees with the total when nobody is travelling: a stop nobody picked costs nothing and is owed by nobody", () => {
+    const trip = MEMBERS.reduce(notTravelling, tripOf());
+    price(trip, 0, 0, usd(30_00), [], "u-ana");
+    expect(renderMacro(ctx(trip), "cost", {}).status).toBe("empty");
+    expect(renderMacro(ctx(trip), "cost.balances", {}).status).toBe("empty");
+
+    price(trip, 0, 1, usd(50_00), ["u-cy"], "u-ben");
+    const total = renderMacro(ctx(trip), "cost", {});
+    if (total.status !== "ok") throw new Error(`expected a total, got ${JSON.stringify(total)}`);
+    expect(said(total.rendered)).toBe("$50.00");
+    expect(tableOf(trip)).toEqual([
+      ["Ana", "", "", "even"],
+      ["Ben", "", "$50.00", "is owed $50.00"],
+      ["Cy", "$50.00", "", "owes $50.00"],
+    ]);
+  });
+
   // Guests spec P2: a travelling guest is in a stop nobody picked the same as
   // a travelling member, with their own balance line (Mitchell: guests are
   // cost centers, split equally) — the same divisor the board's overlay uses.

@@ -57,8 +57,8 @@ export const SharedTripView = z.object({
   activities: z.record(ActivityView),
   unscheduledCostSubtotal: z.number().int(),
   tripCostTotal: z.number().int(),
-  // 0 is real: the owner can be not travelling (travellers spec D5). The
-  // totals beside it are still priced for one person — the page says so.
+  // 0 is real: the owner can be not travelling (travellers spec D5). A stop
+  // nobody picked is then priced at zero (2026-10-25) — the page says so.
   travellerCount: z.number().int().nonnegative(),
   // The pin, surfaced so the page can say what it is showing. `sharedAt` is
   // when the link was created; `seq` is the point in history it is pinned to.

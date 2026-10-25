@@ -53,9 +53,10 @@ export const CreateInviteInput = z.object({
   // silently stored blank.
   email: z.string().email().max(320).nullable(),
   role: InviteRole,
-  // Optional, and NOT defaulted here: absent means "preset from the role"
-  // (travellers spec D3: Can edit → travelling, the others not), which the
-  // server decides. A default of `true` would override that preset.
+  // Optional, and NOT defaulted here: absent means "the server's preset",
+  // which the server decides. Since 2026-10-25 that preset is travelling for
+  // every role (Mitchell, superseding travellers spec D3's preset by role:
+  // travelling is opt-out), but the choice stays the server's to make.
   travelling: z.boolean().optional(),
 });
 export type CreateInviteInput = z.infer<typeof CreateInviteInput>;

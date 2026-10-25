@@ -290,6 +290,21 @@ describe("PeopleSection", () => {
       expect(await screen.findByText("Costs are split across 1 traveller.")).toBeTruthy();
     });
 
+    // KI-2026-10-05-e, Mitchell 2026-10-25: with nobody travelling, a stop
+    // nobody picked is priced at zero. The line says so rather than "split
+    // across 0", so a board of zeros is never a surprise.
+    it("says costs show as zero when nobody is travelling", async () => {
+      fetchTripAccessMock.mockResolvedValue({
+        ok: true,
+        value: access({ members: [{ ...alice, travelling: false }, { ...bob, travelling: false }] }),
+      });
+      render(<PeopleSection tripId={tripId} />);
+      expect(
+        await screen.findByText("Nobody is marked as travelling, so costs show as zero until someone is."),
+      ).toBeTruthy();
+      expect(screen.queryByText(/split across 0/)).toBeNull();
+    });
+
     it("describes a pending invite in words: role, whether they travel, and when it was sent", async () => {
       fetchTripAccessMock.mockResolvedValue({
         ok: true,

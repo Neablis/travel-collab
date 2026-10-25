@@ -64,17 +64,27 @@ describe("InviteDialog", () => {
     expect(meaning.textContent).toContain("approve");
   });
 
-  // D3: Can edit → travelling; Can suggest and Can view → not. #314's case is
-  // the suggester who joined to advise and doubled every per-person total.
-  it("presets Coming on the trip from the role", async () => {
+  // D3, superseded 2026-10-25 by Mitchell (KI-2026-10-05-e): travelling is
+  // opt-out, so Coming on the trip starts on for every role. A trip nobody is
+  // travelling on prices a stop nobody picked at zero, and that must only
+  // happen because the owner chose it. #314's advisor is now an untick.
+  it("presets Coming on the trip on, whatever the role", async () => {
     const { dialog } = renderDialog();
     expect(comingOnTheTrip(dialog).checked).toBe(true);
     await userEvent.click(within(dialog).getByRole("radio", { name: "Can suggest" }));
-    expect(comingOnTheTrip(dialog).checked).toBe(false);
-    await userEvent.click(within(dialog).getByRole("radio", { name: "Can view" }));
-    expect(comingOnTheTrip(dialog).checked).toBe(false);
-    await userEvent.click(within(dialog).getByRole("radio", { name: "Can edit" }));
     expect(comingOnTheTrip(dialog).checked).toBe(true);
+    await userEvent.click(within(dialog).getByRole("radio", { name: "Can view" }));
+    expect(comingOnTheTrip(dialog).checked).toBe(true);
+  });
+
+  // With one default for every role, a role change has nothing to reset to,
+  // so it must not throw away an untick the owner already made.
+  it("keeps the owner's untick when they change the role afterwards", async () => {
+    const { dialog } = renderDialog();
+    await userEvent.click(comingOnTheTrip(dialog));
+    await userEvent.click(within(dialog).getByRole("radio", { name: "Can view" }));
+    await userEvent.click(within(dialog).getByRole("radio", { name: "Can edit" }));
+    expect(comingOnTheTrip(dialog).checked).toBe(false);
   });
 
   it("sends the preset, so the server is told rather than left to guess", async () => {
@@ -82,7 +92,7 @@ describe("InviteDialog", () => {
     await userEvent.click(within(dialog).getByRole("radio", { name: "Can suggest" }));
     await userEvent.click(within(dialog).getByRole("button", { name: "Create invite" }));
     await waitFor(() =>
-      expect(createTripInviteMock).toHaveBeenCalledWith(tripId, { email: null, role: "suggester", travelling: false }),
+      expect(createTripInviteMock).toHaveBeenCalledWith(tripId, { email: null, role: "suggester", travelling: true }),
     );
   });
 
@@ -93,7 +103,7 @@ describe("InviteDialog", () => {
     await userEvent.click(comingOnTheTrip(dialog));
     await userEvent.click(within(dialog).getByRole("button", { name: "Create invite" }));
     await waitFor(() =>
-      expect(createTripInviteMock).toHaveBeenCalledWith(tripId, { email: null, role: "suggester", travelling: true }),
+      expect(createTripInviteMock).toHaveBeenCalledWith(tripId, { email: null, role: "suggester", travelling: false }),
     );
   });
 

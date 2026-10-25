@@ -52,12 +52,15 @@ describe("read_trip says who the totals are for", () => {
     expect(readDayTool.description).toMatch(/travellers/);
   });
 
-  // D5: with nobody travelling the totals still price one person, and
-  // `travellers: 0` alone reads as "free" or as a division by zero.
-  it("read_trip says who travels, that a member may not, and the one-person floor", () => {
+  // Mitchell, 2026-10-25 (KI-2026-10-05-e, superseding D5's floor): with
+  // nobody travelling, a stop nobody picked costs nothing. Said outright, so
+  // the model reads `travellers: 0` and a zero total as the rule and not as a
+  // missing price, and does not invent a one-person price.
+  it("read_trip says who travels, that a member may not, and that nobody travelling prices at zero", () => {
     expect(readTripTool.description).toMatch(/travellers/);
     expect(readTripTool.description).toMatch(/not travelling/);
-    expect(readTripTool.description).toMatch(/at least one person/);
+    expect(readTripTool.description).toMatch(/at zero when nobody is travelling/);
+    expect(readTripTool.description).not.toMatch(/at least one person/);
   });
 });
 

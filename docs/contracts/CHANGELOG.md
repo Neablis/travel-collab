@@ -13,6 +13,38 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-10-25 — Nobody travelling prices a stop nobody picked at zero; every invite defaults to travelling (KI-2026-10-05-e)
+- **Changed** (`packages/contracts/src/costs.ts`, behaviour only; no schema changed):
+  `stopHeadcount(activity, 0)` for a stop nobody picked is **0**, was 1 (travellers spec D5's
+  floor), so `stopTotal` is 0 for it, and every total built on them moves with it: day subtotals,
+  the backlog subtotal, `tripCostTotal`, `budgetRemaining` and the over-budget conflict (the
+  domain's `rollupCosts` and the server's read-time recost), the board, the `cost` family of
+  notebook widgets, the share page and the assistant's reads (`read_day`'s per-stop `headcount`
+  is now 0 there). A stop somebody is picked for keeps its price. `stopPeople`/`balances` did not
+  change: they already charged nobody for such a stop, and now `Σ share = Σ stopTotal` holds
+  for every trip, zero travellers included.
+- **Changed** (`apps/web`, `createInvite`): an invite that does not say `travelling` is
+  travelling, **whatever the role**, was travelling only for `editor`. The invite dialog's
+  *Coming on the trip* starts on for every role, and changing the role no longer resets it.
+  `CreateInviteInput.travelling` is still optional and still the server's to preset.
+- Why: Mitchell, 2026-10-25. The board priced a stop nobody was travelling for at one person
+  while "who owes what" charged nobody for it. Pricing it at zero makes the two agree, and on the
+  condition that travelling is **opt-out**: everyone on a trip is travelling unless somebody
+  unticks them, so a zero is never a surprise. The owner (no `trip_travellers` row), a member
+  granted without an invite, existing members (D2) and guests already defaulted to travelling.
+- Consumers updated: `apps/web` (`server/access/invites.ts`, `InviteDialog`, the People line
+  and the share page's line now read "Nobody is marked as travelling, so costs show as zero until
+  someone is.", `read_trip`'s description, the invite preview's `previewContext`, which carried
+  the trip's total on the floor and now picks its total's stop for a stand-in id).
+  `@tc/domain` and `@tc/pages` call `stopTotal` unchanged.
+- Public API: `openapi.json`, `API_VERSION` (1.24.0) and `API_FINGERPRINT` are unchanged, since
+  no description or shape moved. `POST /v1/trips/{tripId}/invites` without `travelling` now
+  invites a suggester or viewer as travelling, and a v1 trip nobody travels on totals 0 for its
+  unpicked stops.
+- Breaking? no schema change. Behaviour: a trip whose members are all marked not travelling
+  shows smaller totals (unpicked stops at 0), and a v1 caller that relied on a suggester or
+  viewer joining as not travelling must now send `travelling: false`.
+
 ## 2026-10-24 — Only a Today page's weather request carries today's point (KI-2026-10-24-k)
 - **Changed** (`apps/web`, `GET /api/trips/[tripId]/weather` only; no `packages/contracts`
   schema changed): the extra point dated today off the trip's dates (entry below) is added only

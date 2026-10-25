@@ -39,6 +39,9 @@ Mitchell, 2026-10-02, asked four questions at M19's kickoff:
    is excluded by picking *Who is in* on the stops they are not part of.
    **Amended by ADR-065 (2026-10-05): empty = all *travellers*.** Who is travelling is Access
    data, counted at read time, and a member who is not travelling counts only where picked.
+   **Amended 2026-10-25 by Mitchell (KI-2026-10-05-e):** with no traveller, empty is nobody, and
+   the stop's total is zero. There is no one-person floor, so this headcount is always the
+   number of people decision 6 charges.
 3. **One pure function computes it, in `packages/contracts`** (`costs.ts`: `stopHeadcount`,
    `stopTotal`, `isCommittedCost`). The domain, the web helpers and every `@tc/pages` cost
    widget call it. A second copy is the drift invariant 5 forbids.

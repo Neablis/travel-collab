@@ -47,8 +47,9 @@ export function mostFreeDays(detail: TripDetail): number[] {
 /**
  * A day's total split evenly over the people going (travellers spec D1): the
  * answer to "split day N between everyone going". A member who is not
- * travelling takes no share, and with nobody travelling the total is priced
- * for one (D5), so it is that one's.
+ * travelling takes no share. With nobody travelling a stop nobody picked is
+ * priced at zero (2026-10-25, superseding D5's floor), so what is left is only
+ * picked stops; the `max` is a guard against dividing by zero, not a floor.
  */
 export function travellerSplitOfDay(detail: TripDetail, day: number): number {
   const subtotal = detail.days[day - 1]?.costSubtotal ?? 0;
