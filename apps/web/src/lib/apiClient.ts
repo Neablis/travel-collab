@@ -1160,11 +1160,13 @@ export async function fetchTripGlobals(tripId: string): Promise<ApiResult<TripGl
  * derives the rounded points from the trip, so nothing the reader chose leaves.
  *
  * Asked for only by a page that holds a widget declaring `needs: ["weather"]` —
- * see `useExternalInputs`.
+ * see `useExternalInputs`. `today` is a Today page's: only it is answered
+ * today's point off the trip's dates, which costs a forecast call the other
+ * pages would never show (KI-2026-10-24-k).
  */
-export async function fetchTripWeather(tripId: string): Promise<ApiResult<TripWeather>> {
+export async function fetchTripWeather(tripId: string, { today = false }: { today?: boolean } = {}): Promise<ApiResult<TripWeather>> {
   try {
-    const res = await fetch(apiUrl(`/api/trips/${tripId}/weather`));
+    const res = await fetch(apiUrl(`/api/trips/${tripId}/weather${today ? "?today=1" : ""}`));
     return await readJson(res, (data) => TripWeatherResponse.parse(data).weather);
   } catch (err) {
     return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };

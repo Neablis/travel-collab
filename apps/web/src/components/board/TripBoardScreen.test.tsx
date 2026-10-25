@@ -196,7 +196,18 @@ const server = setupServer(
 // The lenses, the rail and the editor load on demand; warm them once so a
 // first render does not pay a cold transform inside a `findBy`.
 beforeAll(() => preloadTripBoardModules());
-beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
+// `"error"` alone only prints: the read fails, the board shrugs, and the test
+// passes against a state it never meant to set up (KI-2026-10-24-f, the chat
+// reads M52 added). So each test also fails on any request no handler answered.
+const unhandled: string[] = [];
+beforeAll(() =>
+  server.listen({
+    onUnhandledRequest: (request, print) => {
+      unhandled.push(`${request.method} ${new URL(request.url).pathname}`);
+      print.error();
+    },
+  }),
+);
 beforeEach(() => {
   // **`view=Plan`, not "" — and this is the single change SPEC §24 makes to
   // almost every test in this file.** A bare trip URL lands on Overview now
@@ -224,6 +235,8 @@ afterEach(() => {
   server.resetHandlers();
   cleanup();
   listeners.clear();
+  // Last, so a failure here still leaves the next test a clean slate.
+  expect(unhandled.splice(0), "requests no handler answered").toEqual([]);
 });
 afterAll(() => server.close());
 
@@ -3276,6 +3289,29 @@ describe("⌘K runs the trip page's own actions", () => {
 
     run("view:Calendar");
     expect(replaceSpy.mock.calls.at(-1)).toEqual(byTab);
+  });
+
+  // KI-2026-10-19-a: closing a sheet opened by a `?settings=` link drops the
+  // param from the address bar, and Next's router has to hear about it, or the
+  // next tab switch builds its URL from the stale params and writes it back.
+  // The page's history state carries Next's `__NA`, as it always does on an
+  // app-router page; a write that passes it on is one Next does not sync.
+  it("forgets a ?settings= link once the sheet closes, so a tab switch does not bring it back", async () => {
+    const fixture = tripDetailFixture();
+    server.use(...makeTripHandlers(fixture), http.get("/api/auth/session", () => HttpResponse.json({ user: { id: "dev-alice" } })));
+    window.history.replaceState({ __NA: true }, "", "/trips/x?view=Plan&settings=people");
+    search = new URLSearchParams("view=Plan&settings=people");
+    try {
+      renderScreen(fixture.tripId);
+      await screen.findByRole("dialog", { name: /trip settings/i });
+      await userEvent.click(screen.getByRole("button", { name: /close/i }));
+      await waitFor(() => expect(screen.queryByRole("dialog", { name: /trip settings/i })).toBeNull());
+
+      fireEvent.click(screen.getByRole("tab", { name: "Map" }));
+      expect(replaceSpy.mock.calls.at(-1)?.[0]).toBe("/trips/x?view=Map");
+    } finally {
+      window.history.replaceState(null, "", "/");
+    }
   });
 
   it("opens Trip settings, as the trip's title does", async () => {

@@ -31,7 +31,13 @@ export const tripKeys = {
   history: (tripId: string) => `trip:${tripId}:history`,
   access: (tripId: string) => `trip:${tripId}:access`,
   globals: (tripId: string) => `trip:${tripId}:globals`,
-  weather: (tripId: string) => `trip:${tripId}:weather`,
+  /**
+   * A Today page's weather carries one point more than any other page's (the
+   * route's `?today=1`, KI-2026-10-24-k), so it is its own entry: an
+   * Overview's answer, without that point, must not be served to the Today
+   * page opened next. Both sit under the `weather` prefix.
+   */
+  weather: (tripId: string, { today = false }: { today?: boolean } = {}) => `trip:${tripId}:weather${today ? ":today" : ""}`,
   pages: (tripId: string) => `trip:${tripId}:pages`,
   page: (tripId: string, pageId: string) => `trip:${tripId}:page:${pageId}`,
 } as const;

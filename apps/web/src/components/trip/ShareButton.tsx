@@ -186,6 +186,18 @@ export function ShareButton({
           </Text>
         )}
 
+        {/* KI-2026-10-19-g: the Copy button keeps its stable name, so its
+            "Copied" label is never read out. This region speaks for it, the
+            way ReferralNudge's does. Mounted empty before any copy, so what
+            lands in it is a change a screen reader announces; pulled up by
+            the gap while empty, so the idle panel's spacing is unchanged. */}
+        <div role="status" className="empty:-mt-3">
+          {copied !== null ? <span className="sr-only">Link copied.</span> : null}
+          {revealed !== null ? (
+            <span className="sr-only">Couldn&apos;t copy it. The link is in the box below.</span>
+          ) : null}
+        </div>
+
         {revealed !== null && (
           <div className="flex flex-col gap-1">
             <Text as="span" className="text-xs text-slate">

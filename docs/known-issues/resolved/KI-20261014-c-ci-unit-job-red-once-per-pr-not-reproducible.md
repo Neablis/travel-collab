@@ -1,4 +1,4 @@
-### KI-2026-10-14-c — CI's `test / unit` goes red on a PR, then green (usually after one red, once after two): unseeded property floors that a rare draw trips (four proven, five suspected)
+### KI-2026-10-14-c — CI's `test / unit` goes red on a PR, then green (usually after one red, once after two): unseeded property floors that a rare draw trips (four proven, five suspected) — RESOLVED
 
 - **Severity:** reliability. CI noise only; no product behaviour is wrong. Each occurrence costs a
   re-run or a push cycle, and because the job log can't be read from a cloud session
@@ -94,3 +94,49 @@
   duplicates: KI-2026-10-05-b, KI-2026-10-11-a, KI-2026-10-12-a, KI-2026-10-12-f.
 - **First noted:** 2026-10-14, during M46's walk changes; the four instances from 2026-10-05 to
   2026-10-12.
+- **Added 2026-10-24 (M52), two more once-only reds, neither re-run to a cause:**
+  - `apps/web/src/server/assistant/prompt.test.ts`, the untrusted-value fence: it failed once
+    and passed unchanged. The failing test was not recorded. The file's only generated case is the
+    unseeded property *holds over generated strings: nothing closes it, and nothing is lost*
+    (about line 78), so it belongs with the seed-pinning fix above unless a recorded failure says
+    otherwise.
+  - `apps/web/src/components/board/TripBoardScreen.test.tsx:1987`, *carries the unread count on
+    the button, the tab bar's Ask and the Chat tab, and clears it once read*: red once during
+    M52 part 8 (PR 537), green on re-run. Not a property; more likely a poll or focus timing race
+    like KI-2026-10-19-c. The same file logs unhandled `/chat` and `/chat/read` requests
+    (KI-2026-10-24-f), which is worth ruling out first.
+- **Added 2026-10-24 (M52, part 12 follow-up):** `apps/web/src/components/front/LandingSea.test.tsx`'s
+  tab-order test timed out once in CI (`test / unit`, 15 s) on PR 546 at `31835b8`. Its sixty Tab
+  presses were five laps of an 11-stop sea and took 9 s alone; `12e73db` stops the walk when Tab
+  wraps to a stop it has seen (one lap, 2 s), and CI run 40138571257 is green on that head. A
+  slow test near its timeout, not a cause-unknown red like the others here.
+- **Recurred 2026-10-24:** PR 552 at `10f7222`, `quota.property.test.ts`, `a settlement whose
+  window had rolled: ran 6 assertion(s), expected at least 8`.
+- **Resolved, 2026-10-24 (branch `claude/optimistic-hopper-78a19i-property-seeds`):** the fix is
+  for the whole class, not one floor per property. Every lane that runs fast-check now pins its
+  seed. `fastCheckSeed.setup.ts` calls `fc.configureGlobal({ seed: 20261024 })` and is a
+  setupFile of the web unit lane (through `vitest.setup.ts`), the web int lane, and
+  `packages/domain`, `pages` and `contracts`. So each property draws the same cases on every run,
+  and each witness floor and coverage check is deterministic. `FC_SEED=random` explores and
+  prints the seed it used. `FC_SEED=<n>` replays that seed. The weather generator was also
+  biased (`fc.constant(0)` in the near offset), so the "today" row comes up 79 times in 1000
+  cases instead of 5. No floor was lowered and no coverage check was removed. The convention
+  is written in `testing.md` §3 and in each `witness.ts`.
+  - **Red, reproduced:** an in-process scan of the quota property over 1,119 seeds gave a
+    `rolled` count from 7 to 39 (median 19, 1st percentile 10). Seed 1184 is the one draw below
+    the floor, and `FC_SEED=1184` on the unchanged test file fails exactly as PR 405 did: `a
+    settlement whose window had rolled: ran 7 assertion(s), expected at least 8`. That is about
+    1 run in 1,000 per floor. With dozens of such floors in the unit job, it is the
+    once-a-week red this entry describes.
+  - **Green, deterministic:** every fast-check file (24 web, 12 pages, 11 domain, 4 contracts;
+    `quota.int.test.ts` separately) was run three times under the pinned seed with the witness
+    counts logged. All 146 counts were identical across the three runs, and all files passed.
+    Counts against floors under the pinned seed: quota `rolled` 19/8; optimistic `refused` 17/7;
+    costs over-budget `w` 23/7 and `wAdvisers` 10/3; phoneAskContext `offered` 30/23; prompt
+    fence delimiter cases 197/90; weather six modes all seen (today 79); quota.int 915/400,
+    58/25, 20/8. The closest margin in the repo is `offered`, 30 against 23.
+  - **Out of this fix:** the non-property reds listed above. TripBoardScreen's unread-count red
+    is tracked as KI-2026-10-24-f, which a parallel PR is fixing. LandingSea was fixed in
+    `12e73db`, LandingFeatureBlocks in PR 494, `useTripSuggestions` in KI-2026-10-19-c and
+    LandingHeroArt in KI-2026-10-19-d. The prompt-fence red was never recorded. Its property
+    is now seeded like the rest, but what caused that one red is not proven.

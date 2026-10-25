@@ -375,14 +375,25 @@ describe("the sea's moments", () => {
       render(<LandingSea />);
       const region = screen.getByRole("region", { name: ASSISTANT });
       await within(region).findByRole("log", { name: "Conversation", hidden: true });
-      // Every stop Tab lands on inside the moment, once round the whole sea
-      // (Tab wraps, so the count only needs to be past the sea's stops).
+      // Every stop Tab lands on inside the moment, once round the whole sea:
+      // the lap ends when Tab wraps back to a stop it has already landed on.
+      // A fixed 60 presses was five laps, and took 9s of a 15s budget alone
+      // (PR 546's unit red).
       const stops = new Set<string>();
       region.addEventListener("focusin", (event) => {
         const at = event.target as HTMLElement;
         stops.add(at.getAttribute("aria-label") ?? at.textContent ?? at.tagName);
       });
-      for (let i = 0; i < 60; i++) await userEvent.tab();
+      const lap = new Set<EventTarget | null>();
+      let wrapped = false;
+      const onFocus = (event: FocusEvent) => {
+        if (lap.has(event.target)) wrapped = true;
+        lap.add(event.target);
+      };
+      document.addEventListener("focusin", onFocus);
+      for (let presses = 0; !wrapped && presses < 200; presses++) await userEvent.tab();
+      document.removeEventListener("focusin", onFocus);
+      expect(wrapped).toBe(true);
       expect([...stops]).toEqual([]);
     });
   });

@@ -1242,13 +1242,12 @@ html[data-look="ledger"] .shadow-raised {
      unnoticed until the composer became the assistant's primary control).
      Both selectors are kept so unwrapping the rack does not silently undo
      this a second time. Pinned by e2e (m16-assistant.spec.ts clicks Ask).
-     Scoped to >=768px (KI-84 mobile fix, PR #88): below that the rail is no
-     longer a docked 356px sidebar (see `.assistant-rail` below), so
-     reserving 356px of the rack's width for one is stale and, worse,
-     misleading — the rack is fully covered by the mobile rail's own z-index
-     regardless of this rule, but a "compensate for a sidebar that doesn't
-     exist here" rule left unscoped is the exact kind of thing this ticket
-     was filed to stop leaving unhandled. */
+     Scoped to >=768px (KI-84 mobile fix, PR #88): below that the assistant
+     is never a docked 356px sidebar (it is §23's sheet, `.assistant-sheet`),
+     so reserving 356px of the rack's width for one would be stale and, worse,
+     misleading — a "compensate for a sidebar that doesn't exist here" rule
+     left unscoped is the exact kind of thing that ticket was filed to stop
+     leaving unhandled. */
   @media (min-width: 768px) {
     .assistant-open ~ .unscheduled-rack,
     .assistant-open ~ * .unscheduled-rack {
@@ -1258,50 +1257,27 @@ html[data-look="ledger"] .shadow-raised {
     }
   }
 
-  /* AssistantRail (KI-84 mobile fix, PR #88 preview report — Mitchell, on an
-     Android phone: "the AI assistant on mobile breaks the entire website, it
-     probably shouldn't be a modal but a full page experience"). Docked
-     (>=768px — Tailwind's own `md`, which every other breakpoint-aware rule
-     in this file already treats as the line between "narrow but still a
-     shrinkable plan" and "phone": see the hero's 1024px and the assistant
-     rail's own 1180px for wider breakpoints, and SPEC.md §13's mobile-foundations
-     framing for why phone gets its own rules rather than a squeeze of
-     desktop's) is UNCHANGED — 356px width, sticky under the header, a real
-     flex sibling per SPEC §9. e2e pins this exactly
-     (responsive.spec.ts "docked contract").
-     Below 768px the rail stops being a flex sibling with a width and becomes
-     the whole screen, per Mitchell's own direction above — not a squeeze,
-     an `<aside>` that owns the viewport with the plan behind it. Two things
-     this closes that are NOT just "the plan was crushed":
-     1. TripHeader is `sticky z-10` with `overflow-x: visible` — at the
-        crushed 356px-vs-viewport width this replaces, its own content (Share,
-        Add stop, History) didn't fit its squeezed column and painted OVER
-        the docked rail, which carried no z-index of its own (confirmed by a
-        diagnostic click landing on a day-chip link instead of the rail).
-        `z-index: 30` here clears both stacking competitors already on this
-        page — TripHeader's 10 and `.unscheduled-rack`'s 20 — so nothing can
-        paint over the rail again regardless of how tall either one's content
-        gets.
-     2. `100dvh`, not the desktop rule's `100vh`: a phone's on-screen keyboard
-        changes the visible viewport without necessarily changing `vh`, which
-        is a credible way for a fixed-height composer to sit below the
-        keyboard-adjusted visible area while still reporting itself as open —
-        one live reading of Mitchell's "the input is unselectable" that a
-        synthetic click (no real keyboard) cannot reproduce, the same reason
-        the rack/Ask-button bug above survived until someone stopped
-        submitting with Enter. `dvh` tracks the browser's actual visible
-        viewport instead.
-     A named class rather than a Tailwind `md:` variant on the element
-     because the desktop geometry (356px width, `100vh` less AppHeader's height) is
-     an inline-style computed-geometry exception (AssistantRail.tsx) and an
-     inline style beats any later Tailwind utility without `!important` — the
-     override has no effect unless both states live in the same rule, so both
-     do, here. `position`/`top` move here too (off the `sticky`/`top-14`
-     utilities the element used to carry) for the identical reason: Tailwind's
-     utilities layer always wins over this file's components layer,
-     independent of which media query matches, so a utility class on the
-     element would silently out-rank this rule's `position: fixed` at every
-     width, docked included. */
+  /* AssistantRail's DOCKED presentation (SPEC §9): 356px wide, sticky under
+     the header, a real flex sibling of the board. e2e pins this exactly
+     (responsive.spec.ts "docked contract"). Only ever drawn from 1100px up:
+     below 768px every surface asks for §23's sheet (`.assistant-sheet`), and
+     from 768 to 1099px the board does too (M39 D3).
+
+     Until KI-2026-10-09-d this rule had a `max-width: 767px` half: KI-84's
+     full-screen takeover (PR #88; Mitchell, on an Android phone: "it probably
+     shouldn't be a modal but a full page experience"), `position: fixed;
+     inset: 0`, `100dvh`, `z-index: 30`. §23 replaced it with the sheet (see
+     `.assistant-sheet` for that reversal on the record), and once no caller
+     could hand a phone the docked presentation the block was dead CSS that
+     read as live. Its two lessons live on in `.assistant-sheet`: `dvh`, for a
+     phone's on-screen keyboard, and the 30 tier, over TripHeader's 10 and the
+     rack's and the tab bar's 20.
+
+     A named class rather than Tailwind utilities on the element because the
+     desktop geometry (356px width, `100vh` less AppHeader's height) is an
+     inline-style computed-geometry exception (AssistantRail.tsx), and
+     `position`/`top` live here beside it (off the `sticky`/`top-14` utilities
+     the element used to carry). */
   .assistant-rail {
     position: sticky;
     top: var(--app-header-height);
@@ -1311,17 +1287,6 @@ html[data-look="ledger"] .shadow-raised {
        above an iPad's home indicator (M39 Part 7). Not the right inset: the
        rail is in flow, and `body`'s padding has already moved it in. */
     padding-bottom: var(--safe-area-bottom);
-  }
-  @media (max-width: 767px) {
-    .assistant-rail {
-      position: fixed;
-      inset: 0;
-      width: 100%;
-      height: 100dvh;
-      z-index: 30;
-      /* It owns the whole screen, so it clears all four insets (M39 Part 7). */
-      padding: var(--safe-area-top) var(--safe-area-right) var(--safe-area-bottom) var(--safe-area-left);
-    }
   }
 
   /* SPEC §9's FLOATING presentation, and the notebook's. Mitchell, on the
@@ -1341,16 +1306,16 @@ html[data-look="ledger"] .shadow-raised {
      nothing to evict at a narrow width and no compensation rule anywhere else
      in this file to keep in step.
 
-     z-index 30 matches the mobile rail's, which is what clears TripHeader's 10
+     z-index 30 is the phone sheet's tier, which is what clears TripHeader's 10
      and `.unscheduled-rack`'s 20; a notebook page carries neither, but a panel
      that can paint under a header on one route and over it on another is the
      bug KI-84 was.
 
      Below 768px this class is not used at all — SPEC §13.5 forbids anything
      floating over data on a phone, so the notebook keeps a header control and
-     the full-screen rail there. A named class rather than Tailwind utilities
-     for the reason `.assistant-rail` gives above: both presentations have to
-     live in the same layer or one silently outranks the other. */
+     §23's sheet there. A named class rather than Tailwind utilities for the
+     reason `.assistant-rail` gives above: the presentations have to live in
+     the same layer or one silently outranks the other. */
   /* The 16px pad is measured from the safe area's corner, not the screen's
      (M39 Part 7), and the clamp gives up the insets above and below it. The
      launcher it grows out of, `.assistant-bubble`, is planted in the same
@@ -1383,17 +1348,15 @@ html[data-look="ledger"] .shadow-raised {
      KI-84's geometry. Say that plainly rather than let the next reader find it:
      KI-84 is Mitchell's own report, from his own phone, that the assistant "on
      mobile breaks the entire website, it probably shouldn't be a modal but a
-     full page experience", and `.assistant-rail`'s `max-width: 767px` block
-     above is that direction built. §23 then specifies the phone assistant as a
-     bottom sheet over what you were already looking at — which is the modal
-     shape that report ruled out. Mitchell was shown the conflict on 2026-09-05
-     and chose to build §23 literally, sheet and all. So this is a decision
-     reversed on the record, not a rule quietly forgotten.
+     full page experience", and `.assistant-rail` had a `max-width: 767px`
+     block that was that direction built. §23 then specifies the phone
+     assistant as a bottom sheet over what you were already looking at — which
+     is the modal shape that report ruled out. Mitchell was shown the conflict
+     on 2026-09-05 and chose to build §23 literally, sheet and all. So this is
+     a decision reversed on the record, not a rule quietly forgotten.
 
-     Nothing above is deleted, and that is not hedging: `docked` is still what
-     every call site asks for, and on a phone `docked` is still KI-84's
-     full-screen surface. This class only applies where a caller asks for
-     `presentation="sheet"`.
+     Every phone surface now asks for `presentation="sheet"`, so the
+     full-screen block had no caller left and went with KI-2026-10-09-d.
 
      Geometry is the design's (`…dc.html:889-938`), with two translations:
 
@@ -1404,8 +1367,8 @@ html[data-look="ledger"] .shadow-raised {
        above the scrim, so tabs cannot be tapped behind an open sheet.
        Switching tabs under one would change its scope mid-conversation, which
        is the single thing §23 exists to prevent ("the pill inherits the
-       surface's scope"). 30/31 is the takeover tier `.assistant-rail` and
-       `.assistant-float` already occupy — clear of TripHeader's 10 and of the
+       surface's scope"). 30/31 is the takeover tier KI-84's full-screen rail
+       held and `.assistant-float` still occupies — clear of TripHeader's 10 and of the
        rack's and the bar's 20, and still under `.overlay-layer`'s 60, so a
        Radix dialog opened from inside the sheet lands over it rather than
        under.
@@ -1413,9 +1376,9 @@ html[data-look="ledger"] .shadow-raised {
        element resolves against the initial containing block, which a phone's
        on-screen keyboard does not resize — so a keyboard could push the
        composer below the visible area while the sheet still measured itself as
-       80% of "the viewport". That is exactly the reading of "the input is
-       unselectable" `.assistant-rail` records above, and the reason it uses
-       `dvh` too. With no keyboard open the two are the same number.
+       80% of "the viewport". That is exactly the reading of KI-84's "the input
+       is unselectable", and the reason its full-screen rail used `dvh` too.
+       With no keyboard open the two are the same number.
 
      The 18px top radius and the upward shadow are design literals with no
      token: the radius scale stops at 16px, and `--shadow-overlay` throws

@@ -105,3 +105,10 @@
   and a sign-in as `m20operator`. Harmless, and named here so nobody is puzzled
   by them later.
 - **Re-verified 2026-09-25 (overnight sweep), code side only:** still true as far as the repo can show. `requireAdminApi()` still returns `notFound()` for any non-operator (`apps/web/src/server/entitlements/requireAdmin.ts:20-25`). The only place the repo sets `ADMIN_USER_IDS` is still the local e2e server's env (`apps/web/playwright.config.ts:250`, `E2E_ADMIN_USER_ID`). The promotion still happens on every sign-in, in `onConflictDoUpdate` (`apps/web/src/server/users.ts:162`, line number corrected above). **Not re-checked:** Preview's actual `ADMIN_USER_IDS` value, and the entry's own recheck (`POST <preview>/api/admin/grants` → 201). Both need dashboard access or a preview walk, and a validator has neither. M22 closed its box on Mitchell's attestation (`docs/milestones/README.md:110`), not by fixing this, so the entry stays open.
+- **Added 2026-10-24 (M52): the same wall stops every walk of a group feature.** A free preview
+  account cannot invite anyone: the invite answers **402 `collaborators-not-entitled`**, because
+  `trip.collaborators` is a paid entitlement and no preview account can hold a plan (above). So a
+  session cannot walk anything that needs a second member on the trip: M52's Trip chat card,
+  `@assistant` in the chat with *Waiting on <name>*, and the change lines. Those walks fall to
+  Mitchell, whose own accounts are entitled. Fixing this entry (a dev operator who can grant on a
+  preview) fixes both.

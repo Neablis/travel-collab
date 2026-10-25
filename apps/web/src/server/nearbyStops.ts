@@ -8,8 +8,10 @@ import {
   type TripDetail,
 } from "@tc/contracts";
 import { citiesOfDay, haversineKm } from "@tc/domain";
+import { slugify } from "@/lib/playbookUrls";
 import { toEndMinutes, toMinutes } from "@/lib/time";
 import { db } from "./db/client";
+import { publishedPlaces } from "./publicLibrary";
 import { parseSavedDayColumns } from "./savedDayRow";
 
 // Nearby stops (M34): what other travellers did in the city of the day a stop
@@ -139,6 +141,23 @@ export function rankNearbyStops(input: RankNearbyStopsInput): NearbyStop[] {
   return ranked.slice(0, NEARBY_STOPS_MAX);
 }
 
+/**
+ * `cities` and every other spelling the library stores for each of them, so
+ * a trip whose stops say "Kyoto" is offered a day stored as "kyoto", and "Sao
+ * Paulo" one stored as "São Paulo" (KI-2026-10-05-d). The spellings are the
+ * ones a city page merges (`publishedPlaces`, by `slugify`), read from the
+ * library's cache, so the query below still overlaps exact strings and keeps
+ * the `saved_days_cities` GIN index. Only published days are searched here,
+ * and those are exactly the days the city pages are made from. A city with no
+ * slug (a script `slugify` drops) or no page is matched as spelled.
+ */
+async function spellingsOf(cities: readonly string[]): Promise<string[]> {
+  const pages = new Map(
+    (await publishedPlaces()).filter((place) => place.kind === "city").map((place) => [place.slug, place.cities]),
+  );
+  return [...new Set(cities.flatMap((city) => [city, ...(pages.get(slugify(city)) ?? [])]))];
+}
+
 /** Every day's cities, in day order, each once — the trip's cities by `citiesOfDay`'s own rule. */
 function citiesOfTrip(detail: TripDetail): string[] {
   return [...new Set(detail.days.flatMap((_, index) => citiesOfDay(detail, index)))];
@@ -188,8 +207,9 @@ export async function nearbyStopsFor(query: NearbyStopsQuery): Promise<NearbySto
   // D1: the day's cities; a day with none (a new day, or stops with no city)
   // borrows the trip's.
   const dayCities = dayIndex === -1 ? [] : citiesOfDay(detail, dayIndex);
-  const cities = dayCities.length > 0 ? dayCities : citiesOfTrip(detail);
-  if (cities.length === 0) return [];
+  const tripCities = dayCities.length > 0 ? dayCities : citiesOfTrip(detail);
+  if (tripCities.length === 0) return [];
+  const cities = await spellingsOf(tripCities);
 
   const anchor = query.anchor ?? (dayIndex === -1 ? null : centroidOf(detail, dayIndex));
   const titlesOnDay =

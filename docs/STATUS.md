@@ -21,13 +21,25 @@ general setup.
 
 ## Where the work is right now
 
-**M52 — The trip comes with you — is the current milestone**
-(`docs/milestones/M52-the-trip-comes-with-you.md`), minted 2026-10-22 and **not yet scoped**: the
-during-trip experience. Mitchell answered decisions 1–9, 11, 12, 17, 10's empty days and 18's chat
-reading the same day (a *During the trip* notebook). The rest are open recommendations.
+**M49 — A cover can come from anywhere, and be framed where you want it — is the current
+milestone** (`TODO.md`'s order after M52, M48 skipped as parked; `pnpm milestone close M52`
+moved the marker). It is proposed, not scoped: `docs/milestones/M49-covers-from-anywhere.md`.
 
-**Next action:** scope M52 with Mitchell (`plan-a-milestone`) before any part is built. After it,
-the order is M49 → M43 → M44, with M48 parked.
+**M52 closed 2026-10-24, gate 13 of 13**, by `pnpm milestone close M52 --confirm` on part 0
+(PR 529, `claude/serene-tesla-quoyte`). Parts 1–12 merged 2026-10-23/24 (PRs 530–537, 539–542,
+545), migrations `0062`–`0065` applied in production. The [walk] box was ticked on Mitchell's
+word, 2026-10-24: *"Confirmed, check them all and finish up"* (two-member *No messages yet*,
+`auth()` inside `after()` on production, walks of PR 537 at `4301073` and PR 541), beside his
+earlier confirmations (Today undeletable on production; part 10's API; part 11 *"Merged,
+confirmed fixed"*). Evidence, retro and spend are in
+`docs/milestones/M52-the-trip-comes-with-you.md`.
+
+**Next action:** Mitchell's: merge PR 546 (part 12's follow-up: eval place stub, closed stop
+swapped in place, `LandingSea` tab-order bound; head `12e73db`, CI run 40138571257 `ci-ok` green,
+still open at the close), then merge part 0, PR 529. Then plan M49 with him (`plan-a-milestone`).
+Open follow-ups from M52: KI-2026-10-24-a to -o (`docs/known-issues/open/`). Outside M52:
+PR 491 (dependabot) is red, and GitHub reports 5 dependabot vulnerabilities on `main` (2 high,
+3 moderate). After M49 the order is M43 → M44, with M48 parked.
 
 **M51 closed 2026-10-22, gate 11 of 11**, on Mitchell's ruling at the close: his walk at 390, 1440
 and 3440 works, and the parts are merged (PRs 506–511, 513, 514, 516; part 0 PR 505 merged early;
@@ -77,7 +89,7 @@ Also merged beside it: `docs/guidelines/building-with-judgment.md` (PR 468).
 **M45 closed 2026-10-13, gate 12 of 12** (part 0 PR 420); evidence and retro in
 `docs/milestones/M45-the-assistant-beyond-one-trip.md`. Accepted gap: KI-2026-10-13-a.
 
-Order: `… M42 ✓ → M45 ✓ → M46 ✓ → M47 ✓ → M50 ✓ → M51 ✓ → M52 → M48 (parked) → M49 → M43 → M44`; the M51 reorder is in
+Order: `… M42 ✓ → M45 ✓ → M46 ✓ → M47 ✓ → M50 ✓ → M51 ✓ → M52 ✓ → M48 (parked) → M49 → M43 → M44`; the M51 reorder is in
 `docs/milestones/README.md`, *2026-10-20 — minted: M51, ahead of M49*. Earlier closed milestones'
 narrative is in `docs/retros/2026-10-16-status-archive.md` and each milestone's own file.
 

@@ -7,31 +7,77 @@
 // console would put on the same turn: `microUsdForSteps` for the agent's steps
 // at the model each ran on, and `microUsdFor` for the classifier's round-trip.
 // No second pricing rule lives here.
+//
+// **A part that reported no usage is charged an estimate, never nothing**
+// (KI-2026-10-13-c). The ledger's own price is null for it — unmeasured is not
+// free — but the cap is the run's one guard on paid spend, and a null used to
+// add $0 to it: a 3-step Opus turn went by as "unpriced" and the run reported
+// $0.38 against about $0.47 spent. Here such a part is priced at the model's
+// rate on a generous guess, and the turn says which part it guessed.
 import type { TurnLedger } from "@/server/assistant/ledger";
+import { MAX_STEP_OUTPUT_TOKENS } from "@/server/ai/handleAskRequest";
 import { microUsdFor, rateAt } from "@/server/entitlements/modelRates";
-import { microUsdForSteps } from "@/server/entitlements/usage";
 
 /**
- * One turn's spend in micro-dollars, or null when any part of it has no rate.
- * Null is not zero: a run cannot cap what it cannot price.
+ * The input charged to a part that reported none, when the turn offers
+ * nothing better to go on: no step reported its input, and neither did the
+ * turn. Above any turn the live set has measured (the long trip's ceiling is
+ * 30,000), so a guess errs towards stopping the run early.
  */
-export function turnMicroUsd(ledger: TurnLedger, at: Date): number | null {
-  const steps = microUsdForSteps(
-    ledger.stepSpend.map((step) => ({
-      turnId: ledger.cost.turnId ?? "",
-      model: step.model,
-      tokensIn: step.tokensIn,
-      tokensOut: step.tokensOut,
-      cacheReadTokens: step.cacheReadTokens,
-      cacheWriteTokens: step.cacheWriteTokens,
-    })),
-    at,
-  );
-  if (steps === null) return null;
+export const UNREPORTED_INPUT_TOKENS = 100_000;
+
+/** What one eval turn is charged against the cap. */
+export interface TurnSpend {
+  /**
+   * Micro-dollars: exact where every part reported its usage, an estimate
+   * where one did not (`estimated`). Null only where a part's model has no
+   * rate, which a run must opt into (`EVAL_ALLOW_UNPRICED`).
+   */
+  microUsd: number | null;
+  /** One line per part that reported no usage, naming it and what it was charged. Empty when all were measured. */
+  estimated: string[];
+}
+
+/**
+ * One turn's spend. A step that reported no input is charged the most the
+ * turn could have spent on it: the larger of the turn's input no step accounts
+ * for and the largest input any step reported (a later step re-reads every
+ * earlier one, so steps only grow), or `UNREPORTED_INPUT_TOKENS` when neither
+ * exists. No output is charged as the agent's per-step ceiling,
+ * `MAX_STEP_OUTPUT_TOKENS`. A guessed input is priced as fresh, never cached.
+ */
+export function turnSpend(ledger: TurnLedger, at: Date): TurnSpend {
+  const estimated: string[] = [];
+  const reportedIn = ledger.stepSpend.flatMap((step) => (step.tokensIn === null ? [] : [step.tokensIn]));
+  const turnIn = ledger.cost.turn.tokensIn;
+  const unattributedIn = turnIn === null ? 0 : Math.max(0, turnIn - reportedIn.reduce((sum, n) => sum + n, 0));
+  const largestIn = Math.max(unattributedIn, ...reportedIn);
+  const guessIn = largestIn > 0 ? largestIn : UNREPORTED_INPUT_TOKENS;
+
+  const charge = (part: string, model: string, tokensIn: number | null, tokensOut: number | null, inputGuess: number, cacheRead: number | null, cacheWrite: number | null) => {
+    const chargedIn = tokensIn ?? inputGuess;
+    const chargedOut = tokensOut ?? MAX_STEP_OUTPUT_TOKENS;
+    if (tokensIn === null || tokensOut === null) {
+      const missing = tokensIn === null && tokensOut === null ? "no usage" : tokensIn === null ? "no input tokens" : "no output tokens";
+      estimated.push(`${part} (${model}) reported ${missing}; charged ${chargedIn} in / ${chargedOut} out`);
+    }
+    return microUsdFor(model, chargedIn, chargedOut, at, undefined, tokensIn === null ? 0 : cacheRead, tokensIn === null ? 0 : cacheWrite);
+  };
+
+  let total = 0;
+  for (const step of ledger.stepSpend) {
+    const cost = charge(`step ${step.index + 1}`, step.model, step.tokensIn, step.tokensOut, guessIn, step.cacheReadTokens, step.cacheWriteTokens);
+    if (cost === null) return { microUsd: null, estimated };
+    total += cost;
+  }
   const classifier = ledger.cost.classifier;
-  if (classifier === null) return steps;
-  const classified = microUsdFor(classifier.model, classifier.tokensIn, classifier.tokensOut, at);
-  return classified === null ? null : steps + classified;
+  if (classifier !== null) {
+    // Its input is its own prompt, not the agent's, so the agent's steps say nothing of it.
+    const cost = charge("the classifier", classifier.model, classifier.tokensIn, classifier.tokensOut, UNREPORTED_INPUT_TOKENS, null, null);
+    if (cost === null) return { microUsd: null, estimated };
+    total += cost;
+  }
+  return { microUsd: total, estimated };
 }
 
 /** The configured models that have no rate as of `at`: a run on any of them cannot be capped. */

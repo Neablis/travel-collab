@@ -315,20 +315,8 @@ test.describe("M39 Part 7 — the pinned and fixed layers clear the safe area", 
         const box = (await sheet.boundingBox())!;
         expect.soft(box.y + box.height, "sheet bottom").toBe(852);
         expect.soft(await px(sheet, "paddingBottom"), "sheet inset").toBe(tall.bottom);
-
-        // `.assistant-rail`'s full-screen phone form has no caller that reaches
-        // it after hydration any more — every phone surface asks for the sheet
-        // — so its rule is read off a probe rather than a real panel.
-        const fullScreen = await page.evaluate(() => {
-          const el = document.createElement("aside");
-          el.className = "assistant-rail";
-          document.body.append(el);
-          const s = getComputedStyle(el);
-          const padding = [s.paddingTop, s.paddingRight, s.paddingBottom, s.paddingLeft].map(parseFloat);
-          el.remove();
-          return padding;
-        });
-        expect.soft(fullScreen, "full-screen Ask").toEqual([tall.top, tall.right, tall.bottom, tall.left]);
+        // `.assistant-rail` had a full-screen phone form, checked here off a
+        // probe because no caller reached it; KI-2026-10-09-d deleted it.
       });
 
       test("a bottom sheet and a full-screen sheet clear the edges they touch", async ({ page }) => {

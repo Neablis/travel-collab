@@ -19,7 +19,7 @@ import { db } from "@/server/db/client";
 import { tripMemberships, users } from "@/server/db/schema";
 import { executeTripCommand } from "@/server/commands";
 import { getTripDetail } from "@/server/projections";
-import { effectiveMembers, capGranted, grantMembership } from "./members";
+import { effectiveMembers, capGranted, grantMembership, withEffectiveMembersByTrip } from "./members";
 import { upsertUser } from "@/server/users";
 import { issueGrant, revokeGrant, allGrantsFor } from "@/server/entitlements/grants";
 
@@ -207,6 +207,47 @@ describe("the lapse caps granted memberships on read", () => {
     const projected = (await getTripDetail(tripId))!.members;
     const members = await effectiveMembers(db, tripId, projected);
     expect(members.find((m) => m.userId === collaborator)!.role).toBe("editor");
+  });
+
+  // KI-2026-10-05-f: the trip lists merged the granted rows in uncapped, so
+  // `GET /api/trips` and `GET /v1/trips` reported a lapsed owner's
+  // collaborators as editors while the trip's own reads said viewer. Both
+  // lists go through `withEffectiveMembersByTrip`; `/api/trips` is driven
+  // through its route too, as a collaborator on both trips would see it. One
+  // owner lapsed and one paid, in the same list, so the cap is per owner.
+  it("caps them in the trip lists too, per owner, as the trip's own reads do", async () => {
+    const lapsed = await account("free");
+    const paid = await account("premium");
+    const lapsedTrip = await tripOwnedBy(lapsed);
+    const paidTrip = await tripOwnedBy(paid);
+    const collaborator = await addCollaborator(lapsedTrip, lapsed);
+    await grantMembership(db, {
+      tripId: paidTrip,
+      userId: collaborator,
+      role: "editor",
+      invitedBy: paid,
+      now: new Date().toISOString(),
+    });
+    const rows = [
+      { tripId: lapsedTrip, members: (await getTripDetail(lapsedTrip))!.members },
+      { tripId: paidTrip, members: (await getTripDetail(paidTrip))!.members },
+    ];
+    const roleOf = (members: readonly { userId: string; role: string }[]) =>
+      members.find((m) => m.userId === collaborator)!.role;
+
+    // The trip's own read, which the lists must agree with.
+    expect(roleOf(await effectiveMembers(db, lapsedTrip, rows[0]!.members))).toBe("viewer");
+
+    const [lapsedListed, paidListed] = await withEffectiveMembersByTrip(db, rows);
+    expect(roleOf(lapsedListed!.members)).toBe("viewer");
+    expect(roleOf(paidListed!.members)).toBe("editor");
+    expect(lapsedListed!.members.find((m) => m.userId === lapsed)!.role).toBe("owner");
+
+    const { GET } = await import("@/app/api/trips/route");
+    currentUserId = collaborator;
+    const { trips } = (await (await GET()).json()) as { trips: { tripId: string; members: { userId: string; role: string }[] }[] };
+    expect(roleOf(trips.find((t) => t.tripId === lapsedTrip)!.members)).toBe("viewer");
+    expect(roleOf(trips.find((t) => t.tripId === paidTrip)!.members)).toBe("editor");
   });
 
   // The cap itself, pure: it narrows and never widens, and it never touches an

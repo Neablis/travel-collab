@@ -56,8 +56,8 @@ const osloDay = (n: number) => addDaysIso(clockIn(OSLO_ZONE, Date.now()).date, n
 // I/O keeps real timers.
 const NOW = new Date("2026-09-27T23:41:00Z");
 
-/** Two dated days, today and tomorrow in Oslo, with a located stop on each. */
-async function seedTrip(): Promise<string> {
+/** Two dated days, today and tomorrow in Oslo (or `from` days on), with a located stop on each. */
+async function seedTrip(from = 0): Promise<string> {
   const tripId = randomUUID();
   const days = [randomUUID(), randomUUID()];
   const run = async (command: Parameters<typeof executeTripCommand>[0]) => {
@@ -65,15 +65,15 @@ async function seedTrip(): Promise<string> {
     if (!result.ok) throw new Error(`seed failed: ${JSON.stringify(result)}`);
   };
   await run({ type: "CreateTrip", tripId, name: "Oslo" });
-  await run({ type: "SetTripDates", tripId, startDate: osloDay(0), endDate: osloDay(1), newDayIds: days });
+  await run({ type: "SetTripDates", tripId, startDate: osloDay(from), endDate: osloDay(from + 1), newDayIds: days });
   for (const dayId of days) {
     await run({ type: "AddActivity", tripId, activityId: randomUUID(), dayId, title: "Opera", location: OSLO });
   }
   return tripId;
 }
 
-async function get(tripId: string) {
-  return GET(new Request(`http://test/api/trips/${tripId}/weather`), { params: Promise.resolve({ tripId }) });
+async function get(tripId: string, query = "") {
+  return GET(new Request(`http://test/api/trips/${tripId}/weather${query}`), { params: Promise.resolve({ tripId }) });
 }
 
 /** The body, parsed by the contract — the route promises a `TripWeatherResponse`. */
@@ -121,6 +121,25 @@ describe("GET /api/trips/:tripId/weather", () => {
     currentUserId = "someone-else";
     expect((await get(tripId)).status).toBe(403);
     expect(port).not.toHaveBeenCalled();
+  });
+
+  // KI-2026-10-24-k: today's point off the trip's dates, and its forecast
+  // call, are a Today page's alone. A trip three weeks out has no day in the
+  // forecast's horizon, so any forecast call is that point's.
+  it("adds today's point, and asks for its forecast, only when a Today page asks with ?today=1", async () => {
+    const tripId = await seedTrip(21);
+    const port = vi.fn(failing("MET Norway"));
+    forecastPort = { forecast: port };
+    const datesOf = async (query: string) => {
+      const res = await get(tripId, query);
+      expect(res.status).toBe(200);
+      return TripWeatherResponse.parse(await res.json()).weather.points.map((point) => point.date);
+    };
+    expect(await datesOf("")).toEqual([osloDay(21), osloDay(22)]);
+    expect(await datesOf("?today=0")).toEqual([osloDay(21), osloDay(22)]);
+    expect(port).not.toHaveBeenCalled();
+    expect(await datesOf("?today=1")).toEqual([osloDay(21), osloDay(22), osloDay(0)]);
+    expect(port).toHaveBeenCalledOnce();
   });
 
   it("with both sources down, answers 200 with every point unavailable — and the widget is the quiet placeholder", async () => {

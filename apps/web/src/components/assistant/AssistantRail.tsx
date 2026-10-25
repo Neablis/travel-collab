@@ -186,10 +186,10 @@ function railTabOptions(unread: number) {
 // Mobile fix (KI-84, PR #88 preview, 2026-08-29): the 356px docked width used
 // to be unconditional, so a phone-width viewport crushed the plan to a
 // sliver, TripHeader's overflowing content painted over the rail, and the
-// composer became genuinely unusable. Below 768px this is now a full-screen
-// surface, not a squeeze of the docked one — see `.assistant-rail`
-// (globals.css) for the geometry and why it lives there rather than in
-// Tailwind classes on this element. The launcher pill that opens it is
+// composer became genuinely unusable. Below 768px the rail is never docked
+// now: every caller passes `sheet` there, and the full-screen
+// `.assistant-rail` override this comment once pointed to was deleted as
+// unreachable (KI-2026-10-09-d). The launcher pill that opens it is
 // unchanged and is off-SPEC on its own terms (§13.5: "no floating action
 // button") — that is a real designed-mobile-entry-point decision this fix
 /**
@@ -886,23 +886,17 @@ export function AssistantRail({
             ? { left: position.x, top: position.y, right: "auto", bottom: "auto" }
             : undefined
         }
-        // `.assistant-rail` (globals.css) carries ALL of this element's
-        // position/width/height, docked and full-screen alike — see that
-        // class's own comment (KI-84 mobile fix) for why `top-14`/`sticky`
-        // moved out of Tailwind utilities and the 356px/100vh geometry out of
-        // an inline style: a utility class here would silently outrank a
-        // media-query override in that file regardless of which query
-        // matched, and an inline style outranks it even harder. `self-start`
-        // stops the flex row's default `stretch` from growing the aside to
-        // match the plan column's (usually taller) content height while
-        // docked; irrelevant once the mobile rule takes the element out of
-        // flow with `position: fixed`, and harmless there. `shrink-0` holds
-        // the 356px width against the row's default flex-shrink while docked.
+        // `.assistant-rail` (globals.css) carries ALL of the docked element's
+        // position/width/height — see that class's own comment (KI-84) for
+        // why `top-14`/`sticky` and the 356px/100vh geometry live there and not
+        // in utilities or an inline style. `self-start` stops the flex row's
+        // default `stretch` from growing the aside to match the plan column's
+        // (usually taller) content height; `shrink-0` holds the 356px width
+        // against the row's default flex-shrink.
         //
         // `border-l-2 border-border-strong`, not the hairline every other
         // panel edge uses: SPEC §9 calls the docked rail's left edge "a
-        // structural wall, not a card edge." Left as-is full-screen — a 2px
-        // border at the viewport's own left edge costs nothing.
+        // structural wall, not a card edge."
         //
         // `floating` swaps the geometry AND the edge: §9's "structural wall, not
         // a card edge" is a statement about the DOCKED rail, which abuts the plan
@@ -1024,16 +1018,11 @@ export function AssistantRail({
                 size={isSheet ? "touch" : "sm"}
                 aria-label="Hide"
                 onClick={onHide}
-                // Full-screen below 768px (`.assistant-rail`, globals.css) makes
-                // this the ONLY way back to the plan — SPEC §13.1's 44px target
-                // floor applies to it for the first time, and the added border
-                // reads as an exit rather than a tertiary ghost action once
-                // there is nothing else on screen to suggest one (KI-84 mobile
-                // fix). Not applied to the sheet: `size="touch"` already carries
-                // the floor there, and the sheet is never the only thing on
-                // screen — the plan is visible behind it, which is the whole
-                // difference between §23's sheet and KI-84's takeover.
-                className={cn(!isSheet && "max-md:h-11 max-md:min-w-11 max-md:border max-md:border-border-strong max-md:px-4")}
+                // No phone-width variant: below 768px the rail is always the
+                // sheet, whose `size="touch"` already meets SPEC §13.1's 44px
+                // floor. The `max-md:` takeover styling that lived here served
+                // the full-screen docked rail deleted as unreachable
+                // (KI-2026-10-09-d).
               >
                 {isSheet ? "✕" : "Hide"}
               </Button>

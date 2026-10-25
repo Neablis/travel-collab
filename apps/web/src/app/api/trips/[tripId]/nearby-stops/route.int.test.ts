@@ -151,6 +151,18 @@ describe("GET /api/trips/:tripId/nearby-stops", () => {
     expect(stops.map((s) => s.title)).not.toContain(title);
   });
 
+  // KI-2026-10-05-d: the ranking reads cities case-insensitively, but only
+  // ever saw the rows an exact, case-sensitive `cities &&` had chosen. Both
+  // spellings a city page merges: another case, and an accent ("São Paulo").
+  it("returns a published day whose city is spelled in another case or with an accent", async () => {
+    const lower = `Lowercase ${randomUUID().slice(0, 6)}`;
+    const accented = `Accented ${randomUUID().slice(0, 6)}`;
+    await libraryDay(AUTHOR, lower, {}, CITY.toLowerCase());
+    await libraryDay(AUTHOR, accented, {}, CITY.replace("town", "töwn"));
+    const { stops } = await nearby();
+    expect(stops.map((s) => s.title)).toEqual(expect.arrayContaining([lower, accented]));
+  });
+
   it("refuses a non-member as trip access does", async () => {
     currentUserId = STRANGER;
     expect((await nearby()).status).toBe(403);

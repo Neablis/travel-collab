@@ -147,10 +147,18 @@ export function expectationFor(id: string, trip: TripDetail): EvalExpectation | 
     // another day.
     case "d-running-late":
       return { ...CHANGE, mustCall: ["UpdateActivity"], mustNotCall: ["AddActivity", "RemoveActivity", "MoveActivity"] };
-    // 14(c): a closed stop is kept, marked pending, and something like it near
-    // here is added beside it. Removing it would lose the booking it may hold.
+    // 14(c): the closed stop is swapped in place for something like it nearby,
+    // found by either place search: one UpdateActivity, nothing added beside
+    // it and nothing removed. Expected "mark pending and add" until every run
+    // swapped on 2026-10-24, and Mitchell chose the swap: "we dont need to
+    // remember the closed stop, thats for the history".
     case "d-closed-find-similar":
-      return { ...CHANGE, mustCall: ["UpdateActivity", "AddActivity"], mustNotCall: ["RemoveActivity"] };
+      return {
+        ...CHANGE,
+        mustCall: ["UpdateActivity"],
+        mustCallOneOf: [["find_places_near_now", "search_places"]],
+        mustNotCall: ["AddActivity", "RemoveActivity"],
+      };
     default:
       return undefined;
   }
@@ -173,6 +181,28 @@ const ACCOUNT_QUESTION: EvalExpectation = {
 };
 
 const COUNT_WORDS = ["no", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"];
+
+/**
+ * What people, and models, call a country the list names otherwise
+ * (KI-2026-10-12-c): "Turkey" is as right an answer as "Türkiye". Eval-only;
+ * the product's list keeps one name per code. Nothing here is a common word
+ * that a sentence could use for something else ("Czech", "US", "America").
+ */
+const COUNTRY_ALIASES: Readonly<Record<string, readonly string[]>> = {
+  TR: ["Turkey"],
+  KR: ["Korea"],
+  CZ: ["Czech Republic"],
+  MO: ["Macau"],
+  CV: ["Cape Verde"],
+  CI: ["Ivory Coast"],
+  GB: ["UK", "Britain", "England", "Scotland", "Wales", "Northern Ireland"],
+  US: ["USA", "U.S.A."],
+  MM: ["Burma"],
+  SZ: ["Swaziland"],
+  TL: ["East Timor"],
+  NL: ["Holland"],
+  VA: ["Vatican"],
+};
 
 /**
  * Expectations for the account prompts, from the trips the runner seeded.
@@ -253,7 +283,10 @@ export function accountExpectationFor(
       return {
         ...ACCOUNT_QUESTION,
         mustCall: ["suggest_next_country"],
-        namesOneOf: COUNTRIES.filter((country) => !been.has(country.code)).map((country) => country.name),
+        namesOneOf: COUNTRIES.filter((country) => !been.has(country.code)).flatMap((country) => [
+          country.name,
+          ...(COUNTRY_ALIASES[country.code] ?? []),
+        ]),
       };
     }
     case "a-open-trip": {

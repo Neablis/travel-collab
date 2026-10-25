@@ -273,14 +273,31 @@ describe("buildTripWeather", () => {
 // Honolulu.
 // Mitchell, 2026-10-24: a Today page shows today's weather before and after
 // the trip too, at the place of the trip day nearest today (`nearestTripDay`).
-// The route adds that one point; a page without a Today scope never reads it.
+// The route adds that one point for a Today page's request; a page without a
+// Today scope never reads it, and does not ask for it.
 describe("today's point off the trip's dates", () => {
+  const TODAY_PAGE = { today: true };
   const datesAndForecast = (weather: Awaited<ReturnType<typeof buildTripWeather>>) =>
     weather.points.map((p) => [p.date, p.city, "unavailable" in p.forecast ? p.forecast.unavailable : "forecast"]);
 
+  // KI-2026-10-24-k: only a Today page reads that point, so only a Today page's
+  // request has it. Any other page's must not fetch, or charge, a forecast for a
+  // trip whose own days are all out of the forecast's horizon.
+  it("is left out, and its forecast neither called nor charged, when the page is not a Today page", async () => {
+    const before = tripOf([{ date: "2026-10-20", stops: [OSLO] }, { date: "2026-10-21", stops: [BERGEN] }]);
+    const { forecast, charge, deps: d } = deps();
+    expect(datesAndForecast(await buildTripWeather(before, d))).toEqual([
+      ["2026-10-20", "Oslo", "not-in-horizon"],
+      ["2026-10-21", "Bergen", "not-in-horizon"],
+    ]);
+    expect(forecast.forecast).not.toHaveBeenCalled();
+    // The two cities' normals, and nothing else.
+    expect(charge).toHaveBeenCalledExactlyOnceWith(2);
+  });
+
   it("is today at day 1's place before the trip, forecast, beside the trip's own days", async () => {
     const before = tripOf([{ date: "2026-10-20", stops: [OSLO] }, { date: "2026-10-21", stops: [BERGEN] }]);
-    expect(datesAndForecast(await buildTripWeather(before, deps().deps))).toEqual([
+    expect(datesAndForecast(await buildTripWeather(before, deps().deps, TODAY_PAGE))).toEqual([
       ["2026-10-20", "Oslo", "not-in-horizon"],
       ["2026-10-21", "Bergen", "not-in-horizon"],
       ["2026-09-24", "Oslo", "forecast"],
@@ -289,14 +306,14 @@ describe("today's point off the trip's dates", () => {
 
   it("is today at the last day's place after it", async () => {
     const after = tripOf([{ date: "2026-08-01", stops: [OSLO] }, { date: "2026-08-02", stops: [BERGEN] }]);
-    expect(datesAndForecast(await buildTripWeather(after, deps().deps)).at(-1)).toEqual(["2026-09-24", "Bergen", "forecast"]);
+    expect(datesAndForecast(await buildTripWeather(after, deps().deps, TODAY_PAGE)).at(-1)).toEqual(["2026-09-24", "Bergen", "forecast"]);
   });
 
   it("is not added while today is one of the trip's days, nor for a nearest day with no place", async () => {
     const during = tripOf([{ date: "2026-09-24", stops: [OSLO] }]);
-    expect(datesAndForecast(await buildTripWeather(during, deps().deps))).toEqual([["2026-09-24", "Oslo", "forecast"]]);
+    expect(datesAndForecast(await buildTripWeather(during, deps().deps, TODAY_PAGE))).toEqual([["2026-09-24", "Oslo", "forecast"]]);
     const unplaced = tripOf([{ date: "2026-10-20", stops: [] }, { date: "2026-10-21", stops: [BERGEN] }]);
-    expect(datesAndForecast(await buildTripWeather(unplaced, deps().deps))).toEqual([["2026-10-21", "Bergen", "not-in-horizon"]]);
+    expect(datesAndForecast(await buildTripWeather(unplaced, deps().deps, TODAY_PAGE))).toEqual([["2026-10-21", "Bergen", "not-in-horizon"]]);
   });
 
   // PR 542's preview: the sunrise was at home and the weather in Tokyo. Day 1
@@ -310,7 +327,7 @@ describe("today's point off the trip's dates", () => {
     const ctx: WidgetContext = {
       trip, page: { tripId: trip.tripId, dateScope: "today" }, user: null, globals: buildTripGlobals(trip), today: "2026-09-24",
       now: { at: NOW.getTime(), deviceZone: "America/New_York" },
-      external: { weather: { state: "ready", value: await buildTripWeather(trip, deps().deps) } },
+      external: { weather: { state: "ready", value: await buildTripWeather(trip, deps().deps, TODAY_PAGE) } },
     };
     const cities = (name: string) => {
       const outcome = renderMacro(ctx, name, {});

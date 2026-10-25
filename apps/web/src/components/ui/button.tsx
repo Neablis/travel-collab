@@ -16,7 +16,7 @@ import { cn } from "../../lib/cn";
  * anything that needed a floor — and it released at
  * `sm` (640px), which left **640–767px with no floor at all** while every other
  * phone rule in this app draws the line at 767 (`useIsPhone`'s
- * `PHONE_MAX_WIDTH_PX`, `.assistant-rail`, `.unscheduled-rack`, `md:hidden` on
+ * `PHONE_MAX_WIDTH_PX`, `.unscheduled-rack`, `md:hidden` on
  * the tab bar). A control 28px tall on a 700px-wide phone in landscape was
  * inside the band KI-046 measured and outside the only rule meant to protect
  * it.

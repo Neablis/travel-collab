@@ -413,8 +413,8 @@ describe("TripHeader on a phone", () => {
     await renderHeader(<div role="tablist" aria-label="Trip view" />);
 
     // `md:` IS 768px — the line globals.css already draws between "narrow but
-    // still a shrinkable plan" and "phone" (`.assistant-rail`,
-    // `.unscheduled-rack`) and the one `useIsPhone` reads.
+    // still a shrinkable plan" and "phone" (`.unscheduled-rack`) and the one
+    // `useIsPhone` reads.
     //
     // Share used to be the other half of this assertion, at `hidden md:block`.
     // It is not behind the breakpoint any more — it is out of this header

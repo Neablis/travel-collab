@@ -154,7 +154,10 @@ describe("recostDetail", () => {
       expect(recosted.conflicts).toEqual(joined.conflicts);
       expect(over(recosted)).toBe(recosted.budgetRemaining! < 0);
     }), { numRuns: 400 });
-    // Observed over 27 runs of 400, with the traveller count from 0:
+    // Observed over 27 runs of 400, with the traveller count from 0. Unseeded,
+    // `w` once drew 6 and turned CI red (KI-2026-10-14-c); under the pinned
+    // seed (`test/support/fastCheckSeed.setup.ts`) every run draws 23 / 10 /
+    // 41 / 211. Re-measure if the seed or the generator changes.
     w.atLeast(7); // 14-30
     wAdvisers.atLeast(3); // 6-19
     wNobody.atLeast(15); // 31-56
