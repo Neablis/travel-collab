@@ -1,4 +1,5 @@
 "use client";
+import { useRef } from "react";
 import * as RadixDialog from "@radix-ui/react-dialog";
 import { X } from "lucide-react";
 import { cn } from "@/lib/cn";
@@ -75,19 +76,37 @@ export function Sheet({
   size?: SheetSize;
   actions?: SheetActions;
   /**
-   * Where focus goes on close, as on `Dialog`: with no `Dialog.Trigger` Radix
-   * has nothing to return it to, so absent this a keyboard reader lands on
-   * `<body>`. `preventDefault()` the event and focus the opener yourself.
+   * Where focus goes on close, for a caller whose opener may be gone by then:
+   * `preventDefault()` the event and focus the control that is there now.
+   * Absent this, or without `preventDefault()`, focus goes back to whatever
+   * had it when the sheet opened, while that is still in the page.
    */
   onCloseAutoFocus?: (event: Event) => void;
   children: React.ReactNode;
 }) {
+  // **What had focus when the sheet opened, to give it back on close**
+  // (KI-2026-10-09-b). Radix returns focus to a `Dialog.Trigger`, and this
+  // sheet is state-controlled and has none, so every caller's keyboard reader
+  // landed on `<body>`. Read in `onOpenAutoFocus`: Radix fires it before it
+  // moves focus in, so the opener still has it then.
+  const opener = useRef<HTMLElement | null>(null);
   return (
     <RadixDialog.Root open={open} onOpenChange={onOpenChange}>
       <RadixDialog.Portal>
         <RadixDialog.Overlay className="overlay-layer fixed inset-0 bg-ink/40" />
         <RadixDialog.Content
-          onCloseAutoFocus={onCloseAutoFocus}
+          onOpenAutoFocus={() => {
+            const at = document.activeElement;
+            opener.current = at instanceof HTMLElement && at !== document.body ? at : null;
+          }}
+          onCloseAutoFocus={(event) => {
+            onCloseAutoFocus?.(event);
+            const back = opener.current;
+            opener.current = null;
+            if (event.defaultPrevented || back === null || !back.isConnected) return;
+            event.preventDefault();
+            back.focus();
+          }}
           className={cn(
             "overlay-layer fixed flex w-full flex-col bg-surface shadow-overlay",
             // `max-w-measure` is what makes the rail a rail; dropping it for

@@ -29,6 +29,27 @@ Format:
 - Breaking? no — additive field on the create's answer. A caller that sent a `dateRange` anchor
   finds it absent on read, and is told so in `warnings`.
 
+## 2026-10-25 — A chat send carries a key, and is stored once (KI-2026-10-14-a)
+- **Added** (`packages/contracts` `PostChatMessage.clientKey`, optional uuid): the send's own
+  key, minted once per send and resent with any retry of it. `POST /api/trips/:tripId/chat`
+  stores one message per (trip, poster, key) and answers a repeat 201 with the message already
+  stored, as it now stands; a repeat moves no `chatRev` and starts no second `@assistant` turn.
+  Migration `0067_chat_client_key` adds `trip_messages.client_key` and the partial unique index
+  `trip_messages_client_key (trip_id, author_id, client_key) where client_key is not null`.
+- Why: a chat POST that never answered held it, and every line queued behind it, at "Sending…"
+  for the life of the page. A client timeout alone would have given back the text of a send the
+  server had stored, and Send would have stored it twice. With the key, `postChatMessage` gives
+  up after `CHAT_POST_TIMEOUT_MS` (15s) and a resend cannot double-store (after ADR-066).
+- Consumers updated: `apps/web` (`useTripChat` mints a key per send and reuses it when the same
+  words are sent again after coming back unsent; `postChatMessage` takes
+  `AbortSignal.timeout`; `server/chat/messages.ts` `postMessage` answers `{ message, created }`;
+  the chat route). The chat is not on the public API, and the assistant's and the app's own lines
+  (`postAssistantReply`, `postSystemLine`) carry no key.
+- Breaking? no — optional; a send without a key is stored exactly as before. Until migration
+  0067 is dispatched to production, every `trip_messages` read and write names a column that
+  does not exist there yet, so chat 500s in that window (change lines are best-effort and do not
+  fail the trip edit).
+
 ## 2026-10-24 — Only a Today page's weather request carries today's point (KI-2026-10-24-k)
 - **Changed** (`apps/web`, `GET /api/trips/[tripId]/weather` only; no `packages/contracts`
   schema changed): the extra point dated today off the trip's dates (entry below) is added only

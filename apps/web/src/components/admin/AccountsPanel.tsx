@@ -159,13 +159,19 @@ export function AccountsPanel({ table, view, now, windowDays }: AccountsPanelPro
   // **A layout effect, and never while a navigation is pending** (M36 part 7,
   // CodeRabbit). A passive effect runs after the browser may have handled a
   // click, so a pill clicked in that gap would start a `router.replace` that
-  // this `replaceState` — which Next reads as a restore — could then discard.
-  // A layout effect runs in the same task as the commit, before any input.
+  // this `replaceState` could then discard. A layout effect runs in the same
+  // task as the commit, before any input.
+  //
+  // **`null` for the state, never `window.history.state`**, as in
+  // `LensRouter`, `TripHeader` and `DiscoverScreen` (KI-2026-10-19-a): the
+  // live state carries Next's `__NA`, and Next's patched `replaceState` then
+  // skips its own sync, so `useSearchParams` would keep the clamped-away
+  // `?page=9` while the address bar says page 2.
   const servedHref = accountsViewHref(served);
   useLayoutEffect(() => {
     if (navigating) return;
     if (servedHref === window.location.pathname + window.location.search) return;
-    window.history.replaceState(window.history.state, "", servedHref);
+    window.history.replaceState(null, "", servedHref);
   }, [servedHref, navigating]);
   const underwaterIds = new Set(table.underwater);
 

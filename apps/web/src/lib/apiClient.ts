@@ -454,13 +454,30 @@ export async function fetchChat(tripId: string): Promise<ApiResult<ChatPage>> {
   }
 }
 
-/** Post a message: the stored message, or the refusal with its status (403 no longer a member, 402 read-only). */
+/**
+ * How long a chat post may go unanswered before it counts as not sent
+ * (KI-2026-10-14-a). The route's own work is a membership read and one
+ * insert; an `@assistant` turn runs after the response, not before it. So a
+ * healthy answer takes well under a second, and a cold function waking a
+ * suspended database a few. Fifteen is a margin past both, and short enough
+ * that a stalled line comes back to the composer while its writer is still
+ * looking. Safe to give up on only because the send carries its `clientKey`:
+ * one that landed after all is not stored again when it is resent.
+ */
+export const CHAT_POST_TIMEOUT_MS = 15_000;
+
+/**
+ * Post a message: the stored message, or the refusal with its status (403 no
+ * longer a member, 402 read-only). One unanswered after
+ * {@link CHAT_POST_TIMEOUT_MS} is a network error, status 0.
+ */
 export async function postChatMessage(tripId: string, input: PostChatMessage): Promise<ApiResult<ChatMessage>> {
   try {
     const res = await fetch(apiUrl(`/api/trips/${tripId}/chat`), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(input),
+      signal: AbortSignal.timeout(CHAT_POST_TIMEOUT_MS),
     });
     if (!res.ok) return await refusal(res);
     return { ok: true, value: ChatMessage.parse(((await res.json()) as { message: unknown }).message) };

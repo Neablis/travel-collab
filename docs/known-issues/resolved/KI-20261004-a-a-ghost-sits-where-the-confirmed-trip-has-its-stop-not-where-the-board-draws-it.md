@@ -1,4 +1,23 @@
-### KI-2026-10-04-a — a suggestion's ghost sits where the confirmed trip has its stop, not where the board draws it
+### KI-2026-10-04-a — a suggestion's ghost sits where the confirmed trip has its stop, not where the board draws it — RESOLVED
+
+- **Resolved:** 2026-10-25 (KI sweep 2). The choice this entry waited on was
+  avoided rather than made: a change is still PREDICTED only on the confirmed
+  trip (W5 — its outcome, staleness and *Accept all* order are untouched), but
+  it is now PLACED on the trip the board draws. `placeGhosts` takes a third
+  argument, `shown`, and reads its days, river and stop-to-day map from it;
+  `TripProvider` passes `activeTrip`'s days and stops. A change to a stop the
+  reader's unconfirmed edit removed or took off the river is listed in the
+  chip instead of marking a stop nobody can see, and a move onto the day the
+  reader already moved the stop to no longer says "Moving to". Reproduced
+  first, red on the unchanged code: the new `TripProvider.suggest.test.tsx`
+  case ("lists a change to a stop the reader's draft removed in the chip")
+  failed `Expected: "no" / Received: "yes"` on the marker after the stop was
+  no longer drawn, and the two new `suggestionOverlay.test.ts` cases
+  ("placeGhosts on the trip the board draws") failed
+  `expected true to be false`. All three green after the fix, with the rest of
+  those files, `TripProvider.test.tsx`, `useTripSuggestions.test.tsx` and
+  `board/suggestions.test.tsx` (144 tests); `pnpm --filter web typecheck` and
+  eslint on the touched files clean.
 
 - **Severity:** cosmetic (placement). The suggestion and its actions are
   right. Only where its ghost or marker is drawn lags, and it catches up when

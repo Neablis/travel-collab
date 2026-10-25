@@ -580,8 +580,18 @@ export const tripMessages = pgTable(
     deletedAt: timestamp("deleted_at", { withTimezone: true, mode: "date" }),
     deletedBy: text("deleted_by"),
     hiddenAt: timestamp("hidden_at", { withTimezone: true, mode: "date" }),
+    // The poster's key for the send that stored it (`PostChatMessage.clientKey`,
+    // KI-2026-10-14-a); null for a send without one and for the app's and the
+    // assistant's own lines.
+    clientKey: uuid("client_key"),
   },
   (t) => [
+    // A send is stored once (KI-2026-10-14-a, after ADR-066): a retry under the
+    // same key loses here and is answered with this row. Per poster, so one
+    // member's key can never reach, or answer with, another's message.
+    uniqueIndex("trip_messages_client_key")
+      .on(t.tripId, t.authorId, t.clientKey)
+      .where(sql`${t.clientKey} is not null`),
     // The page read and the unread count both walk one trip's messages by time,
     // and both order — or compare a cursor — on `(created_at, id)`, so `id` is
     // in the key: a trip's newest page is then read straight off the index with
