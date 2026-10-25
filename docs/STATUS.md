@@ -21,11 +21,14 @@ general setup.
 
 ## Where the work is right now
 
-**M49 — A cover can come from anywhere, and be framed where you want it — is the current
-milestone, scoped 2026-10-25** with Mitchell (decisions 4–10 as recommended; ADR-081). Plan:
-`docs/plans/2026-10-25-M49-covers-from-anywhere.md`, four parts. Part 1 (the union and migration
-`0068`) goes first, then parts 2 and 4 in parallel, then part 3. Part 0 is the draft PR from
-`claude/cool-goodall-p53ykz` and merges last.
+**M49 closed 2026-10-25, gate 9 of 9**, by `pnpm milestone close M49 --confirm` on part 0
+(PR 581, `claude/cool-goodall-p53ykz`), which waits on Mitchell's merge. All four parts are on
+`main`: part 1 (PR 580, `fc07b46`, migration `0068` applied in production by `migrate-production`
+run 40169051627), then parts 2, 4 and 3 (PRs 584, 585, 588, stacked, merged together as
+`cc93447`). The [walk] box was ticked on Mitchell's word, 2026-10-25 17:59Z: *"Confirmed, and
+walked. Closed out the gate"*. Evidence, retro and spend are in
+`docs/milestones/M49-covers-from-anywhere.md`; the plan is deleted. **M43 is now the current
+milestone** (`docs/milestones/M43-notebooks-keep-up.md`), proposed and not yet scoped.
 
 **M52 closed 2026-10-24, gate 13 of 13**, by `pnpm milestone close M52 --confirm` on part 0
 (PR 529, `claude/serene-tesla-quoyte`). Parts 1–12 merged 2026-10-23/24 (PRs 530–537, 539–542,
@@ -36,10 +39,13 @@ earlier confirmations (Today undeletable on production; part 10's API; part 11 *
 confirmed fixed"*). Evidence, retro and spend are in
 `docs/milestones/M52-the-trip-comes-with-you.md`.
 
-**Next action:** build M49's part 1 (`build-a-part`).
+**Next action:** Mitchell merges PR 581 (M49's part 0). Then scope M43 with him
+(`plan-a-milestone`): the Overview's identity in the database, its derived title, and the `open`
+widget's design and filters. Open follow-ups from M49: KI-20261025-w, and the candidate
+*Reposition a playbook day's cover*.
 Open follow-ups from M52: KI-2026-10-24-a to -o (`docs/known-issues/open/`). Outside M52:
 PR 491 (dependabot) is red, and GitHub reports 5 dependabot vulnerabilities on `main` (2 high,
-3 moderate). After M49 the order is M43 → M44, with M48 parked.
+3 moderate). The order is M43 → M44, with M48 parked.
 
 **M51 closed 2026-10-22, gate 11 of 11**, on Mitchell's ruling at the close: his walk at 390, 1440
 and 3440 works, and the parts are merged (PRs 506–511, 513, 514, 516; part 0 PR 505 merged early;

@@ -52,8 +52,9 @@ No server code fetches a user-supplied URL today, so Caesura has no SSRF guard t
 7. **The public API exposes `/v1/trips/{tripId}/cover`**: `GET`, `PUT { url, alt?, credit?,
    position? }`, `PATCH { position }` and `DELETE`, behind `trips:write` and the editor role. Search
    is `never` on the API, because it would spend Caesura's Unsplash quota on another program's
-   behalf. Playbook-day covers stay off the API. The change is a minor version, 1.27.0, with the new
-   error code `cover-url-rejected`.
+   behalf. Playbook-day covers stay off the API. The union is its own minor (1.28.0), because
+   `TripCover` is already in the published document, and the endpoint is the next, with the new error code
+   `cover-url-rejected`.
 
 ## Consequences
 
