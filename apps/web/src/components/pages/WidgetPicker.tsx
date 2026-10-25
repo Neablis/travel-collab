@@ -419,14 +419,19 @@ export function WidgetPicker({
             with nothing bound is not waiting for anything — it shows
             everything, the widest true answer, so every row is ready as soon
             as it lands. The design predates that decision; importing the words
-            would reintroduce the lie the build has already fixed once. */}
-        <p aria-live="polite" className="mt-3 text-xs text-slate">
+            would reintroduce the lie the build has already fixed once.
+
+            **`text-pretty` is the design's own `text-wrap: pretty`**, on this
+            line, the row's sentence and the empty state alike. Without it the
+            line broke in the 320px column with "in." alone on its second line
+            (KI-2026-09-20-h). The copy is not what was wrong; the wrap was. */}
+        <p aria-live="polite" className="mt-3 text-xs text-pretty text-slate">
           {`${shown.length} ${shown.length === 1 ? "widget" : "widgets"} · `}
           {draggable ? "click to drop one at the cursor, or drag it in." : "tap one to drop it into the page."}
         </p>
       </div>
       {shown.length === 0 ? (
-        <p className="pt-3 text-xs text-slate">
+        <p className="pt-3 text-xs text-pretty text-slate">
           {query.trim() === "" ? "No widget of that kind." : `No widget matches “${query.trim()}”.`}
         </p>
       ) : (
@@ -512,7 +517,7 @@ export function WidgetPicker({
                     description he was reading. The sample still has its homes
                     in the slash menu and the settings panel, where there is no
                     sentence beside it; here the sentence says more. */}
-                <span className="text-xs font-normal text-slate">{w.summary}</span>
+                <span className="text-xs font-normal text-pretty text-slate">{w.summary}</span>
               </button>
             </li>
           ))}

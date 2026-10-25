@@ -2,6 +2,7 @@ import type { SunAxis, SunPayload, SunRow } from "@tc/pages";
 import { DataText } from "@/components/ui/data-text";
 import { cn } from "@/lib/cn";
 import { CITY_FILL, CITY_INK, CITY_OUTLINE, type CityAccents } from "../cityAccents";
+import { ReadHeadings } from "./tableCells";
 
 // The sun block's graphic (design 1a, "daylight ribbons"): one row per day,
 // each a ribbon from its sunrise to its sunset on ONE clock shared by the whole
@@ -38,6 +39,9 @@ import { CITY_FILL, CITY_INK, CITY_OUTLINE, type CityAccents } from "../cityAcce
 // A row has a minimum height, not a fixed one: "12:03 am (next day)" wraps in
 // its column rather than being cut. The sun is a function of the trip, not of
 // today, so a row never changes height under a reader (ADR-044's concern).
+
+// The columns a reader is told, in the cells' order; nothing on screen heads them.
+const COLUMNS = ["Day", "Sunrise", "Sunset", "Daylight"] as const;
 
 const LABEL = "w-full min-w-0 @md:w-20 @md:shrink-0 @lg:w-24";
 // "14h 35m" is seven mono characters: 51px at text-xs.
@@ -161,18 +165,17 @@ function Row({ row, axis, accents }: { row: SunRow; axis: SunAxis; accents: City
       <span role="presentation" className={SPAN}>
         <DataText
           role="cell"
-          aria-label="sunrise"
           size="xs"
           className={cn(EDGE, "order-1 leading-tight @lg:text-right", row.state === "normal" && "text-ink")}
         >
           {row.words ?? row.sunrise}
         </DataText>
         <Ribbon row={row} axis={axis} accents={accents} />
-        <DataText role="cell" aria-label="sunset" size="xs" className={cn(EDGE, "order-2 text-right leading-tight text-ink @lg:text-left")}>
+        <DataText role="cell" size="xs" className={cn(EDGE, "order-2 text-right leading-tight text-ink @lg:text-left")}>
           {row.sunset}
         </DataText>
       </span>
-      <DataText role="cell" aria-label="daylight" size="xs" className={LENGTH}>
+      <DataText role="cell" size="xs" className={LENGTH}>
         {row.daylight}
       </DataText>
     </span>
@@ -184,6 +187,7 @@ export function SunGraphic({ payload, accents }: { payload: SunPayload; accents:
   return (
     <span role="table" aria-label={payload.summary} className="@container flex flex-col pt-3">
       <Ticks axis={payload.axis} />
+      <ReadHeadings names={COLUMNS} />
       {payload.rows.map((row) => (
         <Row key={row.key} row={row} axis={payload.axis} accents={accents} />
       ))}

@@ -38,6 +38,29 @@ export function PlaceHeadings() {
 }
 
 /**
+ * Column headers that are read and not drawn: the graphics', which have no
+ * heading row on screen, and the weather table's with "Column headings" off.
+ *
+ * A value cell is named by its content and its column by the header over it,
+ * the way every table is read. It once carried `aria-label="high"` instead,
+ * which REPLACES a cell's name: a reader that speaks the name said "high" and
+ * never "18°C", and "sunrise" over a polar day's "sun up all day"
+ * (KI-2026-10-01-a). So a table whose columns nothing on screen names still
+ * has its headers — in this row, one per cell, in the cells' order.
+ */
+export function ReadHeadings({ names }: { names: readonly string[] }) {
+  return (
+    <span role="row" className="sr-only">
+      {names.map((name) => (
+        <span key={name} role="columnheader">
+          {name}
+        </span>
+      ))}
+    </span>
+  );
+}
+
+/**
  * A row's day and city. Day then City in the markup, which is the columns'
  * order from `@md`; under it the city leads its line and the day follows it,
  * as the graphics' rows read.

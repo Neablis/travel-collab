@@ -1,7 +1,7 @@
 import type { WeatherPayload, WeatherRow } from "@tc/pages";
 import { DataText } from "@/components/ui/data-text";
 import { cn } from "@/lib/cn";
-import { PlaceCells, PlaceHeadings, TABLE_ROW, TABLE_VALUES } from "./tableCells";
+import { PlaceCells, PlaceHeadings, ReadHeadings, TABLE_ROW, TABLE_VALUES } from "./tableCells";
 
 // The weather block as a table: the same rows the graphic draws, read as
 // Day · City · High · Low · Rain · Source. Where the graphic tells a forecast
@@ -34,10 +34,12 @@ const COL = {
 const VALUE = "text-xs @md:text-sm";
 
 const SOURCE = { forecast: "Forecast", typical: "Typical" } as const;
+// With "Column headings" off they are read and not drawn (`ReadHeadings`).
+const COLUMNS = ["Day", "City", "High", "Low", "Rain", "Source"] as const;
 
-function Value({ text, label, width }: { text: string | null; label: string; width: string }) {
+function Value({ text, width }: { text: string | null; width: string }) {
   return (
-    <span role="cell" aria-label={label} className={width}>
+    <span role="cell" className={width}>
       <DataText className={cn(VALUE, text !== null && "text-ink")}>{text ?? "—"}</DataText>
     </span>
   );
@@ -62,10 +64,10 @@ function Row({ row }: { row: WeatherRow }) {
     <span role="row" data-source={row.source ?? undefined} className={cn(TABLE_ROW, "h-14 last:border-b-0 @md:h-10")}>
       <PlaceCells label={row.label} city={row.city} />
       <span role="presentation" className={TABLE_VALUES}>
-        <Value text={row.high} label="high" width={COL.temp} />
-        <Value text={row.low} label="low" width={COL.temp} />
-        <Value text={row.rain} label="rain" width={COL.rain} />
-        <span role="cell" aria-label="source" className={cn(COL.source, row.source ? "text-ink" : "text-slate")}>
+        <Value text={row.high} width={COL.temp} />
+        <Value text={row.low} width={COL.temp} />
+        <Value text={row.rain} width={COL.rain} />
+        <span role="cell" className={cn(COL.source, row.source ? "text-ink" : "text-slate")}>
           {row.source ? SOURCE[row.source] : "—"}
         </span>
       </span>
@@ -77,7 +79,7 @@ function Row({ row }: { row: WeatherRow }) {
 export function WeatherTable({ payload }: { payload: WeatherPayload }) {
   return (
     <span role="table" aria-label={payload.summary} className="@container flex flex-col">
-      {payload.headings ? <Headings /> : null}
+      {payload.headings ? <Headings /> : <ReadHeadings names={COLUMNS} />}
       {payload.rows.map((row) => (
         <Row key={row.key} row={row} />
       ))}

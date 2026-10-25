@@ -1870,6 +1870,20 @@ test("a co-traveller moves a stop and shifts the days, and the open notebook fol
 
 // Opens a seeded trip's "Before you go" in Editing — the notebook that carries
 // the weather since M30 moved it off the Overview.
+// The weather and sun tables' data rows: every one is headed by its day. The
+// heading row — drawn, or read and not drawn — has column headers instead.
+const dataRowsOf = (table: Locator): Locator => table.getByRole("row").filter({ has: table.page().getByRole("rowheader") });
+
+// The cell under the column header named `column`, found the way a reader
+// finds it: by the header over it. A value cell is named by its content, never
+// by an `aria-label` of its column (KI-2026-10-01-a), so it has no name to find
+// it by on its own.
+async function columnOf(table: Locator, column: string): Promise<(row: Locator) => Locator> {
+  await expect(table.getByRole("columnheader", { name: column, exact: true })).toBeAttached();
+  const i = (await table.getByRole("columnheader").allTextContents()).indexOf(column);
+  return (row) => row.locator('[role="rowheader"], [role="cell"]').nth(i);
+}
+
 async function openBeforeYouGoOf(page: Page, tripId: string): Promise<void> {
   await page.goto(`/trips/${tripId}/pages`);
   await page.getByRole("link", { name: /^Before you go/ }).click();
@@ -1954,23 +1968,24 @@ test("the weather block draws a row per day, heads its table's columns, and fits
   const table = page.locator('.tc-page-editor [data-macro-name="day.weather"]').getByRole("table");
   const overflow = () => table.evaluate((el) => el.scrollWidth - el.clientWidth);
 
-  // The graphic, which an unset "Show as" means: a row per day and no heading
-  // row. `data-source` is what the bar's line style is drawn from.
-  const rows = table.getByRole("row");
+  // The graphic, which an unset "Show as" means: a row per day, and column
+  // headers that are read and not drawn. `data-source` is what the bar's line
+  // style is drawn from.
+  const rows = dataRowsOf(table);
   await expect(rows).toHaveCount(2);
-  await expect(table.getByRole("columnheader")).toHaveCount(0);
+  await expect(table.getByRole("columnheader")).toHaveText(["Day", "Low", "High", "Rain"]);
   await expect(table.locator('[role="row"][data-source="forecast"]')).toHaveCount(2);
   // In either unit: alice is shared, and the units are the account's.
-  await expect(rows.first().getByRole("cell", { name: "high", exact: true })).toHaveText(/^(27°C|81°F)$/);
-  await expect(rows.first().getByRole("cell", { name: "low", exact: true })).toHaveText(/^(18°C|65°F)$/);
-  await expect(rows.first().getByRole("cell", { name: "rain", exact: true })).toHaveText(/^(2\.14 mm|0\.08″)$/);
+  await expect((await columnOf(table, "High"))(rows.first())).toHaveText(/^(27°C|81°F)$/);
+  await expect((await columnOf(table, "Low"))(rows.first())).toHaveText(/^(18°C|65°F)$/);
+  await expect((await columnOf(table, "Rain"))(rows.first())).toHaveText(/^(2\.14 mm|0\.08″)$/);
   expect(await overflow(), "the weather graphic scrolls sideways inside the notebook column").toBeLessThanOrEqual(0);
 
   await rows.first().click();
   await settingsPanel(page).getByRole("combobox", { name: /show as/i }).selectOption("table");
   await expect(table.getByRole("columnheader")).toHaveText(["Day", "City", "High", "Low", "Rain", "Source"]);
-  await expect(rows).toHaveCount(3);
-  await expect(rows.nth(1).getByRole("cell", { name: "source", exact: true })).toHaveText("Forecast");
+  await expect(rows).toHaveCount(2);
+  await expect((await columnOf(table, "Source"))(rows.first())).toHaveText("Forecast");
   expect(await overflow(), "the weather table scrolls sideways inside the notebook column").toBeLessThanOrEqual(0);
 });
 
@@ -2097,7 +2112,7 @@ test("the weather and sun blocks fit a phone's column, as a graphic and as a tab
   };
 
   await expect(weather.locator('[role="row"][data-source]')).toHaveCount(2);
-  await expect(sun.getByRole("cell", { name: "daylight", exact: true })).toHaveCount(2);
+  await expect(dataRowsOf(sun)).toHaveCount(2);
   await onAPhone("graphic", async (width) => {
     // 115px of axis in a 273px block, 60px in a 218px one (`WeatherGraphic.tsx`).
     expect(await axisWidth(), `the weather graphic's axis at ${width}px`).toBeGreaterThanOrEqual(width === 375 ? 110 : 56);
@@ -2105,7 +2120,9 @@ test("the weather and sun blocks fit a phone's column, as a graphic and as a tab
 
   await showAsTable(weather);
   await showAsTable(sun);
-  await expect(weather.getByRole("cell", { name: "source", exact: true })).toHaveText(["Forecast", "Typical"]);
+  const source = await columnOf(weather, "Source");
+  await expect(source(dataRowsOf(weather).first())).toHaveText("Forecast");
+  await expect(source(dataRowsOf(weather).last())).toHaveText("Typical");
   await onAPhone("table");
 });
 
@@ -2163,10 +2180,12 @@ test.describe("the weather table's fixed columns", () => {
     const measure = (rowHeight: number) =>
       table.evaluate((el, rowHeight) => {
         let checked = 0;
-        const misfits = [...el.querySelectorAll('[role="row"]')].flatMap((row) => {
-          const cells = [...row.querySelectorAll('[role="cell"][aria-label], [role="columnheader"]')].filter(
-            (cell) => !["Day", "City"].includes(cell.textContent ?? ""),
-          );
+        const columns = [...el.querySelectorAll('[role="columnheader"]')].map((header) => header.textContent);
+        // A 1px row is the heading row read and not drawn: nowhere, on purpose.
+        const drawn = [...el.querySelectorAll('[role="row"]')].filter((row) => row.getBoundingClientRect().height > 1);
+        const misfits = drawn.flatMap((row) => {
+          // Day and City lead every row, heading or data; the rest are the fixed columns.
+          const cells = [...row.querySelectorAll('[role="rowheader"], [role="cell"], [role="columnheader"]')].slice(2);
           checked += cells.length;
           const tall = row.getBoundingClientRect().height > (row.hasAttribute("data-source") ? rowHeight : 32);
           return [
@@ -2183,7 +2202,7 @@ test.describe("the weather table's fixed columns", () => {
                 }
                 return cell.scrollWidth > cell.clientWidth || tops.size > 1;
               })
-              .map((cell) => `${cell.getAttribute("aria-label") ?? "heading"} "${cell.textContent}" in ${cell.clientWidth}px`),
+              .map((cell) => `${cell.getAttribute("role") === "columnheader" ? "heading" : columns[cells.indexOf(cell) + 2]} "${cell.textContent}" in ${cell.clientWidth}px`),
           ];
         });
         return { checked, misfits };
@@ -2191,7 +2210,8 @@ test.describe("the weather table's fixed columns", () => {
     // The witness is the count: four rows of high, low, rain and source, and
     // the four headings over them — a selector that matched nothing would pass empty.
     const expectFits = async (state: string, headed: boolean) => {
-      await expect(table.locator('[role="cell"][aria-label="low"]', { hasText: /-(24°C|11°F)/ })).toHaveCount(4);
+      const low = await columnOf(table, "Low");
+      for (let i = 0; i < 4; i++) await expect(low(dataRowsOf(table).nth(i))).toHaveText(/-(24°C|11°F)/);
       for (const width of [1280, 411]) {
         await page.setViewportSize({ width, height: 900 });
         expect(await measure(width === 411 ? 56 : 40), `${state} at ${width}px`).toEqual({ checked: headed ? 20 : 16, misfits: [] });
@@ -2199,17 +2219,22 @@ test.describe("the weather table's fixed columns", () => {
       await page.setViewportSize({ width: 1280, height: 900 });
     };
     const headings = async (on: boolean) => {
-      await table.getByRole("row").first().click();
+      // The first DRAWN row: the heading row while headed, else the first day.
+      await (on ? dataRowsOf(table) : table.getByRole("row")).first().click();
       await settingsPanel(page).getByRole("checkbox", { name: "Column headings" }).setChecked(on);
-      await expect(table.getByRole("columnheader")).toHaveCount(on ? 6 : 0);
+      // Off, the headings are still read (KI-2026-10-01-a), from a heading row
+      // drawn nowhere: a 1px box, which clips its cells and does not shrink them.
+      await expect
+        .poll(() => table.getByRole("columnheader", { name: "Source" }).evaluate((h) => h.closest('[role="row"]')!.getBoundingClientRect().height > 1))
+        .toBe(on);
       // Deselected, or the phone width below opens its settings as a sheet.
       await page.getByRole("heading", { name: "Before you go", level: 1 }).click();
       await expect(settingsPanel(page)).toHaveCount(0);
     };
 
     await openBeforeYouGoOf(page, tripId);
-    // The seeded block opens as the graphic, which has no heading row to count.
-    await table.getByRole("row").first().click();
+    // The seeded block opens as the graphic, which draws no heading row.
+    await dataRowsOf(table).first().click();
     await settingsPanel(page).getByRole("combobox", { name: /show as/i }).selectOption("table");
     await expect(table.getByRole("columnheader")).toHaveText(["Day", "City", "High", "Low", "Rain", "Source"]);
     await page.getByRole("heading", { name: "Before you go", level: 1 }).click();
@@ -2302,13 +2327,19 @@ test.describe("the clock pair and the country card", () => {
     // -- seeded under Clocks too: the sun, a block with a row per located day --
     // The graphic, which an unset "Show as" means: the city over its day, and
     // the three values beside the ribbon. The same in Reading and in Editing.
-    const sun = page.locator('[data-macro-name="day.sun"]').getByRole("row");
+    const table = page.locator('[data-macro-name="day.sun"]').getByRole("table");
+    const sun = dataRowsOf(table);
     const expectSun = async () => {
       await expect(sun).toHaveCount(2);
       await expect(sun.getByRole("rowheader")).toHaveText([/^Tokyo\s*Day 1$/, /^Kyoto\s*Day 2$/]);
-      await expect(sun.getByRole("cell", { name: "sunrise", exact: true })).toHaveText([/^4:\d\d am$/, /^4:\d\d am$/]);
-      await expect(sun.getByRole("cell", { name: "sunset", exact: true })).toHaveText([/^6:\d\d pm$/, /^7:\d\d pm$/]);
-      await expect(sun.getByRole("cell", { name: "daylight", exact: true })).toHaveText([/^14h \d+m$/, /^14h \d+m$/]);
+      const [sunrise, sunset, daylight] = [
+        await columnOf(table, "Sunrise"), await columnOf(table, "Sunset"), await columnOf(table, "Daylight"),
+      ];
+      for (const [i, sets] of [/^6:\d\d pm$/, /^7:\d\d pm$/].entries()) {
+        await expect(sunrise(sun.nth(i))).toHaveText(/^4:\d\d am$/);
+        await expect(sunset(sun.nth(i))).toHaveText(sets);
+        await expect(daylight(sun.nth(i))).toHaveText(/^14h \d+m$/);
+      }
     };
     await expectSun();
 

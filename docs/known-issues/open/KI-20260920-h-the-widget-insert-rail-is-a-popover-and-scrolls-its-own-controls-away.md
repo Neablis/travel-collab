@@ -203,3 +203,23 @@
   `ItineraryDayBlock`'s caption is still `px-3` (`ItineraryDayBlock.tsx:41`);
   Ledger's `--color-brand-pressed` is still `#1a2720` (`globals.css:269`).
   Item 2 narrowed in place (six dimensions → five).
+- **Re-verified 2026-10-25 (KI sweep 2): NARROWED to items 3 and 6; item 4 is `KI-2026-09-20-g`'s.**
+  - **Items 1, 2 and 7 are gone with the line they were about.** The mono "takes" line was
+    removed on Mitchell's word at the PR 269 preview (*"Remove the 'Takes' part"*; the comment
+    above `{w.summary}` in `WidgetPicker.tsx` records it). There is no takes line to relabel,
+    wrap or recolour.
+  - **Item 5 is FIXED, and it was the wrap, not the wording.** The design gives the count line,
+    the row's sentence and the empty state `text-wrap: pretty`
+    (`Trip Planner Redesign.dc.html:4229`, `:4243`, `:4247` — the rail moved from `:3956` to
+    `:4209` in that file); the build had none. Reproduced in a production build at 1280×900 on a
+    seeded "Before you go" in Editing, measuring each word's line box: the 286px line laid out as
+    `["45 widgets · click to drop one at the cursor, or drag it", "in."]`, `text-wrap: wrap`.
+    Now `text-pretty` on all three (`WidgetPicker.tsx`); the same measurement on a fresh
+    `test:e2e:ci-like` build reads `["45 widgets · click to drop one at the cursor, or drag",
+    "it in."]`, `text-wrap: pretty`. Styling only, so no committed test (`testing.md` §1: the
+    colour wall owns it); the measuring spec was scratch and deleted. Measured in Chromium only.
+  - **Still open, both design-system calls:** item 3 (the shape chip is a `Badge`, so a
+    `rounded-full` pill — and since PR 269 the `neutral` variant, where the design draws a 4px
+    `--color-moss` rect) and item 6 (`ItineraryDayBlock`'s caption `px-3`, 12px, against the
+    design's 13px, which is off the spacing scale). Item 4, the panel radius, is
+    `KI-2026-09-20-g` item 2 and lives in `PageScreen.tsx`'s `Card`.
