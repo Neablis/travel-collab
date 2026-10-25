@@ -60,7 +60,7 @@ export function TagFocusLine() {
         // clears, because "Clear" alone is meaningless out of the line's
         // visual context and there are other clearable things on this page.
         //
-        // Deliberately NOT the chip's own `Stop focusing on meal` hint, which
+        // Deliberately NOT the chip's own `Stop focusing on food` hint, which
         // is what this said first: a focused board renders that hint on every
         // chip carrying the tag — 34 of them on the Japan fixture — so this
         // button was the 34th control on the page with an identical accessible

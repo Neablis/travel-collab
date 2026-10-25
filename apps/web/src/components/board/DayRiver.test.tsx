@@ -114,7 +114,9 @@ describe("what a block has room to say", () => {
     renderRiver([short, long]);
 
     expect(block(short.activityId).getByRole("button", { name: "Dim everything that is not lodging" })).toBeTruthy();
-    expect(block(long.activityId).getByRole("button", { name: "Dim everything that is not meal" })).toBeTruthy();
+    // Named for the word the chip prints, "Food", not the `meal` key (WCAG
+    // 2.5.3, axe `label-content-name-mismatch`).
+    expect(block(long.activityId).getByRole("button", { name: "Dim everything that is not food" })).toBeTruthy();
   });
 
   // Mitchell, phone Plan: the "Outdoors" tag "overlaps with the text below in

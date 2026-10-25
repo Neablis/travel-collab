@@ -80,6 +80,25 @@ export type DayChipsProps = {
   suggestedDays?: readonly string[];
 };
 
+/**
+ * A chip's accessible name: what it prints, in the order it prints it, then
+ * the stop count it draws as dots. "Wed 4, Tokyo, 3 stops"; on a travel day
+ * "Sat 7, Tokyo → Nikkō, 5 stops"; undated, "Day 1, 0 stops".
+ *
+ * In print order because WCAG 2.5.3 (Label in Name; axe 4.14's
+ * `label-content-name-mismatch`) wants the visible words inside the name, in
+ * one run, so a voice-control user can say what they see (the chip's
+ * `{" "}`s keep those words apart in its text). It used to read
+ * "Wed, Tokyo, 3 stops" — no date, and on a travel day "Tokyo to Nikkō" put a
+ * word between two the chip prints side by side. The arrow is the chip's own,
+ * as the demo trip's heading ("Tokyo → Kyoto → Osaka") already says one.
+ */
+function dayChipLabel(day: ChipDay): string {
+  const when = day.dateNum ? `${day.dow} ${day.dateNum}` : day.dow;
+  const where = day.transitionTo ? `${day.transitionFrom} → ${day.transitionTo}` : day.city;
+  return [when, where, `${day.stops} stop${day.stops === 1 ? "" : "s"}`].filter(Boolean).join(", ");
+}
+
 // Handoff README §2 "Day chips row" + prototype `data-r` chips: a
 // horizontally scrolling row of 92px, 12px-radius (rounded-lg), day-tinted
 // chips — line 1 day-of-week, line 2 mono date number + city, line 3 the
@@ -299,9 +318,7 @@ export function DayChips({ days, focusedDay, onSelect, readOnly = false, sync, s
               chipRefs.current[index] = node;
             }}
             variant="ghost"
-            aria-label={`${day.dow}${
-              day.transitionTo ? `, ${day.transitionFrom} to ${day.transitionTo}` : day.city ? `, ${day.city}` : ""
-            }, ${day.stops} stop${day.stops === 1 ? "" : "s"}`}
+            aria-label={dayChipLabel(day)}
             aria-pressed={isFocused}
             // The chip's own index, so a test can ask WHICH day is selected
             // rather than parsing a weekday out of the label — the labels
@@ -324,8 +341,13 @@ export function DayChips({ days, focusedDay, onSelect, readOnly = false, sync, s
                 used to sit on the second line ahead of the city, where it was
                 the reason a longer city name truncated: it took a fixed
                 `shrink-0` bite out of a chip only ~72px wide. */}
+            {/* The `{" "}`s between this chip's parts are for its TEXT, not its
+                look: flex drops a whitespace-only item, so nothing moves, but
+                without them the chip's text runs together as "Wed4Tokyo",
+                which is what axe's `label-content-name-mismatch` (WCAG 2.5.3)
+                reads as the visible label, and what a copy of the row pastes. */}
             <div className="flex w-full items-baseline gap-1 overflow-hidden">
-              <span className={cn("text-xs font-semibold", ACCENT_INK_TEXT[accent.ink])}>{day.dow}</span>
+              <span className={cn("text-xs font-semibold", ACCENT_INK_TEXT[accent.ink])}>{day.dow}</span>{" "}
               <DataText size="xs" className="shrink-0">
                 {day.dateNum}
               </DataText>
@@ -341,7 +363,7 @@ export function DayChips({ days, focusedDay, onSelect, readOnly = false, sync, s
                   ×
                 </span>
               )}
-            </div>
+            </div>{" "}
             {/* On a travel day the city moves down to the transition line, which
                 spells out both ends of the move — printing it here as well would
                 be the same fact twice on one chip (RULES.md 4), and printing it
@@ -356,7 +378,7 @@ export function DayChips({ days, focusedDay, onSelect, readOnly = false, sync, s
                   {day.city}
                 </span>
               ) : null}
-            </div>
+            </div>{" "}
             <div
               data-testid="day-chip-transition"
               className="h-3.5 w-full truncate text-slate"

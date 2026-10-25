@@ -84,18 +84,18 @@ test.describe("tag focus", () => {
 
     // --- Click the chip -------------------------------------------------
     const mealChip = yakitori.getByTestId("tag-chip-meal");
-    await expect(mealChip).toHaveAttribute("title", "Dim everything that is not meal");
+    await expect(mealChip).toHaveAttribute("title", "Dim everything that is not food");
     await mealChip.click();
 
     await expect(mealChip).toHaveAttribute("aria-pressed", "true");
-    await expect(mealChip).toHaveAttribute("title", "Stop focusing on meal");
+    await expect(mealChip).toHaveAttribute("title", "Stop focusing on food");
 
     // The line beside the view tabs names it and offers Clear.
     const focusLine = page.getByTestId("tag-focus-line");
     await expect(focusLine).toBeVisible();
     await expect(focusLine.getByText("Food")).toBeVisible();
     // The Clear control's own name, distinct from the chips' `Stop focusing
-    // on meal` — 27 chips carry that hint on this fixture, so the two must not
+    // on food` — 27 chips carry that hint on this fixture, so the two must not
     // collide (they did, and this walk is what found it).
     await expect(page.getByRole("button", { name: "Clear meal focus" })).toBeVisible();
 

@@ -69,7 +69,7 @@ describe("AppHeader", () => {
     render(<AppHeader />);
 
     await screen.findByRole("link", { name: "Trips" });
-    await screen.findByRole("button", { name: "Account menu" });
+    await screen.findByRole("button", { name: /^Account menu/ });
     expect(vi.mocked(getSessionMock)).toHaveBeenCalledTimes(1);
   });
 
@@ -97,13 +97,13 @@ describe("AppHeader", () => {
 
     demoResetEnabled = false;
     const { unmount } = render(<AppHeader />);
-    await userEvent.click(await screen.findByRole("button", { name: "Account menu" }));
+    await userEvent.click(await screen.findByRole("button", { name: /^Account menu/ }));
     expect(screen.queryByRole("button", { name: "Reset to demo data" })).toBeNull();
     unmount();
 
     demoResetEnabled = true;
     render(<AppHeader />);
-    await userEvent.click(await screen.findByRole("button", { name: "Account menu" }));
+    await userEvent.click(await screen.findByRole("button", { name: /^Account menu/ }));
     expect(screen.getByRole("button", { name: "Reset to demo data" })).toBeTruthy();
   });
 });
