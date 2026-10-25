@@ -13,6 +13,22 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-10-25 — `POST /v1/library` strips calendar-date anchors and says so (KI-2026-09-25-b; public API 1.26.0)
+- **Changed** (`apps/web`, the v1 surface only; no `packages/contracts` schema changed): a day
+  kept through `POST /v1/library` no longer stores a stop's `dateRange` anchor. Its answer is the
+  saved day plus `warnings: [{ code: "date-anchor-removed", stopIndex, title, message }]`, the
+  shape `POST /v1/playbooks` already answers with. Weekday, time-of-day and public-holiday anchors
+  are kept. `GET /v1/library` and `GET /v1/library/{savedDayId}` are unchanged and carry no
+  `warnings`.
+- Why: it was the one keep path left that stored a calendar date in a dateless saved day, so the
+  day raised an anchor conflict when applied to a trip in any other month (ADR-050 decision 8;
+  the app's keep was fixed by KI-2026-09-24-c).
+- Consumers updated: `apps/web` (`keepDays`, `LibraryKept`; `PlaybookWarning` and `warningsFor`
+  moved to `server/public-api/library.ts` so both trees share them; `saveDay` now strips by
+  default; `openapi.json`).
+- Breaking? no — additive field on the create's answer. A caller that sent a `dateRange` anchor
+  finds it absent on read, and is told so in `warnings`.
+
 ## 2026-10-25 — Nobody travelling prices a stop nobody picked at zero; every invite defaults to travelling (KI-2026-10-05-e)
 - **Changed** (`packages/contracts/src/costs.ts`, behaviour only; no schema changed):
   `stopHeadcount(activity, 0)` for a stop nobody picked is **0**, was 1 (travellers spec D5's

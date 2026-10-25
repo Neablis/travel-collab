@@ -1,4 +1,4 @@
-### KI-2026-10-03-a — an abandoned `<Link>` prefetch logs `⨯ Error: The destination stream closed early.`
+### KI-2026-10-03-a — an abandoned `<Link>` prefetch logs `⨯ Error: The destination stream closed early.` — RESOLVED
 
 - **Severity:** reliability of the signal, not of the app. Nothing a person
   sees changes and no test fails. What was wrong is that every prefetch a
@@ -104,3 +104,22 @@
   condition).
 - **First noted:** before the SEO pass (8 of 8 runs on older code). Filed and
   root-caused 2026-10-03.
+- **Resolved:** 2026-10-25, KI sweep 2 — upstream, by the entry's own closing condition. `main`
+  is on `next@16.4.2` (PR 488), whose `renderToNodeFlightStream`
+  (`dist/server/app-render/stream-ops.node.js`) now registers its own `close` listener before
+  piping and aborts the render with `new ResponseAborted()` — the comment there names this exact
+  error. `isAbortError` (`pipe-readable.js`, unchanged: `AbortError` or `ResponseAborted`) drops
+  that in `createReactServerErrorHandler`, so neither `onRequestError` nor the `⨯` line in
+  `next-server.js` is reached. Evidence: Next's wrapper over a suspended render whose stream is
+  destroyed hands `onError` `{"name":"ResponseAborted","nextDropsIt":true}`; the same render piped
+  straight into a `PassThrough`, as 16.3.6 did, hands it `{"name":"Error","message":"The
+  destination stream closed early.","nextDropsIt":false}`. A built minimal Next 16.4.2 app with
+  the repo's filter, sent a streaming RSC request abandoned after its first chunk, printed no `⨯`
+  line and never called `onRequestError`. Regression test in `instrumentation.test.ts` ("hands
+  onError an abort Next filters, not React's plain close error"), seen red with the wrapper
+  replaced by a bare pipe (*expected Error: The destination stream closed earl… to match object {
+  name: 'ResponseAborted' }*), green on 16.4.2. The Sentry filter stays as a guard for any
+  renderer that still surfaces React's plain error (Next's Fizz wrapper has no such listener);
+  `instrumentation.ts`'s comments updated. **Not run:** the full desktop e2e grep the entry names
+  (local full suites are CI's); `grep -c "destination stream closed early"` on the PR's e2e
+  output is the remaining confirmation.

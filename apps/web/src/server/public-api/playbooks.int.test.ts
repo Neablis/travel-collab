@@ -736,6 +736,38 @@ describe("/v1/library is unchanged by Pass A", () => {
     const listed = (await (await LIST_LIBRARY(req(secret), NO_PARAMS)).json()).items[0];
     expect(Object.keys(listed)).not.toContain("version");
   });
+
+  // KI-2026-09-25-b: the library's keep was the one keep path that stored a
+  // `dateRange` anchor, so its day raised an anchor conflict in any other month.
+  it("POST strips a calendar-date anchor and says so, keeping the weekday one", async () => {
+    const owner = await entitled();
+    const secret = await tokenFor(owner);
+    const { tripId } = await sourceTrip(owner);
+    const day = (await tripOf(owner, tripId)).days[0]!;
+    const pinned = day.activityIds[1]!;
+    const weekday = { kind: "dayOfWeek", days: ["tue"] } as const;
+    const updated = await executeTripCommand(
+      {
+        type: "UpdateActivity",
+        tripId,
+        activityId: pinned,
+        anchors: [{ kind: "dateRange", from: "2027-06-01", to: "2027-06-03" }, weekday],
+      },
+      owner,
+    );
+    expect(updated.ok).toBe(true);
+
+    const res = await SAVE_TO_LIBRARY(req(secret, { tripId, dayId: day.dayId, name: "Tuesdays" }, "POST"), NO_PARAMS);
+    expect(res.status).toBe(201);
+    const body = (await res.json()) as SavedDay & { warnings: Written["warnings"] };
+    expect(body.stops[1]!.anchors).toEqual([weekday]);
+    expect(body.warnings).toEqual([expect.objectContaining({ code: "date-anchor-removed", stopIndex: 1 })]);
+    expect(body.warnings[0]!.message).toContain("2027-06-01");
+    // Stored stripped, not only answered so.
+    const listed = (await (await LIST_LIBRARY(req(secret), NO_PARAMS)).json()).items[0] as SavedDay;
+    expect(listed.stops[1]!.anchors).toEqual([weekday]);
+    expect(Object.keys(listed)).not.toContain("warnings");
+  });
 });
 
 // ---- ADR-050, Pass B --------------------------------------------------------

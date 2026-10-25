@@ -18,7 +18,7 @@ import {
 } from "@/server/savedDays";
 import type { Actor } from "./actor";
 import { PublicApiError } from "./commands";
-import { sourceTrip } from "./library";
+import { PlaybookWarning, sourceTrip, warningsFor } from "./library";
 import type { HandlerContext, ResourceDef } from "./route";
 
 // **What `/v1/playbooks` does that `/v1/library` does not** (ADR-050, Pass A):
@@ -159,14 +159,6 @@ export const CreatePlaybookBody = z
   );
 type CreatePlaybookBody = z.infer<typeof CreatePlaybookBody>;
 
-const PlaybookWarning = z.object({
-  code: z.literal("date-anchor-removed"),
-  /** The stop's index in `playbook.stops`. */
-  stopIndex: z.number().int().nonnegative(),
-  title: z.string(),
-  message: z.string(),
-});
-
 /** An import said `public`; the Playbook it made is private until a `PATCH` publishes it. */
 const VisibilityResetWarning = z.object({
   code: z.literal("visibility-reset"),
@@ -219,15 +211,6 @@ function inlineStops(days: z.infer<typeof InlineDays>): SavedStop[] {
 /** Trimmed, and blank means none — how every writer here stores an authored summary. */
 function summaryOf(summary: string | null | undefined): string | null {
   return summary === undefined || summary === null || summary.trim() === "" ? null : summary.trim();
-}
-
-function warningsFor(removed: readonly RemovedDateAnchor[]): PlaybookWritten["warnings"] {
-  return removed.map((r) => ({
-    code: "date-anchor-removed" as const,
-    stopIndex: r.stopIndex,
-    title: r.title,
-    message: `"${r.title}" was anchored to ${r.from} to ${r.to}. A Playbook has no dates, so that anchor was removed; its other anchors were kept.`,
-  }));
 }
 
 /**
