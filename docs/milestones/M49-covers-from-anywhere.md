@@ -107,22 +107,204 @@ Candidates absorbed (each deleted by this gate):
 
 ## Exit gate
 
-- [ ] **Decisions 4–10 are answered and recorded here**, with the contracts changelog entry and the
-      API version. *(Answered and recorded 2026-10-25 with ADR-081. The union's changelog entry and
-      1.28.0 land with part 1, the endpoint's and the next minor with part 3; the box is ticked then.)*
-- [ ] **A cover set through `PUT /v1/trips/{tripId}/cover` from an image URL shows on the trip page,
+- [x] **Decisions 4–10 are answered and recorded here**, with the contracts changelog entry and the
+      API version. *(Answered and recorded 2026-10-25 with ADR-081. The union is public API 1.28.0,
+      `docs/contracts/CHANGELOG.md:35` (part 1, PR 580); the endpoint and `cover-url-rejected` are
+      1.29.0, `CHANGELOG.md:16` (part 3, PR 588); `API_VERSION = "1.29.0"` at
+      `apps/web/src/server/public-api/openapi.ts:42`.)*
+- [x] **A cover set through `PUT /v1/trips/{tripId}/cover` from an image URL shows on the trip page,
       the Home card and the Home hero**, and `GET` returns it. An integration test drives the route with a token.
-- [ ] **A URL that is not an image, or that points at a private address, is refused and nothing is
-      saved.** Each case has a test that was seen red.
-- [ ] **No third-party host is sent a viewer's request for a URL cover** (or, if decision 4 goes the
+      *(`apps/web/src/server/public-api/cover.int.test.ts:106` PUTs with a token and GETs it back
+      with a same-origin `proxySrc`; `apps/web/src/server/tripCovers.int.test.ts:108` reads that path
+      from the getter and from the Home listing; `CoverImage.test.tsx:67` renders a URL cover from
+      it, and the band, the Home card and the hero all draw through `CoverImage`
+      (`TripCoverBanner.tsx:137`, `TripCard.tsx:303`, `NextTripHero.tsx:327`). CI run 40217156846
+      on 23f3d62, the head merged to main as cc93447: integration, unit and `ci-ok` green. Seeing it
+      by `curl` on a deployment is the [walk]'s.)*
+- [x] **A URL that is not an image, or that points at a private address, is refused and nothing is
+      saved.** Each case has a test that was seen red. *(`cover.int.test.ts:128` at the API and
+      `tripCovers.int.test.ts:58` at the server, each asserting no row; seen red with the insert moved
+      before the fetch, PR 584's and PR 588's red-first tables. Guard ranges, one case each, in
+      `remoteImage/guard.test.ts`, PR 584's table. CI run 40217156846.)*
+- [x] **No third-party host is sent a viewer's request for a URL cover** (or, if decision 4 goes the
       other way, the CSP change is tested the way `next.config.test.ts` tests Unsplash today).
-- [ ] **An existing Unsplash cover reads unchanged after the migration**, and its credit still
-      renders.
-- [ ] **Reposition persists**: a dragged position survives a reload and shows on every surface the
+      *(Decision 4 went the proxy way and the CSP's `img-src` is unchanged. A URL cover's `src` is
+      our `/api/cover-image?…` (`cover.int.test.ts:124-125`, origin asserted); the route refuses an
+      unsigned URL with 403 before any fetch and serves the image itself
+      (`apps/web/src/app/api/cover-image/route.test.ts:30`, `:68`), sandboxed by
+      `next.config.ts:236`, tested at `next.config.test.ts:227`. Seen red, PR 584's table. CI run
+      40217156846.)*
+- [x] **An existing Unsplash cover reads unchanged after the migration**, and its credit still
+      renders. *(`apps/web/src/app/api/trips/[tripId]/cover/route.int.test.ts:239`, seen red before
+      the `coverOf` mapper change, PR 580's table; `CoverCredit.test.tsx:10` keeps the Unsplash
+      wording. Migration 0068 applied in production by `migrate-production` run 40169051627. CI run
+      40164717578 on PR 580's head 5715d2e.)*
+- [x] **Reposition persists**: a dragged position survives a reload and shows on every surface the
       cover appears on, and `PATCH` with `{ position }` moves it. Its unit test was seen red with
-      the `object-position` removed.
-- [ ] **The e2e spec passes on `pnpm --filter web test:e2e:ci-like`**: reposition a cover by mouse
-      and by keyboard, reload, and see it held.
+      the `object-position` removed. *(`e2e/m49-cover-reposition.spec.ts:90` drags, reloads and
+      reads the framing on Home's hero; `PATCH` at `cover.int.test.ts:146` (API) and
+      `[tripId]/cover/route.int.test.ts:273` (app); `CoverImage.test.tsx:48` seen red with
+      `objectPosition` removed (`expected '' to be 'center 30%'`), PR 580's table.)*
+- [x] **The e2e spec passes on `pnpm --filter web test:e2e:ci-like`**: reposition a cover by mouse
+      and by keyboard, reload, and see it held. *(`m49-cover-reposition.spec.ts:90` (mouse) and
+      `:136` (keyboard, Enter and Esc), "3 passed" on ci-like in PR 585's body; in CI, `test / e2e`
+      (1/2) and (2/2) green in run 40213790458 on PR 585's 76f5332 and run 40217156846 on 23f3d62,
+      which main carries as cc93447.)*
 - [ ] **[walk]** On the PR preview, a cover set by `curl` with an API token appears on the trip, and
       an Unsplash cover is repositioned from the band.
-- [ ] A retro is appended at gate close.
+- [x] A retro is appended at gate close. *(Below.)*
+
+## Retro — written 2026-10-25 (8 of 9 boxes ticked)
+
+Written at the close on part 0 (PR 581), with one box open, and it is Mitchell's: the [walk]. His
+walk covers a cover set by `curl` with an API token showing on the trip, the Home card and the Home
+hero; an Unsplash cover repositioned through the hover menu; and the proxy's canonical
+`/api/cover-image?…` URL answering 200, with the same URL plus `&x=1` answering 403.
+`pnpm milestone close M49` waits on it.
+
+### What went well
+
+- **Four parts merged in one day.** Part 1 (PR 580) merged at 06:24 UTC as `fc07b46`, CI run
+  40164717578 green on its head `5715d2e`, and migration 0068 reached production a minute later
+  (`migrate-production` run 40169051627). Parts 2, 4 and 3 (PRs 584, 585, 588) merged together at
+  17:51–17:52 UTC as `cc93447`.
+- **The stack carried one preview.** Parts 2–4 were stacked 588 → 585 → 584 → `main`, so the
+  top part's preview (PR 588) showed the proxy, the API and the hidden cover controls together, and
+  Mitchell walked one deployment rather than three. Every head was green before the merge: PR 584
+  run 40173145537 on `983b23e`, PR 585 run 40213790458 on `76f5332`, PR 588 run 40217156846 on
+  `23f3d62` (both e2e shards, integration, unit and `ci-ok`).
+- **The SSRF guard was tested range by range.** PR 584's red-first table removes each private,
+  loopback, link-local, CGNAT, multicast and IPv6 range in turn and records the failure, and DNS
+  rebinding is closed at socket lookup (`guardedLookup`), not just noted. It had four review rounds
+  and the extra fresh security pass.
+- **Mitchell's mid-build amendment cost one part, not a replan.** He amended decision 10 on
+  2026-10-25: no visible cover buttons, a hover hint and a click menu. Part 4 (PR 585) absorbed it,
+  including the phone `CoverSection` and the playbook-day band, with its own red-first table.
+
+### What could be better
+
+- **Agents could not walk the API round trip on the preview.** A token needs premium@v2, which a
+  preview account does not have (KI-20260916-d), so the verifier walked the UI only and the `curl`
+  half of the walk stayed Mitchell's. A preview-only way to mint an entitled token would have let
+  an agent close that half.
+- **A unit flake failed `ci-ok` once.** PR 585's head `02c81f3` went red on an unhandled
+  `window is not defined` after all 477 unit files had passed (run 40172261036); a re-run passed.
+  It did not reproduce locally and is filed as KI-20261025-w with a tripwire.
+- **CodeQL's `js/request-forgery` fired on the proxy**, which fetches a URL by design behind the
+  guard and a signature. Mitchell dismissed it as won't-fix in the UI. Nothing records the
+  dismissal in the repo except PR 581's tracker.
+- **The orchestrator's share missed its target in both build sessions** (25.7% and 30.6%, against
+  under 15%). The amendment and the restack added orchestrator turns that no part owned.
+
+### Leftovers
+
+- **Reposition a playbook day's cover**: `docs/candidates.md`, asked by Mitchell on M49's preview.
+- **The unit flake**: KI-20261025-w.
+- **The API walk on a preview**: KI-20260916-d.
+- **The [walk] box**: Mitchell's call.
+- The plan (`docs/plans/2026-10-25-M49-covers-from-anywhere.md`) is deleted in this commit. Its
+  design lives in ADR-081 and its decisions in this file; nothing else in it needed promoting.
+
+## Spend
+<!-- session-metrics:milestone v1 -->
+
+Three sessions, summed from each session's own block (sessions 1 and 2 as carried in their
+handoffs; session 3 generated in the close). **42 agents, 1,405 API calls, 17.64M units,
+$73.81 recorded** (`list_sessions` → `external_metadata.usage.cost_usd`: $39.45, $32.35 and, at
+the time of the close's run, $2.01). Units = input + 1.25 × cache write + 0.1 × cache read.
+
+| Session | Agents | Calls | Units | Recorded $ |
+|---|---|---|---|---|
+| 1 (`session_01KUvY39…`, scoping and part 1) | 18 | 708 | 8.99M | $39.45 |
+| 2 (`session_01SFmwXi…`, parts 2–4) | 22 | 663 | 8.09M | $32.35 |
+| 3 (`session_01WX3JjM…`, the close) | 2 | 34 | 555k | $2.01 (at its run) |
+| **Total** | **42** | **1,405** | **17.64M** | **$73.81** |
+
+**By agent type, summed**
+
+| Who | Units | Share |
+|---|---|---|
+| `phase-implementer` (20 agents) | 8.74M | 49.5% |
+| `orchestrator` (3) | 5.01M | 28.4% |
+| `part-reviewer` (16) | 2.87M | 16.3% |
+| `Explore` (1) | 396k | 2.2% |
+| `general-purpose` (1, the close) | 337k | 1.9% |
+| `phase-verifier` (1) | 299k | 1.7% |
+
+Session 1: phase-implementer 10 agents / 5.25M (58.4%), orchestrator 2.31M (25.7%), part-reviewer
+6 / 1.04M (11.6%), Explore 1 / 396k. Session 2: phase-implementer 10 / 326 calls / 3.49M (43.1%),
+orchestrator 1 / 107 calls / 2.48M (30.6%, peak 263k), part-reviewer 10 / 190 calls / 1.83M
+(22.6%), phase-verifier 1 / 40 calls / 299k (3.7%); costliest: PR 585's hidden cover controls
+1.01M, Build part 3 834k, Review PR 588 r1 407k.
+
+Session 3, generated by `pnpm -s session-metrics --milestone <this session's transcript> --parts 4
+--lines-added 8089 --cost-usd 2.01`, pasted unchanged below. It ran mid-close, so it misses the
+close's last calls:
+
+2 agents, 34 API calls, 555k units, $2.01 recorded. One call is one assistant `message.id`; units = input + 1.25 × cache write + 0.1 × cache read (output excluded, transcripts understate it).
+
+**By agent type**
+
+| Who | Agents | Calls | Avg context | Peak context | Units | ≈ $ | Share |
+|---|---|---|---|---|---|---|---|
+| `general-purpose` | 1 | 20 | 100k | 118k | 337k | $1.22 | 60.7% |
+| `orchestrator` | 1 | 14 | 108k | 117k | 218k | $0.79 | 39.3% |
+
+**Costliest agents**
+
+| Agent (description) | Type | Calls | Avg context | Peak context | Units | ≈ $ |
+|---|---|---|---|---|---|---|
+| Close M49 gate on PR 581 | `general-purpose` | 20 | 100k | 118k | 337k | $1.22 |
+
+**Orchestrator turns, by what started them**
+
+| What started the turn | Turns | Units | ≈ $ | Share of orchestrator | Idle |
+|---|---|---|---|---|---|
+| GitHub / trigger notification | 0 | 0 | $0.00 | 0.0% | 0 of 0 (0 units) |
+| Subagent report | 0 | 0 | $0.00 | 0.0% | – |
+| Subagent finished | 1 | 46k | $0.17 | 21.3% | – |
+| Harness | 0 | 0 | $0.00 | 0.0% | – |
+| Human | 3 | 172k | $0.62 | 78.7% | – |
+| Other (unrecognised frame) | 0 | 0 | $0.00 | 0.0% | – |
+
+**Follow-ups and cache re-writes**
+
+| Measure | Count | Tokens |
+|---|---|---|
+| `SendMessage` calls by the orchestrator | 0 | – |
+| Coordinator messages received mid-life, by 0 subagent(s) | 0 | – |
+| Full cache re-writes in subagents | 0 | 0 |
+| — directly after a coordinator message | 0 | 0 |
+
+**Guard hooks**
+
+| Hook | deny | note |
+|---|---|---|
+| `implementer-brief-check` | 1 | 0 |
+
+**Targets**
+
+| Target | Result | Measured |
+|---|---|---|
+| Orchestrator share of units < 15% | missed | 39.3% |
+| No phase-implementer averaging > 250k context | not measurable | no phase-implementer transcripts |
+| GitHub wakes per merged part < 5 | met | 0 / 4 = 0.0 |
+| Dollars per 1k lines added < 20 | met | $0.25 |
+| Coordinator-message re-writes <= 2 | met | 0 |
+
+### Spend against the last milestone
+
+M52 is the last closed milestone. Lines added for M49, by the guideline's rule (PR 580's merge
+`fc07b46` and the stack's merge `cc93447`, first parent, without `docs/`, `*.generated.json` and
+`pnpm-lock.yaml`): 8,089, of which 3,770 are migration 0068's Drizzle snapshot; 4,319 without it.
+
+- **Dollars per 1,000 lines added (under 20):** met, $9.1 ($73.81 / 8.1k), and $17.1 without the
+  snapshot; M52 $11.5 ($27.0 without its snapshots).
+- **Orchestrator's share (under 15%):** missed, 28.4% across the three sessions (5.01M of 17.64M);
+  M52 estimated about 19%, its close 29.3%. The cause is in *What could be better*.
+- **A builder's average context (none over 250k):** met in session 2 (worst 119k); session 1's
+  block carried no average; M52 not measurable.
+- **GitHub wakes per merged part (under 5):** 0 in the close; the build sessions' blocks as carried
+  give no figure; M52 0 in its close.
+- **Cache re-writes after a coordinator message (2 or fewer):** 0 in the close; not carried for
+  sessions 1 and 2.
