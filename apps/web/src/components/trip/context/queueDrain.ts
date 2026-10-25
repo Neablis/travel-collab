@@ -36,6 +36,20 @@ const flushed = new Map<string, Map<string, Promise<boolean>>>();
 /** Per trip, the `pagehide` listener installed while its drain holds anything. */
 const listeners = new Map<string, () => void>();
 
+/**
+ * Forget every drain, held unit and listener. A test seam only: this state is
+ * module-level and outlives a provider by design, so a test whose unit in
+ * flight never answers would otherwise leave its `pagehide` guard armed for
+ * the next test. Nothing in the app calls it.
+ */
+export function resetQueueDrains(): void {
+  for (const listener of listeners.values()) window.removeEventListener("pagehide", listener);
+  listeners.clear();
+  held.clear();
+  flushed.clear();
+  drains.clear();
+}
+
 function hold(tripId: string, units: readonly PendingUnit[]): void {
   held.set(tripId, [...(held.get(tripId) ?? []), ...units]);
   if (listeners.has(tripId)) return;

@@ -946,12 +946,14 @@ export function TripProvider({
       // board that mounts next reads the trip after the drain is done
       // (KI-2026-09-14-e, fed by the drain's write scope).
       const units = unsentUnits();
-      if (units.length === 0) return;
-      for (const unit of units) handed.add(unit.id);
       // The head the sender has on the wire goes with the drain too, by key,
       // so a `pagehide` while the drain runs can flush it ahead of the rest
-      // (window 6); the sender only ever sends `pending[0]`.
+      // (window 6); the sender only ever sends `pending[0]`. A lone head with
+      // nothing queued behind it is handed over as well (PR 568 review): the
+      // drain then sends nothing itself, and only guards it until it answers.
       const onWire = inFlight.current ? (optimisticRef.current?.pending[0] ?? null) : null;
+      if (units.length === 0 && onWire === null) return;
+      for (const unit of units) handed.add(unit.id);
       void drainAfter(tripId, inFlightSend.current && { send: inFlightSend.current, unit: onWire }, units);
     };
   }, [flushOnPageHide, unsentUnits, tripId]);
