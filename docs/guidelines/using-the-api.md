@@ -514,7 +514,7 @@ generated reference shows them as `anyOf`; the generator has no `oneOf`.)
 ```
 
   Weekday, time-of-day and public-holiday anchors are kept. Every keep does
-  this: the app's own keep, and since API `1.25.0` `POST /v1/library`, whose
+  this: the app's own keep, and since API `1.26.0` `POST /v1/library`, whose
   answer is the saved day with the same `warnings` array beside its fields
   (`GET` reads the day back without it). ADR-050 decision 8.
 

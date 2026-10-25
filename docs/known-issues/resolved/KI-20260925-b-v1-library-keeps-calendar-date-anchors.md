@@ -24,7 +24,7 @@
   (`server/public-api/library.ts`) now runs `captureDays` → `withoutDateAnchors` →
   `storeSavedDay` and answers `LibraryKept` — the saved day plus the `date-anchor-removed`
   `warnings` `/v1/playbooks` returns (`PlaybookWarning`/`warningsFor` moved into `library.ts` so
-  both trees share them). `saveDay` now strips by default. Public API 1.25.0, `openapi.json`
+  both trees share them). `saveDay` now strips by default. Public API 1.26.0, `openapi.json`
   regenerated, CHANGELOG entry, `using-the-api.md` and ADR-050 decision 8 updated. Proven by
   `playbooks.int.test.ts` "POST strips a calendar-date anchor and says so, keeping the weekday
   one": red on the old code with the `dateRange` anchor still stored (*expected [ { kind:

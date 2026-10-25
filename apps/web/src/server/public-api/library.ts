@@ -115,7 +115,7 @@ export function sourceTrip({ trip }: HandlerContext): TripDetail {
 /**
  * One calendar-date anchor a write removed (ADR-050 decision 8). Every keep over
  * `v1` answers these — `/v1/playbooks`' creates, edits and imports, and since
- * API 1.25.0 `POST /v1/library` (KI-2026-09-25-b).
+ * API 1.26.0 `POST /v1/library` (KI-2026-09-25-b).
  */
 export const PlaybookWarning = z.object({
   code: z.literal("date-anchor-removed"),
