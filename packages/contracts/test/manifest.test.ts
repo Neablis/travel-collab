@@ -141,7 +141,7 @@ describe("the attribute manifest", () => {
 });
 
 // ADR-037 open question 4 made `.describe()` the opt-in, and `.describe()` is
-// ALSO the OpenAPI text of every public-API schema (`zod-to-json-schema` reads
+// ALSO the OpenAPI text of every public-API schema (`z.toJSONSchema` reads
 // it). One call with two meanings let API wording reach the picker, and made a
 // field described for the API alone a published one. M14 T06 moved the gate to
 // the annotation `described()` records; `.description` decides nothing here.
@@ -204,19 +204,21 @@ describe("a value kind fits the schema it labels", () => {
       case "enum":
         return inner instanceof z.ZodEnum;
       case "location":
-        // `Location` is a refined object, so `described()`'s clone of it is a
-        // ZodEffects sharing the original's inner schema.
-        return inner instanceof z.ZodEffects && inner._def.schema === Location._def.schema;
+        // `Location` is a refined object; zod 4 keeps the refinement on the
+        // object itself, so `described()`'s clone of it is a ZodObject built
+        // from the original's def — the same field schemas, though not the
+        // same `shape` object.
+        return inner instanceof z.ZodObject && inner._zod.def === Location._zod.def;
       default:
         return false;
     }
   };
 
   const schemaOf = (object: string, name: string, member?: string): z.ZodTypeAny => {
-    const roots: readonly z.AnyZodObject[] = MANIFEST_ROOTS[object as keyof typeof MANIFEST_ROOTS];
+    const roots: readonly z.ZodObject[] = MANIFEST_ROOTS[object as keyof typeof MANIFEST_ROOTS];
     const field = roots.find((r) => name in r.shape)!.shape[name] as z.ZodTypeAny;
     if (member === undefined) return field;
-    const element = (unwrapSchema(field) as z.ZodArray<z.AnyZodObject>).element;
+    const element = (unwrapSchema(field) as z.ZodArray<z.ZodObject>).element;
     return element.shape[member] as z.ZodTypeAny;
   };
 

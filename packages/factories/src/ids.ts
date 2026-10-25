@@ -7,7 +7,7 @@
 // value that outgrew its digit budget silently widened its own group and the
 // function returned a string with the right dash *positions* but wrong group
 // *lengths* (`9e377d99-17ae9-4001-...`, 5 digits in group `b`): not a v4 UUID
-// and not something `z.string().uuid()` accepts. That was live, not latent —
+// and not something `z.string().guid()` accepts. That was live, not latent —
 // `tripDetailFactory` passes salts >= 1000 and `salt * 97` clears 0x10000 at
 // sequence 1, so every activity/backlog id it built was malformed. Masking
 // (rather than throwing on out-of-range, as KI-38 first proposed) is what

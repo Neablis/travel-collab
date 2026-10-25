@@ -120,7 +120,7 @@ function clampOversizedArrays(input: unknown, error: z.ZodError): unknown {
   let changed = false;
   const out: Record<string, unknown> = { ...(input as Record<string, unknown>) };
   for (const issue of error.issues) {
-    if (issue.code !== "too_big" || issue.type !== "array") continue;
+    if (issue.code !== "too_big" || issue.origin !== "array") continue;
     const [key] = issue.path;
     if (typeof key !== "string") continue;
     const value = out[key];

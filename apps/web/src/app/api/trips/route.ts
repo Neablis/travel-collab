@@ -29,7 +29,7 @@ export async function GET() {
 // defect needs.
 const CreateTripBody = z.object({
   name: z.string().min(1).max(200),
-  tripId: z.string().uuid().optional(),
+  tripId: z.string().guid().optional(),
 });
 
 export async function POST(request: Request) {

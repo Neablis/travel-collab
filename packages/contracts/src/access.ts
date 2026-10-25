@@ -26,8 +26,8 @@ export type InviteStatus = z.infer<typeof InviteStatus>;
 // to be able to re-copy the link they already handed out; the route that
 // serves it requires `owner`, and no other endpoint ever returns a token.
 export const TripInvite = z.object({
-  inviteId: z.string().uuid(),
-  tripId: z.string().uuid(),
+  inviteId: z.string().guid(),
+  tripId: z.string().guid(),
   // Optional, and NOT a credential — the token is (see ADR-026). It is a label
   // so the owner can tell two outstanding invites apart. The dev-login
   // provider mints users with no email at all, so a required one would make
@@ -91,7 +91,7 @@ export const Guest = z.object({
   // and guest ids drop into person-keyed fields (`participants`, cost
   // overlays), so the prefix makes the two disjoint by construction.
   guestId: z.string().regex(/^guest_/),
-  tripId: z.string().uuid(),
+  tripId: z.string().guid(),
   name: z.string().min(1).max(120),
   travelling: z.boolean(),
   // The member who claimed this record (`linkGuest`), or null while nobody
@@ -147,7 +147,7 @@ export type TripMemberProfile = z.infer<typeof TripMemberProfile>;
 // on). `myRole` is what the board reads to know it is read-only — advisory
 // only: every write is refused server-side regardless of what the client did.
 export const TripAccess = z.object({
-  tripId: z.string().uuid(),
+  tripId: z.string().guid(),
   myRole: TripRole,
   members: z.array(TripMemberProfile).min(1),
   invites: z.array(TripInvite),
@@ -260,7 +260,7 @@ const ValidLanding = z
   .object({
     state: z.literal("valid"),
     signedIn: z.boolean(),
-    tripId: z.string().uuid(),
+    tripId: z.string().guid(),
     role: InviteRole,
     sentAt: z.string(),
     // The label the owner typed, not a check (ADR-026) — null when they typed none.
@@ -292,7 +292,7 @@ const MemberLanding = z
   .object({
     state: z.literal("member"),
     signedIn: z.literal(true),
-    tripId: z.string().uuid(),
+    tripId: z.string().guid(),
     tripName: z.string(),
   })
   .strict();

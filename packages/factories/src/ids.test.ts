@@ -3,7 +3,7 @@ import { z } from "zod";
 import { uuidFrom } from "./ids";
 import { tripDetailFactory } from "./trip";
 
-const UUID = z.string().uuid();
+const UUID = z.string().guid();
 
 const groupLengths = (id: string) => id.split("-").map((g) => g.length);
 
@@ -97,7 +97,7 @@ describe("uuidFrom", () => {
 // test". It was not latent: trip.ts salts activities from 1000 and the
 // backlog from 5000, and `salt * 97` clears 0x10000 at sequence 1, so every
 // activity and backlog id this factory produced was a non-UUID. Contracts
-// declare all four of these `z.string().uuid()` (packages/contracts detail.ts).
+// declare all four of these `z.string().guid()` (packages/contracts detail.ts).
 describe("tripDetailFactory ids satisfy the contracts' uuid shape", () => {
   it("mints valid UUIDs for tripId, dayIds, activityIds and backlog", () => {
     for (let i = 0; i < 5; i++) {

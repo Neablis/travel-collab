@@ -22,7 +22,7 @@ export const AdminReportQueueItem = z.object({
   report: ContentReport,
   day: z
     .object({
-      savedDayId: z.string().uuid(),
+      savedDayId: z.string().guid(),
       name: z.string(),
       ownerId: z.string().min(1),
       ownerDisplayName: z.string(),
@@ -46,8 +46,8 @@ export const AdminReportQueueItem = z.object({
    */
   message: z
     .object({
-      tripId: z.string().uuid(),
-      messageId: z.string().uuid(),
+      tripId: z.string().guid(),
+      messageId: z.string().guid(),
       authorId: z.string().min(1),
       authorDisplayName: z.string(),
       body: z.string(),

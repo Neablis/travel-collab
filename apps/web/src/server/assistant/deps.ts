@@ -824,7 +824,7 @@ export interface AssistantContext {
 }
 
 export const AssistantContextSchema = z.object({
-  tripId: z.string().uuid(),
+  tripId: z.string().guid(),
   userId: z.string().min(1),
   detail: z.custom<TripDetail>((v) => typeof v === "object" && v !== null),
   scope: z.custom<AskScope>((v) => typeof v === "object" && v !== null),

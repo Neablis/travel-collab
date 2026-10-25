@@ -292,7 +292,7 @@ export const API_TOKEN_DEFAULT_LIFETIME_DAYS = 90;
  * moment it was serialised.
  */
 export const ApiToken = z.object({
-  tokenId: z.string().uuid(),
+  tokenId: z.string().guid(),
   /** What the user called it. */
   name: z.string().min(1),
   /** The first `API_TOKEN_PREFIX_LENGTH` characters, for the list. Display only. */
@@ -318,7 +318,7 @@ export const ApiToken = z.object({
    * the owner still holds the role the endpoint demands, because the role check
    * is the unchanged one that already runs for a session.
    */
-  tripIds: z.array(z.string().uuid()).nullable(),
+  tripIds: z.array(z.string().guid()).nullable(),
   createdAt: z.string(),
   /**
    * When this token was last accepted, coarse to five minutes (Decision 7).
@@ -383,7 +383,7 @@ export const ApiTokenCreateInput = z.object({
    */
   scopes: z.array(ApiScope).min(1),
   /** `null` for account-wide; a non-empty list to confine it to those trips. */
-  tripIds: z.array(z.string().uuid()).min(1).nullable(),
+  tripIds: z.array(z.string().guid()).min(1).nullable(),
   expiresInDays: z
     .number()
     .int()

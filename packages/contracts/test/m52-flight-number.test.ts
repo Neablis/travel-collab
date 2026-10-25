@@ -8,7 +8,7 @@ const A1 = "7d9a1f8e-0000-4000-8000-0000000000a1";
 // SCHEMA on both unions by the rule `mode` follows (adr055-pending-reason.test.ts).
 const add = (fields: Record<string, unknown>) => ({ type: "AddActivity", tripId: TRIP, activityId: A1, title: "Fly home", ...fields });
 const upd = (fields: Record<string, unknown>) => ({ type: "UpdateActivity", tripId: TRIP, activityId: A1, ...fields });
-const issues = (r: { success: boolean; error?: { issues: { path: (string | number)[]; message: string }[] } }) =>
+const issues = (r: { success: boolean; error?: { issues: { path: PropertyKey[]; message: string }[] } }) =>
   r.success ? [] : r.error!.issues.map((i) => `${i.path.join(".")}: ${i.message}`);
 
 describe("a flight number is legal only on a transit stop", () => {

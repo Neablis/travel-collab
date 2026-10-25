@@ -85,7 +85,7 @@ const SelectionSchema = z.object({
 const WithheldSchema = z.object({
   param: z.string(),
   default: z.string(),
-  values: z.record(z.array(FilterDimension).readonly()),
+  values: z.record(z.string(), z.array(FilterDimension).readonly()),
 });
 
 const MatchSchema = z.object({
@@ -93,10 +93,10 @@ const MatchSchema = z.object({
   title: z.string(),
   about: z.string(),
   shape: WidgetShape,
-  insert: z.object({ name: z.string(), params: z.record(z.unknown()) }),
+  insert: z.object({ name: z.string(), params: z.record(z.string(), z.unknown()) }),
   selects: SelectionSchema.optional(),
   withheld: WithheldSchema.optional(),
-  params: z.record(z.array(z.string()).readonly().nullable()).optional(),
+  params: z.record(z.string(), z.array(z.string()).readonly().nullable()).optional(),
   detail: z.string().optional(),
 });
 
@@ -118,7 +118,7 @@ const SearchInput = z.object({
 const SearchOutput = z.object({
   matches: z.array(MatchSchema),
   total: z.number().int(),
-  filterValues: z.record(z.unknown()),
+  filterValues: z.record(z.string(), z.unknown()),
 });
 
 /** The spelling of every filter the listed matches take, and nothing for the ones they do not. */
@@ -173,7 +173,7 @@ const TargetsSchema = z.object({
   ),
   days: z.array(z.object({ day: z.number().int(), date: z.string().nullable() })),
   views: z.array(z.string()),
-  write: z.record(z.unknown()),
+  write: z.record(z.string(), z.unknown()),
 });
 
 const DetailOutput = z.union([
@@ -182,8 +182,8 @@ const DetailOutput = z.union([
     preview: z.string(),
     emptyText: z.string(),
     inputs: z.array(InputSchema),
-    fields: z.record(z.array(z.object({ path: z.string(), label: z.string() })).readonly()).optional(),
-    filterValues: z.record(z.unknown()),
+    fields: z.record(z.string(), z.array(z.object({ path: z.string(), label: z.string() })).readonly()).optional(),
+    filterValues: z.record(z.string(), z.unknown()),
     targets: TargetsSchema.optional(),
     address: z.string().optional(),
     // For a `person` input (`person.share`'s `who`): the members and named

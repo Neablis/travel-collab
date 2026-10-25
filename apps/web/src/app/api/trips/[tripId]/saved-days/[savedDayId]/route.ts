@@ -14,7 +14,7 @@ const STATUS: Record<string, number> = {
 // *Add to trip* sends. `startingAt` is the trip's day the playbook's first day
 // merges onto: the day a person named to the playbook pages' assistant (M45
 // D9), approved through this same route so the insert stays the button's.
-const InsertBody = z.object({ startingAt: z.string().uuid().optional() });
+const InsertBody = z.object({ startingAt: z.string().guid().optional() });
 
 // Insert one of your saved days into a trip. TWO checks, because two different
 // things are being reached for: `editor` on the target trip (this appends a

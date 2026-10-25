@@ -168,7 +168,7 @@ export const MANIFEST_ROOTS = {
   trip: [TripGlobals, TripFacts],
   account: [AccountFacts],
   stop: [ActivitySnapshot],
-} as const satisfies Record<ManifestObject, readonly z.AnyZodObject[]>;
+} as const satisfies Record<ManifestObject, readonly z.ZodObject[]>;
 
 const ATTRIBUTE_FACTS = { trip: TripFacts, account: AccountFacts } as const;
 type AttributeFactPath = {
@@ -228,7 +228,7 @@ export function buildAttributeManifest(
   const hidden = new Set<string>(hiddenStopFields);
   const entries: AttributeEntry[] = [];
   for (const object of MANIFEST_OBJECTS) {
-    for (const root of MANIFEST_ROOTS[object] as readonly z.AnyZodObject[]) {
+    for (const root of MANIFEST_ROOTS[object] as readonly z.ZodObject[]) {
       for (const [key, rawField] of Object.entries(root.shape)) {
         if (object === "stop" && hidden.has(key)) continue;
         const field = rawField as z.ZodTypeAny;

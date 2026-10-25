@@ -72,7 +72,7 @@ export const ReviewDayChanged = z.object({
 export type ReviewDayChanged = z.infer<typeof ReviewDayChanged>;
 
 export const Review = z.object({
-  savedDayId: z.string().uuid(),
+  savedDayId: z.string().guid(),
   reviewerId: z.string().min(1),
   reviewerDisplayName: z.string().min(1),
   stars: ReviewStars,

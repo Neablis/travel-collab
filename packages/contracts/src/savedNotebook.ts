@@ -35,9 +35,9 @@ export type SavedNotebookVisibility = z.infer<typeof SavedNotebookVisibility>;
  * still be sayable.
  */
 export const SavedNotebookProvenance = z.object({
-  sourceTripId: z.string().uuid(),
+  sourceTripId: z.string().guid(),
   sourceTripName: z.string(),
-  sourcePageId: z.string().uuid(),
+  sourcePageId: z.string().guid(),
   savedAt: z.string(),
 });
 export type SavedNotebookProvenance = z.infer<typeof SavedNotebookProvenance>;
@@ -50,7 +50,7 @@ export type SavedNotebookProvenance = z.infer<typeof SavedNotebookProvenance>;
  * the server by id, so the browser never needs the snapshot to use one.
  */
 export const SavedNotebookSummary = z.object({
-  savedNotebookId: z.string().uuid(),
+  savedNotebookId: z.string().guid(),
   ownerId: z.string().min(1),
   title: z.string().min(1),
   /**
@@ -86,8 +86,8 @@ export type SavedNotebook = z.infer<typeof SavedNotebook>;
  * client assembled. `title` defaults to the page's own title (M14 link 10).
  */
 export const CreateSavedNotebookInput = z.object({
-  tripId: z.string().uuid(),
-  pageId: z.string().uuid(),
+  tripId: z.string().guid(),
+  pageId: z.string().guid(),
   title: z.string().trim().min(1).max(200).optional(),
 });
 export type CreateSavedNotebookInput = z.infer<typeof CreateSavedNotebookInput>;

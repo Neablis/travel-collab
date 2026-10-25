@@ -12,8 +12,8 @@ import { Money } from "./money.ts";
 
 /** The owner's view of a share they created — includes the token to re-copy. */
 export const TripShare = z.object({
-  shareId: z.string().uuid(),
-  tripId: z.string().uuid(),
+  shareId: z.string().guid(),
+  tripId: z.string().guid(),
   token: z.string().min(1),
   // The pin. 1-based, matching `events.seq`: a share at seq N replays the
   // first N events. Never mutated — re-pinning is a new share, so a link you
@@ -40,21 +40,21 @@ export type TripShare = z.infer<typeof TripShare>;
  *   status a served view could be in other than active.
  */
 export const SharedTripView = z.object({
-  tripId: z.string().uuid(),
+  tripId: z.string().guid(),
   name: z.string(),
   startDate: z.string().nullable(),
   currency: z.string(),
   budget: Money.nullable(),
   days: z.array(
     z.object({
-      dayId: z.string().uuid(),
-      activityIds: z.array(z.string().uuid()),
+      dayId: z.string().guid(),
+      activityIds: z.array(z.string().guid()),
       date: z.string().nullable(),
       costSubtotal: z.number().int(),
     }),
   ),
-  backlog: z.array(z.string().uuid()),
-  activities: z.record(ActivityView),
+  backlog: z.array(z.string().guid()),
+  activities: z.record(z.string(), ActivityView),
   unscheduledCostSubtotal: z.number().int(),
   tripCostTotal: z.number().int(),
   // 0 is real: the owner can be not travelling (travellers spec D5). A stop

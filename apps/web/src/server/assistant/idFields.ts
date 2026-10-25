@@ -1,5 +1,5 @@
 // Single source of truth for what every id-bearing field on a BatchableCommand
-// MEANS — the metadata a raw `z.string().uuid()` can't carry on its own:
+// MEANS — the metadata a raw `z.string().guid()` can't carry on its own:
 //   - `inject`  — server fills it; the AI never sees it (tripId).
 //   - `mint`    — a brand-new entity id; the SERVER generates it so no UUID
 //                 ever crosses the AI boundary. `entity` lets the batch

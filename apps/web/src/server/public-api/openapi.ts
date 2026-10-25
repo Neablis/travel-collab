@@ -1,8 +1,7 @@
 import { createHash } from "node:crypto";
 import { readdirSync } from "node:fs";
 import path from "node:path";
-import { ignoreOverride, zodToJsonSchema } from "zod-to-json-schema";
-import type { z } from "zod";
+import { z } from "zod";
 import { API_SCOPES, PageNode, SCOPE_CATALOGUE } from "@tc/contracts";
 import { DECLARED, MAX_PAGE_LIMIT, type DeclaredHandler, type MethodDef } from "./route";
 import { IDEMPOTENCY_KEY_MAX_LENGTH, REPLAYED_HEADER } from "./idempotency";
@@ -40,8 +39,8 @@ import { IDEMPOTENCY_KEY_MAX_LENGTH, REPLAYED_HEADER } from "./idempotency";
  * fingerprint the failure printed into `API_FINGERPRINT`, and add a line to
  * `docs/contracts/CHANGELOG.md`. Change both constants in the same diff.
  */
-export const API_VERSION = "1.25.0";
-export const API_FINGERPRINT = "62ec0484912e807d5d39dc1c307541b0d764829efbf04bf9df4ef6f7faf46ff5";
+export const API_VERSION = "1.25.1";
+export const API_FINGERPRINT = "943374fc6c472023209a89744e51218d5dce1be316bf4caca9a192bd4fe0f836";
 
 /**
  * sha256 of the document with `info.version` left out, keys sorted at every
@@ -88,7 +87,7 @@ export function urlOf(v1Dir: string, file: string): string {
   return `/v1${segments.length === 0 ? "" : `/${segments.join("/")}`}`;
 }
 
-type JsonSchema = ReturnType<typeof zodToJsonSchema>;
+type JsonSchema = Record<string, unknown>;
 
 // **The document's one named component.** `PageNode` (`@tc/contracts`
 // `pageDoc.ts`) is the tree's knot: list items, blockquotes and the like hold
@@ -98,76 +97,194 @@ type JsonSchema = ReturnType<typeof zodToJsonSchema>;
 const PAGE_NODE_COMPONENT = "PageNode";
 const PAGE_NODE_REF = `#/components/schemas/${PAGE_NODE_COMPONENT}`;
 
-function schemaOf(zod: z.ZodTypeAny): JsonSchema {
-  // `target: "openApi3"` because zod-to-json-schema's default emits JSON Schema
-  // draft-07, whose `nullable` and `exclusiveMinimum` spellings OpenAPI 3.0 does
-  // not accept. zod is v3 here, which is why this library and not a v4-only one.
-  //
-  // `$refStrategy: "none"`: every schema inlines where it is used, so each
-  // call's output is self-contained — EXCEPT the recursive `PageNode`, which
-  // `pageNodeRefOverride` lifts to the shared component below. "root" and
-  // "relative" were considered and rejected: they `$ref` a repeated schema to
-  // its first-seen INLINE path, and that path breaks once this output is
-  // embedded under `paths` — only a `$ref` to a named component survives the
-  // embedding, so only the recursion gets one.
-  return withoutTupleItems(
-    zodToJsonSchema(zod, { target: "openApi3", $refStrategy: "none", override: pageNodeRefOverride }),
-  ) as JsonSchema;
+/**
+ * One schema as an OpenAPI 3.0 Schema Object, through zod 4's own
+ * `z.toJSONSchema` — every schema inlined where it is used, EXCEPT the
+ * recursive `PageNode`, which becomes a `$ref` to the shared component below.
+ *
+ * `io: "input"` because this document describes what a caller may SEND as well
+ * as what it gets back, and it is the reading the generator this replaced
+ * (`zod-to-json-schema`, retired with zod 3) gave both: a field with a
+ * `.default()` is not `required`, and a preprocess is described by the schema
+ * it hands the value to. `reused: "inline"` is that generator's
+ * `$refStrategy: "none"`: only a `$ref` to a named component survives this
+ * output being embedded under `paths`, so only the recursion gets one.
+ */
+function schemaOf(zod: z.ZodType): JsonSchema {
+  const generated = z.toJSONSchema(zod, {
+    ...TO_OPENAPI,
+    override: (ctx) => {
+      asPublished(ctx);
+      if ((ctx.zodSchema as unknown) === PageNode) replaceWith(ctx.jsonSchema, { $ref: PAGE_NODE_REF });
+    },
+  }) as JsonSchema;
+  return withoutTupleItems(inTheOldKeyOrder(inlineDefinitions(generated))) as JsonSchema;
 }
 
-// zod-to-json-schema's `override` hook: the recursive `PageNode` def becomes
-// a `$ref` to the shared component instead of being inlined (inlining is what
-// used to log "Recursive reference detected … Defaulting to any" and publish
-// `any` for nested page content). Identity-matched on the def object, so the
-// `z.lazy` knot — whose getter returns this same def — resolves to the same
-// `$ref`. Everything else returns `ignoreOverride` and generates exactly as
-// before.
-function pageNodeRefOverride(def: z.ZodTypeDef): { $ref: string } | typeof ignoreOverride {
-  return def === PageNode._def ? { $ref: PAGE_NODE_REF } : ignoreOverride;
-}
-
-// The library's `#/definitions/X` `$ref`s, rewritten to the
-// `#/components/schemas/X` home the document actually gives them. Only `$ref`
-// values are rewritten, never descriptions or examples that might mention
-// the string.
-function rewriteDefinitionRefs(node: unknown): unknown {
-  if (Array.isArray(node)) return node.map(rewriteDefinitionRefs);
-  if (node === null || typeof node !== "object") return node;
-  const out: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(node)) {
-    out[key] =
-      key === "$ref" && typeof value === "string" && value.startsWith("#/definitions/")
-        ? `#/components/schemas/${value.slice("#/definitions/".length)}`
-        : rewriteDefinitionRefs(value);
-  }
-  return out;
-}
+const TO_OPENAPI = { target: "openapi-3.0", io: "input", reused: "inline", unrepresentable: "any" } as const;
 
 /**
  * The shared `PageNode` component schema: the full page-tree shape, generated
- * once, its own recursion expressed as a `$ref` to itself.
- *
- * Generated in a dedicated call with `definitions` plus `$refStrategy:
- * "root"` — the combination that makes the library NAME the recursion
- * (`#/definitions/PageNode`) instead of warning-and-`any`ing it the way
- * `"none"` does. The per-route `schemaOf` calls cannot do this themselves:
- * each is independent, so their `$ref`s would point at definitions that do
- * not exist in their own output.
+ * once, its own recursion expressed as a `$ref` to itself. zod writes a cycle
+ * back to the root it was generated from as `$ref: "#"`, which is rewritten to
+ * the component's home in the document.
  */
-function pageNodeComponentSchema(): Record<string, unknown> {
-  const generated = zodToJsonSchema(PageNode, {
-    target: "openApi3",
-    $refStrategy: "root",
-    definitions: { [PAGE_NODE_COMPONENT]: PageNode },
-  }) as { definitions?: Record<string, unknown> };
-  const component = generated.definitions?.[PAGE_NODE_COMPONENT];
-  if (component === undefined) throw new Error("openapi: PageNode component did not generate");
-  return rewriteDefinitionRefs(withoutTupleItems(component)) as Record<string, unknown>;
+function pageNodeComponentSchema(): JsonSchema {
+  const generated = z.toJSONSchema(PageNode, { ...TO_OPENAPI, override: asPublished }) as JsonSchema;
+  const named = rewriteRefs(inlineDefinitions(generated), (ref) => (ref === "#" ? PAGE_NODE_REF : ref));
+  return withoutTupleItems(inTheOldKeyOrder(named)) as JsonSchema;
 }
 
-// **OpenAPI 3.0 has no tuples, and `openApi3` still emits one.** A `z.tuple`
-// comes out as `items: [ ...schemas ]`, the draft-04 array form, where 3.0
-// requires `items` to be a single Schema Object. The export bundles'
+// Key order means nothing to a reader of the document (and `fingerprintOf`
+// sorts it away), but zod 4 writes `default` and `description` first where
+// `zod-to-json-schema` wrote them last, which turned a regeneration into a
+// diff of thousands of moved lines. Put back last, so a diff of
+// `openapi.json` shows what changed.
+const TAIL_KEYS = ["nullable", "default", "description"];
+function inTheOldKeyOrder(node: unknown): unknown {
+  if (Array.isArray(node)) return node.map(inTheOldKeyOrder);
+  if (node === null || typeof node !== "object") return node;
+  const keys = Object.keys(node);
+  const ordered = [...keys.filter((key) => !TAIL_KEYS.includes(key)), ...TAIL_KEYS.filter((key) => keys.includes(key))];
+  return Object.fromEntries(ordered.map((key) => [key, inTheOldKeyOrder((node as Record<string, unknown>)[key])]));
+}
+
+const MAX_SAFE = Number.MAX_SAFE_INTEGER;
+
+/** The parts of a zod 4 def `asPublished` reads; each is absent on the kinds that lack it. */
+interface ZodDefView {
+  type: string;
+  checks?: { _zod: { def: { format?: string } } }[];
+  defaultValue?: unknown;
+  catchall?: { _zod: { def: { type: string } } };
+  shape?: Record<string, { safeParse: (value: unknown) => { success: boolean } }>;
+  items?: unknown[];
+}
+
+// **The published document, kept as it read under zod 3.** zod 4's generator
+// says some things differently from the one it replaced, and none of them is a
+// change to what a route accepts or answers, so each is put back the way
+// callers have always read it rather than published as a new contract:
+//
+//   - a string format (`.guid()`, `.email()`, `.datetime()`) gains the regex
+//     zod checks it with as a `pattern` beside its `format`. The format is the
+//     contract; the regex is zod's spelling of it. Dropped, unless the schema
+//     also carries a `.regex()` of its own.
+//   - `.int()` gains `minimum`/`maximum` at ±`Number.MAX_SAFE_INTEGER`, the
+//     bounds zod 4 enforces on every integer. Dropped at exactly those values;
+//     a bound a schema declares itself is kept.
+//   - a discriminated union is a `oneOf`; it was an `anyOf`. Every member is
+//     told apart by its literal discriminator, so the two say the same thing.
+//   - `io: "input"` drops a `.default()` whose schema transforms (a
+//     `z.preprocess` under it), on the grounds that the default is an output
+//     value. Ours are values a caller could have sent, so the default stays.
+//   - an object that strips unknown keys says nothing about them under
+//     `io: "input"`; it said `additionalProperties: false`, and a
+//     `.passthrough()` one said `true` where zod 4 says `{}`.
+//   - a key whose schema accepts `undefined` (`z.unknown()`, `z.any()`) is
+//     `required`; it was not, because the key may be left out.
+//   - an empty `z.tuple([])` is `items: { anyOf: [] }`, which OpenAPI 3.0
+//     refuses (an `anyOf` must have a member). It is `items: {}` with
+//     `minItems`/`maxItems` 0, as before; see `withoutTupleItems` for why a
+//     non-empty tuple stops the generator instead.
+function asPublished(ctx: { zodSchema: unknown; jsonSchema: Record<string, unknown> }): void {
+  const json = ctx.jsonSchema;
+  const def = (ctx.zodSchema as { _zod: { def: ZodDefView } })._zod.def;
+  if (def.type === "string" && typeof json.format === "string" && "pattern" in json) {
+    const ownRegex = (def.checks ?? []).some((check) => check._zod.def.format === "regex");
+    if (!ownRegex) delete json.pattern;
+  }
+  if (json.type === "integer") {
+    if (json.minimum === -MAX_SAFE) delete json.minimum;
+    if (json.maximum === MAX_SAFE) delete json.maximum;
+  }
+  if (def.type === "union" && Array.isArray(json.oneOf)) {
+    json.anyOf = json.oneOf;
+    delete json.oneOf;
+  }
+  if (def.type === "default" && !("default" in json)) {
+    json.default = JSON.parse(JSON.stringify(def.defaultValue)) as unknown;
+  }
+  if (def.type === "object") {
+    const catchall = def.catchall?._zod.def.type;
+    if (catchall === undefined || catchall === "never") json.additionalProperties = false;
+    else if (catchall === "unknown" || catchall === "any") json.additionalProperties = true;
+    if (Array.isArray(json.required) && def.shape !== undefined) {
+      const shape = def.shape;
+      const required = (json.required as string[]).filter((key) => !shape[key]?.safeParse(undefined).success);
+      if (required.length > 0) json.required = required;
+      else delete json.required;
+    }
+  }
+  if (def.type === "tuple") {
+    if ((def.items ?? []).length > 0) {
+      throw new Error(
+        `openapi: a non-empty z.tuple (${def.items!.length} positions) — OpenAPI 3.0 cannot express tuple ` +
+          `positions, and widening it to anyOf would change the contract. Declare an object or a single-type array instead.`,
+      );
+    }
+    Object.assign(json, { items: {}, minItems: 0, maxItems: 0 });
+  }
+}
+
+function replaceWith(target: Record<string, unknown>, value: Record<string, unknown>): void {
+  for (const key of Object.keys(target)) delete target[key];
+  Object.assign(target, value);
+}
+
+/**
+ * zod's `definitions` (what it lifts out of a cycle it meets) inlined back
+ * where each is referenced, so the output is self-contained. The only cycle in
+ * the contracts runs through `PageNode`, which is already a `$ref` to its
+ * component by then, so what is inlined is that `$ref` — never a cycle.
+ */
+function inlineDefinitions(schema: JsonSchema): JsonSchema {
+  const { definitions, ...rest } = schema as JsonSchema & { definitions?: Record<string, unknown> };
+  if (definitions === undefined) return schema;
+  const resolve = (node: unknown, depth: number): unknown => {
+    if (depth > 32) throw new Error("openapi: a $ref cycle that is not PageNode — name it as a component");
+    if (Array.isArray(node)) return node.map((child) => resolve(child, depth));
+    if (node === null || typeof node !== "object") return node;
+    const ref = (node as { $ref?: unknown }).$ref;
+    if (typeof ref === "string" && ref.startsWith("#/definitions/")) {
+      const target = definitions[ref.slice("#/definitions/".length)];
+      if (target === undefined) throw new Error(`openapi: ${ref} names no definition`);
+      const siblings = Object.fromEntries(Object.entries(node).filter(([key]) => key !== "$ref"));
+      return { ...(resolve(target, depth + 1) as Record<string, unknown>), ...(resolve(siblings, depth) as Record<string, unknown>) };
+    }
+    return Object.fromEntries(Object.entries(node).map(([key, value]) => [key, resolve(value, depth)]));
+  };
+  return resolve(rest, 0) as JsonSchema;
+}
+
+// Every `$ref` value passed through `rename`; never a description or an
+// example that happens to mention one.
+//
+// A `$ref` zod's OpenAPI 3.0 target leaves alone inside an `allOf`
+// (`{ allOf: [{ $ref }] }`) is unwrapped to the plain `$ref` it always was.
+function rewriteRefs(node: unknown, rename: (ref: string) => string): unknown {
+  if (Array.isArray(node)) return node.map((child) => rewriteRefs(child, rename));
+  if (node === null || typeof node !== "object") return node;
+  const { allOf } = node as { allOf?: unknown };
+  if (Object.keys(node).length === 1 && Array.isArray(allOf) && allOf.length === 1) {
+    const only = allOf[0] as Record<string, unknown> | null;
+    if (only !== null && typeof only === "object" && Object.keys(only).length === 1 && typeof only.$ref === "string") {
+      return rewriteRefs(only, rename);
+    }
+  }
+  return Object.fromEntries(
+    Object.entries(node).map(([key, value]) => [
+      key,
+      key === "$ref" && typeof value === "string" ? rename(value) : rewriteRefs(value, rename),
+    ]),
+  );
+}
+
+// **OpenAPI 3.0 has no tuples.** zod 3's generator wrote a `z.tuple` as
+// `items: [ ...schemas ]`, the draft-04 array form, where 3.0 requires `items`
+// to be a single Schema Object; zod 4's writes `items: { anyOf: [...] }`, which
+// `asPublished` refuses or rewrites before this runs. This stays as the
+// document-wide guard. The export bundles'
 // `z.tuple([])` (`activities`, `playbooks`, `notebooks`, `trips` — "always
 // empty in this file") published six `items: []`, which made the document
 // invalid: Scalar's reference threw on it at `/developers/reference`, and any

@@ -15,7 +15,7 @@ import { isCalendarDate } from "./trip.ts";
 // path and the editor both produce, and read back by a resolver in @tc/pages.
 export const DayRef = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("index"), index: z.number().int().nonnegative() }),
-  z.object({ kind: z.literal("dayId"), dayId: z.string().uuid() }),
+  z.object({ kind: z.literal("dayId"), dayId: z.string().guid() }),
 ]);
 export type DayRef = z.infer<typeof DayRef>;
 
@@ -269,7 +269,7 @@ export type DateScope = z.infer<typeof DateScope>;
 // here; it moved onto the widget instance, where the binding it describes
 // actually belongs.
 export const PageContext = z.object({
-  tripId: z.string().uuid(),
+  tripId: z.string().guid(),
   /**
    * Marks the trip's **Overview** page — SPEC §25's *"every trip is created
    * with one notebook page it cannot delete"*, and the page the Overview tab
@@ -334,8 +334,8 @@ export const SeedKey = z.string().min(1).max(100);
 export type SeedKey = z.infer<typeof SeedKey>;
 
 export const Page = z.object({
-  id: z.string().uuid(),
-  tripId: z.string().uuid(),
+  id: z.string().guid(),
+  tripId: z.string().guid(),
   title: z.string().min(1),
   context: PageContext,
   content: PageContent,

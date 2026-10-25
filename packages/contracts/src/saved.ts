@@ -247,7 +247,7 @@ export const SavedDayAuthorKind = z.enum(["human", "ai"]);
 export type SavedDayAuthorKind = z.infer<typeof SavedDayAuthorKind>;
 
 export const SavedDay = z.object({
-  savedDayId: z.string().uuid(),
+  savedDayId: z.string().guid(),
   ownerId: z.string().min(1),
   name: z.string().min(1).max(200),
   stops: z.array(SavedStop),
@@ -321,7 +321,7 @@ export const SavedDay = z.object({
   // Where it came from, on the same terms as a trip's lineage (ADR-028): the
   // trip's name is a SNAPSHOT taken at save time, so the credit survives the
   // source being renamed, deleted, or becoming unreadable.
-  sourceTripId: z.string().uuid(),
+  sourceTripId: z.string().guid(),
   sourceTripName: z.string().min(1).max(200),
   createdAt: z.string(),
   /**
@@ -378,7 +378,7 @@ export type SavedDayModeration = z.infer<typeof SavedDayModeration>;
  */
 export const CreateSavedDayInput = z.object({
   name: z.string().min(1).max(200),
-  tripId: z.string().uuid(),
+  tripId: z.string().guid(),
   /**
    * **The days to keep, in the order they will run in the sequence** (M23 link
    * 2). Their position in THIS array becomes each stop's `dayIndex`, so the
@@ -404,7 +404,7 @@ export const CreateSavedDayInput = z.object({
    * and the write path refuses it: two identical `dayIndex` groups would be
    * indistinguishable from one day's stops split across two days.
    */
-  dayIds: z.array(z.string().uuid()).min(1).max(366),
+  dayIds: z.array(z.string().guid()).min(1).max(366),
 });
 export type CreateSavedDayInput = z.infer<typeof CreateSavedDayInput>;
 

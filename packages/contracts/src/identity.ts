@@ -148,9 +148,20 @@ export const UserPreferences = z.object({
    * Optional rather than defaulted: absent reads as none dismissed, and every
    * reader and fixture written before the field still type-checks.
    */
-  dismissedPublishOffers: z.array(z.string().uuid()).max(MAX_DISMISSED_PUBLISH_OFFERS).optional(),
+  dismissedPublishOffers: z.array(z.string().guid()).max(MAX_DISMISSED_PUBLISH_OFFERS).optional(),
 });
 export type UserPreferences = z.infer<typeof UserPreferences>;
+
+type WithoutDefaults<S extends z.ZodRawShape> = {
+  [K in keyof S]: S[K] extends z.ZodDefault<infer Inner> ? Inner : S[K];
+};
+
+/** `shape` with each top-level `.default()` removed, every other field as it was. */
+function withoutDefaults<S extends z.ZodRawShape>(shape: S): WithoutDefaults<S> {
+  return Object.fromEntries(
+    Object.entries(shape).map(([key, field]) => [key, field instanceof z.ZodDefault ? field.removeDefault() : field]),
+  ) as WithoutDefaults<S>;
+}
 
 /**
  * What `/api/account/preferences` answers, on GET and on PATCH.
@@ -190,8 +201,14 @@ export type PreferencesResponse = z.infer<typeof PreferencesResponse>;
  * answering 200 to it would hide that. Same reasoning as the closed enums
  * elsewhere in this package: make the meaningless case fail loudly at the
  * boundary rather than succeed quietly behind it.
+ *
+ * **The defaults are stripped before `.partial()`.** In zod 4 an optional
+ * field whose schema has a `.default()` fills the default in when the key is
+ * absent (zod 3 left it absent), so `{ distanceUnit: "mi" }` would have come
+ * back carrying `avatar: null, color: null, publicDisplayName: false` — a
+ * patch quietly clearing three preferences nobody named.
  */
-export const UpdateUserPreferences = UserPreferences.partial().refine(
+export const UpdateUserPreferences = z.object(withoutDefaults(UserPreferences.shape)).partial().refine(
   // `Object.values(...).some(v => v !== undefined)`, NOT `Object.keys(...).length`.
   // A key whose value is `undefined` is still a key, so the first spelling
   // accepted `{ displayName: undefined }` — a patch asking for nothing, passing

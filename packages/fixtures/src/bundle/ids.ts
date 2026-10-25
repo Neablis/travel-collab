@@ -33,7 +33,7 @@ const hex8 = (n: number): string => n.toString(16).padStart(8, "0");
  *
  * Shaped as a v4 uuid — version nibble `4`, variant nibble `8` — because every
  * column that takes one of these is `uuid` and every schema that validates one
- * is `z.string().uuid()`. It is not random and does not pretend to be; it is a
+ * is `z.string().guid()`. It is not random and does not pretend to be; it is a
  * name, spelled the way this system spells names.
  */
 export function bundleId(namespace: string, key: string): string {

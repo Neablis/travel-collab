@@ -177,7 +177,7 @@ describe("read_day", () => {
   it("keeps precision through the tool's own output parse", async () => {
     const { detail, cityStopIndex } = cityLevelTrip();
     const definition = READ_TOOLS.find((tool) => tool.name === "read_day")!;
-    const result = (await definition.invoke({ days: 1 }, { trip: detail, readBudget: newDayReadBudget(MAX_DAYS_READ_PER_TURN) } as unknown as AssistantDeps)) as DayReadout;
+    const result = (await definition.invoke({ days: 1 } as never, { trip: detail, readBudget: newDayReadBudget(MAX_DAYS_READ_PER_TURN) } as unknown as AssistantDeps)) as DayReadout;
     expect(result.stops[cityStopIndex]!.location!.precision).toBe("city");
   });
 

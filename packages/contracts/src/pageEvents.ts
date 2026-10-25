@@ -45,8 +45,8 @@ import { PageDoc } from "./pageDoc.ts";
 /** Create a notebook page. `pageId` is minted by the caller, as activity ids are. */
 export const CreatePage = z.object({
   type: z.literal("CreatePage"),
-  tripId: z.string().uuid(),
-  pageId: z.string().uuid(),
+  tripId: z.string().guid(),
+  pageId: z.string().guid(),
   title: z.string().min(1),
   context: PageContext,
   content: PageDoc,
@@ -82,8 +82,8 @@ export type CreatePage = z.infer<typeof CreatePage>;
  */
 export const EditPage = z.object({
   type: z.literal("EditPage"),
-  tripId: z.string().uuid(),
-  pageId: z.string().uuid(),
+  tripId: z.string().guid(),
+  pageId: z.string().guid(),
   title: z.string().min(1).optional(),
   content: PageDoc.optional(),
   expectedUpdatedAt: PageRevision.optional(),
@@ -93,8 +93,8 @@ export type EditPage = z.infer<typeof EditPage>;
 /** Remove a page. The Overview refuses this — see `decidePageCommand`. */
 export const DeletePage = z.object({
   type: z.literal("DeletePage"),
-  tripId: z.string().uuid(),
-  pageId: z.string().uuid(),
+  tripId: z.string().guid(),
+  pageId: z.string().guid(),
 });
 export type DeletePage = z.infer<typeof DeletePage>;
 
@@ -105,8 +105,8 @@ export const PageCreatedV1 = z.object({
   type: z.literal("PageCreated"),
   version: z.literal(1),
   payload: z.object({
-    tripId: z.string().uuid(),
-    pageId: z.string().uuid(),
+    tripId: z.string().guid(),
+    pageId: z.string().guid(),
     title: z.string().min(1),
     context: PageContext,
     content: PageDoc,
@@ -134,8 +134,8 @@ export const PageEditedV1 = z.object({
   type: z.literal("PageEdited"),
   version: z.literal(1),
   payload: z.object({
-    tripId: z.string().uuid(),
-    pageId: z.string().uuid(),
+    tripId: z.string().guid(),
+    pageId: z.string().guid(),
     title: z.string().min(1).optional(),
     content: PageDoc.optional(),
   }),
@@ -146,8 +146,8 @@ export const PageDeletedV1 = z.object({
   type: z.literal("PageDeleted"),
   version: z.literal(1),
   payload: z.object({
-    tripId: z.string().uuid(),
-    pageId: z.string().uuid(),
+    tripId: z.string().guid(),
+    pageId: z.string().guid(),
   }),
 });
 export type PageDeletedV1 = z.infer<typeof PageDeletedV1>;

@@ -75,7 +75,7 @@ export function parseDiscoverUrl(params: RawParams): DiscoverUrlState {
     rating: pick(RatingFloor, first(params.rating), DISCOVER_URL_DEFAULTS.rating),
     // Ticketed and Lodging are no value of it (ADR-070 §2, §4), so they read as no filter.
     tag: pick(TagFilter, first(params.tag), DISCOVER_URL_DEFAULTS.tag),
-    after: z.string().uuid().safeParse(first(params.after)).data ?? DISCOVER_URL_DEFAULTS.after,
+    after: z.string().guid().safeParse(first(params.after)).data ?? DISCOVER_URL_DEFAULTS.after,
   };
 }
 

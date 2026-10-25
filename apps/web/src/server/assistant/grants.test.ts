@@ -27,7 +27,7 @@ const READ_TOOLS = ["read_trip", "read_day", "find_days", "find_free_time", "sea
 // `READ_TOOLS`, because the two differ on the page surface: the reads are
 // offered there and this is not.
 const PLACE_TOOLS = ["search_places"];
-const COMMAND_TOOLS = BatchableCommand.innerType().options.map((option) => option.shape.type.value as string);
+const COMMAND_TOOLS = BatchableCommand.options.map((option) => option.shape.type.value as string);
 const PAGE_TOOLS = ["insert_text", "insert_widget"];
 // The widget lookup (ADR-057): `pages` at `read`, so offered wherever the page
 // tools are and nowhere else, and before them in registry order.

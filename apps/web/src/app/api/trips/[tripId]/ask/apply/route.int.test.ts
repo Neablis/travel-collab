@@ -675,8 +675,9 @@ describe("POST /api/trips/:id/ask/apply", () => {
       [{ commands: [] }, "an approval must carry at least one change"],
       [{ commands: [{ type: "NotACommand" }] }, "malformed change in this approval"],
       // zod's own message for a missing `commands` key — the shape of the
-      // body was wrong before the rule about its contents could apply.
-      [{}, "Required"],
+      // body was wrong before the rule about its contents could apply. (zod 3
+      // said "Required"; zod 4 says what it expected.)
+      [{}, "expected array, received undefined"],
     ])("400s %j", async (body, message) => {
       const tripId = await seedTrip();
       const res = await handleApplyProposalRequest(req(tripId, body), tripId, undefined, silent);

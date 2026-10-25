@@ -405,14 +405,14 @@ export const COST_DOC =
 
 export const AddActivity = z.object({
   type: z.literal("AddActivity"),
-  tripId: z.string().uuid(),
-  activityId: z.string().uuid(),
+  tripId: z.string().guid(),
+  activityId: z.string().guid(),
   // M13 link 5. Both optional: a stop added without saying who it is for is
   // the ordinary case, and the zero values are "nobody" and "everybody's
   // business", not "unknown".
   bookedBy: z.string().nullable().optional(),
   participants: z.array(z.string()).optional(),
-  dayId: z.string().uuid().optional(), // omitted = backlog
+  dayId: z.string().guid().optional(), // omitted = backlog
   title: z.string().min(1).max(200),
   timeWindow: TimeWindow.optional(),
   location: Location.optional(),
@@ -462,8 +462,8 @@ export type AddActivity = z.infer<typeof AddActivity>;
 // Omitted field = unchanged; null = cleared. Title cannot be cleared.
 export const UpdateActivity = z.object({
   type: z.literal("UpdateActivity"),
-  tripId: z.string().uuid(),
-  activityId: z.string().uuid(),
+  tripId: z.string().guid(),
+  activityId: z.string().guid(),
   // M13 link 5. Omitted = unchanged; `null` clears `bookedBy`. `participants`
   // is replaced wholesale rather than added to — the editor hands back the
   // whole list, and a partial add/remove command would need its own conflict
@@ -516,17 +516,17 @@ export type UpdateActivity = z.infer<typeof UpdateActivity>;
 
 export const MoveActivity = z.object({
   type: z.literal("MoveActivity"),
-  tripId: z.string().uuid(),
-  activityId: z.string().uuid(),
-  toDayId: z.string().uuid().nullable(), // null = backlog
+  tripId: z.string().guid(),
+  activityId: z.string().guid(),
+  toDayId: z.string().guid().nullable(), // null = backlog
   position: z.number().int().nonnegative(),
 });
 export type MoveActivity = z.infer<typeof MoveActivity>;
 
 export const RemoveActivity = z.object({
   type: z.literal("RemoveActivity"),
-  tripId: z.string().uuid(),
-  activityId: z.string().uuid(),
+  tripId: z.string().guid(),
+  activityId: z.string().guid(),
 });
 export type RemoveActivity = z.infer<typeof RemoveActivity>;
 
@@ -670,9 +670,9 @@ export const ActivityAddedV1 = z.object({
   version: z.literal(1),
   payload: z
     .object({
-      tripId: z.string().uuid(),
-      activityId: z.string().uuid(),
-      dayId: z.string().uuid().nullable(),
+      tripId: z.string().guid(),
+      activityId: z.string().guid(),
+      dayId: z.string().guid().nullable(),
     })
     .extend(ActivitySnapshot.shape),
 });
@@ -684,8 +684,8 @@ export const ActivityUpdatedV1 = z.object({
   version: z.literal(1),
   payload: z
     .object({
-      tripId: z.string().uuid(),
-      activityId: z.string().uuid(),
+      tripId: z.string().guid(),
+      activityId: z.string().guid(),
     })
     .extend(ActivitySnapshot.shape),
 });
@@ -695,9 +695,9 @@ export const ActivityMovedV1 = z.object({
   type: z.literal("ActivityMoved"),
   version: z.literal(1),
   payload: z.object({
-    tripId: z.string().uuid(),
-    activityId: z.string().uuid(),
-    toDayId: z.string().uuid().nullable(),
+    tripId: z.string().guid(),
+    activityId: z.string().guid(),
+    toDayId: z.string().guid().nullable(),
     position: z.number().int().nonnegative(),
     // M41 D6: the day a stop moved onto the rack left, so a parked stop can
     // say which day it came from. Stamped by the decider from state, never
@@ -708,7 +708,7 @@ export const ActivityMovedV1 = z.object({
     // Optional rather than defaulted, so the envelopes and fixtures that
     // predate it stay valid as they are, and absent and `null` read the same:
     // no origin.
-    fromDayId: z.string().uuid().nullable().optional(),
+    fromDayId: z.string().guid().nullable().optional(),
   }),
 });
 export type ActivityMovedV1 = z.infer<typeof ActivityMovedV1>;
@@ -717,8 +717,8 @@ export const ActivityRemovedV1 = z.object({
   type: z.literal("ActivityRemoved"),
   version: z.literal(1),
   payload: z.object({
-    tripId: z.string().uuid(),
-    activityId: z.string().uuid(),
+    tripId: z.string().guid(),
+    activityId: z.string().guid(),
   }),
 });
 export type ActivityRemovedV1 = z.infer<typeof ActivityRemovedV1>;

@@ -195,7 +195,7 @@ export type AdminGrantInput = z.infer<typeof AdminGrantInput>;
  * back as a 500 instead of the caller's 400.
  */
 export const AdminRevokeGrantInput = z.object({
-  grantId: z.string().uuid(),
+  grantId: z.string().guid(),
 });
 export type AdminRevokeGrantInput = z.infer<typeof AdminRevokeGrantInput>;
 

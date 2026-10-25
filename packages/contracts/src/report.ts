@@ -20,9 +20,9 @@ export type ReportStatus = z.infer<typeof ReportStatus>;
  * what the reporter must be able to read.
  */
 export const ReportTarget = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("saved_day"), savedDayId: z.string().uuid() }),
-  z.object({ kind: z.literal("review"), savedDayId: z.string().uuid(), reviewerId: z.string().min(1) }),
-  z.object({ kind: z.literal("trip_message"), tripId: z.string().uuid(), messageId: z.string().uuid() }),
+  z.object({ kind: z.literal("saved_day"), savedDayId: z.string().guid() }),
+  z.object({ kind: z.literal("review"), savedDayId: z.string().guid(), reviewerId: z.string().min(1) }),
+  z.object({ kind: z.literal("trip_message"), tripId: z.string().guid(), messageId: z.string().guid() }),
 ]);
 export type ReportTarget = z.infer<typeof ReportTarget>;
 export type ReportTargetKind = ReportTarget["kind"];
@@ -37,7 +37,7 @@ export const CreateReportInput = z.object({
 export type CreateReportInput = z.infer<typeof CreateReportInput>;
 
 export const ContentReport = z.object({
-  reportId: z.string().uuid(),
+  reportId: z.string().guid(),
   target: ReportTarget,
   reporterId: z.string().min(1),
   reason: ReportReason,

@@ -15,11 +15,11 @@ import { nearbyStopsFor } from "@/server/nearbyStops";
 // A coordinate is a finite number or absent. Not `z.coerce.number()` alone:
 // it maps "" to 0, and `?lat=&lng=` would then be a point off the coast of
 // Ghana rather than a malformed request (the `events` route's reason).
-const Coordinate = z.string().trim().min(1).pipe(z.coerce.number().finite());
+const Coordinate = z.string().trim().min(1).pipe(z.coerce.number<string>().finite());
 
 const Query = z
   .object({
-    dayId: z.string().uuid().optional(),
+    dayId: z.string().guid().optional(),
     lat: Coordinate.pipe(z.number().min(-90).max(90)).optional(),
     lng: Coordinate.pipe(z.number().min(-180).max(180)).optional(),
   })

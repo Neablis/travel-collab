@@ -5,7 +5,7 @@ import { ActivityMode, ActivitySnapshot, COST_DOC, StoredActivityKind, ActivityT
 import { Money } from "./money.ts";
 
 export const ActivityView = z.object({
-  activityId: z.string().uuid(),
+  activityId: z.string().guid(),
   title: z.string(),
   timeWindow: TimeWindow.nullable(),
   location: Location.nullable(),
@@ -89,7 +89,7 @@ export type ActivityViewCoversSnapshot = AssertTrue<
 
 // The board read model: one document per trip, conflicts included.
 export const TripDetail = z.object({
-  tripId: z.string().uuid(),
+  tripId: z.string().guid(),
   name: z.string(),
   status: TripStatus,
   startDate: z.string().nullable(),
@@ -109,20 +109,20 @@ export const TripDetail = z.object({
   forkedFrom: TripLineage.nullable().default(null),
   days: z.array(
     z.object({
-      dayId: z.string().uuid(),
-      activityIds: z.array(z.string().uuid()),
+      dayId: z.string().guid(),
+      activityIds: z.array(z.string().guid()),
       date: z.string().nullable(),        // M3
       costSubtotal: z.number().int(),     // M4 (minor units)
     }),
   ),
-  backlog: z.array(z.string().uuid()),
+  backlog: z.array(z.string().guid()),
   // M41 D6: for each parked stop whose last move left a day, that day's id.
   // Derived in replay from `ActivityMoved.fromDayId`, so a stop parked before
   // M41, or by a revert, has no entry and shows no origin rather than a wrong
   // one. Optional: a stored doc written before it has no such key, and
   // absent reads as empty.
-  parkedFrom: z.record(z.string().uuid()).optional(),
-  activities: z.record(ActivityView),
+  parkedFrom: z.record(z.string(), z.string().guid()).optional(),
+  activities: z.record(z.string(), ActivityView),
   conflicts: z.array(Conflict),
   dismissedConflictIds: z.array(z.string()), // sorted; ids are content-derived
   createdAt: z.string(), // ISO 8601, from the first envelope
