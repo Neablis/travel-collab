@@ -1,5 +1,8 @@
+"use client";
+
 import { UNSPLASH_HOME, unsplashCreditHref, type TripCover } from "@tc/contracts";
 import { cn } from "@/lib/cn";
+import { coverImageSrc, useCoverShown } from "./CoverImage";
 
 // Unsplash's guidelines (plan rule 3): wherever the photo appears, the
 // photographer and Unsplash are both credited and both linked, with the
@@ -11,8 +14,8 @@ type UrlCover = Extract<TripCover, { source: "url" }>;
 
 /** What a credit needs: a `TripCover`, or a picker candidate, has it. */
 export type CoverCreditPhoto =
-  | (Pick<Extract<TripCover, { source: "unsplash" }>, "photographerName" | "photographerUrl"> & { source?: "unsplash" })
-  | Pick<UrlCover, "source" | "credit">;
+  | (Pick<Extract<TripCover, { source: "unsplash" }>, "urls" | "photographerName" | "photographerUrl"> & { source?: "unsplash" })
+  | Pick<UrlCover, "source" | "credit" | "proxySrc">;
 
 // The 44px phone floor (§13.1), released at `md`: on the #354 preview a
 // credit link measured 61×15 at 390px. Inline-flex keeps it in the sentence.
@@ -32,9 +35,12 @@ function creditHref(url: string | null): string | undefined {
  * "Photo by <name> on Unsplash", both linked, each opening a new tab. Small
  * and slate, so it reads as a caption under whatever the photo sits in. A URL
  * cover's is "Photo by <name>", linked when it has a link, and nothing when
- * it names no one.
+ * it names no one. Nothing either while the photo is not on screen (no
+ * `proxySrc`, or it failed to load): there is no photo to credit.
  */
 export function CoverCredit({ photo, className }: { photo: CoverCreditPhoto; className?: string }) {
+  const shown = useCoverShown(coverImageSrc(photo));
+  if (!shown) return null;
   if (photo.source === "url") return photo.credit === null ? null : <UrlCredit credit={photo.credit} className={className} />;
   return (
     <p className={cn("text-xs text-slate", className)}>

@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { CoverImage, coverSrc } from "./CoverImage";
 
 const unsplash = {
@@ -47,9 +47,10 @@ describe("CoverImage", () => {
   });
 
   // Decision 7: a photo that fails to load leaves the plain box, not a broken image.
+  // Failures are remembered per src for the tab, so each failing test has its own.
   it("drops a photo that fails to load and keeps what is laid over it", () => {
     render(
-      <CoverImage photo={unsplash} sizes="100vw">
+      <CoverImage photo={{ ...unsplash, urls: { ...unsplash.urls, regular: "https://images.unsplash.com/gone-1" } }} sizes="100vw">
         <button type="button">Menu</button>
       </CoverImage>,
     );
@@ -68,5 +69,19 @@ describe("CoverImage", () => {
     unmount();
     render(<CoverImage photo={cover} sizes="100vw" />);
     expect(screen.queryByRole("img")).toBeNull();
+  });
+
+  // A server-rendered photo can fail before hydration, and React attaches
+  // `onError` only then, without replaying it: the box must still fall back.
+  it("drops a photo that had already failed when it mounted, and keeps one that had loaded", () => {
+    vi.spyOn(HTMLImageElement.prototype, "complete", "get").mockReturnValue(true);
+    const naturalWidth = vi.spyOn(HTMLImageElement.prototype, "naturalWidth", "get").mockReturnValue(1200);
+    const { unmount } = render(<CoverImage photo={unsplash} sizes="100vw" />);
+    expect(screen.getByRole("img")).toBeTruthy();
+    unmount();
+    naturalWidth.mockReturnValue(0);
+    render(<CoverImage photo={{ ...unsplash, urls: { ...unsplash.urls, regular: "https://images.unsplash.com/gone-2" } }} sizes="100vw" />);
+    expect(screen.queryByRole("img")).toBeNull();
+    vi.restoreAllMocks();
   });
 });

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useSyncExternalStore, type ReactNode } from "react";
 import { preload } from "react-dom";
 import type { TripCover } from "@tc/contracts";
 import { cn } from "@/lib/cn";
@@ -50,6 +50,41 @@ const BLANK = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAA
 const PHONE_MEDIA = "(max-width: 767px)";
 /** Its complement: where a `notOnPhone` photo is shown, and so preloaded. */
 const ABOVE_PHONE_MEDIA = "(min-width: 768px)";
+
+/** The src a cover's `<img>` loads, or `undefined` when it has none to load. */
+export function coverImageSrc(
+  photo: { source?: "unsplash"; urls: { regular: string } } | { source: "url"; proxySrc?: string },
+): string | undefined {
+  return photo.source === "url" ? photo.proxySrc : photo.urls.regular;
+}
+
+// Srcs that failed to load in this tab. Shared rather than one image's state,
+// so the credit, which sits elsewhere on each surface, hides with the photo it
+// credits (decision 7). Keyed by src, so a new photo gets its own chance.
+// Only a browser event writes it, so a server render always shows the photo.
+const failedSrcs = new Set<string>();
+const failListeners = new Set<() => void>();
+
+function markFailed(src: string | undefined) {
+  if (src === undefined || failedSrcs.has(src)) return;
+  failedSrcs.add(src);
+  for (const listener of failListeners) listener();
+}
+
+function subscribeToFailures(listener: () => void) {
+  failListeners.add(listener);
+  return () => failListeners.delete(listener);
+}
+
+/** Whether a cover's photo is on screen: it has a src to load, and that src has not failed. */
+export function useCoverShown(src: string | undefined): boolean {
+  const failed = useSyncExternalStore(
+    subscribeToFailures,
+    () => src !== undefined && failedSrcs.has(src),
+    () => false,
+  );
+  return src !== undefined && !failed;
+}
 
 /**
  * The image's alt text: Unsplash's description, else who took it (plan rule
@@ -116,10 +151,9 @@ export function CoverImage({
   notOnPhone?: boolean;
   children?: ReactNode;
 }) {
-  // Which src failed, not whether one did: a new photo gets its own chance.
-  const [failedSrc, setFailedSrc] = useState<string>();
   const url = photo.source === "url";
-  const src = url ? photo.proxySrc : photo.urls.regular;
+  const src = coverImageSrc(photo);
+  const shown = useCoverShown(src);
   const srcSet = url ? undefined : WIDTHS.map((w) => `${coverSrc(photo.urls.raw, w)} ${w}w`).join(", ");
   if (notOnPhone && priority && src !== undefined) {
     preload(src, {
@@ -140,13 +174,17 @@ export function CoverImage({
       loading={eager || priority ? "eager" : "lazy"}
       fetchPriority={priority ? "high" : undefined}
       decoding="async"
-      onError={() => setFailedSrc(src)}
+      onError={() => markFailed(src)}
+      // A server-rendered image can fail before hydration, and React attaches
+      // `onError` only then, without replaying it: check once it is ours.
+      ref={(el) => {
+        if (el?.complete && el.naturalWidth === 0) markFailed(src);
+      }}
       // eslint-disable-next-line no-restricted-syntax -- the cover's stored framing, 0–100 per photo (M49 decision 9): data, not a style a token could name
       style={{ objectPosition: `center ${photo.position ?? 50}%` }}
       className="absolute inset-0 size-full object-cover"
     />
   );
-  const shown = src !== undefined && src !== failedSrc;
   return (
     <div className={cn("relative overflow-hidden bg-moss", className)}>
       {!shown ? null : notOnPhone ? (
