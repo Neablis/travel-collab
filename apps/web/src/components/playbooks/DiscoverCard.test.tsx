@@ -54,6 +54,7 @@ function day(over: Partial<DiscoverDay> = {}): DiscoverDay {
     description: null,
     tags: [],
     namedTags: [],
+    linkedTags: [],
     ...over,
   };
 }
@@ -251,12 +252,12 @@ describe("a Discover card's description", () => {
     expect(chips.map((chip) => chip.textContent)).toEqual(["Sight ", "Food "]);
   });
 
-  // M42 part 5: a chip links to its tag's page only when the day's
-  // description names the tag, which is when the page lists the day (ADR-070
-  // §4). Four meals and a bar: Food links, and the Nightlife chip, whose page
-  // does not list this day, is text.
-  it("links a tag its description names, and leaves a tag it does not as text", () => {
-    const foodie = day({ description: "Foodie", tags: ["meal", "nightlife"], namedTags: ["meal"] });
+  // A chip links to its tag's page when the tag HAS one (the lattice's
+  // global pages), not when the description names it: four meals and a bar.
+  // Food links, and the Nightlife chip, whose tag has no page in this
+  // fixture, is text.
+  it("links a tag with a page, and leaves a tag without one as text", () => {
+    const foodie = day({ description: "Foodie", tags: ["meal", "nightlife"], namedTags: ["meal"], linkedTags: ["meal"] });
     render(<DiscoverCard day={foodie} origin={{ from: "playbooks" }} />);
     const chips = within(screen.getByTestId(`tag-chips-${foodie.savedDayId}`));
     expect(chips.getAllByRole("link").map((link) => [link.textContent, link.getAttribute("href")])).toEqual([
@@ -265,10 +266,23 @@ describe("a Discover card's description", () => {
     expect(chips.getByTestId("tag-chip-nightlife").textContent).toBe("Nightlife ");
   });
 
-  // A day whose description names nothing ("A bit of everything") is on no
-  // tag page, and a chip for a tag no description names would lead to a 404.
-  it("links no chip on a day whose description names no tag", () => {
-    const mixed = day({ description: "A bit of everything", tags: ["shopping", "meal"], namedTags: [] });
+  // The fix for the meal page's dead chips: a tag the description does not
+  // name still links when its page exists — the chip names the page, not
+  // the day's membership of it.
+  it("links a tag its description does not name when the tag has a page", () => {
+    const foodie = day({ description: "Foodie", tags: ["meal", "drinks"], namedTags: ["meal"], linkedTags: ["meal", "drinks"] });
+    render(<DiscoverCard day={foodie} origin={{ from: "playbooks" }} />);
+    const chips = within(screen.getByTestId(`tag-chips-${foodie.savedDayId}`));
+    expect(chips.getAllByRole("link").map((link) => [link.textContent, link.getAttribute("href")])).toEqual([
+      ["Food ", "/playbooks/tag/meal"],
+      ["Drinks ", "/playbooks/tag/drinks"],
+    ]);
+  });
+
+  // A day with no tag on a page links nothing: a chip for a tag with no page
+  // would lead to a 404.
+  it("links no chip when no tag has a page", () => {
+    const mixed = day({ description: "A bit of everything", tags: ["shopping", "meal"], namedTags: [], linkedTags: [] });
     render(<DiscoverCard day={mixed} origin={{ from: "playbooks" }} />);
     const chips = within(screen.getByTestId(`tag-chips-${mixed.savedDayId}`));
     expect(chips.queryAllByRole("link")).toEqual([]);

@@ -404,6 +404,17 @@ export const DiscoverDay = z.object({
    * or to none. **Not on the public API** — `public-api/discover.ts` drops it.
    */
   namedTags: z.array(ActivityTagDescribed).default([]),
+  /**
+   * The day's tags with a global tag page (`/playbooks/tag/<tag>`): the chips
+   * that link. Derived from the published lattice, not from what the
+   * description names — a day of meals with one bar links its Drinks chip
+   * when some published day names Drinks, even though this day is on no
+   * Drinks page. A tag with no page (today Lodging, Ticketed, Sports) stays
+   * text, so a chip never leads to a 404. Public days only, as `namedTags`:
+   * a private day's chips stay text. **Not on the public API** either —
+   * `public-api/discover.ts` drops it with `namedTags`.
+   */
+  linkedTags: z.array(ActivityTagDescribed).default([]),
 });
 export type DiscoverDay = z.infer<typeof DiscoverDay>;
 

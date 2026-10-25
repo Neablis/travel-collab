@@ -51,7 +51,7 @@ type Query = z.infer<typeof Query>;
 // client mid-rollout can parse a card from before it; a caller of v1 reads
 // only what this server sends, and an optional field would tell them to
 // handle its absence for nothing.
-const ApiDiscoverDay = DiscoverDay.omit({ ownerDisplayName: true, namedTags: true }).extend({ cover: TripCover.nullable() });
+const ApiDiscoverDay = DiscoverDay.omit({ ownerDisplayName: true, namedTags: true, linkedTags: true }).extend({ cover: TripCover.nullable() });
 type ApiDiscoverDay = z.infer<typeof ApiDiscoverDay>;
 
 export const discoverPlaybooksDef: CollectionDef<ApiDiscoverDay> = {
@@ -79,6 +79,6 @@ export const discoverPlaybooksDef: CollectionDef<ApiDiscoverDay> = {
       },
       page,
     );
-    return days.map(({ ownerDisplayName: _name, namedTags: _named, ...day }) => day);
+    return days.map(({ ownerDisplayName: _name, namedTags: _named, linkedTags: _linked, ...day }) => day);
   },
 };
