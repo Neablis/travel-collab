@@ -39,7 +39,7 @@ confirmed fixed"*). Evidence, retro and spend are in
 **Next action:** build M49's part 1 (`build-a-part`).
 Open follow-ups from M52: KI-2026-10-24-a to -o (`docs/known-issues/open/`). Outside M52:
 PR 491 (dependabot) is red, and GitHub reports 5 dependabot vulnerabilities on `main` (2 high,
-3 moderate). After M49 the order is M43 → M44, with M48 parked.
+3 moderate). After M49 the order is M43 → M44 → M53 (minted 2026-10-25 from an SEO audit, not scoped), with M48 parked.
 
 **M51 closed 2026-10-22, gate 11 of 11**, on Mitchell's ruling at the close: his walk at 390, 1440
 and 3440 works, and the parts are merged (PRs 506–511, 513, 514, 516; part 0 PR 505 merged early;
@@ -89,7 +89,7 @@ Also merged beside it: `docs/guidelines/building-with-judgment.md` (PR 468).
 **M45 closed 2026-10-13, gate 12 of 12** (part 0 PR 420); evidence and retro in
 `docs/milestones/M45-the-assistant-beyond-one-trip.md`. Accepted gap: KI-2026-10-13-a.
 
-Order: `… M42 ✓ → M45 ✓ → M46 ✓ → M47 ✓ → M50 ✓ → M51 ✓ → M52 ✓ → M48 (parked) → M49 → M43 → M44`; the M51 reorder is in
+Order: `… M42 ✓ → M45 ✓ → M46 ✓ → M47 ✓ → M50 ✓ → M51 ✓ → M52 ✓ → M48 (parked) → M49 → M43 → M44 → M53`; the M51 reorder is in
 `docs/milestones/README.md`, *2026-10-20 — minted: M51, ahead of M49*. Earlier closed milestones'
 narrative is in `docs/retros/2026-10-16-status-archive.md` and each milestone's own file.
 
