@@ -20,10 +20,17 @@ const dayOf = (n: number) => new Date(Date.UTC(2026, 0, 1) + n * DAY_MS).toISOSt
 // The reader's date is mostly NEAR the trip day — within a fortnight either
 // side, where the modes change — and sometimes anywhere, including across a
 // year end. Two independent dates would land on "today" about once a run.
+// The near offset is 0 — the reader on the trip day — half the time on its own
+// (KI-2026-10-14-c): uniform over -14..14 it was 1 in 29, so "today" came up
+// about 6 times in 1000 cases and a run seeing none failed the coverage check
+// below, once, on PR 424.
 const datesArb = fc.integer({ min: 20, max: 800 }).chain((n) =>
   fc.tuple(
     fc.constant(dayOf(n)),
-    fc.oneof(fc.integer({ min: -14, max: 14 }).map((d) => dayOf(n + d)), fc.integer({ min: 0, max: 820 }).map(dayOf)),
+    fc.oneof(
+      fc.oneof(fc.constant(0), fc.integer({ min: -14, max: 14 })).map((d) => dayOf(n + d)),
+      fc.integer({ min: 0, max: 820 }).map(dayOf),
+    ),
   ),
 );
 

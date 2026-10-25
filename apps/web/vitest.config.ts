@@ -37,7 +37,9 @@ export default defineConfig({
     // most: it loads `.env.local`, which carries real vendor keys on a
     // developer machine. Postgres is TCP, not `fetch`, so the guard does not
     // see it. See `src/test-support/networkGuard.ts`.
-    setupFiles: ["./src/test-support/networkGuard.setup.ts"],
+    // And one pinned fast-check seed, as in the unit lane: quota.int.test.ts's
+    // floors count branches only some cases reach (KI-2026-10-14-c).
+    setupFiles: ["./src/test-support/networkGuard.setup.ts", "./src/test-support/fastCheckSeed.setup.ts"],
     reporters: ["dot"],
   },
 });

@@ -8,6 +8,10 @@ import { clearQueryCache } from "./src/lib/queryCache";
 // passthrough: so a request with a handler is still answered by MSW and
 // an unhandled one lands on the guard rather than on the network.
 import "./src/test-support/networkGuard.setup";
+// Every fast-check property draws from one pinned seed, so a witness floor
+// holds or fails for a reason rather than on a rare draw (KI-2026-10-14-c).
+// `FC_SEED=random` explores; the why is in the file.
+import "./src/test-support/fastCheckSeed.setup";
 
 // `src/server/config.ts` throws at import time if DATABASE_URL is unset (main's
 // "fail loudly, no silent localhost fallback" change). Unit tests run in jsdom
