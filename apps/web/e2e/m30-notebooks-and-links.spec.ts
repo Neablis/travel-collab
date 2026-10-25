@@ -36,15 +36,13 @@ async function finishEditing(page: Page): Promise<void> {
 // A caret on a line of its own under the page's first heading, then a row from
 // the rail — `m14-notebook-widgets.spec.ts`' two-beat insert.
 async function insertFromRail(page: Page, name: RegExp, search: string): Promise<void> {
-  // **Clicked until the settings let go**, and that is a known defect rather
-  // than patience: right after a link widget is bound from its settings, the
-  // first click into the page sometimes leaves those settings open — 3 of 8
-  // repeat runs on 2026-09-26, always here, never elsewhere in the walk.
-  // KI-2026-09-26-a has the evidence; a person clicks again, and so does this.
-  await expect(async () => {
-    await page.locator(".tc-page-editor h2").first().click();
-    await expect(page.getByTestId("widget-settings")).toHaveCount(0, { timeout: 1000 });
-  }).toPass();
+  // **One click lets go of the settings, and that is asserted.** On 2026-09-26
+  // the first click after binding a link sometimes left them open (3 of 8
+  // runs), and this clicked until they let go. In 62 runs on 2026-10-25 (124
+  // first clicks) it never happened, so the click is single again: if it comes
+  // back, it fails here (resolved KI-2026-09-26-a).
+  await page.locator(".tc-page-editor h2").first().click();
+  await expect(page.getByTestId("widget-settings")).toHaveCount(0);
   await page.keyboard.press("End");
   await page.keyboard.press("Enter");
   await expect(page.getByTestId("widget-settings")).toHaveCount(0);
