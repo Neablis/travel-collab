@@ -1,4 +1,4 @@
-### KI-2026-10-03-b — `pg`'s sslmode deprecation warning makes a successful request show up at error level in the runtime log
+### KI-2026-10-03-b — `pg`'s sslmode deprecation warning makes a successful request show up at error level in the runtime log — RESOLVED
 
 - **Severity:** reliability of the signal, not of the app. Nothing a person
   sees changes, and every affected request returns 200. What is wrong is that
@@ -58,3 +58,14 @@
   (*Fetching*, where the error-level habit is described).
 - **First noted:** 2026-10-03, reading the first live production `/ask`
   turns after M31's ledger shipped.
+- **Resolved, 2026-10-24 (KI sweep):** fix direction 2. `server/db/sslMode.ts`'s
+  `withExplicitSslMode` rewrites `sslmode=prefer|require|verify-ca` to `verify-full` (a textual
+  swap of the one parameter, so the credentials are not re-encoded; a `uselibpqcompat=true` string
+  is left alone), and `client.ts` builds the pool from it. Reproduced first: a `pg` pool on a
+  `?sslmode=require` string printed `(node:7586) Warning: SECURITY WARNING: The SSL modes 'prefer',
+  'require', and 'verify-ca' are treated as aliases for 'verify-full'.`; the same with
+  `verify-full` printed only the connection error. `sslMode.test.ts` spies on
+  `process.emitWarning` while `pg` parses Neon's rewritten string, and pins that the ssl config
+  pg builds is unchanged (`{}`); with the rewrite disabled it fails with `expected "emitWarning" to
+  not be called at all, but actually been called 1 times`. Still to see after deploy: one cold
+  request logged at `info` with no `SECURITY WARNING` line (*What would settle it*).

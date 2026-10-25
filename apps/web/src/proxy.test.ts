@@ -82,6 +82,33 @@ describe("proxy", () => {
     expect(hintSetCookie(res)).toMatch(/Max-Age=0|Expires=Thu, 01 Jan 1970/);
   });
 
+  // KI-2026-10-11-b: `/plans` was outside the matcher, so a signed-out visitor
+  // was served the page, whose plan read answered 401, and saw "Your plan
+  // could not be loaded just now".
+  it("matches /plans and sends a signed-out one to sign in, query and all", () => {
+    const paths = config.matcher.filter((entry) => typeof entry === "string");
+    expect(nextMatches(paths, "/plans")).toBe(true);
+    const res = handle(request("/plans?checkout=cs_test_1", { session: false, hint: false }));
+    expect(res.headers.get("location")).toBe(
+      "https://caesura.test/signin?callbackUrl=%2Fplans%3Fcheckout%3Dcs_test_1",
+    );
+  });
+
+  // Found beside KI-2026-10-11-b: `/account`, the other `(app)` route, was
+  // outside the matcher too, so a stranger was served the account shell.
+  it("matches /account and sends a signed-out one to sign in, tab and all", () => {
+    const paths = config.matcher.filter((entry) => typeof entry === "string");
+    expect(nextMatches(paths, "/account")).toBe(true);
+    const res = handle(request("/account?tab=billing", { session: false, hint: false }));
+    expect(res.headers.get("location")).toBe("https://caesura.test/signin?callbackUrl=%2Faccount%3Ftab%3Dbilling");
+  });
+
+  it("serves a signed-in /plans as it is", () => {
+    const res = handle(request("/plans", { session: true, hint: true }));
+    expect(res.headers.get("location")).toBeNull();
+    expect(res.headers.get("x-middleware-rewrite")).toBeNull();
+  });
+
   it("leaves a signed-out visitor with no hint without one", () => {
     const res = handle(request("/trips/t1", { session: false, hint: false }));
     expect(hintSetCookie(res)).toBeUndefined();

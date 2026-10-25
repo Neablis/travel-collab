@@ -6,9 +6,9 @@
 // copied option objects is how one of them ends up non-httpOnly without
 // anyone noticing, so they come from here instead.
 //
-// Deliberately dependency-free: `proxy.ts` runs in the Edge runtime with no
-// database and no Node built-ins (ADR-024), so anything it imports has to be
-// plain data.
+// Deliberately dependency-free: `proxy.ts` runs in front of every matched
+// request and is kept free of the database and of `@/server/*` (ADR-024), so
+// anything it imports has to be plain data.
 
 export const PENDING_ADMISSION_COOKIE = "pending_admission";
 

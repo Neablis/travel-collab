@@ -57,6 +57,30 @@ describe("findWidgetError", () => {
     }
   });
 
+  // KI-2026-10-24-g: a macro retired after the page saved it.
+  describe("with the page's stored document", () => {
+    const retired = macro("assistant.prompts", { count: 3, tone: "brief" });
+    const held = [inPara({ type: "text", text: "before" }), inPara(retired)];
+
+    it("carries a retired widget the page already held, however the params are ordered", () => {
+      const sameParamsReordered = macro("assistant.prompts", { tone: "brief", count: 3 });
+      expect(findWidgetError([inPara({ type: "text", text: "after" }), inPara(sameParamsReordered)], held)).toBeNull();
+    });
+
+    it.each([
+      ["the save adds it to a page that never held it", [inPara(retired)], []],
+      ["its params are not the ones the page held", [inPara(macro("assistant.prompts", { count: 9, tone: "brief" }))], held],
+      ["it is a different retired name", [inPara(macro("nope.nope"))], held],
+    ])("still refuses it when %s", (_label, content, stored) => {
+      expect(findWidgetError(content, stored)).toMatch(/Unknown macro/);
+    });
+
+    it("still judges the params of a registered widget the page already held", () => {
+      const bad = macro("attribute", { field: "account.email" });
+      expect(findWidgetError([inPara(bad)], [inPara(bad)])).toMatch(/Macro "attribute" params failed/);
+    });
+  });
+
   it("carries a node from a newer build rather than judging it", () => {
     expect(findWidgetError([{ type: "unknown", raw: { type: "futureNode", attrs: { name: "nope" } } }])).toBeNull();
   });
