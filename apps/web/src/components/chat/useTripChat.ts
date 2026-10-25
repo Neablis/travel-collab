@@ -60,6 +60,12 @@ export type TripChat = {
    * first and the rest `behind` it in the order sent, for the composer to give
    * back. `assistant` asks the assistant too (M52 decision 18), on the
    * poster's own plan.
+   *
+   * A POST unanswered for `CHAT_POST_TIMEOUT_MS` is not stored as far as this
+   * page knows, so it and those behind it come back rather than wait forever
+   * (KI-2026-10-14-a). Each send goes with a `clientKey`, kept when its text
+   * comes back, and sending those same words again reuses it: the server
+   * stores one message per key, so a send that did land is not stored twice.
    */
   post: (body: string, link?: ChatLink, assistant?: boolean) => Promise<Unsent | null>;
   postError: string | null;
@@ -168,6 +174,12 @@ export function useTripChat({
   // Two at once could be stored, and shown to everyone, in either order.
   const queue = useRef<Promise<unknown>>(Promise.resolve());
   const sent = useRef(0);
+  // The keys of sends given back unsent (KI-2026-10-14-a), by what each said,
+  // oldest first. Sending the same again, as the composer's given-back text
+  // is, goes under the same key, so a send that timed out after the server
+  // stored it is answered with that message rather than stored twice. Changed
+  // words are another message, under a key of its own.
+  const unsentKeys = useRef(new Map<string, string[]>());
   // The page as last rendered, for a send to note which messages it predates.
   const latestPage = useRef(page);
   useEffect(() => {
@@ -233,6 +245,20 @@ export function useTripChat({
   const post = useCallback(
     (body: string, link?: ChatLink, assistant = false) => {
       sent.current += 1;
+      const send = JSON.stringify([tripId, body, link?.kind ?? null, link?.id ?? null, assistant]);
+      const kept = unsentKeys.current.get(send) ?? [];
+      const clientKey = kept.shift() ?? crypto.randomUUID();
+      if (kept.length === 0) unsentKeys.current.delete(send);
+      // Every way out below that is not "stored" gives the text back. A failed
+      // head goes back FIRST: it is what the composer gives back first, so its
+      // retry must take its own key, not that of an identical send queued
+      // behind it (PR 565 review: a head failing twice would otherwise swap
+      // keys with it, and a head the server did store be stored again).
+      const giveBack = (unsent: Unsent) => {
+        const others = unsentKeys.current.get(send) ?? [];
+        unsentKeys.current.set(send, unsent.behind ? [...others, clientKey] : [clientKey, ...others]);
+        return unsent;
+      };
       const line: Sending["line"] = {
         messageId: `pending-${sent.current}`,
         authorId: me,
@@ -253,9 +279,15 @@ export function useTripChat({
       setChangeError(null);
       const turn = queue.current.then(async (): Promise<Unsent | null> => {
         // Taken back with an earlier send that was not stored.
-        if (!queued.current.some((s) => s.line === line)) return { body, behind: true };
+        if (!queued.current.some((s) => s.line === line)) return giveBack({ body, behind: true });
         const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-        const result = await postChatMessage(tripId, { body, ...(link === undefined ? {} : { link }), ...(assistant ? { assistant: true as const } : {}), timeZone });
+        const result = await postChatMessage(tripId, {
+          body,
+          ...(link === undefined ? {} : { link }),
+          ...(assistant ? { assistant: true as const } : {}),
+          timeZone,
+          clientKey,
+        });
         if (result.ok) {
           setQueued(queued.current.filter((s) => s.line !== line));
           // In the pending line's place, in the same render. A re-read may have
@@ -270,7 +302,10 @@ export function useTripChat({
         // This send is the queue's head, so every line still pending was sent
         // after it. They go back with it rather than be stored without it, and
         // each one's own turn, run next, resolves to its own text.
-        const unsent: Unsent = { body, behind: false };
+        // A send that timed out (`postChatMessage`'s own limit) is status 0
+        // as a dropped connection is: either may have been stored, which its
+        // key makes safe to send again.
+        const unsent = giveBack({ body, behind: false });
         setQueued([]);
         if (refused(result.error)) return unsent;
         // An ask is refused 402 for the asker's own plan as well, which leaves

@@ -695,7 +695,10 @@ describe("TripHeader — the avatar stack (D10)", () => {
     await userEvent.click(await screen.findByRole("button", { name: "Travellers on this trip" }));
 
     expect(screen.getByRole("dialog", { name: /trip settings/i })).toBeTruthy();
-    expect(scrolled.map((el) => el.id)).toEqual(["people"]);
+    // Once on opening, and again if Cover's reads settle first (`SettingsSheet`
+    // lands again then), so the count is timing; every landing is People.
+    expect(scrolled.length).toBeGreaterThan(0);
+    expect(new Set(scrolled.map((el) => el.id))).toEqual(new Set(["people"]));
   });
 
   it("does not scroll when the sheet is opened from the title", async () => {

@@ -1,4 +1,5 @@
-import { render, screen, fireEvent, within } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { Button } from "./button";
@@ -50,6 +51,72 @@ describe("overlays open via fireEvent.click (owned state, no Radix trigger)", ()
     expect(screen.queryByText("popover body")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "History" }));
     expect(screen.getByText("popover body")).toBeTruthy();
+  });
+});
+
+// KI-2026-10-09-b. A state-controlled Sheet has no `Dialog.Trigger`, so Radix
+// had nothing to hand focus back to and a keyboard reader who closed it landed
+// on <body>, every caller alike. The Sheet now hands it back to whatever had it
+// when it opened. Said through the keyboard, as ConflictsChip.test's case is
+// (the wall bans reading focus directly): Enter reopens the sheet only if the
+// opener has focus again.
+describe("a state-controlled Sheet gives focus back to what opened it", () => {
+  it("on Escape", async () => {
+    render(<SheetHarness />);
+    await userEvent.tab();
+    await userEvent.keyboard("{Enter}");
+    await screen.findByRole("dialog", { name: "Trip settings" });
+
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    await userEvent.keyboard("{Enter}");
+    expect(await screen.findByRole("dialog", { name: "Trip settings" })).toBeTruthy();
+  });
+
+  it("on its close button", async () => {
+    render(<SheetHarness />);
+    await userEvent.tab();
+    await userEvent.keyboard("{Enter}");
+    const sheet = await screen.findByRole("dialog", { name: "Trip settings" });
+
+    await userEvent.click(within(sheet).getByRole("button", { name: "Close" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    await userEvent.keyboard("{Enter}");
+    expect(await screen.findByRole("dialog", { name: "Trip settings" })).toBeTruthy();
+  });
+
+  it("leaves focus to a caller that places it itself", async () => {
+    const elsewhere = vi.fn();
+    function Placed() {
+      const [open, setOpen] = useState(false);
+      return (
+        <>
+          <Button onClick={() => setOpen(true)}>Open sheet</Button>
+          <Button onClick={elsewhere}>Elsewhere</Button>
+          <Sheet
+            open={open}
+            onOpenChange={setOpen}
+            title="Trip settings"
+            onCloseAutoFocus={(event) => {
+              event.preventDefault();
+              screen.getByRole("button", { name: "Elsewhere" }).focus();
+            }}
+          >
+            <p>sheet body</p>
+          </Sheet>
+        </>
+      );
+    }
+    render(<Placed />);
+    await userEvent.tab();
+    await userEvent.keyboard("{Enter}");
+    await screen.findByRole("dialog", { name: "Trip settings" });
+
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    await userEvent.keyboard("{Enter}");
+    expect(elsewhere).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("dialog")).toBeNull();
   });
 });
 
