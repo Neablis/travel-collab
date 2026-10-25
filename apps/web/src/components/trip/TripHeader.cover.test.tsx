@@ -168,8 +168,9 @@ describe("TripHeader — the cover band", () => {
     // No reload and no second read: the band is drawn from what the pick
     // answered, and the stand-in is gone — already behind the open sheet
     // (`hidden: true`, since the modal marks everything outside it hidden),
-    // and there when the sheet closes.
-    expect(await screen.findByRole("button", { name: "Edit cover", hidden: true })).toBeTruthy();
+    // and there when the sheet closes. Two covers: the band's and the
+    // picker's own preview, each its own *Edit cover*.
+    await waitFor(() => expect(screen.getAllByRole("button", { name: "Edit cover", hidden: true })).toHaveLength(2));
     await userEvent.keyboard("{Escape}");
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     expect(band()).not.toBeNull();
