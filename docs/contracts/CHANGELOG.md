@@ -33,8 +33,8 @@ Format:
   unticks them, so a zero is never a surprise. The owner (no `trip_travellers` row), a member
   granted without an invite, existing members (D2) and guests already defaulted to travelling.
 - Consumers updated: `apps/web` (`server/access/invites.ts`, `InviteDialog`, the People line
-  and the share page's line now read "Nobody is marked as travelling, so costs show as zero until
-  someone is.", `read_trip`'s description, the invite preview's `previewContext`, which carried
+  and the share page's line now read "Nobody is marked as travelling, so a stop nobody is picked
+  for costs nothing until someone is.", `read_trip`'s description, the invite preview's `previewContext`, which carried
   the trip's total on the floor and now picks its total's stop for a stand-in id).
   `@tc/domain` and `@tc/pages` call `stopTotal` unchanged.
 - Public API: `openapi.json`, `API_VERSION` (1.24.0) and `API_FINGERPRINT` are unchanged, since

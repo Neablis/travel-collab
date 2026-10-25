@@ -105,7 +105,7 @@ describe("SharedTripScreen", () => {
     fetchSharedTripMock.mockResolvedValue({ ok: true, value: view({ travellerCount: 0 }) });
     render(<SharedTripScreen token="tok" />);
     expect(
-      await screen.findByText("Nobody is marked as travelling, so costs show as zero until someone is."),
+      await screen.findByText("Nobody is marked as travelling, so a stop nobody is picked for costs nothing until someone is."),
     ).toBeTruthy();
     expect(screen.queryByText("0 travellers")).toBeNull();
   });

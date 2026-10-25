@@ -154,7 +154,7 @@ export function SharedTripScreen({ token }: { token: string }) {
                 nobody picked is then priced at zero (2026-10-25), which a bare
                 "0 travellers" beside the total would leave unexplained. */}
             {trip.travellerCount === 0
-              ? "Nobody is marked as travelling, so costs show as zero until someone is."
+              ? "Nobody is marked as travelling, so a stop nobody is picked for costs nothing until someone is."
               : `${trip.travellerCount} traveller${trip.travellerCount === 1 ? "" : "s"}`}
           </Text>
           {trip.tripCostTotal > 0 && (
