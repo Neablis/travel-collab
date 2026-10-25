@@ -477,6 +477,13 @@
       "when": 1792889493120,
       "tag": "0067_chat_client_key",
       "breakpoints": true
+    },
+    {
+      "idx": 68,
+      "version": "7",
+      "when": 1792901026308,
+      "tag": "0068_cover_source_position",
+      "breakpoints": true
     }
   ]
 }

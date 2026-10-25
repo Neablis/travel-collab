@@ -1,5 +1,5 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { CoverImage, coverSrc } from "./CoverImage";
 
 const unsplash = {
@@ -13,6 +13,10 @@ const unsplash = {
 };
 
 describe("CoverImage", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it("hotlinks Unsplash's own URLs, sized through imgix on the raw one", () => {
     render(<CoverImage photo={unsplash} sizes="100vw" />);
     const img = screen.getByRole("img", { name: "Maples over a temple roof" });
@@ -38,5 +42,106 @@ describe("CoverImage", () => {
     unmount();
     render(<CoverImage photo={unsplash} sizes="100vw" eager />);
     expect(screen.getByRole("img").getAttribute("loading")).toBe("eager");
+  });
+
+  // Decision 9: one vertical value frames the photo on every surface.
+  it("frames the photo at its stored vertical position", () => {
+    render(<CoverImage photo={{ ...unsplash, position: 30 }} sizes="100vw" />);
+    expect(screen.getByRole("img").style.objectPosition).toBe("center 30%");
+  });
+
+  // Decision 7: a photo that fails to load leaves the plain box, not a broken image.
+  // Failures are remembered per src for the tab, so each failing test has its own.
+  it("drops a photo that fails to load and keeps what is laid over it", () => {
+    render(
+      <CoverImage photo={{ ...unsplash, urls: { ...unsplash.urls, regular: "https://images.unsplash.com/gone-1" } }} sizes="100vw">
+        <button type="button">Menu</button>
+      </CoverImage>,
+    );
+    fireEvent.error(screen.getByRole("img"));
+    expect(screen.queryByRole("img")).toBeNull();
+    expect(screen.getByRole("button", { name: "Menu" })).toBeTruthy();
+  });
+
+  // ADR-081: a browser reads a URL cover from our origin only, never from `url`.
+  it("loads a URL cover from its proxy path alone, and shows none without one", () => {
+    const cover = { source: "url", alt: "A harbour at dusk", position: 50 } as const;
+    const { unmount } = render(<CoverImage photo={{ ...cover, proxySrc: "/api/cover-image?u=x&s=y" }} sizes="100vw" />);
+    const img = screen.getByRole("img", { name: "A harbour at dusk" });
+    expect(img.getAttribute("src")).toBe("/api/cover-image?u=x&s=y");
+    expect(img.getAttribute("srcset")).toBeNull();
+    unmount();
+    render(<CoverImage photo={cover} sizes="100vw" />);
+    expect(screen.queryByRole("img")).toBeNull();
+  });
+
+  // A server-rendered photo can fail before hydration, and React attaches
+  // `onError` only then, without replaying it: the box must still fall back.
+  it("drops a photo that had already failed when it mounted, and keeps one that had loaded", () => {
+    vi.spyOn(HTMLImageElement.prototype, "complete", "get").mockReturnValue(true);
+    vi.spyOn(HTMLImageElement.prototype, "currentSrc", "get").mockReturnValue("https://images.unsplash.com/requested");
+    const naturalWidth = vi.spyOn(HTMLImageElement.prototype, "naturalWidth", "get").mockReturnValue(1200);
+    const { unmount } = render(<CoverImage photo={unsplash} sizes="100vw" />);
+    expect(screen.getByRole("img")).toBeTruthy();
+    unmount();
+    naturalWidth.mockReturnValue(0);
+    render(<CoverImage photo={{ ...unsplash, urls: { ...unsplash.urls, regular: "https://images.unsplash.com/gone-2" } }} sizes="100vw" />);
+    expect(screen.queryByRole("img")).toBeNull();
+  });
+
+  // A lazy image the browser has not requested yet has no width either. If a
+  // browser called it complete, every cover below the fold would vanish.
+  it("keeps a lazy photo the browser has not requested yet", () => {
+    vi.spyOn(HTMLImageElement.prototype, "complete", "get").mockReturnValue(true);
+    vi.spyOn(HTMLImageElement.prototype, "naturalWidth", "get").mockReturnValue(0);
+    vi.spyOn(HTMLImageElement.prototype, "currentSrc", "get").mockReturnValue("");
+    render(<CoverImage photo={{ ...unsplash, urls: { ...unsplash.urls, regular: "https://images.unsplash.com/deferred-1" } }} sizes="100vw" />);
+    expect(screen.getByRole("img")).toBeTruthy();
+  });
+
+  // Coming back online asks again for every photo that failed, with a new
+  // request: the old element only ever holds the failed one.
+  it("asks again for a failed photo when the browser comes back online", () => {
+    render(<CoverImage photo={{ ...unsplash, urls: { ...unsplash.urls, regular: "https://images.unsplash.com/blip-1" } }} sizes="100vw" />);
+    fireEvent.error(screen.getByRole("img"));
+    const failed = screen.getByRole("img", { hidden: true });
+    fireEvent(window, new Event("online"));
+    expect(screen.getByRole("img")).not.toBe(failed);
+  });
+
+  // On a phone a `notOnPhone` image loads the blank GIF, not the photo, so its
+  // load says nothing about whether the photo is back.
+  it("keeps a failed photo hidden when a phone's blank stand-in loads", () => {
+    const photo = { ...unsplash, urls: { ...unsplash.urls, regular: "https://images.unsplash.com/blank-1" } };
+    render(
+      <>
+        <CoverImage photo={photo} sizes="100vw" />
+        <CoverImage photo={photo} sizes="100vw" notOnPhone />
+      </>,
+    );
+    fireEvent.error(screen.getAllByRole("img")[0]!);
+    vi.spyOn(HTMLImageElement.prototype, "currentSrc", "get").mockReturnValue(
+      "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7",
+    );
+    fireEvent.load(screen.getAllByRole("img", { hidden: true })[1]!);
+    expect(screen.queryAllByRole("img")).toHaveLength(0);
+  });
+
+  // Only a copy that failed holds a dead request; the copy that loaded is kept,
+  // not remounted, so the photo does not blink as it comes back.
+  it("asks again from the copy that failed and keeps the copy that loaded", () => {
+    const photo = { ...unsplash, urls: { ...unsplash.urls, regular: "https://images.unsplash.com/blip-2" } };
+    render(
+      <>
+        <CoverImage photo={photo} sizes="100vw" />
+        <CoverImage photo={photo} sizes="100vw" />
+      </>,
+    );
+    fireEvent.error(screen.getAllByRole("img")[0]!);
+    const [failed, loaded] = screen.getAllByRole("img", { hidden: true });
+    fireEvent.load(loaded!);
+    const [retried, kept] = screen.getAllByRole("img");
+    expect(kept).toBe(loaded);
+    expect(retried).not.toBe(failed);
   });
 });

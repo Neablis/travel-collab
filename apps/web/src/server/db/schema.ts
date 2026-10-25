@@ -17,6 +17,7 @@ import {
   unique,
   uniqueIndex,
   uuid,
+  type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 import type {
   ApiScope,
@@ -642,6 +643,37 @@ export const tripPresence = pgTable(
   (t) => [primaryKey({ columns: [t.tripId, t.userId] })],
 );
 
+// The columns a cover row has in `trip_covers` and `saved_day_covers` alike
+// (M37, M49): a function, so each table gets its own column builders.
+const coverColumns = () => ({
+  source: text("source").$type<"unsplash" | "url">().notNull().default("unsplash"),
+  unsplashId: text("unsplash_id"),
+  urlRaw: text("url_raw"),
+  urlRegular: text("url_regular"),
+  urlSmall: text("url_small"),
+  photographerName: text("photographer_name"),
+  photographerUrl: text("photographer_url"),
+  photoPageUrl: text("photo_page_url"),
+  url: text("url"),
+  alt: text("alt"),
+  creditName: text("credit_name"),
+  creditUrl: text("credit_url"),
+  position: integer("position").notNull().default(50),
+});
+
+/** Each source's required columns present, a credit link only with a name, and `position` in 0–100. */
+function coverChecks(table: string, t: { [K in keyof ReturnType<typeof coverColumns>]: AnyPgColumn }) {
+  const unsplash = [t.unsplashId, t.urlRaw, t.urlRegular, t.urlSmall, t.photographerName, t.photographerUrl, t.photoPageUrl];
+  return [
+    check(
+      `${table}_source`,
+      sql`(${t.source} = 'unsplash' and ${sql.join(unsplash.map((c) => sql`${c} is not null`), sql` and `)}) or (${t.source} = 'url' and ${t.url} is not null)`,
+    ),
+    check(`${table}_credit`, sql`${t.creditUrl} is null or ${t.creditName} is not null`),
+    check(`${table}_position`, sql`${t.position} between 0 and 100`),
+  ];
+}
+
 // A trip's cover photo (M37 D1): one row per trip, set and cleared by an
 // editor through `server/tripCovers.ts`. Ordinary CRUD, NOT a projection — a
 // cover is a decoration, not a plan fact, so it is never an event and
@@ -653,20 +685,22 @@ export const tripPresence = pgTable(
 // wipe every cover on every rebuild. A soft-deleted trip keeps its cover, so a
 // restore brings it back. The images are hotlinked, never copied (D3); the
 // credit is stored with them so no page asks Unsplash for it (D2).
-export const tripCovers = pgTable("trip_covers", {
-  tripId: uuid("trip_id").primaryKey(),
-  unsplashId: text("unsplash_id").notNull(),
-  urlRaw: text("url_raw").notNull(),
-  urlRegular: text("url_regular").notNull(),
-  urlSmall: text("url_small").notNull(),
-  alt: text("alt"),
-  photographerName: text("photographer_name").notNull(),
-  photographerUrl: text("photographer_url").notNull(),
-  photoPageUrl: text("photo_page_url").notNull(),
-  // A `users.id`, on the same no-foreign-key terms as `trip_memberships`.
-  setBy: text("set_by").notNull(),
-  setAt: timestamp("set_at", { withTimezone: true, mode: "string" }).notNull(),
-});
+//
+// Since M49 (ADR-081) a row is one of two sources, as `TripCover` is: the
+// Unsplash columns, or a referenced `url` with an optional credit. The columns
+// are nullable so either fits, and `coverColumns`' check holds each row to
+// its own. `position` frames it vertically, 0–100.
+export const tripCovers = pgTable(
+  "trip_covers",
+  {
+    tripId: uuid("trip_id").primaryKey(),
+    ...coverColumns(),
+    // A `users.id`, on the same no-foreign-key terms as `trip_memberships`.
+    setBy: text("set_by").notNull(),
+    setAt: timestamp("set_at", { withTimezone: true, mode: "string" }).notNull(),
+  },
+  (t) => coverChecks("trip_covers", t),
+);
 
 // Pinned read-only shares (M11 link 4, ADR-027). `seq` is the pin: the read
 // replays the trip's first `seq` events instead of serving the materialized
@@ -1141,20 +1175,17 @@ export const savedDayReviews = pgTable(
 // the content importer and the dev seed routes — handle it themselves: a
 // re-inserted day keeps its cover (same id, so the row is the carry), and a
 // day the importer prunes has its row deleted beside its `saved_day_adds`.
-export const savedDayCovers = pgTable("saved_day_covers", {
-  savedDayId: uuid("saved_day_id").primaryKey(),
-  unsplashId: text("unsplash_id").notNull(),
-  urlRaw: text("url_raw").notNull(),
-  urlRegular: text("url_regular").notNull(),
-  urlSmall: text("url_small").notNull(),
-  alt: text("alt"),
-  photographerName: text("photographer_name").notNull(),
-  photographerUrl: text("photographer_url").notNull(),
-  photoPageUrl: text("photo_page_url").notNull(),
-  // A `users.id`, on `saved_days.owner_id`'s no-foreign-key terms (ADR-025).
-  setBy: text("set_by").notNull(),
-  setAt: timestamp("set_at", { withTimezone: true, mode: "string" }).notNull(),
-});
+export const savedDayCovers = pgTable(
+  "saved_day_covers",
+  {
+    savedDayId: uuid("saved_day_id").primaryKey(),
+    ...coverColumns(),
+    // A `users.id`, on `saved_days.owner_id`'s no-foreign-key terms (ADR-025).
+    setBy: text("set_by").notNull(),
+    setAt: timestamp("set_at", { withTimezone: true, mode: "string" }).notNull(),
+  },
+  (t) => coverChecks("saved_day_covers", t),
+);
 
 // Saved notebooks (M14 link 10): a person's notebook kept as a template for a
 // future trip. `saved_days`' shape one level down, on ADR-029's terms — owned by
