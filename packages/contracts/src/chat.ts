@@ -17,7 +17,7 @@ export const CHAT_MESSAGE_MAX = 4000;
  * A person is a `users.id`, which is not a uuid; the rest are.
  */
 export const ChatLink = z.discriminatedUnion("kind", [
-  z.object({ kind: z.enum(["day", "stop", "notebook"]), id: z.string().uuid() }),
+  z.object({ kind: z.enum(["day", "stop", "notebook"]), id: z.string().guid() }),
   z.object({ kind: z.literal("person"), id: z.string().min(1).max(255) }),
 ]);
 export type ChatLink = z.infer<typeof ChatLink>;
@@ -40,20 +40,20 @@ export const ChatMessageKind = z.enum(["member", "assistant", "system"]);
 export type ChatMessageKind = z.infer<typeof ChatMessageKind>;
 
 const MessageMeta = {
-  messageId: z.string().uuid(),
+  messageId: z.string().guid(),
   authorId: z.string().min(1),
   /** Defaulted for version skew, as every field added after a release is. */
   kind: ChatMessageKind.default("member"),
   /** On an assistant message, the member whose `@assistant` it answers; null otherwise. */
   requestedBy: z.string().nullable().default(null),
   /** On an assistant message, the member's message that asked it; null otherwise. */
-  replyTo: z.string().uuid().nullable().default(null),
+  replyTo: z.string().guid().nullable().default(null),
   /**
    * On an assistant message, the suggestion its turn stored, which only
    * `requestedBy` may accept, and dismiss beside the trip's owner (ADR-067's
    * 2026-10-23 amendment); null when it proposed nothing.
    */
-  suggestionId: z.string().uuid().nullable().default(null),
+  suggestionId: z.string().guid().nullable().default(null),
   /**
    * On a member's message, that it asked the assistant: its reply is still to
    * come until an `assistant` message names it in `replyTo`, which is how every
@@ -105,7 +105,7 @@ export const PostChatMessage = z.object({
    * so a send whose answer was lost can be retried without posting it twice.
    * Optional: a caller without one posts exactly as before.
    */
-  clientKey: z.string().uuid().optional(),
+  clientKey: z.string().guid().optional(),
 });
 export type PostChatMessage = z.infer<typeof PostChatMessage>;
 
@@ -117,7 +117,7 @@ export type EditChatMessage = z.infer<typeof EditChatMessage>;
 
 /** `POST /api/trips/:tripId/chat/read` — the newest message the caller has seen. */
 export const MarkChatRead = z.object({
-  messageId: z.string().uuid(),
+  messageId: z.string().guid(),
 });
 export type MarkChatRead = z.infer<typeof MarkChatRead>;
 

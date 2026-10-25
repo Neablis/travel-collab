@@ -21,7 +21,7 @@ export const LINK_VIEWS = ["Plan", "Calendar", "Map"] as const;
 export type LinkView = (typeof LINK_VIEWS)[number];
 
 export const LinkTarget = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("notebook"), pageId: z.string().uuid() }),
+  z.object({ kind: z.literal("notebook"), pageId: z.string().guid() }),
   // The trip's seed of a default template (`Page.seedKey`), whatever its id.
   z.object({ kind: z.literal("seed"), seedKey: SeedKey }),
   // `DayRef`, the same reference every day filter stores. A picker writes the

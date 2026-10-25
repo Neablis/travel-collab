@@ -34,9 +34,9 @@ export const SUGGESTION_UNIT_COMMANDS_MAX = 50;
 
 /** One change as served to its author or a reviewer. */
 export const SuggestionChange = z.object({
-  id: z.string().uuid(),
-  suggestionId: z.string().uuid(),
-  tripId: z.string().uuid(),
+  id: z.string().guid(),
+  suggestionId: z.string().guid(),
+  tripId: z.string().guid(),
   authorId: z.string().min(1),
   // The suggestion's note, repeated on each of its changes so a change can be
   // rendered without its siblings.
@@ -51,7 +51,7 @@ export const SuggestionChange = z.object({
   // dry run created a day or stop this one references (spec W9), those that
   // target a day or stop this one removes (W59), and, for a date-range edit,
   // those that changed the day count (W56). It cannot be accepted before they are.
-  dependsOn: z.array(z.string().uuid()),
+  dependsOn: z.array(z.string().guid()),
   resolvedBy: z.string().min(1).nullable(),
   resolvedAt: z.string().nullable(), // ISO 8601
   // The suggestion's `via`, repeated like `note`. Absent for a draft a person
@@ -127,7 +127,7 @@ export const SUGGESTION_ACCEPT_MAX = 200;
  */
 export const AcceptSuggestionChangesInput = z.object({
   changeIds: z
-    .array(z.string().uuid())
+    .array(z.string().guid())
     .min(1)
     .max(SUGGESTION_ACCEPT_MAX)
     .refine((ids) => new Set(ids).size === ids.length, "Each change may be named once."),

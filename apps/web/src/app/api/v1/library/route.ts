@@ -20,8 +20,8 @@ import { route } from "@/server/public-api/route";
 // one-element list. Multi-day over `v1` is `/v1/playbooks` (ADR-050), a second
 // view over the same rows; both declare through `server/public-api/library.ts`.
 const SaveDayBody = z.object({
-  tripId: z.string().uuid(),
-  dayId: z.string().uuid(),
+  tripId: z.string().guid(),
+  dayId: z.string().guid(),
   name: z.string().min(1).max(200),
 });
 

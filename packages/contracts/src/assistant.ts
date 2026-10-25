@@ -136,8 +136,9 @@ export type AskRetractData = z.infer<typeof AskRetractData>;
 // Derived from `BatchableCommand`'s own options rather than spelled again, for
 // the reason `describeProposedChange`'s exhaustive switch exists: a thirteenth
 // command joins this for free and can never drift from the union it describes.
-// `.innerType()` because the union carries the travel-leg refinement (trip.ts).
-const COMMAND_TYPES = BatchableCommand.innerType().options.map((option) => option.shape.type.value) as [
+// `.options` straight off the union: zod 4 keeps a `.superRefine` (the
+// travel-leg refinement, trip.ts) on the schema itself rather than wrapping it.
+const COMMAND_TYPES = BatchableCommand.options.map((option) => option.shape.type.value) as [
   BatchableCommand["type"],
   ...BatchableCommand["type"][],
 ];
@@ -240,7 +241,7 @@ export const AssistantProposal = z
      */
     target: z
       .discriminatedUnion("kind", [
-        z.object({ kind: z.literal("trip"), tripId: z.string().uuid(), startingAt: z.string().uuid().optional() }),
+        z.object({ kind: z.literal("trip"), tripId: z.string().guid(), startingAt: z.string().guid().optional() }),
         z.object({ kind: z.literal("new-trip"), name: z.string().min(1).max(200) }),
       ])
       .optional(),
@@ -268,9 +269,9 @@ export type AssistantProposal = z.infer<typeof AssistantProposal>;
  * its snapshot cap), in a sentence the chat can show as it stands.
  */
 export const AssistantSuggested = z.object({
-  suggestionId: z.string().uuid(),
+  suggestionId: z.string().guid(),
   changeCount: z.number().int().positive(),
-  snapshotId: z.string().uuid().nullable(),
+  snapshotId: z.string().guid().nullable(),
   snapshotName: z.string().min(1).nullable(),
   snapshotSkipped: z.string().min(1).optional(),
   /**

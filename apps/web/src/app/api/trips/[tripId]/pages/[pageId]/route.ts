@@ -10,7 +10,7 @@ import { tripPageView } from "@/server/tripViews";
 // `22P02` out of the driver, and all three handlers here answered 500 instead
 // of the 404 they meant (KI-2026-09-05-x). Guarded at the route rather than
 // inside `getPage` because the only other caller — the assistant's page scope —
-// already parses its id with `z.string().uuid()` (handleAskRequest.ts), so this
+// already parses its id with `z.string().guid()` (handleAskRequest.ts), so this
 // is the one entry point where an unchecked path segment reaches the lookup.
 //
 // The check comes AFTER `guard`, never before: answering "that is not an id" to

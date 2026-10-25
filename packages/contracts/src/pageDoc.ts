@@ -53,7 +53,7 @@ export const MacroNode = z.object({
   type: z.literal("macro"),
   attrs: z.object({
     name: z.string().min(1),
-    params: z.record(z.unknown()).default({}),
+    params: z.record(z.string(), z.unknown()).default({}),
   }),
 });
 export type MacroNode = z.infer<typeof MacroNode>;
@@ -81,7 +81,7 @@ export type PageWidgetNode = z.infer<typeof PageWidgetNode>;
 // silently is — so the name is a string and the interior is parsed.
 export const PageMark = z.object({
   type: z.string().min(1),
-  attrs: z.record(z.unknown()).optional(),
+  attrs: z.record(z.string(), z.unknown()).optional(),
 }).strict();
 export type PageMark = z.infer<typeof PageMark>;
 
@@ -300,7 +300,7 @@ export type PageNode =
 // The knot-tying reference. The annotation is what stops TypeScript's
 // "referenced directly or indirectly in its own initializer"; the `unknown`
 // input parameter is required because `z.preprocess` accepts anything.
-const NestedPageNode: z.ZodType<PageNode, z.ZodTypeDef, unknown> = z.lazy(() => PageNode);
+const NestedPageNode: z.ZodType<PageNode, unknown> = z.lazy(() => PageNode);
 
 export const PageListItemNode = z.object({
   type: z.literal("listItem"),
@@ -337,7 +337,7 @@ export const PageBlockquoteNode = z.object({
   content: z.array(NestedPageNode).default([]),
 }).strict();
 
-export const PageNode: z.ZodType<PageNode, z.ZodTypeDef, unknown> = z.preprocess(
+export const PageNode: z.ZodType<PageNode, unknown> = z.preprocess(
   tagUnknownNode,
   z.discriminatedUnion("type", [
     PageParagraphNode,

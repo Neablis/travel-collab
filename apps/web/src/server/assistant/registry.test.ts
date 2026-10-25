@@ -116,7 +116,7 @@ describe("the registry", () => {
   // someone ever replaces the generator with a hand-written manifest.
   it("derives one planning tool per BatchableCommand member", () => {
     expect(PLANNING_TOOLS.map((t) => t.name).sort()).toEqual(
-      BatchableCommand.innerType().options.map((o) => o.shape.type.value as string).sort(),
+      BatchableCommand.options.map((o) => o.shape.type.value as string).sort(),
     );
   });
 

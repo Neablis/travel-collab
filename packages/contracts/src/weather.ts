@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isoDateTime } from "./isoDateTime.ts";
 import { isCalendarDate } from "./trip.ts";
 
 // A trip's weather, as `GET /api/trips/[tripId]/weather` answers it (ADR-052
@@ -21,7 +22,7 @@ const IsoDate = z
 
 // An instant as the source reported it. `offset: true` because MET's
 // `meta.updated_at` and `Last-Modified` are not guaranteed to be `Z`-suffixed.
-const Instant = z.string().datetime({ offset: true });
+const Instant = isoDateTime({ offset: true });
 
 /** Which outside service a value came from — the block maps it to credit text (ADR-052 decision 5). */
 export const WeatherSource = z.enum(["met-norway", "nasa-power"]);

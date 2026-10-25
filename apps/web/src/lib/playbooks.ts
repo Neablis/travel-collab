@@ -211,7 +211,12 @@ export const LENGTH_BAND_LABELS: Record<LengthBand, string> = {
  * days — "4+ stars" is a claim about ratings a day does not have. The values
  * are the strings that travel in `?rating=`.
  */
-export const RatingFloor = z.enum(["any", "3", "4", "4.5"]);
+export const RATING_FLOORS = ["any", "3", "4", "4.5"] as const;
+// The order above is the order the filter offers them in. Read it from here,
+// not from `RatingFloor.options`: zod 4 keeps an enum's values as the keys of
+// an object, and JavaScript lists integer-like keys first — so `.options`
+// reads `["3", "4", "any", "4.5"]`.
+export const RatingFloor = z.enum(RATING_FLOORS);
 export type RatingFloor = z.infer<typeof RatingFloor>;
 
 /** The minimum each floor admits, inclusive. One table for the predicate and the labels. */
@@ -293,7 +298,7 @@ export const DISCOVER_PAGE_SIZE = 24;
  * down to the two strings the card draws.
  */
 export const DiscoverDay = z.object({
-  savedDayId: z.string().uuid(),
+  savedDayId: z.string().guid(),
   ownerId: z.string().min(1),
   /**
    * What the card calls the owner: first name and last initial, or their

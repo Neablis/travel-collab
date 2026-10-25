@@ -30,7 +30,7 @@ export type ValueKind = (typeof VALUE_KINDS)[number];
 
 // One line per field, and the line carries BOTH facts.
 //
-// Zod has no metadata slot in v3, so the kind rides in a `WeakMap` keyed by the
+// Zod 3 had no metadata slot, so the kind rides in a `WeakMap` keyed by the
 // schema object itself. That works because schemas are module singletons: the
 // object `described()` returns is the same object the manifest later reflects
 // over. The alternative — a parallel `Record<fieldName, ValueKind>` — is the
@@ -70,7 +70,7 @@ export function described<T extends z.ZodTypeAny>(kind: ValueKind, label: string
  * Publish an array of objects as a collection: walked for its members' own
  * `described()` fields, never printed itself, so it takes a label and no kind.
  */
-export function describedCollection<T extends z.ZodArray<z.AnyZodObject>>(label: string, schema: T): T {
+export function describedCollection<T extends z.ZodArray<z.ZodObject>>(label: string, schema: T): T {
   const annotated = schema.describe(label) as T;
   ANNOTATIONS.set(annotated, { label });
   return annotated;
@@ -102,14 +102,19 @@ export function unwrapSchema(schema: z.ZodTypeAny): z.ZodTypeAny {
 // and without this the manifest lost the enum's values for `stop.kind`. Only
 // preprocess: a `.refine` or `.transform` changes what the value means, and
 // looking through one would publish a type the field does not have.
+//
+// In zod 4 a preprocess is a pipe whose `in` is the rewriting transform and
+// whose `out` is the schema it hands the value to; a `.transform` is the
+// reverse (`in` the schema, `out` the transform), and is not looked through.
 function wrapped(schema: z.ZodTypeAny): z.ZodTypeAny | undefined {
-  const def = schema._def as {
+  const def = schema._zod.def as {
+    type: string;
     innerType?: z.ZodTypeAny;
-    schema?: z.ZodTypeAny;
-    effect?: { type?: string };
+    in?: z.ZodTypeAny;
+    out?: z.ZodTypeAny;
   };
   if (def.innerType) return def.innerType;
-  if (def.effect?.type === "preprocess" && def.schema) return def.schema;
+  if (def.type === "pipe" && def.in?._zod.def.type === "transform" && def.out) return def.out;
   return undefined;
 }
 
@@ -139,7 +144,7 @@ export function annotationOf(schema: object): Annotation | undefined {
   if (own !== undefined) return own;
   let current = schema as z.ZodTypeAny;
   for (;;) {
-    const inner = current._def === undefined ? undefined : wrapped(current);
+    const inner = current._zod === undefined ? undefined : wrapped(current);
     if (inner === undefined) return undefined;
     current = inner;
     const note = ANNOTATIONS.get(current);

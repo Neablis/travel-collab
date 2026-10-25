@@ -82,21 +82,22 @@ export function slimForModel(schema: JSONSchema7, keepClosed: boolean): JSONSche
 }
 
 /**
- * Whether any object in a zod (v3) schema refuses unknown keys — `.strict()`
- * anywhere in the tree, through optionals, unions, effects and lazies alike.
- * Walked generically over `_def` rather than per schema kind, so a wrapper zod
- * adds later is followed without an edit here.
+ * Whether any object in a zod schema refuses unknown keys — `.strict()`
+ * anywhere in the tree, through optionals, unions, pipes and lazies alike.
+ * Walked generically over the def rather than per schema kind, so a wrapper zod
+ * adds later is followed without an edit here. In zod 4 a strict object is one
+ * whose `catchall` is `z.never()`.
  */
 export function containsStrictObject(schema: ZodTypeAny, seen: Set<unknown> = new Set()): boolean {
   if (seen.has(schema)) return false;
   seen.add(schema);
-  const def = schema._def as Node;
-  if (def.typeName === "ZodObject") {
-    if (def.unknownKeys === "strict") return true;
-    const shape = (typeof def.shape === "function" ? (def.shape as () => Node)() : {}) as Node;
+  const def = schema._zod.def as unknown as Node;
+  if (def.type === "object") {
+    if (def.catchall instanceof ZodType && def.catchall._zod.def.type === "never") return true;
+    const shape = (isNode(def.shape) ? def.shape : {}) as Node;
     if (Object.values(shape).some((sub) => sub instanceof ZodType && containsStrictObject(sub, seen))) return true;
   }
-  if (def.typeName === "ZodLazy" && typeof def.getter === "function") {
+  if (def.type === "lazy" && typeof def.getter === "function") {
     return containsStrictObject((def.getter as () => ZodTypeAny)(), seen);
   }
   for (const value of Object.values(def)) {
@@ -104,6 +105,36 @@ export function containsStrictObject(schema: ZodTypeAny, seen: Set<unknown> = ne
     if (subs.some((sub) => sub instanceof ZodType && containsStrictObject(sub, seen))) return true;
   }
   return false;
+}
+
+/**
+ * The schema in the two spellings zod 3's converter used where zod 4's differs,
+ * so the upgrade changed no tool's text (`ai/contextBudget.test.ts` measured
+ * every tool identical after it). A discriminated union is a `oneOf` in zod 4
+ * and was an `anyOf` — the literal discriminator already makes the members
+ * exclusive, so the two say the same thing — and a `z.record` now adds
+ * `propertyNames: { type: "string" }`, which every JSON object key already is.
+ * Pure, and it never edits its input.
+ */
+export function asZod3Wrote(schema: JSONSchema7): JSONSchema7 {
+  const respell = (node: unknown): unknown => {
+    if (Array.isArray(node)) return node.map(respell);
+    if (!isNode(node)) return node;
+    const out: Node = {};
+    for (const [key, value] of Object.entries(node)) {
+      if (key === "propertyNames" && isNode(value) && Object.keys(value).length === 1 && value.type === "string") continue;
+      if ((SCHEMA_MAPS as readonly string[]).includes(key) && isNode(value)) {
+        out[key] = Object.fromEntries(Object.entries(value).map(([name, sub]) => [name, respell(sub)]));
+      } else if (key === "oneOf") {
+        out.anyOf = respell(value);
+      } else {
+        const isSubschema = (SCHEMA_SLOTS as readonly string[]).includes(key) || key === "additionalProperties";
+        out[key] = isSubschema ? respell(value) : value;
+      }
+    }
+    return out;
+  };
+  return respell(schema) as JSONSchema7;
 }
 
 /**
@@ -151,7 +182,7 @@ export function hideFromModel(schema: JSONSchema7, paths: readonly string[]): JS
 export function modelFacingSchema(input: ZodTypeAny, hidden: readonly string[] = []): Schema<unknown> {
   const full = zodSchema(input) as Schema<unknown>;
   const keepClosed = containsStrictObject(input);
-  return jsonSchema<unknown>(async () => hideFromModel(slimForModel(await full.jsonSchema, keepClosed), hidden), {
+  return jsonSchema<unknown>(async () => hideFromModel(slimForModel(asZod3Wrote(await full.jsonSchema), keepClosed), hidden), {
     validate: (value) => full.validate!(value),
   });
 }

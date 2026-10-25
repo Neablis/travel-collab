@@ -578,7 +578,7 @@ export const ReadToolProblemSchema: z.ZodType<ReadToolProblem> = z.object({ erro
 // four of `Location`'s fields, with the coordinates the model must never see
 // left behind — so it is written out, and `precision` is still the contract's
 // own enum rather than a respelling of it.
-export const DayReadoutSchema: z.ZodType<DayReadout, z.ZodTypeDef, unknown> = z.object({
+export const DayReadoutSchema: z.ZodType<DayReadout, unknown> = z.object({
   day: z.number(),
   date: z.string().nullable(),
   costSubtotal: z.number(),
@@ -678,7 +678,7 @@ export interface DayBatchReadout {
   days: (DayReadout | ReadToolProblem)[];
 }
 
-export const DayBatchReadoutSchema: z.ZodType<DayBatchReadout, z.ZodTypeDef, unknown> = z.object({
+export const DayBatchReadoutSchema: z.ZodType<DayBatchReadout, unknown> = z.object({
   days: z.array(z.union([DayReadoutSchema, ReadToolProblemSchema])),
 });
 

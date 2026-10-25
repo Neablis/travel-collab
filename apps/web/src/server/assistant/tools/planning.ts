@@ -253,5 +253,5 @@ function planningToolFor(optionSchema: z.ZodObject<{ type: z.ZodLiteral<string> 
  * definition holds no per-turn state, so it is a constant.
  */
 export const PLANNING_TOOLS: readonly AnyAssistantTool[] = (
-  BatchableCommand.innerType().options as unknown as z.ZodObject<{ type: z.ZodLiteral<string> } & z.ZodRawShape>[]
+  BatchableCommand.options as unknown as z.ZodObject<{ type: z.ZodLiteral<string> } & z.ZodRawShape>[]
 ).map(planningToolFor);

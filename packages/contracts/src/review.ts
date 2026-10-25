@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isoDateTime } from "./isoDateTime.ts";
 
 // Reviews of a published Playbook (M12 links 1-4).
 //
@@ -59,20 +60,20 @@ export const PutReviewInput = z.object({
    * reviewer saw it unpublished). An online post has just read the day and has
    * nothing stale to guard against.
    */
-  seenPublishedAt: z.string().datetime().nullable().optional(),
+  seenPublishedAt: isoDateTime().nullable().optional(),
 });
 export type PutReviewInput = z.infer<typeof PutReviewInput>;
 
 /** The 409 body for a stale `seenPublishedAt` — "Mei changed this day two days ago". */
 export const ReviewDayChanged = z.object({
   error: z.literal("day-changed"),
-  changedAt: z.string().datetime(),
+  changedAt: isoDateTime(),
   authorDisplayName: z.string().min(1),
 });
 export type ReviewDayChanged = z.infer<typeof ReviewDayChanged>;
 
 export const Review = z.object({
-  savedDayId: z.string().uuid(),
+  savedDayId: z.string().guid(),
   reviewerId: z.string().min(1),
   reviewerDisplayName: z.string().min(1),
   stars: ReviewStars,

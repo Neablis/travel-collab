@@ -135,7 +135,7 @@ export function filterParams<D extends FilterDimension, E extends z.ZodRawShape 
   dimensions: readonly D[],
   extra: E = {} as E,
 ): z.ZodObject<{ [K in D]: z.ZodOptional<(typeof FILTER_VALUE_SCHEMAS)[K]> } & E> {
-  const shape: z.ZodRawShape = { ...extra };
+  const shape: Record<string, z.core.$ZodType> = { ...extra };
   for (const dimension of dimensions) {
     shape[paramKeyOf(dimension)] = FILTER_VALUE_SCHEMAS[dimension].optional();
   }
