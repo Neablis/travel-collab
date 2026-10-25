@@ -13,6 +13,30 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-10-25 — `TripCover` becomes a union on `source`, and every cover carries a `position` (M49 part 1; public API 1.27.0)
+- **Changed** (`packages/contracts/src/cover.ts`): `TripCover` is a discriminated union on
+  `source`. `"unsplash"` is today's picked photo, its fields unchanged; `"url"` is an image
+  referenced by its address (`url`, `alt`, `credit: { name, url } | null`, and `proxySrc`, the
+  signed same-origin path part 2 mints). Both carry `position`, the vertical framing 0–100,
+  default 50. **New:** `CoverPosition`, `CoverCredit`, `SetCoverPositionBody`.
+- Stored covers: migration 0068 adds `source`, `url`, `credit_name`, `credit_url` and
+  `position` to `trip_covers` and `saved_day_covers`, and trades the Unsplash columns' `NOT NULL`
+  for a check per source, so every existing cover reads as
+  `source: "unsplash"`, `position: 50`. Picking a new Unsplash photo resets `position` to 50.
+- `source` and `position` are now always present on a cover a route answers, and `source` is
+  required on one parsed as a `TripCover`.
+- Why: covers from anywhere (M49, ADR-081), set through the public API in a later part and
+  framed on the band in another; the union lands first so those parts share one shape.
+- Consumers updated: `apps/web` (`coverRows`, `tripCovers.setTripCoverPosition`, `CoverImage`,
+  `CoverCredit`, `CoverPicker`, the MSW cover handler, `scripts/landing-day.json` and
+  `landingFeatures.generated.json`, `openapi.json`), `@tc/factories` (`tripCoverFactory` builds
+  the Unsplash variant).
+- Public API: `DiscoverDay.cover` and `TripSummary.cover` gain `source` and `position`, and the
+  `url` variant; `API_VERSION` 1.27.0 with its new `API_FINGERPRINT`.
+- Breaking? no for a reader of today's covers, which all answer as `"unsplash"` with their
+  fields unchanged. A caller that parses covers strictly must accept the two new fields and the
+  `url` variant.
+
 ## 2026-10-25 — `POST /v1/library` strips calendar-date anchors and says so (KI-2026-09-25-b; public API 1.26.0)
 - **Changed** (`apps/web`, the v1 surface only; no `packages/contracts` schema changed): a day
   kept through `POST /v1/library` no longer stores a stop's `dateRange` anchor. Its answer is the

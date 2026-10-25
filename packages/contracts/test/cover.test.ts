@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CoverCandidate, TripSummary, UNSPLASH_HOME, unsplashCreditHref } from "../src/index.ts";
+import { CoverCandidate, SetCoverPositionBody, TripCover, TripSummary, UNSPLASH_HOME, unsplashCreditHref } from "../src/index.ts";
 
 describe("unsplashCreditHref", () => {
   // Unsplash's guidelines: every credit link carries the registered app name
@@ -57,5 +57,38 @@ describe("TripSummary.cover", () => {
       createdAt: "2026-07-08T12:00:00.000Z",
     };
     expect(TripSummary.parse(summary).cover).toBeNull();
+  });
+});
+
+describe("TripCover", () => {
+  const unsplash = {
+    source: "unsplash",
+    unsplashId: "abc123",
+    urls: { raw: "https://images.unsplash.com/a", regular: "https://images.unsplash.com/a?w=1080", small: "https://images.unsplash.com/a?w=400" },
+    alt: null,
+    photographerName: "Annie Spratt",
+    photographerUrl: "https://unsplash.com/@annie",
+    photoPageUrl: "https://unsplash.com/photos/abc123",
+  };
+
+  // Every cover stored before M49 was framed at the centre (decision 9).
+  it("reads a cover with no position as framed at the centre", () => {
+    expect(TripCover.parse(unsplash)).toEqual({ ...unsplash, position: 50 });
+  });
+
+  it.each([-1, 101, 30.5])("refuses a position of %j", (position) => {
+    expect(TripCover.safeParse({ ...unsplash, position }).success).toBe(false);
+    expect(SetCoverPositionBody.safeParse({ position }).success).toBe(false);
+  });
+
+  it("parses a URL cover with nothing but its URL, and refuses one without it", () => {
+    expect(TripCover.parse({ source: "url", url: "https://example.com/a.jpg" })).toEqual({
+      source: "url",
+      url: "https://example.com/a.jpg",
+      alt: null,
+      credit: null,
+      position: 50,
+    });
+    expect(TripCover.safeParse({ source: "url", alt: "A harbour" }).success).toBe(false);
   });
 });

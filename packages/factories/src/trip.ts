@@ -271,15 +271,18 @@ export const tripSummaryFactory = Factory.define<TripSummary>(({ sequence }) => 
 
 // A trip's cover as the list carries it (M37), on Unsplash's hosts, so a card
 // test renders what production would. A summary with one is
-// `tripSummaryFactory.build({ cover: tripCoverFactory.build() })`.
-export const tripCoverFactory = Factory.define<TripCover>(({ sequence }) => {
+// `tripSummaryFactory.build({ cover: tripCoverFactory.build() })`. Typed as the
+// Unsplash variant, so a test reads its photographer and urls without narrowing.
+export const tripCoverFactory = Factory.define<Extract<TripCover, { source: "unsplash" }>>(({ sequence }) => {
   const raw = `https://images.unsplash.com/photo-${1500000000000 + sequence}?ixid=factory`;
   return {
+    source: "unsplash",
     unsplashId: `factory${sequence}`,
     urls: { raw, regular: `${raw}&w=1080`, small: `${raw}&w=400` },
     alt: "A street of tiled houses",
     photographerName: faker.person.fullName(),
     photographerUrl: `https://unsplash.com/@factory${sequence}`,
     photoPageUrl: `https://unsplash.com/photos/factory${sequence}`,
+    position: 50,
   };
 });

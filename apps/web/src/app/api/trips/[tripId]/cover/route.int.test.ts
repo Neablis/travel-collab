@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { eq, like } from "drizzle-orm";
+import { eq, like, sql } from "drizzle-orm";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { CoverSearchResponse, TripCoverResponse, TripSummary, type CoverCandidate } from "@tc/contracts";
 import { grantMembership } from "@/server/access/members";
@@ -9,6 +9,7 @@ import { db } from "@/server/db/client";
 import { rateLimitCounters, tripCovers } from "@/server/db/schema";
 import { offlineCoverPhotos } from "@/server/external/unsplash/offline";
 import { rebuildProjections } from "@/server/projections";
+import { setTripCoverPosition } from "@/server/tripCovers";
 import { entitleAccounts } from "@/server/test-support/entitledAccount";
 
 // M37 part 3's gate boxes, against real Postgres and the offline cover source
@@ -208,6 +209,8 @@ describe("PUT and DELETE /api/trips/:id/cover", () => {
     expect(res.status).toBe(200);
     const { cover } = TripCoverResponse.parse(await res.json());
     expect(cover).toEqual({
+      source: "unsplash",
+      position: 50,
       unsplashId: first!.id,
       urls: first!.urls,
       alt: first!.alt,
@@ -222,6 +225,47 @@ describe("PUT and DELETE /api/trips/:id/cover", () => {
     // A search result shown is not a use: only the pick pinged.
   });
 
+  // M49's gate: migration 0068 leaves every cover already stored as it was,
+  // framed at the centre, still crediting its photographer.
+  it("reads a cover stored before M49 unchanged, at the centre, with its credit", async () => {
+    const tripId = await seedTrip();
+    const raw = "https://images.unsplash.com/photo-0068?ixid=before";
+    await db.execute(sql`insert into trip_covers
+      (trip_id, unsplash_id, url_raw, url_regular, url_small, alt, photographer_name, photographer_url, photo_page_url, set_by, set_at)
+      values (${tripId}, 'before0068', ${raw}, ${`${raw}&w=1080`}, ${`${raw}&w=400`}, null, 'Aiko Tanaka',
+        'https://unsplash.com/@aiko', 'https://unsplash.com/photos/before0068', ${OWNER}, now())`);
+
+    expect(await coverOf(tripId)).toEqual({
+      source: "unsplash",
+      unsplashId: "before0068",
+      urls: { raw, regular: `${raw}&w=1080`, small: `${raw}&w=400` },
+      alt: null,
+      photographerName: "Aiko Tanaka",
+      photographerUrl: "https://unsplash.com/@aiko",
+      photoPageUrl: "https://unsplash.com/photos/before0068",
+      position: 50,
+    });
+  });
+
+  // Decision 9: a new photo is framed afresh, not where the last one was.
+  it("keeps a moved position, and resets it to the centre on a new pick", async () => {
+    const tripId = await seedTrip();
+    const [first, second] = await candidates(tripId);
+    await pick(tripId, first!);
+    expect((await setTripCoverPosition(tripId, 30))?.position).toBe(30);
+    expect((await coverOf(tripId))?.position).toBe(30);
+
+    const res = await pick(tripId, second!);
+    expect(TripCoverResponse.parse(await res.json()).cover?.position).toBe(50);
+    expect((await coverOf(tripId))?.position).toBe(50);
+  });
+
+  it("moves no cover on a trip that has none", async () => {
+    const tripId = await seedTrip();
+    expect(await setTripCoverPosition(tripId, 30)).toBeNull();
+    expect(await coverOf(tripId)).toBeNull();
+  });
+
   it("replaces the cover on a re-pick and pings once more, the same photo included", async () => {
     const tripId = await seedTrip();
     const [first, second] = await candidates(tripId);
@@ -232,7 +276,7 @@ describe("PUT and DELETE /api/trips/:id/cover", () => {
     await settle();
 
     expect(offlineCoverPhotos.pings).toEqual([first!.downloadLocation, second!.downloadLocation, second!.downloadLocation]);
-    expect((await coverOf(tripId))?.unsplashId).toBe(second!.id);
+    expect(await coverOf(tripId)).toMatchObject({ unsplashId: second!.id });
     const rows = await db.select().from(tripCovers).where(eq(tripCovers.tripId, tripId));
     expect(rows).toHaveLength(1);
     expect(rows[0]!.setBy).toBe(EDITOR);
@@ -282,7 +326,7 @@ describe("PUT and DELETE /api/trips/:id/cover", () => {
     await settle();
     expect(offlineCoverPhotos.pings).toEqual([]);
     // They may still see it.
-    expect((await coverOf(tripId))?.unsplashId).toBe(first!.id);
+    expect(await coverOf(tripId)).toMatchObject({ unsplashId: first!.id });
   });
 
   it("400s a pick or a clear on a deleted trip", async () => {
@@ -310,13 +354,13 @@ describe("a cover on the trip list", () => {
     };
     const byId = new Map((await listed()).map((t) => [t.tripId, t]));
     expect(byId.get(tripId)?.cover).toEqual(await coverOf(tripId));
-    expect(byId.get(tripId)?.cover?.photographerName).toBe(first!.photographerName);
+    expect(byId.get(tripId)?.cover).toMatchObject({ photographerName: first!.photographerName });
     expect(byId.get(bare)?.cover).toBeNull();
 
     // `trip_covers` is CRUD, not a projection: a rebuild deletes and
     // re-inserts `trip_summaries` and must leave every cover where it was.
     await rebuildProjections();
-    expect(new Map((await listed()).map((t) => [t.tripId, t])).get(tripId)?.cover?.unsplashId).toBe(first!.id);
+    expect(new Map((await listed()).map((t) => [t.tripId, t])).get(tripId)?.cover).toMatchObject({ unsplashId: first!.id });
   });
 
   // M37's gate: no page view calls Unsplash. The wall in eslint.config.mjs

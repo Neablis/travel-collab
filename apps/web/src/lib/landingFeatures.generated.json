@@ -50,6 +50,7 @@
     "publishedAt": "2026-10-04T18:13:25.641Z",
     "isMine": false,
     "cover": {
+      "source": "unsplash",
       "unsplashId": "82_jgTdi51Q",
       "urls": {
         "raw": "https://images.unsplash.com/photo-1712576752855-bf4721d76a86?ixid=M3wxMDk0NzI5fDB8MXxzZWFyY2h8NXx8SGFub2l8ZW58MXwwfHx8MTc5MTM4MzgxOXww&ixlib=rb-4.1.0",
@@ -59,7 +60,8 @@
       "alt": "a group of people walking down a train track",
       "photographerName": "Elric Pxl",
       "photographerUrl": "https://unsplash.com/@elricpxl",
-      "photoPageUrl": "https://unsplash.com/photos/a-group-of-people-walking-down-a-train-track-82_jgTdi51Q"
+      "photoPageUrl": "https://unsplash.com/photos/a-group-of-people-walking-down-a-train-track-82_jgTdi51Q",
+      "position": 50
     },
     "description": "Outdoors & food",
     "tags": [

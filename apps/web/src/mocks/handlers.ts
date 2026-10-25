@@ -1150,12 +1150,14 @@ export function makeCoverHandlers(
       options.onSet?.(candidate);
       // What the route stores: everything but the ping URL (D2).
       cover = {
+        source: "unsplash",
         unsplashId: candidate.id,
         urls: candidate.urls,
         alt: candidate.alt,
         photographerName: candidate.photographerName,
         photographerUrl: candidate.photographerUrl,
         photoPageUrl: candidate.photoPageUrl,
+        position: 50,
       };
       return HttpResponse.json({ cover });
     }),

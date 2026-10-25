@@ -222,7 +222,7 @@ describe("picking and clearing", () => {
     const res = await pick(savedDayId, first!);
     expect(res.status).toBe(200);
     const stored = TripCoverResponse.parse(await res.json()).cover;
-    expect(stored?.unsplashId).toBe(first!.id);
+    expect(stored).toMatchObject({ source: "unsplash", unsplashId: first!.id, position: 50 });
     expect(offlineCoverPhotos.pings).toEqual([]);
     await settle();
     expect(offlineCoverPhotos.pings).toEqual([first!.downloadLocation]);
@@ -347,11 +347,11 @@ describe("where the cover shows, and where it must not", () => {
     expect((await card(savedDayId))?.cover).toMatchObject({ unsplashId: first!.id, urls: first!.urls });
     expect((await dayPageView(savedDayId, null))?.view.cover).toMatchObject({ unsplashId: first!.id });
     const listed = await publishedDaysPage({ cities: [CITY] }, { limit: 10, offset: 0 });
-    expect(listed.days.find((d) => d.savedDayId === savedDayId)?.cover?.unsplashId).toBe(first!.id);
+    expect(listed.days.find((d) => d.savedDayId === savedDayId)?.cover).toMatchObject({ unsplashId: first!.id });
     const profile = PublicProfileResponse.parse(
       await (await PROFILE(new Request("http://test/x", { headers: anonymous() }), { params: Promise.resolve({ userId: AUTHOR }) })).json(),
     );
-    expect(profile.days.find((d) => d.savedDayId === savedDayId)?.cover?.unsplashId).toBe(first!.id);
+    expect(profile.days.find((d) => d.savedDayId === savedDayId)?.cover).toMatchObject({ unsplashId: first!.id });
   });
 
   it("is gone from every public read of a moderated day, and stays on its author's own", async () => {

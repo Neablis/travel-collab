@@ -25,4 +25,19 @@ describe("CoverCredit", () => {
     render(<CoverCredit photo={{ photographerName: "Mallory", photographerUrl: "javascript:alert(1)" }} />);
     expect(screen.getByRole("link", { name: "Mallory" }).getAttribute("href")).toBe(`https://unsplash.com/?${REFERRAL}`);
   });
+
+  // A URL cover credits whoever the API named, and never Unsplash.
+  it("credits a URL cover's named source, linked only when its link is http(s)", () => {
+    const { unmount } = render(
+      <CoverCredit photo={{ source: "url", credit: { name: "Port of Leith", url: "https://leith.example/photos" } }} />,
+    );
+    expect(screen.getByText((_, el) => el?.tagName === "P" && el.textContent === "Photo by Port of Leith")).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Port of Leith" }).getAttribute("href")).toBe("https://leith.example/photos");
+    expect(screen.queryByRole("link", { name: "Unsplash" })).toBeNull();
+    unmount();
+    render(<CoverCredit photo={{ source: "url", credit: { name: "Mallory", url: "javascript:alert(1)" } }} />);
+    expect(screen.getByText("Mallory")).toBeTruthy();
+    expect(screen.queryByRole("link")).toBeNull();
+  });
 });
+

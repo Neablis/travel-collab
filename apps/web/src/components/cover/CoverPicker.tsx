@@ -413,7 +413,7 @@ export function CoverPicker({
                         <ResultTile
                           key={candidate.id}
                           candidate={candidate}
-                          selected={cover?.unsplashId === candidate.id}
+                          selected={cover?.source === "unsplash" && cover.unsplashId === candidate.id}
                           disabled={busy}
                           onPick={() => void pick(candidate)}
                         />

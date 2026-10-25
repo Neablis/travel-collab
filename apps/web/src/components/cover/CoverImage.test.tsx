@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { CoverImage, coverSrc } from "./CoverImage";
 
@@ -38,5 +38,35 @@ describe("CoverImage", () => {
     unmount();
     render(<CoverImage photo={unsplash} sizes="100vw" eager />);
     expect(screen.getByRole("img").getAttribute("loading")).toBe("eager");
+  });
+
+  // Decision 9: one vertical value frames the photo on every surface.
+  it("frames the photo at its stored vertical position", () => {
+    render(<CoverImage photo={{ ...unsplash, position: 30 }} sizes="100vw" />);
+    expect(screen.getByRole("img").style.objectPosition).toBe("center 30%");
+  });
+
+  // Decision 7: a photo that fails to load leaves the plain box, not a broken image.
+  it("drops a photo that fails to load and keeps what is laid over it", () => {
+    render(
+      <CoverImage photo={unsplash} sizes="100vw">
+        <button type="button">Menu</button>
+      </CoverImage>,
+    );
+    fireEvent.error(screen.getByRole("img"));
+    expect(screen.queryByRole("img")).toBeNull();
+    expect(screen.getByRole("button", { name: "Menu" })).toBeTruthy();
+  });
+
+  // ADR-081: a browser reads a URL cover from our origin only, never from `url`.
+  it("loads a URL cover from its proxy path alone, and shows none without one", () => {
+    const cover = { source: "url", alt: "A harbour at dusk", position: 50 } as const;
+    const { unmount } = render(<CoverImage photo={{ ...cover, proxySrc: "/api/cover-image?u=x&s=y" }} sizes="100vw" />);
+    const img = screen.getByRole("img", { name: "A harbour at dusk" });
+    expect(img.getAttribute("src")).toBe("/api/cover-image?u=x&s=y");
+    expect(img.getAttribute("srcset")).toBeNull();
+    unmount();
+    render(<CoverImage photo={cover} sizes="100vw" />);
+    expect(screen.queryByRole("img")).toBeNull();
   });
 });

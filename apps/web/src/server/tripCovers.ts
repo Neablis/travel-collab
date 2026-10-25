@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import type { CoverCandidate, TripCover } from "@tc/contracts";
+import type { CoverCandidate, CoverPosition, TripCover } from "@tc/contracts";
 import { coverJson, coverOf, coverValues, storedCover } from "./coverRows";
 import { db } from "./db/client";
 import { tripCovers } from "./db/schema";
@@ -37,6 +37,16 @@ export async function setTripCover(
     .onConflictDoUpdate({ target: tripCovers.tripId, set: values })
     .returning();
   return storedCover(row);
+}
+
+/**
+ * Move the trip's cover to `position` (0–100, checked by the caller's
+ * contract), leaving the photo as it is. Answers the moved cover, or `null`
+ * when the trip has none to move.
+ */
+export async function setTripCoverPosition(tripId: string, position: CoverPosition): Promise<TripCover | null> {
+  const [row] = await db.update(tripCovers).set({ position }).where(eq(tripCovers.tripId, tripId)).returning();
+  return row ? coverOf(row) : null;
 }
 
 /** Remove the trip's cover. Clearing a trip with none is not an error. */
