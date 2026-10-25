@@ -35,11 +35,6 @@ on:
         required: true
         type: number
 
-# A newer request for the same PR supersedes one that has not been sent yet.
-concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || inputs.pr }}
-  cancel-in-progress: true
-
 permissions:
   pull-requests: read
 
@@ -53,6 +48,13 @@ jobs:
       (github.event.pull_request.head.repo.full_name == github.repository &&
        ((github.event.action == 'labeled' && github.event.label.name == 'preview') ||
         (github.event.action == 'synchronize' && contains(github.event.pull_request.labels.*.name, 'preview'))))
+    # A newer request for the same PR supersedes one not yet sent. On the job,
+    # not the workflow: a run whose `if` skips (any other label added, a push
+    # without `preview`) never joins the group, so it cannot cancel a request
+    # in flight (PR 559 review).
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.event.pull_request.number || inputs.pr }}
+      cancel-in-progress: true
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
