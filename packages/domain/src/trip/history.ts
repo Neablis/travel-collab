@@ -387,6 +387,9 @@ export function buildHistoryEntries(envelopes: EventEnvelope[]): HistoryEntry[] 
       description,
       undone: undoneSet.has(batch.batchId),
       ...(pageId === undefined ? {} : { pageId }),
+      // The same test `deriveUndoRedo` skips on, so a client reading the
+      // history can tell exactly which entries Undo never takes back.
+      ...(batch.events.length === 0 ? { pageOnly: true as const } : {}),
     });
   }
   return entries;

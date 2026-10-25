@@ -43,6 +43,7 @@ import { tripKeys } from "@/lib/queryKeys";
 import { useTripSeed } from "./tripSeed";
 import { tripFirstDataFixture } from "@/test-support/tripFirstData";
 import { headSeqOf, POLL_INTERVAL_MS } from "./broadcast";
+import { resetQueueDrains } from "./queueDrain";
 
 const accessAs = (myRole: "owner" | "editor" | "viewer") => ({
   ok: true as const,
@@ -50,6 +51,7 @@ const accessAs = (myRole: "owner" | "editor" | "viewer") => ({
 });
 
 beforeEach(() => {
+  resetQueueDrains();
   sendTripCommandMock.mockReset();
   sendTripCommandBatchMock.mockReset();
   sendTripUnitsMock.mockReset();
@@ -1987,6 +1989,41 @@ describe("TripProvider unload flush (KI-5)", () => {
 
     await waitFor(() => expect(sendTripCommandMock).toHaveBeenCalledTimes(3));
     expect(sendTripCommandMock.mock.calls.slice(1).map(([c]) => c)).toEqual([addDayCommand("d-b"), addDayCommand("d-c")]);
+  });
+
+  // PR 568 review: a lone unit in flight, with nothing queued behind it, was
+  // not handed to the drain at all, so the tab closing before it answered
+  // flushed nothing.
+  it("on pagehide after an in-app navigation with one unit in flight and nothing behind it, flushes that unit by key", async () => {
+    let settleHead: (v: unknown) => void = () => {};
+    let answerFlush: (v: unknown) => void = () => {};
+    sendTripCommandMock.mockImplementationOnce(() => new Promise((res) => { settleHead = res; }));
+    sendTripUnitsMock.mockImplementationOnce(() => new Promise((res) => { answerFlush = res; }));
+    const view = render(
+      <TripProvider tripId="x">
+        <FlushProbe />
+      </TripProvider>,
+    );
+    await waitFor(() => expect(screen.getByTestId("dayCount").textContent).toBe("1"));
+    fireEvent.click(screen.getByRole("button", { name: "add-a" }));
+    await waitFor(() => expect(sendTripCommandMock).toHaveBeenCalledTimes(1));
+    view.unmount();
+    await act(async () => { await new Promise((r) => setTimeout(r, 20)); });
+
+    window.dispatchEvent(new Event("pagehide"));
+
+    expect(sendTripUnitsMock).toHaveBeenCalledTimes(1);
+    const [, units, options] = sendTripUnitsMock.mock.calls[0]!;
+    expect(options).toEqual({ keepalive: true });
+    expect(units.map((u: { commands: unknown[] }) => u.commands)).toEqual([[addDayCommand("d-a")]]);
+    expect(units[0].key).toBe(headKey());
+    // The page survived: the head answers, nothing is sent a second time, and
+    // the drain ends so the next test's drain of this trip is not behind it.
+    await act(async () => { settleHead(confirmedOutcome()); });
+    await act(async () => { answerFlush(confirmedOutcome()); });
+    await act(async () => { await new Promise((r) => setTimeout(r, 20)); });
+    expect(sendTripCommandMock).toHaveBeenCalledTimes(1);
+    expect(sendTripUnitsMock).toHaveBeenCalledTimes(1);
   });
 
   it("a finished drain flushes nothing on a later pagehide", async () => {
