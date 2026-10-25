@@ -4,8 +4,9 @@ import { expect, test } from "./fixtures/test";
 import { createEmptyTripViaWizard, homeTrip, signInAsDevUser } from "./helpers";
 import { e2eTripName } from "./tripNames";
 
-// M49 decision 10: an editor repositions the cover on the trip's band, by
-// mouse and by keyboard, and the framing holds across a reload and on Home.
+// M49 decision 10: an editor repositions the cover on the trip's band, chosen
+// from the cover's own menu by mouse and by keyboard, and the framing holds
+// across a reload and on Home.
 // The cover comes from the offline source (`EXTERNAL_DATA_OFFLINE=true`,
 // playwright.config.ts), as in `m37-trip-covers.spec.ts`.
 
@@ -59,10 +60,26 @@ async function drawnTop(photo: Locator): Promise<number> {
 /** The band's photo: the first on the page, above the header. */
 const bandPhoto = (page: Page) => page.getByRole("img", { name: PHOTO }).first();
 
-/** Hovers the band and enters reposition mode. */
-async function startRepositioning(page: Page): Promise<Locator> {
-  await page.getByRole("button", { name: "Change cover photo" }).hover();
-  await page.getByRole("button", { name: "Reposition", exact: true }).click();
+/** The cover on the band: no buttons on it, only itself (decision 10, amended 2026-10-25). */
+const editCover = (page: Page) => page.getByRole("button", { name: "Edit cover" });
+
+/**
+ * Opens the cover's menu and chooses Reposition from it: by mouse, a click on
+ * the cover; by keyboard, `Enter` on the focused cover, then `↓` to the item.
+ */
+async function startRepositioning(page: Page, by: "mouse" | "keyboard"): Promise<Locator> {
+  if (by === "mouse") {
+    await editCover(page).hover();
+    await editCover(page).click();
+    await page.getByRole("menuitem", { name: "Reposition" }).click();
+  } else {
+    await editCover(page).focus();
+    await page.keyboard.press("Enter");
+    await expect(page.getByRole("menuitem", { name: "Change cover" })).toBeFocused();
+    await page.keyboard.press("ArrowDown");
+    await expect(page.getByRole("menuitem", { name: "Reposition" })).toBeFocused();
+    await page.keyboard.press("Enter");
+  }
   await expect(page.getByText("Drag image to reposition")).toBeVisible();
   return page.getByRole("slider", { name: "Cover position" });
 }
@@ -79,7 +96,7 @@ test.describe("on an account of its own", () => {
 
     // A 100px mouse drag down: the photo keeps pace with it, its top edge drawn
     // 100px lower, within the 1% a position is rounded to.
-    const slider = await startRepositioning(page);
+    const slider = await startRepositioning(page, "mouse");
     const box = (await slider.boundingBox())!;
     await page.mouse.move(box.x + box.width / 2, box.y + 40);
     await page.mouse.down();
@@ -95,6 +112,7 @@ test.describe("on an account of its own", () => {
     // The mode closes once the save has answered, so the reload reads it back.
     await page.getByRole("button", { name: "Save position" }).click();
     await expect(slider).toBeHidden();
+    await expect(editCover(page)).toBeFocused();
 
     await page.reload();
     await expect(bandPhoto(page)).toBeVisible();
@@ -119,13 +137,14 @@ test("an editor moves the cover by keyboard, saves with Enter and it holds; Esc 
   await tripWithCover(page, e2eTripName("Cover keys"));
 
   // Shift+↑ is 10% and ↑ 1%: the photo moves up, showing more of its foot.
-  const slider = await startRepositioning(page);
+  const slider = await startRepositioning(page, "keyboard");
   await expect(slider).toBeFocused();
   await page.keyboard.press("Shift+ArrowUp");
   await page.keyboard.press("ArrowUp");
   await expect.poll(() => framing(bandPhoto(page))).toBe(61);
   await page.keyboard.press("Enter");
   await expect(slider).toBeHidden();
+  await expect(editCover(page)).toBeFocused();
 
   await page.reload();
   await expect(bandPhoto(page)).toBeVisible();
@@ -136,11 +155,12 @@ test("an editor moves the cover by keyboard, saves with Enter and it holds; Esc 
   page.on("request", (request) => {
     if (request.method() === "PATCH") patches.push(request.url());
   });
-  await startRepositioning(page);
+  await startRepositioning(page, "keyboard");
   await page.keyboard.press("ArrowDown");
   await expect.poll(() => framing(bandPhoto(page))).toBe(60);
   await page.keyboard.press("Escape");
   await expect(page.getByRole("slider", { name: "Cover position" })).toBeHidden();
+  await expect(editCover(page)).toBeFocused();
   await expect.poll(() => framing(bandPhoto(page))).toBe(61);
   expect(patches).toEqual([]);
 });

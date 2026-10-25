@@ -45,7 +45,7 @@ async function searchFor(q: string) {
 const tiles = () => screen.queryAllByRole("button", { name: /^Use photo by / });
 
 describe("CoverSection — an editor", () => {
-  it("shows the current cover with its credit, and removes it", async () => {
+  it("shows the current cover with its credit, and removes it from the cover's menu", async () => {
     let cleared = 0;
     const cover = tripCoverFactory.build({ alt: "Maples over a temple roof", photographerName: "Aiko Tanaka" });
     server.use(...makeCoverHandlers({ cover, onClear: () => cleared++ }));
@@ -53,12 +53,30 @@ describe("CoverSection — an editor", () => {
 
     expect(await screen.findByRole("img", { name: "Maples over a temple roof" })).toBeTruthy();
     expect(screen.getByRole("link", { name: "Aiko Tanaka" })).toBeTruthy();
+    // M49 decision 10, amended: no cover buttons until the cover is tapped.
+    expect(screen.queryByRole("button", { name: /remove/i })).toBeNull();
 
-    await userEvent.click(screen.getByRole("button", { name: "Remove cover" }));
+    await userEvent.click(screen.getByRole("button", { name: "Edit cover" }));
+    await screen.findByRole("menu");
+    // No Reposition: the phone has no band to drag the photo on.
+    expect(screen.getAllByRole("menuitem").map((item) => item.textContent)).toEqual(["Change cover", "Remove"]);
+    await userEvent.click(screen.getByRole("menuitem", { name: "Remove" }));
     await waitFor(() => expect(screen.queryByRole("img", { name: "Maples over a temple roof" })).toBeNull());
     expect(cleared).toBe(1);
-    expect(screen.queryByRole("button", { name: "Remove cover" })).toBeNull();
-    // The button went with the cover; focus goes to the search, not the page.
+    expect(screen.queryByRole("button", { name: "Edit cover" })).toBeNull();
+    // The control went with the cover; focus goes to the search, not the page.
+    const box = screen.getByRole("searchbox", { name: "Search photos" });
+    await waitFor(() => expect(box.matches(":focus")).toBe(true));
+  });
+
+  it("takes Change cover on the cover's menu to the search", async () => {
+    server.use(...makeCoverHandlers({ cover: tripCoverFactory.build() }));
+    render(<CoverSection tripId={TRIP} canEdit />);
+    const cover = await screen.findByRole("button", { name: "Edit cover" });
+    cover.focus();
+    await userEvent.keyboard("{Enter}");
+    await screen.findByRole("menu");
+    await userEvent.keyboard("{Enter}");
     const box = screen.getByRole("searchbox", { name: "Search photos" });
     await waitFor(() => expect(box.matches(":focus")).toBe(true));
   });
@@ -141,7 +159,7 @@ describe("CoverSection — an editor", () => {
     expect(sent.map((c) => c.id)).toEqual(["photo-2"]);
     // The section's own preview is the pick now, credited.
     expect(screen.getByRole("img", { name: "Photo by Photographer 2" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Remove cover" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Edit cover" })).toBeTruthy();
   });
 
   it("says plainly when nothing matched", async () => {
@@ -207,7 +225,7 @@ describe("CoverSection — an editor", () => {
     expect(screen.queryByText(/photo searches/)).toBeNull();
   });
 
-  // Not knowing is not "no cover": a trip that has one keeps *Remove cover*
+  // Not knowing is not "no cover": a trip that has one keeps its *Edit cover*
   // once the read is retried.
   it("says a failed read failed, and retries it", async () => {
     const cover = tripCoverFactory.build({ alt: "A harbour" });
@@ -218,7 +236,7 @@ describe("CoverSection — an editor", () => {
     expect(screen.queryByText("No cover photo yet.")).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: "Try again" }));
     expect(await screen.findByRole("img", { name: "A harbour" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Remove cover" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Edit cover" })).toBeTruthy();
   });
 
   // Either read can move what is under the section: the cover by becoming a

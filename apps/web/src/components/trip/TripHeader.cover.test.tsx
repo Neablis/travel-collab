@@ -79,8 +79,14 @@ async function renderHeader() {
   await screen.findByRole("heading", { level: 1, name: /Japan/ });
 }
 
-const band = () => screen.queryByRole("button", { name: "Change cover photo" });
+const band = () => screen.queryByRole("button", { name: "Edit cover" });
 const addCover = () => screen.queryByRole("button", { name: "Add cover" });
+const items = () => screen.queryAllByRole("menuitem").map((item) => item.textContent);
+/** Opens the band's menu by mouse and chooses `item` from it. */
+async function choose(item: string) {
+  await userEvent.click(await screen.findByRole("button", { name: "Edit cover" }));
+  await userEvent.click(await screen.findByRole("menuitem", { name: item }));
+}
 
 // Mitchell, 2026-10-10 preview: "I dont like that adding a cover photo makes
 // no changes right away, the header of the trip on desktop should also have the
@@ -97,9 +103,53 @@ describe("TripHeader — the cover band", () => {
     expect(screen.getByRole("link", { name: "Aiko Tanaka" })).toBeTruthy();
     expect(addCover()).toBeNull();
 
-    await userEvent.click(band()!);
+    await choose("Change cover");
     const sheet = await screen.findByRole("dialog", { name: /Trip settings/ });
     expect(within(sheet).getByRole("region", { name: "Cover photo" })).toBeTruthy();
+  });
+
+  // M49 decision 10, amended 2026-10-25 (Mitchell): no buttons on the band
+  // until the cover is activated, then one menu holds all three.
+  it("shows an editor no cover buttons until the cover is clicked, then a menu of Change cover, Reposition and Remove", async () => {
+    server.use(...makeCoverHandlers({ cover: tripCoverFactory.build() }));
+    await renderHeader();
+    await waitFor(() => expect(band()).not.toBeNull());
+    for (const name of [/change cover/i, /^reposition$/i, /remove/i]) {
+      expect(screen.queryByRole("button", { name })).toBeNull();
+    }
+    expect(items()).toEqual([]);
+
+    await userEvent.click(band()!);
+    expect(await screen.findByRole("menu")).toBeTruthy();
+    expect(items()).toEqual(["Change cover", "Reposition", "Remove"]);
+  });
+
+  it("opens the same menu from the keyboard, moves through it with the arrows, and Esc hands focus back to the cover", async () => {
+    server.use(...makeCoverHandlers({ cover: tripCoverFactory.build() }));
+    await renderHeader();
+    await waitFor(() => expect(band()).not.toBeNull());
+    band()!.focus();
+    await userEvent.keyboard("{Enter}");
+    await screen.findByRole("menu");
+    expect(items()).toEqual(["Change cover", "Reposition", "Remove"]);
+    const item = (name: string) => screen.getByRole("menuitem", { name });
+    await waitFor(() => expect(item("Change cover").matches(":focus")).toBe(true));
+    await userEvent.keyboard("{ArrowDown}");
+    expect(item("Reposition").matches(":focus")).toBe(true);
+
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
+    await waitFor(() => expect(band()!.matches(":focus")).toBe(true));
+  });
+
+  it("removes the cover from the menu, leaving Add cover in its place with focus on it", async () => {
+    let cleared = 0;
+    server.use(...makeCoverHandlers({ cover: tripCoverFactory.build({ alt: "Lake roofs" }), onClear: () => cleared++ }));
+    await renderHeader();
+    await choose("Remove");
+    await waitFor(() => expect(screen.queryByRole("img", { name: "Lake roofs" })).toBeNull());
+    expect(cleared).toBe(1);
+    await waitFor(() => expect(addCover()!.matches(":focus")).toBe(true));
   });
 
   it("offers Add cover where there is none, and a pick in the picker shows on the trip at once", async () => {
@@ -119,14 +169,14 @@ describe("TripHeader — the cover band", () => {
     // answered, and the stand-in is gone — already behind the open sheet
     // (`hidden: true`, since the modal marks everything outside it hidden),
     // and there when the sheet closes.
-    expect(await screen.findByRole("button", { name: "Change cover photo", hidden: true })).toBeTruthy();
+    expect(await screen.findByRole("button", { name: "Edit cover", hidden: true })).toBeTruthy();
     await userEvent.keyboard("{Escape}");
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     expect(band()).not.toBeNull();
     expect(addCover()).toBeNull();
   });
 
-  // M49 decision 10: Reposition beside Change cover, for an editor.
+  // M49 decision 10: Reposition, from the cover's menu, for an editor.
   describe("Reposition", () => {
     const photo = (alt: string) => screen.getByRole("img", { name: alt });
     const patches = () => {
@@ -141,7 +191,7 @@ describe("TripHeader — the cover band", () => {
       const sent = patches();
       server.use(...makeCoverHandlers({ cover: tripCoverFactory.build({ alt: "Lake roofs", position: 50 }) }));
       await renderHeader();
-      await userEvent.click(await screen.findByRole("button", { name: "Reposition" }));
+      await choose("Reposition");
       expect(screen.getByText("Drag image to reposition")).toBeTruthy();
       expect(band()).toBeNull();
 
@@ -159,7 +209,7 @@ describe("TripHeader — the cover band", () => {
       const sent = patches();
       server.use(...makeCoverHandlers({ cover: tripCoverFactory.build({ alt: "Lake roofs", position: 30 }) }));
       await renderHeader();
-      await userEvent.click(await screen.findByRole("button", { name: "Reposition" }));
+      await choose("Reposition");
       await userEvent.keyboard("{ArrowUp}{ArrowUp}");
       expect(photo("Lake roofs").style.objectPosition).toBe("center 32%");
 
@@ -167,25 +217,26 @@ describe("TripHeader — the cover band", () => {
       expect(screen.queryByRole("slider", { name: "Cover position" })).toBeNull();
       expect(photo("Lake roofs").style.objectPosition).toBe("center 30%");
       expect(sent).toEqual([]);
+      await waitFor(() => expect(band()!.matches(":focus")).toBe(true));
     });
 
     it("closes and says so when the cover was removed meanwhile, offering no retry", async () => {
       server.use(...makeCoverHandlers({ cover: tripCoverFactory.build({ alt: "Lake roofs", position: 30 }) }));
       await renderHeader();
-      await userEvent.click(await screen.findByRole("button", { name: "Reposition" }));
+      await choose("Reposition");
       // A co-editor removes it after the band read it.
       server.use(http.patch(`/api/trips/${TRIP}/cover`, () => HttpResponse.json({ error: "no-cover" }, { status: 404 })));
       await userEvent.keyboard("{ArrowUp}{Enter}");
 
       expect((await screen.findByRole("alert")).textContent).toMatch(/cover was removed/);
       expect(screen.queryByRole("slider", { name: "Cover position" })).toBeNull();
-      expect(screen.queryByRole("button", { name: "Reposition" })).toBeNull();
       expect(photo("Lake roofs").style.objectPosition).toBe("center 30%");
-      // Reposition is gone, so focus lands on the band's next step, not <body>.
-      // `:focus`, because the test-quality wall bans `document.activeElement`.
-      await waitFor(() =>
-        expect(screen.getByRole("button", { name: "Change cover photo" }).matches(":focus")).toBe(true),
-      );
+      // Back on the cover, not <body>; `:focus`, because the test-quality wall
+      // bans `document.activeElement`. Its menu no longer offers Reposition.
+      await waitFor(() => expect(band()!.matches(":focus")).toBe(true));
+      await userEvent.click(band()!);
+      await screen.findByRole("menu");
+      expect(items()).toEqual(["Change cover", "Remove"]);
     });
   });
 
@@ -202,7 +253,7 @@ describe("TripHeader — the cover band", () => {
     await waitFor(() => expect(band()).not.toBeNull());
     expect(reads.count).toBe(1);
 
-    await userEvent.click(band()!);
+    await choose("Change cover");
     const sheet = await screen.findByRole("dialog", { name: /Trip settings/ });
     expect(await within(sheet).findByRole("img", { name: "Old roofs" })).toBeTruthy();
     expect(reads.count).toBe(1);
@@ -322,9 +373,10 @@ describe("TripHeader — the cover band", () => {
     myRole = "viewer";
     server.use(...makeCoverHandlers({ cover: tripCoverFactory.build({ alt: "Dunes at dusk" }) }));
     await renderHeader();
-    expect(await screen.findByRole("img", { name: "Dunes at dusk" })).toBeTruthy();
+    const photo = await screen.findByRole("img", { name: "Dunes at dusk" });
     expect(band()).toBeNull();
-    expect(screen.queryByRole("button", { name: "Reposition" })).toBeNull();
+    await userEvent.click(photo);
+    expect(screen.queryByRole("menu")).toBeNull();
     expect(addCover()).toBeNull();
   });
 });

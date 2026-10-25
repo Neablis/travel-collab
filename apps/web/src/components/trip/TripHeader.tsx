@@ -29,7 +29,8 @@ import { usePaletteSource } from "@/components/palette/paletteRegistry";
 import { SettingsSheet } from "./SettingsSheet";
 import { TripMetaPill, tripCounts, tripDateRange } from "./TripMetaPill";
 import { BudgetChip } from "./BudgetChip";
-import { AddCoverButton, COVER_BAND, TripCoverBanner } from "./cover/TripCoverBanner";
+import { AddCoverLine } from "@/components/cover/CoverMenu";
+import { COVER_BAND, TripCoverBanner } from "./cover/TripCoverBanner";
 import { useTripCover } from "./cover/useTripCover";
 import { useTripSeed } from "./context/tripSeed";
 import { HOME_PATH } from "@/lib/homePath";
@@ -131,6 +132,8 @@ export function TripHeader({
   const tripActions = useRef<HTMLButtonElement>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  // *Add cover*, where focus goes once the band's *Remove* has taken the band away.
+  const addCover = useRef<HTMLButtonElement>(null);
   // The phone's overflow menu opens what an item names only once it has
   // closed. Radix hands focus back to the menu's trigger as it closes, and a
   // popover or sheet opened in the same tick reads that focus as a click
@@ -354,6 +357,8 @@ export function TripHeader({
           tripId={tripId}
           cover={cover}
           onChangeCover={coverEditable ? openCoverPicker : undefined}
+          // The band is gone with the cover; its stand-in takes focus.
+          onRemoved={() => requestAnimationFrame(() => addCover.current?.focus())}
           sentinelRef={setCoverSentinel}
         />
       )}
@@ -442,9 +447,12 @@ export function TripHeader({
                     beside Add stop, and on a phone it is the tab bar's — see
                     the action cluster below. What ends it instead, on a
                     desktop with no cover yet, is the cover band's stand-in:
-                    a quiet *Add cover* for whoever may set one. Only once the
-                    read has said "none" (`null`), never while unknown. */}
-                {cover === null && coverEditable && <AddCoverButton onClick={openCoverPicker} />}
+                    a faint *+ Add cover*, shown on hover, for whoever may set
+                    one. Only once the read has said "none" (`null`), never
+                    while unknown. */}
+                {cover === null && coverEditable && (
+                  <AddCoverLine ref={addCover} onClick={openCoverPicker} className="hidden md:inline-flex" />
+                )}
               </nav>
             )}
             {/* The title IS the way into Trip settings, and the only way:
