@@ -1,8 +1,9 @@
 import { eq } from "drizzle-orm";
 import type { CoverCandidate, CoverPosition, TripCover } from "@tc/contracts";
-import { coverJson, coverOf, coverValues, storedCover } from "./coverRows";
+import { coverJson, coverOf, coverValues, storedCover, urlCoverValues, type UrlCoverInput } from "./coverRows";
 import { db } from "./db/client";
 import { tripCovers } from "./db/schema";
+import { fetchRemoteImage } from "./external/remoteImage/fetchImage";
 
 // A trip's cover photo (M37 D1): ordinary CRUD on `trip_covers`, never an
 // event. The routes under `app/api/trips/[tripId]/cover/` are the only callers
@@ -31,6 +32,29 @@ export async function setTripCover(
   now: Date = new Date(),
 ): Promise<TripCover> {
   const values = coverValues(candidate, userId, now);
+  const [row] = await db
+    .insert(tripCovers)
+    .values({ tripId, ...values })
+    .onConflictDoUpdate({ target: tripCovers.tripId, set: values })
+    .returning();
+  return storedCover(row);
+}
+
+/**
+ * Make the image at `input.url` the trip's cover, replacing any it had. The
+ * URL is fetched once through the guarded fetcher first, and a refusal throws
+ * its `RemoteImageRefused` (with the reason) having saved nothing, so a trip
+ * never holds a cover that was not an image when it was set. The image itself
+ * is not kept: the cover is the URL (ADR-081 item 2).
+ */
+export async function setTripCoverFromUrl(
+  tripId: string,
+  input: UrlCoverInput,
+  userId: string,
+  { fetchImage = fetchRemoteImage, now = new Date() }: { fetchImage?: (url: string) => Promise<unknown>; now?: Date } = {},
+): Promise<TripCover> {
+  await fetchImage(input.url);
+  const values = urlCoverValues(input, userId, now);
   const [row] = await db
     .insert(tripCovers)
     .values({ tripId, ...values })

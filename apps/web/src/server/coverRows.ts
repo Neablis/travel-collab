@@ -1,5 +1,6 @@
 import { sql, type AnyColumn, type SQL } from "drizzle-orm";
 import { TripCover, type CoverCandidate } from "@tc/contracts";
+import { coverProxySrc } from "./coverProxy";
 import type { savedDayCovers, tripCovers } from "./db/schema";
 
 // What a cover row is, whichever table holds it (M37): `trip_covers` (a trip's,
@@ -11,11 +12,25 @@ import type { savedDayCovers, tripCovers } from "./db/schema";
 // A row is one of `TripCover`'s two sources (M49, ADR-081): the Unsplash
 // columns, or a `url` with an optional credit. Every mapping between the two
 // shapes is here, so a table read anywhere else never decides which is which.
+// So is minting a URL cover's `proxySrc`: every read that hands a cover to a
+// client comes through `coverJson` or `coverOf`, and a URL cover without one
+// shows as none.
+
+type UrlCover = Extract<TripCover, { source: "url" }>;
+
+/** What setting a cover from a URL takes: the URL, and optionally its alt, credit and framing. */
+export type UrlCoverInput = Pick<UrlCover, "url"> & Partial<Pick<UrlCover, "alt" | "credit" | "position">>;
+
+/** `cover`, with the signed same-origin path a browser loads it from when it is a URL cover. */
+function withProxySrc(cover: TripCover): TripCover {
+  return cover.source === "url" ? { ...cover, proxySrc: coverProxySrc(cover.url) } : cover;
+}
 
 /**
  * The `TripCover` a row of `table` describes, as one jsonb value, or SQL null
  * when the LEFT JOIN on `key` found no row. Read alongside a listing, so its
- * covers cost no statement of their own.
+ * covers cost no statement of their own. The signature cannot be taken in
+ * SQL, so a URL cover's `proxySrc` is added as the row is decoded.
  */
 export function coverJson(table: typeof tripCovers | typeof savedDayCovers, key: AnyColumn): SQL<TripCover | null> {
   return sql<TripCover | null>`CASE WHEN ${key} IS NULL THEN NULL WHEN ${table.source} = 'url' THEN jsonb_build_object(
@@ -33,7 +48,9 @@ export function coverJson(table: typeof tripCovers | typeof savedDayCovers, key:
   'photographerUrl', ${table.photographerUrl},
   'photoPageUrl', ${table.photoPageUrl},
   'position', ${table.position}
-) END`;
+) END`.mapWith((value: TripCover | null) =>
+    value !== null && value.source === "url" && typeof value.url === "string" ? withProxySrc(value) : value,
+  );
 }
 
 /** The columns a cover row has, in `trip_covers` and `saved_day_covers` alike. */
@@ -67,7 +84,7 @@ export function coverOf(row: CoverRow): TripCover | null {
           position: row.position,
         },
   );
-  if (parsed.success) return parsed.data;
+  if (parsed.success) return withProxySrc(parsed.data);
   console.error("cover row failed TripCover parse; shown without it", {
     source: row.source,
     unsplashId: row.unsplashId,
@@ -107,6 +124,32 @@ export function coverValues(candidate: CoverCandidate, userId: string, now: Date
     creditName: null,
     creditUrl: null,
     position: 50,
+    setBy: userId,
+    setAt: now.toISOString(),
+  };
+}
+
+/**
+ * The row setting a cover from `input.url` writes: a reference to the image,
+ * never a copy (ADR-081 item 2). Every Unsplash column is named and cleared,
+ * as `coverValues` clears the URL ones, and the framing is the centre unless
+ * the caller chose one.
+ */
+export function urlCoverValues(input: UrlCoverInput, userId: string, now: Date): CoverRow {
+  return {
+    source: "url",
+    unsplashId: null,
+    urlRaw: null,
+    urlRegular: null,
+    urlSmall: null,
+    alt: input.alt ?? null,
+    photographerName: null,
+    photographerUrl: null,
+    photoPageUrl: null,
+    url: input.url,
+    creditName: input.credit?.name ?? null,
+    creditUrl: input.credit?.url ?? null,
+    position: input.position ?? 50,
     setBy: userId,
     setAt: now.toISOString(),
   };
