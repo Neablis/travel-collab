@@ -15,3 +15,12 @@
 - **Cross-reference:** KI-2026-09-22-c; M52 decision 9 (Reset to default instead of restoring
   deleted notebooks; the candidate *Recently deleted: restore any notebook*).
 - **First noted:** 2026-10-24, M52's walk of part 9.
+- **Re-verified 2026-10-25 (KI sweep 2), and it is worse than written.** History's Undo does not
+  just miss the reset. It takes back the trip change *behind* it, because a page-only batch never
+  enters the undo stack (`deriveUndoRedo`, `packages/domain/src/trip/history.ts`). A scratch
+  integration test (not kept) ran CreateTrip, AddDay, an edit of *Today*,
+  `resetPageToDefault` and then `UndoLastChange`. It printed `undo ok: true | page title after
+  History undo: Today | has our words: false | days before/after: 1 0`: the reset stayed, and the
+  day was removed. Left open for a product call: what History's Undo should mean for a notebook
+  (this entry's two interim directions, or page batches in the undo stack, which is
+  KI-2026-09-22-c's design).
