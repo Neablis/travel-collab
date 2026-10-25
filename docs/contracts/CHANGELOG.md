@@ -13,7 +13,7 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
-## 2026-10-25 — `TripCover` becomes a union on `source`, and every cover carries a `position` (M49 part 1; public API 1.27.0)
+## 2026-10-25 — `TripCover` becomes a union on `source`, and every cover carries a `position` (M49 part 1; public API 1.28.0)
 - **Changed** (`packages/contracts/src/cover.ts`): `TripCover` is a discriminated union on
   `source`. `"unsplash"` is today's picked photo, its fields unchanged; `"url"` is an image
   referenced by its address (`url`, `alt`, `credit: { name, url } | null`, and `proxySrc`, the
@@ -32,10 +32,25 @@ Format:
   `landingFeatures.generated.json`, `openapi.json`), `@tc/factories` (`tripCoverFactory` builds
   the Unsplash variant).
 - Public API: `DiscoverDay.cover` and `TripSummary.cover` gain `source` and `position`, and the
-  `url` variant; `API_VERSION` 1.27.0 with its new `API_FINGERPRINT`.
+  `url` variant; `API_VERSION` 1.28.0 with its new `API_FINGERPRINT`.
 - Breaking? no for a reader of today's covers, which all answer as `"unsplash"` with their
   fields unchanged. A caller that parses covers strictly must accept the two new fields and the
   `url` variant.
+
+## 2026-10-25 — A command's money is capped at 100,000,000,000 minor units (public API 1.27.0)
+- **Added** (`packages/contracts` `MAX_AMOUNT_MINOR`, `MoneyInput`): `MoneyInput` is `Money` with
+  `amountMinor` at most `MAX_AMOUNT_MINOR`. `AddActivity.cost`, `UpdateActivity.cost` and
+  `SetTripBudget.budget` take it, and so does `PATCH /v1/trips/{tripId}`'s `budget`
+  (`maximum: 100000000000` in `openapi.json`).
+- Why: zod 4's `.int()` refuses anything past `Number.MAX_SAFE_INTEGER`, where zod 3 did not
+  (entry below), and a trip's derived totals are parsed with it. Two stops of 5e15 each made a
+  `TripDetail` that no longer parsed, so every member of that trip got `malformed-trip`.
+  Found reviewing PR 579.
+- Consumers updated: `apps/web` (`MoneyInput` holds a typed amount at the cap instead of
+  sending one the server refuses; the v1 trip route).
+- Breaking? In principle — a command above the cap is now a 400 where it was accepted — but
+  such a command made the trip unreadable, so nothing that worked stops working. `Money` itself,
+  the shape of stored events, is unchanged: a stored amount above the cap still replays.
 
 ## 2026-10-25 — zod 3 → zod 4 (public API 1.26.1)
 - **Changed** (every `packages/contracts` schema, by the library under it): zod is `^4.6.6` in
