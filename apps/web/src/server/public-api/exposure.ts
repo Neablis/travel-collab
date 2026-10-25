@@ -100,9 +100,6 @@ export const EXPOSURE: Readonly<Record<string, Exposure>> = {
   "trips/[tripId]/membership": PLANNED("Undecided — leaving a trip"),
   // M34 D15: an internal route first; features ship before their endpoints.
   "trips/[tripId]/nearby-stops": PLANNED("Undecided — library stops near a trip day (M34)"),
-  // M37 part 5: the trip cover routes' terms, for a playbook day's author.
-  "saved-days/[savedDayId]/cover": PLANNED("Undecided — a playbook day's cover photo (M37)"),
-  "saved-days/[savedDayId]/cover/search": PLANNED("Undecided — searching Unsplash for a day's cover; spends the vendor's quota (M37)"),
   // M40 part 2: named snapshots on the internal API first.
   "trips/[tripId]/snapshots": PLANNED("Undecided — a trip's named snapshots (M40)"),
   "trips/[tripId]/snapshots/[snapshotId]": PLANNED("Undecided — renaming and deleting a snapshot (M40)"),
@@ -183,6 +180,18 @@ export const EXPOSURE: Readonly<Record<string, Exposure>> = {
   },
   // M49 decision 8: the API takes a cover found elsewhere, not a search.
   "trips/[tripId]/cover/search": {
+    status: "never",
+    why: "Searching Unsplash would spend Caesura's quota on another program's behalf (ADR-081 item 7)",
+    reaches: [{ module: "@/server/coverRoutes", symbols: ["coverSearch"] }, { module: "@/server/external/unsplash" }],
+  },
+  // M49 decision 8: playbook-day covers stay off the API, and the day's
+  // search spends the same quota the trip search would.
+  "saved-days/[savedDayId]/cover": {
+    status: "never",
+    why: "Playbook-day covers stay off the API (M49 decision 8)",
+    reaches: [{ module: "@/server/savedDayCovers" }],
+  },
+  "saved-days/[savedDayId]/cover/search": {
     status: "never",
     why: "Searching Unsplash would spend Caesura's quota on another program's behalf (ADR-081 item 7)",
     reaches: [{ module: "@/server/coverRoutes", symbols: ["coverSearch"] }, { module: "@/server/external/unsplash" }],

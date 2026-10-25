@@ -44,6 +44,7 @@ vi.mock("@/server/external/remoteImage/fetchImage", async (importOriginal) => {
 });
 
 const { POST: CREATE_TRIP } = await import("@/app/api/v1/trips/route");
+const { DELETE: DELETE_TRIP } = await import("@/app/api/v1/trips/[tripId]/route");
 const COVER = await import("@/app/api/v1/trips/[tripId]/cover/route");
 
 const RUN = randomUUID().slice(0, 8);
@@ -118,7 +119,9 @@ describe("PUT /v1/trips/{tripId}/cover", () => {
       credit: { name: "Port of Leith", url: null },
       position: 30,
     });
-    // What a browser loads is ours, never the image's host.
+    // What a browser loads is ours, never the image's host. A missing
+    // `proxySrc` would resolve to the base below, so its path is checked first.
+    expect(cover.proxySrc).toMatch(/^\/api\/cover-image\?/);
     expect(new URL(cover.proxySrc, "https://caesura.test").origin).toBe("https://caesura.test");
   });
 
@@ -149,6 +152,13 @@ describe("PATCH and DELETE /v1/trips/{tripId}/cover", () => {
     expect((await (await COVER.GET(req(secret, "GET"), P(tripId))).json()).cover).toMatchObject({ position: 85 });
   });
 
+  it("answers 404 when there is no cover to move", async () => {
+    const tripId = await newTrip(secret);
+    const res = await COVER.PATCH(req(secret, "PATCH", { position: 40 }), P(tripId));
+    expect(res.status).toBe(404);
+    expect((await res.json()).error.code).toBe("not-found");
+  });
+
   it("clears the cover", async () => {
     const tripId = await newTrip(secret);
     expect((await COVER.PUT(req(secret, "PUT", { url: IMAGE_URL }), P(tripId))).status).toBe(200);
@@ -156,6 +166,25 @@ describe("PATCH and DELETE /v1/trips/{tripId}/cover", () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ cover: null });
     expect(await rowsOf(tripId)).toEqual([]);
+  });
+});
+
+describe("a deleted trip's cover", () => {
+  it("refuses PUT, PATCH and DELETE with 400 and leaves the row as it was", async () => {
+    const tripId = await newTrip(secret);
+    expect((await COVER.PUT(req(secret, "PUT", { url: IMAGE_URL, position: 20 }), P(tripId))).status).toBe(200);
+    const before = await rowsOf(tripId);
+    expect((await DELETE_TRIP(req(secret, "DELETE"), P(tripId))).status).toBe(200);
+
+    for (const [method, body] of [
+      ["PUT", { url: IMAGE_URL, position: 70 }],
+      ["PATCH", { position: 70 }],
+      ["DELETE", undefined],
+    ] as const) {
+      const res = await COVER[method](req(secret, method, body), P(tripId));
+      expect(res.status, method).toBe(400);
+    }
+    expect(await rowsOf(tripId)).toEqual(before);
   });
 });
 

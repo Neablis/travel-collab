@@ -8,8 +8,9 @@ import { fetchRemoteImage } from "./external/remoteImage/fetchImage";
 import { RemoteImageRefused } from "./external/remoteImage/guard";
 
 // A trip's cover photo (M37 D1): ordinary CRUD on `trip_covers`, never an
-// event. The routes under `app/api/trips/[tripId]/cover/` are the only callers
-// that write; the listing query reads the same table through
+// event. The routes under `app/api/trips/[tripId]/cover/` and the public API's
+// `app/api/v1/trips/[tripId]/cover/` are the only callers that write; the
+// listing query reads the same table through
 // `TRIP_COVER_JSON` (`projections.ts`). What a cover row is, in this table and
 // in `saved_day_covers` alike, is `coverRows.ts`.
 
