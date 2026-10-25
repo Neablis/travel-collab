@@ -13,4 +13,13 @@
   draws untimed ghosts for that day, and route an untimed add or move into `board.days` for its
   day instead of `offBoard`. Same gap, lower priority: the Calendar view draws no ghost days, and a
   `SetTripDates` that lengthens the trip gets no ghost days (`suggestionOverlay.ts` :67).
+- **Needs Mitchell first (KI sweep 2, 2026-10-25):** still real — `placeGhosts` on a trip with
+  a suggested day D holding one timed and one untimed add gave `board.days[D]: [ 'timed' ]
+  offBoard: [ 'untimed' ]`, and an untimed add to a real day gave `offBoard: [ 'untimed-real' ]`.
+  But the fix direction above is the "Any time" shelf Mitchell had removed in PR 269 (*"I dont
+  like this 'Any time' section … they stack up and push everything down"*, `Column.tsx`): a real
+  day draws no untimed stop under its river, only an "N Unscheduled" chip pointing at the rack. So
+  the ghost day is consistent with a real day here, and the choice is a product one — e.g. an
+  "N Unscheduled" chip on a ghost day's header that opens the suggestions chip, or untimed ghosts
+  drawn in the Unscheduled rack under their day — not a fix to make unasked.
 - **First noted:** 2026-10-10, M40 (while fixing suggested-day ghosts, #381).
