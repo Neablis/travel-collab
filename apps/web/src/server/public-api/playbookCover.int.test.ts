@@ -22,6 +22,7 @@ vi.mock("@/server/auth", () => ({ auth: vi.fn(async () => null) }));
 const INTERNAL_IP = "169.254.169.254";
 const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 const IMAGE_URL = "https://cdn.example.com/harbour.png";
+const PAREN_URL = "https://cdn.example.com/bled_(11732502696).jpg";
 const PAGE_URL = "https://cdn.example.com/page.html";
 const PRIVATE_URL = "https://inside.example.com/latest/meta-data/";
 
@@ -32,6 +33,7 @@ vi.mock("@/server/external/remoteImage/fetchImage", async (importOriginal) => {
   ];
   const fetch: Fetcher = async (url) => {
     if (url.href === IMAGE_URL) return new Response(PNG, { headers: { "content-type": "image/png" } });
+    if (url.href === PAREN_URL) return new Response(PNG, { headers: { "content-type": "image/png" } });
     if (url.href === PAGE_URL) return new Response("<html></html>", { headers: { "content-type": "text/html" } });
     throw new Error(`unexpected fetch of ${url.href}`);
   };
@@ -45,6 +47,7 @@ vi.mock("@/server/external/remoteImage/fetchImage", async (importOriginal) => {
 const { POST: CREATE_PLAYBOOK } = await import("@/app/api/v1/playbooks/route");
 const PLAYBOOK = await import("@/app/api/v1/playbooks/[playbookId]/route");
 const COVER = await import("@/app/api/v1/playbooks/[playbookId]/cover/route");
+const COVER_IMAGE = await import("@/app/api/cover-image/route");
 
 const RUN = randomUUID().slice(0, 8);
 const NO_PARAMS = { params: Promise.resolve({} as Record<string, string>) };
@@ -146,9 +149,27 @@ describe("PUT /v1/playbooks/{playbookId}/cover", () => {
     expect(new URL(cover.proxySrc, "https://caesura.test").origin).toBe("https://caesura.test");
   });
 
+  it("sets a parenthesis URL cover whose minted path the proxy route serves in either spelling", async () => {
+    const playbookId = await newPlaybook(secret);
+    const put = await COVER.PUT(req(secret, "PUT", { url: PAREN_URL }), P(playbookId));
+    expect(put.status).toBe(200);
+
+    const got = await COVER.GET(req(secret, "GET"), P(playbookId));
+    const { cover } = await got.json();
+    expect(cover.proxySrc).toMatch(/^\/api\/cover-image\?/);
+    // The route serves the minted spelling, and the respelling a layer in
+    // front of it may normalize to (production, 2026-10-26).
+    for (const path of [cover.proxySrc, cover.proxySrc.replace("(11732502696)", "%2811732502696%29")]) {
+      const served = await COVER_IMAGE.GET(new Request(`https://caesura.test${path}`));
+      expect(served.status).toBe(200);
+      expect(served.headers.get("content-type")).toBe("image/png");
+    }
+  });
+
   it.each([
     ["a URL that is not an image", PAGE_URL, "not-an-image"],
     ["a URL on a private address", PRIVATE_URL, "private-address"],
+    ["a URL that is not https", "http://cdn.example.com/harbour.png", "not-https"],
   ])("refuses %s as cover-url-rejected, saves nothing, and names no address", async (_what, url, reason) => {
     const playbookId = await newPlaybook(secret);
     const res = await COVER.PUT(req(secret, "PUT", { url }), P(playbookId));
@@ -160,6 +181,26 @@ describe("PUT /v1/playbooks/{playbookId}/cover", () => {
     expect(text).not.toContain(INTERNAL_IP);
     expect(text).not.toContain("->");
     expect(await rowsOf(playbookId)).toEqual([]);
+  });
+
+  it("refuses a URL the proxy could not serve as cover-url-rejected, and saves nothing", async () => {
+    const playbookId = await newPlaybook(secret);
+    // Signing unavailable: the minted path cannot verify, so the cover
+    // would show as none rather than as the image. The stub is restored
+    // here, not in an afterEach, because this file has none and later
+    // tests set covers of their own.
+    vi.stubEnv("COVER_PROXY_SECRET", "");
+    vi.stubEnv("VERCEL_ENV", "production");
+    try {
+      const res = await COVER.PUT(req(secret, "PUT", { url: IMAGE_URL }), P(playbookId));
+      expect(res.status).toBe(422);
+      expect(await res.json()).toMatchObject({
+        error: { code: "cover-url-rejected", details: { reason: "not-renderable" } },
+      });
+      expect(await rowsOf(playbookId)).toEqual([]);
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 });
 
