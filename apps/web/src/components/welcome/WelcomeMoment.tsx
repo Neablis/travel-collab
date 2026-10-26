@@ -101,28 +101,29 @@ function WelcomeAnnouncement({ name }: { name: string | undefined }) {
  * does not replay it. Mounted in the app shell, under the session provider,
  * which is where the new account's name is.
  *
- * Full-screen under a finger or in the installed app, small otherwise. Nothing
- * under reduced motion (ADR-082 decision 2: an overlay unmounts at once), and
- * nothing on a home-screen launch: the cue is left for `LaunchOverlay`, which
- * is already this moment there, whichever of the two hydrates first.
+ * Full-screen under a finger or in the installed app, small otherwise. Under
+ * reduced motion only the words (ADR-082 decision 2: an overlay unmounts at
+ * once), and nothing on a home-screen launch: the cue is left for
+ * `LaunchOverlay`, which is already this moment there, whichever of the two
+ * hydrates first.
  */
 export function WelcomeCue() {
   const user = useKnownSessionUser();
-  const [cue, setCue] = useState<{ size: "full" | "small"; signup: boolean } | null>(null);
+  const [cue, setCue] = useState<{ size: "full" | "small" | null; signup: boolean } | null>(null);
 
   useEffect(() => {
     const kind = readWelcomeCue(document.cookie);
     if (kind === null || document.documentElement.hasAttribute("data-launch")) return;
     clearWelcomeCue();
-    if (prefersReducedMotion()) return;
-    setCue({ size: wantsFullScreen() ? "full" : "small", signup: kind === "signup" });
+    const size = prefersReducedMotion() ? null : wantsFullScreen() ? "full" : "small";
+    setCue({ size, signup: kind === "signup" });
   }, []);
 
   const name = cue?.signup ? (user?.name ?? undefined) : undefined;
   return (
     <>
       <WelcomeAnnouncement name={name} />
-      {cue === null ? null : <WelcomeMoment size={cue.size} name={name} onDone={() => setCue(null)} />}
+      {cue?.size ? <WelcomeMoment size={cue.size} name={name} onDone={() => setCue(null)} /> : null}
     </>
   );
 }
@@ -154,13 +155,12 @@ function wantsFullScreen(): boolean {
  *
  * A launch that is also the first page after a sign-in spends the welcome cue
  * here (`WelcomeCue` leaves it while `data-launch` is set), and a signup's
- * plays "Welcome, {name}".
+ * plays "Welcome, {name}". When it draws nothing, a signup's is still said.
  */
 export function LaunchOverlay() {
-  const [launch, setLaunch] = useState<{ phase: WelcomePhase; signup: boolean } | "gone">({
-    phase: "breathe",
-    signup: false,
-  });
+  const [launch, setLaunch] = useState<
+    { phase: WelcomePhase; signup: false } | { signup: true; nameWaitMs: number } | "gone" | "said"
+  >({ phase: "breathe", signup: false });
 
   useEffect(() => {
     const root = document.documentElement;
@@ -176,19 +176,24 @@ export function LaunchOverlay() {
     const since = performance.now();
     if (prefersReducedMotion() || since >= LAUNCH_FAILSAFE_MS) {
       root.removeAttribute("data-launch");
-      setLaunch("gone");
+      setLaunch(kind === "signup" ? "said" : "gone");
       return;
     }
-    if (kind !== null) setLaunch({ phase: "welcome", signup: kind === "signup" });
+    if (kind === "signup") {
+      // Breathing past the fail-safe would let the CSS fade the sheet before
+      // the welcome brings it back.
+      setLaunch({ signup: true, nameWaitMs: Math.min(NAME_WAIT_MS, LAUNCH_FAILSAFE_MS - since) });
+    } else if (kind === "signin") setLaunch({ phase: "welcome", signup: false });
     else setLaunch({ phase: since < FAST_LAUNCH_MS ? "fade" : "unlock", signup: false });
   }, []);
 
   if (launch === "gone") return null;
+  if (launch === "said") return <SessionAnnouncement />;
   const leave = () => {
     document.documentElement.removeAttribute("data-launch");
     setLaunch("gone");
   };
-  if (launch.signup) return <NamedLaunch onDone={leave} />;
+  if (launch.signup) return <NamedLaunch nameWaitMs={launch.nameWaitMs} onDone={leave} />;
   return (
     <div className="launch-overlay">
       <WelcomeMoment size="full" phase={launch.phase} onDone={leave} />
@@ -196,20 +201,42 @@ export function LaunchOverlay() {
   );
 }
 
-// The root layout has no session provider, so this asks the session itself,
-// and is mounted only on this rare path so no other load pays for the request.
-// The greeting plays at once and the name joins it when the answer lands.
-function NamedLaunch({ onDone }: { onDone: () => void }) {
-  const name = useSessionUser()?.name ?? undefined;
+// The root layout has no session provider, so these ask the session themselves,
+// and are mounted only on a signup's launch so no other load pays for the request.
+function SessionAnnouncement() {
+  return <WelcomeAnnouncement name={useSessionUser()?.name ?? undefined} />;
+}
+
+// Breathes until the name is known or `nameWaitMs` has passed, then welcomes
+// with whatever it has. The name is fixed from then on: `data-named` lengthens
+// the hold, and re-timing a running animation snaps a fading sheet back, the
+// hidden-then-shown frame decision 6 forbids. A later name is still said.
+function NamedLaunch({ nameWaitMs, onDone }: { nameWaitMs: number; onDone: () => void }) {
+  const user = useSessionUser();
+  const [welcome, setWelcome] = useState<{ name: string | undefined } | null>(null);
+  useEffect(() => {
+    if (welcome) return;
+    if (user !== undefined) {
+      setWelcome({ name: user?.name ?? undefined });
+      return;
+    }
+    const timer = setTimeout(() => setWelcome({ name: undefined }), nameWaitMs);
+    return () => clearTimeout(timer);
+  }, [user, welcome, nameWaitMs]);
+
   return (
     <>
-      <WelcomeAnnouncement name={name} />
+      <WelcomeAnnouncement name={user?.name ?? undefined} />
       <div className="launch-overlay">
-        <WelcomeMoment size="full" name={name} onDone={onDone} />
+        <WelcomeMoment size="full" phase={welcome ? "welcome" : "breathe"} name={welcome?.name} onDone={onDone} />
       </div>
     </>
   );
 }
+
+// Long enough for a session read on a cold launch to answer most of the time;
+// past it, the person has watched a breathing mark for long enough.
+const NAME_WAIT_MS = 600;
 
 // Decision 6's "about 300ms": under it, the splash simply ending reads better
 // than an animation the person had no time to see start.
