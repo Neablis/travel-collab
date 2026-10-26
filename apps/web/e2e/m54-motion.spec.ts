@@ -276,3 +276,36 @@ test("the phone tab bar's pill follows a switch and a resize", async ({ page }) 
   await page.setViewportSize({ width: 700, height: 844 });
   await expect.poll(() => indicatorOffset(page, list, pill)).toEqual(UNDER);
 });
+
+// Mitchell's M54 phone walk: "The ask button keeps disappearing and
+// reappearing when I switch between the other tabs." Board and Notebook are
+// different paths, so the screen that offered the Ask unmounts behind a
+// loading boundary before the next one offers its own. The item holds its
+// place across that gap: watched for every DOM change rather than sampled, so
+// a drop of any length is seen.
+test("the phone tab bar's Ask never leaves the bar across Board, Notebook and back", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const tripId = await aTrip(page, "MotionAsk");
+  await page.goto(`/trips/${tripId}`);
+  await boardHydrated(page);
+  const bar = page.getByRole("navigation", { name: "Phone navigation" });
+  const ask = bar.getByTestId("ask-tab");
+  await expect(ask).toBeEnabled();
+  await page.evaluate(() => {
+    const w = window as unknown as { askDrops: number };
+    w.askDrops = 0;
+    new MutationObserver(() => {
+      if (document.querySelector('nav[aria-label="Phone navigation"] > [data-testid="ask-tab"]:last-child') === null) w.askDrops += 1;
+    }).observe(document.body, { childList: true, subtree: true });
+  });
+
+  await bar.getByRole("link", { name: "Notebook" }).click();
+  await expect(page).toHaveURL(new RegExp(`/trips/${tripId}/pages$`));
+  await expect(ask).toBeEnabled();
+  await bar.getByRole("link", { name: "Plan" }).click();
+  await expect(page).toHaveURL(new RegExp(`/trips/${tripId}\\?view=Plan$`));
+  await boardHydrated(page);
+  await expect(ask).toBeEnabled();
+
+  expect(await page.evaluate(() => (window as unknown as { askDrops: number }).askDrops)).toBe(0);
+});

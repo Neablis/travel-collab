@@ -16,7 +16,9 @@ import type { ChatMessage } from "@tc/contracts";
 // screen is mounted, and a screen that unmounts takes its entry with it, so
 // the bar never offers an Ask with nothing behind it (`/demo`, a locked
 // notebook, the account pages). The entry is a value, not a flag the bar
-// holds — the route still decides which tabs exist (`tabsForScope`).
+// holds — the route still decides which tabs exist (`tabsForScope`). The bar
+// alone keeps a taken-back entry drawn, inert, across a move between one
+// trip's tabs (`useHeldPhoneAsk`); every other reader sees `null` here.
 //
 // **Not the tab bar's alone since M52**: a notebook's *Trip chat* widget
 // reads the entry at every width (`readerCapabilities.ts`), so what a screen

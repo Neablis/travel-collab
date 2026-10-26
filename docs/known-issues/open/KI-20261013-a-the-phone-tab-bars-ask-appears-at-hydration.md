@@ -11,6 +11,14 @@
   and the tab bar's Ask is never in the server HTML. It appears at hydration. This is the same on
   every surface that registers one: the trip board, the notebook index and its pages, Home, and
   the playbook pages (M45 D9).
+- **The same gap on a tab switch, closed for the trip's tabs (M54 part 4, PR 601).** Moving
+  between a trip's Board and Notebook is a path change: the screen that registered the entry
+  unmounts behind the `(board)` loading boundary, and the next registers only once its trip
+  lands, so the Ask left the bar for 0.5–2.9s (Mitchell's M54 phone walk: "The ask button keeps
+  disappearing and reappearing when I switch between the other tabs"). `PhoneAskTab` now holds
+  the last entry it saw in a trip, disabled, onto that trip's board and notebook index until
+  the next screen registers (`useHeldPhoneAsk`); another trip, the account pages and a notebook
+  page start empty as before. A first load, the case above, still has nothing to hold.
 - **What it means for M45 decision 3** ("the Ask is in the first paint, with no flash"): it
   holds from the `md` width up, where the page head's Ask is drawn from the served plan
   (`PlaybookAskButton`, PR 427) and is in the server HTML. **It does not yet hold on a phone.**
