@@ -133,7 +133,10 @@ test("account preferences: a name, a home airport, and miles that stick", async 
 // shared alice session is read by every other spec, and a 24-hour clock left
 // on it would move their 12-hour assertions.
 test("account preferences: the board's clock follows the Time setting", async ({ page }) => {
-  const username = `m17t${Date.now().toString(36)}-${crypto.randomUUID().slice(0, 8)}`;
+  // Hex only, the shape of the `freshUsername()` in m11a-invite-gate.spec.ts
+  // and responsive.spec.ts: no "p", no "m", so the name can never spell the
+  // "pm" this test asserts away. `Date.now().toString(36)` could, and did.
+  const username = `m17t${crypto.randomUUID().replace(/-/g, "").slice(0, 20)}`;
   await signInAsDevUser(page, username);
 
   const post = async (path: string, data: unknown) => {
@@ -163,10 +166,16 @@ test("account preferences: the board's clock follows the Time setting", async ({
   await page.getByRole("radio", { name: "24-hour (14:30)" }).click();
   await expect(page.getByRole("radio", { name: "24-hour (14:30)" })).toHaveAttribute("aria-checked", "true");
 
+  // The window itself, and no 12-hour time anywhere on the card. Not
+  // `not.toContainText("pm")` across the card: the card also prints who added
+  // the stop, and a username is free text. One holding "pm" failed this line
+  // on seven PRs at once (PR 594 to PR 607, KI-2026-10-26-pm). A 12-hour time
+  // is a digit, a space, then am or pm, and a username has no space.
   await page.goBack();
-  await expect(card).toContainText("09:00 – 14:30");
-  await expect(card).not.toContainText("pm");
+  const clock = card.getByText("09:00 – 14:30", { exact: true });
+  await expect(clock).toBeVisible();
+  await expect(card.getByText(/\d (am|pm)\b/)).toHaveCount(0);
 
   await page.reload();
-  await expect(card).toContainText("09:00 – 14:30");
+  await expect(clock).toBeVisible();
 });
