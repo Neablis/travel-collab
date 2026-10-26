@@ -70,7 +70,9 @@ citations were re-verified against `main` at `f5c9a16` on 2026-10-26, with three
 - [ ] **No page freezes on navigation.** `/home`, `/plans`, `/account` and the front-door routes have
       a skeleton, except `/signin` and `/signup`: there a skeleton raced hydration and wiped a typed
       username (m15, 2 of 8 runs), so a click to them holds instead (Mitchell, 2026-10-26). Routes
-      cross-fade (decision 18). Covers fade in. *(Part 4.)*
+      cross-fade (decision 18). Covers fade in when they load after the page does (in-app
+      navigation, or a lazy cover scrolled to); a cover already in the server's HTML and loaded
+      by hydration shows at once, so a direct load of a page shows no fade by design. *(Part 4.)*
 - [ ] **Sign-in has its cheer.** Continue with Google and dev login cannot be double-submitted, the
       invite code sits behind *Have an invite code?*, and the welcome moment plays after every
       sign-in (full-screen on a phone, small and non-blocking on desktop, "Welcome, {name}" after
