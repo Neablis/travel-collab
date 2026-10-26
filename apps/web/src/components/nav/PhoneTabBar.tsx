@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { BookOpen, LayoutDashboard, List, Luggage, Map, NotebookText } from "lucide-react";
@@ -12,7 +12,7 @@ import { isDemoBoardPath } from "@/lib/demoTrip";
 import { Button } from "@/components/ui/button";
 import { BrandMark } from "@/components/BrandMark";
 import { askOrChatName, UnreadDot } from "./askOrChat";
-import { usePhoneAsk } from "./phoneAsk";
+import { usePhoneAsk, type PhoneAskEntry } from "./phoneAsk";
 import { HOME_PATH } from "@/lib/homePath";
 
 // Handoff `Trip Planner Redesign.dc.html:863-871` (markup) and `:7211-7229`
@@ -438,7 +438,7 @@ function PhoneTabBarView({
           </Link>
         );
       })}
-      <PhoneAskTab />
+      <PhoneAskTab pathname={pathname} />
     </nav>
   );
 }
@@ -455,34 +455,40 @@ function PhoneTabBarView({
  * (KI-79), a locked notebook page, and the account pages.
  *
  * Exported so a screen's own test can render it beside the screen: the bar
- * itself needs a route, and the item is what the screen talks to.
+ * itself needs a route, and the item is what the screen talks to. Without
+ * `pathname` it holds nothing over (`useHeldPhoneAsk`).
  */
-export function PhoneAskTab() {
-  const ask = usePhoneAsk();
+export function PhoneAskTab({ pathname }: { pathname?: string }) {
+  const ask = useHeldPhoneAsk(pathname ?? null);
   if (ask === null) return null;
+  const { held } = ask;
+  const open = ask.open && !held;
   return (
     // The ghost button primitive, with its box undone back to a tab's: the
     // bar's links are not buttons, and this one item must sit exactly as
     // they do (same height, same gap, same label size).
     <Button
       variant="ghost"
+      // Held over from the screen before, whose assistant is gone: in its
+      // place, opening nothing, until the next screen offers its own.
+      disabled={held}
       onClick={ask.onResume ?? ask.onOpen}
       // On a trip with a chat this is the one way into both, as the header's
       // pill is from 768px (M46), and named and dotted as that pill is.
       aria-label={askOrChatName(ask.unread)}
-      aria-expanded={ask.open}
+      aria-expanded={open}
       data-testid="ask-tab"
       className={cn(
         TAB_CLASS,
         "h-auto rounded-none px-0 hover:bg-transparent",
-        ask.open ? "font-semibold text-brand hover:text-brand" : "font-normal text-slate hover:text-slate",
+        open ? "font-semibold text-brand hover:text-brand" : "font-normal text-slate hover:text-slate",
       )}
     >
       {/* The tabs' own pill, and their two looks: filled only while the
           assistant is up, as a tab's is while it is current. It was always
           filled, which on a closed assistant read as the current tab
           (Mitchell, walking PR 426 at 644px on 2026-10-12). */}
-      <span data-testid="phone-tab-pill" className={cn("phone-tab-pill relative grid place-items-center rounded-full", ask.open && "bg-brand-tint")}>
+      <span data-testid="phone-tab-pill" className={cn("phone-tab-pill relative grid place-items-center rounded-full", open && "bg-brand-tint")}>
         <BrandMark size={16} tile={false} />
         {/* The header pill's dot, on this pill's corner and out of flow, so
             neither the glyph nor the item moves when it appears. */}
@@ -491,6 +497,42 @@ export function PhoneAskTab() {
       Ask
     </Button>
   );
+}
+
+/**
+ * The trip whose tab routes `pathname` is on: a trip's board and its notebook
+ * index, the two screens its tabs reach. `null` anywhere else, a notebook page
+ * among them.
+ */
+function tripTabsOf(pathname: string): string | null {
+  return /^\/trips\/([^/]+)(?:\/pages)?\/?$/.exec(pathname)?.[1] ?? null;
+}
+
+/**
+ * The registered Ask, or the last one seen in this trip, `held`, while a move
+ * between its tabs has none (Mitchell's M54 phone walk: "The ask button keeps
+ * disappearing and reappearing when I switch between the other tabs"). Board
+ * and Notebook are different paths, so between them one screen unmounts,
+ * taking its entry, and the next offers its own only once its trip lands.
+ *
+ * Held only onto a trip tab route of the trip it was seen in: both screens
+ * there offer an Ask once loaded, so the item is not left standing for one
+ * that never comes. A notebook page may offer none (a locked one), and
+ * another trip's or the account pages' Ask is not this one, so those start
+ * empty as before. This is the bar remembering an entry, keyed by the route
+ * and dropped by it, not a tab it lights (§13).
+ */
+function useHeldPhoneAsk(pathname: string | null): (PhoneAskEntry & { held: boolean }) | null {
+  const live = usePhoneAsk();
+  const trip = pathname === null ? null : tripIdFromPathname(pathname);
+  const [last, setLast] = useState<{ entry: PhoneAskEntry; trip: string | null } | null>(null);
+  // Keyed to the trip the entry was first seen in, not the route of every
+  // render: the bar renders the next route before the old screen's cleanup
+  // takes its entry back, and must not carry it into another trip then.
+  if (live !== null && live !== last?.entry) setLast({ entry: live, trip });
+  if (live !== null) return { ...live, held: false };
+  if (last?.trip && pathname !== null && tripTabsOf(pathname) === last.trip) return { ...last.entry, held: true };
+  return null;
 }
 
 /**
