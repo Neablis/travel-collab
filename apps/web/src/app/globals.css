@@ -3073,22 +3073,28 @@ html[data-look="ledger"] .shadow-raised {
     opacity: 0;
     pointer-events: none;
   }
-  [data-river-block]:hover::before {
-    opacity: 1;
+  /* As Tailwind's `hover:` is, which the shadow was before. */
+  @media (hover: hover) {
+    [data-river-block]:hover::before {
+      opacity: 1;
+    }
   }
 
   @media (prefers-reduced-motion: no-preference) {
     .trip-card-lift {
       transition: transform var(--transition-duration-fast) var(--ease-calm);
     }
-    .trip-card-lift:hover:not(:has([aria-expanded="true"])) {
-      transform: translateY(-2px);
-    }
     .trip-card-lift:active:not(:has(button:active)) {
       transform: scale(0.99);
     }
     [data-motion="sink"][data-state="closed"] {
       animation: var(--animate-sink-out);
+    }
+    /* Only where there is a hover, so a tap does not leave a card raised. */
+    @media (hover: hover) {
+      .trip-card-lift:hover:not(:has([aria-expanded="true"])) {
+        transform: translateY(-2px);
+      }
     }
 
     .rack-caret {
