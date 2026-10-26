@@ -2070,7 +2070,7 @@ describe("assistant rail visibility", () => {
       const panel = await screen.findByRole("complementary", { name: "Assistant" });
       expect(selected(panel)).toEqual(["Chat"]);
       // Into the panel, as Ask's opener takes its composer (PR 426).
-      expect(within(panel).getByRole("combobox", { name: "Message" }).matches(":focus")).toBe(true);
+      await waitFor(() => expect(within(panel).getByRole("combobox", { name: "Message" }).matches(":focus")).toBe(true));
       await userEvent.click(within(panel).getByRole("tab", { name: "Ask" }));
 
       await reload(fixture.tripId);
@@ -2177,7 +2177,7 @@ describe("assistant rail visibility", () => {
       expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
       await userEvent.click(screen.getByTestId("ask-pill"));
       const panel = await screen.findByRole("complementary", { name: "Assistant" });
-      expect(within(panel).getByRole("combobox", { name: "Message" }).matches(":focus")).toBe(true);
+      await waitFor(() => expect(within(panel).getByRole("combobox", { name: "Message" }).matches(":focus")).toBe(true));
       // KI-2026-09-22-e: a rendered trip is not yet an armed poll.
       await waitFor(() => expect(addListener).toHaveBeenCalledWith("visibilitychange", expect.any(Function)));
       addListener.mockRestore();
@@ -2185,7 +2185,7 @@ describe("assistant rail visibility", () => {
       membersMove(fixture, [fixture.members[0]!]);
 
       await waitFor(() => expect(within(panel).queryAllByRole("tab")).toEqual([]));
-      expect(within(panel).getByRole("textbox", { name: "Question for the assistant" }).matches(":focus")).toBe(true);
+      await waitFor(() => expect(within(panel).getByRole("textbox", { name: "Question for the assistant" }).matches(":focus")).toBe(true));
 
       membersMove(fixture, shared().members);
       expect(await within(panel).findByRole("tab", { name: "Chat" })).toBeTruthy();

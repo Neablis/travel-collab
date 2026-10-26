@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useSyncExternalStore } from "react";
+import { useEffect, useLayoutEffect, useRef, useSyncExternalStore } from "react";
 import type { ChatMessage } from "@tc/contracts";
 
 // **The phone's Ask lives in the bottom tab bar** (Mitchell, 2026-10-10
@@ -105,7 +105,7 @@ let declines = 0;
  * otherwise stands, dead, waiting for an offer that never comes.
  */
 export function useDeclinePhoneAsk(declined: boolean): void {
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!declined) return;
     declines += 1;
     emit();
@@ -162,7 +162,12 @@ export function usePhoneAskEntry(
   const messages = chat?.messages ?? null;
   const chatUnread = chat?.unread ?? 0;
   const chatPending = chat?.pending === true;
-  useEffect(() => {
+  // A layout effect, as `useDeclinePhoneAsk`'s is: the bar's re-render then
+  // lands in the commit that drew the screen, not a task after it, so the bar
+  // never paints a frame behind the screen (a stale unread count, or the held
+  // Ask beside a board's error). Repeat runs of PR 601's tests caught that
+  // frame.
+  useLayoutEffect(() => {
     if (!offered) return;
     return registerPhoneAsk({
       open,
