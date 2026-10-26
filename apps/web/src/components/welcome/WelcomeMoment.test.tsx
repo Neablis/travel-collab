@@ -1,4 +1,5 @@
-import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, cleanup, render, screen, within } from "@testing-library/react";
+import { StrictMode } from "react";
 import { hydrateRoot } from "react-dom/client";
 import { renderToString } from "react-dom/server";
 import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
@@ -15,10 +16,17 @@ afterEach(() => {
   document.cookie = `${WELCOME_COOKIE}=; Path=/; Max-Age=0`;
 });
 
-// Time since navigation start. Node's clock counts from the worker's start, so
-// on a busy runner it is already past the launch fail-safe when a test begins.
+// The page's clock, which with `data-launch=""` is also the time since the
+// splash went up. Node's clock counts from the worker's start, so on a busy
+// runner it is already past the launch fail-safe when a test begins.
 function launchedMsAgo(ms: number) {
   vi.spyOn(performance, "now").mockReturnValue(ms);
+}
+
+// In steps, as a browser's frames would: a timer an effect starts only exists
+// once React has committed, which one long jump would skip past.
+async function elapse(ms: number) {
+  for (let step = 0; step < ms; step += 50) await act(() => vi.advanceTimersByTimeAsync(50));
 }
 
 // The session endpoint answering for Ana after `ms`, on the faked clock.
@@ -83,12 +91,42 @@ describe("LaunchOverlay", () => {
   // Mitchell's walk: a mark over a page already drawn read as unstyled
   // content. So any page a sign-in lands on is held behind the splash from its
   // first frame, at every width, not only in the installed app.
+  // Stamped with when, so the overlay's cap counts from the splash going up and
+  // not from navigation start, which after Google is the OAuth callback.
   it.each(["signin", "signup"])("holds the first page after a %s behind the splash", (kind) => {
     stubMedia();
+    launchedMsAgo(4800);
     document.cookie = `${WELCOME_COOKIE}=${kind}; Path=/`;
     // eslint-disable-next-line @typescript-eslint/no-implied-eval -- runs the inline <head> script as the browser would
     new Function(LAUNCH_SCRIPT)();
-    expect(document.documentElement.hasAttribute("data-launch")).toBe(true);
+    expect(document.documentElement.getAttribute("data-launch")).toBe("4800");
+  });
+
+  // A Google sign-in's page clock starts at the callback, before the token
+  // exchange, `recordSignIn`'s awaited email and the redirect: well past the
+  // fail-safe by hydration, though the splash went up moments ago.
+  it("welcomes a sign-in whose navigation began long before the splash went up", async () => {
+    launchedMsAgo(5000);
+    document.documentElement.setAttribute("data-launch", "4800");
+    document.cookie = `${WELCOME_COOKIE}=signin; Path=/`;
+    vi.stubGlobal("fetch", async () => Response.json({ user: ana }));
+    render(<LaunchOverlay />);
+    expect(await within(screen.getByTestId("welcome-moment")).findByText("Welcome, Ana")).toBeDefined();
+  });
+
+  // `next dev` runs the mount effect twice. The cue is spent on the first run,
+  // and the second must not read its absence as a launch with nothing to say.
+  it("still greets by name when the mount effect runs twice", async () => {
+    launchedMsAgo(100);
+    document.documentElement.setAttribute("data-launch", "");
+    document.cookie = `${WELCOME_COOKIE}=signin; Path=/`;
+    vi.stubGlobal("fetch", async () => Response.json({ user: ana }));
+    render(
+      <StrictMode>
+        <LaunchOverlay />
+      </StrictMode>,
+    );
+    expect(await within(screen.getByTestId("welcome-moment")).findByText("Welcome, Ana")).toBeDefined();
   });
 
   // The gate's "Welcome, {name}", after a returning sign-in as well as a
@@ -108,30 +146,17 @@ describe("LaunchOverlay", () => {
     expect(readWelcomeCue(document.cookie)).toBeNull();
   });
 
-  // The gate: the splash leaves within the name-wait cap and the page is
-  // usable after it. A name that answers late, inside the 600ms wait, holds
-  // the splash longest; it still goes by the wait plus the named welcome
-  // (1750ms after hydration), and once it has gone a click reaches the page.
-  it("leaves within the name-wait cap and hands the page back usable", async () => {
+  // The gate: the splash leaves within the name-wait cap. A name that answers
+  // late, inside the 600ms wait, holds the splash longest; it still goes by
+  // the wait plus the named welcome. Whether the page then answers a tap, and
+  // not before, is hit-testing jsdom does not do: `m54-welcome.spec.ts` owns it.
+  it("leaves within the name-wait cap", async () => {
     vi.useFakeTimers();
     launchedMsAgo(100);
     document.documentElement.setAttribute("data-launch", "");
     document.cookie = `${WELCOME_COOKIE}=signup; Path=/`;
     sessionAnswersAfter(500);
-    const pressed = vi.fn();
-    render(
-      <>
-        <LaunchOverlay />
-        <button type="button" onClick={pressed}>
-          New trip
-        </button>
-      </>,
-    );
-    // In steps, as a browser's frames would: a timer an effect starts only
-    // exists once React has committed, which one long jump would skip past.
-    const elapse = async (ms: number) => {
-      for (let step = 0; step < ms; step += 50) await act(() => vi.advanceTimersByTimeAsync(50));
-    };
+    render(<LaunchOverlay />);
     await elapse(1400);
     const moment = screen.getByTestId("welcome-moment");
     expect(within(moment).getByText("Welcome, Ana")).toBeDefined();
@@ -140,11 +165,25 @@ describe("LaunchOverlay", () => {
     await elapse(350);
     expect(screen.queryByTestId("welcome-moment")).toBeNull();
     expect(document.documentElement.hasAttribute("data-launch")).toBe(false);
-    fireEvent.click(screen.getByRole("button", { name: "New trip" }));
-    expect(pressed).toHaveBeenCalledTimes(1);
   });
 
-  // Decision 6: `data-named` lengthens the hold, and re-timing a running
+  // The spec's hold is about 1.2 to 1.6s in all. A splash that has already
+  // stood through a slow hydration does not then hold its full beat on top:
+  // it says the name and unlocks.
+  it("shortens the hold by the time the splash has already been up", async () => {
+    vi.useFakeTimers();
+    launchedMsAgo(2000);
+    document.documentElement.setAttribute("data-launch", "");
+    document.cookie = `${WELCOME_COOKIE}=signin; Path=/`;
+    sessionAnswersAfter(100);
+    render(<LaunchOverlay />);
+    await elapse(150);
+    expect(within(screen.getByTestId("welcome-moment")).getByText("Welcome, Ana")).toBeDefined();
+    await elapse(450);
+    expect(screen.queryByTestId("welcome-moment")).toBeNull();
+  });
+
+  // Decision 6: a name lengthens the hold, and re-timing a running
   // animation snaps a fading sheet back. So the overlay breathes until the
   // name is known, and the welcome starts at its final length.
   it("breathes until the session answers, then welcomes by name", async () => {

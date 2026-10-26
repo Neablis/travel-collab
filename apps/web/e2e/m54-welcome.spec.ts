@@ -1,11 +1,11 @@
 import { randomUUID } from "node:crypto";
 import type { Locator, Page } from "@playwright/test";
-import { expect, test } from "./fixtures/test";
+import { expect, test, welcomeSplash } from "./fixtures/test";
 
 // M54 part 5, from Mitchell's walk: a sign-in's welcome is a splash that holds
 // the page back, then hands it over, at every width. The page underneath must
-// not show around or through it, the splash must not stay, and once it has gone
-// the page answers.
+// not show around or through it, nor take a tap meant for the splash, the
+// splash must not stay, and once it has gone the page answers.
 //
 // Signed out, so the sign-in below is the one that sets the welcome cue; with
 // motion on, so the splash plays as most people see it.
@@ -37,6 +37,12 @@ async function covering(moment: Locator) {
   });
 }
 
+async function centreOf(target: Locator) {
+  const box = await target.boundingBox();
+  if (!box) throw new Error("no box: the target is not laid out");
+  return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+}
+
 for (const [width, viewport] of [
   ["desktop", { width: 1280, height: 900 }],
   ["phone", { width: 411, height: 852 }],
@@ -44,22 +50,42 @@ for (const [width, viewport] of [
   test.describe(`at ${width} width`, () => {
     test.use({ viewport });
 
-    // A fresh account for the signup; alice has had a row since auth.setup.ts.
-    for (const [kind, path, account] of [
-      ["signup", "/signup", () => `welcome${randomUUID().replace(/-/g, "").slice(0, 10)}`],
-      ["sign-in", "/signin", () => "alice"],
+    // A fresh account every time, so Home is the empty one whatever trips
+    // other specs left alice: its "New trip" focuses the inline composer. The
+    // sign-in is that account coming back, signed up and signed out first.
+    for (const [kind, arrive] of [
+      ["signup", (page: Page, username: string) => signInThroughTheForm(page, "/signup", username)],
+      [
+        "sign-in",
+        async (page: Page, username: string) => {
+          await signInThroughTheForm(page, "/signup", username);
+          await page.context().clearCookies();
+          await signInThroughTheForm(page, "/signin", username);
+        },
+      ],
     ] as const) {
       test(`a ${kind} is welcomed by name on a splash, then the page is handed over`, async ({ page }) => {
-        const username = account();
-        await signInThroughTheForm(page, path, username);
+        // This spec is about the splash, so it does not wait it out.
+        await page.removeLocatorHandler(welcomeSplash(page));
+        const username = `welcome${randomUUID().replace(/-/g, "").slice(0, 10)}`;
+        await arrive(page, username);
 
-        const moment = page.getByTestId("welcome-moment");
+        const moment = welcomeSplash(page);
         await expect(moment.getByText(`Welcome, ${username}`)).toBeVisible();
         expect(await covering(moment)).toEqual({ spansViewport: true, opaque: true });
 
+        // A tap on the blank splash lands on the splash, not on the hidden
+        // page: here, where "New trip" sits under it. A plain mouse click,
+        // since a locator click would wait for the button to be uncovered.
+        const newTrip = page.getByRole("button", { name: "New trip" });
+        const under = await centreOf(newTrip);
+        await page.mouse.click(under.x, under.y);
+
         await expect(moment).toBeHidden({ timeout: LEAVES_WITHIN_MS });
-        await page.getByRole("button", { name: "New trip" }).click();
-        await expect(page.getByLabel("Where are you going?")).toBeFocused();
+        const composer = page.getByLabel("Where are you going?");
+        await expect(composer).not.toBeFocused();
+        await newTrip.click();
+        await expect(composer).toBeFocused();
       });
     }
   });

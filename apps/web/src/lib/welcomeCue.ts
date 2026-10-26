@@ -2,9 +2,9 @@
 // server that sets them and the client that plays them.
 //
 // Plain data and string functions, importing nothing: `recordSignIn` reads it
-// on the server, the shell in the browser, and `LAUNCH_SCRIPT` is a string the
-// root layout inlines (a `"use client"` module could not hand a server
-// component a string, only a client reference).
+// on the server, the root layout's `LaunchOverlay` in the browser, and
+// `LAUNCH_SCRIPT` is a string the root layout inlines (a `"use client"` module
+// could not hand a server component a string, only a client reference).
 
 /** Set by `recordSignIn`, read and cleared once by the root layout's `LaunchOverlay`. */
 export const WELCOME_COOKIE = "tc_welcome";
@@ -41,9 +41,13 @@ export function clearWelcomeCue(doc: Pick<Document, "cookie"> = document): void 
 // is not a display-mode match on every version, `navigator.standalone` is.
 // `globals.css` shows `.launch-overlay` only under `html[data-launch]`, and
 // `LaunchOverlay` takes the attribute away once the page has hydrated.
+// Its value is when the splash went up, on the page's clock. `LaunchOverlay`
+// times its cap from that rather than from navigation start, which after a
+// Google sign-in is the OAuth callback, seconds of token exchange, awaited
+// email and redirect before this page painted.
 //
 // A launch is once per session: in the installed app a refresh and the
 // sign-out redirect are full loads too, and neither is a launch.
 // `sessionStorage` lives exactly as long as the app's window does.
 const LAUNCHED_KEY = "tc_launched";
-export const LAUNCH_SCRIPT = `try{var w=/${WELCOME_IN_COOKIES.source}/.test(document.cookie);if((navigator.standalone===true||matchMedia("(display-mode: standalone)").matches)&&!sessionStorage.getItem("${LAUNCHED_KEY}")){sessionStorage.setItem("${LAUNCHED_KEY}","1");w=true}if(w)document.documentElement.setAttribute("data-launch","")}catch(e){}`;
+export const LAUNCH_SCRIPT = `try{var w=/${WELCOME_IN_COOKIES.source}/.test(document.cookie);if((navigator.standalone===true||matchMedia("(display-mode: standalone)").matches)&&!sessionStorage.getItem("${LAUNCHED_KEY}")){sessionStorage.setItem("${LAUNCHED_KEY}","1");w=true}if(w)document.documentElement.setAttribute("data-launch",String(Math.round(performance.now())))}catch(e){}`;

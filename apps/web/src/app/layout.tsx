@@ -116,7 +116,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     // `suppressHydrationWarning` for the one attribute React does not render
     // here: `LAUNCH_SCRIPT` adds `data-launch` before hydration on a home-screen
-    // launch. It reaches this element's own attributes only.
+    // launch or the first page after a sign-in. It reaches this element's own
+    // attributes only.
     <html
       lang="en"
       data-look={LOOK}
@@ -130,8 +131,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {/* A signed-in browser on the static landing goes to Home before it
             paints (ADR-078); a no-op on every other path. */}
         <script dangerouslySetInnerHTML={{ __html: LEAVE_LANDING_IF_SIGNED_IN }} />
-        {/* Marks a home-screen launch before the body paints, so the launch
-            overlay below covers the first frame (M54 decision 6). */}
+        {/* Marks a home-screen launch, or the first page after a sign-in,
+            before the body paints, so the launch overlay below covers the
+            first frame (M54 decisions 6 and 19). */}
         <script dangerouslySetInnerHTML={{ __html: LAUNCH_SCRIPT }} />
         {/* Cover photos are hot-linked from Unsplash's CDN (`CoverImage`), and
             on Home and a trip the cover is the page's largest paint, so the
@@ -142,8 +144,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="preconnect" href="https://images.unsplash.com" />
       </head>
       <body>
-        {/* First in the body, so on a home-screen launch it is the first thing
-            painted, over the page as it streams in. Drawn by nothing else. */}
+        {/* First in the body, so on a home-screen launch or the first page
+            after a sign-in it is the first thing painted, over the page as it
+            streams in. Drawn by nothing else. */}
         <LaunchOverlay />
         {/* Above the header AND the page, because the header's logo is the
             save light and the state it shows is published from inside the
