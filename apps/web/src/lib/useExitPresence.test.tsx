@@ -104,4 +104,35 @@ describe("useLetGoOfFocusOnClose", () => {
     rerender(<ModalHarness open pageHidden />);
     expect(screen.queryByRole("button", { name: "Open" })).toBeNull();
   });
+
+  // Radix's FocusScope autofocuses only on mount, so after a reopen within
+  // the exit nothing else takes focus off the opener, now hidden again, and
+  // what is typed goes to it rather than to the overlay.
+  it("puts focus back inside a modal reopened during its exit", () => {
+    const { rerender } = render(<ModalHarness open={false} pageHidden={false} />);
+    screen.getByRole("button", { name: "Open" }).focus();
+    rerender(<ModalHarness open pageHidden={false} />);
+    rerender(<ModalHarness open pageHidden />);
+    screen.getByRole("button", { name: "Inside" }).focus();
+    rerender(<ModalHarness open={false} pageHidden />);
+
+    rerender(<ModalHarness open pageHidden />);
+    expect(screen.getByRole("button", { name: "Inside" }).matches(":focus")).toBe(true);
+  });
+
+  // Once the exit has ended the page is no longer marked, and a fresh open
+  // must leave hiding it to Radix: an `aria-hidden` put back first would be
+  // one Radix counts as not its own, and never removes.
+  it("does not hide the page again on an open after the exit has ended", () => {
+    const { rerender } = render(<ModalHarness open={false} pageHidden={false} />);
+    screen.getByRole("button", { name: "Open" }).focus();
+    rerender(<ModalHarness open pageHidden={false} />);
+    rerender(<ModalHarness open pageHidden />);
+    screen.getByRole("button", { name: "Inside" }).focus();
+    rerender(<ModalHarness open={false} pageHidden />);
+    rerender(<ModalHarness open={false} pageHidden={false} />);
+
+    rerender(<ModalHarness open pageHidden={false} />);
+    expect(screen.getByRole("button", { name: "Open" })).toBeDefined();
+  });
 });

@@ -127,6 +127,14 @@ test("a dialog (⌘K) leaves without it or its scrim taking a click or holding f
     exit: ["tc-sink-out"],
   });
   await expect(opener).toBeFocused();
+
+  // Reopened within the exit (the timeline is still frozen), Radix keeps the
+  // content mounted and autofocuses only on mount: what is typed must still
+  // reach the palette, not the opener the page hides again.
+  await page.keyboard.press("ControlOrMeta+KeyK");
+  await expect(page.getByRole("dialog", { name: "Go to or do" })).toHaveAttribute("data-state", "open");
+  await page.keyboard.type("cal");
+  await expect(page.getByRole("combobox", { name: "Go to or do" })).toHaveValue("cal");
 });
 
 // ADR-082 §2, decision 20: under reduced motion nothing animates, so Radix
