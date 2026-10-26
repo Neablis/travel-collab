@@ -87,6 +87,7 @@ import { users } from "@/server/db/schema";
 import { getTripDetail } from "@/server/projections";
 import { planBundleLocationReconcile, type PlannedLocationUpdate } from "@/server/bundleLocationReconcile";
 import { enqueueDayChunksInTransaction } from "@/server/ai/queue";
+import { duplicateDaysMessage, findPublishedDuplicates, toPageDay } from "@/server/duplicateDays";
 import { bundleFiles, CONTENT_DIR, contentDays } from "./lib/content-bundles.ts";
 
 const REPO_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
@@ -168,6 +169,18 @@ export async function importPlaybooks(bundle: ContentBundleV1, prune: boolean) {
   const resolved = contentDays(bundle);
   const ids = resolved.map((d) => d.savedDayId);
   let pruned = 0;
+
+  // M53 part D: refuse before the transaction, so a bundle that would add a
+  // second indexable copy of a day already published writes nothing at all.
+  // Only days the bundle itself publishes can duplicate the index, and a
+  // re-import of the same day under its derived id is exempt by id inside
+  // the check. A fork — an edited title or description — passes, by the
+  // check's own definition of a duplicate.
+  const collisions = await findPublishedDuplicates(
+    db,
+    resolved.filter((day) => day.visibility === "public").map((day) => toPageDay(day)),
+  );
+  if (collisions.length > 0) throw new Error(duplicateDaysMessage(collisions));
 
   await db.transaction(async (tx) => {
     // Read before the delete below erases it; put back after the re-insert.
