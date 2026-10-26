@@ -222,6 +222,8 @@ describe("AccountMenu", () => {
     // Pending, not disabled (M54): the press below reaches the button and is
     // refused there, and the visible "Reset" holds its box.
     expect(resetButton.getAttribute("aria-busy")).toBe("true");
+    // Disabled would drop focus to <body>; pending keeps it here.
+    expect((resetButton as HTMLButtonElement).disabled).toBe(false);
     expect(resetButton.textContent).toBe("Reset");
 
     await userEvent.click(resetButton);

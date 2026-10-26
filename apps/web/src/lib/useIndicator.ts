@@ -35,6 +35,13 @@ export function useIndicator<K extends string>(list: RefObject<HTMLElement | nul
     const place = () => {
       if (node === undefined) return;
       const from = listNode.getBoundingClientRect();
+      // A list hidden behind a breakpoint measures 0×0. Placed and armed from
+      // that, it slid in from the corner once shown, so it waits disarmed
+      // until the observer sees it laid out.
+      if (from.width === 0 && from.height === 0) {
+        delete mark.dataset.placed;
+        return;
+      }
       const box = node.getBoundingClientRect();
       // Scroll offsets, so the indicator is placed in the list's content and
       // scrolls with a strip that overflows.

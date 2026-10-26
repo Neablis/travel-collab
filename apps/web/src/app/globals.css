@@ -2721,36 +2721,6 @@ html[data-look="ledger"] .shadow-raised {
     }
   }
 
-  [data-motion="scrim"][data-state="open"] {
-    animation: var(--animate-fade-in);
-  }
-  [data-motion="scrim"][data-state="closed"] {
-    animation: var(--animate-fade-out);
-  }
-
-  /* Dialogs, popovers, menus and the toast: a fade and a 4px rise (spec
-     decision 10), leaving the way they came. */
-  [data-motion="rise"][data-state="open"] {
-    animation: var(--animate-rise-in);
-  }
-  [data-motion="rise"][data-state="closed"] {
-    animation: var(--animate-sink-out);
-  }
-
-  [data-motion="slide-right"][data-state="open"] {
-    animation: var(--animate-slide-in-right);
-  }
-  [data-motion="slide-right"][data-state="closed"] {
-    animation: var(--animate-slide-out-right);
-  }
-
-  [data-motion="slide-up"][data-state="open"] {
-    animation: var(--animate-slide-in-up);
-  }
-  [data-motion="slide-up"][data-state="closed"] {
-    animation: var(--animate-slide-out-down);
-  }
-
   [data-motion][data-state="closed"] {
     pointer-events: none;
   }
@@ -2759,13 +2729,44 @@ html[data-look="ledger"] .shadow-raised {
      the box does not change (decision 2). */
   [data-pending-held] {
     opacity: 0;
-    animation: var(--animate-fade-out);
   }
 
-  @media (prefers-reduced-motion: reduce) {
-    [data-motion],
+  /* Every animation lives only here, so reduced motion is the default and no
+     selector can out-rank it. An override under `reduce` did not hold: one
+     attribute lost to the two-attribute rules below (PR 594 review). */
+  @media (prefers-reduced-motion: no-preference) {
+    [data-motion="scrim"][data-state="open"] {
+      animation: var(--animate-fade-in);
+    }
+    [data-motion="scrim"][data-state="closed"] {
+      animation: var(--animate-fade-out);
+    }
+
+    /* Dialogs, popovers, menus and the toast: a fade and a 4px rise (spec
+       decision 10), leaving the way they came. */
+    [data-motion="rise"][data-state="open"] {
+      animation: var(--animate-rise-in);
+    }
+    [data-motion="rise"][data-state="closed"] {
+      animation: var(--animate-sink-out);
+    }
+
+    [data-motion="slide-right"][data-state="open"] {
+      animation: var(--animate-slide-in-right);
+    }
+    [data-motion="slide-right"][data-state="closed"] {
+      animation: var(--animate-slide-out-right);
+    }
+
+    [data-motion="slide-up"][data-state="open"] {
+      animation: var(--animate-slide-in-up);
+    }
+    [data-motion="slide-up"][data-state="closed"] {
+      animation: var(--animate-slide-out-down);
+    }
+
     [data-pending-held] {
-      animation: none;
+      animation: var(--animate-fade-out);
     }
   }
 }
@@ -2773,11 +2774,11 @@ html[data-look="ledger"] .shadow-raised {
 /* ── M54: one sliding indicator per tab list, and the lens cross-fade (spec
    decision 11, ADR-082). `useIndicator` writes the active trigger's measured
    box onto the indicator as `--indicator-*`; these rules turn it into a
-   `transform`, which is all that moves. The width is set from the measurement
-   and does not animate. The transition is on only once the indicator has its
-   first place (`data-placed`), so it arrives there rather than sliding in;
-   until then the trigger draws its own active look. Under reduced motion it
-   moves at once. */
+   `transform`, plus the pill's size, which eases with it: snapped, the pill
+   jumped to its new width at the start of the slide (PR 600 review). The
+   transition is on only once the indicator has its first place
+   (`data-placed`), so it arrives there rather than sliding in; until then the
+   trigger draws its own active look. Under reduced motion it moves at once. */
 @layer components {
   /* A pill behind the trigger: TabStrip, SegmentedControl's pill, the phone
      tab bar's. */
@@ -2797,7 +2798,9 @@ html[data-look="ledger"] .shadow-raised {
     opacity: 0;
   }
   .tab-indicator[data-placed] {
-    transition: transform var(--transition-duration-base) var(--ease-calm);
+    transition-property: transform, width, height;
+    transition-duration: var(--transition-duration-base);
+    transition-timing-function: var(--ease-calm);
   }
 
   /* The incoming lens fades in; the outgoing one is already gone, so this is

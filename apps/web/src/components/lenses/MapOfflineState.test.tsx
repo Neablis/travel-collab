@@ -49,6 +49,8 @@ describe("MapOfflineState", () => {
     render(<MapOfflineState onRetry={onRetry} retrying />);
     const retry = screen.getByRole("button", { name: "Trying…" });
     expect(retry.getAttribute("aria-busy")).toBe("true");
+    // Disabled would drop focus to <body>; pending keeps it here.
+    expect((retry as HTMLButtonElement).disabled).toBe(false);
     expect(retry.textContent).toBe("Try again");
     fireEvent.click(retry);
     expect(onRetry).not.toHaveBeenCalled();
