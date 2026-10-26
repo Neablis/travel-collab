@@ -1,7 +1,7 @@
 import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderToString } from "react-dom/server";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { ListedTripSummary, type TripSummary } from "@tc/contracts";
 import { tripDetailFixture, historyFixture, tripSummaryFactory, tripSummaryMemberFactory } from "@tc/factories";
 import { formatMoney } from "@/lib/formatMoney";
@@ -184,6 +184,51 @@ describe("Home trip actions", () => {
     // delete (the hero also renders "Japan" as its `Heading level={2}`,
     // making a bare `getByText("Japan")` ambiguous).
     expect(screen.getByRole("link", { name: "Japan" })).toBeTruthy();
+  });
+
+  // M54: a card that was on the page when it loaded holds still; one that
+  // comes back after a failed delete rises in, so the reader sees it return
+  // rather than finding it there. The failure lands while the card is still
+  // sinking, as it does in a browser: jsdom computes no animation, so without
+  // the stub the exit ends at once, the card unmounts, and its return is a
+  // fresh mount that proves nothing about a card turning back mid-exit.
+  it("brings a grid card back after a failed delete, rising in where it loaded still", async () => {
+    const computed = window.getComputedStyle.bind(window);
+    const sinking = vi.spyOn(window, "getComputedStyle");
+    onTestFinished(() => sinking.mockRestore());
+    sinking.mockImplementation((el, pseudo) => {
+      const style = computed(el, pseudo);
+      if (el.getAttribute("data-motion") !== "sink") return style;
+      return new Proxy(style, {
+        get: (target, key) => (key === "animationName" ? "tc-sink-out" : Reflect.get(target, key, target)),
+      });
+    });
+    const peruId = "0b9d4a1e-2c3f-4d5e-8f60-718293a4b5c6";
+    fetchMock = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input);
+      if (url.includes("/api/auth/session")) return jsonResponse(await getSessionMock());
+      if (url.includes(`/api/trips/${peruId}/commands`)) return jsonResponse({ error: "concurrency-conflict" }, 409);
+      if (url.endsWith("/api/trips")) {
+        return jsonResponse({ trips: [tripSummaryFixture(), tripSummaryFixture({ tripId: peruId, name: "Peru" })] });
+      }
+      return jsonResponse({ error: "unexpected" }, 404);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<HomeScreen />);
+    const loaded = await screen.findByTestId("trip-card");
+    expect(loaded.getAttribute("data-rise-in")).toBeNull();
+
+    await userEvent.click(screen.getByRole("button", { name: /trip actions for peru/i }));
+    await userEvent.click(screen.getByRole("menuitem", { name: /delete/i }));
+
+    await screen.findByRole("alert");
+    const back = screen.getByTestId("trip-card");
+    expect(back).toBe(loaded);
+    expect(within(back).getByRole("link", { name: "Peru" })).toBeTruthy();
+    expect(back.getAttribute("data-rise-in")).not.toBeNull();
+    expect(back.getAttribute("data-state")).toBe("open");
+    expect(back.hasAttribute("inert")).toBe(false);
   });
 
   it("duplicates a trip and navigates to the copy", async () => {

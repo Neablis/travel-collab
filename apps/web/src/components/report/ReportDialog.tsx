@@ -103,8 +103,14 @@ function ReportDialog({ target, name, onClose }: { target: ReportTarget; name: s
             <Button variant="secondary" onClick={onClose}>
               Cancel
             </Button>
-            <Button variant="primary" disabled={reason === null || noteOver || busy} onClick={() => void send()}>
-              {busy ? "Sending…" : "Send"}
+            <Button
+              variant="primary"
+              disabled={!busy && (reason === null || noteOver)}
+              pending={busy}
+              pendingLabel="Sending…"
+              onClick={() => void send()}
+            >
+              Send
             </Button>
           </>
         )}

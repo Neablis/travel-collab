@@ -4,6 +4,7 @@ import { isDevLoginEnabled } from "@/lib/devLogin";
 import { auth } from "@/server/auth";
 import { db } from "@/server/db/client";
 import { savedDayAdds, savedDays } from "@/server/db/schema";
+import { duplicateDaysMessage, findPublishedDuplicates, toPageDay } from "@/server/duplicateDays";
 import { newSavedDayRow } from "@/server/savedDays";
 import { recordAdd } from "@/server/savedDayAdds";
 import { recomputeReviewCounters } from "@/server/reviews";
@@ -78,6 +79,18 @@ export async function POST(request: Request) {
 
   if (resolved.length === 0) {
     return Response.json({ bundle: bundleId, savedDays: 0, adds: 0 });
+  }
+
+  // M53 part D: the same guard the production importer carries, so a dev or
+  // preview import cannot mint the second copy of a day already published
+  // either. A 409, not a 400: the bundle parses — it collides with the
+  // library it is being imported into.
+  const collisions = await findPublishedDuplicates(
+    db,
+    resolved.filter((day) => day.visibility === "public").map((day) => toPageDay(day)),
+  );
+  if (collisions.length > 0) {
+    return Response.json({ error: duplicateDaysMessage(collisions), collisions }, { status: 409 });
   }
 
   const ids = resolved.map((day) => day.savedDayId);

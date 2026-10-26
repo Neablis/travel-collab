@@ -3,6 +3,7 @@ import { useRef } from "react";
 import * as RadixDialog from "@radix-ui/react-dialog";
 import { X } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { useLetGoOfFocusOnClose } from "@/lib/useExitPresence";
 import { Button } from "./button";
 import { Heading } from "./heading";
 
@@ -90,11 +91,19 @@ export function Sheet({
   // landed on `<body>`. Read in `onOpenAutoFocus`: Radix fires it before it
   // moves focus in, so the opener still has it then.
   const opener = useRef<HTMLElement | null>(null);
+  useLetGoOfFocusOnClose(open);
   return (
     <RadixDialog.Root open={open} onOpenChange={onOpenChange}>
       <RadixDialog.Portal>
-        <RadixDialog.Overlay className="overlay-layer fixed inset-0 bg-ink/40" />
+        {/* **A real slide** (M54): the rail comes in from its edge and the
+            phone's sheet up from the bottom, and each leaves the way it came.
+            `full` covers the window, so a slide would be the whole page moving
+            sideways; it rises as a dialog does. Scrim and sheet are `inert`
+            while closing, as `Dialog`'s are and for its reasons. */}
+        <RadixDialog.Overlay data-motion="scrim" inert={!open} className="overlay-layer fixed inset-0 bg-ink/40" />
         <RadixDialog.Content
+          data-motion={size === "bottom" ? "slide-up" : size === "rail" ? "slide-right" : "rise"}
+          inert={!open}
           onOpenAutoFocus={() => {
             const at = document.activeElement;
             opener.current = at instanceof HTMLElement && at !== document.body ? at : null;

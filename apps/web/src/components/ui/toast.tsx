@@ -1,6 +1,7 @@
 "use client";
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { X } from "lucide-react";
+import { useExitPresence } from "@/lib/useExitPresence";
 import { Button } from "./button";
 import { Text } from "./text";
 import { cn } from "@/lib/cn";
@@ -63,17 +64,28 @@ export function Toast({
   // is not.
   const hasAction = Boolean(actionLabel && onAction);
 
+  // **It leaves the way it came** (M54). Not Radix, so nothing holds it
+  // mounted for an exit: the hook plays the exit, inert from its first frame,
+  // and only then calls `onDismiss`, which is the caller's unmount. Under
+  // reduced motion there is no exit and `onDismiss` runs in the same tick.
+  // A new message mid-exit cancels it, so the new toast stands.
+  const { ref, exit, cancel } = useExitPresence<HTMLDivElement>();
+  const leave = useCallback(() => exit(() => onDismissRef.current()), [exit]);
+
   useEffect(() => {
-    const timer = setTimeout(
-      () => onDismissRef.current(),
-      hasAction ? AUTO_DISMISS_WITH_ACTION_MS : AUTO_DISMISS_MS,
-    );
-    return () => clearTimeout(timer);
-  }, [message, hasAction]);
+    const timer = setTimeout(leave, hasAction ? AUTO_DISMISS_WITH_ACTION_MS : AUTO_DISMISS_MS);
+    return () => {
+      clearTimeout(timer);
+      cancel();
+    };
+  }, [message, hasAction, leave, cancel]);
 
   return (
     <div
+      ref={ref}
       role="status"
+      data-motion="rise"
+      data-state="open"
       // Tests need a way to find this specifically — `role="status"` alone
       // stopped being unique once SyncIndicator (KI-5, M8) added a second
       // one to the same header.
@@ -101,7 +113,7 @@ export function Toast({
           {actionLabel}
         </Button>
       )}
-      <Button variant="ghost" size="icon" className="shrink-0" aria-label="Dismiss" onClick={onDismiss}>
+      <Button variant="ghost" size="icon" className="shrink-0" aria-label="Dismiss" onClick={leave}>
         <X className="size-3.5" aria-hidden />
       </Button>
     </div>

@@ -62,6 +62,11 @@ export function Skeleton({
  * claim is that regions arrive separately, and "Loading…" said once for a page
  * that is three-quarters painted is a lie. The `Skeleton` leaves are
  * `aria-hidden`, so this label is the only thing announced.
+ *
+ * `data-sk-region` fades it in (`globals.css`, M54 part 4), so a page that
+ * answers quickly swaps one soft arrival for its content rather than flashing
+ * a grid of outlines. The fade is on the group and not the leaves, whose own
+ * `animation` is the breathe.
  */
 export function SkeletonRegion({
   label,
@@ -73,7 +78,7 @@ export function SkeletonRegion({
   children: React.ReactNode;
 }) {
   return (
-    <div role="status" aria-busy="true" aria-label={label} className={className}>
+    <div role="status" aria-busy="true" aria-label={label} data-sk-region className={className}>
       {children}
     </div>
   );

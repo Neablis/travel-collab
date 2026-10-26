@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
+import { useState } from "react";
 import type { ActivityView } from "@tc/contracts";
 import { activityFactory, locationFactory } from "@tc/factories";
 import { FixedPeopleProvider, type Persona } from "@/components/pages/people";
@@ -11,14 +12,17 @@ import { riverAxis } from "./riverLayout";
 
 // The real adapter, wrapped so a test can ask a block the question the browser
 // asks it at dragstart: may this stop be picked up now? jsdom has no native
-// drag to fire, and `canDrag` is exactly what a held grip gates.
+// drag to fire, and `canDrag` is exactly what a held grip gates. The drag's
+// start and drop are kept for the same reason: a mouse carry is told of both.
 const canDragOf = vi.hoisted(() => new Map<Element, () => boolean>());
+const mouseDragOf = vi.hoisted(() => new Map<Element, { start: () => void; drop: () => void }>());
 vi.mock("@atlaskit/pragmatic-drag-and-drop/element/adapter", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@atlaskit/pragmatic-drag-and-drop/element/adapter")>();
   return {
     ...actual,
     draggable: (args: Parameters<typeof actual.draggable>[0]) => {
       canDragOf.set(args.element, () => args.canDrag?.({ element: args.element, dragHandle: null, input: {} as never }) ?? true);
+      mouseDragOf.set(args.element, { start: () => args.onDragStart?.({} as never), drop: () => args.onDrop?.({} as never) });
       return actual.draggable(args);
     },
   };
@@ -199,7 +203,7 @@ describe("a block names its people", () => {
 
     expect(screen.getByRole("button", { name: `Edit Ropeway, 9 am – 11 am, Planned${said}` })).toBeTruthy();
     expect(block(tall.activityId).getByText("Booked by Sam Okafor · Priya Nair added this")).toBeTruthy();
-    expect(block(tall.activityId).getAllByTitle(/.+/).map((chip) => chip.getAttribute("title"))).toEqual(["Priya Nair", "Traveler 9b4f2a"]);
+    expect(block(tall.activityId).getAllByTestId("avatar-face").map((face) => face.dataset.personName)).toEqual(["Priya Nair", "Traveler 9b4f2a"]);
 
     // An hour is 42px: no room for a third line, so only the name says it.
     expect(screen.getByRole("button", { name: `Edit Coffee, 12 pm – 1 pm, Planned${said}` })).toBeTruthy();
@@ -629,5 +633,110 @@ describe("gestures on empty time", () => {
     // No read-only case of its own: a read-only river has no `live` gestures
     // and binds no pointer handler at all, for a finger or a mouse, which the
     // read-only test above already fails on.
+  });
+
+  // M54: a block that moves settles from where it was drawn (`[data-settling]`
+  // in globals.css eases `--settle-x`/`--settle-y` away). What the motion
+  // looks like is the walk's; here, where it starts from.
+  describe("a moved block settles", () => {
+    const lunch = activityFactory.build({ title: "Lunch", timeWindow: { start: "12:00", end: "13:00" } });
+    const card = (id: string) => screen.getByTestId(`activity-card-${id}`);
+    const at = (stop: ActivityView, start: string, end: string) => ({ ...stop, timeWindow: { start, end } });
+
+    it("from its old slot, when the move came from somewhere else", () => {
+      const { rerender } = renderRiver([morning, lunch, evening]);
+      expect(card(lunch.activityId).getAttribute("data-settling")).toBeNull();
+
+      rerender(riverElement([morning, at(lunch, "15:00", "16:00"), evening]));
+      expect(card(lunch.activityId).getAttribute("data-settling")).not.toBeNull();
+      expect(card(lunch.activityId).style.getPropertyValue("--settle-y")).toBe(`${hour(12) - hour(15)}px`);
+    });
+
+    // The outline showed where it lands; gliding there from 12:00 read as the
+    // block snapping back first (PR 606 review).
+    it("not from its old slot, when this reader carried it there", () => {
+      vi.useFakeTimers();
+      onTestFinished(() => {
+        vi.useRealTimers();
+        Reflect.deleteProperty(document, "elementFromPoint");
+      });
+      const finger = { pointerType: "touch", pointerId: 7, button: 0, clientX: 120 } as const;
+      // The move lands as the board's does: in the handler that ends the carry.
+      function Live() {
+        const [stops, setStops] = useState([morning, lunch, evening]);
+        const onDropAt = (id: string, _day: string, window: ActivityView["timeWindow"]) =>
+          setStops((prev) => prev.map((s) => (s.activityId === id ? { ...s, timeWindow: window } : s)));
+        return riverElement(stops, false, { ...gestures(), onDropAt });
+      }
+      render(<Live />);
+      document.elementFromPoint = () => screen.getByTestId("day-river");
+
+      // jsdom draws every box at 0, so the grab is the press's own y: held
+      // half an hour down, its top rides half an hour above the finger.
+      fireEvent.pointerDown(card(lunch.activityId), { ...finger, clientY: hour(9.5) });
+      act(() => void vi.advanceTimersByTime(RIVER_TOUCH_HOLD_MS));
+      fireEvent.pointerMove(window, { ...finger, buttons: 1, clientY: hour(15.5) });
+      fireEvent.pointerUp(window, finger);
+
+      expect(block(lunch.activityId).getByRole("button", { name: /^Edit Lunch, 3 pm/ })).toBeTruthy();
+      expect(card(lunch.activityId).getAttribute("data-settling")).toBeNull();
+    });
+
+    it("not from its old slot, when this reader dragged it there with a mouse", () => {
+      // pdnd's drop runs the board's move and the block's own onDrop in one
+      // native event, so both land in one commit, as here.
+      let setStops: (stops: ActivityView[]) => void = () => {};
+      function Live() {
+        const [stops, set] = useState([morning, lunch, evening]);
+        setStops = set;
+        return riverElement(stops);
+      }
+      render(<Live />);
+      const drag = mouseDragOf.get(card(lunch.activityId))!;
+
+      act(() => drag.start());
+      act(() => {
+        drag.drop();
+        setStops([morning, at(lunch, "15:00", "16:00"), evening]);
+      });
+
+      expect(block(lunch.activityId).getByRole("button", { name: /^Edit Lunch, 3 pm/ })).toBeTruthy();
+      expect(card(lunch.activityId).getAttribute("data-settling")).toBeNull();
+    });
+
+    // One axis serves the whole trip, so its first hour moves when the
+    // earliest stop does, and every block's top with it, though its time did
+    // not (PR 606 review).
+    it("by its own change of time, not by the axis's first hour moving", () => {
+      const { rerender } = renderRiver([morning, lunch, evening]);
+
+      rerender(riverElement([at(morning, "07:00", "08:00"), lunch, evening]));
+
+      expect(card(lunch.activityId).getAttribute("data-settling")).toBeNull();
+      expect(card(morning.activityId).style.getPropertyValue("--settle-y")).toBe(`${hour(9) - hour(7)}px`);
+    });
+
+    // A lane is a share of the river's width, so a left measured before the
+    // column narrowed is one the block was never drawn at (PR 606 review).
+    it("from its old lane at the river's width now, not the width it was drawn at", () => {
+      // Lunch's id, not the factory's sequence, puts it first in the tie
+      // `layoutRiver` breaks by id, so Tea is always the second lane.
+      const first = { ...lunch, activityId: "b1d2c3e4-0000-4000-8000-000000000001" };
+      const shared = { ...first, activityId: "b1d2c3e4-0000-4000-8000-000000000002", title: "Tea" };
+      const third = { ...first, activityId: "b1d2c3e4-0000-4000-8000-000000000003", title: "Cake" };
+      const { rerender } = renderRiver([morning, first, evening]);
+      const list = screen.getByRole("list", { name: "Day 1 timeline" });
+      let width = 200;
+      Object.defineProperty(list, "clientWidth", { configurable: true, get: () => width });
+
+      // Tea joins Lunch's hour, in the second of two lanes, at 200px.
+      rerender(riverElement([morning, first, shared, evening]));
+      width = 100;
+      // Cake makes three lanes; Tea stays in the second, now a third across.
+      rerender(riverElement([morning, first, shared, third, evening]));
+
+      const settleX = parseFloat(card(shared.activityId).style.getPropertyValue("--settle-x"));
+      expect(settleX).toBeCloseTo((100 + 4) / 2 - (100 + 4) / 3);
+    });
   });
 });

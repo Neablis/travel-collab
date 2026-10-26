@@ -32,19 +32,58 @@ const queryFor = (url: string, signature: string) =>
 const pathFor = (url: string, signature: string) => `/api/cover-image${queryFor(url, signature)}`;
 
 /**
- * Whether `search`, a request's raw query string, is byte for byte the one
- * `coverProxySrc` mints for `url` and `signature`. The CDN keys on the whole
- * query, so a second spelling that still verifies (a parameter appended, `u`
- * percent-encoded another way) would be a cache miss, and an upstream fetch,
- * of its own; the route refuses every spelling but this one.
+ * Whether `search`, a request's raw query string, names exactly the `u` and
+ * `s` parameters `coverProxySrc` mints for `url` and `signature`, under any
+ * percent-encoding spelling. The minted spelling (`queryFor`) is still the
+ * one path minted, but the route must not demand it byte for byte: a layer
+ * in front of the route may respell the query — production, 2026-10-26,
+ * normalized the parentheses in a Wikimedia filename, so a minted path
+ * never arrived intact and its cover showed as none, while the same image
+ * under a parenthesis-free name served. Decoding is the comparison, so a
+ * respelling of the same pair passes and anything else (an extra parameter,
+ * a duplicated one, a different URL or signature) does not; the HMAC stays
+ * the authorization, and no URL without the server's signature serves. The
+ * cost is cache keys, not security: the CDN keys on the whole query, so
+ * distinct spellings of one image are distinct entries, each its own
+ * upstream fetch on a miss.
  */
 export function isCanonicalCoverQuery(search: string, url: string, signature: string): boolean {
-  return search === queryFor(url, signature);
+  const params = new URLSearchParams(search);
+  const keys = [...params.keys()];
+  if (keys.length !== 2 || !keys.includes("u") || !keys.includes("s")) return false;
+  return params.get("u") === url && params.get("s") === signature;
 }
 
 /** The same-origin path a browser loads a URL cover from. */
 export function coverProxySrc(url: string): string {
   return pathFor(url, signCoverUrl(url));
+}
+
+/**
+ * Whether the path `coverProxySrc` mints for `url` passes the proxy route's
+ * own gates, parsed the way the route parses a request: the minted spelling
+ * survives the URL parser, and the signature verifies. Setting a cover
+ * checks this before saving, so a day or trip never holds a cover the proxy
+ * would refuse on every view. It cannot prove the edge serves the minted
+ * path — a layer in front of the route may respell the query after this
+ * check ran, which only the route's spelling-tolerant check and its
+ * regression test cover — and a signing failure (production without
+ * `COVER_PROXY_SECRET`) is a false, not a throw, so the caller refuses the
+ * URL instead of storing a cover that shows as none.
+ */
+export function coverProxySrcVerifies(url: string): boolean {
+  try {
+    const parsed = new URL(coverProxySrc(url), "https://cover.invalid");
+    const signature = parsed.searchParams.get("s");
+    return (
+      signature !== null &&
+      isCanonicalCoverQuery(parsed.search, url, signature) &&
+      verifyCoverUrl(url, signature)
+    );
+  } catch (error) {
+    console.error("cover proxy path does not verify", { error: String(error) });
+    return false;
+  }
 }
 
 // `TripCover.proxySrc`'s cap in `@tc/contracts`, and the length of every

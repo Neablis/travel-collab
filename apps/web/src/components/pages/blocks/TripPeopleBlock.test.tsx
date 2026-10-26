@@ -41,8 +41,8 @@ describe("TripPeopleBlock", () => {
       </FixedPeopleProvider>,
     );
     expect(screen.getByText("Sam and Priya are going with Dana.")).toBeTruthy();
-    // The chips are decorative (the names are in the sentence); their full
-    // names ride as titles, for a pointer.
-    expect(screen.getAllByTitle(/.+/).map((chip) => chip.getAttribute("title"))).toEqual(["Sam Okafor", "Priya Nair"]);
+    // The faces are decorative (the names are in the sentence); each names
+    // its person in full in the stack's tip, for a pointer.
+    expect(screen.getAllByTestId("avatar-face").map((face) => face.dataset.avatarTip)).toEqual(["Sam Okafor", "Priya Nair"]);
   });
 });

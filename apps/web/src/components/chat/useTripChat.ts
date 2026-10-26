@@ -29,8 +29,10 @@ export type TripChatStatus = "loading" | "ready" | "no-access" | "failed";
  * A line of the conversation. `pending` is the reader's own message, shown
  * from the moment they sent it and not yet stored: its id is this page's own,
  * so nothing may be done to it until the server's message takes its place.
+ * That message carries the pending line's id as `drawnAs`, for the panel to
+ * key it by: the line on screen firms up rather than being drawn again (M54).
  */
-export type ChatLine = ChatMessage & { pending?: true };
+export type ChatLine = ChatMessage & { pending?: true; drawnAs?: string };
 
 /**
  * A send that was not stored, given back with its own words. `behind` is a
@@ -166,6 +168,9 @@ export function useTripChat({
   // send reads it after an await, when the state it closed over is stale.
   const [pending, setPending] = useState<readonly Sending[]>([]);
   const queued = useRef<readonly Sending[]>([]);
+  // Each stored message that took a pending line's place, by its id: the id
+  // that line was drawn under.
+  const [drawnAs, setDrawnAs] = useState<ReadonlyMap<string, string>>(() => new Map());
   const setQueued = useCallback((next: readonly Sending[]) => {
     queued.current = next;
     setPending(next);
@@ -290,6 +295,7 @@ export function useTripChat({
         });
         if (result.ok) {
           setQueued(queued.current.filter((s) => s.line !== line));
+          setDrawnAs((current) => new Map(current).set(result.value.messageId, line.messageId));
           // In the pending line's place, in the same render. A re-read may have
           // brought it already, and the next one brings it again.
           setPage((current) =>
@@ -362,26 +368,33 @@ export function useTripChat({
 
   // A re-read can bring a sent message before its POST answers. The pending
   // line gives way to it: the reader's own, the same words and link, and new
-  // since the send. Each stored message stands in for one pending line.
+  // since the send. Each stored message stands in for one pending line, and
+  // one whose own POST answered is spoken for: taken by an identical line
+  // still waiting, it would rise in again once handed back (PR 605 review).
   const messages = useMemo(() => {
     const stored = page?.messages ?? [];
-    const matched = new Set<string>();
+    const matched = new Map<string, string>();
     const waiting = pending.filter(({ line, before }) => {
       const match = stored.find(
         (m) =>
           !m.removed &&
           !before.has(m.messageId) &&
           !matched.has(m.messageId) &&
+          !drawnAs.has(m.messageId) &&
           m.authorId === line.authorId &&
           m.body === line.body &&
           m.link?.kind === line.link?.kind &&
           m.link?.id === line.link?.id,
       );
-      if (match !== undefined) matched.add(match.messageId);
+      if (match !== undefined) matched.set(match.messageId, line.messageId);
       return match === undefined;
     });
-    return [...stored, ...waiting.map((s) => s.line)];
-  }, [page, pending]);
+    const drawn = stored.map((m) => {
+      const key = matched.get(m.messageId) ?? drawnAs.get(m.messageId);
+      return key === undefined ? m : { ...m, drawnAs: key };
+    });
+    return [...drawn, ...waiting.map((s) => s.line)];
+  }, [page, pending, drawnAs]);
 
   return {
     tripId,

@@ -332,11 +332,17 @@ export function Cell({
         compact={compact}
         className={cn("mx-1.5 mb-1.5 min-h-0 flex-1", compact && "gap-2 p-3")}
       />
-      {/* A lit day rises and sinks with its moment: the veil dims it with the sea, the ring marks it lit. */}
+      {/* A lit day rises and sinks with its moment: the veil dims it with the sea, the ring marks it lit.
+          The scroll writes both opacities, so a hover or a focus cannot ease
+          them: it fades the shade the veil sits in, and a held ring over the
+          scroll's (M54). */}
       {litFor !== undefined && (
         <>
-          <span aria-hidden data-testid="lit-veil" className="landing-sea-veil" />
+          <span aria-hidden className="landing-sea-shade">
+            <span data-testid="lit-veil" className="landing-sea-veil" />
+          </span>
           <span aria-hidden className="landing-sea-ring" />
+          <span aria-hidden className="landing-sea-ring-held" />
         </>
       )}
     </div>

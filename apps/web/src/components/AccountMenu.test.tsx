@@ -219,9 +219,12 @@ describe("AccountMenu", () => {
     const resetButton = screen.getByRole("button", { name: "Reset" });
     await userEvent.click(resetButton);
     await screen.findByRole("button", { name: "Resetting…" });
-    // No @testing-library/jest-dom in this repo — check the DOM property
-    // directly, same pattern as SettingsSheet.test.tsx's status-text match.
-    expect((resetButton as HTMLButtonElement).disabled).toBe(true);
+    // Pending, not disabled (M54): the press below reaches the button and is
+    // refused there, and the visible "Reset" holds its box.
+    expect(resetButton.getAttribute("aria-busy")).toBe("true");
+    // Disabled would drop focus to <body>; pending keeps it here.
+    expect((resetButton as HTMLButtonElement).disabled).toBe(false);
+    expect(resetButton.textContent).toBe("Reset");
 
     await userEvent.click(resetButton);
     resolveReset();

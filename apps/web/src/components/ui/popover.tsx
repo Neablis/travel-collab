@@ -2,6 +2,7 @@
 import { isValidElement, useId } from "react";
 import * as RadixPopover from "@radix-ui/react-popover";
 import { cn } from "@/lib/cn";
+import { useLetGoOfFocusOnClose } from "@/lib/useExitPresence";
 
 // Anchored, small: never pushes page content down (design-system.md). Controlled
 // via open/onOpenChange; the caller renders `trigger` (a plain Button) and owns
@@ -71,6 +72,7 @@ export function Popover({
   const generatedId = useId();
   const ownId = isValidElement<{ id?: unknown }>(trigger) ? trigger.props.id : undefined;
   const triggerId = typeof ownId === "string" && ownId !== "" ? ownId : generatedId;
+  useLetGoOfFocusOnClose(open);
   return (
     <RadixPopover.Root open={open} onOpenChange={onOpenChange}>
       <RadixPopover.Trigger asChild id={triggerId}>
@@ -83,6 +85,10 @@ export function Popover({
           sideOffset={6}
           collisionPadding={collisionPadding}
           onCloseAutoFocus={onCloseAutoFocus}
+          // The account menu's fade and 4px rise, like every overlay's (spec
+          // decision 10, globals.css); `inert` while it leaves (ADR-082 §2).
+          data-motion="rise"
+          inert={!open}
           aria-label={label}
           aria-labelledby={label === undefined ? triggerId : undefined}
           className={cn("overlay-layer", POPOVER_SURFACE, contentClassName)}

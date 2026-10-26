@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { dayDescription } from "./playbooksPreview";
-import { breadcrumbJsonLd, dayJsonLd, organizationJsonLd, placeItemListJsonLd, serializeJsonLd, webSiteJsonLd } from "./jsonLd";
+import { breadcrumbJsonLd, countryCityPageCrumbs, dayJsonLd, linkItemListJsonLd, organizationJsonLd, placeItemListJsonLd, placePageCrumbs, serializeJsonLd, tagPageCrumbs, webSiteJsonLd } from "./jsonLd";
 
 const ORIGIN = "https://caesura.today";
 const DAY = {
@@ -97,6 +97,149 @@ describe("breadcrumbJsonLd", () => {
         { "@type": "ListItem", position: 2, name: "Italy", item: `${ORIGIN}/playbooks/country/italy` },
         { "@type": "ListItem", position: 3, name: "Rome", item: `${ORIGIN}/playbooks/country/italy/city/rome` },
         { "@type": "ListItem", position: 4, name: "Food", item: `${ORIGIN}/playbooks/country/italy/city/rome/tag/meal` },
+      ],
+    });
+  });
+});
+
+describe("page crumb builders", () => {
+  const names = (crumbs: readonly { name: string; path: string }[]) => crumbs.map((c) => [c.name, c.path]);
+
+  it("a city page trails Playbooks to itself, page-aware", () => {
+    expect(names(placePageCrumbs({ name: "Kyoto", path: "/playbooks/city/kyoto" }, 1))).toEqual([
+      ["Playbooks", "/playbooks"],
+      ["Kyoto", "/playbooks/city/kyoto"],
+    ]);
+    expect(names(placePageCrumbs({ name: "Kyoto", path: "/playbooks/city/kyoto" }, 2))).toEqual([
+      ["Playbooks", "/playbooks"],
+      ["Kyoto", "/playbooks/city/kyoto?page=2"],
+    ]);
+  });
+
+  it("a country page trails Playbooks to itself", () => {
+    expect(names(placePageCrumbs({ name: "Italy", path: "/playbooks/country/italy" }, 1))).toEqual([
+      ["Playbooks", "/playbooks"],
+      ["Italy", "/playbooks/country/italy"],
+    ]);
+  });
+
+  it("a country×city page trails Playbooks through its country to itself", () => {
+    expect(
+      names(
+        countryCityPageCrumbs(
+          { name: "Italy", path: "/playbooks/country/italy" },
+          { name: "Rome", path: "/playbooks/country/italy/city/rome" },
+          1,
+        ),
+      ),
+    ).toEqual([
+      ["Playbooks", "/playbooks"],
+      ["Italy", "/playbooks/country/italy"],
+      ["Rome", "/playbooks/country/italy/city/rome"],
+    ]);
+  });
+
+  it("a country×city page on page two ends its trail at page two, through its bare country page", () => {
+    expect(
+      names(
+        countryCityPageCrumbs(
+          { name: "Italy", path: "/playbooks/country/italy" },
+          { name: "Rome", path: "/playbooks/country/italy/city/rome" },
+          2,
+        ),
+      ),
+    ).toEqual([
+      ["Playbooks", "/playbooks"],
+      ["Italy", "/playbooks/country/italy"],
+      ["Rome", "/playbooks/country/italy/city/rome?page=2"],
+    ]);
+  });
+
+  it("a tag page trails Playbooks through its scopes to its label, at every scope", () => {
+    const tag = (city: { name: string; path: string } | null, country: { name: string; path: string } | null, path: string) =>
+      names(tagPageCrumbs("Food", city, country, path, 1));
+    expect(tag(null, null, "/playbooks/tag/meal")).toEqual([
+      ["Playbooks", "/playbooks"],
+      ["Food", "/playbooks/tag/meal"],
+    ]);
+    expect(tag({ name: "Kyoto", path: "/playbooks/city/kyoto" }, null, "/playbooks/city/kyoto/meal")).toEqual([
+      ["Playbooks", "/playbooks"],
+      ["Kyoto", "/playbooks/city/kyoto"],
+      ["Food", "/playbooks/city/kyoto/meal"],
+    ]);
+    expect(tag(null, { name: "Italy", path: "/playbooks/country/italy" }, "/playbooks/country/italy/tag/meal")).toEqual([
+      ["Playbooks", "/playbooks"],
+      ["Italy", "/playbooks/country/italy"],
+      ["Food", "/playbooks/country/italy/tag/meal"],
+    ]);
+    expect(
+      tag(
+        { name: "Rome", path: "/playbooks/country/italy/city/rome" },
+        { name: "Italy", path: "/playbooks/country/italy" },
+        "/playbooks/country/italy/city/rome/tag/meal",
+      ),
+    ).toEqual([
+      ["Playbooks", "/playbooks"],
+      ["Italy", "/playbooks/country/italy"],
+      ["Rome", "/playbooks/country/italy/city/rome"],
+      ["Food", "/playbooks/country/italy/city/rome/tag/meal"],
+    ]);
+  });
+
+  it("a tag page on page two ends its trail at page two", () => {
+    expect(
+      names(
+        tagPageCrumbs(
+          "Food",
+          { name: "Rome", path: "/playbooks/country/italy/city/rome" },
+          { name: "Italy", path: "/playbooks/country/italy" },
+          "/playbooks/country/italy/city/rome/tag/meal",
+          2,
+        ),
+      ),
+    ).toEqual([
+      ["Playbooks", "/playbooks"],
+      ["Italy", "/playbooks/country/italy"],
+      ["Rome", "/playbooks/country/italy/city/rome"],
+      ["Food", "/playbooks/country/italy/city/rome/tag/meal?page=2"],
+    ]);
+  });
+
+  it("a day trails Playbooks through its country and city when both are given", () => {
+    const nodes = dayJsonLd({
+      ...DAY,
+      country: { name: "Japan", path: "/playbooks/country/japan" },
+      city: { name: "Kyoto", path: "/playbooks/country/japan/city/kyoto" },
+    });
+    const crumbs = (nodes[1] as { itemListElement: { name: string; item: string }[] }).itemListElement.map((c) => [
+      c.name,
+      c.item,
+    ]);
+    expect(crumbs).toEqual([
+      ["Playbooks", `${ORIGIN}/playbooks`],
+      ["Japan", `${ORIGIN}/playbooks/country/japan`],
+      ["Kyoto", `${ORIGIN}/playbooks/country/japan/city/kyoto`],
+      ["A slow day", `${ORIGIN}/playbooks/day/a-slow-day-abc`],
+    ]);
+  });
+});
+
+describe("linkItemListJsonLd", () => {
+  it("lists linked pages in order, each by its name at its absolute URL", () => {
+    expect(
+      linkItemListJsonLd(
+        [
+          { name: "Japan in 14 days", path: "/demo/japan" },
+          { name: "Dolomites in winter", path: "/demo/dolomites-winter" },
+        ],
+        ORIGIN,
+      ),
+    ).toEqual({
+      "@context": "https://schema.org",
+      "@type": "ItemList",
+      itemListElement: [
+        { "@type": "ListItem", position: 1, url: `${ORIGIN}/demo/japan`, name: "Japan in 14 days" },
+        { "@type": "ListItem", position: 2, url: `${ORIGIN}/demo/dolomites-winter`, name: "Dolomites in winter" },
       ],
     });
   });

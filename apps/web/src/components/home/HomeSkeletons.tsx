@@ -210,8 +210,8 @@ export function TripGridSkeleton() {
             </div>
             <div className="mt-auto flex items-center justify-between pt-1">
               <div className="flex items-center">
-                <Skeleton circle className="size-6" delay={3} />
-                <Skeleton circle className="-ml-2 size-6" delay={3} />
+                <Skeleton circle className="size-7.5" delay={3} />
+                <Skeleton circle className="-ml-2 size-7.5" delay={3} />
               </div>
               <Skeleton circle className="h-5 w-16" delay={3} />
             </div>

@@ -351,7 +351,10 @@ describe("useTripChat", () => {
 
     // The poll can bring the stored message back before the POST answers, and
     // does again after: either way it is one line, where the pending one was.
-    it("becomes the server's message once, however the re-reads land", async () => {
+    // It keeps the pending line's key throughout (`drawnAs`), so the panel
+    // firms that line up rather than drawing a new one that rises in again
+    // (M54 decision 13).
+    it("becomes the server's message once, however the re-reads land, drawn as the line that was sent", async () => {
       const mine = message(2, "u-me");
       let served = pageOf([message(1)]);
       let reads = 0;
@@ -369,15 +372,18 @@ describe("useTripChat", () => {
 
       let unsent = Promise.resolve<Unsent | null>({ body: "not answered", behind: false });
       act(() => void (unsent = result.current.post("message 2")));
+      const drawn = result.current.messages.at(-1)?.messageId;
       served = pageOf([message(1), mine]);
       rerender("2");
       await waitFor(() => expect(reads).toBe(2));
       expect(ids(result.current.messages)).toEqual([message(1).messageId, mine.messageId]);
+      expect(result.current.messages[1]?.drawnAs).toBe(drawn);
       await act(async () => {
         await answer(HttpResponse.json({ message: mine }, { status: 201 }));
         expect(await unsent).toBeNull();
       });
       expect(ids(result.current.messages)).toEqual([message(1).messageId, mine.messageId]);
+      expect(result.current.messages[1]?.drawnAs).toBe(drawn);
 
       // Waits on read 3's answer, which brings a third message, not on the
       // request: the line it checks held before that answer landed.
@@ -385,6 +391,8 @@ describe("useTripChat", () => {
       rerender("3");
       await waitFor(() => expect(ids(result.current.messages)).toContain(message(3).messageId));
       expect(ids(result.current.messages)).toEqual([message(1).messageId, mine.messageId, message(3).messageId]);
+      expect(result.current.messages[1]?.drawnAs).toBe(drawn);
+      expect(result.current.messages[2]?.drawnAs).toBeUndefined();
     });
 
     // Two sends with the same words: the first stored stands in for one of
@@ -479,6 +487,37 @@ describe("useTripChat", () => {
         });
         expect(ids(result.current.messages)).toEqual([message(1).messageId]);
         expect(arrived).toEqual(["Train at nine?"]);
+      });
+
+      // PR 605 review: the first's answer is spoken for. Taken by the second
+      // line, its element went, and came back to rise in a second time once
+      // the second's own answer arrived (M54 decision 13).
+      it("keep each stored message drawn as its own line when both say the same", async () => {
+        const { arrived, answer } = twoSends();
+        const first = { ...message(2, "u-me"), body: "ok" };
+        const second = { ...message(3, "u-me"), body: "ok" };
+        const { result } = renderHook(() => useTripChat({ tripId: TRIP, enabled: true, chatRev: "1", reading: false, accessLost: false }));
+        await waitFor(() => expect(result.current.status).toBe("ready"));
+
+        act(() => {
+          void result.current.post("ok");
+          void result.current.post("ok");
+        });
+        await waitFor(() => expect(arrived).toHaveLength(1));
+        await act(async () => answer(0, HttpResponse.json({ message: first }, { status: 201 })));
+        await waitFor(() => expect(arrived).toHaveLength(2));
+        expect(result.current.messages.map((m) => [m.messageId, m.drawnAs])).toEqual([
+          [message(1).messageId, undefined],
+          [first.messageId, "pending-1"],
+          ["pending-2", undefined],
+        ]);
+        await act(async () => answer(1, HttpResponse.json({ message: second }, { status: 201 })));
+        await waitFor(() => expect(ids(result.current.messages)).toContain(second.messageId));
+        expect(result.current.messages.map((m) => [m.messageId, m.drawnAs])).toEqual([
+          [message(1).messageId, undefined],
+          [first.messageId, "pending-1"],
+          [second.messageId, "pending-2"],
+        ]);
       });
 
       // KI-2026-10-14-a: a POST that stalls rather than drops. Before its

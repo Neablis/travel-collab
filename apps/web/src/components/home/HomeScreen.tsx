@@ -33,7 +33,7 @@ import { pendingPlaybookAddDay } from "@/lib/pendingPlaybookAdd";
 import { plannedOfBudgetLine } from "@/lib/cost";
 import { orderHomeTrips } from "@/lib/homeTripOrder";
 import { newTripCommand } from "@/components/palette/commands";
-import { usePaletteSource } from "@/components/palette/paletteRegistry";
+import { PAGE_SOURCES, usePaletteSource } from "@/components/palette/paletteRegistry";
 import { AssistantAskButton, BeyondTripAssistant } from "@/components/assistant/BeyondTripAssistant";
 import { clearSignedInHint } from "@/lib/sessionHint";
 
@@ -176,6 +176,18 @@ export function HomeScreen({ initialTrips = null, initialToday = null }: HomeScr
   // optimistic mechanism. A failure removes the id again, bringing the row
   // back; a success leaves it removed permanently via the `trips` filter below.
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
+  // **A grid card sinks out rather than vanishing** (M54). Gone from the list
+  // on the click, as above, it is still drawn from here, inert, until its exit
+  // has run; a failed delete takes it back out of here and it rises in again.
+  // A copy of the trip, because a delete that lands first takes it out of
+  // `trips` before the exit is over. Never the hero's: that is no card.
+  const [leavingTrips, setLeavingTrips] = useState<readonly ListedTripSummary[]>([]);
+  // Whether the list has been on screen: a card mounting after it is a new
+  // trip (or one back from a failed delete), and rises in.
+  const [listDrawn, setListDrawn] = useState(false);
+  useEffect(() => {
+    if (trips !== null) setListDrawn(true);
+  }, [trips]);
 
   // Computed above the effects that read it, not beside the render — "does
   // this person have any trips" is what decides whether the first run fires,
@@ -364,6 +376,21 @@ export function HomeScreen({ initialTrips = null, initialToday = null }: HomeScr
     if (savedDayId !== null) router.replace(`/playbooks/day/${encodeURIComponent(savedDayId)}`);
   }, [trips, unauthenticated, cloningDemo, router]);
 
+  /** Delete's and Leave's optimistic half: off the list now, and a grid card on its way out. */
+  function startLeaving(trip: TripSummary) {
+    setOpenMenuTripId(null);
+    setDeletingIds((prev) => new Set(prev).add(trip.tripId));
+    // Only a grid card has an exit to run: the hero is no `TripCard`, so it
+    // leaves at once, and a copy kept for it here would never be forgotten.
+    const listed = visibleTrips.find((t) => t.tripId === trip.tripId);
+    if (listed === undefined || listed.tripId === nextTrip?.tripId) return;
+    setLeavingTrips((prev) => [...prev.filter((t) => t.tripId !== listed.tripId), listed]);
+  }
+
+  function forgetLeaving(tripId: string) {
+    setLeavingTrips((prev) => prev.filter((t) => t.tripId !== tripId));
+  }
+
   // **SPEC §27: the card goes on the CLICK, and there is no confirm dialog.**
   //
   // > Delete is optimistic. The card goes on the click; the toast carries a
@@ -377,8 +404,7 @@ export function HomeScreen({ initialTrips = null, initialToday = null }: HomeScr
   // command the server already has), so the toast IS the safety net and the
   // dialog was a second one charging for the first.
   async function deleteTrip(trip: TripSummary) {
-    setOpenMenuTripId(null);
-    setDeletingIds((prev) => new Set(prev).add(trip.tripId));
+    startLeaving(trip);
     const result = await sendTripCommand({ type: "DeleteTrip", tripId: trip.tripId });
     if (!result.ok) {
       setDeletingIds((prev) => {
@@ -386,6 +412,7 @@ export function HomeScreen({ initialTrips = null, initialToday = null }: HomeScr
         next.delete(trip.tripId);
         return next;
       });
+      forgetLeaving(trip.tripId);
       setError(result.error.message);
       return;
     }
@@ -416,8 +443,7 @@ export function HomeScreen({ initialTrips = null, initialToday = null }: HomeScr
    * keep its promise.
    */
   async function leave(trip: TripSummary) {
-    setOpenMenuTripId(null);
-    setDeletingIds((prev) => new Set(prev).add(trip.tripId));
+    startLeaving(trip);
     const result = await leaveTrip(trip.tripId);
     if (!result.ok) {
       setDeletingIds((prev) => {
@@ -425,6 +451,7 @@ export function HomeScreen({ initialTrips = null, initialToday = null }: HomeScr
         next.delete(trip.tripId);
         return next;
       });
+      forgetLeaving(trip.tripId);
       setError(result.error.message);
       return;
     }
@@ -473,6 +500,13 @@ export function HomeScreen({ initialTrips = null, initialToday = null }: HomeScr
   // was "All trips" and drew the hero's trip a second time directly under it.
   // In the same order, so the grid reads on from the hero.
   const otherTrips = orderedTrips.slice(1);
+  // What the grid draws: the other trips, and any card still leaving, in the
+  // place it had.
+  const leavingOnly = leavingTrips.filter((t) => !visibleTrips.some((v) => v.tripId === t.tripId));
+  const gridTrips =
+    leavingOnly.length === 0
+      ? otherTrips
+      : orderHomeTrips([...visibleTrips, ...leavingOnly], dateIso).filter((t) => t.tripId !== nextTrip?.tripId);
 
   // M15 (ADR-023), ADR-078: `src/proxy.ts` handles *arrival* — a signed-out
   // request for `/home` is sent to sign in before this page ever renders, so
@@ -494,7 +528,7 @@ export function HomeScreen({ initialTrips = null, initialToday = null }: HomeScr
 
   // ⌘K's *New trip* is this page's button (ADR-068): the same function, under
   // the same `disabled`.
-  usePaletteSource("home", unauthenticated || cloningDemo ? [] : [newTripCommand(startNewTrip)]);
+  usePaletteSource(PAGE_SOURCES.home, unauthenticated || cloningDemo ? [] : [newTripCommand(startNewTrip)]);
 
   if (unauthenticated) return null;
 
@@ -770,14 +804,14 @@ export function HomeScreen({ initialTrips = null, initialToday = null }: HomeScr
             />
           ) : trips === null ? null : (
             <>
-              {otherTrips.length > 0 && (
+              {gridTrips.length > 0 && (
                 <>
                   <div className="mb-3 flex items-baseline justify-between gap-3">
                     <Heading level={3}>Other trips</Heading>
                     <Text variant="secondary">{tripCountLabel}</Text>
                   </div>
                   <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-3">
-                    {otherTrips.map((t) => (
+                    {gridTrips.map((t) => (
                       <TripCard
                         key={t.tripId}
                         trip={t}
@@ -785,6 +819,9 @@ export function HomeScreen({ initialTrips = null, initialToday = null }: HomeScr
                         menuSlot={tripMenu(t)}
                         viewerId={viewerId}
                         unreadChat={t.unreadChat}
+                        arriving={listDrawn}
+                        leaving={leavingOnly.some((l) => l.tripId === t.tripId)}
+                        onGone={() => forgetLeaving(t.tripId)}
                       />
                     ))}
                   </div>

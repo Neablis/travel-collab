@@ -64,6 +64,18 @@ export function InviteLandingScreen({ token, googleAvailable }: { token: string;
     void load();
   }, [load]);
 
+  // The failed state stays drawn while a retry reads, so its button carries
+  // the wait (M54 decision 2) rather than sitting still under a press.
+  const [retrying, setRetrying] = useState(false);
+  const retry = useCallback(async () => {
+    setRetrying(true);
+    try {
+      await load();
+    } finally {
+      setRetrying(false);
+    }
+  }, [load]);
+
   const landing = phase.kind === "ready" ? phase.landing : null;
   const preview = useInvitePreview(token, landing?.state === "valid");
 
@@ -89,7 +101,13 @@ export function InviteLandingScreen({ token, googleAvailable }: { token: string;
             title="This invite didn't open"
             body="We couldn't reach Caesura to read it. Check your connection and try again — the link itself is fine."
             action={
-              <Button variant="primary" size="touch" onClick={() => void load()}>
+              <Button
+                variant="primary"
+                size="touch"
+                pending={retrying}
+                pendingLabel="Trying…"
+                onClick={() => void retry()}
+              >
                 Try again
               </Button>
             }
@@ -284,8 +302,15 @@ function ValidInvite({
           </div>
 
           <div className="flex max-w-95 flex-col gap-2.5">
-            <Button variant="primary" size="touch" className="w-full" disabled={joining} onClick={() => void join()}>
-              {joining ? "Joining…" : joinLabel}
+            <Button
+              variant="primary"
+              size="touch"
+              className="w-full"
+              pending={joining}
+              pendingLabel="Joining…"
+              onClick={() => void join()}
+            >
+              {joinLabel}
             </Button>
             {error !== null && (
               <Text as="span" role="alert" className="text-sm text-danger-ink">

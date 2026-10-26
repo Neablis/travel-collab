@@ -1,0 +1,358 @@
+import { act, cleanup, render, screen, within } from "@testing-library/react";
+import { StrictMode } from "react";
+import { hydrateRoot } from "react-dom/client";
+import { renderToString } from "react-dom/server";
+import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
+import { LAUNCH_SCRIPT, WELCOME_COOKIE, readWelcomeCue } from "@/lib/welcomeCue";
+import { LaunchOverlay, WelcomeMoment } from "./WelcomeMoment";
+
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+  sessionStorage.clear();
+  document.documentElement.removeAttribute("data-launch");
+  document.cookie = `${WELCOME_COOKIE}=; Path=/; Max-Age=0`;
+});
+
+// The page's clock, which with `data-launch=""` is also the time since the
+// splash went up. Node's clock counts from the worker's start, so on a busy
+// runner it is already past the launch fail-safe when a test begins.
+function launchedMsAgo(ms: number) {
+  vi.spyOn(performance, "now").mockReturnValue(ms);
+}
+
+// In steps, as a browser's frames would: a timer an effect starts only exists
+// once React has committed, which one long jump would skip past.
+async function elapse(ms: number) {
+  for (let step = 0; step < ms; step += 50) await act(() => vi.advanceTimersByTimeAsync(50));
+}
+
+// The session endpoint answering for Ana after `ms`, on the faked clock.
+function sessionAnswersAfter(ms: number) {
+  vi.stubGlobal("fetch", () => new Promise((resolve) => setTimeout(() => resolve(Response.json({ user: ana })), ms)));
+}
+
+// `matchMedia` answering `true` for exactly the queries given.
+function stubMedia(...matching: string[]) {
+  vi.stubGlobal("matchMedia", (query: string) => ({
+    matches: matching.includes(query),
+    media: query,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+  }));
+}
+
+describe("WelcomeMoment", () => {
+  // On a timer, not on `animationend`: under reduced motion nothing animates.
+  it("leaves on its own", () => {
+    vi.useFakeTimers();
+    const onDone = vi.fn();
+    render(<WelcomeMoment onDone={onDone} />);
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+    expect(onDone).toHaveBeenCalledTimes(1);
+  });
+
+  it("holds while the launch is still loading", () => {
+    vi.useFakeTimers();
+    const onDone = vi.fn();
+    render(<WelcomeMoment phase="breathe" onDone={onDone} />);
+    act(() => {
+      vi.advanceTimersByTime(5000);
+    });
+    expect(onDone).not.toHaveBeenCalled();
+  });
+});
+
+const ana = { id: "user-ana", name: "Ana", email: "ana@example.com" };
+
+describe("LaunchOverlay", () => {
+  it("is gone at hydration on any load that is not a home-screen launch", () => {
+    render(<LaunchOverlay />);
+    expect(screen.queryByTestId("welcome-moment")).toBeNull();
+  });
+
+  // A refresh, the sign-out redirect and the return from sign-in are all full
+  // loads in the installed app; only the first in a session is a launch.
+  it("marks only the first load of a session in the installed app as a launch", () => {
+    stubMedia("(display-mode: standalone)");
+    // eslint-disable-next-line @typescript-eslint/no-implied-eval -- runs the inline <head> script as the browser would
+    const runLaunchScript = new Function(LAUNCH_SCRIPT);
+    runLaunchScript();
+    expect(document.documentElement.hasAttribute("data-launch")).toBe(true);
+    document.documentElement.removeAttribute("data-launch");
+    runLaunchScript();
+    expect(document.documentElement.hasAttribute("data-launch")).toBe(false);
+  });
+
+  // Mitchell's walk: a mark over a page already drawn read as unstyled
+  // content. So any page a sign-in lands on is held behind the splash from its
+  // first frame, at every width, not only in the installed app.
+  // Stamped with when, so the overlay's cap counts from the splash going up and
+  // not from navigation start, which after Google is the OAuth callback.
+  it.each(["signin", "signup"])("holds the first page after a %s behind the splash", (kind) => {
+    stubMedia();
+    launchedMsAgo(4800);
+    document.cookie = `${WELCOME_COOKIE}=${kind}; Path=/`;
+    // eslint-disable-next-line @typescript-eslint/no-implied-eval -- runs the inline <head> script as the browser would
+    new Function(LAUNCH_SCRIPT)();
+    expect(document.documentElement.getAttribute("data-launch")).toBe("4800");
+  });
+
+  // A Google sign-in's page clock starts at the callback, before the token
+  // exchange, `recordSignIn`'s awaited email and the redirect: well past the
+  // fail-safe by hydration, though the splash went up moments ago.
+  it("welcomes a sign-in whose navigation began long before the splash went up", async () => {
+    launchedMsAgo(5000);
+    document.documentElement.setAttribute("data-launch", "4800");
+    document.cookie = `${WELCOME_COOKIE}=signin; Path=/`;
+    vi.stubGlobal("fetch", async () => Response.json({ user: ana }));
+    render(<LaunchOverlay />);
+    expect(await within(screen.getByTestId("welcome-moment")).findByText("Welcome, Ana")).toBeDefined();
+  });
+
+  // `next dev` runs the mount effect twice. The cue is spent on the first run,
+  // and the second must not read its absence as a launch with nothing to say.
+  it("still greets by name when the mount effect runs twice", async () => {
+    launchedMsAgo(100);
+    document.documentElement.setAttribute("data-launch", "");
+    document.cookie = `${WELCOME_COOKIE}=signin; Path=/`;
+    vi.stubGlobal("fetch", async () => Response.json({ user: ana }));
+    render(
+      <StrictMode>
+        <LaunchOverlay />
+      </StrictMode>,
+    );
+    expect(await within(screen.getByTestId("welcome-moment")).findByText("Welcome, Ana")).toBeDefined();
+  });
+
+  // The gate's "Welcome, {name}", after a returning sign-in as well as a
+  // signup. The root layout has no session provider, so the overlay asks the
+  // session for the name itself, and spends the cue so a refresh is not greeted.
+  it.each(["signin", "signup"])("greets the account by name after a %s, and spends the cookie", async (kind) => {
+    launchedMsAgo(100);
+    document.documentElement.setAttribute("data-launch", "");
+    document.cookie = `${WELCOME_COOKIE}=${kind}; Path=/`;
+    vi.stubGlobal("fetch", async () => Response.json({ user: ana }));
+    render(<LaunchOverlay />);
+    const moment = screen.getByTestId("welcome-moment");
+    expect(await within(moment).findByText("Welcome, Ana")).toBeDefined();
+    // Said once, through the live region; the splash itself is decoration.
+    const said = screen.getByText("Welcome, Ana", { ignore: "[aria-hidden], [aria-hidden] *" });
+    expect(said.getAttribute("aria-live")).toBe("polite");
+    expect(readWelcomeCue(document.cookie)).toBeNull();
+  });
+
+  // The gate: the splash leaves within the name-wait cap. A name that answers
+  // late, inside the 450ms wait from the stamp, holds as long as a "Welcome!"
+  // does; either goes by the wait plus the welcome, about 1.6s after the
+  // splash went up. Whether the page then answers a tap, and not before, is
+  // hit-testing jsdom does not do: `m54-welcome.spec.ts` owns it.
+  it("leaves within the name-wait cap", async () => {
+    vi.useFakeTimers();
+    launchedMsAgo(4900);
+    document.documentElement.setAttribute("data-launch", "4800");
+    document.cookie = `${WELCOME_COOKIE}=signup; Path=/`;
+    sessionAnswersAfter(300);
+    render(<LaunchOverlay />);
+    await elapse(1400);
+    const moment = screen.getByTestId("welcome-moment");
+    expect(within(moment).getByText("Welcome, Ana")).toBeDefined();
+    expect(document.documentElement.hasAttribute("data-launch")).toBe(true);
+
+    await elapse(100);
+    expect(screen.queryByTestId("welcome-moment")).toBeNull();
+    expect(document.documentElement.hasAttribute("data-launch")).toBe(false);
+  });
+
+  // A "Welcome!" lasts about 1.6s from the splash going up, like a named one,
+  // however long hydration took: the name wait counts from the stamp.
+  it.each([150, 400])("ends a Welcome! about 1.6s after the splash went up, hydrating at %ims", async (hydratedAt) => {
+    vi.useFakeTimers();
+    launchedMsAgo(4800 + hydratedAt);
+    document.documentElement.setAttribute("data-launch", "4800");
+    document.cookie = `${WELCOME_COOKIE}=signin; Path=/`;
+    sessionAnswersAfter(2000);
+    render(<LaunchOverlay />);
+    await elapse(1450 - hydratedAt);
+    expect(within(screen.getByTestId("welcome-moment")).getByText("Welcome!")).toBeDefined();
+    await elapse(200);
+    expect(screen.queryByTestId("welcome-moment")).toBeNull();
+  });
+
+  // A splash that has already stood through a slow hydration still holds its
+  // words for the full beat, or "Welcome, Ana" would flash past unread.
+  it("holds a late hydration's welcome for the full beat", async () => {
+    vi.useFakeTimers();
+    launchedMsAgo(1500);
+    document.documentElement.setAttribute("data-launch", "");
+    document.cookie = `${WELCOME_COOKIE}=signin; Path=/`;
+    sessionAnswersAfter(100);
+    render(<LaunchOverlay />);
+    await elapse(150);
+    expect(within(screen.getByTestId("welcome-moment")).getByText("Welcome, Ana")).toBeDefined();
+    await elapse(650);
+    expect(within(screen.getByTestId("welcome-moment")).getByText("Welcome, Ana")).toBeDefined();
+    await elapse(500);
+    expect(screen.queryByTestId("welcome-moment")).toBeNull();
+  });
+
+  // The hold does not outlast the fail-safe: 2.7s up, the words get what is
+  // left of the 3s, then the unlock.
+  it("cuts a late name's hold at the fail-safe", async () => {
+    vi.useFakeTimers();
+    launchedMsAgo(2700);
+    document.documentElement.setAttribute("data-launch", "");
+    document.cookie = `${WELCOME_COOKIE}=signin; Path=/`;
+    sessionAnswersAfter(100);
+    render(<LaunchOverlay />);
+    await elapse(150);
+    expect(within(screen.getByTestId("welcome-moment")).getByText("Welcome, Ana")).toBeDefined();
+    await elapse(750);
+    expect(screen.queryByTestId("welcome-moment")).toBeNull();
+  });
+
+  // Decision 6: a name lengthens the hold, and re-timing a running
+  // animation snaps a fading sheet back. So the overlay breathes until the
+  // name is known, and the welcome starts at its final length.
+  it("breathes until the session answers, then welcomes by name", async () => {
+    vi.useFakeTimers();
+    launchedMsAgo(100);
+    document.documentElement.setAttribute("data-launch", "");
+    document.cookie = `${WELCOME_COOKIE}=signup; Path=/`;
+    sessionAnswersAfter(300);
+    render(<LaunchOverlay />);
+    await act(() => vi.advanceTimersByTimeAsync(250));
+    expect(screen.getByTestId("welcome-moment").getAttribute("data-phase")).toBe("breathe");
+    await act(() => vi.advanceTimersByTimeAsync(100));
+    const moment = screen.getByTestId("welcome-moment");
+    expect(moment.getAttribute("data-phase")).toBe("welcome");
+    expect(within(moment).getByText("Welcome, Ana")).toBeDefined();
+  });
+
+  // Past the wait the welcome says "Welcome!" (Mitchell, 2026-10-26), for the
+  // full beat, and a name that comes later changes neither what is shown nor
+  // what is said.
+  it("says Welcome! when the name is late, and keeps it", async () => {
+    vi.useFakeTimers();
+    launchedMsAgo(100);
+    document.documentElement.setAttribute("data-launch", "");
+    document.cookie = `${WELCOME_COOKIE}=signup; Path=/`;
+    sessionAnswersAfter(700);
+    render(<LaunchOverlay />);
+    await elapse(800);
+    const moment = screen.getByTestId("welcome-moment");
+    expect(within(moment).getByText("Welcome!")).toBeDefined();
+    expect(screen.getByText("Welcome!", { ignore: "[aria-hidden], [aria-hidden] *" }).getAttribute("aria-live")).toBe(
+      "polite",
+    );
+    await elapse(500);
+    expect(within(screen.getByTestId("welcome-moment")).getByText("Welcome!")).toBeDefined();
+    expect(screen.queryByText("Welcome, Ana")).toBeNull();
+    await elapse(500);
+    expect(screen.queryByTestId("welcome-moment")).toBeNull();
+  });
+
+  // Past the CSS fail-safe the sheet has already faded, and drawing it again
+  // would be decision 6's blank-frame flicker.
+  it("stands down without a moment when hydration lands past the fail-safe", () => {
+    launchedMsAgo(3500);
+    document.documentElement.setAttribute("data-launch", "");
+    document.cookie = `${WELCOME_COOKIE}=signin; Path=/`;
+    render(<LaunchOverlay />);
+    expect(screen.queryByTestId("welcome-moment")).toBeNull();
+    expect(document.documentElement.hasAttribute("data-launch")).toBe(false);
+    expect(readWelcomeCue(document.cookie)).toBeNull();
+  });
+
+  // Under reduced motion a sign-in's splash still holds the page, with nothing
+  // moving (globals.css animates it only under `no-preference`), for no longer
+  // than with motion. The overlay sits in the root layout, which client
+  // navigation keeps, so the words go once said.
+  it("plays a sign-in's splash still under reduced motion, and says the welcome once", async () => {
+    vi.useFakeTimers();
+    stubMedia("(prefers-reduced-motion: reduce)");
+    launchedMsAgo(100);
+    document.documentElement.setAttribute("data-launch", "");
+    document.cookie = `${WELCOME_COOKIE}=signup; Path=/`;
+    sessionAnswersAfter(0);
+    render(<LaunchOverlay />);
+    await act(() => vi.advanceTimersByTimeAsync(10));
+    expect(within(screen.getByTestId("welcome-moment")).getByText("Welcome, Ana")).toBeDefined();
+    expect(screen.getByText("Welcome, Ana", { ignore: "[aria-hidden], [aria-hidden] *" }).getAttribute("aria-live")).toBe(
+      "polite",
+    );
+    await act(() => vi.advanceTimersByTimeAsync(1150));
+    expect(screen.queryByTestId("welcome-moment")).toBeNull();
+    expect(document.documentElement.hasAttribute("data-launch")).toBe(false);
+    await act(() => vi.advanceTimersByTimeAsync(5000));
+    expect(screen.queryByText("Welcome, Ana")).toBeNull();
+  });
+
+  // ADR-082 decision 2: a launch with no sign-in to welcome unmounts at once.
+  it("draws nothing on a reduced-motion launch with no sign-in", () => {
+    stubMedia("(prefers-reduced-motion: reduce)");
+    launchedMsAgo(100);
+    document.documentElement.setAttribute("data-launch", "");
+    render(<LaunchOverlay />);
+    expect(screen.queryByTestId("welcome-moment")).toBeNull();
+    expect(document.documentElement.hasAttribute("data-launch")).toBe(false);
+  });
+
+  // Near the CSS fail-safe the name wait is cut short, so the welcome has
+  // started before the CSS fades the sheet out from under it.
+  it("cuts the name wait short near the fail-safe", async () => {
+    vi.useFakeTimers();
+    launchedMsAgo(2800);
+    document.documentElement.setAttribute("data-launch", "");
+    document.cookie = `${WELCOME_COOKIE}=signup; Path=/`;
+    sessionAnswersAfter(400);
+    render(<LaunchOverlay />);
+    await act(() => vi.advanceTimersByTimeAsync(250));
+    const moment = screen.getByTestId("welcome-moment");
+    expect(moment.getAttribute("data-phase")).toBe("welcome");
+    expect(within(moment).getByText("Welcome!")).toBeDefined();
+  });
+
+  // Decision 6: no seam between the splash and the app. The overlay the
+  // server drew is the one that welcomes, so its breathing mark does not
+  // restart at hydration.
+  it("keeps the server-drawn moment through a signup launch's hydration", async () => {
+    vi.useFakeTimers();
+    launchedMsAgo(100);
+    document.documentElement.setAttribute("data-launch", "");
+    document.cookie = `${WELCOME_COOKIE}=signup; Path=/`;
+    sessionAnswersAfter(100);
+    const host = document.createElement("div");
+    host.innerHTML = renderToString(<LaunchOverlay />);
+    document.body.append(host);
+    const served = screen.getByTestId("welcome-moment");
+    const root = await act(async () => hydrateRoot(host, <LaunchOverlay />));
+    onTestFinished(() => {
+      act(() => root.unmount());
+      host.remove();
+    });
+    await act(() => vi.advanceTimersByTimeAsync(150));
+    const moment = screen.getByTestId("welcome-moment");
+    expect(moment.getAttribute("data-phase")).toBe("welcome");
+    expect(moment).toBe(served);
+  });
+
+  // Decision 6: it leaves as soon as the page is ready, and takes the launch
+  // mark with it, so nothing is left covering the app.
+  it("leaves a home-screen launch once the page has hydrated", () => {
+    vi.useFakeTimers();
+    launchedMsAgo(100);
+    document.documentElement.setAttribute("data-launch", "");
+    render(<LaunchOverlay />);
+    expect(screen.getByTestId("welcome-moment")).toBeDefined();
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+    expect(screen.queryByTestId("welcome-moment")).toBeNull();
+    expect(document.documentElement.hasAttribute("data-launch")).toBe(false);
+  });
+});

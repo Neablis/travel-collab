@@ -41,6 +41,18 @@ describe("UnscheduledRack", () => {
     expect(onToggle).toHaveBeenCalledTimes(1);
   });
 
+  // M54: the caret turns as the drawer opens, so it is one mark that keeps its
+  // place across the toggle, not a second icon swapped in for the first.
+  it("turns one caret as it opens, rather than swapping it for another", () => {
+    const { rerender } = renderRack();
+    const caret = screen.getByTestId("rack-caret");
+    expect(caret.getAttribute("data-open")).toBeNull();
+
+    rerender(<UnscheduledRack items={items} open onToggle={vi.fn()} onEdit={vi.fn()} onCreate={vi.fn()} />);
+    expect(screen.getByTestId("rack-caret")).toBe(caret);
+    expect(caret.getAttribute("data-open")).not.toBeNull();
+  });
+
   it("lists one card per parked stop when open", () => {
     renderRack({ open: true });
 

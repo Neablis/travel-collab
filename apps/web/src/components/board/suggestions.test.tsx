@@ -557,7 +557,7 @@ describe("Accept all", () => {
   });
 
   // One call, so one pending state rather than "N of M": the button stays,
-  // disabled, until the answer arrives.
+  // busy, until the answer arrives; "Accepting…" is its name, not new words.
   it("reads Accepting… while the call is in flight", async () => {
     await mount("owner", (tripId) => [
       change(tripId, 'Renamed the trip to "Roma"', [{ type: "SetTripName", tripId, name: "Roma" }]),
@@ -575,7 +575,8 @@ describe("Accept all", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Accept all" }));
 
     const pending = await screen.findByRole("button", { name: "Accepting…" });
-    expect(pending.hasAttribute("disabled")).toBe(true);
+    expect(pending.getAttribute("aria-busy")).toBe("true");
+    expect(pending.textContent).toBe("Accept all");
     release();
   });
 });

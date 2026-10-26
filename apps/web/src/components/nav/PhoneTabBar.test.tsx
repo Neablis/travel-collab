@@ -429,7 +429,9 @@ describe("PhoneTabBar", () => {
     });
 
     it("is not drawn where no screen offers an assistant, or once it unmounts", () => {
-      url = "/trips/t1";
+      // A trip's notebook page: within a trip's tabs the item outlives its
+      // screen (the test below), and a page is not one of them.
+      url = "/trips/t1/pages/p1";
       const { rerender } = render(
         <>
           <Screen />
@@ -479,6 +481,70 @@ describe("PhoneTabBar", () => {
         </>,
       );
       expect(screen.getByRole("navigation", { name: "Phone navigation" }).textContent).toBe("TripsPlaybooksAsk");
+    });
+
+    // Mitchell, M54 phone walk: "The ask button keeps disappearing and
+    // reappearing when I switch between the other tabs." Board → Notebook is a
+    // path change: the board unmounts, a loading skeleton shows, and the
+    // notebook offers its Ask only once its trip lands. The item must hold its
+    // place through that gap, doing nothing, until the next screen offers one.
+    // `{null}` where the screen was keeps the bar mounted, as the layout does.
+    it("holds its place, inert and closed, across a move between the trip's tabs until the next screen offers", () => {
+      url = "/trips/t1?view=Plan";
+      const board = vi.fn();
+      // Left with the board's assistant up (Back from the open sheet): the
+      // held item must not say an assistant is up when none is.
+      const { rerender } = render(
+        <>
+          <Screen onOpen={board} open />
+          <PhoneTabBar />
+        </>,
+      );
+      url = "/trips/t1/pages";
+      rerender(
+        <>
+          {null}
+          <PhoneTabBar />
+        </>,
+      );
+      const held = screen.getByTestId("ask-tab");
+      expect(screen.getByRole("navigation", { name: "Phone navigation" }).textContent).toBe("OverviewPlanMapNotebookAsk");
+      expect(held.hasAttribute("disabled")).toBe(true);
+      expect(held.getAttribute("aria-expanded")).toBe("false");
+      fireEvent.click(held);
+      expect(board).not.toHaveBeenCalled();
+
+      const notebook = vi.fn();
+      rerender(
+        <>
+          <Screen onOpen={notebook} />
+          <PhoneTabBar />
+        </>,
+      );
+      fireEvent.click(screen.getByTestId("ask-tab"));
+      expect(notebook).toHaveBeenCalledTimes(1);
+    });
+
+    it.each([
+      ["another trip", "/trips/t2"],
+      ["the account pages", "/home"],
+      ["a notebook page, which may offer none", "/trips/t1/pages/p1"],
+    ])("holds nothing into %s", (_, to) => {
+      url = "/trips/t1";
+      const { rerender } = render(
+        <>
+          <Screen onOpen={() => {}} />
+          <PhoneTabBar />
+        </>,
+      );
+      url = to;
+      rerender(
+        <>
+          {null}
+          <PhoneTabBar />
+        </>,
+      );
+      expect(screen.queryByTestId("ask-tab")).toBeNull();
     });
   });
 });

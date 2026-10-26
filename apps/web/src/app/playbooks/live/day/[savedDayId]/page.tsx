@@ -4,17 +4,17 @@ import { JsonLd } from "@/components/JsonLd";
 import { RELATED_DAYS, RelatedDays } from "@/components/playbooks/RelatedDays";
 import { SharedDayScreen } from "@/components/playbooks/SharedDayScreen";
 import { backTarget } from "@/components/playbooks/backLink";
-import { DAY_FALLBACK_TITLE, dayDescription, dayIndexable, playbooksPageMetadata } from "@/lib/playbooksPreview";
+import { DAY_FALLBACK_TITLE, dayDescription, dayIndexable, dayTitle, playbooksPageMetadata } from "@/lib/playbooksPreview";
 import { deploymentOrigin } from "@/lib/deploymentOrigin";
 import { dayJsonLd } from "@/lib/jsonLd";
-import { cityPath, dayPath, daySegment, parseDaySegment } from "@/lib/playbookUrls";
+import { cityPath, countryCityPath, dayPath, daySegment, parseDaySegment, placePath, slugify } from "@/lib/playbookUrls";
 import { NOINDEX, pageMetadata } from "@/lib/siteMetadata";
 import type { SharedDayView } from "@/lib/sharedDayView";
 import { type PlaybooksReader } from "@/lib/playbooksReader";
 import { queryFor, readerOf } from "@/lib/playbooksPageReader";
 import { auth } from "@/server/auth";
 import { CITIES_SHOWN } from "@/server/og/playbooks";
-import { dayPageView, publishedDaysInCity, publishedDaysPage } from "@/server/publicLibrary";
+import { dayPageView, publishedCountryCityPages, publishedDaysInCity, publishedDaysPage } from "@/server/publicLibrary";
 
 type Params = { params: Promise<{ copy?: string; savedDayId: string }> };
 
@@ -60,9 +60,10 @@ export async function generateMetadata({ params }: Params) {
   const { view } = loaded;
   const { day } = view;
   return pageMetadata({
-    // D3: the tab says the day and where. The card keeps the bare name
-    // (spec §1): its facts line already names the cities.
-    title: day.cities[0] === undefined ? day.name : `${day.name} · ${day.cities[0]}`,
+    // D3, as M53 decision 3 amends it: the tab says the day and where,
+    // unless the day's own name already says where. The card keeps the
+    // bare name (spec §1): its facts line already names the cities.
+    title: dayTitle(day.name, day.cities[0] ?? null),
     cardTitle: day.name,
     description: describe(view),
     image: { url: `/api/og/playbooks/day/${day.savedDayId}`, alt: day.name },
@@ -114,6 +115,18 @@ export default async function SharedDayPage({
   const cityHref = firstCity === null ? null : cityPath(firstCity);
   // One more than is shown: either list may hold this day, which is dropped.
   const page = { limit: RELATED_DAYS + 1, offset: 0 };
+  // The day's country crumb, when its first city sits in exactly one country
+  // in the published lattice: the breadcrumb then walks country → city →
+  // day, through the country×city page for that pair. A city in several
+  // countries keeps the Playbooks → city → day trail, which names no country
+  // it cannot prove. Only for an indexable day: a private day says nothing
+  // to a crawler, and spends no lattice read.
+  const firstCitySlug = firstCity === null ? null : slugify(firstCity);
+  const pairs = indexable && firstCitySlug !== null ? await publishedCountryCityPages() : [];
+  const countries = new Map(
+    pairs.filter((pair) => pair.city.slug === firstCitySlug).map((pair) => [pair.country.slug, pair.country]),
+  );
+  const country = countries.size === 1 ? [...countries.values()][0]! : null;
   const structured = indexable
     ? dayJsonLd({
         origin: deploymentOrigin(),
@@ -122,8 +135,18 @@ export default async function SharedDayPage({
         description: describe(view),
         author: view.author.displayName,
         stops: view.day.stops.map((stop) => stop.title),
-        // The breadcrumb runs through the city when the city has a page.
-        ...(firstCity !== null && cityHref !== null ? { city: { name: firstCity, path: cityHref } } : {}),
+        // The breadcrumb runs through the country and the city when the city has a page.
+        ...(country === null
+          ? {}
+          : { country: { name: country.name, path: placePath({ kind: "country", slug: country.slug }) } }),
+        ...(firstCity !== null && cityHref !== null
+          ? {
+              city: {
+                name: firstCity,
+                path: country === null ? cityHref : countryCityPath(country.slug, firstCitySlug!),
+              },
+            }
+          : {}),
       })
     : null;
   const [sameCity, sameAuthor] = indexable

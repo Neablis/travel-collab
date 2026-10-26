@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { expect, type Browser, type Locator, type Page } from "@playwright/test";
 import type { Location } from "@tc/contracts";
 import { commandsFor, type CommandsForOverrides } from "@tc/factories";
-import { E2E_SUPER_CODE } from "./admission";
+import { E2E_SUPER_CODE, fillInviteCode } from "./admission";
 import { e2eTripName } from "./tripNames";
 
 /**
@@ -201,7 +201,7 @@ export async function reaim(target: Locator, at: { x: number; y: number }): Prom
  */
 export async function signInAsDevUser(page: Page, username: string): Promise<void> {
   await page.goto("/signup");
-  await page.getByLabel("Invite code").fill(E2E_SUPER_CODE);
+  await fillInviteCode(page, E2E_SUPER_CODE);
   // eslint-disable-next-line playwright/prefer-locator -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
   await page.fill('input[name="username"]', username);
   // Wait for the post-sign-in page's first authenticated /api/trips fetch —

@@ -1,10 +1,12 @@
 "use client";
+import { useRef } from "react";
 import { cn } from "../../lib/cn";
+import { useIndicator } from "../../lib/useIndicator";
 import { PHONE_TOUCH } from "./button";
 
-// The moss-pill tab look of ui/tabs.tsx applied to plain role="tab" buttons —
-// NOT Radix Tabs. Radix TabsTrigger is pointer-only, which silently breaks
-// fireEvent.click tests (comment #11 / M5 Track B1). Driven by owned state.
+// The moss-pill tab look applied to plain role="tab" buttons — NOT Radix Tabs.
+// Radix TabsTrigger is pointer-only, which silently breaks fireEvent.click
+// tests (review comment 11, M5 Track B1). Driven by owned state.
 export function TabStrip<T extends string>({
   value,
   onValueChange,
@@ -21,6 +23,8 @@ export function TabStrip<T extends string>({
   options: readonly { value: T; label: string }[];
   "aria-label": string;
 }) {
+  const list = useRef<HTMLDivElement>(null);
+  const { indicator, trigger, ready } = useIndicator(list, value);
   return (
     // `h-8` pins the strip at the design's 32px (`hint-size="auto,32px"`), and it
     // has to be pinned rather than left to content: this repo overrides
@@ -34,21 +38,35 @@ export function TabStrip<T extends string>({
     // carries SPEC §13.1's 44px floor (`PHONE_TOUCH`) and the strip grows to
     // hold it: at 820px on a tablet these tabs measured 26px (KI-2026-09-24-j).
     <div
+      ref={list}
       role="tablist"
       aria-label={ariaLabel}
-      className="inline-flex items-center gap-0.5 rounded-md bg-moss p-0.5 fine:h-8"
+      className="relative inline-flex items-center gap-0.5 rounded-md bg-moss p-0.5 fine:h-8"
     >
+      {/* The raised pill, one for the strip, sliding between tabs (M54). */}
+      <span
+        ref={indicator}
+        aria-hidden
+        data-testid="tab-indicator"
+        className="tab-indicator tab-indicator-box pointer-events-none absolute top-0 left-0 rounded-sm bg-surface shadow-raised"
+      />
       {options.map((o) => (
         <button
           key={o.value}
+          ref={trigger(o.value)}
           type="button"
           role="tab"
           aria-selected={value === o.value}
           onClick={() => onValueChange(o.value)}
           className={cn(
             PHONE_TOUCH,
-            "cursor-pointer rounded-sm px-2.5 py-1 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-brand",
-            value === o.value ? "bg-surface font-semibold text-ink shadow-raised" : "text-slate hover:text-ink",
+            // `relative` paints the label over the indicator, which is
+            // positioned and comes first.
+            "relative cursor-pointer rounded-sm px-2.5 py-1 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-brand",
+            // The pill is the indicator's once it is placed; until then (the
+            // server's HTML, the hydrating paint) the selected tab draws its own.
+            value === o.value && !ready && "bg-surface shadow-raised",
+            value === o.value ? "font-semibold text-ink" : "text-slate hover:text-ink",
           )}
         >
           {o.label}

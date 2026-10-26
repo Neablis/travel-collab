@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { SaveLightMark, SaveLightProvider, usePublishSaveState, type SaveState } from "./SaveLight";
@@ -50,6 +50,62 @@ describe("SaveLightMark", () => {
     expect(container.querySelectorAll(".save-light-breathing")).toHaveLength(1);
     // Still the logo, still a link home — SPEC: "One mark, two jobs."
     expect(screen.getByRole("link", { name: /Caesura/ })).toBeTruthy();
+  });
+
+  // M54: the breathing stopping is the moment work landed, so the mark takes
+  // one short beat there. Only there: not on the page's first rest.
+  it("takes one 'saved' beat when the breathing stops, and not at rest", () => {
+    const rest = { unsent: 0, failure: null, retry: () => {} };
+    const { rerender } = renderLight(rest);
+    const link = screen.getByRole("link", { name: "Caesura" });
+    expect(link.getAttribute("data-save-beat")).toBeNull();
+
+    rerender(
+      <SaveLightProvider>
+        <SaveLightMark />
+        <Publisher sync={{ ...rest, unsent: 2 }} />
+      </SaveLightProvider>,
+    );
+    const breathing = screen.getByRole("link", { name: "Caesura" });
+    expect(breathing.getAttribute("data-save-beat")).toBeNull();
+
+    rerender(
+      <SaveLightProvider>
+        <SaveLightMark />
+        <Publisher sync={rest} />
+      </SaveLightProvider>,
+    );
+    const saved = screen.getByRole("link", { name: "Caesura" });
+    expect(saved.getAttribute("data-save-beat")).not.toBeNull();
+
+    // Spent once its animation ends, so the next save beats again. Prefixed
+    // and bubbling, as jsdom needs (KeepDayFlag.test.tsx says why).
+    fireEvent(saved, new Event("webkitAnimationEnd", { bubbles: true }));
+    expect(saved.getAttribute("data-save-beat")).toBeNull();
+  });
+
+  // The breathing also stops when the queue fails, and a beat there would say
+  // "saved" about work that was not.
+  it("takes no beat when the breathing stops on a failure", () => {
+    const saving = { unsent: 2, failure: null, retry: () => {} };
+    const { rerender } = renderLight(saving);
+
+    rerender(
+      <SaveLightProvider>
+        <SaveLightMark />
+        <Publisher sync={{ ...saving, failure }} />
+      </SaveLightProvider>,
+    );
+    // While failed the mark is the retry button, so the beat could only show
+    // once the failure clears; resting from there must not beat either.
+    rerender(
+      <SaveLightProvider>
+        <SaveLightMark />
+        <Publisher sync={{ ...saving, unsent: 0 }} />
+      </SaveLightProvider>,
+    );
+    const rested = screen.getByRole("link", { name: "Caesura" });
+    expect(rested.getAttribute("data-save-beat")).toBeNull();
   });
 
   describe("when the queue has failed", () => {

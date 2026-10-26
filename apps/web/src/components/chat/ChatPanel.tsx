@@ -10,6 +10,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Dialog, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Text } from "@/components/ui/text";
+import { TypingDots } from "@/components/ui/typing-dots";
 import { cn } from "@/lib/cn";
 import { fetchPages } from "@/lib/pagesClient";
 import { cachedRead, DEDUPE } from "@/lib/queryCache";
@@ -24,7 +25,11 @@ import { HOME_PATH } from "@/lib/homePath";
 /** The read-only line after the owner's lapse (M46 D2): why, not just that. */
 export const READ_ONLY_LINE = "This chat is read-only: the trip owner's plan no longer includes collaborators.";
 export const NO_ACCESS_LINE = "You no longer have access to this trip";
-/** While an `@assistant` is unanswered (M52 decision 18): its reply lands whole, never streamed. */
+/**
+ * While an `@assistant` is unanswered (M52 decision 18): its reply lands whole,
+ * never streamed, so there is no step to name and the panel shows the dots
+ * alone (M54 decision 13). These words are the screen reader's.
+ */
 export const THINKING_LINE = "Assistant is thinking…";
 
 /**
@@ -125,6 +130,12 @@ export function ChatPanel({
   };
   const scrollport = useRef<HTMLDivElement>(null);
   usePinToBottom(scrollport, [chat.messages.length]);
+  // The stored lines there when the conversation was first shown. A line
+  // rises in as it arrives (M54 decision 13), and opening on a loaded
+  // conversation is not an arrival. A pending line always is.
+  const [shown, setShown] = useState<{ tripId: string; ids: ReadonlySet<string> } | null>(null);
+  if (shown?.tripId !== chat.tripId && chat.status === "ready")
+    setShown({ tripId: chat.tripId, ids: new Set(chat.messages.flatMap((m) => (m.pending ? [] : [m.messageId]))) });
   // Who is reading decides what each line offers (D6). Neither is a request of
   // its own: the `(app)` layout's session, and the trip's own access read.
   const me = useKnownSessionUser()?.id ?? null;
@@ -200,7 +211,9 @@ export function ChatPanel({
             <ol aria-label="Messages" className="flex flex-col gap-3">
               {chat.messages.map((message) => (
                 <ChatMessage
-                  key={message.messageId}
+                  // A sent line keeps its key once stored, so it firms up in
+                  // place rather than being drawn, and rising in, again.
+                  key={message.drawnAs ?? message.messageId}
                   ref={(line) => {
                     if (line !== null) lines.current.set(message.messageId, line);
                     return () => void lines.current.delete(message.messageId);
@@ -214,6 +227,7 @@ export function ChatPanel({
                   // would reach a stored message.
                   viewer={message.pending ? null : viewerOf(message.authorId)}
                   pending={message.pending}
+                  still={shown?.ids.has(message.messageId) ?? true}
                   // Closed by a lapse mid-edit as well: the save would be refused.
                   editing={editing === message.messageId && chat.canPost}
                   onEdit={() => setEditing(message.messageId)}
@@ -240,8 +254,13 @@ export function ChatPanel({
         )}
         {/* Mounted empty, out of the flow until it speaks: a live region that
             arrives holding its words is often not read out. */}
-        <p role="status" className={cn("text-xs text-slate", !thinking && "sr-only")}>
-          {thinking ? THINKING_LINE : null}
+        <p role="status" className={cn("text-slate", !thinking && "sr-only")}>
+          {thinking && (
+            <>
+              <TypingDots />
+              <span className="sr-only">{THINKING_LINE}</span>
+            </>
+          )}
         </p>
       </div>
       <Dialog

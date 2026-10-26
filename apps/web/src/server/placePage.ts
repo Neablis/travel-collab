@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import type { PlaceDaysList } from "@/components/playbooks/PlaceDaysList";
 import { PLACE_PAGE_SIZE, countryCityPath, placeIndexable, placePagePath, placePath } from "@/lib/playbookUrls";
-import type { BreadcrumbCrumb } from "@/lib/jsonLd";
+import { countryCityPageCrumbs, placePageCrumbs } from "@/lib/jsonLd";
 import { latticeNav } from "@/lib/latticeNav";
 import {
   cityDescription,
@@ -101,10 +101,7 @@ export async function placeListing(
   const path = placePath(data.place);
   // The last crumb is this page at its own URL: on `?page=N` the trail
   // ends at page N, as the page's canonical does, not at page one.
-  const crumbs: BreadcrumbCrumb[] = [
-    { name: "Playbooks", path: "/playbooks" },
-    { name, path: placePagePath(path, page) },
-  ];
+  const crumbs = placePageCrumbs({ name, path }, page);
   return {
     heading: placeTitle(name),
     summary: kind === "city" ? cityDescription(name, total, data.days) : countryDescription(name, total, data.days),
@@ -174,11 +171,11 @@ export async function countryCityListing(props: CountryCityRouteProps): Promise<
   const [tags, countryCities] = await Promise.all([publishedTagPages(), publishedCountryCityPages()]);
   const path = countryCityPath(pair.country.slug, pair.city.slug);
   // The last crumb is this page at its own URL, as on the place pages.
-  const crumbs: BreadcrumbCrumb[] = [
-    { name: "Playbooks", path: "/playbooks" },
+  const crumbs = countryCityPageCrumbs(
     { name: pair.country.name, path: placePath({ kind: "country", slug: pair.country.slug }) },
-    { name: pair.city.name, path: placePagePath(path, page) },
-  ];
+    { name: pair.city.name, path },
+    page,
+  );
   return {
     heading: countryCityTitle(pair.city.name, pair.country.name),
     summary: countryCityDescription(pair.city.name, pair.days, data.days),

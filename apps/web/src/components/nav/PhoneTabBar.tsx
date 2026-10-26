@@ -1,17 +1,18 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { BookOpen, LayoutDashboard, List, Luggage, Map, NotebookText } from "lucide-react";
 import { useSessionUser } from "@/components/account/useSessionUser";
 import { landingView, resolveView, type View } from "@/components/trip/context/LensRouter";
 import { cn } from "@/lib/cn";
+import { useIndicator } from "@/lib/useIndicator";
 import { isDemoBoardPath } from "@/lib/demoTrip";
 import { Button } from "@/components/ui/button";
 import { BrandMark } from "@/components/BrandMark";
 import { askOrChatName, UnreadDot } from "./askOrChat";
-import { usePhoneAsk } from "./phoneAsk";
+import { usePhoneAsk, usePhoneAskDeclines, type PhoneAskEntry } from "./phoneAsk";
 import { HOME_PATH } from "@/lib/homePath";
 
 // Handoff `Trip Planner Redesign.dc.html:863-871` (markup) and `:7211-7229`
@@ -288,6 +289,9 @@ function PhoneTabBarView({
   // and without that `.phone-tab-bar-inset` keeps 83px of padding under a bar
   // that is gone.
   const hidden = taskOwnsScreen(pathname) || (signedOut && scopeOf(pathname) === "account");
+  // The active pill, one for the bar, sliding between tabs (M54). `null` while
+  // hidden, so it is placed afresh when the bar comes back.
+  const { indicator, trigger, ready } = useIndicator(barRef, hidden ? null : active);
 
   // The bar is `position: fixed`, so it reserves no space in normal flow and a
   // page's last row ends up underneath it. This is the same problem — and the
@@ -361,6 +365,12 @@ function PhoneTabBarView({
       // under the assistant that is meant to cover it.
       className="phone-tab-bar fixed inset-x-0 bottom-0 z-20 flex border-t border-hairline bg-surface pt-2 md:hidden"
     >
+      <span
+        ref={indicator}
+        aria-hidden
+        data-testid="tab-indicator"
+        className="tab-indicator tab-indicator-box pointer-events-none absolute top-0 left-0 rounded-full bg-brand-tint"
+      />
       {tabsForScope(scopeOf(pathname)).map((id) => {
         const { label, Icon } = TABS[id];
         const href = phoneTabHref(id, pathname);
@@ -409,13 +419,18 @@ function PhoneTabBarView({
                 carries the signal, colour confirms it." 46×26 and
                 `--color-brand-tint`, both the spec's numbers; no new colour is
                 introduced. The pill is on the GLYPH's box rather than the whole
-                tab so the label sits outside it, as the design draws it. */}
+                tab so the label sits outside it, as the design draws it.
+
+                The fill is the bar's one indicator, measured onto this box,
+                once it is placed (M54); until then the active pill fills
+                itself. `relative` paints the glyph over the indicator. */}
             <span
               // Named so a test can count the filled one: the pill is pure
               // decoration with no role or accessible name of its own, and the
               // lint wall rejects `container.querySelector`.
               data-testid="phone-tab-pill"
-              className={cn("phone-tab-pill grid place-items-center rounded-full", isActive && "bg-brand-tint")}
+              ref={trigger(id)}
+              className={cn("phone-tab-pill relative grid place-items-center rounded-full", isActive && !ready && "bg-brand-tint")}
             >
               <Icon aria-hidden className="size-4" />
             </span>
@@ -423,7 +438,7 @@ function PhoneTabBarView({
           </Link>
         );
       })}
-      <PhoneAskTab />
+      <PhoneAskTab pathname={pathname} />
     </nav>
   );
 }
@@ -440,34 +455,40 @@ function PhoneTabBarView({
  * (KI-79), a locked notebook page, and the account pages.
  *
  * Exported so a screen's own test can render it beside the screen: the bar
- * itself needs a route, and the item is what the screen talks to.
+ * itself needs a route, and the item is what the screen talks to. Without
+ * `pathname` it holds nothing over (`useHeldPhoneAsk`).
  */
-export function PhoneAskTab() {
-  const ask = usePhoneAsk();
+export function PhoneAskTab({ pathname }: { pathname?: string }) {
+  const ask = useHeldPhoneAsk(pathname ?? null);
   if (ask === null) return null;
+  const { held } = ask;
+  const open = ask.open && !held;
   return (
     // The ghost button primitive, with its box undone back to a tab's: the
     // bar's links are not buttons, and this one item must sit exactly as
     // they do (same height, same gap, same label size).
     <Button
       variant="ghost"
+      // Held over from the screen before, whose assistant is gone: in its
+      // place, opening nothing, until the next screen offers its own.
+      disabled={held}
       onClick={ask.onResume ?? ask.onOpen}
       // On a trip with a chat this is the one way into both, as the header's
       // pill is from 768px (M46), and named and dotted as that pill is.
       aria-label={askOrChatName(ask.unread)}
-      aria-expanded={ask.open}
+      aria-expanded={open}
       data-testid="ask-tab"
       className={cn(
         TAB_CLASS,
         "h-auto rounded-none px-0 hover:bg-transparent",
-        ask.open ? "font-semibold text-brand hover:text-brand" : "font-normal text-slate hover:text-slate",
+        open ? "font-semibold text-brand hover:text-brand" : "font-normal text-slate hover:text-slate",
       )}
     >
       {/* The tabs' own pill, and their two looks: filled only while the
           assistant is up, as a tab's is while it is current. It was always
           filled, which on a closed assistant read as the current tab
           (Mitchell, walking PR 426 at 644px on 2026-10-12). */}
-      <span data-testid="phone-tab-pill" className={cn("phone-tab-pill relative grid place-items-center rounded-full", ask.open && "bg-brand-tint")}>
+      <span data-testid="phone-tab-pill" className={cn("phone-tab-pill relative grid place-items-center rounded-full", open && "bg-brand-tint")}>
         <BrandMark size={16} tile={false} />
         {/* The header pill's dot, on this pill's corner and out of flow, so
             neither the glyph nor the item moves when it appears. */}
@@ -476,6 +497,45 @@ export function PhoneAskTab() {
       Ask
     </Button>
   );
+}
+
+/**
+ * The trip whose tab routes `pathname` is on: a trip's board and its notebook
+ * index, the two screens its tabs reach. `null` anywhere else, a notebook page
+ * among them.
+ */
+function tripTabsOf(pathname: string): string | null {
+  return /^\/trips\/([^/]+)(?:\/pages)?\/?$/.exec(pathname)?.[1] ?? null;
+}
+
+/**
+ * The registered Ask, or the last one seen in this trip, `held`, while a move
+ * between its tabs has none (Mitchell's M54 phone walk: "The ask button keeps
+ * disappearing and reappearing when I switch between the other tabs"). Board
+ * and Notebook are different paths, so between them one screen unmounts,
+ * taking its entry, and the next offers its own only once its trip lands.
+ *
+ * Held only onto a trip tab route of the trip it was seen in: both screens
+ * there offer an Ask once loaded, so the item is not left standing for one
+ * that never comes. A notebook page may offer none (a locked one), and
+ * another trip's or the account pages' Ask is not this one, so those start
+ * empty as before. A screen there that settles on none (its read failed, or a
+ * demo's board) declines (`useDeclinePhoneAsk`), and the hold ends with it.
+ * This is the bar remembering an entry, keyed by the route and dropped by it,
+ * not a tab it lights (§13).
+ */
+function useHeldPhoneAsk(pathname: string | null): (PhoneAskEntry & { held: boolean }) | null {
+  const live = usePhoneAsk();
+  const declines = usePhoneAskDeclines();
+  const trip = pathname === null ? null : tripIdFromPathname(pathname);
+  const [last, setLast] = useState<{ entry: PhoneAskEntry; trip: string | null; declines: number } | null>(null);
+  // Keyed to the trip the entry was first seen in, not the route of every
+  // render: the bar renders the next route before the old screen's cleanup
+  // takes its entry back, and must not carry it into another trip then.
+  if (live !== null && live !== last?.entry) setLast({ entry: live, trip, declines });
+  if (live !== null) return { ...live, held: false };
+  if (last?.trip && last.declines === declines && pathname !== null && tripTabsOf(pathname) === last.trip) return { ...last.entry, held: true };
+  return null;
 }
 
 /**

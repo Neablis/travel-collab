@@ -1,5 +1,5 @@
 import type { Browser, BrowserContext, Page } from "@playwright/test";
-import { E2E_SUPER_CODE } from "./admission";
+import { E2E_SUPER_CODE, fillInviteCode } from "./admission";
 
 // The one account this suite drives the operator console as (M20 link 7).
 //
@@ -75,7 +75,7 @@ export async function revokeSignupTrial(browser: Browser, userId: string): Promi
 async function signInAsOperator(context: BrowserContext): Promise<Page> {
   const page = await context.newPage();
   await page.goto("/signup");
-  await page.getByLabel("Invite code").fill(E2E_SUPER_CODE);
+  await fillInviteCode(page, E2E_SUPER_CODE);
   // eslint-disable-next-line playwright/prefer-locator -- matches signInAsDevUser's grandfathered selector
   await page.fill('input[name="username"]', E2E_ADMIN_USERNAME);
   await Promise.all([

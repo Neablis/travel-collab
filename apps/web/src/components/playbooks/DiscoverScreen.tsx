@@ -3,11 +3,11 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Heading } from "@/components/ui/heading";
 import { Popover } from "@/components/ui/popover";
 import { Sheet } from "@/components/ui/sheet";
+import { Skeleton, SkeletonRegion } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/text";
 import { UnderlineTabs } from "@/components/ui/underline-tabs";
 import { cn } from "@/lib/cn";
@@ -845,11 +845,11 @@ export function DiscoverScreen({
           rather than flashing the page empty, which is what makes changing a
           filter feel like a filter rather than a navigation. */}
       {feed.loading && feed.data === null ? (
-        <ul className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-3" data-testid="discover-skeleton">
+        <SkeletonRegion label="Loading days" className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-3">
           {Array.from({ length: SKELETON_COUNT }, (_, i) => (
-            <Card key={i} as="li" className="h-44 animate-pulse rounded-lg bg-moss" aria-hidden />
+            <Skeleton key={i} className="h-44 rounded-lg" />
           ))}
-        </ul>
+        </SkeletonRegion>
       ) : days.length === 0 ? (
         /* One way out, not two. "Drop the filters" and "Search everywhere" did
            the identical thing — both reset to `NO_FILTERS` — and the first was

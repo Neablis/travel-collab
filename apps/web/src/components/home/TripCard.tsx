@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { useId, type ReactNode } from "react";
+import { useId, useLayoutEffect, useState, type ReactNode } from "react";
 import { travellerIds, type TripSummary, type TripStatus } from "@tc/contracts";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -8,7 +8,8 @@ import { Text } from "@/components/ui/text";
 import { DataText } from "@/components/ui/data-text";
 import { dayAccents, type AccentFamily } from "@/lib/dayAccent";
 import { displayNameFor } from "@/lib/displayName";
-import { PersonChip } from "@/components/ui/person-chip";
+import { memberRoleLabel } from "@/lib/tripRole";
+import { AvatarStack } from "@/components/ui/avatar-stack";
 import { cn } from "@/lib/cn";
 import { formatTripDateLong } from "@/lib/formatDate";
 import { PHONE_TOUCH } from "@/components/ui/button";
@@ -17,6 +18,7 @@ import { CoverImage } from "@/components/cover/CoverImage";
 import { UnplannedTripSteps, isUnplanned, tripDateRange, tripMetaLine } from "./UnplannedTrip";
 import { useCreatedLabel } from "@/lib/useCreatedLabel";
 import { PublishTripOffer, viewerKeepsDays } from "@/components/trip/PublishTripOffer";
+import { useExitPresence } from "@/lib/useExitPresence";
 
 export type TripCardProps = {
   trip: TripSummary;
@@ -42,6 +44,17 @@ export type TripCardProps = {
   // How many of the trip's chat messages the reader has not read (M46 D5),
   // as of Home's load: Home does not poll.
   unreadChat?: number;
+  /**
+   * Drawn into a list that was already on screen, so it rises in (M54). Read
+   * once, as the card mounts: a card that loaded with the page holds still.
+   */
+  arriving?: boolean;
+  /**
+   * Deleted or left: the card sinks out, inert, and then `onGone` takes it
+   * from the list. Turned false again by a failed delete, it rises back in.
+   */
+  leaving?: boolean;
+  onGone?: () => void;
 };
 
 /**
@@ -100,9 +113,32 @@ function statusLabel(status: TripStatus): string {
  * @param plannedOfBudget - Optional preformatted planned-cost and budget text
  * @param viewerId - The reader's user id, which decides an unplanned trip's next steps
  * @param unreadChat - The reader's unread chat messages on the trip
+ * @param arriving - Whether the card joins a list already on screen, and so rises in
+ * @param leaving - Whether the card is on its way out of the list
+ * @param onGone - Called once a leaving card's exit has run
  * @returns The rendered trip summary card
  */
-export function TripCard({ trip, menuSlot, plannedOfBudget, viewerId, unreadChat = 0 }: TripCardProps) {
+export function TripCard({
+  trip,
+  menuSlot,
+  plannedOfBudget,
+  viewerId,
+  unreadChat = 0,
+  arriving = false,
+  leaving = false,
+  onGone,
+}: TripCardProps) {
+  const [risesIn, setRisesIn] = useState(arriving);
+  const [wasLeaving, setWasLeaving] = useState(leaving);
+  if (leaving !== wasLeaving) {
+    setWasLeaving(leaving);
+    if (!leaving) setRisesIn(true);
+  }
+  const { ref, exit, cancel } = useExitPresence<HTMLElement>();
+  useLayoutEffect(() => {
+    if (leaving) exit(() => onGone?.());
+    else cancel();
+  }, [leaving, exit, cancel, onGone]);
   const accent = dayAccents([trip.tripId])[0]!;
   // The stack is who is going (travellers spec §5): an adviser who joined to
   // help plan is not counted, and not drawn — so the label and the avatars it
@@ -252,23 +288,18 @@ export function TripCard({ trip, menuSlot, plannedOfBudget, viewerId, unreadChat
       <PublishTripOffer trip={trip} canPublish={viewerKeepsDays(trip.members, viewerId)} />
 
       <div className="mt-auto flex items-center justify-between pt-1">
-        <div
-          className="flex flex-wrap items-center"
+        <AvatarStack
           role="group"
           aria-label={`${travellers.length} traveler${travellers.length === 1 ? "" : "s"}`}
-        >
-          {travellers.map((member, i) => (
-            <PersonChip
-              key={member.userId}
-              name={displayNameFor(member)}
-              avatar={member.avatar}
-              color={member.color}
-              size="md"
-              ring
-              className={cn(i > 0 && "-ml-2")}
-            />
-          ))}
-        </div>
+          people={travellers.map((member) => ({
+            id: member.userId,
+            name: displayNameFor(member),
+            avatar: member.avatar,
+            color: member.color,
+            // M54 decision 9: the tip names the role.
+            detail: memberRoleLabel(member.role),
+          }))}
+        />
         <div className="flex min-w-0 items-center gap-2">
           <ChatUnreadBadge count={unreadChat} />
           {cover !== null ? (
@@ -289,10 +320,16 @@ export function TripCard({ trip, menuSlot, plannedOfBudget, viewerId, unreadChat
     // handle on the row it belongs to.
     // An unplanned trip's card is dashed, and its accent neutral: it has no
     // plan yet for the accent to stand for (M37 D6).
+    // `trip-card-lift` is the hover lift and the press (globals.css);
+    // `data-motion="sink"` its exit, which `useExitPresence` starts.
     <Card
+      ref={ref}
       data-testid="trip-card"
+      data-motion="sink"
+      data-state="open"
+      data-rise-in={risesIn ? "" : undefined}
       className={cn(
-        "flex flex-col gap-3",
+        "trip-card-lift flex flex-col gap-3",
         cover !== null && "overflow-hidden p-0",
         unplanned && "border-dashed border-border-strong",
       )}

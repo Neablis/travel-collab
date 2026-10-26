@@ -121,18 +121,50 @@ export function runPaletteCommand(id: string): boolean {
 }
 
 /**
+ * The names the screens a route waits for register under (M54 part 4), so the
+ * table below and the screens cannot name them differently. A screen that
+ * offers commands on a route of its own takes one of these
+ * (`paletteRegistry.test.tsx` holds every `usePaletteSource` caller to it).
+ */
+export const PAGE_SOURCES = { home: "home", tripBoard: "trip-board", notebook: "notebook" } as const;
+
+// **The screen each route's commands come from** (M54 part 4). A page under a
+// `loading.tsx` boundary hydrates after the shell, so ⌘K can open before the
+// page has registered anything, and a route change leaves a gap of its own.
+// A route with no screen of its own here (/plans, /account) has nothing to
+// wait for. TripHeader's are not waited for: it mounts only once the trip has
+// been read, by which time the board's are in.
+const routeSources: Record<(typeof PAGE_SOURCES)[keyof typeof PAGE_SOURCES], RegExp> = {
+  [PAGE_SOURCES.home]: /^\/home\/?$/,
+  [PAGE_SOURCES.tripBoard]: /^\/trips\/[^/]+\/?$/,
+  [PAGE_SOURCES.notebook]: /^\/trips\/[^/]+\/pages\/[^/]+\/?$/,
+};
+
+/** Whether the screen at `pathname` has yet to register its commands. */
+export function usePaletteAwaits(pathname: string): boolean {
+  const source = Object.entries(routeSources).find(([, route]) => route.test(pathname))?.[0];
+  const awaits = () => source !== undefined && !sources.has(source);
+  return useSyncExternalStore(subscribe, awaits, awaits);
+}
+
+/**
  * Offers `commands` under `source` while the calling component is mounted.
  * They may be fresh objects every render: each registered `run` calls the
  * latest command with its id, so the list is re-registered only when which
  * commands are on offer, or what they are called or how near, changes.
+ *
+ * `null` is "not read yet": nothing is registered, so the palette still waits
+ * for this screen's route (`usePaletteAwaits`). An empty list is "read, and
+ * nothing to offer", which ends the wait.
  */
-export function usePaletteSource(source: string, commands: readonly PaletteCommand[]): void {
-  const latest = useRef(commands);
+export function usePaletteSource(source: string, commands: readonly PaletteCommand[] | null): void {
+  const latest = useRef(commands ?? []);
   useEffect(() => {
-    latest.current = commands;
+    latest.current = commands ?? [];
   });
-  const shape = JSON.stringify(commands.map((c) => [c.id, c.action, c.type, c.target, c.destination, c.nearness, c.order, c.unlisted]));
+  const shape = commands === null ? null : JSON.stringify(commands.map((c) => [c.id, c.action, c.type, c.target, c.destination, c.nearness, c.order, c.unlisted]));
   useEffect(() => {
+    if (shape === null) return;
     const offered = latest.current.map((command) => ({
       ...command,
       run: () => latest.current.find((c) => c.id === command.id)?.run(),

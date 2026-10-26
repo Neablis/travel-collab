@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useSyncExternalStore } from "react";
+import { useLayoutEffect, useRef, useSyncExternalStore } from "react";
 import type { ChatMessage } from "@tc/contracts";
 
 // **The phone's Ask lives in the bottom tab bar** (Mitchell, 2026-10-10
@@ -16,7 +16,9 @@ import type { ChatMessage } from "@tc/contracts";
 // screen is mounted, and a screen that unmounts takes its entry with it, so
 // the bar never offers an Ask with nothing behind it (`/demo`, a locked
 // notebook, the account pages). The entry is a value, not a flag the bar
-// holds — the route still decides which tabs exist (`tabsForScope`).
+// holds — the route still decides which tabs exist (`tabsForScope`). The bar
+// alone keeps a taken-back entry drawn, inert, across a move between one
+// trip's tabs (`useHeldPhoneAsk`); every other reader sees `null` here.
 //
 // **Not the tab bar's alone since M52**: a notebook's *Trip chat* widget
 // reads the entry at every width (`readerCapabilities.ts`), so what a screen
@@ -92,6 +94,33 @@ export function registerPhoneAsk(next: PhoneAskEntry): () => void {
   };
 }
 
+// How many times a screen has settled on offering no Ask. The bar holds the
+// last entry, inert, only while this has not moved since it saw it.
+let declines = 0;
+
+/**
+ * Says this screen has settled on offering no Ask while `declined`: its read
+ * failed, or its trip is one the assistant refuses. The bar then lets go of
+ * the entry it holds from the screen before (`useHeldPhoneAsk`), which
+ * otherwise stands, dead, waiting for an offer that never comes.
+ */
+export function useDeclinePhoneAsk(declined: boolean): void {
+  useLayoutEffect(() => {
+    if (!declined) return;
+    declines += 1;
+    emit();
+  }, [declined]);
+}
+
+/** The bar's: how many times a screen has declined, for `useHeldPhoneAsk`. */
+export function usePhoneAskDeclines(): number {
+  return useSyncExternalStore(
+    subscribe,
+    () => declines,
+    () => 0,
+  );
+}
+
 /** The registered Ask, or `null` where this screen offers none. */
 export function usePhoneAsk(): PhoneAskEntry | null {
   return useSyncExternalStore(
@@ -123,7 +152,9 @@ export function usePhoneAskEntry(
 ): void {
   const onChat = chat?.onOpen;
   const latest = useRef({ onOpen, onAsk, onResume, onChat });
-  useEffect(() => {
+  // Before the registration below, in the same commit, so the entry is never
+  // live while this still holds the loading render's `undefined`.
+  useLayoutEffect(() => {
     latest.current = { onOpen, onAsk, onResume, onChat };
   });
   const offered = onOpen !== undefined;
@@ -133,7 +164,12 @@ export function usePhoneAskEntry(
   const messages = chat?.messages ?? null;
   const chatUnread = chat?.unread ?? 0;
   const chatPending = chat?.pending === true;
-  useEffect(() => {
+  // A layout effect, as `useDeclinePhoneAsk`'s is: the bar's re-render then
+  // lands in the commit that drew the screen, not a task after it, so the bar
+  // never paints a frame behind the screen (a stale unread count, or the held
+  // Ask beside a board's error). Repeat runs of PR 601's tests caught that
+  // frame.
+  useLayoutEffect(() => {
     if (!offered) return;
     return registerPhoneAsk({
       open,

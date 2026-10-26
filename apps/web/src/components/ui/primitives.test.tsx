@@ -1,6 +1,6 @@
 import type React from "react";
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 import { Badge } from "./badge";
 import { Button } from "./button";
 import { DataText } from "./data-text";
@@ -71,6 +71,45 @@ describe("ui primitives", () => {
     const typeScale = (cls: string) => cls.split(" ").find((c) => /^text-(xs|sm|base|md|lg|xl|2xl)$/.test(c));
     expect(typeScale(md)).toBeDefined();
     expect(typeScale(touch)).toBe(typeScale(md));
+  });
+
+  // M54 decision 2: a pending control's box is identical before, during and
+  // after. The label is the box: a button that swaps its words for the dots
+  // shrinks to the dots' width, so the label must still be laid out (faded,
+  // not removed). Its real width is m54-motion.spec.ts's, in a browser.
+  it("Button pending keeps its label laid out, says it is busy, and refuses a second press", () => {
+    const onClick = vi.fn();
+    const onSubmit = vi.fn((event: React.FormEvent) => event.preventDefault());
+    render(
+      <form onSubmit={onSubmit}>
+        <Button type="submit" pending pendingLabel="Asking…" onClick={onClick}>
+          Ask
+        </Button>
+      </form>,
+    );
+
+    const button = screen.getByRole("button", { name: "Asking…" });
+    expect(button.getAttribute("aria-busy")).toBe("true");
+    expect(button.textContent).toContain("Ask");
+    // Not `disabled`: that would drop focus off the control mid-press.
+    expect(button.hasAttribute("disabled")).toBe(false);
+
+    fireEvent.click(button);
+    expect(onClick).not.toHaveBeenCalled();
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it("Button, once no longer pending, is its plain self again", () => {
+    const onClick = vi.fn();
+    render(
+      <Button pending={false} pendingLabel="Asking…" onClick={onClick}>
+        Ask
+      </Button>,
+    );
+    const button = screen.getByRole("button", { name: "Ask" });
+    expect(button.hasAttribute("aria-busy")).toBe(false);
+    fireEvent.click(button);
+    expect(onClick).toHaveBeenCalledTimes(1);
   });
 
   it("Badge maps semantic variants to tint + ink pairs (conflicts are warning)", () => {

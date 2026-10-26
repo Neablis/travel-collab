@@ -23,7 +23,7 @@ import {
   removeStopCommands,
   tripTargets,
 } from "@/components/palette/commands";
-import { usePaletteSource } from "@/components/palette/paletteRegistry";
+import { PAGE_SOURCES, usePaletteSource } from "@/components/palette/paletteRegistry";
 import { newStopPrefill } from "@/components/trip/newStopPrefill";
 import { useLens, type View } from "@/components/trip/context/LensRouter";
 import { chipModel, cityFor } from "@/lib/dayChips";
@@ -48,7 +48,7 @@ import { TripHeader } from "@/components/trip/TripHeader";
 import { TripHeaderSkeleton } from "@/components/trip/TripHeaderSkeleton";
 import { useTripCover } from "@/components/trip/cover/useTripCover";
 import { useTripSeed } from "@/components/trip/context/tripSeed";
-import { usePhoneAskEntry } from "@/components/nav/phoneAsk";
+import { useDeclinePhoneAsk, usePhoneAskEntry } from "@/components/nav/phoneAsk";
 import { AddSavedDayButton } from "@/components/trip/AddSavedDayButton";
 import { useBoardSuggestions } from "./SuggestionActions";
 import { SuggestionTray } from "./SuggestionTray";
@@ -322,6 +322,11 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   const { settled: coverSettled } = useTripCover(tripId, abovePhone === true && !isDemoTripId(tripId), seed?.cover);
   const headerReady = (abovePhone !== undefined || seed !== null) && coverSettled;
   const boardRenders = status === "ready" && trip !== null && activeTrip !== null && headerReady;
+  // Settled, past the skeleton, on a screen with no Ask: the error, the
+  // sign-in prompt, or a demo's board. The tab bar is holding the notebook's
+  // Ask for this screen's (PR 601), and must let it go.
+  const boardSettled = status !== "loading" && !(status === "ready" && !headerReady);
+  useDeclinePhoneAsk(boardSettled && !(boardRenders && !isDemoTripId(tripId)));
   // ⌘K's *Ask: <text>* (M45 D6): opens the rail and hands it the words, which
   // it sends through its own gate and `submitAssistantAsk`'s refusals. Dropped
   // once the rail has taken it: the rail remounts on Hide and Show, and when
@@ -514,8 +519,10 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
       live = false;
     };
   }, [tripId, remoteRevision]);
+  // Nothing until the board is read, so ⌘K's Enter waits for it (M54 part 4);
+  // a failed read has nothing to offer, and says so at once.
   usePaletteSource(
-    "trip-board",
+    PAGE_SOURCES.tripBoard,
     boardRenders && activeTrip !== null && targets !== null
       ? [
           ...lensCommands(setView),
@@ -541,7 +548,9 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
               ]
             : []),
         ]
-      : [],
+      : status === "error"
+        ? []
+        : null,
   );
   // Which of SPEC §9/§23's presentations the assistant opens as. `AssistantRail`
   // is emphatic that the caller must not reach for `useIsPhone()` — it returns
@@ -692,6 +701,20 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   const [wentLive, setWentLive] = useState(false);
   if (firstMountReady && !wentLive) setWentLive(true);
   const live = wentLive || firstMountReady;
+
+  // **A lens switch fades the incoming lens in** (M54 decision 11). Each lens
+  // already mounts fresh when its view is chosen, so the fade rides a box that
+  // mounts with it (`data-lens-enter`, globals.css) and nothing is keyed or
+  // re-mounted for it. Only after a switch: the first lens replaces its
+  // placeholder in place, and fading it from nothing would flash. Latched
+  // during render, like `wentLive` above.
+  const [lastView, setLastView] = useState(view);
+  const [lensSwitched, setLensSwitched] = useState(false);
+  if (view !== lastView) {
+    setLastView(view);
+    if (live) setLensSwitched(true);
+  }
+  const lensEnter = lensSwitched ? "" : undefined;
 
   const searchParams = useSearchParams();
   /** **A link card to a notebook** from a board with no notebook route — `/demo/<slug>`, an invite's look (`linkHref`). */
@@ -1646,11 +1669,13 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
                     directly, not through this callback, so without it a viewer
                     could still raise the editor in create mode. */}
                 {view === "Map" && (
-                  <MapLens
-                    detail={activeTrip}
-                    onSelectActivity={canEditBoard ? openEdit : undefined}
-                    readOnly={!canEditBoard}
-                  />
+                  <div data-lens-enter={lensEnter}>
+                    <MapLens
+                      detail={activeTrip}
+                      onSelectActivity={canEditBoard ? openEdit : undefined}
+                      readOnly={!canEditBoard}
+                    />
+                  </div>
                 )}
               </PageContainer>
             ) : (
@@ -1675,101 +1700,107 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
                   // Names who is going, who booked and who added each stop on the
                   // river (M51 decision 8a), from the same cached access read as the
                   // rack and the editor: no second request.
-                  <PeopleProvider tripId={tripId}>
-                    <Board
-                      trip={activeTrip}
-                      focusedDay={focusedDay}
-                      onDrawn={setPlanDrawn}
-                      // **One day at a time on a phone** — M26 link 13, SPEC
-                      // §13.4. `useIsPhone` is the right tool here for the same
-                      // reason it is on `NewTripWizard`'s sheet and the wrong one
-                      // for chrome: this is a discrete layout swap CSS cannot make
-                      // (a count of columns, not a width), and it starts `false`
-                      // so a phone paints the desktop row for one frame before
-                      // the effect corrects. That frame is a scrolling row of
-                      // 268px columns rather than a wrong control, and it is the
-                      // same first-frame cost `DayChips` already pays one row up.
-                      oneDay={isPhone}
-                      // A viewer's board, and the demo's, show the plan and offer
-                      // nothing that changes it (ADR-031). `readOnly` comes from
-                      // the provider's own gate — the same flag that already
-                      // refuses the command — so the controls and the refusal can
-                      // never disagree about who may edit. The same reasoning
-                      // reached here independently from the M11 side
-                      // (docs/reviews/2026-08-28-m11-pr71-review.md §5): the point
-                      // is the difference between an inert board and one whose
-                      // cards move and snap back.
-                      //
-                      // A suggester's board is live: its edits are held as a
-                      // draft by that same provider (W8).
-                      readOnly={!canEditBoard}
-                      suggesting={boardMode === "suggest"}
-                      // `inert` above does not reach Board's document paste
-                      // listener, so the preview is said out loud (PR 397).
-                      previewing={preview.seq !== null}
-                      // Focus is a view state, not a command, so it is threaded
-                      // past the read-only gate deliberately: a viewer's board
-                      // and `/demo`'s signed-out reader both get the whole
-                      // behaviour. Nothing here reaches `dispatch`.
-                      focusedTag={focusedTag}
-                      onToggleTag={toggleFocusedTag}
-                      // Scrolling the columns moves the header's selected day
-                      // too (Mitchell, 2026-09-01), but as a reading position
-                      // rather than a pick — and a day picked anywhere else
-                      // scrolls its column into view here. See the day-sync
-                      // contract in `FocusProvider`.
-                      sync={columnsSync}
-                      // The insert half of the keep-a-day loop, which SPEC §24
-                      // deleted along with `TimelineLens` — `EndOfTrip` was its
-                      // only mount. Passed from here rather than imported inside
-                      // `Board` because it reads `useTrip()` and `Board` is
-                      // props-only; this screen is inside the provider.
-                      addSavedDay={<AddSavedDayButton />}
-                      // A suggester's bar stays fixed where the rack was (below).
-                      endOfDay={rackIsRow ? unscheduledRack("row") : undefined}
-                      suggestions={suggestions}
-                      callbacks={{
-                        // "columns", for the same reason the chips row names
-                        // itself above: at any width where more than about two
-                        // columns fit, the first and last day can never sit on
-                        // this row's centre reading line, so clicking their
-                        // header must not be undone by this row's own spy.
-                        onSelectDay: (index: number | null) => setFocusedDay(index, "columns"),
-                        onMove: moveActivity,
-                        onUnschedule: unscheduleActivity,
-                        onPlace: placeActivity,
-                        onAnyTime: anyTimeActivity,
-                        onRevealAnyTime: revealAnyTime,
-                        onRetime: retimeActivity,
-                        onMoveDay: moveDay,
-                        onCopy: copyActivity,
-                        onDragStart: () => onRackEvent({ type: "dragStart" }),
-                        onDragEnd: () => onRackEvent({ type: "dragEnd" }),
-                        onAddDay: addDay,
-                        onRemoveDay: removeDay,
-                        onRemoveActivity: removeActivity,
-                        onDismissConflict: (conflictId) => void dispatch({ type: "DismissConflict", tripId, conflictId }),
-                      }}
-                    />
-                  </PeopleProvider>
+                  <div data-lens-enter={lensEnter}>
+                    <PeopleProvider tripId={tripId}>
+                      <Board
+                        trip={activeTrip}
+                        focusedDay={focusedDay}
+                        onDrawn={setPlanDrawn}
+                        // **One day at a time on a phone** — M26 link 13, SPEC
+                        // §13.4. `useIsPhone` is the right tool here for the same
+                        // reason it is on `NewTripWizard`'s sheet and the wrong one
+                        // for chrome: this is a discrete layout swap CSS cannot make
+                        // (a count of columns, not a width), and it starts `false`
+                        // so a phone paints the desktop row for one frame before
+                        // the effect corrects. That frame is a scrolling row of
+                        // 268px columns rather than a wrong control, and it is the
+                        // same first-frame cost `DayChips` already pays one row up.
+                        oneDay={isPhone}
+                        // A viewer's board, and the demo's, show the plan and offer
+                        // nothing that changes it (ADR-031). `readOnly` comes from
+                        // the provider's own gate — the same flag that already
+                        // refuses the command — so the controls and the refusal can
+                        // never disagree about who may edit. The same reasoning
+                        // reached here independently from the M11 side
+                        // (docs/reviews/2026-08-28-m11-pr71-review.md §5): the point
+                        // is the difference between an inert board and one whose
+                        // cards move and snap back.
+                        //
+                        // A suggester's board is live: its edits are held as a
+                        // draft by that same provider (W8).
+                        readOnly={!canEditBoard}
+                        suggesting={boardMode === "suggest"}
+                        // `inert` above does not reach Board's document paste
+                        // listener, so the preview is said out loud (PR 397).
+                        previewing={preview.seq !== null}
+                        // Focus is a view state, not a command, so it is threaded
+                        // past the read-only gate deliberately: a viewer's board
+                        // and `/demo`'s signed-out reader both get the whole
+                        // behaviour. Nothing here reaches `dispatch`.
+                        focusedTag={focusedTag}
+                        onToggleTag={toggleFocusedTag}
+                        // Scrolling the columns moves the header's selected day
+                        // too (Mitchell, 2026-09-01), but as a reading position
+                        // rather than a pick — and a day picked anywhere else
+                        // scrolls its column into view here. See the day-sync
+                        // contract in `FocusProvider`.
+                        sync={columnsSync}
+                        // The insert half of the keep-a-day loop, which SPEC §24
+                        // deleted along with `TimelineLens` — `EndOfTrip` was its
+                        // only mount. Passed from here rather than imported inside
+                        // `Board` because it reads `useTrip()` and `Board` is
+                        // props-only; this screen is inside the provider.
+                        addSavedDay={<AddSavedDayButton />}
+                        // A suggester's bar stays fixed where the rack was (below).
+                        endOfDay={rackIsRow ? unscheduledRack("row") : undefined}
+                        suggestions={suggestions}
+                        callbacks={{
+                          // "columns", for the same reason the chips row names
+                          // itself above: at any width where more than about two
+                          // columns fit, the first and last day can never sit on
+                          // this row's centre reading line, so clicking their
+                          // header must not be undone by this row's own spy.
+                          onSelectDay: (index: number | null) => setFocusedDay(index, "columns"),
+                          onMove: moveActivity,
+                          onUnschedule: unscheduleActivity,
+                          onPlace: placeActivity,
+                          onAnyTime: anyTimeActivity,
+                          onRevealAnyTime: revealAnyTime,
+                          onRetime: retimeActivity,
+                          onMoveDay: moveDay,
+                          onCopy: copyActivity,
+                          onDragStart: () => onRackEvent({ type: "dragStart" }),
+                          onDragEnd: () => onRackEvent({ type: "dragEnd" }),
+                          onAddDay: addDay,
+                          onRemoveDay: removeDay,
+                          onRemoveActivity: removeActivity,
+                          onDismissConflict: (conflictId) => void dispatch({ type: "DismissConflict", tripId, conflictId }),
+                        }}
+                      />
+                    </PeopleProvider>
+                  </div>
                 )}
                 {view === "Overview" && (
-                  <OverviewLens
-                    // Keyed, so following a card starts from "loading" rather
-                    // than showing the page it came from until the new one lands.
-                    key={linkedPage ?? "overview"}
-                    pageId={linkedPage}
-                    detail={activeTrip}
-                    tripId={tripId}
-                    remoteRevision={remoteRevision}
-                    confirmedSeq={confirmedSeq}
-                    readOnly={readOnly}
-                  />
+                  <div data-lens-enter={lensEnter}>
+                    <OverviewLens
+                      // Keyed, so following a card starts from "loading" rather
+                      // than showing the page it came from until the new one lands.
+                      key={linkedPage ?? "overview"}
+                      pageId={linkedPage}
+                      detail={activeTrip}
+                      tripId={tripId}
+                      remoteRevision={remoteRevision}
+                      confirmedSeq={confirmedSeq}
+                      readOnly={readOnly}
+                    />
+                  </div>
                 )}
                 {view === "Calendar" && (
                   // No drop while previewing (PR 398 review), the gate every
                   // other trip change takes.
-                  <CalendarLens detail={activeTrip} onSelectActivity={canEditBoard ? openEdit : undefined} onDrop={canChangeTrip ? calendarDrop : undefined} />
+                  <div data-lens-enter={lensEnter}>
+                    <CalendarLens detail={activeTrip} onSelectActivity={canEditBoard ? openEdit : undefined} onDrop={canChangeTrip ? calendarDrop : undefined} />
+                  </div>
                 )}
               </PageContainer>
             )}

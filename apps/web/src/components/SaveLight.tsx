@@ -94,8 +94,19 @@ export function SaveLightMark() {
   const failed = Boolean(failure);
   const saving = !failed && unsent > 0;
   const changes = `${unsent} ${unsent === 1 ? "change" : "changes"}`;
+  // M54: when the breathing stops on a save, not a failure, the mark takes one
+  // short beat (`[data-save-beat]` in globals.css), so "saved" is a moment and
+  // not only the absence of breathing. Set as `saving` falls, during render,
+  // and spent on its animation's end. Under reduced motion it never animates,
+  // so it stays set and draws nothing until the next save clears it.
+  const [beat, setBeat] = useState(false);
+  const [wasSaving, setWasSaving] = useState(saving);
+  if (saving !== wasSaving) {
+    setWasSaving(saving);
+    setBeat(!saving && !failed);
+  }
 
-  const mark = <BrandMark size={32} tone={failed ? "danger" : "brand"} pulsing={saving} />;
+  const mark = <BrandMark size={32} tone={failed ? "danger" : "brand"} pulsing={saving} className="save-light-mark" />;
 
   // The status text lives in a live region beside the mark rather than on it,
   // for the reason SyncIndicator recorded before it: assistive tech registers
@@ -153,7 +164,12 @@ export function SaveLightMark() {
     // became part of the link's name, so the way home was announced as "All
     // changes saved Caesura". It is `sr-only`, so moving it moves nothing.
     <span className="flex items-center">
-      <Link href={HOME_PATH} className={cn("flex items-center gap-2.5 no-underline", PHONE_TOUCH)}>
+      <Link
+        href={HOME_PATH}
+        data-save-beat={beat || undefined}
+        onAnimationEnd={() => setBeat(false)}
+        className={cn("flex items-center gap-2.5 no-underline", PHONE_TOUCH)}
+      >
         {mark}
         <span className="font-display text-md font-semibold text-ink">Caesura</span>
       </Link>

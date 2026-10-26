@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card";
 import { DataText } from "@/components/ui/data-text";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Heading } from "@/components/ui/heading";
+import { Skeleton, SkeletonRegion } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/text";
 import { fetchPublicProfile } from "@/lib/apiClient";
 import type { PublicProfileResponse } from "@/lib/playbooks";
@@ -58,14 +59,14 @@ export function ProfileScreen({ userId, back }: { userId: string; back: BackTarg
           sync banner pulsing a skeleton at a profile that was never coming
           (CodeRabbit, PR 102) — Discover already gated it this way. */}
       {feed.loading && feed.data === null ? (
-        <>
-          <Card className="h-32 animate-pulse rounded-lg bg-moss" aria-hidden data-testid="profile-skeleton" />
-          <ul className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-3" aria-hidden>
+        <SkeletonRegion label="Loading this profile" className="flex flex-col gap-4">
+          <Skeleton className="h-32 rounded-lg" />
+          <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-3">
             {Array.from({ length: SKELETON_COUNT }, (_, i) => (
-              <Card key={i} as="li" className="h-40 animate-pulse rounded-lg bg-moss" />
+              <Skeleton key={i} className="h-40 rounded-lg" delay={2} />
             ))}
-          </ul>
-        </>
+          </div>
+        </SkeletonRegion>
       ) : feed.data === null ? (
         // Nothing ever arrived. The Retry lives in the banner above rather than
         // being duplicated here, so there is one control and not two.

@@ -618,3 +618,32 @@ describe("recordSignIn sends the welcome email", () => {
     expect(sendEmail).toHaveBeenCalledTimes(1);
   });
 });
+
+// M54 decision 19: the welcome moment learns that a sign-in just happened, and
+// whether it made the account, from a short-lived cookie `recordSignIn` sets.
+// "signup" is what adds "Welcome, {name}", so a returning account cued as one
+// would be greeted as new on every sign-in.
+describe("recordSignIn cues the welcome moment", () => {
+  const noRef = { read: () => Promise.resolve(null), clear: () => Promise.resolve() };
+  function welcomeJar() {
+    const cues: string[] = [];
+    return { cues, cue: (kind: string) => Promise.resolve(void cues.push(kind)) };
+  }
+
+  it("as a signup for a brand-new account and a signin for every sign-in after it", async () => {
+    const id = signInId();
+    const first = welcomeJar();
+    await recordSignIn(signInAs(id, { name: "Ana" }), admitting(), noRef, first);
+    expect(first.cues).toEqual(["signup"]);
+
+    const again = welcomeJar();
+    await recordSignIn(signInAs(id, { name: "Ana" }), fakeJar(null), noRef, again);
+    expect(again.cues).toEqual(["signin"]);
+  });
+
+  it("not at all for a sign-in it refuses", async () => {
+    const jar = welcomeJar();
+    await expect(recordSignIn(signInAs(null), admitting(), noRef, jar)).resolves.toBe(false);
+    expect(jar.cues).toEqual([]);
+  });
+});

@@ -1,14 +1,18 @@
 import { eq, sql } from "drizzle-orm";
-import { SavedDayVisibility, type CoverCandidate, type TripCover } from "@tc/contracts";
-import { coverJson, coverOf, coverValues, storedCover } from "./coverRows";
+import { SavedDayVisibility, type CoverCandidate, type CoverPosition, type TripCover } from "@tc/contracts";
+import { coverProxySrcFits, coverProxySrcVerifies } from "./coverProxy";
+import { coverJson, coverOf, coverValues, storedCover, urlCoverValues, type UrlCoverInput } from "./coverRows";
 import { db } from "./db/client";
 import { savedDayCovers, savedDays } from "./db/schema";
+import { fetchRemoteImage } from "./external/remoteImage/fetchImage";
+import { RemoteImageRefused } from "./external/remoteImage/guard";
 import { invalidatePublicDay } from "./libraryCache";
 
 // A playbook day's cover photo (M37 part 5): ordinary Community CRUD on
 // `saved_day_covers`, `trip_covers`' shape (`coverRows.ts`). The routes under
-// `app/api/saved-days/[savedDayId]/cover/` are the only writers, and only for
-// the day's author.
+// `app/api/saved-days/[savedDayId]/cover/` and the public API's
+// `app/api/v1/playbooks/[playbookId]/cover/` are the only writers, and only
+// for the day's author.
 //
 // **Nothing here decides who may see a cover.** Every read takes a day the
 // caller has already read through the library's own rule — `readableSavedDay`
@@ -49,6 +53,56 @@ export async function setSavedDayCover(
     .returning();
   await invalidateIfPublic(savedDayId);
   return storedCover(row);
+}
+
+/**
+ * Make the image at `input.url` the day's cover, replacing any it had, and
+ * clear the library's cache of the day if it is public. The URL is fetched
+ * once through the guarded fetcher first, and a refusal throws its
+ * `RemoteImageRefused` (with the reason) having saved nothing, so a day
+ * never holds a cover that was not an image when it was set. A URL whose
+ * signed path would not fit the contract is refused `url-too-long` before
+ * that. After the fetch, the minted proxy path must pass the proxy route's
+ * own gates, or the URL is refused `not-renderable` having saved nothing:
+ * the fetch already guarantees a raster within the size cap, so this adds
+ * only the renderability gate — a cover the proxy would refuse on every
+ * view is refused at set time instead of showing as none. The image itself
+ * is not kept: the cover is the URL (ADR-081 item 2).
+ */
+export async function setSavedDayCoverFromUrl(
+  savedDayId: string,
+  input: UrlCoverInput,
+  userId: string,
+  { fetchImage = fetchRemoteImage, now = new Date() }: { fetchImage?: (url: string) => Promise<unknown>; now?: Date } = {},
+): Promise<TripCover> {
+  if (!coverProxySrcFits(input.url)) throw new RemoteImageRefused("url-too-long");
+  await fetchImage(input.url);
+  if (!coverProxySrcVerifies(input.url)) throw new RemoteImageRefused("not-renderable");
+  const values = urlCoverValues(input, userId, now);
+  const [row] = await db
+    .insert(savedDayCovers)
+    .values({ savedDayId, ...values })
+    .onConflictDoUpdate({ target: savedDayCovers.savedDayId, set: values })
+    .returning();
+  await invalidateIfPublic(savedDayId);
+  return storedCover(row);
+}
+
+/**
+ * Move the day's cover to `position` (0–100, checked by the caller's
+ * contract), leaving the photo as it is, and clear the library's cache of
+ * the day if it is public. Answers the moved cover, or `null` when the day
+ * has none to move.
+ */
+export async function setSavedDayCoverPosition(savedDayId: string, position: CoverPosition): Promise<TripCover | null> {
+  const [row] = await db
+    .update(savedDayCovers)
+    .set({ position })
+    .where(eq(savedDayCovers.savedDayId, savedDayId))
+    .returning();
+  if (row === undefined) return null;
+  await invalidateIfPublic(savedDayId);
+  return coverOf(row);
 }
 
 /** Remove the day's cover, and clear the library's cache of it if public. Clearing a day with none is not an error. */
