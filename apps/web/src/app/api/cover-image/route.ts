@@ -19,7 +19,7 @@ const IMAGE_CDN_CACHE = "public, max-age=2592000, stale-while-revalidate=86400";
 // upstream fetch a minute rather than one per viewer.
 const REFUSAL_CACHE = "public, max-age=60";
 
-/** The image a signed cover URL names, or 403 for a bad signature or a query not spelled as minted, and 502 for an image the fetcher refused. */
+/** The image a signed cover URL names, or 403 for a bad signature or a query naming anything but the signed pair, and 502 for an image the fetcher refused. */
 export async function GET(request: Request): Promise<Response> {
   const { search, searchParams } = new URL(request.url);
   const url = searchParams.get("u");

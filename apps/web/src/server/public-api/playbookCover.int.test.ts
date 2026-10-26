@@ -182,6 +182,26 @@ describe("PUT /v1/playbooks/{playbookId}/cover", () => {
     expect(text).not.toContain("->");
     expect(await rowsOf(playbookId)).toEqual([]);
   });
+
+  it("refuses a URL the proxy could not serve as cover-url-rejected, and saves nothing", async () => {
+    const playbookId = await newPlaybook(secret);
+    // Signing unavailable: the minted path cannot verify, so the cover
+    // would show as none rather than as the image. The stub is restored
+    // here, not in an afterEach, because this file has none and later
+    // tests set covers of their own.
+    vi.stubEnv("COVER_PROXY_SECRET", "");
+    vi.stubEnv("VERCEL_ENV", "production");
+    try {
+      const res = await COVER.PUT(req(secret, "PUT", { url: IMAGE_URL }), P(playbookId));
+      expect(res.status).toBe(422);
+      expect(await res.json()).toMatchObject({
+        error: { code: "cover-url-rejected", details: { reason: "not-renderable" } },
+      });
+      expect(await rowsOf(playbookId)).toEqual([]);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
 });
 
 describe("PATCH and DELETE /v1/playbooks/{playbookId}/cover", () => {
