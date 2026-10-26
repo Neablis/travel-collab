@@ -120,6 +120,26 @@ export function runPaletteCommand(id: string): boolean {
   return command !== undefined;
 }
 
+// **The screen each route's commands come from** (M54 part 4). A page under a
+// `loading.tsx` boundary hydrates after the shell, so ⌘K can open before the
+// page has registered anything, and a route change leaves a gap of its own.
+// Keyed by the source each screen passes `usePaletteSource`: HomeScreen,
+// TripBoardScreen and PageScreen. A route with no screen of its own here
+// (/plans, /account) has nothing to wait for. TripHeader's are not waited
+// for: it mounts only once the trip has been read.
+const routeSources: readonly (readonly [RegExp, string])[] = [
+  [/^\/home\/?$/, "home"],
+  [/^\/trips\/[^/]+\/?$/, "trip-board"],
+  [/^\/trips\/[^/]+\/pages\/[^/]+\/?$/, "notebook"],
+];
+
+/** Whether the screen at `pathname` has yet to register its commands. */
+export function usePaletteAwaits(pathname: string): boolean {
+  const source = routeSources.find(([route]) => route.test(pathname))?.[1];
+  const awaits = () => source !== undefined && !sources.has(source);
+  return useSyncExternalStore(subscribe, awaits, awaits);
+}
+
 /**
  * Offers `commands` under `source` while the calling component is mounted.
  * They may be fresh objects every render: each registered `run` calls the

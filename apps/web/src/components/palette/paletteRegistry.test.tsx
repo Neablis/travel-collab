@@ -1,10 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, waitFor } from "@testing-library/react";
+import { act, cleanup, render, renderHook, waitFor } from "@testing-library/react";
 import { CommandPalette } from "./CommandPalette";
-import { findPaletteCommand, registerPaletteCommands, runPaletteCommand } from "./paletteRegistry";
+import { findPaletteCommand, registerPaletteCommands, runPaletteCommand, usePaletteAwaits } from "./paletteRegistry";
 
 const push = vi.fn();
-vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push }), usePathname: () => "/" }));
 vi.mock("@/components/account/useSessionUser", () => ({
   useSessionUser: () => ({ userId: "u1", email: "a@example.com", name: "A" }),
 }));
@@ -55,5 +55,27 @@ describe("running a palette command by id", () => {
 
     await waitFor(() => expect(runPaletteCommand("go:trip:t1:view:Map")).toBe(true));
     expect(push).toHaveBeenLastCalledWith("/trips/t1?view=Map");
+  });
+});
+
+// M54 part 4: each screen that registers commands is waited for on its own
+// route, by the source name it registers under, and a route with none is not.
+describe("waiting for the page's commands", () => {
+  it.each([
+    ["/home", "home"],
+    ["/trips/t1", "trip-board"],
+    ["/trips/t1/pages/p1", "notebook"],
+  ])("waits on %s until %s registers", (pathname, source) => {
+    const { result } = renderHook(() => usePaletteAwaits(pathname));
+    expect(result.current).toBe(true);
+    act(() => {
+      taken.push(registerPaletteCommands(source, []));
+    });
+    expect(result.current).toBe(false);
+  });
+
+  it("waits for nothing on a page that registers none", () => {
+    const { result } = renderHook(() => usePaletteAwaits("/plans"));
+    expect(result.current).toBe(false);
   });
 });

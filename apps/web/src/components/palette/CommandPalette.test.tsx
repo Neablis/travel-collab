@@ -3,10 +3,13 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testi
 import userEvent from "@testing-library/user-event";
 import { registerPhoneAsk } from "@/components/nav/phoneAsk";
 import { CommandPalette } from "./CommandPalette";
+import { newTripCommand } from "./commands";
 import { type PaletteCommand, registerPaletteCommands } from "./paletteRegistry";
 
 const push = vi.fn();
-vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
+// "/" has no screen of its own to wait for; a test that is on one says so.
+let pathname = "/";
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push }), usePathname: () => pathname }));
 
 let signedIn = true;
 vi.mock("@/components/account/useSessionUser", () => ({
@@ -40,6 +43,7 @@ const command = (label: string, run: () => void): PaletteCommand => ({ id: label
 let platform = "MacIntel";
 beforeEach(() => {
   platform = "MacIntel";
+  pathname = "/";
   vi.spyOn(navigator, "platform", "get").mockImplementation(() => platform);
   signedIn = true;
   aiEntitled = null;
@@ -135,6 +139,38 @@ describe("CommandPalette", () => {
     await userEvent.keyboard("{Enter}");
     expect(palette()).toBeTruthy();
     expect(plan).not.toHaveBeenCalled();
+  });
+
+  // M54 part 4: a page under a loading boundary hydrates after the shell, so
+  // ⌘K can open before Home has offered New trip, and "No match" then was an
+  // Enter that ran nothing.
+  it("says Loading… until the page's commands register, and runs an Enter pressed meanwhile once they do", async () => {
+    pathname = "/home";
+    const startNewTrip = vi.fn();
+    render(<CommandPalette />);
+    await userEvent.keyboard("{Meta>}k{/Meta}add trip");
+    expect(screen.getByText("Loading…")).toBeTruthy();
+    expect(screen.queryByText("No match")).toBeNull();
+    await userEvent.keyboard("{Enter}");
+    expect(palette()).toBeTruthy();
+
+    act(() => {
+      taken.push(registerPaletteCommands("home", [newTripCommand(startNewTrip)]));
+    });
+    await waitFor(() => expect(startNewTrip).toHaveBeenCalledTimes(1));
+    expect(palette()).toBeNull();
+  });
+
+  it("does today's nothing for an Enter whose page never registers", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    pathname = "/home";
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    render(<CommandPalette />);
+    await user.keyboard("{Meta>}k{/Meta}add trip{Enter}");
+    await act(() => vi.advanceTimersByTimeAsync(5000));
+    vi.useRealTimers();
+    expect(screen.getByText("No match")).toBeTruthy();
+    expect(palette()).toBeTruthy();
   });
 
   // The assistant's opener is the one the phone's tab bar Ask uses, so the
