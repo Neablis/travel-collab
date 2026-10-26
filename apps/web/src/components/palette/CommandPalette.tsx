@@ -49,8 +49,9 @@ import { type PaletteCommand, usePaletteAwaits, usePaletteCommands, usePaletteSo
 //
 // **Until the page has registered, it says Loading…, not No match** (M54
 // part 4, Mitchell): a page under a loading boundary hydrates after the
-// shell, so ⌘K can open first. An Enter pressed then is held until the
-// page's commands arrive and runs on the list they make. The wait is
+// shell, so ⌘K can open first. An Enter pressed on an empty list then is
+// held until the page's commands arrive and runs on the list they make; one
+// on a listed row runs that row at once (PR 601 review). The wait is
 // `PAGE_WAIT_MS` from the opening, or from the Enter: then it is the list
 // there is, No match and all, as it was before there was a wait.
 const PAGE_WAIT_MS = 1500;
@@ -339,7 +340,9 @@ export function CommandPalette() {
                 setActive(rows.length === 0 ? 0 : (current + step + rows.length) % rows.length);
               } else if (event.key === "Enter") {
                 event.preventDefault();
-                if (waiting) setHeldEnter(true);
+                // Only on Loading…: a listed row is what Enter was for, and
+                // the page's commands arriving would move another under it.
+                if (waiting && rows.length === 0) setHeldEnter(true);
                 else choose(rows[current]);
               } else if (event.key === "Tab" && !event.shiftKey && rows[current]?.node.kind === "branch") {
                 // Only on a branch: anywhere else Tab still leaves the box.
