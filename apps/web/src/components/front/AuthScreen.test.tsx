@@ -540,22 +540,38 @@ describe("AuthScreen", () => {
 
   // M54 (gate: "cannot be double-submitted"). Each press used to start its own
   // sign-in: a second admission write and a second redirect racing the first.
+  // A pending button already swallows its own second click, so the presses
+  // that reach `startSignIn` twice are the ones that skip the button: Enter in
+  // the invite field, which calls it directly.
   it("starts one Google sign-in however often it is pressed", async () => {
-    render(<AuthScreen mode="signin" devLoginEnabled={false} googleAvailable />);
+    render(
+      <AuthScreen
+        mode="signup"
+        devLoginEnabled={false}
+        googleAvailable
+        storeAdmissionCode={storeAdmissionCodeMock}
+      />,
+    );
+    const field = await inviteCodeField();
+    await userEvent.type(field, "SPRING-2026");
     const google = screen.getByRole("button", { name: "Continue with Google" });
     await userEvent.click(google);
-    await userEvent.click(google);
+    await userEvent.type(field, "{Enter}");
+    await waitFor(() => expect(signInMock).toHaveBeenCalled());
+    expect(storeAdmissionCodeMock).toHaveBeenCalledTimes(1);
     expect(signInMock).toHaveBeenCalledTimes(1);
     expect(google.getAttribute("aria-busy")).toBe("true");
   });
 
+  // Two presses in one turn of the event loop land before the re-render that
+  // marks the button pending, as a fast double click can.
   it("starts one dev-login sign-in however often it is submitted", async () => {
     render(<AuthScreen mode="signin" devLoginEnabled googleAvailable />);
     await userEvent.type(screen.getByLabelText("Username"), "sam");
     const submit = screen.getByRole("button", { name: /sign in with dev login/i });
-    await userEvent.click(submit);
-    await userEvent.type(screen.getByLabelText("Username"), "{Enter}");
-    await userEvent.click(submit);
+    submit.click();
+    submit.click();
+    await waitFor(() => expect(signInMock).toHaveBeenCalled());
     expect(signInMock).toHaveBeenCalledTimes(1);
     expect(submit.getAttribute("aria-busy")).toBe("true");
   });
