@@ -88,6 +88,6 @@ describe("useLetGoOfFocusOnClose", () => {
     screen.getByRole("button", { name: "Inside" }).focus();
 
     rerender(<ModalHarness open={false} pageHidden />);
-    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Open" }));
+    expect(screen.getByRole("button", { name: "Open" }).matches(":focus")).toBe(true);
   });
 });
