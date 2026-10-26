@@ -33,12 +33,17 @@ App Router with no config flag.
    the front-door slot in the root layout. The app header and the phone tab bar carry their own
    `view-transition-name`, so they hold still. Where the View Transitions API is missing, a
    `template.tsx` fades the new page in with CSS, gated on
-   `@supports not (view-transition-name: none)`.
+   `@supports not (view-transition-name: none)`. The page-wide `RouteViewTransition` runs only on
+   a path change.
 4. **The first page after sign-in learns it from a cookie.** `recordSignIn`
    (`apps/web/src/server/users.ts`) sets a short-lived `tc_welcome` cookie, with the value `signin`
    or `signup` according to the `returning` value it already computes. The app shell reads it once
    and clears it. Auth.js runs JWT sessions with no adapter, so its `isNewUser` is not available. A
    query parameter was rejected because a refresh or a shared link would replay the moment.
+   The cookie shows a full-screen welcome splash on every viewport, after both signup and
+   sign-in (M54 decision 4 as amended). **Accepted by Mitchell, 2026-10-26:** when a new
+   account's launch is slow enough that the splash's name-wait cap expires, the page appears
+   without the visual welcome, and only the screen reader announces "Welcome, {name}".
 5. **A PWA cold launch paints its overlay before first paint**, from an inline `<head>` script
    that runs only in standalone display mode, the pattern of `LEAVE_LANDING_IF_SIGNED_IN`. The
    overlay is server HTML, never hidden-then-shown. It leaves on hydration.

@@ -39,6 +39,20 @@ citations were re-verified against `main` at `f5c9a16` on 2026-10-26, with three
   Under reduced motion there is no animation and the hold is the same or shorter. The
   screen-reader announcement is unchanged. Declined: full-screen after signup only, a small toast
   anchored to a corner, and dropping the desktop moment. Built in part 5 (PR 607).
+- **A slow launch skips the visual welcome (Mitchell, call 3, 2026-10-26).** When a new account's
+  launch is slow enough that the splash's name-wait cap expires, the page appears without the
+  visual welcome, and only the screen reader announces "Welcome, {name}". Recorded in ADR-082 §4.
+- **The signup wording is approved (Mitchell, call 2, 2026-10-26).** He approved PR 607's signup
+  wording as listed in its "Wording for Mitchell's approval" section, the `authCopy.ts` strings
+  among them: the signup title "Your next trip starts here"; the sub "Bring the group, the ideas
+  and the dates, and plan it all in one place together. Your account is ready in about four
+  seconds."; the invite note "Add it so whoever invited you gets the credit."; the disclosure
+  "Have an invite code?"; "Welcome, {name}" after a signup; and the `/developers` step 1 line that
+  names *Have an invite code?*. No sign-in string changed.
+- **Part 8's deviations from the plan (PR 606).** Wizard steps **fade in**; they do not
+  cross-fade, because no two steps are ever on screen together. A moved river block settles
+  **within its day only**: there is no cross-day settle, since a drop on another day mounts a new
+  block with no drawn place to settle from, and the drag outline already showed where it lands.
 
 **Answered by Mitchell at scoping, 2026-10-26, each as recommended:**
 
@@ -83,8 +97,8 @@ citations were re-verified against `main` at `f5c9a16` on 2026-10-26, with three
 - [ ] **Every tab style slides its indicator**, and it sits under the active tab after a switch and
       after a resize (a test, seen red). Lenses cross-fade on the trip page. *(Part 3.)*
 - [ ] **No page freezes on navigation.** `/home`, `/plans`, `/account` and the front-door routes have
-      a skeleton, except `/signin` and `/signup`: there a skeleton raced hydration and wiped a typed
-      username (m15, 2 of 8 runs), so a click to them holds instead (Mitchell, 2026-10-26). Routes
+      a skeleton (`/demo` excepted). Part 4 restored the `/signin` and `/signup` skeletons, and m15
+      then passed 49/49 and 97/97 (Mitchell kept the skeletons, call 1, 2026-10-26). Routes
       cross-fade (decision 18). Covers fade in when they load after the page does (in-app
       navigation, or a lazy cover scrolled to); a cover already in the server's HTML and loaded
       by hydration shows at once, so a direct load of a page shows no fade by design. *(Part 4.)*
@@ -92,6 +106,7 @@ citations were re-verified against `main` at `f5c9a16` on 2026-10-26, with three
       invite code sits behind *Have an invite code?*, and the welcome moment plays after every
       sign-in (a full-screen splash, then the page, on every viewport, per decision 4 as amended;
       "Welcome, {name}" after signup only) and on every PWA cold launch, with iOS startup images.
+      A test proves the splash leaves within the name-wait cap and the page is usable after it.
       *(Part 5.)*
 - [ ] **One avatar stack** replaces the five facepiles, with a "+N" cap and a name per face on hover.
       *(Part 6.)*
