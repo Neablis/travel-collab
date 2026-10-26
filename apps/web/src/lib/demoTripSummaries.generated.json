@@ -1,0 +1,573 @@
+[
+  {
+    "slug": "japan",
+    "name": "Japan: Tokyo → Kyoto → Osaka",
+    "days": [
+      {
+        "name": "Day 1",
+        "stops": [
+          "Land at Haneda",
+          "Check in at Trunk Hotel",
+          "Dinner at Gonpachi",
+          "Nightcap at Bar Trench"
+        ]
+      },
+      {
+        "name": "Day 2",
+        "stops": [
+          "Coffee at Onibus",
+          "teamLab Planets",
+          "Lunch at Tsukiji Outer Market",
+          "Hama-rikyū Gardens",
+          "Yakitori at Torishiki"
+        ]
+      },
+      {
+        "name": "Day 3",
+        "stops": [
+          "Breakfast at Bread & Espresso",
+          "Meiji Jingū",
+          "Lunch at Afuri",
+          "Shimokitazawa record shops",
+          "Dinner at Den"
+        ]
+      },
+      {
+        "name": "Day 4",
+        "stops": [
+          "Limited Express to Nikkō",
+          "Tōshō-gū Shrine",
+          "Lunch at Hippari Dako",
+          "Kegon Falls",
+          "Train back to Tokyo"
+        ]
+      },
+      {
+        "name": "Day 5",
+        "stops": [
+          "Coffee at Koffee Mameya",
+          "Nezu Museum",
+          "Lunch at Kagari",
+          "Itoya and Ginza Six",
+          "Omakase at Sushi Yoshitake"
+        ]
+      },
+      {
+        "name": "Day 6",
+        "stops": [
+          "Romancecar to Hakone-Yumoto",
+          "Hakone Open-Air Museum",
+          "Lunch at Bakery & Table",
+          "Check in at Gora Kadan",
+          "Kaiseki dinner at the ryokan"
+        ]
+      },
+      {
+        "name": "Day 7",
+        "stops": [
+          "Shinkansen Odawara → Kyoto",
+          "Lunch at Honke Owariya",
+          "Nijō Castle",
+          "Check in at Nazuna Gosho",
+          "Dinner at Gion Nanba"
+        ]
+      },
+      {
+        "name": "Day 8",
+        "stops": [
+          "Fushimi Inari at dawn",
+          "Breakfast at % Arabica",
+          "Kiyomizu-dera and Sannenzaka",
+          "Lunch at Omen Kodaiji",
+          "Nishiki Market",
+          "Dinner at Giro Giro Hitoshina"
+        ]
+      },
+      {
+        "name": "Day 9",
+        "stops": [
+          "Breakfast at Walden Woods",
+          "Arashiyama and Tenryū-ji",
+          "Lunch at Yoshida-ya",
+          "Tea at Ippodo Kaboku",
+          "Dinner at Kichi Kichi"
+        ]
+      },
+      {
+        "name": "Day 10",
+        "stops": [
+          "Ginkaku-ji and the Philosopher's Path",
+          "Lunch at Monk",
+          "Pottery at Kyoto Handicraft Center"
+        ]
+      },
+      {
+        "name": "Day 11",
+        "stops": [
+          "Train Kyoto → Osaka",
+          "Check in at Zentis Osaka",
+          "Lunch at Harukoma Sushi",
+          "Osaka Castle Park",
+          "Dōtonbori food crawl"
+        ]
+      },
+      {
+        "name": "Day 12",
+        "stops": [
+          "Breakfast at Mel Coffee",
+          "Nakanoshima Museum",
+          "Lunch at Kuromon Market",
+          "Shinsekai and Tsūtenkaku",
+          "Kushikatsu at Yaekatsu"
+        ]
+      },
+      {
+        "name": "Day 13",
+        "stops": [
+          "Train and ferry to Naoshima",
+          "Chichū Art Museum",
+          "Lunch at Aisunao",
+          "Benesse House and Yellow Pumpkin",
+          "Ferry and train back to Osaka"
+        ]
+      },
+      {
+        "name": "Day 14",
+        "stops": [
+          "Breakfast at the hotel",
+          "Shinkansen to Tokyo",
+          "Last lunch at Maisen",
+          "Transfer to Haneda",
+          "Flight home"
+        ]
+      }
+    ],
+    "unscheduled": [
+      "Kiyomizu-dera at golden hour",
+      "Kōenji vintage crawl",
+      "Nishiki Market",
+      "Ghibli Museum, if tickets appear"
+    ]
+  },
+  {
+    "slug": "dolomites-winter",
+    "name": "Dolomites: Cortina, Alta Badia and the Sellaronda",
+    "days": [
+      {
+        "name": "Day 1",
+        "stops": [
+          "Flight into Venice Marco Polo",
+          "Sandwich in the arrivals hall before the bus",
+          "Cortina Express bus to Piazza Roma",
+          "Check in at Hotel Ambra",
+          "Boot fitting at the Corso Italia rental shops",
+          "Dinner at Al Camin"
+        ]
+      },
+      {
+        "name": "Day 2",
+        "stops": [
+          "Coffee and strudel at Pasticceria Alverà",
+          "Collect the six-day Dolomiti Superski pass",
+          "Tofana: Freccia nel Cielo to Ra Valles",
+          "Lunch at Rifugio Duca d'Aosta",
+          "Socrepes and Pocol, skiing back into town",
+          "Aperitivo at Enoteca Cortina",
+          "Dinner at Baita Fraina"
+        ]
+      },
+      {
+        "name": "Day 3",
+        "stops": [
+          "Breakfast, check out, and the bags into a taxi for Corvara",
+          "Ski bus to Passo Falzarego",
+          "Cinque Torri and the Super8 loop",
+          "Lunch at Rifugio Averau",
+          "Lagazuoi cable car, and the Hidden Valley to Armentarola",
+          "Check in at Hotel La Perla, Corvara",
+          "Dinner at Maso Runch"
+        ]
+      },
+      {
+        "name": "Day 4",
+        "stops": [
+          "First lift: the Boè gondola out of Corvara",
+          "Campolongo, Arabba and up to Passo Pordoi",
+          "Lunch at Rifugio Fredarola",
+          "Sella pass into Val Gardena, coffee at Rifugio Emilio Comici",
+          "Gardena pass, the Vallon home, and a beer at the base",
+          "Dinner at La Stüa de Michil"
+        ]
+      },
+      {
+        "name": "Day 5",
+        "stops": [
+          "Pralongià: the easy cruisers above Corvara",
+          "Two hours over lunch at Rifugio Bioch",
+          "Spa afternoon at the hotel wellness centre"
+        ]
+      },
+      {
+        "name": "Day 6",
+        "stops": [
+          "Ski bus to La Villa",
+          "The Gran Risa, before it scrapes off",
+          "Lunch at Rifugio Las Vegas",
+          "Piz Sorega down to San Cassiano, then the toboggan run",
+          "Aperitivo at the Rosa Alpina bar",
+          "Dinner at St. Hubertus"
+        ]
+      },
+      {
+        "name": "Day 7",
+        "stops": [
+          "Two last runs off Col Alt, bags at the desk",
+          "Return the hire skis in Corvara",
+          "Lunch in Corvara before the bus",
+          "Cortina Express bus, Corvara to Venice airport",
+          "Flight home from Venice"
+        ]
+      }
+    ],
+    "unscheduled": [
+      "Night sledging on the Armentarola toboggan run",
+      "The Great War tunnels inside Lagazuoi, on foot with a headlamp",
+      "Half-day ski touring up the Vallon with a guide",
+      "Ice climbing taster in the Sottoguda gorge"
+    ]
+  },
+  {
+    "slug": "iceland-ring-road",
+    "name": "Iceland: Reykjavík, the South Coast, Jökulsárlón and the Golden Circle",
+    "days": [
+      {
+        "name": "Day 1",
+        "stops": [
+          "Land at Keflavík",
+          "Collect the 4x4 hire car",
+          "The week's food, at Bónus in Fitjar",
+          "Check in at Hotel Borg",
+          "Dinner at Skál! in Hlemmur Mathöll"
+        ]
+      },
+      {
+        "name": "Day 2",
+        "stops": [
+          "Cinnamon buns at Brauð & Co",
+          "Up the Hallgrímskirkja tower",
+          "The Settlement Exhibition",
+          "Lobster soup at Sægreifinn",
+          "Sky Lagoon, and the seven-step ritual",
+          "Dinner at Sumac"
+        ]
+      },
+      {
+        "name": "Day 3",
+        "stops": [
+          "Route 1 east to Seljalandsfoss",
+          "Seljalandsfoss, and the hidden one next door",
+          "Skógafoss, and the first flight of the Fimmvörðuháls steps",
+          "Lunch at Mia's Country Van",
+          "Reynisfjara, from the safe end",
+          "Check in at Hótel Kría",
+          "Dinner at Suður-Vík"
+        ]
+      },
+      {
+        "name": "Day 4",
+        "stops": [
+          "Late breakfast at Skool Beans",
+          "Dyrhólaey and the walk along the cliff",
+          "The village pool, then dinner at Suður-Vík"
+        ]
+      },
+      {
+        "name": "Day 5",
+        "stops": [
+          "Breakfast, and check out of Hótel Kría",
+          "Drive east, and the Fjaðrárgljúfur canyon rim",
+          "Skaftafell: Svartifoss and the glacier viewpoint",
+          "Jökulsárlón, and Diamond Beach in the last light",
+          "Check in at Fosshotel Glacier Lagoon",
+          "Dinner at the hotel",
+          "Northern Lights: wait it out"
+        ]
+      },
+      {
+        "name": "Day 6",
+        "stops": [
+          "Breakfast, check out of the Fosshotel",
+          "Ice cave under Vatnajökull",
+          "Lunch at Systrakaffi",
+          "Across the sandur to Hvolsvöllur",
+          "Check in at Hótel Rangá",
+          "Dinner at Hótel Rangá"
+        ]
+      },
+      {
+        "name": "Day 7",
+        "stops": [
+          "Breakfast at Hótel Rangá",
+          "North to Gullfoss first, against the traffic",
+          "Gullfoss from the lower path",
+          "Geysir and Strokkur",
+          "Greenhouse lunch at Friðheimar",
+          "Þingvellir: the rift walk from Hakið to Öxarárfoss",
+          "Back at Rangá: dinner, and the forecast at the bar"
+        ]
+      },
+      {
+        "name": "Day 8",
+        "stops": [
+          "Breakfast, and check out of Hótel Rangá",
+          "Over Hellisheiði into Reykjavík",
+          "A hot dog at Bæjarins Beztu, and Kolaportið if it is a weekend",
+          "Return the car at Keflavík, refuelled",
+          "Flight home from Keflavík"
+        ]
+      }
+    ],
+    "unscheduled": [
+      "The Sólheimasandur DC-3 wreck",
+      "Snæfellsnes as a two-day add-on",
+      "Secret Lagoon at Flúðir on the Golden Circle day",
+      "Whale watching from the Old Harbour",
+      "Þórsmörk by super-jeep"
+    ]
+  },
+  {
+    "slug": "northern-spain",
+    "name": "Northern Spain: San Sebastián → Bilbao → Picos → Santiago",
+    "days": [
+      {
+        "name": "Day 1",
+        "stops": [
+          "Flight into Bilbao (BIO)",
+          "Collect the hire car at the airport",
+          "Drive the AP-8 to San Sebastián",
+          "Check in at Lasala Plaza Hotel",
+          "Opening night: Bar Zeruko and Ganbara"
+        ]
+      },
+      {
+        "name": "Day 2",
+        "stops": [
+          "Breakfast at Pastelería Otaegui",
+          "La Concha end to end, and the Peine del Viento",
+          "Funicular up Monte Igueldo",
+          "The tortilla at Bar Néstor",
+          "Up Monte Urgull to the Mota castle",
+          "Txakoli and anchovies at Bar Txepetxa",
+          "The crawl: Cuchara de San Telmo, Gandarias, Borda Berri"
+        ]
+      },
+      {
+        "name": "Day 3",
+        "stops": [
+          "Breakfast at the hotel",
+          "Coast road to Getaria via Zarautz",
+          "Cristóbal Balenciaga Museoa",
+          "Lunch at Elkano",
+          "Txakoli tasting at Txomin Etxaniz",
+          "Quiet dinner at Bodegón Alejandro"
+        ]
+      },
+      {
+        "name": "Day 4",
+        "stops": [
+          "Breakfast, and check out of the Lasala",
+          "Drive San Sebastián to Bilbao",
+          "Check in at Hotel Miró",
+          "Pintxos in Plaza Nueva: Gure Toki and Víctor Montes",
+          "Guggenheim Bilbao",
+          "Walk the Nervión: Zubizuri, the Deusto bank, back past Maman",
+          "Dinner at Mina"
+        ]
+      },
+      {
+        "name": "Day 5",
+        "stops": [
+          "Mercado de la Ribera, before noon",
+          "The Siete Calles, with nothing to see",
+          "Txikiteo in Plaza Nueva, then dinner at Los Fueros"
+        ]
+      },
+      {
+        "name": "Day 6",
+        "stops": [
+          "Breakfast, check out of the Miró",
+          "Drive the A-8 to Cangas de Onís",
+          "Check in at the Parador de Cangas de Onís",
+          "Cider and lunch at El Molín de la Pedrera",
+          "Covadonga and the lakes, by shuttle bus",
+          "Dinner at the Parador"
+        ]
+      },
+      {
+        "name": "Day 7",
+        "stops": [
+          "Early breakfast, and collect the packed lunch",
+          "Drive to Poncebos and park",
+          "Poncebos to Caín and back through the gorge",
+          "Cabrales cheese in Arenas",
+          "Dinner at El Polesu"
+        ]
+      },
+      {
+        "name": "Day 8",
+        "stops": [
+          "Breakfast, and check out of the Parador",
+          "A-8 west, and the walk down to Playa del Silencio",
+          "Lunch on the harbour at Cudillero",
+          "Cudillero to Santiago de Compostela",
+          "Check in at the Hostal dos Reis Católicos",
+          "First look at the Obradoiro at dusk",
+          "Dinner at O Curro da Parra"
+        ]
+      },
+      {
+        "name": "Day 9",
+        "stops": [
+          "Coffee and tarta de Santiago at Café Literarios",
+          "Cathedral rooftop tour: the Cubiertas",
+          "Mercado de Abastos",
+          "Pilgrims' Mass at noon",
+          "Lunch at Abastos 2.0",
+          "Drop the hire car at Santiago airport",
+          "Flight home from Santiago (SCQ)"
+        ]
+      }
+    ],
+    "unscheduled": [
+      "Asador Etxebarri in Axpe",
+      "San Juan de Gaztelugatxe and the Bermeo coast",
+      "Fuente Dé cable car and the Cantabrian side of the Picos",
+      "Finisterre and the Costa da Morte",
+      "An espicha in a Nava cider house"
+    ]
+  },
+  {
+    "slug": "thailand-andaman",
+    "name": "Thailand: Bangkok → Krabi → Koh Lanta",
+    "days": [
+      {
+        "name": "Day 1",
+        "stops": [
+          "Long-haul lands at Suvarnabhumi",
+          "Airport Rail Link into town",
+          "Drop bags at Riva Surya Bangkok",
+          "First real meal: lunch at Krua Apsorn",
+          "Wat Pho and the reclining Buddha",
+          "Yaowarat after dark, on foot"
+        ]
+      },
+      {
+        "name": "Day 2",
+        "stops": [
+          "Breakfast at Sarnies, Charoen Krung",
+          "Orange-flag express boat up the Chao Phraya",
+          "Grand Palace and Wat Phra Kaew",
+          "Lunch at Err Urban Rustic Thai",
+          "Cross to Wat Arun",
+          "Sunset drink at Sala Rattanakosin",
+          "Dinner at Supanniga Eating Room"
+        ]
+      },
+      {
+        "name": "Day 3",
+        "stops": [
+          "Breakfast on the Riva Surya terrace, then check out",
+          "Taxi to Don Mueang",
+          "Flight Bangkok to Krabi (DMK–KBV)",
+          "Airport minivan to Ao Nang",
+          "Longtail from Ao Nang to Railay West",
+          "Check in at Railay Bay Resort",
+          "Dinner at the Last Bar, East Railay"
+        ]
+      },
+      {
+        "name": "Day 4",
+        "stops": [
+          "Phra Nang Cave Beach before the boats",
+          "Breakfast at Mama's Chicken",
+          "Half-day climbing course with King Climbers",
+          "Lunch back on East Railay",
+          "Railay viewpoint, and as far up the lagoon trail as it is worth",
+          "Beer on West Railay for the sunset",
+          "Dinner at Flame Tree Restaurant"
+        ]
+      },
+      {
+        "name": "Day 5",
+        "stops": [
+          "Early breakfast at Mama's Chicken",
+          "Private longtail charter leaves West Railay",
+          "National park fee at the Tup Island ranger post",
+          "The Tup–Mor sandbar at low tide",
+          "Snorkelling and boat lunch off Koh Poda",
+          "Longtail back to Railay",
+          "Dinner at the East Railay night stalls"
+        ]
+      },
+      {
+        "name": "Day 6",
+        "stops": [
+          "Breakfast, and check out of Railay Bay",
+          "Longtail to Nopparat Thara pier",
+          "Ao Nang Princess ferry to Saladan",
+          "Songthaew south to Klong Nin",
+          "Check in at Sri Lanta Resort",
+          "First swim at Klong Nin",
+          "Dinner at Cook Kai"
+        ]
+      },
+      {
+        "name": "Day 7",
+        "stops": [
+          "Breakfast at Sri Lanta",
+          "Hire a scooter on the beach road",
+          "Lanta Old Town on the east coast",
+          "Lunch at Beautiful Restaurant",
+          "Koh Lanta Community Museum",
+          "Mangrove kayaking at Tung Yee Peng",
+          "Dinner at Same Same But Different"
+        ]
+      },
+      {
+        "name": "Day 8",
+        "stops": [
+          "Early breakfast at the resort",
+          "Speedboat from Saladan to Koh Rok",
+          "Snorkelling the Koh Rok reefs",
+          "Lunch on Koh Rok Nok beach",
+          "Speedboat back to Saladan",
+          "Cooking class and dinner at Time for Lime"
+        ]
+      },
+      {
+        "name": "Day 9",
+        "stops": [
+          "Late breakfast at the Sri Lanta beach kitchen",
+          "Klong Nin beach, and nothing else",
+          "Sunset and dinner at Ozone Bar"
+        ]
+      },
+      {
+        "name": "Day 10",
+        "stops": [
+          "Last breakfast, and check out",
+          "Minivan transfer, Koh Lanta to Krabi airport",
+          "Flight Krabi to Bangkok (KBV–BKK)",
+          "Last plate at Magic Food Point",
+          "Long-haul home departs Suvarnabhumi"
+        ]
+      }
+    ],
+    "unscheduled": [
+      "Ayutthaya as a day trip on the slow train from Krung Thep Aphiwat",
+      "Dive Koh Haa from Koh Lanta",
+      "Koh Phi Phi, but as an overnight rather than a day trip",
+      "Jim Thompson House on the last Bangkok morning"
+    ]
+  }
+]
