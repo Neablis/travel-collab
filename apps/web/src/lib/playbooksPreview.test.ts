@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { ActivityTag } from "@tc/contracts";
 import {
+  capGeneratedDescription,
   cityDescription,
   countryCityDescription,
   countryCityTitle,
@@ -9,6 +11,7 @@ import {
   dayFactsLine,
   dayHook,
   dayIndexable,
+  dayTitle,
   featuredByCity,
   placeHook,
   placeTitle,
@@ -17,6 +20,7 @@ import {
   type DayFacts,
   type SeoDay,
 } from "./playbooksPreview";
+import { TAG_LABEL } from "./activityTags";
 
 const facts: DayFacts = { cities: ["Kyoto", "Osaka"], dayCount: 3, stopCount: 12, author: "Dana R.", rating: null, reviewCount: 0 };
 
@@ -264,6 +268,94 @@ describe("list page descriptions", () => {
 
   it("quotes a user's own title verbatim, steal and all", () => {
     expect(dayHook({ ...amalfi, preview: [{ title: "Steal the sunset" }] })).toBe("Steal the sunset");
+  });
+});
+
+describe("dayTitle (M53 decision 3)", () => {
+  it("drops the city suffix when the author's title already names the city", () => {
+    expect(dayTitle("3 days in Rome: emperors, gladiators and the layers beneath", "Rome")).toBe(
+      "3 days in Rome: emperors, gladiators and the layers beneath",
+    );
+    expect(dayTitle("3 days in rome", "Rome")).toBe("3 days in rome");
+    expect(dayTitle("A week in New York, slowly", "New York")).toBe("A week in New York, slowly");
+  });
+
+  it("keeps the city suffix when the title does not name the city, and when there is no city", () => {
+    expect(dayTitle("A slow day", "Kyoto")).toBe("A slow day · Kyoto");
+    expect(dayTitle("A slow day", null)).toBe("A slow day");
+  });
+
+  it("never clips an author's own title, however long", () => {
+    const long = "A very long day in Rome that wanders from the Forum at dawn to Trastevere after dark and back again";
+    expect(dayTitle(long, "Rome")).toBe(long);
+    expect(dayTitle(long, "Kyoto")).toBe(`${long} · Kyoto`);
+  });
+
+  it("does not mistake a longer word for the city", () => {
+    expect(dayTitle("Roman holiday", "Rome")).toBe("Roman holiday · Rome");
+  });
+});
+
+describe("capGeneratedDescription (M53 decision 4)", () => {
+  it("leaves a description at or under 155 characters alone", () => {
+    expect(capGeneratedDescription("Short.")).toBe("Short.");
+    expect(capGeneratedDescription("x".repeat(155))).toBe("x".repeat(155));
+  });
+
+  it("cuts a long description back to the last whole phrase inside 155 characters", () => {
+    const text =
+      "Italy in real days: Rome's morning in the Forum with a very long stop name that keeps going, " +
+      "Florence's another very long stop name that keeps going on and on, " +
+      "Amalfi's yet another long stop name here. Pick a day and drop it into your trip.";
+    const capped = capGeneratedDescription(text);
+    expect(capped.length).toBeLessThanOrEqual(155);
+    expect(text.startsWith(capped)).toBe(true);
+    // Ends on a phrase boundary: the next character of the full text is a
+    // separator (the space after a kept sentence period, or a comma), never mid-word.
+    expect(capped).not.toMatch(/[,; ]$/);
+    expect([" ", ","]).toContain(text[capped.length]);
+  });
+
+  it("caps every generated place and tag description at 155 characters", () => {
+    const longDay: SeoDay = {
+      ...amalfi,
+      preview: [
+        { title: "A stop title long enough that three of them push any generated sentence over the cap" },
+        { title: "Another equally long stop title that keeps the sentence running past the cap" },
+        { title: "A third long stop title, also running well past any reasonable cap" },
+      ],
+    };
+    for (const sentence of [
+      cityDescription("Amalfi", 14, [longDay]),
+      countryDescription("Italy", 40, [longDay, rome, florence]),
+      countryCityDescription("Florence", 9, [longDay]),
+      tagDescription("Beach", null, null, 20, [longDay]),
+      tagDescription("Beach", "Hvar", null, 5, [longDay]),
+      tagDescription("Beach", null, "Croatia", 12, [longDay]),
+      tagDescription("Beach", "Hvar", "Croatia", 3, [longDay]),
+    ]) {
+      expect(sentence.length).toBeLessThanOrEqual(155);
+    }
+  });
+
+  it("never caps an author's own day description, however long", () => {
+    const own = `A day I will never forget: ${Array(6).fill("and then we walked on, and on, and on.").join(" ")}`;
+    expect(own.length).toBeGreaterThan(155);
+    expect(dayDescription(own, facts)).toBe(own);
+  });
+});
+
+describe("tag labels (M53 decision 6)", () => {
+  it("labels all fourteen tags, and the tag builders read the label, never the raw key", () => {
+    expect(ActivityTag.options).toHaveLength(14);
+    for (const tag of ActivityTag.options) {
+      const label = TAG_LABEL[tag];
+      expect(label, `label for ${tag}`).toMatch(/\S/);
+      expect(tagTitle(label, null, null)).toBe(`${label} days worth borrowing`);
+      expect(tagDescription(label, null, null, 3, [hvar])).toContain(label);
+    }
+    // The audit's example, fixed: the raw key was "meal", the page reads "Food".
+    expect(tagTitle(TAG_LABEL.meal, null, null)).toBe("Food days worth borrowing");
   });
 });
 

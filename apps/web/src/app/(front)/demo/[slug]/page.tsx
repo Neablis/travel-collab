@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { DemoTripScreen } from "@/components/demo/DemoTripScreen";
 import { DEMO_TRIPS, demoPath, demoTripBySlug } from "@/lib/demoTrip";
 import { demoTripCard } from "@/lib/demoTripCards";
+import { demoTripSummary } from "@/lib/demoTripSummaries";
 import { pageMetadata } from "@/lib/siteMetadata";
 
 type Params = { params: Promise<{ slug: string }> };
@@ -36,5 +37,8 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
 export default async function DemoTripPage({ params }: Params) {
   const demo = demoTripBySlug((await params).slug);
   if (demo === undefined) notFound();
-  return <DemoTripScreen demo={demo} />;
+  // The summary the board's Suspense fallback renders (M53 part 2): the same
+  // committed snapshot family the metadata's card comes from, so the server
+  // HTML carries the itinerary before — and without — the board's JavaScript.
+  return <DemoTripScreen demo={demo} summary={demoTripSummary(demo.slug)} />;
 }

@@ -5,6 +5,7 @@ import type { PlaceDaysList } from "@/components/playbooks/PlaceDaysList";
 import { TAG_LABEL } from "@/lib/activityTags";
 import { ActivityTagDescribed } from "@tc/contracts";
 import type { BreadcrumbCrumb } from "@/lib/jsonLd";
+import { tagPageCrumbs } from "@/lib/jsonLd";
 import { PLAYBOOKS_CARD_PATH, tagDescription, tagTitle, type SeoDay } from "@/lib/playbooksPreview";
 import { PLACE_PAGE_SIZE, countryCityPath, placeIndexable, placePagePath, placePath, tagPath } from "@/lib/playbookUrls";
 import { latticeNav } from "@/lib/latticeNav";
@@ -89,17 +90,21 @@ function wordsFor(
   const cityPage = tagPage.city;
   const countryPage = tagPage.country;
   const path = pathOf(tagPage);
-  const crumbs: BreadcrumbCrumb[] = [{ name: "Playbooks", path: "/playbooks" }];
-  if (countryPage !== null) crumbs.push({ name: countryPage.name, path: placePath({ kind: "country", slug: countryPage.slug }) });
-  if (cityPage !== null)
-    crumbs.push({
-      name: cityPage.name,
-      path:
-        countryPage !== null
-          ? countryCityPath(countryPage.slug, cityPage.slug)
-          : placePath({ kind: "city", slug: cityPage.slug }),
-    });
-  crumbs.push({ name: label, path: placePagePath(path, page) });
+  const crumbs = tagPageCrumbs(
+    label,
+    cityPage === null
+      ? null
+      : {
+          name: cityPage.name,
+          path:
+            countryPage !== null
+              ? countryCityPath(countryPage.slug, cityPage.slug)
+              : placePath({ kind: "city", slug: cityPage.slug }),
+        },
+    countryPage === null ? null : { name: countryPage.name, path: placePath({ kind: "country", slug: countryPage.slug }) },
+    path,
+    page,
+  );
   return {
     heading: tagTitle(label, cityPage?.name ?? null, countryPage?.name ?? null),
     summary: tagDescription(label, cityPage?.name ?? null, countryPage?.name ?? null, tagPage.days, days),
