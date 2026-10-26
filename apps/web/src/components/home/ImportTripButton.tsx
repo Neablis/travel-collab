@@ -134,10 +134,14 @@ export function ImportTripButton({
         type="button"
         variant="ghost"
         className={cn(QUIET_LINK, "text-slate", className)}
-        disabled={blocked}
+        disabled={disabled}
+        // The dots, in the label's own space (M54 decision 2), and a press
+        // while importing is refused by `pending` itself.
+        pending={busy}
+        pendingLabel="Importing…"
         onClick={() => input.current?.click()}
       >
-        {busy ? "Importing…" : label}
+        {label}
       </Button>
       {/* Hidden rather than styled, because a file input cannot be restyled
           across browsers and a visible one here would be the only control on

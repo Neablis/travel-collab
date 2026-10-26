@@ -1,5 +1,7 @@
+import { Children, isValidElement } from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "../../lib/cn";
+import { TypingDots } from "./typing-dots";
 
 /**
  * **The 44px floor, released above the phone** — SPEC §13.1's *"44px targets,
@@ -67,7 +69,12 @@ export const buttonVariants = cva(
   // EVERY width, which the sheet header and the Ask pill want, and
   // `PHONE_TOUCH` is what an `<a>` styled by `buttonVariants` still needs when
   // it is not a `Button`. `phoneTouch.test.tsx` holds the relationship.
-  "inline-flex min-h-11 min-w-11 cursor-pointer items-center justify-center gap-1.5 rounded-md font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:pointer-events-none disabled:opacity-50 fine:min-h-0 fine:min-w-0",
+  //
+  // **The press gives, on every variant** (M54): `scale-97` while pressed,
+  // with colour, outline and the disabled fade on the same short timing.
+  // `transition`, not `transition-colors`, so `scale` and `opacity` ride it.
+  // Under reduced motion the press is colour alone.
+  "inline-flex min-h-11 min-w-11 cursor-pointer items-center justify-center gap-1.5 rounded-md font-medium transition duration-fast ease-calm active:scale-97 motion-reduce:active:scale-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:pointer-events-none disabled:opacity-50 fine:min-h-0 fine:min-w-0",
   {
     variants: {
       variant: {
@@ -113,14 +120,70 @@ export const buttonVariants = cva(
 // explicitly because `ButtonHTMLAttributes` does not include it — without this
 // line a caller that needs the element (the day chips, which move DOM focus as
 // arrow keys walk the row) has to reach around this component.
+//
+// **`pending`, M54 decision 2: the box never changes.** The dots replace no
+// words. An icon button's icon slot (its first child, when that is an element)
+// shows the dots over the icon's own space; a label-only button fades its label
+// and keeps its space, the dots centred where it was. `aria-busy` says so, and
+// `pendingLabel`, if given, is the accessible name meanwhile ("Asking…"). Not
+// `disabled`, which would drop keyboard focus mid-press: a click is refused
+// instead, and `preventDefault` stops a submit button sending its form twice.
 export function Button({
   variant,
   size,
   className,
   type = "button",
   ref,
+  pending = false,
+  pendingLabel,
+  children,
+  onClick,
   ...props
 }: React.ButtonHTMLAttributes<HTMLButtonElement> &
-  VariantProps<typeof buttonVariants> & { ref?: React.Ref<HTMLButtonElement> }) {
-  return <button ref={ref} type={type} className={cn(buttonVariants({ variant, size }), className)} {...props} />;
+  VariantProps<typeof buttonVariants> & {
+    ref?: React.Ref<HTMLButtonElement>;
+    pending?: boolean;
+    pendingLabel?: string;
+  }) {
+  return (
+    <button
+      ref={ref}
+      type={type}
+      className={cn(buttonVariants({ variant, size }), className)}
+      {...props}
+      aria-busy={pending || undefined}
+      aria-label={pending && pendingLabel !== undefined ? pendingLabel : props["aria-label"]}
+      onClick={pending ? (event) => event.preventDefault() : onClick}
+    >
+      {pending ? <PendingContent>{children}</PendingContent> : children}
+    </button>
+  );
+}
+
+function PendingContent({ children }: { children: React.ReactNode }) {
+  const [first, ...rest] = Children.toArray(children);
+  if (isValidElement(first)) {
+    return (
+      <>
+        <Held>{first}</Held>
+        {rest}
+      </>
+    );
+  }
+  return <Held>{children}</Held>;
+}
+
+// What it holds stays laid out, only faded (`data-pending-held`, globals.css),
+// so its box is still the button's; the dots sit over it and add no size.
+function Held({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="relative inline-flex items-center justify-center">
+      <span data-pending-held className="inline-flex items-center">
+        {children}
+      </span>
+      <span className="absolute inset-0 flex items-center justify-center">
+        <TypingDots size="sm" />
+      </span>
+    </span>
+  );
 }
