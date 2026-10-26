@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, type RefObject } from "react";
 
 /**
  * Takes focus out of an overlay the moment it starts to leave.
@@ -7,28 +7,39 @@ import { useCallback, useEffect, useLayoutEffect, useRef } from "react";
  * was still inside a closing dialog and the account menu after both had
  * turned inert, so for some part of the exit a keypress still went to them.
  *
- * It goes back to the opener at once, where Radix would put it on unmount
- * anyway, so a Tab or a screen reader does not start from `<body>` for the
- * length of the exit (PR 594 review). Not to an opener a modal overlay has
- * hidden (`aria-hidden` stays on the page until the unmount) or one that is
- * gone: there it is blurred, and Radix's return (or the caller's
+ * It goes to the opener at once, where Radix would put it on unmount anyway,
+ * so a Tab or a screen reader does not start from `<body>` for the length of
+ * the exit (spec §3). A modal overlay leaves the page `aria-hidden` until it
+ * unmounts, and focus in there is focus a screen reader cannot see, so the
+ * opener's own ancestors are shown first. Safe, because the page is about to
+ * be shown anyway and `aria-hidden`'s undo is a no-op on an attribute already
+ * gone. Only what an overlay hid (`data-aria-hidden`) is lifted, and a nested
+ * modal's opener lives in the outer one's portal, so this never shows what the
+ * outer modal hid. An opener that is gone, or hidden for another reason, gets
+ * nothing: focus is blurred, and Radix's return (or the caller's
  * `onCloseAutoFocus`) still decides where it lands.
  */
 function letGoOfFocus(opener: HTMLElement | null = null) {
   const at = document.activeElement;
   if (!(at instanceof HTMLElement) || at.closest('[data-motion][data-state="closed"]') === null) return;
-  if (opener?.isConnected === true && opener.closest('[aria-hidden="true"]') === null) opener.focus();
+  if (opener?.isConnected === true) {
+    for (let el: HTMLElement | null = opener; el !== null; el = el.parentElement) {
+      if (el.hasAttribute("data-aria-hidden")) el.removeAttribute("aria-hidden");
+    }
+    if (opener.closest('[aria-hidden="true"]') === null) opener.focus();
+  }
   if (document.activeElement === at) at.blur();
 }
 
 /**
  * For a Radix overlay, which plays its own exit: with `open` gone false, its
  * `data-state` is already `closed` by the layout phase, so focus is let go
- * before the browser paints the first frame of the exit. The opener is what
- * held focus as `open` turned true, before Radix's own autofocus (a passive
- * effect) moved it inside.
+ * before the browser paints the first frame of the exit. The opener is
+ * `trigger` where the caller has one (a menu opened by mouse never focuses its
+ * trigger), else what held focus as `open` turned true, before Radix's own
+ * autofocus (a passive effect) moved it inside.
  */
-export function useLetGoOfFocusOnClose(open: boolean) {
+export function useLetGoOfFocusOnClose(open: boolean, trigger?: RefObject<HTMLElement | null>) {
   const opener = useRef<HTMLElement | null>(null);
   useLayoutEffect(() => {
     if (open) {
@@ -36,9 +47,9 @@ export function useLetGoOfFocusOnClose(open: boolean) {
       opener.current = at instanceof HTMLElement && at !== document.body ? at : null;
       return;
     }
-    letGoOfFocus(opener.current);
+    letGoOfFocus(trigger?.current ?? opener.current);
     opener.current = null;
-  }, [open]);
+  }, [open, trigger]);
 }
 
 /**
