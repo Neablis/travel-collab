@@ -9,7 +9,7 @@ afterEach(cleanup);
 // proven three times at parent layers (Leaderboard, Profile, Discover) and
 // zero times here. The banner owns: it renders nothing without an error,
 // it shows exactly one Retry that calls reload, and it says Retrying…
-// (disabled) while a reload is in flight. The pages keep only their own
+// (busy, refusing a second press) while a reload is in flight. The pages keep only their own
 // halves — their error copy and their skeleton behaviour — which are not
 // the banner's to prove.
 describe("SyncFailure", () => {
@@ -45,6 +45,8 @@ describe("SyncFailure", () => {
     render(<SyncFailure read={read({ error: "Network error", loading: true, reload })} what="the board" />);
     const retry = screen.getByRole("button", { name: "Retrying…" });
     expect(retry.getAttribute("aria-busy")).toBe("true");
+    // Disabled would drop focus to <body>; pending keeps it here.
+    expect((retry as HTMLButtonElement).disabled).toBe(false);
     expect(retry.textContent).toBe("Retry");
     await userEvent.click(retry);
     expect(reload).not.toHaveBeenCalled();
