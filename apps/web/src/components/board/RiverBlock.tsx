@@ -1,6 +1,6 @@
 "use client";
 
-import { type PointerEvent as ReactPointerEvent, type ReactElement, type ReactNode, useEffect, useRef, useState } from "react";
+import { type PointerEvent as ReactPointerEvent, type ReactElement, type ReactNode, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { draggable } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { AlertTriangle, Lightbulb, X } from "lucide-react";
 import type { ActivityTag, ActivityView, TimeWindow } from "@tc/contracts";
@@ -270,6 +270,29 @@ export function RiverBlock({
     });
   }, [activity.activityId, readOnly]);
 
+  // **A moved block settles into its place** (M54, FLIP). Where the block was
+  // drawn last is kept; when its place on the axis or its lane changes, it is
+  // put back there by a transform and eased to its new place
+  // (`[data-settling]` in globals.css). Transform only, so nothing around it
+  // reflows. Not while its grip is held: a resize redraws the block on every
+  // move, and it has to follow the pointer, not trail it.
+  const drawnAt = useRef<{ x: number; y: number } | null>(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const at = { x: el.offsetLeft, y: el.offsetTop };
+    const was = drawnAt.current;
+    drawnAt.current = at;
+    if (was === null || gripHeld.current || (was.x === at.x && was.y === at.y)) return;
+    el.style.setProperty("--settle-x", `${was.x - at.x}px`);
+    el.style.setProperty("--settle-y", `${was.y - at.y}px`);
+    // Off and on again, with a layout between, so a second move during the
+    // first settle starts its own rather than continuing the old one.
+    delete el.dataset.settling;
+    void el.offsetWidth;
+    el.dataset.settling = "";
+  }, [placement.topPx, placement.lane, placement.lanes]);
+
   function pressGrip(e: ReactPointerEvent, edge: "start" | "end") {
     if (e.button !== 0 || !onResizeStart) return;
     // Not the river's sketch, not a touch lift of the block, and not the edit
@@ -399,10 +422,14 @@ export function RiverBlock({
       data-activity-id={activity.activityId}
       data-off-tag={dimOpacity !== 1 ? true : undefined}
       // `z-10` while hovered or focused: the tag reveal below hangs out of
-      // the block, over whichever block comes next in the DOM.
+      // the block, over whichever block comes next in the DOM. The hover
+      // shadow is `[data-river-block]::before`, which fades in (M54).
       data-lifted={lifted ? true : undefined}
       data-provisional={provisional?.hook}
       className={cn("group absolute hover:z-10 focus-within:z-10", !readOnly && "cursor-grab", lifted && "z-10")}
+      onAnimationEnd={(e) => {
+        if (e.target === e.currentTarget) delete e.currentTarget.dataset.settling;
+      }}
       onPointerDown={(e) => {
         lastPointer.current = e.pointerType;
         if (e.pointerType === "touch") onTouchPress?.(e);
@@ -419,7 +446,7 @@ export function RiverBlock({
       <div
         className={cn(
           // `fine:` — see CONTROL_CLASS: under a finger the controls' reach gets out.
-          "relative flex h-full flex-col gap-px rounded-md px-2 py-0.5 group-hover:shadow-raised fine:overflow-hidden",
+          "relative flex h-full flex-col gap-px rounded-md px-2 py-0.5 fine:overflow-hidden",
           overlapping
             ? cn("border-2 border-solid border-warning-ink", look.tone === "transit" ? "bg-info-tint" : "bg-surface", (look.tone === "maybe" || placeholder) && "tc-river-hatch")
             : placeholder

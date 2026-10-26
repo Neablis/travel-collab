@@ -826,18 +826,21 @@ function Conversation({
             a free account one optimistic frame. Being wrong the permissive way
             costs nothing here at all — this branch is a `Preview`, which
             promises nothing. */}
-        {phase === "made" &&
-          (aiEntitled === false ? (
-            <NewTripPlusNote />
-          ) : (
-            <Preview id="wizard-assistant-draft" size="container" className="mt-4 bg-brand-tint p-3.5">
-              <Text className="font-semibold text-brand-pressed">Let the assistant draft it</Text>
-              <Text variant="secondary" className="mt-0.5 text-brand-pressed">
-                Once you say go, the assistant lays out your days at the pace you pick, leaves the
-                bookings to you, and flags anything that needs a decision.
-              </Text>
-            </Preview>
-          ))}
+        {phase === "made" && (
+          <div data-step-enter>
+            {aiEntitled === false ? (
+              <NewTripPlusNote />
+            ) : (
+              <Preview id="wizard-assistant-draft" size="container" className="mt-4 bg-brand-tint p-3.5">
+                <Text className="font-semibold text-brand-pressed">Let the assistant draft it</Text>
+                <Text variant="secondary" className="mt-0.5 text-brand-pressed">
+                  Once you say go, the assistant lays out your days at the pace you pick, leaves the
+                  bookings to you, and flags anything that needs a decision.
+                </Text>
+              </Preview>
+            )}
+          </div>
+        )}
         </div>
       </div>
 
@@ -854,8 +857,11 @@ function Conversation({
           per-question chip label is gone: with the chips inside the composer's
           own frame it was captioning the obvious. A chip and a typed sentence
           fill the same answer and commit the same turn. */}
+      {/* **Each step fades in** (M54): the dock is gone while Cass types, so
+          every question's controls are a fresh mount, and `[data-step-enter]`
+          fades them in where the last step left with its answer. */}
       {asking && (
-        <div ref={dockRef} className="flex flex-col gap-2.5">
+        <div ref={dockRef} data-step-enter className="flex flex-col gap-2.5">
           {/* **One day, not a range** (§32.3). The turn before this one asked
               whether there is a date at all, so this control only ever appears
               for a reader who said yes — and it asks for the single thing the

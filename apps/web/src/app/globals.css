@@ -2048,8 +2048,10 @@ html[data-look="ledger"] .shadow-raised {
      moment rises; and its ring inside its mat (the prototype's `.veil` and
      `.ring`), which shows as the moment rises. `LandingSea` writes both
      opacities; the markup's rest state is lit. */
+  .landing-sea-shade,
   .landing-sea-veil,
-  .landing-sea-ring {
+  .landing-sea-ring,
+  .landing-sea-ring-held {
     position: absolute;
     inset: 0;
     border-radius: inherit;
@@ -2059,24 +2061,37 @@ html[data-look="ledger"] .shadow-raised {
     background: var(--color-ink);
     opacity: 0;
   }
-  .landing-sea-ring {
+  .landing-sea-ring,
+  .landing-sea-ring-held {
     box-shadow:
       inset 0 0 0 3px var(--color-surface),
       inset 0 0 0 6px var(--color-brand);
   }
+  .landing-sea-ring-held {
+    opacity: 0;
+  }
   /* A moment holding focus is drawn risen, whatever the scroll has painted:
      a browser that scrolls a focused door only to the screen's edge would
      otherwise leave it faded and lowered. A lit day under the pointer or
-     holding focus is drawn lit. */
+     holding focus is drawn lit, and eases there and back (M54): the scroll
+     writes the veil's and the ring's own opacities, so the lit look is drawn
+     on what holds them, the shade around the veil and a held ring over the
+     scroll's, and those two fade. */
   [data-moment]:focus-within > [data-testid="moment-panel"] {
     opacity: 1 !important;
     transform: none !important;
   }
-  .landing-sea-lit:is(:hover, :focus-within) > .landing-sea-veil {
-    opacity: 0 !important;
+  .landing-sea-lit:is(:hover, :focus-within) > .landing-sea-shade {
+    opacity: 0;
   }
-  .landing-sea-lit:is(:hover, :focus-within) > .landing-sea-ring {
-    opacity: 1 !important;
+  .landing-sea-lit:is(:hover, :focus-within) > .landing-sea-ring-held {
+    opacity: 1;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .landing-sea-shade,
+    .landing-sea-ring-held {
+      transition: opacity var(--transition-duration-fast) var(--ease-calm);
+    }
   }
   /* A background card under the pointer rises over the scrim to full colour,
      as a lit day does, and sinks back under it when the pointer leaves
@@ -3010,6 +3025,89 @@ html[data-look="ledger"] .shadow-raised {
     }
     [data-settle-in] {
       animation: tc-settle-in var(--transition-duration-slow) var(--ease-calm) backwards;
+    }
+  }
+}
+
+/* ── M54: lists and small moments (decisions 1-2, spec §4.7). Transform and
+   opacity only, from part 1's tokens; every rule that moves anything is under
+   `no-preference`, so reduced motion keeps each end state and drops the
+   movement.
+
+   - A Home trip card lifts under the pointer and gives to a press on its way
+     in. Not while its menu is open, so the menu's anchor holds still under it
+     (KI-28). It sinks out when deleted or left (`data-motion="sink"`, run by
+     `useExitPresence`), and rises in (`[data-rise-in]`, above) when it joins a
+     list already on screen.
+   - The unscheduled rack's caret turns a quarter as the drawer opens.
+   - A river block's hover shadow is a layer under it that fades in, rather
+     than a box-shadow that snaps. A moved block settles: `RiverBlock` puts it
+     back where it was drawn (`--settle-x`, `--settle-y`) and eases the
+     translate away.
+   - The save light takes one beat as its breathing stops on a save.
+   - The new-trip wizard's steps fade in as the last one leaves with its
+     answer. */
+@layer components {
+  @keyframes tc-settle-from {
+    from {
+      transform: translate(var(--settle-x, 0), var(--settle-y, 0));
+    }
+  }
+
+  @keyframes tc-save-beat {
+    50% {
+      transform: scale(1.08);
+    }
+  }
+
+  .rack-caret[data-open] {
+    transform: rotate(90deg);
+  }
+
+  [data-river-block]::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-raised);
+    opacity: 0;
+    pointer-events: none;
+  }
+  [data-river-block]:hover::before {
+    opacity: 1;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .trip-card-lift {
+      transition: transform var(--transition-duration-fast) var(--ease-calm);
+    }
+    .trip-card-lift:hover:not(:has([aria-expanded="true"])) {
+      transform: translateY(-2px);
+    }
+    .trip-card-lift:active:not(:has(button:active)) {
+      transform: scale(0.99);
+    }
+    [data-motion="sink"][data-state="closed"] {
+      animation: var(--animate-sink-out);
+    }
+
+    .rack-caret {
+      transition: transform var(--transition-duration-base) var(--ease-calm);
+    }
+
+    [data-river-block]::before {
+      transition: opacity var(--transition-duration-base) var(--ease-calm);
+    }
+    [data-river-block][data-settling] {
+      animation: tc-settle-from var(--transition-duration-slow) var(--ease-calm);
+    }
+
+    [data-save-beat] .save-light-mark {
+      animation: tc-save-beat var(--transition-duration-slow) var(--ease-calm);
+    }
+
+    [data-step-enter] {
+      animation: tc-fade-in var(--transition-duration-base) var(--ease-calm) backwards;
     }
   }
 }

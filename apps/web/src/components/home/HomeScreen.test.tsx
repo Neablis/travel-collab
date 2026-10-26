@@ -186,6 +186,35 @@ describe("Home trip actions", () => {
     expect(screen.getByRole("link", { name: "Japan" })).toBeTruthy();
   });
 
+  // M54: a card that was on the page when it loaded holds still; one that
+  // comes back after a failed delete rises in, so the reader sees it return
+  // rather than finding it there.
+  it("brings a grid card back after a failed delete, rising in where it loaded still", async () => {
+    const peruId = "0b9d4a1e-2c3f-4d5e-8f60-718293a4b5c6";
+    fetchMock = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input);
+      if (url.includes("/api/auth/session")) return jsonResponse(await getSessionMock());
+      if (url.includes(`/api/trips/${peruId}/commands`)) return jsonResponse({ error: "concurrency-conflict" }, 409);
+      if (url.endsWith("/api/trips")) {
+        return jsonResponse({ trips: [tripSummaryFixture(), tripSummaryFixture({ tripId: peruId, name: "Peru" })] });
+      }
+      return jsonResponse({ error: "unexpected" }, 404);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<HomeScreen />);
+    const loaded = await screen.findByTestId("trip-card");
+    expect(loaded.getAttribute("data-rise-in")).toBeNull();
+
+    await userEvent.click(screen.getByRole("button", { name: /trip actions for peru/i }));
+    await userEvent.click(screen.getByRole("menuitem", { name: /delete/i }));
+
+    await screen.findByRole("alert");
+    const back = screen.getByTestId("trip-card");
+    expect(within(back).getByRole("link", { name: "Peru" })).toBeTruthy();
+    expect(back.getAttribute("data-rise-in")).not.toBeNull();
+  });
+
   it("duplicates a trip and navigates to the copy", async () => {
     const newTripId = "9f8e7d6c-5b4a-3928-1716-0f1e2d3c4b5a";
     fetchMock = vi.fn(async (input: string | URL | Request) => {
