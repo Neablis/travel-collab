@@ -23,7 +23,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { EmptyState } from "@/components/ui/empty-state";
-import { usePhoneAskEntry } from "@/components/nav/phoneAsk";
+import { useDeclinePhoneAsk, usePhoneAskEntry } from "@/components/nav/phoneAsk";
 import { AssistantRail } from "@/components/assistant/AssistantRail";
 import { phoneAskContext } from "@/components/assistant/phoneAskContext";
 import { useAskThread } from "@/components/assistant/useAskThread";
@@ -504,6 +504,9 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
         }
       : undefined,
   );
+  // A failed read offers none: the tab bar lets go of the board's Ask it is
+  // holding for this screen's (PR 601).
+  useDeclinePhoneAsk(status === "error");
 
   return (
     <PageContainer as="main">

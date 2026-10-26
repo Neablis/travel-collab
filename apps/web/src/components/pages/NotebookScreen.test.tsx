@@ -30,7 +30,7 @@ vi.mock("@/lib/apiClient", async (orig) => {
 // way so a reader is not left wondering whether the screen got the real client.
 import { NotebookScreen } from "./NotebookScreen";
 import { PhoneAskTab } from "@/components/nav/PhoneTabBar";
-import { usePhoneAsk } from "@/components/nav/phoneAsk";
+import { registerPhoneAsk, usePhoneAsk } from "@/components/nav/phoneAsk";
 import { fetchTripAccess } from "@/lib/apiClient";
 import { cachedRead } from "@/lib/queryCache";
 import { tripKeys } from "@/lib/queryKeys";
@@ -926,5 +926,33 @@ describe("NotebookScreen — the states between asked and answered", () => {
     // The retry really went back to the network rather than replaying the
     // cached failure — `cachedRead` never stores one (`queryCache.ts:189`).
     expect(attempts).toBe(2);
+  });
+
+  // PR 601 review: the tab bar holds the board's Ask, greyed, across the move
+  // here until this screen offers its own. A failed read offers none, so the
+  // held one must go rather than stand dead in the bar.
+  it("lets go of the Ask the tab bar holds from the board when its read fails", async () => {
+    server.use(http.get("/api/trips/:tripId/pages", () => HttpResponse.json({ error: "Could not load your notebooks." }, { status: 500 })));
+    const bar = <PhoneAskTab pathname={`/trips/${TRIP_ID}/pages`} />;
+    const takeBack = registerPhoneAsk({ open: false, onOpen: () => {} });
+    // `{null}` where the screen will be keeps the bar in place, holding.
+    const { rerender } = render(
+      <>
+        {null}
+        {bar}
+      </>,
+    );
+    act(() => takeBack());
+    expect(screen.getByTestId("ask-tab").hasAttribute("disabled")).toBe(true);
+
+    rerender(
+      <>
+        <NotebookScreen tripId={TRIP_ID} />
+        {bar}
+      </>,
+    );
+
+    expect(await screen.findByTestId("notebook-pages-error")).toBeTruthy();
+    expect(screen.queryByTestId("ask-tab")).toBeNull();
   });
 });

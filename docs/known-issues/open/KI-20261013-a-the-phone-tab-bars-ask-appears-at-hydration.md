@@ -18,7 +18,12 @@
   disappearing and reappearing when I switch between the other tabs"). `PhoneAskTab` now holds
   the last entry it saw in a trip, disabled, onto that trip's board and notebook index until
   the next screen registers (`useHeldPhoneAsk`); another trip, the account pages and a notebook
-  page start empty as before. A first load, the case above, still has nothing to hold.
+  page start empty as before. A first load, the case above, still has nothing to hold. A
+  screen that settles on no Ask ends the hold (`useDeclinePhoneAsk`): the board's error and
+  sign-in states and a demo trip's board, and the notebook index's failed read. Notebook index
+  → a notebook page still drops the Ask for that page's load, by design, since a locked page
+  offers none. The hold is a second, bar-local source for whether an Ask is offered, beside
+  the registration; the declaration below should replace it rather than sit beside it.
 - **What it means for M45 decision 3** ("the Ask is in the first paint, with no flash"): it
   holds from the `md` width up, where the page head's Ask is drawn from the served plan
   (`PlaybookAskButton`, PR 427) and is in the server HTML. **It does not yet hold on a phone.**
@@ -38,5 +43,6 @@
   3. the registration still supplies `onOpen` and `onAsk`, as it does today. Before hydration a
      tap does nothing, which is acceptable, as it is for the head Ask.
   Every surface that registers an entry moves to the declaration together, so that the tab bar
-  has a single source for whether an Ask is offered (ADR-068).
+  has a single source for whether an Ask is offered (ADR-068). That folds in `useHeldPhoneAsk`
+  and its declines: a page's declaration is known before its read lands, so nothing need be held.
 - **First noted:** 2026-10-13, M45, PR 427 review round 2.
