@@ -182,9 +182,11 @@ export function ProposalCard({
       title={title}
       detail={detail}
       touch={touch}
-      approveLabel={applying ? "Applying…" : "Make the change"}
+      approveLabel="Make the change"
+      approvePendingLabel="Applying…"
+      approvePending={applying}
       onApprove={onApprove}
-      approveDisabled={disabled || applying}
+      approveDisabled={disabled}
       onReject={onReject}
       rejectDisabled={applying}
     >
@@ -242,9 +244,11 @@ export function SuggestionCard({
       detail={detail}
       // Its own 44px floor either way; the chat has no docked variant to size for.
       touch={false}
-      approveLabel={busy ? "Accepting…" : "Accept"}
+      approveLabel="Accept"
+      approvePendingLabel="Accepting…"
+      approvePending={busy}
       onApprove={may === "decide" ? onAccept : undefined}
-      approveDisabled={busy}
+      approveDisabled={false}
       rejectLabel="Dismiss"
       onReject={may === "wait" ? undefined : onDismiss}
       rejectDisabled={busy}
@@ -272,6 +276,8 @@ function PendingCard({
   detail,
   touch,
   approveLabel,
+  approvePendingLabel,
+  approvePending = false,
   onApprove,
   approveDisabled,
   rejectLabel = "Not now",
@@ -285,6 +291,9 @@ function PendingCard({
   detail: string;
   touch: boolean;
   approveLabel: string;
+  /** The accessible name while `approvePending`; the visible label holds (M54). */
+  approvePendingLabel?: string;
+  approvePending?: boolean;
   onApprove: (() => void) | undefined;
   approveDisabled: boolean;
   rejectLabel?: string;
@@ -332,6 +341,8 @@ function PendingCard({
               size="sm"
               onClick={onApprove}
               disabled={approveDisabled}
+              pending={approvePending}
+              pendingLabel={approvePendingLabel}
               className={`h-auto flex-1 rounded-full font-semibold ${target}`}
             >
               {approveLabel}

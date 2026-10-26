@@ -1267,21 +1267,23 @@ export function AssistantRail({
                   // which already matched — `touch` stays.
                   size={isSheet ? "touch" : "md"}
                   onClick={() => void submitAsk()}
-                  disabled={asking || ask.trim() === "" || upgradeGated}
-                  // `aria-label`, only while idle (KI-2026-09-05-ac): this
-                  // button's visible "Ask" is the same accessible name §23's
-                  // header pill carries, and on the phone sheet both are
-                  // reachable at once. WCAG 2.5.3 only requires the accessible
-                  // name to CONTAIN the visible label, not equal it, so
-                  // lengthening this one — the pill's own comment is explicit
-                  // that ITS name has to stay the bare visible word — clears
-                  // the collision without touching either visible label.
-                  // Omitted while `asking`: the visible text is "Asking…" at
-                  // that point, and a stale static label would no longer
-                  // contain it, which is the same 2.5.3 rule the other way.
-                  aria-label={asking ? undefined : "Ask the assistant"}
+                  // Not disabled while asking: `pending` refuses the press and
+                  // keeps focus, and `submitAsk` refuses while `asking` too.
+                  disabled={!asking && (ask.trim() === "" || upgradeGated)}
+                  pending={asking}
+                  // `aria-label` (KI-2026-09-05-ac): this button's visible
+                  // "Ask" is the same accessible name §23's header pill
+                  // carries, and on the phone sheet both are reachable at once.
+                  // WCAG 2.5.3 only requires the accessible name to CONTAIN the
+                  // visible label, not equal it, so lengthening this one — the
+                  // pill's own comment is explicit that ITS name has to stay
+                  // the bare visible word — clears the collision without
+                  // touching either visible label. While asking, the name is
+                  // "Asking…" and the faded "Ask" keeps the box (M54).
+                  aria-label="Ask the assistant"
+                  pendingLabel="Asking…"
                 >
-                  {asking ? "Asking…" : "Ask"}
+                  Ask
                 </Button>
               </div>
             </>

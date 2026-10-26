@@ -1532,7 +1532,10 @@ describe("back from signing in to add", () => {
     renderDay();
 
     const button = await screen.findByRole("button", { name: "Making your trip…" });
-    expect((button as HTMLButtonElement).disabled).toBe(true);
+    expect(button.getAttribute("aria-busy")).toBe("true");
+    // A press that got through would open the add dialog beside the trip being made.
+    fireEvent.click(button);
+    expect(screen.queryByRole("dialog")).toBeNull();
     await act(async () => finish(ok({ detail: {}, history: {} })));
     expect(pushMock).toHaveBeenCalledWith(`/trips/${NEW_TRIP_ID}`);
   });

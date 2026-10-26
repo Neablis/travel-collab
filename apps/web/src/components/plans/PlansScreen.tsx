@@ -771,10 +771,12 @@ function Confirm({
               size="sm"
               className={PHONE_TOUCH}
               onClick={onConfirm}
-              disabled={preview === null || busy}
+              disabled={!busy && preview === null}
+              pending={busy}
+              pendingLabel="Working…"
               data-testid="confirm-pay"
             >
-              {confirmLabel(preview, busy)}
+              {confirmLabel(preview)}
             </Button>
           </div>
         </div>
@@ -790,8 +792,7 @@ function Confirm({
  * amount is what is being agreed to and a button reading "Confirm" makes the
  * reader look back up to check what they are confirming.
  */
-function confirmLabel(preview: PlanChangePreview | null, busy: boolean): string {
-  if (busy) return "Working…";
+function confirmLabel(preview: PlanChangePreview | null): string {
   if (preview === null) return "Confirm";
   if (preview.kind === "cancel") return "Move to free";
   return `Pay ${formatPrice(preview.dueTodayMinor, preview.currency)} with Stripe`;

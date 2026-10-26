@@ -270,8 +270,13 @@ export function AccountMenu({
             <Button variant="secondary" disabled={resetBusy} onClick={() => setResetConfirmOpen(false)}>
               Cancel
             </Button>
-            <Button variant="destructive" disabled={resetBusy} onClick={() => void handleConfirmReset()}>
-              {resetBusy ? "Resetting…" : "Reset"}
+            <Button
+              variant="destructive"
+              pending={resetBusy}
+              pendingLabel="Resetting…"
+              onClick={() => void handleConfirmReset()}
+            >
+              Reset
             </Button>
           </DialogFooter>
         </Dialog>
