@@ -38,15 +38,36 @@ describe("GET /api/cover-image", () => {
     expect(fetchRemoteImage).not.toHaveBeenCalled();
   });
 
-  // The CDN keys on the whole query string, so any second spelling of a
-  // signed path would be a cache miss, and an upstream fetch, of its own.
+  // The CDN keys on the whole query string, so a second spelling of a
+  // signed path is its own cache entry; the signature still binds the URL,
+  // so a respelling serves, while a parameter appended or duplicated is
+  // refused: the query must name exactly `u` and `s`.
   it.each([
     ["a parameter appended", (path: string) => `${path}&x=1`],
-    ["u re-encoded", (path: string) => path.replace("harbour", "h%61rbour")],
+    ["a parameter duplicated", (path: string) => `${path}&u=${encodeURIComponent(URL_A)}`],
   ])("answers 403 on a signed path with %s, and fetches nothing", async (_what, respell) => {
     const response = await get(respell(coverProxySrc(URL_A)));
     expect(response.status).toBe(403);
     expect(fetchRemoteImage).not.toHaveBeenCalled();
+  });
+
+  it("serves a signed path whose URL is spelled with different percent-encoding", async () => {
+    const response = await get(coverProxySrc(URL_A).replace("harbour", "h%61rbour"));
+    expect(response.status).toBe(200);
+    expect(fetchRemoteImage).toHaveBeenCalledWith(URL_A);
+  });
+
+  // Production, 2026-10-26: a layer in front of the route normalized the
+  // parentheses in a cover URL, so the minted spelling never arrived and
+  // the cover showed as none. Either spelling of the same pair serves.
+  it.each([
+    ["the minted spelling", (path: string) => path],
+    ["the parentheses percent-encoded", (path: string) => path.replace("(11732502696)", "%2811732502696%29")],
+  ])("serves a signed paren URL requested with %s", async (_what, respell) => {
+    const url = "https://upload.wikimedia.org/wikipedia/commons/6/61/Slovenia_-_Lago_di_Bled_(11732502696).jpg";
+    const response = await get(respell(coverProxySrc(url)));
+    expect(response.status).toBe(200);
+    expect(fetchRemoteImage).toHaveBeenCalledWith(url);
   });
 
   // `encodeURIComponent` leaves `'` raw and URL parsing escapes it, so a path
