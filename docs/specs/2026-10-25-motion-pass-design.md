@@ -1,7 +1,7 @@
 # The motion pass: press, pending, enter and exit, everywhere
 
-**Status:** Design, 2026-10-25. Approved by Mitchell in the session that wrote it. Not planned and not built: it becomes its own
-milestone, planned in a fresh session (`plan-a-milestone`) and started once M52's parts are in.
+**Status:** Design, 2026-10-25. Approved by Mitchell in the session that wrote it. **Minted as M54 and scoped 2026-10-26**
+(`docs/milestones/M54-the-motion-pass.md`, plan `docs/plans/2026-10-26-M54-the-motion-pass.md`, ADR-082).
 
 Mitchell's ask:
 

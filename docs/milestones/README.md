@@ -134,6 +134,7 @@ for collaboration later landing on a product people already want to join.
 | M51 | The front door tells the story | **Closed 2026-10-22, gate 11 of 11**, on Mitchell's ruling, with the landing's signup path and the production link check left as KI-2026-10-22-a and KI-2026-10-20-c. **Proposed and scoped 2026-10-20 with Mitchell; current from 2026-10-20**, ahead of M49 (which waits) and M48 (parked). From the top entry of `docs/candidates.md`, placed by a design review with three directions and two motion prototypes; see *2026-10-20 — minted: M51, ahead of M49*. The landing becomes a sea of the library's 148 public days as real Discover cards, from a build-time snapshot, with the story's moments rising out of it; a pricing ladder; names on stops (`addedBy`, `openapi.json`); a day picker over `startingAt` (ADR-050); the landing's path into onboarding. Nine parts (the plan is deleted): `M51-the-front-door-tells-the-story.md` |
 | M52 | The trip comes with you: a notebook for today, and an assistant the group can ask | **Closed 2026-10-24, gate 13 of 13**, the [walk] ticked on Mitchell's word; PR 546 (part 12's follow-up) open at the close. **Scoped 2026-10-23. Placed after M51, ahead of M49.** Nothing changes today when a trip starts. From 3 days before the trip through its last day, its Overview swaps to a seeded *During the trip* notebook whose `dateScope: "today"` setting narrows every widget left without a day, plus new widgets (now and next with Directions, flights, the group chat, day-of Ask prompts). Flight legs gain a flight number (the `booking` object stays in M44). The assistant learns what time it is, gets a near-me-now tool only while the trip is under way, and can be `@assistant`-ed in the trip chat on the asker's paid plan and quota, its proposals accepted only by the asker. No live flight status, push, offline or device location: `M52-the-trip-comes-with-you.md` |
 | M53 | A search engine reads every public page the way a person does | **Proposed 2026-10-25 by Mitchell, not scoped; placed last, after M44, until he places it.** From an SEO audit of production (282 sitemap URLs fetched); see *2026-10-25 — minted: M53, the SEO audit's findings*. Four duplicate day pairs, demo trips with no server-rendered content, titles and descriptions over length, missing canonicals on `/developers`, raw tag labels, `BreadcrumbList` and `ItemList` JSON-LD, `lastmod` on place and tag entries, and the landing's 923 KB of HTML. Seven open decisions, each with a recommendation: `M53-search-reads-every-public-page.md` |
+| M54 | The motion pass: press, pending, enter and exit, everywhere | **Scoped 2026-10-26 with Mitchell; current, placed ahead of M43.** From the motion pass design (`docs/specs/2026-10-25-motion-pass-design.md`, approved 2026-10-25); see *2026-10-26 — minted and placed: M54, the motion pass*. Motion tokens, button press and a width-keeping `pending` with the dots, overlay enter and exit, sliding tab indicators, skeleton routes and view-transition cross-fades, the welcome moment after sign-in and on PWA launch, one avatar stack, chat and Ask motion, and the small moments. ADR-082; eight parts, run as an unattended stack: `M54-the-motion-pass.md` |
 
 - **Restructure (2026-07-28), from the Phase 1 gate review.** The gate had not
   been met and the reason was structural, not cosmetic: a trip cannot be renamed
@@ -199,7 +200,7 @@ Placement notes (decided 2026-07-07):
   questions stay open — start-only trip dates, first-run vs. the four-step
   wizard, and whether the landing copy may sell M11/M12 — see the review's §8.
 
-Current milestone: M43 — A trip's notebooks keep up with their templates
+Current milestone: M54 — The motion pass: press, pending, enter and exit, everywhere
 
 ### Archived decision notes
 
@@ -233,6 +234,15 @@ instruction, and they were 56% of this file.
 - **2026-10-06** — M35 closed; M37 is current
 - **2026-08-08, 2026-08-14, 2026-08-25, 2026-08-26** — the superseded reorders and M10's reopened gate, and the placement paragraphs for M26 to M28: *Moved out of README.md on 2026-09-30*, at the end
 - **Current-milestone placements, M14 to M34**: *Moved out of README.md on 2026-10-11*, at the end
+
+### 2026-10-26 — minted and placed: M54, the motion pass
+
+**Asked 2026-10-26.** Mitchell: *"Start working on the milestone that adds the animations and
+transitions."* The design was written and approved on 2026-10-25 and said it would become its own
+milestone. **M54 is minted, scoped and current**, ahead of M43, on his answer at scoping. Its
+decisions 17–21 (placement, the route cross-fade, the welcome cookie, reduced motion in e2e, the
+eight-part split) are in `M54-the-motion-pass.md`, the mechanisms in ADR-082. The parts run as an
+unattended stack. Order: M54 → M43 → M44 → M53, with M48 parked.
 
 ### 2026-10-25 — minted: M53, the SEO audit's findings
 

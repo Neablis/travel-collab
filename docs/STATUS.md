@@ -21,6 +21,13 @@ general setup.
 
 ## Where the work is right now
 
+**M54 is current, scoped 2026-10-26** (`docs/milestones/M54-the-motion-pass.md`), placed ahead of
+M43 on Mitchell's word. It is the motion pass designed on 2026-10-25
+(`docs/specs/2026-10-25-motion-pass-design.md`), with ADR-082 and the plan in
+`docs/plans/2026-10-26-M54-the-motion-pass.md`. Part 0 is on `ccr-3f23dccb-mljaxu` (draft, merges
+last). Its eight parts run as an unattended stack, `claude/m54-part1-…` to `claude/m54-part8-…`,
+and Mitchell merges them in order.
+
 **M49 closed 2026-10-25, gate 9 of 9**, by `pnpm milestone close M49 --confirm` on part 0
 (PR 581, `claude/cool-goodall-p53ykz`), which waits on Mitchell's merge. All four parts are on
 `main`: part 1 (PR 580, `fc07b46`, migration `0068` applied in production by `migrate-production`
@@ -39,13 +46,13 @@ earlier confirmations (Today undeletable on production; part 10's API; part 11 *
 confirmed fixed"*). Evidence, retro and spend are in
 `docs/milestones/M52-the-trip-comes-with-you.md`.
 
-**Next action:** Mitchell merges PR 581 (M49's part 0). Then scope M43 with him
-(`plan-a-milestone`): the Overview's identity in the database, its derived title, and the `open`
-widget's design and filters. Open follow-ups from M49: KI-20261025-w, and the candidate
+**Next action:** M54's parts are built and reviewed in stack order; Mitchell merges them in order,
+then part 0 closes the gate. After M54: scope M43 with him (`plan-a-milestone`): the Overview's
+identity in the database, its derived title, and the `open` widget's design and filters. Open follow-ups from M49: KI-20261025-w, and the candidate
 *Reposition a playbook day's cover*.
 Open follow-ups from M52: KI-2026-10-24-a to -o (`docs/known-issues/open/`). Outside M52:
 PR 491 (dependabot) is red, and GitHub reports 5 dependabot vulnerabilities on `main` (2 high,
-3 moderate). The order is M43 → M44 → M53 (minted 2026-10-25 from an SEO audit, not scoped), with M48 parked.
+3 moderate). The order is M54 → M43 → M44 → M53 (minted 2026-10-25 from an SEO audit, not scoped), with M48 parked.
 
 **M51 closed 2026-10-22, gate 11 of 11**, on Mitchell's ruling at the close: his walk at 390, 1440
 and 3440 works, and the parts are merged (PRs 506–511, 513, 514, 516; part 0 PR 505 merged early;
