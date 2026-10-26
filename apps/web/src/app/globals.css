@@ -2721,36 +2721,6 @@ html[data-look="ledger"] .shadow-raised {
     }
   }
 
-  [data-motion="scrim"][data-state="open"] {
-    animation: var(--animate-fade-in);
-  }
-  [data-motion="scrim"][data-state="closed"] {
-    animation: var(--animate-fade-out);
-  }
-
-  /* Dialogs, popovers, menus and the toast: a fade and a 4px rise (spec
-     decision 10), leaving the way they came. */
-  [data-motion="rise"][data-state="open"] {
-    animation: var(--animate-rise-in);
-  }
-  [data-motion="rise"][data-state="closed"] {
-    animation: var(--animate-sink-out);
-  }
-
-  [data-motion="slide-right"][data-state="open"] {
-    animation: var(--animate-slide-in-right);
-  }
-  [data-motion="slide-right"][data-state="closed"] {
-    animation: var(--animate-slide-out-right);
-  }
-
-  [data-motion="slide-up"][data-state="open"] {
-    animation: var(--animate-slide-in-up);
-  }
-  [data-motion="slide-up"][data-state="closed"] {
-    animation: var(--animate-slide-out-down);
-  }
-
   [data-motion][data-state="closed"] {
     pointer-events: none;
   }
@@ -2759,13 +2729,44 @@ html[data-look="ledger"] .shadow-raised {
      the box does not change (decision 2). */
   [data-pending-held] {
     opacity: 0;
-    animation: var(--animate-fade-out);
   }
 
-  @media (prefers-reduced-motion: reduce) {
-    [data-motion],
+  /* Every animation lives only here, so reduced motion is the default and no
+     selector can out-rank it. An override under `reduce` did not hold: one
+     attribute lost to the two-attribute rules below (PR 594 review). */
+  @media (prefers-reduced-motion: no-preference) {
+    [data-motion="scrim"][data-state="open"] {
+      animation: var(--animate-fade-in);
+    }
+    [data-motion="scrim"][data-state="closed"] {
+      animation: var(--animate-fade-out);
+    }
+
+    /* Dialogs, popovers, menus and the toast: a fade and a 4px rise (spec
+       decision 10), leaving the way they came. */
+    [data-motion="rise"][data-state="open"] {
+      animation: var(--animate-rise-in);
+    }
+    [data-motion="rise"][data-state="closed"] {
+      animation: var(--animate-sink-out);
+    }
+
+    [data-motion="slide-right"][data-state="open"] {
+      animation: var(--animate-slide-in-right);
+    }
+    [data-motion="slide-right"][data-state="closed"] {
+      animation: var(--animate-slide-out-right);
+    }
+
+    [data-motion="slide-up"][data-state="open"] {
+      animation: var(--animate-slide-in-up);
+    }
+    [data-motion="slide-up"][data-state="closed"] {
+      animation: var(--animate-slide-out-down);
+    }
+
     [data-pending-held] {
-      animation: none;
+      animation: var(--animate-fade-out);
     }
   }
 }
