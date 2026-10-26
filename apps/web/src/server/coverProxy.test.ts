@@ -1,5 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { coverProxySrc, coverProxySrcFits, isCanonicalCoverQuery, signCoverUrl, verifyCoverUrl } from "./coverProxy";
+import {
+  coverProxySrc,
+  coverProxySrcFits,
+  coverProxySrcVerifies,
+  isCanonicalCoverQuery,
+  signCoverUrl,
+  verifyCoverUrl,
+} from "./coverProxy";
 
 // The signature that keeps `/api/cover-image` from being an open proxy
 // (ADR-081 item 3): it serves a URL only with the HMAC the server minted when
@@ -78,5 +85,80 @@ describe("cover proxy signatures", () => {
       seen.add(fits);
     }
     expect([...seen].sort()).toEqual([false, true]);
+  });
+});
+
+describe("cover proxy query spellings", () => {
+  // Production, 2026-10-26: a layer in front of the route normalized these
+  // parentheses, so the minted spelling never arrived and the cover showed
+  // as none, while the same image under a parenthesis-free name served.
+  const PAREN_URL = "https://upload.wikimedia.org/wikipedia/commons/6/61/Slovenia_-_Lago_di_Bled_(11732502696).jpg";
+
+  it("accepts the minted spelling of a URL holding parentheses", () => {
+    vi.stubEnv("COVER_PROXY_SECRET", "k1");
+    const signature = signCoverUrl(PAREN_URL);
+    const parsed = new URL(coverProxySrc(PAREN_URL), "https://caesura.test");
+    expect(isCanonicalCoverQuery(parsed.search, PAREN_URL, signature)).toBe(true);
+  });
+
+  it("accepts a percent-encoded respelling of the same pair", () => {
+    vi.stubEnv("COVER_PROXY_SECRET", "k1");
+    const signature = signCoverUrl(PAREN_URL);
+    const respelled = coverProxySrc(PAREN_URL).replace("(11732502696)", "%2811732502696%29");
+    const parsed = new URL(respelled, "https://caesura.test");
+    expect(isCanonicalCoverQuery(parsed.search, PAREN_URL, signature)).toBe(true);
+  });
+
+  it("accepts the parameters in either order", () => {
+    vi.stubEnv("COVER_PROXY_SECRET", "k1");
+    const signature = signCoverUrl(URL_A);
+    expect(isCanonicalCoverQuery(`?s=${signature}&u=${encodeURIComponent(URL_A)}`, URL_A, signature)).toBe(true);
+  });
+
+  it("refuses when the carried signature is not the minted one", () => {
+    vi.stubEnv("COVER_PROXY_SECRET", "k1");
+    const signature = signCoverUrl(URL_A);
+    const forged = `?u=${encodeURIComponent(URL_A)}&s=${"A".repeat(43)}`;
+    expect(isCanonicalCoverQuery(forged, URL_A, signature)).toBe(false);
+  });
+
+  it("refuses when the carried URL is not the minted one", () => {
+    vi.stubEnv("COVER_PROXY_SECRET", "k1");
+    const signature = signCoverUrl(URL_A);
+    const tampered = `?u=${encodeURIComponent("https://cdn.example.com/other.jpg")}&s=${signature}`;
+    expect(isCanonicalCoverQuery(tampered, URL_A, signature)).toBe(false);
+  });
+
+  it("refuses an extra parameter", () => {
+    vi.stubEnv("COVER_PROXY_SECRET", "k1");
+    const signature = signCoverUrl(URL_A);
+    expect(isCanonicalCoverQuery(`?u=${encodeURIComponent(URL_A)}&s=${signature}&x=1`, URL_A, signature)).toBe(false);
+  });
+
+  it("refuses a duplicated parameter", () => {
+    vi.stubEnv("COVER_PROXY_SECRET", "k1");
+    const signature = signCoverUrl(URL_A);
+    expect(
+      isCanonicalCoverQuery(`?u=${encodeURIComponent(URL_A)}&s=${signature}&u=${encodeURIComponent(URL_A)}`, URL_A, signature),
+    ).toBe(false);
+  });
+});
+
+describe("coverProxySrcVerifies", () => {
+  it("passes for a minted path, parentheses included", () => {
+    vi.stubEnv("COVER_PROXY_SECRET", "k1");
+    expect(
+      coverProxySrcVerifies("https://upload.wikimedia.org/wikipedia/commons/6/61/Slovenia_-_Lago_di_Bled_(11732502696).jpg"),
+    ).toBe(true);
+    expect(coverProxySrcVerifies(URL_A)).toBe(true);
+  });
+
+  it("fails instead of throwing when signing is unavailable in production", () => {
+    vi.stubEnv("COVER_PROXY_SECRET", "");
+    vi.stubEnv("VERCEL_ENV", "production");
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(coverProxySrcVerifies(URL_A)).toBe(false);
+    expect(error).toHaveBeenCalled();
+    error.mockRestore();
   });
 });
