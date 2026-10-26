@@ -2,6 +2,10 @@
 
 **Status:** **Accepted — 2026-10-25.** Mitchell answered M49's decisions 4–10 as recommended and
 confirmed decision 2 at scoping.
+**Amended — 2026-10-26:** decision 7's "Playbook-day covers stay off the API" is superseded for
+URL covers only: `GET`/`PUT`/`PATCH`/`DELETE /v1/playbooks/{playbookId}/cover` (public API 1.30.0)
+let a token set its own playbook's cover from any URL, move its framing, and clear it, under
+playbook ownership. The Unsplash search stays off the API, for the quota reason decision 7 gives.
 **Deciders:** Mitchell (product); Claude — drafted
 Related: ADR-041 (content bundles), M37 (covers from Unsplash), M22 (the public API), M49
 (`docs/milestones/M49-covers-from-anywhere.md`).
