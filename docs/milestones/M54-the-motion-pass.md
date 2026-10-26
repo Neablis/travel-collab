@@ -2,7 +2,8 @@
 
 **Status:** **Scoped 2026-10-26 with Mitchell; current milestone**, placed ahead of M43 on his
 word. The design is `docs/specs/2026-10-25-motion-pass-design.md` (approved 2026-10-25), whose
-decisions 1–16 stand as written there and are not repeated here. Decisions 17–21 below were
+decisions 1–16 stand as written there and are not repeated here, except decision 4's desktop
+variant, amended below. Decisions 17–21 below were
 answered at scoping. The mechanisms are ADR-082. The plan is
 `docs/plans/2026-10-26-M54-the-motion-pass.md` (deleted at gate close). The parts run as an
 **unattended stack** (Mitchell, 2026-10-26): part K+1 branches from part K, and he merges them in
@@ -23,7 +24,18 @@ citations were re-verified against `main` at `f5c9a16` on 2026-10-26, with three
 
 ## Decisions
 
-**1–16:** the spec's §2, approved by Mitchell 2026-10-25, unchanged.
+**1–16:** the spec's §2, approved by Mitchell 2026-10-25, unchanged except as amended here.
+
+- **Decision 4 (the welcome moment), amended by Mitchell, 2026-10-26: on desktop it is a splash,
+  then the page.** His walk of PR 607 found the small desktop moment read as a glitch: *"The logo
+  on signup looks weird, the page has already loaded, but its in the middle of the page, over top
+  of a trip, and disapears too quickly, so it almost looks like a flash of unstyled content if you
+  dont know what you are seeing"*. His choice, "Splash, then page": on desktop the page's reveal
+  waits behind the welcome moment, a full splash (the logo, and "Welcome, {name}" after signup)
+  on an opaque surface, then the page, for about 1.2–1.6 s, capped by the existing name-wait cap.
+  Under reduced motion there is no animation and the hold is the same or shorter. The
+  screen-reader announcement is unchanged. Declined: full-screen after signup only, a small
+  toast anchored to a corner, and dropping the desktop moment. Built in part 5 (PR 607).
 
 **Answered by Mitchell at scoping, 2026-10-26, each as recommended:**
 
@@ -75,9 +87,9 @@ citations were re-verified against `main` at `f5c9a16` on 2026-10-26, with three
       by hydration shows at once, so a direct load of a page shows no fade by design. *(Part 4.)*
 - [ ] **Sign-in has its cheer.** Continue with Google and dev login cannot be double-submitted, the
       invite code sits behind *Have an invite code?*, and the welcome moment plays after every
-      sign-in (full-screen on a phone, small and non-blocking on desktop, "Welcome, {name}" after
-      signup only) and on every PWA cold launch, with iOS startup images. A test proves the small
-      moment never blocks input. *(Part 5.)*
+      sign-in (full-screen on a phone; on desktop a splash, then the page, per decision 4 as amended;
+      "Welcome, {name}" after signup only) and on every PWA cold launch, with iOS startup images.
+      *(Part 5.)*
 - [ ] **One avatar stack** replaces the five facepiles, with a "+N" cap and a name per face on hover.
       *(Part 6.)*
 - [ ] **Chat and Ask move.** Messages rise in, your own lands faded until saved, the list glides to
