@@ -48,7 +48,7 @@ import { TripHeader } from "@/components/trip/TripHeader";
 import { TripHeaderSkeleton } from "@/components/trip/TripHeaderSkeleton";
 import { useTripCover } from "@/components/trip/cover/useTripCover";
 import { useTripSeed } from "@/components/trip/context/tripSeed";
-import { usePhoneAskEntry } from "@/components/nav/phoneAsk";
+import { useDeclinePhoneAsk, usePhoneAskEntry } from "@/components/nav/phoneAsk";
 import { AddSavedDayButton } from "@/components/trip/AddSavedDayButton";
 import { useBoardSuggestions } from "./SuggestionActions";
 import { SuggestionTray } from "./SuggestionTray";
@@ -322,6 +322,11 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   const { settled: coverSettled } = useTripCover(tripId, abovePhone === true && !isDemoTripId(tripId), seed?.cover);
   const headerReady = (abovePhone !== undefined || seed !== null) && coverSettled;
   const boardRenders = status === "ready" && trip !== null && activeTrip !== null && headerReady;
+  // Settled, past the skeleton, on a screen with no Ask: the error, the
+  // sign-in prompt, or a demo's board. The tab bar is holding the notebook's
+  // Ask for this screen's (PR 601), and must let it go.
+  const boardSettled = status !== "loading" && !(status === "ready" && !headerReady);
+  useDeclinePhoneAsk(boardSettled && !(boardRenders && !isDemoTripId(tripId)));
   // ⌘K's *Ask: <text>* (M45 D6): opens the rail and hands it the words, which
   // it sends through its own gate and `submitAssistantAsk`'s refusals. Dropped
   // once the rail has taken it: the rail remounts on Hide and Show, and when
