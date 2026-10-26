@@ -8,6 +8,7 @@ import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { coverValues } from "./coverRows";
+import { isCanonicalCoverQuery, verifyCoverUrl } from "./coverProxy";
 import { db } from "./db/client";
 import { savedDayCovers } from "./db/schema";
 import { fetchRemoteImage, type Fetcher } from "./external/remoteImage/fetchImage";
@@ -26,6 +27,7 @@ const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 const resolve: Resolve = async (host) => [{ address: host === "inside.example.com" ? "169.254.169.254" : "93.184.216.34", family: 4 }];
 const upstream: Record<string, () => Response> = {
   "https://cdn.example.com/harbour.png": () => new Response(PNG, { headers: { "content-type": "image/png" } }),
+  "https://cdn.example.com/bled_(11732502696).jpg": () => new Response(PNG, { headers: { "content-type": "image/png" } }),
   "https://cdn.example.com/page.html": () => new Response("<html></html>", { headers: { "content-type": "text/html" } }),
   "https://cdn.example.com/huge.png": () => new Response(new Uint8Array(64), { headers: { "content-type": "image/png" } }),
 };
@@ -88,6 +90,7 @@ describe("setSavedDayCoverFromUrl", () => {
   it.each([
     ["a URL that is not an image", "https://cdn.example.com/page.html", "not-an-image"],
     ["a URL on a private address", "https://inside.example.com/latest/meta-data/", "private-address"],
+    ["a URL that is not https", "http://cdn.example.com/harbour.png", "not-https"],
     ["an image over the size cap", "https://cdn.example.com/huge.png", "too-large"],
   ])("refuses %s and saves nothing", async (_what, url, reason) => {
     const savedDayId = await seedDay();
@@ -122,6 +125,35 @@ describe("setSavedDayCoverFromUrl", () => {
       ),
     ).toBe("not-an-image");
     expect(await getSavedDayCover(savedDayId)).toEqual(kept);
+  });
+
+  it("stores a parenthesis URL whose minted path passes the proxy route's gates", async () => {
+    const savedDayId = await seedDay();
+    // Production, 2026-10-26: this shape of name served nothing, because a
+    // layer in front of the proxy normalized its parentheses.
+    const url = "https://cdn.example.com/bled_(11732502696).jpg";
+    const cover = await setSavedDayCoverFromUrl(savedDayId, { url }, OWNER, { fetchImage });
+    expect(cover).toMatchObject({ source: "url", url });
+    if (cover.source !== "url") throw new Error("expected a URL cover");
+    expect(cover.proxySrc).toMatch(/^\/api\/cover-image\?/);
+    const parsed = new URL(cover.proxySrc!, "https://caesura.test");
+    const signature = parsed.searchParams.get("s")!;
+    expect(isCanonicalCoverQuery(parsed.search, url, signature)).toBe(true);
+    expect(verifyCoverUrl(url, signature)).toBe(true);
+  });
+
+  it("refuses a URL the proxy could not serve, and saves nothing", async () => {
+    const savedDayId = await seedDay();
+    // Signing unavailable: the minted path cannot verify, so the cover
+    // would show as none rather than as the image.
+    vi.stubEnv("COVER_PROXY_SECRET", "");
+    vi.stubEnv("VERCEL_ENV", "production");
+    expect(
+      await reasonFor(
+        setSavedDayCoverFromUrl(savedDayId, { url: "https://cdn.example.com/harbour.png" }, OWNER, { fetchImage }),
+      ),
+    ).toBe("not-renderable");
+    expect(await rowsOf(savedDayId)).toEqual([]);
   });
 
   it("stores an image's URL with its credit, framed at the centre unless told otherwise", async () => {
