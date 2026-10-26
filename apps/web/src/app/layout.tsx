@@ -63,6 +63,9 @@ export const metadata: Metadata = {
   },
   twitter: { card: "summary_large_image" },
   robots: siteRobots(),
+  // `appleWebApp.capable` renders only the unprefixed `mobile-web-app-capable`,
+  // and iOS has honoured `apple-touch-startup-image` only beside the Apple one.
+  other: { "apple-mobile-web-app-capable": "yes" },
   appleWebApp: {
     capable: true,
     startupImage: STARTUP_SCREENS.map(([width, height, ratio]) => ({
