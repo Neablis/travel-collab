@@ -3,7 +3,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { setViewportMatches } from "../../../vitest.setup";
 import { usePinToBottom } from "./usePinToBottom";
 
-afterEach(() => setViewportMatches({}));
+afterEach(() => {
+  setViewportMatches({});
+  vi.useRealTimers();
+});
 
 // Pinning belongs to whoever owns the scrollport, which `Transcript` never did
 // — `AssistantRail`'s `overflow-y-auto` column does, and the New-trip sheet's
@@ -127,6 +130,37 @@ describe("usePinToBottom", () => {
     expect(node.scrollTo).toHaveBeenCalledTimes(calls);
 
     end();
+    expect(node.scrollTo).toHaveBeenCalledTimes(calls + 1);
+    expect(node.scrollTo).toHaveBeenLastCalledWith({ top: 740, behavior: "smooth" });
+  });
+
+  // PR 605 review: at a fractional zoom or device pixel ratio `scrollTop` is
+  // fractional, so a view at the bottom can read as half a pixel short. A
+  // glide there moves nothing and no `scrollend` comes, so one taken as under
+  // way would hold every later pin back for good.
+  it("takes a view less than a pixel short as at the bottom", () => {
+    const { node, ref } = glider(500);
+    const { rerender } = renderHook(({ n }) => usePinToBottom(ref, [n]), { initialProps: { n: 1 } });
+    node.scrollTop = 199.5;
+    rerender({ n: 2 });
+    node.scrollHeight = 700;
+    rerender({ n: 3 });
+    expect(node.scrollTo).toHaveBeenLastCalledWith({ top: 700, behavior: "smooth" });
+  });
+
+  // A glide that never says it ended (the node hidden mid-way, a scroll the
+  // browser dropped) must not wedge the pin: it is taken as over after a
+  // second, and the pins that came during it are paid then.
+  it("gives up on a glide whose scrollend never comes", () => {
+    vi.useFakeTimers();
+    const { node, ref } = glider(500);
+    const { rerender } = renderHook(({ n }) => usePinToBottom(ref, [n]), { initialProps: { n: 1 } });
+    node.scrollHeight = 700;
+    rerender({ n: 2 });
+    node.scrollHeight = 740;
+    rerender({ n: 3 });
+    const calls = node.scrollTo.mock.calls.length;
+    vi.advanceTimersByTime(1000);
     expect(node.scrollTo).toHaveBeenCalledTimes(calls + 1);
     expect(node.scrollTo).toHaveBeenLastCalledWith({ top: 740, behavior: "smooth" });
   });

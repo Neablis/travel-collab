@@ -165,7 +165,17 @@ function announcementFor(turns: readonly AssistantTurn[], chat: boolean): string
  * The list rises in and sinks out (M54): `listed` outlives `open` by the exit,
  * so the summary says "closed" at once while the list is still leaving, inert.
  */
-function ToolSteps({ tools, still = false, forceOpen = false }: { tools: readonly ToolNote[]; still?: boolean; forceOpen?: boolean }) {
+function ToolSteps({
+  tools,
+  still = false,
+  rise = !still,
+  forceOpen = false,
+}: {
+  tools: readonly ToolNote[];
+  still?: boolean;
+  rise?: boolean;
+  forceOpen?: boolean;
+}) {
   const [open, setOpen] = useState(false);
   const [listed, setListed] = useState(false);
   const steps = useExitPresence<HTMLUListElement>();
@@ -199,7 +209,7 @@ function ToolSteps({ tools, still = false, forceOpen = false }: { tools: readonl
   // expanding does not shift the text sideways.
   const look = "h-auto w-full justify-between gap-2 px-0 text-left text-xs font-normal";
   return (
-    <div data-rise-in={still ? undefined : ""} className="rounded-md border border-hairline px-2.5 py-1.5">
+    <div data-rise-in={rise ? "" : undefined} className="rounded-md border border-hairline px-2.5 py-1.5">
       {still ? (
         // A picture of the disclosure, closed so the moment keeps to its
         // frame: no button, and out of hit-testing so its hover colour never
@@ -351,8 +361,17 @@ export function Transcript({
   example?: { review: string; stepsOpen?: boolean } | null;
 }) {
   const chat = look === "chat";
-  // Each turn rises in as it arrives (M54 decision 13); a picture holds still.
-  const rise = example === null ? "" : undefined;
+  // The turns there when the thread was first shown. Each turn rises in as it
+  // arrives (M54 decision 13), and opening on a restored thread is not an
+  // arrival (PR 605 review). The exchange still being had is: a first question
+  // is what mounts this.
+  const [shown] = useState(() => {
+    const asked = turns.map((turn) => turn.role).lastIndexOf("user");
+    const asking = turns.slice(asked + 1).some((turn) => turn.role === "assistant" && turn.pending);
+    return new Set(turns.slice(0, asking ? Math.max(asked, 0) : turns.length).map((turn) => turn.id));
+  });
+  // A picture holds still.
+  const rises = (turn: AssistantTurn) => example === null && !shown.has(turn.id);
   return (
     <>
       {/* `aria-live="off"` is explicit and load-bearing: `role="log"` carries
@@ -386,14 +405,14 @@ export function Transcript({
             // This is the one surface that keeps a filled message box; the
             // theme contract below still forbids looks from adding one to the
             // prose treatment, which is what `transcriptLook.test.ts` measures.
-            <div key={turn.id} data-rise-in={rise} className="flex flex-col items-end gap-1">
+            <div key={turn.id} data-rise-in={rises(turn) ? "" : undefined} className="flex flex-col items-end gap-1">
               <p className="max-w-a-you rounded-a-bubble border border-hairline bg-moss px-a-bubble-x py-a-bubble-y text-right text-a-chat leading-a-you text-ink">
                 {turn.text}
               </p>
               {renderTurnFooter?.(turn)}
             </div>
           ) : (
-          <div key={turn.id} data-rise-in={rise} className="flex flex-col gap-1.5">
+          <div key={turn.id} data-rise-in={rises(turn) ? "" : undefined} className="flex flex-col gap-1.5">
             <p className="border-l-2 border-a-you-rule pl-a-indent text-sm leading-a-you text-a-you-ink">
               {turn.text}
             </p>
@@ -406,7 +425,7 @@ export function Transcript({
           // `status` of its own, labelled, because it is the one thing on
           // screen saying why the dock went away; the sr-only announcer below
           // stays quiet for it rather than saying the same thing twice.
-          <div key={turn.id} data-rise-in={rise} className="flex gap-2">
+          <div key={turn.id} data-rise-in={rises(turn) ? "" : undefined} className="flex gap-2">
             <CassMark show={startsRun(turns, index)} />
             <div className="flex min-w-0 max-w-a-asst flex-col gap-1">
               {startsRun(turns, index) && <CassName />}
@@ -421,11 +440,11 @@ export function Transcript({
             </div>
           </div>
         ) : (
-          <div key={turn.id} data-rise-in={rise} className={chat ? "flex gap-2" : "flex flex-col gap-1.5"}>
+          <div key={turn.id} data-rise-in={rises(turn) ? "" : undefined} className={chat ? "flex gap-2" : "flex flex-col gap-1.5"}>
             {chat && <CassMark show={startsRun(turns, index)} />}
             <div className={chat ? "flex min-w-0 max-w-a-asst flex-col gap-1" : "contents"}>
             {chat && startsRun(turns, index) && <CassName />}
-            <ToolSteps tools={turn.tools} still={example !== null} forceOpen={example?.stepsOpen ?? false} />
+            <ToolSteps tools={turn.tools} still={example !== null} rise={rises(turn)} forceOpen={example?.stepsOpen ?? false} />
             {turn.text !== "" && (
               // `whitespace-pre-wrap`: the answer arrives as one text part
               // whose deltas concatenate with their spacing intact. Rendering

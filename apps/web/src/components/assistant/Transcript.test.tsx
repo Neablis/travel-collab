@@ -293,6 +293,29 @@ describe("Transcript", () => {
     expect(within(screen.getByRole("log")).queryByText(/Still writing…|Thinking…/)).toBeNull();
   });
 
+  // PR 605 review: a turn rises in as it arrives (M54 decision 13). Opening the
+  // rail, or the phone sheet that remounts on every open, on a restored thread
+  // is not an arrival, and its turns hold still.
+  it("rises in only the turns that arrive after the thread is shown", () => {
+    const rising = () =>
+      within(screen.getByRole("log", { name: "Conversation" }))
+        .queryAllByRole("generic")
+        .filter((el) => el.hasAttribute("data-rise-in"))
+        .map((el) => el.textContent);
+    const { rerender } = render(<Transcript turns={THREAD.slice(0, 2)} />);
+    expect(rising()).toEqual([]);
+    rerender(<Transcript turns={THREAD} />);
+    expect(rising()).toEqual(["What about the next day?", "Thinking…"]);
+  });
+
+  // The first question of a conversation is what mounts the transcript, and
+  // it is the one being had, not a restored one.
+  it("rises in a question asked as the thread first shows", () => {
+    render(<Transcript turns={THREAD.slice(2)} />);
+    const log = screen.getByRole("log", { name: "Conversation" });
+    expect(within(log).queryAllByRole("generic").filter((el) => el.hasAttribute("data-rise-in"))).toHaveLength(2);
+  });
+
   it("renders nothing but the log when the thread is empty", () => {
     render(<Transcript turns={[]} />);
     expect(screen.getByRole("log").textContent).toBe("");

@@ -34,7 +34,8 @@ import { useEffect, useRef, type RefObject } from "react";
  * A glide under way is left to finish. A streamed answer changes the thread
  * on every delta, and restarting the ease each time trails the text in a
  * stutter, so the pins that came during it are paid by one more glide once it
- * ends. Without `scrollend` to say so, every pin glides as it comes.
+ * ends, or after a second if `scrollend` never says so. Without `scrollend`
+ * at all, every pin glides as it comes.
  */
 export function usePinToBottom(ref: RefObject<HTMLElement | null>, deps: unknown[]): void {
   // Set once a pin has found something to scroll.
@@ -62,18 +63,24 @@ export function usePinToBottom(ref: RefObject<HTMLElement | null>, deps: unknown
       }
       node.scrollTo({ top: node.scrollHeight, behavior: smooth ? "smooth" : "instant" });
       // Already at the bottom, a glide goes nowhere and no `scrollend` comes.
-      if (!smooth || below <= 0 || !("onscrollend" in node)) return;
+      // Under a pixel counts: at a fractional zoom or device pixel ratio
+      // `scrollTop` is fractional, and a view at the bottom reads as a
+      // fraction short of it (PR 605 review).
+      if (!smooth || below < 1 || !("onscrollend" in node)) return;
       gliding.current = node;
-      node.addEventListener(
-        "scrollend",
-        () => {
-          gliding.current = null;
-          if (!owed.current) return;
-          owed.current = false;
-          pin();
-        },
-        { once: true },
-      );
+      const ended = () => {
+        clearTimeout(lapse);
+        node.removeEventListener("scrollend", ended);
+        gliding.current = null;
+        if (!owed.current) return;
+        owed.current = false;
+        pin();
+      };
+      // A `scrollend` that never comes (the node hidden mid-glide, a scroll
+      // the browser dropped) would hold every later pin back for good. A
+      // glide is long over in a second.
+      const lapse = setTimeout(ended, 1000);
+      node.addEventListener("scrollend", ended, { once: true });
     };
     pin();
     // The dep list IS the argument: the caller says what "new content" means
