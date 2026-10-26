@@ -30,7 +30,8 @@ vi.mock("@/lib/apiClient", async (orig) => {
 // way so a reader is not left wondering whether the screen got the real client.
 import { NotebookScreen } from "./NotebookScreen";
 import { PhoneAskTab } from "@/components/nav/PhoneTabBar";
-import { usePhoneAsk } from "@/components/nav/phoneAsk";
+import { registerPhoneAsk, usePhoneAsk } from "@/components/nav/phoneAsk";
+import { DEMO_TRIPS } from "@/lib/demoTrip";
 import { fetchTripAccess } from "@/lib/apiClient";
 import { cachedRead } from "@/lib/queryCache";
 import { tripKeys } from "@/lib/queryKeys";
@@ -926,5 +927,61 @@ describe("NotebookScreen — the states between asked and answered", () => {
     // The retry really went back to the network rather than replaying the
     // cached failure — `cachedRead` never stores one (`queryCache.ts:189`).
     expect(attempts).toBe(2);
+  });
+
+  // PR 601 review: the tab bar holds the board's Ask, greyed, across the move
+  // here until this screen offers its own. A failed read offers none, so the
+  // held one must go rather than stand dead in the bar.
+  it("lets go of the Ask the tab bar holds from the board when its read fails", async () => {
+    server.use(http.get("/api/trips/:tripId/pages", () => HttpResponse.json({ error: "Could not load your notebooks." }, { status: 500 })));
+    const bar = <PhoneAskTab pathname={`/trips/${TRIP_ID}/pages`} />;
+    const takeBack = registerPhoneAsk({ open: false, onOpen: () => {} });
+    // `{null}` where the screen will be keeps the bar in place, holding.
+    const { rerender } = render(
+      <>
+        {null}
+        {bar}
+      </>,
+    );
+    act(() => takeBack());
+    expect(screen.getByTestId("ask-tab").hasAttribute("disabled")).toBe(true);
+
+    rerender(
+      <>
+        <NotebookScreen tripId={TRIP_ID} />
+        {bar}
+      </>,
+    );
+
+    expect(await screen.findByTestId("notebook-pages-error")).toBeTruthy();
+    expect(screen.queryByTestId("ask-tab")).toBeNull();
+  });
+
+  // PR 601 review: `/ask` refuses a demo trip (KI-079), so the board offers no
+  // Ask there. A notebook that did would open a sheet whose every question is
+  // refused, and put back the flicker the hold exists to stop.
+  it("offers no Ask on a demo trip, and lets go of any the tab bar holds", async () => {
+    const tripId = DEMO_TRIPS[0]!.tripId;
+    server.use(...makePagesHandlers([pageFixture({ tripId })]));
+    const bar = <PhoneAskTab pathname={`/trips/${tripId}/pages`} />;
+    const takeBack = registerPhoneAsk({ open: false, onOpen: () => {} });
+    const { rerender } = render(
+      <>
+        {null}
+        {bar}
+      </>,
+    );
+    act(() => takeBack());
+    expect(screen.getByTestId("ask-tab").hasAttribute("disabled")).toBe(true);
+
+    rerender(
+      <>
+        <NotebookScreen tripId={tripId} />
+        {bar}
+      </>,
+    );
+
+    expect(await screen.findByRole("region", { name: "Your notebooks" })).toBeTruthy();
+    expect(screen.queryByTestId("ask-tab")).toBeNull();
   });
 });
