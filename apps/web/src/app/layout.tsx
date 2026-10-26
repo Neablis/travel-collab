@@ -1,5 +1,4 @@
 import type { Metadata, Viewport } from "next";
-import { ViewTransition } from "react";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Bricolage_Grotesque, IBM_Plex_Mono, IBM_Plex_Sans } from "next/font/google";
@@ -7,6 +6,7 @@ import { Bricolage_Grotesque, IBM_Plex_Mono, IBM_Plex_Sans } from "next/font/goo
 // (`MapLens.tsx`, `SharedDayMap.tsx`), so a route with no map does not wait
 // on it.
 import "./globals.css";
+import { RouteViewTransition } from "@/components/RouteViewTransition";
 import { SaveLightProvider } from "@/components/SaveLight";
 import { ServiceWorkerRegistration } from "@/components/ServiceWorkerRegistration";
 import { InstallPromptRegistration } from "@/components/install/InstallPromptRegistration";
@@ -123,7 +123,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             has no `AppShell`, so its pages fade here. An app page's own
             boundaries are nested inside this one, and claim its changes. */}
         <SaveLightProvider>
-          <ViewTransition>{children}</ViewTransition>
+          <RouteViewTransition>{children}</RouteViewTransition>
         </SaveLightProvider>
         <ServiceWorkerRegistration />
         <InstallPromptRegistration />
