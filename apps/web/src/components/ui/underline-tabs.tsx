@@ -1,6 +1,7 @@
 "use client";
 import { useRef } from "react";
 import { cn } from "../../lib/cn";
+import { useIndicator } from "../../lib/useIndicator";
 
 // SPEC §33.2's tab treatment: a 2px `--color-brand` underline, `--color-ink`
 // active against `--color-slate` idle, sitting on a `--color-hairline` base
@@ -73,6 +74,8 @@ export function UnderlineTabs<T extends string>({
   // reported PASS, because an uncaught listener error is not a failed
   // assertion. A ref map has no such dependency and no escaping problem.
   const buttons = useRef(new Map<T, HTMLButtonElement>());
+  const list = useRef<HTMLDivElement>(null);
+  const { indicator, trigger, ready } = useIndicator(list, value);
 
   // A `role="tablist"` owes arrow-key movement — without it the tabs are a row
   // of buttons wearing a tab's clothes. `TabStrip` predates this and does not do
@@ -102,14 +105,24 @@ export function UnderlineTabs<T extends string>({
 
   return (
     <div
+      ref={list}
       role="tablist"
       aria-label={ariaLabel}
       onKeyDown={onKeyDown}
       // 22px between tabs and a hairline base line, per the artboard. The -1px
-      // pull that makes the selected edge overlap that line is on each BUTTON,
-      // not here — see below.
-      className={cn("flex items-stretch gap-5.5 border-b border-hairline", className)}
+      // pull that makes the selected edge overlap that line is on each BUTTON
+      // and on the indicator, not here — see below.
+      className={cn("relative flex items-stretch gap-5.5 border-b border-hairline", className)}
     >
+      {/* The selected edge, one for the strip, sliding between tabs (M54).
+          `-bottom-px` sets it ON the base line, as each tab's `-mb-px` does
+          for the tab's own (transparent) edge. */}
+      <span
+        ref={indicator}
+        aria-hidden
+        data-testid="tab-indicator"
+        className="tab-indicator tab-indicator-line pointer-events-none absolute -bottom-px left-0 h-0.5 bg-brand"
+      />
       {options.map((o, i) => {
         const selected = value === o.value;
         const tabStop = selected || (i === 0 && !options.some((opt) => opt.value === value));
@@ -119,6 +132,7 @@ export function UnderlineTabs<T extends string>({
             ref={(node) => {
               if (node === null) buttons.current.delete(o.value);
               else buttons.current.set(o.value, node);
+              trigger(o.value)(node);
             }}
             id={tabId(idPrefix, o.value)}
             type="button"
@@ -144,10 +158,12 @@ export function UnderlineTabs<T extends string>({
               // so a wrapped label pushes the row taller rather than
               // overflowing it (the same reason `button.tsx`'s `touch` size is
               // a min).
+              // The edge is the indicator's once it is placed; until then (the
+              // server's HTML, the hydrating paint) the selected tab draws its
+              // own, so the selection is never missing.
               "-mb-px min-h-11 cursor-pointer border-b-2 px-px text-base transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand fine:min-h-10",
-              selected
-                ? "border-brand font-semibold text-ink"
-                : "border-transparent font-medium text-slate hover:text-ink",
+              selected && !ready ? "border-brand" : "border-transparent",
+              selected ? "font-semibold text-ink" : "font-medium text-slate hover:text-ink",
             )}
           >
             {o.badge === undefined ? (

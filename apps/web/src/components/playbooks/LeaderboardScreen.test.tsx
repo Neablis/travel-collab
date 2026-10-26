@@ -103,7 +103,7 @@ describe("the leaderboard", () => {
   it("shows skeleton rows before the first answer", () => {
     fetchLeaderboardMock.mockReturnValue(new Promise(() => {}));
     render(<LeaderboardScreen />);
-    expect(screen.getByTestId("board-skeleton")).toBeTruthy();
+    expect(screen.getByRole("status", { name: "Loading the board" })).toBeTruthy();
   });
 
   // A first read that FAILS leaves `loading` false and `data` null. The board
@@ -113,7 +113,7 @@ describe("the leaderboard", () => {
     fetchLeaderboardMock.mockResolvedValue({ ok: false, error: { status: 0, message: "Network error" } });
     render(<LeaderboardScreen />);
     await screen.findByText("The board did not load");
-    expect(screen.queryByTestId("board-skeleton")).toBeNull();
+    expect(screen.queryByRole("status", { name: "Loading the board" })).toBeNull();
     // Test-pruning: the page keeps its own halves here (its error copy,
     // its skeleton going away, and that it wires the banner at all), and
     // this global count is the ONE retained page-level uniqueness guard

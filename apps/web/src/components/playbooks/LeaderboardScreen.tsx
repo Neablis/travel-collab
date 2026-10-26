@@ -8,6 +8,7 @@ import { Card } from "@/components/ui/card";
 import { DataText } from "@/components/ui/data-text";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Heading } from "@/components/ui/heading";
+import { Skeleton, SkeletonRegion } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/text";
 import { fetchLeaderboard } from "@/lib/apiClient";
 import type { LeaderboardResponse } from "@/lib/playbooks";
@@ -69,11 +70,11 @@ export function LeaderboardScreen() {
           FAILS leaves both null and false, and the board used to pulse skeleton
           rows forever under its own sync banner (CodeRabbit, PR 102). */}
       {feed.loading && feed.data === null ? (
-        <ul className="flex flex-col gap-2" data-testid="board-skeleton">
+        <SkeletonRegion label="Loading the board" className="flex flex-col gap-2">
           {Array.from({ length: SKELETON_ROWS }, (_, i) => (
-            <Card key={i} as="li" className="h-14 animate-pulse rounded-lg bg-moss" aria-hidden />
+            <Skeleton key={i} className="h-14 rounded-lg" />
           ))}
-        </ul>
+        </SkeletonRegion>
       ) : feed.data === null ? (
         // Not the §15 "no empty state" case — that rules out a board with no
         // ROWS, which cannot happen. This is a board that never arrived, and

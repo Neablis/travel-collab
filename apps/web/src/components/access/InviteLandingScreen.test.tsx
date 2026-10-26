@@ -310,11 +310,23 @@ describe("InviteLandingScreen — every other state", () => {
   });
 
   // SPEC §35.10's other undrawn state: the landing read itself failing.
+  // The retry says it is working while the read is out (M54 decision 2): it
+  // stays on screen until the answer lands, so without this a press did nothing
+  // visible and invited another.
   it("offers a retry when the invite could not be read, and recovers", async () => {
     fetchInviteLandingMock.mockResolvedValueOnce({ ok: false, error: { status: 0, message: "Network error" } });
+    let land: (value: unknown) => void = () => {};
     const user = userEvent.setup();
     render(<InviteLandingScreen token="tok" googleAvailable />);
-    await user.click(await screen.findByRole("button", { name: "Try again" }));
+    const retry = await screen.findByRole("button", { name: "Try again" });
+    fetchInviteLandingMock.mockReturnValueOnce(new Promise((resolve) => (land = resolve)));
+    await user.click(retry);
+
+    const trying = screen.getByRole("button", { name: "Trying…" });
+    expect(trying.getAttribute("aria-busy")).toBe("true");
+    expect(trying.textContent).toBe("Try again");
+
+    land(answer(valid()));
     expect(await screen.findByRole("heading", { level: 1, name: "Japan: food and temples" })).toBeTruthy();
   });
 });

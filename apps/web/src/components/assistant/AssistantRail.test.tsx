@@ -151,10 +151,14 @@ describe("AssistantRail", () => {
   // silently dropped, `Enter` included. The Ask button is what actually needs
   // gating, and does: `submitAsk` also refuses while `asking` is true, so
   // nothing can be sent twice.
-  it("shows a busy label and disables the Ask button while asking, but leaves the composer itself enabled", () => {
+  // "Asking…" is the accessible name while the visible "Ask" holds its place
+  // (M54 decision 2); `pending` refuses the second press.
+  it("marks the Ask button busy while asking, but leaves the composer itself enabled", () => {
     renderRail({ asking: true });
     expect((screen.getByPlaceholderText(/ask about this day/i) as HTMLInputElement).disabled).toBe(false);
-    expect((screen.getByRole("button", { name: "Asking…" }) as HTMLButtonElement).disabled).toBe(true);
+    const ask = screen.getByRole("button", { name: "Asking…" });
+    expect(ask.getAttribute("aria-busy")).toBe("true");
+    expect(ask.textContent).toBe("Ask");
   });
 
   // The sentence `/ask` actually sends when the model fails (its 503 body and

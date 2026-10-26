@@ -138,9 +138,9 @@ test("a persona survives a reload, shows on the invite before joining, and in Pe
     await visitor.goto(link);
     await expect(visitor.getByRole("heading", { name: tripName, level: 1 })).toBeVisible();
     await expect(visitor.getByText(`${OWNER_NAME} invited you`, { exact: true })).toBeVisible();
-    // "Who's going" (`trip.people`): the owner's chip, titled with their name
+    // "Who's going" (`trip.people`): the owner's face, tipped with their name
     // and drawn with their glyph, and the sentence naming them.
-    await expect(visitor.locator(`[title="${OWNER_NAME}"]`).locator(".lucide-tent")).toBeVisible();
+    await expect(visitor.locator(`[data-avatar-tip="${OWNER_NAME}"]`).locator(".lucide-tent")).toBeVisible();
     await expect(visitor.getByText("Rowan is going.", { exact: true })).toBeVisible();
     const plan = visitor.getByRole("region", { name: "The plan so far" });
     await expect(plan.getByText("Kyoto").first()).toBeVisible();

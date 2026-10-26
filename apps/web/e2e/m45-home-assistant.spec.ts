@@ -98,15 +98,18 @@ test("a question typed and not sent is still there after Hide and a reload", asy
 // Mitchell, 2026-10-12, at 644px: the tab bar's Ask "is highlighted when not
 // open, making it look like it's active". Its pill takes the active tab's fill
 // only while the sheet is up. Compared with the bar's own tabs rather than a
-// colour, so a re-skin moves both sides together.
+// colour, so a re-skin moves both sides together. Since M54 the active fill is
+// the bar's one sliding indicator, not the current tab's own pill.
 test("the tab bar's Ask looks like an inactive tab until the sheet is open", async ({ page }) => {
   await page.setViewportSize({ width: 644, height: 900 });
   const bar = page.getByRole("navigation", { name: "Phone navigation" });
-  const fill = (tab: Locator) => tab.getByTestId("phone-tab-pill").evaluate((pill) => getComputedStyle(pill).backgroundColor);
+  const background = (node: Locator) => node.evaluate((el) => getComputedStyle(el).backgroundColor);
+  const fill = (tab: Locator) => background(tab.getByTestId("phone-tab-pill"));
   // By test id: the open sheet is modal, which takes the bar out of the
   // accessibility tree, so a role locator would no longer find it.
   const askTab = page.getByTestId("ask-tab");
-  const current = await fill(bar.getByRole("link", { name: "Trips" }));
+  await expect(bar.getByRole("link", { name: "Trips" })).toHaveAttribute("aria-current", "page");
+  const current = await background(bar.getByTestId("tab-indicator"));
   const notCurrent = await fill(bar.getByRole("link", { name: "Playbooks" }));
   expect(current).not.toBe(notCurrent);
   await expect(askTab).toHaveAttribute("aria-expanded", "false");

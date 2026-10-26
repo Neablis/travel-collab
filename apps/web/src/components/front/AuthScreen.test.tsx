@@ -17,6 +17,13 @@ import { AuthScreen } from "./AuthScreen";
 // a real round trip the component waits for.
 const storeAdmissionCodeMock = vi.fn(async (_code: string) => {});
 
+// The field sits behind "Have an invite code?" (M54 decision 5), so a test
+// that types a code opens it the way a person does.
+async function inviteCodeField(): Promise<HTMLElement> {
+  await userEvent.click(screen.getByRole("button", { name: "Have an invite code?" }));
+  return screen.getByLabelText("Invite code");
+}
+
 afterEach(() => {
   cleanup();
   signInMock.mockReset();
@@ -34,7 +41,7 @@ describe("AuthScreen", () => {
 
   it("pitches the product in signup mode", () => {
     render(<AuthScreen mode="signup" devLoginEnabled={false} googleAvailable />);
-    expect(screen.getByRole("heading", { name: "Start planning with Caesura" })).toBeDefined();
+    expect(screen.getByRole("heading", { name: "Your next trip starts here" })).toBeDefined();
     expect(screen.getByText(/name, email and profile picture/)).toBeDefined();
     expect(screen.getByRole("link", { name: "Sign in" }).getAttribute("href")).toBe("/signin");
   });
@@ -137,7 +144,7 @@ describe("AuthScreen", () => {
         storeAdmissionCode={storeAdmissionCodeMock}
       />,
     );
-    await userEvent.type(screen.getByLabelText("Invite code"), "LET-ME-IN{Enter}");
+    await userEvent.type(await inviteCodeField(), "LET-ME-IN{Enter}");
     await waitFor(() => expect(signInMock).toHaveBeenCalledWith("google", { callbackUrl: "/home" }));
     expect(storeAdmissionCodeMock).toHaveBeenCalledWith("LET-ME-IN");
   });
@@ -151,7 +158,7 @@ describe("AuthScreen", () => {
         storeAdmissionCode={storeAdmissionCodeMock}
       />,
     );
-    await userEvent.type(screen.getByLabelText("Invite code"), "LET-ME-IN{Enter}");
+    await userEvent.type(await inviteCodeField(), "LET-ME-IN{Enter}");
     expect(signInMock).not.toHaveBeenCalled();
   });
 
@@ -324,14 +331,36 @@ describe("AuthScreen", () => {
   // a `users` row already (the gate waves them through) or arrived on a trip
   // invite link `proxy.ts` has already banked — neither has a code to type,
   // and a field asking for one would read as a requirement that isn't one.
-  it("asks for an invite code in signup mode", () => {
+  it("asks for an invite code in signup mode", async () => {
     render(<AuthScreen mode="signup" devLoginEnabled={false} googleAvailable />);
-    expect(screen.getByLabelText("Invite code")).toBeDefined();
+    expect(await inviteCodeField()).toBeDefined();
   });
 
+  // M54 decision 5: the code is not the common path, so it waits behind a
+  // small question instead of taking a third of the card, and the field has
+  // focus once asked for.
+  it("keeps the invite code behind a disclosure until it is asked for", async () => {
+    render(<AuthScreen mode="signup" devLoginEnabled={false} googleAvailable />);
+    expect(screen.queryByLabelText("Invite code")).toBeNull();
+    const field = await inviteCodeField();
+    expect(field.matches(":focus")).toBe(true);
+    expect(screen.queryByRole("button", { name: "Have an invite code?" })).toBeNull();
+  });
+
+  // A referral link's code is one the person did not type and may not know is
+  // there; hiding it would hide what is about to be sent.
+  it("opens the disclosure on its own when a code is already present", () => {
+    render(<AuthScreen mode="signup" devLoginEnabled={false} googleAvailable initialAdmissionCode="REFER23456" />);
+    expect(screen.getByLabelText("Invite code")).toBeDefined();
+    expect(screen.queryByRole("button", { name: "Have an invite code?" })).toBeNull();
+  });
+
+  // The field is hidden on every screen until asked for, so its absence alone
+  // proves nothing here: the question that would open it must be absent too.
   it("does not ask for an invite code in signin mode", () => {
     render(<AuthScreen mode="signin" devLoginEnabled googleAvailable />);
     expect(screen.queryByLabelText("Invite code")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Have an invite code?" })).toBeNull();
   });
 
   // A labelled box with no explanation is the defect this closes: a first-time
@@ -339,8 +368,9 @@ describe("AuthScreen", () => {
   // Asserted through ADMISSION_FIELD_COPY rather than as literals, so revising
   // the wording (it is awaiting design sign-off) does not fail the test for
   // the wrong reason — what is pinned is that both strings reach the screen.
-  it("says why the invite code is being asked for, and when it may be left empty", () => {
+  it("says why the invite code is being asked for, and when it may be left empty", async () => {
     render(<AuthScreen mode="signup" devLoginEnabled={false} googleAvailable />);
+    await inviteCodeField();
     expect(screen.getByText(ADMISSION_FIELD_COPY.note)).toBeDefined();
     expect(screen.getByText(ADMISSION_FIELD_COPY.hint)).toBeDefined();
   });
@@ -365,7 +395,7 @@ describe("AuthScreen", () => {
         storeAdmissionCode={storeAdmissionCodeMock}
       />,
     );
-    await userEvent.type(screen.getByLabelText("Invite code"), "SPRING-2026");
+    await userEvent.type(await inviteCodeField(), "SPRING-2026");
     await userEvent.click(screen.getByRole("button", { name: "Continue with Google" }));
     await waitFor(() => expect(signInMock).toHaveBeenCalledWith("google", { callbackUrl: "/home" }));
     expect(storeAdmissionCodeMock).toHaveBeenCalledWith("SPRING-2026");
@@ -400,7 +430,7 @@ describe("AuthScreen", () => {
         storeAdmissionCode={storeAdmissionCodeMock}
       />,
     );
-    await userEvent.type(screen.getByLabelText("Invite code"), "  SPRING-2026  ");
+    await userEvent.type(await inviteCodeField(), "  SPRING-2026  ");
     await userEvent.click(screen.getByRole("button", { name: "Continue with Google" }));
     await waitFor(() => expect(signInMock).toHaveBeenCalled());
     expect(storeAdmissionCodeMock).toHaveBeenCalledWith("SPRING-2026");
@@ -422,7 +452,7 @@ describe("AuthScreen", () => {
           storeAdmissionCode={storeAdmissionCodeMock}
         />,
       );
-      if (code) await userEvent.type(screen.getByLabelText("Invite code"), code);
+      if (code) await userEvent.type(await inviteCodeField(), code);
       await userEvent.click(screen.getByRole("button", { name: "Continue with Google" }));
       await waitFor(() => expect(signInMock).toHaveBeenCalledWith("google", { callbackUrl: "/home" }));
       expect(storeAdmissionCodeMock).not.toHaveBeenCalled();
@@ -442,7 +472,7 @@ describe("AuthScreen", () => {
         storeAdmissionCode={storeAdmissionCodeMock}
       />,
     );
-    await userEvent.type(screen.getByLabelText("Invite code"), "SPRING-2026");
+    await userEvent.type(await inviteCodeField(), "SPRING-2026");
     await userEvent.type(screen.getByLabelText("Username"), "sam");
     await userEvent.click(screen.getByRole("button", { name: /sign in with dev login/i }));
     await waitFor(() =>
@@ -468,7 +498,7 @@ describe("AuthScreen", () => {
         storeAdmissionCode={storeAdmissionCodeMock}
       />,
     );
-    await userEvent.type(screen.getByLabelText("Invite code"), "SPRING-2026");
+    await userEvent.type(await inviteCodeField(), "SPRING-2026");
     await userEvent.click(screen.getByRole("button", { name: "Continue with Google" }));
 
     expect(await screen.findByText(ADMISSION_FIELD_COPY.saveFailed)).toBeDefined();
@@ -485,7 +515,7 @@ describe("AuthScreen", () => {
         storeAdmissionCode={storeAdmissionCodeMock}
       />,
     );
-    await userEvent.type(screen.getByLabelText("Invite code"), "SPRING-2026");
+    await userEvent.type(await inviteCodeField(), "SPRING-2026");
     const button = screen.getByRole("button", { name: "Continue with Google" });
     await userEvent.click(button);
     await screen.findByText(ADMISSION_FIELD_COPY.saveFailed);
@@ -509,6 +539,58 @@ describe("AuthScreen", () => {
     await userEvent.click(screen.getByRole("button", { name: "Continue with Google" }));
     await waitFor(() => expect(signInMock).toHaveBeenCalled());
     expect(storeAdmissionCodeMock).not.toHaveBeenCalled();
+  });
+
+  // M54 (gate: "cannot be double-submitted"). Each press used to start its own
+  // sign-in: a second admission write and a second redirect racing the first.
+  // A pending button already swallows its own second click, so the presses
+  // that reach `startSignIn` twice are the ones that skip the button: Enter in
+  // the invite field, which calls it directly.
+  it("starts one Google sign-in however often it is pressed", async () => {
+    render(
+      <AuthScreen
+        mode="signup"
+        devLoginEnabled={false}
+        googleAvailable
+        storeAdmissionCode={storeAdmissionCodeMock}
+      />,
+    );
+    const field = await inviteCodeField();
+    await userEvent.type(field, "SPRING-2026");
+    const google = screen.getByRole("button", { name: "Continue with Google" });
+    await userEvent.click(google);
+    await userEvent.type(field, "{Enter}");
+    await waitFor(() => expect(signInMock).toHaveBeenCalled());
+    expect(storeAdmissionCodeMock).toHaveBeenCalledTimes(1);
+    expect(signInMock).toHaveBeenCalledTimes(1);
+    expect(google.getAttribute("aria-busy")).toBe("true");
+  });
+
+  // Two presses in one turn of the event loop land before the re-render that
+  // marks the button pending, as a fast double click can.
+  it("starts one dev-login sign-in however often it is submitted", async () => {
+    render(<AuthScreen mode="signin" devLoginEnabled googleAvailable />);
+    await userEvent.type(screen.getByLabelText("Username"), "sam");
+    const submit = screen.getByRole("button", { name: /sign in with dev login/i });
+    submit.click();
+    submit.click();
+    await waitFor(() => expect(signInMock).toHaveBeenCalled());
+    expect(signInMock).toHaveBeenCalledTimes(1);
+    expect(submit.getAttribute("aria-busy")).toBe("true");
+  });
+
+  // `signIn()` can reject without leaving the page (its CSRF or POST fetch
+  // fails on a bad connection). The guard must not outlive that, or the
+  // button keeps its dots and only a reload signs in.
+  it("lets a sign-in that failed before leaving be tried again", async () => {
+    signInMock.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+    render(<AuthScreen mode="signin" devLoginEnabled googleAvailable />);
+    await userEvent.type(screen.getByLabelText("Username"), "sam");
+    const submit = screen.getByRole("button", { name: /sign in with dev login/i });
+    await userEvent.click(submit);
+    await waitFor(() => expect(submit.getAttribute("aria-busy")).not.toBe("true"));
+    await userEvent.click(submit);
+    await waitFor(() => expect(signInMock).toHaveBeenCalledTimes(2));
   });
 
   it("hides the dev-login form unless it is enabled", () => {

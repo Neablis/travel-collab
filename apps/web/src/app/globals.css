@@ -215,6 +215,27 @@
      reuse — a second surface wanting it is a second design decision. */
   --shadow-letter: 0 1px 2px rgb(21 29 46 / 0.05), 0 12px 32px -18px rgb(21 29 46 / 0.18);
 
+  /* Motion has one home (M54, ADR-082 §1): calm and quick, 120-240ms, one
+     ease-out, no bounce. These namespaces are the ones Tailwind 4 turns into
+     utilities (`duration-fast`, `ease-calm`, `animate-rise-in`); a
+     `--duration-*` token would generate nothing. The keyframes the
+     `--animate-*` tokens name live in the motion block at the end of this
+     file, and every one has a reduced-motion path there. */
+  --transition-duration-fast: 120ms;
+  --transition-duration-base: 160ms;
+  --transition-duration-slow: 240ms;
+  --ease-calm: cubic-bezier(0.2, 0, 0, 1);
+  /* `both`: an exit holds its last frame until Radix unmounts the node, so a
+     leaving overlay never flashes back in for a frame. */
+  --animate-rise-in: om-rise-in var(--transition-duration-base) var(--ease-calm) both;
+  --animate-sink-out: tc-sink-out var(--transition-duration-fast) var(--ease-calm) both;
+  --animate-fade-in: tc-fade-in var(--transition-duration-base) var(--ease-calm) both;
+  --animate-fade-out: tc-fade-out var(--transition-duration-fast) var(--ease-calm) both;
+  --animate-slide-in-right: tc-slide-in-right var(--transition-duration-slow) var(--ease-calm) both;
+  --animate-slide-out-right: tc-slide-out-right var(--transition-duration-base) var(--ease-calm) both;
+  --animate-slide-in-up: tc-slide-in-up var(--transition-duration-slow) var(--ease-calm) both;
+  --animate-slide-out-down: tc-slide-out-down var(--transition-duration-base) var(--ease-calm) both;
+
   /* Content-width tiers (design-system.md "Breakpoints & containers"). */
   --container-measure: 40rem;   /* 640px — forms, settings sheet, prose */
   --container-content: 70rem;   /* 1120px — default page + non-full lenses */
@@ -2027,8 +2048,10 @@ html[data-look="ledger"] .shadow-raised {
      moment rises; and its ring inside its mat (the prototype's `.veil` and
      `.ring`), which shows as the moment rises. `LandingSea` writes both
      opacities; the markup's rest state is lit. */
+  .landing-sea-shade,
   .landing-sea-veil,
-  .landing-sea-ring {
+  .landing-sea-ring,
+  .landing-sea-ring-held {
     position: absolute;
     inset: 0;
     border-radius: inherit;
@@ -2038,24 +2061,37 @@ html[data-look="ledger"] .shadow-raised {
     background: var(--color-ink);
     opacity: 0;
   }
-  .landing-sea-ring {
+  .landing-sea-ring,
+  .landing-sea-ring-held {
     box-shadow:
       inset 0 0 0 3px var(--color-surface),
       inset 0 0 0 6px var(--color-brand);
   }
+  .landing-sea-ring-held {
+    opacity: 0;
+  }
   /* A moment holding focus is drawn risen, whatever the scroll has painted:
      a browser that scrolls a focused door only to the screen's edge would
      otherwise leave it faded and lowered. A lit day under the pointer or
-     holding focus is drawn lit. */
+     holding focus is drawn lit, and eases there and back (M54): the scroll
+     writes the veil's and the ring's own opacities, so the lit look is drawn
+     on what holds them, the shade around the veil and a held ring over the
+     scroll's, and those two fade. */
   [data-moment]:focus-within > [data-testid="moment-panel"] {
     opacity: 1 !important;
     transform: none !important;
   }
-  .landing-sea-lit:is(:hover, :focus-within) > .landing-sea-veil {
-    opacity: 0 !important;
+  .landing-sea-lit:is(:hover, :focus-within) > .landing-sea-shade {
+    opacity: 0;
   }
-  .landing-sea-lit:is(:hover, :focus-within) > .landing-sea-ring {
-    opacity: 1 !important;
+  .landing-sea-lit:is(:hover, :focus-within) > .landing-sea-ring-held {
+    opacity: 1;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .landing-sea-shade,
+    .landing-sea-ring-held {
+      transition: opacity var(--transition-duration-fast) var(--ease-calm);
+    }
   }
   /* A background card under the pointer rises over the scrim to full colour,
      as a lit day does, and sinks back under it when the pointer leaves
@@ -2557,7 +2593,8 @@ html[data-look="ledger"] .shadow-raised {
    from the theme, so the look pass and this one do not edit the same lines.
    A named rule rather than `animate-[tc-dot_1.1s…]`: the colour wall bans
    arbitrary-value brackets. The stagger rides on `data-typing-dot`, the way
-   `data-sk` carries the skeleton's.
+   `data-sk` carries the skeleton's. Since M54 these are every "working"
+   dot in the app, drawn by `TypingDots` (ui/typing-dots.tsx).
 
    Under prefers-reduced-motion the dots stop, dimmed as they rest. The pause
    itself does not shorten (D14): it is when the next line arrives, and
@@ -2620,5 +2657,566 @@ html[data-look="ledger"] .shadow-raised {
       black calc(100% - 2rem),
       transparent
     );
+  }
+}
+
+/* ── M54: overlays enter and leave, and a pending control fades its label
+   (ADR-082 §1-§2). `data-motion` names the movement and Radix's `data-state`
+   picks the half, so a component says what it does and the timing stays here.
+
+   **Exits are `animation`, never `transition`.** Radix's Presence keeps a
+   closing node mounted only while an animation runs, and unmounts it on
+   `animationend`; a transition would be cut off by the unmount. A leaving
+   node takes no pointer here, and the components make it `inert`, so it holds
+   no focus either. Transform and opacity only. Under reduced motion there is
+   no animation at all, so Radix unmounts at once (decision 20). */
+@layer components {
+  @keyframes tc-sink-out {
+    from {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    to {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+  }
+
+  @keyframes tc-fade-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes tc-fade-out {
+    from {
+      opacity: 1;
+    }
+    to {
+      opacity: 0;
+    }
+  }
+
+  @keyframes tc-slide-in-right {
+    from {
+      transform: translateX(100%);
+    }
+    to {
+      transform: translateX(0);
+    }
+  }
+
+  @keyframes tc-slide-out-right {
+    from {
+      transform: translateX(0);
+    }
+    to {
+      transform: translateX(100%);
+    }
+  }
+
+  @keyframes tc-slide-in-up {
+    from {
+      transform: translateY(100%);
+    }
+    to {
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes tc-slide-out-down {
+    from {
+      transform: translateY(0);
+    }
+    to {
+      transform: translateY(100%);
+    }
+  }
+
+  [data-motion][data-state="closed"] {
+    pointer-events: none;
+  }
+
+  /* `Button pending`: the label (or the icon) keeps its space and fades, so
+     the box does not change (decision 2). */
+  [data-pending-held] {
+    opacity: 0;
+  }
+
+  /* Every animation lives only here, so reduced motion is the default and no
+     selector can out-rank it. An override under `reduce` did not hold: one
+     attribute lost to the two-attribute rules below (PR 594 review). */
+  @media (prefers-reduced-motion: no-preference) {
+    [data-motion="scrim"][data-state="open"] {
+      animation: var(--animate-fade-in);
+    }
+    [data-motion="scrim"][data-state="closed"] {
+      animation: var(--animate-fade-out);
+    }
+
+    /* Dialogs, popovers, menus and the toast: a fade and a 4px rise (spec
+       decision 10), leaving the way they came. */
+    [data-motion="rise"][data-state="open"] {
+      animation: var(--animate-rise-in);
+    }
+    [data-motion="rise"][data-state="closed"] {
+      animation: var(--animate-sink-out);
+    }
+
+    [data-motion="slide-right"][data-state="open"] {
+      animation: var(--animate-slide-in-right);
+    }
+    [data-motion="slide-right"][data-state="closed"] {
+      animation: var(--animate-slide-out-right);
+    }
+
+    [data-motion="slide-up"][data-state="open"] {
+      animation: var(--animate-slide-in-up);
+    }
+    [data-motion="slide-up"][data-state="closed"] {
+      animation: var(--animate-slide-out-down);
+    }
+
+    [data-pending-held] {
+      animation: var(--animate-fade-out);
+    }
+  }
+}
+
+/* ── M54: one sliding indicator per tab list, and the lens cross-fade (spec
+   decision 11, ADR-082). `useIndicator` writes the active trigger's measured
+   box onto the indicator as `--indicator-*`; these rules turn it into a
+   `transform`, which is all that moves. The width is set from the measurement
+   and does not animate. The transition is on only once the indicator has its
+   first place (`data-placed`), so it arrives there rather than sliding in;
+   until then the trigger draws its own active look. Under reduced motion it
+   moves at once. */
+@layer components {
+  /* A pill behind the trigger: TabStrip, SegmentedControl's pill, the phone
+     tab bar's. */
+  .tab-indicator-box {
+    width: var(--indicator-w);
+    height: var(--indicator-h);
+    transform: translate(var(--indicator-x), var(--indicator-y));
+  }
+  /* A 1px line stretched to the trigger's width: UnderlineTabs and
+     SegmentedControl's subtle look. `scaleX` keeps the stretch a transform. */
+  .tab-indicator-line {
+    width: 1px;
+    transform-origin: left;
+    transform: translateX(var(--indicator-x)) scaleX(var(--indicator-scale));
+  }
+  .tab-indicator:not([data-placed]) {
+    opacity: 0;
+  }
+  .tab-indicator[data-placed] {
+    transition: transform var(--transition-duration-base) var(--ease-calm);
+  }
+
+  /* The incoming lens fades in; the outgoing one is already gone, so this is
+     an enter only, on a box that mounts with its lens and is never keyed or
+     re-mounted for it. `backwards`, not `both`: once it ends the box holds no
+     opacity, so it is no stacking context for the board's own layers. */
+  [data-lens-enter] {
+    animation: tc-fade-in var(--transition-duration-base) var(--ease-calm) backwards;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .tab-indicator[data-placed] {
+      transition: none;
+    }
+    [data-lens-enter] {
+      animation: none;
+    }
+  }
+}
+
+/* ── M54: routes cross-fade, and what stands in while they load (decision 18,
+   ADR-082 §3). React's `<ViewTransition>` names the page's boundary (in
+   `AppShell`, and the root layout's slot for the front door) and the document
+   is `root`; `*` is both, so every route change is one short cross-fade from
+   part 1's tokens. Old and new run the same duration and curve: the UA blends
+   the pair with `plus-lighter`, which sums to a steady page only when they do.
+
+   The header and the phone tab bar are boundaries of their own, named
+   `app-header` and `phone-tab-bar` in `AppShell`, and they do not move: no
+   group animation, and only the new image, which is live, so a tab's own
+   indicator still slides inside it. A named rule outranks `*`.
+
+   Under reduced motion the swap is instant: nothing animates and the old image
+   is never drawn, so there is no frame of the pair summed.
+
+   Where the View Transitions API is missing, the `template.tsx` in `(app)` and
+   `(front)` remounts on each route and fades its page in instead. `backwards`,
+   not `both`, so once it ends the page is no stacking context.
+
+   `[data-sk-region]` is `SkeletonRegion`: a group of outlines fades in rather
+   than popping. Its leaves keep `[data-sk]`'s breathe as their own animation. */
+@layer components {
+  ::view-transition-group(*) {
+    animation-duration: var(--transition-duration-base);
+    animation-timing-function: var(--ease-calm);
+  }
+  ::view-transition-old(*) {
+    animation: tc-fade-out var(--transition-duration-base) var(--ease-calm) both;
+  }
+  ::view-transition-new(*) {
+    animation: tc-fade-in var(--transition-duration-base) var(--ease-calm) both;
+  }
+
+  ::view-transition-group(app-header),
+  ::view-transition-group(phone-tab-bar),
+  ::view-transition-new(app-header),
+  ::view-transition-new(phone-tab-bar) {
+    animation: none;
+  }
+  ::view-transition-old(app-header),
+  ::view-transition-old(phone-tab-bar) {
+    display: none;
+  }
+
+  @supports not (view-transition-name: none) {
+    [data-route-enter] {
+      animation: tc-fade-in var(--transition-duration-base) var(--ease-calm) backwards;
+    }
+  }
+
+  [data-sk-region] {
+    animation: tc-fade-in var(--transition-duration-base) var(--ease-calm) backwards;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    ::view-transition-group(*),
+    ::view-transition-new(*),
+    [data-route-enter],
+    [data-sk-region] {
+      animation: none;
+    }
+    ::view-transition-old(*) {
+      display: none;
+    }
+  }
+}
+
+/* ── M54: one avatar stack (decision 9). `AvatarStack` sets each item's place
+   (`--stack-at`) and the count of items (`--stack-items`); a hover spreads
+   them about the middle, so the stack widens by the same amount on each side
+   and never shifts what is beside it. The face under the pointer rises above
+   its neighbours and names itself in a tip, drawn from `data-avatar-tip` so it
+   adds no words to a control the stack sits in. A keyboard focus on that
+   control spreads the faces too, but names none: its label already does.
+
+   Hover only where there is a hover, so a tap does not leave a stack spread
+   and a tip showing. Under reduced motion nothing spreads and the tip appears
+   at once: the raised face and its name are the end state.
+
+   WCAG 1.4.13: a shown tip takes the pointer, and its gap to the face is a
+   transparent border rather than space, so moving up onto it keeps the face
+   hovered. Escape sets `data-tips-hushed` (`AvatarStack`) until the pointer
+   leaves. */
+@layer components {
+  [data-avatar-stack] {
+    --stack-spread: 4px;
+  }
+  [data-avatar-tip]::before {
+    content: attr(data-avatar-tip);
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 2px 6px;
+    border-bottom: 4px solid transparent;
+    /* Taller at the bottom by the border, so the painted box keeps round corners. */
+    border-radius: var(--radius-sm) / var(--radius-sm) var(--radius-sm) calc(var(--radius-sm) + 4px)
+      calc(var(--radius-sm) + 4px);
+    background: var(--color-ink);
+    background-clip: padding-box;
+    color: var(--color-surface);
+    font-size: var(--text-xs);
+    line-height: var(--text-xs--line-height);
+    font-weight: 600;
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+  }
+
+  @media (hover: hover) {
+    [data-avatar-tip]:hover {
+      z-index: 1;
+    }
+    [data-avatar-tip]:hover::before {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    [data-tips-hushed] [data-avatar-tip]:hover::before {
+      opacity: 0;
+      pointer-events: none;
+    }
+  }
+
+  @media (hover: hover) and (prefers-reduced-motion: no-preference) {
+    [data-avatar-stack][data-interactive] > * {
+      transition: transform var(--transition-duration-base) var(--ease-calm);
+    }
+    [data-avatar-stack][data-interactive]:hover > *,
+    :focus-visible > [data-avatar-stack][data-interactive] > * {
+      transform: translateX(calc((var(--stack-at) - (var(--stack-items) - 1) / 2) * var(--stack-spread)));
+    }
+    [data-avatar-tip]::before {
+      transform: translate(-50%, 2px);
+      transition:
+        opacity var(--transition-duration-fast) var(--ease-calm),
+        transform var(--transition-duration-fast) var(--ease-calm);
+    }
+    [data-avatar-tip]:hover::before {
+      transform: translate(-50%, 0);
+    }
+  }
+}
+
+/* ── M54: chat and Ask (decision 13). A message, an Ask turn, a tool-step
+   summary, a proposal card or a suggestion note rises in as it arrives:
+   `[data-rise-in]`, once, on mount. `tc-rise-in` has no end frame, so it ends
+   on the node's own opacity: a sending line rises to its fade, not past it.
+   `backwards`, not `both`, so once it ends the node holds no transform or
+   opacity and is no stacking context. The tool-step list opens and closes on
+   the overlays' `[data-motion="rise"]` above (`useExitPresence`).
+
+   Your own message is faded while it sends (`[data-sending]`) and firms up
+   when stored. 0.85, not lower: the fade takes a link chip's tint with its
+   ink, and the chip is the binding case, 4.90:1 in the default look (0.8 was
+   4.36:1, PR 605 review). Plain ink stays above 8.5:1. A dimmed line that
+   failed AA was PR 444's finding.
+   An applied proposal's check settles in by a scale, so its receipt keeps its
+   place.
+
+   Under reduced motion nothing rises, settles or eases: a sending line is
+   simply faded, and firm once stored. */
+@layer components {
+  @keyframes tc-rise-in {
+    from {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+  }
+
+  @keyframes tc-settle-in {
+    from {
+      opacity: 0;
+      transform: scale(0.6);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  [data-sending] {
+    opacity: 0.85;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    [data-rise-in] {
+      animation: tc-rise-in var(--transition-duration-base) var(--ease-calm) backwards;
+      transition: opacity var(--transition-duration-base) var(--ease-calm);
+    }
+    [data-settle-in] {
+      animation: tc-settle-in var(--transition-duration-slow) var(--ease-calm) backwards;
+    }
+  }
+}
+
+/* ── M54: the welcome moment (decisions 6 and 8, option A). One overlay,
+   `WelcomeMoment`, in the page's own paper (the OS splash's
+   `background_color`), so the page is not seen until it goes: on a launch and,
+   since Mitchell's walk, after every sign-in. It takes the pointer while it is
+   up, so a tap on the blank splash does not land on the page it hides.
+
+   The unlock: the strokes slide apart and fade, then the tile scales up a
+   little and fades, then the moment goes. `--welcome-hold` is how long the
+   mark sits before that: none on a launch (it has been breathing already),
+   and after a sign-in a beat that `WelcomeMoment` sets, shortened by however
+   long the splash has already been up. `WelcomeMoment` unmounts it a little
+   after the last frame, on a timer, so reduced motion (no animation at all)
+   still leaves.
+
+   `.launch-overlay` is the moment in the server HTML, shown only once
+   `LAUNCH_SCRIPT` has marked the document a launch or a sign-in. The strokes
+   are `BrandMark`'s two inner spans, which its own geometry draws. */
+@layer components {
+  .welcome-moment {
+    --welcome-hold: 0ms;
+    position: fixed;
+    inset: 0;
+    z-index: 70;
+    display: grid;
+    place-items: center;
+    background-color: var(--color-paper);
+  }
+
+  .launch-overlay {
+    display: none;
+  }
+  html[data-launch] .launch-overlay {
+    display: contents;
+  }
+  /* Fail-safe, under reduced motion too: only `LaunchOverlay` removes the
+     overlay, so a launch that never hydrates (offline, a chunk that failed
+     to load) would sit under it for good. Only while it still breathes: a
+     hydrated overlay has left that phase, and `LaunchOverlay` stands down past
+     the same 3s (`LAUNCH_FAILSAFE_MS`) rather than show it again. It ends
+     hidden as well as clear, so the page under it gets its pointer back. */
+  html[data-launch] .launch-overlay > .welcome-moment[data-phase="breathe"] {
+    animation: tc-launch-give-way var(--transition-duration-slow) var(--ease-calm) 3s both;
+  }
+  @keyframes tc-launch-give-way {
+    to {
+      opacity: 0;
+      visibility: hidden;
+    }
+  }
+
+  @keyframes tc-unlock-left {
+    to {
+      opacity: 0;
+      transform: translateX(-150%);
+    }
+  }
+  @keyframes tc-unlock-right {
+    to {
+      opacity: 0;
+      transform: translateX(150%);
+    }
+  }
+  @keyframes tc-unlock-tile {
+    to {
+      opacity: 0;
+      transform: scale(1.12);
+    }
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .welcome-moment[data-phase="fade"] {
+      animation: tc-fade-out var(--transition-duration-base) var(--ease-calm) both;
+    }
+    .welcome-moment:is([data-phase="unlock"], [data-phase="welcome"]) {
+      animation: tc-fade-out var(--transition-duration-slow) var(--ease-calm)
+        calc(var(--welcome-hold) + var(--transition-duration-fast)) both;
+    }
+    .welcome-moment:is([data-phase="unlock"], [data-phase="welcome"]) .welcome-mark {
+      animation: tc-unlock-tile var(--transition-duration-slow) var(--ease-calm)
+        calc(var(--welcome-hold) + var(--transition-duration-fast)) both;
+    }
+    .welcome-moment:is([data-phase="unlock"], [data-phase="welcome"]) .welcome-mark > span > span:first-child {
+      animation: tc-unlock-left var(--transition-duration-slow) var(--ease-calm) var(--welcome-hold) both;
+    }
+    .welcome-moment:is([data-phase="unlock"], [data-phase="welcome"]) .welcome-mark > span > span:last-child {
+      animation: tc-unlock-right var(--transition-duration-slow) var(--ease-calm) var(--welcome-hold) both;
+    }
+    .welcome-line {
+      animation: var(--animate-rise-in);
+    }
+
+    /* The sign-in screen's error banners and its opened invite-code field
+       rise in rather than pop (spec §4.4). */
+    [data-banner-rise],
+    [data-disclosure-open] {
+      animation: var(--animate-rise-in);
+    }
+  }
+}
+
+/* ── M54: lists and small moments (decisions 1-2, spec §4.7). Transform and
+   opacity only, from part 1's tokens; every rule that moves anything is under
+   `no-preference`, so reduced motion keeps each end state and drops the
+   movement.
+
+   - A Home trip card lifts under the pointer, or with keyboard focus in it,
+     and gives to a press on its way in. The lift holds while its menu is
+     open, even off the card, and drops once it closes: an open menu follows
+     its anchor (KI-28), so a card that moved as the menu opened would jog
+     it. Focus lifts it for that reason too, so a menu opened from the
+     keyboard opens on a card already up. It sinks out when deleted or left
+     (`data-motion="sink"`, run by `useExitPresence`), and rises in
+     (`[data-rise-in]`, above) when it joins a list already on screen.
+   - The unscheduled rack's caret turns a quarter as the drawer opens.
+   - A river block's hover shadow is a layer under it that fades in, rather
+     than a box-shadow that snaps. A moved block settles: `RiverBlock` puts it
+     back where it was drawn (`--settle-x`, `--settle-y`) and eases the
+     translate away.
+   - The save light takes one beat as its breathing stops on a save.
+   - The new-trip wizard's steps fade in as the last one leaves with its
+     answer. */
+@layer components {
+  @keyframes tc-settle-from {
+    from {
+      transform: translate(var(--settle-x, 0), var(--settle-y, 0));
+    }
+  }
+
+  @keyframes tc-save-beat {
+    50% {
+      transform: scale(1.08);
+    }
+  }
+
+  .rack-caret[data-open] {
+    transform: rotate(90deg);
+  }
+
+  [data-river-block]::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-raised);
+    opacity: 0;
+    pointer-events: none;
+  }
+  /* As Tailwind's `hover:` is, which the shadow was before. */
+  @media (hover: hover) {
+    [data-river-block]:hover::before {
+      opacity: 1;
+    }
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .trip-card-lift {
+      transition: transform var(--transition-duration-fast) var(--ease-calm);
+    }
+    .trip-card-lift:active:not(:has(button:active)) {
+      transform: scale(0.99);
+    }
+    [data-motion="sink"][data-state="closed"] {
+      animation: var(--animate-sink-out);
+    }
+    /* Only where there is a hover, so a tap does not leave a card raised. */
+    @media (hover: hover) {
+      .trip-card-lift:is(:hover, :has(:focus-visible), :has([aria-expanded="true"])) {
+        transform: translateY(-2px);
+      }
+    }
+
+    .rack-caret {
+      transition: transform var(--transition-duration-base) var(--ease-calm);
+    }
+
+    [data-river-block]::before {
+      transition: opacity var(--transition-duration-base) var(--ease-calm);
+    }
+    [data-river-block][data-settling] {
+      animation: tc-settle-from var(--transition-duration-slow) var(--ease-calm);
+    }
+
+    [data-save-beat] .save-light-mark {
+      animation: tc-save-beat var(--transition-duration-slow) var(--ease-calm);
+    }
+
+    [data-step-enter] {
+      animation: tc-fade-in var(--transition-duration-base) var(--ease-calm) backwards;
+    }
   }
 }

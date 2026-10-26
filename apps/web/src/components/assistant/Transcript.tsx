@@ -2,7 +2,9 @@
 
 import { useState, type ReactNode } from "react";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { TypingDots } from "@/components/ui/typing-dots";
 import { cn } from "@/lib/cn";
+import { useExitPresence } from "@/lib/useExitPresence";
 import type { AssistantSuggested } from "@tc/contracts";
 import { CommandCard, ProposalCard, type PaletteOffer, type ProposalState, type ProposalUndo } from "./ProposalCard";
 import { SuggestedNote, suggestedWords } from "./SuggestedNote";
@@ -159,11 +161,38 @@ function announcementFor(turns: readonly AssistantTurn[], chat: boolean): string
  * No `role` and no live region: a second one nested inside the log is finding 4
  * of the 2026-08-29 branch review, and `aria-expanded` on a real button is
  * already the whole announcement a screen reader needs here.
+ *
+ * The list rises in and sinks out (M54): `listed` outlives `open` by the exit,
+ * so the summary says "closed" at once while the list is still leaving, inert.
  */
-function ToolSteps({ tools, still = false, forceOpen = false }: { tools: readonly ToolNote[]; still?: boolean; forceOpen?: boolean }) {
+function ToolSteps({
+  tools,
+  still = false,
+  rise = !still,
+  forceOpen = false,
+}: {
+  tools: readonly ToolNote[];
+  still?: boolean;
+  rise?: boolean;
+  forceOpen?: boolean;
+}) {
   const [open, setOpen] = useState(false);
+  const [listed, setListed] = useState(false);
+  const steps = useExitPresence<HTMLUListElement>();
   const last = tools[tools.length - 1];
   if (last === undefined) return null;
+  const toggle = () => {
+    if (open) {
+      setOpen(false);
+      steps.exit(() => setListed(false));
+      return;
+    }
+    // Also what lets the next close run: the hook keeps a finished exit until
+    // it is cancelled.
+    steps.cancel();
+    setOpen(true);
+    setListed(true);
+  };
 
   const summary = (
     <>
@@ -180,7 +209,7 @@ function ToolSteps({ tools, still = false, forceOpen = false }: { tools: readonl
   // expanding does not shift the text sideways.
   const look = "h-auto w-full justify-between gap-2 px-0 text-left text-xs font-normal";
   return (
-    <div className="rounded-md border border-hairline px-2.5 py-1.5">
+    <div data-rise-in={rise ? "" : undefined} className="rounded-md border border-hairline px-2.5 py-1.5">
       {still ? (
         // A picture of the disclosure, closed so the moment keeps to its
         // frame: no button, and out of hit-testing so its hover colour never
@@ -188,12 +217,16 @@ function ToolSteps({ tools, still = false, forceOpen = false }: { tools: readonl
         // instead, for a picture that has the frame to fill.
         <span className={cn(buttonVariants({ variant: "ghost", size: "sm" }), look, "pointer-events-none cursor-default")}>{summary}</span>
       ) : (
-        <Button variant="ghost" size="sm" aria-expanded={open} onClick={() => setOpen((wasOpen) => !wasOpen)} className={look}>
+        <Button variant="ghost" size="sm" aria-expanded={open} onClick={toggle} className={look}>
           {summary}
         </Button>
       )}
-      {(open || (still && forceOpen)) && (
-        <ul className="mt-1.5 flex flex-col gap-0.5">
+      {(still ? forceOpen : listed) && (
+        <ul
+          ref={steps.ref}
+          {...(still ? {} : { "data-motion": "rise", "data-state": "open" })}
+          className="mt-1.5 flex flex-col gap-0.5"
+        >
           {tools.map((tool) => (
             <li key={tool.id} className="text-xs text-slate">
               {tool.label}
@@ -328,6 +361,20 @@ export function Transcript({
   example?: { review: string; stepsOpen?: boolean } | null;
 }) {
   const chat = look === "chat";
+  // The turns there when the thread was first shown. Each turn rises in as it
+  // arrives (M54 decision 13), and opening on a restored thread is not an
+  // arrival (PR 605 review). The exchange still being had is: a first question
+  // is what mounts this. Two edges are accepted, since telling them apart
+  // needs state from above: reopened mid-answer, that exchange rises a second
+  // time; and history restored after the first question mounts this (an ask
+  // before the session name resolves) rises in at once above it.
+  const [shown] = useState(() => {
+    const asked = turns.map((turn) => turn.role).lastIndexOf("user");
+    const asking = turns.slice(asked + 1).some((turn) => turn.role === "assistant" && turn.pending);
+    return new Set(turns.slice(0, asking ? Math.max(asked, 0) : turns.length).map((turn) => turn.id));
+  });
+  // A picture holds still.
+  const rises = (turn: AssistantTurn) => example === null && !shown.has(turn.id);
   return (
     <>
       {/* `aria-live="off"` is explicit and load-bearing: `role="log"` carries
@@ -361,14 +408,14 @@ export function Transcript({
             // This is the one surface that keeps a filled message box; the
             // theme contract below still forbids looks from adding one to the
             // prose treatment, which is what `transcriptLook.test.ts` measures.
-            <div key={turn.id} className="flex flex-col items-end gap-1">
+            <div key={turn.id} data-rise-in={rises(turn) ? "" : undefined} className="flex flex-col items-end gap-1">
               <p className="max-w-a-you rounded-a-bubble border border-hairline bg-moss px-a-bubble-x py-a-bubble-y text-right text-a-chat leading-a-you text-ink">
                 {turn.text}
               </p>
               {renderTurnFooter?.(turn)}
             </div>
           ) : (
-          <div key={turn.id} className="flex flex-col gap-1.5">
+          <div key={turn.id} data-rise-in={rises(turn) ? "" : undefined} className="flex flex-col gap-1.5">
             <p className="border-l-2 border-a-you-rule pl-a-indent text-sm leading-a-you text-a-you-ink">
               {turn.text}
             </p>
@@ -381,7 +428,7 @@ export function Transcript({
           // `status` of its own, labelled, because it is the one thing on
           // screen saying why the dock went away; the sr-only announcer below
           // stays quiet for it rather than saying the same thing twice.
-          <div key={turn.id} className="flex gap-2">
+          <div key={turn.id} data-rise-in={rises(turn) ? "" : undefined} className="flex gap-2">
             <CassMark show={startsRun(turns, index)} />
             <div className="flex min-w-0 max-w-a-asst flex-col gap-1">
               {startsRun(turns, index) && <CassName />}
@@ -390,21 +437,17 @@ export function Transcript({
                 aria-label="Cass is typing"
                 className="inline-flex items-center gap-2 py-1.5 text-a-note text-slate"
               >
-                <span aria-hidden className="inline-flex gap-1">
-                  {[0, 1, 2].map((dot) => (
-                    <span key={dot} data-typing-dot={dot} className="size-1.5 rounded-full bg-slate" />
-                  ))}
-                </span>
+                <TypingDots />
                 {turn.text}
               </span>
             </div>
           </div>
         ) : (
-          <div key={turn.id} className={chat ? "flex gap-2" : "flex flex-col gap-1.5"}>
+          <div key={turn.id} data-rise-in={rises(turn) ? "" : undefined} className={chat ? "flex gap-2" : "flex flex-col gap-1.5"}>
             {chat && <CassMark show={startsRun(turns, index)} />}
             <div className={chat ? "flex min-w-0 max-w-a-asst flex-col gap-1" : "contents"}>
             {chat && startsRun(turns, index) && <CassName />}
-            <ToolSteps tools={turn.tools} still={example !== null} forceOpen={example?.stepsOpen ?? false} />
+            <ToolSteps tools={turn.tools} still={example !== null} rise={rises(turn)} forceOpen={example?.stepsOpen ?? false} />
             {turn.text !== "" && (
               // `whitespace-pre-wrap`: the answer arrives as one text part
               // whose deltas concatenate with their spacing intact. Rendering
@@ -427,19 +470,25 @@ export function Transcript({
                 touch={touch}
                 undo={undoFor?.(turn.proposal) ?? null}
                 {...(onUndoProposal === undefined ? {} : { onUndo: () => onUndoProposal(turn.id) })}
+                rise={rises(turn)}
               />
             )}
-            {turn.suggested != null && <SuggestedNote suggested={turn.suggested} hint={example?.review} still={example !== null} />}
+            {turn.suggested != null && (
+              <SuggestedNote suggested={turn.suggested} hint={example?.review} still={example !== null} rise={rises(turn)} />
+            )}
             {/* Its own decision and its own handler, held beside the palette
                 registry, so no surface has to wire an Approve for it. */}
-            {turn.offers?.map((offer) => <CommandCard key={offer.key} offer={offer} touch={touch} />)}
+            {turn.offers?.map((offer) => <CommandCard key={offer.key} offer={offer} touch={touch} rise={rises(turn)} />)}
             {/* Visible only, and no `role` — a second live region nested
                 inside the log is what finding 4 was about. Once text is
                 arriving the text IS the progress indicator, so this drops away
-                rather than becoming an `sr-only` duplicate of it. */}
+                rather than becoming an `sr-only` duplicate of it. The dots run
+                beside the newest step, so the line moves on with each one
+                (M54 decision 13). */}
             {turn.pending && turn.text === "" && (
-              <p className="text-xs text-slate">
-                {turn.tools.length === 0 ? "Thinking…" : "Still writing…"}
+              <p className="flex items-center gap-2 text-xs text-slate">
+                <TypingDots size="sm" />
+                <span>{turn.tools.at(-1)?.label ?? "Thinking…"}</span>
               </p>
             )}
             {renderTurnFooter?.(turn)}

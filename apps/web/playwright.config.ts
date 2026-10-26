@@ -80,6 +80,12 @@ export default defineConfig({
     // failure.
     trace: "on-first-retry",
     video: "off",
+    // **The suite runs with reduced motion** (M54 decision 20, ADR-082 §6).
+    // Overlays then have no exit animation and Radix unmounts them at once, so
+    // a spec that reads an overlay's box right after it opens, or waits for
+    // one to be hidden, sees what it saw before M54. `m54-motion.spec.ts` opts
+    // back in to prove a leaving overlay holds nothing up.
+    reducedMotion: "reduce",
     // **No automated test talks to a real third party** (Mitchell,
     // 2026-09-24). The map was the one place this suite's pages did: both maps
     // load their basemap from `tiles.openfreemap.org`. Every browser context

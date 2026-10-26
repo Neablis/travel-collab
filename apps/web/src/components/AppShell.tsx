@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import type { Entitlement } from "@tc/contracts";
 import { AppHeader } from "@/components/AppHeader";
 import { CommandPalette } from "@/components/palette/CommandPalette";
+import { RouteViewTransition } from "@/components/RouteViewTransition";
 import { PhoneTabBar, PhoneTabBarFallback } from "@/components/nav/PhoneTabBar";
 import { PreferencesProvider } from "@/components/account/PreferencesProvider";
 import { type SessionUser, SessionUserProvider } from "@/components/account/useSessionUser";
@@ -55,7 +56,15 @@ export function AppShell({
     <SessionUserProvider noSessionCookie={noSessionCookie} initialUser={served?.user}>
       <ServedEntitlementsProvider entitlements={served?.entitlements ?? null}>
         <PreferencesProvider noSessionCookie={noSessionCookie} initialRead={served?.preferences}>
-          <AppHeader />
+          {/* Decision 18 (ADR-082 §3): a route change cross-fades the page
+              below, and the header and the tab bar are named out of it so
+              they hold still (`globals.css` gives both names no animation).
+              Each is its own boundary, too, so a header that redraws its
+              active link is that boundary's change and not the page's. Only
+              a change of path animates (`RouteViewTransition`). */}
+          <RouteViewTransition name="app-header">
+            <AppHeader />
+          </RouteViewTransition>
           {/* ⌘K, from every app page (M41 D9). The page below registers what it offers. */}
           <CommandPalette />
           {/* `.phone-tab-bar-inset` (globals.css) keeps the page's last row clear
@@ -63,7 +72,9 @@ export function AppShell({
               not rendered. The wrapper exists only to own that padding: the bar
               and `children` are siblings, so there is nowhere else to hang a
               reservation that applies to the content and not to the bar itself. */}
-          <div className="phone-tab-bar-inset">{children}</div>
+          <div className="phone-tab-bar-inset">
+            <RouteViewTransition>{children}</RouteViewTransition>
+          </div>
           {/* The bar spans exactly the app's routes, which is what this
               layout wraps — so this is the mount point, and mounting it here rather
               than per-page is also what stops it remounting (and losing nothing,
@@ -93,9 +104,11 @@ export function AppShell({
               nowhere else to navigate from. `PhoneTabBarFallback` renders the same
               five tabs from `usePathname()` alone, which triggers no bailout.
               Copilot caught this on PR 143. */}
-          <Suspense fallback={<PhoneTabBarFallback />}>
-            <PhoneTabBar />
-          </Suspense>
+          <RouteViewTransition name="phone-tab-bar">
+            <Suspense fallback={<PhoneTabBarFallback />}>
+              <PhoneTabBar />
+            </Suspense>
+          </RouteViewTransition>
         </PreferencesProvider>
       </ServedEntitlementsProvider>
     </SessionUserProvider>

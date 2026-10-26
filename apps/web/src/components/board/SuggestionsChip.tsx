@@ -79,9 +79,13 @@ export function SuggestionsChip() {
         // (RiverBlock). Words and conflict chip together left the trip title no
         // room in the phone's pinned row (M39 D9). The phrase is the name at
         // every width, so it is the visible label wherever one is shown.
+        //
+        // It rises in when the first suggestion arrives, and only then: it
+        // stays mounted while any are pending.
         <Button
           variant="secondary"
           aria-label={phrase}
+          data-rise-in=""
           className="max-md:gap-1 max-md:rounded-full max-md:border-0 max-md:bg-brand-tint max-md:px-3 max-md:font-semibold max-md:text-brand-pressed max-md:hover:bg-brand-tint"
         >
           <Lightbulb className="size-4 md:hidden" aria-hidden />
@@ -94,8 +98,15 @@ export function SuggestionsChip() {
         {/* Two or more: with one, its own Accept below is the same button.
             `useAcceptAll` is the one place W77's single call is made. */}
         {accept !== null && (accept.acceptable.length > 1 || accept.accepting) && (
-          <Button variant="primary" size="sm" className="self-start" disabled={accept.accepting} onClick={() => void accept.acceptAll()}>
-            {accept.accepting ? "Accepting…" : "Accept all"}
+          <Button
+            variant="primary"
+            size="sm"
+            className="self-start"
+            pending={accept.accepting}
+            pendingLabel="Accepting…"
+            onClick={() => void accept.acceptAll()}
+          >
+            Accept all
           </Button>
         )}
         {accept?.refusal != null && (

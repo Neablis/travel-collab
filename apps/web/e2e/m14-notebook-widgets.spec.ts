@@ -3,7 +3,7 @@ import { expect, test } from "./fixtures/test";
 import { newPageDoc } from "@tc/contracts";
 import { e2eTripName } from "./tripNames";
 import { createEmptyTripViaWizard, createMappedTrip, signInAsDevUser, stripOverhang, TWENTY_DAYS_IN_JAPAN, openNewParkedStop } from "./helpers";
-import { E2E_SUPER_CODE } from "./admission";
+import { E2E_SUPER_CODE, fillInviteCode } from "./admission";
 import { grantCollaborators } from "./adminBootstrap";
 
 // M14's builder half, walked the way a person walks it.
@@ -1833,7 +1833,7 @@ test("a co-traveller moves a stop and shifts the days, and the open notebook fol
   try {
     const bob = await bobContext.newPage();
     await bob.goto("/signup");
-    await bob.getByLabel("Invite code").fill(E2E_SUPER_CODE);
+    await fillInviteCode(bob, E2E_SUPER_CODE);
     await bob.fill('input[name="username"]', `bob${crypto.randomUUID().replace(/-/g, "").slice(0, 12)}`);
     await Promise.all([
       bob.waitForURL((url) => !/^\/sign(in|up)$/.test(url.pathname)),

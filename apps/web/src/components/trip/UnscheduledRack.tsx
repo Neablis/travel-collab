@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { draggable, dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { toClockRange } from "@/lib/time";
@@ -13,6 +13,7 @@ import { displayNameFor } from "@/lib/displayName";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/cn";
 import { RACK_LIFT_OVER_EVENT } from "@/lib/touchLift";
+import { useExitPresence } from "@/lib/useExitPresence";
 
 export type RackItem = {
   activityId: string;
@@ -136,7 +137,17 @@ export function UnscheduledRack({
 }) {
   const ref = useRef<HTMLElement>(null);
   const [isOver, setIsOver] = useState(false);
-  const Caret = open ? ChevronDown : ChevronRight;
+  // The cards outlive `open` by their exit (M54), so the bar says "closed" at
+  // once while they sink out, inert; Transcript's tool steps do the same.
+  const [listed, setListed] = useState(open);
+  const { ref: cardsRef, exit, cancel } = useExitPresence<HTMLDivElement>();
+  if (open && !listed) setListed(true);
+  useLayoutEffect(() => {
+    // Cancelling also lets the next close run: the hook keeps a finished
+    // exit until it is cancelled.
+    if (open) cancel();
+    else exit(() => setListed(false));
+  }, [open, exit, cancel]);
   // A "No day" section even with no day-less stops in it, whenever a day's
   // untimed stops are here: it is the one place a drop takes a stop off its
   // day (decision 3C), so it has to exist to be dropped on.
@@ -230,9 +241,12 @@ export function UnscheduledRack({
             rest instead of only on hover. `aria-expanded` on the Button
             carries the open/closed state that the word used to carry, so
             nothing is lost for a screen reader. */}
-        <Caret
+        {/* One caret that turns (`.rack-caret`), not a second icon swapped in. */}
+        <ChevronRight
+          data-testid="rack-caret"
+          data-open={open || undefined}
           aria-hidden
-          className="shrink-0 text-ink"
+          className="rack-caret shrink-0 text-ink"
           // eslint-disable-next-line no-restricted-syntax -- 13px caret in a 15px line box: one step up from the design's 11/13, neither of which is on the spacing scale
           style={{ width: "13px", height: "15px" }}
         />
@@ -262,10 +276,14 @@ export function UnscheduledRack({
       </Button>
       {/* Collapsed means *not rendered*, not merely hidden: nothing parked
           should be reachable by keyboard or by a text query while the drawer
-          is shut. */}
-      {open ? (
+          is shut. The cards' exit is the one exception, and they are inert
+          for it. */}
+      {listed ? (
         <div
+          ref={cardsRef}
           data-testid="rack-cards"
+          data-motion="rise"
+          data-state="open"
           // A double-click on empty space here makes a parked stop (M41 D1).
           // Only empty space: a double-click on a card is two opens of it.
           onDoubleClick={

@@ -1,17 +1,17 @@
 "use client";
 
-import { type PointerEvent as ReactPointerEvent, type ReactElement, type ReactNode, useEffect, useRef, useState } from "react";
+import { type PointerEvent as ReactPointerEvent, type ReactElement, type ReactNode, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { draggable } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { AlertTriangle, Lightbulb, X } from "lucide-react";
 import type { ActivityTag, ActivityView, TimeWindow } from "@tc/contracts";
 import { KIND_LABEL } from "@tc/pages";
 import { useTimeFormat } from "@/components/account/PreferencesProvider";
 import type { Overlap } from "@/components/lenses/overlapData";
+import { AvatarStack } from "@/components/ui/avatar-stack";
 import { Badge } from "@/components/ui/badge";
 import { useGuests, usePersonas } from "@/components/pages/people";
 import { Button } from "@/components/ui/button";
 import { DataText } from "@/components/ui/data-text";
-import { PersonChip } from "@/components/ui/person-chip";
 import { TAG_LABEL, tagFocusOpacity } from "@/lib/activityTags";
 import { cn } from "@/lib/cn";
 import type { AccentFamily } from "@/lib/dayAccent";
@@ -21,7 +21,7 @@ import { displayPlace, legRoute } from "@/lib/place";
 import { useIsCoarsePointer } from "@/lib/useIsPhone";
 import { formatDuration, toClockRange, toMinutes } from "@/lib/time";
 import { PENDING_REASON_DISPLAY } from "./PendingReasonPicker";
-import type { RiverPlacement } from "./riverLayout";
+import { minuteToPx, type RiverPlacement } from "./riverLayout";
 import { StopTagChips } from "./StopTagChips";
 import { MODE_DISPLAY } from "./TravelModePicker";
 
@@ -138,6 +138,11 @@ export function laneStyle(placement: Pick<RiverPlacement, "lane" | "lanes">): { 
     : { left: `calc(${placement.lane} * (100% + 4px) / ${placement.lanes})`, width: `calc((100% + 4px) / ${placement.lanes} - 4px)` };
 }
 
+/** `laneStyle`'s `left`, in pixels, on a river `width` wide. */
+function laneLeftPx(placement: Pick<RiverPlacement, "lane" | "lanes">, width: number): number {
+  return placement.lanes === 1 ? 0 : (placement.lane * (width + 4)) / placement.lanes;
+}
+
 /**
  * One timed stop, drawn to scale on its day's river (SPEC §36.9b).
  *
@@ -156,6 +161,7 @@ export function RiverBlock({
   activity,
   window,
   placement,
+  pxPerHour,
   accent,
   hasConflict,
   overlap,
@@ -178,6 +184,8 @@ export function RiverBlock({
   /** The stop's own window, already known non-null by the caller. */
   window: TimeWindow;
   placement: RiverPlacement;
+  /** The axis's scale (`RiverAxis.pxPerHour`), which a settle turns a change of time into pixels at. */
+  pxPerHour?: number;
   /** The day's city colour — a planned block's edge. */
   accent: AccentFamily;
   hasConflict: boolean;
@@ -269,6 +277,48 @@ export function RiverBlock({
       onDrop: () => setDragging(false),
     });
   }, [activity.activityId, readOnly]);
+
+  // **A moved block settles into its place** (M54, FLIP). Where the block was
+  // drawn last is kept; when its place on the axis or its lane changes, it is
+  // put back there by a transform and eased to its new place
+  // (`[data-settling]` in globals.css). Transform only, so nothing around it
+  // reflows. Not while its grip is held: a resize redraws the block on every
+  // move, and it has to follow the pointer, not trail it.
+  //
+  // Nor when this reader has just carried it there. The outline already drew
+  // where it lands, so a glide from the old slot read as a snap-back; the
+  // move is applied in the same handler that ends the carry, so it is the
+  // commit where `carried` falls.
+  //
+  // The lane is kept rather than a pixel left, and turned into one at the
+  // river's width now: a column narrowed since (the assistant rail opened)
+  // would otherwise start the settle from a left never drawn at this width.
+  // The start minute is kept rather than a pixel top for the same reason: the
+  // trip's one axis starts at its earliest stop, so moving that stop moves
+  // every block's top, and a block whose time did not change has not moved.
+  const carried = dragging || lifted;
+  const drawnAt = useRef<{ start: number; lane: number; lanes: number; carried: boolean } | null>(null);
+  const start = toMinutes(window.start);
+  const { lane, lanes } = placement;
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const was = drawnAt.current;
+    drawnAt.current = { start, lane, lanes, carried };
+    if (was === null || was.carried || gripHeld.current) return;
+    const width = el.parentElement?.clientWidth ?? 0;
+    const dx = laneLeftPx(was, width) - laneLeftPx({ lane, lanes }, width);
+    // A block clamped at the axis bottom may glide up to ~22px when another reader shifts its start by <33min: accepted, rare.
+    const dy = minuteToPx({ t0: 0, pxPerHour }, was.start - start);
+    if (dx === 0 && dy === 0) return;
+    el.style.setProperty("--settle-x", `${dx}px`);
+    el.style.setProperty("--settle-y", `${dy}px`);
+    // Off and on again, with a layout between, so a second move during the
+    // first settle starts its own rather than continuing the old one.
+    delete el.dataset.settling;
+    void el.offsetWidth;
+    el.dataset.settling = "";
+  }, [start, lane, lanes, carried, pxPerHour]);
 
   function pressGrip(e: ReactPointerEvent, edge: "start" | "end") {
     if (e.button !== 0 || !onResizeStart) return;
@@ -399,10 +449,14 @@ export function RiverBlock({
       data-activity-id={activity.activityId}
       data-off-tag={dimOpacity !== 1 ? true : undefined}
       // `z-10` while hovered or focused: the tag reveal below hangs out of
-      // the block, over whichever block comes next in the DOM.
+      // the block, over whichever block comes next in the DOM. The hover
+      // shadow is `[data-river-block]::before`, which fades in (M54).
       data-lifted={lifted ? true : undefined}
       data-provisional={provisional?.hook}
       className={cn("group absolute hover:z-10 focus-within:z-10", !readOnly && "cursor-grab", lifted && "z-10")}
+      onAnimationEnd={(e) => {
+        if (e.target === e.currentTarget) delete e.currentTarget.dataset.settling;
+      }}
       onPointerDown={(e) => {
         lastPointer.current = e.pointerType;
         if (e.pointerType === "touch") onTouchPress?.(e);
@@ -419,7 +473,7 @@ export function RiverBlock({
       <div
         className={cn(
           // `fine:` — see CONTROL_CLASS: under a finger the controls' reach gets out.
-          "relative flex h-full flex-col gap-px rounded-md px-2 py-0.5 group-hover:shadow-raised fine:overflow-hidden",
+          "relative flex h-full flex-col gap-px rounded-md px-2 py-0.5 fine:overflow-hidden",
           overlapping
             ? cn("border-2 border-solid border-warning-ink", look.tone === "transit" ? "bg-info-tint" : "bg-surface", (look.tone === "maybe" || placeholder) && "tc-river-hatch")
             : placeholder
@@ -538,12 +592,12 @@ export function RiverBlock({
         {showPeople && (
           <span aria-hidden className="pointer-events-none relative flex min-w-0 items-center gap-1.5 text-xs text-slate">
             {going.length > 0 && (
-              <span className="flex shrink-0 -space-x-1">
-                {going.map(({ id, name }) => {
-                  const persona = personas?.[id];
-                  return <PersonChip key={id} name={name} avatar={persona?.avatar ?? null} color={persona?.color ?? null} size="xs" ring title={name} />;
-                })}
-              </span>
+              <AvatarStack
+                className="shrink-0"
+                size="xs"
+                interactive={false}
+                people={going.map(({ id, name }) => ({ id, name, avatar: personas?.[id]?.avatar ?? null, color: personas?.[id]?.color ?? null }))}
+              />
             )}
             {said !== "" && <span className="truncate">{said}</span>}
           </span>

@@ -1,6 +1,9 @@
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
+import { notebookEditingCommand } from "@/components/palette/commands";
+import { registerPaletteCommands } from "@/components/palette/paletteRegistry";
+import { offerPaletteCommand } from "./runPaletteCommands";
 import { Transcript, toolNoteLabel, type AssistantTurn } from "./Transcript";
 
 afterEach(cleanup);
@@ -128,6 +131,21 @@ describe("Transcript", () => {
     ).toBe("true");
   });
 
+  // The list leaves through `useExitPresence`, which holds a finished exit
+  // until it is cancelled: a second close that found it held did nothing, and
+  // the list stayed open under a summary saying it was closed.
+  it("closes the list every time, not only the first", async () => {
+    const user = userEvent.setup();
+    render(<Transcript turns={[{ id: "a1", role: "assistant", text: "Done.", tools: [{ id: "t1", label: "Read the trip" }], pending: false }]} />);
+    const disclosure = screen.getByRole("button", { name: /1 step · Read the trip/ });
+    for (let round = 0; round < 2; round++) {
+      await user.click(disclosure);
+      expect(screen.getByRole("listitem")).not.toBeNull();
+      await user.click(disclosure);
+      expect(screen.queryByRole("listitem")).toBeNull();
+    }
+  });
+
   // These lines ARE the "something is happening" during a stream — the reason
   // they exist is that a silent four-second pause reads as broken. Collapsed to
   // a snapshot they would stall again in a new way, so the summary is derived
@@ -249,6 +267,24 @@ describe("Transcript", () => {
     expect(within(screen.getByRole("log")).getByText("Thinking…")).not.toBeNull();
   });
 
+  // M54 decision 13: in Ask the dots run beside a line that changes with each
+  // tool step, so a long turn says what it is doing rather than "Still
+  // writing…" for all of it. The disclosure's summary names the step too; this
+  // line is the one that stands beside the dots.
+  it("names the newest step beside the dots while a turn works", () => {
+    const working = (tools: { id: string; label: string }[]): AssistantTurn[] => [
+      { id: "a1", role: "assistant", text: "", tools, pending: true },
+    ];
+    const { rerender } = render(<Transcript turns={working([{ id: "t1", label: "Read the trip" }])} />);
+    const log = screen.getByRole("log");
+    expect(within(log).getByText("Read the trip")).not.toBeNull();
+
+    rerender(<Transcript turns={working([{ id: "t1", label: "Read the trip" }, { id: "t2", label: "Checked day 3" }])} />);
+    expect(within(log).getByText("Checked day 3")).not.toBeNull();
+    expect(within(log).queryByText("Read the trip")).toBeNull();
+    expect(within(log).queryByText(/Still writing…|Thinking…/)).toBeNull();
+  });
+
   it("keeps the streamed text visible once it starts, without a second visible status line", () => {
     render(
       <Transcript
@@ -258,6 +294,81 @@ describe("Transcript", () => {
     expect(screen.getByText("Day 3 ha")).not.toBeNull();
     // The visible progress line drops away: the arriving text is the indicator.
     expect(within(screen.getByRole("log")).queryByText(/Still writing…|Thinking…/)).toBeNull();
+  });
+
+  // PR 605 review: a turn rises in as it arrives (M54 decision 13). Opening the
+  // rail, or the phone sheet that remounts on every open, on a restored thread
+  // is not an arrival, and its turns hold still.
+  it("rises in only the turns that arrive after the thread is shown", () => {
+    const rising = () =>
+      within(screen.getByRole("log", { name: "Conversation" }))
+        .queryAllByRole("generic")
+        .filter((el) => el.hasAttribute("data-rise-in"))
+        .map((el) => el.textContent);
+    const { rerender } = render(<Transcript turns={THREAD.slice(0, 2)} />);
+    expect(rising()).toEqual([]);
+    rerender(<Transcript turns={THREAD} />);
+    expect(rising()).toEqual(["What about the next day?", "Thinking…"]);
+    // Settled the moment it lands, as the New-trip wizard's next question is:
+    // it rises only because `shown` was frozen at first show.
+    rerender(
+      <Transcript
+        turns={[...THREAD.slice(0, 2), { id: "u9", role: "user", text: "x" }, { id: "a9", role: "assistant", text: "y", tools: [], pending: false }]}
+      />,
+    );
+    expect(rising()).toEqual(["x", "y"]);
+  });
+
+  // Finding 1 of the PR 605 review: the cards under a restored turn hold
+  // still with it. A card that mounted open still rises when it settles,
+  // since that receipt is new; one that mounted settled does not.
+  it("holds a restored turn's cards still, and rises in a receipt decided after", () => {
+    onTestFinished(registerPaletteCommands("test", [notebookEditingCommand(false, vi.fn())]));
+    const key = offerPaletteCommand();
+    const moving = () => {
+      const log = screen.getByRole("log", { name: "Conversation" });
+      return [...within(log).queryAllByRole("generic"), ...within(log).queryAllByRole("group")]
+        .filter((el) => el.hasAttribute("data-rise-in") || el.hasAttribute("data-settle-in"))
+        .map((el) => el.getAttribute("aria-label") ?? el.textContent);
+    };
+    const restored = (status: "pending" | "applying" | "applied"): AssistantTurn[] => [
+      { id: "u1", role: "user", text: "add a coffee stop" },
+      {
+        id: "a1",
+        role: "assistant",
+        text: "Done.",
+        tools: [],
+        pending: false,
+        proposal: { proposal: PROPOSAL, status: "applied", note: "Added it." },
+      },
+      { id: "u2", role: "user", text: "and turn editing on" },
+      {
+        id: "a2",
+        role: "assistant",
+        text: "Here you are.",
+        tools: [],
+        pending: false,
+        proposal: { proposal: PROPOSAL, status, note: status === "applied" ? "Added it again." : null },
+        suggested: { suggestionId: "7d9a1f8e-0000-4000-8000-000000000001", changeCount: 2, snapshotId: null, snapshotName: null, skipped: [] },
+        offers: [{ id: "notebook-editing", key, on: true }],
+      },
+    ];
+    const { rerender } = render(<Transcript turns={restored("pending")} />);
+    expect(screen.getByRole("group", { name: "Suggested action" })).toBeTruthy();
+    expect(moving()).toEqual([]);
+    // Approve pressed: the open card does not start rising on the click.
+    rerender(<Transcript turns={restored("applying")} />);
+    expect(moving()).toEqual([]);
+    rerender(<Transcript turns={restored("applied")} />);
+    expect(moving()).toEqual(["✓", "Suggested change"]);
+  });
+
+  // The first question of a conversation is what mounts the transcript, and
+  // it is the one being had, not a restored one.
+  it("rises in a question asked as the thread first shows", () => {
+    render(<Transcript turns={THREAD.slice(2)} />);
+    const log = screen.getByRole("log", { name: "Conversation" });
+    expect(within(log).queryAllByRole("generic").filter((el) => el.hasAttribute("data-rise-in"))).toHaveLength(2);
   });
 
   it("renders nothing but the log when the thread is empty", () => {

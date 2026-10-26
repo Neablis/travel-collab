@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import type { AssistantProposal, TripHistory } from "@tc/contracts";
 import { usePaletteCommands } from "@/components/palette/paletteRegistry";
@@ -120,6 +120,7 @@ export function ProposalCard({
   touch = false,
   undo = null,
   onUndo,
+  rise = true,
 }: {
   state: ProposalState;
   onApprove: () => void;
@@ -132,14 +133,22 @@ export function ProposalCard({
   /** See `proposalUndoFor`. */
   undo?: ProposalUndo | null;
   onUndo?: () => void;
+  /** False under a turn that holds still: one restored, not arriving. */
+  rise?: boolean;
 }) {
   const { proposal, status, note } = state;
+  // A receipt decided while the card was open is new, and rises in even under
+  // a turn that holds still. Keyed on the status at mount, not on a change of
+  // status: pending to applying would start the open card rising on Approve.
+  const [settledAtMount] = useState(status === "applied" || status === "rejected");
+  const arrives = rise || !settledAtMount;
 
   if (status === "applied" || status === "rejected") {
     return (
       <div
         role="group"
         aria-label="Suggested change"
+        data-rise-in={arrives ? "" : undefined}
         className="flex min-h-7.5 flex-wrap items-center gap-x-2 gap-y-1 text-a-note"
       >
         {status === "rejected" ? (
@@ -154,7 +163,11 @@ export function ProposalCard({
         ) : (
           <>
             <span role="status" className="text-success-ink">
-              ✓ {note ?? "Done."}
+              {/* Settles in by a transform, so the receipt beside it never moves. */}
+              <span data-settle-in={arrives ? "" : undefined} className="inline-block">
+                ✓
+              </span>{" "}
+              {note ?? "Done."}
             </span>
             {undo === "available" && onUndo !== undefined && (
               <Button
@@ -182,9 +195,12 @@ export function ProposalCard({
       title={title}
       detail={detail}
       touch={touch}
-      approveLabel={applying ? "Applying…" : "Make the change"}
+      rise={rise}
+      approveLabel="Make the change"
+      approvePendingLabel="Applying…"
+      approvePending={applying}
       onApprove={onApprove}
-      approveDisabled={disabled || applying}
+      approveDisabled={disabled}
       onReject={onReject}
       rejectDisabled={applying}
     >
@@ -222,6 +238,7 @@ export function SuggestionCard({
   note,
   onAccept,
   onDismiss,
+  rise = true,
 }: {
   descriptions: readonly string[];
   may: "decide" | "dismiss" | "wait";
@@ -232,6 +249,8 @@ export function SuggestionCard({
   note: string | null;
   onAccept: () => void;
   onDismiss: () => void;
+  /** False inside a chat line that holds still. */
+  rise?: boolean;
 }) {
   const { title, detail } = changeWords(descriptions, []);
   return (
@@ -242,9 +261,12 @@ export function SuggestionCard({
       detail={detail}
       // Its own 44px floor either way; the chat has no docked variant to size for.
       touch={false}
-      approveLabel={busy ? "Accepting…" : "Accept"}
+      rise={rise}
+      approveLabel="Accept"
+      approvePendingLabel="Accepting…"
+      approvePending={busy}
       onApprove={may === "decide" ? onAccept : undefined}
-      approveDisabled={busy}
+      approveDisabled={false}
       rejectLabel="Dismiss"
       onReject={may === "wait" ? undefined : onDismiss}
       rejectDisabled={busy}
@@ -271,7 +293,10 @@ function PendingCard({
   title,
   detail,
   touch,
+  rise,
   approveLabel,
+  approvePendingLabel,
+  approvePending = false,
   onApprove,
   approveDisabled,
   rejectLabel = "Not now",
@@ -284,7 +309,12 @@ function PendingCard({
   title: string;
   detail: string;
   touch: boolean;
+  /** Whether it rises in: false under a turn or a line that holds still. */
+  rise: boolean;
   approveLabel: string;
+  /** The accessible name while `approvePending`; the visible label holds (M54). */
+  approvePendingLabel?: string;
+  approvePending?: boolean;
   onApprove: (() => void) | undefined;
   approveDisabled: boolean;
   rejectLabel?: string;
@@ -303,6 +333,7 @@ function PendingCard({
     <div
       role="group"
       aria-label={label}
+      data-rise-in={rise ? "" : undefined}
       className={`border border-brand bg-brand-tint p-3 ${touch ? "rounded-a-card-touch" : "rounded-a-card"}`}
     >
       <div className="flex items-center gap-1.75">
@@ -332,6 +363,8 @@ function PendingCard({
               size="sm"
               onClick={onApprove}
               disabled={approveDisabled}
+              pending={approvePending}
+              pendingLabel={approvePendingLabel}
               className={`h-auto flex-1 rounded-full font-semibold ${target}`}
             >
               {approveLabel}
@@ -379,7 +412,16 @@ const SETTLED: Record<Exclude<OfferStatus, "pending">, string> = {
  * on, whatever the reply said. A command the page does not offer has no
  * Approve at all (§5).
  */
-export function CommandCard({ offer, touch = false }: { offer: PaletteOffer; touch?: boolean }) {
+export function CommandCard({
+  offer,
+  touch = false,
+  rise = true,
+}: {
+  offer: PaletteOffer;
+  touch?: boolean;
+  /** False under a turn that holds still. */
+  rise?: boolean;
+}) {
   const status = useOfferStatus(offer.key);
   const command = usePaletteCommands().find((candidate) => candidate.id === offer.id);
 
@@ -409,6 +451,7 @@ export function CommandCard({ offer, touch = false }: { offer: PaletteOffer; tou
       title={command.target?.label ?? command.action}
       detail="Nothing changes until you approve it."
       touch={touch}
+      rise={rise}
       approveLabel="Approve"
       onApprove={() => decideOffer(offer.key, offer.id, true)}
       approveDisabled={false}

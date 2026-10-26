@@ -237,10 +237,12 @@ export function AddToTripDialog({
         </Button>
         <Button
           variant="primary"
-          disabled={busy || tripId === ""}
+          disabled={!busy && tripId === ""}
+          pending={busy}
+          pendingLabel="Adding…"
           onClick={() => void add()}
         >
-          {busy ? "Adding…" : "Add to trip"}
+          Add to trip
         </Button>
       </DialogFooter>
     </Dialog>

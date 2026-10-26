@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { Page } from "@playwright/test";
 import { expect, test } from "./fixtures/test";
-import { E2E_SUPER_CODE } from "./admission";
+import { E2E_SUPER_CODE, fillInviteCode } from "./admission";
 import { forget, publishedDay, stranger } from "./helpers";
 
 // ADR-061: the playbook library is readable without an account. alice
@@ -96,7 +96,7 @@ test("a stranger opens a shared playbook, signs up from it, and lands on a trip 
     await settled();
     await visitor.getByRole("dialog", { name: "Sign in to add this day" }).getByRole("link", { name: "Create an account" }).click();
     await expect(visitor).toHaveURL(/\/signup\?callbackUrl=/);
-    await visitor.getByLabel("Invite code").fill(E2E_SUPER_CODE);
+    await fillInviteCode(visitor, E2E_SUPER_CODE);
     await visitor.fill('input[name="username"]', mint("pubreader"));
     await visitor.getByRole("button", { name: /sign in with dev login/i }).click();
     await expect(visitor).toHaveURL(/\/trips\/[0-9a-f-]{36}$/);

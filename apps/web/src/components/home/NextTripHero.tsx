@@ -27,7 +27,7 @@ import {
   tripDateRange,
   tripMetaLine,
 } from "./UnplannedTrip";
-import { viewerOwnsTrip } from "@/lib/tripRole";
+import { memberRoleLabel, viewerOwnsTrip } from "@/lib/tripRole";
 import { cityFor } from "@/lib/dayChips";
 import { fetchTripDetail, fetchTripGlobals } from "@/lib/apiClient";
 import { cachedRead } from "@/lib/queryCache";
@@ -35,7 +35,7 @@ import { tripKeys } from "@/lib/queryKeys";
 import { localTodayIso } from "@/lib/today";
 import { formatTripDateLong, relativeCalendarDays } from "@/lib/formatDate";
 import { displayNameFor } from "@/lib/displayName";
-import { PersonChip } from "@/components/ui/person-chip";
+import { AvatarStack } from "@/components/ui/avatar-stack";
 import { needsBooking } from "@/lib/needsBooking";
 import { tripSpend, plannedOfBudgetLine } from "@/lib/cost";
 import { cn } from "@/lib/cn";
@@ -296,19 +296,18 @@ export function NextTripHero({ trip, menuSlot, viewerId, unreadChat = 0 }: NextT
   );
 
   const travellerStack = (
-    <div className="flex flex-wrap items-center" role="group" aria-label={`${travellers.length} traveler${travellers.length === 1 ? "" : "s"}`}>
-      {travellers.map((member, i) => (
-        <PersonChip
-          key={member.userId}
-          name={displayNameFor(member)}
-          avatar={member.avatar}
-          color={member.color}
-          size="md"
-          ring
-          className={cn(i > 0 && "-ml-2")}
-        />
-      ))}
-    </div>
+    <AvatarStack
+      role="group"
+      aria-label={`${travellers.length} traveler${travellers.length === 1 ? "" : "s"}`}
+      people={travellers.map((member) => ({
+        id: member.userId,
+        name: displayNameFor(member),
+        avatar: member.avatar,
+        color: member.color,
+        // M54 decision 9: the tip names the role.
+        detail: memberRoleLabel(member.role),
+      }))}
+    />
   );
 
   return (

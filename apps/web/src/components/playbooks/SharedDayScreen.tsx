@@ -962,8 +962,11 @@ export function SharedDayScreen({
               <Button
                 variant="primary"
                 className="mt-1 w-full justify-center"
-                // A press now would be a second trip beside the one being made.
-                disabled={makingTrip || checkingTrips}
+                // A press now would be a second trip beside the one being made:
+                // `pending` refuses it, and the label holds its box (M54).
+                disabled={!makingTrip && checkingTrips}
+                pending={makingTrip}
+                pendingLabel="Making your trip…"
                 onClick={() => {
                   // Shown to a reader with no account too, and it asks them to
                   // sign in rather than vanishing (ADR-061, the share page's shape).
@@ -982,13 +985,11 @@ export function SharedDayScreen({
                     three days said the same thing as the one that moves one.
                     A reader with no account has no trip to add to: theirs
                     makes one (M50 decision 5). */}
-                {makingTrip
-                  ? "Making your trip…"
-                  : signedOut
-                    ? "Make this your trip"
-                    : day.dayCount > 1
-                      ? `Add all ${day.dayCount} days to a trip`
-                      : "Add to a trip"}
+                {signedOut
+                  ? "Make this your trip"
+                  : day.dayCount > 1
+                    ? `Add all ${day.dayCount} days to a trip`
+                    : "Add to a trip"}
               </Button>
               {/* The page's assistant (M45 D9), which can press that button
                   for you on a trip and day you name. Drawn only for an

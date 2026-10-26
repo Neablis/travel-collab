@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { Browser, Page } from "@playwright/test";
 import { expect, test } from "./fixtures/test";
-import { E2E_SUPER_CODE } from "./admission";
+import { E2E_SUPER_CODE, fillInviteCode } from "./admission";
 import { grantCollaborators } from "./adminBootstrap";
 import { createMappedTrip, openPlan, personRow } from "./helpers";
 import { e2eTripName } from "./tripNames";
@@ -121,7 +121,7 @@ async function signedInAs(
     // No pending invite to ride in on, so the super code it is — presented on
     // /signup, the only screen carrying the field.
     await page.goto("/signup");
-    await page.getByLabel("Invite code").fill(E2E_SUPER_CODE);
+    await fillInviteCode(page, E2E_SUPER_CODE);
   }
 
   // eslint-disable-next-line playwright/prefer-locator -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.

@@ -124,9 +124,9 @@ describe("Discover", () => {
     let release: (value: unknown) => void = () => {};
     searchPlaybooksMock.mockReturnValueOnce(new Promise((r) => (release = r)));
     render(<DiscoverScreen />);
-    expect(screen.getByTestId("discover-skeleton")).toBeTruthy();
+    expect(screen.getByRole("status", { name: "Loading days" })).toBeTruthy();
     release(ok(response()));
-    await waitFor(() => expect(screen.queryByTestId("discover-skeleton")).toBeNull());
+    await waitFor(() => expect(screen.queryByRole("status", { name: "Loading days" })).toBeNull());
   });
 
   // The exit-gate line: matched filled, the rest outlined, and the per-card

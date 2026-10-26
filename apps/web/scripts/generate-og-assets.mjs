@@ -4,6 +4,7 @@
 //   src/app/icon.svg             (favicon)
 //   src/app/apple-icon.png       (180×180, iOS home screen)
 //   public/icons/icon-*-v2.png   (192, 512 and maskable 512, app/manifest.ts)
+//   public/icons/startup-*.png   (iOS launch screens, app/layout.tsx)
 //
 // Run from apps/web:  node scripts/generate-og-assets.mjs
 //
@@ -109,6 +110,39 @@ const appIcons = [
     await page.setContent(`<body style="margin:0"><img src="${src}" width="${size}" height="${size}" style="display:block">`);
     await page.locator("img").evaluate((img) => img.decode());
     await page.screenshot({ path: fileURLToPath(new URL(path, root)), type: "png", omitBackground: true });
+    await page.close();
+    console.log(`wrote ${path}`);
+  }
+
+  // iOS's launch screens (M54 decision 7). Without one, a home-screen launch
+  // shows a blank white screen, then the app; with one, the OS splash is the
+  // page's paper with the mark centred, and the launch overlay in the server
+  // HTML (`LaunchOverlay`) paints exactly that on its first frame, so the
+  // hand-off has no blank frame. iOS picks a file by an exact device-size
+  // media query, so there is one per screen: portrait CSS size and pixel
+  // ratio. `app/layout.tsx`'s `STARTUP_SCREENS` lists the same set, and
+  // `src/app/layout.test.ts` holds the two lists and the files together.
+  //
+  // `SPLASH_MARK` is `WelcomeMoment`'s full-size mark, in CSS px.
+  const paper = ledgerColorToken(globalsCss, "paper");
+  const SPLASH_MARK = 96;
+  const startupScreens = [
+    // iPhones, newest first.
+    [440, 956, 3], [402, 874, 3], [430, 932, 3], [393, 852, 3], [428, 926, 3], [390, 844, 3],
+    [375, 812, 3], [414, 896, 3], [414, 896, 2], [414, 736, 3], [375, 667, 2], [320, 568, 2],
+    // iPads.
+    [1032, 1376, 2], [1024, 1366, 2], [834, 1210, 2], [834, 1194, 2], [820, 1180, 2], [810, 1080, 2],
+    [768, 1024, 2], [744, 1133, 2],
+  ];
+  const src = `data:image/svg+xml;base64,${Buffer.from(iconSvg).toString("base64")}`;
+  for (const [width, height, ratio] of startupScreens) {
+    const path = `public/icons/startup-${width * ratio}x${height * ratio}.png`;
+    const page = await browser.newPage({ viewport: { width, height }, deviceScaleFactor: ratio });
+    await page.setContent(
+      `<body style="margin:0;height:100vh;display:grid;place-items:center;background:${paper}"><img src="${src}" width="${SPLASH_MARK}" height="${SPLASH_MARK}" style="display:block"></body>`,
+    );
+    await page.locator("img").evaluate((img) => img.decode());
+    await page.screenshot({ path: fileURLToPath(new URL(path, root)), type: "png" });
     await page.close();
     console.log(`wrote ${path}`);
   }

@@ -28,7 +28,12 @@ const beas = ChatMessageData.parse({
 });
 const bea = { name: "Bea", avatar: null, color: null, colorShifted: false, travelling: true };
 
-function line(viewer: MessageViewer | null, message: ChatMessageData = beas, pending = false, { askedBy }: { askedBy: Persona | null | undefined } = { askedBy: bea }) {
+function line(
+  viewer: MessageViewer | null,
+  message: ChatMessageData = beas,
+  pending = false,
+  { askedBy, still = false }: { askedBy: Persona | null | undefined; still?: boolean } = { askedBy: bea },
+) {
   const onEdit = vi.fn();
   const onDelete = vi.fn();
   render(
@@ -45,6 +50,7 @@ function line(viewer: MessageViewer | null, message: ChatMessageData = beas, pen
         onCancelEdit={() => {}}
         pending={pending}
         askedBy={askedBy}
+        still={still}
       />
     </ol>,
   );
@@ -111,15 +117,25 @@ describe("ChatMessage's actions", () => {
 });
 
 // PR 444 review: a pending line was only dimmed, which fell below AA contrast
-// and said nothing to a screen reader. It says "Sending…" where its time goes.
+// and said nothing to a screen reader. M54 decision 13 fades it again, to a
+// level that keeps AA, and it still says "Sending…" to a screen reader, where
+// its time will be. Saved, the same line firms up and shows its time.
 describe("ChatMessage, sent and not yet stored", () => {
-  it("says Sending… in place of its time, and is busy", () => {
+  it("lands faded and busy, saying Sending…, and firms up once stored", () => {
     const sentAt = new Date(beas.createdAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-    line(null, beas, true);
+    const props = { message: beas, persona: bea, tripId: TRIP, viewer: null, editing: false, onEdit: () => {}, onDelete: () => {}, onSave: async () => true, onCancelEdit: () => {} };
+    const { rerender } = render(<ol><ChatMessage {...props} pending /></ol>);
     const item = screen.getByRole("listitem");
-    expect(item.textContent).toContain("Sending…");
-    expect(item.textContent).not.toContain(sentAt);
+    expect(item.getAttribute("data-sending")).not.toBeNull();
     expect(item.getAttribute("aria-busy")).toBe("true");
+    expect(within(item).getByText("Sending…")).not.toBeNull();
+    expect(within(item).queryByText(sentAt)).toBeNull();
+
+    rerender(<ol><ChatMessage {...props} pending={false} /></ol>);
+    expect(screen.getByRole("listitem")).toBe(item);
+    expect(item.getAttribute("data-sending")).toBeNull();
+    expect(item.getAttribute("aria-busy")).toBeNull();
+    expect(within(item).getByText(sentAt)).not.toBeNull();
   });
 });
 
@@ -201,6 +217,21 @@ describe("ChatMessage, from the assistant or the app", () => {
     line({ mine: false, mayEdit: false, mayDelete: false }, reply, false, { askedBy: undefined });
     expect(card().textContent).toContain("Asked by a member who has left: only the owner can dismiss this");
     expect(card().textContent).not.toContain("Waiting");
+  });
+
+  // Finding 2 of the PR 605 review: a line already there when the chat opened
+  // holds still, and the open suggestion card inside it holds still with it.
+  it("holds an open suggestion still in a line that was already there", () => {
+    readAs("u-bea", "editor");
+    line({ mine: false, mayEdit: false, mayDelete: false }, reply, false, { askedBy: bea, still: true });
+    expect(screen.getByRole("listitem").hasAttribute("data-rise-in")).toBe(false);
+    expect(card().hasAttribute("data-rise-in")).toBe(false);
+  });
+
+  it("rises in an open suggestion with a line that arrives", () => {
+    readAs("u-bea", "editor");
+    line({ mine: false, mayEdit: false, mayDelete: false }, reply);
+    expect(card().hasAttribute("data-rise-in")).toBe(true);
   });
 
   // Review of PR 535: the server refuses a non-editor's review, the asker's too.

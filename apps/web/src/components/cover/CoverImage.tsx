@@ -4,6 +4,7 @@ import { useState, useSyncExternalStore, type ReactNode } from "react";
 import { preload } from "react-dom";
 import type { TripCover } from "@tc/contracts";
 import { cn } from "@/lib/cn";
+import { useHydrated } from "@/lib/useHydrated";
 
 // A cover photo, for a trip now and a playbook day next (M37 parts 4 and 5).
 // Unsplash's guidelines are binding here: the image is HOTLINKED from the URL
@@ -181,6 +182,16 @@ export function CoverImage({
   // such as the one whose load forgot it, keeps its element.
   const [broken, setBroken] = useState(false);
   const [retry, setRetry] = useState(0);
+  // The src that has painted, so the photo fades in when it arrives (M54 part
+  // 4) and again when the cover changes to one that has not. Never for the
+  // src the server rendered: only client code can lift the opacity, so that
+  // photo would sit hidden until hydration however early it arrived, and a
+  // `priority` one is the page's largest paint besides. A lazy one the browser
+  // has not requested by hydration has painted nothing, so it gives the
+  // exemption up and fades in when it is scrolled to.
+  const [loadedSrc, setLoadedSrc] = useState<string>();
+  const hydrated = useHydrated();
+  const [serverSrc, setServerSrc] = useState(hydrated ? undefined : src);
   if (broken && shown) {
     setBroken(false);
     setRetry(retry + 1);
@@ -212,22 +223,30 @@ export function CoverImage({
       decoding="async"
       // A phone's blank stand-in loading says nothing about the photo.
       onLoad={(e) => {
+        setLoadedSrc(src);
         if (e.currentTarget.currentSrc !== BLANK) markLoaded(src);
       }}
       onError={fail}
       // A server-rendered image can fail before hydration, and React attaches
       // `onError` only then, without replaying it: check once it is ours. Only
       // a requested image has a `currentSrc`, so a lazy one the browser has
-      // deferred is never taken for a broken one.
+      // deferred is never taken for a broken one. `onLoad` is not replayed
+      // either, so a photo that is already in is shown from here.
       ref={(el) => {
         if (!broken && el?.complete && el.naturalWidth === 0 && el.currentSrc !== "") fail();
+        if (el?.complete && el.naturalWidth > 0 && loadedSrc !== src) setLoadedSrc(src);
+        if (el?.currentSrc === "" && serverSrc !== undefined) setServerSrc(undefined);
       }}
       // A failed photo stays in the box, hidden, so that mounting it again
       // asks again, and its `load` brings it and its credit back.
       aria-hidden={shown ? undefined : true}
       // eslint-disable-next-line no-restricted-syntax -- the cover's stored framing, 0–100 per photo (M49 decision 9): data, not a style a token could name
       style={{ objectPosition: `center ${photo.position ?? 50}%` }}
-      className={cn("absolute inset-0 size-full object-cover", !shown && "invisible")}
+      data-loaded={priority || src === serverSrc || loadedSrc === src ? "" : undefined}
+      className={cn(
+        "absolute inset-0 size-full object-cover opacity-0 transition-opacity duration-slow ease-calm data-loaded:opacity-100 motion-reduce:transition-none",
+        !shown && "invisible",
+      )}
     />
   );
   return (

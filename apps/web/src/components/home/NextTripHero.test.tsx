@@ -579,6 +579,24 @@ describe("NextTripHero", () => {
     expect(within(group).getByText("SO")).toBeTruthy();
   });
 
+  // M54 decision 9: a face's tip says the person's role as well as their name.
+  it("names each traveler's role in their face's tip", async () => {
+    const trip = tripSummaryFixture({
+      members: [
+        tripSummaryMemberFactory.build({ userId: "dev-dana", role: "owner", displayName: "Dana Reyes" }),
+        tripSummaryMemberFactory.build({ userId: "dev-sam", role: "suggester", displayName: "Sam Okafor" }),
+      ],
+    });
+    fetchTripDetailMock.mockResolvedValue({ ok: true, value: tripDetailWithDays(trip.tripId) });
+    render(<NextTripHero trip={trip} />);
+
+    const group = await screen.findByRole("group", { name: "2 travelers" });
+    expect(within(group).getAllByTestId("avatar-face").map((face) => face.dataset.avatarTip)).toEqual([
+      "Dana Reyes · Owner",
+      "Sam Okafor · Can suggest",
+    ]);
+  });
+
   // M38: a face is the person's chip, so the glyph they picked stands in for
   // their initials.
   it("draws a traveler's chosen avatar in place of their initials", async () => {

@@ -1,20 +1,27 @@
 "use client";
-import { createContext, useContext } from "react";
+import { createContext, useContext, useRef } from "react";
 import * as RadixMenu from "@radix-ui/react-dropdown-menu";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "../../lib/cn";
+import { useLetGoOfFocusOnClose } from "../../lib/useExitPresence";
 
 type MenuState = { open: boolean; onOpenChange: (open: boolean) => void };
 
-const MenuStateContext = createContext<MenuState | null>(null);
+const MenuStateContext = createContext<
+  (MenuState & { triggerRef: React.RefObject<HTMLButtonElement | null> }) | null
+>(null);
 
 /**
  * A dropdown of actions. Controlled, like every overlay here: the caller owns
  * `open`, and `MenuTrigger` toggles it on a plain click (ADR-012 invariant 3).
  */
 export function Menu({ open, onOpenChange, children }: MenuState & { children: React.ReactNode }) {
+  // Focus goes back to the trigger as the menu closes, and a menu opened by
+  // mouse never focused it (`MenuTrigger` cancels the pointerdown).
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  useLetGoOfFocusOnClose(open, triggerRef);
   return (
-    <MenuStateContext.Provider value={{ open, onOpenChange }}>
+    <MenuStateContext.Provider value={{ open, onOpenChange, triggerRef }}>
       <RadixMenu.Root open={open} onOpenChange={onOpenChange}>
         {children}
       </RadixMenu.Root>
@@ -31,6 +38,7 @@ export function MenuTrigger({ children }: { children: React.ReactElement }) {
   if (state === null) throw new Error("MenuTrigger must be inside a Menu");
   return (
     <RadixMenu.Trigger
+      ref={state.triggerRef}
       asChild
       // Radix opens on pointerdown, which a synthetic click never sends, so a
       // test's fireEvent.click would silently open nothing (ADR-012 invariant
@@ -57,9 +65,14 @@ export function MenuContent({
   collisionPadding = 8,
   ...props
 }: React.ComponentProps<typeof RadixMenu.Content>) {
+  // Read for `inert` alone: a leaving menu takes no click and holds no focus
+  // while its exit plays (ADR-082 §2).
+  const state = useContext(MenuStateContext);
   return (
     <RadixMenu.Portal>
       <RadixMenu.Content
+        data-motion="rise"
+        inert={state !== null && !state.open}
         align={align}
         sideOffset={sideOffset}
         collisionPadding={collisionPadding}

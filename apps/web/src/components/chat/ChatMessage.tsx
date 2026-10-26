@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PersonChip } from "@/components/ui/person-chip";
 import { Skeleton } from "@/components/ui/skeleton";
+import { TypingDots } from "@/components/ui/typing-dots";
 import { MessageBody } from "./MessageChip";
 
 // The Trip chat widget names a leaver from the same constant.
@@ -63,6 +64,7 @@ export function ChatMessage({
   onSave,
   onCancelEdit,
   pending = false,
+  still = false,
   askedBy,
   reader,
 }: {
@@ -70,11 +72,14 @@ export function ChatMessage({
   ref?: Ref<HTMLLIElement>;
   message: ChatMessageData;
   /**
-   * Sent and not yet stored: "Sending…" where its time will be, and busy to a
-   * screen reader, until it is or it goes. Said in words, not dimmed: a faded
-   * line falls below AA contrast (PR 444 review).
+   * Sent and not yet stored: the dots where its time will be, "Sending…" to a
+   * screen reader, and busy, until it is or it goes. The line is faded too
+   * (M54 decision 13), only as far as its words keep AA contrast: dimmed with
+   * nothing said was PR 444's finding.
    */
   pending?: boolean;
+  /** Already there when the conversation was shown, so it does not rise in. */
+  still?: boolean;
   persona: Persona | undefined | null;
   tripId: string;
   viewer: MessageViewer | null;
@@ -93,7 +98,7 @@ export function ChatMessage({
   /** The reader, where no `TripProvider` is above this line. */
   reader?: ChatReader | undefined;
 }) {
-  if (message.kind === "system") return <ChangeLine ref={ref} message={message} name={persona === null ? null : (persona?.name ?? FORMER_MEMBER)} as="li" />;
+  if (message.kind === "system") return <ChangeLine ref={ref} message={message} name={persona === null ? null : (persona?.name ?? FORMER_MEMBER)} as="li" still={still} />;
   const name = message.kind === "assistant" ? ASSISTANT_NAME : persona === null ? null : (persona?.name ?? FORMER_MEMBER);
   const whose = `${name ?? "this"}${name === null ? "" : "'s"} message`;
   const live = viewer !== null && !message.removed;
@@ -107,6 +112,8 @@ export function ChatMessage({
       ref={ref}
       tabIndex={-1}
       aria-busy={pending || undefined}
+      data-sending={pending ? "" : undefined}
+      data-rise-in={still ? undefined : ""}
       className="group flex gap-2 rounded-md focus-visible:outline-2 focus-visible:outline-brand"
     >
       <MessageFace name={name} persona={persona} message={message} pending={pending} as="div">
@@ -125,6 +132,7 @@ export function ChatMessage({
             requestedBy={message.requestedBy}
             askedBy={askedBy}
             reader={reader}
+            still={still}
           />
         )}
       </MessageFace>
@@ -178,7 +186,10 @@ export function MessageFace({
         <span className="flex items-baseline gap-1.5 text-xs">
           {name !== null && <span className="font-semibold text-ink">{name}</span>}
           {pending ? (
-            <span className="text-slate">Sending…</span>
+            <span className="self-center text-slate">
+              <TypingDots size="sm" />
+              <span className="sr-only">Sending…</span>
+            </span>
           ) : (
             <time dateTime={message.createdAt} className="text-slate">
               {time(message.createdAt)}
@@ -200,7 +211,19 @@ export function MessageFace({
  * and without its link: the card is one control, and a chip would be a second
  * inside it.
  */
-export function ChangeLine({ ref, message, name, as }: { ref?: Ref<HTMLLIElement> | undefined; message: ChatMessageData; name: string | null; as: "li" | "span" }) {
+export function ChangeLine({
+  ref,
+  message,
+  name,
+  as,
+  still = false,
+}: {
+  ref?: Ref<HTMLLIElement> | undefined;
+  message: ChatMessageData;
+  name: string | null;
+  as: "li" | "span";
+  still?: boolean;
+}) {
   const className = "rounded-md px-2 text-center text-xs text-slate";
   const line = (
     <>
@@ -217,7 +240,7 @@ export function ChangeLine({ ref, message, name, as }: { ref?: Ref<HTMLLIElement
     </>
   );
   return as === "li" ? (
-    <li ref={ref} tabIndex={-1} className={`${className} focus-visible:outline-2 focus-visible:outline-brand`}>
+    <li ref={ref} tabIndex={-1} data-rise-in={still ? undefined : ""} className={`${className} focus-visible:outline-2 focus-visible:outline-brand`}>
       {line}
     </li>
   ) : (
@@ -245,11 +268,14 @@ function ChatSuggestion({
   requestedBy,
   askedBy,
   reader,
+  still,
 }: {
   suggestionId: string;
   requestedBy: string;
   askedBy: Persona | null | undefined;
   reader: ChatReader | undefined;
+  /** Its line's: a card in a line that holds still holds still with it. */
+  still: boolean;
 }) {
   const fromTrip = useOptionalTrip();
   const trip = reader ?? fromTrip;
@@ -299,6 +325,7 @@ function ChatSuggestion({
         note={note}
         onAccept={() => void decide(() => suggestions.acceptMany(ids))}
         onDismiss={() => void decide(dismiss)}
+        rise={!still}
       />
     </div>
   );
@@ -319,8 +346,8 @@ function EditForm({ initial, onSave, onCancel }: { initial: string; onSave: (bod
       }}
     >
       <Input aria-label="Edit message" value={draft} onChange={(event) => setDraft(event.target.value)} autoFocus />
-      <Button type="submit" variant="primary" size="sm" disabled={unchanged || saving}>
-        {saving ? "Saving…" : "Save"}
+      <Button type="submit" variant="primary" size="sm" disabled={!saving && unchanged} pending={saving} pendingLabel="Saving…">
+        Save
       </Button>
       <Button type="button" variant="ghost" size="sm" onClick={onCancel}>
         Cancel
