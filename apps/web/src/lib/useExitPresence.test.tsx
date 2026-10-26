@@ -90,4 +90,18 @@ describe("useLetGoOfFocusOnClose", () => {
     rerender(<ModalHarness open={false} pageHidden />);
     expect(screen.getByRole("button", { name: "Open" }).matches(":focus")).toBe(true);
   });
+
+  // Reopened within its exit, Radix keeps the content mounted and hides the
+  // page only on mount, so nothing else would hide again what the close lifted.
+  it("hides the page again when the modal reopens during its exit", () => {
+    const { rerender } = render(<ModalHarness open={false} pageHidden={false} />);
+    screen.getByRole("button", { name: "Open" }).focus();
+    rerender(<ModalHarness open pageHidden={false} />);
+    rerender(<ModalHarness open pageHidden />);
+    screen.getByRole("button", { name: "Inside" }).focus();
+    rerender(<ModalHarness open={false} pageHidden />);
+
+    rerender(<ModalHarness open pageHidden />);
+    expect(screen.queryByRole("button", { name: "Open" })).toBeNull();
+  });
 });

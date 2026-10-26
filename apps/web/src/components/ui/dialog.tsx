@@ -27,7 +27,9 @@ export function Dialog({
   /**
    * Where focus goes on close, for a dialog whose opener may be gone by then:
    * `preventDefault()` the event and focus the control that is there now.
-   * Without it focus returns to a `Dialog.Trigger`, and with none, to `<body>`.
+   * Without it focus goes, the moment it closes, to whatever held it as the
+   * dialog opened, if that is still there (`useLetGoOfFocusOnClose`); Radix
+   * moves it no further.
    */
   onCloseAutoFocus?: (event: Event) => void;
   children: React.ReactNode;

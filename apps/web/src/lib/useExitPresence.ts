@@ -11,24 +11,31 @@ import { useCallback, useEffect, useLayoutEffect, useRef, type RefObject } from 
  * so a Tab or a screen reader does not start from `<body>` for the length of
  * the exit (spec §3). A modal overlay leaves the page `aria-hidden` until it
  * unmounts, and focus in there is focus a screen reader cannot see, so the
- * opener's own ancestors are shown first. Safe, because the page is about to
- * be shown anyway and `aria-hidden`'s undo is a no-op on an attribute already
- * gone. Only what an overlay hid (`data-aria-hidden`) is lifted, and a nested
- * modal's opener lives in the outer one's portal, so this never shows what the
- * outer modal hid. An opener that is gone, or hidden for another reason, gets
- * nothing: focus is blurred, and Radix's return (or the caller's
- * `onCloseAutoFocus`) still decides where it lands.
+ * opener's own ancestors are shown first, and the nodes lifted are returned
+ * so a reopen can hide them again. `aria-hidden`'s undo is a no-op on an
+ * attribute already gone. Lifted is every ancestor `aria-hidden` walked
+ * (`data-aria-hidden`), which includes one the app had hidden itself; no
+ * opener sits in such a subtree, since a focusable control there would be its
+ * own bug. A nested modal's opener lives in the outer one's portal, so this
+ * never shows what the outer modal hid. An opener that is gone, or hidden for
+ * another reason, gets nothing: focus is blurred, and Radix's return (or the
+ * caller's `onCloseAutoFocus`) still decides where it lands.
  */
-function letGoOfFocus(opener: HTMLElement | null = null) {
+function letGoOfFocus(opener: HTMLElement | null = null): HTMLElement[] {
+  const lifted: HTMLElement[] = [];
   const at = document.activeElement;
-  if (!(at instanceof HTMLElement) || at.closest('[data-motion][data-state="closed"]') === null) return;
+  if (!(at instanceof HTMLElement) || at.closest('[data-motion][data-state="closed"]') === null) return lifted;
   if (opener?.isConnected === true) {
     for (let el: HTMLElement | null = opener; el !== null; el = el.parentElement) {
-      if (el.hasAttribute("data-aria-hidden")) el.removeAttribute("aria-hidden");
+      if (el.hasAttribute("data-aria-hidden") && el.hasAttribute("aria-hidden")) {
+        el.removeAttribute("aria-hidden");
+        lifted.push(el);
+      }
     }
     if (opener.closest('[aria-hidden="true"]') === null) opener.focus();
   }
   if (document.activeElement === at) at.blur();
+  return lifted;
 }
 
 /**
@@ -38,16 +45,25 @@ function letGoOfFocus(opener: HTMLElement | null = null) {
  * `trigger` where the caller has one (a menu opened by mouse never focuses its
  * trigger), else what held focus as `open` turned true, before Radix's own
  * autofocus (a passive effect) moved it inside.
+ *
+ * Reopened within its exit, Radix keeps the content mounted, and it hides the
+ * page only on mount, so what the close lifted is hidden again here. Still
+ * marked `data-aria-hidden` means the overlay's hiding has not been undone.
  */
 export function useLetGoOfFocusOnClose(open: boolean, trigger?: RefObject<HTMLElement | null>) {
   const opener = useRef<HTMLElement | null>(null);
+  const lifted = useRef<HTMLElement[]>([]);
   useLayoutEffect(() => {
     if (open) {
+      for (const el of lifted.current) {
+        if (el.hasAttribute("data-aria-hidden")) el.setAttribute("aria-hidden", "true");
+      }
+      lifted.current = [];
       const at = document.activeElement;
       opener.current = at instanceof HTMLElement && at !== document.body ? at : null;
       return;
     }
-    letGoOfFocus(trigger?.current ?? opener.current);
+    lifted.current = letGoOfFocus(trigger?.current ?? opener.current);
     opener.current = null;
   }, [open, trigger]);
 }
