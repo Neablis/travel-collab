@@ -1,6 +1,6 @@
 import { eq, sql } from "drizzle-orm";
 import { SavedDayVisibility, type CoverCandidate, type CoverPosition, type TripCover } from "@tc/contracts";
-import { coverProxySrcFits } from "./coverProxy";
+import { coverProxySrcFits, coverProxySrcVerifies } from "./coverProxy";
 import { coverJson, coverOf, coverValues, storedCover, urlCoverValues, type UrlCoverInput } from "./coverRows";
 import { db } from "./db/client";
 import { savedDayCovers, savedDays } from "./db/schema";
@@ -62,7 +62,12 @@ export async function setSavedDayCover(
  * `RemoteImageRefused` (with the reason) having saved nothing, so a day
  * never holds a cover that was not an image when it was set. A URL whose
  * signed path would not fit the contract is refused `url-too-long` before
- * that. The image itself is not kept: the cover is the URL (ADR-081 item 2).
+ * that. After the fetch, the minted proxy path must pass the proxy route's
+ * own gates, or the URL is refused `not-renderable` having saved nothing:
+ * the fetch already guarantees a raster within the size cap, so this adds
+ * only the renderability gate — a cover the proxy would refuse on every
+ * view is refused at set time instead of showing as none. The image itself
+ * is not kept: the cover is the URL (ADR-081 item 2).
  */
 export async function setSavedDayCoverFromUrl(
   savedDayId: string,
@@ -72,6 +77,7 @@ export async function setSavedDayCoverFromUrl(
 ): Promise<TripCover> {
   if (!coverProxySrcFits(input.url)) throw new RemoteImageRefused("url-too-long");
   await fetchImage(input.url);
+  if (!coverProxySrcVerifies(input.url)) throw new RemoteImageRefused("not-renderable");
   const values = urlCoverValues(input, userId, now);
   const [row] = await db
     .insert(savedDayCovers)

@@ -21,7 +21,8 @@ export type RemoteImageRefusalReason =
   | "too-large"
   | "timeout"
   | "unreachable"
-  | "offline";
+  | "offline"
+  | "not-renderable";
 
 /** A remote image the guard or the fetcher would not take, and why. */
 export class RemoteImageRefused extends Error {
