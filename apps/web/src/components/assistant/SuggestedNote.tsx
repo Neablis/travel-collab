@@ -76,10 +76,11 @@ export function SuggestedNote({
             variant="primary"
             size="sm"
             className="mt-2"
-            disabled={accept?.accepting}
+            pending={accept?.accepting ?? false}
+            pendingLabel="Accepting…"
             onClick={() => void accept?.acceptAll().then((ok) => ok && setAccepted(true))}
           >
-            {accept?.accepting ? "Accepting…" : "Accept all"}
+            Accept all
           </Button>
         ))}
       {accept?.refusal != null && (

@@ -22,8 +22,8 @@ export function SyncFailure({ read, what }: { read: Pick<LibraryRead<unknown>, "
       variant="warning"
       data-testid="library-sync-failure"
       actions={
-        <Button variant="secondary" size="sm" disabled={read.loading} onClick={read.reload}>
-          {read.loading ? "Retrying…" : "Retry"}
+        <Button variant="secondary" size="sm" pending={read.loading} pendingLabel="Retrying…" onClick={read.reload}>
+          Retry
         </Button>
       }
     >

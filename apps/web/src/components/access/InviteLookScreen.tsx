@@ -155,8 +155,8 @@ function LookBanner({
         )}
       </div>
       <span className="flex items-center gap-2">
-        <Button variant="secondary" size="sm" disabled={joining} onClick={() => void join()}>
-          {joining ? "Joining…" : "Join the trip"}
+        <Button variant="secondary" size="sm" pending={joining} pendingLabel="Joining…" onClick={() => void join()}>
+          Join the trip
         </Button>
         <Link
           href={`/invite/${encodeURIComponent(token)}`}

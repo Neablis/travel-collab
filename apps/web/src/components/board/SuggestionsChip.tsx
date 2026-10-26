@@ -94,8 +94,15 @@ export function SuggestionsChip() {
         {/* Two or more: with one, its own Accept below is the same button.
             `useAcceptAll` is the one place W77's single call is made. */}
         {accept !== null && (accept.acceptable.length > 1 || accept.accepting) && (
-          <Button variant="primary" size="sm" className="self-start" disabled={accept.accepting} onClick={() => void accept.acceptAll()}>
-            {accept.accepting ? "Accepting…" : "Accept all"}
+          <Button
+            variant="primary"
+            size="sm"
+            className="self-start"
+            pending={accept.accepting}
+            pendingLabel="Accepting…"
+            onClick={() => void accept.acceptAll()}
+          >
+            Accept all
           </Button>
         )}
         {accept?.refusal != null && (

@@ -42,13 +42,14 @@ describe("MapOfflineState", () => {
   });
 
   // A retry that can be pressed five times while the first is in flight is five
-  // map rebuilds.
+  // map rebuilds. "Trying…" is the accessible name, not the visible text: a
+  // label swap resizes the button (M54 decision 2).
   it("refuses a second retry while one is running, and says which state it is in", () => {
     const onRetry = vi.fn();
     render(<MapOfflineState onRetry={onRetry} retrying />);
-    const retry = screen.getByTestId("map-offline-retry");
-    expect(retry.textContent).toBe("Trying…");
-    expect((retry as HTMLButtonElement).disabled).toBe(true);
+    const retry = screen.getByRole("button", { name: "Trying…" });
+    expect(retry.getAttribute("aria-busy")).toBe("true");
+    expect(retry.textContent).toBe("Try again");
     fireEvent.click(retry);
     expect(onRetry).not.toHaveBeenCalled();
   });

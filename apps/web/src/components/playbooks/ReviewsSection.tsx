@@ -188,8 +188,15 @@ export function ReviewsSection({
                   {noteCountLabel(note)}
                 </DataText>
                 <span className="flex-1" />
-                <Button variant="primary" size="sm" disabled={stars === null || busy || over} onClick={() => void submit()}>
-                  {busy ? "Posting…" : online ? "Post" : "Hold until online"}
+                <Button
+                  variant="primary"
+                  size="sm"
+                  disabled={!busy && (stars === null || over)}
+                  pending={busy}
+                  pendingLabel="Posting…"
+                  onClick={() => void submit()}
+                >
+                  {online ? "Post" : "Hold until online"}
                 </Button>
               </div>
               {!online && (
