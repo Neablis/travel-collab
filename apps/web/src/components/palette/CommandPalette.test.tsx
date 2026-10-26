@@ -144,12 +144,12 @@ describe("CommandPalette", () => {
   // M54 part 4: a page under a loading boundary hydrates after the shell, so
   // ⌘K can open before Home has offered New trip, and "No match" then was an
   // Enter that ran nothing.
-  it("says Loading… until the page's commands register, and runs an Enter pressed meanwhile once they do", async () => {
+  it("shows the list as arriving, not No match, until the page's commands register, and runs an Enter pressed meanwhile once they do", async () => {
     pathname = "/home";
     const startNewTrip = vi.fn();
     render(<CommandPalette />);
     await userEvent.keyboard("{Meta>}k{/Meta}add trip");
-    expect(screen.getByText("Loading…")).toBeTruthy();
+    expect(screen.getByRole("status", { name: "Loading commands" })).toBeTruthy();
     expect(screen.queryByText("No match")).toBeNull();
     await userEvent.keyboard("{Enter}");
     expect(palette()).toBeTruthy();
@@ -191,7 +191,7 @@ describe("CommandPalette", () => {
     await act(() => vi.advanceTimersByTimeAsync(1000));
     await user.keyboard("{Enter}");
     await act(() => vi.advanceTimersByTimeAsync(1400));
-    expect(screen.getByText("Loading…")).toBeTruthy();
+    expect(screen.getByRole("status", { name: "Loading commands" })).toBeTruthy();
     await act(() => vi.advanceTimersByTimeAsync(200));
     vi.useRealTimers();
     expect(screen.getByText("No match")).toBeTruthy();
@@ -206,7 +206,7 @@ describe("CommandPalette", () => {
     const calendar = vi.fn();
     render(<CommandPalette />);
     await userEvent.keyboard("{Meta>}k{/Meta}move{Enter}{Enter}");
-    expect(screen.getByText("Loading…")).toBeTruthy();
+    expect(screen.getByRole("status", { name: "Loading commands" })).toBeTruthy();
     // Two leaves under Move, so the held Enter drills into the branch.
     const moves: PaletteCommand[] = [
       { id: "move-day", action: "Move", type: "Day", run: plan },

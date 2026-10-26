@@ -8,6 +8,7 @@ import { AI_ASK_ENTITLEMENT, useEntitled } from "@/lib/useAiEntitled";
 import { usePhoneAsk } from "@/components/nav/phoneAsk";
 import { Dialog } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Skeleton, SkeletonRegion } from "@/components/ui/skeleton";
 import { fetchTrips } from "@/lib/apiClient";
 import { cn } from "@/lib/cn";
 import { orderHomeTrips } from "@/lib/homeTripOrder";
@@ -47,7 +48,7 @@ import { type PaletteCommand, usePaletteAwaits, usePaletteCommands, usePaletteSo
 // model before the row is chosen. Elsewhere, and for an account whose plan
 // has no assistant, no match goes nowhere.
 //
-// **Until the page has registered, it says Loading…, not No match** (M54
+// **Until the page has registered, it shows outlines, not No match** (M54
 // part 4, Mitchell): a page under a loading boundary hydrates after the
 // shell, so ⌘K can open first. An Enter pressed on an empty list then is
 // held until the page's commands arrive and runs on the list they make; one
@@ -340,7 +341,7 @@ export function CommandPalette() {
                 setActive(rows.length === 0 ? 0 : (current + step + rows.length) % rows.length);
               } else if (event.key === "Enter") {
                 event.preventDefault();
-                // Only on Loading…: a listed row is what Enter was for, and
+                // Only on the outlines: a listed row is what Enter was for, and
                 // the page's commands arriving would move another under it.
                 if (waiting && rows.length === 0) setHeldEnter(true);
                 else choose(rows[current]);
@@ -357,7 +358,16 @@ export function CommandPalette() {
           />
         </div>
         <div id={listId} role="listbox" aria-label={path.length > 0 ? path.map((step) => step.label).join(" › ") : "Commands"} className="mt-2 py-1 text-sm">
-          {rows.length === 0 ? <p className="px-3 py-2 text-slate">{waiting ? "Loading…" : "No match"}</p> : null}
+          {rows.length === 0 && waiting ? (
+            // Outlines, not a word (the loading wall, KI-2026-09-20-e): a
+            // screen reader still hears which list is arriving.
+            <SkeletonRegion label="Loading commands" className="flex flex-col">
+              <Skeleton className="mx-3 my-2.5 h-3 w-2/3 md:my-2" />
+              <Skeleton className="mx-3 my-2.5 h-3 w-1/2 md:my-2" delay={2} />
+            </SkeletonRegion>
+          ) : rows.length === 0 ? (
+            <p className="px-3 py-2 text-slate">No match</p>
+          ) : null}
           {sections.map((section, sectionIndex) =>
             section.heading === undefined ? (
               section.rows.map(({ row, index }) => option(row, index))
