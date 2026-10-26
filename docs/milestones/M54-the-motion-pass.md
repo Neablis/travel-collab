@@ -33,7 +33,7 @@ citations were re-verified against `main` at `f5c9a16` on 2026-10-26, with three
   dont know what you are seeing"*. He added: *"I think its almost A and C, full page held back
   experience just on login, that shows the animation"*. His choice, "Splash, then page": the
   page's reveal waits behind the welcome moment, a full-screen splash (the logo, and "Welcome,
-  {name}" after signup) on an opaque surface, then the page, for about 1.2–1.6 s, capped by the
+  {name}" after signup and sign-in) on an opaque surface, then the page, for about 1.2–1.6 s, capped by the
   existing name-wait cap. It is the same on every viewport (phone, installed app and desktop) and
   plays after both signup and sign-in; he confirmed "signup and sign-in" and "same everywhere".
   Under reduced motion there is no animation and the hold is the same or shorter. The
@@ -47,7 +47,7 @@ citations were re-verified against `main` at `f5c9a16` on 2026-10-26, with three
   among them: the signup title "Your next trip starts here"; the sub "Bring the group, the ideas
   and the dates, and plan it all in one place together. Your account is ready in about four
   seconds."; the invite note "Add it so whoever invited you gets the credit."; the disclosure
-  "Have an invite code?"; "Welcome, {name}" after a signup; and the `/developers` step 1 line that
+  "Have an invite code?"; "Welcome, {name}" after signup and sign-in; and the `/developers` step 1 line that
   names *Have an invite code?*. No sign-in string changed.
 - **Part 8's deviations from the plan (PR 606).** Wizard steps **fade in**; they do not
   cross-fade, because no two steps are ever on screen together. A moved river block settles
@@ -105,7 +105,7 @@ citations were re-verified against `main` at `f5c9a16` on 2026-10-26, with three
 - [ ] **Sign-in has its cheer.** Continue with Google and dev login cannot be double-submitted, the
       invite code sits behind *Have an invite code?*, and the welcome moment plays after every
       sign-in (a full-screen splash, then the page, on every viewport, per decision 4 as amended;
-      "Welcome, {name}" after signup only) and on every PWA cold launch, with iOS startup images.
+      "Welcome, {name}" after signup and sign-in) and on every PWA cold launch, with iOS startup images.
       A test proves the splash leaves within the name-wait cap and the page is usable after it.
       *(Part 5.)*
 - [ ] **One avatar stack** replaces the five facepiles, with a "+N" cap and a name per face on hover.
