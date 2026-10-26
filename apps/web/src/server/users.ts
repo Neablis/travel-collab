@@ -22,6 +22,7 @@ import { invalidateAuthor } from "./libraryCache";
 import { offerTrial } from "./entitlements/grants";
 import { rewardReferrer } from "./entitlements/referrals";
 import { isDevLoginEnabled } from "@/lib/devLogin";
+import { WELCOME_COOKIE, WELCOME_COOKIE_MAX_AGE_SECONDS, type WelcomeKind } from "@/lib/welcomeCue";
 import { SIGNUP_REF_COOKIE, normalizeSignupRef } from "@/lib/signupRef";
 import { isBootstrapAdmin } from "@/lib/adminBootstrap";
 import { deploymentOrigin } from "@/lib/deploymentOrigin";
@@ -376,6 +377,30 @@ export function cookieSignupRef(): SignupRefJar {
   };
 }
 
+/** The `tc_welcome` cue as `recordSignIn` sets it: a seam, like `SignupRefJar`. */
+export type WelcomeJar = {
+  cue(kind: WelcomeKind): Promise<void>;
+};
+
+/**
+ * The real cookie jar (mutable here, as `cookiePendingAdmission` explains).
+ *
+ * Not httpOnly, because the page's own script reads it and spends it. It says
+ * only that a sign-in just happened, so it carries no `secure` either: nothing
+ * in it is worth guarding.
+ */
+export function cookieWelcome(): WelcomeJar {
+  return {
+    async cue(kind) {
+      (await cookies()).set(WELCOME_COOKIE, kind, {
+        path: "/",
+        sameSite: "lax",
+        maxAge: WELCOME_COOKIE_MAX_AGE_SECONDS,
+      });
+    },
+  };
+}
+
 /**
  * Auth.js `signIn` callback. Wired in `server/auth.ts`; deliberately fail-closed
  * on every path, because the point of the table is that no session can exist
@@ -399,11 +424,15 @@ export function cookieSignupRef(): SignupRefJar {
  * A brand-new account also takes the `caesura_ref` channel (ADR-079), and that
  * cookie is cleared once copied. A returning account's is neither read nor
  * cleared: it changes nothing here.
+ *
+ * Last, an admitted sign-in cues the welcome moment (M54 decision 19): `signin`,
+ * or `signup` when this sign-in made the account.
  */
 export async function recordSignIn(
   payload: SignInPayload,
   pending: PendingAdmission = cookiePendingAdmission(),
   signupRefJar: SignupRefJar = cookieSignupRef(),
+  welcome: WelcomeJar = cookieWelcome(),
 ): Promise<boolean | string> {
   // Refused here means refused before the gate is consulted and before any row
   // exists — including a payload carrying no account, which after 2026-09-05
@@ -519,6 +548,13 @@ export async function recordSignIn(
     if (identity.email !== null) {
       await sendEmail(welcomeEmail({ to: identity.email, name: identity.name, appUrl: deploymentOrigin() }));
     }
+  }
+  // **Never fatal**, like the trial: a moment that cannot be cued costs a
+  // flourish, and a throw here would cost the sign-in.
+  try {
+    await welcome.cue(returning ? "signin" : "signup");
+  } catch {
+    // Nothing to tell anyone: the person is signed in, only unwelcomed.
   }
   return true;
 }

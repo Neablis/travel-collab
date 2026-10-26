@@ -1,4 +1,6 @@
-import { ViewTransition, type ReactElement } from "react";
+import { readFileSync, readdirSync } from "node:fs";
+import { join } from "node:path";
+import type { ReactElement } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 // `next/font/google` is transformed by Next's SWC plugin at build time; imported
@@ -13,7 +15,10 @@ vi.mock("next/font/google", () => {
 
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
-import RootLayout, { viewport } from "./layout";
+import { RouteViewTransition } from "@/components/RouteViewTransition";
+import { LaunchOverlay } from "@/components/welcome/WelcomeMoment";
+import { LAUNCH_SCRIPT } from "@/lib/welcomeCue";
+import RootLayout, { metadata, viewport } from "./layout";
 
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -76,7 +81,7 @@ describe("root layout route cross-fade", () => {
       if (Array.isArray(node)) return node.some((n) => inside(n, within));
       if (node === null || typeof node !== "object") return false;
       const element = node as ReactElement<{ children?: unknown }>;
-      return inside(element.props?.children, within || element.type === ViewTransition);
+      return inside(element.props?.children, within || element.type === RouteViewTransition);
     };
     expect(inside(RootLayout({ children: page }), false)).toBe(true);
   });
@@ -88,5 +93,48 @@ describe("root layout route cross-fade", () => {
 describe("root layout viewport", () => {
   it("lets the on-screen keyboard resize the layout, so a bottom-anchored composer rides above it", () => {
     expect(viewport.interactiveWidget).toBe("resizes-content");
+  });
+});
+
+// M54 decision 6: on a home-screen launch the overlay covers the first frame,
+// which needs both halves in the server HTML — the head script that marks the
+// launch before the body paints, and the overlay it reveals.
+describe("root layout launch overlay", () => {
+  it("marks a home-screen launch from the head and carries the overlay in the body", () => {
+    const tree = RootLayout({ children: null }) as ReactElement<{ children: ReactElement[] }>;
+    const [head, body] = tree.props.children as ReactElement<{ children: unknown }>[];
+    const scripts = [head!.props.children]
+      .flat(2)
+      .map((node) => (node as ReactElement<{ dangerouslySetInnerHTML?: { __html: string } }>)?.props?.dangerouslySetInnerHTML?.__html);
+    expect(scripts).toContain(LAUNCH_SCRIPT);
+    expect(mounts(LaunchOverlay)).toBe(true);
+    expect(body!.type).toBe("body");
+  });
+});
+
+// M54 decision 7. iOS picks a launch screen by an exact device-size media query
+// and shows a blank one when the file it names is missing or the wrong size,
+// so every link must name a committed file whose pixels are the query's, and
+// every file the generator draws must be linked.
+describe("root layout iOS startup images", () => {
+  const icons = join(process.cwd(), "public/icons");
+  const startup = metadata.appleWebApp as { startupImage: { url: string; media: string }[] };
+  // A PNG's width and height are the IHDR chunk's first two words.
+  const pixels = (file: string) => {
+    const png = readFileSync(join(icons, file));
+    return [png.readUInt32BE(16), png.readUInt32BE(20)];
+  };
+
+  it("links a file of the right pixel size for each screen", () => {
+    expect(startup.startupImage.length).toBeGreaterThan(0);
+    for (const { url, media } of startup.startupImage) {
+      const [, width, height, ratio] = media.match(/device-width: (\d+)px\) and \(device-height: (\d+)px\) and \(-webkit-device-pixel-ratio: (\d+)\)/)!.map(Number);
+      expect(pixels(url.replace("/icons/", ""))).toEqual([width! * ratio!, height! * ratio!]);
+    }
+  });
+
+  it("links every startup image the generator draws", () => {
+    const drawn = readdirSync(icons).filter((file) => file.startsWith("startup-")).map((file) => `/icons/${file}`);
+    expect(startup.startupImage.map(({ url }) => url).sort()).toEqual(drawn.sort());
   });
 });

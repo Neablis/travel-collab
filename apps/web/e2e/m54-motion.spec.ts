@@ -1,5 +1,6 @@
 import type { Locator, Page } from "@playwright/test";
 import { expect, test } from "./fixtures/test";
+import { boardHydrated } from "./helpers";
 import { e2eTripName } from "./tripNames";
 
 // M54 (ADR-082 §6): the suite runs with reduced motion, so no other spec ever
@@ -49,6 +50,15 @@ async function aTrip(page: Page, prefix: string): Promise<string> {
   return ((await created.json()) as { tripId: string }).tripId;
 }
 
+// The phone header draws its `⋯` once as a desktop header would, then again in
+// its phone place once `useIsPhone` corrects in an effect, which is a new
+// button (KI-2026-10-26-u). Focused or clicked before that, the trigger these
+// tests hold is replaced under them. The trip's status badge is drawn in the
+// phone's row by the same correction, so its showing means the `⋯` has moved.
+async function phoneHeaderSettled(page: Page) {
+  await expect(page.getByText("Active", { exact: true })).toBeVisible();
+}
+
 test("the account menu (a popover) leaves without taking a click or holding focus", async ({ page }) => {
   await page.goto("/home");
   await page.getByRole("button", { name: /^Account menu/ }).click();
@@ -66,11 +76,14 @@ test("the account menu (a popover) leaves without taking a click or holding focu
   await expect(page.getByRole("button", { name: /^Account menu/ })).toBeFocused();
 });
 
-// The `Menu` primitive's one header use is the phone's `⋯`.
+// The `Menu` primitive's one header use is the phone's `⋯`. Opened by mouse,
+// its trigger never had focus (MenuTrigger cancels the pointerdown), and focus
+// still goes to it the moment the menu closes.
 test("a menu leaves without taking a click or holding focus", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   const tripId = await aTrip(page, "MotionMenu");
   await page.goto(`/trips/${tripId}`);
+  await phoneHeaderSettled(page);
   await page.getByRole("button", { name: "Trip actions" }).click();
   await expect(page.getByRole("menuitem", { name: "History" })).toBeVisible();
 
@@ -82,11 +95,36 @@ test("a menu leaves without taking a click or holding focus", async ({ page }) =
     takesClick: false,
     exit: ["tc-sink-out"],
   });
+  await expect(page.getByRole("button", { name: "Trip actions" })).toBeFocused();
 });
 
+// Spec §3: focus moves without waiting for the exit, so a Tab straight after
+// Escape starts from the trigger. The menu is modal, so its trigger is under
+// the page's `aria-hidden` until the unmount, and that must not keep focus off it.
+test("a menu opened by keyboard gives focus back to its trigger the moment it closes", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const tripId = await aTrip(page, "MotionMenuKeys");
+  await page.goto(`/trips/${tripId}`);
+  await boardHydrated(page);
+  await phoneHeaderSettled(page);
+  const trigger = page.getByRole("button", { name: "Trip actions" });
+  await trigger.focus();
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("menuitem", { name: "History" })).toBeVisible();
+
+  await freezeAnimations(page);
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("menu")).toHaveAttribute("data-state", "closed");
+  await expect(trigger).toBeFocused();
+});
+
+// Opened from a focused control, so there is an opener to go back to, and it
+// is under the modal's `aria-hidden` when the dialog closes.
 test("a dialog (⌘K) leaves without it or its scrim taking a click or holding focus", async ({ page }) => {
   await page.goto("/home");
   await expect(page.getByRole("heading", { level: 1, name: "Your trips" })).toBeVisible();
+  const opener = page.getByRole("button", { name: /^Account menu/ });
+  await opener.focus();
 
   await page.keyboard.press("ControlOrMeta+KeyK");
   await expect(page.getByRole("dialog", { name: "Go to or do" })).toBeVisible();
@@ -99,6 +137,15 @@ test("a dialog (⌘K) leaves without it or its scrim taking a click or holding f
     takesClick: false,
     exit: ["tc-sink-out"],
   });
+  await expect(opener).toBeFocused();
+
+  // Reopened within the exit (the timeline is still frozen), Radix keeps the
+  // content mounted and autofocuses only on mount: what is typed must still
+  // reach the palette, not the opener the page hides again.
+  await page.keyboard.press("ControlOrMeta+KeyK");
+  await expect(page.getByRole("dialog", { name: "Go to or do" })).toHaveAttribute("data-state", "open");
+  await page.keyboard.type("cal");
+  await expect(page.getByRole("combobox", { name: "Go to or do" })).toHaveValue("cal");
 });
 
 // ADR-082 §2, decision 20: under reduced motion nothing animates, so Radix

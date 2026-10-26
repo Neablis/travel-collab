@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { expect, test } from "./fixtures/test";
-import { E2E_SUPER_CODE } from "./admission";
+import { E2E_SUPER_CODE, fillInviteCode } from "./admission";
 
 /**
  * A dev username nobody has used before, so the invite gate sees a genuinely
@@ -198,7 +198,7 @@ test.describe("the demo trip", () => {
 
     // A genuinely new account: M11a's gate refuses anyone with no `users` row
     // and no credential, so this is the real sign-up, super code and all.
-    await page.getByLabel("Invite code").fill(E2E_SUPER_CODE);
+    await fillInviteCode(page, E2E_SUPER_CODE);
     // eslint-disable-next-line playwright/prefer-locator -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     await page.fill('input[name="username"]', freshDemoUsername());
     await page.getByRole("button", { name: /sign in with dev login/i }).click();

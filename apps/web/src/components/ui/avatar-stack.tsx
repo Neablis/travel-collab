@@ -32,9 +32,14 @@ const OVERLAP: Record<StackSize, string> = { xs: "-ml-1", sm: "-ml-2", md: "-ml-
  * under the pointer names itself in a tip. The tip is CSS content from
  * `data-avatar-tip` (`globals.css`, M54 avatar stack), not text, so it adds
  * nothing to the words a containing control prints and is named by. The faces
- * are `aria-hidden`, because a browser reads CSS content aloud: the caller says
- * who they are, once, in a sentence or a label. Escape hides the tips until
- * the pointer leaves (WCAG 1.4.13).
+ * are `aria-hidden`, because a browser reads CSS content aloud: the caller
+ * says what the stack shows, once, in a sentence or a label — who they are,
+ * or on Home's cards only how many. Escape hides the tips until the pointer
+ * leaves (WCAG 1.4.13).
+ *
+ * No chip carries a `title`: the browser would draw its own tooltip beside the
+ * CSS tip, saying less and deaf to Escape. `data-person-name` is what finds
+ * one person's face, interactive or not, and draws nothing.
  *
  * `interactive={false}` is for a stack under something else that takes the
  * pointer (a board block): no spread and no tip.
@@ -87,6 +92,7 @@ export function AvatarStack({
           {index > 0 ? " " : null}
           <span
             data-testid="avatar-face"
+            data-person-name={person.name}
             aria-hidden
             data-avatar-tip={interactive ? [person.name, person.detail].filter(Boolean).join(" · ") : undefined}
             className={cn("relative flex shrink-0", index > 0 && OVERLAP[size])}

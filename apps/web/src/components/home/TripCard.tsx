@@ -8,7 +8,7 @@ import { Text } from "@/components/ui/text";
 import { DataText } from "@/components/ui/data-text";
 import { dayAccents, type AccentFamily } from "@/lib/dayAccent";
 import { displayNameFor } from "@/lib/displayName";
-import { roleLabel } from "@/lib/tripRole";
+import { memberRoleLabel } from "@/lib/tripRole";
 import { AvatarStack } from "@/components/ui/avatar-stack";
 import { cn } from "@/lib/cn";
 import { formatTripDateLong } from "@/lib/formatDate";
@@ -261,9 +261,8 @@ export function TripCard({ trip, menuSlot, plannedOfBudget, viewerId, unreadChat
             name: displayNameFor(member),
             avatar: member.avatar,
             color: member.color,
-            // M54 decision 9: the tip names the role, "Owner" for the owner as
-            // the header and PersonRow say it.
-            detail: member.role === "owner" ? "Owner" : roleLabel(member.role),
+            // M54 decision 9: the tip names the role.
+            detail: memberRoleLabel(member.role),
           }))}
         />
         <div className="flex min-w-0 items-center gap-2">

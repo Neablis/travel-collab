@@ -53,6 +53,13 @@ describe("AvatarStack", () => {
     expect(stack.hasAttribute("data-tips-hushed")).toBe(false);
   });
 
+  // A `title` draws the browser's own tooltip beside the CSS tip: a second tip
+  // that says less and that Escape does not hide (review of PR 604).
+  it("interactive faces carry no title", () => {
+    render(<AvatarStack people={people(2)} />);
+    expect(screen.queryAllByTitle(/.+/)).toEqual([]);
+  });
+
   // RiverBlock's stack sits under a block that takes the pointer: no spread
   // and no tip.
   it("draws no tip when it is not interactive", () => {

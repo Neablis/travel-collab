@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { Browser, Locator, Page } from "@playwright/test";
 import { expect, test } from "./fixtures/test";
-import { E2E_SUPER_CODE } from "./admission";
+import { E2E_SUPER_CODE, fillInviteCode } from "./admission";
 import { E2E_ADMIN_USERNAME, grantCollaborators } from "./adminBootstrap";
 import { createMappedTrip } from "./helpers";
 import { e2eTripName } from "./tripNames";
@@ -49,7 +49,7 @@ async function join(page: Page, tripId: string, tripName: string): Promise<void>
 async function operator(browser: Browser): Promise<Page> {
   const page = await (await browser.newContext({ storageState: undefined })).newPage();
   await page.goto("/signup");
-  await page.getByLabel("Invite code").fill(E2E_SUPER_CODE);
+  await fillInviteCode(page, E2E_SUPER_CODE);
   await page.getByLabel("Username").fill(E2E_ADMIN_USERNAME);
   await Promise.all([
     page.waitForURL((url) => !/^\/sign(in|up)$/.test(url.pathname)),
