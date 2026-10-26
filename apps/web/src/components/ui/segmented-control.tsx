@@ -95,7 +95,9 @@ export function SegmentedControl<T extends string>({
                   )
                 : cn(
                     "rounded-sm px-1 py-0.5",
-                    selected && !ready && "underline underline-offset-4",
+                    // The indicator's own line, where it lands: a text
+                    // underline sat higher and jumped at hydration.
+                    selected && !ready && "after:absolute after:inset-x-0 after:bottom-0 after:h-px after:bg-ink",
                     selected ? "font-semibold text-ink" : "text-slate hover:text-ink",
                   ),
             )}
