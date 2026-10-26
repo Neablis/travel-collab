@@ -355,9 +355,12 @@ describe("AuthScreen", () => {
     expect(screen.queryByRole("button", { name: "Have an invite code?" })).toBeNull();
   });
 
+  // The field is hidden on every screen until asked for, so its absence alone
+  // proves nothing here: the question that would open it must be absent too.
   it("does not ask for an invite code in signin mode", () => {
     render(<AuthScreen mode="signin" devLoginEnabled googleAvailable />);
     expect(screen.queryByLabelText("Invite code")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Have an invite code?" })).toBeNull();
   });
 
   // A labelled box with no explanation is the defect this closes: a first-time
@@ -574,6 +577,20 @@ describe("AuthScreen", () => {
     await waitFor(() => expect(signInMock).toHaveBeenCalled());
     expect(signInMock).toHaveBeenCalledTimes(1);
     expect(submit.getAttribute("aria-busy")).toBe("true");
+  });
+
+  // `signIn()` can reject without leaving the page (its CSRF or POST fetch
+  // fails on a bad connection). The guard must not outlive that, or the
+  // button keeps its dots and only a reload signs in.
+  it("lets a sign-in that failed before leaving be tried again", async () => {
+    signInMock.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+    render(<AuthScreen mode="signin" devLoginEnabled googleAvailable />);
+    await userEvent.type(screen.getByLabelText("Username"), "sam");
+    const submit = screen.getByRole("button", { name: /sign in with dev login/i });
+    await userEvent.click(submit);
+    await waitFor(() => expect(submit.getAttribute("aria-busy")).not.toBe("true"));
+    await userEvent.click(submit);
+    await waitFor(() => expect(signInMock).toHaveBeenCalledTimes(2));
   });
 
   it("hides the dev-login form unless it is enabled", () => {

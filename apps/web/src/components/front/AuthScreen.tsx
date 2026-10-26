@@ -204,9 +204,9 @@ export function AuthScreen({
   // Which sign-in is on its way out, so its button shows the dots and a second
   // press starts nothing (M54). The ref is the guard, because two presses can
   // land before the re-render that would mark the button pending; the state is
-  // what draws it. Both clear when a failed admission write stops the sign-in,
-  // and when the browser's Back button brings this page back from its cache
-  // with the redirect long gone.
+  // what draws it. Both clear when a failed admission write or a failed
+  // `signIn()` stops the sign-in, and when the browser's Back button brings this
+  // page back from its cache with the redirect long gone.
   const [pending, setPending] = useState<"google" | "dev-login" | null>(null);
   const inFlight = useRef(false);
   useEffect(() => {
@@ -241,13 +241,13 @@ export function AuthScreen({
   // key can do the identical thing rather than a near-copy of it.
   const continueWithGoogle = () => {
     if (!googleAvailable) return;
-    void startSignIn("google", () => void signIn("google", { callbackUrl }));
+    void startSignIn("google", () => signIn("google", { callbackUrl }));
   };
 
   // Every sign-in dispatch on this screen goes through here, including dev
   // login: the build plan's decision 3 routes dev login through the same
   // admission path rather than exempting it, so it needs the same cookie.
-  async function startSignIn(provider: "google" | "dev-login", dispatch: () => void) {
+  async function startSignIn(provider: "google" | "dev-login", dispatch: () => Promise<unknown>) {
     if (inFlight.current) return;
     inFlight.current = true;
     setPending(provider);
@@ -274,7 +274,14 @@ export function AuthScreen({
         return;
       }
     }
-    dispatch();
+    try {
+      await dispatch();
+    } catch {
+      // `signIn()` rejects without leaving when its own fetches fail (a bad
+      // connection). The page stayed, so the button must work again.
+      inFlight.current = false;
+      setPending(null);
+    }
   }
 
   return (
@@ -388,7 +395,7 @@ export function AuthScreen({
                 className="flex flex-col gap-2 border-t border-hairline pt-3.5"
                 onSubmit={(event) => {
                   event.preventDefault();
-                  void startSignIn("dev-login", () => void signIn("dev-login", { username, callbackUrl }));
+                  void startSignIn("dev-login", () => signIn("dev-login", { username, callbackUrl }));
                 }}
               >
                 <FormField id="dev-login-username" label="Username" hint="Preview and local only">

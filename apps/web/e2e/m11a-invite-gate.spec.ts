@@ -164,8 +164,10 @@ test("someone who already has a users row signs in with no code at all", async (
   await page.goto("/signin");
   // `/signin` carries no invite-code field: someone arriving here either has a
   // row already or is riding a token the proxy banked, and a field asking for
-  // a code would read as a requirement to both.
+  // a code would read as a requirement to both. The field waits behind "Have
+  // an invite code?" on every screen, so that question must be absent too.
   await expect(page.getByLabel("Invite code")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Have an invite code?" })).toHaveCount(0);
 
   // eslint-disable-next-line playwright/prefer-locator -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
   await page.fill('input[name="username"]', "alice");
