@@ -2887,3 +2887,65 @@ html[data-look="ledger"] .shadow-raised {
     }
   }
 }
+
+/* ── M54: one avatar stack (decision 9). `AvatarStack` sets each item's place
+   (`--stack-at`) and the count of items (`--stack-items`); a hover spreads
+   them about the middle, so the stack widens by the same amount on each side
+   and never shifts what is beside it. The face under the pointer rises above
+   its neighbours and names itself in a tip, drawn from `data-avatar-tip` so it
+   adds no words to a control the stack sits in. A keyboard focus on that
+   control spreads the faces too, but names none: its label already does.
+
+   Hover only where there is a hover, so a tap does not leave a stack spread
+   and a tip showing. Under reduced motion nothing spreads and the tip appears
+   at once: the raised face and its name are the end state. */
+@layer components {
+  [data-avatar-stack] {
+    --stack-spread: 4px;
+  }
+  [data-avatar-tip]::before {
+    content: attr(data-avatar-tip);
+    position: absolute;
+    bottom: calc(100% + 4px);
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 2px 6px;
+    border-radius: var(--radius-sm);
+    background: var(--color-ink);
+    color: var(--color-surface);
+    font-size: var(--text-xs);
+    line-height: var(--text-xs--line-height);
+    font-weight: 600;
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+  }
+
+  @media (hover: hover) {
+    [data-avatar-tip]:hover {
+      z-index: 1;
+    }
+    [data-avatar-tip]:hover::before {
+      opacity: 1;
+    }
+  }
+
+  @media (hover: hover) and (prefers-reduced-motion: no-preference) {
+    [data-avatar-stack][data-interactive] > * {
+      transition: transform var(--transition-duration-base) var(--ease-calm);
+    }
+    [data-avatar-stack][data-interactive]:hover > *,
+    :focus-visible > [data-avatar-stack][data-interactive] > * {
+      transform: translateX(calc((var(--stack-at) - (var(--stack-items) - 1) / 2) * var(--stack-spread)));
+    }
+    [data-avatar-tip]::before {
+      transform: translate(-50%, 2px);
+      transition:
+        opacity var(--transition-duration-fast) var(--ease-calm),
+        transform var(--transition-duration-fast) var(--ease-calm);
+    }
+    [data-avatar-tip]:hover::before {
+      transform: translate(-50%, 0);
+    }
+  }
+}

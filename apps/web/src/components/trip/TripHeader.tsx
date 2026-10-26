@@ -1,10 +1,11 @@
 "use client";
 
-import { Fragment, useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Clock, MoreHorizontal } from "lucide-react";
 import { travellerIds, type TripAccess } from "@tc/contracts";
-import { PersonChip, personChipText } from "@/components/ui/person-chip";
+import { AvatarStack } from "@/components/ui/avatar-stack";
+import { personChipText } from "@/components/ui/person-chip";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DataText } from "@/components/ui/data-text";
@@ -876,31 +877,22 @@ function TravellerStack({
         shown.length > 0 ? `: ${shown.join(", ")}` : "",
         onlineNames.length > 0 ? `, online: ${onlineNames.join(", ")}` : "",
       ].join("")}
-      title="Travellers on this trip"
       className="hidden h-8 px-1 sm:inline-flex"
     >
-      {/* Its own row, so the overlap is not undone by the button's gap. The
-          space between faces is for the stack's TEXT, not its look (flex
-          drops a whitespace-only item): without it the initials run together
-          as "AABBCC+1", which is the visible label axe reads above. */}
-      <span className="flex">
-        {travellers.slice(0, STACK_AVATARS).map((member, index) => (
-          <Fragment key={member.userId}>
-            {index > 0 ? " " : null}
-            <PersonChip
-              name={displayNameFor(member)}
-              avatar={member.avatar}
-              color={member.color}
-              size="md"
-              ring
-              online={online.has(member.userId)}
-              className={cn(index > 0 && "-ml-2")}
-            />
-          </Fragment>
-        ))}
-      </span>
-      {more > 0 ? " " : null}
-      {more > 0 ? <span className="text-xs font-semibold text-slate">+{more}</span> : null}
+      {/* Its own row, so the overlap is not undone by the button's gap. A
+          tap opens the sheet; a pointer resting on it spreads the faces and
+          names the one under it (M54 decision 9). */}
+      <AvatarStack
+        max={STACK_AVATARS}
+        people={travellers.map((member) => ({
+          id: member.userId,
+          name: displayNameFor(member),
+          avatar: member.avatar,
+          color: member.color,
+          online: online.has(member.userId),
+          detail: online.has(member.userId) ? "online" : undefined,
+        }))}
+      />
     </Button>
   );
 }

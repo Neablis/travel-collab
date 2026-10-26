@@ -125,6 +125,21 @@ describe("TripCard", () => {
     expect(screen.getByText(/active/i)).toBeTruthy();
   });
 
+  // M54 decision 9: the card's stack is the shared one, capped like the
+  // header's, where it used to draw every face.
+  it("draws four faces and counts the rest", () => {
+    const trip = tripSummaryFixture({
+      members: ["a", "b", "c", "d", "e", "f"].map((id, i) =>
+        tripSummaryMemberFactory.build({ userId: `dev-${id}`, role: i === 0 ? "owner" : "editor", travelling: true }),
+      ),
+    });
+    render(<TripCard trip={trip} />);
+
+    const group = screen.getByRole("group", { name: "6 travelers" });
+    expect(within(group).getAllByTestId("avatar-face")).toHaveLength(4);
+    expect(within(group).getByText("+2")).toBeTruthy();
+  });
+
   // Travellers spec §5: a member who joined to advise is on the trip, not on
   // the road, so the stack names and shows the travellers only.
   it("counts and shows the travellers, not every member", () => {

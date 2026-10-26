@@ -8,7 +8,7 @@ import { Text } from "@/components/ui/text";
 import { DataText } from "@/components/ui/data-text";
 import { dayAccents, type AccentFamily } from "@/lib/dayAccent";
 import { displayNameFor } from "@/lib/displayName";
-import { PersonChip } from "@/components/ui/person-chip";
+import { AvatarStack } from "@/components/ui/avatar-stack";
 import { cn } from "@/lib/cn";
 import { formatTripDateLong } from "@/lib/formatDate";
 import { PHONE_TOUCH } from "@/components/ui/button";
@@ -252,23 +252,16 @@ export function TripCard({ trip, menuSlot, plannedOfBudget, viewerId, unreadChat
       <PublishTripOffer trip={trip} canPublish={viewerKeepsDays(trip.members, viewerId)} />
 
       <div className="mt-auto flex items-center justify-between pt-1">
-        <div
-          className="flex flex-wrap items-center"
+        <AvatarStack
           role="group"
           aria-label={`${travellers.length} traveler${travellers.length === 1 ? "" : "s"}`}
-        >
-          {travellers.map((member, i) => (
-            <PersonChip
-              key={member.userId}
-              name={displayNameFor(member)}
-              avatar={member.avatar}
-              color={member.color}
-              size="md"
-              ring
-              className={cn(i > 0 && "-ml-2")}
-            />
-          ))}
-        </div>
+          people={travellers.map((member) => ({
+            id: member.userId,
+            name: displayNameFor(member),
+            avatar: member.avatar,
+            color: member.color,
+          }))}
+        />
         <div className="flex min-w-0 items-center gap-2">
           <ChatUnreadBadge count={unreadChat} />
           {cover !== null ? (

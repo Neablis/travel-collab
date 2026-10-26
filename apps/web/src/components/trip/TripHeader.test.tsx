@@ -752,6 +752,8 @@ describe("TripHeader — the avatar stack (D10)", () => {
       expect(within(stack).getByText("BB").className).toContain("after:bg-success");
       // eslint-disable-next-line no-restricted-syntax -- the dot exists only as a class, as in person-chip.test.tsx
       expect(within(stack).getByText("AA").className).not.toContain("after:bg-success");
+      // And a pointer resting on a face is told it in the face's tip.
+      expect(within(stack).getAllByTestId("avatar-face").map((face) => face.dataset.avatarTip)).toEqual(["Alice Ames", "Bob Burns · online"]);
     } finally {
       delete (document as { visibilityState?: unknown }).visibilityState;
       listening.mockRestore();

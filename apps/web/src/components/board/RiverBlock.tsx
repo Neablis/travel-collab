@@ -7,11 +7,11 @@ import type { ActivityTag, ActivityView, TimeWindow } from "@tc/contracts";
 import { KIND_LABEL } from "@tc/pages";
 import { useTimeFormat } from "@/components/account/PreferencesProvider";
 import type { Overlap } from "@/components/lenses/overlapData";
+import { AvatarStack } from "@/components/ui/avatar-stack";
 import { Badge } from "@/components/ui/badge";
 import { useGuests, usePersonas } from "@/components/pages/people";
 import { Button } from "@/components/ui/button";
 import { DataText } from "@/components/ui/data-text";
-import { PersonChip } from "@/components/ui/person-chip";
 import { TAG_LABEL, tagFocusOpacity } from "@/lib/activityTags";
 import { cn } from "@/lib/cn";
 import type { AccentFamily } from "@/lib/dayAccent";
@@ -538,12 +538,12 @@ export function RiverBlock({
         {showPeople && (
           <span aria-hidden className="pointer-events-none relative flex min-w-0 items-center gap-1.5 text-xs text-slate">
             {going.length > 0 && (
-              <span className="flex shrink-0 -space-x-1">
-                {going.map(({ id, name }) => {
-                  const persona = personas?.[id];
-                  return <PersonChip key={id} name={name} avatar={persona?.avatar ?? null} color={persona?.color ?? null} size="xs" ring title={name} />;
-                })}
-              </span>
+              <AvatarStack
+                className="shrink-0"
+                size="xs"
+                interactive={false}
+                people={going.map(({ id, name }) => ({ id, name, avatar: personas?.[id]?.avatar ?? null, color: personas?.[id]?.color ?? null }))}
+              />
             )}
             {said !== "" && <span className="truncate">{said}</span>}
           </span>
