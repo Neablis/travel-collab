@@ -3034,12 +3034,14 @@ html[data-look="ledger"] .shadow-raised {
    `no-preference`, so reduced motion keeps each end state and drops the
    movement.
 
-   - A Home trip card lifts under the pointer and gives to a press on its way
-     in. The lift holds while its menu is open, even off the card, and drops
-     once it closes: an open menu follows its anchor (KI-28), so a card that
-     came down as the menu opened would jog it. It sinks out when deleted or left (`data-motion="sink"`, run by
-     `useExitPresence`), and rises in (`[data-rise-in]`, above) when it joins a
-     list already on screen.
+   - A Home trip card lifts under the pointer, or with keyboard focus in it,
+     and gives to a press on its way in. The lift holds while its menu is
+     open, even off the card, and drops once it closes: an open menu follows
+     its anchor (KI-28), so a card that moved as the menu opened would jog
+     it. Focus lifts it for that reason too, so a menu opened from the
+     keyboard opens on a card already up. It sinks out when deleted or left
+     (`data-motion="sink"`, run by `useExitPresence`), and rises in
+     (`[data-rise-in]`, above) when it joins a list already on screen.
    - The unscheduled rack's caret turns a quarter as the drawer opens.
    - A river block's hover shadow is a layer under it that fades in, rather
      than a box-shadow that snaps. A moved block settles: `RiverBlock` puts it
@@ -3093,7 +3095,7 @@ html[data-look="ledger"] .shadow-raised {
     }
     /* Only where there is a hover, so a tap does not leave a card raised. */
     @media (hover: hover) {
-      .trip-card-lift:is(:hover, :has([aria-expanded="true"])) {
+      .trip-card-lift:is(:hover, :has(:focus-visible), :has([aria-expanded="true"])) {
         transform: translateY(-2px);
       }
     }

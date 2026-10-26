@@ -21,7 +21,7 @@ import { displayPlace, legRoute } from "@/lib/place";
 import { useIsCoarsePointer } from "@/lib/useIsPhone";
 import { formatDuration, toClockRange, toMinutes } from "@/lib/time";
 import { PENDING_REASON_DISPLAY } from "./PendingReasonPicker";
-import type { RiverPlacement } from "./riverLayout";
+import { RIVER_PX_PER_HOUR, type RiverPlacement } from "./riverLayout";
 import { StopTagChips } from "./StopTagChips";
 import { MODE_DISPLAY } from "./TravelModePicker";
 
@@ -161,6 +161,7 @@ export function RiverBlock({
   activity,
   window,
   placement,
+  pxPerHour,
   accent,
   hasConflict,
   overlap,
@@ -183,6 +184,8 @@ export function RiverBlock({
   /** The stop's own window, already known non-null by the caller. */
   window: TimeWindow;
   placement: RiverPlacement;
+  /** The axis's scale (`RiverAxis.pxPerHour`), which a settle turns a change of time into pixels at. */
+  pxPerHour?: number;
   /** The day's city colour — a planned block's edge. */
   accent: AccentFamily;
   hasConflict: boolean;
@@ -290,18 +293,22 @@ export function RiverBlock({
   // The lane is kept rather than a pixel left, and turned into one at the
   // river's width now: a column narrowed since (the assistant rail opened)
   // would otherwise start the settle from a left never drawn at this width.
+  // The start minute is kept rather than a pixel top for the same reason: the
+  // trip's one axis starts at its earliest stop, so moving that stop moves
+  // every block's top, and a block whose time did not change has not moved.
   const carried = dragging || lifted;
-  const drawnAt = useRef<{ y: number; lane: number; lanes: number; carried: boolean } | null>(null);
-  const { topPx, lane, lanes } = placement;
+  const drawnAt = useRef<{ start: number; lane: number; lanes: number; carried: boolean } | null>(null);
+  const start = toMinutes(window.start);
+  const { lane, lanes } = placement;
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
     const was = drawnAt.current;
-    drawnAt.current = { y: topPx, lane, lanes, carried };
+    drawnAt.current = { start, lane, lanes, carried };
     if (was === null || was.carried || gripHeld.current) return;
     const width = el.parentElement?.clientWidth ?? 0;
     const dx = laneLeftPx(was, width) - laneLeftPx({ lane, lanes }, width);
-    const dy = was.y - topPx;
+    const dy = ((was.start - start) / 60) * (pxPerHour ?? RIVER_PX_PER_HOUR);
     if (dx === 0 && dy === 0) return;
     el.style.setProperty("--settle-x", `${dx}px`);
     el.style.setProperty("--settle-y", `${dy}px`);
@@ -310,7 +317,7 @@ export function RiverBlock({
     delete el.dataset.settling;
     void el.offsetWidth;
     el.dataset.settling = "";
-  }, [topPx, lane, lanes, carried]);
+  }, [start, lane, lanes, carried, pxPerHour]);
 
   function pressGrip(e: ReactPointerEvent, edge: "start" | "end") {
     if (e.button !== 0 || !onResizeStart) return;

@@ -717,6 +717,7 @@ export function DayRiver({
               activity={activity}
               window={window}
               placement={placement}
+              pxPerHour={axis.pxPerHour}
               accent={accent}
               hasConflict={conflictIds.has(id)}
               overlap={overlaps.get(id) ?? null}

@@ -12,14 +12,17 @@ import { riverAxis } from "./riverLayout";
 
 // The real adapter, wrapped so a test can ask a block the question the browser
 // asks it at dragstart: may this stop be picked up now? jsdom has no native
-// drag to fire, and `canDrag` is exactly what a held grip gates.
+// drag to fire, and `canDrag` is exactly what a held grip gates. The drag's
+// start and drop are kept for the same reason: a mouse carry is told of both.
 const canDragOf = vi.hoisted(() => new Map<Element, () => boolean>());
+const mouseDragOf = vi.hoisted(() => new Map<Element, { start: () => void; drop: () => void }>());
 vi.mock("@atlaskit/pragmatic-drag-and-drop/element/adapter", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@atlaskit/pragmatic-drag-and-drop/element/adapter")>();
   return {
     ...actual,
     draggable: (args: Parameters<typeof actual.draggable>[0]) => {
       canDragOf.set(args.element, () => args.canDrag?.({ element: args.element, dragHandle: null, input: {} as never }) ?? true);
+      mouseDragOf.set(args.element, { start: () => args.onDragStart?.({} as never), drop: () => args.onDrop?.({} as never) });
       return actual.draggable(args);
     },
   };
@@ -679,22 +682,58 @@ describe("gestures on empty time", () => {
       expect(card(lunch.activityId).getAttribute("data-settling")).toBeNull();
     });
 
+    it("not from its old slot, when this reader dragged it there with a mouse", () => {
+      // pdnd's drop runs the board's move and the block's own onDrop in one
+      // native event, so both land in one commit, as here.
+      let setStops: (stops: ActivityView[]) => void = () => {};
+      function Live() {
+        const [stops, set] = useState([morning, lunch, evening]);
+        setStops = set;
+        return riverElement(stops);
+      }
+      render(<Live />);
+      const drag = mouseDragOf.get(card(lunch.activityId))!;
+
+      act(() => drag.start());
+      act(() => {
+        drag.drop();
+        setStops([morning, at(lunch, "15:00", "16:00"), evening]);
+      });
+
+      expect(block(lunch.activityId).getByRole("button", { name: /^Edit Lunch, 3 pm/ })).toBeTruthy();
+      expect(card(lunch.activityId).getAttribute("data-settling")).toBeNull();
+    });
+
+    // One axis serves the whole trip, so its first hour moves when the
+    // earliest stop does, and every block's top with it, though its time did
+    // not (PR 606 review).
+    it("by its own change of time, not by the axis's first hour moving", () => {
+      const { rerender } = renderRiver([morning, lunch, evening]);
+
+      rerender(riverElement([at(morning, "07:00", "08:00"), lunch, evening]));
+
+      expect(card(lunch.activityId).getAttribute("data-settling")).toBeNull();
+      expect(card(morning.activityId).style.getPropertyValue("--settle-y")).toBe(`${hour(9) - hour(7)}px`);
+    });
+
     // A lane is a share of the river's width, so a left measured before the
     // column narrowed is one the block was never drawn at (PR 606 review).
     it("from its old lane at the river's width now, not the width it was drawn at", () => {
-      const second = at(lunch, "12:00", "13:00");
-      const shared = { ...second, activityId: "b1d2c3e4-0000-4000-8000-000000000002", title: "Tea" };
-      const third = { ...second, activityId: "b1d2c3e4-0000-4000-8000-000000000003", title: "Cake" };
-      const { rerender } = renderRiver([morning, lunch, evening]);
+      // Lunch's id, not the factory's sequence, puts it first in the tie
+      // `layoutRiver` breaks by id, so Tea is always the second lane.
+      const first = { ...lunch, activityId: "b1d2c3e4-0000-4000-8000-000000000001" };
+      const shared = { ...first, activityId: "b1d2c3e4-0000-4000-8000-000000000002", title: "Tea" };
+      const third = { ...first, activityId: "b1d2c3e4-0000-4000-8000-000000000003", title: "Cake" };
+      const { rerender } = renderRiver([morning, first, evening]);
       const list = screen.getByRole("list", { name: "Day 1 timeline" });
       let width = 200;
       Object.defineProperty(list, "clientWidth", { configurable: true, get: () => width });
 
       // Tea joins Lunch's hour, in the second of two lanes, at 200px.
-      rerender(riverElement([morning, lunch, shared, evening]));
+      rerender(riverElement([morning, first, shared, evening]));
       width = 100;
       // Cake makes three lanes; Tea stays in the second, now a third across.
-      rerender(riverElement([morning, lunch, shared, third, evening]));
+      rerender(riverElement([morning, first, shared, third, evening]));
 
       const settleX = parseFloat(card(shared.activityId).style.getPropertyValue("--settle-x"));
       expect(settleX).toBeCloseTo((100 + 4) / 2 - (100 + 4) / 3);
