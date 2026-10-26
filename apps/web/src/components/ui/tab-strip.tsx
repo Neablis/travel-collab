@@ -6,7 +6,7 @@ import { PHONE_TOUCH } from "./button";
 
 // The moss-pill tab look applied to plain role="tab" buttons — NOT Radix Tabs.
 // Radix TabsTrigger is pointer-only, which silently breaks fireEvent.click
-// tests (comment #11 / M5 Track B1). Driven by owned state.
+// tests (review comment 11, M5 Track B1). Driven by owned state.
 export function TabStrip<T extends string>({
   value,
   onValueChange,
