@@ -37,9 +37,9 @@ const OVERLAP: Record<StackSize, string> = { xs: "-ml-1", sm: "-ml-2", md: "-ml-
  * or on Home's cards only how many. Escape hides the tips until the pointer
  * leaves (WCAG 1.4.13).
  *
- * Each chip is still titled with its person's name. Inside a hidden face that
- * is not spoken, so it is no second name to a reader; it is what finds one
- * person's face in a stack (DayRiver.test.tsx, m38-personas.spec.ts).
+ * No chip carries a `title`: the browser would draw its own tooltip beside the
+ * CSS tip, saying less and deaf to Escape. `data-person-name` is what finds
+ * one person's face, interactive or not, and draws nothing.
  *
  * `interactive={false}` is for a stack under something else that takes the
  * pointer (a board block): no spread and no tip.
@@ -92,6 +92,7 @@ export function AvatarStack({
           {index > 0 ? " " : null}
           <span
             data-testid="avatar-face"
+            data-person-name={person.name}
             aria-hidden
             data-avatar-tip={interactive ? [person.name, person.detail].filter(Boolean).join(" · ") : undefined}
             className={cn("relative flex shrink-0", index > 0 && OVERLAP[size])}
@@ -103,7 +104,6 @@ export function AvatarStack({
               color={person.color}
               size={size}
               ring
-              title={person.name}
               online={person.online}
             />
           </span>
