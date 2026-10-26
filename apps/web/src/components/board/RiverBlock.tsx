@@ -21,7 +21,7 @@ import { displayPlace, legRoute } from "@/lib/place";
 import { useIsCoarsePointer } from "@/lib/useIsPhone";
 import { formatDuration, toClockRange, toMinutes } from "@/lib/time";
 import { PENDING_REASON_DISPLAY } from "./PendingReasonPicker";
-import { RIVER_PX_PER_HOUR, type RiverPlacement } from "./riverLayout";
+import { minuteToPx, type RiverPlacement } from "./riverLayout";
 import { StopTagChips } from "./StopTagChips";
 import { MODE_DISPLAY } from "./TravelModePicker";
 
@@ -308,7 +308,8 @@ export function RiverBlock({
     if (was === null || was.carried || gripHeld.current) return;
     const width = el.parentElement?.clientWidth ?? 0;
     const dx = laneLeftPx(was, width) - laneLeftPx({ lane, lanes }, width);
-    const dy = ((was.start - start) / 60) * (pxPerHour ?? RIVER_PX_PER_HOUR);
+    // A block clamped at the axis bottom may glide up to ~22px when another reader shifts its start by <33min: accepted, rare.
+    const dy = minuteToPx({ t0: 0, pxPerHour }, was.start - start);
     if (dx === 0 && dy === 0) return;
     el.style.setProperty("--settle-x", `${dx}px`);
     el.style.setProperty("--settle-y", `${dy}px`);
