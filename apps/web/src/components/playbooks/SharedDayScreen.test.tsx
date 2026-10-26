@@ -1533,6 +1533,8 @@ describe("back from signing in to add", () => {
 
     const button = await screen.findByRole("button", { name: "Making your trip…" });
     expect(button.getAttribute("aria-busy")).toBe("true");
+    // Disabled would drop focus to <body>; pending keeps it here.
+    expect((button as HTMLButtonElement).disabled).toBe(false);
     // A press that got through would open the add dialog beside the trip being made.
     fireEvent.click(button);
     expect(screen.queryByRole("dialog")).toBeNull();
