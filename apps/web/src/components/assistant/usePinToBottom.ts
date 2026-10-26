@@ -23,6 +23,9 @@ import { useEffect, type RefObject } from "react";
  * `deps` is spread into the effect's dependency list rather than passed whole,
  * so an unchanged thread does not re-pin — a reader who has scrolled up to
  * re-read something keeps their place until the next turn actually arrives.
+ *
+ * It glides rather than jumps (M54 decision 13), and goes at once under
+ * reduced motion, where a glide is movement nobody asked for (spec §3).
  */
 export function usePinToBottom(ref: RefObject<HTMLElement | null>, deps: unknown[]): void {
   useEffect(() => {
@@ -30,7 +33,10 @@ export function usePinToBottom(ref: RefObject<HTMLElement | null>, deps: unknown
     // Null on the first paint and after unmount. Nothing to pin, and the
     // consumer should not have to guard its own ref to call this.
     if (node === null) return;
-    node.scrollTop = node.scrollHeight;
+    const behavior = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth";
+    // jsdom has no element `scrollTo`; the plain assignment still pins there.
+    if (typeof node.scrollTo === "function") node.scrollTo({ top: node.scrollHeight, behavior });
+    else node.scrollTop = node.scrollHeight;
     // The dep list IS the argument: the caller says what "new content" means
     // for its own thread, and `ref` is stable across renders by construction,
     // so the rule cannot check either statically.

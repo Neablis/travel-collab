@@ -111,15 +111,25 @@ describe("ChatMessage's actions", () => {
 });
 
 // PR 444 review: a pending line was only dimmed, which fell below AA contrast
-// and said nothing to a screen reader. It says "Sending…" where its time goes.
+// and said nothing to a screen reader. M54 decision 13 fades it again, to a
+// level that keeps AA, and it still says "Sending…" to a screen reader, where
+// its time will be. Saved, the same line firms up and shows its time.
 describe("ChatMessage, sent and not yet stored", () => {
-  it("says Sending… in place of its time, and is busy", () => {
+  it("lands faded and busy, saying Sending…, and firms up once stored", () => {
     const sentAt = new Date(beas.createdAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-    line(null, beas, true);
+    const props = { message: beas, persona: bea, tripId: TRIP, viewer: null, editing: false, onEdit: () => {}, onDelete: () => {}, onSave: async () => true, onCancelEdit: () => {} };
+    const { rerender } = render(<ol><ChatMessage {...props} pending /></ol>);
     const item = screen.getByRole("listitem");
-    expect(item.textContent).toContain("Sending…");
-    expect(item.textContent).not.toContain(sentAt);
+    expect(item.getAttribute("data-sending")).not.toBeNull();
     expect(item.getAttribute("aria-busy")).toBe("true");
+    expect(within(item).getByText("Sending…")).not.toBeNull();
+    expect(within(item).queryByText(sentAt)).toBeNull();
+
+    rerender(<ol><ChatMessage {...props} pending={false} /></ol>);
+    expect(screen.getByRole("listitem")).toBe(item);
+    expect(item.getAttribute("data-sending")).toBeNull();
+    expect(item.getAttribute("aria-busy")).toBeNull();
+    expect(within(item).getByText(sentAt)).not.toBeNull();
   });
 });
 

@@ -10,6 +10,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Dialog, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Text } from "@/components/ui/text";
+import { TypingDots } from "@/components/ui/typing-dots";
 import { cn } from "@/lib/cn";
 import { fetchPages } from "@/lib/pagesClient";
 import { cachedRead, DEDUPE } from "@/lib/queryCache";
@@ -24,7 +25,11 @@ import { HOME_PATH } from "@/lib/homePath";
 /** The read-only line after the owner's lapse (M46 D2): why, not just that. */
 export const READ_ONLY_LINE = "This chat is read-only: the trip owner's plan no longer includes collaborators.";
 export const NO_ACCESS_LINE = "You no longer have access to this trip";
-/** While an `@assistant` is unanswered (M52 decision 18): its reply lands whole, never streamed. */
+/**
+ * While an `@assistant` is unanswered (M52 decision 18): its reply lands whole,
+ * never streamed, so there is no step to name and the panel shows the dots
+ * alone (M54 decision 13). These words are the screen reader's.
+ */
 export const THINKING_LINE = "Assistant is thinking…";
 
 /**
@@ -200,7 +205,9 @@ export function ChatPanel({
             <ol aria-label="Messages" className="flex flex-col gap-3">
               {chat.messages.map((message) => (
                 <ChatMessage
-                  key={message.messageId}
+                  // A sent line keeps its key once stored, so it firms up in
+                  // place rather than being drawn, and rising in, again.
+                  key={message.drawnAs ?? message.messageId}
                   ref={(line) => {
                     if (line !== null) lines.current.set(message.messageId, line);
                     return () => void lines.current.delete(message.messageId);
@@ -240,8 +247,13 @@ export function ChatPanel({
         )}
         {/* Mounted empty, out of the flow until it speaks: a live region that
             arrives holding its words is often not read out. */}
-        <p role="status" className={cn("text-xs text-slate", !thinking && "sr-only")}>
-          {thinking ? THINKING_LINE : null}
+        <p role="status" className={cn("text-slate", !thinking && "sr-only")}>
+          {thinking && (
+            <>
+              <TypingDots />
+              <span className="sr-only">{THINKING_LINE}</span>
+            </>
+          )}
         </p>
       </div>
       <Dialog

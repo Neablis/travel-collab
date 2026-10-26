@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PersonChip } from "@/components/ui/person-chip";
 import { Skeleton } from "@/components/ui/skeleton";
+import { TypingDots } from "@/components/ui/typing-dots";
 import { MessageBody } from "./MessageChip";
 
 // The Trip chat widget names a leaver from the same constant.
@@ -70,9 +71,10 @@ export function ChatMessage({
   ref?: Ref<HTMLLIElement>;
   message: ChatMessageData;
   /**
-   * Sent and not yet stored: "Sending…" where its time will be, and busy to a
-   * screen reader, until it is or it goes. Said in words, not dimmed: a faded
-   * line falls below AA contrast (PR 444 review).
+   * Sent and not yet stored: the dots where its time will be, "Sending…" to a
+   * screen reader, and busy, until it is or it goes. The line is faded too
+   * (M54 decision 13), only as far as its words keep AA contrast: dimmed with
+   * nothing said was PR 444's finding.
    */
   pending?: boolean;
   persona: Persona | undefined | null;
@@ -107,6 +109,8 @@ export function ChatMessage({
       ref={ref}
       tabIndex={-1}
       aria-busy={pending || undefined}
+      data-sending={pending ? "" : undefined}
+      data-rise-in=""
       className="group flex gap-2 rounded-md focus-visible:outline-2 focus-visible:outline-brand"
     >
       <MessageFace name={name} persona={persona} message={message} pending={pending} as="div">
@@ -178,7 +182,10 @@ export function MessageFace({
         <span className="flex items-baseline gap-1.5 text-xs">
           {name !== null && <span className="font-semibold text-ink">{name}</span>}
           {pending ? (
-            <span className="text-slate">Sending…</span>
+            <span className="self-center text-slate">
+              <TypingDots size="sm" />
+              <span className="sr-only">Sending…</span>
+            </span>
           ) : (
             <time dateTime={message.createdAt} className="text-slate">
               {time(message.createdAt)}
@@ -217,7 +224,7 @@ export function ChangeLine({ ref, message, name, as }: { ref?: Ref<HTMLLIElement
     </>
   );
   return as === "li" ? (
-    <li ref={ref} tabIndex={-1} className={`${className} focus-visible:outline-2 focus-visible:outline-brand`}>
+    <li ref={ref} tabIndex={-1} data-rise-in="" className={`${className} focus-visible:outline-2 focus-visible:outline-brand`}>
       {line}
     </li>
   ) : (

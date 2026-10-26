@@ -320,6 +320,22 @@ describe("ChatPanel", () => {
   });
 });
 
+// M54 decision 13: your own message lands faded and firms up when saved. It
+// firms up in place: drawn again under the stored id, it would rise in a
+// second time, and focus on it would be lost.
+describe("ChatPanel, as a sent message is stored", () => {
+  it("keeps the line it drew for the send", () => {
+    const sent = ChatMessage.parse({ messageId: uuidFrom(2, 46), authorId: "u-me", createdAt: "2026-10-13T10:01:00.000Z", editedAt: null, removed: false, body: "On it" });
+    const { rerender } = render(<ChatPanel chat={chat({ messages: [{ ...sent, messageId: "pending-1", pending: true }] })} personas={null} />);
+    const line = within(screen.getByRole("list", { name: "Messages" })).getByRole("listitem");
+    expect(line.getAttribute("aria-busy")).toBe("true");
+
+    rerender(<ChatPanel chat={chat({ messages: [{ ...sent, drawnAs: "pending-1" }] })} personas={null} />);
+    expect(within(screen.getByRole("list", { name: "Messages" })).getByRole("listitem")).toBe(line);
+    expect(line.getAttribute("aria-busy")).toBeNull();
+  });
+});
+
 // M52 decision 18: every member sees the assistant is working on an ask until
 // its reply lands, and no longer than a turn can run, since a turn the
 // platform killed never gets one.

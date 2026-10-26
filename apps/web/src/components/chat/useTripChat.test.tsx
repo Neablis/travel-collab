@@ -351,7 +351,10 @@ describe("useTripChat", () => {
 
     // The poll can bring the stored message back before the POST answers, and
     // does again after: either way it is one line, where the pending one was.
-    it("becomes the server's message once, however the re-reads land", async () => {
+    // It keeps the pending line's key throughout (`drawnAs`), so the panel
+    // firms that line up rather than drawing a new one that rises in again
+    // (M54 decision 13).
+    it("becomes the server's message once, however the re-reads land, drawn as the line that was sent", async () => {
       const mine = message(2, "u-me");
       let served = pageOf([message(1)]);
       let reads = 0;
@@ -369,15 +372,18 @@ describe("useTripChat", () => {
 
       let unsent = Promise.resolve<Unsent | null>({ body: "not answered", behind: false });
       act(() => void (unsent = result.current.post("message 2")));
+      const drawn = result.current.messages.at(-1)?.messageId;
       served = pageOf([message(1), mine]);
       rerender("2");
       await waitFor(() => expect(reads).toBe(2));
       expect(ids(result.current.messages)).toEqual([message(1).messageId, mine.messageId]);
+      expect(result.current.messages[1]?.drawnAs).toBe(drawn);
       await act(async () => {
         await answer(HttpResponse.json({ message: mine }, { status: 201 }));
         expect(await unsent).toBeNull();
       });
       expect(ids(result.current.messages)).toEqual([message(1).messageId, mine.messageId]);
+      expect(result.current.messages[1]?.drawnAs).toBe(drawn);
 
       // Waits on read 3's answer, which brings a third message, not on the
       // request: the line it checks held before that answer landed.
@@ -385,6 +391,8 @@ describe("useTripChat", () => {
       rerender("3");
       await waitFor(() => expect(ids(result.current.messages)).toContain(message(3).messageId));
       expect(ids(result.current.messages)).toEqual([message(1).messageId, mine.messageId, message(3).messageId]);
+      expect(result.current.messages[1]?.drawnAs).toBe(drawn);
+      expect(result.current.messages[2]?.drawnAs).toBeUndefined();
     });
 
     // Two sends with the same words: the first stored stands in for one of

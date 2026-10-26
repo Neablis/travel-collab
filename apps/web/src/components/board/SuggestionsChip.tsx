@@ -79,9 +79,13 @@ export function SuggestionsChip() {
         // (RiverBlock). Words and conflict chip together left the trip title no
         // room in the phone's pinned row (M39 D9). The phrase is the name at
         // every width, so it is the visible label wherever one is shown.
+        //
+        // It rises in when the first suggestion arrives, and only then: it
+        // stays mounted while any are pending.
         <Button
           variant="secondary"
           aria-label={phrase}
+          data-rise-in=""
           className="max-md:gap-1 max-md:rounded-full max-md:border-0 max-md:bg-brand-tint max-md:px-3 max-md:font-semibold max-md:text-brand-pressed max-md:hover:bg-brand-tint"
         >
           <Lightbulb className="size-4 md:hidden" aria-hidden />

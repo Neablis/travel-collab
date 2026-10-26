@@ -2963,3 +2963,53 @@ html[data-look="ledger"] .shadow-raised {
     }
   }
 }
+
+/* ── M54: chat and Ask (decision 13). A message, an Ask turn, a tool-step
+   summary, a proposal card or a suggestion note rises in as it arrives:
+   `[data-rise-in]`, once, on mount. `tc-rise-in` has no end frame, so it ends
+   on the node's own opacity: a sending line rises to its fade, not past it.
+   `backwards`, not `both`, so once it ends the node holds no transform or
+   opacity and is no stacking context. The tool-step list opens and closes on
+   the overlays' `[data-motion="rise"]` above (`useExitPresence`).
+
+   Your own message is faded while it sends (`[data-sending]`) and firms up
+   when stored. 0.8, not lower: its ink is still 8.5:1 on the panel there, and
+   a dimmed line that failed AA was PR 444's finding.
+   An applied proposal's check settles in by a scale, so its receipt keeps its
+   place.
+
+   Under reduced motion nothing rises, settles or eases: a sending line is
+   simply faded, and firm once stored. */
+@layer components {
+  @keyframes tc-rise-in {
+    from {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+  }
+
+  @keyframes tc-settle-in {
+    from {
+      opacity: 0;
+      transform: scale(0.6);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  [data-sending] {
+    opacity: 0.8;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    [data-rise-in] {
+      animation: tc-rise-in var(--transition-duration-base) var(--ease-calm) backwards;
+      transition: opacity var(--transition-duration-base) var(--ease-calm);
+    }
+    [data-settle-in] {
+      animation: tc-settle-in var(--transition-duration-slow) var(--ease-calm) backwards;
+    }
+  }
+}

@@ -128,6 +128,21 @@ describe("Transcript", () => {
     ).toBe("true");
   });
 
+  // The list leaves through `useExitPresence`, which holds a finished exit
+  // until it is cancelled: a second close that found it held did nothing, and
+  // the list stayed open under a summary saying it was closed.
+  it("closes the list every time, not only the first", async () => {
+    const user = userEvent.setup();
+    render(<Transcript turns={[{ id: "a1", role: "assistant", text: "Done.", tools: [{ id: "t1", label: "Read the trip" }], pending: false }]} />);
+    const disclosure = screen.getByRole("button", { name: /1 step · Read the trip/ });
+    for (let round = 0; round < 2; round++) {
+      await user.click(disclosure);
+      expect(screen.getByRole("listitem")).not.toBeNull();
+      await user.click(disclosure);
+      expect(screen.queryByRole("listitem")).toBeNull();
+    }
+  });
+
   // These lines ARE the "something is happening" during a stream — the reason
   // they exist is that a silent four-second pause reads as broken. Collapsed to
   // a snapshot they would stall again in a new way, so the summary is derived
@@ -247,6 +262,24 @@ describe("Transcript", () => {
   it("shows a pending turn as thinking until any text or tool call arrives", () => {
     render(<Transcript turns={THREAD} />);
     expect(within(screen.getByRole("log")).getByText("Thinking…")).not.toBeNull();
+  });
+
+  // M54 decision 13: in Ask the dots run beside a line that changes with each
+  // tool step, so a long turn says what it is doing rather than "Still
+  // writing…" for all of it. The disclosure's summary names the step too; this
+  // line is the one that stands beside the dots.
+  it("names the newest step beside the dots while a turn works", () => {
+    const working = (tools: { id: string; label: string }[]): AssistantTurn[] => [
+      { id: "a1", role: "assistant", text: "", tools, pending: true },
+    ];
+    const { rerender } = render(<Transcript turns={working([{ id: "t1", label: "Read the trip" }])} />);
+    const log = screen.getByRole("log");
+    expect(within(log).getByText("Read the trip")).not.toBeNull();
+
+    rerender(<Transcript turns={working([{ id: "t1", label: "Read the trip" }, { id: "t2", label: "Checked day 3" }])} />);
+    expect(within(log).getByText("Checked day 3")).not.toBeNull();
+    expect(within(log).queryByText("Read the trip")).toBeNull();
+    expect(within(log).queryByText(/Still writing…|Thinking…/)).toBeNull();
   });
 
   it("keeps the streamed text visible once it starts, without a second visible status line", () => {

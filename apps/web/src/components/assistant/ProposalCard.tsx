@@ -140,6 +140,7 @@ export function ProposalCard({
       <div
         role="group"
         aria-label="Suggested change"
+        data-rise-in=""
         className="flex min-h-7.5 flex-wrap items-center gap-x-2 gap-y-1 text-a-note"
       >
         {status === "rejected" ? (
@@ -154,7 +155,11 @@ export function ProposalCard({
         ) : (
           <>
             <span role="status" className="text-success-ink">
-              ✓ {note ?? "Done."}
+              {/* Settles in by a transform, so the receipt beside it never moves. */}
+              <span data-settle-in="" className="inline-block">
+                ✓
+              </span>{" "}
+              {note ?? "Done."}
             </span>
             {undo === "available" && onUndo !== undefined && (
               <Button
@@ -312,6 +317,7 @@ function PendingCard({
     <div
       role="group"
       aria-label={label}
+      data-rise-in=""
       className={`border border-brand bg-brand-tint p-3 ${touch ? "rounded-a-card-touch" : "rounded-a-card"}`}
     >
       <div className="flex items-center gap-1.75">

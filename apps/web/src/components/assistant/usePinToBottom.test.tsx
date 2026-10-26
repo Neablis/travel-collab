@@ -1,6 +1,9 @@
 import { renderHook } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { setViewportMatches } from "../../../vitest.setup";
 import { usePinToBottom } from "./usePinToBottom";
+
+afterEach(() => setViewportMatches({}));
 
 // Pinning belongs to whoever owns the scrollport, which `Transcript` never did
 // — `AssistantRail`'s `overflow-y-auto` column does, and the New-trip sheet's
@@ -45,5 +48,20 @@ describe("usePinToBottom", () => {
   it("does not throw when the scrollport is not mounted", () => {
     const ref: { current: HTMLElement | null } = { current: null };
     expect(() => renderHook(() => usePinToBottom(ref, [1]))).not.toThrow();
+  });
+
+  // M54 decision 13: the list glides to the bottom rather than jumping, and
+  // under reduced motion it goes there at once (spec §3). Still the
+  // scrollport's own `scrollTo`, never `scrollIntoView`.
+  it("glides to the bottom, and goes at once under reduced motion", () => {
+    const scrollTo = vi.fn();
+    const node = { scrollTop: 0, scrollHeight: 500, scrollTo };
+    const ref = { current: node as unknown as HTMLElement };
+    const { rerender } = renderHook(({ n }) => usePinToBottom(ref, [n]), { initialProps: { n: 1 } });
+    expect(scrollTo).toHaveBeenLastCalledWith({ top: 500, behavior: "smooth" });
+
+    setViewportMatches({ "(prefers-reduced-motion: reduce)": true });
+    rerender({ n: 2 });
+    expect(scrollTo).toHaveBeenLastCalledWith({ top: 500, behavior: "instant" });
   });
 });

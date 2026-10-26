@@ -46,7 +46,7 @@ export function SuggestedNote({
   const [accepted, setAccepted] = useState(false);
   const offer = still || (accept !== null && !accepted && (accept.acceptable.length > 0 || accept.accepting));
   return (
-    <div role="group" aria-label="Suggestions on the board" className="rounded-a-card border border-brand bg-brand-tint p-3">
+    <div role="group" aria-label="Suggestions on the board" data-rise-in={still ? undefined : ""} className="rounded-a-card border border-brand bg-brand-tint p-3">
       <p className="text-a-chat font-semibold text-pretty text-brand-pressed">{suggestedWords(suggested)}</p>
       {/* What the resolver could not match, as the card says it. */}
       {suggested.skipped.length > 0 && (
