@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
@@ -62,7 +62,7 @@ function AuthSearchParams({ onCallbackUrl }: { onCallbackUrl: (url: string) => v
   // on the blank line so the second instruction is not buried in the first.
   const paragraphs = failure.split("\n\n");
   return (
-    <Banner variant="danger">
+    <Banner variant="danger" data-banner-rise>
       {paragraphs.map((paragraph, index) => (
         <p key={paragraph} className={index > 0 ? "mt-2" : undefined}>
           {paragraph}
@@ -191,6 +191,33 @@ export function AuthScreen({
   // for the provider; cleared by the next attempt or by editing the code.
   const [codeSaveFailed, setCodeSaveFailed] = useState(false);
   const showAdmissionCode = mode === "signup";
+  // M54 decision 5: the code is not the common path, so the field waits
+  // behind "Have an invite code?". Open from the start when a code is already
+  // there (a referral link's), since hiding it would hide what is about to be
+  // sent; once opened it stays open, so a typed code is never out of sight.
+  const [codeAsked, setCodeAsked] = useState(initialAdmissionCode !== "");
+  const codeField = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (codeAsked && initialAdmissionCode === "") codeField.current?.focus();
+  }, [codeAsked, initialAdmissionCode]);
+
+  // Which sign-in is on its way out, so its button shows the dots and a second
+  // press starts nothing (M54). The ref is the guard, because two presses can
+  // land before the re-render that would mark the button pending; the state is
+  // what draws it. Both clear when a failed admission write stops the sign-in,
+  // and when the browser's Back button brings this page back from its cache
+  // with the redirect long gone.
+  const [pending, setPending] = useState<"google" | "dev-login" | null>(null);
+  const inFlight = useRef(false);
+  useEffect(() => {
+    const restored = (event: PageTransitionEvent) => {
+      if (!event.persisted) return;
+      inFlight.current = false;
+      setPending(null);
+    };
+    window.addEventListener("pageshow", restored);
+    return () => window.removeEventListener("pageshow", restored);
+  }, []);
 
   // The swap link has to carry `?callbackUrl=` across, and this is not a
   // nicety: it is one of the three places the "Make this trip mine" intent was
@@ -214,13 +241,16 @@ export function AuthScreen({
   // key can do the identical thing rather than a near-copy of it.
   const continueWithGoogle = () => {
     if (!googleAvailable) return;
-    void startSignIn(() => void signIn("google", { callbackUrl }));
+    void startSignIn("google", () => void signIn("google", { callbackUrl }));
   };
 
   // Every sign-in dispatch on this screen goes through here, including dev
   // login: the build plan's decision 3 routes dev login through the same
   // admission path rather than exempting it, so it needs the same cookie.
-  async function startSignIn(dispatch: () => void) {
+  async function startSignIn(provider: "google" | "dev-login", dispatch: () => void) {
+    if (inFlight.current) return;
+    inFlight.current = true;
+    setPending(provider);
     // `normalizePendingAdmission` returning null for blank is load-bearing,
     // not defensive tidiness: writing an empty cookie would still be a write,
     // and it would overwrite the trip-invite token `proxy.ts` stored for
@@ -239,6 +269,8 @@ export function AuthScreen({
         // inviter would silently lose their referral. Stop here and say so: the
         // person can retry, or clear the field to sign up without it.
         setCodeSaveFailed(true);
+        inFlight.current = false;
+        setPending(null);
         return;
       }
     }
@@ -272,7 +304,24 @@ export function AuthScreen({
           </Suspense>
 
           <Card raised className="flex flex-col gap-3.5">
-            {showAdmissionCode && (
+            {showAdmissionCode && !codeAsked && (
+              // Quiet on purpose: it is the uncommon path, and the Google
+              // button under it is the one most people want. Disabled until
+              // hydration, like dev login's submit below: a press before then
+              // opens nothing, and would read as a dead control.
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="self-start"
+                disabled={!hydrated}
+                onClick={() => setCodeAsked(true)}
+              >
+                {ADMISSION_FIELD_COPY.disclosure}
+              </Button>
+            )}
+
+            {showAdmissionCode && codeAsked && (
               // Above the Google button, because it has to be filled in before
               // the button is pressed — pressing it is what leaves the site.
               //
@@ -282,9 +331,13 @@ export function AuthScreen({
               // hint carries the "may be empty" case: someone arriving from a
               // trip invite link is admitted by the token the proxy stored, so
               // the field is genuinely optional and nothing else says so.
-              <>
+              <div data-disclosure-open className="flex flex-col gap-3.5">
                 <Text variant="muted">{ADMISSION_FIELD_COPY.note}</Text>
-                {codeSaveFailed && <Banner variant="danger">{ADMISSION_FIELD_COPY.saveFailed}</Banner>}
+                {codeSaveFailed && (
+                  <Banner variant="danger" data-banner-rise>
+                    {ADMISSION_FIELD_COPY.saveFailed}
+                  </Banner>
+                )}
                 <FormField
                   id="admission-code"
                   label="Invite code"
@@ -298,6 +351,7 @@ export function AuthScreen({
                       `submitOnEnter`, and the dev-login form below, for what a
                       pre-hydration native submit does to a typed value. */}
                   <Input
+                    ref={codeField}
                     id="admission-code"
                     name="inviteCode"
                     value={admissionCode}
@@ -311,7 +365,7 @@ export function AuthScreen({
                     onKeyDown={submitOnEnter(continueWithGoogle)}
                   />
                 </FormField>
-              </>
+              </div>
             )}
 
             <Button
@@ -319,6 +373,7 @@ export function AuthScreen({
               variant="secondary"
               className="h-11.5 w-full text-md font-semibold"
               disabled={!googleAvailable}
+              pending={pending === "google"}
               onClick={continueWithGoogle}
             >
               Continue with Google
@@ -333,7 +388,7 @@ export function AuthScreen({
                 className="flex flex-col gap-2 border-t border-hairline pt-3.5"
                 onSubmit={(event) => {
                   event.preventDefault();
-                  void startSignIn(() => void signIn("dev-login", { username, callbackUrl }));
+                  void startSignIn("dev-login", () => void signIn("dev-login", { username, callbackUrl }));
                 }}
               >
                 <FormField id="dev-login-username" label="Username" hint="Preview and local only">
@@ -356,6 +411,7 @@ export function AuthScreen({
                   variant="secondary"
                   className="h-11.5 w-full text-md font-semibold"
                   disabled={!hydrated}
+                  pending={pending === "dev-login"}
                 >
                   Sign in with dev login
                 </Button>

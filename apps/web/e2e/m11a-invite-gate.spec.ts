@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { BrowserContext, Cookie, Page } from "@playwright/test";
 import { expect, test } from "./fixtures/test";
+import { fillInviteCode } from "./admission";
 import { eq } from "drizzle-orm";
 import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import { Client } from "pg";
@@ -92,7 +93,7 @@ async function pendingAdmissionCookie(context: BrowserContext): Promise<Cookie |
  */
 async function signUp(page: Page, username: string, code?: string): Promise<void> {
   await page.goto("/signup");
-  if (code !== undefined) await page.getByLabel("Invite code").fill(code);
+  if (code !== undefined) await fillInviteCode(page, code);
   // eslint-disable-next-line playwright/prefer-locator -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
   await page.fill('input[name="username"]', username);
   await Promise.all([

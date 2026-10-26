@@ -1,3 +1,5 @@
+import type { Page } from "@playwright/test";
+
 // The one string the e2e lane's server and its specs both have to know.
 //
 // M11a puts an invite gate in front of every account that has no `users` row,
@@ -18,3 +20,14 @@
 // started with (the same trap KI-25 documents for `AI_LIVE`). `ci-like` sets
 // `CI=true` and always starts its own server, which is the lane that counts.
 export const E2E_SUPER_CODE = "e2e-super-code-not-a-secret";
+
+/**
+ * Types a code into `/signup`'s invite field, which waits behind "Have an
+ * invite code?" (M54 decision 5). Open it the way a person does, or the field
+ * is not there to fill. Type-only import above, so the config's load-time
+ * import of this file still pulls in nothing.
+ */
+export async function fillInviteCode(page: Page, code: string): Promise<void> {
+  await page.getByRole("button", { name: "Have an invite code?" }).click();
+  await page.getByLabel("Invite code").fill(code);
+}
