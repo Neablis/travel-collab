@@ -31,6 +31,7 @@ vi.mock("@/lib/apiClient", async (orig) => {
 import { NotebookScreen } from "./NotebookScreen";
 import { PhoneAskTab } from "@/components/nav/PhoneTabBar";
 import { registerPhoneAsk, usePhoneAsk } from "@/components/nav/phoneAsk";
+import { DEMO_TRIPS } from "@/lib/demoTrip";
 import { fetchTripAccess } from "@/lib/apiClient";
 import { cachedRead } from "@/lib/queryCache";
 import { tripKeys } from "@/lib/queryKeys";
@@ -953,6 +954,34 @@ describe("NotebookScreen — the states between asked and answered", () => {
     );
 
     expect(await screen.findByTestId("notebook-pages-error")).toBeTruthy();
+    expect(screen.queryByTestId("ask-tab")).toBeNull();
+  });
+
+  // PR 601 review: `/ask` refuses a demo trip (KI-079), so the board offers no
+  // Ask there. A notebook that did would open a sheet whose every question is
+  // refused, and put back the flicker the hold exists to stop.
+  it("offers no Ask on a demo trip, and lets go of any the tab bar holds", async () => {
+    const tripId = DEMO_TRIPS[0]!.tripId;
+    server.use(...makePagesHandlers([pageFixture({ tripId })]));
+    const bar = <PhoneAskTab pathname={`/trips/${tripId}/pages`} />;
+    const takeBack = registerPhoneAsk({ open: false, onOpen: () => {} });
+    const { rerender } = render(
+      <>
+        {null}
+        {bar}
+      </>,
+    );
+    act(() => takeBack());
+    expect(screen.getByTestId("ask-tab").hasAttribute("disabled")).toBe(true);
+
+    rerender(
+      <>
+        <NotebookScreen tripId={tripId} />
+        {bar}
+      </>,
+    );
+
+    expect(await screen.findByRole("region", { name: "Your notebooks" })).toBeTruthy();
     expect(screen.queryByTestId("ask-tab")).toBeNull();
   });
 });

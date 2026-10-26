@@ -326,9 +326,9 @@ describe("TripBoardScreen", () => {
   // offering none must let it go, or a dead Ask stands for as long as the
   // reader stays.
   describe("lets go of the Ask the tab bar holds from the notebook", () => {
-    async function heldThen(tripId: string, fixture: TripDetail) {
+    async function heldThen(tripId: string, fixture: TripDetail, ...first: Parameters<typeof server.use>) {
       setViewportMatches({ "(max-width: 767px)": true });
-      server.use(...makeTripHandlers(fixture));
+      server.use(...first, ...makeTripHandlers(fixture));
       const bar = <PhoneAskTab pathname={`/trips/${tripId}`} />;
       const takeBack = registerPhoneAsk({ open: false, onOpen: () => {} });
       // `{null}` where the board will be keeps the bar in place, so it is the
@@ -364,12 +364,36 @@ describe("TripBoardScreen", () => {
     });
 
     // A signed-in reader can reach a demo trip at `/trips/<id>`; its board
-    // never offers an Ask (KI-79), while its notebook does.
+    // never offers an Ask (KI-79), and nor does its notebook.
     it("when it is a demo's, which offers none", async () => {
       const tripId = DEMO_TRIPS[0]!.tripId;
       await heldThen(tripId, tripDetailFixture({ tripId }));
       expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
       expect(screen.queryByTestId("ask-tab")).toBeNull();
+    });
+
+    // The skeleton is not a screen without an Ask: letting go there drops the
+    // Ask for the whole load and brings it back after, the flicker the hold
+    // exists to stop (PR 601 review).
+    it("but not while it is still loading", async () => {
+      const fixture = tripDetailFixture();
+      let release: () => void = () => {};
+      const held = new Promise<void>((resolve) => (release = resolve));
+      await heldThen(
+        fixture.tripId,
+        fixture,
+        http.get("/api/trips/:tripId", async () => {
+          await held;
+          return HttpResponse.json({ trip: fixture });
+        }),
+      );
+      expect(await screen.findByTestId("trip-header-skeleton")).toBeTruthy();
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(screen.getByTestId("ask-tab").hasAttribute("disabled")).toBe(true);
+
+      release();
+      expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+      await waitFor(() => expect(screen.getByTestId("ask-tab").hasAttribute("disabled")).toBe(false));
     });
   });
 

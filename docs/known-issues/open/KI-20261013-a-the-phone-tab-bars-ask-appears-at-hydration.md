@@ -20,7 +20,8 @@
   the next screen registers (`useHeldPhoneAsk`); another trip, the account pages and a notebook
   page start empty as before. A first load, the case above, still has nothing to hold. A
   screen that settles on no Ask ends the hold (`useDeclinePhoneAsk`): the board's error and
-  sign-in states and a demo trip's board, and the notebook index's failed read. Notebook index
+  sign-in states, the notebook index's failed read, and a demo trip's board and notebook index,
+  neither of which offers an Ask, since `/ask` refuses a demo trip (KI-079). Notebook index
   → a notebook page still drops the Ask for that page's load, by design, since a locked page
   offers none. The hold is a second, bar-local source for whether an Ask is offered, beside
   the registration; the declaration below should replace it rather than sit beside it.
