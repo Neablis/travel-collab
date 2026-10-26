@@ -20,6 +20,10 @@ import { cn } from "../../lib/cn";
 // rather than growing it, so neither the label's layout nor the desktop moves.
 // The drawn box follows the input through `peer-*`: checked, focus-visible,
 // disabled.
+//
+// **The tick eases in** (M54). It is always laid out and the checked state
+// drives its scale and opacity, because `hidden` to `block` cannot transition.
+// Under reduced motion it only fades.
 export function Checkbox({ className, ...props }: React.InputHTMLAttributes<HTMLInputElement>) {
   return (
     <span className={cn("relative inline-grid size-4 shrink-0 place-items-center", className)}>
@@ -30,12 +34,13 @@ export function Checkbox({ className, ...props }: React.InputHTMLAttributes<HTML
       />
       <span
         aria-hidden
-        className="pointer-events-none col-start-1 row-start-1 size-4 rounded-xs border border-border-input bg-surface peer-checked:border-brand peer-checked:bg-brand peer-focus-visible:outline-2 peer-focus-visible:outline-offset-1 peer-focus-visible:outline-brand peer-disabled:opacity-50"
+        className="pointer-events-none col-start-1 row-start-1 size-4 rounded-xs border border-border-input bg-surface transition-colors duration-fast ease-calm peer-checked:border-brand peer-checked:bg-brand peer-focus-visible:outline-2 peer-focus-visible:outline-offset-1 peer-focus-visible:outline-brand peer-disabled:opacity-50"
       />
       <Check
         aria-hidden
         strokeWidth={3}
-        className="pointer-events-none col-start-1 row-start-1 hidden size-3 text-surface peer-checked:block"
+        data-testid="checkbox-tick"
+        className="pointer-events-none col-start-1 row-start-1 size-3 scale-50 text-surface opacity-0 transition duration-fast ease-calm peer-checked:scale-100 peer-checked:opacity-100 motion-reduce:scale-100"
       />
     </span>
   );

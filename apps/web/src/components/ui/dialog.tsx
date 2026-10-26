@@ -4,6 +4,7 @@ import { X } from "lucide-react";
 import { Button } from "./button";
 import { Heading } from "./heading";
 import { cn } from "@/lib/cn";
+import { useLetGoOfFocusOnClose } from "@/lib/useExitPresence";
 
 /**
  * A centred modal. `size="wide"` is for a dialog laid out in two columns — a
@@ -31,10 +32,21 @@ export function Dialog({
   onCloseAutoFocus?: (event: Event) => void;
   children: React.ReactNode;
 }) {
+  useLetGoOfFocusOnClose(open);
   return (
     <RadixDialog.Root open={open} onOpenChange={onOpenChange}>
       <RadixDialog.Portal>
-        <RadixDialog.Overlay className="overlay-layer fixed inset-0 bg-ink/40" />
+        {/* `data-motion` (globals.css): the scrim fades, the box rises in and
+            sinks out. Both are `inert` the moment the dialog closes, and
+            `useLetGoOfFocusOnClose` takes focus out, so nothing is held while
+            the exit plays (ADR-082 §2). The scrim needs `inert`: Radix gives it
+            an inline `pointer-events: auto` that the stylesheet's closed-state
+            rule cannot beat. */}
+        <RadixDialog.Overlay
+          data-motion="scrim"
+          inert={!open}
+          className="overlay-layer fixed inset-0 bg-ink/40"
+        />
         {/* A height cap and a scrolling body, which `Sheet` already had and
             this did not.
 
@@ -52,6 +64,8 @@ export function Dialog({
             reads exactly like a timeout. Every dialog in the app had it; the
             library is just the first list here long enough to reach it. */}
         <RadixDialog.Content
+          data-motion="rise"
+          inert={!open}
           className={cn(
             "overlay-layer fixed top-1/2 left-1/2 flex w-full -translate-x-1/2 -translate-y-1/2 flex-col rounded-lg bg-surface p-5 shadow-overlay",
             size === "wide" ? "max-w-4xl" : "max-w-md",

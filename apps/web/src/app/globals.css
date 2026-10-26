@@ -215,6 +215,27 @@
      reuse — a second surface wanting it is a second design decision. */
   --shadow-letter: 0 1px 2px rgb(21 29 46 / 0.05), 0 12px 32px -18px rgb(21 29 46 / 0.18);
 
+  /* Motion has one home (M54, ADR-082 §1): calm and quick, 120-240ms, one
+     ease-out, no bounce. These namespaces are the ones Tailwind 4 turns into
+     utilities (`duration-fast`, `ease-calm`, `animate-rise-in`); a
+     `--duration-*` token would generate nothing. The keyframes the
+     `--animate-*` tokens name live in the motion block at the end of this
+     file, and every one has a reduced-motion path there. */
+  --transition-duration-fast: 120ms;
+  --transition-duration-base: 160ms;
+  --transition-duration-slow: 240ms;
+  --ease-calm: cubic-bezier(0.2, 0, 0, 1);
+  /* `both`: an exit holds its last frame until Radix unmounts the node, so a
+     leaving overlay never flashes back in for a frame. */
+  --animate-rise-in: om-rise-in var(--transition-duration-base) var(--ease-calm) both;
+  --animate-sink-out: tc-sink-out var(--transition-duration-fast) var(--ease-calm) both;
+  --animate-fade-in: tc-fade-in var(--transition-duration-base) var(--ease-calm) both;
+  --animate-fade-out: tc-fade-out var(--transition-duration-fast) var(--ease-calm) both;
+  --animate-slide-in-right: tc-slide-in-right var(--transition-duration-slow) var(--ease-calm) both;
+  --animate-slide-out-right: tc-slide-out-right var(--transition-duration-base) var(--ease-calm) both;
+  --animate-slide-in-up: tc-slide-in-up var(--transition-duration-slow) var(--ease-calm) both;
+  --animate-slide-out-down: tc-slide-out-down var(--transition-duration-base) var(--ease-calm) both;
+
   /* Content-width tiers (design-system.md "Breakpoints & containers"). */
   --container-measure: 40rem;   /* 640px — forms, settings sheet, prose */
   --container-content: 70rem;   /* 1120px — default page + non-full lenses */
@@ -2557,7 +2578,8 @@ html[data-look="ledger"] .shadow-raised {
    from the theme, so the look pass and this one do not edit the same lines.
    A named rule rather than `animate-[tc-dot_1.1s…]`: the colour wall bans
    arbitrary-value brackets. The stagger rides on `data-typing-dot`, the way
-   `data-sk` carries the skeleton's.
+   `data-sk` carries the skeleton's. Since M54 these are every "working"
+   dot in the app, drawn by `TypingDots` (ui/typing-dots.tsx).
 
    Under prefers-reduced-motion the dots stop, dimmed as they rest. The pause
    itself does not shorten (D14): it is when the next line arrives, and
@@ -2620,5 +2642,130 @@ html[data-look="ledger"] .shadow-raised {
       black calc(100% - 2rem),
       transparent
     );
+  }
+}
+
+/* ── M54: overlays enter and leave, and a pending control fades its label
+   (ADR-082 §1-§2). `data-motion` names the movement and Radix's `data-state`
+   picks the half, so a component says what it does and the timing stays here.
+
+   **Exits are `animation`, never `transition`.** Radix's Presence keeps a
+   closing node mounted only while an animation runs, and unmounts it on
+   `animationend`; a transition would be cut off by the unmount. A leaving
+   node takes no pointer here, and the components make it `inert`, so it holds
+   no focus either. Transform and opacity only. Under reduced motion there is
+   no animation at all, so Radix unmounts at once (decision 20). */
+@layer components {
+  @keyframes tc-sink-out {
+    from {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    to {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+  }
+
+  @keyframes tc-fade-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes tc-fade-out {
+    from {
+      opacity: 1;
+    }
+    to {
+      opacity: 0;
+    }
+  }
+
+  @keyframes tc-slide-in-right {
+    from {
+      transform: translateX(100%);
+    }
+    to {
+      transform: translateX(0);
+    }
+  }
+
+  @keyframes tc-slide-out-right {
+    from {
+      transform: translateX(0);
+    }
+    to {
+      transform: translateX(100%);
+    }
+  }
+
+  @keyframes tc-slide-in-up {
+    from {
+      transform: translateY(100%);
+    }
+    to {
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes tc-slide-out-down {
+    from {
+      transform: translateY(0);
+    }
+    to {
+      transform: translateY(100%);
+    }
+  }
+
+  [data-motion="scrim"][data-state="open"] {
+    animation: var(--animate-fade-in);
+  }
+  [data-motion="scrim"][data-state="closed"] {
+    animation: var(--animate-fade-out);
+  }
+
+  /* Dialogs, popovers, menus and the toast: a fade and a 4px rise (spec
+     decision 10), leaving the way they came. */
+  [data-motion="rise"][data-state="open"] {
+    animation: var(--animate-rise-in);
+  }
+  [data-motion="rise"][data-state="closed"] {
+    animation: var(--animate-sink-out);
+  }
+
+  [data-motion="slide-right"][data-state="open"] {
+    animation: var(--animate-slide-in-right);
+  }
+  [data-motion="slide-right"][data-state="closed"] {
+    animation: var(--animate-slide-out-right);
+  }
+
+  [data-motion="slide-up"][data-state="open"] {
+    animation: var(--animate-slide-in-up);
+  }
+  [data-motion="slide-up"][data-state="closed"] {
+    animation: var(--animate-slide-out-down);
+  }
+
+  [data-motion][data-state="closed"] {
+    pointer-events: none;
+  }
+
+  /* `Button pending`: the label (or the icon) keeps its space and fades, so
+     the box does not change (decision 2). */
+  [data-pending-held] {
+    opacity: 0;
+    animation: var(--animate-fade-out);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    [data-motion],
+    [data-pending-held] {
+      animation: none;
+    }
   }
 }

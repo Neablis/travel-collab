@@ -3,6 +3,7 @@ import { createContext, useContext } from "react";
 import * as RadixMenu from "@radix-ui/react-dropdown-menu";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "../../lib/cn";
+import { useLetGoOfFocusOnClose } from "../../lib/useExitPresence";
 
 type MenuState = { open: boolean; onOpenChange: (open: boolean) => void };
 
@@ -13,6 +14,7 @@ const MenuStateContext = createContext<MenuState | null>(null);
  * `open`, and `MenuTrigger` toggles it on a plain click (ADR-012 invariant 3).
  */
 export function Menu({ open, onOpenChange, children }: MenuState & { children: React.ReactNode }) {
+  useLetGoOfFocusOnClose(open);
   return (
     <MenuStateContext.Provider value={{ open, onOpenChange }}>
       <RadixMenu.Root open={open} onOpenChange={onOpenChange}>
@@ -57,9 +59,14 @@ export function MenuContent({
   collisionPadding = 8,
   ...props
 }: React.ComponentProps<typeof RadixMenu.Content>) {
+  // Read for `inert` alone: a leaving menu takes no click and holds no focus
+  // while its exit plays (ADR-082 §2).
+  const state = useContext(MenuStateContext);
   return (
     <RadixMenu.Portal>
       <RadixMenu.Content
+        data-motion="rise"
+        inert={state !== null && !state.open}
         align={align}
         sideOffset={sideOffset}
         collisionPadding={collisionPadding}
