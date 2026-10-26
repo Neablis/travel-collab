@@ -96,6 +96,27 @@ describe("useIndicator", () => {
     expect(placed()).toMatchObject({ x: "130px", w: "120px" });
   });
 
+  // The phone pill and the trip tabs mount behind a 768px breakpoint, where
+  // every box measures 0×0. Armed by that, crossing the breakpoint slid the
+  // indicator in from the list's corner (PR 600 review).
+  it("arms the slide only once the list is visible", () => {
+    const shown = boxes;
+    boxes = {};
+    render(<Strip active="b" />);
+    const mark = screen.getByTestId("indicator");
+    expect(mark.dataset.placed, "armed while hidden").toBeUndefined();
+
+    boxes = shown;
+    act(() => resize?.());
+    expect(placed()).toMatchObject({ x: "70px", w: "90px" });
+    expect(mark.dataset.placed).toBe("");
+
+    // Hidden again (rotated back), the next showing arrives rather than slides.
+    boxes = {};
+    act(() => resize?.());
+    expect(mark.dataset.placed, "still armed once hidden again").toBeUndefined();
+  });
+
   // The first measurement can come before the web font has swapped in, and a
   // label set in the fallback face is a different width.
   it("measures again once the fonts are ready", async () => {
