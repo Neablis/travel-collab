@@ -186,10 +186,12 @@ export function CoverImage({
   // 4) and again when the cover changes to one that has not. Never for the
   // src the server rendered: only client code can lift the opacity, so that
   // photo would sit hidden until hydration however early it arrived, and a
-  // `priority` one is the page's largest paint besides.
+  // `priority` one is the page's largest paint besides. A lazy one the browser
+  // has not requested by hydration has painted nothing, so it gives the
+  // exemption up and fades in when it is scrolled to.
   const [loadedSrc, setLoadedSrc] = useState<string>();
   const hydrated = useHydrated();
-  const [serverSrc] = useState(hydrated ? undefined : src);
+  const [serverSrc, setServerSrc] = useState(hydrated ? undefined : src);
   if (broken && shown) {
     setBroken(false);
     setRetry(retry + 1);
@@ -233,6 +235,7 @@ export function CoverImage({
       ref={(el) => {
         if (!broken && el?.complete && el.naturalWidth === 0 && el.currentSrc !== "") fail();
         if (el?.complete && el.naturalWidth > 0 && loadedSrc !== src) setLoadedSrc(src);
+        if (el?.currentSrc === "" && serverSrc !== undefined) setServerSrc(undefined);
       }}
       // A failed photo stays in the box, hidden, so that mounting it again
       // asks again, and its `load` brings it and its credit back.

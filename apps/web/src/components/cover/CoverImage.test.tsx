@@ -102,6 +102,8 @@ describe("CoverImage", () => {
   // So the server's copy is never hidden, and hydrating it does not hide one
   // still on the way either.
   it("shows a server-rendered photo in the HTML and keeps it shown through hydration", async () => {
+    // Requested, so the browser may already be painting it.
+    vi.spyOn(HTMLImageElement.prototype, "currentSrc", "get").mockReturnValue("https://images.unsplash.com/requested");
     const host = document.createElement("div");
     host.innerHTML = renderToString(<CoverImage photo={unsplash} sizes="100vw" />);
     document.body.append(host);
@@ -112,6 +114,28 @@ describe("CoverImage", () => {
         root = hydrateRoot(host, <CoverImage photo={unsplash} sizes="100vw" />);
       });
       expect(within(host).getByRole("img").hasAttribute("data-loaded")).toBe(true);
+      act(() => root?.unmount());
+    } finally {
+      document.body.replaceChildren();
+    }
+  });
+
+  // A lazy cover below the fold has painted nothing at hydration, so hiding it
+  // cannot flash, and it fades in on scroll like one the client mounted.
+  it("fades in a server-rendered lazy photo the browser had not requested at hydration", async () => {
+    vi.spyOn(HTMLImageElement.prototype, "currentSrc", "get").mockReturnValue("");
+    const host = document.createElement("div");
+    host.innerHTML = renderToString(<CoverImage photo={unsplash} sizes="100vw" />);
+    document.body.append(host);
+    try {
+      let root: Root | undefined;
+      await act(async () => {
+        root = hydrateRoot(host, <CoverImage photo={unsplash} sizes="100vw" />);
+      });
+      const img = within(host).getByRole("img");
+      expect(img.hasAttribute("data-loaded")).toBe(false);
+      fireEvent.load(img);
+      expect(img.hasAttribute("data-loaded")).toBe(true);
       act(() => root?.unmount());
     } finally {
       document.body.replaceChildren();
