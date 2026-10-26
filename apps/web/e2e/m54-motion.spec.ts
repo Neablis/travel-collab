@@ -50,6 +50,15 @@ async function aTrip(page: Page, prefix: string): Promise<string> {
   return ((await created.json()) as { tripId: string }).tripId;
 }
 
+// The phone header draws its `⋯` once as a desktop header would, then again in
+// its phone place once `useIsPhone` corrects in an effect, which is a new
+// button (KI-2026-10-26-u). Focused or clicked before that, the trigger these
+// tests hold is replaced under them. The trip's status badge is drawn in the
+// phone's row by the same correction, so its showing means the `⋯` has moved.
+async function phoneHeaderSettled(page: Page) {
+  await expect(page.getByText("Active", { exact: true })).toBeVisible();
+}
+
 test("the account menu (a popover) leaves without taking a click or holding focus", async ({ page }) => {
   await page.goto("/home");
   await page.getByRole("button", { name: /^Account menu/ }).click();
@@ -74,6 +83,7 @@ test("a menu leaves without taking a click or holding focus", async ({ page }) =
   await page.setViewportSize({ width: 390, height: 844 });
   const tripId = await aTrip(page, "MotionMenu");
   await page.goto(`/trips/${tripId}`);
+  await phoneHeaderSettled(page);
   await page.getByRole("button", { name: "Trip actions" }).click();
   await expect(page.getByRole("menuitem", { name: "History" })).toBeVisible();
 
@@ -96,6 +106,7 @@ test("a menu opened by keyboard gives focus back to its trigger the moment it cl
   const tripId = await aTrip(page, "MotionMenuKeys");
   await page.goto(`/trips/${tripId}`);
   await boardHydrated(page);
+  await phoneHeaderSettled(page);
   const trigger = page.getByRole("button", { name: "Trip actions" });
   await trigger.focus();
   await page.keyboard.press("Enter");
