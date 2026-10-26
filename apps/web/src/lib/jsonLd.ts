@@ -1,4 +1,4 @@
-import { dayPath } from "./playbookUrls";
+import { dayPath, placePagePath } from "./playbookUrls";
 import { SITE_DESCRIPTION, SITE_NAME } from "./siteMetadata";
 
 // Structured data for the pages a search engine indexes (SEO pass, Part 4).
@@ -22,6 +22,13 @@ export type DayJsonLdInput = {
   author: string;
   /** Stop titles, in order. */
   stops: readonly string[];
+  /**
+   * The breadcrumb's country crumb, when the day's first city sits in exactly
+   * one country in the published lattice: the country → city → day chain.
+   * Absent when the city is in no country page or in several, and the trail
+   * then runs Playbooks → city → day as before, rather than guessing.
+   */
+  country?: { name: string; path: string };
   /** The breadcrumb's middle crumb, when the day's first city has a page. */
   city?: { name: string; path: string };
 };
@@ -65,6 +72,7 @@ export function dayJsonLd(input: DayJsonLdInput): JsonLdNode[] {
   };
   const crumbs = [
     { name: "Playbooks", path: "/playbooks" },
+    ...(input.country === undefined ? [] : [input.country]),
     ...(input.city === undefined ? [] : [input.city]),
     { name: input.name, path: input.path },
   ];
@@ -109,6 +117,79 @@ export function breadcrumbJsonLd(crumbs: readonly BreadcrumbCrumb[], origin: str
       position: i + 1,
       name: crumb.name,
       item: `${origin}${crumb.path}`,
+    })),
+  };
+}
+
+/**
+ * A city or country page's crumb trail: Playbooks, then the place itself at
+ * its own URL, page-aware so a `?page=N` trail ends at page N as the page's
+ * canonical does. A city aggregates days from every country it appears in,
+ * so it has no single country ancestor and none is claimed.
+ */
+export function placePageCrumbs(place: BreadcrumbCrumb, page: number): BreadcrumbCrumb[] {
+  return [
+    { name: "Playbooks", path: "/playbooks" },
+    { name: place.name, path: placePagePath(place.path, page) },
+  ];
+}
+
+/**
+ * A country×city page's crumb trail: Playbooks, through its country page,
+ * to the pair itself at its own URL, page-aware as on the place pages. The
+ * country crumb is the country page, not a paged one: the pair is one city's
+ * days inside it, and the country page is the ancestor, not the current page.
+ */
+export function countryCityPageCrumbs(
+  country: BreadcrumbCrumb,
+  city: BreadcrumbCrumb,
+  page: number,
+): BreadcrumbCrumb[] {
+  return [
+    { name: "Playbooks", path: "/playbooks" },
+    country,
+    { name: city.name, path: placePagePath(city.path, page) },
+  ];
+}
+
+/**
+ * A tag page's crumb trail: Playbooks, through the country and city pages
+ * that scope it when it has them, to the tag's label at its own URL,
+ * page-aware as on the place pages. The city crumb is the page the tag is
+ * scoped to — the city page, or the country×city page when a country scopes
+ * it too — so the trail walks the lattice the route walks. The tag crumb
+ * carries the label, never the raw key, as the heading does.
+ */
+export function tagPageCrumbs(
+  label: string,
+  city: BreadcrumbCrumb | null,
+  country: BreadcrumbCrumb | null,
+  path: string,
+  page: number,
+): BreadcrumbCrumb[] {
+  return [
+    { name: "Playbooks", path: "/playbooks" },
+    ...(country === null ? [] : [country]),
+    ...(city === null ? [] : [city]),
+    { name: label, path: placePagePath(path, page) },
+  ];
+}
+
+/**
+ * A page's linked pages as an `ItemList` of links, the summary-page shape
+ * `placeItemListJsonLd` uses for days, for a page whose list is not days:
+ * `/demo`'s example trips, each by its name at its own URL. Positions count
+ * from 1 on the page, as the list on that page does.
+ */
+export function linkItemListJsonLd(items: readonly BreadcrumbCrumb[], origin: string): JsonLdNode {
+  return {
+    "@context": CONTEXT,
+    "@type": "ItemList",
+    itemListElement: items.map((item, i) => ({
+      "@type": "ListItem",
+      position: i + 1,
+      url: `${origin}${item.path}`,
+      name: item.name,
     })),
   };
 }

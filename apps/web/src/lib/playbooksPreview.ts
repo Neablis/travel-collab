@@ -188,6 +188,37 @@ function withoutEmDash(text: string): string {
 }
 
 /**
+ * A day page's tab title (M53 decision 3): the author's own name, with its
+ * first city after a `·` only when the name does not already name that city
+ * ("3 days in Rome" reads no "· Rome" after it). The match is a whole word
+ * or phrase, case-insensitive, so "Roman holiday" still takes its suffix.
+ * An author's title is never clipped: however long it runs, it goes out
+ * exactly as written, and Google truncates it in the results if it must.
+ */
+export function dayTitle(name: string, city: string | null): string {
+  if (city === null || city === "") return name;
+  const escaped = city.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`\\b${escaped}\\b`, "i").test(name) ? name : `${name} · ${city}`;
+}
+
+/**
+ * A generated description cut to `limit` characters (M53 decision 4: 155)
+ * on the last whole phrase that fits: everything up to the last sentence
+ * end or comma inside the limit, or the last whole word when the text has
+ * no phrase boundary there. A description already inside the limit is
+ * returned untouched. Generated copy only: an author's own words never
+ * pass through here.
+ */
+export function capGeneratedDescription(text: string, limit = 155): string {
+  if (text.length <= limit) return text;
+  const cut = text.slice(0, limit);
+  const at = Math.max(cut.lastIndexOf(". "), cut.lastIndexOf(", "), cut.lastIndexOf("; "));
+  if (at > 0) return cut.slice(0, at + (cut[at] === "." ? 1 : 0));
+  const space = cut.lastIndexOf(" ");
+  return space > 0 ? cut.slice(0, space) : cut;
+}
+
+/**
  * A listed day, cut to what a title or description reads: its own sentence
  * (the server's "what kind of day", or null), its preview stops' titles, and
  * the cities it touches, in time order. The builders never see a database
@@ -286,8 +317,10 @@ function countSentence(total: number, where: string): string {
  */
 export function cityDescription(city: string, total: number, days: readonly SeoDay[]): string {
   const featured = days[0];
-  if (featured === undefined) return countSentence(total, ` in ${city}`);
-  return `${city}, from people who've been: ${dayHook(featured)}. ${plural(total, "day")} you can drop into your trip.`;
+  if (featured === undefined) return capGeneratedDescription(countSentence(total, ` in ${city}`));
+  return capGeneratedDescription(
+    `${city}, from people who've been: ${dayHook(featured)}. ${plural(total, "day")} you can drop into your trip.`,
+  );
 }
 
 /**
@@ -297,9 +330,9 @@ export function cityDescription(city: string, total: number, days: readonly SeoD
  */
 export function countryDescription(country: string, total: number, days: readonly SeoDay[]): string {
   const places = featuredByCity(days, 3);
-  if (places.length === 0) return countSentence(total, ` in ${country}`);
+  if (places.length === 0) return capGeneratedDescription(countSentence(total, ` in ${country}`));
   const hooks = places.map(({ city, day }) => `${city}'s ${placeHook(day)}`).join(", ");
-  return `${country} in real days: ${hooks}. Pick a day and drop it into your trip.`;
+  return capGeneratedDescription(`${country} in real days: ${hooks}. Pick a day and drop it into your trip.`);
 }
 
 /**
@@ -309,8 +342,10 @@ export function countryDescription(country: string, total: number, days: readonl
  */
 export function countryCityDescription(city: string, total: number, days: readonly SeoDay[]): string {
   const featured = days[0];
-  if (featured === undefined) return countSentence(total, ` in ${city}`);
-  return `${city}, from people who've been: ${dayHook(featured)}. ${plural(total, "day")} you can borrow for your trip.`;
+  if (featured === undefined) return capGeneratedDescription(countSentence(total, ` in ${city}`));
+  return capGeneratedDescription(
+    `${city}, from people who've been: ${dayHook(featured)}. ${plural(total, "day")} you can borrow for your trip.`,
+  );
 }
 
 /**
@@ -335,21 +370,21 @@ export function tagDescription(
       : `${total} ${theme} days other travelers planned${where}. Find one and drop it into your trip.`;
   if (city !== null && country !== null) {
     const featured = days[0];
-    if (featured === undefined) return countFallback;
-    return `${city}, ${country} ${theme}: ${dayHook(featured)}. A real day, ready to drop into your trip.`;
+    if (featured === undefined) return capGeneratedDescription(countFallback);
+    return capGeneratedDescription(`${city}, ${country} ${theme}: ${dayHook(featured)}. A real day, ready to drop into your trip.`);
   }
   if (city !== null) {
     const featured = days[0];
-    if (featured === undefined) return countFallback;
-    return `${city} ${theme}: ${dayHook(featured)}. A real day, ready to drop into your trip.`;
+    if (featured === undefined) return capGeneratedDescription(countFallback);
+    return capGeneratedDescription(`${city} ${theme}: ${dayHook(featured)}. A real day, ready to drop into your trip.`);
   }
   if (country !== null) {
     const places = featuredByCity(days, 3).map(({ city }) => city);
-    if (places.length === 0) return countFallback;
-    return `${country}'s ${theme}, from real trips: ${places.join(", ")}. ${label} days you can borrow.`;
+    if (places.length === 0) return capGeneratedDescription(countFallback);
+    return capGeneratedDescription(`${country}'s ${theme}, from real trips: ${places.join(", ")}. ${label} days you can borrow.`);
   }
   const places = featuredByCity(days, 2);
-  if (places.length === 0) return countFallback;
+  if (places.length === 0) return capGeneratedDescription(countFallback);
   const hooks = places.map(({ city, day }) => `${city}'s ${placeHook(day)}`).join(", ");
-  return `${label} days from real trips: ${hooks}. Borrow one for your next trip.`;
+  return capGeneratedDescription(`${label} days from real trips: ${hooks}. Borrow one for your next trip.`);
 }
