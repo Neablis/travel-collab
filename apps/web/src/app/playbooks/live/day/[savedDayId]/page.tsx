@@ -4,7 +4,7 @@ import { JsonLd } from "@/components/JsonLd";
 import { RELATED_DAYS, RelatedDays } from "@/components/playbooks/RelatedDays";
 import { SharedDayScreen } from "@/components/playbooks/SharedDayScreen";
 import { backTarget } from "@/components/playbooks/backLink";
-import { DAY_FALLBACK_TITLE, dayDescription, dayIndexable, playbooksPageMetadata } from "@/lib/playbooksPreview";
+import { DAY_FALLBACK_TITLE, dayDescription, dayIndexable, dayTitle, playbooksPageMetadata } from "@/lib/playbooksPreview";
 import { deploymentOrigin } from "@/lib/deploymentOrigin";
 import { dayJsonLd } from "@/lib/jsonLd";
 import { cityPath, dayPath, daySegment, parseDaySegment } from "@/lib/playbookUrls";
@@ -60,9 +60,10 @@ export async function generateMetadata({ params }: Params) {
   const { view } = loaded;
   const { day } = view;
   return pageMetadata({
-    // D3: the tab says the day and where. The card keeps the bare name
-    // (spec §1): its facts line already names the cities.
-    title: day.cities[0] === undefined ? day.name : `${day.name} · ${day.cities[0]}`,
+    // D3, as M53 decision 3 amends it: the tab says the day and where,
+    // unless the day's own name already says where. The card keeps the
+    // bare name (spec §1): its facts line already names the cities.
+    title: dayTitle(day.name, day.cities[0] ?? null),
     cardTitle: day.name,
     description: describe(view),
     image: { url: `/api/og/playbooks/day/${day.savedDayId}`, alt: day.name },

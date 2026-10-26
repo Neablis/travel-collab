@@ -2,9 +2,11 @@ import { DemoPicker } from "@/components/demo/DemoPicker";
 import { DEMO_TRIP_CARDS } from "@/lib/demoTripCards";
 import { pageMetadata } from "@/lib/siteMetadata";
 
+// M53 static-copy PROPOSAL (decision 5): the build proposes the words and
+// Mitchell approves them before merge, so this is a proposal, not approved copy.
 export const metadata = pageMetadata({
-  title: "Example trips",
-  description: "Look around real trips on Caesura: every day, stop, cost and map, read-only and with no account.",
+  title: "Example trips to look around before you plan",
+  description: "Look around real trips before you plan yours: every day, stop, cost and map, read-only, no account needed.",
   canonical: "/demo",
 });
 

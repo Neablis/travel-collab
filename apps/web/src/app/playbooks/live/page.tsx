@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { DiscoverScreen } from "@/components/playbooks/DiscoverScreen";
 import {
   DISCOVER_URL_DEFAULTS,
@@ -44,19 +45,31 @@ type DiscoverRouteProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
 
+// M53 static-copy PROPOSAL for `/playbooks` (decision 5): the build proposes
+// the words and Mitchell approves them before merge, so this card is a
+// proposal, not approved copy. It replaces the short generic "Playbooks"
+// tab title; the shared Playbooks card (`PLAYBOOKS_GENERIC`) still covers
+// day, profile and city misses, which are not this page's words.
+const PLAYBOOKS_PROPOSAL = {
+  title: "Days from real trips, ready to borrow",
+  description: "Days other travelers planned and rated. Find one for your city and borrow it for your trip.",
+} as const;
+
 // Spec 2026-10-02 §2.7. A Discover link for exactly one city, and no country,
 // gets that city's card ("Kyoto playbooks"); any other search is not one
 // place a card can name, and gets the static Playbooks card. Parsed by the
 // same function the page seeds its search from, so the card names the city
 // the page searches for.
 /**
- * Metadata for `/playbooks`: one city's card for `?city=<one>`, the Playbooks
- * card otherwise; canonical to a place's page for a search that is that place alone.
+ * Metadata for `/playbooks`: one city's card for `?city=<one>`, the proposed
+ * Playbooks card otherwise; canonical to a place's page for a search that is
+ * that place alone, and to `/playbooks` otherwise, with `og:url` matching
+ * that canonical (M53: the page had a canonical but no `og:url`).
  */
-export async function generateMetadata({ params, searchParams }: DiscoverRouteProps) {
+export async function generateMetadata({ params, searchParams }: DiscoverRouteProps): Promise<Metadata> {
   const state = parseDiscoverUrl(await queryFor(await readerOf(params), searchParams));
   const { cities, countries } = state;
-  const fallback = playbooksPageMetadata("Playbooks");
+  const fallback = playbooksPageMetadata(PLAYBOOKS_PROPOSAL.title, PLAYBOOKS_PROPOSAL);
   const [meta, place] = await Promise.all([
     cities.length !== 1 || countries.length > 0
       ? fallback
@@ -69,7 +82,8 @@ export async function generateMetadata({ params, searchParams }: DiscoverRoutePr
   // page to index, nor one to fold into page one. Crawlers still follow it to
   // the days, which the sitemap lists anyway.
   if (state.after !== null) return { ...meta, robots: NOINDEX_FOLLOW };
-  return { ...meta, alternates: { canonical: place ?? "/playbooks" } };
+  const canonical = place ?? "/playbooks";
+  return { ...meta, alternates: { canonical }, openGraph: { ...meta.openGraph, url: canonical } };
 }
 
 // `/playbooks` — Discover (M11b link 5). This route used to be an 18-line shell
