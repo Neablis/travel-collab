@@ -4,6 +4,7 @@ import { useState, useSyncExternalStore, type ReactNode } from "react";
 import { preload } from "react-dom";
 import type { TripCover } from "@tc/contracts";
 import { cn } from "@/lib/cn";
+import { useHydrated } from "@/lib/useHydrated";
 
 // A cover photo, for a trip now and a playbook day next (M37 parts 4 and 5).
 // Unsplash's guidelines are binding here: the image is HOTLINKED from the URL
@@ -182,10 +183,13 @@ export function CoverImage({
   const [broken, setBroken] = useState(false);
   const [retry, setRetry] = useState(0);
   // The src that has painted, so the photo fades in when it arrives (M54 part
-  // 4) and again when the cover changes to one that has not. Never for a
-  // `priority` photo: it is the page's largest paint, and one at opacity 0 is
-  // no paint at all until hydration has run.
+  // 4) and again when the cover changes to one that has not. Never for the
+  // src the server rendered: only client code can lift the opacity, so that
+  // photo would sit hidden until hydration however early it arrived, and a
+  // `priority` one is the page's largest paint besides.
   const [loadedSrc, setLoadedSrc] = useState<string>();
+  const hydrated = useHydrated();
+  const [serverSrc] = useState(hydrated ? undefined : src);
   if (broken && shown) {
     setBroken(false);
     setRetry(retry + 1);
@@ -235,7 +239,7 @@ export function CoverImage({
       aria-hidden={shown ? undefined : true}
       // eslint-disable-next-line no-restricted-syntax -- the cover's stored framing, 0–100 per photo (M49 decision 9): data, not a style a token could name
       style={{ objectPosition: `center ${photo.position ?? 50}%` }}
-      data-loaded={priority || loadedSrc === src ? "" : undefined}
+      data-loaded={priority || src === serverSrc || loadedSrc === src ? "" : undefined}
       className={cn(
         "absolute inset-0 size-full object-cover opacity-0 transition-opacity duration-slow ease-calm data-loaded:opacity-100 motion-reduce:transition-none",
         !shown && "invisible",

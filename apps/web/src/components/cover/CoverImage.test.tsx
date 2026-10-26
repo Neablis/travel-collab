@@ -1,4 +1,6 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { hydrateRoot, type Root } from "react-dom/client";
+import { renderToString } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { CoverImage, coverSrc } from "./CoverImage";
 
@@ -93,6 +95,27 @@ describe("CoverImage", () => {
     vi.spyOn(HTMLImageElement.prototype, "naturalWidth", "get").mockReturnValue(1200);
     render(<CoverImage photo={unsplash} sizes="100vw" />);
     expect(screen.getByRole("img").hasAttribute("data-loaded")).toBe(true);
+  });
+
+  // A server-rendered photo can arrive long before a slow phone hydrates, and
+  // hiding it until then left the first row of cards blank with the photo in.
+  // So the server's copy is never hidden, and hydrating it does not hide one
+  // still on the way either.
+  it("shows a server-rendered photo in the HTML and keeps it shown through hydration", async () => {
+    const host = document.createElement("div");
+    host.innerHTML = renderToString(<CoverImage photo={unsplash} sizes="100vw" />);
+    document.body.append(host);
+    try {
+      expect(within(host).getByRole("img").hasAttribute("data-loaded")).toBe(true);
+      let root: Root | undefined;
+      await act(async () => {
+        root = hydrateRoot(host, <CoverImage photo={unsplash} sizes="100vw" />);
+      });
+      expect(within(host).getByRole("img").hasAttribute("data-loaded")).toBe(true);
+      act(() => root?.unmount());
+    } finally {
+      document.body.replaceChildren();
+    }
   });
 
   // A server-rendered photo can fail before hydration, and React attaches
