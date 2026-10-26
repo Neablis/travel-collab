@@ -1,11 +1,13 @@
-import { Suspense, ViewTransition } from "react";
+import { Suspense } from "react";
 import type { Entitlement } from "@tc/contracts";
 import { AppHeader } from "@/components/AppHeader";
 import { CommandPalette } from "@/components/palette/CommandPalette";
+import { RouteViewTransition } from "@/components/RouteViewTransition";
 import { PhoneTabBar, PhoneTabBarFallback } from "@/components/nav/PhoneTabBar";
 import { PreferencesProvider } from "@/components/account/PreferencesProvider";
 import { type SessionUser, SessionUserProvider } from "@/components/account/useSessionUser";
 import type { AccountPreferencesRead } from "@/lib/apiClient";
+import { WelcomeCue } from "@/components/welcome/WelcomeMoment";
 import { ServedEntitlementsProvider } from "@/lib/useAiEntitled";
 
 /** What a layout read about the reader on the server, for the shell to start from. See `server/servedSession.ts`. */
@@ -59,10 +61,11 @@ export function AppShell({
               below, and the header and the tab bar are named out of it so
               they hold still (`globals.css` gives both names no animation).
               Each is its own boundary, too, so a header that redraws its
-              active link is that boundary's change and not the page's. */}
-          <ViewTransition name="app-header">
+              active link is that boundary's change and not the page's. Only
+              a change of path animates (`RouteViewTransition`). */}
+          <RouteViewTransition name="app-header">
             <AppHeader />
-          </ViewTransition>
+          </RouteViewTransition>
           {/* ⌘K, from every app page (M41 D9). The page below registers what it offers. */}
           <CommandPalette />
           {/* `.phone-tab-bar-inset` (globals.css) keeps the page's last row clear
@@ -71,7 +74,7 @@ export function AppShell({
               and `children` are siblings, so there is nowhere else to hang a
               reservation that applies to the content and not to the bar itself. */}
           <div className="phone-tab-bar-inset">
-            <ViewTransition>{children}</ViewTransition>
+            <RouteViewTransition>{children}</RouteViewTransition>
           </div>
           {/* The bar spans exactly the app's routes, which is what this
               layout wraps — so this is the mount point, and mounting it here rather
@@ -102,11 +105,15 @@ export function AppShell({
               nowhere else to navigate from. `PhoneTabBarFallback` renders the same
               five tabs from `usePathname()` alone, which triggers no bailout.
               Copilot caught this on PR 143. */}
-          <ViewTransition name="phone-tab-bar">
+          <RouteViewTransition name="phone-tab-bar">
             <Suspense fallback={<PhoneTabBarFallback />}>
               <PhoneTabBar />
             </Suspense>
-          </ViewTransition>
+          </RouteViewTransition>
+          {/* After a sign-in, the welcome moment (M54 decision 19). Here, under
+              the session provider, because a signup's moment says the new
+              account's name. */}
+          <WelcomeCue />
         </PreferencesProvider>
       </ServedEntitlementsProvider>
     </SessionUserProvider>

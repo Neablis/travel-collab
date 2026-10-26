@@ -3,15 +3,13 @@ import { PageContainer } from "@/components/ui/page-container";
 import { Skeleton, SkeletonRegion } from "@/components/ui/skeleton";
 
 // **The front door's first frame on a client navigation** (M54 part 4).
-// An invite and a shared trip are dynamic routes, so a link to one waits on a
-// server round-trip (the invite's metadata also fetches its link preview), and
-// without a boundary it held the page it came from until then. Their pages
-// differ, so this is one neutral column rather than copies of shapes that
-// would each be wrong somewhere, under the header each of them draws. `/demo`
-// and its trips have none: they are prerendered and prefetched whole, so one
-// would never show.
-// Sign-in and sign-up have none on purpose: see `loading.test.tsx` beside
-// this file.
+// Sign-in, sign-up, an invite and a shared trip are dynamic routes, so a link
+// to one waits on a server round-trip (sign-up with `?code=` and the invite
+// also fetch a link preview for their metadata), and without a boundary it
+// held the page it came from until then. Their pages differ, so this is one
+// neutral column rather than copies of shapes that would each be wrong
+// somewhere, under the header each of them draws. `/demo` and its trips have
+// none: they are prerendered and prefetched whole, so one would never show.
 /** A front-door route while its page is on the way. */
 export function FrontDoorLoading() {
   return (

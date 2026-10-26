@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { Browser, Page } from "@playwright/test";
 import { expect, test } from "./fixtures/test";
-import { E2E_SUPER_CODE } from "./admission";
+import { E2E_SUPER_CODE, fillInviteCode } from "./admission";
 import { E2E_ADMIN_USERNAME } from "./adminBootstrap";
 import { e2eTripName } from "./tripNames";
 
@@ -50,7 +50,7 @@ function newcomer(prefix: string): string {
 
 async function signInAs(page: Page, username: string): Promise<void> {
   await page.goto("/signup");
-  await page.getByLabel("Invite code").fill(E2E_SUPER_CODE);
+  await fillInviteCode(page, E2E_SUPER_CODE);
   // eslint-disable-next-line playwright/prefer-locator -- matches signInAsDevUser's grandfathered selector
   await page.fill('input[name="username"]', username);
   await Promise.all([

@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { Browser, Page } from "@playwright/test";
 import { expect, test } from "./fixtures/test";
-import { E2E_SUPER_CODE } from "./admission";
+import { E2E_SUPER_CODE, fillInviteCode } from "./admission";
 import { e2eTripName } from "./tripNames";
 
 // M12's milestone script for the shared day: **rate it, watch the average move
@@ -33,7 +33,7 @@ async function signedInAs(browser: Browser, username: string): Promise<Page> {
   const context = await browser.newContext({ storageState: undefined });
   const page = await context.newPage();
   await page.goto("/signup");
-  await page.getByLabel("Invite code").fill(E2E_SUPER_CODE);
+  await fillInviteCode(page, E2E_SUPER_CODE);
   await page.getByLabel("Username").fill(username);
   await Promise.all([
     page.waitForURL((url) => !/^\/sign(in|up)$/.test(url.pathname)),

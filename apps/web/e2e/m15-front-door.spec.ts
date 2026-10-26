@@ -73,7 +73,7 @@ test("landing → sign in → first trip → sign out", async ({ page }) => {
 
   // The swap link reaches sign-up and back.
   await page.getByRole("link", { name: "Create an account" }).click();
-  await expect(page.getByRole("heading", { name: "Start planning with Caesura" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Your next trip starts here" })).toBeVisible();
   await page.getByRole("link", { name: "Sign in" }).click();
 
   // Both /signup and /signin render AuthScreen's dev-login form (same

@@ -1,6 +1,6 @@
 import type { Page } from "@playwright/test";
 import { expect, test } from "./fixtures/test";
-import { E2E_SUPER_CODE } from "./admission";
+import { E2E_SUPER_CODE, fillInviteCode } from "./admission";
 import { openPlan } from "./helpers";
 import { e2eTripName, escapeForRegExp } from "./tripNames";
 
@@ -63,7 +63,7 @@ async function signedInAs(browser: import("@playwright/test").Browser, username:
   // deliberately not an admission credential: sharing a plan to read is not
   // the same as inviting someone in.
   await page.goto("/signup");
-  await page.getByLabel("Invite code").fill(E2E_SUPER_CODE);
+  await fillInviteCode(page, E2E_SUPER_CODE);
   // eslint-disable-next-line playwright/prefer-locator -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
   await page.fill('input[name="username"]', username);
   await Promise.all([

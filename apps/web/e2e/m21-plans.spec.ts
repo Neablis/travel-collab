@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { Page } from "@playwright/test";
 import { expect, test } from "./fixtures/test";
 import { accountPanel, openAccountPage } from "./helpers";
-import { E2E_SUPER_CODE } from "./admission";
+import { E2E_SUPER_CODE, fillInviteCode } from "./admission";
 
 // **M21's `plans` route, walked by a person** (SPEC §29, M21 link 5).
 //
@@ -35,7 +35,7 @@ function newcomer(prefix: string): string {
 /** Sign in as a brand-new dev account, without the suite's shared state. */
 async function signInAs(page: Page, username: string): Promise<void> {
   await page.goto("/signup");
-  await page.getByLabel("Invite code").fill(E2E_SUPER_CODE);
+  await fillInviteCode(page, E2E_SUPER_CODE);
   // eslint-disable-next-line playwright/prefer-locator -- matches signInAsDevUser's grandfathered selector
   await page.fill('input[name="username"]', username);
   await Promise.all([

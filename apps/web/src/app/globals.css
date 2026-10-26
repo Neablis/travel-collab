@@ -2774,11 +2774,11 @@ html[data-look="ledger"] .shadow-raised {
 /* ── M54: one sliding indicator per tab list, and the lens cross-fade (spec
    decision 11, ADR-082). `useIndicator` writes the active trigger's measured
    box onto the indicator as `--indicator-*`; these rules turn it into a
-   `transform`, plus the pill's size, which eases with it: snapped, the pill
-   jumped to its new width at the start of the slide (PR 600 review). The
-   transition is on only once the indicator has its first place
-   (`data-placed`), so it arrives there rather than sliding in; until then the
-   trigger draws its own active look. Under reduced motion it moves at once. */
+   `transform`, which is all that moves. The width is set from the measurement
+   and does not animate. The transition is on only once the indicator has its
+   first place (`data-placed`), so it arrives there rather than sliding in;
+   until then the trigger draws its own active look. Under reduced motion it
+   moves at once. */
 @layer components {
   /* A pill behind the trigger: TabStrip, SegmentedControl's pill, the phone
      tab bar's. */
@@ -2798,9 +2798,7 @@ html[data-look="ledger"] .shadow-raised {
     opacity: 0;
   }
   .tab-indicator[data-placed] {
-    transition-property: transform, width, height;
-    transition-duration: var(--transition-duration-base);
-    transition-timing-function: var(--ease-calm);
+    transition: transform var(--transition-duration-base) var(--ease-calm);
   }
 
   /* The incoming lens fades in; the outgoing one is already gone, so this is
@@ -2960,6 +2958,106 @@ html[data-look="ledger"] .shadow-raised {
     }
     [data-avatar-tip]:hover::before {
       transform: translate(-50%, 0);
+    }
+  }
+}
+
+/* ── M54: the welcome moment (decisions 4, 6 and 8, option A). One overlay in
+   two sizes, `WelcomeMoment`: `full` in the page's own paper (the OS splash's
+   `background_color`), `small` the mark alone over the page. Neither takes a
+   pointer event, so it never stands between a click and the page.
+
+   The unlock: the strokes slide apart and fade, then the tile scales up a
+   little and fades, then the moment goes. `--welcome-hold` is how long the
+   mark sits before that, composed from the tokens: none on a launch (it has
+   been breathing already), a beat after a sign-in, longer when it says
+   "Welcome, {name}". `WelcomeMoment` unmounts it a little after the last
+   frame, on a timer, so reduced motion (no animation at all) still leaves.
+
+   `.launch-overlay` is the same moment in the server HTML, shown only once
+   `LAUNCH_SCRIPT` has marked the document a home-screen launch. The strokes
+   are `BrandMark`'s two inner spans, which its own geometry draws. */
+@layer components {
+  .welcome-moment {
+    --welcome-hold: 0ms;
+    position: fixed;
+    inset: 0;
+    z-index: 70;
+    display: grid;
+    place-items: center;
+    pointer-events: none;
+  }
+  .welcome-moment[data-size="full"] {
+    background-color: var(--color-paper);
+  }
+  .welcome-moment[data-phase="welcome"] {
+    --welcome-hold: calc(var(--transition-duration-slow) * 2);
+  }
+  .welcome-moment[data-phase="welcome"][data-named] {
+    --welcome-hold: calc(var(--transition-duration-slow) * 5);
+  }
+
+  .launch-overlay {
+    display: none;
+  }
+  html[data-launch] .launch-overlay {
+    display: contents;
+  }
+  /* Fail-safe, under reduced motion too: only `LaunchOverlay` removes the
+     overlay, so a launch that never hydrates (offline, a chunk that failed
+     to load) would sit under it for good. Only while it still breathes: a
+     hydrated overlay has left that phase, and `LaunchOverlay` stands down past
+     the same 3s (`LAUNCH_FAILSAFE_MS`) rather than show it again. */
+  html[data-launch] .launch-overlay > .welcome-moment[data-phase="breathe"] {
+    animation: tc-fade-out var(--transition-duration-slow) var(--ease-calm) 3s both;
+  }
+
+  @keyframes tc-unlock-left {
+    to {
+      opacity: 0;
+      transform: translateX(-150%);
+    }
+  }
+  @keyframes tc-unlock-right {
+    to {
+      opacity: 0;
+      transform: translateX(150%);
+    }
+  }
+  @keyframes tc-unlock-tile {
+    to {
+      opacity: 0;
+      transform: scale(1.12);
+    }
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .welcome-moment[data-phase="fade"] {
+      animation: tc-fade-out var(--transition-duration-base) var(--ease-calm) both;
+    }
+    .welcome-moment:is([data-phase="unlock"], [data-phase="welcome"]) {
+      animation: tc-fade-out var(--transition-duration-slow) var(--ease-calm)
+        calc(var(--welcome-hold) + var(--transition-duration-fast)) both;
+    }
+    .welcome-moment:is([data-phase="unlock"], [data-phase="welcome"]) .welcome-mark {
+      animation: tc-unlock-tile var(--transition-duration-slow) var(--ease-calm)
+        calc(var(--welcome-hold) + var(--transition-duration-fast)) both;
+    }
+    .welcome-moment:is([data-phase="unlock"], [data-phase="welcome"]) .welcome-mark > span > span:first-child {
+      animation: tc-unlock-left var(--transition-duration-slow) var(--ease-calm) var(--welcome-hold) both;
+    }
+    .welcome-moment:is([data-phase="unlock"], [data-phase="welcome"]) .welcome-mark > span > span:last-child {
+      animation: tc-unlock-right var(--transition-duration-slow) var(--ease-calm) var(--welcome-hold) both;
+    }
+    .welcome-line {
+      animation: var(--animate-rise-in);
+    }
+
+    /* The sign-in screen's error banners and its opened invite-code field
+       rise in rather than pop (spec §4.4). */
+    [data-banner-rise],
+    [data-disclosure-open] {
+      animation: var(--animate-rise-in);
     }
   }
 }

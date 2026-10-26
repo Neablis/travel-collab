@@ -15,7 +15,12 @@ export type AuthCopy = {
 // Verbatim from `.design-sync/handoff/design/Trip Planner Redesign.dc.html`
 // :3388-3396 (the five bound strings) and :1620-1625 (the two footnotes).
 // Do not reword — the handoff README makes the design the source of truth
-// for product copy.
+// for product copy. One exception, made on purpose: signup's `title` and `sub`
+// were reworded for M54 (spec decision 4, "friendlier signup wording, shown to
+// Mitchell before it ships") after he called the screen "really sterile and
+// boring and has no cheer". The handoff's were "Start planning with Caesura"
+// and "One trip, everyone editing it. Your account takes about four seconds to
+// make." A design sync that restores them undoes that decision.
 /**
  * **Build-side copy, awaiting design sign-off — NOT from the handoff.**
  *
@@ -38,8 +43,10 @@ export type AuthCopy = {
  * screen and so is the thing that asks for the code.
  */
 export const ADMISSION_FIELD_COPY = {
-  /** Sits above the field, explaining why it is there at all. */
-  note: "Got an invite code? Add it so whoever invited you gets the credit.",
+  /** The disclosure the field waits behind (M54 decision 5): it is not the common path. */
+  disclosure: "Have an invite code?",
+  /** Sits above the field once it is open, explaining why it is there at all. */
+  note: "Add it so whoever invited you gets the credit.",
   /** The field's own hint — says when it may be left empty. */
   hint: "Optional. Paste the code you were sent, or leave this empty.",
   /** The code could not be saved before leaving for the provider; nothing was signed in. */
@@ -49,8 +56,8 @@ export const ADMISSION_FIELD_COPY = {
 
 export const AUTH_COPY: Record<AuthMode, AuthCopy> = {
   signup: {
-    title: "Start planning with Caesura",
-    sub: "One trip, everyone editing it. Your account takes about four seconds to make.",
+    title: "Your next trip starts here",
+    sub: "Bring the group, the ideas and the dates, and plan it all in one place together. Your account is ready in about four seconds.",
     scopeLine:
       "We ask Google for your name, email and profile picture. Nothing else, and nothing is posted anywhere.",
     swapPrompt: "Already planning a trip here?",
