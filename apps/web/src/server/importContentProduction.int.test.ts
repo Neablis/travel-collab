@@ -294,6 +294,87 @@ describe("importBundles — the lock's session lost mid-run", () => {
   });
 });
 
+// M53 part D: the duplicate guard on the import path. The four 2026-10-21
+// pairs (Bologna, Florence, Rome, the Amalfi Coast) were content-identical
+// days whose second copy arrived through this importer, writing public rows
+// directly — so the refusal lives here, before the transaction, not on a
+// publish transition the importer never takes.
+describe("importPlaybooks — the duplicate guard (M53 part D)", () => {
+  // The lane's database is shared by every suite in the run, so each case
+  // gets its own tag in the name and the summary: a case must collide only
+  // with the day it imports itself, never with another case's.
+  const dayBundle = (
+    id: string,
+    key: string,
+    tag: string,
+    overrides: { summary?: string; visibility?: "public" | "private"; city?: string } = {},
+  ) =>
+    parseBundle({
+      $schema: "travel-collab/content-bundle/v1",
+      bundle: { id, name: "Duplicate guard", origin: "ai" },
+      playbooks: [
+        {
+          key,
+          name: `3 days in Bologna ${tag}: tortellini, mortadella & market mornings`,
+          summary: overrides.summary ?? `Eat your way through Italy's food capital ${tag}.`,
+          ownerId: owner,
+          visibility: overrides.visibility ?? "public",
+          sourceTrip: { name: "Bologna" },
+          days: [
+            {
+              stops: [
+                {
+                  title: "Breakfast crawl at Mercato di Mezzo",
+                  timeWindow: { start: "09:00", end: "11:00" },
+                  location: { name: "Mercato di Mezzo", city: overrides.city ?? "Bologna" },
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+  const row = async (savedDayId: string) =>
+    db.select({ id: savedDays.id }).from(savedDays).where(eq(savedDays.id, savedDayId));
+
+  it("refuses a day with the same title and description as an already-published day, and writes nothing", async () => {
+    const tag = randomUUID().slice(0, 8);
+    const first = `dup-first-${tag}`;
+    const second = `dup-second-${tag}`;
+    await importPlaybooks(dayBundle(first, "one", tag), false);
+    expect(await row(playbookIdFor(first, "one"))).toHaveLength(1);
+
+    await expect(importPlaybooks(dayBundle(second, "two", tag), false)).rejects.toThrow(/duplicate day/);
+    expect(await row(playbookIdFor(second, "two"))).toEqual([]);
+    expect(await row(playbookIdFor(first, "one"))).toHaveLength(1);
+  });
+
+  it("lets a fork through: the same name with an edited description", async () => {
+    const tag = randomUUID().slice(0, 8);
+    const first = `dup-fork-${tag}`;
+    const second = `dup-fork-b-${tag}`;
+    await importPlaybooks(dayBundle(first, "one", tag), false);
+    await importPlaybooks(dayBundle(second, "two", tag, { summary: `A different take on Bologna's food capital ${tag}.` }), false);
+    expect(await row(playbookIdFor(first, "one"))).toHaveLength(1);
+    expect(await row(playbookIdFor(second, "two"))).toHaveLength(1);
+  });
+
+  it("lets a re-import of the same day through, and does not treat a private day as published", async () => {
+    const tag = randomUUID().slice(0, 8);
+    const id = `dup-reimport-${tag}`;
+    await importPlaybooks(dayBundle(id, "one", tag), false);
+    await importPlaybooks(dayBundle(id, "one", tag), false);
+    expect(await row(playbookIdFor(id, "one"))).toHaveLength(1);
+
+    const privateTag = `${tag}-private`;
+    const privateId = `dup-private-${tag}`;
+    const publicId = `dup-public-${tag}`;
+    await importPlaybooks(dayBundle(privateId, "one", privateTag, { visibility: "private" }), false);
+    await importPlaybooks(dayBundle(publicId, "two", privateTag), false);
+    expect(await row(playbookIdFor(publicId, "two"))).toHaveLength(1);
+  });
+});
+
 // M37 part 5, PR #354 review: `saved_day_covers` has no foreign key, so the
 // importer's hard deletes must see to it. A day re-imported keeps its id and
 // its author's cover; a day pruned for good takes its cover row with it.

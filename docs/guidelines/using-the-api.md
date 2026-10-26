@@ -391,6 +391,27 @@ M52 decision 21. Both answer from `tripNow` (ADR-080), the one function the
 - **There is no cover search on the API.** It would spend Caesura's Unsplash quota for another
   program; find the image elsewhere and `PUT` its URL.
 
+### A playbook's cover
+
+`/v1/playbooks/{playbookId}/cover` (Mitchell, 2026-10-26): the trip cover's shape, under playbook
+ownership instead of trip roles. `GET` (`library:read`) answers `{ cover }`, `null` for none, for
+your own playbook or anybody's published one; somebody else's private playbook is the same 404 as
+one that does not exist. `PUT { url, alt?, credit?: { name, url? }, position? }`, `PATCH { position }`
+and `DELETE` need `library:write` and the playbook's author — a Playbook has no members list, so
+there is no viewer/editor to gate on.
+
+- **`PUT` sets a cover from an image URL, and checks it first**, under the same guard as a trip's
+  cover: `https` only, public addresses on every hop, at most 3 redirects, a raster image (no SVG)
+  under 10 MB. A URL that fails is a **422 `cover-url-rejected`** with `details.reason`, and nothing
+  is saved.
+- **The URL is kept, not the image**, and a browser loads it through this host's own
+  `/api/cover-image` (the cover's `proxySrc`), never from the image's host.
+- **`position`** is where the photo is framed vertically, 0 (top) to 100 (bottom), default 50.
+  `PATCH` moves it on any cover — including an Unsplash one picked in the app — and is a 404 when
+  the playbook has none. Setting a cover on a published playbook is allowed: a cover is decoration,
+  not content under review.
+- **There is no cover search on the API**, for the same quota reason as a trip's cover.
+
 ### Taking a trip out, and putting one back
 
 Two endpoints, added by **M25**. Both speak `travel-collab/content-bundle/v1` —

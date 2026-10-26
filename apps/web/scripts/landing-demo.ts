@@ -1,6 +1,7 @@
 // Writes one snapshot per demo trip — the slice of `/demo/<slug>` the front
-// door draws with real components — and the `/demo` picker's cards, or, with
-// `--check`, fails if any committed file differs from a fresh generation.
+// door draws with real components — and the `/demo` picker's cards, and each
+// demo's server-rendered summary for `/demo/<slug>` itself (M53 part 2), or,
+// with `--check`, fails if any committed file differs from a fresh generation.
 // Japan's slice is `src/lib/landingDemo.generated.json`, the one the hero reads
 // today; every other demo's is `src/lib/landingDemo.<slug>.generated.json`
 // (M42 D2); the cards are `src/lib/demoTripCards.generated.json` (D1); the
@@ -67,6 +68,7 @@ import { getMacro, renderMacro, type BlockPayload, type Seg, type WidgetContext 
 import { cityAccents } from "@/components/pages/cityAccents";
 import { TAG_LABEL } from "@/lib/activityTags";
 import { DEMO_TRIPS, demoTripBySlug } from "@/lib/demoTrip";
+import type { DemoTripSummary } from "@/lib/demoTripSummaries";
 import { displayNameFor } from "@/lib/displayName";
 import type { LandingCrew, LandingDemo, LandingFeatures } from "@/lib/landingDemo";
 import type { LandingSea, SeaAccent, SeaCell, SeaCellSize, SeaDay, SeaDayCell } from "@/lib/landingSea";
@@ -939,11 +941,39 @@ export function serializeLandingDemo(demo: unknown): string {
 /** Where the `/demo` picker's cards are committed. */
 export const CARDS_PATH = fileURLToPath(new URL("../src/lib/demoTripCards.generated.json", import.meta.url));
 
+/** Where each demo's server-rendered summary is committed (M53 part 2). */
+export const SUMMARIES_PATH = fileURLToPath(new URL("../src/lib/demoTripSummaries.generated.json", import.meta.url));
+
+/**
+ * Every demo's summary for `/demo/<slug>`: its title, then each day with its
+ * stops as text, then the unscheduled rack's stops. Folded from the same
+ * source the board serves (`demoTripDetailFor`), so the summary cannot drift
+ * from the trip — and the dates left out on purpose: a demo's dates move with
+ * today (`server/demoTrip.ts`), so a frozen date would go stale, while a day's
+ * ordinal and its stops' titles do not move. The picker reads the cards, not
+ * this, so the itineraries do not ride along on `/demo`'s payload.
+ */
+export function buildDemoTripSummaries(): DemoTripSummary[] {
+  return DEMO_TRIPS.map(({ slug, tripId }) => {
+    const detail = demoTripDetailFor(tripId, REFERENCE_START_DATE);
+    return {
+      slug,
+      name: detail.name,
+      days: detail.days.map((day, index) => ({
+        name: `Day ${index + 1}`,
+        stops: day.activityIds.map((id) => detail.activities[id]!.title),
+      })),
+      unscheduled: detail.backlog.map((id) => detail.activities[id]!.title),
+    };
+  });
+}
+
 /** Every file this script owns, with the bytes a fresh generation gives it. */
 export function generatedFiles(): { path: string; fresh: string }[] {
   return [
     ...DEMO_TRIPS.map(({ slug }) => ({ path: snapshotPath(slug), fresh: serializeLandingDemo(buildLandingDemo(slug)) })),
     { path: CARDS_PATH, fresh: serializeLandingDemo(demoTripCards()) },
+    { path: SUMMARIES_PATH, fresh: serializeLandingDemo(buildDemoTripSummaries()) },
     { path: FEATURES_PATH, fresh: serializeLandingDemo(buildLandingFeatures()) },
     { path: SEA_PATH, fresh: serializeLandingDemo(buildLandingSea()) },
   ];

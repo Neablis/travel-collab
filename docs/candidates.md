@@ -374,7 +374,9 @@ here two days later.
     (0–100, default 50) came with migration 0068, and the trip band's drag mode lives in
     `RepositionCover.tsx`, reached from the hidden cover menu of decision 10 as amended. The day
     band uses the same `CoverMenu`, but it offers only *Change cover* and *Remove*.
-    Playbook-day covers stay off the public API (M49 decision 8).
+    Playbook-day covers are on the public API since 1.30.0 (`GET`/`PUT`/`PATCH`/`DELETE`
+    `/v1/playbooks/{playbookId}/cover`, author-only, position included); the day band's menu
+    is what still lacks *Reposition*.
   - **The idea.** Put *Reposition* in the day band's menu, reuse the drag mode, and render the
     saved position on every surface the day cover appears on.
   - **Decisions it needs.** Whether the day cover's stored shape already carries `position`. If

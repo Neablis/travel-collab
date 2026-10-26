@@ -10,9 +10,15 @@ import { ApiReferenceClient } from "./ApiReferenceClient";
 // Public for the same reason `/developers` is — outside `proxy.ts`'s matcher.
 // The front door's header sits above Scalar so the page is visibly Caesura's
 // and has a way home; everything under it is Scalar's own layout.
+// M53 static-copy PROPOSAL (decision 5): the build proposes the words and
+// Mitchell approves them before merge, so this is a proposal, not approved
+// copy. The canonical (with its matching og:url) is new here: the page had
+// neither, which the M53 audit flagged.
 export const metadata = pageMetadata({
-  title: "API reference",
-  description: "Every endpoint of the Caesura API: its scope, its request and its response.",
+  title: "Caesura API reference: every endpoint",
+  description:
+    "Every endpoint of the Caesura API, with its scope, request and response, so you can build on real trip days.",
+  canonical: "/developers/reference",
 });
 
 /** `/developers/reference`: the Scalar-rendered API reference under the front door's header. */
