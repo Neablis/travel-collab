@@ -1,4 +1,4 @@
-import type { CDPSession, Page } from "@playwright/test";
+import type { CDPSession, Locator, Page } from "@playwright/test";
 import { expect, test } from "./fixtures/test";
 import { e2eTripName } from "./tripNames";
 
@@ -134,4 +134,67 @@ test("a pending button's box is the same before, during and after", async ({ pag
   await expect(page.getByRole("alert").filter({ hasText: "no trip to import" })).toBeVisible();
   await expect(button).not.toHaveAttribute("aria-busy");
   expect(await size()).toEqual(before);
+});
+
+// M54 decision 11: one indicator per tab list, measured onto the active tab.
+// How far the indicator sits from the box it should cover, in whole pixels.
+// Every running animation is finished first, so the slide is read at its end
+// rather than waited out.
+async function indicatorOffset(page: Page, list: string, active: string) {
+  return page.evaluate(
+    ([listSelector, activeSelector]) => {
+      // A skeleton's breathing loops forever, and cannot be finished.
+      for (const animation of document.getAnimations()) {
+        if (animation.effect?.getComputedTiming().endTime !== Infinity) animation.finish();
+      }
+      const indicator = document.querySelector(`${listSelector} [data-testid="tab-indicator"]`);
+      const target = document.querySelector(`${listSelector} ${activeSelector}`);
+      if (indicator === null || target === null) return null;
+      const a = indicator.getBoundingClientRect();
+      const b = target.getBoundingClientRect();
+      return { x: Math.round(a.x - b.x), y: Math.round(a.y - b.y), width: Math.round(a.width - b.width) };
+    },
+    [list, active] as const,
+  );
+}
+
+const UNDER = { x: 0, y: 0, width: 0 };
+
+// The server's HTML already marks the active tab; the indicator is placed
+// once the page hydrates, and says so.
+async function placed(indicator: Locator) {
+  await expect(indicator).toHaveAttribute("data-placed", "");
+}
+
+test("the trip tabs' indicator moves under the tab you switch to", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const tripId = await aTrip(page, "MotionTabs");
+  await page.goto(`/trips/${tripId}`);
+  const list = '[role="tablist"][aria-label="Trip view"]';
+  await placed(page.getByRole("tablist", { name: "Trip view" }).getByTestId("tab-indicator"));
+  await expect(page.getByRole("tab", { name: "Overview" })).toHaveAttribute("aria-selected", "true");
+  expect(await indicatorOffset(page, list, '[aria-selected="true"]')).toEqual(UNDER);
+
+  await page.getByRole("tab", { name: "Calendar" }).click();
+  await expect(page.getByRole("tab", { name: "Calendar" })).toHaveAttribute("aria-selected", "true");
+  expect(await indicatorOffset(page, list, '[aria-selected="true"]')).toEqual(UNDER);
+});
+
+// The phone bar's tabs are `flex-1`, so a wider window moves every one of them
+// without a render: only the ResizeObserver brings the pill along.
+test("the phone tab bar's pill follows a switch and a resize", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const tripId = await aTrip(page, "MotionPill");
+  await page.goto(`/trips/${tripId}`);
+  const bar = page.getByRole("navigation", { name: "Phone navigation" });
+  const list = 'nav[aria-label="Phone navigation"]';
+  const pill = 'a[aria-current="page"] [data-testid="phone-tab-pill"]';
+  await placed(bar.getByTestId("tab-indicator"));
+
+  await bar.getByRole("link", { name: "Plan" }).click();
+  await expect(bar.getByRole("link", { name: "Plan" })).toHaveAttribute("aria-current", "page");
+  expect(await indicatorOffset(page, list, pill)).toEqual(UNDER);
+
+  await page.setViewportSize({ width: 700, height: 844 });
+  await expect.poll(() => indicatorOffset(page, list, pill)).toEqual(UNDER);
 });

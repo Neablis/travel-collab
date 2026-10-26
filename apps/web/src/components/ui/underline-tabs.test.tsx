@@ -1,5 +1,5 @@
 import { render, screen, fireEvent } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { UnderlineTabs, tabId, tabPanelId } from "./underline-tabs";
 
 const OPTIONS = [
@@ -23,6 +23,10 @@ function renderTabs(value: (typeof OPTIONS)[number]["value"] | null = "profile")
 }
 
 describe("UnderlineTabs", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it("is a tablist with one tab per option and exactly one selected", () => {
     renderTabs("plan");
     const list = screen.getByRole("tablist", { name: "Account sections" });
@@ -43,21 +47,47 @@ describe("UnderlineTabs", () => {
   // SPEC §33.2's treatment, and the reason this is not `TabStrip`: a place is a
   // 2px brand edge on a hairline base line, not a moss pill. `components/ui/**`
   // is the one place the lint wall allows a class assertion, because a
-  // primitive mapping a look onto tokens has nothing else to assert.
-  it("draws §33.2's underline: a brand edge when selected, transparent when not, on a hairline base line", () => {
+  // primitive mapping a look onto tokens has nothing else to assert. Since M54
+  // the brand edge is one indicator that slides between tabs, so a tab keeps
+  // only its text style once the indicator is placed.
+  it("draws §33.2's underline: one brand edge under the selection, on a hairline base line", () => {
     renderTabs("plan");
     expect(screen.getByRole("tablist").className).toContain("border-hairline");
     const selected = screen.getByRole("tab", { name: "Plan & usage" });
     const idle = screen.getByRole("tab", { name: "Profile" });
-    expect(selected.className).toContain("border-brand");
+    const edge = screen.getByTestId("tab-indicator");
+    expect(edge.className).toContain("bg-brand");
     expect(selected.className).toContain("text-ink");
-    expect(idle.className).toContain("border-transparent");
     expect(idle.className).toContain("text-slate");
+    expect(selected.className).not.toContain("border-brand");
     // The overlap that makes one rule with a thick segment rather than two
     // stacked lines. Losing it is a silent visual regression.
-    expect(selected.className).toContain("-mb-px");
+    expect(edge.className).toContain("-bottom-px");
     // It is NOT the pill. If someone swaps the primitive back, this fails.
-    expect(selected.className).not.toContain("bg-moss");
+    expect(edge.className).not.toContain("bg-surface");
+  });
+
+  // M54 decision 11: the edge is placed from the selected tab's measured box,
+  // so it slides to the next tab rather than jumping. jsdom lays nothing out,
+  // so the boxes are stubbed by id.
+  it("places its one edge under the selected tab, and moves it with the selection", () => {
+    const boxes: Record<string, { left: number; width: number }> = {
+      [tabId("account", "profile")]: { left: 40, width: 50 },
+      [tabId("account", "plan")]: { left: 112, width: 90 },
+      [tabId("account", "tokens")]: { left: 224, width: 80 },
+    };
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+      const box = this.getAttribute("role") === "tablist" ? { left: 40, width: 400 } : (boxes[this.id] ?? { left: 0, width: 0 });
+      return DOMRect.fromRect({ x: box.left, y: 0, width: box.width, height: 40 });
+    });
+    const tabs = (value: "plan" | "tokens") => (
+      <UnderlineTabs value={value} onValueChange={() => {}} options={OPTIONS} idPrefix="account" aria-label="Account sections" />
+    );
+    const { rerender } = render(tabs("plan"));
+    const edge = screen.getByTestId("tab-indicator");
+    expect([edge.style.getPropertyValue("--indicator-x"), edge.style.getPropertyValue("--indicator-scale")]).toEqual(["72px", "90"]);
+    rerender(tabs("tokens"));
+    expect([edge.style.getPropertyValue("--indicator-x"), edge.style.getPropertyValue("--indicator-scale")]).toEqual(["184px", "80"]);
   });
 
   // SPEC §13.1 — "44px targets, always" — and §34.3 repeats it for the phone

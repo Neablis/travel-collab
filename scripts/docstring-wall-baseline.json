@@ -214,8 +214,6 @@
   "apps/web/src/components/ui/table.tsx::THead",
   "apps/web/src/components/ui/table.tsx::TR",
   "apps/web/src/components/ui/table.tsx::Table",
-  "apps/web/src/components/ui/tabs.tsx::TabsList",
-  "apps/web/src/components/ui/tabs.tsx::TabsTrigger",
   "apps/web/src/components/ui/text.tsx::Text",
   "apps/web/src/components/ui/textarea.tsx::Textarea",
   "apps/web/src/components/ui/toast.tsx::Toast",

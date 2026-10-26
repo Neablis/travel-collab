@@ -7,6 +7,7 @@ import { BookOpen, LayoutDashboard, List, Luggage, Map, NotebookText } from "luc
 import { useSessionUser } from "@/components/account/useSessionUser";
 import { landingView, resolveView, type View } from "@/components/trip/context/LensRouter";
 import { cn } from "@/lib/cn";
+import { useIndicator } from "@/lib/useIndicator";
 import { isDemoBoardPath } from "@/lib/demoTrip";
 import { Button } from "@/components/ui/button";
 import { BrandMark } from "@/components/BrandMark";
@@ -288,6 +289,9 @@ function PhoneTabBarView({
   // and without that `.phone-tab-bar-inset` keeps 83px of padding under a bar
   // that is gone.
   const hidden = taskOwnsScreen(pathname) || (signedOut && scopeOf(pathname) === "account");
+  // The active pill, one for the bar, sliding between tabs (M54). `null` while
+  // hidden, so it is placed afresh when the bar comes back.
+  const { indicator, trigger, ready } = useIndicator(barRef, hidden ? null : active);
 
   // The bar is `position: fixed`, so it reserves no space in normal flow and a
   // page's last row ends up underneath it. This is the same problem — and the
@@ -361,6 +365,12 @@ function PhoneTabBarView({
       // under the assistant that is meant to cover it.
       className="phone-tab-bar fixed inset-x-0 bottom-0 z-20 flex border-t border-hairline bg-surface pt-2 md:hidden"
     >
+      <span
+        ref={indicator}
+        aria-hidden
+        data-testid="tab-indicator"
+        className="tab-indicator tab-indicator-box pointer-events-none absolute top-0 left-0 rounded-full bg-brand-tint"
+      />
       {tabsForScope(scopeOf(pathname)).map((id) => {
         const { label, Icon } = TABS[id];
         const href = phoneTabHref(id, pathname);
@@ -409,13 +419,18 @@ function PhoneTabBarView({
                 carries the signal, colour confirms it." 46×26 and
                 `--color-brand-tint`, both the spec's numbers; no new colour is
                 introduced. The pill is on the GLYPH's box rather than the whole
-                tab so the label sits outside it, as the design draws it. */}
+                tab so the label sits outside it, as the design draws it.
+
+                The fill is the bar's one indicator, measured onto this box,
+                once it is placed (M54); until then the active pill fills
+                itself. `relative` paints the glyph over the indicator. */}
             <span
               // Named so a test can count the filled one: the pill is pure
               // decoration with no role or accessible name of its own, and the
               // lint wall rejects `container.querySelector`.
               data-testid="phone-tab-pill"
-              className={cn("phone-tab-pill grid place-items-center rounded-full", isActive && "bg-brand-tint")}
+              ref={trigger(id)}
+              className={cn("phone-tab-pill relative grid place-items-center rounded-full", isActive && !ready && "bg-brand-tint")}
             >
               <Icon aria-hidden className="size-4" />
             </span>

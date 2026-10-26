@@ -2769,3 +2769,51 @@ html[data-look="ledger"] .shadow-raised {
     }
   }
 }
+
+/* ── M54: one sliding indicator per tab list, and the lens cross-fade (spec
+   decision 11, ADR-082). `useIndicator` writes the active trigger's measured
+   box onto the indicator as `--indicator-*`; these rules turn it into a
+   `transform`, which is all that moves. The width is set from the measurement
+   and does not animate. The transition is on only once the indicator has its
+   first place (`data-placed`), so it arrives there rather than sliding in;
+   until then the trigger draws its own active look. Under reduced motion it
+   moves at once. */
+@layer components {
+  /* A pill behind the trigger: TabStrip, SegmentedControl's pill, the phone
+     tab bar's. */
+  .tab-indicator-box {
+    width: var(--indicator-w);
+    height: var(--indicator-h);
+    transform: translate(var(--indicator-x), var(--indicator-y));
+  }
+  /* A 1px line stretched to the trigger's width: UnderlineTabs and
+     SegmentedControl's subtle look. `scaleX` keeps the stretch a transform. */
+  .tab-indicator-line {
+    width: 1px;
+    transform-origin: left;
+    transform: translateX(var(--indicator-x)) scaleX(var(--indicator-scale));
+  }
+  .tab-indicator:not([data-placed]) {
+    opacity: 0;
+  }
+  .tab-indicator[data-placed] {
+    transition: transform var(--transition-duration-base) var(--ease-calm);
+  }
+
+  /* The incoming lens fades in; the outgoing one is already gone, so this is
+     an enter only, on a box that mounts with its lens and is never keyed or
+     re-mounted for it. `backwards`, not `both`: once it ends the box holds no
+     opacity, so it is no stacking context for the board's own layers. */
+  [data-lens-enter] {
+    animation: tc-fade-in var(--transition-duration-base) var(--ease-calm) backwards;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .tab-indicator[data-placed] {
+      transition: none;
+    }
+    [data-lens-enter] {
+      animation: none;
+    }
+  }
+}
