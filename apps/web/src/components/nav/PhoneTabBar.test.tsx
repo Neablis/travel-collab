@@ -489,12 +489,14 @@ describe("PhoneTabBar", () => {
     // notebook offers its Ask only once its trip lands. The item must hold its
     // place through that gap, doing nothing, until the next screen offers one.
     // `{null}` where the screen was keeps the bar mounted, as the layout does.
-    it("holds its place, inert, across a move between the trip's tabs until the next screen offers", () => {
+    it("holds its place, inert and closed, across a move between the trip's tabs until the next screen offers", () => {
       url = "/trips/t1?view=Plan";
       const board = vi.fn();
+      // Left with the board's assistant up (Back from the open sheet): the
+      // held item must not say an assistant is up when none is.
       const { rerender } = render(
         <>
-          <Screen onOpen={board} />
+          <Screen onOpen={board} open />
           <PhoneTabBar />
         </>,
       );
@@ -508,6 +510,7 @@ describe("PhoneTabBar", () => {
       const held = screen.getByTestId("ask-tab");
       expect(screen.getByRole("navigation", { name: "Phone navigation" }).textContent).toBe("OverviewPlanMapNotebookAsk");
       expect(held.hasAttribute("disabled")).toBe(true);
+      expect(held.getAttribute("aria-expanded")).toBe("false");
       fireEvent.click(held);
       expect(board).not.toHaveBeenCalled();
 

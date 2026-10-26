@@ -94,6 +94,33 @@ export function registerPhoneAsk(next: PhoneAskEntry): () => void {
   };
 }
 
+// How many times a screen has settled on offering no Ask. The bar holds the
+// last entry, inert, only while this has not moved since it saw it.
+let declines = 0;
+
+/**
+ * Says this screen has settled on offering no Ask while `declined`: its read
+ * failed, or its trip is one the assistant refuses. The bar then lets go of
+ * the entry it holds from the screen before (`useHeldPhoneAsk`), which
+ * otherwise stands, dead, waiting for an offer that never comes.
+ */
+export function useDeclinePhoneAsk(declined: boolean): void {
+  useEffect(() => {
+    if (!declined) return;
+    declines += 1;
+    emit();
+  }, [declined]);
+}
+
+/** The bar's: how many times a screen has declined, for `useHeldPhoneAsk`. */
+export function usePhoneAskDeclines(): number {
+  return useSyncExternalStore(
+    subscribe,
+    () => declines,
+    () => 0,
+  );
+}
+
 /** The registered Ask, or `null` where this screen offers none. */
 export function usePhoneAsk(): PhoneAskEntry | null {
   return useSyncExternalStore(
