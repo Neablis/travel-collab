@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useSyncExternalStore } from "react";
+import { useLayoutEffect, useRef, useSyncExternalStore } from "react";
 import type { ChatMessage } from "@tc/contracts";
 
 // **The phone's Ask lives in the bottom tab bar** (Mitchell, 2026-10-10
@@ -152,7 +152,9 @@ export function usePhoneAskEntry(
 ): void {
   const onChat = chat?.onOpen;
   const latest = useRef({ onOpen, onAsk, onResume, onChat });
-  useEffect(() => {
+  // Before the registration below, in the same commit, so the entry is never
+  // live while this still holds the loading render's `undefined`.
+  useLayoutEffect(() => {
     latest.current = { onOpen, onAsk, onResume, onChat };
   });
   const offered = onOpen !== undefined;

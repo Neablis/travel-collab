@@ -2212,6 +2212,9 @@ describe("assistant rail visibility", () => {
       membersMove(fixture, [fixture.members[0]!]);
 
       await waitFor(() => expect(within(panel).queryAllByRole("tab")).toEqual([]));
+      // Past the rail's tab-switch focus move, a passive effect: read sooner,
+      // a move that should not happen has not happened yet either.
+      await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
       expect(addDay.matches(":focus")).toBe(true);
     });
 
@@ -2233,6 +2236,8 @@ describe("assistant rail visibility", () => {
       membersMove(fixture, [fixture.members[0]!]);
 
       const sheet = await screen.findByRole("dialog", { name: "Assistant" });
+      // Past the tab-switch focus move, as above.
+      await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
       expect(within(sheet).getByRole("textbox", { name: "Question for the assistant" }).matches(":focus")).toBe(false);
     });
 
@@ -2254,6 +2259,8 @@ describe("assistant rail visibility", () => {
       membersMove(fixture, [...fixture.members, { userId: "u-bea", role: "viewer" }]);
 
       expect(await within(panel).findByRole("tab", { name: "Chat" })).toBeTruthy();
+      // Past the tab-switch focus move, as above.
+      await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
       expect(hide.matches(":focus")).toBe(true);
     });
 

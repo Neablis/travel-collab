@@ -3,7 +3,7 @@
 - **Severity:** cosmetic. Nothing is wrong once the page has hydrated. On a phone the Ask item
   is missing from the first paint and pops into the tab bar a moment later.
 - **Area:** `apps/web/src/components/nav/phoneAsk.ts` (`usePhoneAskEntry`, whose registration
-  is a `useEffect`, and `usePhoneAsk`, whose server snapshot is `null`),
+  is an effect, a layout effect since PR 601, and `usePhoneAsk`, whose server snapshot is `null`),
   `apps/web/src/components/nav/PhoneTabBar.tsx` (`PhoneAskTab`), mounted once by
   `apps/web/src/app/(app)/layout.tsx`.
 - **Symptom:** `PhoneAskTab` draws only once a screen has registered an entry through
