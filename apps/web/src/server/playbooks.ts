@@ -936,6 +936,12 @@ export type PlacePage = {
    * totals for `cities` / `countries`, which is what `placeIndexable` needs.
    */
   days: number;
+  /**
+   * The newest `published_at` among those days, or null when none carries
+   * one: what the sitemap dates the page by (M53 part C). ISO strings order
+   * as their instants do, so the newest is the lexicographic max.
+   */
+  newestPublishedAt: string | null;
 };
 
 // Grouped here rather than in SQL because the key is `slugify`'s, and a second
@@ -957,7 +963,14 @@ export async function publishedPlaces(): Promise<PlacePage[]> {
 }
 
 /** A published day as the place and tag pages count it: its places, and the tags its description names. */
-type PublishedDay = { id: string; cities: string[]; countries: string[]; named: readonly DescribedTag[] };
+type PublishedDay = {
+  id: string;
+  cities: string[];
+  countries: string[];
+  named: readonly DescribedTag[];
+  /** When it was published, or null when it carries no date: the sitemap's `lastmod` source. */
+  publishedAt: string | null;
+};
 
 /** Every published, unmoderated, undeleted day this server can read. */
 async function readablePublishedDays(): Promise<PublishedDay[]> {
@@ -969,8 +982,9 @@ async function readablePublishedDays(): Promise<PublishedDay[]> {
     visibility: string;
     author_kind: string;
     day_count: number;
+    published_at: unknown;
   }>(sql`
-    select d.id, d.cities, d.countries, d.stops, d.visibility, d.author_kind, d.day_count
+    select d.id, d.cities, d.countries, d.stops, d.visibility, d.author_kind, d.day_count, d.published_at
     from saved_days d
     where d.visibility = ${SavedDayVisibility.enum.public}
       ${notDeleted}
@@ -987,38 +1001,66 @@ async function readablePublishedDays(): Promise<PublishedDay[]> {
       dayCount: row.day_count,
     });
     if (readable === null) return [];
-    return [{ id, cities: row.cities, countries: row.countries, named: describeByTags(readable.stops)?.named ?? [] }];
+    return [
+      {
+        id,
+        cities: row.cities,
+        countries: row.countries,
+        named: describeByTags(readable.stops)?.named ?? [],
+        publishedAt: isoOf(row.published_at),
+      },
+    ];
   });
 }
 
+/** The later of two publish instants, either of which may be undated; undated loses to any date. */
+function newerPublishedAt(a: string | null, b: string | null): string | null {
+  if (a === null) return b;
+  if (b === null || b <= a) return a;
+  return b;
+}
+
 function placesOf(published: readonly PublishedDay[]): PlacePage[] {
-  const gathered = new Map<string, { kind: PlacePage["kind"]; slug: string; days: Set<string>; uses: Map<string, number> }>();
-  const touch = (kind: PlacePage["kind"], slug: string, value: string, dayId: string) => {
+  const gathered = new Map<
+    string,
+    { kind: PlacePage["kind"]; slug: string; days: Set<string>; uses: Map<string, number>; newest: string | null }
+  >();
+  const touch = (kind: PlacePage["kind"], slug: string, value: string, dayId: string, publishedAt: string | null) => {
     const key = `${kind}:${slug}`;
     let place = gathered.get(key);
-    if (place === undefined) gathered.set(key, (place = { kind, slug, days: new Set(), uses: new Map() }));
+    if (place === undefined)
+      gathered.set(key, (place = { kind, slug, days: new Set(), uses: new Map(), newest: null }));
     place.days.add(dayId);
     place.uses.set(value, (place.uses.get(value) ?? 0) + 1);
+    place.newest = newerPublishedAt(place.newest, publishedAt);
   };
   for (const day of published) {
     for (const city of new Set(day.cities)) {
       const slug = slugify(city);
-      if (slug !== "") touch("city", slug, city, day.id);
+      if (slug !== "") touch("city", slug, city, day.id, day.publishedAt);
     }
     for (const code of new Set(day.countries)) {
       const slug = countrySlug(code);
-      if (slug !== null) touch("country", slug, code, day.id);
+      if (slug !== null) touch("country", slug, code, day.id, day.publishedAt);
     }
   }
 
-  return [...gathered.values()].map(({ kind, slug, days, uses }) => {
+  return [...gathered.values()].map(({ kind, slug, days, uses, newest }) => {
     // Most-used first, ties by code point, so the name does not change between two builds of one library.
     const values = [...uses]
       .sort(([a, aUses], [b, bUses]) => bUses - aUses || (a < b ? -1 : a > b ? 1 : 0))
       .map(([value]) => value);
     return kind === "city"
-      ? { kind, slug, name: values[0]!, cities: values, countries: [], days: days.size }
-      : { kind, slug, name: countryName(values[0]!)!, cities: [], countries: values, days: days.size };
+      ? { kind, slug, name: values[0]!, cities: values, countries: [], days: days.size, newestPublishedAt: newest }
+      : {
+          kind,
+          slug,
+          name: countryName(values[0]!)!,
+          cities: [],
+          countries: values,
+          days: days.size,
+          newestPublishedAt: newest,
+        };
   });
 }
 
@@ -1035,6 +1077,8 @@ export type TagPage = {
   country: Pick<PlacePage, "slug" | "name" | "countries"> | null;
   /** The number `publishedDaysPage` totals for the tag, which `placeIndexable` reads as for a place. */
   days: number;
+  /** The newest `published_at` among those days, or null when none carries one: the sitemap's `lastmod`. */
+  newestPublishedAt: string | null;
 };
 
 /** The city and country pages a set of published days touches, keyed by slug. */
@@ -1092,19 +1136,28 @@ export async function publishedTagPages(): Promise<TagPage[]> {
   const published = await readablePublishedDays();
   const { cities, countries } = placeMaps(published);
   const counted = new Map<string, TagPage>();
-  const count = (tag: DescribedTag, city: TagPage["city"], country: TagPage["country"]) => {
+  const count = (
+    tag: DescribedTag,
+    city: TagPage["city"],
+    country: TagPage["country"],
+    publishedAt: string | null,
+  ) => {
     const key = `${country?.slug ?? ""}:${city?.slug ?? ""}:${tag}`;
     const page = counted.get(key);
-    if (page === undefined) counted.set(key, { tag, city, country, days: 1 });
-    else page.days += 1;
+    if (page === undefined) counted.set(key, { tag, city, country, days: 1, newestPublishedAt: publishedAt });
+    else {
+      page.days += 1;
+      page.newestPublishedAt = newerPublishedAt(page.newestPublishedAt, publishedAt);
+    }
   };
   for (const day of published) {
     const { cities: slugs, countries: countrySlugs } = latticeSlugs(day);
     for (const tag of day.named) {
-      count(tag, null, null);
-      for (const slug of slugs) count(tag, cities.get(slug)!, null);
-      for (const slug of countrySlugs) count(tag, null, countries.get(slug)!);
-      for (const slug of slugs) for (const country of countrySlugs) count(tag, cities.get(slug)!, countries.get(country)!);
+      count(tag, null, null, day.publishedAt);
+      for (const slug of slugs) count(tag, cities.get(slug)!, null, day.publishedAt);
+      for (const slug of countrySlugs) count(tag, null, countries.get(slug)!, day.publishedAt);
+      for (const slug of slugs)
+        for (const country of countrySlugs) count(tag, cities.get(slug)!, countries.get(country)!, day.publishedAt);
     }
   }
   return [...counted.values()];
@@ -1120,6 +1173,8 @@ export type CountryCityPage = {
   city: NonNullable<TagPage["city"]>;
   /** The number `publishedDaysPage` totals for the pair, which `placeIndexable` reads as for a place. */
   days: number;
+  /** The newest `published_at` among those days, or null when none carries one: the sitemap's `lastmod`. */
+  newestPublishedAt: string | null;
 };
 
 /**
@@ -1139,8 +1194,17 @@ export async function publishedCountryCityPages(): Promise<CountryCityPage[]> {
       for (const country of countrySlugs) {
         const key = `${country}:${slug}`;
         const page = counted.get(key);
-        if (page === undefined) counted.set(key, { country: countries.get(country)!, city: cities.get(slug)!, days: 1 });
-        else page.days += 1;
+        if (page === undefined)
+          counted.set(key, {
+            country: countries.get(country)!,
+            city: cities.get(slug)!,
+            days: 1,
+            newestPublishedAt: day.publishedAt,
+          });
+        else {
+          page.days += 1;
+          page.newestPublishedAt = newerPublishedAt(page.newestPublishedAt, day.publishedAt);
+        }
       }
     }
   }

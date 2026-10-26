@@ -1,5 +1,8 @@
 import type { Metadata } from "next";
 import { DiscoverScreen } from "@/components/playbooks/DiscoverScreen";
+import { JsonLd } from "@/components/JsonLd";
+import { deploymentOrigin } from "@/lib/deploymentOrigin";
+import { placeItemListJsonLd } from "@/lib/jsonLd";
 import {
   DISCOVER_URL_DEFAULTS,
   discoverQueryString,
@@ -120,6 +123,12 @@ export default async function PlaybooksPage({ params, searchParams }: DiscoverRo
   const initialData = await discoverFor({ ...initial, budget: "any" }, session?.user?.id ?? null);
   return (
     <main className="mx-auto max-w-6xl px-6 py-8">
+      {/* The list the page itself shows, as structured data, and only on the
+          plain list: a filtered, sorted or cursor page shows a different
+          list from the one `/playbooks` names, and a `?after=` page is
+          `noindex, follow` with a slice that moves. An untouched search
+          writes an empty query string, so that is the plain list. */}
+      {discoverQueryString(parsed) === "" && <JsonLd data={placeItemListJsonLd(initialData.days, deploymentOrigin())} />}
       {/* Keyed by the search, so following a page link, which keeps this
           route mounted, seeds a new screen rather than keeping the old one's
           state over the new page's data. */}
