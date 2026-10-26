@@ -51,7 +51,7 @@ import { boardMode, canEditNotebook } from "@/lib/tripRole";
 import { useAssistantVisibility } from "@/components/assistant/useAssistantVisibility";
 import { useTripSuggestions } from "@/components/trip/context/useTripSuggestions";
 import { chatCommand, notebookEditingCommand } from "@/components/palette/commands";
-import { usePaletteSource } from "@/components/palette/paletteRegistry";
+import { PAGE_SOURCES, usePaletteSource } from "@/components/palette/paletteRegistry";
 import type { DroppedInsert, PageNode } from "@tc/contracts";
 import type { AskEventHandler } from "@/components/assistant/useAskThread";
 import { getMacro } from "@tc/pages";
@@ -1238,11 +1238,14 @@ export function PageScreen({
   // ⌘K's *Edit › Notebook*, which is this toggle (ADR-068 §1), offered when
   // the toolbar's button is.
   // And *Open chat*, wherever the panel has the tab, as the board offers it (ADR-069).
+  // Nothing until the page is read, so ⌘K's Enter waits for it (M54 part 4).
   usePaletteSource(
-    "notebook",
+    PAGE_SOURCES.notebook,
     status === "ready"
       ? [...(mayToggleEditing ? [notebookEditingCommand(editing, toggleEditing)] : []), ...(offersChat ? [chatCommand(openChat)] : [])]
-      : [],
+      : status === "error"
+        ? []
+        : null,
   );
 
   // **The page's shape in outlines, never a word** (KI-2026-09-20-e). It used

@@ -2774,11 +2774,11 @@ html[data-look="ledger"] .shadow-raised {
 /* ── M54: one sliding indicator per tab list, and the lens cross-fade (spec
    decision 11, ADR-082). `useIndicator` writes the active trigger's measured
    box onto the indicator as `--indicator-*`; these rules turn it into a
-   `transform`, plus the pill's size, which eases with it: snapped, the pill
-   jumped to its new width at the start of the slide (PR 600 review). The
-   transition is on only once the indicator has its first place
-   (`data-placed`), so it arrives there rather than sliding in; until then the
-   trigger draws its own active look. Under reduced motion it moves at once. */
+   `transform`, which is all that moves. The width is set from the measurement
+   and does not animate. The transition is on only once the indicator has its
+   first place (`data-placed`), so it arrives there rather than sliding in;
+   until then the trigger draws its own active look. Under reduced motion it
+   moves at once. */
 @layer components {
   /* A pill behind the trigger: TabStrip, SegmentedControl's pill, the phone
      tab bar's. */
@@ -2798,9 +2798,7 @@ html[data-look="ledger"] .shadow-raised {
     opacity: 0;
   }
   .tab-indicator[data-placed] {
-    transition-property: transform, width, height;
-    transition-duration: var(--transition-duration-base);
-    transition-timing-function: var(--ease-calm);
+    transition: transform var(--transition-duration-base) var(--ease-calm);
   }
 
   /* The incoming lens fades in; the outgoing one is already gone, so this is

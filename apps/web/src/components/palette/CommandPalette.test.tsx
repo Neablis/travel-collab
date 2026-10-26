@@ -3,10 +3,13 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testi
 import userEvent from "@testing-library/user-event";
 import { registerPhoneAsk } from "@/components/nav/phoneAsk";
 import { CommandPalette } from "./CommandPalette";
-import { type PaletteCommand, registerPaletteCommands } from "./paletteRegistry";
+import { newTripCommand } from "./commands";
+import { PAGE_SOURCES, type PaletteCommand, registerPaletteCommands } from "./paletteRegistry";
 
 const push = vi.fn();
-vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
+// "/" has no screen of its own to wait for; a test that is on one says so.
+let pathname = "/";
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push }), usePathname: () => pathname }));
 
 let signedIn = true;
 vi.mock("@/components/account/useSessionUser", () => ({
@@ -40,6 +43,7 @@ const command = (label: string, run: () => void): PaletteCommand => ({ id: label
 let platform = "MacIntel";
 beforeEach(() => {
   platform = "MacIntel";
+  pathname = "/";
   vi.spyOn(navigator, "platform", "get").mockImplementation(() => platform);
   signedIn = true;
   aiEntitled = null;
@@ -135,6 +139,103 @@ describe("CommandPalette", () => {
     await userEvent.keyboard("{Enter}");
     expect(palette()).toBeTruthy();
     expect(plan).not.toHaveBeenCalled();
+  });
+
+  // M54 part 4: a page under a loading boundary hydrates after the shell, so
+  // ⌘K can open before Home has offered New trip, and "No match" then was an
+  // Enter that ran nothing.
+  it("shows the list as arriving, not No match, until the page's commands register, and runs an Enter pressed meanwhile once they do", async () => {
+    pathname = "/home";
+    const startNewTrip = vi.fn();
+    render(<CommandPalette />);
+    await userEvent.keyboard("{Meta>}k{/Meta}add trip");
+    expect(screen.getByRole("status", { name: "Loading commands" })).toBeTruthy();
+    expect(screen.queryByText("No match")).toBeNull();
+    await userEvent.keyboard("{Enter}");
+    expect(palette()).toBeTruthy();
+
+    act(() => {
+      taken.push(registerPaletteCommands(PAGE_SOURCES.home, [newTripCommand(startNewTrip)]));
+    });
+    await waitFor(() => expect(startNewTrip).toHaveBeenCalledTimes(1));
+    expect(palette()).toBeNull();
+  });
+
+  // PR 601 review: only an empty list is held. An Enter on a listed row ran
+  // whichever row stood there once the page's commands moved the list.
+  it("runs the row Enter was pressed on at once, though the page has yet to register", async () => {
+    pathname = "/home";
+    const plan = vi.fn();
+    const calendar = vi.fn();
+    const atlas = vi.fn();
+    offer([command("Plan", plan), command("Calendar", calendar)]);
+    render(<CommandPalette />);
+    await userEvent.keyboard("{Meta>}k{/Meta}go view{ArrowDown}{ArrowDown}{Enter}");
+
+    act(() => {
+      taken.push(registerPaletteCommands(PAGE_SOURCES.home, [{ ...command("Atlas", atlas), order: -1 }]));
+    });
+    await waitFor(() => expect(palette()).toBeNull());
+    expect({ plan: plan.mock.calls.length, calendar: calendar.mock.calls.length, atlas: atlas.mock.calls.length }).toEqual({ plan: 0, calendar: 1, atlas: 0 });
+  });
+
+  // The wait is 1.5 s, counted again from the Enter, and then it is No match.
+  it("does today's nothing for an Enter whose page never registers, 1.5 s after it", async () => {
+    // Real time runs too (user-event and Radix wait on it), so the edges are
+    // 100 ms either side rather than to the millisecond.
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    pathname = "/home";
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    render(<CommandPalette />);
+    await user.keyboard("{Meta>}k{/Meta}add trip");
+    await act(() => vi.advanceTimersByTimeAsync(1000));
+    await user.keyboard("{Enter}");
+    await act(() => vi.advanceTimersByTimeAsync(1400));
+    expect(screen.getByRole("status", { name: "Loading commands" })).toBeTruthy();
+    await act(() => vi.advanceTimersByTimeAsync(200));
+    vi.useRealTimers();
+    expect(screen.getByText("No match")).toBeTruthy();
+    expect(palette()).toBeTruthy();
+  });
+
+  // A held Enter is spent once: the page offering its list again (a remount)
+  // does not press it a second time on the level it drilled into.
+  it("runs a held Enter once, however often the page's commands arrive", async () => {
+    pathname = "/home";
+    const plan = vi.fn();
+    const calendar = vi.fn();
+    render(<CommandPalette />);
+    await userEvent.keyboard("{Meta>}k{/Meta}move{Enter}{Enter}");
+    expect(screen.getByRole("status", { name: "Loading commands" })).toBeTruthy();
+    // Two leaves under Move, so the held Enter drills into the branch.
+    const moves: PaletteCommand[] = [
+      { id: "move-day", action: "Move", type: "Day", run: plan },
+      { id: "move-stop", action: "Move", type: "Stop", run: calendar },
+    ];
+    let takeBack = () => {};
+    act(() => {
+      takeBack = registerPaletteCommands(PAGE_SOURCES.home, moves);
+    });
+    expect(await screen.findByTestId("palette-path")).toBeTruthy();
+    act(() => takeBack());
+    act(() => {
+      taken.push(registerPaletteCommands(PAGE_SOURCES.home, moves));
+    });
+    await act(() => Promise.resolve());
+    expect({ ran: plan.mock.calls.length + calendar.mock.calls.length, open: palette() !== null }).toEqual({ ran: 0, open: true });
+  });
+
+  it("drops a held Enter once you type on", async () => {
+    pathname = "/home";
+    const startNewTrip = vi.fn();
+    render(<CommandPalette />);
+    await userEvent.keyboard("{Meta>}k{/Meta}add tri{Enter}p");
+    act(() => {
+      taken.push(registerPaletteCommands(PAGE_SOURCES.home, [newTripCommand(startNewTrip)]));
+    });
+    await act(() => Promise.resolve());
+    expect({ ran: startNewTrip.mock.calls.length, open: palette() !== null }).toEqual({ ran: 0, open: true });
+    expect(screen.getByRole("option", { name: /Trip/ })).toBeTruthy();
   });
 
   // The assistant's opener is the one the phone's tab bar Ask uses, so the

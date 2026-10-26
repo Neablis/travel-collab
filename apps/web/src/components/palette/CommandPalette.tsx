@@ -1,13 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import type { TripSummary } from "@tc/contracts";
 import { useSessionUser } from "@/components/account/useSessionUser";
 import { AI_ASK_ENTITLEMENT, useEntitled } from "@/lib/useAiEntitled";
 import { usePhoneAsk } from "@/components/nav/phoneAsk";
 import { Dialog } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Skeleton, SkeletonRegion } from "@/components/ui/skeleton";
 import { fetchTrips } from "@/lib/apiClient";
 import { cn } from "@/lib/cn";
 import { orderHomeTrips } from "@/lib/homeTripOrder";
@@ -16,7 +17,7 @@ import { whenIdle } from "@/lib/whenIdle";
 import { askCommand, placeCommands } from "./commands";
 import { type PaletteNode, paletteLevel } from "./grammar";
 import { type PaletteStep, searchPalette } from "./match";
-import { type PaletteCommand, usePaletteCommands, usePaletteSource } from "./paletteRegistry";
+import { type PaletteCommand, usePaletteAwaits, usePaletteCommands, usePaletteSource } from "./paletteRegistry";
 
 // **⌘K** (M41 D9, ADR-068): go anywhere or start anything without the mouse.
 // Mounted once by `(app)/layout.tsx`, so it opens from every app page. What it
@@ -46,6 +47,15 @@ import { type PaletteCommand, usePaletteCommands, usePaletteSource } from "./pal
 // and choosing it opens the assistant and sends the text. Nothing reaches the
 // model before the row is chosen. Elsewhere, and for an account whose plan
 // has no assistant, no match goes nowhere.
+//
+// **Until the page has registered, it shows outlines, not No match** (M54
+// part 4, Mitchell): a page under a loading boundary hydrates after the
+// shell, so ⌘K can open first. An Enter pressed on an empty list then is
+// held until the page's commands arrive and runs on the list they make; one
+// on a listed row runs that row at once (PR 601 review). The wait is
+// `PAGE_WAIT_MS` from the opening, or from the Enter: then it is the list
+// there is, No match and all, as it was before there was a wait.
+const PAGE_WAIT_MS = 1500;
 
 // On a Mac, Ctrl+K is a text field's kill-line, so ⌘K alone opens it there
 // (PR 398 review). `userAgentData` where the browser has it, else the
@@ -87,6 +97,11 @@ export function CommandPalette() {
   const returnTo = useRef<HTMLElement | null>(null);
   const pending = useRef<(() => void) | null>(null);
   const router = useRouter();
+  const awaiting = usePaletteAwaits(usePathname());
+  const [waitedOut, setWaitedOut] = useState(false);
+  const waiting = awaiting && !waitedOut;
+  // An Enter pressed while `waiting`, to run once it is over.
+  const [heldEnter, setHeldEnter] = useState(false);
   const signedIn = useSessionUser() != null;
   const registered = usePaletteCommands();
   const ask = usePhoneAsk();
@@ -106,6 +121,8 @@ export function CommandPalette() {
     setQuery("");
     setActive(0);
     setTrail([]);
+    setWaitedOut(false);
+    setHeldEnter(false);
     // Not the last opening's list, which may hold a trip deleted since and
     // would stay if this opening's read fails.
     setTrips([]);
@@ -200,7 +217,7 @@ export function CommandPalette() {
   // rail's own gate, read the rail's way, so `null` (unknown) still offers it.
   const onAsk = aiEntitled === false ? undefined : ask?.onAsk;
   const rows: Row[] =
-    searched.length === 0 && askText !== "" && onAsk !== undefined && (!signedIn || readOpening === openings)
+    searched.length === 0 && askText !== "" && onAsk !== undefined && !waiting && (!signedIn || readOpening === openings)
       ? [askRow(askText, onAsk)]
       : searched;
   // Held inside the list, which can shrink under it while it is open (a
@@ -220,6 +237,22 @@ export function CommandPalette() {
     pending.current = row.node.command.run;
     setOpen(false);
   };
+
+  const chooseCurrent = useRef(() => {});
+  useEffect(() => {
+    chooseCurrent.current = () => choose(rows[current]);
+  });
+  useEffect(() => {
+    if (!heldEnter || waiting) return;
+    setHeldEnter(false);
+    if (open) chooseCurrent.current();
+  }, [heldEnter, waiting, open]);
+  // `heldEnter` too, so an Enter starts the wait again.
+  useEffect(() => {
+    if (!open || !waiting) return;
+    const timer = window.setTimeout(() => setWaitedOut(true), PAGE_WAIT_MS);
+    return () => window.clearTimeout(timer);
+  }, [open, waiting, heldEnter]);
 
   const option = (row: Row, index: number) => (
     <div
@@ -296,6 +329,8 @@ export function CommandPalette() {
             onChange={(event) => {
               setQuery(event.target.value);
               setActive(0);
+              // Typing on asks for another list than the one the Enter was for.
+              setHeldEnter(false);
             }}
             onKeyDown={(event) => {
               // An IME's Enter picks its candidate; it is not this list's Enter.
@@ -306,7 +341,10 @@ export function CommandPalette() {
                 setActive(rows.length === 0 ? 0 : (current + step + rows.length) % rows.length);
               } else if (event.key === "Enter") {
                 event.preventDefault();
-                choose(rows[current]);
+                // Only on the outlines: a listed row is what Enter was for, and
+                // the page's commands arriving would move another under it.
+                if (waiting && rows.length === 0) setHeldEnter(true);
+                else choose(rows[current]);
               } else if (event.key === "Tab" && !event.shiftKey && rows[current]?.node.kind === "branch") {
                 // Only on a branch: anywhere else Tab still leaves the box.
                 event.preventDefault();
@@ -320,7 +358,16 @@ export function CommandPalette() {
           />
         </div>
         <div id={listId} role="listbox" aria-label={path.length > 0 ? path.map((step) => step.label).join(" › ") : "Commands"} className="mt-2 py-1 text-sm">
-          {rows.length === 0 ? <p className="px-3 py-2 text-slate">No match</p> : null}
+          {rows.length === 0 && waiting ? (
+            // Outlines, not a word (the loading wall, KI-2026-09-20-e): a
+            // screen reader still hears which list is arriving.
+            <SkeletonRegion label="Loading commands" className="flex flex-col">
+              <Skeleton className="mx-3 my-2.5 h-3 w-2/3 md:my-2" />
+              <Skeleton className="mx-3 my-2.5 h-3 w-1/2 md:my-2" delay={2} />
+            </SkeletonRegion>
+          ) : rows.length === 0 ? (
+            <p className="px-3 py-2 text-slate">No match</p>
+          ) : null}
           {sections.map((section, sectionIndex) =>
             section.heading === undefined ? (
               section.rows.map(({ row, index }) => option(row, index))

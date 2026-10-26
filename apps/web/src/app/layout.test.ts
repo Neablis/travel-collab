@@ -1,6 +1,6 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import { ViewTransition, type ReactElement } from "react";
+import type { ReactElement } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 // `next/font/google` is transformed by Next's SWC plugin at build time; imported
@@ -15,6 +15,7 @@ vi.mock("next/font/google", () => {
 
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
+import { RouteViewTransition } from "@/components/RouteViewTransition";
 import { LaunchOverlay } from "@/components/welcome/WelcomeMoment";
 import { LAUNCH_SCRIPT } from "@/lib/welcomeCue";
 import RootLayout, { metadata, viewport } from "./layout";
@@ -80,7 +81,7 @@ describe("root layout route cross-fade", () => {
       if (Array.isArray(node)) return node.some((n) => inside(n, within));
       if (node === null || typeof node !== "object") return false;
       const element = node as ReactElement<{ children?: unknown }>;
-      return inside(element.props?.children, within || element.type === ViewTransition);
+      return inside(element.props?.children, within || element.type === RouteViewTransition);
     };
     expect(inside(RootLayout({ children: page }), false)).toBe(true);
   });
