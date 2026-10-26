@@ -334,6 +334,19 @@ describe("ChatPanel, as a sent message is stored", () => {
     expect(within(screen.getByRole("list", { name: "Messages" })).getByRole("listitem")).toBe(line);
     expect(line.getAttribute("aria-busy")).toBeNull();
   });
+
+  // PR 605 review: a message rises in as it arrives. Opening on a loaded
+  // conversation is not an arrival, so its lines stay where they are.
+  it("rises in only the lines that arrive after the conversation is shown", () => {
+    const loaded = chat().messages;
+    const next = ChatMessage.parse({ messageId: uuidFrom(3, 46), authorId: "u-bea", createdAt: "2026-10-13T10:02:00.000Z", editedAt: null, removed: false, body: "Or ten" });
+    const rising = () => within(screen.getByRole("list", { name: "Messages" })).getAllByRole("listitem").map((li) => li.hasAttribute("data-rise-in"));
+    const { rerender } = render(<ChatPanel chat={chat({ messages: loaded })} personas={null} />);
+    expect(rising()).toEqual([false]);
+
+    rerender(<ChatPanel chat={chat({ messages: [...loaded, next] })} personas={null} />);
+    expect(rising()).toEqual([false, true]);
+  });
 });
 
 // M52 decision 18: every member sees the assistant is working on an ask until

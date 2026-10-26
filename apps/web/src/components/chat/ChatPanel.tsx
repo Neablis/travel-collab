@@ -130,6 +130,12 @@ export function ChatPanel({
   };
   const scrollport = useRef<HTMLDivElement>(null);
   usePinToBottom(scrollport, [chat.messages.length]);
+  // The stored lines there when the conversation was first shown. A line
+  // rises in as it arrives (M54 decision 13), and opening on a loaded
+  // conversation is not an arrival. A pending line always is.
+  const [shown, setShown] = useState<{ tripId: string; ids: ReadonlySet<string> } | null>(null);
+  if (shown?.tripId !== chat.tripId && chat.status === "ready")
+    setShown({ tripId: chat.tripId, ids: new Set(chat.messages.flatMap((m) => (m.pending ? [] : [m.messageId]))) });
   // Who is reading decides what each line offers (D6). Neither is a request of
   // its own: the `(app)` layout's session, and the trip's own access read.
   const me = useKnownSessionUser()?.id ?? null;
@@ -221,6 +227,7 @@ export function ChatPanel({
                   // would reach a stored message.
                   viewer={message.pending ? null : viewerOf(message.authorId)}
                   pending={message.pending}
+                  still={shown?.ids.has(message.messageId) ?? true}
                   // Closed by a lapse mid-edit as well: the save would be refused.
                   editing={editing === message.messageId && chat.canPost}
                   onEdit={() => setEditing(message.messageId)}

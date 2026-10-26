@@ -2973,8 +2973,10 @@ html[data-look="ledger"] .shadow-raised {
    the overlays' `[data-motion="rise"]` above (`useExitPresence`).
 
    Your own message is faded while it sends (`[data-sending]`) and firms up
-   when stored. 0.8, not lower: its ink is still 8.5:1 on the panel there, and
-   a dimmed line that failed AA was PR 444's finding.
+   when stored. 0.85, not lower: the fade takes a link chip's tint with its
+   ink, and the chip is the binding case, 4.90:1 in the default look (0.8 was
+   4.36:1, PR 605 review). Plain ink stays above 8.5:1. A dimmed line that
+   failed AA was PR 444's finding.
    An applied proposal's check settles in by a scale, so its receipt keeps its
    place.
 
@@ -3000,7 +3002,7 @@ html[data-look="ledger"] .shadow-raised {
   }
 
   [data-sending] {
-    opacity: 0.8;
+    opacity: 0.85;
   }
 
   @media (prefers-reduced-motion: no-preference) {
