@@ -10,8 +10,9 @@ import { invalidatePublicDay } from "./libraryCache";
 
 // A playbook day's cover photo (M37 part 5): ordinary Community CRUD on
 // `saved_day_covers`, `trip_covers`' shape (`coverRows.ts`). The routes under
-// `app/api/saved-days/[savedDayId]/cover/` are the only writers, and only for
-// the day's author.
+// `app/api/saved-days/[savedDayId]/cover/` and the public API's
+// `app/api/v1/playbooks/[playbookId]/cover/` are the only writers, and only
+// for the day's author.
 //
 // **Nothing here decides who may see a cover.** Every read takes a day the
 // caller has already read through the library's own rule — `readableSavedDay`
