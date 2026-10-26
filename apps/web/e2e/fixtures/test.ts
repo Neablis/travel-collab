@@ -14,11 +14,22 @@ export const welcomeSplash = (page: Page) => page.getByTestId("welcome-moment");
  * action or an auto-waiting assertion; on any other load it is never shown.
  * `m54-welcome.spec.ts`, which is about the splash, removes it.
  */
+// The splash's 3s cap and its unlock, with room for a slow runner. Without a
+// bound, a splash that never leaves fails as the test's own timeout at
+// whichever action comes next, which reads as a flake.
+const SPLASH_GONE_WITHIN_MS = 5_000;
+
 function waitOutTheWelcomeSplash(context: BrowserContext) {
   const newPage = context.newPage.bind(context);
   context.newPage = async () => {
     const page = await newPage();
-    await page.addLocatorHandler(welcomeSplash(page), () => welcomeSplash(page).waitFor({ state: "hidden" }));
+    await page.addLocatorHandler(welcomeSplash(page), () =>
+      welcomeSplash(page)
+        .waitFor({ state: "hidden", timeout: SPLASH_GONE_WITHIN_MS })
+        .catch((cause: unknown) => {
+          throw new Error(`welcome splash still up ${SPLASH_GONE_WITHIN_MS}ms after it showed`, { cause });
+        }),
+    );
     return page;
   };
 }

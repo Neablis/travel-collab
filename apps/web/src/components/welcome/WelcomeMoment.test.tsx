@@ -167,19 +167,35 @@ describe("LaunchOverlay", () => {
     expect(document.documentElement.hasAttribute("data-launch")).toBe(false);
   });
 
-  // The spec's hold is about 1.2 to 1.6s in all. A splash that has already
-  // stood through a slow hydration does not then hold its full beat on top:
-  // it says the name and unlocks.
-  it("shortens the hold by the time the splash has already been up", async () => {
+  // A splash that has already stood through a slow hydration still holds its
+  // words for the full beat, or "Welcome, Ana" would flash past unread.
+  it("holds a late hydration's welcome for the full beat", async () => {
     vi.useFakeTimers();
-    launchedMsAgo(2000);
+    launchedMsAgo(1500);
     document.documentElement.setAttribute("data-launch", "");
     document.cookie = `${WELCOME_COOKIE}=signin; Path=/`;
     sessionAnswersAfter(100);
     render(<LaunchOverlay />);
     await elapse(150);
     expect(within(screen.getByTestId("welcome-moment")).getByText("Welcome, Ana")).toBeDefined();
-    await elapse(450);
+    await elapse(650);
+    expect(within(screen.getByTestId("welcome-moment")).getByText("Welcome, Ana")).toBeDefined();
+    await elapse(500);
+    expect(screen.queryByTestId("welcome-moment")).toBeNull();
+  });
+
+  // The hold does not outlast the fail-safe: 2.7s up, the words get what is
+  // left of the 3s, then the unlock.
+  it("cuts a late name's hold at the fail-safe", async () => {
+    vi.useFakeTimers();
+    launchedMsAgo(2700);
+    document.documentElement.setAttribute("data-launch", "");
+    document.cookie = `${WELCOME_COOKIE}=signin; Path=/`;
+    sessionAnswersAfter(100);
+    render(<LaunchOverlay />);
+    await elapse(150);
+    expect(within(screen.getByTestId("welcome-moment")).getByText("Welcome, Ana")).toBeDefined();
+    await elapse(750);
     expect(screen.queryByTestId("welcome-moment")).toBeNull();
   });
 
@@ -201,19 +217,27 @@ describe("LaunchOverlay", () => {
     expect(within(moment).getByText("Welcome, Ana")).toBeDefined();
   });
 
-  // Past the wait the welcome has begun unnamed, and a name joining it would
-  // re-time it; the late name is said instead.
-  it("keeps a welcome that began unnamed unnamed, and still says the late name", async () => {
+  // Past the wait the welcome says "Welcome!" (Mitchell, 2026-10-26), for the
+  // full beat, and a name that comes later changes neither what is shown nor
+  // what is said.
+  it("says Welcome! when the name is late, and keeps it", async () => {
     vi.useFakeTimers();
     launchedMsAgo(100);
     document.documentElement.setAttribute("data-launch", "");
     document.cookie = `${WELCOME_COOKIE}=signup; Path=/`;
     sessionAnswersAfter(700);
     render(<LaunchOverlay />);
-    await act(() => vi.advanceTimersByTimeAsync(800));
+    await elapse(800);
     const moment = screen.getByTestId("welcome-moment");
-    expect(within(moment).queryByText("Welcome, Ana")).toBeNull();
-    expect(screen.getByText("Welcome, Ana").getAttribute("aria-live")).toBe("polite");
+    expect(within(moment).getByText("Welcome!")).toBeDefined();
+    expect(screen.getByText("Welcome!", { ignore: "[aria-hidden], [aria-hidden] *" }).getAttribute("aria-live")).toBe(
+      "polite",
+    );
+    await elapse(500);
+    expect(within(screen.getByTestId("welcome-moment")).getByText("Welcome!")).toBeDefined();
+    expect(screen.queryByText("Welcome, Ana")).toBeNull();
+    await elapse(500);
+    expect(screen.queryByTestId("welcome-moment")).toBeNull();
   });
 
   // Past the CSS fail-safe the sheet has already faded, and drawing it again
@@ -274,9 +298,7 @@ describe("LaunchOverlay", () => {
     await act(() => vi.advanceTimersByTimeAsync(250));
     const moment = screen.getByTestId("welcome-moment");
     expect(moment.getAttribute("data-phase")).toBe("welcome");
-    expect(within(moment).queryByText("Welcome, Ana")).toBeNull();
-    await act(() => vi.advanceTimersByTimeAsync(200));
-    expect(screen.getByText("Welcome, Ana").getAttribute("aria-live")).toBe("polite");
+    expect(within(moment).getByText("Welcome!")).toBeDefined();
   });
 
   // Decision 6: no seam between the splash and the app. The overlay the

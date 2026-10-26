@@ -15,6 +15,8 @@ test.use({ storageState: { cookies: [], origins: [] }, reducedMotion: "no-prefer
 // its unlock, with room for a slow runner. A splash that never leaves fails here.
 const LEAVES_WITHIN_MS = 2_500;
 
+const LOADED = { waitUntil: "domcontentloaded" } as const;
+
 async function signInThroughTheForm(page: Page, path: "/signup" | "/signin", username: string) {
   await page.goto(path);
   const field = page.getByLabel(/username/i);
@@ -35,6 +37,15 @@ async function covering(moment: Locator) {
       opaque: fill !== "transparent" && !/(?:rgba\(.*,\s*0\)|\/\s*0\))$/.test(fill),
     };
   });
+}
+
+// Read once, not retried: a splash a plain load drew would be gone a second
+// later, and a retrying assertion would wait for that.
+async function notMarkedNorDrawn(page: Page) {
+  return page.evaluate(() => ({
+    marked: document.documentElement.hasAttribute("data-launch"),
+    drawn: [...document.querySelectorAll("[data-testid=welcome-moment]")].some((node) => node.getClientRects().length > 0),
+  }));
 }
 
 async function centreOf(target: Locator) {
@@ -71,21 +82,34 @@ for (const [width, viewport] of [
         await arrive(page, username);
 
         const moment = welcomeSplash(page);
-        await expect(moment.getByText(`Welcome, ${username}`)).toBeVisible();
+        await expect(moment).toBeVisible();
         expect(await covering(moment)).toEqual({ spansViewport: true, opaque: true });
 
         // A tap on the blank splash lands on the splash, not on the hidden
         // page: here, where "New trip" sits under it. A plain mouse click,
         // since a locator click would wait for the button to be uncovered.
+        // Taken first, while the splash is surely up, rather than after a
+        // wait for the name that a slow runner could spend the splash on.
         const newTrip = page.getByRole("button", { name: "New trip" });
         const under = await centreOf(newTrip);
         await page.mouse.click(under.x, under.y);
 
+        await expect(moment.getByText(`Welcome, ${username}`)).toBeVisible();
         await expect(moment).toBeHidden({ timeout: LEAVES_WITHIN_MS });
         const composer = page.getByLabel("Where are you going?");
         await expect(composer).not.toBeFocused();
         await newTrip.click();
         await expect(composer).toBeFocused();
+
+        // Every other spec waits the splash out, so one that showed on a plain
+        // load would only make them slower. Here it must not show at all: the
+        // cue is spent, and a reload or a navigation is not a sign-in. At
+        // DOMContentLoaded the head script has run, and a mark it made would
+        // still be there.
+        for (const load of [() => page.reload(LOADED), () => page.goto("/home", LOADED)]) {
+          await load();
+          expect(await notMarkedNorDrawn(page)).toEqual({ marked: false, drawn: false });
+        }
       });
     }
   });

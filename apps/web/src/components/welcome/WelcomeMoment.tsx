@@ -13,8 +13,8 @@ import { type WelcomeKind, clearWelcomeCue, readWelcomeCue } from "@/lib/welcome
  * - `fade`: the page was ready within about 300ms, so the overlay just fades
  *   and a fast launch reads as the OS splash ending.
  * - `unlock`: the strokes part, the tile opens, the overlay goes.
- * - `welcome`: after a sign-in, a hold on the mark and "Welcome, {name}", then
- *   the unlock.
+ * - `welcome`: after a sign-in, a hold on the mark and "Welcome, {name}" or
+ *   "Welcome!", then the unlock.
  */
 export type WelcomePhase = "breathe" | "fade" | "unlock" | "welcome";
 
@@ -25,9 +25,9 @@ export type WelcomePhase = "breathe" | "fade" | "unlock" | "welcome";
 const ON_SCREEN_MS = { fade: 200, unlock: 400 } as const;
 
 // The welcome holds the mark this long, then unlocks: `--welcome-hold`, set
-// here because `LaunchOverlay` shortens it. The full beats are the slow motion
-// token twice, and three times when it says "Welcome, {name}"; the unlock is
-// the fast and slow tokens, with a little over before it unmounts.
+// here because `LaunchOverlay` cuts it near the fail-safe. The full beats are
+// the slow motion token twice, and three times when it says a welcome; the
+// unlock is the fast and slow tokens, with a little over before it unmounts.
 const HOLD_MS = { unnamed: 480, named: 720 } as const;
 const UNLOCK_MS = 430;
 
@@ -44,22 +44,22 @@ const MARK_PX = 96;
  * every width. As the launch overlay it takes the pointer (`globals.css`), so a
  * tap on the blank splash does not land on a page nobody can see. It holds
  * nothing else: no focus trap, nothing made `inert`, nothing focusable inside.
- * Tab can still reach the page under it for the second or so it is up, which
- * is left: making the page `inert` would mean wrapping every route in the root
- * layout for a moment that has gone before a keyboard user has found anything.
+ * The splash is `aria-hidden`, so a screen reader reads the page underneath at
+ * once. `inert` would blank the page for screen readers too, which is a worse
+ * trade than a second or so in which Tab can move into a page no one can see.
  *
  * Hidden from assistive tech: a mark that leaves within a second or so is
- * decoration, and "Welcome, {name}" is said through `WelcomeAnnouncement`
+ * decoration, and the welcome is said through `WelcomeAnnouncement`
  * instead, a live region that is already on the page when the words arrive.
  */
 export function WelcomeMoment({
-  name,
+  words,
   phase = "welcome",
-  holdMs = name ? HOLD_MS.named : HOLD_MS.unnamed,
+  holdMs = words ? HOLD_MS.named : HOLD_MS.unnamed,
   onDone,
 }: {
-  /** After a sign-in: adds "Welcome, {name}". */
-  name?: string;
+  /** After a sign-in: the welcome's words under the mark. */
+  words?: string;
   phase?: WelcomePhase;
   /** The welcome's hold on the mark before it unlocks; the full beat by default. */
   holdMs?: number;
@@ -86,13 +86,13 @@ export function WelcomeMoment({
     >
       <div className="flex flex-col items-center gap-4">
         <BrandMark size={MARK_PX} pulsing={phase === "breathe"} className="welcome-mark" />
-        {name ? <p className="welcome-line font-display text-xl font-semibold text-ink">{welcomeLine(name)}</p> : null}
+        {words ? <p className="welcome-line font-display text-xl font-semibold text-ink">{words}</p> : null}
       </div>
     </div>
   );
 }
 
-const welcomeLine = (name: string) => `Welcome, ${name}`;
+const welcomeLine = (name: string | undefined) => (name ? `Welcome, ${name}` : "Welcome!");
 
 // Rendered before it has anything to say: a live region inserted with its
 // words already in it is not reliably read out. `aria-live` rather than
@@ -100,16 +100,16 @@ const welcomeLine = (name: string) => `Welcome, ${name}`;
 // owns the one status role that specs find by role alone.
 // The words go once said: the root layout outlives client navigation, and a
 // browse-mode reader would otherwise meet them on every page.
-function WelcomeAnnouncement({ name }: { name: string | undefined }) {
+function WelcomeAnnouncement({ words }: { words: string | null }) {
   const [said, setSaid] = useState(false);
   useEffect(() => {
-    if (!name) return;
+    if (!words) return;
     const timer = setTimeout(() => setSaid(true), SAID_MS);
     return () => clearTimeout(timer);
-  }, [name]);
+  }, [words]);
   return (
     <p aria-live="polite" className="sr-only">
-      {name && !said ? welcomeLine(name) : ""}
+      {words && !said ? words : ""}
     </p>
   );
 }
@@ -135,26 +135,30 @@ function prefersReducedMotion(): boolean {
  * splash and the app.
  *
  * After a sign-in it spends the cue, so a refresh does not replay it, waits up
- * to `NAME_WAIT_MS` for the account's name, and says "Welcome, {name}" before
- * the unlock. Under reduced motion that is the same hold with nothing moving,
- * so the page is still handed over whole. When it draws nothing, the name is
- * still said.
+ * to `NAME_WAIT_MS` for the account's name, and shows and says "Welcome,
+ * {name}", or "Welcome!" when the name has not come by then (Mitchell,
+ * 2026-10-26). The words are fixed when they appear: a name that comes later
+ * changes neither. Under reduced motion that is the same hold with nothing
+ * moving, so the page is still handed over whole. When it draws nothing, the
+ * words are still said.
  *
- * The splash is up about 1.2 to 1.6s in all: the welcome's hold gives back
- * whatever hydration and the name wait already took. Only a page that hydrates
- * late holds it longer, since nothing can lift it before then but the CSS
- * fail-safe; the worst is a hydration just inside that, plus the unlock.
+ * The words always get the full hold, so they can be read: the splash goes
+ * about 1.15s after they appear, which on a normal load is about 1.2 to 1.6s
+ * after it went up. A page that hydrates late holds it longer, since nothing
+ * can lift it before then but the CSS fail-safe, which also cuts the hold: the
+ * worst is 3s plus the unlock.
  */
 export function LaunchOverlay() {
   // `null` once nothing is drawn. The overlay is always the first child, so the
   // one the server drew is the one that welcomes, and its breathing mark runs
   // on through hydration.
-  const [launch, setLaunch] = useState<{ phase: WelcomePhase; name?: string; holdMs?: number } | null>({
+  const [launch, setLaunch] = useState<{ phase: WelcomePhase; words?: string; holdMs?: number } | null>({
     phase: "breathe",
   });
-  // After a sign-in only: how long the overlay waits for the name, or `null`
-  // when it draws nothing and the name is only said.
-  const [welcomed, setWelcomed] = useState<{ nameWaitMs: number | null } | null>(null);
+  // After a sign-in only: how long the overlay waits for the name.
+  const [welcomed, setWelcomed] = useState<{ nameWaitMs: number } | null>(null);
+  // The words shown and said, `null` until they are fixed.
+  const [words, setWords] = useState<string | null>(null);
   // Read once: `next dev`'s StrictMode runs the effect twice, and the first run
   // spends the cue the second would otherwise find gone.
   const cue = useRef<{ kind: WelcomeKind | null; upAt: number } | null>(null);
@@ -175,7 +179,7 @@ export function LaunchOverlay() {
     if (since >= LAUNCH_FAILSAFE_MS || (kind === null && prefersReducedMotion())) {
       root.removeAttribute("data-launch");
       setLaunch(null);
-      if (kind !== null) setWelcomed({ nameWaitMs: null });
+      if (kind !== null) setWelcomed({ nameWaitMs: NAME_WAIT_MS });
       return;
     }
     // Breathing past the fail-safe would let the CSS fade the sheet before the
@@ -186,13 +190,15 @@ export function LaunchOverlay() {
     else setLaunch({ phase: performance.now() < FAST_LAUNCH_MS ? "fade" : "unlock" });
   }, []);
 
-  // The name and the hold are fixed once the welcome starts: re-timing a
+  // The words and the hold are fixed once the welcome starts: re-timing a
   // running animation snaps a fading sheet back, the hidden-then-shown frame
-  // decision 6 forbids. A later name is still said.
+  // decision 6 forbids, and the words said are the words shown.
   const welcome = useCallback((name: string | undefined) => {
+    const line = welcomeLine(name);
+    setWords((now) => now ?? line);
     const shown = performance.now() - (cue.current?.upAt ?? 0);
-    const holdMs = Math.max(0, Math.min(name ? HOLD_MS.named : HOLD_MS.unnamed, SPLASH_MS - UNLOCK_MS - shown));
-    setLaunch((now) => (now?.phase === "breathe" ? { phase: "welcome", name, holdMs } : now));
+    const holdMs = Math.max(0, Math.min(HOLD_MS.named, LAUNCH_FAILSAFE_MS - shown));
+    setLaunch((now) => (now?.phase === "breathe" ? { phase: "welcome", words: line, holdMs } : now));
   }, []);
   const leave = () => {
     document.documentElement.removeAttribute("data-launch");
@@ -202,15 +208,16 @@ export function LaunchOverlay() {
     <>
       {launch ? (
         <div className="launch-overlay">
-          <WelcomeMoment phase={launch.phase} name={launch.name} holdMs={launch.holdMs} onDone={leave} />
+          <WelcomeMoment phase={launch.phase} words={launch.words} holdMs={launch.holdMs} onDone={leave} />
         </div>
       ) : null}
       {welcomed ? <WelcomeName nameWaitMs={welcomed.nameWaitMs} onWelcome={welcome} /> : null}
+      {welcomed ? <WelcomeAnnouncement words={words} /> : null}
     </>
   );
 }
 
-// Says the account's name, and hands it to the overlay once known or once
+// Hands the account's name to the overlay once known, or no name once
 // `nameWaitMs` has passed. The root layout has no session provider, so this
 // asks the session itself, and is mounted only after a sign-in so no other
 // load pays for the request.
@@ -218,12 +225,11 @@ function WelcomeName({
   nameWaitMs,
   onWelcome,
 }: {
-  nameWaitMs: number | null;
+  nameWaitMs: number;
   onWelcome: (name: string | undefined) => void;
 }) {
   const user = useSessionUser();
   useEffect(() => {
-    if (nameWaitMs === null) return;
     if (user !== undefined) {
       onWelcome(user?.name ?? undefined);
       return;
@@ -231,15 +237,12 @@ function WelcomeName({
     const timer = setTimeout(() => onWelcome(undefined), nameWaitMs);
     return () => clearTimeout(timer);
   }, [user, nameWaitMs, onWelcome]);
-  return <WelcomeAnnouncement name={user?.name ?? undefined} />;
+  return null;
 }
 
 // Long enough for a session read on a cold load to answer most of the time;
 // past it, the person has watched a breathing mark for long enough.
 const NAME_WAIT_MS = 600;
-
-// The spec's "about 1.2 to 1.6s" for a sign-in's splash, from going up to gone.
-const SPLASH_MS = 1600;
 
 // Decision 6's "about 300ms": under it, the splash simply ending reads better
 // than an animation the person had no time to see start.
