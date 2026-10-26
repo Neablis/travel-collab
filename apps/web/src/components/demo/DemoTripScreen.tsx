@@ -12,9 +12,11 @@ import { LensRouter } from "@/components/trip/context/LensRouter";
 import { FrontDoorHeader } from "@/components/front/FrontDoorHeader";
 import { PhoneTabBar, PhoneTabBarFallback } from "@/components/nav/PhoneTabBar";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { Heading } from "@/components/ui/heading";
 import { Text } from "@/components/ui/text";
 import { duplicateTrip } from "@/lib/apiClient";
 import { demoPath, type DemoTrip } from "@/lib/demoTrip";
+import type { DemoTripSummary } from "@/lib/demoTripSummaries";
 import { rememberDemoClone, takeDemoClone } from "@/lib/pendingDemoClone";
 import { cn } from "@/lib/cn";
 
@@ -37,7 +39,7 @@ import { cn } from "@/lib/cn";
 // that without anyone remembering this page exists.
 
 /** One demo's board, its banner and the phone tab bar, for `/demo/<slug>`. */
-export function DemoTripScreen({ demo }: { demo: DemoTrip }) {
+export function DemoTripScreen({ demo, summary }: { demo: DemoTrip; summary: DemoTripSummary | undefined }) {
   return (
     <>
       <FrontDoorHeader
@@ -75,7 +77,7 @@ export function DemoTripScreen({ demo }: { demo: DemoTrip }) {
             The boundary is here rather than around the whole screen so the
             header and the banner — including "Make this trip mine" — are in
             the first paint. */}
-        <Suspense fallback={<BoardFallback />}>
+        <Suspense fallback={<BoardFallback summary={summary} />}>
           <TripProvider tripId={demo.tripId}>
             <FocusProvider>
               <EditorHost>
@@ -100,11 +102,52 @@ export function DemoTripScreen({ demo }: { demo: DemoTrip }) {
   );
 }
 
-/** What the static shell shows while the board's own client subtree arrives. */
-function BoardFallback() {
+/**
+ * What the static shell shows while the board's own client subtree arrives —
+ * and what a reader without JavaScript keeps (M53 part 2): the trip's title as
+ * the page's one `<h1>`, then each day with its stops as text, then the
+ * unscheduled rack's stops. The board replaces all of it once its client
+ * subtree mounts, so this is never a second board, only the itinerary as a
+ * document. No dates: a demo's dates move with today, so a frozen date would
+ * go stale while a day's ordinal and its stops' titles do not move.
+ * `undefined` is the stale-snapshot case, which `landing:verify` fails in CI;
+ * the page then falls back to the old loading line rather than 404ing a real
+ * demo.
+ */
+function BoardFallback({ summary }: { summary: DemoTripSummary | undefined }) {
+  if (summary === undefined) {
+    return (
+      <div className="px-7 py-8">
+        <Text variant="secondary">Opening the example trip…</Text>
+      </div>
+    );
+  }
+  const sections = [
+    ...summary.days.map((day, index) => ({ id: `demo-summary-day-${index + 1}`, name: day.name, stops: day.stops })),
+    ...(summary.unscheduled.length > 0 ? [{ id: "demo-summary-unscheduled", name: "Unscheduled", stops: summary.unscheduled }] : []),
+  ];
   return (
-    <div className="px-7 py-8">
-      <Text variant="secondary">Opening the example trip…</Text>
+    <div className="flex flex-col gap-6 px-7 py-8">
+      <Heading level={1}>{summary.name}</Heading>
+      {sections.map((section) => (
+        <section key={section.id} aria-labelledby={section.id}>
+          <Heading level={2} id={section.id}>
+            {section.name}
+          </Heading>
+          {section.stops.length === 0 ? (
+            <Text variant="secondary">Nothing planned.</Text>
+          ) : (
+            <ul className="flex flex-col gap-1.5">
+              {section.stops.map((stop, stopIndex) => (
+                // Titles repeat across days, so the key is the position, not the text.
+                <li key={`${section.id}-${stopIndex}`}>
+                  <Text as="span">{stop}</Text>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      ))}
     </div>
   );
 }
