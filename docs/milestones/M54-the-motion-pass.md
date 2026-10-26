@@ -39,9 +39,18 @@ citations were re-verified against `main` at `f5c9a16` on 2026-10-26, with three
   Under reduced motion there is no animation and the hold is the same or shorter. The
   screen-reader announcement is unchanged. Declined: full-screen after signup only, a small toast
   anchored to a corner, and dropping the desktop moment. Built in part 5 (PR 607).
-- **A slow launch skips the visual welcome (Mitchell, call 3, 2026-10-26).** When a new account's
-  launch is slow enough that the splash's name-wait cap expires, the page appears without the
-  visual welcome, and only the screen reader announces "Welcome, {name}". Recorded in ADR-082 §4.
+  **Further amended by Mitchell, 2026-10-26 (built in PR 607):** the splash says "Welcome,
+  {name}" when the name is known by the time the text appears (the name wait is now about
+  450 ms, counted from when the splash goes up), and "Welcome!" otherwise; he approved the
+  wording "Welcome!". The words are fixed once shown and never swap mid-splash, and the
+  screen-reader announcement uses the same words. Every splash, named or not, lasts about 1.6 s
+  from when it appears; the 3 s fail-safe stays. The splash blocks taps while it is up, with
+  the fail-safe releasing it. A plain reload or navigation never shows it, and an e2e test
+  guards that. Recorded in ADR-082 §4.
+- **A slow launch skips the visual welcome (Mitchell, call 3, 2026-10-26).** When the page
+  hydrates so late that the 3 s fail-safe fires, the visual welcome is skipped and only the
+  screen reader speaks, with the same words ("Welcome, {name}", or "Welcome!" when the name is
+  not known). Recorded in ADR-082 §4.
 - **The signup wording is approved (Mitchell, call 2, 2026-10-26).** He approved PR 607's signup
   wording as listed in its "Wording for Mitchell's approval" section, the `authCopy.ts` strings
   among them: the signup title "Your next trip starts here"; the sub "Bring the group, the ideas

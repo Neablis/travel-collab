@@ -41,9 +41,16 @@ App Router with no config flag.
    and clears it. Auth.js runs JWT sessions with no adapter, so its `isNewUser` is not available. A
    query parameter was rejected because a refresh or a shared link would replay the moment.
    The cookie shows a full-screen welcome splash on every viewport, after both signup and
-   sign-in (M54 decision 4 as amended). **Accepted by Mitchell, 2026-10-26:** when a new
-   account's launch is slow enough that the splash's name-wait cap expires, the page appears
-   without the visual welcome, and only the screen reader announces "Welcome, {name}".
+   sign-in (M54 decision 4 as amended). **Decided by Mitchell, 2026-10-26 (built in PR 607):**
+   the splash says "Welcome, {name}" when the name is known by the time the text appears (the
+   name wait is about 450 ms, counted from when the splash goes up), and "Welcome!" otherwise;
+   he approved the wording "Welcome!". The words are fixed once shown and never swap
+   mid-splash, and the screen-reader announcement uses the same words. Every splash, named or
+   not, lasts about 1.6 s from when it appears. It blocks taps while it is up, and the 3 s
+   fail-safe stays and releases it. A plain reload or navigation never shows the splash, and an
+   e2e test guards that. **Accepted by Mitchell, 2026-10-26:** when the page hydrates so late
+   that the 3 s fail-safe fires, the visual welcome is skipped and only the screen reader
+   speaks, with the same words ("Welcome, {name}", or "Welcome!" when the name is not known).
 5. **A PWA cold launch paints its overlay before first paint**, from an inline `<head>` script
    that runs only in standalone display mode, the pattern of `LEAVE_LANDING_IF_SIGNED_IN`. The
    overlay is server HTML, never hidden-then-shown. It leaves on hydration.
