@@ -203,7 +203,7 @@ describe("a block names its people", () => {
 
     expect(screen.getByRole("button", { name: `Edit Ropeway, 9 am – 11 am, Planned${said}` })).toBeTruthy();
     expect(block(tall.activityId).getByText("Booked by Sam Okafor · Priya Nair added this")).toBeTruthy();
-    expect(block(tall.activityId).getAllByTitle(/.+/).map((chip) => chip.getAttribute("title"))).toEqual(["Priya Nair", "Traveler 9b4f2a"]);
+    expect(block(tall.activityId).getAllByTestId("avatar-face").map((face) => face.dataset.personName)).toEqual(["Priya Nair", "Traveler 9b4f2a"]);
 
     // An hour is 42px: no room for a third line, so only the name says it.
     expect(screen.getByRole("button", { name: `Edit Coffee, 12 pm – 1 pm, Planned${said}` })).toBeTruthy();

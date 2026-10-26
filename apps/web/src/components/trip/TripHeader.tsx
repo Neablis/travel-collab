@@ -35,7 +35,7 @@ import { COVER_BAND, TripCoverBanner } from "./cover/TripCoverBanner";
 import { useTripCover } from "./cover/useTripCover";
 import { useTripSeed } from "./context/tripSeed";
 import { HOME_PATH } from "@/lib/homePath";
-import { roleLabel } from "@/lib/tripRole";
+import { memberRoleLabel } from "@/lib/tripRole";
 
 // The bounded chrome surface (design-system.md surface vocabulary, Pattern 4):
 // trip identity (name + status) on one row with Share / Add stop / sync /
@@ -891,7 +891,7 @@ function TravellerStack({
           avatar: member.avatar,
           color: member.color,
           online: online.has(member.userId),
-          detail: [member.role === "owner" ? "Owner" : roleLabel(member.role), online.has(member.userId) ? "online" : null]
+          detail: [memberRoleLabel(member.role), online.has(member.userId) ? "online" : null]
             .filter((word) => word !== null)
             .join(" · "),
         }))}

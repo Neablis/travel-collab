@@ -33,7 +33,7 @@ import { pendingPlaybookAddDay } from "@/lib/pendingPlaybookAdd";
 import { plannedOfBudgetLine } from "@/lib/cost";
 import { orderHomeTrips } from "@/lib/homeTripOrder";
 import { newTripCommand } from "@/components/palette/commands";
-import { usePaletteSource } from "@/components/palette/paletteRegistry";
+import { PAGE_SOURCES, usePaletteSource } from "@/components/palette/paletteRegistry";
 import { AssistantAskButton, BeyondTripAssistant } from "@/components/assistant/BeyondTripAssistant";
 import { clearSignedInHint } from "@/lib/sessionHint";
 
@@ -528,7 +528,7 @@ export function HomeScreen({ initialTrips = null, initialToday = null }: HomeScr
 
   // ⌘K's *New trip* is this page's button (ADR-068): the same function, under
   // the same `disabled`.
-  usePaletteSource("home", unauthenticated || cloningDemo ? [] : [newTripCommand(startNewTrip)]);
+  usePaletteSource(PAGE_SOURCES.home, unauthenticated || cloningDemo ? [] : [newTripCommand(startNewTrip)]);
 
   if (unauthenticated) return null;
 

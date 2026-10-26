@@ -28,7 +28,12 @@ const beas = ChatMessageData.parse({
 });
 const bea = { name: "Bea", avatar: null, color: null, colorShifted: false, travelling: true };
 
-function line(viewer: MessageViewer | null, message: ChatMessageData = beas, pending = false, { askedBy }: { askedBy: Persona | null | undefined } = { askedBy: bea }) {
+function line(
+  viewer: MessageViewer | null,
+  message: ChatMessageData = beas,
+  pending = false,
+  { askedBy, still = false }: { askedBy: Persona | null | undefined; still?: boolean } = { askedBy: bea },
+) {
   const onEdit = vi.fn();
   const onDelete = vi.fn();
   render(
@@ -45,6 +50,7 @@ function line(viewer: MessageViewer | null, message: ChatMessageData = beas, pen
         onCancelEdit={() => {}}
         pending={pending}
         askedBy={askedBy}
+        still={still}
       />
     </ol>,
   );
@@ -211,6 +217,21 @@ describe("ChatMessage, from the assistant or the app", () => {
     line({ mine: false, mayEdit: false, mayDelete: false }, reply, false, { askedBy: undefined });
     expect(card().textContent).toContain("Asked by a member who has left: only the owner can dismiss this");
     expect(card().textContent).not.toContain("Waiting");
+  });
+
+  // Finding 2 of the PR 605 review: a line already there when the chat opened
+  // holds still, and the open suggestion card inside it holds still with it.
+  it("holds an open suggestion still in a line that was already there", () => {
+    readAs("u-bea", "editor");
+    line({ mine: false, mayEdit: false, mayDelete: false }, reply, false, { askedBy: bea, still: true });
+    expect(screen.getByRole("listitem").hasAttribute("data-rise-in")).toBe(false);
+    expect(card().hasAttribute("data-rise-in")).toBe(false);
+  });
+
+  it("rises in an open suggestion with a line that arrives", () => {
+    readAs("u-bea", "editor");
+    line({ mine: false, mayEdit: false, mayDelete: false }, reply);
+    expect(card().hasAttribute("data-rise-in")).toBe(true);
   });
 
   // Review of PR 535: the server refuses a non-editor's review, the asker's too.

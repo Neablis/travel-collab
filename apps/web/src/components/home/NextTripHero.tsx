@@ -27,7 +27,7 @@ import {
   tripDateRange,
   tripMetaLine,
 } from "./UnplannedTrip";
-import { roleLabel, viewerOwnsTrip } from "@/lib/tripRole";
+import { memberRoleLabel, viewerOwnsTrip } from "@/lib/tripRole";
 import { cityFor } from "@/lib/dayChips";
 import { fetchTripDetail, fetchTripGlobals } from "@/lib/apiClient";
 import { cachedRead } from "@/lib/queryCache";
@@ -304,9 +304,8 @@ export function NextTripHero({ trip, menuSlot, viewerId, unreadChat = 0 }: NextT
         name: displayNameFor(member),
         avatar: member.avatar,
         color: member.color,
-        // M54 decision 9: the tip names the role, "Owner" for the owner as
-        // the header and PersonRow say it.
-        detail: member.role === "owner" ? "Owner" : roleLabel(member.role),
+        // M54 decision 9: the tip names the role.
+        detail: memberRoleLabel(member.role),
       }))}
     />
   );

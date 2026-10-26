@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { expect, test } from "./fixtures/test";
-import { E2E_SUPER_CODE } from "./admission";
+import { E2E_SUPER_CODE, fillInviteCode } from "./admission";
 import { e2eTripName } from "./tripNames";
 import { createEmptyTripViaWizard } from "./helpers";
 
@@ -38,7 +38,7 @@ test("sign in, create a trip, see it in the list", async ({ page }) => {
   // way in — the build plan's decision 3 — so the code is presented here
   // before the sign-in dispatch, which is what puts it in the
   // `pending_admission` cookie the gate reads on the way back.
-  await page.getByLabel("Invite code").fill(E2E_SUPER_CODE);
+  await fillInviteCode(page, E2E_SUPER_CODE);
 
   // Dev Login credentials form.
   // eslint-disable-next-line playwright/prefer-locator -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.

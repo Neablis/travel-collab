@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { Browser, Page } from "@playwright/test";
 import { expect, test } from "./fixtures/test";
-import { E2E_SUPER_CODE } from "./admission";
+import { E2E_SUPER_CODE, fillInviteCode } from "./admission";
 import { E2E_ADMIN_USERNAME } from "./adminBootstrap";
 
 // **M36 link 6 — the operator console, walked** (exit gate: *"The e2e spec
@@ -39,7 +39,7 @@ function newcomer(prefix: string): string {
 /** Dev sign-in without the suite's shared storage state (m20's `signInAs`). */
 async function signInAs(page: Page, username: string): Promise<void> {
   await page.goto("/signup");
-  await page.getByLabel("Invite code").fill(E2E_SUPER_CODE);
+  await fillInviteCode(page, E2E_SUPER_CODE);
   await page.getByLabel("Username", { exact: true }).fill(username);
   await Promise.all([
     page.waitForResponse(

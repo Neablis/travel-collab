@@ -118,8 +118,8 @@ export function DevelopersScreen() {
             <Step n={1} title="Create your account">
               <Text className="text-pretty">
                 Go to <InlineLink href="/signup">Create an account</InlineLink> and continue with Google.
-                Anyone can sign up. If somebody sent you an invite code, paste it into{" "}
-                <em>Invite code</em> so they get the credit; otherwise leave it empty. Already have an
+                Anyone can sign up. If somebody sent you an invite code, press{" "}
+                <em>Have an invite code?</em> and paste it there so they get the credit. Already have an
                 account? <InlineLink href="/signin">Sign in</InlineLink>.
               </Text>
             </Step>

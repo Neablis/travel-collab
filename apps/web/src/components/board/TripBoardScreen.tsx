@@ -23,7 +23,7 @@ import {
   removeStopCommands,
   tripTargets,
 } from "@/components/palette/commands";
-import { usePaletteSource } from "@/components/palette/paletteRegistry";
+import { PAGE_SOURCES, usePaletteSource } from "@/components/palette/paletteRegistry";
 import { newStopPrefill } from "@/components/trip/newStopPrefill";
 import { useLens, type View } from "@/components/trip/context/LensRouter";
 import { chipModel, cityFor } from "@/lib/dayChips";
@@ -514,8 +514,10 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
       live = false;
     };
   }, [tripId, remoteRevision]);
+  // Nothing until the board is read, so ⌘K's Enter waits for it (M54 part 4);
+  // a failed read has nothing to offer, and says so at once.
   usePaletteSource(
-    "trip-board",
+    PAGE_SOURCES.tripBoard,
     boardRenders && activeTrip !== null && targets !== null
       ? [
           ...lensCommands(setView),
@@ -541,7 +543,9 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
               ]
             : []),
         ]
-      : [],
+      : status === "error"
+        ? []
+        : null,
   );
   // Which of SPEC §9/§23's presentations the assistant opens as. `AssistantRail`
   // is emphatic that the caller must not reach for `useIsPhone()` — it returns

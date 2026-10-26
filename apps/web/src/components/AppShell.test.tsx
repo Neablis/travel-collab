@@ -1,7 +1,8 @@
-import { ViewTransition, type ReactElement, type ReactNode } from "react";
+import type { ReactElement, ReactNode } from "react";
 import { describe, expect, it } from "vitest";
 import { AppHeader } from "@/components/AppHeader";
 import { PhoneTabBar } from "@/components/nav/PhoneTabBar";
+import { RouteViewTransition } from "@/components/RouteViewTransition";
 import { AppShell } from "./AppShell";
 
 /**
@@ -26,7 +27,7 @@ function pathTo(node: ReactNode, match: (element: ReactElement) => boolean): Rea
 }
 
 const viewTransitionsOn = (path: ReactElement[]) =>
-  path.filter((e) => e.type === ViewTransition).map((e) => (e.props as { name?: string }).name ?? "(page)");
+  path.filter((e) => e.type === RouteViewTransition).map((e) => (e.props as { name?: string }).name ?? "(page)");
 
 const PAGE = <p>the page</p>;
 const shell = AppShell({ noSessionCookie: true, served: null, children: PAGE });

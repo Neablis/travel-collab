@@ -3,7 +3,7 @@ import type { TripMemberProfile } from "@tc/contracts";
 import { PersonChip } from "@/components/ui/person-chip";
 import { Badge } from "@/components/ui/badge";
 import { Text } from "@/components/ui/text";
-import { roleLabel } from "@/lib/tripRole";
+import { memberRoleLabel, roleLabel } from "@/lib/tripRole";
 
 /**
  * What a member may do, in plain words (spec §4) — never the enum. A member
@@ -12,7 +12,7 @@ import { roleLabel } from "@/lib/tripRole";
  * more than its role.
  */
 function roleLine(member: TripMemberProfile): string {
-  if (member.role === "owner") return "Owner · created the trip";
+  if (member.role === "owner") return `${memberRoleLabel(member.role)} · created the trip`;
   const label = roleLabel(member.role);
   return member.travelling === false && member.role !== "viewer" ? `${label} · helping plan` : label;
 }

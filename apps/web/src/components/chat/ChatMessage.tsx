@@ -64,6 +64,7 @@ export function ChatMessage({
   onSave,
   onCancelEdit,
   pending = false,
+  still = false,
   askedBy,
   reader,
 }: {
@@ -77,6 +78,8 @@ export function ChatMessage({
    * nothing said was PR 444's finding.
    */
   pending?: boolean;
+  /** Already there when the conversation was shown, so it does not rise in. */
+  still?: boolean;
   persona: Persona | undefined | null;
   tripId: string;
   viewer: MessageViewer | null;
@@ -95,7 +98,7 @@ export function ChatMessage({
   /** The reader, where no `TripProvider` is above this line. */
   reader?: ChatReader | undefined;
 }) {
-  if (message.kind === "system") return <ChangeLine ref={ref} message={message} name={persona === null ? null : (persona?.name ?? FORMER_MEMBER)} as="li" />;
+  if (message.kind === "system") return <ChangeLine ref={ref} message={message} name={persona === null ? null : (persona?.name ?? FORMER_MEMBER)} as="li" still={still} />;
   const name = message.kind === "assistant" ? ASSISTANT_NAME : persona === null ? null : (persona?.name ?? FORMER_MEMBER);
   const whose = `${name ?? "this"}${name === null ? "" : "'s"} message`;
   const live = viewer !== null && !message.removed;
@@ -110,7 +113,7 @@ export function ChatMessage({
       tabIndex={-1}
       aria-busy={pending || undefined}
       data-sending={pending ? "" : undefined}
-      data-rise-in=""
+      data-rise-in={still ? undefined : ""}
       className="group flex gap-2 rounded-md focus-visible:outline-2 focus-visible:outline-brand"
     >
       <MessageFace name={name} persona={persona} message={message} pending={pending} as="div">
@@ -129,6 +132,7 @@ export function ChatMessage({
             requestedBy={message.requestedBy}
             askedBy={askedBy}
             reader={reader}
+            still={still}
           />
         )}
       </MessageFace>
@@ -207,7 +211,19 @@ export function MessageFace({
  * and without its link: the card is one control, and a chip would be a second
  * inside it.
  */
-export function ChangeLine({ ref, message, name, as }: { ref?: Ref<HTMLLIElement> | undefined; message: ChatMessageData; name: string | null; as: "li" | "span" }) {
+export function ChangeLine({
+  ref,
+  message,
+  name,
+  as,
+  still = false,
+}: {
+  ref?: Ref<HTMLLIElement> | undefined;
+  message: ChatMessageData;
+  name: string | null;
+  as: "li" | "span";
+  still?: boolean;
+}) {
   const className = "rounded-md px-2 text-center text-xs text-slate";
   const line = (
     <>
@@ -224,7 +240,7 @@ export function ChangeLine({ ref, message, name, as }: { ref?: Ref<HTMLLIElement
     </>
   );
   return as === "li" ? (
-    <li ref={ref} tabIndex={-1} data-rise-in="" className={`${className} focus-visible:outline-2 focus-visible:outline-brand`}>
+    <li ref={ref} tabIndex={-1} data-rise-in={still ? undefined : ""} className={`${className} focus-visible:outline-2 focus-visible:outline-brand`}>
       {line}
     </li>
   ) : (
@@ -252,11 +268,14 @@ function ChatSuggestion({
   requestedBy,
   askedBy,
   reader,
+  still,
 }: {
   suggestionId: string;
   requestedBy: string;
   askedBy: Persona | null | undefined;
   reader: ChatReader | undefined;
+  /** Its line's: a card in a line that holds still holds still with it. */
+  still: boolean;
 }) {
   const fromTrip = useOptionalTrip();
   const trip = reader ?? fromTrip;
@@ -306,6 +325,7 @@ function ChatSuggestion({
         note={note}
         onAccept={() => void decide(() => suggestions.acceptMany(ids))}
         onDismiss={() => void decide(dismiss)}
+        rise={!still}
       />
     </div>
   );

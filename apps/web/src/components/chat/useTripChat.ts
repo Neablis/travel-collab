@@ -368,7 +368,9 @@ export function useTripChat({
 
   // A re-read can bring a sent message before its POST answers. The pending
   // line gives way to it: the reader's own, the same words and link, and new
-  // since the send. Each stored message stands in for one pending line.
+  // since the send. Each stored message stands in for one pending line, and
+  // one whose own POST answered is spoken for: taken by an identical line
+  // still waiting, it would rise in again once handed back (PR 605 review).
   const messages = useMemo(() => {
     const stored = page?.messages ?? [];
     const matched = new Map<string, string>();
@@ -378,6 +380,7 @@ export function useTripChat({
           !m.removed &&
           !before.has(m.messageId) &&
           !matched.has(m.messageId) &&
+          !drawnAs.has(m.messageId) &&
           m.authorId === line.authorId &&
           m.body === line.body &&
           m.link?.kind === line.link?.kind &&
