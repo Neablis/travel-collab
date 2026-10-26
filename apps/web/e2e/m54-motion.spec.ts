@@ -1,4 +1,4 @@
-import type { CDPSession, Locator, Page } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
 import { expect, test } from "./fixtures/test";
 import { e2eTripName } from "./tripNames";
 
@@ -9,20 +9,22 @@ import { e2eTripName } from "./tripNames";
 //
 // **No test here waits on an animation.** The exit is frozen instead: CDP sets
 // the document timeline's playback rate to 0 before the overlay closes, so the
-// leaving node stays exactly where it is for as long as the assertions take,
-// and released afterwards, Radix unmounts it on its `animationend`.
+// leaving node stays exactly where it is for as long as the assertions take.
+// It is never released: that the exit will end is read off the node (a CSS
+// animation on a real `@keyframes`, which fires `animationend`), not waited for.
 test.use({ reducedMotion: "no-preference" });
 
-async function freezeAnimations(page: Page): Promise<CDPSession> {
+async function freezeAnimations(page: Page) {
   const cdp = await page.context().newCDPSession(page);
   await cdp.send("Animation.enable");
   await cdp.send("Animation.setPlaybackRate", { playbackRate: 0 });
-  return cdp;
 }
 
 // The overlay that is leaving (`data-state="closed"` and still mounted): is it
-// inert, does focus sit inside it, and would a click at its centre land on any
-// overlay (its scrim included) rather than on the page beneath?
+// inert, does focus sit inside it, would a click at its centre land on any
+// overlay (its scrim included) rather than on the page beneath, and which exit
+// is it playing? A keyframe name that matched nothing would leave no animation
+// here, and Radix would hold the node for good.
 async function leavingOverlay(page: Page, role: "dialog" | "menu") {
   return page.evaluate((r) => {
     const node = document.querySelector(`[role="${r}"][data-state="closed"]`);
@@ -33,6 +35,7 @@ async function leavingOverlay(page: Page, role: "dialog" | "menu") {
       inert: node.inert,
       holdsFocus: node.contains(document.activeElement),
       takesClick: hit !== null && hit.closest("[data-motion]") !== null,
+      exit: node.getAnimations().map((a) => (a as CSSAnimation).animationName),
     };
   }, role);
 }
@@ -51,12 +54,16 @@ test("the account menu (a popover) leaves without taking a click or holding focu
   await page.getByRole("button", { name: /^Account menu/ }).click();
   await expect(page.getByRole("dialog", { name: /^Account menu/ })).toBeVisible();
 
-  const cdp = await freezeAnimations(page);
+  await freezeAnimations(page);
   await page.keyboard.press("Escape");
-  expect(await leavingOverlay(page, "dialog")).toEqual({ inert: true, holdsFocus: false, takesClick: false });
-
-  await cdp.send("Animation.setPlaybackRate", { playbackRate: 1 });
-  await expect(page.getByRole("dialog")).toHaveCount(0);
+  expect(await leavingOverlay(page, "dialog")).toEqual({
+    inert: true,
+    holdsFocus: false,
+    takesClick: false,
+    exit: ["tc-sink-out"],
+  });
+  // Back on the opener for the exit, not parked on `<body>` until it ends.
+  await expect(page.getByRole("button", { name: /^Account menu/ })).toBeFocused();
 });
 
 // The `Menu` primitive's one header use is the phone's `⋯`.
@@ -67,12 +74,14 @@ test("a menu leaves without taking a click or holding focus", async ({ page }) =
   await page.getByRole("button", { name: "Trip actions" }).click();
   await expect(page.getByRole("menuitem", { name: "History" })).toBeVisible();
 
-  const cdp = await freezeAnimations(page);
+  await freezeAnimations(page);
   await page.keyboard.press("Escape");
-  expect(await leavingOverlay(page, "menu")).toEqual({ inert: true, holdsFocus: false, takesClick: false });
-
-  await cdp.send("Animation.setPlaybackRate", { playbackRate: 1 });
-  await expect(page.getByRole("menu")).toHaveCount(0);
+  expect(await leavingOverlay(page, "menu")).toEqual({
+    inert: true,
+    holdsFocus: false,
+    takesClick: false,
+    exit: ["tc-sink-out"],
+  });
 });
 
 test("a dialog (⌘K) leaves without it or its scrim taking a click or holding focus", async ({ page }) => {
@@ -82,12 +91,34 @@ test("a dialog (⌘K) leaves without it or its scrim taking a click or holding f
   await page.keyboard.press("ControlOrMeta+KeyK");
   await expect(page.getByRole("dialog", { name: "Go to or do" })).toBeVisible();
 
-  const cdp = await freezeAnimations(page);
+  await freezeAnimations(page);
   await page.keyboard.press("Escape");
-  expect(await leavingOverlay(page, "dialog")).toEqual({ inert: true, holdsFocus: false, takesClick: false });
+  expect(await leavingOverlay(page, "dialog")).toEqual({
+    inert: true,
+    holdsFocus: false,
+    takesClick: false,
+    exit: ["tc-sink-out"],
+  });
+});
 
-  await cdp.send("Animation.setPlaybackRate", { playbackRate: 1 });
-  await expect(page.getByRole("dialog")).toHaveCount(0);
+// ADR-082 §2, decision 20: under reduced motion nothing animates, so Radix
+// unmounts an overlay as soon as it closes, and every other spec relies on it
+// (`playwright.config.ts` runs them all at reduce). The timeline is frozen, so
+// an exit that still ran would hold the dialog for good, not for 120ms.
+test.describe("under reduced motion", () => {
+  test.use({ reducedMotion: "reduce" });
+
+  test("a dialog (⌘K) is gone the moment it closes", async ({ page }) => {
+    await page.goto("/home");
+    await expect(page.getByRole("heading", { level: 1, name: "Your trips" })).toBeVisible();
+
+    await page.keyboard.press("ControlOrMeta+KeyK");
+    await expect(page.getByRole("dialog", { name: "Go to or do" })).toBeVisible();
+
+    await freezeAnimations(page);
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+  });
 });
 
 // M54 decision 2: "nothing like 'Press me' -> 'pressed .......'". The import

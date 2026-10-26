@@ -1240,8 +1240,9 @@ export function AssistantRail({
                   // restore focus — so a follow-up typed mid-turn went to
                   // `<body>` and was silently dropped, `Enter` included.
                   // `submitAsk` already refuses to send while `asking` is
-                  // true (and the `Button` below stays disabled), so nothing
-                  // downstream needs the input itself gated: leaving it
+                  // true (and the `Button` below is `pending`, which refuses
+                  // the press), so nothing downstream needs the input itself
+                  // gated: leaving it
                   // editable keeps focus and keeps the keystrokes. Note it
                   // does NOT auto-send them — `submitAsk` still returns early
                   // while `asking`, so an Enter pressed mid-turn is a no-op

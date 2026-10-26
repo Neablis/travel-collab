@@ -6,23 +6,38 @@ import { useCallback, useEffect, useLayoutEffect, useRef } from "react";
  * `inert` alone does not, or not yet: measured in `m54-motion.spec.ts`, focus
  * was still inside a closing dialog and the account menu after both had
  * turned inert, so for some part of the exit a keypress still went to them.
- * Blurring sends focus to `<body>`
- * at once; where it lands after that is unchanged, Radix's own return to the
- * trigger (or the caller's `onCloseAutoFocus`) when the node unmounts.
+ *
+ * It goes back to the opener at once, where Radix would put it on unmount
+ * anyway, so a Tab or a screen reader does not start from `<body>` for the
+ * length of the exit (PR 594 review). Not to an opener a modal overlay has
+ * hidden (`aria-hidden` stays on the page until the unmount) or one that is
+ * gone: there it is blurred, and Radix's return (or the caller's
+ * `onCloseAutoFocus`) still decides where it lands.
  */
-function letGoOfFocus() {
+function letGoOfFocus(opener: HTMLElement | null = null) {
   const at = document.activeElement;
-  if (at instanceof HTMLElement && at.closest('[data-motion][data-state="closed"]') !== null) at.blur();
+  if (!(at instanceof HTMLElement) || at.closest('[data-motion][data-state="closed"]') === null) return;
+  if (opener?.isConnected === true && opener.closest('[aria-hidden="true"]') === null) opener.focus();
+  if (document.activeElement === at) at.blur();
 }
 
 /**
  * For a Radix overlay, which plays its own exit: with `open` gone false, its
  * `data-state` is already `closed` by the layout phase, so focus is let go
- * before the browser paints the first frame of the exit.
+ * before the browser paints the first frame of the exit. The opener is what
+ * held focus as `open` turned true, before Radix's own autofocus (a passive
+ * effect) moved it inside.
  */
 export function useLetGoOfFocusOnClose(open: boolean) {
+  const opener = useRef<HTMLElement | null>(null);
   useLayoutEffect(() => {
-    if (!open) letGoOfFocus();
+    if (open) {
+      const at = document.activeElement;
+      opener.current = at instanceof HTMLElement && at !== document.body ? at : null;
+      return;
+    }
+    letGoOfFocus(opener.current);
+    opener.current = null;
   }, [open]);
 }
 
