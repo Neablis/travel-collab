@@ -84,6 +84,30 @@ describe("SaveLightMark", () => {
     expect(saved.getAttribute("data-save-beat")).toBeNull();
   });
 
+  // The breathing also stops when the queue fails, and a beat there would say
+  // "saved" about work that was not.
+  it("takes no beat when the breathing stops on a failure", () => {
+    const saving = { unsent: 2, failure: null, retry: () => {} };
+    const { rerender } = renderLight(saving);
+
+    rerender(
+      <SaveLightProvider>
+        <SaveLightMark />
+        <Publisher sync={{ ...saving, failure }} />
+      </SaveLightProvider>,
+    );
+    // While failed the mark is the retry button, so the beat could only show
+    // once the failure clears; resting from there must not beat either.
+    rerender(
+      <SaveLightProvider>
+        <SaveLightMark />
+        <Publisher sync={{ ...saving, unsent: 0 }} />
+      </SaveLightProvider>,
+    );
+    const rested = screen.getByRole("link", { name: "Caesura" });
+    expect(rested.getAttribute("data-save-beat")).toBeNull();
+  });
+
   describe("when the queue has failed", () => {
     it("turns danger and names the count the mark has no room to draw", () => {
       const { container } = renderLight({ unsent: 3, failure, retry: () => {} });

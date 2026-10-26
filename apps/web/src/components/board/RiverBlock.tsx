@@ -138,6 +138,11 @@ export function laneStyle(placement: Pick<RiverPlacement, "lane" | "lanes">): { 
     : { left: `calc(${placement.lane} * (100% + 4px) / ${placement.lanes})`, width: `calc((100% + 4px) / ${placement.lanes} - 4px)` };
 }
 
+/** `laneStyle`'s `left`, in pixels, on a river `width` wide. */
+function laneLeftPx(placement: Pick<RiverPlacement, "lane" | "lanes">, width: number): number {
+  return placement.lanes === 1 ? 0 : (placement.lane * (width + 4)) / placement.lanes;
+}
+
 /**
  * One timed stop, drawn to scale on its day's river (SPEC §36.9b).
  *
@@ -276,22 +281,36 @@ export function RiverBlock({
   // (`[data-settling]` in globals.css). Transform only, so nothing around it
   // reflows. Not while its grip is held: a resize redraws the block on every
   // move, and it has to follow the pointer, not trail it.
-  const drawnAt = useRef<{ x: number; y: number } | null>(null);
+  //
+  // Nor when this reader has just carried it there. The outline already drew
+  // where it lands, so a glide from the old slot read as a snap-back; the
+  // move is applied in the same handler that ends the carry, so it is the
+  // commit where `carried` falls.
+  //
+  // The lane is kept rather than a pixel left, and turned into one at the
+  // river's width now: a column narrowed since (the assistant rail opened)
+  // would otherwise start the settle from a left never drawn at this width.
+  const carried = dragging || lifted;
+  const drawnAt = useRef<{ y: number; lane: number; lanes: number; carried: boolean } | null>(null);
+  const { topPx, lane, lanes } = placement;
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
-    const at = { x: el.offsetLeft, y: el.offsetTop };
     const was = drawnAt.current;
-    drawnAt.current = at;
-    if (was === null || gripHeld.current || (was.x === at.x && was.y === at.y)) return;
-    el.style.setProperty("--settle-x", `${was.x - at.x}px`);
-    el.style.setProperty("--settle-y", `${was.y - at.y}px`);
+    drawnAt.current = { y: topPx, lane, lanes, carried };
+    if (was === null || was.carried || gripHeld.current) return;
+    const width = el.parentElement?.clientWidth ?? 0;
+    const dx = laneLeftPx(was, width) - laneLeftPx({ lane, lanes }, width);
+    const dy = was.y - topPx;
+    if (dx === 0 && dy === 0) return;
+    el.style.setProperty("--settle-x", `${dx}px`);
+    el.style.setProperty("--settle-y", `${dy}px`);
     // Off and on again, with a layout between, so a second move during the
     // first settle starts its own rather than continuing the old one.
     delete el.dataset.settling;
     void el.offsetWidth;
     el.dataset.settling = "";
-  }, [placement.topPx, placement.lane, placement.lanes]);
+  }, [topPx, lane, lanes, carried]);
 
   function pressGrip(e: ReactPointerEvent, edge: "start" | "end") {
     if (e.button !== 0 || !onResizeStart) return;

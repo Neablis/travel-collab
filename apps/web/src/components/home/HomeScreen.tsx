@@ -380,8 +380,8 @@ export function HomeScreen({ initialTrips = null, initialToday = null }: HomeScr
   function startLeaving(trip: TripSummary) {
     setOpenMenuTripId(null);
     setDeletingIds((prev) => new Set(prev).add(trip.tripId));
-    // Filtered first: a card whose grid went before its exit ran (the hero
-    // deleted too) never said it was gone.
+    // Only a grid card has an exit to run: the hero is no `TripCard`, so it
+    // leaves at once, and a copy kept for it here would never be forgotten.
     const listed = visibleTrips.find((t) => t.tripId === trip.tripId);
     if (listed === undefined || listed.tripId === nextTrip?.tripId) return;
     setLeavingTrips((prev) => [...prev.filter((t) => t.tripId !== listed.tripId), listed]);
