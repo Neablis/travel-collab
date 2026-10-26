@@ -23,13 +23,14 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { EmptyState } from "@/components/ui/empty-state";
-import { usePhoneAskEntry } from "@/components/nav/phoneAsk";
+import { useDeclinePhoneAsk, usePhoneAskEntry } from "@/components/nav/phoneAsk";
 import { AssistantRail } from "@/components/assistant/AssistantRail";
 import { phoneAskContext } from "@/components/assistant/phoneAskContext";
 import { useAskThread } from "@/components/assistant/useAskThread";
 import { suggestedWords } from "@/components/assistant/SuggestedNote";
 import { useIsPhone } from "@/lib/useIsPhone";
 import { HOME_PATH } from "@/lib/homePath";
+import { isDemoTripId } from "@/lib/demoTrip";
 
 type Status = "loading" | "ready" | "error";
 
@@ -488,7 +489,8 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
   // nothing to ask about is worse than a pill that is not there yet. The rest
   // of this screen's chrome — the way out, the heading, the standfirst — does
   // not depend on a read and so renders from the first frame (§3b rule 1).
-  const phoneAsk = trip === null ? null : phoneAskContext(trip, null, { tab: "notebook", page: null });
+  // A demo trip offers none, as its board does not: `/ask` refuses it (KI-079).
+  const phoneAsk = trip === null || isDemoTripId(tripId) ? null : phoneAskContext(trip, null, { tab: "notebook", page: null });
   // The tab bar's Ask item is this screen's way in (Mitchell, 2026-10-10:
   // Ask moved from the phone's top rows into the bottom bar), offered once
   // the trip has landed for the reason above.
@@ -504,6 +506,9 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
         }
       : undefined,
   );
+  // A failed read or a demo trip offers none: the tab bar lets go of the
+  // board's Ask it is holding for this screen's (PR 601).
+  useDeclinePhoneAsk(status === "error" || isDemoTripId(tripId));
 
   return (
     <PageContainer as="main">

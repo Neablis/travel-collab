@@ -17,7 +17,8 @@ import { FocusProvider } from "@/components/trip/context/FocusProvider";
 import { LensRouter } from "@/components/trip/context/LensRouter";
 import { PreferencesProvider } from "@/components/account/PreferencesProvider";
 import { PhoneAskTab } from "@/components/nav/PhoneTabBar";
-import { usePhoneAsk } from "@/components/nav/phoneAsk";
+import { registerPhoneAsk, usePhoneAsk } from "@/components/nav/phoneAsk";
+import { DEMO_TRIPS } from "@/lib/demoTrip";
 import { useBoardFocus } from "@/components/chat/boardFocus";
 import { type PaletteCommand, usePaletteCommands } from "@/components/palette/paletteRegistry";
 import { activityFactory, costedTripDetailFixture, historyFixture, locationFactory, pageFixture, tripCoverFactory, tripDetailFixture } from "@tc/factories";
@@ -318,6 +319,82 @@ describe("TripBoardScreen", () => {
     );
     expect(await screen.findByRole("alert")).toBeTruthy();
     expect(screen.queryByTestId("ask-tab")).toBeNull();
+  });
+
+  // PR 601 review: the tab bar holds the notebook's Ask, greyed, across the
+  // move to the board until the board offers its own. A board that settles on
+  // offering none must let it go, or a dead Ask stands for as long as the
+  // reader stays.
+  describe("lets go of the Ask the tab bar holds from the notebook", () => {
+    async function heldThen(tripId: string, fixture: TripDetail, ...first: Parameters<typeof server.use>) {
+      setViewportMatches({ "(max-width: 767px)": true });
+      server.use(...first, ...makeTripHandlers(fixture));
+      const bar = <PhoneAskTab pathname={`/trips/${tripId}`} />;
+      const takeBack = registerPhoneAsk({ open: false, onOpen: () => {} });
+      // `{null}` where the board will be keeps the bar in place, so it is the
+      // same bar, holding, as the layout's is.
+      const { rerender } = render(
+        <>
+          {null}
+          {bar}
+        </>,
+      );
+      act(() => takeBack());
+      expect(screen.getByTestId("ask-tab").hasAttribute("disabled")).toBe(true);
+      rerender(
+        <>
+          <TripProvider tripId={tripId}>
+            <FocusProvider>
+              <EditorHost>
+                <LensRouter>
+                  <TripBoardScreen tripId={tripId} />
+                </LensRouter>
+              </EditorHost>
+            </FocusProvider>
+          </TripProvider>
+          {bar}
+        </>,
+      );
+    }
+
+    it("when its read fails", async () => {
+      await heldThen("00000000-0000-4000-8000-000000000000", tripDetailFixture());
+      expect(await screen.findByRole("alert")).toBeTruthy();
+      expect(screen.queryByTestId("ask-tab")).toBeNull();
+    });
+
+    // A signed-in reader can reach a demo trip at `/trips/<id>`; its board
+    // never offers an Ask (KI-79), and nor does its notebook.
+    it("when it is a demo's, which offers none", async () => {
+      const tripId = DEMO_TRIPS[0]!.tripId;
+      await heldThen(tripId, tripDetailFixture({ tripId }));
+      expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+      expect(screen.queryByTestId("ask-tab")).toBeNull();
+    });
+
+    // The skeleton is not a screen without an Ask: letting go there drops the
+    // Ask for the whole load and brings it back after, the flicker the hold
+    // exists to stop (PR 601 review).
+    it("but not while it is still loading", async () => {
+      const fixture = tripDetailFixture();
+      let release: () => void = () => {};
+      const held = new Promise<void>((resolve) => (release = resolve));
+      await heldThen(
+        fixture.tripId,
+        fixture,
+        http.get("/api/trips/:tripId", async () => {
+          await held;
+          return HttpResponse.json({ trip: fixture });
+        }),
+      );
+      expect(await screen.findByTestId("trip-header-skeleton")).toBeTruthy();
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(screen.getByTestId("ask-tab").hasAttribute("disabled")).toBe(true);
+
+      release();
+      expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+      await waitFor(() => expect(screen.getByTestId("ask-tab").hasAttribute("disabled")).toBe(false));
+    });
   });
 
   // I3 (final review): this used to render a bare `<Heading>Caesura</Heading>`
@@ -1993,7 +2070,7 @@ describe("assistant rail visibility", () => {
       const panel = await screen.findByRole("complementary", { name: "Assistant" });
       expect(selected(panel)).toEqual(["Chat"]);
       // Into the panel, as Ask's opener takes its composer (PR 426).
-      expect(within(panel).getByRole("combobox", { name: "Message" }).matches(":focus")).toBe(true);
+      await waitFor(() => expect(within(panel).getByRole("combobox", { name: "Message" }).matches(":focus")).toBe(true));
       await userEvent.click(within(panel).getByRole("tab", { name: "Ask" }));
 
       await reload(fixture.tripId);
@@ -2100,7 +2177,7 @@ describe("assistant rail visibility", () => {
       expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
       await userEvent.click(screen.getByTestId("ask-pill"));
       const panel = await screen.findByRole("complementary", { name: "Assistant" });
-      expect(within(panel).getByRole("combobox", { name: "Message" }).matches(":focus")).toBe(true);
+      await waitFor(() => expect(within(panel).getByRole("combobox", { name: "Message" }).matches(":focus")).toBe(true));
       // KI-2026-09-22-e: a rendered trip is not yet an armed poll.
       await waitFor(() => expect(addListener).toHaveBeenCalledWith("visibilitychange", expect.any(Function)));
       addListener.mockRestore();
@@ -2108,7 +2185,7 @@ describe("assistant rail visibility", () => {
       membersMove(fixture, [fixture.members[0]!]);
 
       await waitFor(() => expect(within(panel).queryAllByRole("tab")).toEqual([]));
-      expect(within(panel).getByRole("textbox", { name: "Question for the assistant" }).matches(":focus")).toBe(true);
+      await waitFor(() => expect(within(panel).getByRole("textbox", { name: "Question for the assistant" }).matches(":focus")).toBe(true));
 
       membersMove(fixture, shared().members);
       expect(await within(panel).findByRole("tab", { name: "Chat" })).toBeTruthy();
@@ -2135,6 +2212,9 @@ describe("assistant rail visibility", () => {
       membersMove(fixture, [fixture.members[0]!]);
 
       await waitFor(() => expect(within(panel).queryAllByRole("tab")).toEqual([]));
+      // Past the rail's tab-switch focus move, a passive effect: read sooner,
+      // a move that should not happen has not happened yet either.
+      await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
       expect(addDay.matches(":focus")).toBe(true);
     });
 
@@ -2156,6 +2236,8 @@ describe("assistant rail visibility", () => {
       membersMove(fixture, [fixture.members[0]!]);
 
       const sheet = await screen.findByRole("dialog", { name: "Assistant" });
+      // Past the tab-switch focus move, as above.
+      await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
       expect(within(sheet).getByRole("textbox", { name: "Question for the assistant" }).matches(":focus")).toBe(false);
     });
 
@@ -2177,6 +2259,8 @@ describe("assistant rail visibility", () => {
       membersMove(fixture, [...fixture.members, { userId: "u-bea", role: "viewer" }]);
 
       expect(await within(panel).findByRole("tab", { name: "Chat" })).toBeTruthy();
+      // Past the tab-switch focus move, as above.
+      await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
       expect(hide.matches(":focus")).toBe(true);
     });
 

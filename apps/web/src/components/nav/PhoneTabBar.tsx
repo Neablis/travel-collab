@@ -12,7 +12,7 @@ import { isDemoBoardPath } from "@/lib/demoTrip";
 import { Button } from "@/components/ui/button";
 import { BrandMark } from "@/components/BrandMark";
 import { askOrChatName, UnreadDot } from "./askOrChat";
-import { usePhoneAsk, type PhoneAskEntry } from "./phoneAsk";
+import { usePhoneAsk, usePhoneAskDeclines, type PhoneAskEntry } from "./phoneAsk";
 import { HOME_PATH } from "@/lib/homePath";
 
 // Handoff `Trip Planner Redesign.dc.html:863-871` (markup) and `:7211-7229`
@@ -519,19 +519,22 @@ function tripTabsOf(pathname: string): string | null {
  * there offer an Ask once loaded, so the item is not left standing for one
  * that never comes. A notebook page may offer none (a locked one), and
  * another trip's or the account pages' Ask is not this one, so those start
- * empty as before. This is the bar remembering an entry, keyed by the route
- * and dropped by it, not a tab it lights (§13).
+ * empty as before. A screen there that settles on none (its read failed, or a
+ * demo's board) declines (`useDeclinePhoneAsk`), and the hold ends with it.
+ * This is the bar remembering an entry, keyed by the route and dropped by it,
+ * not a tab it lights (§13).
  */
 function useHeldPhoneAsk(pathname: string | null): (PhoneAskEntry & { held: boolean }) | null {
   const live = usePhoneAsk();
+  const declines = usePhoneAskDeclines();
   const trip = pathname === null ? null : tripIdFromPathname(pathname);
-  const [last, setLast] = useState<{ entry: PhoneAskEntry; trip: string | null } | null>(null);
+  const [last, setLast] = useState<{ entry: PhoneAskEntry; trip: string | null; declines: number } | null>(null);
   // Keyed to the trip the entry was first seen in, not the route of every
   // render: the bar renders the next route before the old screen's cleanup
   // takes its entry back, and must not carry it into another trip then.
-  if (live !== null && live !== last?.entry) setLast({ entry: live, trip });
+  if (live !== null && live !== last?.entry) setLast({ entry: live, trip, declines });
   if (live !== null) return { ...live, held: false };
-  if (last?.trip && pathname !== null && tripTabsOf(pathname) === last.trip) return { ...last.entry, held: true };
+  if (last?.trip && last.declines === declines && pathname !== null && tripTabsOf(pathname) === last.trip) return { ...last.entry, held: true };
   return null;
 }
 

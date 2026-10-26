@@ -3029,20 +3029,22 @@ html[data-look="ledger"] .shadow-raised {
   }
 }
 
-/* ── M54: the welcome moment (decisions 4, 6 and 8, option A). One overlay in
-   two sizes, `WelcomeMoment`: `full` in the page's own paper (the OS splash's
-   `background_color`), `small` the mark alone over the page. Neither takes a
-   pointer event, so it never stands between a click and the page.
+/* ── M54: the welcome moment (decisions 6 and 8, option A). One overlay,
+   `WelcomeMoment`, in the page's own paper (the OS splash's
+   `background_color`), so the page is not seen until it goes: on a launch and,
+   since Mitchell's walk, after every sign-in. It takes the pointer while it is
+   up, so a tap on the blank splash does not land on the page it hides.
 
    The unlock: the strokes slide apart and fade, then the tile scales up a
    little and fades, then the moment goes. `--welcome-hold` is how long the
-   mark sits before that, composed from the tokens: none on a launch (it has
-   been breathing already), a beat after a sign-in, longer when it says
-   "Welcome, {name}". `WelcomeMoment` unmounts it a little after the last
-   frame, on a timer, so reduced motion (no animation at all) still leaves.
+   mark sits before that: none on a launch (it has been breathing already),
+   and after a sign-in a beat that `WelcomeMoment` sets, shortened by however
+   long the splash has already been up. `WelcomeMoment` unmounts it a little
+   after the last frame, on a timer, so reduced motion (no animation at all)
+   still leaves.
 
-   `.launch-overlay` is the same moment in the server HTML, shown only once
-   `LAUNCH_SCRIPT` has marked the document a home-screen launch. The strokes
+   `.launch-overlay` is the moment in the server HTML, shown only once
+   `LAUNCH_SCRIPT` has marked the document a launch or a sign-in. The strokes
    are `BrandMark`'s two inner spans, which its own geometry draws. */
 @layer components {
   .welcome-moment {
@@ -3052,16 +3054,7 @@ html[data-look="ledger"] .shadow-raised {
     z-index: 70;
     display: grid;
     place-items: center;
-    pointer-events: none;
-  }
-  .welcome-moment[data-size="full"] {
     background-color: var(--color-paper);
-  }
-  .welcome-moment[data-phase="welcome"] {
-    --welcome-hold: calc(var(--transition-duration-slow) * 2);
-  }
-  .welcome-moment[data-phase="welcome"][data-named] {
-    --welcome-hold: calc(var(--transition-duration-slow) * 5);
   }
 
   .launch-overlay {
@@ -3074,9 +3067,16 @@ html[data-look="ledger"] .shadow-raised {
      overlay, so a launch that never hydrates (offline, a chunk that failed
      to load) would sit under it for good. Only while it still breathes: a
      hydrated overlay has left that phase, and `LaunchOverlay` stands down past
-     the same 3s (`LAUNCH_FAILSAFE_MS`) rather than show it again. */
+     the same 3s (`LAUNCH_FAILSAFE_MS`) rather than show it again. It ends
+     hidden as well as clear, so the page under it gets its pointer back. */
   html[data-launch] .launch-overlay > .welcome-moment[data-phase="breathe"] {
-    animation: tc-fade-out var(--transition-duration-slow) var(--ease-calm) 3s both;
+    animation: tc-launch-give-way var(--transition-duration-slow) var(--ease-calm) 3s both;
+  }
+  @keyframes tc-launch-give-way {
+    to {
+      opacity: 0;
+      visibility: hidden;
+    }
   }
 
   @keyframes tc-unlock-left {
