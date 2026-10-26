@@ -1,8 +1,8 @@
 ### KI-2026-10-26-u — The phone trip header's `⋯` button is replaced just after load, dropping its focus or open menu
 
-- **Severity:** cosmetic, low reach. Only in the first moments after a trip page loads on a phone:
-  a keyboard user who has already reached `⋯` loses focus to `<body>`, and a menu already open
-  vanishes. A second try works.
+- **Severity:** correctness, low reach. Only in the first moments after a trip page loads on a
+  phone: a keyboard user who has already reached `⋯` loses focus to `<body>`, and a menu already
+  open vanishes. A second try works.
 - **Area:** `apps/web/src/components/trip/TripHeader.tsx` (`overflowMenu`, rendered by
   `{!isPhone && overflowMenu}` and, on a phone, as History's `Popover` `anchor`), with
   `useIsPhone` (`apps/web/src/lib/useIsPhone.ts`), which starts `false` and corrects in an effect.
@@ -13,6 +13,8 @@
   `focusout` (relatedTarget null) from a React commit 10 to 300 ms after load, and in the run where
   the menu was already open, the menu node was removed although its exit was frozen. That made
   `m54-motion.spec.ts`'s keyboard menu test fail 1 in 10, and 4 in 20 under the extra logging.
+  It shows in two specs that click `Trip actions` right after load without waiting for the row to
+  settle: `e2e/m39-phone-header.spec.ts:67` and `e2e/responsive.spec.ts:661`.
 - **Why not fixed here:** `TripHeader.tsx` is outside M54 part 1's scope. The spec now waits for
   the phone row to settle (`phoneHeaderSettled`) before it touches `⋯`, which took the rate to 0.
 - **Fix path / Tripwire:** render `overflowMenu` in one place at every width and give the
