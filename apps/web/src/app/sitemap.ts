@@ -47,15 +47,25 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       ...(day.publishedAt === null ? {} : { lastModified: day.publishedAt }),
     })),
     // The page's own robots predicate: a thin place page is `noindex`, and
-    // listing it here would contradict that.
-    ...places.filter(placeIndexable).map((place) => ({ url: `${origin}${placePath(place)}` })),
+    // listing it here would contradict that. Dated by its newest published
+    // day (M53 part C): a page whose list changed is the page that changed.
+    ...places.filter(placeIndexable).map((place) => ({
+      url: `${origin}${placePath(place)}`,
+      ...(place.newestPublishedAt ? { lastModified: place.newestPublishedAt } : {}),
+    })),
     // The same predicate over the same count, for the country×city pages.
     ...countryCities
       .filter(placeIndexable)
-      .map((page) => ({ url: `${origin}${countryCityPath(page.country.slug, page.city.slug)}` })),
+      .map((page) => ({
+        url: `${origin}${countryCityPath(page.country.slug, page.city.slug)}`,
+        ...(page.newestPublishedAt ? { lastModified: page.newestPublishedAt } : {}),
+      })),
     // The same predicate over the same count, for the tag pages' robots tag (M42 D10).
     ...tags
       .filter(placeIndexable)
-      .map((page) => ({ url: `${origin}${tagPath(page.tag, page.city?.slug ?? null, page.country?.slug ?? null)}` })),
+      .map((page) => ({
+        url: `${origin}${tagPath(page.tag, page.city?.slug ?? null, page.country?.slug ?? null)}`,
+        ...(page.newestPublishedAt ? { lastModified: page.newestPublishedAt } : {}),
+      })),
   ];
 }
