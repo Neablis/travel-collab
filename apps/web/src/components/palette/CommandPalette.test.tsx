@@ -150,6 +150,9 @@ describe("CommandPalette", () => {
     render(<CommandPalette />);
     await userEvent.keyboard("{Meta>}k{/Meta}add trip");
     expect(screen.getByRole("status", { name: "Loading commands" })).toBeTruthy();
+    // PR 601 review: a listbox owns only options and groups, so the outlines
+    // stand beside it and the list itself says it is busy.
+    expect(within(screen.getByRole("listbox", { busy: true })).queryByRole("status")).toBeNull();
     expect(screen.queryByText("No match")).toBeNull();
     await userEvent.keyboard("{Enter}");
     expect(palette()).toBeTruthy();

@@ -225,6 +225,8 @@ export function CommandPalette() {
   // run nothing and the box would name an option that is not there.
   const current = Math.min(active, Math.max(rows.length - 1, 0));
   const optionId = (index: number) => `${listId}-${index}`;
+  // The page's commands are on their way and nothing is listed yet.
+  const arriving = waiting && rows.length === 0;
 
   const choose = (row: Row | undefined) => {
     if (row === undefined) return;
@@ -343,7 +345,7 @@ export function CommandPalette() {
                 event.preventDefault();
                 // Only on the outlines: a listed row is what Enter was for, and
                 // the page's commands arriving would move another under it.
-                if (waiting && rows.length === 0) setHeldEnter(true);
+                if (arriving) setHeldEnter(true);
                 else choose(rows[current]);
               } else if (event.key === "Tab" && !event.shiftKey && rows[current]?.node.kind === "branch") {
                 // Only on a branch: anywhere else Tab still leaves the box.
@@ -357,15 +359,24 @@ export function CommandPalette() {
             }}
           />
         </div>
-        <div id={listId} role="listbox" aria-label={path.length > 0 ? path.map((step) => step.label).join(" › ") : "Commands"} className="mt-2 py-1 text-sm">
-          {rows.length === 0 && waiting ? (
-            // Outlines, not a word (the loading wall, KI-2026-09-20-e): a
-            // screen reader still hears which list is arriving.
-            <SkeletonRegion label="Loading commands" className="flex flex-col">
-              <Skeleton className="mx-3 my-2.5 h-3 w-2/3 md:my-2" />
-              <Skeleton className="mx-3 my-2.5 h-3 w-1/2 md:my-2" delay={2} />
-            </SkeletonRegion>
-          ) : rows.length === 0 ? (
+        {arriving ? (
+          // Outlines, not a word (the loading wall, KI-2026-09-20-e), named for
+          // whoever reaches them. Beside the listbox, not in it: a listbox owns
+          // only options and groups.
+          <SkeletonRegion label="Loading commands" className="mt-2 flex flex-col pt-1">
+            <Skeleton className="mx-3 my-2.5 h-3 w-2/3 md:my-2" />
+            <Skeleton className="mx-3 my-2.5 h-3 w-1/2 md:my-2" delay={2} />
+          </SkeletonRegion>
+        ) : null}
+        <div
+          id={listId}
+          role="listbox"
+          aria-label={path.length > 0 ? path.map((step) => step.label).join(" › ") : "Commands"}
+          aria-busy={arriving}
+          // Under the outlines the empty list adds only their bottom padding.
+          className={cn("py-1 text-sm", !arriving && "mt-2")}
+        >
+          {rows.length === 0 && !arriving ? (
             <p className="px-3 py-2 text-slate">No match</p>
           ) : null}
           {sections.map((section, sectionIndex) =>
