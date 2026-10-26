@@ -140,6 +140,23 @@ describe("TripCard", () => {
     expect(within(group).getByText("+2")).toBeTruthy();
   });
 
+  // M54 decision 9: a face's tip says the person's role as well as their name.
+  it("names each traveller's role in their face's tip", () => {
+    const trip = tripSummaryFixture({
+      members: [
+        tripSummaryMemberFactory.build({ userId: "dev-dana", role: "owner", displayName: "Dana Reyes" }),
+        tripSummaryMemberFactory.build({ userId: "dev-sam", role: "editor", displayName: "Sam Okafor" }),
+      ],
+    });
+    render(<TripCard trip={trip} />);
+
+    const group = screen.getByRole("group", { name: "2 travelers" });
+    expect(within(group).getAllByTestId("avatar-face").map((face) => face.dataset.avatarTip)).toEqual([
+      "Dana Reyes · Owner",
+      "Sam Okafor · Can edit",
+    ]);
+  });
+
   // Travellers spec §5: a member who joined to advise is on the trip, not on
   // the road, so the stack names and shows the travellers only.
   it("counts and shows the travellers, not every member", () => {
