@@ -132,6 +132,7 @@ export function ChatMessage({
             requestedBy={message.requestedBy}
             askedBy={askedBy}
             reader={reader}
+            still={still}
           />
         )}
       </MessageFace>
@@ -267,11 +268,14 @@ function ChatSuggestion({
   requestedBy,
   askedBy,
   reader,
+  still,
 }: {
   suggestionId: string;
   requestedBy: string;
   askedBy: Persona | null | undefined;
   reader: ChatReader | undefined;
+  /** Its line's: a card in a line that holds still holds still with it. */
+  still: boolean;
 }) {
   const fromTrip = useOptionalTrip();
   const trip = reader ?? fromTrip;
@@ -321,6 +325,7 @@ function ChatSuggestion({
         note={note}
         onAccept={() => void decide(() => suggestions.acceptMany(ids))}
         onDismiss={() => void decide(dismiss)}
+        rise={!still}
       />
     </div>
   );

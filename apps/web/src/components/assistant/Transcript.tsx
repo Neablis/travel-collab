@@ -364,7 +364,10 @@ export function Transcript({
   // The turns there when the thread was first shown. Each turn rises in as it
   // arrives (M54 decision 13), and opening on a restored thread is not an
   // arrival (PR 605 review). The exchange still being had is: a first question
-  // is what mounts this.
+  // is what mounts this. Two edges are accepted, since telling them apart
+  // needs state from above: reopened mid-answer, that exchange rises a second
+  // time; and history restored after the first question mounts this (an ask
+  // before the session name resolves) rises in at once above it.
   const [shown] = useState(() => {
     const asked = turns.map((turn) => turn.role).lastIndexOf("user");
     const asking = turns.slice(asked + 1).some((turn) => turn.role === "assistant" && turn.pending);
@@ -467,12 +470,15 @@ export function Transcript({
                 touch={touch}
                 undo={undoFor?.(turn.proposal) ?? null}
                 {...(onUndoProposal === undefined ? {} : { onUndo: () => onUndoProposal(turn.id) })}
+                rise={rises(turn)}
               />
             )}
-            {turn.suggested != null && <SuggestedNote suggested={turn.suggested} hint={example?.review} still={example !== null} />}
+            {turn.suggested != null && (
+              <SuggestedNote suggested={turn.suggested} hint={example?.review} still={example !== null} rise={rises(turn)} />
+            )}
             {/* Its own decision and its own handler, held beside the palette
                 registry, so no surface has to wire an Approve for it. */}
-            {turn.offers?.map((offer) => <CommandCard key={offer.key} offer={offer} touch={touch} />)}
+            {turn.offers?.map((offer) => <CommandCard key={offer.key} offer={offer} touch={touch} rise={rises(turn)} />)}
             {/* Visible only, and no `role` — a second live region nested
                 inside the log is what finding 4 was about. Once text is
                 arriving the text IS the progress indicator, so this drops away

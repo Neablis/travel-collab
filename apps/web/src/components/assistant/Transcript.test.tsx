@@ -1,6 +1,9 @@
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
+import { notebookEditingCommand } from "@/components/palette/commands";
+import { registerPaletteCommands } from "@/components/palette/paletteRegistry";
+import { offerPaletteCommand } from "./runPaletteCommands";
 import { Transcript, toolNoteLabel, type AssistantTurn } from "./Transcript";
 
 afterEach(cleanup);
@@ -306,6 +309,58 @@ describe("Transcript", () => {
     expect(rising()).toEqual([]);
     rerender(<Transcript turns={THREAD} />);
     expect(rising()).toEqual(["What about the next day?", "Thinking…"]);
+    // Settled the moment it lands, as the New-trip wizard's next question is:
+    // it rises only because `shown` was frozen at first show.
+    rerender(
+      <Transcript
+        turns={[...THREAD.slice(0, 2), { id: "u9", role: "user", text: "x" }, { id: "a9", role: "assistant", text: "y", tools: [], pending: false }]}
+      />,
+    );
+    expect(rising()).toEqual(["x", "y"]);
+  });
+
+  // Finding 1 of the PR 605 review: the cards under a restored turn hold
+  // still with it. A card that mounted open still rises when it settles,
+  // since that receipt is new; one that mounted settled does not.
+  it("holds a restored turn's cards still, and rises in a receipt decided after", () => {
+    onTestFinished(registerPaletteCommands("test", [notebookEditingCommand(false, vi.fn())]));
+    const key = offerPaletteCommand();
+    const moving = () => {
+      const log = screen.getByRole("log", { name: "Conversation" });
+      return [...within(log).queryAllByRole("generic"), ...within(log).queryAllByRole("group")]
+        .filter((el) => el.hasAttribute("data-rise-in") || el.hasAttribute("data-settle-in"))
+        .map((el) => el.getAttribute("aria-label") ?? el.textContent);
+    };
+    const restored = (status: "pending" | "applying" | "applied"): AssistantTurn[] => [
+      { id: "u1", role: "user", text: "add a coffee stop" },
+      {
+        id: "a1",
+        role: "assistant",
+        text: "Done.",
+        tools: [],
+        pending: false,
+        proposal: { proposal: PROPOSAL, status: "applied", note: "Added it." },
+      },
+      { id: "u2", role: "user", text: "and turn editing on" },
+      {
+        id: "a2",
+        role: "assistant",
+        text: "Here you are.",
+        tools: [],
+        pending: false,
+        proposal: { proposal: PROPOSAL, status, note: status === "applied" ? "Added it again." : null },
+        suggested: { suggestionId: "7d9a1f8e-0000-4000-8000-000000000001", changeCount: 2, snapshotId: null, snapshotName: null, skipped: [] },
+        offers: [{ id: "notebook-editing", key, on: true }],
+      },
+    ];
+    const { rerender } = render(<Transcript turns={restored("pending")} />);
+    expect(screen.getByRole("group", { name: "Suggested action" })).toBeTruthy();
+    expect(moving()).toEqual([]);
+    // Approve pressed: the open card does not start rising on the click.
+    rerender(<Transcript turns={restored("applying")} />);
+    expect(moving()).toEqual([]);
+    rerender(<Transcript turns={restored("applied")} />);
+    expect(moving()).toEqual(["✓", "Suggested change"]);
   });
 
   // The first question of a conversation is what mounts the transcript, and

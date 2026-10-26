@@ -31,6 +31,7 @@ export function SuggestedNote({
   suggested,
   hint,
   still = false,
+  rise = !still,
 }: {
   suggested: AssistantSuggested;
   /** Where to review them, where there is no trip header to point at: said in place of both sentences that point at it. */
@@ -41,12 +42,14 @@ export function SuggestedNote({
    * there is no trip to accept into.
    */
   still?: boolean;
+  /** False under a turn that holds still; a picture never rises. */
+  rise?: boolean;
 }) {
   const accept = useAcceptAll();
   const [accepted, setAccepted] = useState(false);
   const offer = still || (accept !== null && !accepted && (accept.acceptable.length > 0 || accept.accepting));
   return (
-    <div role="group" aria-label="Suggestions on the board" data-rise-in={still ? undefined : ""} className="rounded-a-card border border-brand bg-brand-tint p-3">
+    <div role="group" aria-label="Suggestions on the board" data-rise-in={rise ? "" : undefined} className="rounded-a-card border border-brand bg-brand-tint p-3">
       <p className="text-a-chat font-semibold text-pretty text-brand-pressed">{suggestedWords(suggested)}</p>
       {/* What the resolver could not match, as the card says it. */}
       {suggested.skipped.length > 0 && (
