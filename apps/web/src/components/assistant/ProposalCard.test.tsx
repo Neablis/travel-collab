@@ -143,8 +143,10 @@ describe("ProposalCard", () => {
 
   it("holds both buttons while the batch is in flight", () => {
     renderCard({ state: state({ status: "applying" }) });
-    const applying = screen.getByRole("button", { name: "Applying…" }) as HTMLButtonElement;
-    expect(applying.disabled).toBe(true);
+    const applying = screen.getByRole("button", { name: "Applying…" });
+    // Pending, not a label swap: the visible words hold so the button keeps its box.
+    expect(applying.getAttribute("aria-busy")).toBe("true");
+    expect(applying.textContent).toBe("Make the change");
     expect((screen.getByRole("button", { name: "Not now" }) as HTMLButtonElement).disabled).toBe(true);
   });
 

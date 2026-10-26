@@ -319,8 +319,8 @@ function EditForm({ initial, onSave, onCancel }: { initial: string; onSave: (bod
       }}
     >
       <Input aria-label="Edit message" value={draft} onChange={(event) => setDraft(event.target.value)} autoFocus />
-      <Button type="submit" variant="primary" size="sm" disabled={unchanged || saving}>
-        {saving ? "Saving…" : "Save"}
+      <Button type="submit" variant="primary" size="sm" disabled={!saving && unchanged} pending={saving} pendingLabel="Saving…">
+        Save
       </Button>
       <Button type="button" variant="ghost" size="sm" onClick={onCancel}>
         Cancel

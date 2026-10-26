@@ -718,10 +718,12 @@ export function TokensSection() {
             <Button
               size="sm"
               data-testid="token-create"
-              disabled={busy || name.trim() === "" || scopes.length === 0 || scopedToNothing}
+              disabled={!busy && (name.trim() === "" || scopes.length === 0 || scopedToNothing)}
+              pending={busy}
+              pendingLabel="Creating…"
               onClick={() => void create()}
             >
-              {busy ? "Creating…" : "Create token"}
+              Create token
             </Button>
             <Button variant="ghost" size="sm" data-testid="token-cancel" onClick={() => setCreating(false)}>
               Cancel

@@ -266,8 +266,13 @@ function DemoBanner({ demo }: { demo: DemoTrip }) {
               {error}
             </Text>
           )}
-          <Button variant="primary" disabled={copying} onClick={() => void makeItMine({ tripId: demo.tripId, pressed: true })}>
-            {copying ? "Making it yours…" : "Make this trip mine"}
+          <Button
+            variant="primary"
+            pending={copying}
+            pendingLabel="Making it yours…"
+            onClick={() => void makeItMine({ tripId: demo.tripId, pressed: true })}
+          >
+            Make this trip mine
           </Button>
         </div>
       </div>

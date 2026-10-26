@@ -40,10 +40,13 @@ describe("SyncFailure", () => {
     expect(reload).toHaveBeenCalledTimes(1);
   });
 
-  it("says Retrying and disables the button while a reload is in flight", () => {
-    render(<SyncFailure read={read({ error: "Network error", loading: true })} what="the board" />);
+  it("says Retrying and refuses a second press while a reload is in flight", async () => {
+    const reload = vi.fn();
+    render(<SyncFailure read={read({ error: "Network error", loading: true, reload })} what="the board" />);
     const retry = screen.getByRole("button", { name: "Retrying…" });
-    expect(retry).toBeTruthy();
-    expect((retry as HTMLButtonElement).disabled).toBe(true);
+    expect(retry.getAttribute("aria-busy")).toBe("true");
+    expect(retry.textContent).toBe("Retry");
+    await userEvent.click(retry);
+    expect(reload).not.toHaveBeenCalled();
   });
 });

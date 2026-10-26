@@ -61,8 +61,15 @@ export function MapOfflineState({
         Plan, which needs no connection.
       </Text>
       <div className="flex flex-wrap justify-center gap-2">
-        <Button variant="secondary" size="touch" onClick={onRetry} disabled={retrying} data-testid="map-offline-retry">
-          {retrying ? "Trying…" : "Try again"}
+        <Button
+          variant="secondary"
+          size="touch"
+          onClick={onRetry}
+          pending={retrying}
+          pendingLabel="Trying…"
+          data-testid="map-offline-retry"
+        >
+          Try again
         </Button>
         {openPlanHref !== undefined && (
           <Link
