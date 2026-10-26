@@ -170,7 +170,10 @@ describe("SharedDayMap", () => {
       <SharedDayMap savedDayId={DAY_ID} days={[{ dayIndex: 0, stops: [stop(), stop()] }]} scope="all" pinning />,
     );
     expect(screen.getByTestId("shared-day-map-frame")).toBeDefined();
-    expect(screen.getByTestId("shared-day-map-loading")).toBeDefined();
+    // The shared outline (`ui/skeleton.tsx`), not a filled pulse of its own:
+    // rule 3 there, placeholders are outlines and never fills (M54 part 4).
+    expect(screen.getByRole("status", { name: "Placing the stops on the map" })).toBeDefined();
+    expect(screen.getByTestId("shared-day-map-loading").hasAttribute("data-sk")).toBe(true);
     expect(screen.queryByRole("heading", { name: "Nothing to map yet" })).toBeNull();
   });
 

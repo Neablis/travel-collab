@@ -138,7 +138,7 @@ describe("a public profile", () => {
     fetchPublicProfileMock.mockResolvedValue({ ok: false, error: { status: 0, message: "Network error" } });
     renderProfile();
     await screen.findByText("This profile did not load");
-    expect(screen.queryByTestId("profile-skeleton")).toBeNull();
+    expect(screen.queryByRole("status", { name: "Loading this profile" })).toBeNull();
     // Test-pruning: the page keeps only its own halves here (its error
     // copy, its skeleton going away, and that it wires the banner at all).
     // The banner's contract — exactly one Retry, and that it reloads —
@@ -149,7 +149,7 @@ describe("a public profile", () => {
   it("shows the skeleton only while the first read is still in flight", () => {
     fetchPublicProfileMock.mockReturnValue(new Promise(() => {}));
     renderProfile();
-    expect(screen.getByTestId("profile-skeleton")).toBeTruthy();
+    expect(screen.getByRole("status", { name: "Loading this profile" })).toBeTruthy();
   });
 
   // §15: no bio, no follow, no avatar, no public user record. (The rating and

@@ -15,6 +15,7 @@ import { mapPaintColor } from "@/components/lenses/mapColor";
 import { MapOfflineState } from "@/components/lenses/MapOfflineState";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Skeleton, SkeletonRegion } from "@/components/ui/skeleton";
 import { useDistanceUnit } from "@/components/account/PreferencesProvider";
 import { cn } from "@/lib/cn";
 import { useIsPhone } from "@/lib/useIsPhone";
@@ -354,15 +355,12 @@ export function SharedDayMap({
 
   // **What the frame holds when there is no map to draw in it** — the same box
   // either way, so neither state moves the page. Loading is the moss ground the
-  // map itself paints on, pulsing, so the map arriving is a picture appearing
-  // rather than a box changing.
+  // map itself paints on, with the shared outline breathing on it (M54 part 4),
+  // so the map arriving is a picture appearing rather than a box changing.
   const placeholder = loading ? (
-    <div
-      role="status"
-      aria-label="Placing the stops on the map"
-      className="size-full animate-pulse bg-moss"
-      data-testid="shared-day-map-loading"
-    />
+    <SkeletonRegion label="Placing the stops on the map" className="size-full bg-moss p-3">
+      <Skeleton className="size-full" data-testid="shared-day-map-loading" />
+    </SkeletonRegion>
   ) : (
     <div className="flex size-full items-center justify-center bg-paper p-4" data-testid="shared-day-map-empty">
       <EmptyState icon={<PinGlyph />} title={EMPTY_TITLE} body={EMPTY_BODY} />

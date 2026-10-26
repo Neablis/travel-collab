@@ -75,6 +75,26 @@ describe("CoverImage", () => {
     expect(screen.queryByRole("img")).toBeNull();
   });
 
+  // M54 part 4: a photo fades in when it arrives rather than painting in rows.
+  // `data-loaded` is what its opacity is keyed on.
+  it("starts hidden and is shown once its photo has loaded", () => {
+    render(<CoverImage photo={unsplash} sizes="100vw" />);
+    const img = screen.getByRole("img");
+    expect(img.hasAttribute("data-loaded")).toBe(false);
+    fireEvent.load(img);
+    expect(img.hasAttribute("data-loaded")).toBe(true);
+  });
+
+  // React attaches `onLoad` at hydration and does not replay one that fired
+  // before it, so a server-rendered photo already in would stay hidden.
+  it("is shown at once when its photo had loaded before it mounted", () => {
+    vi.spyOn(HTMLImageElement.prototype, "complete", "get").mockReturnValue(true);
+    vi.spyOn(HTMLImageElement.prototype, "currentSrc", "get").mockReturnValue("https://images.unsplash.com/requested");
+    vi.spyOn(HTMLImageElement.prototype, "naturalWidth", "get").mockReturnValue(1200);
+    render(<CoverImage photo={unsplash} sizes="100vw" />);
+    expect(screen.getByRole("img").hasAttribute("data-loaded")).toBe(true);
+  });
+
   // A server-rendered photo can fail before hydration, and React attaches
   // `onError` only then, without replaying it: the box must still fall back.
   it("drops a photo that had already failed when it mounted, and keeps one that had loaded", () => {

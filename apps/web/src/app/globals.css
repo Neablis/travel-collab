@@ -2817,3 +2817,70 @@ html[data-look="ledger"] .shadow-raised {
     }
   }
 }
+
+/* ── M54: routes cross-fade, and what stands in while they load (decision 18,
+   ADR-082 §3). React's `<ViewTransition>` names the page's boundary (in
+   `AppShell`, and the root layout's slot for the front door) and the document
+   is `root`; `*` is both, so every route change is one short cross-fade from
+   part 1's tokens. Old and new run the same duration and curve: the UA blends
+   the pair with `plus-lighter`, which sums to a steady page only when they do.
+
+   The header and the phone tab bar are boundaries of their own, named
+   `app-header` and `phone-tab-bar` in `AppShell`, and they do not move: no
+   group animation, and only the new image, which is live, so a tab's own
+   indicator still slides inside it. A named rule outranks `*`.
+
+   Under reduced motion the swap is instant: nothing animates and the old image
+   is never drawn, so there is no frame of the pair summed.
+
+   Where the View Transitions API is missing, the `template.tsx` in `(app)` and
+   `(front)` remounts on each route and fades its page in instead. `backwards`,
+   not `both`, so once it ends the page is no stacking context.
+
+   `[data-sk-region]` is `SkeletonRegion`: a group of outlines fades in rather
+   than popping. Its leaves keep `[data-sk]`'s breathe as their own animation. */
+@layer components {
+  ::view-transition-group(*) {
+    animation-duration: var(--transition-duration-base);
+    animation-timing-function: var(--ease-calm);
+  }
+  ::view-transition-old(*) {
+    animation: tc-fade-out var(--transition-duration-base) var(--ease-calm) both;
+  }
+  ::view-transition-new(*) {
+    animation: tc-fade-in var(--transition-duration-base) var(--ease-calm) both;
+  }
+
+  ::view-transition-group(app-header),
+  ::view-transition-group(phone-tab-bar),
+  ::view-transition-new(app-header),
+  ::view-transition-new(phone-tab-bar) {
+    animation: none;
+  }
+  ::view-transition-old(app-header),
+  ::view-transition-old(phone-tab-bar) {
+    display: none;
+  }
+
+  @supports not (view-transition-name: none) {
+    [data-route-enter] {
+      animation: tc-fade-in var(--transition-duration-base) var(--ease-calm) backwards;
+    }
+  }
+
+  [data-sk-region] {
+    animation: tc-fade-in var(--transition-duration-base) var(--ease-calm) backwards;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    ::view-transition-group(*),
+    ::view-transition-new(*),
+    [data-route-enter],
+    [data-sk-region] {
+      animation: none;
+    }
+    ::view-transition-old(*) {
+      display: none;
+    }
+  }
+}

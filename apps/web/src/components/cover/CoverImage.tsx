@@ -181,6 +181,11 @@ export function CoverImage({
   // such as the one whose load forgot it, keeps its element.
   const [broken, setBroken] = useState(false);
   const [retry, setRetry] = useState(0);
+  // The src that has painted, so the photo fades in when it arrives (M54 part
+  // 4) and again when the cover changes to one that has not. Never for a
+  // `priority` photo: it is the page's largest paint, and one at opacity 0 is
+  // no paint at all until hydration has run.
+  const [loadedSrc, setLoadedSrc] = useState<string>();
   if (broken && shown) {
     setBroken(false);
     setRetry(retry + 1);
@@ -212,22 +217,29 @@ export function CoverImage({
       decoding="async"
       // A phone's blank stand-in loading says nothing about the photo.
       onLoad={(e) => {
+        setLoadedSrc(src);
         if (e.currentTarget.currentSrc !== BLANK) markLoaded(src);
       }}
       onError={fail}
       // A server-rendered image can fail before hydration, and React attaches
       // `onError` only then, without replaying it: check once it is ours. Only
       // a requested image has a `currentSrc`, so a lazy one the browser has
-      // deferred is never taken for a broken one.
+      // deferred is never taken for a broken one. `onLoad` is not replayed
+      // either, so a photo that is already in is shown from here.
       ref={(el) => {
         if (!broken && el?.complete && el.naturalWidth === 0 && el.currentSrc !== "") fail();
+        if (el?.complete && el.naturalWidth > 0 && loadedSrc !== src) setLoadedSrc(src);
       }}
       // A failed photo stays in the box, hidden, so that mounting it again
       // asks again, and its `load` brings it and its credit back.
       aria-hidden={shown ? undefined : true}
       // eslint-disable-next-line no-restricted-syntax -- the cover's stored framing, 0–100 per photo (M49 decision 9): data, not a style a token could name
       style={{ objectPosition: `center ${photo.position ?? 50}%` }}
-      className={cn("absolute inset-0 size-full object-cover", !shown && "invisible")}
+      data-loaded={priority || loadedSrc === src ? "" : undefined}
+      className={cn(
+        "absolute inset-0 size-full object-cover opacity-0 transition-opacity duration-slow ease-calm data-loaded:opacity-100 motion-reduce:transition-none",
+        !shown && "invisible",
+      )}
     />
   );
   return (

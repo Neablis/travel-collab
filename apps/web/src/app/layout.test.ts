@@ -1,4 +1,4 @@
-import type { ReactElement } from "react";
+import { ViewTransition, type ReactElement } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 // `next/font/google` is transformed by Next's SWC plugin at build time; imported
@@ -63,6 +63,22 @@ describe("root layout Vercel telemetry", () => {
     vi.stubEnv("VERCEL", "1");
     expect(mounts(Analytics)).toBe(true);
     expect(mounts(SpeedInsights)).toBe(true);
+  });
+});
+
+// Decision 18 (ADR-082 §3): the front door has no `AppShell`, so the root
+// layout's slot is where its pages get the route cross-fade.
+describe("root layout route cross-fade", () => {
+  it("puts the page inside a view transition", () => {
+    const page = { type: "p", props: {}, key: null } as ReactElement;
+    const inside = (node: unknown, within: boolean): boolean => {
+      if (node === page) return within;
+      if (Array.isArray(node)) return node.some((n) => inside(n, within));
+      if (node === null || typeof node !== "object") return false;
+      const element = node as ReactElement<{ children?: unknown }>;
+      return inside(element.props?.children, within || element.type === ViewTransition);
+    };
+    expect(inside(RootLayout({ children: page }), false)).toBe(true);
   });
 });
 

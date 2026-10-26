@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { ViewTransition } from "react";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Bricolage_Grotesque, IBM_Plex_Mono, IBM_Plex_Sans } from "next/font/google";
@@ -118,7 +119,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             supplies it. A client provider here does not make this layout a
             client component — `children` is still passed through as an
             already-rendered server tree. */}
-        <SaveLightProvider>{children}</SaveLightProvider>
+        {/* The front door's route cross-fade (decision 18, ADR-082 §3): it
+            has no `AppShell`, so its pages fade here. An app page's own
+            boundaries are nested inside this one, and claim its changes. */}
+        <SaveLightProvider>
+          <ViewTransition>{children}</ViewTransition>
+        </SaveLightProvider>
         <ServiceWorkerRegistration />
         <InstallPromptRegistration />
         {/* Only on Vercel. Both packages gate themselves on `isDevelopment()`

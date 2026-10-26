@@ -80,6 +80,17 @@ describe("SkeletonRegion", () => {
     const region = screen.getByRole("status", { name: "Loading your trips" });
     expect(region.getAttribute("aria-busy")).toBe("true");
   });
+
+  // M54 part 4: a region fades in rather than popping, and leaves `data-sk`'s
+  // breathe alone on its leaves. `globals.css` keys the fade on this.
+  it("carries the enter fade's hook", () => {
+    render(
+      <SkeletonRegion label="Loading your trips">
+        <Skeleton className="h-4 w-8" />
+      </SkeletonRegion>,
+    );
+    expect(screen.getByRole("status", { name: "Loading your trips" }).hasAttribute("data-sk-region")).toBe(true);
+  });
 });
 
 describe("RegionError — rule 2, a retry in place", () => {
