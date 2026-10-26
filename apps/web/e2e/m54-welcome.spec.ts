@@ -75,7 +75,7 @@ for (const [width, viewport] of [
         },
       ],
     ] as const) {
-      test(`a ${kind} is welcomed by name on a splash, then the page is handed over`, async ({ page }) => {
+      test(`a ${kind} is welcomed on a splash, then the page is handed over`, async ({ page }) => {
         // This spec is about the splash, so it does not wait it out.
         await page.removeLocatorHandler(welcomeSplash(page));
         const username = `welcome${randomUUID().replace(/-/g, "").slice(0, 10)}`;
@@ -94,7 +94,9 @@ for (const [width, viewport] of [
         const under = await centreOf(newTrip);
         await page.mouse.click(under.x, under.y);
 
-        await expect(moment.getByText(`Welcome, ${username}`)).toBeVisible();
+        // Either words: a session read slower than the name wait says
+        // "Welcome!", and the unit tests own which one shows.
+        await expect(moment.getByText(new RegExp(`^Welcome(, ${username}|!)$`))).toBeVisible();
         await expect(moment).toBeHidden({ timeout: LEAVES_WITHIN_MS });
         const composer = page.getByLabel("Where are you going?");
         await expect(composer).not.toBeFocused();

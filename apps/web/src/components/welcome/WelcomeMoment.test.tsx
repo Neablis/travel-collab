@@ -147,24 +147,40 @@ describe("LaunchOverlay", () => {
   });
 
   // The gate: the splash leaves within the name-wait cap. A name that answers
-  // late, inside the 600ms wait, holds the splash longest; it still goes by
-  // the wait plus the named welcome. Whether the page then answers a tap, and
-  // not before, is hit-testing jsdom does not do: `m54-welcome.spec.ts` owns it.
+  // late, inside the 450ms wait from the stamp, holds as long as a "Welcome!"
+  // does; either goes by the wait plus the welcome, about 1.6s after the
+  // splash went up. Whether the page then answers a tap, and not before, is
+  // hit-testing jsdom does not do: `m54-welcome.spec.ts` owns it.
   it("leaves within the name-wait cap", async () => {
     vi.useFakeTimers();
-    launchedMsAgo(100);
-    document.documentElement.setAttribute("data-launch", "");
+    launchedMsAgo(4900);
+    document.documentElement.setAttribute("data-launch", "4800");
     document.cookie = `${WELCOME_COOKIE}=signup; Path=/`;
-    sessionAnswersAfter(500);
+    sessionAnswersAfter(300);
     render(<LaunchOverlay />);
     await elapse(1400);
     const moment = screen.getByTestId("welcome-moment");
     expect(within(moment).getByText("Welcome, Ana")).toBeDefined();
     expect(document.documentElement.hasAttribute("data-launch")).toBe(true);
 
-    await elapse(350);
+    await elapse(100);
     expect(screen.queryByTestId("welcome-moment")).toBeNull();
     expect(document.documentElement.hasAttribute("data-launch")).toBe(false);
+  });
+
+  // A "Welcome!" lasts about 1.6s from the splash going up, like a named one,
+  // however long hydration took: the name wait counts from the stamp.
+  it.each([150, 400])("ends a Welcome! about 1.6s after the splash went up, hydrating at %ims", async (hydratedAt) => {
+    vi.useFakeTimers();
+    launchedMsAgo(4800 + hydratedAt);
+    document.documentElement.setAttribute("data-launch", "4800");
+    document.cookie = `${WELCOME_COOKIE}=signin; Path=/`;
+    sessionAnswersAfter(2000);
+    render(<LaunchOverlay />);
+    await elapse(1450 - hydratedAt);
+    expect(within(screen.getByTestId("welcome-moment")).getByText("Welcome!")).toBeDefined();
+    await elapse(200);
+    expect(screen.queryByTestId("welcome-moment")).toBeNull();
   });
 
   // A splash that has already stood through a slow hydration still holds its

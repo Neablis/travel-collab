@@ -134,19 +134,19 @@ function prefersReducedMotion(): boolean {
  * is never hidden and then shown, which would put a blank frame between the
  * splash and the app.
  *
- * After a sign-in it spends the cue, so a refresh does not replay it, waits up
- * to `NAME_WAIT_MS` for the account's name, and shows and says "Welcome,
- * {name}", or "Welcome!" when the name has not come by then (Mitchell,
- * 2026-10-26). The words are fixed when they appear: a name that comes later
+ * After a sign-in it spends the cue, so a refresh does not replay it, waits
+ * for the account's name until `NAME_WAIT_MS` after the splash went up, and
+ * shows and says "Welcome, {name}", or "Welcome!" when the name has not come
+ * by then (Mitchell, 2026-10-26). The words are fixed when they appear: a name that comes later
  * changes neither. Under reduced motion that is the same hold with nothing
  * moving, so the page is still handed over whole. When it draws nothing, the
  * words are still said.
  *
  * The words always get the full hold, so they can be read: the splash goes
- * about 1.15s after they appear, which on a normal load is about 1.2 to 1.6s
- * after it went up. A page that hydrates late holds it longer, since nothing
- * can lift it before then but the CSS fail-safe, which also cuts the hold: the
- * worst is 3s plus the unlock.
+ * about 1.15s after they appear, which on a normal load is at most about 1.6s
+ * after it went up, named or not. A page that hydrates past the wait holds it
+ * longer, since nothing can lift it before then but the CSS fail-safe, which
+ * also cuts the hold: the worst is 3s plus the unlock.
  */
 export function LaunchOverlay() {
   // `null` once nothing is drawn. The overlay is always the first child, so the
@@ -182,9 +182,13 @@ export function LaunchOverlay() {
       if (kind !== null) setWelcomed({ nameWaitMs: NAME_WAIT_MS });
       return;
     }
-    // Breathing past the fail-safe would let the CSS fade the sheet before the
-    // welcome brings it back.
-    if (kind !== null) setWelcomed({ nameWaitMs: Math.min(NAME_WAIT_MS, LAUNCH_FAILSAFE_MS - since) });
+    // The wait counts from the stamp, so a late hydration does not lengthen the
+    // splash; without one, from now. Breathing past the fail-safe would let the
+    // CSS fade the sheet before the welcome brings it back.
+    if (kind !== null) {
+      const waited = upAt > 0 ? since : 0;
+      setWelcomed({ nameWaitMs: Math.max(0, Math.min(NAME_WAIT_MS - waited, LAUNCH_FAILSAFE_MS - since)) });
+    }
     // From navigation start here, not the stamp: on a launch that is when the
     // OS splash went up, and "fast" is fast as the person saw it.
     else setLaunch({ phase: performance.now() < FAST_LAUNCH_MS ? "fade" : "unlock" });
@@ -240,9 +244,10 @@ function WelcomeName({
   return null;
 }
 
-// Long enough for a session read on a cold load to answer most of the time;
-// past it, the person has watched a breathing mark for long enough.
-const NAME_WAIT_MS = 600;
+// From the splash going up. With the welcome's hold and unlock it ends every
+// splash about 1.6s after it went up (the spec's band), named or not; past it,
+// the person has watched a breathing mark for long enough.
+const NAME_WAIT_MS = 450;
 
 // Decision 6's "about 300ms": under it, the splash simply ending reads better
 // than an animation the person had no time to see start.

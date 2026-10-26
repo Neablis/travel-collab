@@ -6,6 +6,11 @@ export { expect } from "@playwright/test";
 /** The splash every sign-in lands behind (M54 part 5). */
 export const welcomeSplash = (page: Page) => page.getByTestId("welcome-moment");
 
+// The splash's 3s cap and its unlock, with room for a slow runner. Without a
+// bound, a splash that never leaves fails as the test's own timeout at
+// whichever action comes next, which reads as a flake.
+const SPLASH_GONE_WITHIN_MS = 5_000;
+
 /**
  * Every page waits out the welcome splash before it acts or asserts. Any
  * sign-in through the form lands behind it for a second or so, and it takes
@@ -14,11 +19,6 @@ export const welcomeSplash = (page: Page) => page.getByTestId("welcome-moment");
  * action or an auto-waiting assertion; on any other load it is never shown.
  * `m54-welcome.spec.ts`, which is about the splash, removes it.
  */
-// The splash's 3s cap and its unlock, with room for a slow runner. Without a
-// bound, a splash that never leaves fails as the test's own timeout at
-// whichever action comes next, which reads as a flake.
-const SPLASH_GONE_WITHIN_MS = 5_000;
-
 function waitOutTheWelcomeSplash(context: BrowserContext) {
   const newPage = context.newPage.bind(context);
   context.newPage = async () => {
