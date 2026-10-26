@@ -1,6 +1,7 @@
 import { render, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DEMO_TRIPS } from "@/lib/demoTrip";
+import { demoTripSummary } from "@/lib/demoTripSummaries";
 import { rememberDemoClone } from "@/lib/pendingDemoClone";
 
 const pushMock = vi.fn();
@@ -35,7 +36,7 @@ describe("DemoTripScreen finishing a copy after sign-in", () => {
   it("copies the demo the marker names, not the one on the page", async () => {
     rememberDemoClone(demo("iceland-ring-road").tripId);
 
-    render(<DemoTripScreen demo={demo("japan")} />);
+    render(<DemoTripScreen demo={demo("japan")} summary={demoTripSummary("japan")} />);
 
     await waitFor(() => expect(pushMock).toHaveBeenCalledWith("/trips/copy"));
     expect(duplicateTripMock.mock.calls).toEqual([[demo("iceland-ring-road").tripId]]);

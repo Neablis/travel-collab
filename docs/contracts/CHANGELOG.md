@@ -13,6 +13,23 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-10-26 — `/v1/playbooks/{playbookId}/cover` (public API 1.30.0)
+- **New endpoints** (`apps/web/src/app/api/v1/playbooks/[playbookId]/cover/route.ts`):
+  `GET`, `PUT`, `PATCH`, `DELETE` for a playbook's cover, behind `library:read`
+  (GET) and `library:write` (writes), gated on playbook ownership — a Playbook
+  has no members list, so there is no viewer/editor role to gate on. `PUT`
+  takes the URL cover's fields (`url`, `alt?`, `credit?`, `position?`);
+  `PATCH` moves `position` 0–100; `DELETE` clears. No contract schema changed:
+  the endpoints reuse `TripCover`, `TripCoverResponse` and
+  `SetCoverPositionBody` as they stand.
+- Why: Mitchell, 2026-10-26 — an agent with a token can set its own
+  playbook's cover from any URL, without Unsplash. This reverses M49 decision
+  8's "playbook-day covers stay off the API" for URL covers only; the
+  Unsplash search stays off the API.
+- Consumers updated: `apps/web` (route, `savedDayCovers` URL/position
+  writers, `exposure.ts`, regenerated `openapi.json`) — in this same PR
+- Breaking? no — additive only
+
 ## 2026-10-25 — `/v1/trips/{tripId}/cover`, and the `cover-url-rejected` error code (M49 part 3; public API 1.29.0)
 - **New** (`packages/contracts/src/publicApi.ts`): `ApiErrorCode` gains `cover-url-rejected`, a
   422 for a cover URL that failed the set-time check. `details.reason` is the guard's refusal

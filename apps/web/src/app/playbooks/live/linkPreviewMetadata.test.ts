@@ -86,7 +86,9 @@ describe("/playbooks metadata", () => {
 
     expect(ogImageUrls(metadata)).toEqual(["/api/og/playbooks/city/Kyoto", SITE_IMAGE]);
     expect(metadata.openGraph?.title).toBe("Kyoto playbooks");
-    expect(metadata.title).toBe("Playbooks");
+    // M53 static-copy PROPOSAL: the tab keeps the page's own words, not the
+    // card's, so a city card still leaves the proposed Playbooks title.
+    expect(metadata.title).toBe("Days from real trips, ready to borrow");
     expect(String(fetchMock.mock.calls[0]?.[0])).toMatch(/\/api\/og\/playbooks\/city\/Kyoto\/meta$/);
   });
 
@@ -108,8 +110,11 @@ describe("/playbooks metadata", () => {
     const metadata = await discover(params);
 
     expect(ogImageUrls(metadata)).toEqual([PLAYBOOKS_IMAGE, SITE_IMAGE]);
-    expect(metadata.openGraph?.title).toBe("Playbooks on Caesura");
-    expect(metadata.title).toBe("Playbooks");
+    // M53 static-copy PROPOSAL (the words in `page.tsx`'s PLAYBOOKS_PROPOSAL):
+    // the generic card no longer says "Playbooks on Caesura".
+    expect(metadata.openGraph?.title).toBe("Days from real trips, ready to borrow");
+    expect(metadata.title).toBe("Days from real trips, ready to borrow");
+    expect(metadata.openGraph?.url).toBe("/playbooks");
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -142,6 +147,8 @@ describe("/playbooks canonical", () => {
 
     expect(placeForMock).toHaveBeenCalledWith(found.kind, found.slug);
     expect(metadata.alternates?.canonical).toBe(canonical);
+    // M53: og:url matches the canonical on the page that has one.
+    expect(metadata.openGraph?.url).toBe(canonical);
   });
 
   // A canonical naming a `noindex` page, or a 404, would hand a crawler
@@ -166,7 +173,9 @@ describe("/playbooks canonical", () => {
     stubMeta(new Error("no card needed"));
     placeForMock.mockResolvedValue(place("city", "kyoto", MIN_INDEXED_PLACE_DAYS));
 
-    expect((await discover(params)).alternates?.canonical).toBe("/playbooks");
+    const metadata = await discover(params);
+    expect(metadata.alternates?.canonical).toBe("/playbooks");
+    expect(metadata.openGraph?.url).toBe("/playbooks");
     expect(placeForMock).not.toHaveBeenCalled();
   });
 

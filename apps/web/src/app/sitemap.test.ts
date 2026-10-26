@@ -1,11 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const sitemapDays = vi.fn();
+const publishedPlaces = vi.fn();
 const publishedTagPages = vi.fn();
 const publishedCountryCityPages = vi.fn();
 vi.mock("@/server/playbooks", () => ({
   sitemapDays: () => sitemapDays(),
-  publishedPlaces: async () => [],
+  publishedPlaces: () => publishedPlaces(),
   publishedTagPages: () => publishedTagPages(),
   publishedCountryCityPages: () => publishedCountryCityPages(),
 }));
@@ -16,6 +17,7 @@ import sitemap from "./sitemap";
 
 beforeEach(() => {
   sitemapDays.mockReset().mockResolvedValue([]);
+  publishedPlaces.mockReset().mockResolvedValue([]);
   publishedTagPages.mockReset().mockResolvedValue([]);
   publishedCountryCityPages.mockReset().mockResolvedValue([]);
 });
@@ -84,5 +86,27 @@ describe("sitemap.xml", () => {
       "/playbooks/country/italy/tag/meal",
       "/playbooks/country/italy/city/rome/tag/meal",
     ]);
+  });
+
+  // M53 part C: a place or tag entry is dated by its newest published day,
+  // not by when the page was first listed; an entry whose days are all
+  // undated stays undated, like an undated day.
+  it("dates place, country×city and tag entries by their newest published day", async () => {
+    const italy = { slug: "italy", name: "Italy", countries: ["IT"] };
+    const rome = { slug: "rome", name: "Rome", cities: ["Rome"] };
+    publishedPlaces.mockResolvedValue([
+      { kind: "city", slug: "kyoto", name: "Kyoto", days: 3, newestPublishedAt: "2026-10-20T10:00:00.000Z" },
+      { kind: "country", slug: "italy", name: "Italy", days: 3, newestPublishedAt: null },
+    ]);
+    publishedCountryCityPages.mockResolvedValue([{ country: italy, city: rome, days: 3, newestPublishedAt: "2026-10-22T10:00:00.000Z" }]);
+    publishedTagPages.mockResolvedValue([
+      { tag: "meal", city: null, country: null, days: 3, newestPublishedAt: "2026-10-21T10:00:00.000Z" },
+    ]);
+    const entries = await sitemap();
+    const byPath = (path: string) => entries.find((e) => new URL(e.url).pathname === path);
+    expect(byPath("/playbooks/city/kyoto")?.lastModified).toBe("2026-10-20T10:00:00.000Z");
+    expect(byPath("/playbooks/country/italy")).not.toHaveProperty("lastModified");
+    expect(byPath("/playbooks/country/italy/city/rome")?.lastModified).toBe("2026-10-22T10:00:00.000Z");
+    expect(byPath("/playbooks/tag/meal")?.lastModified).toBe("2026-10-21T10:00:00.000Z");
   });
 });

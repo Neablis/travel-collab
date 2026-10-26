@@ -184,13 +184,11 @@ export const EXPOSURE: Readonly<Record<string, Exposure>> = {
     why: "Searching Unsplash would spend Caesura's quota on another program's behalf (ADR-081 item 7)",
     reaches: [{ module: "@/server/coverRoutes", symbols: ["coverSearch"] }, { module: "@/server/external/unsplash" }],
   },
-  // M49 decision 8: playbook-day covers stay off the API, and the day's
-  // search spends the same quota the trip search would.
-  "saved-days/[savedDayId]/cover": {
-    status: "never",
-    why: "Playbook-day covers stay off the API (M49 decision 8)",
-    reaches: [{ module: "@/server/savedDayCovers" }],
-  },
+  // Mitchell, 2026-10-26: playbook-day covers join the API for URL covers
+  // only, reversing M49 decision 8's "stay off" for this path — so an agent
+  // with a token can set its own Playbook's cover without Unsplash. The
+  // day's search stays never, below: it would spend Caesura's quota.
+  "saved-days/[savedDayId]/cover": { status: "public", v1: ["playbooks/[playbookId]/cover"] },
   "saved-days/[savedDayId]/cover/search": {
     status: "never",
     why: "Searching Unsplash would spend Caesura's quota on another program's behalf (ADR-081 item 7)",
