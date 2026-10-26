@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { useExitPresence } from "./useExitPresence";
+import { useExitPresence, useLetGoOfFocusOnClose } from "./useExitPresence";
 
 // ADR-082 §2: a surface Radix does not manage (the toast) stays mounted for
 // its exit animation, and is inert from the moment it starts to leave, so a
@@ -57,5 +57,37 @@ describe("useExitPresence", () => {
     fireEvent.click(screen.getByRole("button", { name: "Dismiss" }));
     fireEvent.animationEnd(screen.getByRole("status"));
     expect(onGone).toHaveBeenCalledTimes(1);
+  });
+});
+
+// A modal Radix overlay hides the page with `aria-hidden` (marked
+// `data-aria-hidden`) until it unmounts, so at close its opener is always
+// under it. `pageHidden` stands in for that; `data-state` for Radix's.
+function ModalHarness({ open, pageHidden }: { open: boolean; pageHidden: boolean }) {
+  useLetGoOfFocusOnClose(open);
+  return (
+    <>
+      <div data-aria-hidden={pageHidden ? "true" : undefined} aria-hidden={pageHidden ? "true" : undefined}>
+        <button type="button">Open</button>
+      </div>
+      <div data-motion="rise" data-state={open ? "open" : "closed"}>
+        <button type="button">Inside</button>
+      </div>
+    </>
+  );
+}
+
+describe("useLetGoOfFocusOnClose", () => {
+  // Spec §3: focus is on the opener the moment the overlay closes, not after
+  // its exit, and exposed: a role query skips an `aria-hidden` subtree.
+  it("gives focus to a modal's opener at once, lifting the page's aria-hidden off it", () => {
+    const { rerender } = render(<ModalHarness open={false} pageHidden={false} />);
+    screen.getByRole("button", { name: "Open" }).focus();
+    rerender(<ModalHarness open pageHidden={false} />);
+    rerender(<ModalHarness open pageHidden />);
+    screen.getByRole("button", { name: "Inside" }).focus();
+
+    rerender(<ModalHarness open={false} pageHidden />);
+    expect(screen.getByRole("button", { name: "Open" }).matches(":focus")).toBe(true);
   });
 });
