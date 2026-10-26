@@ -1,10 +1,10 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { act, cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { SessionUserProvider } from "@/components/account/useSessionUser";
-import { WELCOME_COOKIE, readWelcomeCue } from "@/lib/welcomeCue";
+import { LAUNCH_SCRIPT, WELCOME_COOKIE, readWelcomeCue } from "@/lib/welcomeCue";
 import { LaunchOverlay, WelcomeCue, WelcomeMoment } from "./WelcomeMoment";
 
 // jsdom loads none of our CSS, and "takes no pointer events" is a fact about
@@ -21,8 +21,21 @@ beforeAll(() => {
 afterEach(() => {
   cleanup();
   vi.useRealTimers();
+  vi.unstubAllGlobals();
+  sessionStorage.clear();
+  document.documentElement.removeAttribute("data-launch");
   document.cookie = `${WELCOME_COOKIE}=; Path=/; Max-Age=0`;
 });
+
+// `matchMedia` answering `true` for exactly the queries given.
+function stubMedia(...matching: string[]) {
+  vi.stubGlobal("matchMedia", (query: string) => ({
+    matches: matching.includes(query),
+    media: query,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+  }));
+}
 
 describe("WelcomeMoment", () => {
   // Decision 4: on desktop the moment plays over a page the person can
@@ -74,9 +87,9 @@ describe("WelcomeMoment", () => {
   });
 });
 
-describe("WelcomeCue", () => {
-  const ana = { id: "user-ana", name: "Ana", email: "ana@example.com" };
+const ana = { id: "user-ana", name: "Ana", email: "ana@example.com" };
 
+describe("WelcomeCue", () => {
   it("greets a new account by name, once, and spends the cookie", () => {
     document.cookie = `${WELCOME_COOKIE}=signup; Path=/`;
     render(
@@ -84,7 +97,10 @@ describe("WelcomeCue", () => {
         <WelcomeCue />
       </SessionUserProvider>,
     );
-    expect(screen.getByText("Welcome, Ana")).toBeDefined();
+    expect(within(screen.getByTestId("welcome-moment")).getByText("Welcome, Ana")).toBeDefined();
+    // Said once, through the live region; the moment itself is decoration.
+    const said = screen.getByText("Welcome, Ana", { ignore: "[aria-hidden], [aria-hidden] *" });
+    expect(said.getAttribute("aria-live")).toBe("polite");
     expect(readWelcomeCue(document.cookie)).toBeNull();
   });
 
@@ -100,6 +116,21 @@ describe("WelcomeCue", () => {
     expect(screen.queryByText("Welcome, Ana")).toBeNull();
   });
 
+  // ADR-082 decision 2: under reduced motion an overlay unmounts at once. A
+  // static full-size sheet would hide the page it landed on while still
+  // letting taps through to it.
+  it("plays nothing under reduced motion, and still spends the cookie", () => {
+    stubMedia("(prefers-reduced-motion: reduce)", "(pointer: coarse)");
+    document.cookie = `${WELCOME_COOKIE}=signup; Path=/`;
+    render(
+      <SessionUserProvider initialUser={ana}>
+        <WelcomeCue />
+      </SessionUserProvider>,
+    );
+    expect(screen.queryByTestId("welcome-moment")).toBeNull();
+    expect(readWelcomeCue(document.cookie)).toBeNull();
+  });
+
   it("plays nothing without the cookie", () => {
     render(
       <SessionUserProvider initialUser={ana}>
@@ -111,11 +142,44 @@ describe("WelcomeCue", () => {
 });
 
 describe("LaunchOverlay", () => {
-  afterEach(() => document.documentElement.removeAttribute("data-launch"));
-
   it("is gone at hydration on any load that is not a home-screen launch", () => {
     render(<LaunchOverlay />);
     expect(screen.queryByTestId("welcome-moment")).toBeNull();
+  });
+
+  // A refresh, the sign-out redirect and the return from sign-in are all full
+  // loads in the installed app; only the first in a session is a launch.
+  it("marks only the first load of a session in the installed app as a launch", () => {
+    stubMedia("(display-mode: standalone)");
+    // eslint-disable-next-line @typescript-eslint/no-implied-eval -- runs the inline <head> script as the browser would
+    const runLaunchScript = new Function(LAUNCH_SCRIPT);
+    runLaunchScript();
+    expect(document.documentElement.hasAttribute("data-launch")).toBe(true);
+    document.documentElement.removeAttribute("data-launch");
+    runLaunchScript();
+    expect(document.documentElement.hasAttribute("data-launch")).toBe(false);
+  });
+
+  // The gate's "Welcome, {name} after signup": a signup whose first app page
+  // is a launch is greeted by the launch overlay, which the shell's cue (inside
+  // the session provider) leaves it to. Outside that provider, as in the root
+  // layout, the overlay asks the session for the name itself.
+  it("greets a new account by name when the sign-in lands as a launch", async () => {
+    document.documentElement.setAttribute("data-launch", "");
+    document.cookie = `${WELCOME_COOKIE}=signup; Path=/`;
+    vi.stubGlobal("fetch", async () => Response.json({ user: ana }));
+    render(
+      <>
+        <LaunchOverlay />
+        <SessionUserProvider initialUser={ana}>
+          <WelcomeCue />
+        </SessionUserProvider>
+      </>,
+    );
+    const [moment, ...more] = screen.getAllByTestId("welcome-moment");
+    expect(more).toHaveLength(0);
+    expect(await within(moment!).findByText("Welcome, Ana")).toBeDefined();
+    expect(readWelcomeCue(document.cookie)).toBeNull();
   });
 
   // Decision 6: it leaves as soon as the page is ready, and takes the launch

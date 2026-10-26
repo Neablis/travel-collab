@@ -37,4 +37,9 @@ export function clearWelcomeCue(doc: Pick<Document, "cookie"> = document): void 
 // is not a display-mode match on every version, `navigator.standalone` is.
 // `globals.css` shows `.launch-overlay` only under `html[data-launch]`, and
 // `LaunchOverlay` takes the attribute away once the page has hydrated.
-export const LAUNCH_SCRIPT = `try{if(navigator.standalone===true||matchMedia("(display-mode: standalone)").matches)document.documentElement.setAttribute("data-launch","")}catch(e){}`;
+//
+// Once per session: in the installed app a refresh, the sign-out redirect and
+// the return from a sign-in are full loads too, and none of them is a launch.
+// `sessionStorage` lives exactly as long as the app's window does.
+const LAUNCHED_KEY = "tc_launched";
+export const LAUNCH_SCRIPT = `try{if((navigator.standalone===true||matchMedia("(display-mode: standalone)").matches)&&!sessionStorage.getItem("${LAUNCHED_KEY}")){sessionStorage.setItem("${LAUNCHED_KEY}","1");document.documentElement.setAttribute("data-launch","")}}catch(e){}`;

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { BrandMark } from "@/components/BrandMark";
-import { useKnownSessionUser } from "@/components/account/useSessionUser";
+import { useKnownSessionUser, useSessionUser } from "@/components/account/useSessionUser";
 import { clearWelcomeCue, readWelcomeCue } from "@/lib/welcomeCue";
 
 /**
@@ -36,6 +36,10 @@ const MARK_PX = { full: 96, small: 64 } as const;
  * **Neither blocks anything** (decision 4): no focus trap, nothing made
  * `inert`, nothing focusable inside, and `globals.css` gives it no pointer
  * events, so a click or a key goes to the page underneath from the first frame.
+ *
+ * Hidden from assistive tech: a mark that leaves within a second is decoration,
+ * and "Welcome, {name}" is said through `WelcomeAnnouncement` instead, a live
+ * region that is already on the page when the words arrive.
  */
 export function WelcomeMoment({
   size,
@@ -63,6 +67,7 @@ export function WelcomeMoment({
   return (
     <div
       data-testid="welcome-moment"
+      aria-hidden
       className="welcome-moment"
       data-size={size}
       data-phase={phase}
@@ -70,9 +75,23 @@ export function WelcomeMoment({
     >
       <div className="flex flex-col items-center gap-4">
         <BrandMark size={MARK_PX[size]} pulsing={phase === "breathe"} className="welcome-mark" />
-        {name ? <p className="welcome-line font-display text-xl font-semibold text-ink">Welcome, {name}</p> : null}
+        {name ? <p className="welcome-line font-display text-xl font-semibold text-ink">{welcomeLine(name)}</p> : null}
       </div>
     </div>
+  );
+}
+
+const welcomeLine = (name: string) => `Welcome, ${name}`;
+
+// Rendered before it has anything to say: a live region inserted with its
+// words already in it is not reliably read out. `aria-live` rather than
+// `role="status"`: it sits in every app page, where the save light already
+// owns the one status role that specs find by role alone.
+function WelcomeAnnouncement({ name }: { name: string | undefined }) {
+  return (
+    <p aria-live="polite" className="sr-only">
+      {name ? welcomeLine(name) : ""}
+    </p>
   );
 }
 
@@ -83,7 +102,9 @@ export function WelcomeMoment({
  * which is where the new account's name is.
  *
  * Full-screen under a finger or in the installed app, small otherwise. Nothing
- * extra on a home-screen launch: `LaunchOverlay` is already this moment there.
+ * under reduced motion (ADR-082 decision 2: an overlay unmounts at once), and
+ * nothing on a home-screen launch: the cue is left for `LaunchOverlay`, which
+ * is already this moment there, whichever of the two hydrates first.
  */
 export function WelcomeCue() {
   const user = useKnownSessionUser();
@@ -91,20 +112,23 @@ export function WelcomeCue() {
 
   useEffect(() => {
     const kind = readWelcomeCue(document.cookie);
-    if (kind === null) return;
+    if (kind === null || document.documentElement.hasAttribute("data-launch")) return;
     clearWelcomeCue();
-    if (document.documentElement.hasAttribute("data-launch")) return;
+    if (prefersReducedMotion()) return;
     setCue({ size: wantsFullScreen() ? "full" : "small", signup: kind === "signup" });
   }, []);
 
-  if (cue === null) return null;
+  const name = cue?.signup ? (user?.name ?? undefined) : undefined;
   return (
-    <WelcomeMoment
-      size={cue.size}
-      name={cue.signup ? (user?.name ?? undefined) : undefined}
-      onDone={() => setCue(null)}
-    />
+    <>
+      <WelcomeAnnouncement name={name} />
+      {cue === null ? null : <WelcomeMoment size={cue.size} name={name} onDone={() => setCue(null)} />}
+    </>
   );
+}
+
+function prefersReducedMotion(): boolean {
+  return typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
 function wantsFullScreen(): boolean {
@@ -127,37 +151,70 @@ function wantsFullScreen(): boolean {
  * the unlock when it took longer, and at once under reduced motion. It is never
  * hidden and then shown, which would put a blank frame between the splash and
  * the app.
+ *
+ * A launch that is also the first page after a sign-in spends the welcome cue
+ * here (`WelcomeCue` leaves it while `data-launch` is set), and a signup's
+ * plays "Welcome, {name}".
  */
 export function LaunchOverlay() {
-  const [phase, setPhase] = useState<WelcomePhase | "gone">("breathe");
+  const [launch, setLaunch] = useState<{ phase: WelcomePhase; signup: boolean } | "gone">({
+    phase: "breathe",
+    signup: false,
+  });
 
   useEffect(() => {
     const root = document.documentElement;
-    const reduce = typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (!root.hasAttribute("data-launch") || reduce) {
-      root.removeAttribute("data-launch");
-      setPhase("gone");
+    if (!root.hasAttribute("data-launch")) {
+      setLaunch("gone");
       return;
     }
-    // Time since the launch began, which is when the OS splash went up.
-    setPhase(performance.now() < FAST_LAUNCH_MS ? "fade" : "unlock");
+    const kind = readWelcomeCue(document.cookie);
+    if (kind !== null) clearWelcomeCue();
+    // Time since the launch began, which is when the OS splash went up. Past
+    // the fail-safe, `globals.css` has already faded the overlay out, and
+    // showing it again would be the blank-frame flicker decision 6 forbids.
+    const since = performance.now();
+    if (prefersReducedMotion() || since >= LAUNCH_FAILSAFE_MS) {
+      root.removeAttribute("data-launch");
+      setLaunch("gone");
+      return;
+    }
+    if (kind !== null) setLaunch({ phase: "welcome", signup: kind === "signup" });
+    else setLaunch({ phase: since < FAST_LAUNCH_MS ? "fade" : "unlock", signup: false });
   }, []);
 
-  if (phase === "gone") return null;
+  if (launch === "gone") return null;
+  const leave = () => {
+    document.documentElement.removeAttribute("data-launch");
+    setLaunch("gone");
+  };
+  if (launch.signup) return <NamedLaunch onDone={leave} />;
   return (
     <div className="launch-overlay">
-      <WelcomeMoment
-        size="full"
-        phase={phase}
-        onDone={() => {
-          document.documentElement.removeAttribute("data-launch");
-          setPhase("gone");
-        }}
-      />
+      <WelcomeMoment size="full" phase={launch.phase} onDone={leave} />
     </div>
+  );
+}
+
+// The root layout has no session provider, so this asks the session itself,
+// and is mounted only on this rare path so no other load pays for the request.
+// The greeting plays at once and the name joins it when the answer lands.
+function NamedLaunch({ onDone }: { onDone: () => void }) {
+  const name = useSessionUser()?.name ?? undefined;
+  return (
+    <>
+      <WelcomeAnnouncement name={name} />
+      <div className="launch-overlay">
+        <WelcomeMoment size="full" name={name} onDone={onDone} />
+      </div>
+    </>
   );
 }
 
 // Decision 6's "about 300ms": under it, the splash simply ending reads better
 // than an animation the person had no time to see start.
 const FAST_LAUNCH_MS = 300;
+
+// The CSS fail-safe's delay (`globals.css`, `.launch-overlay`): a launch that
+// never hydrates (offline, a chunk that failed to load) still uncovers the page.
+const LAUNCH_FAILSAFE_MS = 3000;

@@ -2927,6 +2927,14 @@ html[data-look="ledger"] .shadow-raised {
   html[data-launch] .launch-overlay {
     display: contents;
   }
+  /* Fail-safe, under reduced motion too: only `LaunchOverlay` removes the
+     overlay, so a launch that never hydrates (offline, a chunk that failed
+     to load) would sit under it for good. Only while it still breathes: a
+     hydrated overlay has left that phase, and `LaunchOverlay` stands down past
+     the same 3s (`LAUNCH_FAILSAFE_MS`) rather than show it again. */
+  html[data-launch] .launch-overlay > .welcome-moment[data-phase="breathe"] {
+    animation: tc-fade-out var(--transition-duration-slow) var(--ease-calm) 3s both;
+  }
 
   @keyframes tc-unlock-left {
     to {
