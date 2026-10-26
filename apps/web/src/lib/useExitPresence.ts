@@ -11,20 +11,21 @@ import { useCallback, useEffect, useLayoutEffect, useRef, type RefObject } from 
  * so a Tab or a screen reader does not start from `<body>` for the length of
  * the exit (spec §3). A modal overlay leaves the page `aria-hidden` until it
  * unmounts, and focus in there is focus a screen reader cannot see, so the
- * opener's own ancestors are shown first, and the nodes lifted are returned
- * so a reopen can hide them again. `aria-hidden`'s undo is a no-op on an
- * attribute already gone. Lifted is every ancestor `aria-hidden` walked
- * (`data-aria-hidden`), which includes one the app had hidden itself; no
- * opener sits in such a subtree, since a focusable control there would be its
- * own bug. A nested modal's opener lives in the outer one's portal, so this
- * never shows what the outer modal hid. An opener that is gone, or hidden for
+ * opener's own ancestors are shown first. The nodes lifted, and what held
+ * focus, are returned so a reopen can undo both. `aria-hidden`'s undo is a
+ * no-op on an attribute already gone. Lifted is every ancestor `aria-hidden`
+ * walked (`data-aria-hidden`), which could include one the app had hidden
+ * itself, but none does: every caller portals to `<body>`, so only body's own
+ * children are ever marked, and the app hides none of them. A caller that
+ * renders in-tree would break that. A nested modal's opener lives in the outer
+ * one's portal, so this never shows what the outer modal hid. An opener that is gone, or hidden for
  * another reason, gets nothing: focus is blurred, and Radix's return (or the
  * caller's `onCloseAutoFocus`) still decides where it lands.
  */
-function letGoOfFocus(opener: HTMLElement | null = null): HTMLElement[] {
+function letGoOfFocus(opener: HTMLElement | null = null): { lifted: HTMLElement[]; held: HTMLElement | null } {
   const lifted: HTMLElement[] = [];
   const at = document.activeElement;
-  if (!(at instanceof HTMLElement) || at.closest('[data-motion][data-state="closed"]') === null) return lifted;
+  if (!(at instanceof HTMLElement) || at.closest('[data-motion][data-state="closed"]') === null) return { lifted, held: null };
   if (opener?.isConnected === true) {
     for (let el: HTMLElement | null = opener; el !== null; el = el.parentElement) {
       if (el.hasAttribute("data-aria-hidden") && el.hasAttribute("aria-hidden")) {
@@ -35,7 +36,7 @@ function letGoOfFocus(opener: HTMLElement | null = null): HTMLElement[] {
     if (opener.closest('[aria-hidden="true"]') === null) opener.focus();
   }
   if (document.activeElement === at) at.blur();
-  return lifted;
+  return { lifted, held: at };
 }
 
 /**
@@ -49,10 +50,14 @@ function letGoOfFocus(opener: HTMLElement | null = null): HTMLElement[] {
  * Reopened within its exit, Radix keeps the content mounted, and it hides the
  * page only on mount, so what the close lifted is hidden again here. Still
  * marked `data-aria-hidden` means the overlay's hiding has not been undone.
+ * Its FocusScope autofocuses only on mount too, so focus goes back to what
+ * held it inside, unless something else has taken it since the close.
  */
 export function useLetGoOfFocusOnClose(open: boolean, trigger?: RefObject<HTMLElement | null>) {
   const opener = useRef<HTMLElement | null>(null);
   const lifted = useRef<HTMLElement[]>([]);
+  const held = useRef<HTMLElement | null>(null);
+  const gaveTo = useRef<HTMLElement | null>(null);
   useLayoutEffect(() => {
     if (open) {
       for (const el of lifted.current) {
@@ -61,9 +66,16 @@ export function useLetGoOfFocusOnClose(open: boolean, trigger?: RefObject<HTMLEl
       lifted.current = [];
       const at = document.activeElement;
       opener.current = at instanceof HTMLElement && at !== document.body ? at : null;
+      const back = held.current;
+      held.current = null;
+      if (back?.isConnected === true && (opener.current === null || opener.current === gaveTo.current)) back.focus();
       return;
     }
-    lifted.current = letGoOfFocus(trigger?.current ?? opener.current);
+    const target = trigger?.current ?? opener.current;
+    const left = letGoOfFocus(target);
+    lifted.current = left.lifted;
+    held.current = left.held;
+    gaveTo.current = target;
     opener.current = null;
   }, [open, trigger]);
 }
