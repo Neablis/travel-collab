@@ -4,15 +4,17 @@
   is where a closed modal sends it anyway. Only a keyboard user who tabs on within the exit
   animation (a few hundred ms) sees their move taken back.
 - **Area:** `apps/web/src/lib/useExitPresence.ts` (`useLetGoOfFocusOnClose`, `letGoOfFocus`), and
-  Radix's own focus return on unmount (`onCloseAutoFocus`) in the overlays that call the hook:
-  `apps/web/src/components/ui/dialog.tsx`, `sheet.tsx`, `menu.tsx`, `popover.tsx`.
+  the focus return on unmount in three of the overlays that call the hook: `Sheet`'s own
+  `onCloseAutoFocus` (`apps/web/src/components/ui/sheet.tsx`), and Radix's trigger return in
+  `menu.tsx` and `popover.tsx`. `Dialog` has no `Dialog.Trigger`, so Radix returns nothing there;
+  it is affected only through a caller's own `onCloseAutoFocus`.
 - **Symptom / What happens:** M54 part 1 moves focus to the opener the moment a modal overlay
   closes, not after its exit (spec §3). If the user then presses Tab while the overlay is still
   animating out, focus moves on as expected, but when the overlay unmounts Radix's focus return
   puts it back on the opener, so the Tab appears not to have happened.
 - **Why not fixed here:** raised in part 1's review as an edge, not a gate item. A fix needs each
   caller's `onCloseAutoFocus` to skip the return when focus has already left the opener, which
-  touches every overlay rather than the hook.
+  touches those three overlays rather than the hook.
 - **Fix path / Tripwire:** in `onCloseAutoFocus`, `preventDefault()` when `document.activeElement`
   is neither the body nor inside the closing overlay; pin it with an e2e step that presses Tab
   during the exit and asserts focus is on the next control after the animation ends.
