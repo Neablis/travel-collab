@@ -6,15 +6,15 @@
 // root layout inlines (a `"use client"` module could not hand a server
 // component a string, only a client reference).
 
-/** Set by `recordSignIn`, read and cleared once by the app shell's `WelcomeCue`. */
+/** Set by `recordSignIn`, read and cleared once by the root layout's `LaunchOverlay`. */
 export const WELCOME_COOKIE = "tc_welcome";
 
-/** What the sign-in that just completed was. Only "signup" adds "Welcome, {name}". */
+/** What the sign-in that just completed was. Both are welcomed by name. */
 export type WelcomeKind = "signin" | "signup";
 
-// A minute covers the redirect back from Google and the first app page's
-// load. Longer, and a sign-in that landed on a front-door page (which has no
-// shell to clear it) would greet the person on some later visit instead.
+// A minute covers the redirect back from Google and the first page's load.
+// Longer, and a cue that page never spent (one served with no script) would
+// greet the person on some later visit instead.
 export const WELCOME_COOKIE_MAX_AGE_SECONDS = 60;
 
 const WELCOME_IN_COOKIES = new RegExp(`(?:^|;\\s*)${WELCOME_COOKIE}=(signin|signup)(?:;|$)`);
@@ -32,14 +32,18 @@ export function clearWelcomeCue(doc: Pick<Document, "cookie"> = document): void 
 
 // Runs in `<head>`, before the body paints, so the launch overlay that is
 // already in the server HTML is shown on the very first frame of a home-screen
-// launch and on no other kind of load (decision 6: never hidden-then-shown).
+// launch or of the first page after a sign-in, and on no other kind of load
+// (decision 6: never hidden-then-shown). After a sign-in it is the welcome
+// splash, at every width, and the page is not seen until it goes (Mitchell's
+// walk: a mark over a page already drawn read as unstyled content). Every
+// sign-in is a full load, Google's redirect and dev login's alike.
 // The standalone test is `installPrompt.ts`'s `route()`: iOS's home-screen app
 // is not a display-mode match on every version, `navigator.standalone` is.
 // `globals.css` shows `.launch-overlay` only under `html[data-launch]`, and
 // `LaunchOverlay` takes the attribute away once the page has hydrated.
 //
-// Once per session: in the installed app a refresh, the sign-out redirect and
-// the return from a sign-in are full loads too, and none of them is a launch.
+// A launch is once per session: in the installed app a refresh and the
+// sign-out redirect are full loads too, and neither is a launch.
 // `sessionStorage` lives exactly as long as the app's window does.
 const LAUNCHED_KEY = "tc_launched";
-export const LAUNCH_SCRIPT = `try{if((navigator.standalone===true||matchMedia("(display-mode: standalone)").matches)&&!sessionStorage.getItem("${LAUNCHED_KEY}")){sessionStorage.setItem("${LAUNCHED_KEY}","1");document.documentElement.setAttribute("data-launch","")}}catch(e){}`;
+export const LAUNCH_SCRIPT = `try{var w=/${WELCOME_IN_COOKIES.source}/.test(document.cookie);if((navigator.standalone===true||matchMedia("(display-mode: standalone)").matches)&&!sessionStorage.getItem("${LAUNCHED_KEY}")){sessionStorage.setItem("${LAUNCHED_KEY}","1");w=true}if(w)document.documentElement.setAttribute("data-launch","")}catch(e){}`;

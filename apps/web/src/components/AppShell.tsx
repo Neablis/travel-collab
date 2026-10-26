@@ -7,7 +7,6 @@ import { PhoneTabBar, PhoneTabBarFallback } from "@/components/nav/PhoneTabBar";
 import { PreferencesProvider } from "@/components/account/PreferencesProvider";
 import { type SessionUser, SessionUserProvider } from "@/components/account/useSessionUser";
 import type { AccountPreferencesRead } from "@/lib/apiClient";
-import { WelcomeCue } from "@/components/welcome/WelcomeMoment";
 import { ServedEntitlementsProvider } from "@/lib/useAiEntitled";
 
 /** What a layout read about the reader on the server, for the shell to start from. See `server/servedSession.ts`. */
@@ -110,10 +109,6 @@ export function AppShell({
               <PhoneTabBar />
             </Suspense>
           </RouteViewTransition>
-          {/* After a sign-in, the welcome moment (M54 decision 19). Here, under
-              the session provider, because a signup's moment says the new
-              account's name. */}
-          <WelcomeCue />
         </PreferencesProvider>
       </ServedEntitlementsProvider>
     </SessionUserProvider>

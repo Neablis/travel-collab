@@ -2886,10 +2886,10 @@ html[data-look="ledger"] .shadow-raised {
   }
 }
 
-/* ── M54: the welcome moment (decisions 4, 6 and 8, option A). One overlay in
-   two sizes, `WelcomeMoment`: `full` in the page's own paper (the OS splash's
-   `background_color`), `small` the mark alone over the page. Neither takes a
-   pointer event, so it never stands between a click and the page.
+/* ── M54: the welcome moment (decisions 6 and 8, option A). One overlay,
+   `WelcomeMoment`, in the page's own paper (the OS splash's
+   `background_color`), so the page is not seen until it goes: on a launch and,
+   since Mitchell's walk, after every sign-in. It takes no pointer event.
 
    The unlock: the strokes slide apart and fade, then the tile scales up a
    little and fades, then the moment goes. `--welcome-hold` is how long the
@@ -2898,8 +2898,8 @@ html[data-look="ledger"] .shadow-raised {
    "Welcome, {name}". `WelcomeMoment` unmounts it a little after the last
    frame, on a timer, so reduced motion (no animation at all) still leaves.
 
-   `.launch-overlay` is the same moment in the server HTML, shown only once
-   `LAUNCH_SCRIPT` has marked the document a home-screen launch. The strokes
+   `.launch-overlay` is the moment in the server HTML, shown only once
+   `LAUNCH_SCRIPT` has marked the document a launch or a sign-in. The strokes
    are `BrandMark`'s two inner spans, which its own geometry draws. */
 @layer components {
   .welcome-moment {
@@ -2910,15 +2910,13 @@ html[data-look="ledger"] .shadow-raised {
     display: grid;
     place-items: center;
     pointer-events: none;
-  }
-  .welcome-moment[data-size="full"] {
     background-color: var(--color-paper);
   }
   .welcome-moment[data-phase="welcome"] {
     --welcome-hold: calc(var(--transition-duration-slow) * 2);
   }
   .welcome-moment[data-phase="welcome"][data-named] {
-    --welcome-hold: calc(var(--transition-duration-slow) * 5);
+    --welcome-hold: calc(var(--transition-duration-slow) * 3);
   }
 
   .launch-overlay {
