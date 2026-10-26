@@ -88,6 +88,15 @@ export function roleLabel(role: InviteRole): string {
 }
 
 /**
+ * What a member's role is called beside their name (M54 decision 9): "Owner"
+ * for the owner, as the header and PersonRow say it, and the picker's word
+ * for any role that can be invited.
+ */
+export function memberRoleLabel(role: TripRole): string {
+  return role === "owner" ? "Owner" : roleLabel(role);
+}
+
+/**
  * Who decides a suggester's changes, said the same way wherever a suggester
  * is told (spec W64): the invite landing, the look-first banner and the invite
  * email. They disagreed ("the planners" here, "the trip's editors" in the

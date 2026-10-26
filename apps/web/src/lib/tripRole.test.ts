@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { InviteRole, TripRole, type TripMember } from "@tc/contracts";
-import { INVITE_ROLES_OFFERED, boardMode, canEditNotebook, viewerOwnsTrip } from "./tripRole";
+import { INVITE_ROLES_OFFERED, boardMode, canEditNotebook, memberRoleLabel, viewerOwnsTrip } from "./tripRole";
 
 const owner: TripMember = { userId: "alice", role: "owner" };
 const editor: TripMember = { userId: "bob", role: "editor" };
@@ -79,5 +79,13 @@ describe("INVITE_ROLES_OFFERED", () => {
   it("offers every invitable role, most capable first", () => {
     expect(INVITE_ROLES_OFFERED).toEqual(["editor", "suggester", "viewer"]);
     expect([...INVITE_ROLES_OFFERED].sort()).toEqual([...InviteRole.options].sort());
+  });
+});
+
+describe("memberRoleLabel", () => {
+  // The owner is not an invite role, so has no `roleLabel`; every other role
+  // is said as the picker says it.
+  it("calls the owner Owner and every other role by its invite label", () => {
+    expect(TripRole.options.map(memberRoleLabel)).toEqual(["Can view", "Can suggest", "Can edit", "Owner"]);
   });
 });
