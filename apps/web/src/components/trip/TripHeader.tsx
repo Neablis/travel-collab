@@ -35,6 +35,7 @@ import { COVER_BAND, TripCoverBanner } from "./cover/TripCoverBanner";
 import { useTripCover } from "./cover/useTripCover";
 import { useTripSeed } from "./context/tripSeed";
 import { HOME_PATH } from "@/lib/homePath";
+import { roleLabel } from "@/lib/tripRole";
 
 // The bounded chrome surface (design-system.md surface vocabulary, Pattern 4):
 // trip identity (name + status) on one row with Share / Add stop / sync /
@@ -881,7 +882,7 @@ function TravellerStack({
     >
       {/* Its own row, so the overlap is not undone by the button's gap. A
           tap opens the sheet; a pointer resting on it spreads the faces and
-          names the one under it (M54 decision 9). */}
+          names the one under it, and their role (M54 decision 9). */}
       <AvatarStack
         max={STACK_AVATARS}
         people={travellers.map((member) => ({
@@ -890,7 +891,9 @@ function TravellerStack({
           avatar: member.avatar,
           color: member.color,
           online: online.has(member.userId),
-          detail: online.has(member.userId) ? "online" : undefined,
+          detail: [member.role === "owner" ? "Owner" : roleLabel(member.role), online.has(member.userId) ? "online" : null]
+            .filter((word) => word !== null)
+            .join(" · "),
         }))}
       />
     </Button>

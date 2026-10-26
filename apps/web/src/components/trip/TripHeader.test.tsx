@@ -691,6 +691,18 @@ describe("TripHeader — the avatar stack (D10)", () => {
     expect(stack.textContent?.trim()).toBe("KW");
   });
 
+  // M54 decision 9: a face's tip says what the header knows of them, their
+  // role as well as their name.
+  it("names each traveller's role in their face's tip", async () => {
+    accessMembers = [person("dev-alice", "Alice Ames"), person("dev-bob", "Bob Burns")];
+    await renderHeader();
+    const stack = await screen.findByRole("button", { name: /^Travellers on this trip/ });
+    expect(within(stack).getAllByTestId("avatar-face").map((face) => face.dataset.avatarTip)).toEqual([
+      "Alice Ames · Owner",
+      "Bob Burns · Can edit",
+    ]);
+  });
+
   it("opens Trip settings scrolled to People", async () => {
     accessMembers = [person("dev-alice", "Alice Ames"), person("dev-bob", "Bob Burns")];
     await renderHeader();
@@ -753,7 +765,7 @@ describe("TripHeader — the avatar stack (D10)", () => {
       // eslint-disable-next-line no-restricted-syntax -- the dot exists only as a class, as in person-chip.test.tsx
       expect(within(stack).getByText("AA").className).not.toContain("after:bg-success");
       // And a pointer resting on a face is told it in the face's tip.
-      expect(within(stack).getAllByTestId("avatar-face").map((face) => face.dataset.avatarTip)).toEqual(["Alice Ames", "Bob Burns · online"]);
+      expect(within(stack).getAllByTestId("avatar-face").map((face) => face.dataset.avatarTip?.endsWith(" · online"))).toEqual([false, true]);
     } finally {
       delete (document as { visibilityState?: unknown }).visibilityState;
       listening.mockRestore();

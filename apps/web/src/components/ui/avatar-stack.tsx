@@ -1,4 +1,6 @@
-import { Fragment, type CSSProperties, type HTMLAttributes } from "react";
+"use client";
+
+import { Fragment, useEffect, useState, type CSSProperties, type HTMLAttributes } from "react";
 import type { AvatarKey, PersonColor } from "@tc/contracts";
 import { cn } from "../../lib/cn";
 import { PersonChip } from "./person-chip";
@@ -30,11 +32,12 @@ const OVERLAP: Record<StackSize, string> = { xs: "-ml-1", sm: "-ml-2", md: "-ml-
  * under the pointer names itself in a tip. The tip is CSS content from
  * `data-avatar-tip` (`globals.css`, M54 avatar stack), not text, so it adds
  * nothing to the words a containing control prints and is named by. The faces
- * stay decorative: the caller says who they are, in a sentence or a label.
+ * are `aria-hidden`, because a browser reads CSS content aloud: the caller says
+ * who they are, once, in a sentence or a label. Escape hides the tips until
+ * the pointer leaves (WCAG 1.4.13).
  *
  * `interactive={false}` is for a stack under something else that takes the
- * pointer (a board block): no spread, no tip, and each chip keeps its name as
- * a title instead.
+ * pointer (a board block): no spread and no tip.
  *
  * The spaces between items are for the stack's TEXT, not its look (flex drops
  * a whitespace-only item): without them a control named by what it shows
@@ -57,19 +60,34 @@ export function AvatarStack({
   const more = people.length - shown.length;
   // Where each item sits, so a hover can spread them about the middle.
   const at = (index: number) => ({ "--stack-at": index }) as CSSProperties;
+  const [pointer, setPointer] = useState<"away" | "over" | "hushed">("away");
+  // Listening only while the pointer is over the stack, so a page of stacks
+  // does not answer every Escape pressed elsewhere.
+  useEffect(() => {
+    if (pointer !== "over") return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setPointer("hushed");
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [pointer]);
   return (
     <span
       data-avatar-stack
       data-interactive={interactive ? "" : undefined}
+      data-tips-hushed={pointer === "hushed" ? "" : undefined}
       className={cn("flex items-center", className)}
       style={{ "--stack-items": shown.length + (more > 0 ? 1 : 0) } as CSSProperties}
       {...props}
+      onPointerEnter={interactive ? () => setPointer((was) => (was === "away" ? "over" : was)) : undefined}
+      onPointerLeave={interactive ? () => setPointer("away") : undefined}
     >
       {shown.map((person, index) => (
         <Fragment key={person.id}>
           {index > 0 ? " " : null}
           <span
             data-testid="avatar-face"
+            aria-hidden
             data-avatar-tip={interactive ? [person.name, person.detail].filter(Boolean).join(" · ") : undefined}
             className={cn("relative flex shrink-0", index > 0 && OVERLAP[size])}
             style={at(index)}
@@ -81,7 +99,6 @@ export function AvatarStack({
               size={size}
               ring
               online={person.online}
-              title={interactive ? undefined : person.name}
             />
           </span>
         </Fragment>

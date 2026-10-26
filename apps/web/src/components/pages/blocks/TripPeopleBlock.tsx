@@ -5,7 +5,7 @@ import { Text } from "@/components/ui/text";
 // "Who's going" (M38, canvas artboard 5): the shared stack of the people the
 // sentence names, then the sentence. The faces are decorative — the names are
 // in the sentence — and each names itself in a tip for a pointer. The resolver
-// already stops the stack at four and counts the rest in words, so this one
+// already stops the stack at three and counts the rest in words, so this one
 // never shows a "+N".
 //
 // Spans rather than `<div>`s, `TripStripBlock`'s reason: a widget node is an

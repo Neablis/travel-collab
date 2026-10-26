@@ -2898,7 +2898,12 @@ html[data-look="ledger"] .shadow-raised {
 
    Hover only where there is a hover, so a tap does not leave a stack spread
    and a tip showing. Under reduced motion nothing spreads and the tip appears
-   at once: the raised face and its name are the end state. */
+   at once: the raised face and its name are the end state.
+
+   WCAG 1.4.13: a shown tip takes the pointer, and its gap to the face is a
+   transparent border rather than space, so moving up onto it keeps the face
+   hovered. Escape sets `data-tips-hushed` (`AvatarStack`) until the pointer
+   leaves. */
 @layer components {
   [data-avatar-stack] {
     --stack-spread: 4px;
@@ -2906,12 +2911,16 @@ html[data-look="ledger"] .shadow-raised {
   [data-avatar-tip]::before {
     content: attr(data-avatar-tip);
     position: absolute;
-    bottom: calc(100% + 4px);
+    bottom: 100%;
     left: 50%;
     transform: translateX(-50%);
     padding: 2px 6px;
-    border-radius: var(--radius-sm);
+    border-bottom: 4px solid transparent;
+    /* Taller at the bottom by the border, so the painted box keeps round corners. */
+    border-radius: var(--radius-sm) / var(--radius-sm) var(--radius-sm) calc(var(--radius-sm) + 4px)
+      calc(var(--radius-sm) + 4px);
     background: var(--color-ink);
+    background-clip: padding-box;
     color: var(--color-surface);
     font-size: var(--text-xs);
     line-height: var(--text-xs--line-height);
@@ -2927,6 +2936,11 @@ html[data-look="ledger"] .shadow-raised {
     }
     [data-avatar-tip]:hover::before {
       opacity: 1;
+      pointer-events: auto;
+    }
+    [data-tips-hushed] [data-avatar-tip]:hover::before {
+      opacity: 0;
+      pointer-events: none;
     }
   }
 
