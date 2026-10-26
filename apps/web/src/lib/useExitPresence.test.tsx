@@ -23,7 +23,9 @@ function Harness({ onGone, animated }: { onGone: () => void; animated: boolean }
 }
 
 describe("useExitPresence", () => {
-  it("unmounts at once when nothing animates the exit (reduced motion)", () => {
+  // What reduced motion gives in a browser is proved in m54-motion.spec.ts;
+  // jsdom loads no stylesheet, so this covers only the hook's own branch.
+  it("unmounts at once when no exit animation applies", () => {
     const onGone = vi.fn();
     render(<Harness onGone={onGone} animated={false} />);
     fireEvent.click(screen.getByRole("button", { name: "Dismiss" }));
