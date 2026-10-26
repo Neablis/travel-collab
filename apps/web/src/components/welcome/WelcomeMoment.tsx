@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { BrandMark } from "@/components/BrandMark";
 import { useKnownSessionUser, useSessionUser } from "@/components/account/useSessionUser";
 import { clearWelcomeCue, readWelcomeCue } from "@/lib/welcomeCue";
@@ -87,13 +87,25 @@ const welcomeLine = (name: string) => `Welcome, ${name}`;
 // words already in it is not reliably read out. `aria-live` rather than
 // `role="status"`: it sits in every app page, where the save light already
 // owns the one status role that specs find by role alone.
+// The words go once said: both callers outlive client navigation, and a
+// browse-mode reader would otherwise meet them on every page.
 function WelcomeAnnouncement({ name }: { name: string | undefined }) {
+  const [said, setSaid] = useState(false);
+  useEffect(() => {
+    if (!name) return;
+    const timer = setTimeout(() => setSaid(true), SAID_MS);
+    return () => clearTimeout(timer);
+  }, [name]);
   return (
     <p aria-live="polite" className="sr-only">
-      {name ? welcomeLine(name) : ""}
+      {name && !said ? welcomeLine(name) : ""}
     </p>
   );
 }
+
+// Longer than any moment, so the words never leave before the mark does, and
+// long enough for a polite announcement queued behind other speech.
+const SAID_MS = 5000;
 
 /**
  * Plays the moment once after a sign-in, from the `tc_welcome` cookie
@@ -158,14 +170,18 @@ function wantsFullScreen(): boolean {
  * plays "Welcome, {name}". When it draws nothing, a signup's is still said.
  */
 export function LaunchOverlay() {
-  const [launch, setLaunch] = useState<
-    { phase: WelcomePhase; signup: false } | { signup: true; nameWaitMs: number } | "gone" | "said"
-  >({ phase: "breathe", signup: false });
+  // `null` once nothing is drawn. The overlay is always the first child, so the
+  // one the server drew is the one that welcomes, and its breathing mark runs
+  // on through hydration.
+  const [launch, setLaunch] = useState<{ phase: WelcomePhase; name?: string } | null>({ phase: "breathe" });
+  // A signup's launch only: how long the overlay waits for the name, or `null`
+  // when it draws nothing and the name is only said.
+  const [signup, setSignup] = useState<{ nameWaitMs: number | null } | null>(null);
 
   useEffect(() => {
     const root = document.documentElement;
     if (!root.hasAttribute("data-launch")) {
-      setLaunch("gone");
+      setLaunch(null);
       return;
     }
     const kind = readWelcomeCue(document.cookie);
@@ -176,62 +192,62 @@ export function LaunchOverlay() {
     const since = performance.now();
     if (prefersReducedMotion() || since >= LAUNCH_FAILSAFE_MS) {
       root.removeAttribute("data-launch");
-      setLaunch(kind === "signup" ? "said" : "gone");
+      setLaunch(null);
+      if (kind === "signup") setSignup({ nameWaitMs: null });
       return;
     }
     if (kind === "signup") {
       // Breathing past the fail-safe would let the CSS fade the sheet before
       // the welcome brings it back.
-      setLaunch({ signup: true, nameWaitMs: Math.min(NAME_WAIT_MS, LAUNCH_FAILSAFE_MS - since) });
-    } else if (kind === "signin") setLaunch({ phase: "welcome", signup: false });
-    else setLaunch({ phase: since < FAST_LAUNCH_MS ? "fade" : "unlock", signup: false });
+      setSignup({ nameWaitMs: Math.min(NAME_WAIT_MS, LAUNCH_FAILSAFE_MS - since) });
+    } else if (kind === "signin") setLaunch({ phase: "welcome" });
+    else setLaunch({ phase: since < FAST_LAUNCH_MS ? "fade" : "unlock" });
   }, []);
 
-  if (launch === "gone") return null;
-  if (launch === "said") return <SessionAnnouncement />;
+  // The name is fixed once the welcome starts: `data-named` lengthens the
+  // hold, and re-timing a running animation snaps a fading sheet back, the
+  // hidden-then-shown frame decision 6 forbids. A later name is still said.
+  const welcome = useCallback((name: string | undefined) => {
+    setLaunch((now) => (now?.phase === "breathe" ? { phase: "welcome", name } : now));
+  }, []);
   const leave = () => {
     document.documentElement.removeAttribute("data-launch");
-    setLaunch("gone");
+    setLaunch(null);
   };
-  if (launch.signup) return <NamedLaunch nameWaitMs={launch.nameWaitMs} onDone={leave} />;
-  return (
-    <div className="launch-overlay">
-      <WelcomeMoment size="full" phase={launch.phase} onDone={leave} />
-    </div>
-  );
-}
-
-// The root layout has no session provider, so these ask the session themselves,
-// and are mounted only on a signup's launch so no other load pays for the request.
-function SessionAnnouncement() {
-  return <WelcomeAnnouncement name={useSessionUser()?.name ?? undefined} />;
-}
-
-// Breathes until the name is known or `nameWaitMs` has passed, then welcomes
-// with whatever it has. The name is fixed from then on: `data-named` lengthens
-// the hold, and re-timing a running animation snaps a fading sheet back, the
-// hidden-then-shown frame decision 6 forbids. A later name is still said.
-function NamedLaunch({ nameWaitMs, onDone }: { nameWaitMs: number; onDone: () => void }) {
-  const user = useSessionUser();
-  const [welcome, setWelcome] = useState<{ name: string | undefined } | null>(null);
-  useEffect(() => {
-    if (welcome) return;
-    if (user !== undefined) {
-      setWelcome({ name: user?.name ?? undefined });
-      return;
-    }
-    const timer = setTimeout(() => setWelcome({ name: undefined }), nameWaitMs);
-    return () => clearTimeout(timer);
-  }, [user, welcome, nameWaitMs]);
-
   return (
     <>
-      <WelcomeAnnouncement name={user?.name ?? undefined} />
-      <div className="launch-overlay">
-        <WelcomeMoment size="full" phase={welcome ? "welcome" : "breathe"} name={welcome?.name} onDone={onDone} />
-      </div>
+      {launch ? (
+        <div className="launch-overlay">
+          <WelcomeMoment size="full" phase={launch.phase} name={launch.name} onDone={leave} />
+        </div>
+      ) : null}
+      {signup ? <SignupName nameWaitMs={signup.nameWaitMs} onWelcome={welcome} /> : null}
     </>
   );
+}
+
+// Says the new account's name, and hands it to the overlay once known or once
+// `nameWaitMs` has passed. The root layout has no session provider, so this
+// asks the session itself, and is mounted only on a signup's launch so no
+// other load pays for the request.
+function SignupName({
+  nameWaitMs,
+  onWelcome,
+}: {
+  nameWaitMs: number | null;
+  onWelcome: (name: string | undefined) => void;
+}) {
+  const user = useSessionUser();
+  useEffect(() => {
+    if (nameWaitMs === null) return;
+    if (user !== undefined) {
+      onWelcome(user?.name ?? undefined);
+      return;
+    }
+    const timer = setTimeout(() => onWelcome(undefined), nameWaitMs);
+    return () => clearTimeout(timer);
+  }, [user, nameWaitMs, onWelcome]);
+  return <WelcomeAnnouncement name={user?.name ?? undefined} />;
 }
 
 // Long enough for a session read on a cold launch to answer most of the time;

@@ -2,7 +2,9 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { act, cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { hydrateRoot } from "react-dom/client";
+import { renderToString } from "react-dom/server";
+import { afterEach, beforeAll, describe, expect, it, onTestFinished, vi } from "vitest";
 import { SessionUserProvider } from "@/components/account/useSessionUser";
 import { LAUNCH_SCRIPT, WELCOME_COOKIE, readWelcomeCue } from "@/lib/welcomeCue";
 import { LaunchOverlay, WelcomeCue, WelcomeMoment } from "./WelcomeMoment";
@@ -132,8 +134,10 @@ describe("WelcomeCue", () => {
   // static full-size sheet would hide the page it landed on while still
   // letting taps through to it.
   // The words are not motion, so a new account is still welcomed by name to a
-  // screen reader, with nothing drawn.
-  it("plays nothing under reduced motion, still says the welcome, and spends the cookie", () => {
+  // screen reader, with nothing drawn. Once said they go, or the shell would
+  // keep them for a browse-mode reader to meet on every page.
+  it("plays nothing under reduced motion, says the welcome once, and spends the cookie", () => {
+    vi.useFakeTimers();
     stubMedia("(prefers-reduced-motion: reduce)", "(pointer: coarse)");
     document.cookie = `${WELCOME_COOKIE}=signup; Path=/`;
     render(
@@ -144,6 +148,10 @@ describe("WelcomeCue", () => {
     expect(screen.queryByTestId("welcome-moment")).toBeNull();
     expect(screen.getByText("Welcome, Ana").getAttribute("aria-live")).toBe("polite");
     expect(readWelcomeCue(document.cookie)).toBeNull();
+    act(() => {
+      vi.advanceTimersByTime(5000);
+    });
+    expect(screen.queryByText("Welcome, Ana")).toBeNull();
   });
 
   it("plays nothing without the cookie", () => {
@@ -247,17 +255,63 @@ describe("LaunchOverlay", () => {
     expect(readWelcomeCue(document.cookie)).toBeNull();
   });
 
-  it("says a new account's welcome under reduced motion, and draws nothing", async () => {
+  // The overlay sits in the root layout, which client navigation keeps, so
+  // the words go once said.
+  it("says a new account's welcome once under reduced motion, and draws nothing", async () => {
+    vi.useFakeTimers();
     stubMedia("(prefers-reduced-motion: reduce)");
     launchedMsAgo(100);
     document.documentElement.setAttribute("data-launch", "");
     document.cookie = `${WELCOME_COOKIE}=signup; Path=/`;
-    vi.stubGlobal("fetch", async () => Response.json({ user: ana }));
+    sessionAnswersAfter(0);
     render(<LaunchOverlay />);
-    const said = await screen.findByText("Welcome, Ana");
-    expect(said.getAttribute("aria-live")).toBe("polite");
+    await act(() => vi.advanceTimersByTimeAsync(10));
+    expect(screen.getByText("Welcome, Ana").getAttribute("aria-live")).toBe("polite");
     expect(screen.queryByTestId("welcome-moment")).toBeNull();
     expect(document.documentElement.hasAttribute("data-launch")).toBe(false);
+    await act(() => vi.advanceTimersByTimeAsync(5000));
+    expect(screen.queryByText("Welcome, Ana")).toBeNull();
+  });
+
+  // Near the CSS fail-safe the name wait is cut short, so the welcome has
+  // started before the CSS fades the sheet out from under it.
+  it("cuts the name wait short near the fail-safe", async () => {
+    vi.useFakeTimers();
+    launchedMsAgo(2800);
+    document.documentElement.setAttribute("data-launch", "");
+    document.cookie = `${WELCOME_COOKIE}=signup; Path=/`;
+    sessionAnswersAfter(400);
+    render(<LaunchOverlay />);
+    await act(() => vi.advanceTimersByTimeAsync(250));
+    const moment = screen.getByTestId("welcome-moment");
+    expect(moment.getAttribute("data-phase")).toBe("welcome");
+    expect(within(moment).queryByText("Welcome, Ana")).toBeNull();
+    await act(() => vi.advanceTimersByTimeAsync(200));
+    expect(screen.getByText("Welcome, Ana").getAttribute("aria-live")).toBe("polite");
+  });
+
+  // Decision 6: no seam between the splash and the app. The overlay the
+  // server drew is the one that welcomes, so its breathing mark does not
+  // restart at hydration.
+  it("keeps the server-drawn moment through a signup launch's hydration", async () => {
+    vi.useFakeTimers();
+    launchedMsAgo(100);
+    document.documentElement.setAttribute("data-launch", "");
+    document.cookie = `${WELCOME_COOKIE}=signup; Path=/`;
+    sessionAnswersAfter(100);
+    const host = document.createElement("div");
+    host.innerHTML = renderToString(<LaunchOverlay />);
+    document.body.append(host);
+    const served = screen.getByTestId("welcome-moment");
+    const root = await act(async () => hydrateRoot(host, <LaunchOverlay />));
+    onTestFinished(() => {
+      act(() => root.unmount());
+      host.remove();
+    });
+    await act(() => vi.advanceTimersByTimeAsync(150));
+    const moment = screen.getByTestId("welcome-moment");
+    expect(moment.getAttribute("data-phase")).toBe("welcome");
+    expect(moment).toBe(served);
   });
 
   // Decision 6: it leaves as soon as the page is ready, and takes the launch
