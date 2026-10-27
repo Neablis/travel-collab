@@ -5,7 +5,7 @@ import { ApiScope, OAUTH_CODE_PREFIX } from "@tc/contracts";
 import { db } from "@/server/db/client";
 import { oauthCodes, oauthGrants } from "@/server/db/schema";
 import { keyedDigest } from "@/server/secrets/keyedDigest";
-import { markClientUsed, type OAuthClient } from "./clients";
+import { markClientUsed, storeClient, type OAuthClient } from "./clients";
 
 // **A grant is one person's consent to one client** (ADR-083 §1): the scopes,
 // the redirect and the resource they agreed to, for at most a year. Codes and
@@ -27,7 +27,10 @@ export function mintSecret(prefix: string): string {
   return `${prefix}${randomBytes(32).toString("base64url")}`;
 }
 
-/** Record consent. The client's first grant also stops it expiring unused. */
+/**
+ * Record consent, writing a CIMD client's row now that someone allowed it. The
+ * client's first grant also stops it expiring unused.
+ */
 export async function createGrant(input: {
   ownerId: string;
   client: OAuthClient;
@@ -36,12 +39,13 @@ export async function createGrant(input: {
   resource: string;
   now: Date;
 }): Promise<GrantRow> {
+  const clientRowId = await storeClient(input.client, input.now);
   const [row] = await db
     .insert(oauthGrants)
     .values({
       id: randomUUID(),
       ownerId: input.ownerId,
-      clientId: input.client.id,
+      clientId: clientRowId,
       clientName: input.client.clientName,
       redirectUri: input.redirectUri,
       scopes: [...input.scopes],
@@ -53,7 +57,7 @@ export async function createGrant(input: {
       revokedReason: null,
     })
     .returning();
-  await markClientUsed(input.client.id, input.now);
+  await markClientUsed(clientRowId, input.now);
   return row!;
 }
 
@@ -82,6 +86,7 @@ export async function issueCode(input: {
   return secret;
 }
 
+/** The grant `grantId` names, live or not, or `null` when there is none. */
 export async function grantOf(grantId: string): Promise<GrantRow | null> {
   const [row] = await db.select().from(oauthGrants).where(eq(oauthGrants.id, grantId));
   return row ?? null;

@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { ConsentRefused, ConsentScreen } from "@/components/oauth/ConsentScreen";
+import { ConsentErrorBack, ConsentRefused, ConsentScreen } from "@/components/oauth/ConsentScreen";
 import { NOINDEX, pageMetadata } from "@/lib/siteMetadata";
 import { auth } from "@/server/auth";
 import { accountCan } from "@/server/entitlements/resolver";
@@ -7,8 +7,9 @@ import { parseAuthorizeRequest, type AuthorizeParams } from "@/server/oauth/auth
 
 // **`GET /oauth/authorize`: the consent page** (ADR-083 §6). A server page, so
 // the request is checked before anything renders: an app or redirect that is
-// not proven is shown here and never redirected, and an error after that goes
-// straight back to the client with `state` and `iss`.
+// not proven is shown here and never redirected. An error after that goes back
+// to the client with `state` and `iss`: straight back for a recognised
+// redirect, and through a link the person clicks for any other (amendment M).
 //
 // `/oauth/*` is outside the proxy's matcher (`proxy.ts`), so signing in is this
 // page's own job: it sends a signed-out person to sign in and back to this
@@ -29,14 +30,18 @@ function queryOf(params: AuthorizeParams): string {
   return query.toString();
 }
 
+/** The consent page: sign in, then a refusal, an error for the client, or consent. */
 export default async function AuthorizePage({ searchParams }: { searchParams: Promise<AuthorizeParams> }) {
   const params = await searchParams;
   const userId = (await auth())?.user?.id;
   if (userId === undefined) {
     redirect(`/signin?callbackUrl=${encodeURIComponent(`/oauth/authorize?${queryOf(params)}`)}`);
   }
-  const parsed = await parseAuthorizeRequest(params);
-  if ("redirectTo" in parsed) redirect(parsed.redirectTo);
+  const parsed = await parseAuthorizeRequest(params, { userId });
+  if ("redirectTo" in parsed) {
+    if (parsed.automatic) redirect(parsed.redirectTo);
+    return <ConsentErrorBack description={parsed.description} redirectTo={parsed.redirectTo} />;
+  }
   if ("show" in parsed) return <ConsentRefused description={parsed.show.description} />;
   const { request } = parsed;
   // A parsed request has no repeated parameter, so every value is one string.

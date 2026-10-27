@@ -12,7 +12,9 @@ import { redirectMatches } from "./redirects";
 // page and never redirected: redirecting it would send the person, with our
 // name on the request, to whatever URL the request named. Only after that does
 // an error go back to the client, and every answer that goes back, error or
-// code, carries `state` and `iss` (amendment A).
+// code, carries `state` and `iss` (amendment A). Even then registration is
+// open, so a proven redirect can be an attacker's own site: only a recognised
+// one is followed without the person's click (amendment M).
 
 /** A request the consent page may show, and the consent decision re-checks. */
 export interface AuthorizeRequest {
@@ -29,11 +31,21 @@ export interface AuthorizeRequest {
 
 /** Shown on our page; never sent to the client. */
 export interface ShownRefusal {
-  error: "invalid_request" | "invalid_client" | "invalid_redirect_uri";
+  error: "invalid_request" | "invalid_client" | "invalid_redirect_uri" | "temporarily_unavailable";
   description: string;
 }
 
-export type ParsedAuthorize = { request: AuthorizeRequest } | { show: ShownRefusal } | { redirectTo: string };
+/**
+ * An error for the client, after its redirect is proven. `automatic` only for a
+ * recognised redirect (amendment M); any other is a link the person may follow.
+ */
+export interface ErrorBack {
+  redirectTo: string;
+  automatic: boolean;
+  description: string;
+}
+
+export type ParsedAuthorize = { request: AuthorizeRequest } | { show: ShownRefusal } | ErrorBack;
 
 /** The query as Next hands it over: a repeated parameter arrives as an array. */
 export type AuthorizeParams = Record<string, string | string[] | undefined>;
@@ -53,6 +65,11 @@ export function redirectBack(redirectUri: string, state: string | null, params: 
 
 const show = (error: ShownRefusal["error"], description: string): ParsedAuthorize => ({ show: { error, description } });
 
+/**
+ * Check an authorize request in the order that keeps errors home: the consent
+ * page and the consent decision both call this. `deps.userId` is who a client
+ * metadata document's fetch is charged to.
+ */
 export async function parseAuthorizeRequest(raw: AuthorizeParams, deps: ClientDeps = {}): Promise<ParsedAuthorize> {
   // RFC 6749 §3.1: a parameter sent twice is an invalid request, and until the
   // redirect is proven we cannot know which redirect_uri to believe.
@@ -68,6 +85,9 @@ export async function parseAuthorizeRequest(raw: AuthorizeParams, deps: ClientDe
   if (clientId === undefined) return show("invalid_request", "client_id is missing");
   const resolved = await resolveClient(clientId, deps);
   if (!resolved.ok) {
+    if (resolved.reason === "too-many-lookups") {
+      return show("temporarily_unavailable", "this account has looked up too many apps this hour; try again later");
+    }
     return resolved.reason === "invalid-metadata-document"
       ? show("invalid_client", "the app's metadata document could not be read or is not valid")
       : show("invalid_client", resolved.reason === "expired-client" ? "this app's registration has expired" : "unknown app");
@@ -81,8 +101,11 @@ export async function parseAuthorizeRequest(raw: AuthorizeParams, deps: ClientDe
 
   // ── The redirect is proven: errors go back to the client ───────────────
   const state = param("state") ?? null;
+  const marking = consentMarking(redirectUri);
   const back = (error: string, description: string): ParsedAuthorize => ({
     redirectTo: redirectBack(redirectUri, state, { error, error_description: description }),
+    automatic: marking === "recognised",
+    description,
   });
   if (param("response_type") !== "code") return back("unsupported_response_type", "response_type must be code");
   // Amendment I: no challenge, or any method but S256, is refused before a code exists.
@@ -95,8 +118,9 @@ export async function parseAuthorizeRequest(raw: AuthorizeParams, deps: ClientDe
   if (requested !== undefined && requested.some((scope) => !OAUTH_SCOPES.includes(scope))) {
     return back("invalid_scope", "a requested scope is not offered here");
   }
+  // `offline_access` alone names no v1 scope, so it asks for what no scope does.
   const scopes =
-    requested === undefined
+    requested === undefined || requested.every((scope) => scope === "offline_access")
       ? [...API_SCOPES]
       : requested.filter((scope): scope is ApiScope => ApiScope.safeParse(scope).success);
   if (scopes.length === 0) return back("invalid_scope", "no scope this server grants was requested");
@@ -106,6 +130,6 @@ export async function parseAuthorizeRequest(raw: AuthorizeParams, deps: ClientDe
   if (resource !== mcpResource()) return back("invalid_target", `the only resource here is ${mcpResource()}`);
 
   return {
-    request: { client, redirectUri, scopes, state, codeChallenge, resource, marking: consentMarking(redirectUri) },
+    request: { client, redirectUri, scopes, state, codeChallenge, resource, marking },
   };
 }

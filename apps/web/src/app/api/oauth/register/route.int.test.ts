@@ -66,4 +66,14 @@ describe("POST /api/oauth/register", () => {
     expect(Number(refused.headers.get("retry-after"))).toBeGreaterThan(0);
     expect((await register(body)).status).toBe(201);
   });
+
+  it("counts every address in one IPv6 /64 against one limit", async () => {
+    vi.stubEnv("OAUTH_REGISTER_RATE_LIMIT_PER_IP_HOURLY", "2");
+    const group = () => Math.floor(Math.random() * 0xffff).toString(16);
+    const prefix = `2001:db8:${group()}:${group()}`;
+    const body = { redirect_uris: ["https://example.com/cb"] };
+    expect((await register(body, `${prefix}::1`)).status).toBe(201);
+    expect((await register(body, `${prefix}::2`)).status).toBe(201);
+    expect((await register(body, `${prefix}:ffff:1:2:3`)).status).toBe(429);
+  });
 });

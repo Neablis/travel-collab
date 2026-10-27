@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { API_SCOPES } from "@tc/contracts";
 import type { OAuthClient, ResolvedClient } from "./clients";
 
 // The authorize request's checks, in their order. The order is the point:
@@ -120,6 +121,26 @@ describe("after the redirect is proven", () => {
         marking: "unverified",
       }),
     });
+  });
+
+  // Some clients send only `offline_access` and expect the server's defaults;
+  // it names no v1 scope, so it is the same request as no scope at all.
+  it("asks for every v1 scope when the request names only offline_access", async () => {
+    resolveClient.mockResolvedValue({ ok: true, client: CLIENT });
+    const parsed = await parseAuthorizeRequest(valid({ scope: "offline_access" }));
+    expect(parsed).toEqual({ request: expect.objectContaining({ scopes: [...API_SCOPES] }) });
+  });
+
+  // Amendment M: registration is open, so a proven redirect can be an
+  // attacker's own site. Only Claude's callback is followed without a click.
+  it("follows an error back without a click only to a recognised redirect", async () => {
+    resolveClient.mockResolvedValue({ ok: true, client: CLIENT });
+    const unverified = await parseAuthorizeRequest(valid({ response_type: "token" }));
+    expect(unverified).toEqual(expect.objectContaining({ automatic: false }));
+    const claude = "https://claude.ai/api/mcp/auth_callback";
+    resolveClient.mockResolvedValue({ ok: true, client: { ...CLIENT, redirectUris: [claude] } });
+    const recognised = await parseAuthorizeRequest(valid({ response_type: "token", redirect_uri: claude }));
+    expect(recognised).toEqual(expect.objectContaining({ automatic: true }));
   });
 
   it("matches a loopback redirect on another port, and keeps the port it was given", async () => {

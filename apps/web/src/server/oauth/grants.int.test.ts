@@ -28,9 +28,8 @@ const grantFor = (ownerId: string, app: OAuthClient, now = new Date()) =>
 
 describe("consent", () => {
   it("marks the client used, so it no longer expires unused", async () => {
-    const app = await client();
-    await grantFor(`dev-${randomUUID()}`, app);
-    const [row] = await db.select().from(oauthClients).where(eq(oauthClients.id, app.id));
+    const grant = await grantFor(`dev-${randomUUID()}`, await client());
+    const [row] = await db.select().from(oauthClients).where(eq(oauthClients.id, grant.clientId));
     expect(row!.firstUsedAt).not.toBeNull();
   });
 

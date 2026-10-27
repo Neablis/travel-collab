@@ -24,6 +24,7 @@ const Decision = z.object({
   scopes: z.array(ApiScope).default([]),
 });
 
+/** Record Allow or Deny for a signed-in person on this origin, answering where the browser goes next. */
 export async function POST(request: Request) {
   const userId = (await auth())?.user?.id;
   if (userId === undefined) return Response.json({ error: "unauthenticated" }, { status: 401 });
@@ -35,8 +36,10 @@ export async function POST(request: Request) {
   const body = Decision.safeParse(await request.json().catch(() => null));
   if (!body.success) return Response.json({ error: "invalid-decision" }, { status: 400 });
 
-  const parsed = await parseAuthorizeRequest(body.data.params);
+  const parsed = await parseAuthorizeRequest(body.data.params, { userId });
   if ("show" in parsed) return Response.json({ error: parsed.show.error, description: parsed.show.description }, { status: 400 });
+  // Followed whatever the client: the person has just clicked on our page,
+  // which is the click amendment M asks for.
   if ("redirectTo" in parsed) return Response.json({ redirectTo: parsed.redirectTo });
   const { request: authorize } = parsed;
 

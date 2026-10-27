@@ -48,6 +48,7 @@ export interface ConsentScreenProps {
 /** Notebook writes are the one scope a phished grant could do lasting harm with, so the person opts in. */
 const unticked = (scope: ApiScope) => scope.startsWith("notebook:");
 
+/** The consent screen: where access goes, what the app asked for, and Allow or Deny posted back for the server to check again. */
 export function ConsentScreen({
   clientName,
   marking,
@@ -163,6 +164,26 @@ export function ConsentScreen({
             Deny
           </Button>
         </div>
+      </Card>
+    </PageContainer>
+  );
+}
+
+/**
+ * An app's error, once its redirect is proven, for an app that is not
+ * recognised (ADR-083 amendment M). The link carries `error`, `state` and
+ * `iss` as a redirect would; the person follows it or not.
+ */
+export function ConsentErrorBack({ description, redirectTo }: { description: string; redirectTo: string }) {
+  return (
+    <PageContainer width="measure" as="main" className="py-10">
+      <Card className="flex flex-col gap-3 p-6">
+        <Heading level={1}>This app&apos;s request was refused</Heading>
+        <Text>Caesura could not connect the app that sent you here: {description}.</Text>
+        <Text variant="secondary">Nothing was shared. You can close this page, or tell the app what went wrong.</Text>
+        <a href={redirectTo} className={`${buttonVariants({ variant: "secondary", size: "sm" })} self-start`}>
+          Return to {new URL(redirectTo).host}
+        </a>
       </Card>
     </PageContainer>
   );

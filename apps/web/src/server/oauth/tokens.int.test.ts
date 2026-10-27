@@ -4,8 +4,8 @@
 // amendment D). Each RFC error code is here once, and so is each named attack
 // from the 2026-10-27 review: the PKCE downgrade and a lost rotation response.
 import { randomUUID } from "node:crypto";
-import { eq, sql } from "drizzle-orm";
-import { describe, expect, it } from "vitest";
+import { eq } from "drizzle-orm";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { db } from "@/server/db/client";
 import { oauthCodes, oauthTokens } from "@/server/db/schema";
 import { keyedDigest } from "@/server/secrets/keyedDigest";
@@ -13,6 +13,22 @@ import { registerClient, resolveClient, type OAuthClient } from "./clients";
 import { createGrant, grantOf, issueCode, mintSecret } from "./grants";
 import { mcpResource } from "./metadata";
 import { exchangeCode, refresh, revokeSecret, type TokenOutcome } from "./tokens";
+
+// The real `storedClientRowId`, behind a gate the race tests close.
+const race = vi.hoisted(() => ({ gate: null as { wait: () => Promise<void> } | null }));
+vi.mock("./clients", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./clients")>();
+  return {
+    ...actual,
+    storedClientRowId: async (clientId: string) => {
+      await race.gate?.wait();
+      return actual.storedClientRowId(clientId);
+    },
+  };
+});
+afterEach(() => {
+  race.gate = null;
+});
 
 // RFC 7636 appendix B.
 const VERIFIER = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk";
@@ -52,13 +68,26 @@ async function consented(over: { codeChallenge?: string; resource?: string } = {
 }
 
 /**
- * Open enough pool connections that two requests really overlap. On a cold
- * pool the second request waits for a fresh connection while the first runs to
- * the end, the race never happens, and a broken guard passes (seen: the split
- * SELECT-then-UPDATE stayed green without this).
+ * Hold both calls at `storedClientRowId`, which each reaches after reading its
+ * code or token unspent and before the guarded UPDATE, until both are there.
+ * The race is then made rather than hoped for: with only a warmed pool, a run
+ * where the calls did not overlap passed through the SELECT's own refusal and
+ * looked the same. The wait gives up after two seconds, so a call that never
+ * arrives fails the `arrived` assertion instead of hanging.
  */
-async function warmPool(): Promise<void> {
-  await Promise.all(Array.from({ length: 4 }, () => db.execute(sql`select pg_sleep(0.01)`)));
+function holdBothAtTheUpdate(): { arrived: () => number } {
+  let release = () => {};
+  const open = new Promise<void>((done) => {
+    release = done;
+  });
+  const gate = { arrived: 0, wait: async () => {} };
+  gate.wait = async () => {
+    gate.arrived += 1;
+    if (gate.arrived === 2) release();
+    await Promise.race([open, new Promise((done) => setTimeout(done, 2_000))]);
+  };
+  race.gate = gate;
+  return { arrived: () => gate.arrived };
 }
 
 const errorOf = (outcome: TokenOutcome) => (outcome.ok ? "ok" : outcome.error);
@@ -118,8 +147,9 @@ describe("exchanging a code", () => {
 describe("parallel code redemption", () => {
   it("lets exactly one of two simultaneous exchanges win, and revokes the grant", async () => {
     const { exchange, grant } = await consented();
-    await warmPool();
+    const held = holdBothAtTheUpdate();
     const outcomes = await Promise.all([exchange(), exchange()]);
+    expect(held.arrived(), "both calls read the code unspent").toBe(2);
     expect(outcomes.map(errorOf).sort()).toEqual(["invalid_grant", "ok"]);
     expect(await grantOf(grant.id)).toEqual(expect.objectContaining({ revokedReason: "code-reuse" }));
   });
@@ -179,11 +209,12 @@ describe("parallel refresh rotation", () => {
   it("lets exactly one of two simultaneous refreshes win, and revokes the grant", async () => {
     const { exchange, app, grant } = await consented();
     const { refresh_token } = tokensOf(await exchange());
-    await warmPool();
+    const held = holdBothAtTheUpdate();
     const outcomes = await Promise.all([
       refresh({ refreshToken: refresh_token, clientId: app.clientId }),
       refresh({ refreshToken: refresh_token, clientId: app.clientId }),
     ]);
+    expect(held.arrived(), "both calls read the token unrotated").toBe(2);
     expect(outcomes.map(errorOf).sort()).toEqual(["invalid_grant", "ok"]);
     expect(await grantOf(grant.id)).toEqual(expect.objectContaining({ revokedReason: "refresh-reuse" }));
   });
