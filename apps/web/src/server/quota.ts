@@ -314,6 +314,27 @@ export function placeSearchTokenQuota(): QuotaPolicy[] {
 }
 
 /**
+ * Dynamic client registration, per client IP (ADR-083 §6, *Registration
+ * abuse*). Registration is open to anyone, so this is the only bound on how
+ * many `oauth_clients` rows a stranger can write.
+ *
+ * Keyed by a keyed digest of the IP, never the IP itself, the same digest the
+ * client row records. A real client registers once per install, so 20 an hour
+ * leaves a shared NAT room and stops a loop; the global ceiling bounds the
+ * many-IPs version.
+ */
+export function oauthRegisterQuota(): QuotaPolicy[] {
+  return [
+    {
+      name: "oauth-register-hourly",
+      windowMs: HOUR_MS,
+      perUser: envCeiling("OAUTH_REGISTER_RATE_LIMIT_PER_IP_HOURLY", 20),
+      global: envCeiling("OAUTH_REGISTER_RATE_LIMIT_GLOBAL_HOURLY", 1000),
+    },
+  ];
+}
+
+/**
  * Outside-data quota (ADR-052 decision 8): our own ceiling on calls to MET
  * Norway and NASA POWER, charged per upstream call and **only on a cache
  * miss** — a notebook served from `external_data_cache` costs nothing here. A

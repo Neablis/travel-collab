@@ -31,7 +31,14 @@ export type Exposure =
   /** Wanted, not built. `note` says what it is waiting on. */
   | { status: "planned"; note: string }
   /** Never on the public API. `reaches` is what a `v1` route must not import. */
-  | { status: "never"; why: string; reaches: readonly Reach[] };
+  | { status: "never"; why: string; reaches: readonly Reach[] }
+  /**
+   * Public, but outside `v1/` because a standard fixes its shape (ADR-083 §9):
+   * the OAuth server's endpoints, and the MCP server. `adapts: "v1"` when it
+   * serves v1's own handlers under another protocol; omitted when it carries no
+   * data at all.
+   */
+  | { status: "front-door"; why: string; adapts?: "v1" };
 
 const PLANNED = (note: string): Exposure => ({ status: "planned", note });
 
@@ -104,6 +111,17 @@ export const EXPOSURE: Readonly<Record<string, Exposure>> = {
   "trips/[tripId]/snapshots": PLANNED("Undecided — a trip's named snapshots (M40)"),
   "trips/[tripId]/snapshots/[snapshotId]": PLANNED("Undecided — renaming and deleting a snapshot (M40)"),
   "trips/[tripId]/snapshots/[snapshotId]/restore": PLANNED("Undecided — restoring a snapshot, one revert batch (M40)"),
+
+  // ── Front doors (ADR-083 §9) ─────────────────────────────────────────────
+  // The authorization server's endpoints: they issue the credential a client
+  // calls v1 with, and carry no trip or library data themselves.
+  "oauth/register": { status: "front-door", why: "RFC 7591 client registration for the MCP connector" },
+  "oauth/token": { status: "front-door", why: "RFC 6749 token endpoint for the MCP connector" },
+  "oauth/revoke": { status: "front-door", why: "RFC 7009 token revocation for the MCP connector" },
+  "oauth/authorize": {
+    status: "front-door",
+    why: "The consent decision for the MCP connector; session-only, never a credential",
+  },
 
   // ── Never ────────────────────────────────────────────────────────────────
   // M45: the account assistant, on the trip door's terms.

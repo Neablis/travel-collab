@@ -624,6 +624,19 @@ export default [
     },
   },
   {
+    // THE OAUTH CONSENT PAGE (ADR-083 §6, M55). `/oauth/authorize` checks the
+    // authorize request on the server before anything renders, because an
+    // error before the client's redirect is proven must be shown here and never
+    // redirected, and only a server render can redirect a valid error back
+    // without first painting a page. So it reads the session, the entitlement
+    // and `server/oauth/authorizeRequest` in-process. That one file only: the
+    // consent screen it renders is UI and posts its decision to the API.
+    files: ["src/app/oauth/authorize/page.tsx"],
+    rules: {
+      "no-restricted-imports": ["error", { patterns: exemptWallPatterns }],
+    },
+  },
+  {
     // THE ELEMENT WALL (design-system.md): text, controls, and tables render
     // through components/ui primitives; no inline styles. Enumerated inline-
     // style exceptions (drag opacity, map container, computed timeline/calendar

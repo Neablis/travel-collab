@@ -93,7 +93,7 @@ describe("exposure.ts decides every internal route, and the API obeys it", () =>
     const stale = Object.keys(EXPOSURE).filter((key) => !internal.includes(key));
     expect(
       { missing, stale },
-      "add each missing route to exposure.ts as public, planned or never; drop stale lines",
+      "add each missing route to exposure.ts as public, planned, never or front-door; drop stale lines",
     ).toEqual({ missing: [], stale: [] });
   });
 
@@ -102,6 +102,16 @@ describe("exposure.ts decides every internal route, and the API obeys it", () =>
       e.status === "public" ? e.v1.filter((v) => !published.has(v)).map((v) => `${key} → v1/${v}`) : [],
     );
     expect(dangling).toEqual([]);
+  });
+
+  // A front door is public outside `v1/` because a standard fixes its URL; it
+  // needs no v1 route, and a v1 route at its path would be the same door twice.
+  it("lets a front door stand without a v1 route, and mirrors none under v1", () => {
+    const doors = Object.entries(EXPOSURE).filter(([, e]) => e.status === "front-door");
+    expect(doors.map(([key]) => key)).toEqual(
+      expect.arrayContaining(["oauth/register", "oauth/token", "oauth/revoke", "oauth/authorize"]),
+    );
+    expect(doors.filter(([key]) => published.has(key)).map(([key]) => `v1/${key}`)).toEqual([]);
   });
 
   it("publishes nothing at a never route's own path", () => {

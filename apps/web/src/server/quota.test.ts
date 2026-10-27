@@ -6,6 +6,7 @@ import {
   consumeQuota,
   dailyPolicy,
   geocodeQuota,
+  oauthRegisterQuota,
   quotaRefusal,
   reserveAiSteps,
   settleAiSteps,
@@ -409,6 +410,18 @@ describe("policy configuration", () => {
   it("sizes the Unsplash globals under production's 5,000 an hour, both windows filled", () => {
     const perHour = unsplashSearchQuota(false)[0]!.global + unsplashPickQuota(false)[0]!.global;
     expect(perHour * 2).toBeLessThanOrEqual(5000);
+  });
+
+  // Registration is open to anyone, so this is what bounds the rows one
+  // stranger can write: per IP, inside an hour, with the next hour fresh.
+  it("lets one IP register 20 OAuth clients an hour, and gives another IP its own 20", async () => {
+    const counters = fakeCounters();
+    const now = new Date("2026-10-27T12:00:00.000Z");
+    const register = (ip: string, at = now) => consumeQuota(oauthRegisterQuota(), ip, counters, at);
+    for (let i = 0; i < 20; i += 1) expect((await register("ip-a")).allowed).toBe(true);
+    expect(await register("ip-a")).toEqual(expect.objectContaining({ allowed: false, reason: "user" }));
+    expect((await register("ip-b")).allowed).toBe(true);
+    expect((await register("ip-a", new Date("2026-10-27T13:00:00.000Z"))).allowed).toBe(true);
   });
 
   it("keeps the AI policies ordered burst-then-bill, both bounded per user and globally", () => {
