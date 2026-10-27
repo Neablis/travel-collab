@@ -113,6 +113,10 @@ describe("legacyScryptDigest", () => {
     );
   });
 
+  it("refuses a blank pepper rather than hashing with an empty salt", async () => {
+    await expect(legacyScryptDigest(SECRET, "")).rejects.toBeInstanceOf(ApiTokenPepperMissingError);
+  });
+
   // **~37ms of scrypt must not stall every other request.** The prefix it
   // narrows by is shown in the UI, so anyone can make the server pay it.
   it("runs off the event loop, so a timer queued before it fires before it finishes", async () => {

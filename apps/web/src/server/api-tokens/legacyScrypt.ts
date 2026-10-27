@@ -1,5 +1,9 @@
 import { scrypt } from "node:crypto";
-import { candidatePeppers, digestsMatch } from "@/server/secrets/keyedDigest";
+import {
+  ApiTokenPepperMissingError,
+  candidatePeppers,
+  digestsMatch,
+} from "@/server/secrets/keyedDigest";
 
 // **The one scrypt verify left, in its own file so deleting it is one commit**
 // (ADR-083 §3; KI-2026-10-27-e carries the date).
@@ -28,6 +32,9 @@ const SCRYPT = { N: 16384, r: 8, p: 1, maxmem: 64 * 1024 * 1024 } as const;
  * mints may call it.
  */
 export function legacyScryptDigest(secret: string, pepper: string): Promise<string> {
+  // An empty salt would hash without complaint; its callers guard today, this
+  // keeps a future one from silently matching nothing.
+  if (pepper === "") return Promise.reject(new ApiTokenPepperMissingError());
   return new Promise((resolve, reject) => {
     scrypt(secret, pepper, 32, SCRYPT, (error, key) =>
       error === null ? resolve(key.toString("hex")) : reject(error),

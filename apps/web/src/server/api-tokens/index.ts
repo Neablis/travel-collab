@@ -269,8 +269,9 @@ export async function verifyToken(secret: string, now: Date = new Date()): Promi
  *
  * **One row, so one scrypt per pepper per request** (two only while
  * `API_TOKEN_PEPPER_PREVIOUS` is set). The prefix is shown in the UI, so anyone
- * can present it; without the limit, each row sharing it cost another ~37ms. If two 0069 rows share a prefix (it carries about 30 bits), one owner
- * is told "not valid" rather than "revoked", which is the cheaper wrong.
+ * can present it; without the limit, each row sharing it cost another ~37ms.
+ * If two 0069 rows share a prefix (it carries about 30 bits), one owner is told
+ * "not valid" rather than "revoked", which is the cheaper wrong.
  */
 async function legacyRefusal(secret: string): Promise<VerifyResult> {
   const [row] = await db
