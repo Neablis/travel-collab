@@ -191,6 +191,26 @@ merges (the *Discovery* box's production `curl` needs them).
 
 ---
 
+## Part 6 — a Security tab for API tokens and Connected apps
+
+Added 2026-10-27 at Mitchell's request: API tokens and Connected apps sat at the bottom of Account →
+Profile, where nobody finds them. Branches from part 5; merges after it. Branch
+`claude/m55-part6-security-tab`.
+
+| File | Entry point | Test |
+|---|---|---|
+| `web/components/account/AccountScreen.tsx` | a *Security* tab beside the existing tabs; `accountTabFrom` maps the old `?tab=tokens` / `?tab=apps` to it | `AccountScreen.test.tsx` |
+| `web/components/account/ProfileSection.tsx` | drops *API tokens →* and *Connected apps →* | `ProfileSection.test.tsx` |
+| the Security section (new, under `web/components/account/`) | API tokens, then Connected apps, each under its own heading; MFA later is one more section | its test beside it |
+| every link and line of copy naming the old place (`/developers`, `/llms.txt`, `docs/guidelines/using-the-api.md`, e2e specs) | points at Account → Security | the existing tests that name them |
+
+**Preview:** Account → Security shows API tokens, then Connected apps; Profile shows neither; an
+old `?tab=tokens` / `?tab=apps` link lands on Security; a free account sees the token upsell there.
+
+**Gate boxes:** none of its own; part 5's *Revocation* walk now starts from Account → Security.
+
+---
+
 ## Gate box → part
 
 | Box | Part |
