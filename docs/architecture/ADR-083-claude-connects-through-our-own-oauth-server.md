@@ -89,7 +89,7 @@ and every refresh, and Claude's token calls must answer within 10 seconds.
    on every row whose `revoked_at` is null. The verify path then:
    - looks the secret up by its HMAC (every token minted after part 1);
    - **on a miss only**, looks for a row with the secret's stored 8-character `prefix` and
-     `revoked_reason = 'storage-changed'`, and confirms it with one scrypt verify of that single
+     `revoked_reason = 'storage-changed'`, and confirms it with one scrypt verify per candidate pepper (two while `API_TOKEN_PEPPER_PREVIOUS` is set) of that single
      row, read with `LIMIT 1` and verified with the async `scrypt`, never `scryptSync`
      (amendment P1-c: the prefix is shown in the UI, so a known prefix would otherwise let anyone
      block the event loop ~37ms per matching row before any rate limit applies). A match answers
