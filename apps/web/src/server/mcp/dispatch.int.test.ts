@@ -8,10 +8,8 @@ import { deploymentOrigin } from "@/lib/deploymentOrigin";
 import { dayPath } from "@/lib/playbookUrls";
 import { issueGrant } from "@/server/entitlements/grants";
 import { livePlanVersion } from "@/server/entitlements/planVersions";
-import { registerClient, resolveClient } from "@/server/oauth/clients";
-import { createGrant, issueCode } from "@/server/oauth/grants";
 import { mcpResource } from "@/server/oauth/metadata";
-import { exchangeCode } from "@/server/oauth/tokens";
+import { connectForTest } from "@/server/test-support/oauthConnection";
 import { upsertUser } from "@/server/users";
 
 vi.mock("@/server/auth", () => ({ auth: vi.fn(async () => null) }));
@@ -19,16 +17,13 @@ vi.mock("@/server/auth", () => ({ auth: vi.fn(async () => null) }));
 const { callTool } = await import("./dispatch");
 const { TOOLS } = await import("./tools");
 
-const VERIFIER = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk";
-const CHALLENGE = "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM";
-const REDIRECT = "https://example.com/cb";
-
-async function entitled(): Promise<string> {
-  const id = `mcp-dispatch-${randomUUID().slice(0, 8)}`;
-  await upsertUser({ id, email: `${id}@example.test`, name: null, image: null });
+/** A connected client of a new premium account: a tool caller spending its access token. */
+async function connect(scopes: ApiScope[] = ["library:read", "library:write"]) {
+  const ownerId = `mcp-dispatch-${randomUUID().slice(0, 8)}`;
+  await upsertUser({ id: ownerId, email: `${ownerId}@example.test`, name: null, image: null });
   const premium = livePlanVersion("premium");
   await issueGrant({
-    userId: id,
+    userId: ownerId,
     planId: premium.planId,
     planVersion: premium.version,
     source: "admin",
@@ -36,21 +31,8 @@ async function entitled(): Promise<string> {
     reason: "M55 MCP dispatch fixture.",
     expiresAt: null,
   });
-  return id;
-}
-
-/** A connected client: its grant, and a tool caller spending its access token. */
-async function connect(scopes: ApiScope[] = ["library:read", "library:write"]) {
-  const ownerId = await entitled();
-  const registered = await registerClient({ client_name: "Test app", redirect_uris: [REDIRECT] }, randomUUID());
-  const resolved = await resolveClient(registered.ok ? String(registered.body.client_id) : "");
-  if (!resolved.ok) throw new Error("no client");
-  const now = new Date();
-  const grant = await createGrant({ ownerId, client: resolved.client, redirectUri: REDIRECT, scopes, resource: mcpResource(), now });
-  const code = await issueCode({ grantId: grant.id, codeChallenge: CHALLENGE, redirectUri: REDIRECT, resource: mcpResource(), now });
-  const tokens = await exchangeCode({ code, codeVerifier: VERIFIER, redirectUri: REDIRECT, clientId: resolved.client.clientId }, now);
-  if (!tokens.ok) throw new Error(tokens.description);
-  const request = new Request(mcpResource(), { method: "POST", headers: { authorization: `Bearer ${tokens.body.access_token}` } });
+  const { grant, access } = await connectForTest(ownerId, scopes);
+  const request = new Request(mcpResource(), { method: "POST", headers: { authorization: `Bearer ${access}` } });
   return async (name: string, input: Record<string, unknown>) => {
     const result = await callTool(TOOLS.find((t) => t.name === name)!, input, request, grant.id);
     const text = (result.content[0] as { text: string }).text;

@@ -8,10 +8,8 @@ import type { ApiScope } from "@tc/contracts";
 import { mintToken } from "@/server/api-tokens";
 import { issueGrant } from "@/server/entitlements/grants";
 import { livePlanVersion } from "@/server/entitlements/planVersions";
-import { registerClient, resolveClient } from "@/server/oauth/clients";
-import { createGrant, issueCode } from "@/server/oauth/grants";
 import { mcpResource, oauthIssuer } from "@/server/oauth/metadata";
-import { exchangeCode } from "@/server/oauth/tokens";
+import { connectForTest } from "@/server/test-support/oauthConnection";
 import { upsertUser } from "@/server/users";
 
 // A session must never reach a tool, so the cookie path is armed with a real user.
@@ -22,9 +20,6 @@ vi.mock("@/server/auth", () => ({
 
 const { POST, GET, DELETE } = await import("./route");
 
-const VERIFIER = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk";
-const CHALLENGE = "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM";
-const REDIRECT = "https://example.com/cb";
 const METADATA = `${oauthIssuer()}/.well-known/oauth-protected-resource/api/mcp`;
 
 async function entitled(): Promise<string> {
@@ -43,18 +38,8 @@ async function entitled(): Promise<string> {
   return id;
 }
 
-/** Consent, a code and its exchange: the access token a connected client holds. */
-async function connect(ownerId: string, scopes: ApiScope[]): Promise<string> {
-  const registered = await registerClient({ client_name: "Test app", redirect_uris: [REDIRECT] }, randomUUID());
-  const resolved = await resolveClient(registered.ok ? String(registered.body.client_id) : "");
-  if (!resolved.ok) throw new Error("no client");
-  const now = new Date();
-  const grant = await createGrant({ ownerId, client: resolved.client, redirectUri: REDIRECT, scopes, resource: mcpResource(), now });
-  const code = await issueCode({ grantId: grant.id, codeChallenge: CHALLENGE, redirectUri: REDIRECT, resource: mcpResource(), now });
-  const tokens = await exchangeCode({ code, codeVerifier: VERIFIER, redirectUri: REDIRECT, clientId: resolved.client.clientId }, now);
-  if (!tokens.ok) throw new Error(tokens.description);
-  return tokens.body.access_token;
-}
+/** The access token a client connected by `ownerId` holds. */
+const connect = async (ownerId: string, scopes: ApiScope[]) => (await connectForTest(ownerId, scopes)).access;
 
 const ACCEPT = "application/json, text/event-stream";
 
