@@ -72,7 +72,7 @@ and every refresh, and Claude's token calls must answer within 10 seconds.
      version finishes it. Rotating with no `_PREVIOUS` still logs everyone out, which is the
      emergency path.
    - **A short pepper is refused (amendment P1-b).** `pepper()` refuses a value under 32 bytes, not
-     only an empty one, with `ApiTokenPepperMissingError`'s message saying so.
+     only an empty one, with `ApiTokenPepperTooShortError` (an empty one still throws `ApiTokenPepperMissingError`).
    - **Why a fast keyed hash, not scrypt.** NIST SP 800-63B §5.1.2.2: look-up secrets with at least
      112 bits of entropy *"SHALL be hashed with an approved one-way function"*; the slow,
      salted, memory-hard rule is for memorised secrets, which these are not. OWASP's Password
