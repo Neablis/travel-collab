@@ -5,7 +5,7 @@ import { randomUUID } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 import { issueGrant } from "@/server/entitlements/grants";
 import { livePlanVersion } from "@/server/entitlements/planVersions";
-import { registerClient } from "@/server/oauth/clients";
+import { registerClient, resolveClient } from "@/server/oauth/clients";
 import { listGrants } from "@/server/oauth/grants";
 import { mcpResource, oauthIssuer } from "@/server/oauth/metadata";
 import { upsertUser } from "@/server/users";
@@ -14,6 +14,11 @@ let currentUserId: string | null = null;
 vi.mock("@/server/auth", () => ({
   auth: vi.fn(async () => (currentUserId === null ? null : { user: { id: currentUserId } })),
 }));
+// Real, except where a test has a metadata document change between the page and the click.
+vi.mock("@/server/oauth/clients", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/server/oauth/clients")>();
+  return { ...actual, resolveClient: vi.fn(actual.resolveClient) };
+});
 
 const { POST } = await import("./route");
 
@@ -64,7 +69,12 @@ const decide = (body: unknown, origin: string | null = oauthIssuer()) =>
 describe("POST /api/oauth/authorize", () => {
   it("answers Allow with a code, the state and iss", async () => {
     currentUserId = await account(true);
-    const res = await decide({ params: await authorizeParams(), decision: "allow", scopes: ["trips:read"] });
+    const res = await decide({
+      params: await authorizeParams(),
+      decision: "allow",
+      scopes: ["trips:read"],
+      clientName: "Test",
+    });
     expect(res.status).toBe(200);
     const target = new URL((await res.json()).redirectTo);
     expect(`${target.origin}${target.pathname}`).toBe(REDIRECT);
@@ -109,6 +119,28 @@ describe("POST /api/oauth/authorize", () => {
     const params = await authorizeParams();
     expect((await decide({ params, decision: "allow", scopes: ["library:write"] })).status).toBe(400);
     expect((await decide({ params, decision: "allow", scopes: [] })).status).toBe(400);
+  });
+
+  // The grant keeps the name, and connected apps show it: it must be the one
+  // the person read, not whatever the document says by the time they click.
+  it("refuses Allow when a metadata document's name changed after the page showed it", async () => {
+    currentUserId = await account(true);
+    const url = `https://app.example/oauth/${randomUUID()}.json`;
+    vi.mocked(resolveClient).mockResolvedValue({
+      ok: true,
+      client: { id: null, clientId: url, kind: "cimd", clientName: "Claude", redirectUris: [REDIRECT], cimdHost: "app.example" },
+    });
+    const params = { ...(await authorizeParams()), client_id: url };
+    try {
+      const res = await decide({ params, decision: "allow", scopes: ["trips:read"], clientName: "Some App" });
+      expect(res.status).toBe(409);
+      expect(await res.json()).toEqual({ error: "client-changed" });
+      expect(await listGrants(currentUserId)).toEqual([]);
+      const same = await decide({ params, decision: "allow", scopes: ["trips:read"], clientName: "Claude" });
+      expect(same.status).toBe(200);
+    } finally {
+      vi.mocked(resolveClient).mockReset();
+    }
   });
 
   it("shows an unknown client rather than redirecting to the redirect it names", async () => {
