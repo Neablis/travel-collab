@@ -124,6 +124,13 @@ describe("the MCP tools", () => {
     ]);
   });
 
+  it("refuse a path whose route file answers its method with another handler", async () => {
+    const getTrip = TOOLS.find((t) => t.name === "get_trip")!;
+    expect(await pathProblems({ ...getTrip, path: "/api/v1/trips" })).toEqual([
+      "get_trip: /api/v1/trips does not export its handler as GET",
+    ]);
+  });
+
   it("refuse a tool whose handler has no declaration", () => {
     const bare = Object.assign(async () => new Response(null), {}) as unknown as DeclaredHandler;
     expect(declarationProblems({ ...TOOLS[0]!, handler: bare })).toEqual([

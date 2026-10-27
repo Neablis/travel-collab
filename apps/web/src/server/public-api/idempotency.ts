@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { and, eq, isNotNull, isNull } from "drizzle-orm";
+import { and, eq, isNotNull, isNull, lt } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { apiIdempotencyKeys } from "@/server/db/schema";
 
@@ -218,11 +218,21 @@ export async function releaseKey(userId: string, key: string, reservedAt: Date):
  * the input, so it cannot do what a REST caller does with an answer that
  * stopped being true, and send a new key. An unfinished reservation is left
  * alone: its request is still running.
+ *
+ * **Only a row created before `sentAt`**, the moment the caller sent the
+ * request that replayed it. A concurrent call that forgot the same answer
+ * first has since kept a fresh one, created after that; deleting it would let
+ * this call make the Playbook a second time, where it should replay it.
  */
-export async function forgetKey(userId: string, key: string): Promise<void> {
+export async function forgetKey(userId: string, key: string, sentAt: Date): Promise<void> {
   await db
     .delete(apiIdempotencyKeys)
     .where(
-      and(eq(apiIdempotencyKeys.userId, userId), eq(apiIdempotencyKeys.key, key), isNotNull(apiIdempotencyKeys.completedAt)),
+      and(
+        eq(apiIdempotencyKeys.userId, userId),
+        eq(apiIdempotencyKeys.key, key),
+        isNotNull(apiIdempotencyKeys.completedAt),
+        lt(apiIdempotencyKeys.createdAt, sentAt),
+      ),
     );
 }

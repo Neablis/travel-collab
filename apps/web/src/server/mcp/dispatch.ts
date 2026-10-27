@@ -66,12 +66,13 @@ export async function callTool(tool: McpTool, input: Record<string, unknown>, ca
     runInMcpDispatch(() =>
       tool.handler(new Request(url, { method: declared.method, headers, body }), { params: Promise.resolve(params) }),
     );
+  const sentAt = new Date();
   let response = await send();
   // A REST caller whose kept answer stopped being true mints a new key; a
   // model cannot, since its key is its input. So a replayed refusal, or a
   // replayed Playbook since deleted, is forgotten and the call runs once more.
   if (key !== null && response.headers.has(REPLAYED_HEADER) && !(await stillTrue(response.clone(), userId))) {
-    await forgetKey(userId, key);
+    await forgetKey(userId, key, sentAt);
     response = await send();
   }
   if (refusesCredential(response)) caller.refusal = response.clone();
