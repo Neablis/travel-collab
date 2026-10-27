@@ -134,6 +134,7 @@ for collaboration later landing on a product people already want to join.
 | M51 | The front door tells the story | **Closed 2026-10-22, gate 11 of 11**, on Mitchell's ruling, with the landing's signup path and the production link check left as KI-2026-10-22-a and KI-2026-10-20-c. **Proposed and scoped 2026-10-20 with Mitchell; current from 2026-10-20**, ahead of M49 (which waits) and M48 (parked). From the top entry of `docs/candidates.md`, placed by a design review with three directions and two motion prototypes; see *2026-10-20 — minted: M51, ahead of M49*. The landing becomes a sea of the library's 148 public days as real Discover cards, from a build-time snapshot, with the story's moments rising out of it; a pricing ladder; names on stops (`addedBy`, `openapi.json`); a day picker over `startingAt` (ADR-050); the landing's path into onboarding. Nine parts (the plan is deleted): `M51-the-front-door-tells-the-story.md` |
 | M52 | The trip comes with you: a notebook for today, and an assistant the group can ask | **Closed 2026-10-24, gate 13 of 13**, the [walk] ticked on Mitchell's word; PR 546 (part 12's follow-up) open at the close. **Scoped 2026-10-23. Placed after M51, ahead of M49.** Nothing changes today when a trip starts. From 3 days before the trip through its last day, its Overview swaps to a seeded *During the trip* notebook whose `dateScope: "today"` setting narrows every widget left without a day, plus new widgets (now and next with Directions, flights, the group chat, day-of Ask prompts). Flight legs gain a flight number (the `booking` object stays in M44). The assistant learns what time it is, gets a near-me-now tool only while the trip is under way, and can be `@assistant`-ed in the trip chat on the asker's paid plan and quota, its proposals accepted only by the asker. No live flight status, push, offline or device location: `M52-the-trip-comes-with-you.md` |
 | M53 | A search engine reads every public page the way a person does | **Proposed 2026-10-25 by Mitchell, not scoped; placed last, after M44, until he places it.** From an SEO audit of production (282 sitemap URLs fetched); see *2026-10-25 — minted: M53, the SEO audit's findings*. Four duplicate day pairs, demo trips with no server-rendered content, titles and descriptions over length, missing canonicals on `/developers`, raw tag labels, `BreadcrumbList` and `ItemList` JSON-LD, `lastmod` on place and tag entries, and the landing's 923 KB of HTML. Seven open decisions, each with a recommendation: `M53-search-reads-every-public-page.md` |
+| M55 | Claude connects to Caesura as you, and can publish what it plans | **Proposed 2026-10-27 by Mitchell, not scoped; placed last, after M53, until he places it.** See *2026-10-27 — minted: M55, a connector Claude signs in to*. A remote MCP server at `/api/mcp` (streamable HTTP, stateless) and an OAuth 2.1 authorization server in front of it (PKCE S256, dynamic client registration and client metadata documents, rotating refresh tokens), so Claude can add Caesura as a custom connector and act as the signed-in person through M22's two gates. Tools adapt existing v1 routes: create, update and publish Playbooks, read the library and Discover, search places, read trips and Notebook pages. Connected apps with Disconnect. Eleven open decisions, each with a recommendation: `M55-claude-connects-as-you.md` |
 
 - **Restructure (2026-07-28), from the Phase 1 gate review.** The gate had not
   been met and the reason was structural, not cosmetic: a trip cannot be renamed
@@ -233,6 +234,16 @@ instruction, and they were 56% of this file.
 - **2026-10-06** — M35 closed; M37 is current
 - **2026-08-08, 2026-08-14, 2026-08-25, 2026-08-26** — the superseded reorders and M10's reopened gate, and the placement paragraphs for M26 to M28: *Moved out of README.md on 2026-09-30*, at the end
 - **Current-milestone placements, M14 to M34**: *Moved out of README.md on 2026-10-11*, at the end
+
+### 2026-10-27 — minted: M55, a connector Claude signs in to
+
+**Asked 2026-10-27.** Mitchell: *"Could you add a milestone to the caesura project to add the
+ability for a oauth connector so you can connect?"*, then *"Yes, add it"*. The need is a daily
+Claude routine that researches a destination and publishes an itinerary, which today would need a
+`tc_…` token pasted where a routine cannot keep it. **M55 is minted, not scoped**, and placed
+**last**, after M53, since he named no place for it. M43 stays current on `main` (M54's part 0,
+PR 593, is open and would make M54 current). The design questions and eleven recommended decisions
+are in `M55-claude-connects-as-you.md`. Order: M43 → M44 → M53 → M55, with M48 parked.
 
 ### 2026-10-25 — minted: M53, the SEO audit's findings
 
