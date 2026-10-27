@@ -188,7 +188,8 @@ and every refresh, and Claude's token calls must answer within 10 seconds.
    - **No `http` except loopback, no fragments.** Registration refuses `http:` on any other host,
      any URI with a `#`, and any URI that does not parse. `invalid_redirect_uri`.
    - **Registration abuse.** DCR is rate-limited per client IP (`quota.ts`, keyed on a hash of the
-     IP Vercel reports), and a DCR client with no grant 24 hours after it registered has expired:
+     IP Vercel reports, an IPv6 address counted by its /64 so one host's range is one caller; 20
+     per IP and 1000 in all per hour), and a DCR client with no grant 24 hours after it registered has expired:
      authorize refuses it (`invalid_client`), read from `first_used_at`, never deleted.
    - **CIMD is a server-side fetch of a stranger's URL (amendment J).** It goes through ADR-081's
      guarded fetcher (`guardedHttpsFetcher`, `server/external/remoteImage/fetchImage.ts`), which
@@ -197,7 +198,10 @@ and every refresh, and Claude's token calls must answer within 10 seconds.
      between the check and the connect. It refuses every special-use address (RFC 6890,
      `guard.ts`), takes `https` only, follows no redirect it has not re-checked, **caps the read at
      5 KB** (not the image fetch's 10 MB) and times out at 5 seconds. The document's `client_id`
-     must equal its URL, and its `redirect_uris` follow the same rules as DCR's. **`logo_uri` and
+     must equal its URL, and its `redirect_uris` follow the same rules as DCR's. **CIMD is metered
+     too** (part 2's review): a fetch is charged before it runs, 30 per account and 2000 in all per
+     hour, only a signed-in visitor causes one, and the `oauth_clients` row is written only on
+     Allow, so viewing the consent page leaves nothing behind. **`logo_uri` and
      `jwks_uri` are never fetched**, from a CIMD or a DCR body: the consent page shows no logo, and
      there are no confidential clients to need keys.
    - **CSRF on the consent decision.** The consent page posts its decision with `fetch` to
