@@ -1,7 +1,7 @@
 # The motion pass: press, pending, enter and exit, everywhere
 
-**Status:** Design, 2026-10-25. Approved by Mitchell in the session that wrote it. Not planned and not built: it becomes its own
-milestone, planned in a fresh session (`plan-a-milestone`) and started once M52's parts are in.
+**Status:** Design, 2026-10-25. Approved by Mitchell in the session that wrote it. **Minted as M54 and scoped 2026-10-26**
+(`docs/milestones/M54-the-motion-pass.md`, plan `docs/plans/2026-10-26-M54-the-motion-pass.md`, ADR-082).
 
 Mitchell's ask:
 
@@ -113,6 +113,12 @@ under `apps/web/src/`.
      intercept pointer events.
    - It plays after every sign-in, not just signup. **After signup only**, it adds a line,
      "Welcome, {name}".
+   - *Amended 2026-10-26, see `docs/milestones/M54-the-motion-pass.md`.* The welcome moment is now
+     a full-screen splash on an opaque surface, then the page: the page's reveal waits behind it.
+     It is the same on every viewport (phone, installed app and desktop), plays after both signup
+     and sign-in, shows "Welcome, {name}" after both, and lasts about 1.2–1.6s, capped by the
+     name-wait cap. Under reduced motion there is no animation. This supersedes the two sizes
+     above and in §4, area 4.
 5. **The invite code is not checked live** (Mitchell: it invites a security flaw). Instead it
    stops taking up so much of the screen, *"since it wont be the common path"*: it sits behind a
    small "Have an invite code?" disclosure.
