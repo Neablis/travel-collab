@@ -235,6 +235,13 @@ and every refresh, and Claude's token calls must answer within 10 seconds.
    request headers and a `CacheableResult`. Part 4 checks which revision the pinned
    `@modelcontextprotocol/sdk` targets and records it here; if the SDK predates 2026-07-28, the
    route still accepts both header forms and the gap is a known issue.
+   **Answered by part 4 (PR 617):** the pinned `@modelcontextprotocol/sdk` 1.32.2 targets
+   `2025-11-25` (it also supports `2025-06-18`, `2025-03-26` and `2024-11-05`), which predates
+   2026-07-28. It ignores `Mcp-Method` / `Mcp-Name`, so a call answers with or without them
+   (`app/api/mcp/route.int.test.ts`), and it has no `CacheableResult`. The gap: its transport
+   refuses `MCP-Protocol-Version: 2026-07-28` with a 400, and `initialize` negotiates down to
+   `2025-11-25`. A client that speaks only 2026-07-28 cannot connect until the SDK is upgraded
+   (KI-2026-10-27-e).
 9. **The exposure ledger gains a status for a public route outside `v1/`:**
    `{ status: "front-door"; why: string; adapts?: "v1" }`. `mcp` is a front door that adapts
    `v1` (`adapts: "v1"`); `oauth/register`, `oauth/token`, `oauth/revoke` and `oauth/authorize`
