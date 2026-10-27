@@ -5,6 +5,7 @@
 import { randomUUID } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 import type { ApiScope } from "@tc/contracts";
+import { mintToken } from "@/server/api-tokens";
 import { issueGrant } from "@/server/entitlements/grants";
 import { livePlanVersion } from "@/server/entitlements/planVersions";
 import { registerClient, resolveClient } from "@/server/oauth/clients";
@@ -79,10 +80,12 @@ describe("POST /api/mcp before any MCP is read", () => {
     expect((await res.json()).error.code).toBe("unauthenticated");
   });
 
-  it("answers a dead or foreign bearer with invalid_token, and never falls back to the session", async () => {
+  it("answers a dead bearer, a live REST token, or another scheme beside a session, with invalid_token", async () => {
     sessionUserId = await entitled();
+    const minted = await mintToken(sessionUserId, { name: "REST", scopes: ["account:read"], tripIds: null, expiresInDays: 30 });
+    if (!minted.ok) throw new Error("no token");
     try {
-      for (const header of ["Bearer tco_not-a-real-token", "Bearer tc_a-rest-api-token", "Basic dXNlcjpwYXNz"]) {
+      for (const header of ["Bearer tco_not-a-real-token", `Bearer ${minted.created.secret}`, "Basic dXNlcjpwYXNz"]) {
         const res = await mcp(rpc("tools/list", {}), { authorization: header });
         expect(res.status, header).toBe(401);
         expect(res.headers.get("WWW-Authenticate"), header).toBe(
@@ -129,7 +132,7 @@ describe("POST /api/mcp with a connected client's token", () => {
     expect(res.status).toBe(200);
     const { result } = await res.json();
     expect(result.isError).toBe(true);
-    expect(result.content[0].text).toMatch(/"account:read" scope.*\(insufficient-scope\)$/);
+    expect(result.content[0].text).toMatch(/^This token does not hold the "account:read" scope\. \(insufficient-scope\)/);
   });
 });
 
