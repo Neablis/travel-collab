@@ -8,6 +8,7 @@ import {
   geocodeQuota,
   oauthRegisterQuota,
   quotaRefusal,
+  registrationAddress,
   reserveAiSteps,
   settleAiSteps,
   type QuotaCounters,
@@ -422,6 +423,18 @@ describe("policy configuration", () => {
     expect(await register("ip-a")).toEqual(expect.objectContaining({ allowed: false, reason: "user" }));
     expect((await register("ip-b")).allowed).toBe(true);
     expect((await register("ip-a", new Date("2026-10-27T13:00:00.000Z"))).allowed).toBe(true);
+  });
+
+  // One subscriber holds a whole /64, so counting addresses inside it would
+  // let one host rotate past its 20 and spend the global ceiling alone.
+  it("counts an IPv6 address by its /64, however it is spelled, and an IPv4 one as it is", () => {
+    const prefix = registrationAddress("2001:db8:a:b::1");
+    expect(registrationAddress("2001:0db8:000a:000b:ffff:1:2:3")).toBe(prefix);
+    expect(registrationAddress("2001:db8:a:b:0:0:1.2.3.4")).toBe(prefix);
+    expect(registrationAddress("2001:db8:a:c::1")).not.toBe(prefix);
+    expect(registrationAddress("::ffff:203.0.113.9")).toBe("203.0.113.9");
+    expect(registrationAddress("203.0.113.9")).toBe("203.0.113.9");
+    expect(registrationAddress("unknown")).toBe("unknown");
   });
 
   it("keeps the AI policies ordered burst-then-bill, both bounded per user and globally", () => {

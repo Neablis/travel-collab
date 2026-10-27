@@ -22,6 +22,7 @@
 // the assistant drafts — yet still pays for the round-trips, and the geocode
 // proxy never writes an event at all. Counting events would meter exactly the
 // requests that are cheapest to make and miss the abusive ones.
+import { isIPv6 } from "node:net";
 import { and, eq, lte, sql } from "drizzle-orm";
 import { NO_CEILINGS, type EntitlementCeilings } from "./assistant/entitlements";
 import { db } from "./db/client";
@@ -330,6 +331,49 @@ export function oauthRegisterQuota(): QuotaPolicy[] {
       windowMs: HOUR_MS,
       perUser: envCeiling("OAUTH_REGISTER_RATE_LIMIT_PER_IP_HOURLY", 20),
       global: envCeiling("OAUTH_REGISTER_RATE_LIMIT_GLOBAL_HOURLY", 1000),
+    },
+  ];
+}
+
+/**
+ * The address `oauthRegisterQuota` counts: an IPv6 address by its /64, which
+ * is one subscriber's allocation, so rotating through it does not reset the
+ * count (or let one host spend the global ceiling alone). Anything else as it
+ * came, an IPv4-mapped IPv6 address as its IPv4.
+ */
+export function registrationAddress(ip: string): string {
+  if (!isIPv6(ip)) return ip;
+  const mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/i.exec(ip);
+  if (mapped !== null) return mapped[1]!;
+  // An embedded IPv4 tail is two groups: spelled as two, the count below holds.
+  const hex = ip.replace(/(\d+)\.(\d+)\.(\d+)\.(\d+)$/, (_all, a, b, c, d) =>
+    [Number(a) * 256 + Number(b), Number(c) * 256 + Number(d)].map((n) => n.toString(16)).join(":"),
+  );
+  const [head = "", tail = ""] = hex.split("::");
+  const groups = (part: string) => (part === "" ? [] : part.split(":"));
+  const left = groups(head);
+  const right = groups(tail);
+  const full = hex.includes("::") ? [...left, ...Array(8 - left.length - right.length).fill("0"), ...right] : left;
+  return `${full
+    .slice(0, 4)
+    .map((group) => Number.parseInt(group, 16).toString(16))
+    .join(":")}::/64`;
+}
+
+/**
+ * Client metadata document fetches, per account (ADR-083 §6, amendment J).
+ * Every authorize with an `https` `client_id` makes the server fetch a
+ * stranger's URL, so this bounds how many one account can make it fetch, and
+ * the global ceiling bounds the many-accounts version. Connecting an app takes
+ * two (the consent page and the decision), so 30 an hour is fifteen attempts.
+ */
+export function oauthCimdQuota(): QuotaPolicy[] {
+  return [
+    {
+      name: "oauth-cimd-hourly",
+      windowMs: HOUR_MS,
+      perUser: envCeiling("OAUTH_CIMD_RATE_LIMIT_PER_USER_HOURLY", 30),
+      global: envCeiling("OAUTH_CIMD_RATE_LIMIT_GLOBAL_HOURLY", 2000),
     },
   ];
 }

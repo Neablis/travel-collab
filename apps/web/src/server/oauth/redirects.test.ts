@@ -71,6 +71,12 @@ describe("redirect normalisation", () => {
     expect(redirectMatches("http://127.0.0.1/cb", "http://127.0.0.1:2/cb/")).toBe(false);
   });
 
+  // No URL can carry it, so a match would hand `new URL` a string it throws on
+  // and turn the shown refusal into a 500.
+  it("refuses a loopback port past 65535", () => {
+    expect(redirectMatches("http://127.0.0.1/cb", "http://127.0.0.1:99999/cb")).toBe(false);
+  });
+
   it("ignores no port off loopback", () => {
     expect(redirectMatches("https://example.com/cb", "https://example.com:8443/cb")).toBe(false);
   });

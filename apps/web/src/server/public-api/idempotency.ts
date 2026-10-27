@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNotNull, isNull } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { apiIdempotencyKeys } from "@/server/db/schema";
 
@@ -210,4 +210,19 @@ export async function completeKey(
 /** Give the key back after an unfinished or retryable answer, so a retry runs instead of replaying it. */
 export async function releaseKey(userId: string, key: string, reservedAt: Date): Promise<void> {
   await db.delete(apiIdempotencyKeys).where(ours(userId, key, reservedAt));
+}
+
+/**
+ * Drop a finished key's kept answer, so the next request under it runs. Only
+ * the MCP connector calls this (`mcp/dispatch.ts`): its key is derived from
+ * the input, so it cannot do what a REST caller does with an answer that
+ * stopped being true, and send a new key. An unfinished reservation is left
+ * alone: its request is still running.
+ */
+export async function forgetKey(userId: string, key: string): Promise<void> {
+  await db
+    .delete(apiIdempotencyKeys)
+    .where(
+      and(eq(apiIdempotencyKeys.userId, userId), eq(apiIdempotencyKeys.key, key), isNotNull(apiIdempotencyKeys.completedAt)),
+    );
 }

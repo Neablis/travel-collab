@@ -1,7 +1,8 @@
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { runInMcpDispatch } from "@/server/oauth/dispatchContext";
-import { requestHash } from "@/server/public-api/idempotency";
+import { forgetKey, REPLAYED_HEADER, requestHash } from "@/server/public-api/idempotency";
 import { DECLARED } from "@/server/public-api/route";
+import { readableSavedDay } from "@/server/savedDays";
 import { pathParams, type McpTool } from "./tools";
 
 // **One tool call is one v1 request, in process** (ADR-083 §8, M55 D2). The
@@ -10,13 +11,22 @@ import { pathParams, type McpTool } from "./tools";
 // parses, validates, rate-limits and answers exactly as it would over HTTP.
 // `runInMcpDispatch` is what lets a `tco_` token resolve there at all (§7).
 
+/** One MCP request's caller: its bearer, whose account and grant that bearer is. */
+export interface McpCaller {
+  readonly request: Request;
+  readonly userId: string;
+  readonly grantId: string;
+  /**
+   * The 401 or 402 a handler answered the bearer itself with, which the route
+   * answers in place of the MCP response: a refused credential is HTTP, so the
+   * client refreshes or reconnects (ADR-083 §8), never a tool error.
+   */
+  refusal?: Response;
+}
+
 /** The tool's answer, or v1's refusal as a tool error a model can act on. */
-export async function callTool(
-  tool: McpTool,
-  input: Record<string, unknown>,
-  request: Request,
-  grantId: string,
-): Promise<CallToolResult> {
+export async function callTool(tool: McpTool, input: Record<string, unknown>, caller: McpCaller): Promise<CallToolResult> {
+  const { request, userId, grantId } = caller;
   const declared = tool.handler[DECLARED];
   const params: Record<string, string> = {};
   for (const name of pathParams(tool)) {
@@ -49,17 +59,45 @@ export async function callTool(
   // A model retries a call whose answer it lost, and a retried create would
   // keep the Playbook twice. Derived, not minted: the same grant sending the
   // same input is the same request, inside ADR-051's 24 hours.
-  if (declared.def.idempotent !== undefined) {
-    headers.set("idempotency-key", `mcp-${grantId}-${requestHash(input)}`);
-  }
+  const key = declared.def.idempotent === undefined ? null : `mcp-${grantId}-${requestHash(input)}`;
+  if (key !== null) headers.set("idempotency-key", key);
 
-  const response = await runInMcpDispatch(() =>
-    tool.handler(new Request(url, { method: declared.method, headers, body }), { params: Promise.resolve(params) }),
-  );
+  const send = () =>
+    runInMcpDispatch(() =>
+      tool.handler(new Request(url, { method: declared.method, headers, body }), { params: Promise.resolve(params) }),
+    );
+  let response = await send();
+  // A REST caller whose kept answer stopped being true mints a new key; a
+  // model cannot, since its key is its input. So a replayed refusal, or a
+  // replayed Playbook since deleted, is forgotten and the call runs once more.
+  if (key !== null && response.headers.has(REPLAYED_HEADER) && !(await stillTrue(response.clone(), userId))) {
+    await forgetKey(userId, key);
+    response = await send();
+  }
+  if (refusesCredential(response)) caller.refusal = response.clone();
   const answer: unknown = await response.json().catch(() => null);
   if (!response.ok) return toolError(refusalText(tool, input, response.status, answer));
   const result = tool.answer === undefined ? answer : tool.answer(answer);
   return { content: [{ type: "text", text: JSON.stringify(result) }] };
+}
+
+/**
+ * Whether a replayed answer still holds. A kept 4xx may not (the trip the
+ * caller has since joined); a kept 5xx came after the handler's writes
+ * (ADR-051), so running again could write them twice and it stands.
+ */
+async function stillTrue(replayed: Response, userId: string): Promise<boolean> {
+  if (replayed.status >= 400 && replayed.status < 500) return false;
+  const made = ((await replayed.json().catch(() => null)) as { playbook?: { playbookId?: unknown } } | null)?.playbook;
+  return typeof made?.playbookId !== "string" || (await readableSavedDay(made.playbookId, userId)) !== null;
+}
+
+/** v1's refusal of the bearer itself, which carries the challenge that restarts OAuth. */
+function refusesCredential(response: Response): boolean {
+  return (
+    (response.status === 401 || response.status === 402) &&
+    (response.headers.get("WWW-Authenticate") ?? "").includes("resource_metadata=")
+  );
 }
 
 function toolError(text: string): CallToolResult {

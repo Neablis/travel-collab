@@ -3,6 +3,9 @@
 // the scope check, the error envelope and the rate limit; a schema that is not
 // the route's would tell a model to send what the route refuses. Both are
 // checked here against the declaration itself, read off the handler.
+import { existsSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { z } from "zod";
 import { describe, expect, it, vi } from "vitest";
 import { DECLARED, type DeclaredHandler } from "@/server/public-api/route";
@@ -26,6 +29,22 @@ function declarationProblems(tool: McpTool): string[] {
     problems.push(`${tool.name}: a writer must say destructiveHint, which MCP otherwise reads as true`);
   }
   return problems;
+}
+
+const APP = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../app");
+
+/**
+ * Whether `path` is where `handler` answers: the route file its `{name}`s name
+ * as `[name]` segments exports it for its method. A `{id}` beside a
+ * `[tripId]` route would reach the handler with no `tripId`, and a `trip:
+ * "path"` route answers that 500.
+ */
+async function pathProblems(tool: McpTool): Promise<string[]> {
+  const file = path.join(APP, tool.path.replace(/\{(\w+)\}/g, "[$1]"), "route.ts");
+  if (!existsSync(file)) return [`${tool.name}: ${tool.path} is no route file`];
+  const routes = (await import(file)) as Record<string, unknown>;
+  const method = tool.handler[DECLARED].method;
+  return routes[method] === tool.handler ? [] : [`${tool.name}: ${tool.path} does not export its handler as ${method}`];
 }
 
 /**
@@ -91,6 +110,17 @@ describe("the MCP tools", () => {
 
   it("each adapt a handler declared through route(), with hints that match its method", () => {
     expect(TOOLS.flatMap(declarationProblems)).toEqual([]);
+  });
+
+  it("each name the path of the route file their handler is exported from", async () => {
+    expect((await Promise.all(TOOLS.map(pathProblems))).flat()).toEqual([]);
+  });
+
+  it("refuse a path whose parameter is not the route's segment", async () => {
+    const getTrip = TOOLS.find((t) => t.name === "get_trip")!;
+    expect(await pathProblems({ ...getTrip, path: "/api/v1/trips/{id}" })).toEqual([
+      "get_trip: /api/v1/trips/{id} is no route file",
+    ]);
   });
 
   it("refuse a tool whose handler has no declaration", () => {

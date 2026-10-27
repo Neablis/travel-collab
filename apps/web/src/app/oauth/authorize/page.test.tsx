@@ -63,10 +63,22 @@ describe("/oauth/authorize", () => {
     expect(screen.getByRole("heading", { level: 1, name: "This app cannot connect" })).toBeTruthy();
   });
 
-  it("sends an error the request proved its redirect for back to the client", async () => {
+  it("sends an error back to a recognised redirect without a click", async () => {
     userId = "dev-a";
-    parsed = { redirectTo: "https://example.com/cb?error=invalid_scope&iss=x" };
-    expect(await redirectedTo({ client_id: "c" })).toBe("https://example.com/cb?error=invalid_scope&iss=x");
+    const to = "https://claude.ai/api/mcp/auth_callback?error=invalid_scope&iss=x";
+    parsed = { redirectTo: to, automatic: true, description: "bad scope" };
+    expect(await redirectedTo({ client_id: "c" })).toBe(to);
+  });
+
+  // Amendment M: open registration means a proven redirect can still be an
+  // attacker's site, so any other client's error waits for the person's click.
+  it("shows any other client's error with a link back, rather than redirecting", async () => {
+    userId = "dev-a";
+    const to = "https://evil.example/login?error=invalid_scope&state=s&iss=x";
+    parsed = { redirectTo: to, automatic: false, description: "a requested scope is not offered here" };
+    render(await open({ client_id: "c" }));
+    expect(screen.getByRole("heading", { level: 1, name: "This app's request was refused" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Return to evil.example" }).getAttribute("href")).toBe(to);
   });
 
   it("renders consent for a valid request, with Allow off for a free account", async () => {

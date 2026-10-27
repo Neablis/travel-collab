@@ -863,6 +863,7 @@ export function oauthChallenge(invalidToken: boolean): Record<string, string> {
   };
 }
 
+/** The 401 or 402 an OAuth credential's refusal answers, with the challenge that sends the client back into the flow. */
 export function oauthRefusalResponse(refusal: AccessRefusal): Response {
   switch (refusal.reason) {
     case "audience":
