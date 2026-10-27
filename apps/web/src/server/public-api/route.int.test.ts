@@ -195,7 +195,7 @@ describe("credential resolution", () => {
       id: randomUUID(),
       ownerId: owner,
       name: "Before 0069",
-      tokenHash: await legacyScryptDigest(secret),
+      tokenHash: await legacyScryptDigest(secret, process.env.API_TOKEN_PEPPER!),
       keyVersion: "scrypt",
       prefix: secret.slice(0, 8),
       scopes: ["trips:read"],

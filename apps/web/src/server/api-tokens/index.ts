@@ -267,9 +267,9 @@ export async function verifyToken(secret: string, now: Date = new Date()): Promi
  * verify is paid only by someone presenting one of those. Goes when
  * `legacyScrypt.ts` does (KI-2026-10-27-e).
  *
- * **One row, so one scrypt per request.** The prefix is shown in the UI, so
- * anyone can present it; without the limit, each row sharing it cost another
- * ~37ms. If two 0069 rows share a prefix (it carries about 30 bits), one owner
+ * **One row, so one scrypt per pepper per request** (two only while
+ * `API_TOKEN_PEPPER_PREVIOUS` is set). The prefix is shown in the UI, so anyone
+ * can present it; without the limit, each row sharing it cost another ~37ms. If two 0069 rows share a prefix (it carries about 30 bits), one owner
  * is told "not valid" rather than "revoked", which is the cheaper wrong.
  */
 async function legacyRefusal(secret: string): Promise<VerifyResult> {

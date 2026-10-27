@@ -536,7 +536,7 @@ describe("a token minted before storage changed (migration 0069)", () => {
       id,
       ownerId: owner,
       name: "Before 0069",
-      tokenHash: await legacyScryptDigest(secret),
+      tokenHash: await legacyScryptDigest(secret, process.env.API_TOKEN_PEPPER!),
       keyVersion: "scrypt",
       prefix: secret.slice(0, 8),
       scopes: ["trips:read"],
@@ -561,6 +561,25 @@ describe("a token minted before storage changed (migration 0069)", () => {
     });
   });
 
+  // **A rotation before 2027-10-27 keeps the reason.** 0069's rows were salted
+  // with the pepper of the day; once that moves to `API_TOKEN_PEPPER_PREVIOUS`,
+  // salting with the current one alone would answer "not valid" for every one.
+  it("is still refused as storage-changed after a pepper rotation", async () => {
+    const { secret, revokedAt } = await legacyRow();
+    const original = process.env.API_TOKEN_PEPPER!;
+    process.env.API_TOKEN_PEPPER = "the-rotated-in-key-of-at-least-32-bytes";
+    process.env.API_TOKEN_PEPPER_PREVIOUS = original;
+    try {
+      expect(await verifyToken(secret)).toEqual({
+        ok: false,
+        refusal: { reason: "revoked", revokedAt, revokedReason: "storage-changed" },
+      });
+    } finally {
+      process.env.API_TOKEN_PEPPER = original;
+      delete process.env.API_TOKEN_PEPPER_PREVIOUS;
+    }
+  });
+
   // The legacy branch confirms the secret, not just its 8-character prefix.
   it("does not answer for a different secret that shares the prefix", async () => {
     const { secret } = await legacyRow();
@@ -575,7 +594,7 @@ describe("a token minted before storage changed (migration 0069)", () => {
     const { secret } = await legacyRow();
     const prefix = secret.slice(0, 8);
     const twin = `${prefix}${randomBytes(32).toString("base64url")}`;
-    await legacyRow({ prefix, tokenHash: await legacyScryptDigest(twin) });
+    await legacyRow({ prefix, tokenHash: await legacyScryptDigest(twin, process.env.API_TOKEN_PEPPER!) });
     const impostor = `${prefix}${randomBytes(32).toString("base64url")}`;
 
     vi.mocked(matchesLegacyToken).mockClear();

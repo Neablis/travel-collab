@@ -112,11 +112,18 @@ export function keyedDigest(secret: string): KeyedSecretDigest {
  * never does.
  */
 export function keyedDigestCandidates(secret: string): KeyedSecretDigest[] {
+  return candidatePeppers().map((pepper) => digestUnder(pepper, secret));
+}
+
+/**
+ * The current pepper, then `API_TOKEN_PEPPER_PREVIOUS` when it is set and
+ * differs. Exported for `legacyScrypt.ts`, whose rows were salted with whichever
+ * of the two was current before 0069; nothing else reads a pepper directly.
+ */
+export function candidatePeppers(): string[] {
   const current = currentPepper();
   const previous = readPepper("API_TOKEN_PEPPER_PREVIOUS");
-  const candidates = [digestUnder(current, secret)];
-  if (previous !== null && previous !== current) candidates.push(digestUnder(previous, secret));
-  return candidates;
+  return previous !== null && previous !== current ? [current, previous] : [current];
 }
 
 /**

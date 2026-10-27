@@ -1,5 +1,5 @@
 import { scrypt } from "node:crypto";
-import { ApiTokenPepperMissingError, digestsMatch } from "@/server/secrets/keyedDigest";
+import { candidatePeppers, digestsMatch } from "@/server/secrets/keyedDigest";
 
 // **The one scrypt verify left, in its own file so deleting it is one commit**
 // (ADR-083 §3; KI-2026-10-27-e carries the date).
@@ -24,15 +24,10 @@ const SCRYPT = { N: 16384, r: 8, p: 1, maxmem: 64 * 1024 * 1024 } as const;
  * in the UI, so anyone can make the server pay ~37ms here; `scryptSync` would
  * stall every other request for that long.
  *
- * Its pepper check is the pre-0069 one (only blank is refused): these rows were
- * written before the 32-byte floor, under whatever pepper was set then.
- *
  * Exported for the integration test, which plants a pre-0069 row. Nothing that
  * mints may call it.
  */
-export function legacyScryptDigest(secret: string): Promise<string> {
-  const pepper = process.env.API_TOKEN_PEPPER ?? "";
-  if (pepper === "") return Promise.reject(new ApiTokenPepperMissingError());
+export function legacyScryptDigest(secret: string, pepper: string): Promise<string> {
   return new Promise((resolve, reject) => {
     scrypt(secret, pepper, 32, SCRYPT, (error, key) =>
       error === null ? resolve(key.toString("hex")) : reject(error),
@@ -44,12 +39,22 @@ export function legacyScryptDigest(secret: string): Promise<string> {
  * Is `secret` the one this pre-0069 row was minted for?
  *
  * The caller has already narrowed to one row with the secret's prefix and the
- * `storage-changed` reason, so the ~37ms is paid at most once, and only by
- * someone presenting that prefix.
+ * `storage-changed` reason, so the ~37ms is paid at most once per pepper, and
+ * only by someone presenting that prefix.
+ *
+ * **Under the current pepper, then the previous one.** The row was salted with
+ * the pepper of its day, so after a rotation it is `API_TOKEN_PEPPER_PREVIOUS`
+ * that matches; trying only the current one would turn every refusal into "not
+ * valid". The peppers pass the same 32-byte floor as the keyed lookup, which
+ * runs first and already refuses a short one, so exempting them here would
+ * change no answer.
  */
 export async function matchesLegacyToken(
   secret: string,
   row: { tokenHash: string },
 ): Promise<boolean> {
-  return digestsMatch(await legacyScryptDigest(secret), row.tokenHash);
+  for (const pepper of candidatePeppers()) {
+    if (digestsMatch(await legacyScryptDigest(secret, pepper), row.tokenHash)) return true;
+  }
+  return false;
 }

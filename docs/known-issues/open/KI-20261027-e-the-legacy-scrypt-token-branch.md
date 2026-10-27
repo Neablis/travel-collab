@@ -11,6 +11,15 @@
   rather than *"not valid"*, a miss looks up rows by the secret's 8-character prefix and that
   reason, and confirms the secret with one scrypt verify (ADR-083 §3). That keeps `scrypt` in the
   tree after nothing is stored with it.
+- **Rotation before 2027-10-27:** the rows were salted with the pepper current when 0069 ran, so
+  the scrypt check tries `API_TOKEN_PEPPER` and then `API_TOKEN_PEPPER_PREVIOUS` (the same
+  candidates the keyed lookup uses, through `candidatePeppers`). One rotation keeps the "revoked"
+  answer while the old value sits in `_PREVIOUS`. Dropping `_PREVIOUS`, or a second rotation,
+  before the date turns every `storage-changed` refusal into "not valid"; nothing else changes,
+  since a match never authenticates. While `_PREVIOUS` is set a miss on a 0069 prefix pays two
+  scrypt verifies, not one. A pre-0069 pepper shorter than 32 bytes cannot go in `_PREVIOUS` at all
+  (the floor refuses it on every verify), so if one is found deployed (PR 614's review finding 1),
+  rotating it loses the "revoked" answer for those rows.
 - **Why not fixed here:** a token minted the day before 0069 ran can live 365 days, so until its
   `expires_at` passes it can still be presented, and deserves the explanation.
 - **Fix path / Tripwire:** on or after **2027-10-27**, confirm in production that no

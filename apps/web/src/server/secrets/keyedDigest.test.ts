@@ -108,8 +108,7 @@ describe("legacyScryptDigest", () => {
   // `storage-changed` token falls back to "not valid". Its pepper is the old
   // short one on purpose: 0069's rows were written before the 32-byte floor.
   it("reproduces the digest pre-0069 rows were written with", async () => {
-    process.env.API_TOKEN_PEPPER = "known-answer-pepper";
-    expect(await legacyScryptDigest(SECRET)).toBe(
+    expect(await legacyScryptDigest(SECRET, "known-answer-pepper")).toBe(
       "2104163039c58f4c65add3bfc556496c2ea85f620f6b51c3dde60a4d3a94a1b9",
     );
   });
@@ -117,7 +116,6 @@ describe("legacyScryptDigest", () => {
   // **~37ms of scrypt must not stall every other request.** The prefix it
   // narrows by is shown in the UI, so anyone can make the server pay it.
   it("runs off the event loop, so a timer queued before it fires before it finishes", async () => {
-    process.env.API_TOKEN_PEPPER = KNOWN_PEPPER;
     const order: string[] = [];
     const tick = new Promise<void>((resolve) =>
       setImmediate(() => {
@@ -125,7 +123,7 @@ describe("legacyScryptDigest", () => {
         resolve();
       }),
     );
-    const digest = Promise.resolve(legacyScryptDigest(SECRET)).then(() => order.push("scrypt"));
+    const digest = Promise.resolve(legacyScryptDigest(SECRET, KNOWN_PEPPER)).then(() => order.push("scrypt"));
     await Promise.all([tick, digest]);
     expect(order).toEqual(["event loop", "scrypt"]);
   });
