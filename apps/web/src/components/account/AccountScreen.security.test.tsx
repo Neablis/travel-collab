@@ -46,31 +46,38 @@ const app: ConnectedApp = {
   revokedReason: null,
 };
 
-/** The plan the account bought, as the catalogue marks it: a lapse keeps it held. */
-function held(planId: string, entitlements: string[]): AccountPlanChoice[] {
-  return [
-    {
-      planId,
-      version: 1,
-      entitlements,
-      perUserRequestsPerDay: null,
-      perUserStepsPerDay: null,
-      held: true,
-      priceMinor: 900,
-      currency: "usd",
-    },
-  ];
+/**
+ * The catalogue as the server sends it: every plan, with only the one the
+ * account bought `held` (a lapse keeps it held). Both plans, or a check that
+ * ignores `held` would still pass on Premium's `api.tokens`.
+ */
+function holding(planId: "plus" | "premium"): AccountPlanChoice[] {
+  const choice = (id: string, entitlements: string[], priceMinor: number): AccountPlanChoice => ({
+    planId: id,
+    version: 1,
+    entitlements,
+    perUserRequestsPerDay: null,
+    perUserStepsPerDay: null,
+    held: id === planId,
+    priceMinor,
+    currency: "usd",
+  });
+  return [choice("plus", ["ai.ask"], 500), choice("premium", ["ai.ask", "api.tokens"], 900)];
 }
 
-/** Serve the tab's three reads: the plan (or its failure), the tokens and the connected apps. */
+/** Serve the tab's three reads: the plan (or its failure, or no answer at all), the tokens and the connected apps. */
 function serve(
-  plan: { entitlements: string[]; billing?: { state: string }; catalogue?: AccountPlanChoice[] } | "fails",
+  plan:
+    | { entitlements: string[]; billing?: { state: string }; catalogue?: AccountPlanChoice[] }
+    | "fails"
+    | "offline",
 ) {
   vi.stubGlobal(
     "fetch",
     vi.fn(async (url: string | URL) => {
       const href = String(url);
       if (href === "/api/account/plan") {
+        if (plan === "offline") throw new TypeError("Failed to fetch");
         return plan === "fails"
           ? new Response("{}", { status: 500 })
           : new Response(JSON.stringify({ plan }), { status: 200 });
@@ -131,7 +138,7 @@ describe("the Security tab on an account without the API", () => {
   // A lapsed Premium account had the features; "subscribe" would tell it
   // otherwise. "Are off", not "stopped working": it may never have made either.
   it("tells a lapsed Premium account both are off, and how to restart them", async () => {
-    serve({ entitlements: [], billing: { state: "lapsed" }, catalogue: held("premium", ["api.tokens"]) });
+    serve({ entitlements: [], billing: { state: "lapsed" }, catalogue: holding("premium") });
     render(<AccountScreen />);
     await screen.findByRole("link", { name: "Restart it" });
     const banner = thePremiumBanner();
@@ -144,7 +151,7 @@ describe("the Security tab on an account without the API", () => {
   // Every lapse reads "lapsed", whatever was bought; only Premium had the API,
   // so restarting Plus would turn nothing back on.
   it("offers a lapsed Plus account the plans, not a restart", async () => {
-    serve({ entitlements: [], billing: { state: "lapsed" }, catalogue: held("plus", ["ai.ask"]) });
+    serve({ entitlements: [], billing: { state: "lapsed" }, catalogue: holding("plus") });
     render(<AccountScreen />);
     await screen.findByRole("link", { name: "See plans" });
     expect(screen.queryByRole("link", { name: "Restart it" })).toBeNull();
@@ -174,6 +181,17 @@ describe("the Security tab when the plan cannot be read", () => {
     const tokens = await screen.findByRole("region", { name: "API tokens" });
     const line = await within(tokens).findByTestId("security-plan-failed");
     expect(line.textContent).toMatch(/could not be checked/);
+  });
+
+  // Offline the request rejects instead of answering 500: another path to the
+  // same line, and it must leave Revoke alone too.
+  it("says so too when the plan request never answers", async () => {
+    serve("offline");
+    render(<AccountScreen />);
+    const tokens = await screen.findByRole("region", { name: "API tokens" });
+    await within(tokens).findByTestId("security-plan-failed");
+    const revoke = await within(tokens).findByRole("button", { name: "Revoke" });
+    expect(revoke.hasAttribute("disabled")).toBe(false);
   });
 });
 
