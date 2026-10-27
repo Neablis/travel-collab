@@ -4,8 +4,11 @@ Staged while M55 is in flight; deleted in the gate-close commit. Decisions: the 
 (`docs/milestones/M55-claude-connects-as-you.md`, *Answered*). Design: ADR-083. Paths are relative
 to the repo root; `web/` means `apps/web/src/`. Line numbers are from `main` at `837eef5`.
 
-**Order.** Every part targets `main` and merges on its own; a part that needs an earlier one
-branches from `main` only after that one has merged. Part 1 merges first (it owns migration
+**Order.** *Stacked* (Mitchell, 2026-10-27, *"Are we not building all of this and stacking?"*):
+part K+1 branches from part K's head and its PR targets part K's branch, per
+`docs/guidelines/stacked-prs.md`; Mitchell merges them in order, and each is retargeted to `main`
+as the one below it merges. Originally every part targeted `main` and waited for the one before
+it to merge. Part 1 merges first (it owns migration
 `0069`; once its merge commit's production deploy is READY, dispatch `migrate-production`, because
 `api_tokens.revoked_reason` is read on every v1 request; never before the deploy, or old code can
 mint a scrypt token after the `UPDATE`, and never roll back past it — PR 614's review). Part 2 then branches from `main`. Part 3 waits on part 2, part 4 on
