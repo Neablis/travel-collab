@@ -16,7 +16,7 @@ export type InputSchema = { type: "object"; properties?: Record<string, object>;
 >;
 
 /** The JSON Schema of what a declaration validates: its body, else its query. */
-export function routeSchema(tool: McpTool): Record<string, unknown> | null {
+function routeSchema(tool: McpTool): Record<string, unknown> | null {
   const def = tool.handler[DECLARED].def;
   const source = def.body ?? def.query;
   return source === undefined
