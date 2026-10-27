@@ -1,9 +1,11 @@
 "use client";
 
+import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { forgetAskConversationsOf } from "@/lib/askOwnership";
+import { Banner } from "@/components/ui/banner";
 import { Button, buttonVariants, PHONE_TOUCH } from "@/components/ui/button";
 import { PageContainer } from "@/components/ui/page-container";
 import { Heading } from "@/components/ui/heading";
@@ -15,6 +17,7 @@ import { ProfileSection } from "./ProfileSection";
 import { PlanSection } from "./PlanSection";
 import { TokensSection } from "./TokensSection";
 import { ConnectedAppsSection } from "./ConnectedAppsSection";
+import type { AccountPlanState } from "@/lib/accountPlan";
 import { HOME_PATH } from "@/lib/homePath";
 import { clearSignedInHint } from "@/lib/sessionHint";
 
@@ -38,8 +41,8 @@ import { clearSignedInHint } from "@/lib/sessionHint";
 // **Security holds API tokens and Connected apps** (M55 part 6). They were
 // sub-views reached by quiet links at the foot of Profile (SPEC §35.4, M27
 // D7; M55 D10), and Mitchell found them buried there. The tab is the place
-// for whatever else secures an account later (MFA): one more entry in
-// `SECURITY_SECTIONS`.
+// for whatever else secures an account later (MFA), beside `PremiumSecurity`
+// rather than inside it.
 const TABS = [
   { value: "profile", label: "Profile" },
   { value: "plan", label: "Plan & usage" },
@@ -47,11 +50,94 @@ const TABS = [
 ] as const;
 type AccountTab = (typeof TABS)[number]["value"];
 
-/** Security's sections, in order: each a heading and a self-fetching section. */
-const SECURITY_SECTIONS = [
-  { heading: "API tokens", headingId: "account-tokens-heading", Section: TokensSection },
-  { heading: "Connected apps", headingId: "account-apps-heading", Section: ConnectedAppsSection },
-] as const;
+/**
+ * One of Security's sections under its heading.
+ *
+ * The heading lives here rather than inside the section, which renders nothing
+ * until its fetches resolve: `aria-labelledby` has to name something that
+ * exists from the first paint. h2 under the page's h1 (axe heading-order);
+ * `text-lg` is the size these headings had as sub-views.
+ */
+function SecuritySection({ heading, headingId, children }: { heading: string; headingId: string; children: ReactNode }) {
+  return (
+    <section aria-labelledby={headingId} className="flex flex-col gap-4">
+      <Heading level={2} id={headingId} className="text-lg">
+        {heading}
+      </Heading>
+      {children}
+    </section>
+  );
+}
+
+/**
+ * Security's Premium half: API tokens and Connected apps, both gated on
+ * `api.tokens` (minting a token, and consenting to an app, D6).
+ *
+ * **One upgrade prompt over both, not one per section** (Mitchell, M55 part
+ * 6): only the tokens section used to say it, so Connected apps read as free
+ * until the consent screen refused. Both sections still render beneath it, so
+ * a free account sees what it would get, and only creating is withheld: a
+ * lapsed account keeps Revoke and Disconnect, because cutting off a credential
+ * must never cost a subscription.
+ *
+ * `role="status"` from `Banner`, polite and not an alert: it is the page's
+ * standing state, not news.
+ */
+function PremiumSecurity() {
+  // `null` until the plan lands, and if it never does: no prompt, and no New
+  // token, while the lists and their removal carry on regardless.
+  const [plan, setPlan] = useState<{ entitled: boolean; lapsed: boolean } | null>(null);
+
+  useEffect(() => {
+    let live = true;
+    // eslint-disable-next-line no-restricted-globals -- an app API call with no client helper yet; moves onto the client with the collapse still open in KI-2026-09-05-q
+    fetch("/api/account/plan")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((body) => {
+        if (!live || body === null) return;
+        const read = (body as { plan: { entitlements: readonly string[]; billing?: { state: AccountPlanState } } }).plan;
+        // `billing` read defensively: a body without it once took the whole
+        // token list down for the sake of one sentence of copy.
+        setPlan({ entitled: read.entitlements.includes("api.tokens"), lapsed: read.billing?.state === "lapsed" });
+      })
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, []);
+
+  return (
+    <div className="flex flex-col gap-6">
+      {plan !== null && !plan.entitled ? (
+        <Banner variant="info" data-testid="security-upgrade">
+          {/* **Lapsed is not never-subscribed** (`accountPlan.ts`): "restart"
+              and "subscribe" are different acts and different sentences.
+              **And taking your trips with you is not Premium** (§34.1), said
+              here because "not on this plan" beside your own data reads as
+              a threat to it. */}
+          {plan.lapsed
+            ? "Your Premium subscription has ended, so your API tokens and connected apps stopped working. Restarting it turns them back on — nothing was deleted."
+            : "API tokens and connecting apps like Claude are on the Premium plan. Downloading a trip as a file is not — that is on every plan, from Trip settings."}{" "}
+          <Link
+            href="/plans"
+            className={buttonVariants({ variant: "secondary", size: "sm" })}
+            data-testid="security-upgrade-link"
+          >
+            {plan.lapsed ? "Restart it" : "See plans"}
+          </Link>
+        </Banner>
+      ) : null}
+      <div className="flex flex-col gap-10">
+        <SecuritySection heading="API tokens" headingId="account-tokens-heading">
+          <TokensSection entitled={plan?.entitled ?? null} />
+        </SecuritySection>
+        <SecuritySection heading="Connected apps" headingId="account-apps-heading">
+          <ConnectedAppsSection />
+        </SecuritySection>
+      </div>
+    </div>
+  );
+}
 
 /** The sub-view URLs from before Security, kept so their links and bookmarks still land. */
 const MOVED_TO_SECURITY = ["tokens", "apps"];
@@ -147,23 +233,7 @@ export function AccountScreen() {
             />
           )}
           {tab === "plan" && <PlanSection />}
-          {/* Each heading lives HERE rather than inside its section, which
-              renders nothing until its fetches resolve: the section's
-              `aria-labelledby` has to name something that exists from the
-              first paint. h2 under the page's h1 (axe heading-order); `text-lg`
-              is the size these headings had as sub-views. */}
-          {tab === "security" && (
-            <div className="flex flex-col gap-10">
-              {SECURITY_SECTIONS.map(({ heading, headingId, Section }) => (
-                <section key={headingId} aria-labelledby={headingId} className="flex flex-col gap-4">
-                  <Heading level={2} id={headingId} className="text-lg">
-                    {heading}
-                  </Heading>
-                  <Section />
-                </section>
-              ))}
-            </div>
-          )}
+          {tab === "security" && <PremiumSecurity />}
         </div>
 
         {/* **Sign out, on the phone only, below the tabs** — and this is the

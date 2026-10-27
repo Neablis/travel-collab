@@ -14,7 +14,7 @@ import {
 import type { TripSummary } from "@tc/contracts";
 import { Badge } from "@/components/ui/badge";
 import { Banner } from "@/components/ui/banner";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { CheckboxField } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,7 +24,6 @@ import { Text } from "@/components/ui/text";
 import { cn } from "@/lib/cn";
 import { ToggleChip } from "@/components/ui/toggle-chip";
 import { fetchTrips } from "@/lib/apiClient";
-import type { AccountPlanState } from "@/lib/accountPlan";
 
 // **The Tokens section in Account settings** (M22 Phase 3).
 //
@@ -132,10 +131,16 @@ const STATE_BADGE = { live: "success", expired: "warning", revoked: "neutral" } 
 // **This took an `onNavigate` prop until M26 link 1, and it is gone** — it
 // existed only to close the account Sheet behind a navigation to `/plans`.
 // Account is a route now (§34.4), so there is no container to close.
-/** Account's API tokens section: mint, list and revoke tokens, or an upgrade prompt on a plan without the API. */
-export function TokensSection() {
+/**
+ * Account's API tokens section: list and revoke tokens, and mint them on a plan with the API.
+ *
+ * `entitled` is the Security tab's read of the plan, `null` until it lands or
+ * when it failed. Only minting waits on it: the list and Revoke never do,
+ * because a lapsed account must always be able to cut off what it still holds.
+ * The upgrade prompt is the tab's too, said once over this and Connected apps.
+ */
+export function TokensSection({ entitled }: { entitled: boolean | null }) {
   const [tokens, setTokens] = useState<ApiToken[] | null>(null);
-  const [entitled, setEntitled] = useState<boolean | null>(null);
   const [failed, setFailed] = useState(false);
   const [creating, setCreating] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -155,7 +160,6 @@ export function TokensSection() {
   const [tripIds, setTripIds] = useState<string[]>([]);
   const [trips, setTrips] = useState<TripSummary[] | null>(null);
   const [tripsFailed, setTripsFailed] = useState(false);
-  const [billingState, setBillingState] = useState<AccountPlanState | null>(null);
   const [scopes, setScopes] = useState<ApiScope[]>(["trips:read"]);
   const [revealed, setRevealed] = useState<ApiTokenCreated | null>(null);
   // **Keyed on the REVEAL, not a boolean and not the secret's text.** The
@@ -173,35 +177,13 @@ export function TokensSection() {
 
   useEffect(() => {
     let live = true;
-    void Promise.all([
-      // eslint-disable-next-line no-restricted-globals -- an app API call with no client helper yet; moves onto the client with the collapse still open in KI-2026-09-05-q
-      fetch("/api/account/tokens").then((res) => (res.ok ? res.json() : null)),
-      // eslint-disable-next-line no-restricted-globals -- an app API call with no client helper yet; moves onto the client with the collapse still open in KI-2026-09-05-q
-      fetch("/api/account/plan").then((res) => (res.ok ? res.json() : null)),
-    ])
-      .then(([tokenBody, planBody]) => {
+    // eslint-disable-next-line no-restricted-globals -- an app API call with no client helper yet; moves onto the client with the collapse still open in KI-2026-09-05-q
+    fetch("/api/account/tokens")
+      .then((res) => (res.ok ? (res.json() as Promise<{ tokens: ApiToken[] }>) : null))
+      .then((body) => {
         if (!live) return;
-        if (tokenBody === null || planBody === null) {
-          setFailed(true);
-          return;
-        }
-        setTokens((tokenBody as { tokens: ApiToken[] }).tokens);
-        const plan = (
-          planBody as { plan: { entitlements: readonly string[]; billing?: { state: AccountPlanState } } }
-        ).plan;
-        setEntitled(plan.entitlements.includes("api.tokens"));
-        // **Already on the wire and unused until now** (`accountPlan.ts`). A
-        // lapsed account is not the same as one that never subscribed, and the
-        // gate copy said the same sentence to both.
-        //
-        // **Read defensively, and that is not defensive programming for its own
-        // sake.** The first cut read `plan.billing.state` outright; a plan body
-        // without `billing` threw inside this `.then`, hit the `.catch` below,
-        // and rendered "your API tokens could not be loaded" — the entire
-        // section lost to a field that only changes one sentence of copy. The
-        // token list is the thing this screen is for; a missing nicety must not
-        // take it down.
-        setBillingState(plan.billing?.state ?? null);
+        if (body === null) setFailed(true);
+        else setTokens(body.tokens);
       })
       .catch(() => live && setFailed(true));
     return () => {
@@ -315,7 +297,7 @@ export function TokensSection() {
       </Text>
     );
   }
-  if (tokens === null || entitled === null) return null;
+  if (tokens === null) return null;
 
   return (
     // No `<Heading>API tokens</Heading>` and no `aria-labelledby` here: the
@@ -344,36 +326,6 @@ export function TokensSection() {
           Getting started
         </Link>
       </Text>
-
-      {/* **What a free or plus account sees instead — a prompt, not a hidden
-          section.** Hiding it would answer "this product has no API"; showing
-          it locked answers "not on this plan", which is the true and the
-          actionable answer. */}
-      {!entitled ? (
-        <Banner variant="info" data-testid="tokens-upgrade">
-          {/* **Both halves of the split, named here rather than discovered in a
-              support conversation** (§34.1): tokens are Premium, and taking your
-              trips with you is not. Somebody reading "not on this plan" next to
-              their own data reasonably fears the second, and the answer is one
-              clause long.
-
-              **And the lapsed variant.** `billing.state` has been on the wire
-              since M21 (`accountPlan.ts`) and nothing read it, so an account
-              whose subscription ended was told it had never had the feature.
-              "Subscribe" and "restart" are different acts and different
-              sentences. */}
-          {billingState === "lapsed"
-            ? "Your subscription has ended, so your API tokens stopped working. Restarting it turns them back on — nothing was deleted."
-            : "API tokens are on the Premium plan. Downloading a trip as a file is not — that is on every plan, from Trip settings."}{" "}
-          <Link
-            href="/plans"
-            className={buttonVariants({ variant: "secondary", size: "sm" })}
-            data-testid="tokens-upgrade-link"
-          >
-            {billingState === "lapsed" ? "Restart it" : "See plans"}
-          </Link>
-        </Banner>
-      ) : null}
 
       {/* **The one-time reveal.** Deliberately a `readOnly` input rather than a
           `<code>` block: a person needs to select it, and on a phone the only
