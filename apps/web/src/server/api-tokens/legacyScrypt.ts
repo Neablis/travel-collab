@@ -1,4 +1,4 @@
-import { scryptSync } from "node:crypto";
+import { scrypt } from "node:crypto";
 import { ApiTokenPepperMissingError, digestsMatch } from "@/server/secrets/keyedDigest";
 
 // **The one scrypt verify left, in its own file so deleting it is one commit**
@@ -20,22 +20,36 @@ const SCRYPT = { N: 16384, r: 8, p: 1, maxmem: 64 * 1024 * 1024 } as const;
 /**
  * The digest a `tc_` token was stored under before 0069, hex.
  *
+ * **Async, on libuv's thread pool.** The prefix the caller narrows by is shown
+ * in the UI, so anyone can make the server pay ~37ms here; `scryptSync` would
+ * stall every other request for that long.
+ *
+ * Its pepper check is the pre-0069 one (only blank is refused): these rows were
+ * written before the 32-byte floor, under whatever pepper was set then.
+ *
  * Exported for the integration test, which plants a pre-0069 row. Nothing that
  * mints may call it.
  */
-export function legacyScryptDigest(secret: string): string {
+export function legacyScryptDigest(secret: string): Promise<string> {
   const pepper = process.env.API_TOKEN_PEPPER ?? "";
-  if (pepper === "") throw new ApiTokenPepperMissingError();
-  return scryptSync(secret, pepper, 32, SCRYPT).toString("hex");
+  if (pepper === "") return Promise.reject(new ApiTokenPepperMissingError());
+  return new Promise((resolve, reject) => {
+    scrypt(secret, pepper, 32, SCRYPT, (error, key) =>
+      error === null ? resolve(key.toString("hex")) : reject(error),
+    );
+  });
 }
 
 /**
  * Is `secret` the one this pre-0069 row was minted for?
  *
- * The caller has already narrowed to rows with the secret's prefix and the
- * `storage-changed` reason, so the ~37ms is paid only by someone presenting a
- * token 0069 revoked.
+ * The caller has already narrowed to one row with the secret's prefix and the
+ * `storage-changed` reason, so the ~37ms is paid at most once, and only by
+ * someone presenting that prefix.
  */
-export function matchesLegacyToken(secret: string, row: { tokenHash: string }): boolean {
-  return digestsMatch(legacyScryptDigest(secret), row.tokenHash);
+export async function matchesLegacyToken(
+  secret: string,
+  row: { tokenHash: string },
+): Promise<boolean> {
+  return digestsMatch(await legacyScryptDigest(secret), row.tokenHash);
 }

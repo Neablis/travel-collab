@@ -58,8 +58,9 @@ env:
   # minting and verifying throw without it rather than falling back — an empty
   # pepper still produces a stable digest, so a fallback would leave tokens
   # working while the property the key exists for silently did not hold. CI does
-  # not need a real one; it needs a present one.
-  API_TOKEN_PEPPER: ci-pepper
+  # not need a real one; it needs a present one of at least 32 bytes, the floor
+  # `keyedDigest` refuses below.
+  API_TOKEN_PEPPER: ci-pepper-not-a-real-key-but-32-bytes-long
   AUTH_DEV_LOGIN: "true"
   # Auth.js v5 rejects requests from untrusted hosts under `next start`
   # (production mode) unless the platform sets this itself (Vercel does).

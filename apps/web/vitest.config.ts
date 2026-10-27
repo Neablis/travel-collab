@@ -17,9 +17,10 @@ if (existsSync(envLocalPath)) {
 // not `??=`: `pnpm setup` has shipped `.env.local` with `API_TOKEN_PEPPER=`, and
 // an empty string is not nullish, so `??=` kept the blank and 86 tests threw
 // (KI-2026-09-19-a). A real value from `.env.local` or CI is still left alone;
-// this only has to be present and stable within a run, because nothing asserts
+// this only has to be present, at least 32 bytes (`keyedDigest` refuses a
+// shorter one) and stable within a run, because nothing asserts
 // a digest against a fixture.
-process.env.API_TOKEN_PEPPER ||= "test-pepper-not-a-real-key";
+process.env.API_TOKEN_PEPPER ||= "test-pepper-not-a-real-key-but-32-bytes-long";
 
 // The link-preview cache (ADR-059) is off under test: a process-wide memory
 // cache would let one test's lookup answer another's, and hide the database

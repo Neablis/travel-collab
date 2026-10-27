@@ -856,7 +856,18 @@ minting and verifying both throw rather than falling back — an empty pepper
 would still produce a stable digest, and tokens would keep working while the
 property the key exists for silently did not hold.
 
-Generate with `openssl rand -base64 32`. **Rotating it invalidates every token**,
-with no migration path. That is the right blast radius for a key compromise, and
-it is why it is not `AUTH_SECRET`: rotating sessions and rotating API credentials
-are different emergencies.
+Generate with `openssl rand -base64 32`. **It must be at least 32 bytes**; a
+shorter one is refused (`ApiTokenPepperTooShortError`), because a short pepper
+can be guessed. It is not `AUTH_SECRET`: rotating sessions and rotating API
+credentials are different emergencies.
+
+**Rotating it** without logging every integration out: set
+`API_TOKEN_PEPPER_PREVIOUS` to the old value and `API_TOKEN_PEPPER` to the new
+one. New tokens are minted under the new key, and a token minted under the old
+one keeps verifying, because a lookup tries the current key's digest and then the
+previous key's. Drop `API_TOKEN_PEPPER_PREVIOUS` once those tokens have been
+re-minted or have expired (365 days at most). `api_tokens.key_version` records
+which key made each row, so a row whose version differs from a freshly minted
+token's is still on the old key. For a **key compromise**, replace the pepper and
+leave `API_TOKEN_PEPPER_PREVIOUS` unset: every token dies at once, which is the
+right blast radius.

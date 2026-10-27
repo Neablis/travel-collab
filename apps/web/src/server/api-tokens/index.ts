@@ -1,5 +1,5 @@
 import { randomBytes, randomUUID } from "node:crypto";
-import { and, desc, eq, isNull, lt, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, lt, sql } from "drizzle-orm";
 import type { z } from "zod";
 import {
   API_TOKEN_DEFAULT_LIFETIME_DAYS,
@@ -15,7 +15,7 @@ import {
 import { db } from "@/server/db/client";
 import { apiTokens } from "@/server/db/schema";
 import { accountCan } from "@/server/entitlements/resolver";
-import { digestsMatch, keyedDigest } from "@/server/secrets/keyedDigest";
+import { digestsMatch, keyedDigest, keyedDigestCandidates } from "@/server/secrets/keyedDigest";
 import { matchesLegacyToken } from "./legacyScrypt";
 
 // **Minting, listing, verifying and revoking account API tokens** (M22 Phase 1).
@@ -150,6 +150,7 @@ export async function mintToken(
   const valid = parsed.data;
 
   const secret = mintSecret();
+  const { digest, keyVersion } = keyedDigest(secret);
   const expiresAt = new Date(now.getTime() + valid.expiresInDays * 24 * 60 * 60 * 1000);
   const [row] = await db
     .insert(apiTokens)
@@ -157,7 +158,8 @@ export async function mintToken(
       id: randomUUID(),
       ownerId,
       name: valid.name,
-      tokenHash: keyedDigest(secret),
+      tokenHash: digest,
+      keyVersion,
       prefix: secret.slice(0, API_TOKEN_PREFIX_LENGTH),
       scopes: valid.scopes,
       tripIds: valid.tripIds,
@@ -211,10 +213,14 @@ export async function verifyToken(secret: string, now: Date = new Date()): Promi
   // costs nothing.
   if (!secret.startsWith(API_TOKEN_PREFIX)) return { ok: false, refusal: { reason: "unknown" } };
 
-  const digest = keyedDigest(secret);
-  const rows = await db.select().from(apiTokens).where(eq(apiTokens.tokenHash, digest));
+  // **Under the current key, then the previous one**, in one indexed select, so
+  // a pepper rotation does not log every integration out.
+  const digests = keyedDigestCandidates(secret).map((candidate) => candidate.digest);
+  const rows = await db.select().from(apiTokens).where(inArray(apiTokens.tokenHash, digests));
   const row = rows[0];
-  if (row === undefined || !digestsMatch(row.tokenHash, digest)) return legacyRefusal(secret);
+  if (row === undefined || !digests.some((digest) => digestsMatch(row.tokenHash, digest))) {
+    return legacyRefusal(secret);
+  }
 
   // **Revoked before expired**, deliberately: a token that was revoked and has
   // since also expired was cut off, and that is the more useful thing to be
@@ -260,9 +266,14 @@ export async function verifyToken(secret: string, now: Date = new Date()): Promi
  * reason narrow it to the rows a pre-0069 token could be, so the one scrypt
  * verify is paid only by someone presenting one of those. Goes when
  * `legacyScrypt.ts` does (KI-2026-10-27-e).
+ *
+ * **One row, so one scrypt per request.** The prefix is shown in the UI, so
+ * anyone can present it; without the limit, each row sharing it cost another
+ * ~37ms. If two 0069 rows share a prefix (it carries about 30 bits), one owner
+ * is told "not valid" rather than "revoked", which is the cheaper wrong.
  */
 async function legacyRefusal(secret: string): Promise<VerifyResult> {
-  const candidates = await db
+  const [row] = await db
     .select()
     .from(apiTokens)
     .where(
@@ -270,9 +281,11 @@ async function legacyRefusal(secret: string): Promise<VerifyResult> {
         eq(apiTokens.prefix, secret.slice(0, API_TOKEN_PREFIX_LENGTH)),
         eq(apiTokens.revokedReason, "storage-changed"),
       ),
-    );
-  const row = candidates.find((candidate) => matchesLegacyToken(secret, candidate));
-  if (row === undefined || row.revokedAt === null) return { ok: false, refusal: { reason: "unknown" } };
+    )
+    .limit(1);
+  if (row === undefined || row.revokedAt === null || !(await matchesLegacyToken(secret, row))) {
+    return { ok: false, refusal: { reason: "unknown" } };
+  }
   return {
     ok: false,
     refusal: { reason: "revoked", revokedAt: row.revokedAt, revokedReason: "storage-changed" },

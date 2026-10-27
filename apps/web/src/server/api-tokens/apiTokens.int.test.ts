@@ -10,7 +10,7 @@
 // for, and it is why a tier gate in this repo is provable in CI rather than by
 // watching production once.
 import { randomBytes, randomUUID } from "node:crypto";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { apiTokens } from "@/server/db/schema";
@@ -19,7 +19,7 @@ import { allGrantsFor, issueGrant } from "@/server/entitlements/grants";
 import { livePlanVersion } from "@/server/entitlements/planVersions";
 import { accountCan } from "@/server/entitlements/resolver";
 import { ApiTokenPepperMissingError, keyedDigest } from "@/server/secrets/keyedDigest";
-import { legacyScryptDigest } from "./legacyScrypt";
+import { legacyScryptDigest, matchesLegacyToken } from "./legacyScrypt";
 import {
   API_TOKEN_MAX_LIFETIME_DAYS,
   expiredTokensFor,
@@ -29,6 +29,13 @@ import {
   touchLastUsed,
   verifyToken,
 } from "./index";
+
+// Counted, never replaced: every call still runs the real scrypt verify, so the
+// legacy tests below prove the real thing and one of them counts how often.
+vi.mock("./legacyScrypt", async (importOriginal) => {
+  const real = await importOriginal<typeof import("./legacyScrypt")>();
+  return { ...real, matchesLegacyToken: vi.fn(real.matchesLegacyToken) };
+});
 
 const newUser = () => `dev-${randomUUID()}`;
 
@@ -285,11 +292,12 @@ describe("the pepper", () => {
     // "credential hashed with a fast hash" into the tree for a static analyser
     // to find, in a file whose point is that we do not do that.)
     //
-    // Under a rotated pepper the same secret no longer resolves — every
-    // token dies, deliberately and with no migration path, which is the right
-    // blast radius for a key compromise.
+    // Under a replaced pepper with no previous key set, the same secret no
+    // longer resolves — every token dies, which is the right blast radius for a
+    // key compromise. A planned rotation keeps the old key as the previous one
+    // (the next test).
     const original = process.env.API_TOKEN_PEPPER;
-    process.env.API_TOKEN_PEPPER = "a-different-key-entirely";
+    process.env.API_TOKEN_PEPPER = "a-different-key-entirely-of-32-bytes";
     try {
       const refused = await verifyToken(secret);
       expect(refused.ok).toBe(false);
@@ -310,8 +318,32 @@ describe("the pepper", () => {
     const secret = minted.ok ? minted.created.secret : "";
     const tokenId = minted.ok ? minted.created.token.tokenId : "";
     const stored = (await db.select().from(apiTokens).where(eq(apiTokens.id, tokenId)))[0]!;
-    expect(stored.tokenHash).toBe(keyedDigest(secret));
+    expect({ digest: stored.tokenHash, keyVersion: stored.keyVersion }).toEqual(keyedDigest(secret));
     expect((await verifyToken(secret)).ok).toBe(true);
+  });
+
+  // **Rotation is not a mass logout** (GitLab's `sha256_candidates`). The old
+  // pepper moves to `API_TOKEN_PEPPER_PREVIOUS`, and a token minted under it
+  // keeps verifying until that variable is dropped.
+  it("still verifies a token minted under the previous pepper after a rotation", async () => {
+    const owner = await entitledAccount();
+    const minted = await mintToken(owner, input());
+    const secret = minted.ok ? minted.created.secret : "";
+
+    const original = process.env.API_TOKEN_PEPPER!;
+    process.env.API_TOKEN_PEPPER = "the-rotated-in-key-of-at-least-32-bytes";
+    process.env.API_TOKEN_PEPPER_PREVIOUS = original;
+    try {
+      const verified = await verifyToken(secret);
+      expect(verified.ok).toBe(true);
+      // And once the previous key is dropped, it is gone, as the rotation runbook says.
+      delete process.env.API_TOKEN_PEPPER_PREVIOUS;
+      const refused = await verifyToken(secret);
+      expect(refused.ok === false && refused.refusal.reason).toBe("unknown");
+    } finally {
+      process.env.API_TOKEN_PEPPER = original;
+      delete process.env.API_TOKEN_PEPPER_PREVIOUS;
+    }
   });
 
   // **Fails closed and loudly.** An empty pepper still produces a stable digest,
@@ -504,7 +536,8 @@ describe("a token minted before storage changed (migration 0069)", () => {
       id,
       ownerId: owner,
       name: "Before 0069",
-      tokenHash: legacyScryptDigest(secret),
+      tokenHash: await legacyScryptDigest(secret),
+      keyVersion: "scrypt",
       prefix: secret.slice(0, 8),
       scopes: ["trips:read"],
       tripIds: null,
@@ -534,6 +567,21 @@ describe("a token minted before storage changed (migration 0069)", () => {
     const impostor = `${secret.slice(0, 8)}${randomBytes(32).toString("base64url")}`;
     const refused = await verifyToken(impostor);
     expect(refused.ok === false && refused.refusal.reason).toBe("unknown");
+  });
+
+  // **One scrypt per request, however many rows share the prefix.** The prefix
+  // is shown in the UI, so each extra row would be ~37ms anyone could buy.
+  it("pays for one scrypt verify when two of 0069's rows share the prefix", async () => {
+    const { secret } = await legacyRow();
+    const prefix = secret.slice(0, 8);
+    const twin = `${prefix}${randomBytes(32).toString("base64url")}`;
+    await legacyRow({ prefix, tokenHash: await legacyScryptDigest(twin) });
+    const impostor = `${prefix}${randomBytes(32).toString("base64url")}`;
+
+    vi.mocked(matchesLegacyToken).mockClear();
+    const refused = await verifyToken(impostor);
+    expect(refused.ok === false && refused.refusal.reason).toBe("unknown");
+    expect(matchesLegacyToken).toHaveBeenCalledTimes(1);
   });
 
   // Only 0069's rows reach the scrypt verify (ADR-083 §3: anything else is

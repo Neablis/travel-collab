@@ -285,7 +285,8 @@ dispatched workflow. Details: `docs/guidelines/content-bundles.md`.
   saves one before storing a multi-change suggestion, or says it skipped it at the cap.
 - **Tokens**: invite and share tokens are plaintext by recorded decision, so the owner can re-show the link
   (ADR-026). API tokens are stored as an HMAC under a key derived from `API_TOKEN_PEPPER` (`keyedDigest`, the one
-  helper every issued secret uses, ADR-083), shown once, and must expire.
+  helper every issued secret uses, ADR-083), with the key's version beside it, shown once, and must expire. A
+  lookup also tries `API_TOKEN_PEPPER_PREVIOUS`, so rotating the pepper is not a mass logout.
 - **Anonymous readers**: the demo trip, pinned shares, and the public playbook library (ADR-061), each opt-in
   per route. A pending invite's holder reads only its landing and `GET /api/invites/:token/preview`, which
   carries no per-stop or per-person cost (M38 D4). "Have a look first" renders that preview, and a pending

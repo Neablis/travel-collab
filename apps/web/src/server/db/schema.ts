@@ -253,6 +253,10 @@ export const apiTokens = pgTable(
     // `API_TOKEN_PEPPER`, hex. The lookup key — one indexed equality select, the
     // same cost as the invite lookup.
     tokenHash: text("token_hash").notNull(),
+    // `keyedDigest`'s key version: which pepper `token_hash` was made under, so
+    // a rotation can tell which rows still need `API_TOKEN_PEPPER_PREVIOUS`.
+    // `scrypt` on every row written before 0069.
+    keyVersion: text("key_version").notNull(),
     // The first 8 characters of the secret (`tc_7Fq2xR9a`), for the list UI.
     // Display only: far too short to narrow a 256-bit secret.
     prefix: text("prefix").notNull(),
@@ -382,6 +386,8 @@ export const oauthCodes = pgTable(
   {
     id: uuid("id").primaryKey(),
     codeHash: text("code_hash").notNull(),
+    // `keyedDigest`'s key version, as `api_tokens.key_version`.
+    keyVersion: text("key_version").notNull(),
     // An `oauth_grants.id`.
     grantId: uuid("grant_id").notNull(),
     // The PKCE S256 challenge the authorize request carried.
@@ -403,6 +409,8 @@ export const oauthTokens = pgTable(
   {
     id: uuid("id").primaryKey(),
     tokenHash: text("token_hash").notNull(),
+    // `keyedDigest`'s key version, as `api_tokens.key_version`.
+    keyVersion: text("key_version").notNull(),
     // An `oauth_grants.id`.
     grantId: uuid("grant_id").notNull(),
     kind: text("kind").$type<"access" | "refresh">().notNull(),

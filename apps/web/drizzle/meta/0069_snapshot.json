@@ -483,6 +483,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "key_version": {
+          "name": "key_version",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
         "prefix": {
           "name": "prefix",
           "type": "text",
@@ -1399,6 +1405,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "key_version": {
+          "name": "key_version",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
         "grant_id": {
           "name": "grant_id",
           "type": "uuid",
@@ -1608,6 +1620,12 @@
         },
         "token_hash": {
           "name": "token_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "key_version": {
+          "name": "key_version",
           "type": "text",
           "primaryKey": false,
           "notNull": true

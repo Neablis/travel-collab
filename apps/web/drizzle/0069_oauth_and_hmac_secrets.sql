@@ -14,6 +14,7 @@ CREATE TABLE "oauth_clients" (
 CREATE TABLE "oauth_codes" (
 	"id" uuid PRIMARY KEY NOT NULL,
 	"code_hash" text NOT NULL,
+	"key_version" text NOT NULL,
 	"grant_id" uuid NOT NULL,
 	"code_challenge" text NOT NULL,
 	"redirect_uri" text NOT NULL,
@@ -41,6 +42,7 @@ CREATE TABLE "oauth_grants" (
 CREATE TABLE "oauth_tokens" (
 	"id" uuid PRIMARY KEY NOT NULL,
 	"token_hash" text NOT NULL,
+	"key_version" text NOT NULL,
 	"grant_id" uuid NOT NULL,
 	"kind" text NOT NULL,
 	"created_at" timestamp with time zone NOT NULL,
@@ -51,6 +53,12 @@ CREATE TABLE "oauth_tokens" (
 );
 --> statement-breakpoint
 ALTER TABLE "api_tokens" ADD COLUMN "revoked_reason" text;--> statement-breakpoint
+-- Added nullable, filled, then NOT NULL: drizzle-kit's single `ADD COLUMN …
+-- NOT NULL` fails on a table that has rows. Every row here predates 0069, so
+-- its digest is scrypt, which no `keyedDigest` key version can name.
+ALTER TABLE "api_tokens" ADD COLUMN "key_version" text;--> statement-breakpoint
+UPDATE "api_tokens" SET "key_version" = 'scrypt';--> statement-breakpoint
+ALTER TABLE "api_tokens" ALTER COLUMN "key_version" SET NOT NULL;--> statement-breakpoint
 CREATE UNIQUE INDEX "oauth_clients_cimd_url" ON "oauth_clients" USING btree ("cimd_url");--> statement-breakpoint
 CREATE UNIQUE INDEX "oauth_codes_hash" ON "oauth_codes" USING btree ("code_hash");--> statement-breakpoint
 CREATE INDEX "oauth_codes_grant" ON "oauth_codes" USING btree ("grant_id");--> statement-breakpoint
