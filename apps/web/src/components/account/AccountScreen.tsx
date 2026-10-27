@@ -17,7 +17,8 @@ import { ProfileSection } from "./ProfileSection";
 import { PlanSection } from "./PlanSection";
 import { TokensSection } from "./TokensSection";
 import { ConnectedAppsSection } from "./ConnectedAppsSection";
-import type { AccountPlanState } from "@/lib/accountPlan";
+import { Text } from "@/components/ui/text";
+import type { AccountPlanChoice, AccountPlanState } from "@/lib/accountPlan";
 import { HOME_PATH } from "@/lib/homePath";
 import { clearSignedInHint } from "@/lib/sessionHint";
 
@@ -87,6 +88,8 @@ function PremiumSecurity() {
   // `null` until the plan lands, and if it never does: no prompt, and no New
   // token, while the lists and their removal carry on regardless.
   const [plan, setPlan] = useState<{ entitled: boolean; lapsed: boolean } | null>(null);
+  // Said under the tokens heading, or New token would vanish with no reason.
+  const [planFailed, setPlanFailed] = useState(false);
 
   useEffect(() => {
     let live = true;
@@ -94,13 +97,36 @@ function PremiumSecurity() {
     fetch("/api/account/plan")
       .then((res) => (res.ok ? res.json() : null))
       .then((body) => {
-        if (!live || body === null) return;
-        const read = (body as { plan: { entitlements: readonly string[]; billing?: { state: AccountPlanState } } }).plan;
+        if (!live) return;
+        if (body === null) {
+          setPlanFailed(true);
+          return;
+        }
+        const read = (
+          body as {
+            plan: {
+              entitlements: readonly string[];
+              billing?: { state: AccountPlanState };
+              catalogue?: readonly AccountPlanChoice[];
+            };
+          }
+        ).plan;
         // `billing` read defensively: a body without it once took the whole
         // token list down for the sake of one sentence of copy.
-        setPlan({ entitled: read.entitlements.includes("api.tokens"), lapsed: read.billing?.state === "lapsed" });
+        //
+        // **Lapsed from the API only if the held plan carried it.** Any
+        // subscription that stops conferring reads `lapsed`, and only Premium
+        // has `api.tokens`: a lapsed Plus account never had either, and
+        // restarting Plus turns neither on. The catalogue keeps the bought plan
+        // `held` through a lapse.
+        const lapsed =
+          read.billing?.state === "lapsed" &&
+          (read.catalogue?.some((choice) => choice.held && choice.entitlements.includes("api.tokens")) ?? false);
+        setPlan({ entitled: read.entitlements.includes("api.tokens"), lapsed });
       })
-      .catch(() => undefined);
+      .catch(() => {
+        if (live) setPlanFailed(true);
+      });
     return () => {
       live = false;
     };
@@ -116,7 +142,7 @@ function PremiumSecurity() {
               here because "not on this plan" beside your own data reads as
               a threat to it. */}
           {plan.lapsed
-            ? "Your Premium subscription has ended, so your API tokens and connected apps stopped working. Restarting it turns them back on — nothing was deleted."
+            ? "Your Premium subscription has ended, so API tokens and connected apps are off. Restarting it turns them back on — nothing was deleted."
             : "API tokens and connecting apps like Claude are on the Premium plan. Downloading a trip as a file is not — that is on every plan, from Trip settings."}{" "}
           <Link
             href="/plans"
@@ -129,6 +155,11 @@ function PremiumSecurity() {
       ) : null}
       <div className="flex flex-col gap-10">
         <SecuritySection heading="API tokens" headingId="account-tokens-heading">
+          {planFailed ? (
+            <Text variant="secondary" className="text-sm" data-testid="security-plan-failed">
+              Your plan could not be checked just now, so creating a token is unavailable. Reload to try again.
+            </Text>
+          ) : null}
           <TokensSection entitled={plan?.entitled ?? null} />
         </SecuritySection>
         <SecuritySection heading="Connected apps" headingId="account-apps-heading">

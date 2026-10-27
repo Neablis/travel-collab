@@ -1,6 +1,7 @@
 import { cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ApiToken, ConnectedApp } from "@tc/contracts";
+import type { AccountPlanChoice } from "@/lib/accountPlan";
 import { AccountScreen } from "./AccountScreen";
 
 // **The Security tab with its real sections**, for an account without the API
@@ -45,13 +46,35 @@ const app: ConnectedApp = {
   revokedReason: null,
 };
 
-/** Serve the tab's three reads: the plan, the tokens and the connected apps. */
-function serve(plan: { entitlements: string[]; billing?: { state: string } }) {
+/** The plan the account bought, as the catalogue marks it: a lapse keeps it held. */
+function held(planId: string, entitlements: string[]): AccountPlanChoice[] {
+  return [
+    {
+      planId,
+      version: 1,
+      entitlements,
+      perUserRequestsPerDay: null,
+      perUserStepsPerDay: null,
+      held: true,
+      priceMinor: 900,
+      currency: "usd",
+    },
+  ];
+}
+
+/** Serve the tab's three reads: the plan (or its failure), the tokens and the connected apps. */
+function serve(
+  plan: { entitlements: string[]; billing?: { state: string }; catalogue?: AccountPlanChoice[] } | "fails",
+) {
   vi.stubGlobal(
     "fetch",
     vi.fn(async (url: string | URL) => {
       const href = String(url);
-      if (href === "/api/account/plan") return new Response(JSON.stringify({ plan }), { status: 200 });
+      if (href === "/api/account/plan") {
+        return plan === "fails"
+          ? new Response("{}", { status: 500 })
+          : new Response(JSON.stringify({ plan }), { status: 200 });
+      }
       if (href === "/api/account/tokens") return new Response(JSON.stringify({ tokens: [token] }), { status: 200 });
       if (href === "/api/account/connected-apps") return new Response(JSON.stringify({ apps: [app] }), { status: 200 });
       return new Response("{}", { status: 404 });
@@ -105,15 +128,52 @@ describe("the Security tab on an account without the API", () => {
     expect(disconnect.hasAttribute("disabled")).toBe(false);
   });
 
-  // A lapsed account had the features; "subscribe" would tell it otherwise.
-  it("tells a lapsed account both stopped, and how to restart them", async () => {
-    serve({ entitlements: [], billing: { state: "lapsed" } });
+  // A lapsed Premium account had the features; "subscribe" would tell it
+  // otherwise. "Are off", not "stopped working": it may never have made either.
+  it("tells a lapsed Premium account both are off, and how to restart them", async () => {
+    serve({ entitlements: [], billing: { state: "lapsed" }, catalogue: held("premium", ["api.tokens"]) });
     render(<AccountScreen />);
     await screen.findByRole("link", { name: "Restart it" });
     const banner = thePremiumBanner();
-    expect(banner.textContent).toContain("stopped working");
+    expect(banner.textContent).toContain("are off");
+    expect(banner.textContent).not.toContain("stopped working");
     expect(banner.textContent).toContain("nothing was deleted");
     expect(within(banner).getByRole("link", { name: "Restart it" }).getAttribute("href")).toBe("/plans");
+  });
+
+  // Every lapse reads "lapsed", whatever was bought; only Premium had the API,
+  // so restarting Plus would turn nothing back on.
+  it("offers a lapsed Plus account the plans, not a restart", async () => {
+    serve({ entitlements: [], billing: { state: "lapsed" }, catalogue: held("plus", ["ai.ask"]) });
+    render(<AccountScreen />);
+    await screen.findByRole("link", { name: "See plans" });
+    expect(screen.queryByRole("link", { name: "Restart it" })).toBeNull();
+    expect(thePremiumBanner().textContent).not.toMatch(/subscription has ended/);
+  });
+});
+
+describe("the Security tab when the plan cannot be read", () => {
+  // Removal never waits on the plan, so a failed read must not hide it.
+  it("still lists the tokens with Revoke, and the apps with Disconnect", async () => {
+    serve("fails");
+    render(<AccountScreen />);
+    const tokens = await screen.findByRole("region", { name: "API tokens" });
+    const revoke = await within(tokens).findByRole("button", { name: "Revoke" });
+    expect(revoke.hasAttribute("disabled")).toBe(false);
+    const apps = screen.getByRole("region", { name: "Connected apps" });
+    const disconnect = await within(apps).findByRole("button", { name: "Disconnect" });
+    expect(disconnect.hasAttribute("disabled")).toBe(false);
+    expect(screen.queryByRole("button", { name: "New token" })).toBeNull();
+    expect(screen.queryByTestId("security-upgrade")).toBeNull();
+  });
+
+  // Without a reason, New token is simply missing.
+  it("says why New token is missing", async () => {
+    serve("fails");
+    render(<AccountScreen />);
+    const tokens = await screen.findByRole("region", { name: "API tokens" });
+    const line = await within(tokens).findByTestId("security-plan-failed");
+    expect(line.textContent).toMatch(/could not be checked/);
   });
 });
 
