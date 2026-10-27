@@ -18,7 +18,9 @@
   disappearing and reappearing when I switch between the other tabs"). `PhoneAskTab` now holds
   the last entry it saw in a trip, disabled, onto that trip's board and notebook index until
   the next screen registers (`useHeldPhoneAsk`); another trip, the account pages and a notebook
-  page start empty as before. A first load, the case above, still has nothing to hold. A
+  page start empty as before. **Seen on a device:** Mitchell's walk of `main` at `e9a46b0f`
+  (2026-10-27, 01:51Z, Android, phone width) confirmed that Board↔Notebook keeps the Ask tab in
+  place, greyed briefly. That half is closed; this entry stays open for the first-load gap below. A first load, the case above, still has nothing to hold. A
   screen that settles on no Ask ends the hold (`useDeclinePhoneAsk`): the board's error and
   sign-in states, the notebook index's failed read, and a demo trip's board and notebook index,
   neither of which offers an Ask, since `/ask` refuses a demo trip (KI-079). Notebook index

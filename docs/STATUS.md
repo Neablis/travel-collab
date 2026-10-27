@@ -21,21 +21,23 @@ general setup.
 
 ## Where the work is right now
 
-**M54 is current, scoped 2026-10-26** (`docs/milestones/M54-the-motion-pass.md`), placed ahead of
-M43 on Mitchell's word. It is the motion pass designed on 2026-10-25
-(`docs/specs/2026-10-25-motion-pass-design.md`), with ADR-082 and the plan in
-`docs/plans/2026-10-26-M54-the-motion-pass.md`. Part 0 is on `ccr-3f23dccb-mljaxu` (draft, merges
-last). Its eight parts run as an unattended stack, `claude/m54-part1-…` to `claude/m54-part8-…`,
-and Mitchell merges them in order.
+**M54 closed 2026-10-27, gate 13 of 13**, by `pnpm milestone close M54 --confirm` on part 0
+(PR 593, `ccr-3f23dccb-mljaxu`), which waits on Mitchell's merge. All eight parts are on `main`
+(PRs 594, 595, 600, 601, 607, 604, 605, 606, merged as one stack in `e9a46b0f`, 2026-10-26; no
+migration). Mitchell walked three checks on `main` from Android (2026-10-27, 01:51Z) and, about
+02:00Z, waived the rest of the [walk] and the iPhone cold launch, accepted the pending-button e2e
+without a red, and had the lens fade and the e2e splash wait recorded as known issues
+(KI-20261027-a to -c; -d is the rail's passive-effect focus). Evidence, retro and spend are in
+`docs/milestones/M54-the-motion-pass.md`; the plan is deleted. **M43 is now the current
+milestone** (`docs/milestones/M43-notebooks-keep-up.md`), proposed and not yet scoped.
 
 **M49 closed 2026-10-25, gate 9 of 9**, by `pnpm milestone close M49 --confirm` on part 0
-(PR 581, `claude/cool-goodall-p53ykz`), which waits on Mitchell's merge. All four parts are on
+(PR 581, `claude/cool-goodall-p53ykz`). All four parts are on
 `main`: part 1 (PR 580, `fc07b46`, migration `0068` applied in production by `migrate-production`
 run 40169051627), then parts 2, 4 and 3 (PRs 584, 585, 588, stacked, merged together as
 `cc93447`). The [walk] box was ticked on Mitchell's word, 2026-10-25 17:59Z: *"Confirmed, and
 walked. Closed out the gate"*. Evidence, retro and spend are in
-`docs/milestones/M49-covers-from-anywhere.md`; the plan is deleted. **M43 is now the current
-milestone** (`docs/milestones/M43-notebooks-keep-up.md`), proposed and not yet scoped.
+`docs/milestones/M49-covers-from-anywhere.md`; the plan is deleted.
 
 **M52 closed 2026-10-24, gate 13 of 13**, by `pnpm milestone close M52 --confirm` on part 0
 (PR 529, `claude/serene-tesla-quoyte`). Parts 1–12 merged 2026-10-23/24 (PRs 530–537, 539–542,
@@ -46,13 +48,14 @@ earlier confirmations (Today undeletable on production; part 10's API; part 11 *
 confirmed fixed"*). Evidence, retro and spend are in
 `docs/milestones/M52-the-trip-comes-with-you.md`.
 
-**Next action:** M54's parts are built and reviewed in stack order; Mitchell merges them in order,
-then part 0 closes the gate. After M54: scope M43 with him (`plan-a-milestone`): the Overview's
-identity in the database, its derived title, and the `open` widget's design and filters. Open follow-ups from M49: KI-20261025-w, and the candidate
+**Next action:** Mitchell merges M54's part 0 (PR 593). Then scope M43 with him
+(`plan-a-milestone`): the Overview's identity in the database, its derived title, and the `open`
+widget's design and filters. Open follow-ups from M54: KI-20261027-a to -d, KI-20261026-t, -u,
+-x and -y, and KI-20261013-a's first-load gap. Open follow-ups from M49: KI-20261025-w, and the candidate
 *Reposition a playbook day's cover*.
 Open follow-ups from M52: KI-2026-10-24-a to -o (`docs/known-issues/open/`). Outside M52:
 PR 491 (dependabot) is red, and GitHub reports 5 dependabot vulnerabilities on `main` (2 high,
-3 moderate). The order is M54 → M43 → M44 → M53 (minted 2026-10-25 from an SEO audit, not scoped), with M48 parked.
+3 moderate). The order is M43 → M44 → M53 (minted 2026-10-25 from an SEO audit, not scoped), with M48 parked.
 
 **M51 closed 2026-10-22, gate 11 of 11**, on Mitchell's ruling at the close: his walk at 390, 1440
 and 3440 works, and the parts are merged (PRs 506–511, 513, 514, 516; part 0 PR 505 merged early;
