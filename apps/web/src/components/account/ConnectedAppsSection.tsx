@@ -11,9 +11,9 @@ import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { Text } from "@/components/ui/text";
 import { relativeDays } from "./TokensSection";
 
-// **Account → Connected apps** (M55 D10): every app a person let act as them
-// through OAuth, such as Claude, and Disconnect. `TokensSection`'s sub-view
-// pattern, and its rules: `/api/account/connected-apps` is session-only, and
+// **Account → Security → Connected apps** (M55 D10, moved by part 6): every
+// app a person let act as them through OAuth, such as Claude, and Disconnect.
+// `TokensSection`'s pattern, and its rules: `/api/account/connected-apps` is session-only, and
 // a dead grant stays listed so the row can say why it stopped.
 //
 // Disconnect is confirmed because it cannot be undone from here: the app has
@@ -105,7 +105,7 @@ export function ConnectedAppsSection() {
   if (apps === null) return null;
 
   return (
-    // The heading and the way back are `AccountScreen`'s, as for tokens.
+    // The heading is `AccountScreen`'s, as for tokens.
     <section className="flex flex-col gap-3">
       <Text variant="secondary" className="text-xs text-pretty">
         Apps you let act as you, such as Claude. Each holds only what you allowed when you connected it, and
@@ -122,7 +122,7 @@ export function ConnectedAppsSection() {
           No apps are connected.
         </Text>
       ) : (
-        // The token list's table, card and moss header, so the two sub-views read as one family.
+        // The token list's table, card and moss header, so the two sections read as one family.
         <div className="overflow-hidden rounded-lg border border-hairline bg-surface shadow-raised">
           <Table>
             <THead>

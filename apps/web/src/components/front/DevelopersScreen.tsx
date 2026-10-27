@@ -132,7 +132,7 @@ export function DevelopersScreen() {
             </Step>
             <Step n={3} title="Make a token">
               <Text className="text-pretty">
-                <strong>Account → Profile → API tokens → New token.</strong> Name it, tick what it may
+                <strong>Account → Security → API tokens → New token.</strong> Name it, tick what it may
                 do (the scopes below), choose all your trips or only some, and pick how long it lives:
                 30 days, 90 days or a year. Every token expires.
               </Text>
@@ -184,7 +184,7 @@ export function DevelopersScreen() {
             access starts unticked.
           </Text>
           <Text variant="secondary" className="text-pretty">
-            Every app you connect is listed in <strong>Account → Profile → Connected apps</strong>, where
+            Every app you connect is listed in <strong>Account → Security → Connected apps</strong>, where
             Disconnect stops it at once.
           </Text>
         </section>

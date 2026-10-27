@@ -22,7 +22,7 @@ describe("DevelopersScreen", () => {
 
   it("names the path to a token in the app's own words", () => {
     render(<DevelopersScreen />);
-    expect(screen.getByText("Account → Profile → API tokens → New token.")).toBeDefined();
+    expect(screen.getByText("Account → Security → API tokens → New token.")).toBeDefined();
     expect(screen.getByRole("heading", { name: "Create your account" })).toBeDefined();
     expect(screen.getByRole("link", { name: "Create an account" }).getAttribute("href")).toBe("/signup");
   });
@@ -53,7 +53,7 @@ describe("DevelopersScreen", () => {
     expect(within(connect).getByText("https://caesura.today/api/mcp")).toBeDefined();
     expect(connect.textContent).toContain("Premium plan");
     expect(within(connect).getByRole("link", { name: "the scopes below" }).getAttribute("href")).toBe("#scopes");
-    expect(connect.textContent).toContain("Account → Profile → Connected apps");
+    expect(connect.textContent).toContain("Account → Security → Connected apps");
   });
 
   it("has a way back home", () => {

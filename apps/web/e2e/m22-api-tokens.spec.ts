@@ -39,7 +39,7 @@ test("api tokens: minted by clicking, opens the API, and revoking closes it", as
   // ---- a free account sees the section, locked ------------------------------
   // **A prompt, not a hidden section.** Hiding it would answer "this product
   // has no API"; showing it locked answers "not on this plan".
-  await openAccountPage(page, "tokens");
+  await openAccountPage(page, "security");
   await expect(page.getByTestId("tokens-section")).toBeVisible();
   await expect(page.getByTestId("tokens-upgrade")).toContainText("Premium");
   await expect(page.getByTestId("token-new")).toBeHidden();
@@ -50,7 +50,7 @@ test("api tokens: minted by clicking, opens the API, and revoking closes it", as
   // M11's; what it does is grant premium.)
   await grantCollaborators(browser, `dev-${username}`);
   await page.reload();
-  await openAccountPage(page, "tokens");
+  await openAccountPage(page, "security");
   await expect(page.getByTestId("tokens-upgrade")).toBeHidden();
 
   // ---- mint one by clicking -------------------------------------------------

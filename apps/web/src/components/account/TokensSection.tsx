@@ -319,8 +319,8 @@ export function TokensSection() {
 
   return (
     // No `<Heading>API tokens</Heading>` and no `aria-labelledby` here: the
-    // `← Profile` / H3 pair and the region they label are `AccountScreen`'s
-    // (§35.4), drawn before this fetches — and one heading, not two (project
+    // heading and the section it labels are `AccountScreen`'s (the Security
+    // tab), drawn before this fetches — and one heading, not two (project
     // rule 4).
     <section className="flex flex-col gap-3" data-testid="tokens-section">
       {/* **All three clauses** (§34.1). The third — *"it can never do more than

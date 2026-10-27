@@ -17,7 +17,7 @@ and nothing else.
 
 ### Get a token
 
-Account → Profile → **API tokens** → *New token*. Pick what it may do, pick how
+Account → Security → **API tokens** → *New token*. Pick what it may do, pick how
 long it lives, copy the secret. Getting an account first (signup is open) is
 walked through, publicly, at `/developers`.
 
@@ -151,7 +151,7 @@ a tool can do exactly what a token holding the same scopes can, through the same
 checks and errors (D2); a scope that was not granted answers v1's
 `insufficient-scope` as a tool error.
 
-**Disconnecting.** Account → Profile → **Connected apps** lists every app a
+**Disconnecting.** Account → Security → **Connected apps** lists every app a
 person connected: its name, where its codes go, its scopes, when it was made and
 last used. *Disconnect* revokes the grant, its refresh token and every access
 token issued from it, on their next request. Like the token list, it is

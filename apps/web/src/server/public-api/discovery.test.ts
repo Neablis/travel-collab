@@ -107,7 +107,7 @@ describe("/llms.txt", () => {
 
   it("says how a person mints a token, and lists every scope", async () => {
     const { text } = await read();
-    expect(text).toContain("Account → Profile → API tokens → New token");
+    expect(text).toContain("Account → Security → API tokens → New token");
     expect(text).toContain("Authorization: Bearer tc_");
     for (const scope of API_SCOPES) expect(text, scope).toContain(`- [${scope}](`);
   });

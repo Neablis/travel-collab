@@ -43,7 +43,7 @@ function llmsTxt(origin: string): string {
     "It has a public REST API under `/api/v1`. A token acts as the person who minted it, holds only " +
       "the scopes it was given, and can never do more than that person can. Send it on every request " +
       `as \`Authorization: Bearer ${API_TOKEN_PREFIX}...\`. Tokens are on the Premium plan; a person mints one in ` +
-      "Account → Profile → API tokens → New token, and the secret is shown once.",
+      "Account → Security → API tokens → New token, and the secret is shown once.",
     "",
     "## API",
     "",

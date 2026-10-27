@@ -35,41 +35,41 @@ import { clearSignedInHint } from "@/lib/sessionHint";
 // the tab panel does the labelling now, and keeping both is project rule 4
 // twice on one screen.
 //
-// **Two tabs; API tokens is a sub-view of Profile, not a third tab** (SPEC
-// §35.4, M27 D7). Most people never write a program against their trips, so
-// the strip stops advertising it; Profile ends with a quiet link instead.
-// `?tab=tokens` stays the sub-view's URL — deep links and bookmarks from when
-// it was a tab still land on it — and while it is showing, NEITHER tab is
-// selected. It carries its own `← Profile` and H3, because no tab names it.
-// **Connected apps** (`?tab=apps`, M55 D10) is its sibling, on the same terms.
+// **Security holds API tokens and Connected apps** (M55 part 6). They were
+// sub-views reached by quiet links at the foot of Profile (SPEC §35.4, M27
+// D7; M55 D10), and Mitchell found them buried there. The tab is the place
+// for whatever else secures an account later (MFA): one more entry in
+// `SECURITY_SECTIONS`.
 const TABS = [
   { value: "profile", label: "Profile" },
   { value: "plan", label: "Plan & usage" },
+  { value: "security", label: "Security" },
+] as const;
+type AccountTab = (typeof TABS)[number]["value"];
+
+/** Security's sections, in order: each a heading and a self-fetching section. */
+const SECURITY_SECTIONS = [
+  { heading: "API tokens", headingId: "account-tokens-heading", Section: TokensSection },
+  { heading: "Connected apps", headingId: "account-apps-heading", Section: ConnectedAppsSection },
 ] as const;
 
-/** The sub-views Profile links to: each a URL, a heading and a self-fetching section. */
-const SUB_VIEWS = {
-  tokens: { heading: "API tokens", headingId: "account-tokens-heading", Section: TokensSection },
-  apps: { heading: "Connected apps", headingId: "account-apps-heading", Section: ConnectedAppsSection },
-} as const;
-type SubView = keyof typeof SUB_VIEWS;
-
-type AccountView = (typeof TABS)[number]["value"] | SubView;
+/** The sub-view URLs from before Security, kept so their links and bookmarks still land. */
+const MOVED_TO_SECURITY = ["tokens", "apps"];
 
 const ID_PREFIX = "account";
-// `hasOwn`, not `in`: `?tab=toString` must not name a sub-view.
-const isSubView = (view: string): view is SubView => Object.hasOwn(SUB_VIEWS, view);
 
 /**
- * Which view a query parameter names: one of the two tabs, or a sub-view.
+ * Which tab a query parameter names.
  *
  * Anything unrecognised — absent, misspelt, or an old link from before a tab
  * was renamed — resolves to Profile rather than rendering an empty page. A
  * settings URL someone bookmarked should not be able to rot into a blank
- * screen.
+ * screen. The old `?tab=tokens` and `?tab=apps` resolve to Security, which
+ * holds what they showed.
  */
-export function accountTabFrom(raw: string | null): AccountView {
-  return (raw !== null && isSubView(raw)) || TABS.some((t) => t.value === raw) ? (raw as AccountView) : "profile";
+export function accountTabFrom(raw: string | null): AccountTab {
+  if (raw !== null && MOVED_TO_SECURITY.includes(raw)) return "security";
+  return TABS.find((t) => t.value === raw)?.value ?? "profile";
 }
 
 export function AccountScreen() {
@@ -77,7 +77,6 @@ export function AccountScreen() {
   const searchParams = useSearchParams();
   const user = useSessionUser();
   const tab = accountTabFrom(searchParams.get("tab"));
-  const subView = isSubView(tab) ? SUB_VIEWS[tab] : null;
 
   return (
     <PageContainer as="main" width="content">
@@ -107,7 +106,7 @@ export function AccountScreen() {
         <Heading level={1}>Account</Heading>
 
         <UnderlineTabs
-          value={isSubView(tab) ? null : tab}
+          value={tab}
           onValueChange={(next) => {
             // `push`, not `replace`: the gate asks for a URL the browser back
             // button walks, and `replace` would make the tabs a dead end you
@@ -129,13 +128,10 @@ export function AccountScreen() {
             *"every panel on Account sits on a 580px measure"*; the artboard
             puts it on each tab's content div). One place, so a third view
             cannot arrive a little wider than the other two. */}
-        {/* A sub-view is not a tab's panel — no tab controls it — so it is a
-            region named by its own H2 rather than a `tabpanel` pointing at a
-            tab that does not exist. */}
         <div
-          role={subView !== null ? "region" : "tabpanel"}
+          role="tabpanel"
           id={tabPanelId(ID_PREFIX, tab)}
-          aria-labelledby={subView?.headingId ?? tabId(ID_PREFIX, tab)}
+          aria-labelledby={tabId(ID_PREFIX, tab)}
           tabIndex={-1}
           className={SETTINGS_MEASURE}
         >
@@ -148,35 +144,24 @@ export function AccountScreen() {
             <ProfileSection
               email={user === undefined ? undefined : (user?.email ?? "")}
               signIn={user ? { userId: user.id ?? "", name: user.name ?? null } : undefined}
-              onOpenTokens={() => router.push("/account?tab=tokens")}
-              onOpenApps={() => router.push("/account?tab=apps")}
             />
           )}
           {tab === "plan" && <PlanSection />}
-          {/* The way back and the heading live HERE rather than inside the
-              section, which renders nothing until its fetches resolve: the
-              region's `aria-labelledby` has to name something that exists
-              from the first paint, and the way back must not wait on a fetch. */}
-          {subView !== null && (
-            <div className="flex flex-col gap-4">
-              {/* The artboard's bare text button, as a ghost `sm`: the same
-                  slate 13px at rest, and the primitive brings §13.1's 44px
-                  phone floor. `-ml-2.5` cancels `sm`'s padding so the arrow
-                  lines up with the heading, as `account-done` does above. */}
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => router.push("/account")}
-                className="-ml-2.5 self-start whitespace-nowrap"
-              >
-                &larr; Profile
-              </Button>
-              {/* h2 under the page's h1 (it was an h3, skipping a level; axe
-                  heading-order). `text-lg` keeps the h3 size it had. */}
-              <Heading level={2} id={subView.headingId} className="text-lg">
-                {subView.heading}
-              </Heading>
-              <subView.Section />
+          {/* Each heading lives HERE rather than inside its section, which
+              renders nothing until its fetches resolve: the section's
+              `aria-labelledby` has to name something that exists from the
+              first paint. h2 under the page's h1 (axe heading-order); `text-lg`
+              is the size these headings had as sub-views. */}
+          {tab === "security" && (
+            <div className="flex flex-col gap-10">
+              {SECURITY_SECTIONS.map(({ heading, headingId, Section }) => (
+                <section key={headingId} aria-labelledby={headingId} className="flex flex-col gap-4">
+                  <Heading level={2} id={headingId} className="text-lg">
+                    {heading}
+                  </Heading>
+                  <Section />
+                </section>
+              ))}
             </div>
           )}
         </div>

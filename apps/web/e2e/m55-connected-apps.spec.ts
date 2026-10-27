@@ -5,7 +5,7 @@ import { openAccountPage, signInAsDevUser } from "./helpers";
 import { grantCollaborators } from "./adminBootstrap";
 
 // **M55 part 5, walked in a browser**: a connected app works, its owner
-// disconnects it from Account → Connected apps, and it stops. The point is not
+// disconnects it from Account → Security → Connected apps, and it stops. The point is not
 // that a row changes its badge; it is that the access token the app holds is
 // refused on its next call and its refresh token can mint nothing more.
 //
@@ -74,8 +74,7 @@ test("connected apps: an app connected by consent works until its owner disconne
 
   // ---- its owner disconnects it ----------------------------------------------
   await page.goto("/home");
-  await openAccountPage(page);
-  await page.getByRole("button", { name: "Connected apps →" }).click();
+  await openAccountPage(page, "security");
   await expect(page.getByRole("heading", { name: "Connected apps", level: 2 })).toBeVisible();
   const row = page.getByRole("row", { name: /E2E Connected App/ });
   await expect(row).toContainText("127.0.0.1");
