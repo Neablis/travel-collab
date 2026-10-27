@@ -10,9 +10,10 @@
 //    so every new feature says in one line where it stands, and the list of
 //    `planned` lines IS the gap list `using-the-api.md` asks an API pass to read;
 // 2. a `public` line names a `v1/` route that does not exist;
-// 3. anything on the public side — a `v1/` route, or the `server/public-api/`
-//    helpers they delegate to — imports what a `never` line says it reaches, or
-//    a `v1/` route sits at a `never` route's own path.
+// 3. anything on the public side — a `v1/` route, the `server/public-api/`
+//    helpers they delegate to, or the MCP server's modules (`server/mcp/**`) —
+//    imports what a `never` line says it reaches, or a `v1/` route sits at a
+//    `never` route's own path.
 //
 // **What check 3 cannot see**: the same logic rewritten from scratch inside
 // `v1/`. It catches the realistic mistake — an endpoint that calls the function
@@ -121,6 +122,12 @@ export const EXPOSURE: Readonly<Record<string, Exposure>> = {
   "oauth/authorize": {
     status: "front-door",
     why: "The consent decision for the MCP connector; session-only, never a credential",
+  },
+  // The MCP connector: v1's own declared handlers, under another protocol.
+  mcp: {
+    status: "front-door",
+    adapts: "v1",
+    why: "The MCP server Claude connects to; every tool calls a v1 route's declared handler (M55 D2)",
   },
 
   // ── Never ────────────────────────────────────────────────────────────────

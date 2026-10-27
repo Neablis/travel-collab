@@ -1,0 +1,144 @@
+// **`/api/mcp` as a client meets it** (ADR-083 §8), against a real database:
+// the credential is answered before any MCP is read, the server is stateless
+// and answers JSON, and a tool call works whether or not the client sends the
+// 2026-07-28 revision's `Mcp-Method` / `Mcp-Name` headers.
+import { randomUUID } from "node:crypto";
+import { describe, expect, it, vi } from "vitest";
+import type { ApiScope } from "@tc/contracts";
+import { issueGrant } from "@/server/entitlements/grants";
+import { livePlanVersion } from "@/server/entitlements/planVersions";
+import { registerClient, resolveClient } from "@/server/oauth/clients";
+import { createGrant, issueCode } from "@/server/oauth/grants";
+import { mcpResource, oauthIssuer } from "@/server/oauth/metadata";
+import { exchangeCode } from "@/server/oauth/tokens";
+import { upsertUser } from "@/server/users";
+
+// A session must never reach a tool, so the cookie path is armed with a real user.
+let sessionUserId: string | null = null;
+vi.mock("@/server/auth", () => ({
+  auth: vi.fn(async () => (sessionUserId === null ? null : { user: { id: sessionUserId } })),
+}));
+
+const { POST, GET, DELETE } = await import("./route");
+
+const VERIFIER = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk";
+const CHALLENGE = "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM";
+const REDIRECT = "https://example.com/cb";
+const METADATA = `${oauthIssuer()}/.well-known/oauth-protected-resource/api/mcp`;
+
+async function entitled(): Promise<string> {
+  const id = `mcp-route-${randomUUID().slice(0, 8)}`;
+  await upsertUser({ id, email: `${id}@example.test`, name: null, image: null });
+  const premium = livePlanVersion("premium");
+  await issueGrant({
+    userId: id,
+    planId: premium.planId,
+    planVersion: premium.version,
+    source: "admin",
+    grantedBy: "dev-operator",
+    reason: "M55 MCP route fixture.",
+    expiresAt: null,
+  });
+  return id;
+}
+
+/** Consent, a code and its exchange: the access token a connected client holds. */
+async function connect(ownerId: string, scopes: ApiScope[]): Promise<string> {
+  const registered = await registerClient({ client_name: "Test app", redirect_uris: [REDIRECT] }, randomUUID());
+  const resolved = await resolveClient(registered.ok ? String(registered.body.client_id) : "");
+  if (!resolved.ok) throw new Error("no client");
+  const now = new Date();
+  const grant = await createGrant({ ownerId, client: resolved.client, redirectUri: REDIRECT, scopes, resource: mcpResource(), now });
+  const code = await issueCode({ grantId: grant.id, codeChallenge: CHALLENGE, redirectUri: REDIRECT, resource: mcpResource(), now });
+  const tokens = await exchangeCode({ code, codeVerifier: VERIFIER, redirectUri: REDIRECT, clientId: resolved.client.clientId }, now);
+  if (!tokens.ok) throw new Error(tokens.description);
+  return tokens.body.access_token;
+}
+
+const ACCEPT = "application/json, text/event-stream";
+
+function mcp(body: string, headers: Record<string, string> = {}): Promise<Response> {
+  return POST(
+    new Request(mcpResource(), {
+      method: "POST",
+      headers: { "content-type": "application/json", accept: ACCEPT, ...headers },
+      body,
+    }),
+  );
+}
+
+const rpc = (method: string, params: unknown) => JSON.stringify({ jsonrpc: "2.0", id: 1, method, params });
+const bearer = (secret: string) => ({ authorization: `Bearer ${secret}`, "mcp-protocol-version": "2025-11-25" });
+
+describe("POST /api/mcp before any MCP is read", () => {
+  it("answers 401 with the resource_metadata challenge, even to a body that is not JSON-RPC", async () => {
+    const res = await mcp("not json at all");
+    expect(res.status).toBe(401);
+    // No credential was presented, so RFC 6750 §3.1 wants no error code.
+    expect(res.headers.get("WWW-Authenticate")).toBe(`Bearer resource_metadata="${METADATA}"`);
+    expect((await res.json()).error.code).toBe("unauthenticated");
+  });
+
+  it("answers a dead or foreign bearer with invalid_token, and never falls back to the session", async () => {
+    sessionUserId = await entitled();
+    try {
+      for (const header of ["Bearer tco_not-a-real-token", "Bearer tc_a-rest-api-token", "Basic dXNlcjpwYXNz"]) {
+        const res = await mcp(rpc("tools/list", {}), { authorization: header });
+        expect(res.status, header).toBe(401);
+        expect(res.headers.get("WWW-Authenticate"), header).toBe(
+          `Bearer resource_metadata="${METADATA}", error="invalid_token"`,
+        );
+      }
+    } finally {
+      sessionUserId = null;
+    }
+  });
+});
+
+describe("POST /api/mcp with a connected client's token", () => {
+  it("lists every tool with its annotations, statelessly", async () => {
+    const access = await connect(await entitled(), ["account:read"]);
+    const res = await mcp(rpc("tools/list", {}), bearer(access));
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toMatch(/^application\/json/);
+    expect(res.headers.get("mcp-session-id")).toBeNull();
+    const { result } = await res.json();
+    const publish = result.tools.find((t: { name: string }) => t.name === "publish_playbook");
+    expect(publish.annotations).toEqual(expect.objectContaining({ readOnlyHint: false, openWorldHint: true }));
+  });
+
+  // MCP 2026-07-28 adds `Mcp-Method` / `Mcp-Name`; the pinned SDK targets
+  // 2025-11-25, so a client sending them and one that does not both answer.
+  it("answers tools/call with and without the Mcp-Method and Mcp-Name headers", async () => {
+    const owner = await entitled();
+    const access = await connect(owner, ["account:read"]);
+    const call = rpc("tools/call", { name: "whoami", arguments: {} });
+    const forms: Record<string, string>[] = [{}, { "mcp-method": "tools/call", "mcp-name": "whoami" }];
+    for (const extra of forms) {
+      const res = await mcp(call, { ...bearer(access), ...extra });
+      expect(res.status, JSON.stringify(extra)).toBe(200);
+      const { result } = await res.json();
+      expect(result.isError, JSON.stringify(extra)).toBeUndefined();
+      expect(JSON.parse(result.content[0].text).userId).toBe(owner);
+    }
+  });
+
+  it("answers a scope the grant lacks as a tool error, not an HTTP one", async () => {
+    const access = await connect(await entitled(), ["trips:read"]);
+    const res = await mcp(rpc("tools/call", { name: "whoami", arguments: {} }), bearer(access));
+    expect(res.status).toBe(200);
+    const { result } = await res.json();
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toMatch(/"account:read" scope.*\(insufficient-scope\)$/);
+  });
+});
+
+describe("the methods a stateless server has no use for", () => {
+  it("answers GET and DELETE 405, naming POST", async () => {
+    for (const handler of [GET, DELETE]) {
+      const res = handler();
+      expect(res.status).toBe(405);
+      expect(res.headers.get("Allow")).toBe("POST");
+    }
+  });
+});

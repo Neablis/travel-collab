@@ -29,13 +29,27 @@ function routeDirs(root: string, skip?: string): string[] {
   return out.sort();
 }
 
-/** The public side: every `v1/` route, and the non-test helpers they delegate to. */
+const MCP = path.join(SERVER, "mcp");
+
+/** The non-test `.ts` files under `dir`, at any depth. */
+function sourcesUnder(dir: string): string[] {
+  return readdirSync(dir, { withFileTypes: true, recursive: true })
+    .filter((f) => f.isFile() && f.name.endsWith(".ts") && !f.name.includes(".test."))
+    .map((f) => path.join(f.parentPath, f.name));
+}
+
+/**
+ * The public side: every `v1/` route, the non-test helpers they delegate to,
+ * and the MCP server's modules, whose tools reach v1 by another door (ADR-083
+ * §9). `server/oauth/**` is not walked: it owns the grant functions the
+ * connected-apps lines name.
+ */
 function publicSources(): string[] {
   const v1 = routeDirs(V1).map((dir) => path.join(V1, dir, "route.ts"));
   const helpers = readdirSync(HERE)
     .filter((f) => f.endsWith(".ts") && !f.includes(".test.") && f !== "exposure.ts")
     .map((f) => path.join(HERE, f));
-  return [...v1, ...helpers];
+  return [...v1, ...helpers, ...sourcesUnder(MCP)];
 }
 
 interface Import {
@@ -109,7 +123,7 @@ describe("exposure.ts decides every internal route, and the API obeys it", () =>
   it("lets a front door stand without a v1 route, and mirrors none under v1", () => {
     const doors = Object.entries(EXPOSURE).filter(([, e]) => e.status === "front-door");
     expect(doors.map(([key]) => key)).toEqual(
-      expect.arrayContaining(["oauth/register", "oauth/token", "oauth/revoke", "oauth/authorize"]),
+      expect.arrayContaining(["oauth/register", "oauth/token", "oauth/revoke", "oauth/authorize", "mcp"]),
     );
     expect(doors.filter(([key]) => published.has(key)).map(([key]) => `v1/${key}`)).toEqual([]);
   });
@@ -119,6 +133,11 @@ describe("exposure.ts decides every internal route, and the API obeys it", () =>
       .filter(([key, e]) => e.status === "never" && published.has(key))
       .map(([key]) => `v1/${key}`);
     expect(mirrored).toEqual([]);
+  });
+
+  // An empty walk would pass the check below while protecting nothing.
+  it("walks the MCP server's modules as part of the public side", () => {
+    expect(publicSources()).toEqual(expect.arrayContaining([path.join(MCP, "tools.ts"), path.join(MCP, "dispatch.ts")]));
   });
 
   it("imports nothing a never route reaches, anywhere on the public side", () => {

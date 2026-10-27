@@ -856,14 +856,14 @@ async function declareCollection(
  * `error="invalid_token"` (RFC 6750 §3.1) is what makes it refresh or re-consent
  * rather than give up.
  */
-function oauthChallenge(invalidToken: boolean): Record<string, string> {
+export function oauthChallenge(invalidToken: boolean): Record<string, string> {
   const metadata = `${oauthIssuer()}/.well-known/oauth-protected-resource/api/mcp`;
   return {
     "WWW-Authenticate": `Bearer resource_metadata="${metadata}"${invalidToken ? ', error="invalid_token"' : ""}`,
   };
 }
 
-function oauthRefusalResponse(refusal: AccessRefusal): Response {
+export function oauthRefusalResponse(refusal: AccessRefusal): Response {
   switch (refusal.reason) {
     case "audience":
       return fail("unauthenticated", "This token is for the MCP connector at /api/mcp, not the REST API.", 401, {
