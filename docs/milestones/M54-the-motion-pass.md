@@ -163,6 +163,11 @@ final stacked head `5ed08fda` (run 40400563433). Line numbers are at `e9a46b0f`.
       `AuthScreen.tsx:211-251` (`inFlight`), `authCopy.ts:47`, `WelcomeMoment.test.tsx:154`
       ("leaves within the name-wait cap"), `apps/web/e2e/m54-welcome.spec.ts:78` (splash, then a
       usable page, at each width). PR 607's red-first; CI run 40399350035 on `f8d1d7b2`.
+      *On a device:* Mitchell's walk of `main` at `e9a46b0f` (2026-10-27, 01:51Z, from Android,
+      Claude session `session_01H7zo2roVmxAkUKCbEFmyFZ`: "I confirmed all those things in a
+      walkthrough") saw a full-screen splash after sign-in and after signup, "Welcome, {name}" or
+      "Welcome!", for about 1.6 s, then the page; a plain reload showed no splash.
+      Still not seen: an installed-app (PWA) cold launch on a device.
 - [x] **One avatar stack** replaces the five facepiles, with a "+N" cap and a name per face on hover.
       *(Part 6.)*
       *Evidence:* `ui/avatar-stack.tsx:115` ("+N"); its five uses: `trip/TripHeader.tsx:886`,
@@ -193,4 +198,12 @@ final stacked head `5ed08fda` (run 40400563433). Line numbers are at `e9a46b0f`.
 - [ ] **[walk]** On the parts' previews, Mitchell finds it calm and quick, not noisy: the welcome
       moment on a phone and desktop, a dialog, a tab switch, an Ask turn, and reduced motion
       turned on.
+      *Evidence so far:* on 2026-10-27 at 01:51Z, in Claude session
+      `session_01H7zo2roVmxAkUKCbEFmyFZ` (from Android), Mitchell wrote "I confirmed all those
+      things in a walkthrough" about the merged build on `main` (`e9a46b0f`). Those things were:
+      (1) at phone width on a trip, Board↔Notebook keeps the Ask tab in place, greyed briefly;
+      (2) after sign-in and after signup, a full-screen splash shows "Welcome, {name}" or
+      "Welcome!" for about 1.6 s, then the page; (3) a plain reload shows no splash.
+      *Not ticked:* a dialog, a tab switch, an Ask turn and reduced motion turned on remain
+      unconfirmed; his walk did not explicitly cover them.
 - [ ] A retro is appended at gate close.
