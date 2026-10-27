@@ -55,7 +55,8 @@ widget's design and filters. Open follow-ups from M54: KI-20261027-a to -d, KI-2
 *Reposition a playbook day's cover*.
 Open follow-ups from M52: KI-2026-10-24-a to -o (`docs/known-issues/open/`). Outside M52:
 PR 491 (dependabot) is red, and GitHub reports 5 dependabot vulnerabilities on `main` (2 high,
-3 moderate). The order is M43 → M44 → M53 (minted 2026-10-25 from an SEO audit, not scoped), with M48 parked.
+3 moderate). The order is M43 → M44 → M53 (minted 2026-10-25 from an SEO audit, not scoped) → M55 (minted
+2026-10-27: a Claude connector over OAuth, not scoped), with M48 parked.
 
 **M51 closed 2026-10-22, gate 11 of 11**, on Mitchell's ruling at the close: his walk at 390, 1440
 and 3440 works, and the parts are merged (PRs 506–511, 513, 514, 516; part 0 PR 505 merged early;
