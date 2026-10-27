@@ -75,8 +75,8 @@ async function registerByDcr(): Promise<string> {
   return (await res.json()).client_id;
 }
 
-/** The consent page's Allow, as the signed-in owner: the code the redirect carries. */
-async function consent(clientId: string, redirectUri: string): Promise<string> {
+/** The consent page's Allow, as the signed-in owner, sending back the name the page showed: the code the redirect carries. */
+async function consent(clientId: string, redirectUri: string, clientName: string): Promise<string> {
   const res = await decide(
     new Request(`${oauthIssuer()}/api/oauth/authorize`, {
       method: "POST",
@@ -84,6 +84,7 @@ async function consent(clientId: string, redirectUri: string): Promise<string> {
       body: JSON.stringify({
         decision: "allow",
         scopes: ["account:read"],
+        clientName,
         params: {
           client_id: clientId,
           redirect_uri: redirectUri,
@@ -137,8 +138,8 @@ async function whoamiUserId(access: string): Promise<string> {
 }
 
 /** Consent and the code exchange, after a wrong verifier is refused: the tokens a connected client holds. */
-async function connect(clientId: string, redirectUri: string) {
-  const code = await consent(clientId, redirectUri);
+async function connect(clientId: string, redirectUri: string, clientName: string) {
+  const code = await consent(clientId, redirectUri, clientName);
   const exchange = { grant_type: "authorization_code", code, redirect_uri: redirectUri, client_id: clientId, resource: mcpResource() };
   // PKCE is what makes a stolen code useless; checked before the code is spent.
   const stolen = await tokenCall({ ...exchange, code_verifier: WRONG_VERIFIER });
@@ -158,7 +159,7 @@ describe("connecting through DCR", () => {
     const owner = await premiumUser();
     sessionUserId = owner;
     const clientId = await registerByDcr();
-    const first = await connect(clientId, DCR_REDIRECT);
+    const first = await connect(clientId, DCR_REDIRECT, "Test app");
     sessionUserId = null;
     expect(await whoamiUserId(first.access)).toBe(owner);
 
@@ -182,7 +183,7 @@ describe("connecting through a client metadata document", () => {
   it("needs no registration, and calls as the owner", async () => {
     const owner = await premiumUser();
     sessionUserId = owner;
-    const { access, refresh } = await connect(CIMD_URL, CIMD_REDIRECT);
+    const { access, refresh } = await connect(CIMD_URL, CIMD_REDIRECT, "Inspector");
     sessionUserId = null;
     expect(await whoamiUserId(access)).toBe(owner);
     expect((await refreshCall(refresh, CIMD_URL)).status).toBe(200);
@@ -195,7 +196,7 @@ describe("a grant made for another resource", () => {
   it("is refused on the call with the resource_metadata challenge", async () => {
     const owner = await premiumUser();
     sessionUserId = owner;
-    const { access } = await connect(await registerByDcr(), DCR_REDIRECT);
+    const { access } = await connect(await registerByDcr(), DCR_REDIRECT, "Test app");
     sessionUserId = null;
     const [grant] = await listGrants(owner);
     await db.update(oauthGrants).set({ resource: "https://elsewhere.example/api/mcp" }).where(eq(oauthGrants.id, grant!.id));
