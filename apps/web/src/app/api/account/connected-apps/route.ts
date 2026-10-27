@@ -26,6 +26,7 @@ function toConnectedApp(grant: GrantRow): ConnectedApp {
   };
 }
 
+/** Lists the signed-in person's connected apps, dead ones included, as `{ apps: ConnectedApp[] }`. */
 export async function GET(_request: Request) {
   const session = await auth();
   const userId = session?.user?.id;

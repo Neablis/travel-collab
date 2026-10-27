@@ -5,6 +5,7 @@ import { revokeGrant } from "@/server/oauth/grants";
 // entitlement, so a lapsed account can still cut an app off. Revoking the grant
 // stops its refresh and access tokens on their next read (ADR-083 §1).
 
+/** Disconnects one of the signed-in person's apps: 204, or 404 for a grant that is not theirs. */
 export async function DELETE(_request: Request, { params }: { params: Promise<{ grantId: string }> }) {
   const session = await auth();
   const userId = session?.user?.id;

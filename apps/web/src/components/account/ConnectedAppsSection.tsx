@@ -1,14 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import Link from "next/link";
 import { SCOPE_CATALOGUE, type ConnectedApp } from "@tc/contracts";
 import { Badge } from "@/components/ui/badge";
 import { Banner } from "@/components/ui/banner";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { Text } from "@/components/ui/text";
-import { ConfirmDialog } from "@/components/trip/people/ConfirmDialog";
 import { relativeDays } from "./TokensSection";
 
 // **Account → Connected apps** (M55 D10): every app a person let act as them
@@ -48,6 +48,15 @@ export function ConnectedAppsSection() {
   const [confirming, setConfirming] = useState<ConnectedApp | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // The row just disconnected. Its Disconnect, where the confirm would hand
+  // focus back, is gone, so focus goes to the row's new status rather than
+  // dropping to <body>.
+  const [disconnected, setDisconnected] = useState<string | null>(null);
+  const statusIdPrefix = useId();
+
+  useEffect(() => {
+    if (disconnected !== null) document.getElementById(`${statusIdPrefix}-${disconnected}`)?.focus();
+  }, [disconnected, statusIdPrefix]);
 
   useEffect(() => {
     let live = true;
@@ -77,6 +86,7 @@ export function ConnectedAppsSection() {
       setApps((current) =>
         current?.map((a) => (a.grantId === app.grantId ? { ...a, revokedAt, revokedReason: "owner" } : a)) ?? current,
       );
+      setDisconnected(app.grantId);
     } catch {
       setError("That app could not be disconnected. Try again.");
     } finally {
@@ -151,7 +161,13 @@ export function ConnectedAppsSection() {
                       </Text>
                     </TD>
                     <TD className="px-3.5 py-3 align-middle">
-                      <Text as="span" variant="secondary" className="text-xs text-pretty">
+                      <Text
+                        as="span"
+                        variant="secondary"
+                        className="text-xs text-pretty"
+                        id={`${statusIdPrefix}-${app.grantId}`}
+                        tabIndex={app.grantId === disconnected ? -1 : undefined}
+                      >
                         {statusLine(app, state)}
                       </Text>
                     </TD>

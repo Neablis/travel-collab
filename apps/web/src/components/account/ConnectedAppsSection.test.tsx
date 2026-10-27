@@ -81,6 +81,18 @@ describe("ConnectedAppsSection", () => {
     expect(screen.queryByRole("button", { name: "Disconnect" })).toBeNull();
   });
 
+  // The Disconnect that opened the confirm is gone once it succeeds, so the
+  // dialog has nowhere to hand focus back; left alone it drops to <body>.
+  // `:focus` asked of the element a query found, as SnapshotList.test does.
+  it("hands focus to the row's new status once disconnected", async () => {
+    serve([app()]);
+    render(<ConnectedAppsSection />);
+    await userEvent.click(await screen.findByRole("button", { name: "Disconnect" }));
+    await userEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Disconnect" }));
+    const status = await screen.findByText("Disconnected. It stopped working immediately.");
+    await vi.waitFor(() => expect(status.matches(":focus")).toBe(true));
+  });
+
   it("leaves the app connected when the confirm is cancelled", async () => {
     const calls = serve([app()]);
     render(<ConnectedAppsSection />);
