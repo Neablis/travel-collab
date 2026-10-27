@@ -13,6 +13,20 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-10-27 — `ConnectedApp` (M55 part 5)
+- **New** (`packages/contracts/src/publicApi.ts`): `ConnectedApp`, one OAuth grant as Account →
+  Connected apps lists it: `grantId`, `clientName`, `redirectHost`, `recognised`, `scopes`,
+  `createdAt`, `lastUsedAt`, `expiresAt`, `revokedAt`, `revokedReason`; and
+  `ConnectedAppRevokedReason` (`"owner" | "code-reuse" | "refresh-reuse"`), the values
+  `oauth_grants.revoked_reason` already allows. No secret, no client id, and the redirect only as
+  its host.
+- Why: M55 D10, the list a person disconnects an app from.
+- Consumers updated: `apps/web` (`app/api/account/connected-apps/route.ts` builds it;
+  `components/account/ConnectedAppsSection.tsx` renders it) — in this same PR.
+- Public API: no version change. Served only by the session-only `/api/account/connected-apps`
+  (exposure `never`), not by `/api/v1` or `openapi.json`.
+- Breaking? no (new schemas).
+
 ## 2026-10-27 — `ApiToken.revokedReason`, and the OAuth secret prefixes (M55 part 1)
 - **Changed** (`packages/contracts/src/publicApi.ts`): `ApiToken` gains `revokedReason`,
   `ApiTokenRevokedReason` (`"owner" | "storage-changed"`) or `null`. `owner` is a revoke from the

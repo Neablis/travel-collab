@@ -178,6 +178,18 @@ export const EXPOSURE: Readonly<Record<string, Exposure>> = {
     why: "A token that could revoke tokens could lock its owner out of their own",
     reaches: [{ module: "@/server/api-tokens", symbols: ["revokeToken"] }],
   },
+  // M55 D10. Symbol-limited: v1's wrapper records a grant's last use through
+  // the same module.
+  "account/connected-apps": {
+    status: "never",
+    why: "A grant that could list grants could read what else its owner connected",
+    reaches: [{ module: "@/server/oauth/grants", symbols: ["listGrants"] }],
+  },
+  "account/connected-apps/[grantId]": {
+    status: "never",
+    why: "A grant that could revoke grants could cut off the apps beside it",
+    reaches: [{ module: "@/server/oauth/grants", symbols: ["revokeGrant"] }],
+  },
   "billing/change": {
     status: "never",
     why: "Moves money — session-only forever",

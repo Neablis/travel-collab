@@ -95,6 +95,7 @@ function pendFetch() {
 // the PR-112 guards at the bottom are the reason this file exists, and a fresh
 // file would have been written without them.
 const openTokens = vi.fn();
+const openApps = vi.fn();
 
 // The sign-in name is the provider's, and the fallback both persona
 // descriptions name: "Sam Keller" on trips, "Sam K." on public pages.
@@ -103,7 +104,7 @@ const SIGN_IN = { userId: "dev-sam", name: "Sam Keller" };
 function mount() {
   return render(
     <PreferencesProvider>
-      <ProfileSection email="sam@example.com" signIn={SIGN_IN} onOpenTokens={openTokens} />
+      <ProfileSection email="sam@example.com" signIn={SIGN_IN} onOpenTokens={openTokens} onOpenApps={openApps} />
     </PreferencesProvider>,
   );
 }
@@ -116,6 +117,7 @@ beforeEach(() => {
   patches.length = 0;
   updatePreferencesMock.mockClear();
   openTokens.mockClear();
+  openApps.mockClear();
 });
 afterEach(cleanup);
 
@@ -140,7 +142,7 @@ describe("ProfileSection", () => {
   it("does not claim the sign-in gave no address before the session has answered", async () => {
     render(
       <PreferencesProvider>
-        <ProfileSection email={undefined} signIn={undefined} onOpenTokens={openTokens} />
+        <ProfileSection email={undefined} signIn={undefined} onOpenTokens={openTokens} onOpenApps={openApps} />
       </PreferencesProvider>,
     );
     expect(await screen.findByText("…")).toBeTruthy();
@@ -150,7 +152,7 @@ describe("ProfileSection", () => {
   it("does say so once the session has answered with no address", async () => {
     render(
       <PreferencesProvider>
-        <ProfileSection email="" signIn={SIGN_IN} onOpenTokens={openTokens} />
+        <ProfileSection email="" signIn={SIGN_IN} onOpenTokens={openTokens} onOpenApps={openApps} />
       </PreferencesProvider>,
     );
     expect(await screen.findByText("Not provided by your sign-in")).toBeTruthy();
@@ -226,6 +228,15 @@ describe("ProfileSection", () => {
     expect(openTokens).toHaveBeenCalledTimes(1);
   });
 
+  // M55 D10: the way to the apps a person connected, such as Claude, beside
+  // the way to their tokens.
+  it("ends with the way to connected apps", async () => {
+    mount();
+    await userEvent.click(await screen.findByRole("button", { name: "Connected apps →" }));
+    expect(openApps).toHaveBeenCalledTimes(1);
+    expect(openTokens).not.toHaveBeenCalled();
+  });
+
   // ADR-052, reviewed 2026-09-27: temperature and rain follow this one
   // setting, and Mitchell had not realised, because it said "Distance". It
   // names every quantity it moves; the stored field is still `distanceUnit`.
@@ -276,7 +287,7 @@ describe("ProfileSection", () => {
     it("holds the long description, with the name still to come, while the session probe is out", async () => {
       render(
         <PreferencesProvider>
-          <ProfileSection email={undefined} signIn={undefined} onOpenTokens={openTokens} />
+          <ProfileSection email={undefined} signIn={undefined} onOpenTokens={openTokens} onOpenApps={openApps} />
         </PreferencesProvider>,
       );
       expect(await screen.findByText("What people on your trips see. Empty, it is your sign-in name, …")).toBeTruthy();

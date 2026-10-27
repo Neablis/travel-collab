@@ -24,17 +24,29 @@ vi.mock("next-auth/react", () => ({ signOut: (...args: unknown[]) => signOutMock
 // this file about the tabs. Each renders a marker so "which panel is mounted"
 // is observable.
 vi.mock("./ProfileSection", () => ({
-  ProfileSection: ({ email, onOpenTokens }: { email: string; onOpenTokens: () => void }) => (
+  ProfileSection: ({
+    email,
+    onOpenTokens,
+    onOpenApps,
+  }: {
+    email: string;
+    onOpenTokens: () => void;
+    onOpenApps: () => void;
+  }) => (
     <div data-testid="profile-panel">
       <span data-testid="profile-email">{email}</span>
       <button type="button" onClick={onOpenTokens}>
         API tokens →
+      </button>
+      <button type="button" onClick={onOpenApps}>
+        Connected apps →
       </button>
     </div>
   ),
 }));
 vi.mock("./PlanSection", () => ({ PlanSection: () => <div data-testid="plan-panel" /> }));
 vi.mock("./TokensSection", () => ({ TokensSection: () => <div data-testid="tokens-panel" /> }));
+vi.mock("./ConnectedAppsSection", () => ({ ConnectedAppsSection: () => <div data-testid="apps-panel" /> }));
 
 function mount(tab?: string) {
   params = new URLSearchParams(tab === undefined ? "" : `tab=${tab}`);
@@ -53,6 +65,11 @@ describe("accountTabFrom", () => {
     expect(accountTabFrom("tokens")).toBe("tokens");
   });
 
+  // M55 D10: Connected apps is the tokens sub-view's sibling, with its own URL.
+  it("reads the connected apps sub-view", () => {
+    expect(accountTabFrom("apps")).toBe("apps");
+  });
+
   // A settings URL somebody bookmarked must not be able to rot into a blank
   // screen when a tab is renamed.
   it("falls back to Profile for anything it does not recognise", () => {
@@ -60,6 +77,7 @@ describe("accountTabFrom", () => {
     expect(accountTabFrom("")).toBe("profile");
     expect(accountTabFrom("billing")).toBe("profile");
     expect(accountTabFrom("PROFILE")).toBe("profile");
+    expect(accountTabFrom("toString")).toBe("profile");
   });
 });
 
@@ -81,6 +99,7 @@ describe("AccountScreen", () => {
   it.each([
     ["plan", "plan-panel"],
     ["tokens", "tokens-panel"],
+    ["apps", "apps-panel"],
     ["profile", "profile-panel"],
   ])("renders the panel the ?tab= names: %s", (tab, panel) => {
     mount(tab);
@@ -118,6 +137,25 @@ describe("AccountScreen", () => {
     mount();
     fireEvent.click(screen.getByRole("button", { name: "API tokens →" }));
     expect(push).toHaveBeenCalledWith("/account?tab=tokens");
+  });
+
+  it("opens the connected apps sub-view from Profile's link, as a URL", () => {
+    mount();
+    fireEvent.click(screen.getByRole("button", { name: "Connected apps →" }));
+    expect(push).toHaveBeenCalledWith("/account?tab=apps");
+  });
+
+  // The tokens sub-view's shape, for the same reasons: no tab names it, so it
+  // carries its own way back and the heading its region is named by.
+  it("shows connected apps as a region named by its own heading, with a way back, selecting no tab", () => {
+    mount("apps");
+    expect(screen.queryByRole("tabpanel")).toBeNull();
+    expect(screen.getAllByRole("tab").filter((t) => t.getAttribute("aria-selected") === "true")).toEqual([]);
+    const region = screen.getByRole("region", { name: "Connected apps" });
+    expect(region.contains(screen.getByTestId("apps-panel"))).toBe(true);
+    expect(screen.getByRole("heading", { name: "Connected apps", level: 2 })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "← Profile" }));
+    expect(push).toHaveBeenCalledWith("/account");
   });
 
   describe("the tokens sub-view", () => {

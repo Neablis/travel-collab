@@ -135,6 +135,18 @@ describe("exposure.ts decides every internal route, and the API obeys it", () =>
     expect(mirrored).toEqual([]);
   });
 
+  // M55 D10: what a person has connected, and Disconnect, are theirs to manage
+  // signed in. A grant that could list or revoke grants could hide itself from
+  // its owner or cut off the apps beside it.
+  it("keeps connected apps off the public side, as it keeps tokens", () => {
+    const reached = (key: string) => {
+      const e = EXPOSURE[key];
+      return e?.status === "never" ? e.reaches.flatMap((r) => (r.symbols ?? []).map((s) => `${r.module} ${s}`)) : [];
+    };
+    expect(reached("account/connected-apps")).toEqual(["@/server/oauth/grants listGrants"]);
+    expect(reached("account/connected-apps/[grantId]")).toEqual(["@/server/oauth/grants revokeGrant"]);
+  });
+
   // An empty walk would pass the check below while protecting nothing.
   it("walks the MCP server's modules as part of the public side", () => {
     expect(publicSources()).toEqual(expect.arrayContaining([path.join(MCP, "tools.ts"), path.join(MCP, "dispatch.ts")]));

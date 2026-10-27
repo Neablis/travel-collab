@@ -112,6 +112,11 @@ describe("/llms.txt", () => {
     for (const scope of API_SCOPES) expect(text, scope).toContain(`- [${scope}](`);
   });
 
+  // M55: an agent handed the host learns there is a connector, and where.
+  it("names the MCP connector at the request's own /api/mcp", async () => {
+    expect((await read()).text).toContain("- [MCP connector](https://example.test/api/mcp): ");
+  });
+
   it("does not send an agent looking for an invite: anyone can sign up (M50)", async () => {
     expect((await read()).text).not.toContain("invite code");
   });

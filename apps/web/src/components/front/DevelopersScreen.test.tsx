@@ -45,6 +45,17 @@ describe("DevelopersScreen", () => {
     expect(reference.getByRole("link", { name: "/llms.txt" }).getAttribute("href")).toBe("/llms.txt");
   });
 
+  // M55: a person adding Caesura to Claude needs the connector URL to paste,
+  // that it is Premium, what it will ask for, and where to disconnect it.
+  it("names the connector: its URL, the plan, the scopes and where to disconnect", () => {
+    render(<DevelopersScreen />);
+    const connect = screen.getByRole("region", { name: "Connect Claude" });
+    expect(within(connect).getByText("https://caesura.today/api/mcp")).toBeDefined();
+    expect(connect.textContent).toContain("Premium plan");
+    expect(within(connect).getByRole("link", { name: "the scopes below" }).getAttribute("href")).toBe("#scopes");
+    expect(connect.textContent).toContain("Account → Profile → Connected apps");
+  });
+
   it("has a way back home", () => {
     render(<DevelopersScreen />);
     const footer = within(screen.getByRole("contentinfo"));

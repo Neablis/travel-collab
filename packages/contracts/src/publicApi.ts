@@ -422,6 +422,44 @@ export const ApiTokenCreateInput = z.object({
 export type ApiTokenCreateInput = z.infer<typeof ApiTokenCreateInput>;
 
 /**
+ * Why a connected app's grant ended (ADR-083 §4): `owner` pressed Disconnect;
+ * `code-reuse` and `refresh-reuse` are the server cutting off a grant whose
+ * secret was presented twice. Null while it is live.
+ */
+export const ConnectedAppRevokedReason = z.enum(["owner", "code-reuse", "refresh-reuse"]);
+export type ConnectedAppRevokedReason = z.infer<typeof ConnectedAppRevokedReason>;
+
+/**
+ * One app a person connected through OAuth, as Account → Connected apps lists
+ * it (M55 D10). Session-only, like the token list, and for the same reason.
+ *
+ * **What the person consented to and nothing of the server's.** No secret, no
+ * client id, and the redirect only as its host: the host is where the codes
+ * went, which is the fact a person can judge; the path is not.
+ *
+ * As `ApiToken`: the timestamps are the facts and no derived verdict is sent,
+ * and no entitlement is cached here, because a lapse is read per request.
+ */
+export const ConnectedApp = z.object({
+  grantId: z.string().guid(),
+  /** What the client called itself at consent: its own claim, never verified. */
+  clientName: z.string(),
+  redirectHost: z.string(),
+  /** The redirect is Claude's own callback (`RECOGNISED_REDIRECTS`), so the name can be trusted. */
+  recognised: z.boolean(),
+  /** What the person allowed. No `.min(1)`: a grant to list is a grant to disconnect. */
+  scopes: z.array(ApiScope),
+  createdAt: z.string(),
+  /** Coarse to five minutes, as `ApiToken.lastUsedAt`. */
+  lastUsedAt: z.string().nullable(),
+  /** A year after consent; no refresh outlives it. */
+  expiresAt: z.string(),
+  revokedAt: z.string().nullable(),
+  revokedReason: ConnectedAppRevokedReason.nullable(),
+});
+export type ConnectedApp = z.infer<typeof ConnectedApp>;
+
+/**
  * What happened to a stop's location on a v1 write, sent as the
  * `Geocode-Outcome` response header whenever the body carried a `location`.
  *

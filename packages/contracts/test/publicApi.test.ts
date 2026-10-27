@@ -15,6 +15,7 @@ import {
   ApiToken,
   ApiTokenCreateInput,
   ApiTokenCreated,
+  ConnectedApp,
   OAUTH_ACCESS_PREFIX,
   OAUTH_CODE_PREFIX,
   OAUTH_REFRESH_PREFIX,
@@ -250,6 +251,55 @@ describe("ApiToken", () => {
     const { expiresAt: _dropped, ...withoutExpiry } = token;
     expect(ApiToken.safeParse(withoutExpiry).success).toBe(false);
     expect(ApiToken.safeParse({ ...token, expiresAt: null }).success).toBe(false);
+  });
+});
+
+describe("ConnectedApp", () => {
+  const app = {
+    grantId: "3f1a5b6c-7d8e-4f90-a1b2-c3d4e5f60720",
+    clientName: "Claude",
+    redirectHost: "claude.ai",
+    recognised: true,
+    scopes: ["trips:read", "library:write"],
+    createdAt: "2026-10-27T10:00:00.000Z",
+    lastUsedAt: null,
+    expiresAt: "2027-10-27T10:00:00.000Z",
+    revokedAt: null,
+    revokedReason: null,
+  };
+
+  it("accepts a live grant and one its owner disconnected", () => {
+    expect(ConnectedApp.safeParse(app).success).toBe(true);
+    const disconnected = { ...app, revokedAt: "2026-10-28T00:00:00.000Z", revokedReason: "owner" };
+    expect(ConnectedApp.safeParse(disconnected).success).toBe(true);
+  });
+
+  // A grant is cut off by its owner, or by the server when one of its secrets
+  // was presented twice (ADR-083 §4); the list says which, and nothing else.
+  it("carries why a grant ended, from a closed set", () => {
+    const revoked = { ...app, revokedAt: "2026-10-28T00:00:00.000Z" };
+    for (const reason of ["owner", "code-reuse", "refresh-reuse"]) {
+      expect(ConnectedApp.safeParse({ ...revoked, revokedReason: reason }).success, reason).toBe(true);
+    }
+    expect(ConnectedApp.safeParse({ ...revoked, revokedReason: "storage-changed" }).success).toBe(false);
+  });
+
+  // The list is read by the person who consented. The grant's secrets, the
+  // full redirect and the client's id are the server's, and none of them is
+  // something a person acts on.
+  it("carries no secret, no redirect path and no client id", () => {
+    const parsed = ConnectedApp.parse({
+      ...app,
+      accessToken: "tco_leaked",
+      refreshToken: "tcr_leaked",
+      redirectUri: "https://claude.ai/api/mcp/auth_callback",
+      clientId: "c1",
+    });
+    expect(Object.keys(parsed).sort()).toEqual(Object.keys(app).sort());
+  });
+
+  it("names its scopes from the API's own set", () => {
+    expect(ConnectedApp.safeParse({ ...app, scopes: ["trips:read", "everything"] }).success).toBe(false);
   });
 });
 

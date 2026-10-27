@@ -14,6 +14,7 @@ import { useSessionUser } from "./useSessionUser";
 import { ProfileSection } from "./ProfileSection";
 import { PlanSection } from "./PlanSection";
 import { TokensSection } from "./TokensSection";
+import { ConnectedAppsSection } from "./ConnectedAppsSection";
 import { HOME_PATH } from "@/lib/homePath";
 import { clearSignedInHint } from "@/lib/sessionHint";
 
@@ -40,19 +41,27 @@ import { clearSignedInHint } from "@/lib/sessionHint";
 // `?tab=tokens` stays the sub-view's URL — deep links and bookmarks from when
 // it was a tab still land on it — and while it is showing, NEITHER tab is
 // selected. It carries its own `← Profile` and H3, because no tab names it.
+// **Connected apps** (`?tab=apps`, M55 D10) is its sibling, on the same terms.
 const TABS = [
   { value: "profile", label: "Profile" },
   { value: "plan", label: "Plan & usage" },
 ] as const;
 
-type AccountView = (typeof TABS)[number]["value"] | "tokens";
+/** The sub-views Profile links to: each a URL, a heading and a self-fetching section. */
+const SUB_VIEWS = {
+  tokens: { heading: "API tokens", headingId: "account-tokens-heading", Section: TokensSection },
+  apps: { heading: "Connected apps", headingId: "account-apps-heading", Section: ConnectedAppsSection },
+} as const;
+type SubView = keyof typeof SUB_VIEWS;
+
+type AccountView = (typeof TABS)[number]["value"] | SubView;
 
 const ID_PREFIX = "account";
-const TOKENS_HEADING_ID = "account-tokens-heading";
+// `hasOwn`, not `in`: `?tab=toString` must not name a sub-view.
+const isSubView = (view: string): view is SubView => Object.hasOwn(SUB_VIEWS, view);
 
 /**
- * Which view a query parameter names: one of the two tabs, or the tokens
- * sub-view.
+ * Which view a query parameter names: one of the two tabs, or a sub-view.
  *
  * Anything unrecognised — absent, misspelt, or an old link from before a tab
  * was renamed — resolves to Profile rather than rendering an empty page. A
@@ -60,7 +69,7 @@ const TOKENS_HEADING_ID = "account-tokens-heading";
  * screen.
  */
 export function accountTabFrom(raw: string | null): AccountView {
-  return raw === "tokens" || TABS.some((t) => t.value === raw) ? (raw as AccountView) : "profile";
+  return (raw !== null && isSubView(raw)) || TABS.some((t) => t.value === raw) ? (raw as AccountView) : "profile";
 }
 
 export function AccountScreen() {
@@ -68,6 +77,7 @@ export function AccountScreen() {
   const searchParams = useSearchParams();
   const user = useSessionUser();
   const tab = accountTabFrom(searchParams.get("tab"));
+  const subView = isSubView(tab) ? SUB_VIEWS[tab] : null;
 
   return (
     <PageContainer as="main" width="content">
@@ -97,7 +107,7 @@ export function AccountScreen() {
         <Heading level={1}>Account</Heading>
 
         <UnderlineTabs
-          value={tab === "tokens" ? null : tab}
+          value={isSubView(tab) ? null : tab}
           onValueChange={(next) => {
             // `push`, not `replace`: the gate asks for a URL the browser back
             // button walks, and `replace` would make the tabs a dead end you
@@ -119,13 +129,13 @@ export function AccountScreen() {
             *"every panel on Account sits on a 580px measure"*; the artboard
             puts it on each tab's content div). One place, so a third view
             cannot arrive a little wider than the other two. */}
-        {/* The tokens sub-view is not a tab's panel — no tab controls it — so
-            it is a region named by its own H2 rather than a `tabpanel`
-            pointing at a tab that does not exist. */}
+        {/* A sub-view is not a tab's panel — no tab controls it — so it is a
+            region named by its own H2 rather than a `tabpanel` pointing at a
+            tab that does not exist. */}
         <div
-          role={tab === "tokens" ? "region" : "tabpanel"}
+          role={subView !== null ? "region" : "tabpanel"}
           id={tabPanelId(ID_PREFIX, tab)}
-          aria-labelledby={tab === "tokens" ? TOKENS_HEADING_ID : tabId(ID_PREFIX, tab)}
+          aria-labelledby={subView?.headingId ?? tabId(ID_PREFIX, tab)}
           tabIndex={-1}
           className={SETTINGS_MEASURE}
         >
@@ -139,14 +149,15 @@ export function AccountScreen() {
               email={user === undefined ? undefined : (user?.email ?? "")}
               signIn={user ? { userId: user.id ?? "", name: user.name ?? null } : undefined}
               onOpenTokens={() => router.push("/account?tab=tokens")}
+              onOpenApps={() => router.push("/account?tab=apps")}
             />
           )}
           {tab === "plan" && <PlanSection />}
-          {/* The way back and the heading live HERE rather than inside
-              `TokensSection`, which renders nothing until its fetches resolve:
-              the region's `aria-labelledby` has to name something that exists
+          {/* The way back and the heading live HERE rather than inside the
+              section, which renders nothing until its fetches resolve: the
+              region's `aria-labelledby` has to name something that exists
               from the first paint, and the way back must not wait on a fetch. */}
-          {tab === "tokens" && (
+          {subView !== null && (
             <div className="flex flex-col gap-4">
               {/* The artboard's bare text button, as a ghost `sm`: the same
                   slate 13px at rest, and the primitive brings §13.1's 44px
@@ -162,10 +173,10 @@ export function AccountScreen() {
               </Button>
               {/* h2 under the page's h1 (it was an h3, skipping a level; axe
                   heading-order). `text-lg` keeps the h3 size it had. */}
-              <Heading level={2} id={TOKENS_HEADING_ID} className="text-lg">
-                API tokens
+              <Heading level={2} id={subView.headingId} className="text-lg">
+                {subView.heading}
               </Heading>
-              <TokensSection />
+              <subView.Section />
             </div>
           )}
         </div>

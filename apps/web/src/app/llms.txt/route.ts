@@ -51,6 +51,7 @@ function llmsTxt(origin: string): string {
     `- [OpenAPI document](${at("/api/v1/openapi")}): OpenAPI 3.0, generated from the route declarations — every endpoint, its scope, request and response. Paths are relative to \`/api\`. No token`,
     `- [API index](${at("/api/v1")}): a small JSON pointer to the OpenAPI document and how to authenticate. No token`,
     `- [API reference](${at("/developers/reference")}): the OpenAPI document rendered for a person to read`,
+    `- [MCP connector](${at("/api/mcp")}): Streamable HTTP MCP server for Claude and other MCP clients. Signs in with OAuth 2.1 as the person who allows it (Premium); discovery at \`/.well-known/oauth-protected-resource/api/mcp\``,
     "",
     "## Getting a token",
     "",

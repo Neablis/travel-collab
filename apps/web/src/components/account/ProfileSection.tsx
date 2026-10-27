@@ -77,15 +77,18 @@ const TIME_FORMAT_OPTIONS = [
  *
  * `onOpenTokens` opens the API tokens sub-view. The URL is `AccountScreen`'s to
  * own (`?tab=`), so the section asks rather than navigating itself.
+ * `onOpenApps` opens Connected apps the same way.
  */
 export function ProfileSection({
   email,
   signIn,
   onOpenTokens,
+  onOpenApps,
 }: {
   email: string | undefined;
   signIn: { userId: string; name: string | null } | undefined;
   onOpenTokens: () => void;
+  onOpenApps: () => void;
 }) {
   const { preferences, loaded, save, defaultColor } = useAccountPreferences();
   // A pick shows at once, before its save answers (optimistic), and falls back
@@ -498,6 +501,15 @@ export function ProfileSection({
         </Text>
         <Button variant="ghost" size="sm" onClick={onOpenTokens}>
           API tokens &rarr;
+        </Button>
+      </div>
+      {/* Its sibling (M55 D10), as quiet: most people connect nothing. */}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2.5 px-0.5 py-1">
+        <Text variant="secondary" className="min-w-0 grow basis-70 leading-normal text-pretty">
+          Connected Claude or another app? See what it may do, or disconnect it.
+        </Text>
+        <Button variant="ghost" size="sm" onClick={onOpenApps}>
+          Connected apps &rarr;
         </Button>
       </div>
     </div>
