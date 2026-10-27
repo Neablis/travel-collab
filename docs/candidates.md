@@ -16,6 +16,14 @@ not by anybody remembering. That automation exists because the rule was being
 skipped: M23's entry survived its own gate closing on 2026-09-19 and was still
 here two days later.
 
+- **The operator console shows a person's API tokens and connected apps (asked 2026-10-27).**
+  Moved out of M55 at scoping (decision 10): M55's *Connected apps* is in Account → Profile only.
+  The M36 account page (`apps/web/src/components/admin/AccountPage.tsx`) shows no tokens today.
+  The idea is a read-only list there of the account's `api_tokens` (name, prefix, scopes, last
+  used, expired or revoked and why) and its `oauth_grants` (client name, redirect host, scopes,
+  last used), so support can answer *"why did my integration stop"* without a database query.
+  Open: whether an operator may revoke on a person's behalf, and whether that leaves a record.
+
 - **Live assistant progress in trip chat (asked 2026-10-25).** Left out of the motion pass
   (`docs/specs/2026-10-25-motion-pass-design.md`, decision 13). Ask shows a status line per tool
   step because its turn streams. Trip chat's `@assistant` reply lands whole (M52 decision 18),

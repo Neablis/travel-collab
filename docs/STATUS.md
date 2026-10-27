@@ -21,15 +21,20 @@ general setup.
 
 ## Where the work is right now
 
+**M55 is the current milestone, scoped 2026-10-27** (`docs/milestones/M55-claude-connects-as-you.md`):
+Mitchell placed it ahead of M43 and answered all eleven decisions at scoping (D7, D8's hashing,
+D10 and D11 changed). Design: ADR-083. Plan: `docs/plans/2026-10-27-M55-claude-connects-as-you.md`,
+six parts on `claude/m55-part<K>-…` branches, each its own PR on `main`. Part 0 is the draft PR
+on `ccr-a54f396f-65ja2i` (prose only, merges last). No part is built yet.
+
 **M54 closed 2026-10-27, gate 13 of 13**, by `pnpm milestone close M54 --confirm` on part 0
-(PR 593, `ccr-3f23dccb-mljaxu`), which waits on Mitchell's merge. All eight parts are on `main`
+(PR 593, `ccr-3f23dccb-mljaxu`), merged to `main` as `837eef5`. All eight parts are on `main`
 (PRs 594, 595, 600, 601, 607, 604, 605, 606, merged as one stack in `e9a46b0f`, 2026-10-26; no
 migration). Mitchell walked three checks on `main` from Android (2026-10-27, 01:51Z) and, about
 02:00Z, waived the rest of the [walk] and the iPhone cold launch, accepted the pending-button e2e
 without a red, and had the lens fade and the e2e splash wait recorded as known issues
 (KI-20261027-a to -c; -d is the rail's passive-effect focus). Evidence, retro and spend are in
-`docs/milestones/M54-the-motion-pass.md`; the plan is deleted. **M43 is now the current
-milestone** (`docs/milestones/M43-notebooks-keep-up.md`), proposed and not yet scoped.
+`docs/milestones/M54-the-motion-pass.md`; the plan is deleted.
 
 **M49 closed 2026-10-25, gate 9 of 9**, by `pnpm milestone close M49 --confirm` on part 0
 (PR 581, `claude/cool-goodall-p53ykz`). All four parts are on
@@ -48,15 +53,17 @@ earlier confirmations (Today undeletable on production; part 10's API; part 11 *
 confirmed fixed"*). Evidence, retro and spend are in
 `docs/milestones/M52-the-trip-comes-with-you.md`.
 
-**Next action:** Mitchell merges M54's part 0 (PR 593). Then scope M43 with him
-(`plan-a-milestone`): the Overview's identity in the database, its derived title, and the `open`
-widget's design and filters. Open follow-ups from M54: KI-20261027-a to -d, KI-20261026-t, -u,
+**Next action:** build M55's part 1 (`claude/m55-part1-hmac-storage`: migration `0069`, the
+HMAC helper, `tc_` tokens moved and the old ones revoked), then parts 2 → 3 → 4, with 5 after 2
+and 6 after 3 (the plan's *Order*). Mitchell dispatches `migrate-production` right after part 1
+merges, and adds the two `/.well-known/oauth-*` firewall bypass rules once part 2 merges.
+Open follow-ups from M54: KI-20261027-a to -d, KI-20261026-t, -u,
 -x and -y, and KI-20261013-a's first-load gap. Open follow-ups from M49: KI-20261025-w, and the candidate
 *Reposition a playbook day's cover*.
 Open follow-ups from M52: KI-2026-10-24-a to -o (`docs/known-issues/open/`). Outside M52:
 PR 491 (dependabot) is red, and GitHub reports 5 dependabot vulnerabilities on `main` (2 high,
-3 moderate). The order is M43 → M44 → M53 (minted 2026-10-25 from an SEO audit, not scoped) → M55 (minted
-2026-10-27: a Claude connector over OAuth, not scoped), with M48 parked.
+3 moderate). The order is M55 (current) → M43 → M44 → M53 (minted 2026-10-25 from an SEO audit, not scoped),
+with M48 parked.
 
 **M51 closed 2026-10-22, gate 11 of 11**, on Mitchell's ruling at the close: his walk at 390, 1440
 and 3440 works, and the parts are merged (PRs 506–511, 513, 514, 516; part 0 PR 505 merged early;
