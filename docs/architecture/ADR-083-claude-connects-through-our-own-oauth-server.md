@@ -173,7 +173,13 @@ and every refresh, and Claude's token calls must answer within 10 seconds.
      for the clients that use it). No wildcards, no prefix match. An error before the redirect is
      proven (unknown client, a CIMD that does not fetch or validate, mismatched redirect) is shown
      on our page and never redirected; only after the redirect is proven does an error go back to
-     the client, with `state` and `iss`.
+     the client, with `state` and `iss`. **Even then, only a recognised redirect is followed
+     automatically (amendment M).** Registration is open, so a proven redirect can still be an
+     attacker's own site, and bouncing a signed-in visitor there with no click is the open
+     redirect RFC 9700 §4.11.2 names. An error for any other client is shown on our page with a
+     link to the client's redirect (carrying `error`, `state` and `iss`), which the person
+     follows or not. A successful Allow still redirects, because the person chose it on the
+     consent page.
    - **PKCE downgrade (amendment I).** Authorize refuses a request with no `code_challenge` or a
      method other than `S256` before any code exists, so every code row has a challenge. The
      token endpoint refuses a code exchange with no `code_verifier`, and a `code_verifier`
@@ -283,7 +289,9 @@ sources and found the design sound in its hashing (HMAC-SHA256 with a pepper for
 secrets), its key derivation (HKDF with a fixed label) and most of its OAuth (S256-only PKCE, a
 one-minute single-use code whose reuse revokes the grant, refresh rotation with reuse detection,
 one-hour opaque access tokens, exact redirect matching with loopback port variance, RFC 8707). It
-proposed P1-a to P1-c and A to L above; Mitchell approved all of them on 2026-10-27. The pieces it
+proposed P1-a to P1-c and A to L above; Mitchell approved all of them on 2026-10-27.
+Amendment M (errors auto-redirect only to a recognised redirect) came from part 2's fresh-pass
+review the same day; Mitchell approved it on 2026-10-27. The pieces it
 called most error-prone in a hand-rolled server, and which part 2's tests therefore name one by
 one: single-use and rotation races, redirect matching and normalisation, PKCE downgrade, errors
 redirected before the redirect is validated, issuer and audience confusion, and CIMD SSRF.
