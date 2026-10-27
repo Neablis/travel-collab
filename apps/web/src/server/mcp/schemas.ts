@@ -33,6 +33,7 @@ export const PAGING: Readonly<Record<string, object>> = {
   cursor: { type: "string", description: "The `nextCursor` a previous page gave, for the page after it." },
 };
 
+/** The input schema `tools/list` serves for `tool`: its route's own, plus its path parameters and paging. */
 export function inputSchemaFor(tool: McpTool): InputSchema {
   const route = routeSchema(tool) ?? { type: "object", properties: {} };
   const routeProperties = (route.properties ?? {}) as Record<string, object>;

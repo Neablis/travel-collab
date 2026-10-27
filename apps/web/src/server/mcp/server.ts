@@ -1,7 +1,7 @@
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { CallToolRequestSchema, ListToolsRequestSchema, type Tool } from "@modelcontextprotocol/sdk/types.js";
 import { DECLARED } from "@/server/public-api/route";
-import { callTool } from "./dispatch";
+import { callTool, type McpCaller } from "./dispatch";
 import { inputSchemaFor } from "./schemas";
 import { TOOLS } from "./tools";
 
@@ -25,8 +25,8 @@ export function listedTools(): Tool[] {
   }));
 }
 
-/** The server for one request, whose calls spend `request`'s bearer, under `grantId`. */
-export function buildServer(request: Request, grantId: string): Server {
+/** The server for one request, whose calls spend `caller`'s bearer. */
+export function buildServer(caller: McpCaller): Server {
   const server = new Server(SERVER_INFO, { capabilities: { tools: { listChanged: false } } });
   const tools = listedTools();
   server.setRequestHandler(ListToolsRequestSchema, () => ({ tools }));
@@ -35,7 +35,7 @@ export function buildServer(request: Request, grantId: string): Server {
     if (tool === undefined) {
       return { content: [{ type: "text", text: `No tool is called "${params.name}".` }], isError: true };
     }
-    return callTool(tool, params.arguments ?? {}, request, grantId);
+    return callTool(tool, params.arguments ?? {}, caller);
   });
   return server;
 }

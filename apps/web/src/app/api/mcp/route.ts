@@ -1,4 +1,5 @@
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
+import type { McpCaller } from "@/server/mcp/dispatch";
 import { buildServer } from "@/server/mcp/server";
 import { runInMcpDispatch } from "@/server/oauth/dispatchContext";
 import { resolveActor } from "@/server/public-api/actor";
@@ -14,6 +15,7 @@ import { oauthChallenge, oauthRefusalResponse } from "@/server/public-api/route"
 // OAuth access token is taken here: a session cookie would let any page the
 // person visits call tools as them, and a `tc_` token belongs to `/api/v1`.
 
+/** One JSON-RPC exchange with the connector, as the OAuth token's holder, or the refusal of that token. */
 export async function POST(request: Request): Promise<Response> {
   const header = request.headers.get("authorization");
   if (header === null) {
@@ -36,10 +38,14 @@ export async function POST(request: Request): Promise<Response> {
   if (!resolution.ok || resolution.actor.via !== "oauth") return oauthRefusalResponse({ reason: "unknown" });
 
   const transport = new WebStandardStreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });
-  const server = buildServer(request, resolution.actor.grantId);
+  const caller: McpCaller = { request, userId: resolution.actor.userId, grantId: resolution.actor.grantId };
+  const server = buildServer(caller);
   await server.connect(transport);
   try {
-    return await transport.handleRequest(request);
+    const response = await transport.handleRequest(request);
+    // The bearer lapsed between the check above and a tool's own: the same
+    // HTTP refusal, so the client refreshes rather than the model giving up.
+    return caller.refusal ?? response;
   } finally {
     await server.close();
   }

@@ -9,6 +9,7 @@ import { mintToken } from "@/server/api-tokens";
 import { issueGrant } from "@/server/entitlements/grants";
 import { livePlanVersion } from "@/server/entitlements/planVersions";
 import { mcpResource, oauthIssuer } from "@/server/oauth/metadata";
+import { revokeSecret } from "@/server/oauth/tokens";
 import { connectForTest } from "@/server/test-support/oauthConnection";
 import { upsertUser } from "@/server/users";
 
@@ -17,6 +18,24 @@ let sessionUserId: string | null = null;
 vi.mock("@/server/auth", () => ({
   auth: vi.fn(async () => (sessionUserId === null ? null : { user: { id: sessionUserId } })),
 }));
+
+// A token revoked while its request is in flight: the route's up-front resolve
+// sees it live, and the tool's v1 handler, resolving it again, sees it revoked.
+let revokeAfterResolve: string | null = null;
+vi.mock("@/server/public-api/actor", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/server/public-api/actor")>();
+  return {
+    ...actual,
+    resolveActor: async (request: Request) => {
+      const resolved = await actual.resolveActor(request);
+      if (revokeAfterResolve !== null) {
+        await revokeSecret(revokeAfterResolve);
+        revokeAfterResolve = null;
+      }
+      return resolved;
+    },
+  };
+});
 
 const { POST, GET, DELETE } = await import("./route");
 
@@ -118,6 +137,20 @@ describe("POST /api/mcp with a connected client's token", () => {
     const { result } = await res.json();
     expect(result.isError).toBe(true);
     expect(result.content[0].text).toMatch(/^This token does not hold the "account:read" scope\. \(insufficient-scope\)/);
+  });
+});
+
+describe("POST /api/mcp when a tool call meets a refused credential", () => {
+  // ADR-083 §8: a refused credential is HTTP, which the client refreshes or
+  // reconnects on, never a tool error the model reads and gives up on.
+  it("answers the refusal's 401 and challenge on the MCP response itself", async () => {
+    const access = await connect(await entitled(), ["account:read"]);
+    revokeAfterResolve = access;
+    const res = await mcp(rpc("tools/call", { name: "whoami", arguments: {} }), bearer(access));
+    expect(revokeAfterResolve).toBeNull();
+    expect(res.status).toBe(401);
+    expect(res.headers.get("WWW-Authenticate")).toBe(`Bearer resource_metadata="${METADATA}", error="invalid_token"`);
+    expect((await res.json()).error.code).toBe("token-revoked");
   });
 });
 
