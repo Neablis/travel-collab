@@ -18,6 +18,17 @@ import { upsertUser } from "@/server/users";
 
 vi.mock("@/server/auth", () => ({ auth: vi.fn(async () => null) }));
 
+// A test may hold `forgetKey` to order two overlapping calls; otherwise it passes through.
+const held = vi.hoisted(() => ({ forget: null as null | ((forget: () => Promise<void>) => Promise<void>) }));
+vi.mock("@/server/public-api/idempotency", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@/server/public-api/idempotency")>();
+  return {
+    ...real,
+    forgetKey: (...args: Parameters<typeof real.forgetKey>) =>
+      held.forget === null ? real.forgetKey(...args) : held.forget(() => real.forgetKey(...args)),
+  };
+});
+
 const { callTool } = await import("./dispatch");
 const { TOOLS } = await import("@/app/api/mcp/tools");
 
@@ -104,6 +115,49 @@ describe("create_playbook", () => {
     const again = await call("create_playbook", TWO_DAYS);
     expect(again.isError, again.text).toBe(false);
     expect(again.json().playbook.playbookId).not.toBe(first.playbookId);
+  });
+
+  // A kept 5xx came after the handler's writes (ADR-051): running again would keep the Playbook twice.
+  it("replays a 5xx it kept rather than running again", async () => {
+    const { call, ownerId } = await connectAs();
+    expect((await call("create_playbook", TWO_DAYS)).isError).toBe(false);
+    await db
+      .update(apiIdempotencyKeys)
+      .set({ statusCode: 500, response: { error: { code: "internal", message: "The answer failed its schema." } } })
+      .where(eq(apiIdempotencyKeys.userId, ownerId));
+    expect((await call("create_playbook", TWO_DAYS)).isError).toBe(true);
+    const mine = await call("list_my_playbooks", {});
+    expect(mine.json().items.filter((p: { name: string }) => p.name === TWO_DAYS.name)).toHaveLength(1);
+  });
+
+  // Two identical calls that both replayed a stale answer: the first forgets it
+  // and makes the Playbook; the second must replay that, not forget it as well.
+  it("keeps one Playbook when two overlapping calls both replayed an answer they forget", async () => {
+    const { call, ownerId } = await connectAs();
+    const first = (await call("create_playbook", TWO_DAYS)).json().playbook;
+    expect(await deleteSavedDay(first.playbookId, ownerId)).toBe("deleted");
+    let arrived = 0;
+    let bothReplayed!: () => void;
+    const barrier = new Promise<void>((resolve) => (bothReplayed = resolve));
+    const calls: Promise<Awaited<ReturnType<typeof call>>>[] = [];
+    // Both wait here until both have replayed; the second then waits for the first call to finish.
+    held.forget = async (forget) => {
+      const second = ++arrived === 2;
+      if (second) bothReplayed();
+      await barrier;
+      if (second) await Promise.race(calls);
+      await forget();
+    };
+    try {
+      calls.push(call("create_playbook", TWO_DAYS), call("create_playbook", TWO_DAYS));
+      const [a, b] = await Promise.all(calls);
+      expect(arrived).toBe(2);
+      expect(b!.json().playbook.playbookId).toBe(a!.json().playbook.playbookId);
+    } finally {
+      held.forget = null;
+    }
+    const mine = await call("list_my_playbooks", {});
+    expect(mine.json().items.filter((p: { name: string }) => p.name === TWO_DAYS.name)).toHaveLength(1);
   });
 });
 
