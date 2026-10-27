@@ -1,4 +1,4 @@
-// **Account → Connected apps, the list** (M55 D10), against a real database.
+// **Account → Security → Connected apps, the list** (M55 D10), against a real database.
 //
 // Session-only, as the token list is: a connected app's own access token must
 // not be able to read what else its owner has connected, and the last test

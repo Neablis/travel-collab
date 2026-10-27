@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ConnectedApp } from "@tc/contracts";
 import { ConnectedAppsSection } from "./ConnectedAppsSection";
 
-// What a person reads and does on Account → Connected apps (M55 D10): which
+// What a person reads and does on Account → Security → Connected apps (M55 D10): which
 // apps act as them, where each one's codes go, and Disconnect, confirmed.
 
 const DAY = 24 * 60 * 60 * 1000;

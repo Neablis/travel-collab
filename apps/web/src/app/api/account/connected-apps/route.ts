@@ -3,7 +3,7 @@ import { auth } from "@/server/auth";
 import { grantScopes, listGrants, type GrantRow } from "@/server/oauth/grants";
 import { consentMarking } from "@/server/oauth/recognised";
 
-// **Account → Connected apps is session-only, as `account/tokens` is** (M55
+// **Account → Security → Connected apps is session-only, as `account/tokens` is** (M55
 // D10). A connected app's own access token must not be able to read what else
 // its owner has connected, or disconnect them; the route reads the session and
 // never a bearer, and `exposure.ts` keeps `listGrants` off the public side.

@@ -1,4 +1,4 @@
-// **Account → Connected apps, Disconnect** (M55 D10), against a real database:
+// **Account → Security → Connected apps, Disconnect** (M55 D10), against a real database:
 // the owner's revoke cuts off the grant's refresh and access tokens on their
 // next use, says yes again on a second click, and knows no other owner's grant.
 import { randomUUID } from "node:crypto";

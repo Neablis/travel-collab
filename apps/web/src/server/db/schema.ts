@@ -372,7 +372,7 @@ export const oauthGrants = pgTable(
       "oauth_grants_revoked_reason",
       sql`${t.revokedReason} is null or (${t.revokedAt} is not null and ${t.revokedReason} in ('owner', 'code-reuse', 'refresh-reuse'))`,
     ),
-    // Account → Connected apps lists one person's grants.
+    // Account → Security → Connected apps lists one person's grants.
     index("oauth_grants_owner").on(t.ownerId),
     // A client's first grant is what keeps it from expiring.
     index("oauth_grants_client").on(t.clientId),

@@ -88,7 +88,7 @@ describe("AccountScreen", () => {
     ["security", "tokens-panel"],
     ["security", "apps-panel"],
     ["profile", "profile-panel"],
-  ])("renders the panel the ?tab= names: %s", (tab, panel) => {
+  ])("?tab=%s renders %s", (tab, panel) => {
     mount(tab);
     expect(screen.getByTestId(panel)).toBeTruthy();
   });
