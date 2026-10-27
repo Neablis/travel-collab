@@ -30,6 +30,8 @@ function routeDirs(root: string, skip?: string): string[] {
 }
 
 const MCP = path.join(SERVER, "mcp");
+/** The MCP route and its tool table, which imports v1 routes and so cannot live in `server/`. */
+const MCP_ROUTE = path.join(API, "mcp");
 
 /** The non-test `.ts` files under `dir`, at any depth. */
 function sourcesUnder(dir: string): string[] {
@@ -49,7 +51,7 @@ function publicSources(): string[] {
   const helpers = readdirSync(HERE)
     .filter((f) => f.endsWith(".ts") && !f.includes(".test.") && f !== "exposure.ts")
     .map((f) => path.join(HERE, f));
-  return [...v1, ...helpers, ...sourcesUnder(MCP)];
+  return [...v1, ...helpers, ...sourcesUnder(MCP), ...sourcesUnder(MCP_ROUTE)];
 }
 
 interface Import {
@@ -137,7 +139,9 @@ describe("exposure.ts decides every internal route, and the API obeys it", () =>
 
   // An empty walk would pass the check below while protecting nothing.
   it("walks the MCP server's modules as part of the public side", () => {
-    expect(publicSources()).toEqual(expect.arrayContaining([path.join(MCP, "tools.ts"), path.join(MCP, "dispatch.ts")]));
+    expect(publicSources()).toEqual(
+      expect.arrayContaining([path.join(MCP_ROUTE, "tools.ts"), path.join(MCP, "tools.ts"), path.join(MCP, "dispatch.ts")]),
+    );
   });
 
   it("imports nothing a never route reaches, anywhere on the public side", () => {

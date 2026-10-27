@@ -11,9 +11,9 @@
 //    `planned` lines IS the gap list `using-the-api.md` asks an API pass to read;
 // 2. a `public` line names a `v1/` route that does not exist;
 // 3. anything on the public side — a `v1/` route, the `server/public-api/`
-//    helpers they delegate to, or the MCP server's modules (`server/mcp/**`) —
-//    imports what a `never` line says it reaches, or a `v1/` route sits at a
-//    `never` route's own path.
+//    helpers they delegate to, or the MCP server's modules (`server/mcp/**`,
+//    and `app/api/mcp/**` with its tool table) — imports what a `never` line
+//    says it reaches, or a `v1/` route sits at a `never` route's own path.
 //
 // **What check 3 cannot see**: the same logic rewritten from scratch inside
 // `v1/`. It catches the realistic mistake — an endpoint that calls the function
