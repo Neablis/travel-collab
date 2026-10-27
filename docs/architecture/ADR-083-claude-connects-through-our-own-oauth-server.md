@@ -201,7 +201,13 @@ and every refresh, and Claude's token calls must answer within 10 seconds.
      must equal its URL, and its `redirect_uris` follow the same rules as DCR's. **CIMD is metered
      too** (part 2's review): a fetch is charged before it runs, 30 per account and 2000 in all per
      hour, only a signed-in visitor causes one, and the `oauth_clients` row is written only on
-     Allow, so viewing the consent page leaves nothing behind. **`logo_uri` and
+     Allow, so viewing the consent page leaves nothing behind. A document that passes validation is kept
+     in the shared ADR-059 cache for 300 seconds under `<env>:oauth:cimd:<sha256(url)>`, holding
+     only the fields we read and when it was fetched; a cache hit is neither fetched nor charged to
+     either quota, and is validated again in full. A document that fails validation is never
+     cached, and the cache fails open (without Upstash every authorize fetches and is charged).
+     Allow is bound to what the person saw by the posted `client_name`: a mismatch with the
+     document at Allow answers 409 `client-changed`. **`logo_uri` and
      `jwks_uri` are never fetched**, from a CIMD or a DCR body: the consent page shows no logo, and
      there are no confidential clients to need keys.
    - **CSRF on the consent decision.** The consent page posts its decision with `fetch` to

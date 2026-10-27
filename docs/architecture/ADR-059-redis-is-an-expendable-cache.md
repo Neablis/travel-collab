@@ -93,6 +93,7 @@ entry.
 |---|---|---|---|---|
 | `<env>:og:invite:sha256(<token>)` | `InviteCard` (first names and counts only) | 3600 s | the lookup returns a **personal** card | the invite is revoked or accepted (`access/invites.ts`, after the commit, best-effort) |
 | `<env>:og:referral:sha256(<code>)` | `{ firstName }` | 86400 s | the code names a referrer | never; it expires |
+| `<env>:oauth:cimd:sha256(<url>)` | the fields M55 reads from a client metadata document, and when it was fetched | 300 s | a fetched CIMD document passes validation (ADR-083 §6) | never; it expires |
 
 **Budget.** The CDN fronts every route, so Redis is touched only on an **edge miss**:
 
@@ -101,6 +102,9 @@ entry.
 - **1 DEL per revoke or accept.**
 - **Junk tokens cost 1 GET and no SET.** Their rate is bounded by the Postgres limiter at
   60 per minute per IP.
+- **CIMD (M55): 1 GET per authorize view or Allow by a signed-in visitor, and 1 SET per
+  uncached document that validates.** Uncached fetches are bounded by the Postgres CIMD quota
+  (30 per account and 2000 in all per hour), so SETs are too.
 
 At the invite volumes this app has, that is a few hundred commands a day at most. That is
 well inside Upstash's free-tier command allowance, though this ADR does not pin the figure:
