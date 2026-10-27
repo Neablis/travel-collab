@@ -224,7 +224,8 @@ The assistant does **not** run on eve. ADR-062 is Proposed; only its measurement
 Every handler is produced by `route({ METHOD: { scope, trip, role, query, body, response, idempotent, handle } })`
 (`src/server/public-api/route.ts`). Gates, in order:
 
-1. **Credential**: bearer token (sha256 lookup; expiry, revocation and the owner's `api.tokens` checked on read),
+1. **Credential**: bearer token (a keyed-digest lookup: `scrypt` today, despite older prose saying sha256;
+   HMAC-SHA256 from M55 part 1, ADR-083; expiry, revocation and the owner's `api.tokens` checked on read),
    else the session cookie. A malformed `Authorization` header never falls back to the cookie.
 2. **Rate limit** (tokens only): 1000/hour per token, Postgres counters; store down → 503, fail closed.
 3. **Scope**: nine scopes, a set, not a rank. A session holds all.
@@ -381,6 +382,7 @@ dispatched workflow. Details: `docs/guidelines/content-bundles.md`.
 | A stop's price is per person | — accepted as wrong for a shared room or taxi | 060 |
 | ⌘K runs the page's own actions, named Action › Type › Target | commands with handlers of their own (copies drift); a flat list of labels and keywords (names and ranking stopped agreeing as it grew) | 068, 069 |
 | Plan examples come from pgvector in our own Postgres: hybrid HNSW and full-text search with RRF, embedded on write by a daily sweep, privacy decided in the query | Upstash Vector (a second store with its own lifecycle); Postgres RLS (no precedent here) | 075 |
+| A Claude connector is our own OAuth server in front of a stateless MCP route whose tools call v1's own handlers; every API secret is HMAC-SHA256; registration is open | a hosted identity provider (a vendor and a second user directory); JWT access tokens (cannot be revoked early); a Claude-only redirect allowlist; scrypt (37ms a request for no gain on 256-bit secrets) | 083 |
 | Money is integer minor units, one currency per trip | floats (break bit-identical rebuild); live FX (a projection cannot call an API) | 008 |
 
 **ADR status that is easy to misread**
@@ -390,6 +392,7 @@ dispatched workflow. Details: `docs/guidelines/content-bundles.md`.
 - **Still marked Proposed, but built**: 025–029, 057, 058.
 - **Proposed and only half built**: 062 (ledger and evals yes, eve port no).
 - **Draft, nothing built**: 040.
+- **Accepted, not built yet**: 083 (M55, 2026-10-27).
 - **Two files are ADR-063**: signup-is-open and the-public-library-is-cached-for-a-day. Grandfathered in
   `scripts/check-adr-numbers.mjs`. A bare "ADR-063" is ambiguous; say which.
 
