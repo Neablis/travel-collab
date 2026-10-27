@@ -209,6 +209,11 @@ old `?tab=tokens` / `?tab=apps` link lands on Security; a free account sees the 
 
 **Gate boxes:** none of its own; part 5's *Revocation* walk now starts from Account → Security.
 
+**Design drift, left on purpose:** `.design-sync/handoff/SPEC.md:1971` and the artboard
+(`Trip Planner Redesign.dc.html` :3285, :3362) still draw *API tokens →* and *Connected apps →* on
+Profile. `.design-sync/**` is a build input that re-runs the full suite, so the next design sync
+carries the Security tab instead of this milestone.
+
 ---
 
 ## Gate box → part
