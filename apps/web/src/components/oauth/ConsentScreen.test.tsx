@@ -76,6 +76,7 @@ describe("ConsentScreen", () => {
       params: props().params,
       decision: "allow",
       scopes: ["trips:read"],
+      clientName: props().clientName,
     });
   });
 });

@@ -70,7 +70,8 @@ export function ConsentScreen({
       const res = await fetch("/api/oauth/authorize", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ params, decision, scopes: chosen }),
+        // The name too: the server refuses Allow if the app's name changed since this page showed it.
+        body: JSON.stringify({ params, decision, scopes: chosen, clientName }),
       });
       const body = (await res.json().catch(() => null)) as { redirectTo?: unknown } | null;
       if (res.ok && typeof body?.redirectTo === "string") {

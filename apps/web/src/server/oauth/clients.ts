@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { and, eq, isNull } from "drizzle-orm";
 import { z } from "zod";
+import { cimdDocumentKey } from "@/server/cache/keys";
+import { getCache, type CachePort } from "@/server/cache/redis";
 import { db } from "@/server/db/client";
 import { oauthClients } from "@/server/db/schema";
 import {
@@ -70,6 +72,22 @@ export interface ClientDeps {
   resolve?: Resolve;
   now?: Date;
   timeoutMs?: number;
+  /** Where fetched metadata documents are kept for `CIMD_CACHE_TTL_SECONDS`; the shared cache by default. */
+  cache?: CachePort;
+}
+
+/**
+ * How long a fetched metadata document is served without fetching or charging
+ * again. Short, so a client that changes its redirects is read as it is now
+ * within minutes; long enough that one popular client costs a fetch per five
+ * minutes, whoever connects it.
+ */
+export const CIMD_CACHE_TTL_SECONDS = 300;
+
+/** A cached metadata document: the fields we read of it, and when it was fetched (epoch ms). */
+interface CachedDocument {
+  document: unknown;
+  fetchedAt: number;
 }
 
 const ROW_ID = z.uuid();
@@ -154,8 +172,13 @@ const refused = (detail: string): ResolvedClient => ({ ok: false, reason: "inval
  * socket connects to the address the guard checked, so a rebinding DNS answer
  * cannot swap in a private address after the check. https on the default port,
  * no credentials in the URL, no redirect followed at all, 5 KB and 5 seconds,
- * the DNS pre-flight included. Fetched on every authorize rather than cached,
- * so a client that changes its redirects is read as it is now.
+ * the DNS pre-flight included.
+ *
+ * A document that passed is kept in the shared cache (ADR-059) for
+ * `CIMD_CACHE_TTL_SECONDS`, and a hit is neither fetched nor charged, so
+ * accounts spending their shares on throwaway URLs cannot use up the global
+ * ceiling for a client people are connecting. A hit is checked like a fetch.
+ * The cache fails open: unavailable, every authorize fetches and is charged.
  */
 async function resolveMetadataDocument(url: string, deps: ClientDeps): Promise<ResolvedClient> {
   let parsed: URL;
@@ -168,20 +191,30 @@ async function resolveMetadataDocument(url: string, deps: ClientDeps): Promise<R
   if (parsed.pathname === "/" || url.includes("#") || parsed.username !== "" || parsed.password !== "" || parsed.port !== "") {
     return { ok: false, reason: "unknown-client" };
   }
-  if (deps.userId === undefined) return refused("no account to charge the fetch to");
-  if (!(await consumeQuota(oauthCimdQuota(), deps.userId)).allowed) return { ok: false, reason: "too-many-lookups" };
-  let text: string;
-  try {
-    text = await fetchDocument(parsed, deps);
-  } catch (error) {
-    return refused(error instanceof RemoteImageRefused ? error.reason : String(error));
-  }
+  const now = deps.now ?? new Date();
+  const cache = deps.cache ?? getCache();
+  const cached = await cache.get<CachedDocument>(cimdDocumentKey(url));
+  const fresh = cached !== null && now.getTime() - cached.fetchedAt < CIMD_CACHE_TTL_SECONDS * 1000;
   let body: unknown;
-  try {
-    body = JSON.parse(text);
-  } catch {
-    return refused("not JSON");
+  if (fresh) {
+    body = cached.document;
+  } else {
+    if (deps.userId === undefined) return refused("no account to charge the fetch to");
+    if (!(await consumeQuota(oauthCimdQuota(), deps.userId)).allowed) return { ok: false, reason: "too-many-lookups" };
+    let text: string;
+    try {
+      text = await fetchDocument(parsed, deps);
+    } catch (error) {
+      return refused(error instanceof RemoteImageRefused ? error.reason : String(error));
+    }
+    try {
+      body = JSON.parse(text);
+    } catch {
+      return refused("not JSON");
+    }
   }
+  // A cached document is checked as if it had just arrived: the cache is a
+  // shared store, and a rule tightened since it was written still applies.
   const document = ClientMetadataDocument.safeParse(body);
   if (!document.success) return refused("not a client metadata document");
   // Exact, as a string: a document is only the client it says it is if it
@@ -189,6 +222,11 @@ async function resolveMetadataDocument(url: string, deps: ClientDeps): Promise<R
   if (document.data.client_id !== url) return refused("client_id differs from the document's URL");
   const badRedirect = document.data.redirect_uris.find((uri) => !checkRedirectUri(uri).ok);
   if (badRedirect !== undefined) return refused(`redirect ${badRedirect} is not allowed`);
+  // Only a document that passed, and only what was read of it, so a refused
+  // URL is fetched (and charged) again rather than refused from the cache.
+  if (!fresh) {
+    await cache.set(cimdDocumentKey(url), { document: document.data, fetchedAt: now.getTime() }, CIMD_CACHE_TTL_SECONDS);
+  }
   // `logo_uri` and `jwks_uri` are never read: the page shows no logo, and there
   // are no confidential clients to need keys.
   return {
