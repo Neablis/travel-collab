@@ -258,7 +258,7 @@ deployment just now"*, the component's own 5xx branch — and the server log
 underneath it said `ApiTokenPepperMissingError`. `grep -c "^API_TOKEN_PEPPER="
 .env.local` returned **1**, because the line was `API_TOKEN_PEPPER=`.
 
-CI does not have this: the workflow sets `API_TOKEN_PEPPER: ci-pepper`
+CI does not have this: the workflow sets `API_TOKEN_PEPPER` (a 32-byte-plus placeholder)
 explicitly, so a test that fails this way locally passes there — which is the
 combination most likely to be mistaken for a defect you just introduced.
 

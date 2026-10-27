@@ -39,13 +39,7 @@ export function UnderlineTabs<T extends string>({
   hasPanel = false,
   "aria-label": ariaLabel,
 }: {
-  /**
-   * The selected tab, or `null` for a view that belongs to the strip without
-   * being one of its tabs (Account's tokens sub-view, SPEC §35.4). With nothing
-   * selected the FIRST tab keeps the tab stop — roving tabindex would otherwise
-   * give every tab -1 and the strip would drop out of keyboard order.
-   */
-  value: T | null;
+  value: T;
   onValueChange: (value: T) => void;
   /**
    * `badge` is drawn after the label, in a `relative` box an absolute badge

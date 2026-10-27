@@ -36,12 +36,12 @@ test("api tokens: minted by clicking, opens the API, and revoking closes it", as
   expect(created.ok(), `POST /api/trips -> ${created.status()}`).toBe(true);
   const { tripId } = (await created.json()) as { tripId: string };
 
-  // ---- a free account sees the section, locked ------------------------------
+  // ---- a free account sees the section, locked, under the tab's one banner --
   // **A prompt, not a hidden section.** Hiding it would answer "this product
   // has no API"; showing it locked answers "not on this plan".
-  await openAccountPage(page, "tokens");
+  await openAccountPage(page, "security");
   await expect(page.getByTestId("tokens-section")).toBeVisible();
-  await expect(page.getByTestId("tokens-upgrade")).toContainText("Premium");
+  await expect(page.getByTestId("security-upgrade")).toContainText("Premium");
   await expect(page.getByTestId("token-new")).toBeHidden();
 
   // ---- entitle it the way an operator would ---------------------------------
@@ -50,8 +50,8 @@ test("api tokens: minted by clicking, opens the API, and revoking closes it", as
   // M11's; what it does is grant premium.)
   await grantCollaborators(browser, `dev-${username}`);
   await page.reload();
-  await openAccountPage(page, "tokens");
-  await expect(page.getByTestId("tokens-upgrade")).toBeHidden();
+  await openAccountPage(page, "security");
+  await expect(page.getByTestId("security-upgrade")).toBeHidden();
 
   // ---- mint one by clicking -------------------------------------------------
   await page.getByTestId("token-new").click();

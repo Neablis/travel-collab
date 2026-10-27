@@ -5,9 +5,10 @@ import { Dialog, DialogFooter } from "@/components/ui/dialog";
 import { Text } from "@/components/ui/text";
 
 /**
- * A small confirm for a People action that cannot be taken back from here —
- * revoke, remove, leave. `body` says what happens, in the consequence's own
- * words (spec §4), so the button can be a plain verb.
+ * A small confirm for an action that cannot be taken back from here — a
+ * People revoke, remove or leave, or disconnecting a connected app. `body`
+ * says what happens, in the consequence's own words (spec §4), so the button
+ * can be a plain verb.
  */
 export function ConfirmDialog({
   title,

@@ -6,7 +6,9 @@ import {
   consumeQuota,
   dailyPolicy,
   geocodeQuota,
+  oauthRegisterQuota,
   quotaRefusal,
+  registrationAddress,
   reserveAiSteps,
   settleAiSteps,
   type QuotaCounters,
@@ -409,6 +411,33 @@ describe("policy configuration", () => {
   it("sizes the Unsplash globals under production's 5,000 an hour, both windows filled", () => {
     const perHour = unsplashSearchQuota(false)[0]!.global + unsplashPickQuota(false)[0]!.global;
     expect(perHour * 2).toBeLessThanOrEqual(5000);
+  });
+
+  // Registration is open to anyone, so this is what bounds the rows one
+  // stranger can write: per IP, inside an hour, with the next hour fresh.
+  it("lets one IP register 20 OAuth clients an hour, and gives another IP its own 20", async () => {
+    const counters = fakeCounters();
+    const now = new Date("2026-10-27T12:00:00.000Z");
+    const register = (ip: string, at = now) => consumeQuota(oauthRegisterQuota(), ip, counters, at);
+    for (let i = 0; i < 20; i += 1) expect((await register("ip-a")).allowed).toBe(true);
+    expect(await register("ip-a")).toEqual(expect.objectContaining({ allowed: false, reason: "user" }));
+    expect((await register("ip-b")).allowed).toBe(true);
+    expect((await register("ip-a", new Date("2026-10-27T13:00:00.000Z"))).allowed).toBe(true);
+  });
+
+  // One subscriber holds a whole /64, so counting addresses inside it would
+  // let one host rotate past its 20 and spend the global ceiling alone.
+  it("counts an IPv6 address by its /64, however it is spelled, and an IPv4 one as it is", () => {
+    const prefix = registrationAddress("2001:db8:a:b::1");
+    expect(registrationAddress("2001:0db8:000a:000b:ffff:1:2:3")).toBe(prefix);
+    expect(registrationAddress("2001:db8:a:b:0:0:1.2.3.4")).toBe(prefix);
+    expect(registrationAddress("2001:db8:a:c::1")).not.toBe(prefix);
+    expect(registrationAddress("::ffff:203.0.113.9")).toBe("203.0.113.9");
+    // Spelled in hex, a mapped address is still its IPv4, not the shared ::/64.
+    expect(registrationAddress("::ffff:cb00:7109")).toBe("203.0.113.9");
+    expect(registrationAddress("0:0:0:0:0:FFFF:7f00:1")).toBe("127.0.0.1");
+    expect(registrationAddress("203.0.113.9")).toBe("203.0.113.9");
+    expect(registrationAddress("unknown")).toBe("unknown");
   });
 
   it("keeps the AI policies ordered burst-then-bill, both bounded per user and globally", () => {

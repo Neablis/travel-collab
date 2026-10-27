@@ -6,6 +6,9 @@ import {
   type TripRole,
 } from "@tc/contracts";
 import { touchLastUsed } from "@/server/api-tokens";
+import { touchGrantLastUsed } from "@/server/oauth/grants";
+import { oauthIssuer } from "@/server/oauth/metadata";
+import type { AccessRefusal } from "@/server/oauth/verifyAccess";
 import { PublicApiError } from "./commands";
 import { TOO_LARGE, readCapped } from "@/server/readBody";
 import { tripAccessFor, type TripAccessDenial } from "@/server/access/trip-access";
@@ -21,6 +24,7 @@ import {
 import {
   actorHasScope,
   actorMayReachTrip,
+  credentialKey,
   resolveActor,
   type Actor,
   type ActorRefusal,
@@ -484,9 +488,12 @@ function declare(method: HttpMethod, def: MethodDef): DeclaredHandler {
     if (!resolution.ok) return refusalResponse(resolution.refusal);
     const actor = resolution.actor;
 
-    // ---- rate limit, tokens only ----------------------------------------
-    if (actor.via === "token") {
-      const decision = await consumeQuota([API_TOKEN_QUOTA], actor.tokenId);
+    // ---- rate limit, credentials only -----------------------------------
+    // A token's bucket is its id, an OAuth grant's its grant id (ADR-083 §7):
+    // every access token a grant is refreshed into shares one allowance.
+    const credential = credentialKey(actor);
+    if (credential !== null) {
+      const decision = await consumeQuota([API_TOKEN_QUOTA], credential);
       if (!decision.allowed) {
         // **Fail closed when the counter store is down.** A rate limiter that
         // opens under load is not a rate limiter; `quota.ts` already made this
@@ -637,7 +644,7 @@ function declare(method: HttpMethod, def: MethodDef): DeclaredHandler {
       }
       trip = outcome.detail;
       role = outcome.role;
-    } else if (actor.via === "token" && actor.tripIds !== null) {
+    } else if (actor.via !== "session" && actor.tripIds !== null) {
       // **A trip-scoped token is refused on a request with no trip dimension.**
       // `POST /v1/trips`, `GET /v1/account` and an inline Playbook are
       // widenings for a credential restricted to named trips, and the safe
@@ -809,6 +816,9 @@ async function respond(
     void touchLastUsed(actor.tokenId).catch((error: unknown) => {
       console.error("last_used_at touch failed", { tokenId: actor.tokenId, error });
     });
+  } else if (actor.via === "oauth") {
+    // The grant is what Connected apps lists, so the grant is what was used.
+    void touchGrantLastUsed(actor.grantId);
   }
 
   return {
@@ -840,7 +850,49 @@ async function declareCollection(
   return { items, nextCursor };
 }
 
+/**
+ * The challenge on every refusal of an OAuth credential (ADR-083 §7): RFC 9728's
+ * `resource_metadata` tells the client where to start the flow again, and
+ * `error="invalid_token"` (RFC 6750 §3.1) is what makes it refresh or re-consent
+ * rather than give up.
+ */
+export function oauthChallenge(invalidToken: boolean): Record<string, string> {
+  const metadata = `${oauthIssuer()}/.well-known/oauth-protected-resource/api/mcp`;
+  return {
+    "WWW-Authenticate": `Bearer resource_metadata="${metadata}"${invalidToken ? ', error="invalid_token"' : ""}`,
+  };
+}
+
+/** The 401 or 402 an OAuth credential's refusal answers, with the challenge that sends the client back into the flow. */
+export function oauthRefusalResponse(refusal: AccessRefusal): Response {
+  switch (refusal.reason) {
+    case "audience":
+      return fail("unauthenticated", "This token is for the MCP connector at /api/mcp, not the REST API.", 401, {
+        headers: oauthChallenge(true),
+      });
+    case "resource":
+      // Not "use /api/mcp": the client is already there. Only a new
+      // connection, made against this server, gives it a token we honour.
+      return fail("unauthenticated", "This token was issued for a different server. Connect again.", 401, {
+        headers: oauthChallenge(true),
+      });
+    case "expired":
+      return fail("token-expired", "This access token has expired. Refresh it.", 401, { headers: oauthChallenge(true) });
+    case "revoked":
+      return fail("token-revoked", "This access token was revoked.", 401, { headers: oauthChallenge(true) });
+    case "not-entitled":
+      // Not an invalid token: the plan, not the credential, is what lapsed.
+      return fail("not-entitled", "This account's plan does not include API access.", 402, {
+        headers: oauthChallenge(false),
+      });
+    case "unknown":
+    default:
+      return fail("unauthenticated", "This token is not valid.", 401, { headers: oauthChallenge(true) });
+  }
+}
+
 function refusalResponse(refusal: ActorRefusal): Response {
+  if (refusal.reason === "oauth") return oauthRefusalResponse(refusal.refusal);
   if (refusal.reason === "anonymous") {
     return fail("unauthenticated", "This endpoint needs an API token.", 401, {
       headers: BEARER_CHALLENGE,
@@ -854,6 +906,17 @@ function refusalResponse(refusal: ActorRefusal): Response {
         headers: BEARER_CHALLENGE,
       });
     case "revoked":
+      // Migration 0069 revoked every token minted before storage changed
+      // (ADR-083 §3). The integrator did nothing, so the message says what did.
+      if (refusal.refusal.revokedReason === "storage-changed") {
+        const on = refusal.refusal.revokedAt.toISOString().slice(0, 10);
+        return fail(
+          "token-revoked",
+          `This token was revoked when token storage changed on ${on}. Mint a new one.`,
+          401,
+          { headers: BEARER_CHALLENGE },
+        );
+      }
       return fail("token-revoked", "This token was revoked.", 401, { headers: BEARER_CHALLENGE });
     case "not-entitled":
       // A lapse disables rather than revokes, so the message names the plan

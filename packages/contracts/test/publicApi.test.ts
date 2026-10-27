@@ -15,6 +15,10 @@ import {
   ApiToken,
   ApiTokenCreateInput,
   ApiTokenCreated,
+  ConnectedApp,
+  OAUTH_ACCESS_PREFIX,
+  OAUTH_CODE_PREFIX,
+  OAUTH_REFRESH_PREFIX,
   SCOPE_CATALOGUE,
 } from "../src/publicApi.ts";
 
@@ -191,6 +195,7 @@ describe("ApiToken", () => {
     lastUsedAt: null,
     expiresAt: "2026-12-15T10:00:00.000Z",
     revokedAt: null,
+    revokedReason: null,
   };
 
   it("accepts an account-wide token and a trip-confined one", () => {
@@ -233,10 +238,68 @@ describe("ApiToken", () => {
     expect(parsed.revokedAt).toBeNull();
   });
 
+  // The reason is what lets the list tell "you revoked this" from "every token
+  // minted before storage changed was revoked", and only those two exist.
+  it("carries why a token was revoked, from a closed set", () => {
+    const revoked = { ...token, revokedAt: "2026-10-27T00:00:00.000Z" };
+    expect(ApiToken.safeParse({ ...revoked, revokedReason: "owner" }).success).toBe(true);
+    expect(ApiToken.safeParse({ ...revoked, revokedReason: "storage-changed" }).success).toBe(true);
+    expect(ApiToken.safeParse({ ...revoked, revokedReason: "expired" }).success).toBe(false);
+  });
+
   it("requires an expiry, because expiry is mandatory", () => {
     const { expiresAt: _dropped, ...withoutExpiry } = token;
     expect(ApiToken.safeParse(withoutExpiry).success).toBe(false);
     expect(ApiToken.safeParse({ ...token, expiresAt: null }).success).toBe(false);
+  });
+});
+
+describe("ConnectedApp", () => {
+  const app = {
+    grantId: "3f1a5b6c-7d8e-4f90-a1b2-c3d4e5f60720",
+    clientName: "Claude",
+    redirectHost: "claude.ai",
+    recognised: true,
+    scopes: ["trips:read", "library:write"],
+    createdAt: "2026-10-27T10:00:00.000Z",
+    lastUsedAt: null,
+    expiresAt: "2027-10-27T10:00:00.000Z",
+    revokedAt: null,
+    revokedReason: null,
+  };
+
+  it("accepts a live grant and one its owner disconnected", () => {
+    expect(ConnectedApp.safeParse(app).success).toBe(true);
+    const disconnected = { ...app, revokedAt: "2026-10-28T00:00:00.000Z", revokedReason: "owner" };
+    expect(ConnectedApp.safeParse(disconnected).success).toBe(true);
+  });
+
+  // A grant is cut off by its owner, or by the server when one of its secrets
+  // was presented twice (ADR-083 §4); the list says which, and nothing else.
+  it("carries why a grant ended, from a closed set", () => {
+    const revoked = { ...app, revokedAt: "2026-10-28T00:00:00.000Z" };
+    for (const reason of ["owner", "code-reuse", "refresh-reuse"]) {
+      expect(ConnectedApp.safeParse({ ...revoked, revokedReason: reason }).success, reason).toBe(true);
+    }
+    expect(ConnectedApp.safeParse({ ...revoked, revokedReason: "storage-changed" }).success).toBe(false);
+  });
+
+  // The list is read by the person who consented. The grant's secrets, the
+  // full redirect and the client's id are the server's, and none of them is
+  // something a person acts on.
+  it("carries no secret, no redirect path and no client id", () => {
+    const parsed = ConnectedApp.parse({
+      ...app,
+      accessToken: "tco_leaked",
+      refreshToken: "tcr_leaked",
+      redirectUri: "https://claude.ai/api/mcp/auth_callback",
+      clientId: "c1",
+    });
+    expect(Object.keys(parsed).sort()).toEqual(Object.keys(app).sort());
+  });
+
+  it("names its scopes from the API's own set", () => {
+    expect(ConnectedApp.safeParse({ ...app, scopes: ["trips:read", "everything"] }).success).toBe(false);
   });
 });
 
@@ -253,6 +316,7 @@ describe("ApiTokenCreated", () => {
         lastUsedAt: null,
         expiresAt: "2026-12-15T10:00:00.000Z",
         revokedAt: null,
+        revokedReason: null,
       },
       secret: "tc_dGhpcy1pcy1ub3QtYS1yZWFsLXNlY3JldA",
     };
@@ -325,6 +389,14 @@ describe("the token format constants", () => {
     // log can tell what they are looking at.
     expect(API_TOKEN_PREFIX).toBe("tc_");
     expect(API_TOKEN_PREFIX_LENGTH).toBeGreaterThan(API_TOKEN_PREFIX.length);
+  });
+
+  // A leaked OAuth secret has to say which kind it is, and none may pass for a
+  // `tc_` token, whose verify path checks that prefix first.
+  it("gives each OAuth secret its own prefix, none of them tc_", () => {
+    const prefixes = [OAUTH_ACCESS_PREFIX, OAUTH_REFRESH_PREFIX, OAUTH_CODE_PREFIX];
+    expect(prefixes).toEqual(["tco_", "tcr_", "tcc_"]);
+    for (const prefix of prefixes) expect(prefix.startsWith(API_TOKEN_PREFIX), prefix).toBe(false);
   });
 
   it("offers a default well inside the ceiling", () => {

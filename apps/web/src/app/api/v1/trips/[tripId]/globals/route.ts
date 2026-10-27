@@ -14,6 +14,7 @@ import { readPreferences } from "@/server/users";
 // the credential that could read the account — `account:read`, and not
 // confined to named trips, which the wrapper refuses on `/v1/account`.
 function mayReadAccount(actor: Actor): boolean {
+  // An OAuth grant is account-wide (`tripIds: null`), so it reads as an account-wide token does.
   return actorHasScope(actor, "account:read") && (actor.via === "session" || actor.tripIds === null);
 }
 

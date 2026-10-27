@@ -26,9 +26,10 @@ process.env.DATABASE_URL ??= "postgres://test:test@localhost:5432/test_unit";
 // working while the property the key exists for silently did not hold. `||=`,
 // not `??=`, so a blank `API_TOKEN_PEPPER=` in `.env.local` counts as missing —
 // an empty string is not nullish (KI-2026-09-19-a). A real value is left alone;
-// this one only has to be present and stable within a run, because nothing here
+// this one only has to be present, at least 32 bytes (`keyedDigest` refuses a
+// shorter one) and stable within a run, because nothing here
 // asserts a digest against a fixture.
-process.env.API_TOKEN_PEPPER ||= "test-pepper-not-a-real-key";
+process.env.API_TOKEN_PEPPER ||= "test-pepper-not-a-real-key-but-32-bytes-long";
 
 // The link-preview cache is off under test, as in `vitest.config.ts` (ADR-059):
 // tests that exercise a cache inject a port rather than share the process one.

@@ -29,13 +29,29 @@ function routeDirs(root: string, skip?: string): string[] {
   return out.sort();
 }
 
-/** The public side: every `v1/` route, and the non-test helpers they delegate to. */
+const MCP = path.join(SERVER, "mcp");
+/** The MCP route and its tool table, which imports v1 routes and so cannot live in `server/`. */
+const MCP_ROUTE = path.join(API, "mcp");
+
+/** The non-test `.ts` files under `dir`, at any depth. */
+function sourcesUnder(dir: string): string[] {
+  return readdirSync(dir, { withFileTypes: true, recursive: true })
+    .filter((f) => f.isFile() && f.name.endsWith(".ts") && !f.name.includes(".test."))
+    .map((f) => path.join(f.parentPath, f.name));
+}
+
+/**
+ * The public side: every `v1/` route, the non-test helpers they delegate to,
+ * and the MCP server's modules, whose tools reach v1 by another door (ADR-083
+ * §9). `server/oauth/**` is not walked: it owns the grant functions the
+ * connected-apps lines name.
+ */
 function publicSources(): string[] {
   const v1 = routeDirs(V1).map((dir) => path.join(V1, dir, "route.ts"));
   const helpers = readdirSync(HERE)
     .filter((f) => f.endsWith(".ts") && !f.includes(".test.") && f !== "exposure.ts")
     .map((f) => path.join(HERE, f));
-  return [...v1, ...helpers];
+  return [...v1, ...helpers, ...sourcesUnder(MCP), ...sourcesUnder(MCP_ROUTE)];
 }
 
 interface Import {
@@ -93,7 +109,7 @@ describe("exposure.ts decides every internal route, and the API obeys it", () =>
     const stale = Object.keys(EXPOSURE).filter((key) => !internal.includes(key));
     expect(
       { missing, stale },
-      "add each missing route to exposure.ts as public, planned or never; drop stale lines",
+      "add each missing route to exposure.ts as public, planned, never or front-door; drop stale lines",
     ).toEqual({ missing: [], stale: [] });
   });
 
@@ -104,11 +120,40 @@ describe("exposure.ts decides every internal route, and the API obeys it", () =>
     expect(dangling).toEqual([]);
   });
 
+  // A front door is public outside `v1/` because a standard fixes its URL; it
+  // needs no v1 route, and a v1 route at its path would be the same door twice.
+  it("lets a front door stand without a v1 route, and mirrors none under v1", () => {
+    const doors = Object.entries(EXPOSURE).filter(([, e]) => e.status === "front-door");
+    expect(doors.map(([key]) => key)).toEqual(
+      expect.arrayContaining(["oauth/register", "oauth/token", "oauth/revoke", "oauth/authorize", "mcp"]),
+    );
+    expect(doors.filter(([key]) => published.has(key)).map(([key]) => `v1/${key}`)).toEqual([]);
+  });
+
   it("publishes nothing at a never route's own path", () => {
     const mirrored = Object.entries(EXPOSURE)
       .filter(([key, e]) => e.status === "never" && published.has(key))
       .map(([key]) => `v1/${key}`);
     expect(mirrored).toEqual([]);
+  });
+
+  // M55 D10: what a person has connected, and Disconnect, are theirs to manage
+  // signed in. A grant that could list or revoke grants could hide itself from
+  // its owner or cut off the apps beside it.
+  it("keeps connected apps off the public side, as it keeps tokens", () => {
+    const reached = (key: string) => {
+      const e = EXPOSURE[key];
+      return e?.status === "never" ? e.reaches.flatMap((r) => (r.symbols ?? []).map((s) => `${r.module} ${s}`)) : [];
+    };
+    expect(reached("account/connected-apps")).toEqual(["@/server/oauth/grants listGrants"]);
+    expect(reached("account/connected-apps/[grantId]")).toEqual(["@/server/oauth/grants revokeGrant"]);
+  });
+
+  // An empty walk would pass the check below while protecting nothing.
+  it("walks the MCP server's modules as part of the public side", () => {
+    expect(publicSources()).toEqual(
+      expect.arrayContaining([path.join(MCP_ROUTE, "tools.ts"), path.join(MCP, "tools.ts"), path.join(MCP, "dispatch.ts")]),
+    );
   });
 
   it("imports nothing a never route reaches, anywhere on the public side", () => {

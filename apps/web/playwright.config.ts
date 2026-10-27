@@ -225,8 +225,8 @@ export default defineConfig({
       // `||`, not `??`: an `.env.local` from an older `pnpm setup` carries
       // `API_TOKEN_PEPPER=` blank, and the M22 token spec then failed as a
       // missing element rather than the fail-closed throw it was
-      // (KI-2026-09-19-a). CI's own `ci-pepper` and any real value still win.
-      API_TOKEN_PEPPER: process.env.API_TOKEN_PEPPER || "e2e-pepper",
+      // (KI-2026-09-19-a). CI's own pepper and any real value still win.
+      API_TOKEN_PEPPER: process.env.API_TOKEN_PEPPER || "e2e-pepper-not-a-real-key-but-32-bytes-long",
       DATABASE_URL,
       // Every e2e spec that touches the AI compose path must exercise the
       // simulated model, never a real provider (token cost) — see

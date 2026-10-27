@@ -16,7 +16,7 @@ const INDEX = {
   version: "v1",
   openapi: "/api/v1/openapi",
   docs: "/developers/reference",
-  auth: "Authorization: Bearer <token>; mint one in Account → Profile → API tokens (Premium plan). How to get there: /developers.",
+  auth: "Authorization: Bearer <token>; mint one in Account → Security → API tokens (Premium plan). How to get there: /developers.",
 } as const;
 
 /** The index, identical for every caller. */
