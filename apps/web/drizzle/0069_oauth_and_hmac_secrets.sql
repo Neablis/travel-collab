@@ -66,7 +66,10 @@ ALTER TABLE "api_tokens" ADD CONSTRAINT "api_tokens_revoked_reason" CHECK ("api_
 -- stopped (`apiTokens.retention.test.ts`). Irreversible once applied: the
 -- revocation is the point, and nothing restores a scrypt row to service.
 --
--- **Dispatch `migrate-production` as soon as this merges.** The deploy reads
--- `api_tokens.revoked_reason` on every v1 request and every token list, which
--- fail until this has run.
+-- **Wait for this merge commit's production deploy to be READY, then dispatch
+-- `migrate-production`; never before.** Old code still serving after this UPDATE
+-- can mint a scrypt token with no `revoked_reason`: the HMAC lookup never
+-- verifies it and nothing ever revokes it. The new code fails on
+-- `api_tokens.revoked_reason` until this has run, so dispatch right away. Never
+-- roll production back past this commit once 0069 has run, for the same reason.
 UPDATE "api_tokens" SET "revoked_at" = now(), "revoked_reason" = 'storage-changed' WHERE "revoked_at" IS NULL;
