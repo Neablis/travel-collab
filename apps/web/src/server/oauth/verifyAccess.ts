@@ -20,8 +20,10 @@ export type AccessRefusal =
   | { reason: "revoked"; revokedAt: Date }
   /** The token's hour, or its grant's year, ran out. */
   | { reason: "expired"; expiresAt: Date }
-  /** The grant was made for another resource than this server's `/api/mcp` (amendment C). */
+  /** Presented outside an MCP dispatch, where its audience is not (`resolveActor`). */
   | { reason: "audience" }
+  /** The grant was made for another resource than this server's `/api/mcp` (amendment C). */
+  | { reason: "resource" }
   /** Real and live, but its owner's plan no longer grants `api.tokens`. */
   | { reason: "not-entitled"; ownerId: string };
 
@@ -58,7 +60,7 @@ export async function verifyAccessToken(secret: string, now: Date = new Date()):
 
   // Checked against the grant's own record, not inferred from where the call
   // arrived: a grant made for another deployment's resource is not ours to honour.
-  if (grant.resource !== mcpResource()) return refuse({ reason: "audience" });
+  if (grant.resource !== mcpResource()) return refuse({ reason: "resource" });
 
   // A lapse disables, as it does a `tc_` token: re-subscribing restores the
   // connection with no writes and no new consent.

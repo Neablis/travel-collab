@@ -869,6 +869,12 @@ function oauthRefusalResponse(refusal: AccessRefusal): Response {
       return fail("unauthenticated", "This token is for the MCP connector at /api/mcp, not the REST API.", 401, {
         headers: oauthChallenge(true),
       });
+    case "resource":
+      // Not "use /api/mcp": the client is already there. Only a new
+      // connection, made against this server, gives it a token we honour.
+      return fail("unauthenticated", "This token was issued for a different server. Connect again.", 401, {
+        headers: oauthChallenge(true),
+      });
     case "expired":
       return fail("token-expired", "This access token has expired. Refresh it.", 401, { headers: oauthChallenge(true) });
     case "revoked":

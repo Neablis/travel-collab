@@ -9,11 +9,8 @@ import { upsertUser, writePreferences } from "@/server/users";
 import { issueGrant } from "@/server/entitlements/grants";
 import { livePlanVersion } from "@/server/entitlements/planVersions";
 import { mintToken } from "@/server/api-tokens";
-import { registerClient, resolveClient } from "@/server/oauth/clients";
 import { runInMcpDispatch } from "@/server/oauth/dispatchContext";
-import { createGrant, issueCode } from "@/server/oauth/grants";
-import { mcpResource } from "@/server/oauth/metadata";
-import { exchangeCode } from "@/server/oauth/tokens";
+import { connectForTest } from "@/server/test-support/oauthConnection";
 import { eq } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { events } from "@/server/db/schema";
@@ -97,24 +94,6 @@ async function tokenFor(owner: string, scopes: string[]): Promise<string> {
   });
   expect(minted.ok).toBe(true);
   return minted.ok ? minted.created.secret : "";
-}
-
-/** An OAuth access token for `owner`, as part 2's flow mints one (ADR-083 §7). */
-async function oauthTokenFor(owner: string, scopes: ApiScope[]) {
-  const redirect = "https://example.com/cb";
-  const registered = await registerClient({ redirect_uris: [redirect] }, randomUUID());
-  const resolved = await resolveClient(registered.ok ? String(registered.body.client_id) : "");
-  if (!resolved.ok) throw new Error("no client");
-  const now = new Date();
-  const grant = await createGrant({ ownerId: owner, client: resolved.client, redirectUri: redirect, scopes, resource: mcpResource(), now });
-  // RFC 7636 appendix B's pair.
-  const code = await issueCode({ grantId: grant.id, codeChallenge: "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM", redirectUri: redirect, resource: mcpResource(), now });
-  const tokens = await exchangeCode(
-    { code, codeVerifier: "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk", redirectUri: redirect, clientId: resolved.client.clientId },
-    now,
-  );
-  if (!tokens.ok) throw new Error(tokens.description);
-  return { grantId: grant.id, secret: tokens.body.access_token };
 }
 
 const req = (secret: string, body?: unknown, method = "GET") =>
@@ -430,8 +409,8 @@ describe("reads that were nearly free", () => {
     await writePreferences(owner, { homeAirport: "NRT" });
     const { tripId } = await seed(await tokenFor(owner, ["trips:read", "trips:write"]));
     const zoneWith = async (scopes: ApiScope[]) => {
-      const { secret } = await oauthTokenFor(owner, scopes);
-      const res = await runInMcpDispatch(() => GLOBALS(req(secret), P({ tripId })));
+      const { access } = await connectForTest(owner, scopes);
+      const res = await runInMcpDispatch(() => GLOBALS(req(access), P({ tripId })));
       expect(res.status).toBe(200);
       return (await res.json()).homeTimeZone as string | null;
     };

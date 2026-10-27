@@ -3,26 +3,22 @@
 // its grant's scopes there, reaches the owner's trips, and lapses and returns
 // with the owner's plan exactly as a `tc_` token does.
 import { randomUUID } from "node:crypto";
+import { eq } from "drizzle-orm";
 import { describe, expect, it, vi } from "vitest";
-import type { ApiScope } from "@tc/contracts";
 import { executeTripCommand } from "@/server/commands";
+import { db } from "@/server/db/client";
+import { oauthGrants } from "@/server/db/schema";
 import { allGrantsFor, issueGrant, revokeGrant } from "@/server/entitlements/grants";
 import { livePlanVersion } from "@/server/entitlements/planVersions";
-import { registerClient, resolveClient } from "@/server/oauth/clients";
 import { runInMcpDispatch } from "@/server/oauth/dispatchContext";
-import { createGrant, grantOf, issueCode } from "@/server/oauth/grants";
-import { mcpResource } from "@/server/oauth/metadata";
-import { exchangeCode } from "@/server/oauth/tokens";
+import { grantOf } from "@/server/oauth/grants";
+import { connectForTest as connect } from "@/server/test-support/oauthConnection";
 import { upsertUser } from "@/server/users";
 
 vi.mock("@/server/auth", () => ({ auth: vi.fn(async () => null) }));
 
 const { GET: ACCOUNT } = await import("@/app/api/v1/account/route");
 const { GET: GET_TRIP } = await import("@/app/api/v1/trips/[tripId]/route");
-
-const VERIFIER = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk";
-const CHALLENGE = "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM";
-const REDIRECT = "https://example.com/cb";
 
 async function entitle(userId: string) {
   const premium = livePlanVersion("premium");
@@ -42,19 +38,6 @@ async function entitled(): Promise<string> {
   await upsertUser({ id, email: `${id}@example.test`, name: null, image: null });
   await entitle(id);
   return id;
-}
-
-/** Consent, a code and its exchange: the access token a connected client holds. */
-async function connect(ownerId: string, scopes: ApiScope[]) {
-  const registered = await registerClient({ client_name: "Test app", redirect_uris: [REDIRECT] }, randomUUID());
-  const resolved = await resolveClient(registered.ok ? String(registered.body.client_id) : "");
-  if (!resolved.ok) throw new Error("no client");
-  const now = new Date();
-  const grant = await createGrant({ ownerId, client: resolved.client, redirectUri: REDIRECT, scopes, resource: mcpResource(), now });
-  const code = await issueCode({ grantId: grant.id, codeChallenge: CHALLENGE, redirectUri: REDIRECT, resource: mcpResource(), now });
-  const tokens = await exchangeCode({ code, codeVerifier: VERIFIER, redirectUri: REDIRECT, clientId: resolved.client.clientId }, now);
-  if (!tokens.ok) throw new Error(tokens.description);
-  return { grantId: grant.id, access: tokens.body.access_token };
 }
 
 const bearer = (secret: string) => new Request("http://localhost/x", { headers: { authorization: `Bearer ${secret}` } });
@@ -96,10 +79,20 @@ describe("a tco_ token inside an MCP dispatch", () => {
     const owner = await entitled();
     const tripId = randomUUID();
     expect((await executeTripCommand({ type: "CreateTrip", tripId, name: "Kyoto" }, owner)).ok).toBe(true);
-    const { grantId, access } = await connect(owner, ["trips:read"]);
+    const { grant, access } = await connect(owner, ["trips:read"]);
     const res = await inDispatch(() => GET_TRIP(bearer(access), { params: Promise.resolve({ tripId }) }));
     expect(res.status).toBe(200);
-    await vi.waitFor(async () => expect((await grantOf(grantId))!.lastUsedAt).not.toBeNull());
+    await vi.waitFor(async () => expect((await grantOf(grant.id))!.lastUsedAt).not.toBeNull());
+  });
+
+  // A client already calling /api/mcp gains nothing from being told to call
+  // /api/mcp: a grant made for another deployment needs a fresh connection.
+  it("is 401 with its own reason when its grant was made for another server", async () => {
+    const { grant, access } = await connect(await entitled(), ["account:read"]);
+    await db.update(oauthGrants).set({ resource: "https://elsewhere.example/api/mcp" }).where(eq(oauthGrants.id, grant.id));
+    const res = await inDispatch(() => account(access));
+    expect(res.status).toBe(401);
+    expect((await res.json()).error.message).toBe("This token was issued for a different server. Connect again.");
   });
 
   // A lapse disables rather than revokes: the grant stays, and the same access

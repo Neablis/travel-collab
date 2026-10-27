@@ -14,11 +14,9 @@ import { issueGrant } from "@/server/entitlements/grants";
 import { livePlanVersion } from "@/server/entitlements/planVersions";
 import { mintToken } from "@/server/api-tokens";
 import { executeTripCommand } from "@/server/commands";
-import { registerClient, resolveClient } from "@/server/oauth/clients";
 import { runInMcpDispatch } from "@/server/oauth/dispatchContext";
-import { createGrant, issueCode } from "@/server/oauth/grants";
-import { mcpResource } from "@/server/oauth/metadata";
-import { exchangeCode, refresh } from "@/server/oauth/tokens";
+import { refresh } from "@/server/oauth/tokens";
+import { connectForTest } from "@/server/test-support/oauthConnection";
 import type { QuotaDecision } from "@/server/quota";
 
 let decision: QuotaDecision = { allowed: true };
@@ -144,30 +142,19 @@ describe("the rate limit keys on the token", () => {
 });
 
 describe("the rate limit keys on the OAuth grant", () => {
-  const VERIFIER = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk";
-  const CHALLENGE = "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM";
-  const REDIRECT = "https://example.com/cb";
-
   // ADR-083 §7: a grant's access tokens last an hour and are refreshed into new
   // ones, so a bucket per access token would hand a client a fresh allowance
   // every hour. Every token of one grant spends the grant's.
   it("charges the grant's own bucket, the same one after a refresh", async () => {
     const { id, tripId } = await entitledWithTrip();
-    const registered = await registerClient({ redirect_uris: [REDIRECT] }, randomUUID());
-    const resolved = await resolveClient(registered.ok ? String(registered.body.client_id) : "");
-    if (!resolved.ok) throw new Error("no client");
-    const clientId = resolved.client.clientId;
-    const now = new Date();
-    const grant = await createGrant({ ownerId: id, client: resolved.client, redirectUri: REDIRECT, scopes: ["trips:read"], resource: mcpResource(), now });
-    const code = await issueCode({ grantId: grant.id, codeChallenge: CHALLENGE, redirectUri: REDIRECT, resource: mcpResource(), now });
-    const first = await exchangeCode({ code, codeVerifier: VERIFIER, redirectUri: REDIRECT, clientId }, now);
-    if (!first.ok) throw new Error(first.description);
-    const second = await refresh({ refreshToken: first.body.refresh_token, clientId });
+    const first = await connectForTest(id, ["trips:read"]);
+    const { grant, clientId } = first;
+    const second = await refresh({ refreshToken: first.refresh, clientId });
     if (!second.ok) throw new Error(second.description);
     decision = { allowed: true };
 
     consumeQuota.mockClear();
-    for (const access of [first.body.access_token, second.body.access_token]) {
+    for (const access of [first.access, second.body.access_token]) {
       expect((await runInMcpDispatch(() => GET_TRIP(...get(tripId, access)))).status).toBe(200);
     }
     expect(consumeQuota.mock.calls).toEqual([

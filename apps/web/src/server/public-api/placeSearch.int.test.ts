@@ -11,13 +11,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { upsertUser } from "@/server/users";
 import { issueGrant } from "@/server/entitlements/grants";
 import { livePlanVersion } from "@/server/entitlements/planVersions";
-import type { ApiScope } from "@tc/contracts";
 import { mintToken } from "@/server/api-tokens";
-import { registerClient, resolveClient } from "@/server/oauth/clients";
 import { runInMcpDispatch } from "@/server/oauth/dispatchContext";
-import { createGrant, issueCode } from "@/server/oauth/grants";
-import { mcpResource } from "@/server/oauth/metadata";
-import { exchangeCode } from "@/server/oauth/tokens";
+import { connectForTest } from "@/server/test-support/oauthConnection";
 import { dailyPolicy, geocodeQuota, peekQuota, placeSearchTokenQuota } from "@/server/quota";
 
 vi.mock("@/server/auth", () => ({ auth: vi.fn(async () => null) }));
@@ -72,24 +68,6 @@ async function tokenFor(owner: string, scopes: string[], tripIds: string[] | nul
   return { secret: minted.created.secret, tokenId: minted.created.token.tokenId };
 }
 
-/** An OAuth access token for `owner`, as part 2's flow mints one (ADR-083 §7). */
-async function oauthTokenFor(owner: string, scopes: ApiScope[]) {
-  const redirect = "https://example.com/cb";
-  const registered = await registerClient({ redirect_uris: [redirect] }, randomUUID());
-  const resolved = await resolveClient(registered.ok ? String(registered.body.client_id) : "");
-  if (!resolved.ok) throw new Error("no client");
-  const now = new Date();
-  const grant = await createGrant({ ownerId: owner, client: resolved.client, redirectUri: redirect, scopes, resource: mcpResource(), now });
-  // RFC 7636 appendix B's pair.
-  const code = await issueCode({ grantId: grant.id, codeChallenge: "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM", redirectUri: redirect, resource: mcpResource(), now });
-  const tokens = await exchangeCode(
-    { code, codeVerifier: "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk", redirectUri: redirect, clientId: resolved.client.clientId },
-    now,
-  );
-  if (!tokens.ok) throw new Error(tokens.description);
-  return { grantId: grant.id, secret: tokens.body.access_token };
-}
-
 const search = (secret: string, query: string) =>
   SEARCH(
     new Request(`http://localhost/api/v1/geocode?${query}`, { headers: { authorization: `Bearer ${secret}` } }),
@@ -135,12 +113,12 @@ describe("GET /v1/geocode", () => {
   // spend the token's, so a connected app cannot search past the allowance.
   it("charges an OAuth grant's own place-search day", async () => {
     const owner = await entitled();
-    const { grantId, secret } = await oauthTokenFor(owner, ["places:read"]);
+    const { grant, access } = await connectForTest(owner, ["places:read"]);
 
-    const res = await runInMcpDispatch(() => search(secret, "q=Kyoto%20Station"));
+    const res = await runInMcpDispatch(() => search(access, "q=Kyoto%20Station"));
 
     expect(res.status).toBe(200);
-    expect(await tokenUsed(grantId)).toBe(1);
+    expect(await tokenUsed(grant.id)).toBe(1);
     expect(await geocodeUsed(owner)).toBe(1);
   });
 
