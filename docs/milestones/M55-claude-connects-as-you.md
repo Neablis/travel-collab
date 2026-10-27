@@ -7,7 +7,9 @@ then *"Yes, add it"*), and placed **ahead of M43** at scoping the same day (see
 answered (below); D7, D8's hashing and D11 changed from the recommendation, and D10 was widened
 and then narrowed again the same day. The design is
 **ADR-083**, and the plan is `docs/plans/2026-10-27-M55-claude-connects-as-you.md` (deleted at
-gate close). Five parts plus part 0.
+gate close). Five parts plus part 0. **Amended 2026-10-27** after an independent review of the
+cryptography and the OAuth design, which Mitchell asked for and then approved in full: D3, D7 and
+D8 below record it, and ADR-083 marks each change (P1-a to P1-c, A to L) with its source.
 
 ## Why this exists
 
@@ -63,7 +65,14 @@ before part 2 merges, because they move.
   per fresh connection. Client ID Metadata Documents are used instead if the metadata advertises
   `client_id_metadata_document_supported: true` and `none` among
   `token_endpoint_auth_methods_supported`. Claude Code's CIMD is
-  `https://claude.ai/oauth/claude-code-client-metadata`.
+  `https://claude.ai/oauth/claude-code-client-metadata`. **MCP's 2026-07-28 revision deprecates
+  DCR** in favour of CIMD: a client tries a pre-registered id, then a CIMD, then DCR (its
+  changelog; checked 2026-10-27 in the independent review). Open DCR is still allowed, as legacy.
+  So CIMD is our primary path and DCR the fallback (D7, amended), and both are tested, because
+  Claude's own page above still describes DCR as the default.
+- **`iss`:** the same revision says an authorization response SHOULD carry `iss`; OAuth 2.1
+  §4.1.2 makes it REQUIRED. Every redirect back carries it, and the metadata advertises
+  `authorization_response_iss_parameter_supported: true`.
 - **PKCE:** required, S256 only, and `code_challenge_methods_supported: ["S256"]` must say so.
 - **Redirects:** **only `https://claude.ai/api/mcp/auth_callback` is documented** for claude.ai,
   the desktop and mobile apps and Cowork. A `claude.com` callback is not confirmed by the current
@@ -115,6 +124,14 @@ says so and the text below is his choice.
    small, and tested against the RFCs' error codes. A hosted identity provider (Auth0, WorkOS,
    Stytch, Clerk) was refused: a vendor, a second user directory, a sign-in page that is not ours.
    ADR-083.
+   **Amended — answered by Mitchell, 2026-10-27, after the research** (ADR-083, *Independent
+   review, 2026-10-27*). The hand-rolled server stands (the review found it defensible at this
+   size), with what the review called its most error-prone pieces pinned down: code redemption
+   and refresh rotation are each one atomic `UPDATE … WHERE … IS NULL RETURNING` (D); the issuer
+   and resource come from `deploymentOrigin()`, never the `Host` header (B); every authorization
+   response carries `iss` (A); the grant's stored `resource` is checked on every MCP call and any
+   other `resource` is `invalid_target` (C); and part 4 records which MCP revision the SDK
+   targets, since 2026-07-28 adds required `Mcp-Method` / `Mcp-Name` headers (L).
 4. **The tool list — accepted, no deletes.** Each names the v1 route it adapts:
 
    | Tool | v1 route | Scope | Hints |
@@ -159,6 +176,17 @@ says so and the text below is his choice.
    are marked as recognised), open redirect, registration abuse (a per-IP rate limit on DCR,
    unused clients expiring), no plain `http` off loopback, no fragments. A developer portal, an
    app directory and client secrets for confidential clients stay out of scope.
+   **Amended — answered by Mitchell, 2026-10-27, after the research.** MCP's 2026-07-28 revision
+   deprecated DCR, so **CIMD becomes the primary registration path** and open DCR to any HTTPS
+   redirect stays as the fallback, because Mitchell wants any website to be able to connect (E).
+   The threat review changes to match: **only `https://claude.ai/api/mcp/auth_callback` is
+   recognised**; a loopback redirect, Claude Code's CIMD included, gets a **localhost warning**
+   instead, because anyone can present that CIMD URL with their own port (F); the consent page
+   shows a CIMD client's `client_id` host beside the redirect host (G); `[::1]` is loopback too
+   (H); a request without a `code_challenge`, or a verifier for a code that had none, is refused
+   (I); and the CIMD fetch pins the resolved IP, refuses special-use addresses, reads at most
+   5 KB and never fetches `logo_uri` or `jwks_uri` (J). Redirects are still matched exactly, with
+   no normalisation.
 8. **Lifetimes accepted; hashing CHANGED.** Access tokens live **one hour**; refresh tokens rotate
    on every use and live **90 days from their last use**, capped at **365 days from the grant**;
    authorization codes live **one minute** and are single-use (a second use revokes the whole
@@ -170,6 +198,15 @@ says so and the text below is his choice.
    one"*), not upgraded on use. Never swept, so a refused secret can always say why. JWT access
    tokens were refused: they cannot be revoked before they expire, and the v1 route already reads
    Postgres on every request.
+   **Amended — answered by Mitchell, 2026-10-27, after the research.** HMAC-SHA256 with a pepper
+   stands: NIST SP 800-63B §5.1.2.2 requires an approved one-way function, not a slow hash, for
+   look-up secrets of at least 112 bits, and CodeQL's `js/insufficient-password-hash` is recorded
+   in ADR-083 §2 as a known false positive (the query keys on a name regex). Three changes for
+   part 1: the pepper is **versioned** (a `key_version` column on `api_tokens` and the OAuth
+   digest tables, `API_TOKEN_PEPPER_PREVIOUS` looked up after the current key), so a rotation is
+   not a mass logout (P1-a); a pepper **under 32 bytes** is refused (P1-b); and the legacy refusal
+   reads one row with `LIMIT 1` and verifies it with the **async** `scrypt` (P1-c). Lifetimes
+   stand; a client whose rotated refresh response is lost re-consents, with no grace window (K).
 9. **The firewall and where the documents live — accepted.** The MCP endpoint, registration, the
    token endpoint and revocation sit under `/api/*` (`/api/mcp`, `/api/oauth/register`,
    `/api/oauth/token`, `/api/oauth/revoke`). The two discovery documents are fixed under
@@ -284,11 +321,16 @@ Five parts, each its own PR on `main` (the plan has every file):
 - [ ] **The flow end to end:** an integration test registers a client, authorizes with a PKCE
   pair, exchanges the code, calls a tool, refreshes, and calls again; and is seen to fail when
   the S256 check is removed (the source edit and the red text in the PR).
-- [ ] **Refusals:** a reused authorization code revokes its grant; a wrong `code_verifier`, an
-  `http` redirect off loopback, a redirect with a fragment, a redirect that does not exactly match
-  the registered one, an expired access token, a `tco_` token on a direct `/api/v1` call, and a
-  rotated-away refresh token are each refused with the RFC's error code (unit and integration
-  tests).
+- [ ] **Refusals:** a reused authorization code revokes its grant; a wrong `code_verifier`, a
+  missing `code_challenge` or `code_verifier`, an `http` redirect off loopback, a redirect with a
+  fragment, a redirect that does not exactly match the registered one (normalisation cases
+  included), a `resource` that is not the MCP URL (`invalid_target`), an expired access token, a
+  `tco_` token on a direct `/api/v1` call, and a rotated-away refresh token are each refused with
+  the RFC's error code; **two parallel redemptions of one code, and two parallel refreshes of one
+  token, let exactly one through** (an integration test against the real database, seen red with
+  the atomic `UPDATE` split into a read then a write); and **every authorization response, code
+  or error, carries `iss`** equal to the configured issuer, which a forged `Host` header does not
+  change (unit and integration tests).
 - [ ] **Registration abuse is bounded:** DCR past its per-IP limit answers 429, and a client never
   used within its window is refused at authorize (tests).
 - [ ] **Two gates hold:** a tool whose scope was not granted answers `insufficient-scope`; a
