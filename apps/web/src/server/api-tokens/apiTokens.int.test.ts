@@ -9,7 +9,7 @@
 // admin grant, which is account state; that is what M20 built the grant path
 // for, and it is why a tier gate in this repo is provable in CI rather than by
 // watching production once.
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import { db } from "@/server/db/client";
@@ -18,9 +18,10 @@ import { upsertUser } from "@/server/users";
 import { allGrantsFor, issueGrant } from "@/server/entitlements/grants";
 import { livePlanVersion } from "@/server/entitlements/planVersions";
 import { accountCan } from "@/server/entitlements/resolver";
+import { ApiTokenPepperMissingError, keyedDigest } from "@/server/secrets/keyedDigest";
+import { legacyScryptDigest } from "./legacyScrypt";
 import {
   API_TOKEN_MAX_LIFETIME_DAYS,
-  ApiTokenPepperMissingError,
   expiredTokensFor,
   listTokens,
   mintToken,
@@ -264,8 +265,8 @@ describe("the pepper", () => {
   // cannot verify a token: recomputing the digest needs a key that does not live
   // in Postgres. CodeQL's `js/insufficient-password-hash` flagged the bare
   // `sha256` this replaced; the reasoning for HMAC over a slow KDF — 32 bytes of
-  // CSPRNG has no space to guess through, and a KDF would charge ~100ms on every
-  // API request to defend nothing — is in `hashOf`.
+  // CSPRNG has no space to guess through, and a KDF would charge ~37ms on every
+  // API request to defend nothing — is in `keyedDigest` (ADR-083 §2).
   it("keys the stored digest, so the same secret hashes differently under a different pepper", async () => {
     const owner = await entitledAccount();
     const minted = await mintToken(owner, input());
@@ -278,7 +279,7 @@ describe("the pepper", () => {
     // **The rotation IS the proof that the digest is keyed**, and it is the whole
     // proof. An earlier version of this test also computed
     // `createHash("sha256").update(secret)` and asserted the stored digest
-    // differed from it — which is redundant: if `hashOf` were unkeyed, changing
+    // differed from it — which is redundant: if the digest were unkeyed, changing
     // the pepper could not change whether this secret resolves, and the
     // assertion below would not hold. (It also put a textbook
     // "credential hashed with a fast hash" into the tree for a static analyser
@@ -297,6 +298,19 @@ describe("the pepper", () => {
       process.env.API_TOKEN_PEPPER = original;
     }
     // Restored, it works again — nothing about the row changed.
+    expect((await verifyToken(secret)).ok).toBe(true);
+  });
+
+  // **The one shared helper, not a second hashing rule** (ADR-083 §2). OAuth's
+  // secrets are looked up by `keyedDigest` too, so an API token stored any other
+  // way would be the second rule that ADR refused.
+  it("stores a new token under the shared keyed digest", async () => {
+    const owner = await entitledAccount();
+    const minted = await mintToken(owner, input());
+    const secret = minted.ok ? minted.created.secret : "";
+    const tokenId = minted.ok ? minted.created.token.tokenId : "";
+    const stored = (await db.select().from(apiTokens).where(eq(apiTokens.id, tokenId)))[0]!;
+    expect(stored.tokenHash).toBe(keyedDigest(secret));
     expect((await verifyToken(secret)).ok).toBe(true);
   });
 
@@ -437,6 +451,9 @@ describe("revocation", () => {
 
     // Already-revoked is `ok`, not 404 — matching `revokeShare`, so a
     // double-click cannot produce a scary error.
+    // The owner did it, and the list says so.
+    expect(first.ok && first.token.revokedReason).toBe("owner");
+
     const second = await revokeToken(owner, tokenId, new Date(Date.now() + 60_000));
     expect(second.ok).toBe(true);
     // **The guard did its job**: the second call matched nothing and fell
@@ -472,6 +489,66 @@ describe("revocation", () => {
     await revokeToken(owner, tokenId);
     const refused = await verifyToken(secret);
     expect(refused.ok === false && refused.refusal.reason).toBe("revoked");
+  });
+});
+
+describe("a token minted before storage changed (migration 0069)", () => {
+  // A row as 0069 left it: a scrypt digest the keyed lookup can never find,
+  // revoked with `storage-changed`.
+  async function legacyRow(over: Partial<typeof apiTokens.$inferInsert> = {}) {
+    const owner = await entitledAccount();
+    const secret = `tc_${randomBytes(32).toString("base64url")}`;
+    const revokedAt = new Date("2026-10-28T09:00:00.000Z");
+    const id = randomUUID();
+    await db.insert(apiTokens).values({
+      id,
+      ownerId: owner,
+      name: "Before 0069",
+      tokenHash: legacyScryptDigest(secret),
+      prefix: secret.slice(0, 8),
+      scopes: ["trips:read"],
+      tripIds: null,
+      createdAt: new Date("2026-09-01T00:00:00.000Z"),
+      lastUsedAt: null,
+      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+      revokedAt,
+      revokedReason: "storage-changed",
+      ...over,
+    });
+    return { owner, secret, revokedAt, id };
+  }
+
+  // **Revoked, and saying why**, rather than "not valid", which reads as a typo
+  // to someone whose token worked yesterday.
+  it("is refused as revoked with storage-changed, not as unknown", async () => {
+    const { secret, revokedAt } = await legacyRow();
+    expect(await verifyToken(secret)).toEqual({
+      ok: false,
+      refusal: { reason: "revoked", revokedAt, revokedReason: "storage-changed" },
+    });
+  });
+
+  // The legacy branch confirms the secret, not just its 8-character prefix.
+  it("does not answer for a different secret that shares the prefix", async () => {
+    const { secret } = await legacyRow();
+    const impostor = `${secret.slice(0, 8)}${randomBytes(32).toString("base64url")}`;
+    const refused = await verifyToken(impostor);
+    expect(refused.ok === false && refused.refusal.reason).toBe("unknown");
+  });
+
+  // Only 0069's rows reach the scrypt verify (ADR-083 §3: anything else is
+  // unknown), so nobody else's miss pays ~37ms for it.
+  it("answers unknown for a pre-0069 row that 0069 did not revoke", async () => {
+    const { secret } = await legacyRow({ revokedReason: null });
+    const refused = await verifyToken(secret);
+    expect(refused.ok === false && refused.refusal.reason).toBe("unknown");
+  });
+
+  it("lists with its reason, so the token list can say what happened", async () => {
+    const { owner, id } = await legacyRow();
+    const [listed] = await listTokens(owner);
+    expect(listed!.tokenId).toBe(id);
+    expect(listed!.revokedReason).toBe("storage-changed");
   });
 });
 

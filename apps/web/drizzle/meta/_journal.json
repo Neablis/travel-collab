@@ -484,6 +484,13 @@
       "when": 1792901026308,
       "tag": "0068_cover_source_position",
       "breakpoints": true
+    },
+    {
+      "idx": 69,
+      "version": "7",
+      "when": 1793069008922,
+      "tag": "0069_oauth_and_hmac_secrets",
+      "breakpoints": true
     }
   ]
 }

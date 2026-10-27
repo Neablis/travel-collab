@@ -509,7 +509,9 @@ export function TokensSection() {
                         data-testid="token-expiry"
                       >
                         {state === "revoked"
-                          ? "Revoked. It stopped working immediately."
+                          ? token.revokedReason === "storage-changed"
+                            ? "Revoked when token storage changed — mint a new one."
+                            : "Revoked. It stopped working immediately."
                           : state === "expired"
                             ? `Expired ${relativeDays(token.expiresAt)}. Create a new one to replace it.`
                             : `Expires ${relativeDays(token.expiresAt)}.`}

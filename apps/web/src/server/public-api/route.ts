@@ -854,6 +854,17 @@ function refusalResponse(refusal: ActorRefusal): Response {
         headers: BEARER_CHALLENGE,
       });
     case "revoked":
+      // Migration 0069 revoked every token minted before storage changed
+      // (ADR-083 §3). The integrator did nothing, so the message says what did.
+      if (refusal.refusal.revokedReason === "storage-changed") {
+        const on = refusal.refusal.revokedAt.toISOString().slice(0, 10);
+        return fail(
+          "token-revoked",
+          `This token was revoked when token storage changed on ${on}. Mint a new one.`,
+          401,
+          { headers: BEARER_CHALLENGE },
+        );
+      }
       return fail("token-revoked", "This token was revoked.", 401, { headers: BEARER_CHALLENGE });
     case "not-entitled":
       // A lapse disables rather than revokes, so the message names the plan

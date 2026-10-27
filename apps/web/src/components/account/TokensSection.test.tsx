@@ -44,6 +44,7 @@ function token(over: Partial<ApiToken> = {}): ApiToken {
     // floors to 11.
     expiresAt: new Date(Date.now() + 12 * DAY + 60_000).toISOString(),
     revokedAt: null,
+    revokedReason: null,
     ...over,
   };
 }
@@ -161,6 +162,24 @@ describe("what mandatory expiry owes the person looking at this", () => {
     expect(revoked).toContain("Revoked");
     // And they do not read the same, which is the whole point.
     expect(revoked).not.toContain("Expired");
+  });
+
+  // **Revoked by us, not by them.** Migration 0069 revoked every token minted
+  // before storage changed (ADR-083 §3); "it stopped working immediately" would
+  // read as something the owner did, and say nothing about what to do next.
+  it("says a token revoked when storage changed needs replacing", async () => {
+    const revokedAt = new Date(Date.now() - 1 * DAY).toISOString();
+    serve({
+      tokens: [
+        token({ tokenId: "moved", revokedAt, revokedReason: "storage-changed" }),
+        token({ tokenId: "mine", revokedAt, revokedReason: "owner" }),
+      ],
+    });
+    render(<TokensSection />);
+    await screen.findByTestId("tokens-list");
+    const [moved, mine] = screen.getAllByTestId("token-expiry").map((cell) => cell.textContent);
+    expect(moved).toBe("Revoked when token storage changed — mint a new one.");
+    expect(mine).toBe("Revoked. It stopped working immediately.");
   });
 
   // **Obligation 3.** Rotation is two actions and saying so is what stops it

@@ -10,13 +10,14 @@
 // matters most is the one where they disagree: a token whose scopes permit the
 // call, owned by a user who is not a member. Scope satisfied, membership not,
 // answer refused.
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 import { executeTripCommand } from "@/server/commands";
 import { upsertUser, writePreferences } from "@/server/users";
 import { allGrantsFor, issueGrant, revokeGrant } from "@/server/entitlements/grants";
 import { livePlanVersion } from "@/server/entitlements/planVersions";
 import { mintToken, revokeToken } from "@/server/api-tokens";
+import { legacyScryptDigest } from "@/server/api-tokens/legacyScrypt";
 import { createInvite, acceptInvite } from "@/server/access/invites";
 
 // No session anywhere in this file — every call is a bearer token, which is the
@@ -65,7 +66,7 @@ vi.mock("@/server/public-api/actor", async (importOriginal) => {
 });
 
 const { db } = await import("@/server/db/client");
-const { tripDetails } = await import("@/server/db/schema");
+const { apiTokens, tripDetails } = await import("@/server/db/schema");
 const { eq } = await import("drizzle-orm");
 
 const { GET: LIST_TRIPS } = await import("@/app/api/v1/trips/route");
@@ -183,6 +184,33 @@ describe("credential resolution", () => {
     expect((await revokedRes.json()).error.code).toBe("token-revoked");
 
     expect(expiring).not.toBe(revoked);
+  });
+
+  // **Revoked by us, so the message says so** (ADR-083 §3). The integrator did
+  // nothing; "this token was revoked" alone would send them looking for who did.
+  it("tells a token revoked when storage changed what happened and what to do", async () => {
+    const owner = await entitled();
+    const secret = `tc_${randomBytes(32).toString("base64url")}`;
+    await db.insert(apiTokens).values({
+      id: randomUUID(),
+      ownerId: owner,
+      name: "Before 0069",
+      tokenHash: legacyScryptDigest(secret),
+      prefix: secret.slice(0, 8),
+      scopes: ["trips:read"],
+      tripIds: null,
+      createdAt: new Date("2026-09-01T00:00:00.000Z"),
+      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+      revokedAt: new Date("2026-10-28T09:00:00.000Z"),
+      revokedReason: "storage-changed",
+    });
+    const res = await LIST_TRIPS(get("http://localhost/api/v1/trips", secret), NO_PARAMS);
+    expect(res.status).toBe(401);
+    expect(res.headers.get("WWW-Authenticate")).toBe("Bearer");
+    expect((await res.json()).error).toEqual({
+      code: "token-revoked",
+      message: "This token was revoked when token storage changed on 2026-10-28. Mint a new one.",
+    });
   });
 
   // **A presented bearer token is never silently downgraded to the session.**

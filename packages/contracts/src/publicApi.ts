@@ -257,6 +257,24 @@ export const API_TOKEN_PREFIX = "tc_";
 export const API_TOKEN_PREFIX_LENGTH = 8;
 
 /**
+ * The prefixes of the OAuth server's three secrets (ADR-083 §4): an access
+ * token, a refresh token and an authorization code. Greppable for the same
+ * reason `tc_` is, and distinct from it so a leaked one says which it is.
+ */
+export const OAUTH_ACCESS_PREFIX = "tco_";
+export const OAUTH_REFRESH_PREFIX = "tcr_";
+export const OAUTH_CODE_PREFIX = "tcc_";
+
+/**
+ * Why a token was revoked: `owner` from the token list, `storage-changed` when
+ * token storage moved to a keyed HMAC (migration 0069, ADR-083 §3) and every
+ * token minted before it was cut off. Null on a live token, and on one revoked
+ * before reasons were recorded.
+ */
+export const ApiTokenRevokedReason = z.enum(["owner", "storage-changed"]);
+export type ApiTokenRevokedReason = z.infer<typeof ApiTokenRevokedReason>;
+
+/**
  * The longest life a token may be given, in days (Decision 13).
  *
  * **Mandatory expiry, and "never" is not offerable.** Mitchell, 2026-09-16:
@@ -277,7 +295,7 @@ export const API_TOKEN_DEFAULT_LIFETIME_DAYS = 90;
  * The owner's view of a token they hold. **Never the secret.**
  *
  * The secret is returned exactly once, by the creation call, and is not stored
- * in a form anything can return again (Decision 6) — `sha256` at rest, and this
+ * in a form anything can return again (Decision 6) — a keyed HMAC at rest, and this
  * DTO is why that costs nothing: no screen needs the plaintext back.
  *
  * **This breaks with the invite/share precedent deliberately.** `TripShare`
@@ -345,6 +363,8 @@ export const ApiToken = z.object({
    * row stays listable and a user can see what lapsed and why.
    */
   revokedAt: z.string().nullable(),
+  /** Why it was revoked, so the list can say what to do. Null while live. */
+  revokedReason: ApiTokenRevokedReason.nullable(),
 });
 export type ApiToken = z.infer<typeof ApiToken>;
 

@@ -15,6 +15,9 @@ import {
   ApiToken,
   ApiTokenCreateInput,
   ApiTokenCreated,
+  OAUTH_ACCESS_PREFIX,
+  OAUTH_CODE_PREFIX,
+  OAUTH_REFRESH_PREFIX,
   SCOPE_CATALOGUE,
 } from "../src/publicApi.ts";
 
@@ -191,6 +194,7 @@ describe("ApiToken", () => {
     lastUsedAt: null,
     expiresAt: "2026-12-15T10:00:00.000Z",
     revokedAt: null,
+    revokedReason: null,
   };
 
   it("accepts an account-wide token and a trip-confined one", () => {
@@ -233,6 +237,15 @@ describe("ApiToken", () => {
     expect(parsed.revokedAt).toBeNull();
   });
 
+  // The reason is what lets the list tell "you revoked this" from "every token
+  // minted before storage changed was revoked", and only those two exist.
+  it("carries why a token was revoked, from a closed set", () => {
+    const revoked = { ...token, revokedAt: "2026-10-27T00:00:00.000Z" };
+    expect(ApiToken.safeParse({ ...revoked, revokedReason: "owner" }).success).toBe(true);
+    expect(ApiToken.safeParse({ ...revoked, revokedReason: "storage-changed" }).success).toBe(true);
+    expect(ApiToken.safeParse({ ...revoked, revokedReason: "expired" }).success).toBe(false);
+  });
+
   it("requires an expiry, because expiry is mandatory", () => {
     const { expiresAt: _dropped, ...withoutExpiry } = token;
     expect(ApiToken.safeParse(withoutExpiry).success).toBe(false);
@@ -253,6 +266,7 @@ describe("ApiTokenCreated", () => {
         lastUsedAt: null,
         expiresAt: "2026-12-15T10:00:00.000Z",
         revokedAt: null,
+        revokedReason: null,
       },
       secret: "tc_dGhpcy1pcy1ub3QtYS1yZWFsLXNlY3JldA",
     };
@@ -325,6 +339,14 @@ describe("the token format constants", () => {
     // log can tell what they are looking at.
     expect(API_TOKEN_PREFIX).toBe("tc_");
     expect(API_TOKEN_PREFIX_LENGTH).toBeGreaterThan(API_TOKEN_PREFIX.length);
+  });
+
+  // A leaked OAuth secret has to say which kind it is, and none may pass for a
+  // `tc_` token, whose verify path checks that prefix first.
+  it("gives each OAuth secret its own prefix, none of them tc_", () => {
+    const prefixes = [OAUTH_ACCESS_PREFIX, OAUTH_REFRESH_PREFIX, OAUTH_CODE_PREFIX];
+    expect(prefixes).toEqual(["tco_", "tcr_", "tcc_"]);
+    for (const prefix of prefixes) expect(prefix.startsWith(API_TOKEN_PREFIX), prefix).toBe(false);
   });
 
   it("offers a default well inside the ceiling", () => {

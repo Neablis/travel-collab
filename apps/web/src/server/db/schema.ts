@@ -21,6 +21,7 @@ import {
 } from "drizzle-orm/pg-core";
 import type {
   ApiScope,
+  ApiTokenRevokedReason,
   AvatarKey,
   BatchableCommand,
   DateScope,
@@ -221,11 +222,12 @@ export const entitlementGrants = pgTable(
 // justification does not transfer. An API token is shown once at creation and
 // never again, so nothing needs to re-show it, so nothing needs to store it.
 //
-// **SHA-256 rather than bcrypt/argon2, and that is not a shortcut.** The secret
-// is 256 bits of CSPRNG output; there is no low-entropy space to brute-force, so
-// a deliberately slow KDF buys nothing and costs real latency on EVERY API
-// request. `timingSafeEqual` does the comparison, as it already does in
-// `server/admission.ts` and `server/billing/signature.ts`.
+// **A keyed HMAC rather than bcrypt/argon2/scrypt, and that is not a shortcut**
+// (ADR-083 §2, `server/secrets/keyedDigest.ts`). The secret is 256 bits of
+// CSPRNG output; there is no low-entropy space to brute-force, so a deliberately
+// slow KDF buys nothing and costs real latency on EVERY API request. Rows minted
+// before migration 0069 hold a scrypt digest instead, and 0069 revoked every one
+// of them (`revoked_reason = 'storage-changed'`).
 //
 // **EXPIRY AND REVOCATION ARE RESOLVED ON READ AND NEVER SWEPT** — the
 // `entitlement_grants` rule, for a second reason of its own here: an expired
@@ -247,7 +249,8 @@ export const apiTokens = pgTable(
     ownerId: text("owner_id").notNull(),
     // What the person called it. The only way they will tell two apart later.
     name: text("name").notNull(),
-    // `sha256(secret)`, hex. The lookup key — one indexed equality select, the
+    // `keyedDigest(secret)`: HMAC-SHA256 under a key derived from
+    // `API_TOKEN_PEPPER`, hex. The lookup key — one indexed equality select, the
     // same cost as the invite lookup.
     tokenHash: text("token_hash").notNull(),
     // The first 8 characters of the secret (`tc_7Fq2xR9a`), for the list UI.
@@ -270,14 +273,149 @@ export const apiTokens = pgTable(
     // (Decision 13). There is no "never expires" and no null to mean it.
     expiresAt: timestamp("expires_at", { withTimezone: true, mode: "date" }).notNull(),
     revokedAt: timestamp("revoked_at", { withTimezone: true, mode: "date" }),
+    // Who cut it off: `owner` from the token list, `storage-changed` from
+    // migration 0069. Null on a live token, and on a token revoked before 0069
+    // recorded a reason.
+    revokedReason: text("revoked_reason").$type<ApiTokenRevokedReason>(),
   },
   (t) => [
+    // A reason belongs to a revocation, so a live row cannot carry one.
+    check(
+      "api_tokens_revoked_reason",
+      sql`${t.revokedReason} is null or (${t.revokedAt} is not null and ${t.revokedReason} in ('owner', 'storage-changed'))`,
+    ),
     // The verify path: one equality select per authenticated request. Unique,
     // because two rows sharing a hash would make "which token was this"
     // unanswerable — and a collision here is a bug, not a coincidence.
     uniqueIndex("api_tokens_hash").on(t.tokenHash),
     // The list path: "this account's tokens", which is every other read.
     index("api_tokens_owner").on(t.ownerId),
+  ],
+);
+
+// **The OAuth server's storage** (M55, ADR-083 §1).
+//
+// Four tables, owned through `users.id` with **no foreign keys** (ADR-025), and
+// like `api_tokens` **nothing here is swept**: expiry, revocation and a grant's
+// state are resolved on read, so a refused secret can always say why. Every
+// secret is stored as `keyedDigest(secret)`, never in plaintext, and each digest
+// has a unique index: it is the lookup key, and two rows sharing one would make
+// "which secret was this" unanswerable.
+//
+// Not event-sourced: Invariant 1 scopes the log to planning, and this is
+// Identity-adjacent CRUD with audit fields, as `api_tokens` is.
+
+// A client that asked to use the consent page. **Registration is open** (D7):
+// anyone can create one, so nothing in this row is trusted, and the consent page
+// shows `client_name` as the client's own claim.
+export const oauthClients = pgTable(
+  "oauth_clients",
+  {
+    id: uuid("id").primaryKey(),
+    // Self-declared. Shown as a claim, never as an identity.
+    clientName: text("client_name").notNull(),
+    // Matched exactly, as strings, at authorize and at token exchange.
+    redirectUris: text("redirect_uris").array().notNull(),
+    // `dcr` registered through `/api/oauth/register`; `cimd` was fetched from
+    // its client metadata document, whose URL is the protocol `client_id`.
+    kind: text("kind").$type<"dcr" | "cimd">().notNull(),
+    cimdUrl: text("cimd_url"),
+    // A hash of the IP that registered it, for the per-IP registration limit.
+    // Null for a `cimd` client, which nobody registered.
+    registeredIpHash: text("registered_ip_hash"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
+    // Null until its first grant. A `dcr` client still null 24 hours after
+    // `created_at` has expired: refused on read, never deleted.
+    firstUsedAt: timestamp("first_used_at", { withTimezone: true, mode: "date" }),
+  },
+  (t) => [
+    check("oauth_clients_kind", sql`${t.kind} in ('dcr', 'cimd')`),
+    check("oauth_clients_cimd_url", sql`(${t.kind} = 'cimd') = (${t.cimdUrl} is not null)`),
+    // One row per metadata document, so a second fetch updates rather than forks.
+    uniqueIndex("oauth_clients_cimd_url").on(t.cimdUrl),
+  ],
+);
+
+// One person's consent to one client. Revoking it ends every code and token
+// issued under it, on read.
+export const oauthGrants = pgTable(
+  "oauth_grants",
+  {
+    id: uuid("id").primaryKey(),
+    // A `users.id`, on the same no-foreign-key terms as `api_tokens.owner_id`.
+    ownerId: text("owner_id").notNull(),
+    // An `oauth_clients.id`.
+    clientId: uuid("client_id").notNull(),
+    // A snapshot at consent, so a "via <client>" label outlives the client row.
+    clientName: text("client_name").notNull(),
+    redirectUri: text("redirect_uri").notNull(),
+    // What the person consented to. Parsed on read: a `text[]` is not a guarantee.
+    scopes: text("scopes").array().notNull(),
+    // The RFC 8707 audience, `<origin>/api/mcp`.
+    resource: text("resource").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
+    // Coarse to five minutes, as `api_tokens.last_used_at`.
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true, mode: "date" }),
+    // `created_at` + 365 days. No refresh outlives it.
+    expiresAt: timestamp("expires_at", { withTimezone: true, mode: "date" }).notNull(),
+    revokedAt: timestamp("revoked_at", { withTimezone: true, mode: "date" }),
+    // `owner` disconnected it; `code-reuse` and `refresh-reuse` are the server
+    // cutting off a grant whose secret was presented twice (ADR-083 §4).
+    revokedReason: text("revoked_reason").$type<"owner" | "code-reuse" | "refresh-reuse">(),
+  },
+  (t) => [
+    check(
+      "oauth_grants_revoked_reason",
+      sql`${t.revokedReason} is null or (${t.revokedAt} is not null and ${t.revokedReason} in ('owner', 'code-reuse', 'refresh-reuse'))`,
+    ),
+    // Account → Connected apps lists one person's grants.
+    index("oauth_grants_owner").on(t.ownerId),
+    // A client's first grant is what keeps it from expiring.
+    index("oauth_grants_client").on(t.clientId),
+  ],
+);
+
+// An authorization code (`tcc_`): one minute, single use. A second use revokes
+// its grant.
+export const oauthCodes = pgTable(
+  "oauth_codes",
+  {
+    id: uuid("id").primaryKey(),
+    codeHash: text("code_hash").notNull(),
+    // An `oauth_grants.id`.
+    grantId: uuid("grant_id").notNull(),
+    // The PKCE S256 challenge the authorize request carried.
+    codeChallenge: text("code_challenge").notNull(),
+    // Must equal the token request's `redirect_uri` exactly.
+    redirectUri: text("redirect_uri").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true, mode: "date" }).notNull(),
+    // Set by the one exchange that succeeds; a code seen again is reuse.
+    usedAt: timestamp("used_at", { withTimezone: true, mode: "date" }),
+  },
+  (t) => [uniqueIndex("oauth_codes_hash").on(t.codeHash), index("oauth_codes_grant").on(t.grantId)],
+);
+
+// Access tokens (`tco_`, one hour) and refresh tokens (`tcr_`, rotated on every
+// use). The grant's state is read with the token's on every use.
+export const oauthTokens = pgTable(
+  "oauth_tokens",
+  {
+    id: uuid("id").primaryKey(),
+    tokenHash: text("token_hash").notNull(),
+    // An `oauth_grants.id`.
+    grantId: uuid("grant_id").notNull(),
+    kind: text("kind").$type<"access" | "refresh">().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true, mode: "date" }).notNull(),
+    // A refresh token's successor was issued; presented again, it is reuse.
+    rotatedAt: timestamp("rotated_at", { withTimezone: true, mode: "date" }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true, mode: "date" }),
+  },
+  (t) => [
+    check("oauth_tokens_kind", sql`${t.kind} in ('access', 'refresh')`),
+    uniqueIndex("oauth_tokens_hash").on(t.tokenHash),
+    index("oauth_tokens_grant").on(t.grantId),
   ],
 );
 

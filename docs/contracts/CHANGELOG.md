@@ -13,6 +13,24 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-10-27 — `ApiToken.revokedReason`, and the OAuth secret prefixes (M55 part 1)
+- **Changed** (`packages/contracts/src/publicApi.ts`): `ApiToken` gains `revokedReason`,
+  `ApiTokenRevokedReason` (`"owner" | "storage-changed"`) or `null`. `owner` is a revoke from the
+  token list; `storage-changed` is migration 0069, which moved `api_tokens` from scrypt to a keyed
+  HMAC and revoked every token minted before it (ADR-083 §2–§3). Null on a live token and on one
+  revoked before reasons were recorded.
+- **New:** `OAUTH_ACCESS_PREFIX` (`tco_`), `OAUTH_REFRESH_PREFIX` (`tcr_`), `OAUTH_CODE_PREFIX`
+  (`tcc_`), for the OAuth server M55's later parts build. Nothing reads them yet.
+- Why: the token list and the v1 401 can say a token was revoked by the storage change, and what
+  to do (*"Revoked when token storage changed — mint a new one"*).
+- Consumers updated: `apps/web` (`server/api-tokens` fills the field and records `owner` on
+  revoke; `public-api/route.ts`'s `token-revoked` message; `TokensSection.tsx`'s line) — in this
+  same PR.
+- Public API: no version change. `ApiToken` is served only by the session-only
+  `/api/account/tokens` (exposure `never`), not by `/api/v1` or `openapi.json`.
+- Breaking? no for the wire (an added field). Every existing `tc_` token stops working when 0069
+  runs, by decision (ADR-083 §3).
+
 ## 2026-10-26 — `/v1/playbooks/{playbookId}/cover` (public API 1.30.0)
 - **New endpoints** (`apps/web/src/app/api/v1/playbooks/[playbookId]/cover/route.ts`):
   `GET`, `PUT`, `PATCH`, `DELETE` for a playbook's cover, behind `library:read`
