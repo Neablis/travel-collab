@@ -6,8 +6,9 @@ to the repo root; `web/` means `apps/web/src/`. Line numbers are from `main` at 
 
 **Order.** Every part targets `main` and merges on its own; a part that needs an earlier one
 branches from `main` only after that one has merged. Part 1 merges first (it owns migration
-`0069`; dispatch `migrate-production` right after it merges, because `api_tokens.revoked_reason`
-is read on every v1 request). Part 2 then branches from `main`. Part 3 waits on part 2, part 4 on
+`0069`; once its merge commit's production deploy is READY, dispatch `migrate-production`, because
+`api_tokens.revoked_reason` is read on every v1 request; never before the deploy, or old code can
+mint a scrypt token after the `UPDATE`, and never roll back past it — PR 614's review). Part 2 then branches from `main`. Part 3 waits on part 2, part 4 on
 part 3. Part 5 waits on part 2 and can be built beside parts 3 and 4, but its e2e spec drives
 `/api/mcp`, so it merges after part 4.
 Part 0 (`ccr-a54f396f-65ja2i`, prose only) merges last.
