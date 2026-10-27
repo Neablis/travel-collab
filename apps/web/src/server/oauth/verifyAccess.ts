@@ -38,6 +38,12 @@ export type AccessResult = { ok: true; access: VerifiedAccess } | { ok: false; r
 
 const refuse = (refusal: AccessRefusal): AccessResult => ({ ok: false, refusal });
 
+/**
+ * Verifies an OAuth access token presented as a bearer, reading the token, its
+ * grant and the owner's plan afresh. Returns the grant's owner, client name and
+ * scopes, or the first refusal in order: unknown, revoked, expired, resource,
+ * not-entitled. Never refuses for `audience`: that is the caller's to decide.
+ */
 export async function verifyAccessToken(secret: string, now: Date = new Date()): Promise<AccessResult> {
   if (!secret.startsWith(OAUTH_ACCESS_PREFIX)) return refuse({ reason: "unknown" });
   const digests = keyedDigestCandidates(secret).map((candidate) => candidate.digest);
