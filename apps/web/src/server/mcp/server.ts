@@ -3,7 +3,7 @@ import { CallToolRequestSchema, ListToolsRequestSchema, type Tool } from "@model
 import { DECLARED } from "@/server/public-api/route";
 import { callTool, type McpCaller } from "./dispatch";
 import { inputSchemaFor } from "./schemas";
-import { TOOLS } from "./tools";
+import type { McpTool } from "./tools";
 
 // **One MCP server per request, for one caller** (ADR-083 §8). Stateless:
 // nothing outlives the request, so any function instance can answer the next.
@@ -15,8 +15,8 @@ import { TOOLS } from "./tools";
 export const SERVER_INFO = { name: "caesura", title: "Caesura", version: "1.0.0" } as const;
 
 /** What `tools/list` answers: each tool, its route's schema, and the scope it needs. */
-export function listedTools(): Tool[] {
-  return TOOLS.map((tool) => ({
+export function listedTools(tools: readonly McpTool[]): Tool[] {
+  return tools.map((tool) => ({
     name: tool.name,
     title: tool.title,
     description: `${tool.description}\n\nNeeds the "${tool.handler[DECLARED].scope}" scope.`,
@@ -25,13 +25,16 @@ export function listedTools(): Tool[] {
   }));
 }
 
-/** The server for one request, whose calls spend `caller`'s bearer. */
-export function buildServer(caller: McpCaller): Server {
+/**
+ * The server for one request, whose calls spend `caller`'s bearer. `tools` is
+ * passed in because the table imports v1 routes, which this folder may not.
+ */
+export function buildServer(tools: readonly McpTool[], caller: McpCaller): Server {
   const server = new Server(SERVER_INFO, { capabilities: { tools: { listChanged: false } } });
-  const tools = listedTools();
-  server.setRequestHandler(ListToolsRequestSchema, () => ({ tools }));
+  const listed = listedTools(tools);
+  server.setRequestHandler(ListToolsRequestSchema, () => ({ tools: listed }));
   server.setRequestHandler(CallToolRequestSchema, async ({ params }) => {
-    const tool = TOOLS.find((t) => t.name === params.name);
+    const tool = tools.find((t) => t.name === params.name);
     if (tool === undefined) {
       return { content: [{ type: "text", text: `No tool is called "${params.name}".` }], isError: true };
     }

@@ -9,12 +9,16 @@
 import { createHash, randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { cimdDocumentKey } from "@/server/cache/keys";
+import { createMemoryClient } from "@/server/cache/memory";
+import { createRedisCache } from "@/server/cache/redis";
 import { db } from "@/server/db/client";
-import { oauthClients } from "@/server/db/schema";
+import { oauthClients, rateLimitCounters } from "@/server/db/schema";
 import type { Fetcher } from "@/server/external/remoteImage/fetchImage";
 import type { Resolve } from "@/server/external/remoteImage/guard";
 import { keyedDigest } from "@/server/secrets/keyedDigest";
 import {
+  CIMD_CACHE_TTL_SECONDS,
   markClientUsed,
   registerClient,
   resolveClient,
@@ -136,6 +140,43 @@ describe("the bound on CIMD fetches", () => {
     expect(await resolveClient(cimdUrl(), asked({ fetch, userId }))).toEqual({ ok: false, reason: "too-many-lookups" });
     expect(fetch).toHaveBeenCalledTimes(2);
     expect((await resolveClient(cimdUrl(), asked({ fetch }))).ok).toBe(true);
+  });
+
+  // Charged only on a miss: otherwise a few dozen accounts spending their own
+  // shares on throwaway URLs use up the global ceiling, and every CIMD client,
+  // Claude's included, is refused for the rest of the hour.
+  it("serves a document it fetched within the TTL without fetching or charging either quota", async () => {
+    vi.stubEnv("OAUTH_CIMD_RATE_LIMIT_PER_USER_HOURLY", "1");
+    const cache = createRedisCache(createMemoryClient());
+    const url = cimdUrl();
+    const userId = `cimd-${randomUUID()}`;
+    const fetch = serving(documentFor(url));
+    const now = new Date();
+    const globalHits = async () =>
+      (await db.select().from(rateLimitCounters).where(eq(rateLimitCounters.bucket, "oauth-cimd-hourly:global")))[0]
+        ?.hits;
+    await resolved(url, asked({ fetch, userId, cache, now }));
+    const before = await globalHits();
+    expect((await resolved(url, asked({ fetch, userId, cache, now }))).clientName).toBe("Some App");
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(await globalHits()).toBe(before);
+    // Past the TTL it is a miss again, and this account's one fetch is spent.
+    const later = new Date(now.getTime() + (CIMD_CACHE_TTL_SECONDS + 1) * 1000);
+    expect(await resolveClient(url, asked({ fetch, userId, cache, now: later }))).toEqual({
+      ok: false,
+      reason: "too-many-lookups",
+    });
+  });
+
+  it("checks a cached document again, as if it had just been fetched", async () => {
+    const cache = createRedisCache(createMemoryClient());
+    const url = cimdUrl();
+    const now = new Date();
+    const plainHttp = documentFor(url, { redirect_uris: ["http://app.example/callback"] });
+    await cache.set(cimdDocumentKey(url), { document: plainHttp, fetchedAt: now.getTime() }, 60);
+    const fetch = serving(documentFor(url));
+    expect((await resolveClient(url, asked({ fetch, cache, now }))).ok).toBe(false);
+    expect(fetch).not.toHaveBeenCalled();
   });
 
   it("fetches nothing for a resolve no account asked for", async () => {

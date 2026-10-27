@@ -13,15 +13,18 @@ import { oauthIssuer } from "@/server/oauth/metadata";
 // `redirectTo` it gets back. A native form POST that 302s to the client is what
 // the CSP's `form-action 'self'` blocks, and that directive stays.
 //
-// **Nothing from the page is trusted but the choice.** The authorize request is
-// parsed again from its parameters, so a page left open while the client's
-// registration changed, or a forged body, is checked as if it had just arrived.
+// **Nothing from the page is trusted but the choice**, and the name it showed,
+// which Allow must match. The authorize request is parsed again from its
+// parameters, so a page left open while the client's registration changed, or
+// a forged body, is checked as if it had just arrived.
 // Session only, same origin only: a credential must never be able to consent.
 
 const Decision = z.object({
   params: z.record(z.string(), z.string()),
   decision: z.enum(["allow", "deny"]),
   scopes: z.array(ApiScope).default([]),
+  /** The name the page showed, which Allow is bound to. */
+  clientName: z.string().optional(),
 });
 
 /** Record Allow or Deny for a signed-in person on this origin, answering where the browser goes next. */
@@ -51,6 +54,12 @@ export async function POST(request: Request) {
   const scopes = body.data.scopes;
   if (scopes.length === 0 || scopes.some((scope) => !authorize.scopes.includes(scope))) {
     return Response.json({ error: "invalid-scopes" }, { status: 400 });
+  }
+  // A metadata document is fetched again here, so its owner could rename it
+  // between the page and the click. The grant keeps this name, so it must be
+  // the one the person read; reloading shows the new one.
+  if (body.data.clientName !== authorize.client.clientName) {
+    return Response.json({ error: "client-changed" }, { status: 409 });
   }
   const now = new Date();
   const grant = await createGrant({

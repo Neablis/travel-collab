@@ -19,7 +19,7 @@ import { upsertUser } from "@/server/users";
 vi.mock("@/server/auth", () => ({ auth: vi.fn(async () => null) }));
 
 const { callTool } = await import("./dispatch");
-const { TOOLS } = await import("./tools");
+const { TOOLS } = await import("@/app/api/mcp/tools");
 
 /** A connected client of a new premium account: a tool caller spending its access token. */
 async function connect(scopes: ApiScope[] = ["library:read", "library:write"]) {

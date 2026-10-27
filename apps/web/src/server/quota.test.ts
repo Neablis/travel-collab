@@ -433,6 +433,9 @@ describe("policy configuration", () => {
     expect(registrationAddress("2001:db8:a:b:0:0:1.2.3.4")).toBe(prefix);
     expect(registrationAddress("2001:db8:a:c::1")).not.toBe(prefix);
     expect(registrationAddress("::ffff:203.0.113.9")).toBe("203.0.113.9");
+    // Spelled in hex, a mapped address is still its IPv4, not the shared ::/64.
+    expect(registrationAddress("::ffff:cb00:7109")).toBe("203.0.113.9");
+    expect(registrationAddress("0:0:0:0:0:FFFF:7f00:1")).toBe("127.0.0.1");
     expect(registrationAddress("203.0.113.9")).toBe("203.0.113.9");
     expect(registrationAddress("unknown")).toBe("unknown");
   });

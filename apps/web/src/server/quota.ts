@@ -343,8 +343,6 @@ export function oauthRegisterQuota(): QuotaPolicy[] {
  */
 export function registrationAddress(ip: string): string {
   if (!isIPv6(ip)) return ip;
-  const mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/i.exec(ip);
-  if (mapped !== null) return mapped[1]!;
   // An embedded IPv4 tail is two groups: spelled as two, the count below holds.
   const hex = ip.replace(/(\d+)\.(\d+)\.(\d+)\.(\d+)$/, (_all, a, b, c, d) =>
     [Number(a) * 256 + Number(b), Number(c) * 256 + Number(d)].map((n) => n.toString(16)).join(":"),
@@ -353,10 +351,16 @@ export function registrationAddress(ip: string): string {
   const groups = (part: string) => (part === "" ? [] : part.split(":"));
   const left = groups(head);
   const right = groups(tail);
-  const full = hex.includes("::") ? [...left, ...Array(8 - left.length - right.length).fill("0"), ...right] : left;
+  const full = (
+    hex.includes("::") ? [...left, ...Array(8 - left.length - right.length).fill("0"), ...right] : left
+  ).map((group) => Number.parseInt(group, 16));
+  // Mapped (::ffff:a.b.c.d), however it was spelled: otherwise every one would share ::/64.
+  if (full.slice(0, 5).every((group) => group === 0) && full[5] === 0xffff) {
+    return [full[6]! >> 8, full[6]! & 0xff, full[7]! >> 8, full[7]! & 0xff].join(".");
+  }
   return `${full
     .slice(0, 4)
-    .map((group) => Number.parseInt(group, 16).toString(16))
+    .map((group) => group.toString(16))
     .join(":")}::/64`;
 }
 
@@ -364,8 +368,11 @@ export function registrationAddress(ip: string): string {
  * Client metadata document fetches, per account (ADR-083 §6, amendment J).
  * Every authorize with an `https` `client_id` makes the server fetch a
  * stranger's URL, so this bounds how many one account can make it fetch, and
- * the global ceiling bounds the many-accounts version. Connecting an app takes
- * two (the consent page and the decision), so 30 an hour is fifteen attempts.
+ * the global ceiling bounds the many-accounts version. Charged only on a fetch:
+ * a document the shared cache holds costs nothing (`resolveClient`), so the
+ * decision after a consent page is usually free, and a client many people
+ * connect costs one fetch per few minutes. Without the cache, connecting takes
+ * two, so 30 an hour is fifteen attempts.
  */
 export function oauthCimdQuota(): QuotaPolicy[] {
   return [

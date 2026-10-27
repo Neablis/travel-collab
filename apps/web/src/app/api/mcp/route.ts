@@ -4,6 +4,7 @@ import { buildServer } from "@/server/mcp/server";
 import { runInMcpDispatch } from "@/server/oauth/dispatchContext";
 import { resolveActor } from "@/server/public-api/actor";
 import { oauthChallenge, oauthRefusalResponse } from "@/server/public-api/route";
+import { TOOLS } from "./tools";
 
 // **The MCP connector: `POST /api/mcp`** (ADR-083 §8). Streamable HTTP,
 // stateless, JSON responses: no `Mcp-Session-Id` and no stream to resume,
@@ -39,7 +40,7 @@ export async function POST(request: Request): Promise<Response> {
 
   const transport = new WebStandardStreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });
   const caller: McpCaller = { request, userId: resolution.actor.userId, grantId: resolution.actor.grantId };
-  const server = buildServer(caller);
+  const server = buildServer(TOOLS, caller);
   await server.connect(transport);
   try {
     const response = await transport.handleRequest(request);

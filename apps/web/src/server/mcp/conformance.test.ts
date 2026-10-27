@@ -8,10 +8,11 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
 import { describe, expect, it, vi } from "vitest";
+import { TOOLS } from "@/app/api/mcp/tools";
 import { DECLARED, type DeclaredHandler } from "@/server/public-api/route";
 import { inputSchemaFor, PAGING } from "./schemas";
 import { listedTools } from "./server";
-import { pathParams, TOOLS, type McpTool } from "./tools";
+import { pathParams, type McpTool } from "./tools";
 
 // The tools import v1 route modules, which reach `next-auth`; nothing here calls it.
 vi.mock("@/server/auth", () => ({ auth: vi.fn(async () => null) }));
@@ -131,7 +132,7 @@ describe("the MCP tools", () => {
   });
 
   it("serve each route's own schema, from tools/list", () => {
-    const served = new Map(listedTools().map((t) => [t.name, t.inputSchema as Record<string, unknown>]));
+    const served = new Map(listedTools(TOOLS).map((t) => [t.name, t.inputSchema as Record<string, unknown>]));
     expect(TOOLS.flatMap((tool) => schemaProblems(tool, served.get(tool.name)!))).toEqual([]);
   });
 
