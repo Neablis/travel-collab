@@ -18,6 +18,7 @@ CREATE TABLE "oauth_codes" (
 	"grant_id" uuid NOT NULL,
 	"code_challenge" text NOT NULL,
 	"redirect_uri" text NOT NULL,
+	"resource" text NOT NULL,
 	"created_at" timestamp with time zone NOT NULL,
 	"expires_at" timestamp with time zone NOT NULL,
 	"used_at" timestamp with time zone

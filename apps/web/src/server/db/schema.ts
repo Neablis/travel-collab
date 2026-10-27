@@ -394,6 +394,9 @@ export const oauthCodes = pgTable(
     codeChallenge: text("code_challenge").notNull(),
     // Must equal the token request's `redirect_uri` exactly.
     redirectUri: text("redirect_uri").notNull(),
+    // The RFC 8707 audience the authorize request named. A token request naming
+    // any other is refused (ADR-083 amendment C).
+    resource: text("resource").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
     expiresAt: timestamp("expires_at", { withTimezone: true, mode: "date" }).notNull(),
     // Set by the one exchange that succeeds; a code seen again is reuse.
