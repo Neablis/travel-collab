@@ -30,6 +30,15 @@ export function referralCardKey(code: string): string {
   return `${prefix()}:referral:${digest(code)}`;
 }
 
+/**
+ * A client metadata document fetched from `url` (ADR-083 §6), keyed by the
+ * URL's digest like the rest. Its TTL is `CIMD_CACHE_TTL_SECONDS` in
+ * `server/oauth/clients.ts`.
+ */
+export function cimdDocumentKey(url: string): string {
+  return `${process.env.VERCEL_ENV ?? "dev"}:oauth:cimd:${digest(url)}`;
+}
+
 /** An hour: a pending invite's card, which is also deleted on revoke and accept. */
 export const INVITE_CARD_TTL_SECONDS = 3600;
 
