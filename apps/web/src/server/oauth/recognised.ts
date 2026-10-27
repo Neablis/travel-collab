@@ -16,6 +16,7 @@ export const RECOGNISED_REDIRECTS: readonly string[] = ["https://claude.ai/api/m
 /** How the consent page marks a client: by name, with a localhost warning, or as an unverified claim. */
 export type ConsentMarking = "recognised" | "localhost-warning" | "unverified";
 
+/** How the consent page marks the client sending its code to `redirectUri`. */
 export function consentMarking(redirectUri: string): ConsentMarking {
   // First, so no entry in the list can ever outrank the warning.
   if (isLoopback(redirectUri)) return "localhost-warning";

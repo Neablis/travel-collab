@@ -5,6 +5,7 @@ import { exchangeCode, refresh } from "@/server/oauth/tokens";
 // only, as the RFC requires, and public clients only: a `client_id` and no
 // secret. Every check lives in `server/oauth/tokens.ts`; this reads the form.
 
+/** Exchange a code or a refresh token for a new access and refresh token pair. */
 export async function POST(request: Request) {
   const type = request.headers.get("content-type") ?? "";
   if (!type.toLowerCase().startsWith("application/x-www-form-urlencoded")) {

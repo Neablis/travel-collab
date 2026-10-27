@@ -43,5 +43,7 @@ export function redirectMatches(registered: string, presented: string): boolean 
   if (registered === presented) return true;
   const a = LOOPBACK.exec(registered);
   const b = LOOPBACK.exec(presented);
-  return a !== null && b !== null && a[1] === b[1] && a[2] === b[2];
+  // The pattern takes any five digits, so a port past 65535 must still parse:
+  // every redirect back is built with `new URL`, which would throw on it.
+  return a !== null && b !== null && a[1] === b[1] && a[2] === b[2] && URL.canParse(presented);
 }

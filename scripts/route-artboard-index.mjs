@@ -71,6 +71,7 @@ export const NOT_DRAWN = new Map([
   ["/playbooks/tag/[tag]", "M42 part 5: the city page over the days a tag describes — no artboard"],
   ["/playbooks/city/[slug]/[tag]", "M42 part 5: the city page over one tag's days in that city — no artboard"],
   ["/demo", "the picker, M42 D1, has no artboard"],
+  ["/oauth/authorize", "M55 part 2: the OAuth consent page, a card of the design system's primitives — no artboard"],
 ]);
 
 /** Every route in the app, as a Next.js path with its groups stripped. */

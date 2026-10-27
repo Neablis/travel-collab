@@ -412,6 +412,28 @@ expectRejectedBy(
   "a page beside Home in (app) gets no exemption",
 );
 
+// THE OAUTH CONSENT PAGE (ADR-083 §6, M55): `oauth/authorize/page.tsx` alone
+// may read `src/server`, to check the authorize request before anything
+// renders. Open for that file; shut for the domain, and for a file beside it.
+const OAUTH_PAGE = "src/app/oauth/authorize/page.tsx";
+
+expectClean(
+  lintFixture("oauth_page_server", `import "@/server/oauth/authorizeRequest";${PAGE_BODY}`, { file: OAUTH_PAGE }),
+  "the OAuth consent page may import @/server/* (the exemption is open)",
+);
+expectRejectedBy(
+  lintFixture("oauth_page_domain", `import "@tc/domain";${PAGE_BODY}`, { file: OAUTH_PAGE }),
+  "no-restricted-imports",
+  "the OAuth consent page still may not import @tc/domain",
+);
+expectRejectedBy(
+  lintFixture("oauth_helper_server", `import "@/server/oauth/authorizeRequest";${PAGE_BODY}`, {
+    file: "src/app/oauth/authorize/helper.ts",
+  }),
+  "no-restricted-imports",
+  "a file beside the OAuth consent page gets no exemption",
+);
+
 // THE GATEWAY CHOKEPOINT WALL (ADR-019's 2026-08-25 amendment): only
 // src/server/ai/modelSelection.ts may import @/server/ai/gateway. Fixtured
 // under src/server/ai/ itself — a NEW file there, not modelSelection.ts —
