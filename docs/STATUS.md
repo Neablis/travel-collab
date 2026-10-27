@@ -22,9 +22,10 @@ general setup.
 ## Where the work is right now
 
 **M55 is the current milestone, scoped 2026-10-27** (`docs/milestones/M55-claude-connects-as-you.md`):
-Mitchell placed it ahead of M43 and answered all eleven decisions at scoping (D7, D8's hashing,
-D10 and D11 changed). Design: ADR-083. Plan: `docs/plans/2026-10-27-M55-claude-connects-as-you.md`,
-six parts on `claude/m55-part<K>-…` branches, each its own PR on `main`. Part 0 is the draft PR
+Mitchell placed it ahead of M43 and answered all eleven decisions at scoping (D7, D8's hashing
+and D11 changed; D10 widened to *"via <client>"* labels, then withdrawn the same day, the
+labels moved to `docs/candidates.md`). Design: ADR-083. Plan: `docs/plans/2026-10-27-M55-claude-connects-as-you.md`,
+five parts on `claude/m55-part<K>-…` branches, each its own PR on `main`. Part 0 is the draft PR
 on `ccr-a54f396f-65ja2i` (prose only, merges last). No part is built yet.
 
 **M54 closed 2026-10-27, gate 13 of 13**, by `pnpm milestone close M54 --confirm` on part 0

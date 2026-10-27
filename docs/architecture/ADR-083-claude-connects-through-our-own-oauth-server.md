@@ -35,8 +35,8 @@ and every refresh, and Claude's token calls must answer within 10 seconds.
    foreign keys** (ADR-025):
    - `oauth_clients`: id, `client_name`, `redirect_uris text[]`, `kind` (`dcr` | `cimd`), the CIMD
      URL for a `cimd` client, `registered_ip_hash`, `created_at`, `first_used_at`.
-   - `oauth_grants`: id, `owner_id`, `client_id`, `client_name` (a snapshot, for labels that
-     outlive the client), `redirect_uri`, `scopes text[]`, `resource`, `created_at`,
+   - `oauth_grants`: id, `owner_id`, `client_id`, `client_name` (a snapshot, so Connected apps
+     can still name a grant after its client expires), `redirect_uri`, `scopes text[]`, `resource`, `created_at`,
      `last_used_at` (coarse, as `api_tokens`), `expires_at` (created + 365 days), `revoked_at`,
      `revoked_reason` (`owner` | `code-reuse` | `refresh-reuse`).
    - `oauth_codes`: `code_hash`, `grant_id`, `code_challenge`, `redirect_uri`, `expires_at`,

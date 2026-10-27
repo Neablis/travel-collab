@@ -9,7 +9,7 @@ branches from `main` only after that one has merged. Part 1 merges first (it own
 `0069`; dispatch `migrate-production` right after it merges, because `api_tokens.revoked_reason`
 is read on every v1 request). Part 2 then branches from `main`. Part 3 waits on part 2, part 4 on
 part 3. Part 5 waits on part 2 and can be built beside parts 3 and 4, but its e2e spec drives
-`/api/mcp`, so it merges after part 4. Part 6 waits on part 3 and can run beside parts 4 and 5.
+`/api/mcp`, so it merges after part 4.
 Part 0 (`ccr-a54f396f-65ja2i`, prose only) merges last.
 
 | Part | Branch | Theme | Waits on | Files (approx.) |
@@ -19,7 +19,6 @@ Part 0 (`ccr-a54f396f-65ja2i`, prose only) merges last.
 | 3 | `claude/m55-part3-oauth-actor` | `tco_` resolves to an actor, `via: "oauth"` in six places | 2 | 16 |
 | 4 | `claude/m55-part4-mcp-server` | `/api/mcp`, the tools, conformance, the end-to-end flow test | 3 | 20 |
 | 5 | `claude/m55-part5-connected-apps` | Connected apps + Disconnect, `/developers`, `llms.txt`, the guideline, the e2e spec | 2 (merge after 4) | 18 |
-| 6 | `claude/m55-part6-via-labels` | *"via <client>"* in History and on Playbooks | 3 | 24 |
 
 **The riskiest part is 2** (an authorization server open to any client): it gets the extra fresh
 `part-reviewer` pass on its whole diff before it is called ready. Part 1 is second (it revokes
@@ -156,7 +155,7 @@ code), half of *Exposure*.
 
 ## Part 5 — Connected apps, and the docs
 
-D10 (first half), D9's table. Branches after part 2; merges after part 4 (its spec calls `/api/mcp`).
+D10, D9's table. Branches after part 2; merges after part 4 (its spec calls `/api/mcp`).
 
 | File | Entry point | Test |
 |---|---|---|
@@ -181,43 +180,11 @@ merges (the *Discovery* box's production `curl` needs them).
 
 ---
 
-## Part 6 — *"via <client>"* labels
-
-D10 (second half). Branches after part 3 (it reads `actor.via === "oauth"`). Migration: the next
-free number when it is built (`0070` if nothing else merged), for the Playbook column. The
-Playbook field is in the published v1 `Playbook`, so this part is a public API minor
-(`API_VERSION`, `web/server/public-api/openapi.ts:42`, today 1.30.0).
-
-| File | Entry point | Test |
-|---|---|---|
-| `packages/contracts/src/history.ts` | `Origin`'s `user` variant gains `app?: { name }` (optional, so every stored envelope still parses) | `packages/contracts/test/history.test.ts` |
-| `packages/contracts/src/saved.ts` | `SavedDay` gains `changedVia: string \| null` (the client name of the last change made through a grant), beside `authorKind` (`:246`) | `packages/contracts/test/saved.test.ts` |
-| `web/server/public-api/actor.ts` | `originFor(actor)`: `{ kind: "user", app: { name: clientName } }` for `oauth`, else `{ kind: "user" }` | `oauthActor.int.test.ts` |
-| `web/server/pageCommands.ts` | `executePageCommand` (`:75`) takes an optional origin; `:250` uses it | `web/server/pageCommands.int.test.ts` (the envelope carries `app`) |
-| `web/app/api/v1/trips/[tripId]/pages/[pageId]/route.ts`, `…/pages/route.ts` | pass `originFor(actor)` | `web/server/public-api/surface.int.test.ts` |
-| `web/server/db/schema.ts`, `apps/web/drizzle/00NN_saved_day_changed_via.sql` (+ `meta/`) | `savedDays.changedVia` (nullable text) | — |
-| `web/server/savedDays.ts` | `storeSavedDay` (`:221`), `updatePlaybookContent` (`:820`), `setSavedDayVisibility` (`:708`) take `via?: string` and write it (a change by hand writes null) | `web/server/public-api/playbooks.int.test.ts` |
-| `web/server/public-api/playbooks.ts` | `createPlaybookDef` (`:272`), `patchPlaybookDef` (`:314`) pass `clientName` for an OAuth actor | same |
-| `web/components/board/SuggestionActions.tsx` | `withApp(line, app)` beside `withVia` (`:106`) | `HistoryPanel.test.tsx` |
-| `web/components/board/HistoryPanel.tsx` | a `user` origin with `app` reads *"via Claude"* (`:125-140`) | `HistoryPanel.test.tsx` (seen red without the branch) |
-| `web/components/playbooks/SharedDayScreen.tsx` | owner-only *Last changed via Claude* | `SharedDayScreen.test.tsx` |
-| `web/components/trip/SavedDaysDialog.tsx` | the row's *via Claude* | `SavedDaysDialog.test.tsx` |
-| `web/server/public-api/openapi.ts` and the document `pnpm --filter web openapi:generate` rewrites | `API_VERSION` next minor, fingerprint | `openapi.test.ts` |
-| `docs/contracts/CHANGELOG.md` | `Origin.app`, `SavedDay.changedVia`, the minor | — |
-
-**Preview:** connect the Inspector, `update_notebook_page` on one of your trips' pages, open that
-trip's History: the entry reads *via <the Inspector's client name>*. `create_playbook` through it,
-open the day as its owner: *Last changed via …*. Edit the same day by hand: the line goes.
-
-**Gate boxes:** *Via labels*.
-
----
-
 ## Gate box → part
 
 | Box | Part |
 |---|---|
-| Decisions, ADR-083, the plan, changelog entries | 0 (+ 1, 5, 6 for their entries) |
+| Decisions, ADR-083, the plan, changelog entries | 0 (+ 1, 5 for their entries) |
 | One way to hash a secret | 1 |
 | Discovery (production `curl`) | 2 + 4, after Mitchell's firewall rules |
 | The flow end to end | 4 |
@@ -227,8 +194,7 @@ open the day as its owner: *Last changed via …*. Edit the same day by hand: th
 | Parity | 4 |
 | Publish answers the public URL | 4 |
 | Revocation | 5 |
-| Via labels | 6 |
 | The inspector | 4 (screenshot) |
 | Exposure | 2 + 4 + 5 |
-| [walk] | Mitchell, on production after all six merge and `migrate-production` has run |
+| [walk] | Mitchell, on production after all five merge and `migrate-production` has run |
 | Retro | 0 |

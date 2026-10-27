@@ -16,6 +16,20 @@ not by anybody remembering. That automation exists because the rule was being
 skipped: M23's entry survived its own gate closing on 2026-09-19 and was still
 here two days later.
 
+- **Writes made through an API token or a connected app say so (asked 2026-10-27).**
+  Moved out of M55 at scoping (decision 10): Mitchell widened D10 to build these labels, then
+  withdrew that the same day to keep M55 simple. Today History knows only one origin label,
+  `SuggestionVia = ["assistant"]` (`packages/contracts/src/history.ts:10`), rendered by `withVia`
+  (`apps/web/src/components/board/SuggestionActions.tsx:106`) in
+  `apps/web/src/components/board/HistoryPanel.tsx:133-140`. Playbooks record no changed-by at all,
+  only `authorKind` human/ai (`packages/contracts/src/saved.ts:246`). The idea: a write through a
+  `tc_` token or an OAuth grant records the client's name on the event envelope's `Origin`, so
+  History reads *"via <client>"*, and a Playbook gains a changed-by column its owner's view shows.
+  The Playbook field is in the published v1 `Playbook`, so it needs a **public API minor**
+  (`API_VERSION`) and a migration for the column. Open: should a Playbook created through a
+  connector set `authorKind: "ai"` (M55 leaves `authorKind` as it is today), and what a token
+  with no client name is labelled as.
+
 - **The operator console shows a person's API tokens and connected apps (asked 2026-10-27).**
   Moved out of M55 at scoping (decision 10): M55's *Connected apps* is in Account → Profile only.
   The M36 account page (`apps/web/src/components/admin/AccountPage.tsx`) shows no tokens today.

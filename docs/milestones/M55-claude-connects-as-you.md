@@ -4,9 +4,10 @@
 milestone to the caesura project to add the ability for a oauth connector so you can connect?"*,
 then *"Yes, add it"*), and placed **ahead of M43** at scoping the same day (see
 `docs/milestones/README.md`, *2026-10-27 — placed: M55 ahead of M43*). All eleven decisions are
-answered (below); D7, D8's hashing, D10 and D11 changed from the recommendation. The design is
+answered (below); D7, D8's hashing and D11 changed from the recommendation, and D10 was widened
+and then narrowed again the same day. The design is
 **ADR-083**, and the plan is `docs/plans/2026-10-27-M55-claude-connects-as-you.md` (deleted at
-gate close). Six parts plus part 0.
+gate close). Five parts plus part 0.
 
 ## Why this exists
 
@@ -180,19 +181,19 @@ says so and the text below is his choice.
    that 302s to another origin, so the consent form posts with `fetch` and then navigates to the
    redirect it is handed; and `/oauth/*` is outside the proxy matcher (`apps/web/src/proxy.ts:241-250`),
    so the consent page redirects a signed-out visitor to `/signin?callbackUrl=…` itself.
-10. **Connected apps and "via <client>" labels — CHANGED (widened).** Account → Profile gains
-    **Connected apps** beside API tokens (`components/account/TokensSection.tsx`'s sub-view
+10. **Connected apps in Account → Profile, with Disconnect only — answered.** Account → Profile
+    gains **Connected apps** beside API tokens (`components/account/TokensSection.tsx`'s sub-view
     pattern): each grant's client name, redirect host, scopes, when it was made and last used, and
     a **Disconnect** that revokes the grant, its refresh token and every access token issued from
-    it, effective on the next request. **And the origin labels are built, not assumed:** today
-    History only knows `SuggestionVia = ["assistant"]` (`packages/contracts/src/history.ts:10`),
-    rendered by `withVia` (`components/board/SuggestionActions.tsx:106`, `HistoryPanel.tsx:133-140`),
-    and Playbooks record no changed-by at all (only `authorKind` human/ai,
-    `packages/contracts/src/saved.ts:246`). So a write through a grant records the client's
-    registered name on the event envelope's `Origin` and on the Playbook row, and History and the
-    Playbook's owner view read *"via Claude"*. **The operator-console mirror** (the M36 account
-    page, `components/admin/AccountPage.tsx`, which shows no tokens today) **moves to
-    `docs/candidates.md`**.
+    it, effective on the next request. **History of the decision:** at scoping Mitchell first
+    widened D10 to also build *"via <client name>"* origin labels in History and on Playbooks, then
+    withdrew that the same day (2026-10-27) to keep M55 simple. The labels, a Playbook changed-by
+    column, and the question of whether a connector-created Playbook should set `authorKind: "ai"`
+    are now the candidate *Writes made through an API token or a connected app say so*
+    (`docs/candidates.md`). In M55 a write through a grant records exactly what a write through a
+    `tc_` token records today, and `authorKind` keeps today's behaviour. **The operator-console
+    mirror** (the M36 account page, `components/admin/AccountPage.tsx`, which shows no tokens
+    today) **moves to `docs/candidates.md`** too.
 11. **No duplicate guard; publish answers the public URL — CHANGED.** `publish_playbook` does not
     refuse a duplicate of a published day (M53's decision 1 builds that guard on its own terms).
     Its answer carries the day's public URL, built with `dayPath` (`apps/web/src/lib/playbookUrls.ts:45`),
@@ -225,7 +226,7 @@ says so and the text below is his choice.
 
 ## Scope
 
-Six parts, each its own PR on `main` (the plan has every file):
+Five parts, each its own PR on `main` (the plan has every file):
 
 1. **Storage and one way to hash a secret** (D3, D8): migration `0069` (`oauth_clients`,
    `oauth_grants`, `oauth_codes`, `oauth_tokens`, no foreign keys per ADR-025; `api_tokens` gains
@@ -241,11 +242,9 @@ Six parts, each its own PR on `main` (the plan has every file):
 4. **The MCP server** (D2, D4, D11): `/api/mcp`, streamable HTTP, stateless, JSON responses; the
    tools, their annotations and descriptions; the derived idempotency key; the 409 pass-through;
    publish's public URL; the conformance test and the end-to-end flow test.
-5. **Connected apps and the docs** (D10, first half): the list and Disconnect, the
+5. **Connected apps and the docs** (D10): the list and Disconnect, the
    `/developers` and `llms.txt` lines, `using-the-api.md`'s connector section and firewall rows,
    and the e2e spec.
-6. **"via <client>" labels** (D10, second half): `Origin` and the Playbook row record the client,
-   and History and the Playbook's owner view say it.
 0. **The gate**: the decisions, ADR-083, the plan, connecting from claude.ai on production, the
    evidence, the retro.
 
@@ -264,12 +263,14 @@ Six parts, each its own PR on `main` (the plan has every file):
   milestone proves it can run, it does not own it.
 - **A duplicate-day guard on publish** (D11; M53 decision 1).
 - **The operator console's view of a person's grants and tokens** (D10; `docs/candidates.md`).
+- **Origin labels for writes made through a grant or a token** (*"via <client name>"* in History,
+  a Playbook changed-by column) and any change to `authorKind` (D10; `docs/candidates.md`).
 - **Trip-confined grants**, and every tool left out in D4.
 
 ## Exit gate
 
 - [ ] **Decisions answered and recorded here**, with ADR-083, the plan, and the contracts
-  changelog entries for `ApiToken.revokedReason`, `Origin`'s client and the Playbook field.
+  changelog entries for `ApiToken.revokedReason`, the OAuth prefixes and `ConnectedApp`.
 - [ ] **One way to hash a secret:** API tokens and every OAuth secret are stored as
   `HMAC-SHA256` through one helper (no `scrypt` left in `api-tokens/`), every `tc_` token live
   before migration `0069` is revoked with its reason, and a request with one answers
@@ -302,10 +303,6 @@ Six parts, each its own PR on `main` (the plan has every file):
   access token answer 401, and its refresh token answer `invalid_grant`
   (`pnpm --filter web test:e2e:ci-like e2e/m55-connected-apps.spec.ts` for the page, an
   integration test for the refusal).
-- [ ] **Via labels:** a notebook page edited through a grant shows *"via <client name>"* in the
-  trip's History, and a Playbook created or changed through one shows it in its owner's view; a
-  change by hand shows neither (component tests seen red, an integration test for the recorded
-  origin).
 - [ ] **The inspector:** the MCP Inspector connects to a preview through the loopback redirect and
   lists every tool with its annotations (a screenshot in the PR).
 - [ ] **Exposure:** the MCP, OAuth and Connected-apps routes each have a line in `exposure.ts`, and
