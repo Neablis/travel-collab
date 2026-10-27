@@ -12,6 +12,7 @@ import { protectedResourceMetadata } from "@/server/oauth/metadata";
 
 const SERVED = new Set(["", "api/mcp"]);
 
+/** The protected resource metadata, at the bare well-known path or with `/api/mcp` after it. */
 export async function GET(_request: Request, { params }: { params: Promise<{ path?: string[] }> }) {
   const { path = [] } = await params;
   if (!SERVED.has(path.join("/"))) return new Response(null, { status: 404 });

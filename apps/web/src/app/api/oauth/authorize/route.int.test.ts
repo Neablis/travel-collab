@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 import { issueGrant } from "@/server/entitlements/grants";
 import { livePlanVersion } from "@/server/entitlements/planVersions";
 import { registerClient } from "@/server/oauth/clients";
+import { listGrants } from "@/server/oauth/grants";
 import { mcpResource, oauthIssuer } from "@/server/oauth/metadata";
 import { upsertUser } from "@/server/users";
 
@@ -87,6 +88,8 @@ describe("POST /api/oauth/authorize", () => {
     const res = await decide({ params: await authorizeParams(), decision: "allow", scopes: ["trips:read"] });
     expect(res.status).toBe(402);
     expect(await res.json()).toEqual({ error: "api-not-entitled" });
+    // Codes hang off a grant, so no grant means no code either.
+    expect(await listGrants(currentUserId)).toEqual([]);
   });
 
   it("refuses another origin, and a request with none", async () => {

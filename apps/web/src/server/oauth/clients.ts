@@ -3,8 +3,14 @@ import { and, eq, isNull } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/server/db/client";
 import { oauthClients } from "@/server/db/schema";
-import { guardedHttpsFetcher, type Fetcher } from "@/server/external/remoteImage/fetchImage";
+import {
+  beforeDeadline,
+  guardedHttpsFetcher,
+  readCapped,
+  type Fetcher,
+} from "@/server/external/remoteImage/fetchImage";
 import { assertPublicAddress, RemoteImageRefused, resolveHost, type Resolve } from "@/server/external/remoteImage/guard";
+import { consumeQuota, oauthCimdQuota } from "@/server/quota";
 import { keyedDigest } from "@/server/secrets/keyedDigest";
 import { checkRedirectUri } from "./redirects";
 
@@ -13,13 +19,15 @@ import { checkRedirectUri } from "./redirects";
 // An `https` `client_id` is a Client ID Metadata Document: the client publishes
 // its name and redirects at that URL and we read them, so nobody registers
 // anything. Anything else is the id of a row `/api/oauth/register` wrote (DCR,
-// the fallback for clients that only register). Either way the result is an
-// `oauth_clients` row, so a grant points at one kind of thing.
+// the fallback for clients that only register). Either way a grant points at
+// an `oauth_clients` row, so it points at one kind of thing; a CIMD client's
+// row is written only when someone allows it (`storeClient`), so looking at a
+// consent page writes nothing.
 
 /** A client, as authorize and the consent page see it. */
 export interface OAuthClient {
-  /** The `oauth_clients` row id, which a grant stores. */
-  id: string;
+  /** The `oauth_clients` row id, which a grant stores; `null` for a CIMD client until `storeClient`. */
+  id: string | null;
   /** The protocol `client_id`: the row id for DCR, the document's URL for CIMD. */
   clientId: string;
   kind: "dcr" | "cimd";
@@ -36,7 +44,9 @@ export type ClientRefusal =
   /** A DCR client with no grant 24 hours after registering. */
   | "expired-client"
   /** A CIMD that could not be fetched, or was not a valid document. */
-  | "invalid-metadata-document";
+  | "invalid-metadata-document"
+  /** A CIMD not fetched, because the account asking has fetched its hourly share (`oauthCimdQuota`). */
+  | "too-many-lookups";
 
 export type ResolvedClient = { ok: true; client: OAuthClient } | { ok: false; reason: ClientRefusal; detail?: string };
 
@@ -49,19 +59,38 @@ export const UNUSED_CLIENT_LIFETIME_MS = 24 * 60 * 60 * 1000;
  */
 export const CIMD_LIMITS = { maxBytes: 5 * 1024, timeoutMs: 5_000 } as const;
 
-/** Injected so no test reaches the network: the fetcher, and the resolver it and the pre-flight check use. */
+/**
+ * Who is asking, and what tests inject so none reaches the network: the
+ * fetcher, the resolver it and the pre-flight check use, and the deadline.
+ */
 export interface ClientDeps {
+  /** The account a metadata document's fetch is charged to. Without one, none is fetched. */
+  userId?: string;
   fetch?: Fetcher;
   resolve?: Resolve;
   now?: Date;
+  timeoutMs?: number;
 }
 
 const ROW_ID = z.uuid();
 
+/**
+ * The consent page shows a name inside quotes, as the app's own claim. A quote
+ * would let a name close them and write its own words after ("Claude"
+ * (Recognised: Claude)), and a control or bidi character would hide or reorder
+ * what follows, so neither may be in one.
+ */
+const ClientName = z
+  .string()
+  .trim()
+  .min(1)
+  .max(100)
+  .refine((name) => !/["\p{Cc}\p{Cf}]/u.test(name), "client_name may not contain quotes or control characters");
+
 /** A metadata document, as far as we read one. Anything else in it is ignored. */
 const ClientMetadataDocument = z.object({
   client_id: z.string(),
-  client_name: z.string().trim().min(1).max(100).optional(),
+  client_name: ClientName.optional(),
   redirect_uris: z.array(z.string()).min(1).max(10),
   // No confidential clients here, so a document asking for one is not for us.
   token_endpoint_auth_method: z.literal("none").optional(),
@@ -101,10 +130,12 @@ export async function resolveClient(clientId: string, deps: ClientDeps = {}): Pr
  * endpoint uses to check a code was issued to the client presenting it.
  */
 export async function storedClientRowId(clientId: string): Promise<string | null> {
+  // A uuid names a DCR client only, as in `resolveClient`: a CIMD client's
+  // `client_id` is its URL, never its row id.
   const where = clientId.startsWith("https://")
     ? eq(oauthClients.cimdUrl, clientId)
     : ROW_ID.safeParse(clientId).success
-      ? eq(oauthClients.id, clientId)
+      ? and(eq(oauthClients.id, clientId), eq(oauthClients.kind, "dcr"))
       : null;
   if (where === null) return null;
   const [row] = await db.select({ id: oauthClients.id }).from(oauthClients).where(where);
@@ -114,14 +145,17 @@ export async function storedClientRowId(clientId: string): Promise<string | null
 const refused = (detail: string): ResolvedClient => ({ ok: false, reason: "invalid-metadata-document", detail });
 
 /**
- * Fetch, check and store a client metadata document.
+ * Fetch and check a client metadata document. Stores nothing: the row is
+ * written by `storeClient`, once someone allows the client.
  *
- * **A stranger's URL, fetched by the server (amendment J).** Through ADR-081's
- * guarded fetcher, whose socket connects to the address the guard checked, so a
- * rebinding DNS answer cannot swap in a private address after the check. https
- * on the default port, no credentials in the URL, no redirect followed at all,
- * 5 KB and 5 seconds. Fetched on every authorize rather than cached, so a
- * client that changes its redirects is read as it is now.
+ * **A stranger's URL, fetched by the server (amendment J).** Charged to the
+ * account asking before anything is fetched (`oauthCimdQuota`), so no one can
+ * make the server fetch without bound. Through ADR-081's guarded fetcher, whose
+ * socket connects to the address the guard checked, so a rebinding DNS answer
+ * cannot swap in a private address after the check. https on the default port,
+ * no credentials in the URL, no redirect followed at all, 5 KB and 5 seconds,
+ * the DNS pre-flight included. Fetched on every authorize rather than cached,
+ * so a client that changes its redirects is read as it is now.
  */
 async function resolveMetadataDocument(url: string, deps: ClientDeps): Promise<ResolvedClient> {
   let parsed: URL;
@@ -134,6 +168,8 @@ async function resolveMetadataDocument(url: string, deps: ClientDeps): Promise<R
   if (parsed.pathname === "/" || url.includes("#") || parsed.username !== "" || parsed.password !== "" || parsed.port !== "") {
     return { ok: false, reason: "unknown-client" };
   }
+  if (deps.userId === undefined) return refused("no account to charge the fetch to");
+  if (!(await consumeQuota(oauthCimdQuota(), deps.userId)).allowed) return { ok: false, reason: "too-many-lookups" };
   let text: string;
   try {
     text = await fetchDocument(parsed, deps);
@@ -155,25 +191,42 @@ async function resolveMetadataDocument(url: string, deps: ClientDeps): Promise<R
   if (badRedirect !== undefined) return refused(`redirect ${badRedirect} is not allowed`);
   // `logo_uri` and `jwks_uri` are never read: the page shows no logo, and there
   // are no confidential clients to need keys.
-  const values = {
-    clientName: document.data.client_name ?? parsed.host,
-    redirectUris: document.data.redirect_uris,
+  return {
+    ok: true,
+    client: {
+      id: null,
+      clientId: url,
+      kind: "cimd",
+      clientName: document.data.client_name ?? parsed.host,
+      redirectUris: document.data.redirect_uris,
+      cimdHost: parsed.host,
+    },
   };
+}
+
+/**
+ * The `oauth_clients` row a grant for `client` points at. A DCR client has one
+ * already; a CIMD client's is written here, at Allow, and only here, so a
+ * consent page nobody accepted leaves nothing behind. One row per document: a
+ * later Allow updates it, so grants keep pointing at one id.
+ */
+export async function storeClient(client: OAuthClient, now: Date): Promise<string> {
+  if (client.id !== null) return client.id;
+  const values = { clientName: client.clientName, redirectUris: client.redirectUris };
   const [row] = await db
     .insert(oauthClients)
     .values({
       id: randomUUID(),
       kind: "cimd",
-      cimdUrl: url,
+      cimdUrl: client.clientId,
       registeredIpHash: null,
-      createdAt: deps.now ?? new Date(),
+      createdAt: now,
       firstUsedAt: null,
       ...values,
     })
-    // One row per document: a second fetch updates it, so grants keep pointing at one id.
     .onConflictDoUpdate({ target: oauthClients.cimdUrl, set: values })
-    .returning();
-  return { ok: true, client: toClient(row!) };
+    .returning({ id: oauthClients.id });
+  return row!.id;
 }
 
 async function fetchDocument(url: URL, deps: ClientDeps): Promise<string> {
@@ -181,10 +234,12 @@ async function fetchDocument(url: URL, deps: ClientDeps): Promise<string> {
   if (process.env.EXTERNAL_DATA_OFFLINE === "true") throw new RemoteImageRefused("offline");
   const resolve = deps.resolve ?? resolveHost;
   const fetch = deps.fetch ?? guardedHttpsFetcher(resolve);
-  const signal = AbortSignal.timeout(CIMD_LIMITS.timeoutMs);
+  const signal = AbortSignal.timeout(deps.timeoutMs ?? CIMD_LIMITS.timeoutMs);
   // Refuses a private name before any socket exists; the fetcher's own lookup
-  // then checks the address it really connects to.
-  await assertPublicAddress(url.hostname, resolve);
+  // then checks the address it really connects to. Inside the deadline: the
+  // resolver takes no signal, and a nameserver that never answers would hold
+  // the consent page for the system resolver's timeout instead.
+  await beforeDeadline(assertPublicAddress(url.hostname, resolve), signal);
   const response = await fetch(url, {
     signal,
     redirect: "manual",
@@ -195,32 +250,13 @@ async function fetchDocument(url: URL, deps: ClientDeps): Promise<string> {
     // A redirect included: following one is a second fetch of a URL nobody checked.
     throw new RemoteImageRefused("upstream-status", String(response.status));
   }
-  return readCapped(response, CIMD_LIMITS.maxBytes);
-}
-
-/** The body as text, refused once it passes `maxBytes`, counted as it arrives. */
-async function readCapped(response: Response, maxBytes: number): Promise<string> {
-  if (response.body === null) return "";
-  const reader = response.body.getReader();
-  const chunks: Uint8Array[] = [];
-  let total = 0;
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    total += value.byteLength;
-    if (total > maxBytes) {
-      await reader.cancel();
-      throw new RemoteImageRefused("too-large");
-    }
-    chunks.push(value);
-  }
-  return Buffer.concat(chunks).toString("utf8");
+  return new TextDecoder().decode(await readCapped(response, CIMD_LIMITS.maxBytes));
 }
 
 /** RFC 7591 registration, as `/api/oauth/register` reads it. Unknown fields are ignored. */
 const RegistrationRequest = z.object({
   redirect_uris: z.array(z.string()).min(1).max(10),
-  client_name: z.string().trim().min(1).max(100).optional(),
+  client_name: ClientName.optional(),
   token_endpoint_auth_method: z.literal("none").optional(),
   grant_types: z.array(z.enum(["authorization_code", "refresh_token"])).optional(),
   response_types: z.array(z.literal("code")).optional(),
