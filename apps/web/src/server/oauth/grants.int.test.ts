@@ -8,7 +8,7 @@ import { db } from "@/server/db/client";
 import { oauthClients, oauthCodes } from "@/server/db/schema";
 import { keyedDigest } from "@/server/secrets/keyedDigest";
 import { registerClient, resolveClient, type OAuthClient } from "./clients";
-import { createGrant, grantIsLive, grantOf, issueCode, listGrants, revokeGrant } from "./grants";
+import { createGrant, grantIsLive, grantOf, issueCode, listGrants, revokeGrant, touchGrantLastUsed } from "./grants";
 import { mcpResource } from "./metadata";
 import { exchangeCode } from "./tokens";
 
@@ -77,5 +77,19 @@ describe("listGrants", () => {
     await grantFor(`dev-${randomUUID()}`, app);
     await revokeGrant(owner, older.id, "owner");
     expect((await listGrants(owner)).map((grant) => grant.id)).toEqual([newer.id, older.id]);
+  });
+});
+
+describe("touchGrantLastUsed", () => {
+  it("records a use, then writes again only once five minutes have passed", async () => {
+    const grant = await grantFor(`dev-${randomUUID()}`, await client());
+    const first = new Date("2026-10-27T10:00:00.000Z");
+    await touchGrantLastUsed(grant.id, first);
+    expect((await grantOf(grant.id))!.lastUsedAt).toEqual(first);
+    await touchGrantLastUsed(grant.id, new Date(first.getTime() + 4 * 60 * 1000));
+    expect((await grantOf(grant.id))!.lastUsedAt).toEqual(first);
+    const later = new Date(first.getTime() + 5 * 60 * 1000 + 1);
+    await touchGrantLastUsed(grant.id, later);
+    expect((await grantOf(grant.id))!.lastUsedAt).toEqual(later);
   });
 });

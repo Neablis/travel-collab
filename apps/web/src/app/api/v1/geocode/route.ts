@@ -3,6 +3,7 @@ import { GeocodeCandidates } from "@tc/contracts";
 import { getGeocoder } from "@/server/geocoding";
 import { PublicApiError } from "@/server/public-api/commands";
 import { candidateLocation, defaultResolveDeps, GEOCODE_UNAVAILABLE, lookupRefusal } from "@/server/public-api/locations";
+import { credentialKey } from "@/server/public-api/actor";
 import { route } from "@/server/public-api/route";
 import { consumeQuota, placeSearchTokenQuota } from "@/server/quota";
 
@@ -47,9 +48,11 @@ export const { GET } = route({
       const { q, countryCode } = query as z.infer<typeof Query>;
       if (q === "") return { results: [] };
 
-      if (actor.via === "token") {
+      // Per credential: a token's own day, or an OAuth grant's (ADR-083 §7).
+      const credential = credentialKey(actor);
+      if (credential !== null) {
         const refusal = lookupRefusal(
-          await consumeQuota(placeSearchTokenQuota(), actor.tokenId),
+          await consumeQuota(placeSearchTokenQuota(), credential),
           responseHeaders,
           "This token's daily place-search allowance is used up.",
         );

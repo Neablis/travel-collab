@@ -1,5 +1,5 @@
 import { randomBytes, randomUUID } from "node:crypto";
-import { and, desc, eq, isNull } from "drizzle-orm";
+import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import { ApiScope, OAUTH_CODE_PREFIX } from "@tc/contracts";
 import { db } from "@/server/db/client";
@@ -127,6 +127,31 @@ export async function revokeGrant(
   if (row === undefined) return false;
   await cutOffGrant(grantId, reason, now);
   return true;
+}
+
+/** How stale `last_used_at` may get before a use is worth a write, as `api_tokens`'. */
+const LAST_USED_COARSENING_MS = 5 * 60 * 1000;
+
+/**
+ * Record that a grant's access token was used, at most once every five
+ * minutes; the guard is in the `WHERE` so concurrent calls cannot each write.
+ * Never throws: a call that worked must not fail over bookkeeping.
+ */
+export async function touchGrantLastUsed(grantId: string, now: Date = new Date()): Promise<void> {
+  const staleBefore = new Date(now.getTime() - LAST_USED_COARSENING_MS);
+  try {
+    await db
+      .update(oauthGrants)
+      .set({ lastUsedAt: now })
+      .where(
+        and(
+          eq(oauthGrants.id, grantId),
+          sql`(${oauthGrants.lastUsedAt} IS NULL OR ${oauthGrants.lastUsedAt} < ${staleBefore})`,
+        ),
+      );
+  } catch (error) {
+    console.error("oauth grant last_used_at touch failed", { grantId, error });
+  }
 }
 
 /** Every grant this person has made, newest first, dead ones included so a list can say why. */

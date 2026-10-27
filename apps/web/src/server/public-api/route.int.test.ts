@@ -65,6 +65,8 @@ vi.mock("@/server/public-api/actor", async (importOriginal) => {
   };
 });
 
+const { runInMcpDispatch } = await import("@/server/oauth/dispatchContext");
+const { oauthIssuer } = await import("@/server/oauth/metadata");
 const { db } = await import("@/server/db/client");
 const { apiTokens, tripDetails } = await import("@/server/db/schema");
 const { eq } = await import("drizzle-orm");
@@ -147,6 +149,19 @@ describe("credential resolution", () => {
     // is what `/api/*` answers and what v1 deliberately does not.
     expect(typeof body.error).not.toBe("string");
     expect(typeof body.error.message).toBe("string");
+  });
+
+  // **An OAuth refusal says where to get a token** (ADR-083 §7, RFC 9728): the
+  // bare `Bearer` a `tc_` refusal sends would leave an MCP client nowhere to go.
+  it("refuses an OAuth access token with the resource_metadata challenge", async () => {
+    const res = await runInMcpDispatch(() =>
+      LIST_TRIPS(get("http://localhost/api/v1/trips", `tco_${randomBytes(32).toString("base64url")}`), NO_PARAMS),
+    );
+    expect(res.status).toBe(401);
+    expect((await res.json()).error.code).toBe("unauthenticated");
+    expect(res.headers.get("WWW-Authenticate")).toBe(
+      `Bearer resource_metadata="${oauthIssuer()}/.well-known/oauth-protected-resource/api/mcp", error="invalid_token"`,
+    );
   });
 
   // **An expired token answers differently from a revoked one** (Decision 13),
