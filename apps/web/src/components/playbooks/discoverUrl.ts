@@ -81,10 +81,16 @@ export function parseDiscoverUrl(params: RawParams): DiscoverUrlState {
 
 /** `parseDiscoverUrl` for a raw query string, `?` or not, every repeated value kept. */
 export function parseDiscoverQuery(query: string): DiscoverUrlState {
-  const params: Record<string, string[]> = {};
-  for (const [key, value] of new URLSearchParams(query)) (params[key] ??= []).push(value);
-  return parseDiscoverUrl(params);
+  // Only the names Discover reads, never a key the query chose: a `__proto__`
+  // in a pasted `?discover=` must not reach an object's prototype.
+  const params = new URLSearchParams(query);
+  return parseDiscoverUrl(
+    Object.fromEntries(DISCOVER_PARAMS.map((name) => [name, params.getAll(name)] as const)),
+  );
 }
+
+/** Every query name `parseDiscoverUrl` reads. */
+const DISCOVER_PARAMS = ["city", "country", "scope", "sort", "length", "rating", "tag", "after"] as const;
 
 /**
  * The query string for `state`, without the leading `?` and with every default
