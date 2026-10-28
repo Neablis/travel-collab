@@ -40,3 +40,18 @@
   test and message, and it did. The `-c` entry stays open, since the cause here
   is still suspected timing, not found.
 - **First noted:** 2026-10-24, on PR #548's CI.
+- **The retry's failure, reproduced and fixed (2026-10-28, KI sweep).** The test chose the other
+  trip by `/PaletteOther/`, and alice is shared: any second *PaletteOther* in her list (the
+  first attempt's own trip, on a retry; a parallel worker; a repeat) matches it twice. So once the
+  first attempt failed, Retry #1 was certain to fail too, as it did on PR 548. Against a
+  production build, `-g "keyboard alone" --repeat-each=20 --retries=0`: **20 failed of 20**,
+  each at :31, `strict mode violation … resolved to 2 elements` (`[e2e] PaletteOther
+  1793229070082-…` and `…070071-…`). Fixed in `e2e/m41-command-palette.spec.ts`: the step types
+  `go paletteother` and arrows to the option ending in this run's whole trip name. After:
+  30 of 30, then the whole file `--repeat-each=15` 60 of 60, and `--repeat-each=20 --workers=8`
+  80 of 80.
+- **The first attempt's failure, not reproduced:** the Day 2 header's `toBeFocused` after *go
+  day 2*, 0 failures in those 65 walks. Read, not proven: the focus waits on Plan having drawn
+  (`TripBoardScreen`'s reveal, which follows the URL's round trip and the `next/dynamic` board),
+  and CI's 5 s `expect` budget is all it gets. **Stays open** for that half; a first-attempt
+  failure now gets a fair retry instead of a certain second red.

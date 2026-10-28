@@ -1,7 +1,7 @@
 import type { Page } from "@playwright/test";
 import { expect, test } from "./fixtures/test";
 import { createMappedTrip } from "./helpers";
-import { e2eTripName } from "./tripNames";
+import { e2eTripName, escapeForRegExp } from "./tripNames";
 
 // M41 D9, ADR-068 and ADR-069: ⌘K runs the page's own actions, named as
 // paths (*Action › Type › Target*), so the whole walk here is done from the
@@ -46,7 +46,8 @@ async function choose(page: Page, name: string | RegExp) {
 }
 
 test("a trip walked from the keyboard alone: drilling, typing across levels, a new stop, the assistant", async ({ page }) => {
-  const other = await createMappedTrip(page, e2eTripName("PaletteOther"), 1);
+  const otherName = e2eTripName("PaletteOther");
+  const other = await createMappedTrip(page, otherName, 1);
   const tripId = await createMappedTrip(page, e2eTripName("Palette"), 2);
   await page.goto(`/trips/${tripId}?view=Plan`);
   await expect(page.getByTestId("day-column")).toHaveCount(2);
@@ -90,7 +91,15 @@ test("a trip walked from the keyboard alone: drilling, typing across levels, a n
   await command(page, "ask");
   await expect(page.getByRole("complementary", { name: "Assistant" })).toBeVisible();
 
-  await command(page, "go paletteother", /PaletteOther/);
+  // THIS run's trip by its whole name, not /PaletteOther/: alice is shared, so
+  // a retry, a repeat or a parallel worker leaves another PaletteOther in her
+  // list, and the label matched both (KI-2026-10-24-p: the strict-mode
+  // violation on Retry #1, which the first attempt's own trip made certain).
+  // Typed, the word lists every one of them; arrowed to, this one runs.
+  await open(page);
+  await page.keyboard.type("go paletteother");
+  await choose(page, new RegExp(`${escapeForRegExp(otherName)}$`));
+  await expect(palette(page)).toBeHidden();
   await expect(page).toHaveURL(new RegExp(`/trips/${other}`));
 });
 
