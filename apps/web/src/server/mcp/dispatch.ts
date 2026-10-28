@@ -1,4 +1,4 @@
-import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
+import type { CallToolResult } from "@modelcontextprotocol/server";
 import { runInMcpDispatch } from "@/server/oauth/dispatchContext";
 import { forgetKey, REPLAYED_HEADER, requestHash } from "@/server/public-api/idempotency";
 import { DECLARED } from "@/server/public-api/route";

@@ -1,14 +1,18 @@
-import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
+import { createMcpHandler } from "@modelcontextprotocol/server";
 import type { McpCaller } from "@/server/mcp/dispatch";
-import { buildServer } from "@/server/mcp/server";
+import { buildServer, reportMcpError } from "@/server/mcp/server";
 import { runInMcpDispatch } from "@/server/oauth/dispatchContext";
 import { resolveActor } from "@/server/public-api/actor";
 import { oauthChallenge, oauthRefusalResponse } from "@/server/public-api/route";
 import { TOOLS } from "./tools";
 
 // **The MCP connector: `POST /api/mcp`** (ADR-083 §8). Streamable HTTP,
-// stateless, JSON responses: no `Mcp-Session-Id` and no stream to resume,
-// because a Vercel function has no sticky routing to come back to.
+// stateless: no `Mcp-Session-Id` and no stream to resume, because a Vercel
+// function has no sticky routing to come back to. One SDK handler serves both
+// revisions: 2026-07-28, sessionless by design, and 2025-11-25, whose
+// `initialize` handshake the SDK's stateless fallback answers and then
+// forgets. That fallback answers a 2025 client with a one-event SSE stream
+// rather than a JSON body; one path was chosen over keeping JSON (2026-10-28).
 //
 // **The credential is resolved before any MCP is parsed.** A client with no
 // token, or a dead one, gets the 401 whose `resource_metadata` starts the OAuth
@@ -38,18 +42,21 @@ export async function POST(request: Request): Promise<Response> {
   if (!resolution.ok && resolution.refusal.reason === "oauth") return oauthRefusalResponse(resolution.refusal.refusal);
   if (!resolution.ok || resolution.actor.via !== "oauth") return oauthRefusalResponse({ reason: "unknown" });
 
-  const transport = new WebStandardStreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });
   const caller: McpCaller = { request, userId: resolution.actor.userId, grantId: resolution.actor.grantId };
-  const server = buildServer(TOOLS, caller);
-  await server.connect(transport);
-  try {
-    const response = await transport.handleRequest(request);
-    // The bearer lapsed between the check above and a tool's own: the same
-    // HTTP refusal, so the client refreshes rather than the model giving up.
-    return caller.refusal ?? response;
-  } finally {
-    await server.close();
-  }
+  const handler = createMcpHandler(() => buildServer(TOOLS, caller), {
+    legacy: "stateless",
+    onerror: reportMcpError,
+  });
+  const response = await handler.fetch(request);
+  // The 2025 fallback answers with its stream before the tool has run, so a
+  // refusal is known only once the body ends. Read to the end, which every
+  // answer here reaches: `subscriptions/listen` closes at once, since the
+  // server advertises nothing to listen for. A client that disconnects only
+  // ends the stream early: the fallback's teardown closes it, never errors it.
+  const body = response.body === null ? null : await response.arrayBuffer();
+  // The bearer lapsed between the check above and a tool's own: the same
+  // HTTP refusal, so the client refreshes rather than the model giving up.
+  return caller.refusal ?? new Response(body, response);
 }
 
 /** No stream to open and no session to end, so neither method exists here. */
