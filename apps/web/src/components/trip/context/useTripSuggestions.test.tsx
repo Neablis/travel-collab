@@ -171,6 +171,47 @@ describe("useTripSuggestions, through TripProvider", () => {
     expect(seen).toEqual([]);
   });
 
+  // KI-2026-10-25-w: the idle read is a real request, so it can still be out
+  // when the provider unmounts — and in CI, when the test file's jsdom is
+  // already gone. Any state set when it lands makes React read `window.event`,
+  // which is then a ReferenceError that rejects the read's promise and fails
+  // the unit job after every file has passed. `window` is taken away here as
+  // the teardown takes it, so the late answer has nothing to land on.
+  it("sets nothing when a read still out at unmount answers after the page is gone", async () => {
+    const idle = holdIdle();
+    const { seen } = await mount("owner");
+    let release!: () => void;
+    const held = new Promise<void>((r) => (release = r));
+    server.use(
+      http.get("/api/trips/:tripId/suggestions", async () => {
+        await held;
+        return HttpResponse.json({ changes: [], rev: "late" });
+      }),
+    );
+    await idleScheduled(idle);
+    idle.fire();
+    await waitFor(() => expect(seen).toEqual(["GET suggestions"]));
+    cleanup();
+
+    const answered = new Promise<void>((r) => server.events.on("response:mocked", () => r()));
+    const rejections: unknown[] = [];
+    const onRejection = (reason: unknown) => void rejections.push(reason);
+    process.on("unhandledRejection", onRejection);
+    const page = globalThis as { window?: unknown };
+    const window = page.window;
+    delete page.window;
+    try {
+      release();
+      await answered;
+      // The response's body, its parse and the hook's continuation, in turn.
+      await new Promise((r) => setTimeout(r, 50));
+    } finally {
+      page.window = window;
+      process.off("unhandledRejection", onRejection);
+    }
+    expect(rejections).toEqual([]);
+  });
+
   // The list is 404 to a viewer (spec §2.4: ghosts are never shown to one).
   it("never reads it for a viewer, and exposes none", async () => {
     const { seen } = await mount("viewer");

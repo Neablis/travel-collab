@@ -64,6 +64,17 @@ export function useTripSuggestions({ tripId, enabled, onAccepted }: Args): {
   const reading = useRef(0);
   const live = useRef(enabled);
   live.current = enabled;
+  // A read still out when the provider unmounts lands nowhere. React drops a
+  // state update on an unmounted hook, but it reads `window.event` to price
+  // the update first, so one landing after a test's jsdom is gone throws and
+  // rejects the read (KI-2026-10-25-w).
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
 
   const refresh = useCallback(async () => {
     if (!live.current) return;
@@ -72,6 +83,7 @@ export function useTripSuggestions({ tripId, enabled, onAccepted }: Args): {
     reading.current++;
     const result = await fetchTripSuggestions(tripId);
     reading.current--;
+    if (!mounted.current) return;
     setInFlight((n) => n - 1);
     if (ticket !== latest.current || !live.current) return;
     if (!result.ok) {
