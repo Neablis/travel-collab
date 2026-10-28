@@ -14,7 +14,16 @@ vi.mock("@/lib/apiClient", () => ({
 // Who is reading. `undefined` (not known yet) unless a test says otherwise —
 // the state in which the screen renders as it did before ADR-061.
 let session: { id: string } | null | undefined = undefined;
-vi.mock("@/components/account/useSessionUser", () => ({ useSessionUser: () => session }));
+vi.mock("@/components/account/useSessionUser", () => ({
+  useSessionUser: () => session,
+  useKnownSessionUser: () => session,
+}));
+// A signed-in reader is offered the page's assistant, whose button holds a
+// router; nothing here presses it.
+vi.mock("next/navigation", async (actual) => ({
+  ...(await actual<typeof import("next/navigation")>()),
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn(), prefetch: vi.fn(), back: vi.fn(), forward: vi.fn() }),
+}));
 
 import { DiscoverScreen } from "./DiscoverScreen";
 import { matchLine } from "./DiscoverCard";
@@ -833,6 +842,7 @@ describe("Discover", () => {
   // on Everyone, switched to Yours page two, a day, Back — and the screen came
   // back on Everyone page one (Mitchell, 2026-10-28). The URL wins.
   it("comes back to the tab and the page its URL names, not the ones it was first rendered with", async () => {
+    session = { id: "dev-alice" };
     const last = "6f1f8c2e-0000-4000-8000-000000000001";
     window.history.replaceState(null, "", `/playbooks?scope=yours&after=${last}`);
     render(<DiscoverScreen initial={{}} />);
@@ -841,6 +851,19 @@ describe("Discover", () => {
     );
     expect(screen.getByRole("tab", { name: "Yours" }).getAttribute("aria-selected")).toBe("true");
     expect(window.location.search).toBe(`?scope=yours&after=${last}`);
+  });
+
+  // The server seeds a stranger with Everyone whatever the URL says, and hands
+  // over its list; the URL read must agree with that seed, or it sets the
+  // state again and sends the first search the list exists to save
+  // (`seo.spec.ts`, "makes no first search").
+  it("sends no first search for a stranger whose URL names a scope they cannot have", async () => {
+    session = null;
+    window.history.replaceState(null, "", "/playbooks?scope=saved&city=Kyoto");
+    render(<DiscoverScreen initial={{ scope: "everyone", cities: ["Kyoto"] }} initialData={response()} />);
+    expect(await screen.findByTestId("discover-results")).toBeTruthy();
+    await vi.advanceTimersByTimeAsync(500);
+    expect(searchPlaybooksMock).not.toHaveBeenCalled();
   });
 
   // The address bar is not the only reader: Next's router keeps its own idea

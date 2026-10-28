@@ -171,8 +171,11 @@ export function DiscoverCard({
         data-city={city}
         data-matched={matched}
         className={cn(
-          "relative block min-w-0 truncate rounded-full px-2.5 py-0.5 text-2xs font-semibold tracking-wide uppercase group-hover/chip:underline",
+          "relative truncate rounded-full px-2.5 py-0.5 text-2xs font-semibold tracking-wide uppercase group-hover/chip:underline",
           matched ? "bg-brand-tint text-brand-pressed" : "border border-hairline bg-surface text-slate",
+          // Off the sea, a block that may shrink, so one name too long for
+          // its `FitRow` ends in an ellipsis inside its link.
+          sea === null && "block min-w-0",
         )}
       >
         {city}
@@ -221,9 +224,31 @@ export function DiscoverCard({
   // three, and the rest in "+N more"; the card's own "Yours" mark came off to
   // give them the room — the *Yours* tab already says it. On the sea the
   // row's one-line clamp does the same job from CSS.
-  const chipRow = (
-    <div className="flex items-start gap-2">
-      {sea === null ? (
+  //
+  // The sea keeps the markup it had, which its screenshots pin
+  // (`m42-demo-trips.spec.ts`): a wrapping row, the count as the list item
+  // itself, and the badge slot that stretches beside the chips.
+  const chipRow =
+    sea !== null ? (
+      <div className="flex flex-wrap items-start gap-2">
+        <ul className="landing-one-row flex flex-wrap gap-x-1.5" data-testid="city-chips">
+          {chips.shown.map(cityItem)}
+          {chips.hidden.length > 0 && (
+            <li
+              title={chips.hidden.join(", ")}
+              data-testid="city-chips-more"
+              className="rounded-full border border-hairline bg-surface px-2.5 py-0.5 text-2xs font-semibold tracking-wide text-slate uppercase"
+            >
+              +{chips.hidden.length} more
+            </li>
+          )}
+        </ul>
+        <span className="flex flex-1 flex-wrap items-center justify-end gap-1.5">
+          {day.visibility === "private" && <Badge variant="neutral">Private</Badge>}
+        </span>
+      </div>
+    ) : (
+      <div className="flex items-start gap-2">
         <FitRow
           as="ul"
           data-testid="city-chips"
@@ -235,19 +260,13 @@ export function DiscoverCard({
           items={ordered.map(cityItem)}
           more={(hidden) => moreChip(ordered.slice(ordered.length - hidden))}
         />
-      ) : (
-        <ul className="landing-one-row flex flex-wrap gap-x-1.5" data-testid="city-chips">
-          {chips.shown.map(cityItem)}
-          {chips.hidden.length > 0 && <li className="flex">{moreChip(chips.hidden)}</li>}
-        </ul>
-      )}
-      {day.visibility === "private" && (
-        <span className="flex shrink-0 items-center">
-          <Badge variant="neutral">Private</Badge>
-        </span>
-      )}
-    </div>
-  );
+        {day.visibility === "private" && (
+          <span className="flex shrink-0 items-center">
+            <Badge variant="neutral">Private</Badge>
+          </span>
+        )}
+      </div>
+    );
   // **One level under what heads the list, styled as the h4 it used to be.**
   // A place's playbooks and a profile put these cards straight under their
   // h1, so an h4 skipped two levels and axe failed `/playbooks` on
