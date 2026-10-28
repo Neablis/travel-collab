@@ -214,12 +214,13 @@ export type RefusedRequest = { url: string; sentDuring: string | undefined };
 /** Refused own-origin requests not yet reported. Drained by {@link takeRefusedOwnOrigin}. */
 const refusedOwnOrigin: RefusedRequest[] = [];
 
-/**
- * Names the test running right now. The setup file supplies it, so a request
- * that lands after its own test ended, and so fails a later one, still names
- * the test that sent it.
- */
 let currentTestName: () => string | undefined = () => undefined;
+
+/**
+ * Tells the guard how to name the test running right now. The setup file
+ * supplies it, so a request that lands after its own test ended, and so fails
+ * a later one, still names the test that sent it.
+ */
 export function nameCurrentTestWith(name: () => string | undefined): void {
   currentTestName = name;
 }
