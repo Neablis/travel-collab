@@ -114,8 +114,8 @@ describe("POST /api/mcp with a connected client's token", () => {
     expect(publish.annotations).toEqual(expect.objectContaining({ readOnlyHint: false, openWorldHint: true }));
   });
 
-  // MCP 2026-07-28 adds `Mcp-Method` / `Mcp-Name`; the pinned SDK targets
-  // 2025-11-25, so a client sending them and one that does not both answer.
+  // A 2025-11-25 client may send 2026-07-28's `Mcp-Method` / `Mcp-Name` or
+  // not; with no per-request envelope it is the handshake era either way.
   it("answers tools/call with and without the Mcp-Method and Mcp-Name headers", async () => {
     const owner = await entitled();
     const access = await connect(owner, ["account:read"]);
@@ -137,6 +137,68 @@ describe("POST /api/mcp with a connected client's token", () => {
     const { result } = await res.json();
     expect(result.isError).toBe(true);
     expect(result.content[0].text).toMatch(/^This token does not hold the "account:read" scope\. \(insufficient-scope\)/);
+  });
+});
+
+// MCP 2026-07-28 has no handshake: each request names its revision in a
+// header and again in `_meta`, with `Mcp-Method` / `Mcp-Name` beside it.
+const MODERN = "2026-07-28";
+
+function modern(secret: string, method: string, params: Record<string, unknown>, name?: string): Promise<Response> {
+  const envelope = { "io.modelcontextprotocol/protocolVersion": MODERN, "io.modelcontextprotocol/clientCapabilities": {} };
+  return mcp(rpc(method, { ...params, _meta: envelope }), {
+    authorization: `Bearer ${secret}`,
+    "mcp-protocol-version": MODERN,
+    "mcp-method": method,
+    ...(name === undefined ? {} : { "mcp-name": name }),
+  });
+}
+
+describe("POST /api/mcp on MCP 2026-07-28, with no initialize", () => {
+  it("lists the tools, with a short private cache life", async () => {
+    const access = await connect(await entitled(), ["account:read"]);
+    const res = await modern(access, "tools/list", {});
+    expect(res.status).toBe(200);
+    expect(res.headers.get("mcp-session-id")).toBeNull();
+    const { result } = await res.json();
+    expect(result.tools.map((t: { name: string }) => t.name)).toContain("whoami");
+    expect(result).toEqual(expect.objectContaining({ ttlMs: 60_000, cacheScope: "private" }));
+  });
+
+  it("calls a tool whose Mcp-Name matches the body, and refuses one whose does not", async () => {
+    const owner = await entitled();
+    const access = await connect(owner, ["account:read"]);
+    const ok = await modern(access, "tools/call", { name: "whoami", arguments: {} }, "whoami");
+    expect(ok.status).toBe(200);
+    expect(JSON.parse((await ok.json()).result.content[0].text).userId).toBe(owner);
+
+    const res = await modern(access, "tools/call", { name: "whoami", arguments: {} }, "get_trip");
+    expect(res.status).toBe(400);
+    expect((await res.json()).error.message).toMatch(/Mcp-Name header names "get_trip"/);
+  });
+});
+
+describe("POST /api/mcp on MCP 2025-11-25, after the handshake", () => {
+  it("answers initialize with 2025-11-25, then tools/list", async () => {
+    const access = await connect(await entitled(), ["account:read"]);
+    const init = await mcp(
+      rpc("initialize", {
+        protocolVersion: "2025-11-25",
+        capabilities: {},
+        clientInfo: { name: "claude-ai", version: "1.0" },
+      }),
+      { authorization: `Bearer ${access}` },
+    );
+    expect(init.status).toBe(200);
+    expect(init.headers.get("mcp-session-id")).toBeNull();
+    expect((await init.json()).result.protocolVersion).toBe("2025-11-25");
+
+    const res = await mcp(rpc("tools/list", {}), bearer(access));
+    expect(res.status).toBe(200);
+    const { result } = await res.json();
+    expect(result.tools.map((t: { name: string }) => t.name)).toContain("whoami");
+    // Cache fields are 2026-07-28 vocabulary; a 2025 client is not sent them.
+    expect(result.ttlMs).toBeUndefined();
   });
 });
 
