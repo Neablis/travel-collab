@@ -16,6 +16,8 @@
  * is always a sensible place to end up, and the reason this returns a value for
  * every input rather than null for some.
  */
+import { discoverQueryString, parseDiscoverQuery } from "./discoverUrl";
+
 export type BackTarget = { href: string; label: string };
 
 const DISCOVER: BackTarget = { href: "/playbooks", label: "Discover" };
@@ -26,6 +28,8 @@ export function backTarget(params: {
   day?: string | null;
   /** The person whose profile to return to, when `from` is `profile`. */
   profile?: string | null;
+  /** Discover's own query string, when `from` is `playbooks`: the tab, filters and page to return to. */
+  discover?: string | null;
 }): BackTarget {
   if (params.from === "board") return { href: "/playbooks/board", label: "Who shares the most" };
   if (params.from === "day" && params.day) {
@@ -41,6 +45,13 @@ export function backTarget(params: {
       label: "the profile",
     };
   }
+  // Back to the search the day was opened from (Mitchell, 2026-10-28: back
+  // from a day opened under *Yours* landed on *Everyone*). Parsed and written
+  // again rather than pasted, so the link can only ever name a Discover search.
+  if (params.from === "playbooks" && params.discover) {
+    const query = discoverQueryString(parseDiscoverQuery(params.discover));
+    if (query !== "") return { href: `${DISCOVER.href}?${query}`, label: DISCOVER.label };
+  }
   return DISCOVER;
 }
 
@@ -54,7 +65,7 @@ export function backTarget(params: {
  * gone wrong.
  */
 export type BackOrigin =
-  | { from: "playbooks" }
+  | { from: "playbooks"; discover?: string }
   | { from: "board" }
   | { from: "day"; day: string }
   | { from: "profile"; profile: string };
@@ -63,5 +74,6 @@ export function backQuery(origin: BackOrigin): string {
   const params = new URLSearchParams({ from: origin.from });
   if (origin.from === "day") params.set("day", origin.day);
   if (origin.from === "profile") params.set("profile", origin.profile);
+  if (origin.from === "playbooks" && origin.discover) params.set("discover", origin.discover);
   return `?${params.toString()}`;
 }

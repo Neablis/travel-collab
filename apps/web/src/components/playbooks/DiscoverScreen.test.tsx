@@ -18,6 +18,7 @@ vi.mock("@/components/account/useSessionUser", () => ({ useSessionUser: () => se
 
 import { DiscoverScreen } from "./DiscoverScreen";
 import { matchLine } from "./DiscoverCard";
+import { DISCOVER_URL_DEFAULTS, discoverQueryString, type DiscoverUrlState } from "./discoverUrl";
 
 function day(over: Partial<DiscoverDay> = {}): DiscoverDay {
   return {
@@ -85,6 +86,16 @@ afterEach(() => {
   // must not hand it to the next one.
   window.history.replaceState(null, "", "/");
 });
+
+/**
+ * The screen as the page renders it: under the URL its `initial` was read
+ * from, which the screen reads again on mount (back from a day).
+ */
+function at(initial: Partial<DiscoverUrlState>) {
+  const query = discoverQueryString({ ...DISCOVER_URL_DEFAULTS, ...initial });
+  window.history.replaceState(window.history.state, "", `/playbooks${query === "" ? "" : `?${query}`}`);
+  return <DiscoverScreen initial={initial} />;
+}
 
 /** The debounce is 250ms; nothing reaches the endpoint before it elapses. */
 async function typeCity(text: string): Promise<void> {
@@ -195,7 +206,7 @@ describe("Discover", () => {
     ["yours", "newest", "Days you kept from your trips"],
     ["saved", "highest-rated", "Days you have taken into a trip"],
   ] as const)("titles a %s list sorted %s %j", async (scope, sort, title) => {
-    render(<DiscoverScreen initial={{ scope, sort }} />);
+    render(at({ scope, sort }));
     expect(await screen.findByRole("heading", { level: 2, name: title })).toBeTruthy();
   });
 
@@ -250,7 +261,7 @@ describe("Discover", () => {
 
   it("tells a new account with nothing of its own that it has kept nothing, not that it filtered too much", async () => {
     searchPlaybooksMock.mockResolvedValue(ok(response({ days: [] })));
-    render(<DiscoverScreen initial={{ scope: "yours" }} />);
+    render(at({ scope: "yours" }));
     expect(await screen.findByRole("heading", { level: 2, name: "You have not kept a day yet" })).toBeTruthy();
     expect(screen.queryByText(/Try fewer filters/)).toBeNull();
     expect(screen.queryByTestId("discover-search-everywhere")).toBeNull();
@@ -258,7 +269,7 @@ describe("Discover", () => {
 
   it("tells a reader with nothing saved how a day gets there", async () => {
     searchPlaybooksMock.mockResolvedValue(ok(response({ days: [] })));
-    render(<DiscoverScreen initial={{ scope: "saved" }} />);
+    render(at({ scope: "saved" }));
     expect(
       await screen.findByRole("heading", { level: 2, name: "You have not taken a day into a trip yet" }),
     ).toBeTruthy();
@@ -269,7 +280,7 @@ describe("Discover", () => {
   it("offers a reader with no account no scope tabs, and reads Everyone whatever the URL says", async () => {
     session = null;
     searchPlaybooksMock.mockResolvedValue(ok(response({ days: [] })));
-    render(<DiscoverScreen initial={{ scope: "saved" }} />);
+    render(at({ scope: "saved" }));
 
     // One level under the screen's h1 (axe heading-order on /playbooks).
     expect(await screen.findByRole("heading", { level: 2, name: "Nothing has been shared yet" })).toBeTruthy();
@@ -285,7 +296,7 @@ describe("Discover", () => {
   // and the URL's scope stand, so a signed-in reader never sees either move.
   it("keeps the tabs and the URL's scope while the session is not known", async () => {
     session = undefined;
-    render(<DiscoverScreen initial={{ scope: "saved" }} />);
+    render(at({ scope: "saved" }));
     await waitFor(() =>
       expect(searchPlaybooksMock).toHaveBeenLastCalledWith(expect.objectContaining({ scope: "saved" })),
     );
@@ -610,7 +621,7 @@ describe("Discover", () => {
   it("links to the next page of the same search, and back to the first", async () => {
     const last = "aa000000-0000-4000-8000-000000000024";
     searchPlaybooksMock.mockResolvedValue(ok(response({ nextCursor: last })));
-    render(<DiscoverScreen initial={{ cities: ["Kyoto"], tag: "nightlife" }} />);
+    render(at({ cities: ["Kyoto"], tag: "nightlife" }));
     expect((await screen.findByRole("link", { name: "Next page" })).getAttribute("href")).toBe(
       `/playbooks?city=Kyoto&tag=nightlife&after=${last}`,
     );
@@ -618,7 +629,7 @@ describe("Discover", () => {
     cleanup();
 
     searchPlaybooksMock.mockResolvedValue(ok(response()));
-    render(<DiscoverScreen initial={{ cities: ["Kyoto"], tag: "nightlife", after: last }} />);
+    render(at({ cities: ["Kyoto"], tag: "nightlife", after: last }));
     expect((await screen.findByRole("link", { name: "First page" })).getAttribute("href")).toBe(
       "/playbooks?city=Kyoto&tag=nightlife",
     );
@@ -631,7 +642,7 @@ describe("Discover", () => {
   it("starts from the first page when the search changes", async () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     const last = "aa000000-0000-4000-8000-000000000024";
-    render(<DiscoverScreen initial={{ after: last }} />);
+    render(at({ after: last }));
     await screen.findByTestId("discover-results");
     await user.click(screen.getByTestId("filter-more"));
     await user.click(screen.getByTestId("filter-more-tag-beach"));
@@ -647,7 +658,7 @@ describe("Discover", () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     const last = "aa000000-0000-4000-8000-000000000024";
     searchPlaybooksMock.mockResolvedValue(ok(response({ nextCursor: last })));
-    render(<DiscoverScreen initial={{ cities: ["Kyoto"] }} />);
+    render(at({ cities: ["Kyoto"] }));
     await screen.findByTestId("discover-results");
     await user.click(screen.getByTestId("filter-more"));
     await user.click(screen.getByTestId("filter-more-budget-under200"));
@@ -670,7 +681,7 @@ describe("Discover", () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     const last = "aa000000-0000-4000-8000-000000000024";
     searchPlaybooksMock.mockResolvedValue(ok(response({ nextCursor: last })));
-    render(<DiscoverScreen initial={{ cities: ["Kyoto"] }} />);
+    render(at({ cities: ["Kyoto"] }));
     await screen.findByTestId("discover-results");
     await user.click(screen.getByTestId("filter-more"));
     await user.click(screen.getByTestId("filter-more-budget-under200"));
@@ -755,7 +766,7 @@ describe("Discover", () => {
   // A filtered-to-nothing search is not an empty library: the link stays.
   it("keeps the leaderboard link when the query matches nothing but the library is not empty", async () => {
     searchPlaybooksMock.mockResolvedValue(ok(response({ days: [], sharedPlaybookCount: 7 })));
-    render(<DiscoverScreen initial={{ cities: ["Kyoto"] }} />);
+    render(at({ cities: ["Kyoto"] }));
     // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     await waitFor(() => expect(screen.getByText("No day fits all of that")).toBeTruthy());
     expect(screen.getByRole("link", { name: /Who shares the most/ })).toBeTruthy();
@@ -782,14 +793,14 @@ describe("Discover", () => {
   // whole library's busiest when it is the rest of Japan's results.
   it("labels the chip row Also in these results when only a country is asked for", async () => {
     searchPlaybooksMock.mockResolvedValue(ok(response({ siblings: [{ city: "Osaka", days: 4 }] })));
-    render(<DiscoverScreen initial={{ countries: ["JP"] }} />);
+    render(at({ countries: ["JP"] }));
     await screen.findByTestId("sibling-cities");
     expect(screen.getByText("Also in these results")).toBeTruthy();
     expect(screen.queryByText("Busy right now")).toBeNull();
   });
 
   it("seeds its cities from the URL, so a profile chip lands on a scoped search", async () => {
-    render(<DiscoverScreen initial={{ cities: ["Hakone"] }} />);
+    render(at({ cities: ["Hakone"] }));
     await waitFor(() =>
       expect(searchPlaybooksMock).toHaveBeenCalledWith(expect.objectContaining({ cities: ["Hakone"] })),
     );
@@ -799,7 +810,7 @@ describe("Discover", () => {
   // or a copied link lands on the same search rather than on the defaults.
   it("seeds the sort and the floor from the URL, and writes a change back to it", async () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
-    render(<DiscoverScreen initial={{ sort: "most-reviewed", rating: "3", countries: ["JP"] }} />);
+    render(at({ sort: "most-reviewed", rating: "3", countries: ["JP"] }));
     await waitFor(() =>
       expect(searchPlaybooksMock).toHaveBeenLastCalledWith(
         expect.objectContaining({ sort: "most-reviewed", rating: "3", countries: ["JP"] }),
@@ -817,6 +828,21 @@ describe("Discover", () => {
     expect(url.getAll("country")).toEqual(["JP"]);
   });
 
+  // Back from a day restores this page from Next's router cache with the props
+  // it was first rendered with, under the URL the screen wrote since: opened
+  // on Everyone, switched to Yours page two, a day, Back — and the screen came
+  // back on Everyone page one (Mitchell, 2026-10-28). The URL wins.
+  it("comes back to the tab and the page its URL names, not the ones it was first rendered with", async () => {
+    const last = "6f1f8c2e-0000-4000-8000-000000000001";
+    window.history.replaceState(null, "", `/playbooks?scope=yours&after=${last}`);
+    render(<DiscoverScreen initial={{}} />);
+    await waitFor(() =>
+      expect(searchPlaybooksMock).toHaveBeenLastCalledWith(expect.objectContaining({ scope: "yours", after: last })),
+    );
+    expect(screen.getByRole("tab", { name: "Yours" }).getAttribute("aria-selected")).toBe("true");
+    expect(window.location.search).toBe(`?scope=yours&after=${last}`);
+  });
+
   // The address bar is not the only reader: Next's router keeps its own idea
   // of the URL, which a later router navigation or refresh starts from. Next
   // syncs a native write into it unless the state carries Next's own `__NA`,
@@ -828,7 +854,7 @@ describe("Discover", () => {
     const restore = followHistory((url) => heard.push(url));
     try {
       const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
-      render(<DiscoverScreen initial={{ rating: "3" }} />);
+      render(at({ rating: "3" }));
       await user.click(await screen.findByTestId("filter-chip-rating"));
       await user.click(screen.getByTestId("filter-rating-4.5"));
       await waitFor(() => expect(new URLSearchParams(window.location.search).get("rating")).toBe("4.5"));

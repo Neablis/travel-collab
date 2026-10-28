@@ -79,6 +79,13 @@ export function parseDiscoverUrl(params: RawParams): DiscoverUrlState {
   };
 }
 
+/** `parseDiscoverUrl` for a raw query string, `?` or not, every repeated value kept. */
+export function parseDiscoverQuery(query: string): DiscoverUrlState {
+  const params: Record<string, string[]> = {};
+  for (const [key, value] of new URLSearchParams(query)) (params[key] ??= []).push(value);
+  return parseDiscoverUrl(params);
+}
+
 /**
  * The query string for `state`, without the leading `?` and with every default
  * left out — so an untouched Discover is `/playbooks`, not a URL full of `any`.

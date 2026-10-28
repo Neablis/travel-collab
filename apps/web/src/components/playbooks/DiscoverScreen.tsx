@@ -27,7 +27,7 @@ import {
   type FilterState,
 } from "./discoverFilters";
 import { PlaceSearch, type PlacePick } from "./PlaceSearch";
-import { DISCOVER_URL_DEFAULTS, discoverQueryString, type DiscoverUrlState } from "./discoverUrl";
+import { DISCOVER_URL_DEFAULTS, discoverQueryString, parseDiscoverQuery, type DiscoverUrlState } from "./discoverUrl";
 import { DiscoverCard, editorialSize } from "./DiscoverCard";
 import { LibraryMoved, SyncFailure } from "./ReadStates";
 import { useLibraryRead } from "./useLibraryRead";
@@ -264,6 +264,20 @@ export function DiscoverScreen({
       }),
     [],
   );
+  // **The URL over the props, when they disagree.** Back from a day restores
+  // this page from the router's cache, props and all: the `initial` it was
+  // first rendered with, not the search `replaceState` wrote over that entry
+  // since. So a reader who opened a day from *Yours*, page three, came back to
+  // *Everyone*, page one, under a URL that still said `?scope=yours`
+  // (Mitchell, 2026-10-28). Read once on mount; on a fresh load the two agree
+  // and nothing changes.
+  useEffect(() => {
+    const fromUrl = parseDiscoverQuery(window.location.search);
+    if (discoverQueryString(fromUrl) === discoverQueryString({ ...DISCOVER_URL_DEFAULTS, ...initial })) return;
+    setState((prev) => ({ ...prev, ...fromUrl }));
+    // Mount only: after it, the state writes the URL, never the other way.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const { cities, countries, sort, rating, budget, length, tag, after } = filters;
   // **A reader with no account reads Everyone, whatever the URL says**
   // (ADR-061). *Yours* and *Saved* mean nothing without an account, so their
@@ -897,7 +911,9 @@ export function DiscoverScreen({
               <DiscoverCard
                 key={day.savedDayId}
                 day={day}
-                origin={{ from: "playbooks" }}
+                // The search on screen rides out with the card, so the day's
+                // back link returns to this tab, these filters and this page.
+                origin={{ from: "playbooks", discover: discoverQueryString({ ...search, after: pagesByLink ? after : null }) }}
                 size={editorialSize(index)}
                 headingLevel={3}
               />

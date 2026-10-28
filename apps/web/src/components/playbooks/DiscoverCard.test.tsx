@@ -154,6 +154,20 @@ describe("a Discover card's city chips", () => {
     expect(screen.getByTestId("city-chips-more").getAttribute("title")).toBe("Uji, Nara, Osaka, Kobe");
   });
 
+  // Mitchell, 2026-10-28: the chips keep to one line, and the card's "Yours"
+  // came off to give them the room. The *Yours* tab already says it.
+  it("draws no Yours mark on the reader's own day", () => {
+    render(<DiscoverCard day={day({ isMine: true })} origin={{ from: "playbooks" }} />);
+    expect(screen.queryByText("Yours")).toBeNull();
+  });
+
+  // The search a card was opened from rides its title link, for the day's back link.
+  it("carries the Discover search it was opened from to the day", () => {
+    render(<DiscoverCard day={day()} origin={{ from: "playbooks", discover: "scope=yours" }} />);
+    const link = screen.getByRole("heading", { name: day().name }).querySelector("a")!;
+    expect(new URL(link.href, "http://x").searchParams.get("discover")).toBe("scope=yours");
+  });
+
   it("never folds a matched city into the count", () => {
     render(
       <DiscoverCard
