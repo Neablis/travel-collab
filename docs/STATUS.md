@@ -21,19 +21,15 @@ general setup.
 
 ## Where the work is right now
 
-**M55 is the current milestone, scoped 2026-10-27** (`docs/milestones/M55-claude-connects-as-you.md`):
-Mitchell placed it ahead of M43 and answered all eleven decisions at scoping (D7, D8's hashing
-and D11 changed; D10 widened to *"via <client>"* labels, then withdrawn the same day, the
-labels moved to `docs/candidates.md`). Design: ADR-083. Plan: `docs/plans/2026-10-27-M55-claude-connects-as-you.md`,
-six code parts on `claude/m55-part<K>-…` branches, each its own PR on `main`. Part 0 is the draft PR
-on `ccr-a54f396f-65ja2i` (PR 613, prose only, merges last). **As of 2026-10-28, parts 1 to 10
-are merged:** PRs 614, 615, 616, 617, 618 and 620 as one stack in `1c353dd` (2026-10-27 23:26Z,
-`0069` applied by `migrate-production` run 40604400973), then parts 7 to 10 (PRs 622, 621, 623,
-624) as a second stack in `acb7f93` (2026-10-28 02:29Z, no migration). Mitchell walked them on
-production on 2026-10-28. **The gate is 16 of 17** with evidence, and the retro is drafted in the
-milestone file. **The close waits on part 11:** *Two gates hold* stays open until MCP answers
-`not-found` on a stranger's trip (Mitchell's choice over amending the clause to v1's
-`forbidden`), with a `get_trip`-through-a-grant test seen red.
+**M55 closed 2026-10-28, gate 17 of 17**, by `pnpm milestone close M55 --confirm` on part 0
+(PR 613, `ccr-a54f396f-65ja2i`, prose only), **which waits on Mitchell's merge**. All eleven
+code parts are on `main`: PRs 614, 615, 616, 617, 618 and 620 as one stack in `1c353dd`
+(2026-10-27 23:26Z, `0069` applied by `migrate-production` run 40604400973), parts 7 to 10 (PRs
+622, 621, 623, 624) as a second stack in `acb7f93` (2026-10-28 02:29Z, no migration), and part 11
+(PR 626, `ce7775d`, 2026-10-28 03:56Z, `ci-ok` green on `76a5943`), which made MCP answer
+`not-found` on a stranger's trip and ticked *Two gates hold*. Mitchell walked parts 1 to 10 on
+production on 2026-10-28. Evidence, retro and spend are in
+`docs/milestones/M55-claude-connects-as-you.md`; the plan is deleted.
 
 **M54 closed 2026-10-27, gate 13 of 13**, by `pnpm milestone close M54 --confirm` on part 0
 (PR 593, `ccr-3f23dccb-mljaxu`), merged to `main` as `837eef5`. All eight parts are on `main`
@@ -61,17 +57,18 @@ earlier confirmations (Today undeletable on production; part 10's API; part 11 *
 confirmed fixed"*). Evidence, retro and spend are in
 `docs/milestones/M52-the-trip-comes-with-you.md`.
 
-**Next action:** finish M55's part 11 (MCP answers `not-found` on a stranger's trip), have
-Mitchell merge it, tick *Two gates hold* on part 0 (PR 613), then close: `pnpm milestone close
-M55`, delete the plan, mark PR 613 ready. New from the close: KI-2026-10-28-b (an MCP tool that
-throws is not logged and leaks its message), and the candidate *Claude can search for a cover
-photo* in `docs/candidates.md`.
+**Next action:** Mitchell merges M55's part 0 (PR 613, ready for review). Then M43 is current
+(`docs/milestones/M43-notebooks-keep-up.md`, not scoped). Open follow-ups from M55:
+KI-2026-10-27-e to -i, KI-2026-10-28-b (an MCP tool that throws is not logged and leaks its
+message) and -c (a stranger can tell a broken trip from a missing one), and the candidate *Claude
+can search for a cover photo* in `docs/candidates.md`. KI-2026-10-25-w's fix is PR 627, outside
+M55.
 Open follow-ups from M54: KI-20261027-a to -d, KI-20261026-t, -u,
 -x and -y, and KI-20261013-a's first-load gap. Open follow-ups from M49: KI-20261025-w, and the candidate
 *Reposition a playbook day's cover*.
 Open follow-ups from M52: KI-2026-10-24-a to -o (`docs/known-issues/open/`). Outside M52:
 PR 491 (dependabot) is red, and GitHub reports 5 dependabot vulnerabilities on `main` (2 high,
-3 moderate). The order is M55 (current) → M43 → M44 → M53 (minted 2026-10-25 from an SEO audit, not scoped),
+3 moderate). The order is M43 (current) → M44 → M53 (minted 2026-10-25 from an SEO audit, not scoped),
 with M48 parked.
 
 **M51 closed 2026-10-22, gate 11 of 11**, on Mitchell's ruling at the close: his walk at 390, 1440
