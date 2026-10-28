@@ -31,66 +31,95 @@ export type DiscoverUrlState = {
   after: string | null;
 };
 
-export const DISCOVER_URL_DEFAULTS: DiscoverUrlState = {
-  cities: [],
-  countries: [],
-  scope: "everyone",
-  sort: "most-added",
-  length: "any",
-  rating: "any",
-  tag: "any",
-  after: null,
-};
-
 type RawParams = Record<string, string | string[] | undefined>;
 
-const all = (value: string | string[] | undefined): string[] =>
-  value === undefined ? [] : Array.isArray(value) ? value : [value];
+/**
+ * **Every field of Discover's URL, with its query name and both directions**
+ * (Mitchell, 2026-10-28: one table carrying the names, so a new filter works
+ * everywhere or fails to compile). Keyed by the state's own fields: a field
+ * added to `DiscoverUrlState` and missing here is a type error, and the
+ * parse, the query string and the back link's `?discover=` all walk this
+ * table, so none of them can know a name the others do not.
+ *
+ * A const object, not a TypeScript `enum`: `erasableSyntaxOnly`
+ * (`tsconfig.base.json`) rejects an `enum`, and this checks the same thing.
+ *
+ * `read` takes every value the name carries, none if it is absent; `write`
+ * gives the values to put back, none for the default, so an untouched
+ * Discover is `/playbooks`. The table's order is the query string's.
+ */
+const FIELDS: { [K in keyof DiscoverUrlState]: Field<DiscoverUrlState[K]> } = {
+  // Repeated rather than comma-joined, as `searchPlaybooks` sends them: a city
+  // name may contain a comma.
+  cities: { param: "city", read: (values) => normalizeCities(values), write: (cities) => cities },
+  // Upper-cased because the stored codes are (`countriesOfStops`), and a
+  // lower-case `?country=jp` typed by hand should mean Japan, not nothing.
+  // Trimmed and deduped as `GET /api/playbooks` does, so the page's first
+  // paint is the list the API would give.
+  countries: {
+    param: "country",
+    read: (values) => [
+      ...new Set(values.map((c) => c.trim().toUpperCase()).filter((c) => /^[A-Z]{2}$/.test(c))),
+    ],
+    write: (countries) => countries,
+  },
+  scope: one("scope", DiscoverScope, "everyone"),
+  sort: one("sort", DiscoverSort, "most-added"),
+  length: one("length", LengthBand, "any"),
+  rating: one("rating", RatingFloor, "any"),
+  // Ticketed and Lodging are no value of it (ADR-070 §2, §4), so they read as no filter.
+  tag: one("tag", TagFilter, "any"),
+  // Last, so a page link reads as the search and then where in it.
+  after: {
+    param: "after",
+    read: (values) => z.string().guid().safeParse(values[0]).data ?? null,
+    write: (after) => (after === null ? [] : [after]),
+  },
+};
 
-const first = (value: string | string[] | undefined): string | undefined => all(value)[0];
+type Field<T> = { param: string; read: (values: string[]) => T; write: (value: T) => string[] };
 
-function pick<T>(schema: z.ZodType<T>, raw: string | undefined, fallback: T): T {
-  const parsed = schema.safeParse(raw);
-  return parsed.success ? parsed.data : fallback;
+/** A one-valued field read against its own enum: a bad value is the default, and the default is not written. */
+function one<T extends string>(param: string, schema: z.ZodType<T>, fallback: T): Field<T> {
+  return {
+    param,
+    read: (values) => {
+      const parsed = schema.safeParse(values[0]);
+      return parsed.success ? parsed.data : fallback;
+    },
+    write: (value) => (value === fallback ? [] : [value]),
+  };
+}
+
+const KEYS = Object.keys(FIELDS) as (keyof DiscoverUrlState)[];
+
+/** What each field reads as when the URL does not name it: the table's own defaults, so they are spelled once. */
+export const DISCOVER_URL_DEFAULTS: DiscoverUrlState = readFields(() => []);
+
+/** Discover's state from its query values by name; anything absent or unreadable is its default. */
+function readFields(valuesOf: (param: string) => string[]): DiscoverUrlState {
+  // A field at a time through a generic, so each `read` answers for its own key.
+  const read = <K extends keyof DiscoverUrlState>(key: K) => FIELDS[key].read(valuesOf(FIELDS[key].param));
+  return Object.fromEntries(KEYS.map((key) => [key, read(key)])) as DiscoverUrlState;
 }
 
 /** Discover's state from a page's `searchParams`; anything absent or unreadable is its default. */
 export function parseDiscoverUrl(params: RawParams): DiscoverUrlState {
-  return {
-    cities: normalizeCities(all(params.city)),
-    // Upper-cased because the stored codes are (`countriesOfStops`), and a
-    // lower-case `?country=jp` typed by hand should mean Japan, not nothing.
-    // Trimmed and deduped as `GET /api/playbooks` does, so the page's first
-    // paint is the list the API would give.
-    countries: [
-      ...new Set(
-        all(params.country)
-          .map((c) => c.trim().toUpperCase())
-          .filter((c) => /^[A-Z]{2}$/.test(c)),
-      ),
-    ],
-    scope: pick(DiscoverScope, first(params.scope), DISCOVER_URL_DEFAULTS.scope),
-    sort: pick(DiscoverSort, first(params.sort), DISCOVER_URL_DEFAULTS.sort),
-    length: pick(LengthBand, first(params.length), DISCOVER_URL_DEFAULTS.length),
-    rating: pick(RatingFloor, first(params.rating), DISCOVER_URL_DEFAULTS.rating),
-    // Ticketed and Lodging are no value of it (ADR-070 §2, §4), so they read as no filter.
-    tag: pick(TagFilter, first(params.tag), DISCOVER_URL_DEFAULTS.tag),
-    after: z.string().guid().safeParse(first(params.after)).data ?? DISCOVER_URL_DEFAULTS.after,
-  };
+  return readFields((param) => {
+    const value = params[param];
+    return value === undefined ? [] : Array.isArray(value) ? value : [value];
+  });
 }
 
-/** `parseDiscoverUrl` for a raw query string, `?` or not, every repeated value kept. */
+/**
+ * `parseDiscoverUrl` for a raw query string, `?` or not, every repeated value
+ * kept. Only the table's names are read, never a key the query chose, so a
+ * `__proto__` in a pasted `?discover=` reaches no object (CodeQL, PR 628).
+ */
 export function parseDiscoverQuery(query: string): DiscoverUrlState {
-  // Only the names Discover reads, never a key the query chose: a `__proto__`
-  // in a pasted `?discover=` must not reach an object's prototype.
   const params = new URLSearchParams(query);
-  return parseDiscoverUrl(
-    Object.fromEntries(DISCOVER_PARAMS.map((name) => [name, params.getAll(name)] as const)),
-  );
+  return readFields((param) => params.getAll(param));
 }
-
-/** Every query name `parseDiscoverUrl` reads. */
-const DISCOVER_PARAMS = ["city", "country", "scope", "sort", "length", "rating", "tag", "after"] as const;
 
 /**
  * The query string for `state`, without the leading `?` and with every default
@@ -98,16 +127,9 @@ const DISCOVER_PARAMS = ["city", "country", "scope", "sort", "length", "rating",
  */
 export function discoverQueryString(state: DiscoverUrlState): string {
   const params = new URLSearchParams();
-  // Repeated rather than comma-joined, as `searchPlaybooks` sends them: a city
-  // name may contain a comma.
-  for (const city of state.cities) params.append("city", city);
-  for (const country of state.countries) params.append("country", country);
-  if (state.scope !== DISCOVER_URL_DEFAULTS.scope) params.set("scope", state.scope);
-  if (state.sort !== DISCOVER_URL_DEFAULTS.sort) params.set("sort", state.sort);
-  if (state.length !== DISCOVER_URL_DEFAULTS.length) params.set("length", state.length);
-  if (state.rating !== DISCOVER_URL_DEFAULTS.rating) params.set("rating", state.rating);
-  if (state.tag !== DISCOVER_URL_DEFAULTS.tag) params.set("tag", state.tag);
-  // Last, so a page link reads as the search and then where in it.
-  if (state.after !== null) params.set("after", state.after);
+  const write = <K extends keyof DiscoverUrlState>(key: K) => {
+    for (const value of FIELDS[key].write(state[key])) params.append(FIELDS[key].param, value);
+  };
+  for (const key of KEYS) write(key);
   return params.toString();
 }
