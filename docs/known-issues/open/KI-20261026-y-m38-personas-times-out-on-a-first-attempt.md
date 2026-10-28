@@ -24,3 +24,19 @@
   e2e/m38-personas.spec.ts --repeat-each=10 --retries=0` to measure a rate.
 - **Cross-reference:** M54 (parts 6–8, PR 604–PR 606); KI-20261024-c (CI red once, cause unknown).
 - **First noted:** 2026-10-26, on PR 606's CI.
+- **Re-measured 2026-10-28 (KI sweep), not reproduced: 0 failed of 44** against a production build
+  (`--repeat-each=10`, then `30`, then `4`, `--retries=0`, 4 workers); each run takes about 13 s
+  of its 90 s, so a timeout from plain slowness would need a runner about 7x slower. A hang at :63
+  is the PATCH wait never satisfied, not the clock. Ruled out by reading and a probe:
+  the click-before-hydration hypothesis does not fit, because the Profile page is reached by a
+  client-side `Link` and the name field is disabled until the preferences load; and clicking the
+  already selected *Profile* tab (a `router.push("/account")` to the same URL) does not replace the
+  field (probe: the same node, connected, for 1.5 s after the click, 10 of 10).
+- **Hardened so the next occurrence names its cause (not a fix):** `preferencesSaved` in
+  `e2e/m38-personas.spec.ts` used to wait for an OK PATCH only, so *never sent*, *sent and never
+  answered* and *answered with an error* all ran out the test's 90 s at the wait. It now waits
+  20 s for the request (`no PATCH /api/account/preferences was sent within 20000ms`), then its
+  answer (`got no answer: <failure>`), then asserts the status (`answered 500: <body>`), and
+  `choosePersona` checks the field holds the name before Enter. Each message seen red on purpose:
+  `End` for `Enter` (not sent), `route.abort()` (`net::ERR_FAILED`), and a 500 from a route.
+  Green after: 10 of 10. **Stays open** until a failure names the cause.
