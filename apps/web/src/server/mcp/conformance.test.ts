@@ -6,11 +6,10 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { z } from "zod";
 import { describe, expect, it, vi } from "vitest";
 import { TOOLS } from "@/app/api/mcp/tools";
 import { DECLARED, type DeclaredHandler } from "@/server/public-api/route";
-import { inputSchemaFor, PAGING } from "./schemas";
+import { inputSchemaFor, PAGING, toolSchemaOf } from "./schemas";
 import { listedTools } from "./server";
 import { pathParams, type McpTool } from "./tools";
 
@@ -56,7 +55,7 @@ async function pathProblems(tool: McpTool): Promise<string[]> {
 function schemaProblems(tool: McpTool, served: Record<string, unknown>): string[] {
   const def = tool.handler[DECLARED].def;
   const source = def.body ?? def.query;
-  const route = (source === undefined ? {} : z.toJSONSchema(source, { target: "draft-2020-12", io: "input" })) as {
+  const route = (source === undefined ? {} : toolSchemaOf(source)) as {
     properties?: Record<string, unknown>;
     required?: string[];
     anyOf?: unknown;
@@ -86,6 +85,38 @@ function schemaProblems(tool: McpTool, served: Record<string, unknown>): string[
   return problems;
 }
 
+// Keys whose value is a schema, a list of schemas, or a map of them; every
+// other key (`default`, `enum`, `const`, `examples`) holds plain values.
+const SUBSCHEMA = ["items", "additionalProperties", "not", "contains", "propertyNames", "if", "then", "else"];
+const SUBSCHEMA_LISTS = ["anyOf", "oneOf", "allOf", "prefixItems"];
+const SUBSCHEMA_MAPS = ["properties", "patternProperties", "$defs", "definitions", "dependentSchemas"];
+const VALIDATES = ["type", "enum", "const", "anyOf", "oneOf", "allOf", "not", "$ref"];
+
+/**
+ * Where `schema` says something not every MCP client reads (M55 part 9, the
+ * MCP Inspector's "schema portability" warnings): a schema with no validation
+ * keyword at all, which is `true` spelled as an object, and an array-valued
+ * `type`, which some clients read as its first member alone.
+ */
+function portabilityProblems(schema: unknown, at: string): string[] {
+  if (schema === null || typeof schema !== "object" || Array.isArray(schema)) return [];
+  const node = schema as Record<string, unknown>;
+  const problems: string[] = [];
+  if (!VALIDATES.some((key) => key in node)) problems.push(`${at}: no validation keyword`);
+  if (Array.isArray(node.type)) problems.push(`${at}: type is an array (${JSON.stringify(node.type)})`);
+  for (const key of SUBSCHEMA) problems.push(...portabilityProblems(node[key], `${at}.${key}`));
+  for (const key of SUBSCHEMA_LISTS) {
+    const list = node[key];
+    if (Array.isArray(list)) list.forEach((s, i) => problems.push(...portabilityProblems(s, `${at}.${key}[${i}]`)));
+  }
+  for (const key of SUBSCHEMA_MAPS) {
+    for (const [name, s] of Object.entries((node[key] ?? {}) as Record<string, unknown>)) {
+      problems.push(...portabilityProblems(s, `${at}.${key}.${name}`));
+    }
+  }
+  return problems;
+}
+
 describe("the MCP tools", () => {
   it("are the tools D4 names, once each, and nothing that deletes", () => {
     expect(TOOLS.map((t) => t.name).sort()).toEqual(
@@ -100,8 +131,12 @@ describe("the MCP tools", () => {
         "update_playbook",
         "publish_playbook",
         "unpublish_playbook",
+        "set_playbook_cover",
+        "move_playbook_cover",
         "list_trips",
         "get_trip",
+        "set_trip_cover",
+        "move_trip_cover",
         "list_notebook_pages",
         "get_notebook_page",
         "update_notebook_page",
@@ -159,5 +194,28 @@ describe("the MCP tools", () => {
   it("offer publish nothing but the Playbook it publishes", () => {
     const publish = inputSchemaFor(TOOLS.find((t) => t.name === "publish_playbook")!);
     expect(Object.keys(publish.properties ?? {})).toEqual(["playbookId"]);
+  });
+
+  it("serve schemas every client can read: each says what it accepts, with one type per schema", () => {
+    expect(listedTools(TOOLS).flatMap((t) => portabilityProblems(t.inputSchema, `${t.name}: inputSchema`))).toEqual([]);
+  });
+
+  it("refuse a schema that accepts anything, or names two types at once, wherever it sits", () => {
+    // One per position zod emits: `update_notebook_page`'s nodes all sit under `$defs`.
+    const loose = {
+      type: "object",
+      properties: { any: {}, maybe: { type: ["string", "null"] } },
+      additionalProperties: {},
+      items: { anyOf: [{ type: ["string", "null"] }], oneOf: [{}] },
+      $defs: { node: { type: "object", additionalProperties: {} } },
+    };
+    expect(portabilityProblems(loose, "s")).toEqual([
+      's.items.anyOf[0]: type is an array (["string","null"])',
+      "s.items.oneOf[0]: no validation keyword",
+      "s.additionalProperties: no validation keyword",
+      "s.properties.any: no validation keyword",
+      's.properties.maybe: type is an array (["string","null"])',
+      "s.$defs.node.additionalProperties: no validation keyword",
+    ]);
   });
 });
