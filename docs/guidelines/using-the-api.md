@@ -136,7 +136,8 @@ the same `api.tokens` entitlement as a token, read on every request.
 4. **Consent.** The person signs in and sees the client's name as its own,
    unverified claim, unless the redirect is Claude's own callback, with the host
    the code goes to shown large. Each scope is a checkbox in `SCOPE_CATALOGUE`'s
-   words, all ticked except the two `notebook:` scopes. Every redirect back
+   words, in two sections: Read, every box ticked, and Write, every box
+   unticked, each with its own Select all and Clear all. Every redirect back
    carries `state` and `iss`.
 5. **Tokens.** The code (`tcc_`, one minute, single use) is exchanged at
    `/api/oauth/token` with its verifier and `resource=<origin>/api/mcp` (RFC

@@ -1,4 +1,5 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
+import { API_SCOPES } from "@tc/contracts";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ConsentScreen, type ConsentScreenProps } from "./ConsentScreen";
 
@@ -51,16 +52,62 @@ describe("ConsentScreen", () => {
     expect(screen.getByText("app.example")).toBeTruthy();
   });
 
-  it("leaves notebook writes unticked until the person opts in", () => {
+  // Mitchell, 2026-10-28: reading is the default grant, and every write is an opt-in.
+  it("ticks every Read scope and no Write scope, and each section's Select all and Clear all touch only that section", () => {
+    render(<ConsentScreen {...props({ scopes: API_SCOPES })} />);
+    const ticks = (section: string) =>
+      within(screen.getByRole("group", { name: section }))
+        .getAllByRole("checkbox")
+        .map((box) => (box as HTMLInputElement).checked);
+    const all = (section: string, checked: boolean) => ticks(section).every((on) => on === checked);
+    expect(ticks("Read").length).toBe(5);
+    expect(ticks("Write").length).toBe(4);
+    expect(all("Read", true), "every Read box ticked").toBe(true);
+    expect(all("Write", false), "no Write box ticked").toBe(true);
+
+    // Each press leaves the other section in the state the press does not make, so a leak shows.
+    fireEvent.click(screen.getByRole("button", { name: "Clear all read access" }));
+    expect(all("Read", false), "Clear all clears Read").toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "Select all write access" }));
+    expect(all("Write", true), "Select all ticks Write").toBe(true);
+    expect(all("Read", false), "Read untouched by Write's Select all").toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "Clear all write access" }));
+    fireEvent.click(screen.getByRole("button", { name: "Select all read access" }));
+    expect(all("Read", true), "Select all ticks Read").toBe(true);
+    expect(all("Write", false), "Write untouched by Read's Select all").toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "Select all write access" }));
+    fireEvent.click(screen.getByRole("button", { name: "Clear all read access" }));
+    expect(all("Write", true), "Write untouched by Read's Clear all").toBe(true);
+  });
+
+  it("shows no Write section when the app asked for no write", () => {
+    render(<ConsentScreen {...props({ scopes: ["trips:read"] })} />);
+    expect(screen.getByRole("group", { name: "Read" })).toBeTruthy();
+    // Under the redirect host's h2, not beside it (ADR-083 §6).
+    expect(screen.getByRole("heading", { level: 3, name: "Read" })).toBeTruthy();
+    expect(screen.queryByRole("group", { name: "Write" })).toBeNull();
+  });
+
+  it("says why Allow is disabled once nothing is ticked, and only then", () => {
+    const hint = "Choose at least one thing this app may do.";
     render(<ConsentScreen {...props()} />);
-    expect((screen.getByRole("checkbox", { name: /Read trips/ }) as HTMLInputElement).checked).toBe(true);
-    expect((screen.getByRole("checkbox", { name: /Write the Notebook/ }) as HTMLInputElement).checked).toBe(false);
+    expect(screen.queryByRole("button", { name: "Allow", description: hint })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Clear all read access" }));
+    const allow = screen.getByRole("button", { name: "Allow", description: hint }) as HTMLButtonElement;
+    expect(allow.disabled).toBe(true);
   });
 
   it("disables Allow for a free account, and offers the plans", () => {
     render(<ConsentScreen {...props({ entitled: false })} />);
     expect((screen.getByRole("button", { name: "Allow" }) as HTMLButtonElement).disabled).toBe(true);
     expect(screen.getByRole("link", { name: "See plans" }).getAttribute("href")).toBe("/plans");
+  });
+
+  it("does not ask a free account to tick boxes it cannot tick", () => {
+    const hint = "Choose at least one thing this app may do.";
+    render(<ConsentScreen {...props({ scopes: ["trips:write"], entitled: false })} />);
+    expect(screen.queryByText(hint)).toBeNull();
+    expect(screen.queryByRole("button", { name: "Allow", description: hint })).toBeNull();
   });
 
   it("posts the choice and follows the redirect it answers", async () => {
