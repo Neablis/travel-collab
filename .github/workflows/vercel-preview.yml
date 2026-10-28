@@ -56,7 +56,9 @@ jobs:
       group: ${{ github.workflow }}-${{ github.event.pull_request.number || inputs.pr }}
       cancel-in-progress: true
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    # Creating the deployment takes seconds; watching it reach BUILDING, and
+    # one retry on git_info_fail, take up to ~2 minutes each.
+    timeout-minutes: 8
     steps:
       - name: Find the PR head
         id: head
@@ -97,8 +99,43 @@ jobs:
             project: "prj_UoxcnmAsWMtHXx8jLXyespRqSULM",
             gitSource: { type: "github", org: "Neablis", repo: "travel-collab", ref: $ref, sha: $sha }
           }')
-          curl --fail-with-body -sS -X POST \
-            "https://api.vercel.com/v13/deployments?teamId=team_FOAEiiLfMMxICIFszLWvzfzF" \
-            -H "Authorization: Bearer $VERCEL_TOKEN" \
-            -H "Content-Type: application/json" \
-            -d "$body" | jq '{id, url, readyState}' | tee -a "$GITHUB_STEP_SUMMARY"
+          api="https://api.vercel.com/v13/deployments"
+          team="teamId=team_FOAEiiLfMMxICIFszLWvzfzF"
+          # Creates the deployment and prints its id.
+          request() {
+            curl --fail-with-body -sS -X POST "$api?$team" \
+              -H "Authorization: Bearer $VERCEL_TOKEN" \
+              -H "Content-Type: application/json" \
+              -d "$body" | jq '{id, url, readyState}' | tee -a "$GITHUB_STEP_SUMMARY" | jq -r .id
+          }
+          # Polls until Vercel is past fetching the commit (BUILDING or later)
+          # and prints that state, or the error code when it failed. Gives up
+          # quietly after ~2 minutes: a slow queue is not a failure.
+          settle() {
+            for _ in $(seq 1 24); do
+              d=$(curl --fail-with-body -sS "$api/$1?$team" -H "Authorization: Bearer $VERCEL_TOKEN")
+              case "$(jq -r .readyState <<<"$d")" in
+                ERROR) jq -r '[.errorCode, .errorMessage] | map(select(.)) | join(": ") | if . == "" then "ERROR" else . end' <<<"$d"; return ;;
+                BUILDING|READY|CANCELED) jq -r .readyState <<<"$d"; return ;;
+              esac
+              sleep 5
+            done
+            echo "still-queued"
+          }
+          # KI-2026-10-12-d: Vercel sometimes fails to fetch the commit it was
+          # just handed (`git_info_fail`), and the workflow used to stay green
+          # with no preview. It is transient, so ask once more, which is the
+          # re-run the KI's remedy had a human do by hand.
+          id=$(request)
+          outcome=$(settle "$id")
+          echo "deployment $id: $outcome"
+          if [[ "$outcome" == *git_info_fail* ]]; then
+            echo "::warning::Vercel could not fetch $SHA (git_info_fail); asking once more."
+            id=$(request)
+            outcome=$(settle "$id")
+            echo "deployment $id: $outcome"
+          fi
+          case "$outcome" in
+            BUILDING|READY|CANCELED|still-queued) ;;
+            *) echo "::error::The preview of $SHA failed before building: $outcome (deployment $id)."; exit 1 ;;
+          esac
