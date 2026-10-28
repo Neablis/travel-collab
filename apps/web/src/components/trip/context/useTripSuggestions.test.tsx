@@ -224,26 +224,35 @@ describe("useTripSuggestions, through TripProvider", () => {
 
   // The same for an accept still out at unmount: its answer re-reads the
   // list and, when the accept went through, refetches the trip. Neither may
-  // set state once the page is gone (PR 627's review, finding 1).
+  // set state once the page is gone (PR 627's review, finding 1). "Accept
+  // all" is its own request behind its own guard (PR 627's re-review, finding 2).
+  const one = (change: string) => probed.suggestions!.resolve(change, "accept");
+  const all = (change: string) => probed.suggestions!.acceptMany([change]);
   it.each([
-    ["refused", () => HttpResponse.json({ error: "Already resolved", code: "already-resolved" }, { status: 409 })],
+    [
+      "refused",
+      "changes/:changeId",
+      () => HttpResponse.json({ error: "Already resolved", code: "already-resolved" }, { status: 409 }),
+      one,
+    ],
     // Nothing returned passes the request on to the default handler, which accepts.
-    ["accepted", () => undefined],
-  ])("sets nothing when an accept still out at unmount is %s after the page is gone", async (_, answer) => {
+    ["accepted", "changes/:changeId", () => undefined, one],
+    ["accepted with the rest", "changes/accept", () => undefined, all],
+  ])("sets nothing when an accept still out at unmount is %s after the page is gone", async (_, route, answer, call) => {
     const { fixture, seen } = await mount("owner", (tripId) => [pendingAddDay(tripId)]);
     await waitFor(() => expect(screen.getByTestId("suggestions").textContent).toBe("pending"));
     let release!: () => void;
     const held = new Promise<void>((r) => (release = r));
     server.use(
-      http.post("/api/trips/:tripId/suggestions/changes/:changeId", async () => {
+      http.post(`/api/trips/:tripId/suggestions/${route}`, async () => {
         await held;
         return answer();
       }),
     );
     const change = pendingAddDay(fixture.tripId).id;
     let resolving!: Promise<unknown>;
-    act(() => void (resolving = probed.suggestions!.resolve(change, "accept")));
-    await waitFor(() => expect(seen).toContain(`POST suggestions/changes/${change}`));
+    act(() => void (resolving = call(change)));
+    await waitFor(() => expect(seen).toContain(`POST suggestions/${route.replace(":changeId", change)}`));
     cleanup();
 
     expect(await settleWithoutWindow(release, resolving)).toBe("settled");

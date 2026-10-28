@@ -27,7 +27,7 @@
 - **First noted:** 2026-10-25, on PR 585's CI.
 - **Resolved, 2026-10-28 (separately from M55):** the late callback was the suggestion list's idle
   read, not the header or the cover band. `TripProvider` runs `useTripSuggestions`, whose mount read
-  waits for idle and then calls `fetchTripSuggestions`. `TripHeader.test.tsx` does not mock that
+  waits for idle and then calls `fetchTripSuggestions`. `TripHeader.test.tsx` did not mock that
   call, so it is a real request to localhost, and its timing depends on the machine. When it answered
   after the provider had unmounted, `refresh` still called `setInFlight`. React reads `window.event`
   to price an update (`resolveUpdatePriority`) before it finds that the hook is gone. Once the file's
@@ -40,11 +40,18 @@
     dispatchSetState … ❯ src/components/trip/context/useTripSuggestions.ts:75:5 setInFlight((n) => n - 1)`.
     The same run reported two uncaught `window.event` reads from React's scheduled passive-effect
     flush, which the late update had caused.
-  - **Fix:** `useTripSuggestions` now holds a `mounted` ref that is cleared on unmount. A read that
-    answers after unmount returns before it sets any state.
-  - **Proof and regression test:** `useTripSuggestions.test.tsx` gained *"sets nothing when a read
-    still out at unmount answers after the page is gone"*. The test holds the idle read, unmounts,
-    removes `window`, and then lets the read answer. Before the fix it failed with
-    `expected [ ReferenceError { "message": "window is not defined" } ] to deeply equal []`. After
-    the fix it passes. The scratch `afterAll` reproduction on `TripHeader.test.tsx` now reports no
-    errors at all.
+  - **Fix:** `useTripSuggestions` holds a `mounted` ref, cleared on unmount. `refresh` returns at
+    once when unmounted and again after its read, before any state is set. `resolve` and
+    `acceptMany` return their result right after their own request when unmounted, so they neither
+    re-read nor call `onAccepted` (the provider's `onRemoteChange`). The trip's cache is still
+    cleared by the write itself (`endWrite`). `TripHeader.test.tsx` now mocks
+    `fetchTripSuggestions`, so the file the KI names sends no suggestions request at all.
+  - **Proof and regression tests:** `useTripSuggestions.test.tsx` has *"sets nothing when a read
+    still out at unmount answers after the page is gone"* and *"sets nothing when an accept still
+    out at unmount is refused / accepted / accepted with the rest after the page is gone"* (the
+    last is `acceptMany`). Each takes `window` away, lets the held answer go, and awaits the hook's
+    own promise before giving `window` back. With its guard removed each fails with
+    `expected ReferenceError: window is not defined to be 'settled'`. The scratch `afterAll`
+    reproduction on `TripHeader.test.tsx` reports no errors.
+  - The remaining real loopback requests in unit files, and the provider's own post-await
+    setters, are KI-2026-10-28-d.
