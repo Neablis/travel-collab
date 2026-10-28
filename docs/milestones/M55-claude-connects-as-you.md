@@ -2,8 +2,10 @@
 
 **Status (2026-10-28): built, gate open.** All six code parts are merged (PRs 614, 615, 616,
 617, 618 and 620, in `1c353dd`), and `0069` is applied in production (`migrate-production`
-40604400973). The gate is 10 of 13. *Two gates hold*, *The inspector* and *[walk]* wait on
-Mitchell (see *Exit gate*), and the retro is drafted below.
+40604400973). The gate is 10 of 15. *Two gates hold*, *The inspector* and *[walk]* wait on
+Mitchell (see *Exit gate*), and the retro is drafted below. **Reopened for two parts on
+2026-10-28** (D12, D13): part 7 (consent Read / Write) and part 8 (MCP cover tools) are
+building, each with its own new gate box.
 
 **Scoped 2026-10-27.** Minted by Mitchell the same day (*"Could you add a
 milestone to the caesura project to add the ability for a oauth connector so you can connect?"*,
@@ -167,6 +169,8 @@ says so and the text below is his choice.
    all ticked except the two `notebook:` scopes, so the default grant is "see my trips and the
    library, write and publish Playbooks, search places, see who I am". A tool whose scope was not
    granted answers the v1 `insufficient-scope` error as a tool error.
+   **Amended — Mitchell, 2026-10-28 (D12):** `scopes_supported` keeps `trips:write` and
+   `sharing:write` too, and the consent page's defaults become Read checked, Write unchecked.
 6. **Premium, the same `api.tokens` entitlement, resolved per request — accepted.** A lapsed plan
    disables a grant without revoking it, exactly as it does a token. A free account reaching the
    consent page sees the same upgrade prompt as the API tokens section and cannot approve.
@@ -241,6 +245,27 @@ says so and the text below is his choice.
     Its answer carries the day's public URL, built with `dayPath` (`apps/web/src/lib/playbookUrls.ts:45`),
     because the v1 Playbook response has none (`playbooks.ts:59-63`). The routine's own prompt
     decides whether to publish; the walk runs it both ways.
+
+### Answered mid-build
+
+**Part 6, Mitchell, 2026-10-27:** API tokens and Connected apps move from the bottom of Account →
+Profile to their own **Security** tab (planned on part 0 in `217028c`, built as PR 620).
+
+**Answered by Mitchell, 2026-10-28,** after the stack merged. Each is its own part on `main`
+(plan, *Part 7* and *Part 8*), with no files in common.
+
+12. **The consent page splits Read from Write (part 7).** The scope checkboxes sit in two
+    sections, **Read** and **Write**, each with *Select all* and *Clear all* acting on that section
+    alone. Every Read scope starts checked and every Write scope unchecked; each box still toggles
+    by hand. This replaces D5's default ticks. **The unused scopes stay:** `trips:write` and
+    `sharing:write` are still offered on the consent page and advertised in `scopes_supported`,
+    although no tool used either when the close pass asked. Mitchell decided to keep them, so
+    `OAUTH_SCOPES` and both `/.well-known` documents are unchanged, and D5's "the scopes the tools
+    use" is amended to match.
+13. **Claude can set and reposition a cover (part 8).** Four MCP tools set a cover from an image
+    URL and move where it is framed, on a **Playbook** (`PUT` / `PATCH /v1/playbooks/{id}/cover`,
+    `library:write`) and on a **Trip** (`PUT` / `PATCH /v1/trips/{id}/cover`, `trips:write`),
+    dispatched through the v1 routes' own handlers (D2). Saved days are not included.
 
 ### Risks the plan carries into part briefs (from the 2026-10-27 survey)
 
@@ -481,6 +506,11 @@ the cloud proxy (KI-2026-10-13-f), so this rests on the step's conclusion.
   every tool with its annotations, statelessly*) covers the listing in CI, but it is not the
   Inspector and not a screenshot. **Needs from Mitchell:** the Inspector against production, or
   against a preview with a premium account, and a screenshot on PR 613. Otherwise, waive the box.
+  *Partial evidence, 2026-10-28, not a tick:* Mitchell's screenshot shows the **production**
+  consent page reached by the MCP Inspector through the loopback redirect: *Access goes to
+  127.0.0.1:6274*, the *Unverified* badge, and the loopback warning (D7, F). That proves the
+  Inspector's registration and the loopback path to consent on production. **Still needed:** the
+  Inspector's Tools tab listing every tool with its annotations.
 - [x] **Exposure:** the MCP, OAuth and Connected-apps routes each have a line in `exposure.ts`, and
   `exposure.test.ts` is green, including its check over the MCP server's modules.
   *Evidence:* `server/public-api/exposure.ts:119-127` (`oauth/register`, `oauth/token`,
@@ -501,12 +531,19 @@ the cloud proxy (KI-2026-10-13-f), so this rests on the step's conclusion.
   its public URL; Disconnect in Connected apps; and the next call asking to reconnect. The
   Security tab, where Connected apps now lives (part 6), has not been seen rendered at 390px or on
   desktop by anyone. **Needs from Mitchell:** that walk on production, ideally at both widths.
+- [ ] **Consent defaults:** Read scopes start checked and Write unchecked, each section's Select
+  all / Clear all acts on it alone (a unit test seen red), on the production consent page.
+  *Open, 2026-10-28:* part 7 (`claude/m55-part7-consent-read-write`) is building.
+- [ ] **Covers:** Claude sets and repositions a Playbook's and a Trip's cover through MCP tools that
+  pass the parity test (an integration test seen red).
+  *Open, 2026-10-28:* part 8 (`claude/m55-part8-mcp-covers`) is building.
 
 ## Retro — written 2026-10-28 (10 of 13 boxes ticked)
 
 This is a draft, written on part 0 (PR 613) before the close. Three boxes are open: *Two gates
 hold*, *The inspector* and *[walk]*. Each says what it needs from Mitchell.
 `pnpm milestone close M55` has not been run, and the plan has not been deleted.
+Since this draft, D12 and D13 added parts 7 and 8 and two boxes, so the gate is 10 of 15.
 
 ### What went well
 
@@ -569,7 +606,9 @@ hold*, *The inspector* and *[walk]*. Each says what it needs from Mitchell.
 - **`scopes_supported` is wider than D5 says.** Production lists `trips:write` and
   `sharing:write` (the Discovery `curl`), but D5 says it lists "the scopes the tools use, plus
   `offline_access`", and no tool uses either. Mitchell's call: narrow `OAUTH_SCOPES`
-  (`server/oauth/metadata.ts:34,59`), or amend D5.
+  (`server/oauth/metadata.ts:34,59`), or amend D5. **Decided 2026-10-28:** Mitchell keeps them
+  (D12); D5 is amended, and `scopes_supported` does not change. Part 8's trip cover tools will
+  use `trips:write`.
 - KI-2026-10-27-e: delete `api-tokens/legacyScrypt.ts` by 2027-10-27.
 - KI-2026-10-27-f: a local ci-like build needs an 8 GB heap.
 - KI-2026-10-27-g: a client revoking its own token is recorded as `owner`.

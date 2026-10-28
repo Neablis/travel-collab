@@ -23,6 +23,9 @@ Part 0 (`ccr-a54f396f-65ja2i`, prose only) merges last.
 | 3 | `claude/m55-part3-oauth-actor` | `tco_` resolves to an actor, `via: "oauth"` in six places | 2 | 16 |
 | 4 | `claude/m55-part4-mcp-server` | `/api/mcp`, the tools, conformance, the end-to-end flow test | 3 | 20 |
 | 5 | `claude/m55-part5-connected-apps` | Connected apps + Disconnect, `/developers`, `llms.txt`, the guideline, the e2e spec | 2 (merge after 4) | 18 |
+| 6 | `claude/m55-part6-security-tab` | A Security tab for API tokens and Connected apps (added 2026-10-27) | 5 | — |
+| 7 | `claude/m55-part7-consent-read-write` | Consent page: Read and Write sections, Select all / Clear all (added 2026-10-28) | `main` | 3 |
+| 8 | `claude/m55-part8-mcp-covers` | MCP tools to set and reposition a Playbook's and a Trip's cover (added 2026-10-28) | `main` | 6 |
 
 **The riskiest part is 2** (an authorization server open to any client): it gets the extra fresh
 `part-reviewer` pass on its whole diff before it is called ready. Part 1 is second (it revokes
@@ -216,6 +219,52 @@ carries the Security tab instead of this milestone.
 
 ---
 
+## Part 7 — the consent page splits Read from Write
+
+Added 2026-10-28 at Mitchell's request (milestone file, *Answered mid-build*, D12). Branches from
+`main` after the stack merged; independent of part 8 (no shared files). Branch
+`claude/m55-part7-consent-read-write`.
+
+| File | Entry point | Test |
+|---|---|---|
+| `web/components/oauth/ConsentScreen.tsx` | the scope checkboxes in two sections, **Read** (`*:read`) and **Write** (`*:write`), each with *Select all* and *Clear all* that act on that section alone; every Read scope starts checked, every Write scope unchecked; each box still toggles by hand; `offline_access` is not a checkbox and is unchanged | `ConsentScreen.test.tsx` |
+| `web/app/oauth/authorize/page.tsx` | passes the requested scopes as today; no change unless the section split needs the catalogue grouped there | `page.test.tsx` |
+
+**Unchanged on purpose:** `trips:write` and `sharing:write` stay offered on the consent page and
+advertised in `scopes_supported` although no tool uses them yet (part 8's trip cover tools will
+use `trips:write`). Mitchell's answer to the close pass's "unused scopes" question, so
+`OAUTH_SCOPES` (`server/oauth/metadata.ts`) and both `/.well-known` documents do not change.
+
+**Preview:** the consent page (production, or a premium preview account; KI-2026-09-16-d) shows
+Read then Write; Read's boxes start checked, Write's unchecked; *Select all* on Write checks only
+Write; *Clear all* on Read clears only Read; Allow grants exactly what is ticked.
+
+**Gate boxes:** *Consent defaults*.
+
+---
+
+## Part 8 — MCP tools for a Playbook's and a Trip's cover
+
+Added 2026-10-28 at Mitchell's request (milestone file, *Answered mid-build*, D13). Branches from
+`main`; independent of part 7. Branch `claude/m55-part8-mcp-covers`. Each tool dispatches through
+its v1 cover route's own declared handler (D2), so the scope, role gate, validation and errors are
+the REST call's. Saved days are not included.
+
+| File | Entry point | Test |
+|---|---|---|
+| `web/server/mcp/tools.ts` | `set_playbook_cover` → `PUT /v1/playbooks/{playbookId}/cover` (`library:write`); `reposition_playbook_cover` → `PATCH …/cover` (`position`, 0 top to 100 bottom; `library:write`); `set_trip_cover` → `PUT /v1/trips/{tripId}/cover` (`trips:write`); `reposition_trip_cover` → `PATCH …/cover` (`trips:write`); annotations as the other write tools, idempotent | `server/mcp/conformance.test.ts` (each names its v1 declaration; schemas equal the route's) |
+| `web/server/mcp/dispatch.ts` / `schemas.ts` | only if the cover routes' path params or body need wiring the existing tools do not | `server/mcp/dispatch.int.test.ts` (set, then reposition, on a Playbook and on a Trip; a grant without `trips:write` answers `insufficient-scope`) |
+| `web/server/public-api/exposure.ts` | the two cover routes' lines name the MCP tools that reach them | `exposure.test.ts` |
+| `web/components/front/DevelopersScreen.tsx`, `docs/guidelines/using-the-api.md` | the tool list gains the four cover tools | the existing tests that name the tool list |
+
+**Preview:** from a connected Claude chat (production), set a Playbook's cover from an image URL,
+move it to 30, and see it on the Playbook; the same on a Trip. A grant without `trips:write` gets
+the scope error for the trip tools.
+
+**Gate boxes:** *Covers*.
+
+---
+
 ## Gate box → part
 
 | Box | Part |
@@ -232,5 +281,7 @@ carries the Security tab instead of this milestone.
 | Revocation | 5 |
 | The inspector | 4 (screenshot) |
 | Exposure | 2 + 4 + 5 |
+| Consent defaults | 7 |
+| Covers | 8 |
 | [walk] | Mitchell, on production after all five merge and `migrate-production` has run |
 | Retro | 0 |
