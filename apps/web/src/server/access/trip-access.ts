@@ -204,9 +204,11 @@ export async function tripAccessFor(
  * The trip with its effective member list, parsed — the half of
  * {@link tripAccessFor} that is not about who is asking.
  *
- * `mayRead` is asked BEFORE the parse, and the order is the point: a stranger
- * asking for a trip whose stored doc is malformed is told `forbidden`, not
- * `malformed-trip`, which would confirm the trip exists.
+ * `mayRead` is asked BEFORE the member overlay's parse, so a stranger is told
+ * `forbidden` there, never a `malformed-trip` that would confirm the trip
+ * exists. It is asked AFTER the stored doc's parse in `getTripDetail`, so a
+ * stranger asking for a trip whose stored doc is malformed IS told
+ * `malformed-trip` (KI-2026-10-28-c).
  */
 async function readTrip(
   tripId: string,
