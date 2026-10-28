@@ -16,6 +16,43 @@ not by anybody remembering. That automation exists because the rule was being
 skipped: M23's entry survived its own gate closing on 2026-09-19 and was still
 here two days later.
 
+- **Writes made through an API token or a connected app say so (asked 2026-10-27).**
+  Moved out of M55 at scoping (decision 10): Mitchell widened D10 to build these labels, then
+  withdrew that the same day to keep M55 simple. Today History knows only one origin label,
+  `SuggestionVia = ["assistant"]` (`packages/contracts/src/history.ts:10`), rendered by `withVia`
+  (`apps/web/src/components/board/SuggestionActions.tsx:106`) in
+  `apps/web/src/components/board/HistoryPanel.tsx:133-140`. Playbooks record no changed-by at all,
+  only `authorKind` human/ai (`packages/contracts/src/saved.ts:246`). The idea: a write through a
+  `tc_` token or an OAuth grant records the client's name on the event envelope's `Origin`, so
+  History reads *"via <client>"*, and a Playbook gains a changed-by column its owner's view shows.
+  The Playbook field is in the published v1 `Playbook`, so it needs a **public API minor**
+  (`API_VERSION`) and a migration for the column. Open: should a Playbook created through a
+  connector set `authorKind: "ai"` (M55 leaves `authorKind` as it is today), and what a token
+  with no client name is labelled as.
+
+- **Claude can search for a cover photo, through a v1 search with a quota (asked 2026-10-28).**
+  Deferred out of M55 by Mitchell at its close. M55 part 8 (PR 621) gave the connector
+  `set_playbook_cover` / `set_trip_cover`, which take an image URL Claude brings itself, because v1
+  has no cover search. The app's two searches, `trips/[tripId]/cover/search` and
+  `saved-days/[savedDayId]/cover/search`, spend Caesura's Unsplash quota, so
+  `apps/web/src/server/public-api/exposure.ts:219,229` mark both `never` (M49 D8, ADR-081 item 7).
+  The idea: a **v1 Unsplash search endpoint with its own per-token / per-grant quota** (a quota
+  decision, and those two `never` lines reversed or a new v1 route beside them), plus an **MCP
+  search tool** over it, so Claude picks a licensed photo with its attribution instead of any
+  image it found on the web. **The risk it would close (PR 621):** on a published Playbook the
+  cover Claude sets is its public Discover cover at once, it can be any https image with unknown
+  licensing, and `credit` is optional, so it may carry no attribution. v1 tokens could already do
+  this; the connector makes it the easy path. Open: the quota's size and who it is charged to,
+  and whether Unsplash's API terms allow serving search to a third-party client.
+
+- **The operator console shows a person's API tokens and connected apps (asked 2026-10-27).**
+  Moved out of M55 at scoping (decision 10): M55's *Connected apps* is in Account → Profile only.
+  The M36 account page (`apps/web/src/components/admin/AccountPage.tsx`) shows no tokens today.
+  The idea is a read-only list there of the account's `api_tokens` (name, prefix, scopes, last
+  used, expired or revoked and why) and its `oauth_grants` (client name, redirect host, scopes,
+  last used), so support can answer *"why did my integration stop"* without a database query.
+  Open: whether an operator may revoke on a person's behalf, and whether that leaves a record.
+
 - **Live assistant progress in trip chat (asked 2026-10-25).** Left out of the motion pass
   (`docs/specs/2026-10-25-motion-pass-design.md`, decision 13). Ask shows a status line per tool
   step because its turn streams. Trip chat's `@assistant` reply lands whole (M52 decision 18),
