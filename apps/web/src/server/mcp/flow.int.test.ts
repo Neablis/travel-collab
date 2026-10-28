@@ -132,7 +132,9 @@ function whoami(access: string): Promise<Response> {
 async function whoamiUserId(access: string): Promise<string> {
   const res = await whoami(access);
   expect(res.status).toBe(200);
-  const { result } = await res.json();
+  // A 2025-11-25 call is answered as one SSE event.
+  const data = (await res.text()).split("\n").find((line) => line.startsWith("data: "))!;
+  const { result } = JSON.parse(data.slice("data: ".length));
   expect(result.isError, result.content[0].text).toBeUndefined();
   return JSON.parse(result.content[0].text).userId;
 }

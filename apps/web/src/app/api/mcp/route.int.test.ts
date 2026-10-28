@@ -1,7 +1,7 @@
 // **`/api/mcp` as a client meets it** (ADR-083 §8), against a real database:
-// the credential is answered before any MCP is read, the server is stateless
-// and answers JSON, and a tool call works whether or not the client sends the
-// 2026-07-28 revision's `Mcp-Method` / `Mcp-Name` headers.
+// the credential is answered before any MCP is read, the server keeps no
+// session, a 2026-07-28 request is answered as JSON and a 2025-11-25 one as a
+// single SSE event, and a refused credential is HTTP on both revisions.
 import { randomUUID } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 import type { ApiScope } from "@tc/contracts";
@@ -75,6 +75,14 @@ function mcp(body: string, headers: Record<string, string> = {}): Promise<Respon
 const rpc = (method: string, params: unknown) => JSON.stringify({ jsonrpc: "2.0", id: 1, method, params });
 const bearer = (secret: string) => ({ authorization: `Bearer ${secret}`, "mcp-protocol-version": "2025-11-25" });
 
+/** A 2025-11-25 answer: the SDK's stateless fallback streams exactly one JSON-RPC message, then ends. */
+async function oneEvent(res: Response) {
+  expect(res.headers.get("content-type")).toMatch(/^text\/event-stream/);
+  const data = (await res.text()).split("\n").filter((line) => line.startsWith("data: "));
+  expect(data).toHaveLength(1);
+  return JSON.parse(data[0]!.slice("data: ".length));
+}
+
 describe("POST /api/mcp before any MCP is read", () => {
   it("answers 401 with the resource_metadata challenge, even to a body that is not JSON-RPC", async () => {
     const res = await mcp("not json at all");
@@ -107,9 +115,8 @@ describe("POST /api/mcp with a connected client's token", () => {
     const access = await connect(await entitled(), ["account:read"]);
     const res = await mcp(rpc("tools/list", {}), bearer(access));
     expect(res.status).toBe(200);
-    expect(res.headers.get("content-type")).toMatch(/^application\/json/);
     expect(res.headers.get("mcp-session-id")).toBeNull();
-    const { result } = await res.json();
+    const { result } = await oneEvent(res);
     const publish = result.tools.find((t: { name: string }) => t.name === "publish_playbook");
     expect(publish.annotations).toEqual(expect.objectContaining({ readOnlyHint: false, openWorldHint: true }));
   });
@@ -124,7 +131,7 @@ describe("POST /api/mcp with a connected client's token", () => {
     for (const extra of forms) {
       const res = await mcp(call, { ...bearer(access), ...extra });
       expect(res.status, JSON.stringify(extra)).toBe(200);
-      const { result } = await res.json();
+      const { result } = await oneEvent(res);
       expect(result.isError, JSON.stringify(extra)).toBeUndefined();
       expect(JSON.parse(result.content[0].text).userId).toBe(owner);
     }
@@ -134,7 +141,7 @@ describe("POST /api/mcp with a connected client's token", () => {
     const access = await connect(await entitled(), ["trips:read"]);
     const res = await mcp(rpc("tools/call", { name: "whoami", arguments: {} }), bearer(access));
     expect(res.status).toBe(200);
-    const { result } = await res.json();
+    const { result } = await oneEvent(res);
     expect(result.isError).toBe(true);
     expect(result.content[0].text).toMatch(/^This token does not hold the "account:read" scope\. \(insufficient-scope\)/);
   });
@@ -159,6 +166,7 @@ describe("POST /api/mcp on MCP 2026-07-28, with no initialize", () => {
     const access = await connect(await entitled(), ["account:read"]);
     const res = await modern(access, "tools/list", {});
     expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toMatch(/^application\/json/);
     expect(res.headers.get("mcp-session-id")).toBeNull();
     const { result } = await res.json();
     expect(result.tools.map((t: { name: string }) => t.name)).toContain("whoami");
@@ -176,6 +184,20 @@ describe("POST /api/mcp on MCP 2026-07-28, with no initialize", () => {
     expect(res.status).toBe(400);
     expect((await res.json()).error.message).toMatch(/Mcp-Name header names "get_trip"/);
   });
+
+  // The route reads every answer to its end before replying, so a listen
+  // stream left open would hang the request rather than stream.
+  it("acknowledges subscriptions/listen and closes it, with nothing to listen for", async () => {
+    const access = await connect(await entitled(), ["account:read"]);
+    const res = await modern(access, "subscriptions/listen", { notifications: { toolsListChanged: true } });
+    expect(res.status).toBe(200);
+    const messages = (await res.text())
+      .split("\n")
+      .filter((line) => line.startsWith("data: "))
+      .map((line) => JSON.parse(line.slice("data: ".length)));
+    expect(messages.map((m) => m.method ?? "result")).toEqual(["notifications/subscriptions/acknowledged", "result"]);
+    expect(messages[0].params.notifications).toEqual({});
+  });
 });
 
 describe("POST /api/mcp on MCP 2025-11-25, after the handshake", () => {
@@ -191,11 +213,11 @@ describe("POST /api/mcp on MCP 2025-11-25, after the handshake", () => {
     );
     expect(init.status).toBe(200);
     expect(init.headers.get("mcp-session-id")).toBeNull();
-    expect((await init.json()).result.protocolVersion).toBe("2025-11-25");
+    expect((await oneEvent(init)).result.protocolVersion).toBe("2025-11-25");
 
     const res = await mcp(rpc("tools/list", {}), bearer(access));
     expect(res.status).toBe(200);
-    const { result } = await res.json();
+    const { result } = await oneEvent(res);
     expect(result.tools.map((t: { name: string }) => t.name)).toContain("whoami");
     // Cache fields are 2026-07-28 vocabulary; a 2025 client is not sent them.
     expect(result.ttlMs).toBeUndefined();
@@ -205,14 +227,28 @@ describe("POST /api/mcp on MCP 2025-11-25, after the handshake", () => {
 describe("POST /api/mcp when a tool call meets a refused credential", () => {
   // ADR-083 §8: a refused credential is HTTP, which the client refreshes or
   // reconnects on, never a tool error the model reads and gives up on.
-  it("answers the refusal's 401 and challenge on the MCP response itself", async () => {
+  const callWhoami: Record<string, (secret: string) => Promise<Response>> = {
+    "2025-11-25": (secret) => mcp(rpc("tools/call", { name: "whoami", arguments: {} }), bearer(secret)),
+    [MODERN]: (secret) => modern(secret, "tools/call", { name: "whoami", arguments: {} }, "whoami"),
+  };
+
+  it.each(Object.keys(callWhoami))("answers the refusal's 401 and challenge on the MCP response itself, on %s", async (revision) => {
     const access = await connect(await entitled(), ["account:read"]);
     revokeAfterResolve = access;
-    const res = await mcp(rpc("tools/call", { name: "whoami", arguments: {} }), bearer(access));
+    const res = await callWhoami[revision]!(access);
     expect(revokeAfterResolve).toBeNull();
     expect(res.status).toBe(401);
     expect(res.headers.get("WWW-Authenticate")).toBe(`Bearer resource_metadata="${METADATA}", error="invalid_token"`);
     expect((await res.json()).error.code).toBe("token-revoked");
+  });
+
+  // A scope the grant lacks is the model's to read, not the client's to refresh on.
+  it(`answers a scope the grant lacks as a tool error on ${MODERN} too`, async () => {
+    const res = await callWhoami[MODERN]!(await connect(await entitled(), ["trips:read"]));
+    expect(res.status).toBe(200);
+    const { result } = await res.json();
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toMatch(/\(insufficient-scope\)/);
   });
 });
 
