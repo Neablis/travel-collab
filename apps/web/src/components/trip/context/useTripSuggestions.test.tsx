@@ -7,6 +7,7 @@ import { tripDetailFixture, uuidFrom } from "@tc/factories";
 import { makeTripHandlers } from "@/mocks/handlers";
 import { holdIdle } from "@/test-support/holdIdle";
 import { TripProvider, useTrip } from "./TripProvider";
+import type { TripSuggestions } from "./useTripSuggestions";
 
 // Through the provider and MSW: the claims are about when the list is read
 // over the wire, and the provider is where the hook's triggers are wired.
@@ -34,8 +35,12 @@ function suggestionRequests() {
 
 const NEW_DAY = uuidFrom(8101, 3);
 
+/** The newest `suggestions` the probe rendered, for a test that must await a call into it. */
+const probed: { suggestions: TripSuggestions | null } = { suggestions: null };
+
 function Probe({ changeId }: { changeId?: string }) {
   const { trip, suggestions, dispatch, draft } = useTrip();
+  probed.suggestions = suggestions;
   return (
     <div>
       <span data-testid="days">{trip?.days.length ?? "-"}</span>
@@ -95,6 +100,27 @@ const idleScheduled = (idle: ReturnType<typeof holdIdle>) => waitFor(() => expec
 
 /** Long enough for any read the provider was going to make to reach the network. */
 const settle = () => act(() => new Promise((r) => setTimeout(r, 50)));
+
+/**
+ * Takes `window` away as a test file's teardown does, lets the held answer
+ * go, and gives `window` back only once `pending` has settled: its settling
+ * is the hook's whole continuation, so no sleep decides whether a state
+ * update lands while the page is gone. Returns "settled", or the rejection.
+ */
+async function settleWithoutWindow(release: () => void, pending: Promise<unknown>): Promise<unknown> {
+  const page = globalThis as { window?: unknown };
+  const saved = page.window;
+  delete page.window;
+  try {
+    release();
+    return await pending.then(
+      () => "settled",
+      (reason: unknown) => reason,
+    );
+  } finally {
+    page.window = saved;
+  }
+}
 
 describe("useTripSuggestions, through TripProvider", () => {
   // Not for the first paint: the list draws ghosts and the header's chip, and
@@ -169,6 +195,67 @@ describe("useTripSuggestions, through TripProvider", () => {
     idle.fire();
     await settle();
     expect(seen).toEqual([]);
+  });
+
+  // KI-2026-10-25-w: a read is a real request, so it can still be out when
+  // the provider unmounts — and in CI, when the test file's jsdom is already
+  // gone. Any state set when it lands makes React read `window.event`, which
+  // is then a ReferenceError that rejects the read's promise and fails the
+  // unit job after every file has passed. `window` is taken away here as the
+  // teardown takes it, so the late answer has nothing to land on.
+  it("sets nothing when a read still out at unmount answers after the page is gone", async () => {
+    holdIdle();
+    const { seen } = await mount("owner");
+    let release!: () => void;
+    const held = new Promise<void>((r) => (release = r));
+    server.use(
+      http.get("/api/trips/:tripId/suggestions", async () => {
+        await held;
+        return HttpResponse.json({ changes: [], rev: "late" });
+      }),
+    );
+    let read!: Promise<void>;
+    act(() => void (read = probed.suggestions!.refresh()));
+    await waitFor(() => expect(seen).toEqual(["GET suggestions"]));
+    cleanup();
+
+    expect(await settleWithoutWindow(release, read)).toBe("settled");
+  });
+
+  // The same for an accept still out at unmount: its answer re-reads the
+  // list and, when the accept went through, refetches the trip. Neither may
+  // set state once the page is gone (PR 627's review, finding 1). "Accept
+  // all" is its own request behind its own guard (PR 627's re-review, finding 2).
+  const one = (change: string) => probed.suggestions!.resolve(change, "accept");
+  const all = (change: string) => probed.suggestions!.acceptMany([change]);
+  it.each([
+    [
+      "refused",
+      "changes/:changeId",
+      () => HttpResponse.json({ error: "Already resolved", code: "already-resolved" }, { status: 409 }),
+      one,
+    ],
+    // Nothing returned passes the request on to the default handler, which accepts.
+    ["accepted", "changes/:changeId", () => undefined, one],
+    ["accepted with the rest", "changes/accept", () => undefined, all],
+  ])("sets nothing when an accept still out at unmount is %s after the page is gone", async (_, route, answer, call) => {
+    const { fixture, seen } = await mount("owner", (tripId) => [pendingAddDay(tripId)]);
+    await waitFor(() => expect(screen.getByTestId("suggestions").textContent).toBe("pending"));
+    let release!: () => void;
+    const held = new Promise<void>((r) => (release = r));
+    server.use(
+      http.post(`/api/trips/:tripId/suggestions/${route}`, async () => {
+        await held;
+        return answer();
+      }),
+    );
+    const change = pendingAddDay(fixture.tripId).id;
+    let resolving!: Promise<unknown>;
+    act(() => void (resolving = call(change)));
+    await waitFor(() => expect(seen).toContain(`POST suggestions/${route.replace(":changeId", change)}`));
+    cleanup();
+
+    expect(await settleWithoutWindow(release, resolving)).toBe("settled");
   });
 
   // The list is 404 to a viewer (spec §2.4: ghosts are never shown to one).
