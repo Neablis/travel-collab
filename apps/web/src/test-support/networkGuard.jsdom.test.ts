@@ -32,9 +32,6 @@ describe("the test network guard, in jsdom", () => {
     expect(consoleError).toHaveBeenCalledWith(blockedRequestMessage("third-party.invalid:443"));
   });
 
-  // Neither Node nor jsdom implements it, which is why the guard has nothing
-  // to wrap. If a jsdom upgrade adds one, this goes red and the guard's
-  // header comment — which relies on its absence — must be revisited.
   // KI-2026-10-28-d: an `apiClient` reader a unit test forgot to mock sends a
   // real request to the page's own origin, which has no server here. The
   // setup file installs the refusal and fails the test with what it recorded;
@@ -43,7 +40,9 @@ describe("the test network guard, in jsdom", () => {
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
     const url = new URL("/api/trips/x/suggestions", location.origin).href;
     await expect(fetch(url)).rejects.toThrow(ownOriginRequestMessage(url));
-    expect(takeRefusedOwnOrigin()).toEqual([url]);
+    expect(takeRefusedOwnOrigin()).toEqual([
+      { url, sentDuring: expect.stringContaining("refuses a fetch to the page's own origin") },
+    ]);
     expect(consoleError).toHaveBeenCalledWith(ownOriginRequestMessage(url));
   });
 
@@ -58,6 +57,9 @@ describe("the test network guard, in jsdom", () => {
     expect(takeRefusedOwnOrigin()).toEqual([]);
   });
 
+  // Neither Node nor jsdom implements it, which is why the guard has nothing
+  // to wrap. If a jsdom upgrade adds one, this goes red and the guard's
+  // header comment — which relies on its absence — must be revisited.
   it("has no navigator.sendBeacon to guard", () => {
     expect(typeof (navigator as { sendBeacon?: unknown }).sendBeacon).toBe("undefined");
   });

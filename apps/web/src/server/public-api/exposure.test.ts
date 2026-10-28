@@ -72,7 +72,7 @@ function importsOf(source: string, fromFile: string): Import[] {
   const out: Import[] = [];
   // The lookahead keeps a bare `import "x";` out of this clause: without it the
   // lazy clause would run on to the next statement's `from` and misread it.
-  const statics = /(?:import|export)\s+(?:type\s+)?(?!["'])([\s\S]*?)\s*from\s*["']([^"']+)["']/g;
+  const statics = /(?:import|export)\s+(?:type\s+)?(?![\s"'])([\s\S]*?)\s*from\s*["']([^"']+)["']/g;
   for (const [, clause = "", specifier = ""] of source.matchAll(statics)) {
     const named = /^\{([\s\S]*)\}$/.exec(clause.trim());
     out.push({
@@ -209,6 +209,8 @@ describe("the import reader the never check depends on", () => {
       `export { g } from "@/server/re";`,
       `import "@/server/side-effect";`,
       `import { h } from "@/server/after-bare";`,
+      `import  "@/server/side-effect-spaced";`,
+      `import { i } from "@/server/after-spaced";`,
     ].join("\n");
     expect(importsOf(src, file)).toEqual([
       { module: "@/server/m", symbols: ["a", "b", "D"] },
@@ -216,7 +218,9 @@ describe("the import reader the never check depends on", () => {
       { module: "@/server/whole", symbols: null },
       { module: "@/server/re", symbols: ["g"] },
       { module: "@/server/after-bare", symbols: ["h"] },
+      { module: "@/server/after-spaced", symbols: ["i"] },
       { module: "@/server/side-effect", symbols: null },
+      { module: "@/server/side-effect-spaced", symbols: null },
       { module: "@/server/lazy", symbols: null },
     ]);
   });

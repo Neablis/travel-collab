@@ -317,10 +317,11 @@ export function TripProvider({
   const seenAccessRev = useRef<string | null>(seed?.access.accessRev ?? null);
   const readingAccessRev = useRef<string | null>(null);
 
-  // Nothing a background read sets lands after the provider unmounts: the
-  // poll's refetch (`onRemoteChange`) and the access re-read (`reloadAccess`)
-  // are voided promises, so React reading `window.event` to price a late
-  // update, after a test's jsdom is gone, would reject one no caller sees
+  // Nothing a read sets lands after the provider unmounts: the first load, a
+  // time-travel read (`enter`), the poll's refetch (`onRemoteChange`) and the
+  // access re-read (`reloadAccess`) all set state after an await, so React
+  // reading `window.event` to price a late update, after a test's jsdom is
+  // gone, would reject a promise no caller sees
   // (KI-2026-10-28-d; `useTripSuggestions` has the same guard for
   // KI-2026-10-25-w).
   const mounted = useRef(true);
@@ -379,6 +380,7 @@ export function TripProvider({
         // the boundary; this read only decides what the UI *offers*.
         cachedRead(tripKeys.access(tripId), () => fetchTripAccess(tripId)),
       ]);
+      if (!mounted.current) return;
       if (accessResult.ok) adoptAccess(accessResult.value);
       else {
         setAccess(null);
@@ -487,6 +489,7 @@ export function TripProvider({
     async (seqArg: number) => {
       if (pending) return; // cannot branch history preview from unconfirmed state
       const result = await fetchTripDetailAt(tripId, seqArg);
+      if (!mounted.current) return;
       if (result.ok) {
         setPreviewSeq(seqArg);
         setPreviewTrip(result.value);

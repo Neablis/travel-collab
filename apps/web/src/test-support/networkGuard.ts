@@ -208,15 +208,28 @@ export function ownOriginRequestMessage(url: string): string {
   );
 }
 
+/** One refused own-origin request, and the test that was running when it was sent. */
+export type RefusedRequest = { url: string; sentDuring: string | undefined };
+
 /** Refused own-origin requests not yet reported. Drained by {@link takeRefusedOwnOrigin}. */
-const refusedOwnOrigin: string[] = [];
+const refusedOwnOrigin: RefusedRequest[] = [];
+
+/**
+ * Names the test running right now. The setup file supplies it, so a request
+ * that lands after its own test ended, and so fails a later one, still names
+ * the test that sent it.
+ */
+let currentTestName: () => string | undefined = () => undefined;
+export function nameCurrentTestWith(name: () => string | undefined): void {
+  currentTestName = name;
+}
 
 /**
  * Every own-origin request refused since the last call, oldest first, and
  * forgets them. The unit lane's setup fails the current test with any it
  * returns; a test that sends one on purpose drains it here first.
  */
-export function takeRefusedOwnOrigin(): string[] {
+export function takeRefusedOwnOrigin(): RefusedRequest[] {
   return refusedOwnOrigin.splice(0);
 }
 
@@ -241,7 +254,7 @@ export function refuseOwnOrigin(inner: typeof fetch): typeof fetch {
       }
       if (target?.origin === origin) {
         const message = ownOriginRequestMessage(target.href);
-        refusedOwnOrigin.push(target.href);
+        refusedOwnOrigin.push({ url: target.href, sentDuring: currentTestName() });
         // Said out loud too: the app code that sent it usually swallows the
         // rejection, and the test that fails for it may be a later one.
         console.error(message);
