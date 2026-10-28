@@ -1,4 +1,5 @@
 import type { CallToolResult } from "@modelcontextprotocol/server";
+import { tripAccessFor } from "@/server/access/trip-access";
 import { runInMcpDispatch } from "@/server/oauth/dispatchContext";
 import { forgetKey, REPLAYED_HEADER, requestHash } from "@/server/public-api/idempotency";
 import { DECLARED } from "@/server/public-api/route";
@@ -77,6 +78,7 @@ export async function callTool(tool: McpTool, input: Record<string, unknown>, ca
   }
   if (refusesCredential(response)) caller.refusal = response.clone();
   const answer: unknown = await response.json().catch(() => null);
+  if (!response.ok && (await hidesTrip(answer, params.tripId, userId))) return toolError(NO_SUCH_TRIP);
   if (!response.ok) return toolError(refusalText(tool, input, response.status, answer));
   const result = tool.answer === undefined ? answer : tool.answer(answer);
   return { content: [{ type: "text", text: JSON.stringify(result) }] };
@@ -99,6 +101,22 @@ function refusesCredential(response: Response): boolean {
     (response.status === 401 || response.status === 402) &&
     (response.headers.get("WWW-Authenticate") ?? "").includes("resource_metadata=")
   );
+}
+
+/** v1's answer to a trip id that does not exist, in `refusalText`'s words. */
+const NO_SUCH_TRIP = "No such trip. (not-found)";
+
+/**
+ * Whether v1 refused a trip the caller cannot read at all. v1 answers a
+ * stranger `forbidden` (M22), which over MCP tells a model the trip exists, so
+ * it answers as a missing id instead (M55 part 11, Mitchell, 2026-10-28). A
+ * member short of the role can read the trip and keeps `forbidden`; matched on
+ * the code, not 403, which `insufficient-scope` shares.
+ */
+async function hidesTrip(answer: unknown, tripId: string | undefined, userId: string): Promise<boolean> {
+  if (tripId === undefined) return false;
+  if ((answer as { error?: { code?: unknown } } | null)?.error?.code !== "forbidden") return false;
+  return !(await tripAccessFor(userId, tripId, "viewer")).ok;
 }
 
 function toolError(text: string): CallToolResult {

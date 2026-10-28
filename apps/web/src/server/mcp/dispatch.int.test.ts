@@ -1,13 +1,15 @@
 // **A tool call is its v1 request** (ADR-083 §8, M55 D2 and D11), against a
 // real database: a retried create keeps one Playbook, a published Playbook's
-// days answer with the way through, publishing answers the public URL, and a
-// cover set and moved through a tool is the one the app then reads.
+// days answer with the way through, publishing answers the public URL, a
+// cover set and moved through a tool is the one the app then reads, and a trip
+// the caller cannot read answers as one that does not exist.
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { describe, expect, it, vi } from "vitest";
 import type { ApiScope } from "@tc/contracts";
 import { deploymentOrigin } from "@/lib/deploymentOrigin";
 import { dayPath } from "@/lib/playbookUrls";
+import { grantMembership } from "@/server/access/members";
 import { executeTripCommand } from "@/server/commands";
 import { db } from "@/server/db/client";
 import { apiIdempotencyKeys } from "@/server/db/schema";
@@ -251,5 +253,54 @@ describe("the cover tools", () => {
     const moved = await call("move_trip_cover", { tripId, position: 15 });
     expect(moved.isError, moved.text).toBe(false);
     expect(await getTripCover(tripId)).toMatchObject({ source: "url", url: IMAGE_URL, position: 15 });
+  });
+});
+
+describe("a trip the caller cannot read", () => {
+  const ALL: ApiScope[] = ["trips:read", "trips:write", "notebook:read", "notebook:write"];
+
+  /** A private trip of another account's, and that account. */
+  async function strangersTrip() {
+    const ownerId = `mcp-stranger-${randomUUID().slice(0, 8)}`;
+    await upsertUser({ id: ownerId, email: `${ownerId}@example.test`, name: null, image: null });
+    const tripId = randomUUID();
+    expect((await executeTripCommand({ type: "CreateTrip", tripId, name: "Private" }, ownerId)).ok).toBe(true);
+    return { ownerId, tripId };
+  }
+
+  // v1 answers a stranger `forbidden` (M22); over MCP that would tell a model
+  // the trip exists (M55's *Two gates hold*), so it answers as a missing id.
+  it.each([
+    ["get_trip", {}],
+    ["list_notebook_pages", {}],
+    ["get_notebook_page", { pageId: randomUUID() }],
+    ["update_notebook_page", { pageId: randomUUID(), title: "Mine now" }],
+    ["set_trip_cover", { url: IMAGE_URL, alt: "The harbour", position: 30 }],
+    ["move_trip_cover", { position: 15 }],
+  ])("%s answers a stranger's trip as it answers an id that does not exist", async (name, input) => {
+    const call = await connect(ALL);
+    const { tripId } = await strangersTrip();
+    const missing = await call(name, { tripId: randomUUID(), ...input });
+    expect(missing).toMatchObject({ isError: true, text: "No such trip. (not-found)" });
+    const stranger = await call(name, { tripId, ...input });
+    expect([stranger.isError, stranger.text]).toEqual([missing.isError, missing.text]);
+  });
+
+  // A member short of the role can read the trip, so it learns nothing new and keeps the reason.
+  it("still tells a viewer it may not edit the trip", async () => {
+    const { call, ownerId: viewer } = await connectAs(ALL);
+    const { ownerId, tripId } = await strangersTrip();
+    await grantMembership(db, { tripId, userId: viewer, role: "viewer", invitedBy: ownerId, now: new Date().toISOString() });
+    const moved = await call("move_trip_cover", { tripId, position: 15 });
+    expect(moved).toMatchObject({ isError: true, text: "You do not have access to this trip. (forbidden)" });
+  });
+
+  // The scope gate runs first, and its 403 is not the trip's: it names the scope to grant.
+  it("still answers a missing scope as insufficient-scope", async () => {
+    const call = await connect(["library:read"]);
+    const { tripId } = await strangersTrip();
+    const refused = await call("get_trip", { tripId });
+    expect(refused.isError).toBe(true);
+    expect(refused.text).toMatch(/^This token does not hold the "trips:read" scope\. \(insufficient-scope\)/);
   });
 });
