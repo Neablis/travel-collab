@@ -1,11 +1,11 @@
 # M55 — Claude connects to Caesura as you, and can publish what it plans
 
-**Status (2026-10-28): built, gate open.** All six code parts are merged (PRs 614, 615, 616,
-617, 618 and 620, in `1c353dd`), and `0069` is applied in production (`migrate-production`
-40604400973). The gate is 10 of 15. *Two gates hold*, *The inspector* and *[walk]* wait on
-Mitchell (see *Exit gate*), and the retro is drafted below. **Reopened for two parts on
-2026-10-28** (D12, D13): part 7 (consent Read / Write) and part 8 (MCP cover tools) are
-building, each with its own new gate box.
+**Status (2026-10-28): built, gate open on one box.** Parts 1 to 6 merged in `1c353dd` (PRs
+614, 615, 616, 617, 618 and 620), and `0069` is applied in production (`migrate-production`
+40604400973). Parts 7 to 10 merged in `acb7f93` (PRs 622, 621, 623 and 624). Mitchell walked
+the result on production the same day. The gate is **16 of 17**: only *Two gates hold* is open,
+and it waits on **part 11**, which makes MCP answer `not-found` on a stranger's trip and is
+being built. The retro is drafted below.
 
 **Scoped 2026-10-27.** Minted by Mitchell the same day (*"Could you add a
 milestone to the caesura project to add the ability for a oauth connector so you can connect?"*,
@@ -60,7 +60,8 @@ and the help-centre article on custom connectors), re-read at scoping on 2026-10
 before part 2 merges, because they move.
 
 - **Transport:** the authentication page does not name one. We build **streamable HTTP,
-  stateless, JSON responses** (ADR-083 §8). SSE is not built.
+  stateless, JSON responses** (ADR-083 §8). SSE is not built. *(Part 10 changed this: a
+  2025-11-25 client is now answered with a one-event SSE stream; ADR-083 §8, amendment L.)*
 - **Discovery:** an unauthenticated MCP request answers **401** with
   `WWW-Authenticate: Bearer resource_metadata="…"`. If that pointer is missing, Claude probes
   `/.well-known/oauth-protected-resource/<mcp-path>` (here `/.well-known/oauth-protected-resource/api/mcp`)
@@ -154,6 +155,10 @@ says so and the text below is his choice.
    | `publish_playbook` / `unpublish_playbook` | `PATCH /v1/playbooks/{id}` (`visibility`) | `library:write` | open-world: publishing makes it public |
    | `list_trips` / `get_trip` | `GET /v1/trips`, `GET /v1/trips/{id}` | `trips:read` | read-only |
    | `list_notebook_pages` / `get_notebook_page` / `update_notebook_page` | `…/pages`, `…/pages/{id}` | `notebook:read` / `notebook:write` | |
+   | `set_playbook_cover` *(part 8, D13)* | `PUT /v1/playbooks/{id}/cover` (an image URL, alt, optional credit and `position`) | `library:write` | destructive (replaces the cover), idempotent, open-world (fetches the image's host) |
+   | `move_playbook_cover` *(part 8, D13)* | `PATCH /v1/playbooks/{id}/cover` (`position`) | `library:write` | idempotent, not destructive |
+   | `set_trip_cover` *(part 8, D13)* | `PUT /v1/trips/{id}/cover` (editor) | `trips:write` | as `set_playbook_cover` |
+   | `move_trip_cover` *(part 8, D13)* | `PATCH /v1/trips/{id}/cover` (editor) | `trips:write` | as `move_playbook_cover` |
 
    **Plus, from scoping:** `update_playbook` on a **published** Playbook's `days` passes v1's 409
    through as a tool error that says what to do: *unpublish → edit → republish*
@@ -266,6 +271,23 @@ Profile to their own **Security** tab (planned on part 0 in `217028c`, built as 
     URL and move where it is framed, on a **Playbook** (`PUT` / `PATCH /v1/playbooks/{id}/cover`,
     `library:write`) and on a **Trip** (`PUT` / `PATCH /v1/trips/{id}/cover`, `trips:write`),
     dispatched through the v1 routes' own handlers (D2). Saved days are not included.
+    Built as `set_playbook_cover`, `move_playbook_cover`, `set_trip_cover` and `move_trip_cover`
+    (D4's table).
+
+**Added by Mitchell, 2026-10-28,** from his MCP Inspector run and the SDK check, each its own part
+stacked on part 8: **part 9** makes every tool's input schema portable (no schema without a
+validation keyword, no array-valued `type`), and **part 10** serves MCP 2026-07-28 beside the
+2025-11-25 handshake (*"make it part 10 if supported"*; it closes ADR-083 amendment L).
+
+**Answered by Mitchell, 2026-10-28, after walking parts 7 to 10 on production:**
+
+- **A stranger's trip is `not-found` over MCP (part 11).** *Two gates hold* asked for `not-found`
+  while v1 answers `forbidden`; Mitchell chose to make MCP answer `not-found`, so a connector
+  cannot tell a trip it may not see from one that does not exist. Part 11 is being built for it.
+- **Cover search for Claude is deferred out of M55.** Claude brings its own image URL (part 8).
+  A v1 Unsplash search with a quota and an MCP search tool over it are an unscheduled candidate
+  (`docs/candidates.md`, *Claude can search for a cover photo*), with the licensing risk PR 621
+  named.
 
 ### Risks the plan carries into part briefs (from the 2026-10-27 survey)
 
@@ -315,6 +337,11 @@ Five parts, each its own PR on `main` (the plan has every file):
 0. **The gate**: the decisions, ADR-083, the plan, connecting from claude.ai on production, the
    evidence, the retro.
 
+**Added mid-build:** part 6, a Security tab (PR 620); part 7, consent Read / Write (D12, PR 622);
+part 8, the MCP cover tools (D13, PR 621); part 9, portable tool schemas (PR 623); part 10, MCP
+2026-07-28 beside the 2025 handshake (PR 624); and part 11, MCP answers `not-found` on a
+stranger's trip (building).
+
 ## Out of scope
 
 - **New product behaviour.** Every tool adapts a v1 route that exists today. A tool that needs
@@ -333,6 +360,10 @@ Five parts, each its own PR on `main` (the plan has every file):
 - **Origin labels for writes made through a grant or a token** (*"via <client name>"* in History,
   a Playbook changed-by column) and any change to `authorKind` (D10; `docs/candidates.md`).
 - **Trip-confined grants**, and every tool left out in D4.
+- **Cover search for Claude** (a v1 Unsplash search endpoint with a quota, and an MCP search tool
+  over it). Deferred by Mitchell on 2026-10-28; `docs/candidates.md`, *Claude can search for a
+  cover photo*. Until then a cover Claude sets is any https image it brings, with licensing
+  unknown and `credit` optional (PR 621).
 
 ## Exit gate
 
@@ -349,6 +380,26 @@ final head before it merged. These were re-read over REST (`commits/<sha>/check-
 | 4 | 617 | `aaacdfd` | 40557435386 | 122385062381 | 122377235009 | 122377235065, 122377235101 |
 | 5 | 618 | `2d41565` | 40565824177 | 122410384052 | 122406781746 | 122406781881, 122406781750 |
 | 6 | 620 | `ffc976d` | 40599204180 | 122525797073 | 122522855642 | 122522855719, 122522855787 |
+| 7 | 622 | `c9e56a7` | 40610808884 | 122564252821 | 122561875161 | 122561875171, 122561875248 |
+| 8 | 621 | `4adf894` | 40615939223 | 122580588168 | 122578358960 | 122578358358, 122578358373 |
+| 9 | 623 | `702213f` | 40616329456 | 122581792088 | 122579608920 | 122579608847, 122579608882 |
+| 10 | 624 | `5b69f63` | 40620414814 | 122595146153 | 122592887135 | 122592887155, 122592887285 |
+
+Parts 7 to 10 were a second stack (622 → 621 → 623 → 624), merged together in `acb7f93` on
+2026-10-28 between 02:29:20Z and 02:29:22Z. Their rows were read over REST on 2026-10-28, at the
+close, and every job named is `success`. None has a migration. File and line references for
+parts 7 to 10 are at `acb7f93`.
+
+**Mitchell's production walk, 2026-10-28.** After merging parts 7 to 10 he wrote, in Claude
+session `session_01PDLEVTzjdgQwSZDrkHgYmg`: *"All merged, walked the changes, confirmed
+working"*. Asked what the walk covered, he confirmed all four of these, on production:
+(a) the new consent page, with its Read and Write sections, Read on and Write off by default, and
+Claude setting and moving covers; (b) the Claude.ai connector working after part 10, now that it
+answers the 2025 handshake over SSE; (c) the full walk: connect the connector, have a Claude chat
+create and publish a 3-day Playbook, Disconnect in Account → Security → Connected apps so that
+the next call asks to reconnect, and the Security tab at 390px and on desktop; (d) the MCP
+Inspector's Tools tab listing every tool with its annotations. **No screenshot was attached for
+(d)**, or for any of the four; the boxes below rest on his word.
 
 `migrate-production`: run **40604400973**, dispatched by Neablis on `main` at `1c353dd`, started
 2026-10-27T23:46:30Z, job 122540184971 `migrate` success. Its *Run pnpm --filter web db:migrate*
@@ -460,6 +511,10 @@ the cloud proxy (KI-2026-10-13-f), so this rests on the step's conclusion.
 - [ ] **Two gates hold:** a tool whose scope was not granted answers `insufficient-scope`; a
   `get_trip` on a trip the person cannot see answers `not-found`; a free account cannot complete
   consent; a lapsed plan's grant is refused and works again on re-subscribing.
+  **Open, waiting on part 11.** Mitchell chose on 2026-10-28 to make MCP answer `not-found` on a
+  stranger's trip (*Answered mid-build*), rather than amend the clause to v1's `forbidden`. Part 11
+  is being built for that, with the `get_trip`-through-a-grant test this box lacks. The box is
+  ticked when part 11 merges with that test seen red and CI green.
   *Open, 2026-10-28.* Three of the four clauses have tests:
   - **Scope:** `app/api/mcp/route.int.test.ts:133` (a tool error naming `insufficient-scope`) and
     `server/public-api/oauthActor.int.test.ts:65`.
@@ -470,9 +525,8 @@ the cloud proxy (KI-2026-10-13-f), so this rests on the step's conclusion.
   v1 answers a stranger's trip **403 `forbidden`**, not `not-found`
   (`server/public-api/route.int.test.ts:298-310`: *"403 and not 404: `tripAccessFor` answers
   `forbidden` for a stranger…"*). The only OAuth trip test, `oauthActor.int.test.ts:78`, covers
-  the owner's own trip. **Needs from Mitchell:** either amend the clause to `forbidden` (and accept
-  the shared v1 test as the gate, since D2 dispatches through the same handler), or ask for a
-  `get_trip`-through-a-grant test on a stranger's trip.
+  the owner's own trip. *(Mitchell's answer: neither amend the clause nor accept v1's 403; MCP
+  answers `not-found`, part 11.)*
 - [x] **Parity:** a conformance test fails on a tool that names no v1 declaration, and on a tool
   whose input schema differs from its route's.
   *Evidence:* `server/mcp/conformance.test.ts:134` (*refuse a tool whose handler has no
@@ -499,9 +553,14 @@ the cloud proxy (KI-2026-10-13-f), so this rests on the step's conclusion.
   `server/mcp/flow.int.test.ts:170-178` (after `revokeGrant`, `whoami` is 401 with
   `error="invalid_token"`, and the refresh is 400 `invalid_grant`). CI 122406781746 is green on
   `2d41565`.
-- [ ] **The inspector:** the MCP Inspector connects to a preview through the loopback redirect and
+- [x] **The inspector:** the MCP Inspector connects to a preview through the loopback redirect and
   lists every tool with its annotations (a screenshot in the PR).
-  *Open, 2026-10-28.* It is blocked on preview by KI-2026-09-16-d: no preview account holds
+  *Ticked 2026-10-28 on Mitchell's production walk, 2026-10-28, item (d):* the Inspector's Tools
+  tab listed every tool with its annotations. **No screenshot was attached**, so the box's
+  parenthesis is not met; it rests on his word, plus `app/api/mcp/route.int.test.ts:114` (*lists
+  every tool with its annotations, statelessly*), green in CI `test / integration` 122592887135
+  on `5b69f63`. It ran against **production**, not a preview, for the reason below.
+  *Earlier, 2026-10-28:* it was blocked on preview by KI-2026-09-16-d: no preview account holds
   `premium@v2`, so consent cannot be approved there. `app/api/mcp/route.int.test.ts:106` (*lists
   every tool with its annotations, statelessly*) covers the listing in CI, but it is not the
   Inspector and not a screenshot. **Needs from Mitchell:** the Inspector against production, or
@@ -518,12 +577,20 @@ the cloud proxy (KI-2026-10-13-f), so this rests on the step's conclusion.
   `…/[grantId]`, `never`). `exposure.test.ts:107` (a line for every route), `:143` (connected apps
   kept off the public side) and `:153` (*walks the MCP server's modules as part of the public
   side*). CI `test / unit` 122522855709 is green on `ffc976d`, the last head before merge.
-- [ ] **[walk]** Mitchell adds `https://caesura.today/api/mcp` as a custom connector in claude.ai,
+- [x] **[walk]** Mitchell adds `https://caesura.today/api/mcp` as a custom connector in claude.ai,
   signs in with Google, approves the default scopes, and from a Claude chat has a 3-day Playbook
   researched, created and published; it appears on Discover with the right days and stops, and the
   chat reports its public URL. He then disconnects it in Connected apps, and the next tool call in
   that chat asks him to connect again.
-  *Open, 2026-10-28. Partial evidence, not a tick:* on 2026-10-28 the M55 orchestrator's own
+  *Ticked 2026-10-28 on Mitchell's production walk, 2026-10-28, items (b) and (c):* he connected
+  the connector on production after part 10 merged, had a Claude chat create and publish a 3-day
+  Playbook, pressed Disconnect in Account → Security → Connected apps, and the next call asked him
+  to reconnect; he saw the Security tab at 390px and on desktop. His confirmation covered the walk
+  as listed; it did not itemise the Discover listing's days and stops or the URL the chat
+  reported, and no screenshot or Playbook URL was recorded. CI for the Disconnect path is the
+  *Revocation* box (`m55-connected-apps.spec.ts`, green again on `5b69f63` in `test / e2e`
+  122592887155 and 122592887285, after part 10 changed it to read the SSE answer).
+  *Earlier, 2026-10-28. Partial evidence, not a tick:* on 2026-10-28 the M55 orchestrator's own
   Claude session had the Caesura connector connected against production. Its `whoami` returned
   `{"planVersionRef":"premium@v2","entitlements":[…,"api.tokens",…]}`. That shows production
   registration, consent and token issue, an MCP tool call, and the HMAC digest under production's
@@ -531,19 +598,64 @@ the cloud proxy (KI-2026-10-13-f), so this rests on the step's conclusion.
   its public URL; Disconnect in Connected apps; and the next call asking to reconnect. The
   Security tab, where Connected apps now lives (part 6), has not been seen rendered at 390px or on
   desktop by anyone. **Needs from Mitchell:** that walk on production, ideally at both widths.
-- [ ] **Consent defaults:** Read scopes start checked and Write unchecked, each section's Select
+- [x] **Consent defaults:** Read scopes start checked and Write unchecked, each section's Select
   all / Clear all acts on it alone (a unit test seen red), on the production consent page.
-  *Open, 2026-10-28:* part 7 (`claude/m55-part7-consent-read-write`) is building.
-- [ ] **Covers:** Claude sets and repositions a Playbook's and a Trip's cover through MCP tools that
+  *Evidence:* `apps/web/src/components/oauth/ConsentScreen.test.tsx:56` (*ticks every Read scope
+  and no Write scope, and each section's Select all and Clear all touch only that section*) and
+  `:83` (no Write section when no write was asked for). PR 622's red-first table has it seen red
+  three ways: the old default rule put back → `AssertionError: every Read box ticked: expected
+  false to be true`; Clear all clearing every section → `Write untouched by Read's Clear all:
+  expected false to be true`; Select all selecting every section → `Read untouched by Write's
+  Select all: expected false to be true`. `apps/web/e2e/m55-consent.spec.ts:28` asks for
+  `trips:read notebook:write`, checks the read ticked and the write not, and presses Write's
+  Select all from the keyboard. CI on `c9e56a7` (run 40610808884): `test / unit` 122561875111,
+  `test / e2e` 122561875171 and 122561875248, `ci-ok` 122564252821, all green. **On production:**
+  Mitchell's production walk, 2026-10-28, item (a).
+- [x] **Covers:** Claude sets and repositions a Playbook's and a Trip's cover through MCP tools that
   pass the parity test (an integration test seen red).
-  *Open, 2026-10-28:* part 8 (`claude/m55-part8-mcp-covers`) is building.
+  *Evidence:* `apps/web/src/server/mcp/dispatch.int.test.ts:235` (*set a Playbook's cover from a
+  URL and move it, as the app then reads it*) and `:245` (the same on a trip). PR 621 has both
+  seen red: before the tools existed, `Error: There is no tool named set_playbook_cover.` (and
+  `set_trip_cover`); and with `move_trip_cover` given `fixed: { position: 30 }`, `- "position":
+  15, + "position": 30,`. Parity is `server/mcp/conformance.test.ts:121` (the tools D4 names,
+  now with the four) and `:176-181` (each serves its route's own schema). CI on `4adf894` (run
+  40615939223): `test / integration` 122578358960, `test / unit` 122578358401, `ci-ok`
+  122580588168, all green. **On production:** Mitchell's production walk, 2026-10-28, item (a)
+  (Claude setting and moving covers).
+- [x] **Portable tool schemas (part 9):** every tool's served `inputSchema` says what it accepts
+  (no subschema without a validation keyword) and names one type per schema (no array-valued
+  `type`), so a client such as the MCP Inspector reads it without portability warnings; nothing a
+  schema accepts changes (a unit test seen red).
+  *Evidence:* `apps/web/src/server/mcp/conformance.test.ts:199` (*serve schemas every client can
+  read: each says what it accepts, with one type per schema*) and `:203` (the walker itself,
+  wherever the schema sits). The rewrite is `toolSchemaOf` in `server/mcp/schemas.ts`. PR 623
+  records the guard seen red on `1c353dd`, unchanged: `AssertionError: expected [ …(19) ] to
+  deeply equal []`, listing `flightNumber: type is an array (["string","null"])` and the
+  `update_notebook_page` paths with `no validation keyword`. CI on `702213f` (run 40616329456):
+  `test / unit` 122579608965, `test / integration` 122579608920, `ci-ok` 122581792088, all green.
+- [x] **MCP 2026-07-28 and the 2025 handshake over one handler (part 10):** `/api/mcp` serves a
+  2026-07-28 client with no `initialize` (its required headers checked, a mismatched `Mcp-Name`
+  refused, `tools/list` cacheable) and still serves a 2025-11-25 client after the handshake,
+  through one handler; a refused credential is still HTTP 401 on both (integration tests seen
+  red), and Claude.ai's connector still works on production.
+  *Evidence:* `@modelcontextprotocol/server` 2.4.0 and `createMcpHandler(factory, { legacy:
+  "stateless" })` in `app/api/mcp/route.ts`. Tests in `app/api/mcp/route.int.test.ts`: `:165`
+  (2026-07-28 lists the tools with a private 60 s cache life), `:176` (Mcp-Name matches, mismatch
+  refused), `:200` (`subscriptions/listen` closes), `:213` (a client's mistake is a warning),
+  `:258` (2025-11-25 after the handshake) and `:282` (a refused credential mid-call). PR 624's
+  red-first table: on SDK 1.32.2, `AssertionError: expected 400 to be 200`; with the read-to-end
+  removed, `expected 200 to be 401`; with `cacheHints` removed, `- "ttlMs": 60000 / + "ttlMs": 0`.
+  CI on `5b69f63` (run 40620414814): `test / integration` 122592887135, `test / e2e`
+  122592887155 and 122592887285, `ci-ok` 122595146153, all green. **On production:** Mitchell's
+  production walk, 2026-10-28, item (b). It closes ADR-083 amendment L and KI-2026-10-27-j.
 
-## Retro — written 2026-10-28 (10 of 13 boxes ticked)
+## Retro — written 2026-10-28 (16 of 17 boxes ticked)
 
-This is a draft, written on part 0 (PR 613) before the close. Three boxes are open: *Two gates
-hold*, *The inspector* and *[walk]*. Each says what it needs from Mitchell.
-`pnpm milestone close M55` has not been run, and the plan has not been deleted.
-Since this draft, D12 and D13 added parts 7 and 8 and two boxes, so the gate is 10 of 15.
+This is a draft, written on part 0 (PR 613) before the close. One box is open: *Two gates hold*,
+which waits on part 11 (MCP answers `not-found` on a stranger's trip). `pnpm milestone close M55`
+has not been run, and the plan has not been deleted. Parts 7 to 10 (D12, D13, and the two parts
+Mitchell added from his Inspector run) each added a box; Mitchell's production walk of
+2026-10-28 ticked *The inspector* and *[walk]*.
 
 ### What went well
 
@@ -565,6 +677,14 @@ Since this draft, D12 and D13 added parts 7 and 8 and two boxes, so the gate is 
 - **Production worked on the first connection.** The discovery `curl` (Discovery box) and the
   orchestrator's own connector session (`whoami` → `premium@v2` with `api.tokens`) both
   succeeded on 2026-10-28, the morning after the merge.
+- **Four parts added after the merge went in the same day.** Mitchell's production use on
+  2026-10-28 produced parts 7 to 10 (consent Read / Write, cover tools, portable schemas, MCP
+  2026-07-28). They were built as a second stack and merged together in `acb7f93` at 02:29Z,
+  each with `ci-ok` green on its final head (table above), and his production walk the same day
+  confirmed all four.
+- **Part 10 closed a known issue the milestone had filed on itself.** KI-2026-10-27-j (no
+  2026-07-28 support) was filed by part 4 and resolved by part 10 within a day, with the
+  pre-upgrade failure recorded (`expected 400 to be 200` on SDK 1.32.2, PR 624).
 - **Part 6 was absorbed without disrupting the stack.** Mitchell asked for a Security tab
   mid-milestone. It was planned on part 0 (`217028c`), built as PR 620 on top of part 5, and
   merged in the same stack.
@@ -590,6 +710,15 @@ Since this draft, D12 and D13 added parts 7 and 8 and two boxes, so the gate is 
   MCP-revision gap as -e too. The collision surfaced at this merge, and part 0's copy is now
   KI-2026-10-27-j. Two branches allocating KI letters on the same day should each read `main`'s
   `open/` first.
+- **Part 10 took four review passes after its first.** A re-review, then re-reviews at
+  `7313215` and `2d1e634` and a final review at `5b69f63`, with three fix passes between them
+  (the costliest agents in this session's metrics). Its e2e spec went red in CI, not locally
+  (`m55-connected-apps.spec.ts` on `bbfff2a` and `3a122b1`, reading the SSE answer as JSON;
+  PR 624). A transport change that alters the response format should list
+  every caller that parses the response in its brief, the e2e spec included.
+- **Walk evidence is Mitchell's word only.** The production walk that ticked four boxes has no
+  screenshot, Playbook URL or timestamp; *The inspector* asked for a screenshot and has none.
+  Asking for one artefact per walked box at the time of the walk costs him seconds.
 - **The gate wording drifted from the decision it records.** *One way to hash a secret* says
   "no `scrypt` left in `api-tokens/`", while D8 (P1-c) itself keeps one scrypt verify for the
   legacy refusal (`legacyScrypt.ts`). The box is ticked with that noted. Gate text written
@@ -597,12 +726,10 @@ Since this draft, D12 and D13 added parts 7 and 8 and two boxes, so the gate is 
 
 ### Leftovers
 
-- **Two gates hold:** Mitchell's call. Either amend the clause to `forbidden`, or have a
-  `get_trip`-through-a-grant test written.
-- **The inspector:** Mitchell's call. A screenshot against production, or with a premium
-  preview account, or waive it (KI-2026-09-16-d).
-- **[walk]:** Mitchell's, on production. It includes the Security tab at 390px and on desktop,
-  which nobody has seen rendered.
+- **Two gates hold:** part 11, being built. Mitchell chose `not-found` over MCP for a stranger's
+  trip; the box is ticked when part 11 merges with its test seen red.
+- **The inspector** and **[walk]:** ticked on Mitchell's production walk, 2026-10-28, with no
+  screenshot attached.
 - **`scopes_supported` is wider than D5 says.** Production lists `trips:write` and
   `sharing:write` (the Discovery `curl`), but D5 says it lists "the scopes the tools use, plus
   `offline_access`", and no tool uses either. Mitchell's call: narrow `OAUTH_SCOPES`
@@ -614,7 +741,13 @@ Since this draft, D12 and D13 added parts 7 and 8 and two boxes, so the gate is 
 - KI-2026-10-27-g: a client revoking its own token is recorded as `owner`.
 - KI-2026-10-27-h: the register counter sweep scans the whole table.
 - KI-2026-10-27-i: the exposure walk misses a bare side-effect import.
-- KI-2026-10-27-j: the MCP server cannot serve a client that speaks only 2026-07-28.
+- KI-2026-10-27-j: resolved by part 10 (PR 624), moved to `docs/known-issues/resolved/`.
+- **KI-2026-10-28-b** (new): an MCP tool whose own code throws inside `callTool` is not logged,
+  and its raw message goes back to the client. Mitchell chose to record it, not fix it in M55.
+- KI-2026-10-28-a: the responsive hero guard fails on a first attempt and passes on retry (filed
+  by part 10).
+- `docs/candidates.md`, *Claude can search for a cover photo*: a v1 Unsplash search with a
+  quota, and an MCP search tool, deferred out of M55 by Mitchell (the licensing risk is PR 621's).
 - `docs/candidates.md`: *Writes made through an API token or a connected app say so* (the
   *"via <client>"* labels, D10), and the operator-console mirror of grants and tokens.
 - Listing Caesura in Claude's connector directory: Mitchell's call, once the connector has been
@@ -633,7 +766,7 @@ write + 0.1 × cache read; output excluded).
 |---|---|---|---|---|
 | Earlier build session (scoping and the first parts) | counts only | – | 87 orchestrator requests, 13 `phase-implementer`, 10 `part-reviewer` | **unknown** |
 | Previous build session (the parts to merge) | carried | 13 | 429 | 5.50M |
-| This close (part 0) | none | – | – | not measured |
+| This session (parts 7 to 11 and the close), as of session start, 2026-10-28 | carried | 20 | 640 | 7.69M |
 
 **By agent type, previous build session**
 
@@ -646,10 +779,30 @@ write + 0.1 × cache read; output excluded).
 | `general-purpose` | 2 | 29 | – | 433k | 7.9% |
 | **Total** | **13** | **429** | | **5.50M** | |
 
-The earlier session reported request counts per agent type, but no units, so its spend is
-unknown and is not in any total here.
+**By agent type, this session (as of session start, 2026-10-28)**
 
-**Parts:** 7 (part 0 and the six code parts).
+From `session-metrics --milestone` on this session's transcript, as reported to the close: 20
+agents, 640 API calls, 7.69M units.
+
+| Who | Agents | Calls | Peak context | Units | Share |
+|---|---|---|---|---|---|
+| `phase-implementer` | 8 | 282 | – | 2.72M | 35.3% |
+| `part-reviewer` | 8 | 188 | – | 1.68M | 21.8% |
+| `general-purpose` | 3 | 95 | – | 1.66M | 21.6% |
+| `orchestrator` | 1 | 75 | 255k (average 187k) | 1.63M | 21.2% |
+| **Total** | **20** | **640** | | **7.69M** | |
+
+A re-run of `pnpm -s session-metrics --milestone` in the close's container read a transcript
+that covers only part of this session (12 agents, 471 calls, 4.93M units, orchestrator 41 calls
+at a 182k peak), so it is not used; the figures above, taken at session start, are the larger
+and earlier set. No dollar cost was recorded for this session either.
+
+The earlier session reported request counts per agent type, but no units, so its spend is
+unknown and is not in any total here. **Known total: 13.19M units** (5.50M + 7.69M), without
+the earlier session.
+
+**Parts:** 11 merged or building (part 0, the six code parts of the first stack, and parts 7 to
+10; part 11 is building).
 
 **Lines added: 11,652.** This is
 `git diff --shortstat 837eef5 1c353dd -- apps packages`. `837eef5` is PR 614's base, and it is
@@ -657,15 +810,18 @@ also `merge-base(837eef5, 1c353dd)`, the first parent of PR 620's merge commit. 
 gives 108 files changed, 11,652 insertions and 508 deletions. No `*.generated.json` or
 `pnpm-lock.yaml` change is in that range. **Without the migration snapshot
 `apps/web/drizzle/meta/0069_snapshot.json` (4,194 lines), the count is 7,458**, the figure that
-compares with M54's (which had no snapshot).
+compares with M54's (which had no snapshot). **Parts 7 to 10 add 661**
+(`git diff --shortstat 1c353dd acb7f93 -- apps packages`: 16 files, 661 insertions, 80
+deletions; `pnpm-lock.yaml` is outside that path), so **8,119 without the snapshot** for parts 1
+to 10.
 
 **Targets**
 
 | Target | Result | Measured |
 |---|---|---|
-| Orchestrator share of units < 15% | missed | 29.9% (previous build session) |
-| No phase-implementer averaging > 250k context | not measurable | no per-builder average carried |
-| GitHub wakes per merged part < 5 | not measurable | not carried |
+| Orchestrator share of units < 15% | missed | 29.9% (previous build session); 21.2% (this session) |
+| No phase-implementer averaging > 250k context | not measurable | no per-builder average carried (the partial re-run's worst was 78k) |
+| GitHub wakes per merged part < 5 | not measurable | not carried (the partial re-run counted 0) |
 | Dollars per 1k lines added < 20 | not measurable | no recorded cost |
 | Coordinator-message re-writes <= 2 | not measurable | not carried |
 
@@ -674,12 +830,13 @@ compares with M54's (which had no snapshot).
 M54 is the last closed milestone.
 
 - **Dollars per 1,000 lines added (under 20):** not measurable, because no session recorded a
-  cost. M54 was $41.0. In units, the previous build session spent 5.50M over 7,458 lines without
-  the snapshot (about 737k units per 1,000 lines). That excludes the earlier session, so it
+  cost. M54 was $41.0. In units, the two measured sessions spent 13.19M over 8,119 lines without
+  the snapshot (about 1.62M units per 1,000 lines). That excludes the earlier session, so it
   understates the total.
-- **Orchestrator's share (under 15%):** missed at 29.9%; M54 was 20.4%. The cause is in
-  *What could be better*: one orchestrator context held a six-part stack, its reviews and its
-  merge.
+- **Orchestrator's share (under 15%):** missed at 29.9% in the previous build session and 21.2%
+  in this one; M54 was 20.4%. The cause is in *What could be better*: one orchestrator context
+  held a six-part stack, its reviews and its merge, and this session's orchestrator ran past the
+  250k hand-off line (peak 255k) while part 10's four review rounds reported to it.
 - **A builder's average context (none over 250k):** not measurable, for M55 as for M54.
 - **GitHub wakes per merged part (under 5):** not measurable; M54 measured 0 in its close.
 - **Cache re-writes after a coordinator message (2 or fewer):** not measurable; M54 measured 0

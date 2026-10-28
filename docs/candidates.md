@@ -30,6 +30,21 @@ here two days later.
   connector set `authorKind: "ai"` (M55 leaves `authorKind` as it is today), and what a token
   with no client name is labelled as.
 
+- **Claude can search for a cover photo, through a v1 search with a quota (asked 2026-10-28).**
+  Deferred out of M55 by Mitchell at its close. M55 part 8 (PR 621) gave the connector
+  `set_playbook_cover` / `set_trip_cover`, which take an image URL Claude brings itself, because v1
+  has no cover search. The app's two searches, `trips/[tripId]/cover/search` and
+  `saved-days/[savedDayId]/cover/search`, spend Caesura's Unsplash quota, so
+  `apps/web/src/server/public-api/exposure.ts:219,229` mark both `never` (M49 D8, ADR-081 item 7).
+  The idea: a **v1 Unsplash search endpoint with its own per-token / per-grant quota** (a quota
+  decision, and those two `never` lines reversed or a new v1 route beside them), plus an **MCP
+  search tool** over it, so Claude picks a licensed photo with its attribution instead of any
+  image it found on the web. **The risk it would close (PR 621):** on a published Playbook the
+  cover Claude sets is its public Discover cover at once, it can be any https image with unknown
+  licensing, and `credit` is optional, so it may carry no attribution. v1 tokens could already do
+  this; the connector makes it the easy path. Open: the quota's size and who it is charged to,
+  and whether Unsplash's API terms allow serving search to a third-party client.
+
 - **The operator console shows a person's API tokens and connected apps (asked 2026-10-27).**
   Moved out of M55 at scoping (decision 10): M55's *Connected apps* is in Account → Profile only.
   The M36 account page (`apps/web/src/components/admin/AccountPage.tsx`) shows no tokens today.

@@ -26,6 +26,22 @@ Part 0 (`ccr-a54f396f-65ja2i`, prose only) merges last.
 | 6 | `claude/m55-part6-security-tab` | A Security tab for API tokens and Connected apps (added 2026-10-27) | 5 | — |
 | 7 | `claude/m55-part7-consent-read-write` | Consent page: Read and Write sections, Select all / Clear all (added 2026-10-28) | `main` | 3 |
 | 8 | `claude/m55-part8-mcp-covers` | MCP tools to set and reposition a Playbook's and a Trip's cover (added 2026-10-28) | `main` | 6 |
+| 9 | `claude/m55-part9-portable-schemas` | Tool input schemas any MCP client can read (added 2026-10-28, from Mitchell's Inspector run) | 8 (stacked) | — |
+| 10 | `claude/m55-part10-mcp-sdk-v2` | MCP 2026-07-28 beside the 2025 handshake, SDK v2 (added 2026-10-28; amendment L) | 9 (stacked) | — |
+| 11 | `claude/m55-part11-get-trip-not-found` | MCP answers `not-found` on a stranger's trip (added 2026-10-28, *Two gates hold*) | `main` | — |
+
+**Tracker, parts 7 to 11** (read over REST, 2026-10-28). Parts 7 → 8 → 9 → 10 were built as a
+second stack and merged together in `acb7f93`, 2026-10-28 02:29:20Z to 02:29:22Z. As built, part
+8's tools are `move_playbook_cover` / `move_trip_cover`, not `reposition_…` as the Part 8 table
+below says.
+
+| Part | PR | State | Final head | Actions run (`ci-ok` job) | Evidence |
+|---|---|---|---|---|---|
+| 7 | 622 | merged (`acb7f93`) | `c9e56a7` | 40610808884 (122564252821) | `ConsentScreen.test.tsx:56` seen red 3 ways; e2e `m55-consent.spec.ts`; Mitchell's production walk (a) |
+| 8 | 621 | merged (`acb7f93`) | `4adf894` | 40615939223 (122580588168) | `dispatch.int.test.ts:235,245` seen red; Mitchell's production walk (a) |
+| 9 | 623 | merged (`acb7f93`) | `702213f` | 40616329456 (122581792088) | `conformance.test.ts:199,203` seen red on `1c353dd` |
+| 10 | 624 | merged (`acb7f93`) | `5b69f63` | 40620414814 (122595146153) | `route.int.test.ts:165-282` seen red on SDK 1.32.2; Mitchell's production walk (b); resolves KI-2026-10-27-j |
+| 11 | none yet | building | – | – | *Two gates hold* waits on it |
 
 **The riskiest part is 2** (an authorization server open to any client): it gets the extra fresh
 `part-reviewer` pass on its whole diff before it is called ready. Part 1 is second (it revokes
@@ -275,7 +291,7 @@ the scope error for the trip tools.
 | The flow end to end | 4 |
 | Refusals (including `iss` and the atomic single-use tests) | 2 + 3 + 4 |
 | Registration abuse is bounded | 2 |
-| Two gates hold | 2 (free consent) + 3 |
+| Two gates hold | 2 (free consent) + 3 + 11 (`not-found` over MCP) |
 | Parity | 4 |
 | Publish answers the public URL | 4 |
 | Revocation | 5 |
@@ -283,5 +299,7 @@ the scope error for the trip tools.
 | Exposure | 2 + 4 + 5 |
 | Consent defaults | 7 |
 | Covers | 8 |
+| Portable tool schemas | 9 |
+| MCP 2026-07-28 and the 2025 handshake | 10 |
 | [walk] | Mitchell, on production after all five merge and `migrate-production` has run |
 | Retro | 0 |

@@ -155,9 +155,13 @@ and every refresh, and Claude's token calls must answer within 10 seconds.
      the **`client_id` host** as well (amendment G; the CIMD draft §6: *"SHOULD display the
      hostname of the client_id"*). **Only a redirect that is exactly
      `https://claude.ai/api/mcp/auth_callback` is shown as recognised: Claude** (amendment F). The
-     list is a constant in `server/oauth/recognised.ts`, not data. The default scopes exclude
-     notebook writes, and nothing the connector can do deletes anything (D4), which bounds what a
-     phished grant can do.
+     list is a constant in `server/oauth/recognised.ts`, not data. **The default grant is read
+     only** (D12, Mitchell, 2026-10-28; M55 part 7, PR 622): the consent page splits the scopes into
+     a Read and a Write section, every Read scope starts checked and every Write scope unchecked,
+     and each section's *Select all* / *Clear all* acts on that section alone. `trips:write` and
+     `sharing:write` stay offered and in `scopes_supported`. With nothing the connector can do
+     deleting anything (D4), a phished grant that the person does not widen can only read.
+     *This replaces the earlier default, which unticked only the notebook scopes.*
    - **A loopback redirect gets the localhost warning, never "recognised" (amendment F).** MCP
      warns that an attacker can present a legitimate CIMD URL, Claude Code's
      `https://claude.ai/oauth/claude-code-client-metadata` included, with a localhost port of
@@ -252,6 +256,17 @@ and every refresh, and Claude's token calls must answer within 10 seconds.
    refuses `MCP-Protocol-Version: 2026-07-28` with a 400, and `initialize` negotiates down to
    `2025-11-25`. A client that speaks only 2026-07-28 cannot connect until the SDK is upgraded
    (KI-2026-10-27-j).
+   **Done by part 10 (PR 624, merged 2026-10-28 in `acb7f93`):** the route moved to the v2 package
+   `@modelcontextprotocol/server` 2.4.0, and one handler, `createMcpHandler(factory, { legacy:
+   "stateless" })`, serves both revisions. A 2026-07-28 client needs no `initialize`, sends the
+   required `MCP-Protocol-Version` / `Mcp-Method` / `Mcp-Name` headers (a `Mcp-Name` that differs
+   from the body's tool is refused), and gets `tools/list` as a `CacheableResult` (`ttlMs` 60 000,
+   `cacheScope: "private"`). A 2025-11-25 client still handshakes, and is now answered with a
+   one-event SSE stream rather than a JSON body; the route reads each answer to its end so that a
+   refusal found mid-call is still an HTTP 401. Tests: `app/api/mcp/route.int.test.ts:164-200`
+   (2026-07-28) and `:258` (2025-11-25 after the handshake). KI-2026-10-27-j is resolved.
+   *So "JSON responses" and `enableJsonResponse` above no longer describe a 2025-11-25 client,
+   which is answered over SSE.*
 9. **The exposure ledger gains a status for a public route outside `v1/`:**
    `{ status: "front-door"; why: string; adapts?: "v1" }`. `mcp` is a front door that adapts
    `v1` (`adapts: "v1"`); `oauth/register`, `oauth/token`, `oauth/revoke` and `oauth/authorize`

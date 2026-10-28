@@ -26,14 +26,14 @@ Mitchell placed it ahead of M43 and answered all eleven decisions at scoping (D7
 and D11 changed; D10 widened to *"via <client>"* labels, then withdrawn the same day, the
 labels moved to `docs/candidates.md`). Design: ADR-083. Plan: `docs/plans/2026-10-27-M55-claude-connects-as-you.md`,
 six code parts on `claude/m55-part<K>-…` branches, each its own PR on `main`. Part 0 is the draft PR
-on `ccr-a54f396f-65ja2i` (PR 613, prose only, merges last). **As of 2026-10-28, all six parts are
-merged:** PRs 614, 615, 616, 617, 618 and 620 merged as one stack in `1c353dd`, 2026-10-27 23:26Z.
-`0069` was applied in production by `migrate-production` run 40604400973 (23:46Z). The gate is
-10 of 13 with evidence, and the retro is drafted in the milestone file. **The close waits on
-Mitchell:** his production [walk] (a 3-day Playbook published through the connector, then
-Disconnect, plus the Security tab at 390px and on desktop), an MCP Inspector screenshot (blocked
-on preview by KI-2026-09-16-d), and a ruling on *Two gates hold*'s `not-found` clause (v1 answers
-`forbidden`).
+on `ccr-a54f396f-65ja2i` (PR 613, prose only, merges last). **As of 2026-10-28, parts 1 to 10
+are merged:** PRs 614, 615, 616, 617, 618 and 620 as one stack in `1c353dd` (2026-10-27 23:26Z,
+`0069` applied by `migrate-production` run 40604400973), then parts 7 to 10 (PRs 622, 621, 623,
+624) as a second stack in `acb7f93` (2026-10-28 02:29Z, no migration). Mitchell walked them on
+production on 2026-10-28. **The gate is 16 of 17** with evidence, and the retro is drafted in the
+milestone file. **The close waits on part 11:** *Two gates hold* stays open until MCP answers
+`not-found` on a stranger's trip (Mitchell's choice over amending the clause to v1's
+`forbidden`), with a `get_trip`-through-a-grant test seen red.
 
 **M54 closed 2026-10-27, gate 13 of 13**, by `pnpm milestone close M54 --confirm` on part 0
 (PR 593, `ccr-3f23dccb-mljaxu`), merged to `main` as `837eef5`. All eight parts are on `main`
@@ -61,10 +61,11 @@ earlier confirmations (Today undeletable on production; part 10's API; part 11 *
 confirmed fixed"*). Evidence, retro and spend are in
 `docs/milestones/M52-the-trip-comes-with-you.md`.
 
-**Next action:** build M55's part 1 (`claude/m55-part1-hmac-storage`: migration `0069`, the
-HMAC helper, `tc_` tokens moved and the old ones revoked), then parts 2 → 3 → 4, with 5 after 2
-and 6 after 3 (the plan's *Order*). Mitchell dispatches `migrate-production` right after part 1
-merges, and adds the two `/.well-known/oauth-*` firewall bypass rules once part 2 merges.
+**Next action:** finish M55's part 11 (MCP answers `not-found` on a stranger's trip), have
+Mitchell merge it, tick *Two gates hold* on part 0 (PR 613), then close: `pnpm milestone close
+M55`, delete the plan, mark PR 613 ready. New from the close: KI-2026-10-28-b (an MCP tool that
+throws is not logged and leaks its message), and the candidate *Claude can search for a cover
+photo* in `docs/candidates.md`.
 Open follow-ups from M54: KI-20261027-a to -d, KI-20261026-t, -u,
 -x and -y, and KI-20261013-a's first-load gap. Open follow-ups from M49: KI-20261025-w, and the candidate
 *Reposition a playbook day's cover*.
