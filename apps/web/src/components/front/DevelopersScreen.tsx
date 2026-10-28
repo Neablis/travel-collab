@@ -172,7 +172,8 @@ export function DevelopersScreen() {
           </Heading>
           <Text className="text-pretty">
             Claude can plan in Caesura as you: read your trips and your library, write and publish playbooks,
-            and search for places. In Claude, add a custom connector with this URL:
+            set and frame the cover photo of a playbook or a trip, and search for places. In Claude, add a
+            custom connector with this URL:
           </Text>
           <pre className="overflow-x-auto rounded-md border border-hairline bg-surface p-3 font-mono text-sm text-ink">
             https://caesura.today/api/mcp
