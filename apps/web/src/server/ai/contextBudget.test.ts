@@ -31,11 +31,18 @@ import { describe, expect, it } from "vitest";
 import { asSchema } from "ai";
 import { readFileSync, writeFileSync } from "node:fs";
 import { tripDetailFactory } from "@tc/factories";
-import { instructionsFor, type PageBrief } from "@/server/ai/handleAskRequest";
+import {
+  accountInstructionBlocks,
+  instructionsFor,
+  playbookInstructionBlocks,
+  type PageBrief,
+} from "@/server/ai/handleAskRequest";
 import type { TaskClass } from "@/server/assistant/taskClass";
+import type { AskScope } from "@/server/assistant/context";
 import { nowBlocks, turnNowOf } from "@/server/assistant/context";
 import { TURN_DEP_KEYS, type TurnDeps } from "@/server/assistant/deps";
 import { grantFor, postureFor, toolsFor, type EffectCaps } from "@/server/assistant/grants";
+import { renderPrompt } from "@/server/assistant/prompt";
 import { ASSISTANT_TOOLS, aiToolsFor } from "@/server/assistant/registry";
 import { SWITCH_INTENT_TOOL_NAME } from "@/server/assistant/tools/intent";
 
@@ -55,8 +62,15 @@ interface Shape {
   caps: EffectCaps;
   /** `undefined` = not narrowed (a viewer, or a class resolved upward). */
   narrowBy: TaskClass | undefined;
-  /** A page turn's instruction is the page one, built from `PAGE_BRIEF`. */
-  board: boolean;
+  /**
+   * Which instruction the turn is told: a trip's (`instructionsFor` on a
+   * board), a page's (built from `PAGE_BRIEF`), the account-wide assistant's
+   * (`accountInstructionBlocks`), or a playbook page's
+   * (`playbookInstructionBlocks`, for `caps.surface` and `scope`).
+   */
+  prompt: "board" | "page" | "account" | "playbook";
+  /** A playbook shape's page, as admission verifies it. */
+  scope?: AskScope;
   /** On a trip under way: offered what only such a turn is, and told `UNDERWAY_NOW`. */
   underway?: true;
 }
@@ -86,14 +100,32 @@ const UNDERWAY_NOW = (() => {
 const editor = { role: "propose", plan: "propose" } as const;
 
 const SHAPES: Record<string, Shape> = {
-  "trip · viewer": { caps: { surface: "trip", role: "read", plan: "propose", classifier: "read" }, narrowBy: undefined, board: true },
-  "trip · question": { caps: { surface: "trip", ...editor, classifier: "read" }, narrowBy: "question", board: true },
-  "trip · question · under way": { caps: { surface: "trip", ...editor, classifier: "read" }, narrowBy: "question", board: true, underway: true },
-  "trip · edit": { caps: { surface: "trip", ...editor, classifier: "propose" }, narrowBy: "edit", board: true },
-  "trip · plan": { caps: { surface: "trip", ...editor, classifier: "propose" }, narrowBy: "plan", board: true },
-  "trip · unsure": { caps: { surface: "trip", ...editor, classifier: "propose" }, narrowBy: undefined, board: true },
-  "page · compose": { caps: { surface: "page", ...editor, classifier: "propose" }, narrowBy: "compose", board: false },
-  "page · question": { caps: { surface: "page", ...editor, classifier: "propose" }, narrowBy: "question", board: false },
+  "trip · viewer": { caps: { surface: "trip", role: "read", plan: "propose", classifier: "read" }, narrowBy: undefined, prompt: "board" },
+  "trip · question": { caps: { surface: "trip", ...editor, classifier: "read" }, narrowBy: "question", prompt: "board" },
+  "trip · question · under way": { caps: { surface: "trip", ...editor, classifier: "read" }, narrowBy: "question", prompt: "board", underway: true },
+  "trip · edit": { caps: { surface: "trip", ...editor, classifier: "propose" }, narrowBy: "edit", prompt: "board" },
+  "trip · plan": { caps: { surface: "trip", ...editor, classifier: "propose" }, narrowBy: "plan", prompt: "board" },
+  "trip · unsure": { caps: { surface: "trip", ...editor, classifier: "propose" }, narrowBy: undefined, prompt: "board" },
+  "page · compose": { caps: { surface: "page", ...editor, classifier: "propose" }, narrowBy: "compose", prompt: "page" },
+  "page · question": { caps: { surface: "page", ...editor, classifier: "propose" }, narrowBy: "question", prompt: "page" },
+  // M45 and M45 D9, at the account door, with the caps `grantTools` resolves
+  // there: an account turn holds no trip a role is held on (`canWrite` is
+  // false), and a playbook page's role and classifier caps are `propose`, its
+  // class the classifier's only verdict, `question`. Both are told `VOICE_RULE`
+  // (M50 decision 16), which no shape measured before KI-2026-10-19-e.
+  "account · question": { caps: { surface: "account", role: "read", plan: "propose", classifier: "read" }, narrowBy: "question", prompt: "account" },
+  "playbook day · question": {
+    caps: { surface: "playbook-day", ...editor, classifier: "propose" },
+    narrowBy: "question",
+    prompt: "playbook",
+    scope: { kind: "playbook", page: { kind: "day", savedDayId: "00000000-0000-4000-8000-000000000001" } },
+  },
+  "playbook list · question": {
+    caps: { surface: "city", ...editor, classifier: "propose" },
+    narrowBy: "question",
+    prompt: "playbook",
+    scope: { kind: "playbook", page: { kind: "city", slug: "kyoto", page: 1 } },
+  },
 };
 
 // Schemas are all this test reads, so every turn dependency is an empty stub:
@@ -117,6 +149,20 @@ async function wireCharsOf(names: readonly string[]): Promise<Record<string, num
   return out;
 }
 
+/** The system instruction a turn of this shape is sent, rendered. */
+function instructionOf(shape: Shape, posture: ReturnType<typeof postureFor>, classWithheld: boolean): string {
+  switch (shape.prompt) {
+    case "board":
+      return instructionsFor({ kind: "trip" }, 10, posture, null, classWithheld, undefined, undefined, undefined, shape.underway ? UNDERWAY_NOW : []);
+    case "page":
+      return instructionsFor({ kind: "page", pageId: "page-1" }, 10, posture, { ...PAGE_BRIEF, intent: shape.narrowBy });
+    case "account":
+      return renderPrompt(accountInstructionBlocks({ kind: "account" }));
+    case "playbook":
+      return renderPrompt(playbookInstructionBlocks(shape.scope!, shape.caps.surface));
+  }
+}
+
 const approxTokens = (chars: number) => Math.round(chars / CHARS_PER_TOKEN);
 
 async function measure() {
@@ -129,13 +175,12 @@ async function measure() {
     const offerable = toolsFor(grants, undefined, posture, "ask", phase);
     const tools = toolsFor(grants, shape.narrowBy, posture, "ask", phase)
       // admission drops the pivot when a page has nowhere to pivot to; every
-      // page here can pivot (compose ↔ question), so it is kept.
-      .filter((tool) => !shape.board || tool.name !== SWITCH_INTENT_TOOL_NAME)
+      // page here can pivot (compose ↔ question), so it is kept. Nothing else
+      // is a page, so nothing else can pivot.
+      .filter((tool) => shape.prompt === "page" || tool.name !== SWITCH_INTENT_TOOL_NAME)
       .map((tool) => tool.name);
     const toolsTotal = tools.reduce((sum, name) => sum + toolChars[name]!, 0);
-    const instructionChars = shape.board
-      ? instructionsFor({ kind: "trip" }, 10, posture, null, tools.length < offerable.length, undefined, undefined, undefined, shape.underway ? UNDERWAY_NOW : []).length
-      : instructionsFor({ kind: "page", pageId: "page-1" }, 10, posture, { ...PAGE_BRIEF, intent: shape.narrowBy }).length;
+    const instructionChars = instructionOf(shape, posture, tools.length < offerable.length).length;
     const totalChars = toolsTotal + instructionChars;
     shapes[label] = { tools, toolChars: toolsTotal, instructionChars, totalChars, approxTokens: approxTokens(totalChars) };
   }

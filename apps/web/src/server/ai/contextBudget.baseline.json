@@ -156,6 +156,39 @@
       "instructionChars": 1712,
       "totalChars": 8527,
       "approxTokens": 2576
+    },
+    "account · question": {
+      "tools": [
+        "spend_by_category",
+        "places_visited",
+        "visit_counts",
+        "suggest_next_country",
+        "open_trip"
+      ],
+      "toolChars": 2857,
+      "instructionChars": 2325,
+      "totalChars": 5182,
+      "approxTokens": 1566
+    },
+    "playbook day · question": {
+      "tools": [
+        "read_playbook",
+        "add_playbook_to_trip",
+        "start_trip_with_playbook"
+      ],
+      "toolChars": 1577,
+      "instructionChars": 2129,
+      "totalChars": 3706,
+      "approxTokens": 1120
+    },
+    "playbook list · question": {
+      "tools": [
+        "search_this_page"
+      ],
+      "toolChars": 418,
+      "instructionChars": 1610,
+      "totalChars": 2028,
+      "approxTokens": 613
     }
   },
   "tools": {
