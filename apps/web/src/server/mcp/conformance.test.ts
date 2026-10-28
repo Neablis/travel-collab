@@ -196,11 +196,22 @@ describe("the MCP tools", () => {
     expect(listedTools(TOOLS).flatMap((t) => portabilityProblems(t.inputSchema, `${t.name}: inputSchema`))).toEqual([]);
   });
 
-  it("refuse a schema that accepts anything, or names two types at once", () => {
-    const loose = { type: "object", properties: { any: {}, maybe: { type: ["string", "null"] } } };
+  it("refuse a schema that accepts anything, or names two types at once, wherever it sits", () => {
+    // One per position zod emits: `update_notebook_page`'s nodes all sit under `$defs`.
+    const loose = {
+      type: "object",
+      properties: { any: {}, maybe: { type: ["string", "null"] } },
+      additionalProperties: {},
+      items: { anyOf: [{ type: ["string", "null"] }], oneOf: [{}] },
+      $defs: { node: { type: "object", additionalProperties: {} } },
+    };
     expect(portabilityProblems(loose, "s")).toEqual([
+      's.items.anyOf[0]: type is an array (["string","null"])',
+      "s.items.oneOf[0]: no validation keyword",
+      "s.additionalProperties: no validation keyword",
       "s.properties.any: no validation keyword",
       's.properties.maybe: type is an array (["string","null"])',
+      "s.$defs.node.additionalProperties: no validation keyword",
     ]);
   });
 });
