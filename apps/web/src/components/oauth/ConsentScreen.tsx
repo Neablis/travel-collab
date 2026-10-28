@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import Link from "next/link";
 import { SCOPE_CATALOGUE, type ApiScope } from "@tc/contracts";
 import { Badge } from "@/components/ui/badge";
@@ -45,8 +45,17 @@ export interface ConsentScreenProps {
   params: Readonly<Record<string, string>>;
 }
 
-/** Notebook writes are the one scope a phished grant could do lasting harm with, so the person opts in. */
-const unticked = (scope: ApiScope) => scope.startsWith("notebook:");
+/**
+ * Reading is ticked and every write is an opt-in (Mitchell, 2026-10-28): a
+ * phished grant that can only read does no lasting harm.
+ */
+const isRead = (scope: ApiScope) => scope.endsWith(":read");
+
+/** The two sections, each with its own Select all and Clear all. */
+const SECTIONS = [
+  { title: "Read", kind: "read", holds: isRead },
+  { title: "Write", kind: "write", holds: (scope: ApiScope) => !isRead(scope) },
+] as const;
 
 /** The consent screen: where access goes, what the app asked for, and Allow or Deny posted back for the server to check again. */
 export function ConsentScreen({
@@ -58,7 +67,8 @@ export function ConsentScreen({
   entitled,
   params,
 }: ConsentScreenProps) {
-  const [chosen, setChosen] = useState<ApiScope[]>(() => scopes.filter((scope) => !unticked(scope)));
+  const [chosen, setChosen] = useState<ApiScope[]>(() => scopes.filter(isRead));
+  const sectionId = useId();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -136,19 +146,46 @@ export function ConsentScreen({
           </Banner>
         ) : null}
 
-        <fieldset className="flex flex-col gap-3" disabled={!entitled || busy}>
+        <fieldset className="flex flex-col gap-5" disabled={!entitled || busy}>
           <legend className="mb-2 text-sm font-semibold text-ink">It will be able to</legend>
-          {scopes.map((scope) => (
-            <CheckboxField
-              key={scope}
-              checked={chosen.includes(scope)}
-              title={SCOPE_CATALOGUE[scope].title}
-              description={SCOPE_CATALOGUE[scope].description}
-              onCheckedChange={(checked) =>
-                setChosen((current) => (checked ? [...current, scope] : current.filter((s) => s !== scope)))
-              }
-            />
-          ))}
+          {SECTIONS.map(({ title, kind, holds }) => {
+            const section = scopes.filter(holds);
+            if (section.length === 0) return null;
+            const others = (current: ApiScope[]) => current.filter((scope) => !holds(scope));
+            return (
+              // Named by its heading alone: a legend would fold the buttons' names into the group's.
+              <fieldset key={kind} className="flex flex-col gap-3" aria-labelledby={`${sectionId}-${kind}`}>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <Heading level={2} id={`${sectionId}-${kind}`}>
+                    {title}
+                  </Heading>
+                  <span className="flex gap-2">
+                    <Button
+                      size="sm"
+                      aria-label={`Select all ${kind} access`}
+                      onClick={() => setChosen((current) => [...others(current), ...section])}
+                    >
+                      Select all
+                    </Button>
+                    <Button size="sm" aria-label={`Clear all ${kind} access`} onClick={() => setChosen(others)}>
+                      Clear all
+                    </Button>
+                  </span>
+                </div>
+                {section.map((scope) => (
+                  <CheckboxField
+                    key={scope}
+                    checked={chosen.includes(scope)}
+                    title={SCOPE_CATALOGUE[scope].title}
+                    description={SCOPE_CATALOGUE[scope].description}
+                    onCheckedChange={(checked) =>
+                      setChosen((current) => (checked ? [...current, scope] : current.filter((s) => s !== scope)))
+                    }
+                  />
+                ))}
+              </fieldset>
+            );
+          })}
         </fieldset>
 
         {error === null ? null : <Banner variant="danger">{error}</Banner>}

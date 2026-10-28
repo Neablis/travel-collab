@@ -14,6 +14,10 @@ import { grantCollaborators } from "./adminBootstrap";
 // warn about. Nothing listens on that port: the browser's request to it is
 // caught and answered here.
 //
+// The client asks for one read and one write, so the page shows both sections:
+// the read ticked, the write an opt-in the person takes from the keyboard
+// (M55 part 7), and the token comes back holding both.
+//
 // A fresh dev user, not the shared alice session: this account's plan changes
 // mid-spec (`m22-api-tokens.spec.ts`'s reason).
 test.use({ storageState: undefined });
@@ -47,7 +51,7 @@ test("oauth consent: a premium account allows a loopback client, and the code co
     code_challenge: createHash("sha256").update(verifier).digest("base64url"),
     code_challenge_method: "S256",
     state: "e2e-state",
-    scope: "trips:read offline_access",
+    scope: "trips:read notebook:write offline_access",
     resource,
   });
 
@@ -60,6 +64,12 @@ test("oauth consent: a premium account allows a loopback client, and the code co
   ).toBeVisible();
   await expect(page.getByRole("heading", { level: 2, name: "127.0.0.1:61234" })).toBeVisible();
   await expect(page.getByRole("status").filter({ hasText: "a program on this computer" })).toBeVisible();
+  await expect(page.getByRole("checkbox", { name: /Read trips/ })).toBeChecked();
+  const notebookWrite = page.getByRole("checkbox", { name: /Write the Notebook/ });
+  await expect(notebookWrite).not.toBeChecked();
+  await page.getByRole("button", { name: "Select all write access" }).focus();
+  await page.keyboard.press("Enter");
+  await expect(notebookWrite).toBeChecked();
   await page.getByRole("button", { name: "Allow" }).click();
 
   const answer = new URL((await callback).url());
@@ -79,5 +89,7 @@ test("oauth consent: a premium account allows a loopback client, and the code co
     },
   });
   expect(exchanged.status(), "token exchange").toBe(200);
-  expect(((await exchanged.json()) as { access_token: string }).access_token).toMatch(/^tco_/);
+  const token = (await exchanged.json()) as { access_token: string; scope: string };
+  expect(token.access_token).toMatch(/^tco_/);
+  expect(token.scope.split(" ").sort(), "the write the person opted into is granted").toEqual(["notebook:write", "trips:read"]);
 });

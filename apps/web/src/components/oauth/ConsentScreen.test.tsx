@@ -1,4 +1,5 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
+import { API_SCOPES } from "@tc/contracts";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ConsentScreen, type ConsentScreenProps } from "./ConsentScreen";
 
@@ -51,10 +52,32 @@ describe("ConsentScreen", () => {
     expect(screen.getByText("app.example")).toBeTruthy();
   });
 
-  it("leaves notebook writes unticked until the person opts in", () => {
-    render(<ConsentScreen {...props()} />);
-    expect((screen.getByRole("checkbox", { name: /Read trips/ }) as HTMLInputElement).checked).toBe(true);
-    expect((screen.getByRole("checkbox", { name: /Write the Notebook/ }) as HTMLInputElement).checked).toBe(false);
+  // Mitchell, 2026-10-28: reading is the default grant, and every write is an opt-in.
+  it("ticks every Read scope and no Write scope, and each section's Select all and Clear all touch only that section", () => {
+    render(<ConsentScreen {...props({ scopes: API_SCOPES })} />);
+    const ticks = (section: string) =>
+      within(screen.getByRole("group", { name: section }))
+        .getAllByRole("checkbox")
+        .map((box) => (box as HTMLInputElement).checked);
+    const all = (section: string, checked: boolean) => ticks(section).every((on) => on === checked);
+    expect(ticks("Read").length).toBe(5);
+    expect(ticks("Write").length).toBe(4);
+    expect(all("Read", true), "every Read box ticked").toBe(true);
+    expect(all("Write", false), "no Write box ticked").toBe(true);
+
+    // Each press leaves the other section in the state the press does not make, so a leak shows.
+    fireEvent.click(screen.getByRole("button", { name: "Clear all read access" }));
+    expect(all("Read", false), "Clear all clears Read").toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "Select all write access" }));
+    expect(all("Write", true), "Select all ticks Write").toBe(true);
+    expect(all("Read", false), "Read untouched by Write's Select all").toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "Clear all write access" }));
+    fireEvent.click(screen.getByRole("button", { name: "Select all read access" }));
+    expect(all("Read", true), "Select all ticks Read").toBe(true);
+    expect(all("Write", false), "Write untouched by Read's Select all").toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "Select all write access" }));
+    fireEvent.click(screen.getByRole("button", { name: "Clear all read access" }));
+    expect(all("Write", true), "Write untouched by Read's Clear all").toBe(true);
   });
 
   it("disables Allow for a free account, and offers the plans", () => {
