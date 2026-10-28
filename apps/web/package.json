@@ -18,7 +18,7 @@
     "eval": "node scripts/with-test-db.mjs pnpm run eval:run",
     "eval:run": "vitest run -c vitest.eval.config.ts",
     "test:e2e": "NODE_OPTIONS=--import=./scripts/preload-dotenv.mjs node scripts/with-test-db.mjs --with-port playwright test",
-    "test:e2e:ci-like": "NEXT_PUBLIC_SENTRY_DSN='' pnpm build && pnpm check:build-sentry && CI=true pnpm test:e2e",
+    "test:e2e:ci-like": "NEXT_PUBLIC_SENTRY_DSN='' NODE_OPTIONS=\"--max-old-space-size=8192 ${NODE_OPTIONS:-}\" pnpm build && pnpm check:build-sentry && CI=true pnpm test:e2e",
     "check:build-sentry": "node scripts/check-build-has-no-sentry-dsn.mjs",
     "walk:preview": "node --env-file-if-exists=.env.local scripts/walk-preview.mjs",
     "live-set": "node --env-file-if-exists=.env.local scripts/assistant-live-set.mjs",
