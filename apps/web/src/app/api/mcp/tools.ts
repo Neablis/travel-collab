@@ -2,8 +2,10 @@ import { GET as getAccount } from "@/app/api/v1/account/route";
 import { GET as searchCities } from "@/app/api/v1/cities/route";
 import { GET as discoverPlaybooks } from "@/app/api/v1/discover/playbooks/route";
 import { GET as searchPlaces } from "@/app/api/v1/geocode/route";
+import { PATCH as movePlaybookCover, PUT as setPlaybookCover } from "@/app/api/v1/playbooks/[playbookId]/cover/route";
 import { GET as getPlaybook, PATCH as patchPlaybook } from "@/app/api/v1/playbooks/[playbookId]/route";
 import { GET as listPlaybooks, POST as createPlaybook } from "@/app/api/v1/playbooks/route";
+import { PATCH as moveTripCover, PUT as setTripCover } from "@/app/api/v1/trips/[tripId]/cover/route";
 import { GET as getPage, PATCH as patchPage } from "@/app/api/v1/trips/[tripId]/pages/[pageId]/route";
 import { GET as listPages } from "@/app/api/v1/trips/[tripId]/pages/route";
 import { GET as getTrip } from "@/app/api/v1/trips/[tripId]/route";
@@ -29,6 +31,17 @@ const PLAYBOOK =
   "writes take them grouped as `days[].stops[]`.";
 
 const READ = { readOnlyHint: true, openWorldHint: false } as const;
+
+const COVER_URL =
+  "Give the address of an image on the open web (the image file itself, not a page that shows it), " +
+  "its alt text, and who to credit. Caesura checks the address answers with an image before keeping it.";
+
+// Setting replaces the cover there was, and Caesura fetches the image from its host.
+const SET_COVER = { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: true } as const;
+// Moving changes the framing only, and the old framing is one more call away.
+const MOVE_COVER = { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false } as const;
+
+const POSITION = "`position` frames the photo vertically: 0 shows its top edge, 100 its bottom, 50 its centre.";
 
 export const TOOLS: readonly McpTool[] = [
   {
@@ -133,6 +146,22 @@ export const TOOLS: readonly McpTool[] = [
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   },
   {
+    name: "set_playbook_cover",
+    title: "Set a Playbook's cover photo",
+    description: `Set the cover photo of one of your Playbooks, replacing any it had. ${COVER_URL} ${POSITION}`,
+    handler: setPlaybookCover,
+    path: "/api/v1/playbooks/{playbookId}/cover",
+    annotations: SET_COVER,
+  },
+  {
+    name: "move_playbook_cover",
+    title: "Reposition a Playbook's cover photo",
+    description: `Move where the cover photo of one of your Playbooks is framed, without changing the photo. ${POSITION}`,
+    handler: movePlaybookCover,
+    path: "/api/v1/playbooks/{playbookId}/cover",
+    annotations: MOVE_COVER,
+  },
+  {
     name: "list_trips",
     title: "List my trips",
     description: "List the trips this account owns or is a member of, optionally only those under way today.",
@@ -147,6 +176,22 @@ export const TOOLS: readonly McpTool[] = [
     handler: getTrip,
     path: "/api/v1/trips/{tripId}",
     annotations: READ,
+  },
+  {
+    name: "set_trip_cover",
+    title: "Set a trip's cover photo",
+    description: `Set the cover photo of a trip you can edit, replacing any it had. ${COVER_URL} ${POSITION}`,
+    handler: setTripCover,
+    path: "/api/v1/trips/{tripId}/cover",
+    annotations: SET_COVER,
+  },
+  {
+    name: "move_trip_cover",
+    title: "Reposition a trip's cover photo",
+    description: `Move where the cover photo of a trip you can edit is framed, without changing the photo. ${POSITION}`,
+    handler: moveTripCover,
+    path: "/api/v1/trips/{tripId}/cover",
+    annotations: MOVE_COVER,
   },
   {
     name: "list_notebook_pages",

@@ -1,19 +1,25 @@
 // **A tool call is its v1 request** (ADR-083 §8, M55 D2 and D11), against a
 // real database: a retried create keeps one Playbook, a published Playbook's
-// days answer with the way through, and publishing answers the public URL.
+// days answer with the way through, publishing answers the public URL, and a
+// cover set and moved through a tool is the one the app then reads.
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { describe, expect, it, vi } from "vitest";
 import type { ApiScope } from "@tc/contracts";
 import { deploymentOrigin } from "@/lib/deploymentOrigin";
 import { dayPath } from "@/lib/playbookUrls";
+import { executeTripCommand } from "@/server/commands";
 import { db } from "@/server/db/client";
 import { apiIdempotencyKeys } from "@/server/db/schema";
 import { issueGrant } from "@/server/entitlements/grants";
 import { livePlanVersion } from "@/server/entitlements/planVersions";
+import type { Fetcher } from "@/server/external/remoteImage/fetchImage";
+import type { Resolve } from "@/server/external/remoteImage/guard";
 import { mcpResource } from "@/server/oauth/metadata";
+import { getSavedDayCover } from "@/server/savedDayCovers";
 import { deleteSavedDay } from "@/server/savedDays";
 import { connectForTest } from "@/server/test-support/oauthConnection";
+import { getTripCover } from "@/server/tripCovers";
 import { upsertUser } from "@/server/users";
 
 vi.mock("@/server/auth", () => ({ auth: vi.fn(async () => null) }));
@@ -26,6 +32,24 @@ vi.mock("@/server/public-api/idempotency", async (importOriginal) => {
     ...real,
     forgetKey: (...args: Parameters<typeof real.forgetKey>) =>
       held.forget === null ? real.forgetKey(...args) : held.forget(() => real.forgetKey(...args)),
+  };
+});
+
+// The real guarded fetcher, given a fake network, as `public-api/cover.int.test.ts` gives it:
+// a cover URL's set-time check runs, and no request leaves the machine.
+const IMAGE_URL = "https://cdn.example.com/harbour.png";
+const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+vi.mock("@/server/external/remoteImage/fetchImage", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/server/external/remoteImage/fetchImage")>();
+  const resolve: Resolve = async () => [{ address: "93.184.216.34", family: 4 }];
+  const fetch: Fetcher = async (url) => {
+    if (url.href === IMAGE_URL) return new Response(PNG, { headers: { "content-type": "image/png" } });
+    throw new Error(`unexpected fetch of ${url.href}`);
+  };
+  return {
+    ...actual,
+    fetchRemoteImage: (url: string, limits?: Parameters<typeof actual.fetchRemoteImage>[1]) =>
+      actual.fetchRemoteImage(url, limits, { fetch, resolve }),
   };
 });
 
@@ -54,7 +78,9 @@ async function connectAs(scopes: ApiScope[] = ["library:read", "library:write"])
   const { grant, access } = await connectForTest(ownerId, scopes);
   const request = new Request(mcpResource(), { method: "POST", headers: { authorization: `Bearer ${access}` } });
   const call = async (name: string, input: Record<string, unknown>) => {
-    const result = await callTool(TOOLS.find((t) => t.name === name)!, input, { request, userId: ownerId, grantId: grant.id });
+    const tool = TOOLS.find((t) => t.name === name);
+    if (tool === undefined) throw new Error(`There is no tool named ${name}.`);
+    const result = await callTool(tool, input, { request, userId: ownerId, grantId: grant.id });
     const text = (result.content[0] as { text: string }).text;
     return { isError: result.isError === true, text, json: () => JSON.parse(text) };
   };
@@ -200,5 +226,30 @@ describe("publish_playbook", () => {
     expect(published.playbook.visibility).toBe("public");
     expect(published.url).toBe(`${deploymentOrigin()}${dayPath(published.playbook)}`);
     expect(published.url).toMatch(/\/playbooks\/day\/two-days-in-lisbon-/);
+  });
+});
+
+describe("the cover tools", () => {
+  const COVER = { url: IMAGE_URL, alt: "The harbour at dusk", credit: { name: "Port of Leith" }, position: 30 };
+
+  it("set a Playbook's cover from a URL and move it, as the app then reads it", async () => {
+    const call = await connect();
+    const { playbook } = (await call("create_playbook", TWO_DAYS)).json();
+    const set = await call("set_playbook_cover", { playbookId: playbook.playbookId, ...COVER });
+    expect(set.isError, set.text).toBe(false);
+    const moved = await call("move_playbook_cover", { playbookId: playbook.playbookId, position: 80 });
+    expect(moved.isError, moved.text).toBe(false);
+    expect(await getSavedDayCover(playbook.playbookId)).toMatchObject({ source: "url", url: IMAGE_URL, position: 80 });
+  });
+
+  it("set a trip's cover from a URL and move it, as the app then reads it", async () => {
+    const { call, ownerId } = await connectAs(["trips:read", "trips:write"]);
+    const tripId = randomUUID();
+    expect((await executeTripCommand({ type: "CreateTrip", tripId, name: "Leith" }, ownerId)).ok).toBe(true);
+    const set = await call("set_trip_cover", { tripId, ...COVER });
+    expect(set.isError, set.text).toBe(false);
+    const moved = await call("move_trip_cover", { tripId, position: 15 });
+    expect(moved.isError, moved.text).toBe(false);
+    expect(await getTripCover(tripId)).toMatchObject({ source: "url", url: IMAGE_URL, position: 15 });
   });
 });
