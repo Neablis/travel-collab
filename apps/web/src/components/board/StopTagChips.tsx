@@ -123,18 +123,26 @@ export function StopTagChips({
         data-testid={`tag-chips-${activityId}`}
         className="gap-x-1.5"
         items={chips}
-        more={(hidden) => (
-          <span
-            data-testid="tag-chips-more"
-            title={tags
-              .slice(tags.length - hidden)
-              .map((tag) => TAG_LABEL[tag])
-              .join(", ")}
-            className="inline-flex items-center rounded-sm border border-hairline px-2 py-0.5 text-xs font-semibold text-slate"
-          >
-            +{hidden}
-          </span>
-        )}
+        more={(hidden) => {
+          const names = tags
+            .slice(tags.length - hidden)
+            .map((tag) => TAG_LABEL[tag])
+            .join(", ");
+          // Drawn as a count, said as the tags it stands for.
+          return (
+            <>
+              <span
+                data-testid="tag-chips-more"
+                aria-hidden
+                title={names}
+                className="inline-flex items-center rounded-sm border border-hairline px-2 py-0.5 text-xs font-semibold text-slate"
+              >
+                +{hidden}
+              </span>
+              <span className="sr-only">Also {names}</span>
+            </>
+          );
+        }}
       />
     );
   }

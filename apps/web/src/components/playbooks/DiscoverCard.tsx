@@ -201,14 +201,20 @@ export function DiscoverCard({
       </li>
     );
   };
+  // The count is drawn; the names it stands for are said, so a screen reader
+  // hears which cities the row left out, not a bare "+2 more".
   const moreChip = (hidden: string[]) => (
-    <span
-      title={hidden.join(", ")}
-      data-testid="city-chips-more"
-      className="rounded-full border border-hairline bg-surface px-2.5 py-0.5 text-2xs font-semibold tracking-wide whitespace-nowrap text-slate uppercase"
-    >
-      +{hidden.length} more
-    </span>
+    <>
+      <span
+        title={hidden.join(", ")}
+        aria-hidden
+        data-testid="city-chips-more"
+        className="rounded-full border border-hairline bg-surface px-2.5 py-0.5 text-2xs font-semibold tracking-wide whitespace-nowrap text-slate uppercase"
+      >
+        +{hidden.length} more
+      </span>
+      <span className="sr-only">Also {hidden.join(", ")}</span>
+    </>
   );
   // **One line, always** (Mitchell, 2026-10-28: a day of five cities wrapped
   // its chips across the top of its photo). As many as the row holds, up to
@@ -223,6 +229,9 @@ export function DiscoverCard({
           data-testid="city-chips"
           className="flex-1 gap-x-1.5"
           max={MAX_CITY_CHIPS}
+          // A matched city is the card's answer to the search: it is drawn,
+          // truncated if it must, never folded into the count.
+          min={ordered.filter((city) => day.matchedCities.includes(city)).length}
           items={ordered.map(cityItem)}
           more={(hidden) => moreChip(ordered.slice(ordered.length - hidden))}
         />

@@ -150,7 +150,8 @@ describe("a Discover card's city chips", () => {
         origin={{ from: "playbooks" }}
       />,
     );
-    expect(chipTexts()).toEqual(["Tokyo", "Hakone", "Kyoto", "+4 more"]);
+    // The count is drawn and the cities it stands for are said (sr-only).
+    expect(chipTexts()).toEqual(["Tokyo", "Hakone", "Kyoto", "+4 moreAlso Uji, Nara, Osaka, Kobe"]);
     expect(screen.getByTestId("city-chips-more").getAttribute("title")).toBe("Uji, Nara, Osaka, Kobe");
   });
 
@@ -164,7 +165,7 @@ describe("a Discover card's city chips", () => {
   // The search a card was opened from rides its title link, for the day's back link.
   it("carries the Discover search it was opened from to the day", () => {
     render(<DiscoverCard day={day()} origin={{ from: "playbooks", discover: "scope=yours" }} />);
-    const link = screen.getByRole("heading", { name: day().name }).querySelector("a")!;
+    const link = screen.getByRole("link", { name: day().name }) as HTMLAnchorElement;
     expect(new URL(link.href, "http://x").searchParams.get("discover")).toBe("scope=yours");
   });
 
@@ -175,7 +176,7 @@ describe("a Discover card's city chips", () => {
         origin={{ from: "playbooks" }}
       />,
     );
-    expect(chipTexts()).toEqual(["Nara", "Tokyo", "Hakone", "+2 more"]);
+    expect(chipTexts()).toEqual(["Nara", "Tokyo", "Hakone", "+2 moreAlso Kyoto, Uji"]);
   });
 
   // SEO pass, D6: a chip is a way to its city's page, and a crawler's way from

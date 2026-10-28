@@ -67,9 +67,10 @@ describe("Discover's state as a URL", () => {
       cities: ["Kyoto", "Uji"],
       scope: "yours",
     });
-    const polluted = parseDiscoverQuery("__proto__=x&constructor=y&scope=saved");
+    const polluted = parseDiscoverQuery("__proto__=x&constructor=y&toString=z&scope=saved");
     expect(polluted.scope).toBe("saved");
+    // Exactly the state's own fields: no name the query chose became a key.
+    expect(Object.keys(polluted).sort()).toEqual(Object.keys(DISCOVER_URL_DEFAULTS).sort());
     expect(Object.getPrototypeOf(polluted)).toBe(Object.prototype);
-    expect(({} as Record<string, unknown>).x).toBeUndefined();
   });
 });

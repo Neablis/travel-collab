@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  isValidElement,
   useEffect,
   useLayoutEffect,
   useRef,
@@ -16,7 +17,8 @@ import { cn } from "@/lib/cn";
  * label, `gap` the space between any two, `room` the row's width. Every item
  * fits on its own and needs no chip; otherwise as many as leave the chip room,
  * and never fewer than one, which then truncates rather than leaving a row of
- * nothing but a count. `max` caps the answer whatever the room.
+ * nothing but a count. `max` caps the answer whatever the room; `min` is how
+ * many must be drawn whatever the room, which the last of them then truncates.
  */
 export function fitCount({
   widths,
@@ -24,22 +26,25 @@ export function fitCount({
   gap,
   room,
   max = Infinity,
+  min = 1,
 }: {
   widths: readonly number[];
   more: number;
   gap: number;
   room: number;
   max?: number;
+  min?: number;
 }): number {
   if (widths.length === 0) return 0;
   const limit = Math.min(widths.length, max);
+  const floor = Math.min(Math.max(min, 1), limit);
   let end = 0;
   const ends = widths.map((width, i) => (end += width + (i === 0 ? 0 : gap)));
   if (limit === widths.length && ends[limit - 1]! <= room) return limit;
-  for (let k = limit; k > 1; k -= 1) {
+  for (let k = limit; k > floor; k -= 1) {
     if (ends[k - 1]! + gap + more <= room) return k;
   }
-  return 1;
+  return floor;
 }
 
 /**
@@ -54,12 +59,14 @@ export function fitCount({
  * the row's width, or the web font arriving, measures again.
  *
  * `py-3 -my-3` on a phone: an item's 44px reach (`min-h-11 -my-3`) stands 12px
- * past the row either way, and the row clips at its padding edge.
+ * past the row either way, and the row clips at its padding edge. With a
+ * mouse, the 2px either side is the room a focus outline needs.
  */
 export function FitRow({
   items,
   more,
   max,
+  min,
   as: Tag = "div",
   className,
   ...rest
@@ -70,6 +77,8 @@ export function FitRow({
   more: (hidden: number) => ReactNode;
   /** At most this many items, however many fit. */
   max?: number;
+  /** At least this many items, however few fit: the ones a reader asked for. */
+  min?: number;
   as?: "div" | "ul" | "span";
   className?: string;
   "data-testid"?: string;
@@ -77,9 +86,13 @@ export function FitRow({
   const row = useRef<HTMLElement>(null);
   const count = items.length;
   // What was measured, and for which items: a count measured for other items
-  // is no count of these. Null while measuring, when every item is drawn, so
-  // each has its own width.
-  const key = `${count}:${max ?? ""}`;
+  // is no count of these, even as many of them in another order. Null while
+  // measuring, when every item is drawn, so each has its own width.
+  const key = [
+    max ?? "",
+    min ?? "",
+    ...items.map((item) => (isValidElement(item) ? String(item.key) : "")),
+  ].join("\u0000");
   const [fit, setFit] = useState<{ key: string; shown: number } | null>(null);
   const shown = fit?.key === key ? fit.shown : null;
 
@@ -89,24 +102,26 @@ export function FitRow({
     if (el === null) return;
     const children = [...el.children] as HTMLElement[];
     const chip = children.find((child) => child.dataset.fitMore !== undefined);
-    const widths = children
-      .filter((child) => child !== chip)
-      .map((child) => child.offsetWidth);
+    // Fractional widths: whole pixels rounded down a little at a time leave
+    // the last chip a pixel or two past the edge.
+    const widthOf = (child: HTMLElement) => child.getBoundingClientRect().width;
+    const widths = children.filter((child) => child !== chip).map(widthOf);
     const style = getComputedStyle(el);
     setFit({
       key,
       shown: fitCount({
         widths,
-        more: chip?.offsetWidth ?? 0,
+        more: chip === undefined ? 0 : widthOf(chip),
         gap: parseFloat(style.columnGap) || 0,
         room:
           el.clientWidth -
           (parseFloat(style.paddingLeft) || 0) -
           (parseFloat(style.paddingRight) || 0),
         max,
+        min,
       }),
     });
-  }, [shown, key, max]);
+  }, [shown, key, max, min]);
 
   // A new width, or the font the items are drawn in: measure again.
   useEffect(() => {
@@ -138,7 +153,7 @@ export function FitRow({
     <Tag
       ref={row as never}
       className={cn(
-        "flex min-w-0 flex-nowrap items-center overflow-hidden py-3 -my-3 fine:my-0 fine:py-0",
+        "-mx-0.5 flex min-w-0 flex-nowrap items-center overflow-hidden px-0.5 py-3 -my-3 fine:-my-0.5 fine:py-0.5",
         // Measuring, every item at its own width; drawn, the one that does
         // not fit on its own may shrink and truncate.
         measuring && "[&>*]:shrink-0",
