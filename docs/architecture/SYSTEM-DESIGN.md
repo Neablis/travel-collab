@@ -224,9 +224,10 @@ The assistant does **not** run on eve. ADR-062 is Proposed; only its measurement
 Every handler is produced by `route({ METHOD: { scope, trip, role, query, body, response, idempotent, handle } })`
 (`src/server/public-api/route.ts`). Gates, in order:
 
-1. **Credential**: bearer token (a keyed-digest lookup: `scrypt` today, despite older prose saying sha256;
-   HMAC-SHA256 from M55 part 1, ADR-083; expiry, revocation and the owner's `api.tokens` checked on read),
-   else the session cookie. A malformed `Authorization` header never falls back to the cookie.
+1. **Credential**: bearer token (keyed HMAC lookup, `server/secrets/keyedDigest.ts`, ADR-083; expiry, revocation
+   and the owner's `api.tokens` checked on read), else the session cookie. A malformed `Authorization` header
+   never falls back to the cookie. A token minted before migration 0069 is refused as revoked with
+   `storage-changed` (`api-tokens/legacyScrypt.ts`, until KI-2026-10-27-e deletes it).
 2. **Rate limit** (tokens only): 1000/hour per token, Postgres counters; store down → 503, fail closed.
 3. **Scope**: nine scopes, a set, not a rank. A session holds all.
 4. **Shape**: query and body parsed by declared Zod schemas.
@@ -283,7 +284,9 @@ dispatched workflow. Details: `docs/guidelines/content-bundles.md`.
   trip; restoring is `RevertToState { toSeq }` through the ordinary pipeline, one undoable batch. The assistant
   saves one before storing a multi-change suggestion, or says it skipped it at the cap.
 - **Tokens**: invite and share tokens are plaintext by recorded decision, so the owner can re-show the link
-  (ADR-026). API tokens are hashed with a pepper, shown once, and must expire.
+  (ADR-026). API tokens are stored as an HMAC under a key derived from `API_TOKEN_PEPPER` (`keyedDigest`, the one
+  helper every issued secret uses, ADR-083), with the key's version beside it, shown once, and must expire. A
+  lookup also tries `API_TOKEN_PEPPER_PREVIOUS`, so rotating the pepper is not a mass logout.
 - **Anonymous readers**: the demo trip, pinned shares, and the public playbook library (ADR-061), each opt-in
   per route. A pending invite's holder reads only its landing and `GET /api/invites/:token/preview`, which
   carries no per-stop or per-person cost (M38 D4). "Have a look first" renders that preview, and a pending

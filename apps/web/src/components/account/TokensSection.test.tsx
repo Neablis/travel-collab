@@ -44,12 +44,13 @@ function token(over: Partial<ApiToken> = {}): ApiToken {
     // floors to 11.
     expiresAt: new Date(Date.now() + 12 * DAY + 60_000).toISOString(),
     revokedAt: null,
+    revokedReason: null,
     ...over,
   };
 }
 
-/** Serve the two reads this section makes, and record what it posts. */
-function serve(options: { tokens?: ApiToken[]; entitlements?: string[]; billingState?: string } = {}) {
+/** Serve the read this section makes, and record what it posts. */
+function serve(options: { tokens?: ApiToken[] } = {}) {
   const posted: { url: string; method: string; body: unknown }[] = [];
   // The real route mints a fresh id per token; the stub used to return the
   // same fixture id for every POST, so a test that minted twice rendered two
@@ -63,20 +64,6 @@ function serve(options: { tokens?: ApiToken[]; entitlements?: string[]; billingS
     }
     if (href === "/api/account/tokens" && method === "GET") {
       return new Response(JSON.stringify({ tokens: options.tokens ?? [] }), { status: 200 });
-    }
-    if (href === "/api/account/plan") {
-      return new Response(
-        // `billing` is on every real response (`accountPlan.ts`) and the
-        // stub omitted it, so this suite could not have caught a component
-        // that read it unguarded — which is exactly what happened.
-        JSON.stringify({
-          plan: {
-            entitlements: options.entitlements ?? ["api.tokens"],
-            billing: { state: options.billingState ?? "active" },
-          },
-        }),
-        { status: 200 },
-      );
     }
     // Matched on the PATH, not the href: the trip list goes through
     // `apiClient.fetchTrips`, which builds an absolute URL via `apiUrl` — the
@@ -119,9 +106,8 @@ describe("the way to the reference", () => {
   // On every plan, so the locked variant is the one asserted: a free account
   // deciding whether to upgrade is exactly who wants to read what it buys.
   it("links the API reference and the getting-started page, even without the plan", async () => {
-    serve({ entitlements: [] });
-    render(<TokensSection />);
-    await screen.findByTestId("tokens-upgrade");
+    render(<TokensSection entitled={false} />);
+    await screen.findByTestId("tokens-section");
     expect(screen.getByTestId("tokens-reference-link").getAttribute("href")).toBe(
       "/developers/reference",
     );
@@ -134,7 +120,7 @@ describe("what mandatory expiry owes the person looking at this", () => {
   // on; a creation date makes them do the arithmetic and they will not.
   it("shows time remaining, not a creation date", async () => {
     serve({ tokens: [token()] });
-    render(<TokensSection />);
+    render(<TokensSection entitled />);
     await screen.findByTestId("tokens-list");
     // The whole sentence, not a fragment of it: "in 12 days" would survive the
     // label being dropped, or "Expired" being rendered for a live token.
@@ -152,7 +138,7 @@ describe("what mandatory expiry owes the person looking at this", () => {
         token({ tokenId: "b", revokedAt: new Date(Date.now() - 1 * DAY).toISOString() }),
       ],
     });
-    render(<TokensSection />);
+    render(<TokensSection entitled />);
     await screen.findByTestId("tokens-list");
     const expired = screen.getByTestId("token-a").textContent ?? "";
     const revoked = screen.getByTestId("token-b").textContent ?? "";
@@ -163,10 +149,28 @@ describe("what mandatory expiry owes the person looking at this", () => {
     expect(revoked).not.toContain("Expired");
   });
 
+  // **Revoked by us, not by them.** Migration 0069 revoked every token minted
+  // before storage changed (ADR-083 §3); "it stopped working immediately" would
+  // read as something the owner did, and say nothing about what to do next.
+  it("says a token revoked when storage changed needs replacing", async () => {
+    const revokedAt = new Date(Date.now() - 1 * DAY).toISOString();
+    serve({
+      tokens: [
+        token({ tokenId: "moved", revokedAt, revokedReason: "storage-changed" }),
+        token({ tokenId: "mine", revokedAt, revokedReason: "owner" }),
+      ],
+    });
+    render(<TokensSection entitled />);
+    await screen.findByTestId("tokens-list");
+    const [moved, mine] = screen.getAllByTestId("token-expiry").map((cell) => cell.textContent);
+    expect(moved).toBe("Revoked when token storage changed — mint a new one.");
+    expect(mine).toBe("Revoked. It stopped working immediately.");
+  });
+
   // **Obligation 3.** Rotation is two actions and saying so is what stops it
   // being assumed to be a feature.
   it("names rotation as two actions rather than promising a feature", async () => {
-    render(<TokensSection />);
+    render(<TokensSection entitled />);
     fireEvent.click(await screen.findByTestId("token-new"));
     const form = text("token-form");
     expect(form).toContain("create its replacement");
@@ -179,7 +183,7 @@ describe("what mandatory expiry owes the person looking at this", () => {
   // A dead token keeps no Revoke button — there is nothing left to switch off.
   it("offers Revoke only on a live token", async () => {
     serve({ tokens: [token({ tokenId: "dead", revokedAt: new Date().toISOString() })] });
-    render(<TokensSection />);
+    render(<TokensSection entitled />);
     await screen.findByTestId("tokens-list");
     expect(screen.queryByTestId("token-revoke")).toBeNull();
   });
@@ -189,7 +193,7 @@ describe("the one-time reveal", () => {
   // **There is no second chance.** Nothing stores the secret, so a screen that
   // loses it costs the person a new token.
   it("shows the secret once, says so, and only after creating", async () => {
-    render(<TokensSection />);
+    render(<TokensSection entitled />);
     await screen.findByTestId("tokens-section");
     expect(screen.queryByTestId("token-revealed")).toBeNull();
 
@@ -204,7 +208,7 @@ describe("the one-time reveal", () => {
 
   it("posts what the form actually says", async () => {
     const posted = serve();
-    render(<TokensSection />);
+    render(<TokensSection entitled />);
     await screen.findByTestId("tokens-section");
     fireEvent.click(screen.getByTestId("token-new"));
     fireEvent.change(screen.getByTestId("token-name"), { target: { value: "  Calendar  " } });
@@ -227,7 +231,7 @@ describe("the one-time reveal", () => {
   // A credential that can do nothing is a mistake wearing a safe default, and
   // the person will not find out until it 403s.
   it("will not create a token with no name or no permissions", async () => {
-    render(<TokensSection />);
+    render(<TokensSection entitled />);
     await screen.findByTestId("tokens-section");
     fireEvent.click(screen.getByTestId("token-new"));
     expect((screen.getByTestId("token-create") as HTMLButtonElement).disabled).toBe(true);
@@ -243,7 +247,7 @@ describe("the one-time reveal", () => {
   // select or deselect all". Eight scopes is enough that picking them one at a
   // time is the tedious part of minting a token.
   it("selects and clears every scope in one click", async () => {
-    render(<TokensSection />);
+    render(<TokensSection entitled />);
     await screen.findByTestId("tokens-section");
     fireEvent.click(screen.getByTestId("token-new"));
 
@@ -280,7 +284,7 @@ describe("the one-time reveal", () => {
   // ceiling would be the same defect in a new coat.
   it("offers only lifetimes it can honour, the longest being the stated ceiling", async () => {
     const posted = serve();
-    render(<TokensSection />);
+    render(<TokensSection entitled />);
     await screen.findByTestId("tokens-section");
     fireEvent.click(screen.getByTestId("token-new"));
 
@@ -302,7 +306,7 @@ describe("the one-time reveal", () => {
   // for a scoped token — and this UI posted `null` whatever the person meant.
   it("posts the chosen trips when the token is scoped to some of them", async () => {
     const posted = serve();
-    render(<TokensSection />);
+    render(<TokensSection entitled />);
     await screen.findByTestId("tokens-section");
     fireEvent.click(screen.getByTestId("token-new"));
     fireEvent.change(screen.getByTestId("token-name"), { target: { value: "Calendar" } });
@@ -326,7 +330,7 @@ describe("the one-time reveal", () => {
         ? new Promise<never>(() => {})
         : realFetch(input, init),
     );
-    render(<TokensSection />);
+    render(<TokensSection entitled />);
     await screen.findByTestId("tokens-section");
     fireEvent.click(screen.getByTestId("token-new"));
     fireEvent.click(screen.getByRole("radio", { name: "Chosen trips" }));
@@ -339,7 +343,7 @@ describe("the one-time reveal", () => {
   // A token scoped to no trips can do nothing at all, which nobody means to
   // create — the one state the three-choice control can still get wrong.
   it("refuses to create a token scoped to no trips at all", async () => {
-    render(<TokensSection />);
+    render(<TokensSection entitled />);
     await screen.findByTestId("tokens-section");
     fireEvent.click(screen.getByTestId("token-new"));
     fireEvent.change(screen.getByTestId("token-name"), { target: { value: "Named" } });
@@ -353,7 +357,7 @@ describe("the one-time reveal", () => {
   // refuses the widening — it is something to STATE, so the reader meets it
   // before minting rather than as an error afterwards.
   it("states that a trip-scoped token cannot create a trip", async () => {
-    render(<TokensSection />);
+    render(<TokensSection entitled />);
     await screen.findByTestId("tokens-section");
     fireEvent.click(screen.getByTestId("token-new"));
     fireEvent.click(screen.getByRole("radio", { name: "Chosen trips" }));
@@ -369,7 +373,7 @@ describe("the one-time secret", () => {
   // token was the one on screen the person was about to navigate away from.
   it("does not say Copied when the clipboard refused", async () => {
     serve();
-    render(<TokensSection />);
+    render(<TokensSection entitled />);
     await screen.findByTestId("tokens-section");
     fireEvent.click(screen.getByTestId("token-new"));
     fireEvent.change(screen.getByTestId("token-name"), { target: { value: "Named" } });
@@ -399,7 +403,7 @@ describe("the one-time secret", () => {
     const writeText = vi.fn(() => new Promise<void>((resolve) => (settle = resolve)));
     vi.stubGlobal("navigator", { clipboard: { writeText } });
 
-    render(<TokensSection />);
+    render(<TokensSection entitled />);
     await screen.findByTestId("tokens-section");
     fireEvent.click(screen.getByTestId("token-new"));
     fireEvent.change(screen.getByTestId("token-name"), { target: { value: "First" } });
@@ -423,7 +427,7 @@ describe("the one-time secret", () => {
   it("says Copied when the clipboard took it", async () => {
     serve();
     const writeText = vi.fn(async () => undefined);
-    render(<TokensSection />);
+    render(<TokensSection entitled />);
     await screen.findByTestId("tokens-section");
     fireEvent.click(screen.getByTestId("token-new"));
     fireEvent.change(screen.getByTestId("token-name"), { target: { value: "Named" } });
@@ -446,19 +450,12 @@ describe("when it fails", () => {
   it("does not blame the person's typing for a server-side failure", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn(async (url: string | URL, init?: RequestInit) => {
-        const href = String(url);
-        if (href === "/api/account/plan") {
-          return new Response(
-            JSON.stringify({ plan: { entitlements: ["api.tokens"], billing: { state: "active" } } }),
-            { status: 200 },
-          );
-        }
+      vi.fn(async (_url: string | URL, init?: RequestInit) => {
         if ((init?.method ?? "GET") === "POST") return new Response("{}", { status: 500 });
         return new Response(JSON.stringify({ tokens: [] }), { status: 200 });
       }),
     );
-    render(<TokensSection />);
+    render(<TokensSection entitled />);
     await screen.findByTestId("tokens-section");
     fireEvent.click(screen.getByTestId("token-new"));
     fireEvent.change(screen.getByTestId("token-name"), { target: { value: "Anything" } });
@@ -472,19 +469,12 @@ describe("when it fails", () => {
   it("names the plan when the plan is the reason", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn(async (url: string | URL, init?: RequestInit) => {
-        const href = String(url);
-        if (href === "/api/account/plan") {
-          return new Response(
-            JSON.stringify({ plan: { entitlements: ["api.tokens"], billing: { state: "active" } } }),
-            { status: 200 },
-          );
-        }
+      vi.fn(async (_url: string | URL, init?: RequestInit) => {
         if ((init?.method ?? "GET") === "POST") return new Response("{}", { status: 402 });
         return new Response(JSON.stringify({ tokens: [] }), { status: 200 });
       }),
     );
-    render(<TokensSection />);
+    render(<TokensSection entitled />);
     await screen.findByTestId("tokens-section");
     fireEvent.click(screen.getByTestId("token-new"));
     fireEvent.change(screen.getByTestId("token-name"), { target: { value: "Anything" } });
@@ -496,14 +486,12 @@ describe("when it fails", () => {
 });
 
 describe("what a free or plus account sees", () => {
-  // **A prompt, not a hidden section.** Hiding it answers "this product has no
-  // API"; showing it locked answers "not on this plan", which is both true and
-  // actionable.
-  it("shows an upgrade prompt and no way to create", async () => {
-    serve({ entitlements: ["ai.ask"] });
-    render(<TokensSection />);
+  // **The section, not hidden, and no way to create.** The upgrade prompt that
+  // says why is the Security tab's, over this and Connected apps
+  // (`AccountScreen.security.test.tsx`).
+  it("offers no way to create", async () => {
+    render(<TokensSection entitled={false} />);
     await screen.findByTestId("tokens-section");
-    expect(text("tokens-upgrade")).toContain("Premium");
     expect(screen.queryByTestId("token-new")).toBeNull();
     expect(screen.queryByTestId("token-form")).toBeNull();
   });
@@ -512,10 +500,9 @@ describe("what a free or plus account sees", () => {
   // Refusing would leave live credentials the owner can no longer reach, which
   // is the opposite of what a lapse should do.
   it("still lists and can revoke the tokens it already has", async () => {
-    serve({ entitlements: [], tokens: [token()] });
-    render(<TokensSection />);
+    serve({ tokens: [token()] });
+    render(<TokensSection entitled={false} />);
     await screen.findByTestId("tokens-list");
-    expect(screen.getByTestId("tokens-upgrade")).toBeTruthy();
     expect(screen.getByTestId("token-revoke")).toBeTruthy();
   });
 });
@@ -523,7 +510,7 @@ describe("what a free or plus account sees", () => {
 describe("revoking", () => {
   it("marks the token revoked in place without reloading the list", async () => {
     const posted = serve({ tokens: [token()] });
-    render(<TokensSection />);
+    render(<TokensSection entitled />);
     await screen.findByTestId("tokens-list");
     fireEvent.click(screen.getByTestId("token-revoke"));
 
@@ -595,50 +582,5 @@ describe("what the list says about reach and urgency", () => {
     expect(reachLine(token({ tripIds: ["a", "b"] }))).toBe("Read trips · 2 trips");
     expect(reachLine(token({ tripIds: ["a"] }))).not.toContain("trip(s)");
     expect(reachLine(token({ scopes: [] }))).toContain("can do nothing");
-  });
-});
-
-describe("the gate a locked account reads", () => {
-  // §34.1: name the split here rather than let it be discovered in a support
-  // conversation. Somebody reading "not on this plan" beside their own data
-  // reasonably fears they cannot get it out, and the answer is one clause long.
-  it("says tokens are Premium and that taking your trips with you is not", async () => {
-    serve({ entitlements: [] });
-    render(<TokensSection />);
-    const gate = await screen.findByTestId("tokens-upgrade");
-    expect(gate.textContent).toContain("Premium");
-    expect(gate.textContent).toMatch(/downloading a trip/i);
-  });
-
-  // **`billing.state` was on the wire and unread.** An account whose
-  // subscription ended was told it had never had the feature; "subscribe" and
-  // "restart" are different acts.
-  it("tells a lapsed account its tokens stopped rather than never existed", async () => {
-    serve({ entitlements: [], billingState: "lapsed" });
-    render(<TokensSection />);
-    const gate = await screen.findByTestId("tokens-upgrade");
-    expect(gate.textContent).toMatch(/subscription has ended/i);
-    expect(gate.textContent).toMatch(/nothing was deleted/i);
-    expect(screen.getByTestId("tokens-upgrade-link").textContent).toBe("Restart it");
-  });
-
-  // The whole section must survive a plan body that is missing the field the
-  // copy above is keyed on — it decides one sentence, not whether the tokens
-  // load. The first cut read it unguarded and lost the entire section.
-  it("still renders when the plan body carries no billing at all", async () => {
-    const fetchMock = vi.fn(async (url: string | URL, init?: RequestInit) => {
-      const href = String(url);
-      if (href === "/api/account/tokens" && (init?.method ?? "GET") === "GET") {
-        return new Response(JSON.stringify({ tokens: [token()] }), { status: 200 });
-      }
-      if (href === "/api/account/plan") {
-        return new Response(JSON.stringify({ plan: { entitlements: ["api.tokens"] } }), { status: 200 });
-      }
-      return new Response("{}", { status: 404 });
-    });
-    vi.stubGlobal("fetch", fetchMock);
-
-    render(<TokensSection />);
-    expect(await screen.findByTestId("tokens-list")).toBeTruthy();
   });
 });

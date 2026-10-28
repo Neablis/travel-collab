@@ -10,9 +10,10 @@
 //    so every new feature says in one line where it stands, and the list of
 //    `planned` lines IS the gap list `using-the-api.md` asks an API pass to read;
 // 2. a `public` line names a `v1/` route that does not exist;
-// 3. anything on the public side — a `v1/` route, or the `server/public-api/`
-//    helpers they delegate to — imports what a `never` line says it reaches, or
-//    a `v1/` route sits at a `never` route's own path.
+// 3. anything on the public side — a `v1/` route, the `server/public-api/`
+//    helpers they delegate to, or the MCP server's modules (`server/mcp/**`,
+//    and `app/api/mcp/**` with its tool table) — imports what a `never` line
+//    says it reaches, or a `v1/` route sits at a `never` route's own path.
 //
 // **What check 3 cannot see**: the same logic rewritten from scratch inside
 // `v1/`. It catches the realistic mistake — an endpoint that calls the function
@@ -31,7 +32,14 @@ export type Exposure =
   /** Wanted, not built. `note` says what it is waiting on. */
   | { status: "planned"; note: string }
   /** Never on the public API. `reaches` is what a `v1` route must not import. */
-  | { status: "never"; why: string; reaches: readonly Reach[] };
+  | { status: "never"; why: string; reaches: readonly Reach[] }
+  /**
+   * Public, but outside `v1/` because a standard fixes its shape (ADR-083 §9):
+   * the OAuth server's endpoints, and the MCP server. `adapts: "v1"` when it
+   * serves v1's own handlers under another protocol; omitted when it carries no
+   * data at all.
+   */
+  | { status: "front-door"; why: string; adapts?: "v1" };
 
 const PLANNED = (note: string): Exposure => ({ status: "planned", note });
 
@@ -105,6 +113,23 @@ export const EXPOSURE: Readonly<Record<string, Exposure>> = {
   "trips/[tripId]/snapshots/[snapshotId]": PLANNED("Undecided — renaming and deleting a snapshot (M40)"),
   "trips/[tripId]/snapshots/[snapshotId]/restore": PLANNED("Undecided — restoring a snapshot, one revert batch (M40)"),
 
+  // ── Front doors (ADR-083 §9) ─────────────────────────────────────────────
+  // The authorization server's endpoints: they issue the credential a client
+  // calls v1 with, and carry no trip or library data themselves.
+  "oauth/register": { status: "front-door", why: "RFC 7591 client registration for the MCP connector" },
+  "oauth/token": { status: "front-door", why: "RFC 6749 token endpoint for the MCP connector" },
+  "oauth/revoke": { status: "front-door", why: "RFC 7009 token revocation for the MCP connector" },
+  "oauth/authorize": {
+    status: "front-door",
+    why: "The consent decision for the MCP connector; session-only, never a credential",
+  },
+  // The MCP connector: v1's own declared handlers, under another protocol.
+  mcp: {
+    status: "front-door",
+    adapts: "v1",
+    why: "The MCP server Claude connects to; every tool calls a v1 route's declared handler (M55 D2)",
+  },
+
   // ── Never ────────────────────────────────────────────────────────────────
   // M45: the account assistant, on the trip door's terms.
   ask: {
@@ -152,6 +177,18 @@ export const EXPOSURE: Readonly<Record<string, Exposure>> = {
     status: "never",
     why: "A token that could revoke tokens could lock its owner out of their own",
     reaches: [{ module: "@/server/api-tokens", symbols: ["revokeToken"] }],
+  },
+  // M55 D10. Symbol-limited: v1's wrapper records a grant's last use through
+  // the same module.
+  "account/connected-apps": {
+    status: "never",
+    why: "A grant that could list grants could read what else its owner connected",
+    reaches: [{ module: "@/server/oauth/grants", symbols: ["listGrants"] }],
+  },
+  "account/connected-apps/[grantId]": {
+    status: "never",
+    why: "A grant that could revoke grants could cut off the apps beside it",
+    reaches: [{ module: "@/server/oauth/grants", symbols: ["revokeGrant"] }],
   },
   "billing/change": {
     status: "never",

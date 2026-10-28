@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { DistanceUnit, TimeFormat, UpdateUserPreferences, UserPreferences } from "@tc/contracts";
-import { Button } from "@/components/ui/button";
 import { CheckboxField } from "@/components/ui/checkbox";
 import { Text } from "@/components/ui/text";
 import { Input } from "@/components/ui/input";
@@ -74,18 +73,13 @@ const TIME_FORMAT_OPTIONS = [
  * `signIn` is the identity provider's side of the name, `undefined` until the
  * session answers: what an empty display name falls back to on trips, and
  * what public pages say while the display name is kept off them (M38).
- *
- * `onOpenTokens` opens the API tokens sub-view. The URL is `AccountScreen`'s to
- * own (`?tab=`), so the section asks rather than navigating itself.
  */
 export function ProfileSection({
   email,
   signIn,
-  onOpenTokens,
 }: {
   email: string | undefined;
   signIn: { userId: string; name: string | null } | undefined;
-  onOpenTokens: () => void;
 }) {
   const { preferences, loaded, save, defaultColor } = useAccountPreferences();
   // A pick shows at once, before its save answers (optimistic), and falls back
@@ -486,20 +480,6 @@ export function ProfileSection({
           </div>
         </SettingsRow>
       </SettingsCard>
-
-      {/* **API tokens left the tab strip for this line** (SPEC §35.4, M27
-          D7): a rarely used action demoted to a quiet link (project rule 5). One
-          responsive screen, so a phone gets it too — the design's phone
-          artboard never drew a way to the tokens, and without this line a
-          phone would have none. */}
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2.5 px-0.5 py-1">
-        <Text variant="secondary" className="min-w-0 grow basis-70 leading-normal text-pretty">
-          Writing your own program against your trips? That needs an API token.
-        </Text>
-        <Button variant="ghost" size="sm" onClick={onOpenTokens}>
-          API tokens &rarr;
-        </Button>
-      </div>
     </div>
   );
 }

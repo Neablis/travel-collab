@@ -43,7 +43,7 @@ function llmsTxt(origin: string): string {
     "It has a public REST API under `/api/v1`. A token acts as the person who minted it, holds only " +
       "the scopes it was given, and can never do more than that person can. Send it on every request " +
       `as \`Authorization: Bearer ${API_TOKEN_PREFIX}...\`. Tokens are on the Premium plan; a person mints one in ` +
-      "Account → Profile → API tokens → New token, and the secret is shown once.",
+      "Account → Security → API tokens → New token, and the secret is shown once.",
     "",
     "## API",
     "",
@@ -51,6 +51,7 @@ function llmsTxt(origin: string): string {
     `- [OpenAPI document](${at("/api/v1/openapi")}): OpenAPI 3.0, generated from the route declarations — every endpoint, its scope, request and response. Paths are relative to \`/api\`. No token`,
     `- [API index](${at("/api/v1")}): a small JSON pointer to the OpenAPI document and how to authenticate. No token`,
     `- [API reference](${at("/developers/reference")}): the OpenAPI document rendered for a person to read`,
+    `- [MCP connector](${at("/api/mcp")}): Streamable HTTP MCP server for Claude and other MCP clients. Signs in with OAuth 2.1 as the person who allows it (Premium); discovery at \`/.well-known/oauth-protected-resource/api/mcp\``,
     "",
     "## Getting a token",
     "",

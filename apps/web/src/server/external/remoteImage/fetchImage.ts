@@ -100,7 +100,7 @@ function failure(error: unknown, signal: AbortSignal): RemoteImageRefused {
  * resolve takes no signal of its own, so a resolver that never answers would
  * otherwise hold a request past `timeoutMs`.
  */
-function beforeDeadline<T>(pending: Promise<T>, signal: AbortSignal): Promise<T> {
+export function beforeDeadline<T>(pending: Promise<T>, signal: AbortSignal): Promise<T> {
   if (signal.aborted) return Promise.reject(new RemoteImageRefused("timeout"));
   return new Promise((done, fail) => {
     const onAbort = () => fail(new RemoteImageRefused("timeout"));
@@ -118,7 +118,7 @@ function parsed(href: string, base?: URL): URL {
 }
 
 /** The body, refused once it passes `maxBytes`, counted as it arrives rather than taken from `Content-Length`. */
-async function readCapped(response: Response, maxBytes: number): Promise<Uint8Array<ArrayBuffer>> {
+export async function readCapped(response: Response, maxBytes: number): Promise<Uint8Array<ArrayBuffer>> {
   if (Number(response.headers.get("content-length") ?? 0) > maxBytes) {
     await response.body?.cancel();
     throw new RemoteImageRefused("too-large");

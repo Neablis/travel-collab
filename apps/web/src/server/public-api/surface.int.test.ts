@@ -9,13 +9,15 @@ import { upsertUser, writePreferences } from "@/server/users";
 import { issueGrant } from "@/server/entitlements/grants";
 import { livePlanVersion } from "@/server/entitlements/planVersions";
 import { mintToken } from "@/server/api-tokens";
+import { runInMcpDispatch } from "@/server/oauth/dispatchContext";
+import { connectForTest } from "@/server/test-support/oauthConnection";
 import { eq } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { events } from "@/server/db/schema";
 import { grantMembership } from "@/server/access/members";
 import { acceptInvite } from "@/server/access/invites";
 import { readStreamHeadSeq } from "@/server/eventStore";
-import { PAGE_TITLE_MAX } from "@tc/contracts";
+import { PAGE_TITLE_MAX, type ApiScope } from "@tc/contracts";
 import { MAX_PAGE_BODY_BYTES } from "@/server/pages";
 
 vi.mock("@/server/auth", () => ({ auth: vi.fn(async () => null) }));
@@ -398,6 +400,23 @@ describe("reads that were nearly free", () => {
     });
     expect(confined.ok).toBe(true);
     expect(await zoneWith(confined.ok ? confined.created.secret : "")).toBeNull();
+  });
+
+  // An OAuth grant is account-wide, so with `account:read` it is told the zone
+  // an account-wide token is, and without it, not.
+  it("tells the home time zone to an OAuth grant that could read the account", async () => {
+    const owner = await entitled();
+    await writePreferences(owner, { homeAirport: "NRT" });
+    const { tripId } = await seed(await tokenFor(owner, ["trips:read", "trips:write"]));
+    const zoneWith = async (scopes: ApiScope[]) => {
+      const { access } = await connectForTest(owner, scopes);
+      const res = await runInMcpDispatch(() => GLOBALS(req(access), P({ tripId })));
+      expect(res.status).toBe(200);
+      return (await res.json()).homeTimeZone as string | null;
+    };
+
+    expect(await zoneWith(["trips:read"])).toBeNull();
+    expect(await zoneWith(["trips:read", "account:read"])).toBe("Asia/Tokyo");
   });
 });
 

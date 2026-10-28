@@ -45,7 +45,7 @@ export default defineConfig({
       AI_MODEL_MID: modelFor("mid"),
       AI_MODEL_STRONG: modelFor("strong"),
       AI_CLASSIFIER_MODEL: modelFor("classifier"),
-      API_TOKEN_PEPPER: process.env.API_TOKEN_PEPPER || "eval-pepper-not-a-real-key",
+      API_TOKEN_PEPPER: process.env.API_TOKEN_PEPPER || "eval-pepper-not-a-real-key-but-32-bytes-long",
       CACHE_DRIVER: "off",
     },
   },

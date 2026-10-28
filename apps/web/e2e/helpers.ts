@@ -564,21 +564,14 @@ export function personRow(scope: Page | Locator, userId: string): Locator {
  * `getByRole("dialog")` wait on the page's own `Account` heading now. The tabs
  * are real URLs (`?tab=`), so a tab click is a navigation, not a state flip.
  *
- * **`tokens` is not a tab since M27** (SPEC §35.4): it is reached from Profile's
- * *API tokens →* line, so that is what this drives — the line is the only way
- * a person gets there, for the same reason the menu is driven above.
+ * API tokens and Connected apps are on the Security tab since M55 part 6.
  */
-export async function openAccountPage(page: Page, tab?: "profile" | "plan" | "tokens"): Promise<void> {
+export async function openAccountPage(page: Page, tab?: "profile" | "plan" | "security"): Promise<void> {
   await page.getByRole("button", { name: "Account menu" }).click();
   await page.getByRole("link", { name: "Your account" }).click();
   await expect(page.getByRole("heading", { name: "Account", level: 1 })).toBeVisible();
   if (tab === undefined) return;
-  if (tab === "tokens") {
-    await page.getByRole("button", { name: "API tokens →" }).click();
-    await expect(page.getByRole("heading", { name: "API tokens", level: 2 })).toBeVisible();
-    return;
-  }
-  const label = { profile: "Profile", plan: "Plan & usage" }[tab];
+  const label = { profile: "Profile", plan: "Plan & usage", security: "Security" }[tab];
   await page.getByRole("tab", { name: label }).click();
   await expect(page.getByRole("tab", { name: label })).toHaveAttribute("aria-selected", "true");
 }

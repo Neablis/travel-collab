@@ -1,5 +1,5 @@
-import { randomBytes, randomUUID, scryptSync, timingSafeEqual } from "node:crypto";
-import { and, desc, eq, isNull, lt, sql } from "drizzle-orm";
+import { randomBytes, randomUUID } from "node:crypto";
+import { and, desc, eq, inArray, isNull, lt, sql } from "drizzle-orm";
 import type { z } from "zod";
 import {
   API_TOKEN_DEFAULT_LIFETIME_DAYS,
@@ -10,10 +10,13 @@ import {
   ApiTokenCreateInput,
   type ApiToken,
   type ApiTokenCreated,
+  type ApiTokenRevokedReason,
 } from "@tc/contracts";
 import { db } from "@/server/db/client";
 import { apiTokens } from "@/server/db/schema";
 import { accountCan } from "@/server/entitlements/resolver";
+import { digestsMatch, keyedDigest, keyedDigestCandidates } from "@/server/secrets/keyedDigest";
+import { matchesLegacyToken } from "./legacyScrypt";
 
 // **Minting, listing, verifying and revoking account API tokens** (M22 Phase 1).
 //
@@ -46,8 +49,8 @@ export { API_TOKEN_MAX_LIFETIME_DAYS, API_TOKEN_DEFAULT_LIFETIME_DAYS };
 export type TokenRefusal =
   /** No row carries this hash. Also the answer for a malformed secret. */
   | { reason: "unknown" }
-  /** Real, and someone revoked it. */
-  | { reason: "revoked"; revokedAt: Date }
+  /** Real, and revoked: by its owner, or by migration 0069 (`storage-changed`). */
+  | { reason: "revoked"; revokedAt: Date; revokedReason: ApiTokenRevokedReason | null }
   /** Real, and its time ran out. Refused, never deleted. */
   | { reason: "expired"; expiresAt: Date }
   /** Real and live, but its owner's plan no longer grants `api.tokens`. */
@@ -71,106 +74,6 @@ export type MintResult =
   | { ok: false; reason: "not-entitled" }
   | { ok: false; reason: "invalid-lifetime"; maxDays: number }
   | { ok: false; reason: "invalid-input"; issues: z.ZodIssue[] };
-
-/** The pepper is missing, so no token can be minted or verified. */
-export class ApiTokenPepperMissingError extends Error {
-  constructor() {
-    super(
-      "API_TOKEN_PEPPER is not set. API tokens are keyed with it, so without it " +
-        "no token can be minted or verified. Generate one with " +
-        "`openssl rand -base64 32` and set it wherever this app runs. " +
-        "Changing it invalidates every existing token, by design.",
-    );
-    this.name = "ApiTokenPepperMissingError";
-  }
-}
-
-/**
- * The server-side key every token digest is taken under.
- *
- * **Read per call rather than captured at module load**, so a test can set it
- * and so a missing value fails the request that needed it rather than the import
- * of anything that transitively touches this module.
- */
-/**
- * `N=16384, r=8, p=1` — Node's own defaults, ~37ms here, ~16MB of memory.
- *
- * Changing any of these invalidates every stored digest exactly as rotating the
- * pepper does, so they are a constant rather than an environment knob: a
- * parameter someone can tune per deployment is one that silently locks an
- * environment's tokens out when it differs from the one that wrote them.
- */
-const SCRYPT = { N: 16384, r: 8, p: 1, maxmem: 64 * 1024 * 1024 } as const;
-
-function pepper(): string {
-  const value = process.env.API_TOKEN_PEPPER ?? "";
-  // **Fails closed and loudly.** An empty pepper would still produce a stable
-  // digest, so tokens would keep working while the property this key exists for
-  // silently did not hold — the worst possible failure mode for a credential
-  // store, because nothing errors.
-  if (value === "") throw new ApiTokenPepperMissingError();
-  return value;
-}
-
-/**
- * `scrypt(secret, pepper)`, hex — **keyed AND deliberately slow**.
- *
- * **Two properties, and they are separate.** The pepper is the salt, so the
- * digest cannot be computed by anyone holding only the database: a stolen
- * backup is not enough to verify a token, or to confirm which row a plaintext
- * leaked through some other channel belongs to. The work factor is on top of
- * that, and is what a bare keyed digest did not have.
- *
- * **A FIXED salt, on purpose.** Per-row salts exist to stop one precomputation
- * attacking every row at once — a real concern for human-chosen passwords, and
- * a non-concern for 32 bytes of `randomBytes`, where no precomputation is
- * possible at any scale. A fixed salt is also what keeps verification a single
- * indexed equality: per-row salts would force a scan of every live token on
- * every request, which is both slower and a worse failure mode than the one
- * they would be defending against.
- *
- * **The cost is real and it is accepted.** Measured on this hardware:
- * HMAC-SHA256 is under a microsecond, `N=16384` is ~37ms, `N=32768` ~87ms.
- * At `N=16384` every authenticated `v1` request pays ~37ms of CPU it did not
- * pay before. Against the per-token quota of 1,000 requests an hour that is
- * ~37 CPU-seconds an hour for a maximally busy integration.
- *
- * **Why pay it, when the input has no guessable space.** It is genuinely
- * belt-and-braces: 2^256 is not searchable whatever the work factor, so the
- * marginal security is close to nil, and the honest case for it is not
- * cryptographic. It is that a credential store should not be the place where
- * this codebase argues with a high-severity scanner finding, and that the
- * failure mode of being wrong here is unbounded while the failure mode of
- * paying 37ms is a slower background sync. Mitchell called it twice; the
- * asymmetry is the reason, not the CodeQL rule's own model, which does not
- * consider entropy.
- *
- * **Rotating the pepper invalidates every token**, deliberately and with no
- * migration path — the correct blast radius for a key compromise, and why it
- * has its own variable rather than borrowing `AUTH_SECRET`.
- */
-function hashOf(secret: string): string {
-  return scryptSync(secret, pepper(), 32, SCRYPT).toString("hex");
-}
-
-/**
- * Compare two hashes without leaking where they differ.
- *
- * The lookup is an indexed equality select, so this is belt-and-braces over a
- * comparison Postgres already made — but `timingSafeEqual` is the established
- * pattern here (`server/admission.ts`, `server/billing/signature.ts`) and a
- * credential comparison that is *sometimes* constant-time is the kind of
- * inconsistency that becomes a finding later.
- */
-function hashesMatch(a: string, b: string): boolean {
-  const left = Buffer.from(a, "utf8");
-  const right = Buffer.from(b, "utf8");
-  // `timingSafeEqual` throws on a length mismatch, which is itself a leak of
-  // one bit — but hex sha256 is always 64 characters, so a mismatch here means
-  // a corrupted row rather than an attacker's probe.
-  if (left.length !== right.length) return false;
-  return timingSafeEqual(left, right);
-}
 
 /**
  * `tc_<base64url(32 random bytes)>`.
@@ -201,6 +104,7 @@ function toDto(row: TokenRow): ApiToken {
     lastUsedAt: row.lastUsedAt?.toISOString() ?? null,
     expiresAt: row.expiresAt.toISOString(),
     revokedAt: row.revokedAt?.toISOString() ?? null,
+    revokedReason: row.revokedReason ?? null,
   };
 }
 
@@ -246,6 +150,7 @@ export async function mintToken(
   const valid = parsed.data;
 
   const secret = mintSecret();
+  const { digest, keyVersion } = keyedDigest(secret);
   const expiresAt = new Date(now.getTime() + valid.expiresInDays * 24 * 60 * 60 * 1000);
   const [row] = await db
     .insert(apiTokens)
@@ -253,7 +158,8 @@ export async function mintToken(
       id: randomUUID(),
       ownerId,
       name: valid.name,
-      tokenHash: hashOf(secret),
+      tokenHash: digest,
+      keyVersion,
       prefix: secret.slice(0, API_TOKEN_PREFIX_LENGTH),
       scopes: valid.scopes,
       tripIds: valid.tripIds,
@@ -307,17 +213,23 @@ export async function verifyToken(secret: string, now: Date = new Date()): Promi
   // costs nothing.
   if (!secret.startsWith(API_TOKEN_PREFIX)) return { ok: false, refusal: { reason: "unknown" } };
 
-  const rows = await db.select().from(apiTokens).where(eq(apiTokens.tokenHash, hashOf(secret)));
+  // **Under the current key, then the previous one**, in one indexed select, so
+  // a pepper rotation does not log every integration out.
+  const digests = keyedDigestCandidates(secret).map((candidate) => candidate.digest);
+  const rows = await db.select().from(apiTokens).where(inArray(apiTokens.tokenHash, digests));
   const row = rows[0];
-  if (row === undefined || !hashesMatch(row.tokenHash, hashOf(secret))) {
-    return { ok: false, refusal: { reason: "unknown" } };
+  if (row === undefined || !digests.some((digest) => digestsMatch(row.tokenHash, digest))) {
+    return legacyRefusal(secret);
   }
 
   // **Revoked before expired**, deliberately: a token that was revoked and has
   // since also expired was cut off, and that is the more useful thing to be
   // told. The reverse order would report the later event as the cause.
   if (row.revokedAt !== null) {
-    return { ok: false, refusal: { reason: "revoked", revokedAt: row.revokedAt } };
+    return {
+      ok: false,
+      refusal: { reason: "revoked", revokedAt: row.revokedAt, revokedReason: row.revokedReason ?? null },
+    };
   }
   if (row.expiresAt <= now) {
     return { ok: false, refusal: { reason: "expired", expiresAt: row.expiresAt } };
@@ -344,6 +256,40 @@ export async function verifyToken(secret: string, now: Date = new Date()): Promi
       ),
       tripIds: row.tripIds === null ? null : new Set(row.tripIds),
     },
+  };
+}
+
+/**
+ * A secret the keyed lookup missed: one migration 0069 revoked, or nothing.
+ *
+ * **On a miss only, and only against 0069's rows** (ADR-083 §3). The prefix and
+ * reason narrow it to the rows a pre-0069 token could be, so the one scrypt
+ * verify is paid only by someone presenting one of those. Goes when
+ * `legacyScrypt.ts` does (KI-2026-10-27-e).
+ *
+ * **One row, so one scrypt per pepper per request** (two only while
+ * `API_TOKEN_PEPPER_PREVIOUS` is set). The prefix is shown in the UI, so anyone
+ * can present it; without the limit, each row sharing it cost another ~37ms.
+ * If two 0069 rows share a prefix (it carries about 30 bits), one owner is told
+ * "not valid" rather than "revoked", which is the cheaper wrong.
+ */
+async function legacyRefusal(secret: string): Promise<VerifyResult> {
+  const [row] = await db
+    .select()
+    .from(apiTokens)
+    .where(
+      and(
+        eq(apiTokens.prefix, secret.slice(0, API_TOKEN_PREFIX_LENGTH)),
+        eq(apiTokens.revokedReason, "storage-changed"),
+      ),
+    )
+    .limit(1);
+  if (row === undefined || row.revokedAt === null || !(await matchesLegacyToken(secret, row))) {
+    return { ok: false, refusal: { reason: "unknown" } };
+  }
+  return {
+    ok: false,
+    refusal: { reason: "revoked", revokedAt: row.revokedAt, revokedReason: "storage-changed" },
   };
 }
 
@@ -418,7 +364,7 @@ export async function revokeToken(
 
   const claimed = await db
     .update(apiTokens)
-    .set({ revokedAt: now })
+    .set({ revokedAt: now, revokedReason: "owner" })
     .where(
       and(
         eq(apiTokens.id, tokenId),

@@ -132,7 +132,7 @@ export function DevelopersScreen() {
             </Step>
             <Step n={3} title="Make a token">
               <Text className="text-pretty">
-                <strong>Account → Profile → API tokens → New token.</strong> Name it, tick what it may
+                <strong>Account → Security → API tokens → New token.</strong> Name it, tick what it may
                 do (the scopes below), choose all your trips or only some, and pick how long it lives:
                 30 days, 90 days or a year. Every token expires.
               </Text>
@@ -159,6 +159,34 @@ export function DevelopersScreen() {
               </Text>
             </Step>
           </ol>
+        </section>
+
+        {/* M55: the MCP connector (ADR-083). Production's URL, written out:
+            this page is static, and the connector a person adds to Claude is
+            production's whichever deploy they read this on. Premium is the
+            same `api.tokens` entitlement (D6); the consent page ticks every
+            scope but the two `notebook:` ones (D5, `ConsentScreen.tsx`). */}
+        <section aria-labelledby="connect-claude" className="flex flex-col gap-3">
+          <Heading level={2} id="connect-claude">
+            Connect Claude
+          </Heading>
+          <Text className="text-pretty">
+            Claude can plan in Caesura as you: read your trips and your library, write and publish playbooks,
+            and search for places. In Claude, add a custom connector with this URL:
+          </Text>
+          <pre className="overflow-x-auto rounded-md border border-hairline bg-surface p-3 font-mono text-sm text-ink">
+            https://caesura.today/api/mcp
+          </pre>
+          <Text className="text-pretty">
+            There is no token to copy. Claude sends you to Caesura to sign in and allow it, which needs the
+            Premium plan, as API tokens do. The page you allow it on lists what it asks for in the words of{" "}
+            <InlineLink href="#scopes">the scopes below</InlineLink>, and you can untick any of them. Notebook
+            access starts unticked.
+          </Text>
+          <Text variant="secondary" className="text-pretty">
+            Every app you connect is listed in <strong>Account → Security → Connected apps</strong>, where
+            Disconnect stops it at once.
+          </Text>
         </section>
 
         <section aria-labelledby="scopes" className="flex flex-col gap-3">

@@ -17,7 +17,7 @@ and nothing else.
 
 ### Get a token
 
-Account → Profile → **API tokens** → *New token*. Pick what it may do, pick how
+Account → Security → **API tokens** → *New token*. Pick what it may do, pick how
 long it lives, copy the secret. Getting an account first (signup is open) is
 walked through, publicly, at `/developers`.
 
@@ -104,9 +104,60 @@ Mitchell adds (Vercel → Firewall → a bypass rule per path):
 | `/developers`, `/developers/reference` | **recommended** | An agent following `service-doc` or `llms.txt` reads these too. `/developers/reference` is a client-rendered page, so a crawler gets the header and must fetch `/api/v1/openapi` for the content; `/developers` is static HTML and fully readable |
 | `/`, `/welcome`, `/playbooks/**` | **required for search** | The landing and the public library. Until exempt, only crawlers Vercel verifies can read them (SEO pass, spec 2026-10-02) |
 | `/robots.txt`, `/sitemap.xml` | **required for search** | A crawler that is challenged on these cannot learn what to crawl |
+| `/.well-known/oauth-protected-resource*` | **required** | RFC 9728, fixed under `/.well-known/`. Claude reads it first to find who issues tokens for `/api/mcp`; challenged, it cannot connect at all (M55 D9) |
+| `/.well-known/oauth-authorization-server*` | **required** | RFC 8414, the authorization server's endpoints. The same: no connector without it (M55 D9) |
 
 Until then a browser can read them and a crawler gets a challenge page.
-`/api/v1` and `/api/v1/openapi` need nothing, since they are under `/api/*`.
+`/api/v1` and `/api/v1/openapi` need nothing, since they are under `/api/*`;
+nor do `/api/mcp` and `/api/oauth/*`. `/oauth/authorize` is the consent page a
+person opens in their own browser, so the challenge does not stand in its way.
+
+### Connecting Claude (MCP and OAuth)
+
+Caesura is an MCP server at **`https://caesura.today/api/mcp`** (ADR-083, M55).
+In Claude, add it as a custom connector with that URL. Any MCP client that does
+OAuth 2.1 with PKCE connects the same way. The connector is on the Premium plan,
+the same `api.tokens` entitlement as a token, read on every request.
+
+**There is no token to copy.** The client discovers everything from the server:
+
+1. A call to `/api/mcp` without a credential answers 401 with
+   `WWW-Authenticate: Bearer resource_metadata="<origin>/.well-known/oauth-protected-resource/api/mcp"`.
+2. That document (RFC 9728) names the resource, `<origin>/api/mcp`, and the
+   issuer; `/.well-known/oauth-authorization-server` (RFC 8414) names the
+   endpoints: `/oauth/authorize`, `/api/oauth/token`, `/api/oauth/register`,
+   `/api/oauth/revoke`.
+3. **Registration.** A client whose `client_id` is an `https` URL to its own
+   metadata document (CIMD) needs none, and that is the first way in. Otherwise
+   `POST /api/oauth/register` (RFC 7591) takes any `https` redirect, or a
+   loopback `http://localhost`, `127.0.0.1` or `[::1]` one on any port. No
+   fragments, no wildcards; redirects match exactly. Every client is public: no
+   secret, and PKCE with `S256` only.
+4. **Consent.** The person signs in and sees the client's name as its own,
+   unverified claim, unless the redirect is Claude's own callback, with the host
+   the code goes to shown large. Each scope is a checkbox in `SCOPE_CATALOGUE`'s
+   words, all ticked except the two `notebook:` scopes. Every redirect back
+   carries `state` and `iss`.
+5. **Tokens.** The code (`tcc_`, one minute, single use) is exchanged at
+   `/api/oauth/token` with its verifier and `resource=<origin>/api/mcp` (RFC
+   8707) for an access token (`tco_`, one hour) and a refresh token (`tcr_`).
+   A refresh token rotates on every use and lives 90 days from its last use, at
+   most a year from consent. A code or a rotated refresh token presented twice
+   cuts off the whole grant, and the person consents again.
+
+**A `tco_` token works only at `/api/mcp`.** Its audience is the MCP endpoint;
+on `/api/v1` it is a 401. Each tool calls a v1 route's own declared handler, so
+a tool can do exactly what a token holding the same scopes can, through the same
+checks and errors (D2); a scope that was not granted answers v1's
+`insufficient-scope` as a tool error.
+
+**Disconnecting.** Account → Security → **Connected apps** lists every app a
+person connected: its name, where its codes go, its scopes, when it was made and
+last used. *Disconnect* revokes the grant, its refresh token and every access
+token issued from it, on their next request. Like the token list, it is
+session-only (`exposure.ts` holds `listGrants` and `revokeGrant` off the public
+side). A client can also revoke its own refresh token at `/api/oauth/revoke`
+(RFC 7009), which ends the grant the same way.
 
 ### Scopes
 
@@ -856,7 +907,18 @@ minting and verifying both throw rather than falling back — an empty pepper
 would still produce a stable digest, and tokens would keep working while the
 property the key exists for silently did not hold.
 
-Generate with `openssl rand -base64 32`. **Rotating it invalidates every token**,
-with no migration path. That is the right blast radius for a key compromise, and
-it is why it is not `AUTH_SECRET`: rotating sessions and rotating API credentials
-are different emergencies.
+Generate with `openssl rand -base64 32`. **It must be at least 32 bytes**; a
+shorter one is refused (`ApiTokenPepperTooShortError`), because a short pepper
+can be guessed. It is not `AUTH_SECRET`: rotating sessions and rotating API
+credentials are different emergencies.
+
+**Rotating it** without logging every integration out: set
+`API_TOKEN_PEPPER_PREVIOUS` to the old value and `API_TOKEN_PEPPER` to the new
+one. New tokens are minted under the new key, and a token minted under the old
+one keeps verifying, because a lookup tries the current key's digest and then the
+previous key's. Drop `API_TOKEN_PEPPER_PREVIOUS` once those tokens have been
+re-minted or have expired (365 days at most). `api_tokens.key_version` records
+which key made each row, so a row whose version differs from a freshly minted
+token's is still on the old key. For a **key compromise**, replace the pepper and
+leave `API_TOKEN_PEPPER_PREVIOUS` unset: every token dies at once, which is the
+right blast radius.

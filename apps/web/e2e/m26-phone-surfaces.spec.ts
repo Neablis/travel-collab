@@ -51,12 +51,11 @@ test.describe("the phone's account screen", () => {
   // sweep measures every phone control on /account, tabs included, behind a
   // Profile-tab readiness guard — one owner for the claim, not two.
 
-  // Each tab is a URL (`?tab=`), which is what makes the back button walk them —
-  // and the tokens sub-view (not a tab since M27, §35.4) is one too.
+  // Each tab is a URL (`?tab=`), which is what makes the back button walk them.
   test("walks its tabs with the back button", async ({ page }) => {
     await page.goto("/home");
-    await openAccountPage(page, "tokens");
-    await expect(page).toHaveURL(/tab=tokens/);
+    await openAccountPage(page, "security");
+    await expect(page).toHaveURL(/tab=security/);
     await page.goBack();
     await expect(page.getByRole("tab", { name: "Profile" })).toHaveAttribute("aria-selected", "true");
   });

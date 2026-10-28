@@ -40,7 +40,7 @@ import {
   type ApiResult,
 } from "@/lib/apiClient";
 import { displayNameFor } from "@/lib/displayName";
-import { ConfirmDialog } from "./ConfirmDialog";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { GuestLinkDialog } from "./GuestLinkDialog";
 import { InviteDialog } from "./InviteDialog";
 import { InviteRow, inviteMenuLabel } from "./InviteRow";

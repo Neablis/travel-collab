@@ -12,6 +12,8 @@ import { upsertUser } from "@/server/users";
 import { issueGrant } from "@/server/entitlements/grants";
 import { livePlanVersion } from "@/server/entitlements/planVersions";
 import { mintToken } from "@/server/api-tokens";
+import { runInMcpDispatch } from "@/server/oauth/dispatchContext";
+import { connectForTest } from "@/server/test-support/oauthConnection";
 import { dailyPolicy, geocodeQuota, peekQuota, placeSearchTokenQuota } from "@/server/quota";
 
 vi.mock("@/server/auth", () => ({ auth: vi.fn(async () => null) }));
@@ -105,6 +107,19 @@ describe("GET /v1/geocode", () => {
     expect(forward).toHaveBeenCalledWith("Kyoto Station", { limit: 5, countryCode: "JP" });
     expect(await geocodeUsed(owner)).toBe(1);
     expect(await tokenUsed(tokenId)).toBe(1);
+  });
+
+  // ADR-083 §7: an MCP client's searches spend its grant's day, as a token's
+  // spend the token's, so a connected app cannot search past the allowance.
+  it("charges an OAuth grant's own place-search day", async () => {
+    const owner = await entitled();
+    const { grant, access } = await connectForTest(owner, ["places:read"]);
+
+    const res = await runInMcpDispatch(() => search(access, "q=Kyoto%20Station"));
+
+    expect(res.status).toBe(200);
+    expect(await tokenUsed(grant.id)).toBe(1);
+    expect(await geocodeUsed(owner)).toBe(1);
   });
 
   it("refuses a token without places:read, before any lookup or charge", async () => {

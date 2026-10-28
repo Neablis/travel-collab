@@ -20,21 +20,19 @@ vi.mock("./useSessionUser", () => ({ useSessionUser: () => ({ id: "user-a", emai
 const signOutMock = vi.fn();
 vi.mock("next-auth/react", () => ({ signOut: (...args: unknown[]) => signOutMock(...args) }));
 
-// The three panels self-fetch and have their own suites; stubbing them keeps
-// this file about the tabs. Each renders a marker so "which panel is mounted"
-// is observable.
+// The panels self-fetch and have their own suites; stubbing them keeps this
+// file about the tabs. Each renders a marker so "which panel is mounted" is
+// observable.
 vi.mock("./ProfileSection", () => ({
-  ProfileSection: ({ email, onOpenTokens }: { email: string; onOpenTokens: () => void }) => (
+  ProfileSection: ({ email }: { email: string }) => (
     <div data-testid="profile-panel">
       <span data-testid="profile-email">{email}</span>
-      <button type="button" onClick={onOpenTokens}>
-        API tokens →
-      </button>
     </div>
   ),
 }));
 vi.mock("./PlanSection", () => ({ PlanSection: () => <div data-testid="plan-panel" /> }));
 vi.mock("./TokensSection", () => ({ TokensSection: () => <div data-testid="tokens-panel" /> }));
+vi.mock("./ConnectedAppsSection", () => ({ ConnectedAppsSection: () => <div data-testid="apps-panel" /> }));
 
 function mount(tab?: string) {
   params = new URLSearchParams(tab === undefined ? "" : `tab=${tab}`);
@@ -45,12 +43,18 @@ beforeEach(() => push.mockClear());
 afterEach(cleanup);
 
 describe("accountTabFrom", () => {
-  // `tokens` is a sub-view now, not a tab (SPEC §35.4, M27 D7) — but its URL
-  // is unchanged, so links from when it was a tab still land on it.
-  it("reads the two tabs and the tokens sub-view", () => {
+  it("reads the three tabs", () => {
     expect(accountTabFrom("profile")).toBe("profile");
     expect(accountTabFrom("plan")).toBe("plan");
-    expect(accountTabFrom("tokens")).toBe("tokens");
+    expect(accountTabFrom("security")).toBe("security");
+  });
+
+  // API tokens and Connected apps were Profile's sub-views at `?tab=tokens`
+  // and `?tab=apps` until M55 part 6; links and bookmarks from then land on
+  // the tab that holds them now.
+  it("sends the old tokens and connected apps URLs to Security", () => {
+    expect(accountTabFrom("tokens")).toBe("security");
+    expect(accountTabFrom("apps")).toBe("security");
   });
 
   // A settings URL somebody bookmarked must not be able to rot into a blank
@@ -60,15 +64,16 @@ describe("accountTabFrom", () => {
     expect(accountTabFrom("")).toBe("profile");
     expect(accountTabFrom("billing")).toBe("profile");
     expect(accountTabFrom("PROFILE")).toBe("profile");
+    expect(accountTabFrom("toString")).toBe("profile");
   });
 });
 
 describe("AccountScreen", () => {
-  it("is a page with two tabs, Profile first", () => {
+  it("is a page with three tabs, Profile first", () => {
     mount();
     // Inside the page's `main` (axe landmark-one-main on every /account view).
     expect(within(screen.getByRole("main")).getByRole("heading", { name: "Account", level: 1 })).toBeTruthy();
-    expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual(["Profile", "Plan & usage"]);
+    expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual(["Profile", "Plan & usage", "Security"]);
     expect(screen.getByTestId("profile-panel")).toBeTruthy();
   });
 
@@ -80,9 +85,10 @@ describe("AccountScreen", () => {
 
   it.each([
     ["plan", "plan-panel"],
-    ["tokens", "tokens-panel"],
+    ["security", "tokens-panel"],
+    ["security", "apps-panel"],
     ["profile", "profile-panel"],
-  ])("renders the panel the ?tab= names: %s", (tab, panel) => {
+  ])("?tab=%s renders %s", (tab, panel) => {
     mount(tab);
     expect(screen.getByTestId(panel)).toBeTruthy();
   });
@@ -112,39 +118,42 @@ describe("AccountScreen", () => {
     expect(push).toHaveBeenCalledWith("/account");
   });
 
-  // §35.4: Profile's "API tokens →" is the way in, and it is a URL for the
-  // same reason the tabs are.
-  it("opens the tokens sub-view from Profile's link, as a URL", () => {
+  it("takes the Security tab to its URL", () => {
     mount();
-    fireEvent.click(screen.getByRole("button", { name: "API tokens →" }));
-    expect(push).toHaveBeenCalledWith("/account?tab=tokens");
+    fireEvent.click(screen.getByRole("tab", { name: "Security" }));
+    expect(push).toHaveBeenCalledWith("/account?tab=security");
   });
 
-  describe("the tokens sub-view", () => {
-    it("selects neither tab, and keeps the strip one tab stop", () => {
-      mount("tokens");
-      const tabs = screen.getAllByRole("tab");
-      expect(tabs.filter((t) => t.getAttribute("aria-selected") === "true")).toEqual([]);
-      expect(tabs.filter((t) => t.getAttribute("tabindex") === "0").map((t) => t.textContent)).toEqual(["Profile"]);
+  // Mitchell, M55 part 6: tokens and connected apps were buried at the foot of
+  // Profile. Security holds both, tokens first, each a section under its own
+  // heading — drawn here rather than inside the sections, which render nothing
+  // until they have fetched — and Profile holds neither.
+  describe("the Security tab", () => {
+    it("holds API tokens then Connected apps, each a section named by its heading", () => {
+      mount("security");
+      const panel = screen.getByRole("tabpanel", { name: "Security" });
+      expect(within(panel).getAllByRole("heading", { level: 2 }).map((h) => h.textContent)).toEqual([
+        "API tokens",
+        "Connected apps",
+      ]);
+      const tokens = within(panel).getByRole("region", { name: "API tokens" });
+      const apps = within(panel).getByRole("region", { name: "Connected apps" });
+      expect(tokens.contains(screen.getByTestId("tokens-panel"))).toBe(true);
+      expect(apps.contains(screen.getByTestId("apps-panel"))).toBe(true);
     });
 
-    it("has its own way back to Profile and its own heading", () => {
-      mount("tokens");
-      expect(screen.getByRole("heading", { name: "API tokens", level: 2 })).toBeTruthy();
-      fireEvent.click(screen.getByRole("button", { name: "← Profile" }));
-      expect(push).toHaveBeenCalledWith("/account");
+    it.each(["tokens", "apps"])("is what an old ?tab=%s link lands on", (old) => {
+      mount(old);
+      expect(screen.getByRole("tab", { name: "Security" }).getAttribute("aria-selected")).toBe("true");
+      expect(screen.getByTestId("tokens-panel")).toBeTruthy();
+      expect(screen.getByTestId("apps-panel")).toBeTruthy();
     });
 
-    // No tab controls it, so it must not claim to be a tab's panel or point at
-    // a tab for its name. The heading is there from the first paint — it is
-    // not inside `TokensSection`, which renders nothing until it has fetched.
-    it("is a region named by its heading", () => {
-      mount("tokens");
-      expect(screen.queryByRole("tabpanel")).toBeNull();
-      const region = screen.getByRole("region", { name: "API tokens" });
-      const heading = screen.getByRole("heading", { name: "API tokens", level: 2 });
-      expect(region.getAttribute("aria-labelledby")).toBe(heading.id);
-      expect(region.contains(screen.getByTestId("tokens-panel"))).toBe(true);
+    it("is not on Profile", () => {
+      mount();
+      expect(screen.queryByTestId("tokens-panel")).toBeNull();
+      expect(screen.queryByTestId("apps-panel")).toBeNull();
+      expect(screen.queryByRole("heading", { name: "API tokens" })).toBeNull();
     });
   });
 

@@ -257,6 +257,24 @@ export const API_TOKEN_PREFIX = "tc_";
 export const API_TOKEN_PREFIX_LENGTH = 8;
 
 /**
+ * The prefixes of the OAuth server's three secrets (ADR-083 §4): an access
+ * token, a refresh token and an authorization code. Greppable for the same
+ * reason `tc_` is, and distinct from it so a leaked one says which it is.
+ */
+export const OAUTH_ACCESS_PREFIX = "tco_";
+export const OAUTH_REFRESH_PREFIX = "tcr_";
+export const OAUTH_CODE_PREFIX = "tcc_";
+
+/**
+ * Why a token was revoked: `owner` from the token list, `storage-changed` when
+ * token storage moved to a keyed HMAC (migration 0069, ADR-083 §3) and every
+ * token minted before it was cut off. Null on a live token, and on one revoked
+ * before reasons were recorded.
+ */
+export const ApiTokenRevokedReason = z.enum(["owner", "storage-changed"]);
+export type ApiTokenRevokedReason = z.infer<typeof ApiTokenRevokedReason>;
+
+/**
  * The longest life a token may be given, in days (Decision 13).
  *
  * **Mandatory expiry, and "never" is not offerable.** Mitchell, 2026-09-16:
@@ -277,7 +295,7 @@ export const API_TOKEN_DEFAULT_LIFETIME_DAYS = 90;
  * The owner's view of a token they hold. **Never the secret.**
  *
  * The secret is returned exactly once, by the creation call, and is not stored
- * in a form anything can return again (Decision 6) — `sha256` at rest, and this
+ * in a form anything can return again (Decision 6) — a keyed HMAC at rest, and this
  * DTO is why that costs nothing: no screen needs the plaintext back.
  *
  * **This breaks with the invite/share precedent deliberately.** `TripShare`
@@ -345,6 +363,8 @@ export const ApiToken = z.object({
    * row stays listable and a user can see what lapsed and why.
    */
   revokedAt: z.string().nullable(),
+  /** Why it was revoked, so the list can say what to do. Null while live. */
+  revokedReason: ApiTokenRevokedReason.nullable(),
 });
 export type ApiToken = z.infer<typeof ApiToken>;
 
@@ -400,6 +420,44 @@ export const ApiTokenCreateInput = z.object({
     ),
 });
 export type ApiTokenCreateInput = z.infer<typeof ApiTokenCreateInput>;
+
+/**
+ * Why a connected app's grant ended (ADR-083 §4): `owner` pressed Disconnect;
+ * `code-reuse` and `refresh-reuse` are the server cutting off a grant whose
+ * secret was presented twice. Null while it is live.
+ */
+export const ConnectedAppRevokedReason = z.enum(["owner", "code-reuse", "refresh-reuse"]);
+export type ConnectedAppRevokedReason = z.infer<typeof ConnectedAppRevokedReason>;
+
+/**
+ * One app a person connected through OAuth, as Account → Connected apps lists
+ * it (M55 D10). Session-only, like the token list, and for the same reason.
+ *
+ * **What the person consented to and nothing of the server's.** No secret, no
+ * client id, and the redirect only as its host: the host is where the codes
+ * went, which is the fact a person can judge; the path is not.
+ *
+ * As `ApiToken`: the timestamps are the facts and no derived verdict is sent,
+ * and no entitlement is cached here, because a lapse is read per request.
+ */
+export const ConnectedApp = z.object({
+  grantId: z.string().guid(),
+  /** What the client called itself at consent: its own claim, never verified. */
+  clientName: z.string(),
+  redirectHost: z.string(),
+  /** The redirect is Claude's own callback (`RECOGNISED_REDIRECTS`), so the name can be trusted. */
+  recognised: z.boolean(),
+  /** What the person allowed. No `.min(1)`: a grant to list is a grant to disconnect. */
+  scopes: z.array(ApiScope),
+  createdAt: z.string(),
+  /** Coarse to five minutes, as `ApiToken.lastUsedAt`. */
+  lastUsedAt: z.string().nullable(),
+  /** A year after consent; no refresh outlives it. */
+  expiresAt: z.string(),
+  revokedAt: z.string().nullable(),
+  revokedReason: ConnectedAppRevokedReason.nullable(),
+});
+export type ConnectedApp = z.infer<typeof ConnectedApp>;
 
 /**
  * What happened to a stop's location on a v1 write, sent as the
