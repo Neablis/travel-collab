@@ -64,7 +64,11 @@ which dumps every job.
 - **unit** (`pnpm test:unit`): the annotation names the failing test file; run
   that file locally (§4) rather than the suite.
 - **script-tests** (`pnpm test:scripts`): node:test; reproduce with the same command.
-- **integration** (`pnpm --filter web test:int`): vitest against Postgres.
+- **integration** (`pnpm --filter web test:int`): vitest against Postgres. Its
+  `github-actions` reporter annotates each failed test by name and line.
+- **unit, script-tests, integration** all run through `scripts/ci-failure-summary.sh`: a red
+  run carries one `<job> exited <n>` annotation holding the log's failure lines (test
+  names, the first error line, a crashed worker), so read that one before reproducing.
 - **e2e (1/2), e2e (2/2)**: two Playwright shards, split by spec file, each
   with its own build and database. Check both: one failing says nothing about
   the other. Playwright runs with the `line` reporter (compact). Grep

@@ -204,34 +204,11 @@ jobs:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup-workspace
       # The job log can't be read from a cloud session (KI-2026-10-13-f), so a
-      # red run has to name itself where REST can see it. Vitest's
-      # github-actions reporter annotates failed assertions, but not an
-      # unhandled error, a crashed worker or a package that died before its
-      # reporter ran (KI-2026-10-14-c). On failure this greps the log for those
-      # lines and writes them to the step summary and one `::error`.
+      # red run has to name itself where REST can see it: on failure the
+      # wrapper writes the failing lines to the step summary and one `::error`
+      # (KI-2026-10-14-c has why the reporter's annotations are not enough).
       - name: Run pnpm test:unit
-        shell: bash
-        run: |
-          set +e
-          log="$RUNNER_TEMP/unit.log"
-          pnpm test:unit 2>&1 | tee "$log"
-          status=${PIPESTATUS[0]}
-          if [ "$status" -ne 0 ]; then
-            hits=$(sed 's/\x1b\[[0-9;]*m//g' "$log" \
-              | grep -aE 'FAIL |originated in "|Uncaught Exception|Unhandled Rejection|Error: |Worker exited|Test timed out|heap out of memory|ERR_PNPM|Test Files ' \
-              | grep -v '^::' | cut -c1-300 | head -n 40)
-            [ -n "$hits" ] || hits=$(sed 's/\x1b\[[0-9;]*m//g' "$log" | tail -n 40)
-            {
-              echo "### test / unit exited $status"
-              echo '```'
-              echo "$hits"
-              echo '```'
-            } >> "$GITHUB_STEP_SUMMARY"
-            # One annotation, not one per line: a step keeps only 10 errors.
-            msg=$(printf '%s' "$hits" | sed 's/%/%25/g' | awk 'BEGIN{ORS="%0A"} {print}')
-            echo "::error title=test / unit exited ${status}::${msg}"
-          fi
-          exit "$status"
+        run: bash scripts/ci-failure-summary.sh "test / unit" pnpm test:unit
 
   # `scripts/**/__tests__` under node:test: ~90s, most of it
   # check-lint-wall.test.mjs running eslint against sabotaged configs.
@@ -244,7 +221,8 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup-workspace
-      - run: pnpm test:scripts
+      # node:test has no annotating reporter; see ci-failure-summary.sh.
+      - run: bash scripts/ci-failure-summary.sh "test / scripts" pnpm test:scripts
 
   # Postgres-backed integration tests: ~2.5 minutes.
   integration:
@@ -281,7 +259,9 @@ jobs:
       # their own database per run (apps/web/scripts/with-test-db.mjs), applying
       # the migrations themselves into a template. Migrating the service
       # container's `travel` database would migrate a database nothing opens.
-      - run: pnpm --filter web test:int
+      # vitest.config.ts adds the `github-actions` reporter here; the wrapper
+      # covers what it cannot see (KI-2026-10-13-f).
+      - run: bash scripts/ci-failure-summary.sh "test / integration" pnpm --filter web test:int
 
   # A production build and Playwright against it, in two shards. Unsplit this
   # was the long pole: 5m24s of a 5m30s run, 4m10s of it Playwright. Each shard
