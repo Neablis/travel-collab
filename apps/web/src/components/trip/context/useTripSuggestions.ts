@@ -64,10 +64,11 @@ export function useTripSuggestions({ tripId, enabled, onAccepted }: Args): {
   const reading = useRef(0);
   const live = useRef(enabled);
   live.current = enabled;
-  // A read still out when the provider unmounts lands nowhere. React drops a
+  // Nothing lands after the provider unmounts: not a read still out, and not
+  // a resolve that answers late (its re-read, its `onAccepted`). React drops a
   // state update on an unmounted hook, but it reads `window.event` to price
   // the update first, so one landing after a test's jsdom is gone throws and
-  // rejects the read (KI-2026-10-25-w).
+  // rejects the promise (KI-2026-10-25-w).
   const mounted = useRef(true);
   useEffect(() => {
     mounted.current = true;
@@ -77,7 +78,7 @@ export function useTripSuggestions({ tripId, enabled, onAccepted }: Args): {
   }, []);
 
   const refresh = useCallback(async () => {
-    if (!live.current) return;
+    if (!live.current || !mounted.current) return;
     const ticket = ++latest.current;
     setInFlight((n) => n + 1);
     reading.current++;
@@ -134,6 +135,7 @@ export function useTripSuggestions({ tripId, enabled, onAccepted }: Args): {
   const resolve = useCallback(
     async (changeId: string, action: ResolveSuggestionChangeInput["action"]) => {
       const result = await resolveSuggestionChange(tripId, changeId, action);
+      if (!mounted.current) return result;
       if (result.ok && action === "accept") onAcceptedRef.current();
       await refresh();
       return result;
@@ -144,6 +146,7 @@ export function useTripSuggestions({ tripId, enabled, onAccepted }: Args): {
   const acceptMany = useCallback(
     async (changeIds: string[]) => {
       const result = await acceptSuggestionChanges(tripId, changeIds);
+      if (!mounted.current) return result;
       if (result.ok) onAcceptedRef.current();
       await refresh();
       return result;

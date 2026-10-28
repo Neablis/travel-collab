@@ -50,6 +50,10 @@ vi.mock("@/lib/apiClient", async (orig) => {
       ok: true as const,
       value: { headSeq: 0, events: [], resync: false, ...(onlineIds === undefined ? {} : { online: onlineIds }) },
     })),
+    // The real one sends a request to loopback, which the network guard lets
+    // through and nothing here answers, so it could still be out when the file
+    // ended (KI-2026-10-25-w).
+    fetchTripSuggestions: vi.fn(async () => ({ ok: true as const, value: { changes: [], rev: "0" } })),
     setTravelling: (...args: unknown[]) => setTravellingMock(...args),
     // The command only. The unit's key (ADR-066) is the sender's business,
     // asserted in TripProvider.test.tsx.

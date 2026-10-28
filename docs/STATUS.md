@@ -51,7 +51,7 @@ confirmed fixed"*). Evidence, retro and spend are in
 **Next action:** Mitchell merges M54's part 0 (PR 593). Then scope M43 with him
 (`plan-a-milestone`): the Overview's identity in the database, its derived title, and the `open`
 widget's design and filters. Open follow-ups from M54: KI-20261027-a to -d, KI-20261026-t, -u,
--x and -y, and KI-20261013-a's first-load gap. Open follow-ups from M49: KI-20261025-w, and the candidate
+-x and -y, and KI-20261013-a's first-load gap. Open follow-up from M49: the candidate
 *Reposition a playbook day's cover*.
 Open follow-ups from M52: KI-2026-10-24-a to -o (`docs/known-issues/open/`). Outside M52:
 PR 491 (dependabot) is red, and GitHub reports 5 dependabot vulnerabilities on `main` (2 high,
