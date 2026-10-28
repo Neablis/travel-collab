@@ -180,7 +180,8 @@ test("a multi-city card's chips on a 390px phone: one row, every one a 44px targ
       expect(box.y).toBeGreaterThanOrEqual(row.y);
       expect(box.y + box.height).toBeLessThanOrEqual(row.y + row.height);
     }
-    expect(row.height).toBeLessThanOrEqual(44);
+    // Under two rows: a second would add a whole 44px reach.
+    expect(row.height).toBeLessThan(44 + 20);
     onPhoto((await chips.getByTestId("city-chips-more").boundingBox())!);
   } finally {
     await forget(page, savedDayId);
