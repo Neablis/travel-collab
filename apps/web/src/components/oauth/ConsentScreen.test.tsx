@@ -80,6 +80,23 @@ describe("ConsentScreen", () => {
     expect(all("Write", true), "Write untouched by Read's Clear all").toBe(true);
   });
 
+  it("shows no Write section when the app asked for no write", () => {
+    render(<ConsentScreen {...props({ scopes: ["trips:read"] })} />);
+    expect(screen.getByRole("group", { name: "Read" })).toBeTruthy();
+    // Under the redirect host's h2, not beside it (ADR-083 §6).
+    expect(screen.getByRole("heading", { level: 3, name: "Read" })).toBeTruthy();
+    expect(screen.queryByRole("group", { name: "Write" })).toBeNull();
+  });
+
+  it("says why Allow is disabled once nothing is ticked, and only then", () => {
+    const hint = "Choose at least one thing this app may do.";
+    render(<ConsentScreen {...props()} />);
+    expect(screen.queryByRole("button", { name: "Allow", description: hint })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Clear all read access" }));
+    const allow = screen.getByRole("button", { name: "Allow", description: hint }) as HTMLButtonElement;
+    expect(allow.disabled).toBe(true);
+  });
+
   it("disables Allow for a free account, and offers the plans", () => {
     render(<ConsentScreen {...props({ entitled: false })} />);
     expect((screen.getByRole("button", { name: "Allow" }) as HTMLButtonElement).disabled).toBe(true);

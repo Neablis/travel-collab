@@ -69,6 +69,8 @@ export function ConsentScreen({
 }: ConsentScreenProps) {
   const [chosen, setChosen] = useState<ApiScope[]>(() => scopes.filter(isRead));
   const sectionId = useId();
+  const noneHintId = useId();
+  const noneChosen = chosen.length === 0;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -154,9 +156,10 @@ export function ConsentScreen({
             const others = (current: ApiScope[]) => current.filter((scope) => !holds(scope));
             return (
               // Named by its heading alone: a legend would fold the buttons' names into the group's.
+              // An h3, under the redirect host's h2: the host stays the largest thing on the page (ADR-083 §6).
               <fieldset key={kind} className="flex flex-col gap-3" aria-labelledby={`${sectionId}-${kind}`}>
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <Heading level={2} id={`${sectionId}-${kind}`}>
+                  <Heading level={3} id={`${sectionId}-${kind}`}>
                     {title}
                   </Heading>
                   <span className="flex gap-2">
@@ -190,17 +193,26 @@ export function ConsentScreen({
 
         {error === null ? null : <Banner variant="danger">{error}</Banner>}
 
-        <div className="flex gap-2">
-          <Button
-            variant="primary"
-            disabled={!entitled || busy || chosen.length === 0}
-            onClick={() => void decide("allow")}
-          >
-            Allow
-          </Button>
-          <Button variant="secondary" disabled={busy} onClick={() => void decide("deny")}>
-            Deny
-          </Button>
+        <div className="flex flex-col gap-2">
+          {/* Clear all makes an empty grant one press away, and a disabled Allow alone does not say why. */}
+          {noneChosen ? (
+            <Text variant="secondary" id={noneHintId}>
+              Choose at least one thing this app may do.
+            </Text>
+          ) : null}
+          <div className="flex gap-2">
+            <Button
+              variant="primary"
+              disabled={!entitled || busy || noneChosen}
+              aria-describedby={noneChosen ? noneHintId : undefined}
+              onClick={() => void decide("allow")}
+            >
+              Allow
+            </Button>
+            <Button variant="secondary" disabled={busy} onClick={() => void decide("deny")}>
+              Deny
+            </Button>
+          </div>
         </div>
       </Card>
     </PageContainer>
