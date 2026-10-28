@@ -75,12 +75,15 @@ export function reportMcpError(error: Error): void {
 /**
  * Whether the SDK refused the request for the client's own fault: a 406 or
  * 415, an unsupported revision, a missing capability, a header the body
- * contradicts, or a full listen table.
+ * contradicts, a full listen table, or a 2025 body that does not parse or
+ * breaks a batch rule. The 2025 transport's only `SyntaxError` is its parse of
+ * the body.
  */
 function clientMistake(error: Error): boolean {
   return (
+    error instanceof SyntaxError ||
     error instanceof UnsupportedProtocolVersionError ||
     error instanceof MissingRequiredClientCapabilityError ||
-    /^(Rejected |Not Acceptable|Unsupported Media Type|subscriptions\/listen refused)/.test(error.message)
+    /^(Rejected |Not Acceptable|Unsupported Media Type|Invalid Request|subscriptions\/listen refused)/.test(error.message)
   );
 }

@@ -232,6 +232,11 @@ describe("POST /api/mcp logs a client's mistake as a warning, not an error", () 
       send: (secret) => mcp(call, { ...bearer(secret), accept: "application/json" }),
       status: 406,
     },
+    "a 2025 client whose body does not parse": { send: (secret) => mcp("{not json", bearer(secret)), status: 400 },
+    "a 2025 client's batch over the SDK's limit": {
+      send: (secret) => mcp(`[${Array.from({ length: 101 }, () => call).join(",")}]`, bearer(secret)),
+      status: 400,
+    },
   };
 
   it.each(Object.keys(mistakes))("for %s", async (mistake) => {
