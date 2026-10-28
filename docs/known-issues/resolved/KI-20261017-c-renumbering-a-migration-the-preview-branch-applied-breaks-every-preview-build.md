@@ -1,4 +1,4 @@
-### KI-2026-10-17-c — Renumbering a migration that the shared preview Neon branch already applied breaks every preview build
+### KI-2026-10-17-c — Renumbering a migration that the shared preview Neon branch already applied breaks every preview build — RESOLVED
 
 - **Severity:** reliability. Every preview build fails until the preview database is repaired by
   hand; production is not touched (its migrations are dispatched, ADR-004).

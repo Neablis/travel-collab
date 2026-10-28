@@ -25,7 +25,9 @@ export function buildSteps(environment) {
   }
   return {
     run: [
-      "pnpm drizzle-kit migrate",
+      // Not `pnpm drizzle-kit migrate`: its spinner hid the Postgres error,
+      // and it cannot tell a renumbered migration (KI-2026-10-17-c).
+      "node scripts/preview-migrate.mjs",
       // --lock: every open PR's preview imports into this one database.
       "node --import ./scripts/lib/ts-resolve-register.mjs scripts/import-content-production.ts --lock",
     ],
