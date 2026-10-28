@@ -1,4 +1,4 @@
-### KI-2026-10-27-e — The MCP server cannot serve a client that speaks only MCP 2026-07-28
+### KI-2026-10-27-j — The MCP server cannot serve a client that speaks only MCP 2026-07-28
 
 - **Severity:** compatibility, medium. Claude negotiates down today, so no known client fails yet.
 - **Area:** `apps/web/src/app/api/mcp/route.ts` and the pinned `@modelcontextprotocol/sdk` 1.32.2

@@ -251,7 +251,7 @@ and every refresh, and Claude's token calls must answer within 10 seconds.
    (`app/api/mcp/route.int.test.ts`), and it has no `CacheableResult`. The gap: its transport
    refuses `MCP-Protocol-Version: 2026-07-28` with a 400, and `initialize` negotiates down to
    `2025-11-25`. A client that speaks only 2026-07-28 cannot connect until the SDK is upgraded
-   (KI-2026-10-27-e).
+   (KI-2026-10-27-j).
 9. **The exposure ledger gains a status for a public route outside `v1/`:**
    `{ status: "front-door"; why: string; adapts?: "v1" }`. `mcp` is a front door that adapts
    `v1` (`adapts: "v1"`); `oauth/register`, `oauth/token`, `oauth/revoke` and `oauth/authorize`
