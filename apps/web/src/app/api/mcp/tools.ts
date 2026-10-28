@@ -23,7 +23,8 @@ import type { McpTool } from "@/server/mcp/tools";
 // It sits beside the route, not in `server/mcp/`, because it imports v1 route
 // modules, and `server/**` never imports `app/**` (`pnpm arch`).
 //
-// **No deletes** (D4): nothing a connected app can do removes anything.
+// **No deletes** (D4): no tool calls a DELETE route. Some writes still replace
+// what was there (days, a cover, a page), and say so with `destructiveHint`.
 
 const PLAYBOOK =
   "A Playbook is a public day plan in Caesura's Discover library (or a private one of yours until it is published): " +
@@ -34,7 +35,8 @@ const READ = { readOnlyHint: true, openWorldHint: false } as const;
 
 const COVER_URL =
   "Give the address of an image on the open web (the image file itself, not a page that shows it), " +
-  "its alt text, and who to credit. Caesura checks the address answers with an image before keeping it.";
+  "its alt text, and who to credit. Caesura fetches it before keeping it, and refuses anything but an https " +
+  "address on the default port answering with a JPEG, PNG, WebP, GIF or AVIF file of at most 10 MB; SVG is refused.";
 
 // Setting replaces the cover there was, and Caesura fetches the image from its host.
 const SET_COVER = { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: true } as const;
@@ -119,7 +121,7 @@ export const TOOLS: readonly McpTool[] = [
     handler: patchPlaybook,
     path: "/api/v1/playbooks/{playbookId}",
     offers: ["name", "summary", "days", "expectedVersion"],
-    // Days replace what was there; nothing else this connector does overwrites.
+    // Days replace what was there, as setting a cover or a page does.
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
   },
   {
