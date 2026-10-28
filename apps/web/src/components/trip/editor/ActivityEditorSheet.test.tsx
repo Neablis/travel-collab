@@ -43,6 +43,10 @@ vi.mock("@/lib/apiClient", async (orig) => {
     // `PeopleProvider` reads the trip's guests beside the members (guests
     // spec P4); the editor names none on its own, so the list is empty here.
     fetchGuests: vi.fn(),
+    // The suggestion list's read (`useTripSuggestions`). Unmocked, the spread
+    // above sends it to jsdom's own origin, which the network guard refuses in
+    // this lane (KI-2026-10-28-d).
+    fetchTripSuggestions: vi.fn(async () => ({ ok: true as const, value: { changes: [], rev: "0" } })),
   };
 });
 const fetchTripAccessMock = vi.fn();

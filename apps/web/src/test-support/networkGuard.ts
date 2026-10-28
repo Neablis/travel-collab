@@ -165,6 +165,101 @@ export function installNetworkGuard(): void {
   globalThis.fetch = guardFetch(current);
 }
 
+// ---- The unit lane's own origin (KI-2026-10-28-d) -------------------------
+//
+// The guard above lets every local request through, and that is right for the
+// integration lane, whose tests talk to servers they start themselves. A unit
+// test in jsdom has no server behind it, but jsdom's page sits at `BASE_URL`
+// (`http://localhost:3001` by default), and `apiClient` builds every URL on
+// that origin. So an `apiClient` reader a test forgot to mock sent a real
+// request there: to a developer's own `pnpm dev`, or to nothing in CI, and
+// how long it took decided whether it outlived its file and landed on a torn-
+// down jsdom (KI-2026-10-25-w). Nothing failed; 28 such requests came from one
+// file. In the unit lane, a `fetch` to the page's own origin is refused, and
+// the test it came from fails naming it.
+//
+// **It composes with MSW the way the guard above does**: installed by the
+// setup file, before any `server.listen()`, so MSW captures it as its
+// passthrough. A request MSW answers never reaches it.
+//
+// **Only `fetch`.** jsdom's XHR and `WebSocket` reach the page's origin
+// through the socket guard, which lets loopback through; nothing in `src/`
+// sends either to its own origin today.
+
+const OWN_ORIGIN_GUARDED = Symbol.for("travel-collab.networkGuard.ownOrigin");
+
+/** The origin jsdom's page is at, or undefined outside a page (the node project). */
+function pageOrigin(): string | undefined {
+  const location = (globalThis as { location?: { href?: string } }).location;
+  if (!location?.href || location.href === "about:blank") return undefined;
+  try {
+    return new URL(location.href).origin;
+  } catch {
+    return undefined;
+  }
+}
+
+/** The message a refused own-origin request rejects with, and the failing test names. */
+export function ownOriginRequestMessage(url: string): string {
+  return (
+    `Blocked request to the test page's own origin, ${url}: a unit test has no server behind it, so ` +
+    `this would reach whatever listens on that port, or nothing. Mock the apiClient reader that ` +
+    `sent it, or answer it with MSW (KI-2026-10-28-d).`
+  );
+}
+
+/** Refused own-origin requests not yet reported. Drained by {@link takeRefusedOwnOrigin}. */
+const refusedOwnOrigin: string[] = [];
+
+/**
+ * Every own-origin request refused since the last call, oldest first, and
+ * forgets them. The unit lane's setup fails the current test with any it
+ * returns; a test that sends one on purpose drains it here first.
+ */
+export function takeRefusedOwnOrigin(): string[] {
+  return refusedOwnOrigin.splice(0);
+}
+
+/**
+ * Wraps `inner` so a request to the page's own origin rejects with
+ * {@link ownOriginRequestMessage} and is recorded for
+ * {@link takeRefusedOwnOrigin}. Anything else, and everything outside a page,
+ * is handed to `inner` unchanged.
+ */
+export function refuseOwnOrigin(inner: typeof fetch): typeof fetch {
+  const guarded = (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+    const origin = pageOrigin();
+    if (origin !== undefined) {
+      // Absolute only. A relative URL never leaves the process: Node's `fetch`
+      // has no page to resolve it against and rejects it at once ("Failed to
+      // parse URL"), so it cannot reach a server or outlive its file.
+      let target: URL | undefined;
+      try {
+        target = new URL(requestUrl(input));
+      } catch {
+        target = undefined;
+      }
+      if (target?.origin === origin) {
+        const message = ownOriginRequestMessage(target.href);
+        refusedOwnOrigin.push(target.href);
+        // Said out loud too: the app code that sent it usually swallows the
+        // rejection, and the test that fails for it may be a later one.
+        console.error(message);
+        return Promise.reject(new Error(message));
+      }
+    }
+    return inner(input, init);
+  };
+  return Object.assign(guarded, { [OWN_ORIGIN_GUARDED]: true }) as typeof fetch;
+}
+
+/** Puts {@link refuseOwnOrigin} on `globalThis.fetch`. Idempotent; the unit lane's only. */
+export function installOwnOriginGuard(): void {
+  const current = globalThis.fetch as typeof fetch & { [OWN_ORIGIN_GUARDED]?: boolean };
+  if (typeof current !== "function" || current[OWN_ORIGIN_GUARDED]) return;
+  globalThis.fetch = refuseOwnOrigin(current);
+}
+
 type ConnectArgs = Parameters<net.Socket["connect"]>;
 
 /**

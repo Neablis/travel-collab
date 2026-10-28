@@ -40,6 +40,10 @@ vi.mock("@/lib/apiClient", async (orig) => {
     fetchTripGlobals: (...args: unknown[]) => fetchTripGlobalsMock(...args),
     fetchPreferences: (...args: unknown[]) => fetchPreferencesMock(...args),
     fetchGuests: (...args: unknown[]) => fetchGuestsMock(...args),
+    // `PeopleProvider`'s members read. Unmocked it went to the page's own
+    // origin, which has no server here (KI-2026-10-28-d); this is the answer
+    // it got in CI, where nothing listens there.
+    fetchTripAccess: vi.fn(async () => ({ ok: false as const, error: { status: 0, message: "Network error" } })),
   };
 });
 

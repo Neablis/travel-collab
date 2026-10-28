@@ -36,7 +36,16 @@ import { TripCoverBanner } from "./cover/TripCoverBanner";
 
 
 
-const server = setupServer();
+// The reads this file is not about, answered as they were in CI, where
+// nothing listens on the page's origin: a network error. Unhandled, `bypass`
+// sent them there for real (KI-2026-10-28-d): the session (`PeopleSection`'s
+// `useSessionUser`), the broadcast poll and the suggestion list. Initial
+// handlers, so `resetHandlers` keeps them.
+const server = setupServer(
+  http.get("/api/auth/session", () => HttpResponse.error()),
+  http.get(`/api/trips/${TRIP}/events`, () => HttpResponse.error()),
+  http.get(`/api/trips/${TRIP}/suggestions`, () => HttpResponse.error()),
+);
 beforeAll(() => server.listen({ onUnhandledRequest: "bypass" }));
 beforeEach(() => {
   myRole = "owner";

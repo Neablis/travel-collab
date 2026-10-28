@@ -1,7 +1,7 @@
 import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useCallback, useRef, useState } from "react";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { newPageDoc, type PageContext, type PageDoc, type TripGlobals } from "@tc/contracts";
 import { tripDetailFixture } from "@tc/factories";
 import type { Editor } from "@tiptap/react";
@@ -11,6 +11,14 @@ import { WidgetSettings } from "./WidgetSettings";
 import { winningReport, type SelectedWidget } from "./MacroEditorContext";
 
 afterEach(cleanup);
+
+// A weather widget asks for the trip's weather (`useExternalInputs`). Unmocked
+// it went to the page's own origin, which has no server here
+// (KI-2026-10-28-d); this is the answer it got in CI, where nothing listens.
+vi.mock("@/lib/apiClient", async (orig) => ({
+  ...(await orig<typeof import("@/lib/apiClient")>()),
+  fetchTripWeather: vi.fn(async () => ({ ok: false as const, error: { status: 0, message: "Network error" } })),
+}));
 
 // Same stubs as `PageEditor.test.tsx`: jsdom has no layout engine, and
 // ProseMirror reads geometry on every selection change.

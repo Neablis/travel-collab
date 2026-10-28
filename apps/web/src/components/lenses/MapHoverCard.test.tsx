@@ -86,10 +86,12 @@ describe("hoverNote", () => {
   });
 });
 
+// `noSessionCookie`: the provider's defaults with no preferences read, which
+// has no server here (KI-2026-10-28-d).
 describe("MapHoverCard", () => {
   it("names the day AND the city, where the focus card shows one or the other", () => {
     render(
-      <PreferencesProvider>
+      <PreferencesProvider noSessionCookie>
         <MapHoverCard day={day()} top={120} />
       </PreferencesProvider>,
     );
@@ -98,7 +100,7 @@ describe("MapHoverCard", () => {
 
   it("says only the day and its note when trimmed, for the focused day", () => {
     render(
-      <PreferencesProvider>
+      <PreferencesProvider noSessionCookie>
         <MapHoverCard day={day()} top={120} trimmed />
       </PreferencesProvider>,
     );
@@ -109,14 +111,14 @@ describe("MapHoverCard", () => {
   it("lists the day's legs, and leaves them to the focus card when trimmed", () => {
     const legs = ["Train · Odawara → Kyoto"];
     const { unmount } = render(
-      <PreferencesProvider>
+      <PreferencesProvider noSessionCookie>
         <MapHoverCard day={day({ legs })} top={120} />
       </PreferencesProvider>,
     );
     expect(screen.getByText("Train · Odawara → Kyoto")).toBeTruthy();
     unmount();
     render(
-      <PreferencesProvider>
+      <PreferencesProvider noSessionCookie>
         <MapHoverCard day={day({ legs })} top={120} trimmed />
       </PreferencesProvider>,
     );
@@ -128,7 +130,7 @@ describe("MapHoverCard", () => {
   // fire that row's `mouseleave` and tear the card down under the cursor.
   it("is inert: no pointer events, and out of the accessibility tree", () => {
     render(
-      <PreferencesProvider>
+      <PreferencesProvider noSessionCookie>
         <MapHoverCard day={day()} top={120} />
       </PreferencesProvider>,
     );
