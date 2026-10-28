@@ -133,17 +133,16 @@ test("a day's cover on a 390px phone: the band fits, its controls are 44px, the 
   }
 });
 
-test("a multi-city card's chips on a 390px phone: every one a 44px target, all of them on the photo", async ({
+test("a multi-city card's chips on a 390px phone: one row, every one a 44px target, all of them on the photo", async ({
   page,
 }) => {
   test.slow();
   await page.setViewportSize({ width: 390, height: 844 });
-  // Four cities, three with 36-character names (a nod to Llanfair PG): the
-  // card draws three chips and "+1 more", each long chip takes a line of its
-  // own at phone width, and "+1 more" a fourth. The chip row stands on the
-  // foot of a photo that clips, and a phone's chips are 44px links spaced to
-  // keep their hit areas apart, so four rows need 176px of a 150px photo —
-  // the first chip used to be cut off 34px above it (PR #354 review).
+  // Four cities, three with 36-character names (a nod to Llanfair PG). The
+  // chips once wrapped one long name to a line, four 44px rows that a 150px
+  // photo clipped (PR 354 review); since Mitchell's 2026-10-28 walk they keep
+  // to one row, as many as it holds and the rest in "+N more", and a name
+  // too long for the row on its own ends in an ellipsis.
   const city = mintCity();
   const savedDayId = await publishedDay(page, city, `Many cities ${randomUUID().slice(0, 8)}`, [
     `${mintCity()}Gwyngyllgogerychwyrn`,
@@ -160,8 +159,11 @@ test("a multi-city card's chips on a 390px phone: every one a 44px target, all o
 
     const chips = card.getByTestId("city-chips");
     const links = chips.getByRole("link");
-    await expect(links).toHaveCount(3);
-    await expect(chips.getByTestId("city-chips-more")).toHaveText("+1 more");
+    await expect(chips.getByTestId("city-chips-more")).toBeVisible();
+    const drawn = await links.count();
+    expect(drawn).toBeGreaterThanOrEqual(1);
+    await expect(chips.getByTestId("city-chips-more")).toHaveText(`+${4 - drawn} more`);
+    const row = (await chips.boundingBox())!;
     // The links are the hit areas; the "+N more" chip is drawn on the same
     // row and must be on the photo as well.
     const onPhoto = (box: { x: number; y: number; width: number; height: number }) => {
@@ -174,7 +176,12 @@ test("a multi-city card's chips on a 390px phone: every one a 44px target, all o
       const box = (await link.boundingBox())!;
       expect(box.height).toBeGreaterThanOrEqual(44);
       onPhoto(box);
+      // One row: every chip inside the row's own box, which is one 44px reach tall.
+      expect(box.y).toBeGreaterThanOrEqual(row.y);
+      expect(box.y + box.height).toBeLessThanOrEqual(row.y + row.height);
     }
+    // Under two rows: a second would add a whole 44px reach.
+    expect(row.height).toBeLessThan(44 + 20);
     onPhoto((await chips.getByTestId("city-chips-more").boundingBox())!);
   } finally {
     await forget(page, savedDayId);

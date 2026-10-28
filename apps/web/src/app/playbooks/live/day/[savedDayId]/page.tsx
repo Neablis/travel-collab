@@ -106,7 +106,7 @@ export default async function SharedDayPage({
   }
 
   const first = (value: string | string[] | undefined) => (Array.isArray(value) ? value[0] : value);
-  const back = backTarget({ from: first(query.from), profile: first(query.profile) });
+  const back = backTarget({ from: first(query.from), profile: first(query.profile), discover: first(query.discover) });
   // Only a day the library shows describes itself, or points on to others: an
   // author's private day, or one an operator hid, is noindex and says nothing
   // to a crawler.

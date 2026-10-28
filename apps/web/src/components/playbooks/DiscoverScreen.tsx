@@ -27,7 +27,7 @@ import {
   type FilterState,
 } from "./discoverFilters";
 import { PlaceSearch, type PlacePick } from "./PlaceSearch";
-import { DISCOVER_URL_DEFAULTS, discoverQueryString, type DiscoverUrlState } from "./discoverUrl";
+import { DISCOVER_URL_DEFAULTS, discoverQueryString, parseDiscoverQuery, type DiscoverUrlState } from "./discoverUrl";
 import { DiscoverCard, editorialSize } from "./DiscoverCard";
 import { LibraryMoved, SyncFailure } from "./ReadStates";
 import { useLibraryRead } from "./useLibraryRead";
@@ -274,8 +274,31 @@ export function DiscoverScreen({
   //
   // Only on a confirmed `null`: while the session is still being read the tabs
   // render as they always have, so a signed-in reader never sees them arrive.
-  const signedOut = useSessionUser() === null;
+  const sessionUser = useSessionUser();
+  const signedOut = sessionUser === null;
   const scope: DiscoverScope = signedOut ? "everyone" : filters.scope;
+  // **The URL over the props, when they disagree.** Back from a day restores
+  // this page from the router's cache, props and all: the `initial` it was
+  // first rendered with, not the search `replaceState` wrote over that entry
+  // since. So a reader who opened a day from *Yours*, page three, came back to
+  // *Everyone*, page one, under a URL that still said `?scope=yours`
+  // (Mitchell, 2026-10-28). Read once, when who is reading is known: the
+  // server seeds a reader with no account with *Everyone* whatever the URL
+  // says, and so does this, or a stranger's `?scope=saved` would differ from
+  // the seed, set the state again, and send the first search the server's
+  // list exists to save (`seo.spec.ts`). On a fresh load the two agree and
+  // nothing changes.
+  const urlRead = useRef(false);
+  useEffect(() => {
+    if (urlRead.current || sessionUser === undefined) return;
+    urlRead.current = true;
+    const fromUrl = parseDiscoverQuery(window.location.search);
+    const wanted = sessionUser === null ? { ...fromUrl, scope: DISCOVER_URL_DEFAULTS.scope } : fromUrl;
+    if (discoverQueryString(wanted) === discoverQueryString({ ...DISCOVER_URL_DEFAULTS, ...initial })) return;
+    setState((prev) => ({ ...prev, ...wanted }));
+    // Once: after it, the state writes the URL, never the other way.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionUser]);
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [phoneFiltersOpen, setPhoneFiltersOpen] = useState(false);
 
@@ -897,7 +920,9 @@ export function DiscoverScreen({
               <DiscoverCard
                 key={day.savedDayId}
                 day={day}
-                origin={{ from: "playbooks" }}
+                // The search on screen rides out with the card, so the day's
+                // back link returns to this tab, these filters and this page.
+                origin={{ from: "playbooks", discover: discoverQueryString({ ...search, after: pagesByLink ? after : null }) }}
                 size={editorialSize(index)}
                 headingLevel={3}
               />

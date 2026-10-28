@@ -10,6 +10,7 @@ import { CoverImage } from "@/components/cover/CoverImage";
 import { DataText } from "@/components/ui/data-text";
 import { Heading } from "@/components/ui/heading";
 import { Text } from "@/components/ui/text";
+import { FitRow } from "@/components/ui/fit-row";
 import { formatMoney } from "@/lib/formatMoney";
 import type { DiscoverDay } from "@/lib/playbooks";
 import { toClockLabel, toClockRange } from "@/lib/time";
@@ -150,6 +151,8 @@ export function DiscoverCard({
   const sea = origin.from === "sea" ? origin : null;
   const back = origin.from === "sea" ? "" : backQuery(origin);
   const chips = cityChips(day, compact ? COMPACT_CITY_CHIPS : MAX_CITY_CHIPS);
+  // Every city in the order the chips take, for a row that counts its own room.
+  const ordered = cityChips(day, Infinity).shown;
   const { cover } = day;
   // `dc.html:2610-2626`: the cities lead, with the card's own marks at the far
   // end of the same row; then the title, with the facts line directly under
@@ -160,72 +163,110 @@ export function DiscoverCard({
   // of "a day matches on ANY city it contains": the card has to show that the
   // Kyoto you asked for is one of three cities this day covers, or the extra
   // cities look like a mistake rather than the offer.
-  const chipRow = (
-    <div className="flex flex-wrap items-start gap-2">
-      {/* On the sea a card is the size of its cell, so its chips keep to the
-          one row there is room for; anywhere else they wrap. */}
-      <ul
-        className={cn("flex flex-wrap gap-x-1.5", sea === null ? "gap-y-6 md:gap-y-1.5" : "landing-one-row")}
-        data-testid="city-chips"
-      >
-        {chips.shown.map((city) => {
-          const matched = day.matchedCities.includes(city);
-          const href = cityPath(city);
-          const chip = (
-            <span
-              data-city={city}
-              data-matched={matched}
-              className={cn(
-                "relative rounded-full px-2.5 py-0.5 text-2xs font-semibold tracking-wide uppercase group-hover/chip:underline",
-                matched
-                  ? "bg-brand-tint text-brand-pressed"
-                  : "border border-hairline bg-surface text-slate",
-                // On the sea a name longer than its cell is wide keeps to one
-                // line and ends in an ellipsis, rather than wrapping inside
-                // the chip under its one-row clamp.
-                sea !== null && "truncate",
-              )}
-            >
-              {city}
-            </span>
-          );
-          // The chip opens its city's page (SEO pass, D6); a city whose name
-          // has no slug has no page and stays a label. A 44px target and a
-          // 20px chip on a phone, as `StopTagChips` draws its tags
-          // (KI-2026-09-24-m): the link is the hit area, `-my-3` hands back
-          // the 24px `min-h-11` adds, and `md:` releases it. A named group,
-          // because the hover belongs to the chip, not to the card.
-          return (
-            <li key={city} className={cn("flex", sea !== null && "min-w-0 max-w-full")}>
-              {href === null || sea !== null ? (
-                chip
-              ) : (
-                <Link
-                  href={href}
-                  className="group/chip inline-flex min-h-11 -my-3 items-center fine:my-0 fine:min-h-0"
-                >
-                  {chip}
-                </Link>
-              )}
-            </li>
-          );
-        })}
-        {chips.hidden.length > 0 && (
-          <li
-            title={chips.hidden.join(", ")}
-            data-testid="city-chips-more"
-            className="rounded-full border border-hairline bg-surface px-2.5 py-0.5 text-2xs font-semibold tracking-wide text-slate uppercase"
-          >
-            +{chips.hidden.length} more
-          </li>
+  const cityItem = (city: string) => {
+    const matched = day.matchedCities.includes(city);
+    const href = cityPath(city);
+    const chip = (
+      <span
+        data-city={city}
+        data-matched={matched}
+        className={cn(
+          "relative truncate rounded-full px-2.5 py-0.5 text-2xs font-semibold tracking-wide uppercase group-hover/chip:underline",
+          matched ? "bg-brand-tint text-brand-pressed" : "border border-hairline bg-surface text-slate",
+          // Off the sea, a block that may shrink, so one name too long for
+          // its `FitRow` ends in an ellipsis inside its link.
+          sea === null && "block min-w-0",
         )}
-      </ul>
-      <span className="flex flex-1 flex-wrap items-center justify-end gap-1.5">
-        {day.isMine && <Badge variant="brand">Yours</Badge>}
-        {day.visibility === "private" && <Badge variant="neutral">Private</Badge>}
+      >
+        {city}
       </span>
-    </div>
+    );
+    // The chip opens its city's page (SEO pass, D6); a city whose name
+    // has no slug has no page and stays a label. A 44px target and a
+    // 20px chip on a phone, as `StopTagChips` draws its tags
+    // (KI-2026-09-24-m): the link is the hit area, `-my-3` hands back
+    // the 24px `min-h-11` adds, and `md:` releases it. A named group,
+    // because the hover belongs to the chip, not to the card. `min-w-0`
+    // all the way down, so a name too long for the row ends in an
+    // ellipsis rather than running under the "+N more".
+    return (
+      <li key={city} className="flex min-w-0 max-w-full">
+        {href === null || sea !== null ? (
+          chip
+        ) : (
+          <Link
+            href={href}
+            className="group/chip inline-flex min-h-11 min-w-0 -my-3 items-center fine:my-0 fine:min-h-0"
+          >
+            {chip}
+          </Link>
+        )}
+      </li>
+    );
+  };
+  // The count is drawn; the names it stands for are said, so a screen reader
+  // hears which cities the row left out, not a bare "+2 more".
+  const moreChip = (hidden: string[]) => (
+    <>
+      <span
+        title={hidden.join(", ")}
+        aria-hidden
+        data-testid="city-chips-more"
+        className="rounded-full border border-hairline bg-surface px-2.5 py-0.5 text-2xs font-semibold tracking-wide whitespace-nowrap text-slate uppercase"
+      >
+        +{hidden.length} more
+      </span>
+      <span className="sr-only">Also {hidden.join(", ")}</span>
+    </>
   );
+  // **One line, always** (Mitchell, 2026-10-28: a day of five cities wrapped
+  // its chips across the top of its photo). As many as the row holds, up to
+  // three, and the rest in "+N more"; the card's own "Yours" mark came off to
+  // give them the room — the *Yours* tab already says it. On the sea the
+  // row's one-line clamp does the same job from CSS.
+  //
+  // The sea keeps the markup it had, which its screenshots pin
+  // (`m42-demo-trips.spec.ts`): a wrapping row, the count as the list item
+  // itself, and the badge slot that stretches beside the chips.
+  const chipRow =
+    sea !== null ? (
+      <div className="flex flex-wrap items-start gap-2">
+        <ul className="landing-one-row flex flex-wrap gap-x-1.5" data-testid="city-chips">
+          {chips.shown.map(cityItem)}
+          {chips.hidden.length > 0 && (
+            <li
+              title={chips.hidden.join(", ")}
+              data-testid="city-chips-more"
+              className="rounded-full border border-hairline bg-surface px-2.5 py-0.5 text-2xs font-semibold tracking-wide text-slate uppercase"
+            >
+              +{chips.hidden.length} more
+            </li>
+          )}
+        </ul>
+        <span className="flex flex-1 flex-wrap items-center justify-end gap-1.5">
+          {day.visibility === "private" && <Badge variant="neutral">Private</Badge>}
+        </span>
+      </div>
+    ) : (
+      <div className="flex items-start gap-2">
+        <FitRow
+          as="ul"
+          data-testid="city-chips"
+          className="flex-1 gap-x-1.5"
+          max={MAX_CITY_CHIPS}
+          // A matched city is the card's answer to the search: it is drawn,
+          // truncated if it must, never folded into the count.
+          min={ordered.filter((city) => day.matchedCities.includes(city)).length}
+          items={ordered.map(cityItem)}
+          more={(hidden) => moreChip(ordered.slice(ordered.length - hidden))}
+        />
+        {day.visibility === "private" && (
+          <span className="flex shrink-0 items-center">
+            <Badge variant="neutral">Private</Badge>
+          </span>
+        )}
+      </div>
+    );
   // **One level under what heads the list, styled as the h4 it used to be.**
   // A place's playbooks and a profile put these cards straight under their
   // h1, so an h4 skipped two levels and axe failed `/playbooks` on
@@ -327,7 +368,13 @@ export function DiscoverCard({
             </Text>
           )}
           {sea === null ? (
-            <StopTagChips activityId={day.savedDayId} tags={day.tags} focusedTag={null} hrefOf={linkedTagPath(day.linkedTags)} />
+            <StopTagChips
+              activityId={day.savedDayId}
+              tags={day.tags}
+              focusedTag={null}
+              hrefOf={linkedTagPath(day.linkedTags)}
+              oneRow
+            />
           ) : (
             <div className={cn("landing-one-row flex", late)}>
               <StopTagChips activityId={day.savedDayId} tags={day.tags} focusedTag={null} />
@@ -454,13 +501,13 @@ export function DiscoverCard({
         // with the city chips standing on the fade where they led before.
         // Lazy: a grid of thirty is mostly below the fold.
         //
-        // 150px is a floor, not a height. On a phone each chip row costs 44px
-        // (a 20px chip, `gap-y-6` keeping the 44px hit areas apart), so three
-        // long names and "+N more" wrap to four rows and need 176px; an
-        // overlay pinned to the foot of a fixed 150px box grew up past its
-        // top and the photo clipped the first chip (PR #354 review, measured
-        // by `m37-playbook-cover.spec.ts`). The row sits in flow at the foot
-        // instead, and only a card that needs the room gets a taller photo —
+        // 150px is a floor, not a height. The chips once wrapped to four
+        // 44px rows on a phone and needed 176px; an overlay pinned to the
+        // foot of a fixed 150px box grew up past its top and the photo
+        // clipped the first chip (PR 354 review, measured by
+        // `m37-playbook-cover.spec.ts`). They keep to one row now (`FitRow`),
+        // but the row stays in flow at the foot, so a card that ever needs
+        // the room gets a taller photo —
         // the veil is in percentages, so the chips stay on the fade.
         <>
           <CoverImage

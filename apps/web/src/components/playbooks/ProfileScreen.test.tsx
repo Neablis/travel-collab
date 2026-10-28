@@ -248,6 +248,32 @@ describe("the contextual back link", () => {
     });
   });
 
+  // Back from a day opened under *Yours*, page two, is *Yours*, page two
+  // (Mitchell, 2026-10-28), not Discover's first page of Everyone.
+  it("returns to the Discover search the day was opened from", () => {
+    const after = "6f1f8c2e-0000-4000-8000-000000000001";
+    const params = new URLSearchParams(
+      backQuery({ from: "playbooks", discover: `city=Kyoto&city=Uji&scope=yours&after=${after}` }),
+    );
+    expect(backTarget({ from: params.get("from"), discover: params.get("discover") })).toEqual({
+      href: `/playbooks?city=Kyoto&city=Uji&scope=yours&after=${after}`,
+      label: "Discover",
+    });
+  });
+
+  // Written again from what it parses to, so a hand-edited `?discover=` can
+  // name a Discover search and nothing else.
+  it("keeps only what a Discover search can say", () => {
+    expect(backTarget({ from: "playbooks", discover: "scope=yours&next=//evil.example&sort=bogus" })).toEqual({
+      href: "/playbooks?scope=yours",
+      label: "Discover",
+    });
+    expect(backTarget({ from: "playbooks", discover: "next=//evil.example" })).toEqual({
+      href: "/playbooks",
+      label: "Discover",
+    });
+  });
+
   it("sends a day link on a profile back to that profile, not to Discover", async () => {
     renderProfile();
     const days = await screen.findByTestId("profile-days");

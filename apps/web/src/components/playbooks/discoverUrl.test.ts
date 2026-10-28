@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DISCOVER_URL_DEFAULTS, discoverQueryString, parseDiscoverUrl } from "./discoverUrl";
+import { DISCOVER_URL_DEFAULTS, discoverQueryString, parseDiscoverQuery, parseDiscoverUrl } from "./discoverUrl";
 
 const fromQuery = (query: string) =>
   parseDiscoverUrl(
@@ -58,5 +58,19 @@ describe("Discover's state as a URL", () => {
   it("trims and dedupes countries as the API does", () => {
     expect(fromQuery("country=%20jp%20").countries).toEqual(["JP"]);
     expect(fromQuery("country=jp&country=JP&country=pt").countries).toEqual(["JP", "PT"]);
+  });
+
+  // A back link's `?discover=` is a query anyone can paste (CodeQL, PR 628).
+  it("reads a raw query, repeated cities kept, and no name it does not know", () => {
+    expect(parseDiscoverQuery("?city=Kyoto&city=Uji&scope=yours")).toEqual({
+      ...DISCOVER_URL_DEFAULTS,
+      cities: ["Kyoto", "Uji"],
+      scope: "yours",
+    });
+    const polluted = parseDiscoverQuery("__proto__=x&constructor=y&toString=z&scope=saved");
+    expect(polluted.scope).toBe("saved");
+    // Exactly the state's own fields: no name the query chose became a key.
+    expect(Object.keys(polluted).sort()).toEqual(Object.keys(DISCOVER_URL_DEFAULTS).sort());
+    expect(Object.getPrototypeOf(polluted)).toBe(Object.prototype);
   });
 });
