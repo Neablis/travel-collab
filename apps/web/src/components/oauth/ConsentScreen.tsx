@@ -71,6 +71,8 @@ export function ConsentScreen({
   const sectionId = useId();
   const noneHintId = useId();
   const noneChosen = chosen.length === 0;
+  // A free account's boxes are all disabled: the plan banner is its reason, not an empty choice.
+  const showNoneHint = entitled && noneChosen;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -195,7 +197,7 @@ export function ConsentScreen({
 
         <div className="flex flex-col gap-2">
           {/* Clear all makes an empty grant one press away, and a disabled Allow alone does not say why. */}
-          {noneChosen ? (
+          {showNoneHint ? (
             <Text variant="secondary" id={noneHintId}>
               Choose at least one thing this app may do.
             </Text>
@@ -204,7 +206,7 @@ export function ConsentScreen({
             <Button
               variant="primary"
               disabled={!entitled || busy || noneChosen}
-              aria-describedby={noneChosen ? noneHintId : undefined}
+              aria-describedby={showNoneHint ? noneHintId : undefined}
               onClick={() => void decide("allow")}
             >
               Allow

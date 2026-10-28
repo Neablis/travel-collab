@@ -103,6 +103,13 @@ describe("ConsentScreen", () => {
     expect(screen.getByRole("link", { name: "See plans" }).getAttribute("href")).toBe("/plans");
   });
 
+  it("does not ask a free account to tick boxes it cannot tick", () => {
+    const hint = "Choose at least one thing this app may do.";
+    render(<ConsentScreen {...props({ scopes: ["trips:write"], entitled: false })} />);
+    expect(screen.queryByText(hint)).toBeNull();
+    expect(screen.queryByRole("button", { name: "Allow", description: hint })).toBeNull();
+  });
+
   it("posts the choice and follows the redirect it answers", async () => {
     const fetchMock = vi.fn(async () => Response.json({ redirectTo: "https://evil.example/cb?code=tcc_x" }));
     vi.stubGlobal("fetch", fetchMock);
