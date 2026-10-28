@@ -180,9 +180,19 @@ describe("POST /api/mcp on MCP 2026-07-28, with no initialize", () => {
     expect(ok.status).toBe(200);
     expect(JSON.parse((await ok.json()).result.content[0].text).userId).toBe(owner);
 
-    const res = await modern(access, "tools/call", { name: "whoami", arguments: {} }, "get_trip");
-    expect(res.status).toBe(400);
-    expect((await res.json()).error.message).toMatch(/Mcp-Name header names "get_trip"/);
+    // The client's mistake, so a warning: the error log is kept for our own faults.
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const res = await modern(access, "tools/call", { name: "whoami", arguments: {} }, "get_trip");
+      expect(res.status).toBe(400);
+      expect((await res.json()).error.message).toMatch(/Mcp-Name header names "get_trip"/);
+      expect(warn).toHaveBeenCalledWith("mcp request rejected", { error: expect.any(Error) });
+      expect(error).not.toHaveBeenCalled();
+    } finally {
+      warn.mockRestore();
+      error.mockRestore();
+    }
   });
 
   // The route reads every answer to its end before replying, so a listen

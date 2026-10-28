@@ -1,4 +1,8 @@
-import { createMcpHandler } from "@modelcontextprotocol/server";
+import {
+  createMcpHandler,
+  MissingRequiredClientCapabilityError,
+  UnsupportedProtocolVersionError,
+} from "@modelcontextprotocol/server";
 import type { McpCaller } from "@/server/mcp/dispatch";
 import { buildServer } from "@/server/mcp/server";
 import { runInMcpDispatch } from "@/server/oauth/dispatchContext";
@@ -46,17 +50,33 @@ export async function POST(request: Request): Promise<Response> {
   const handler = createMcpHandler(() => buildServer(TOOLS, caller), {
     legacy: "stateless",
     // Reporting only: the SDK has already answered the client in-band.
-    onerror: (error) => console.error("mcp handler error", { error }),
+    onerror: (error) =>
+      clientMistake(error) ? console.warn("mcp request rejected", { error }) : console.error("mcp handler error", { error }),
   });
   const response = await handler.fetch(request);
   // The 2025 fallback answers with its stream before the tool has run, so a
   // refusal is known only once the body ends. Read to the end, which every
   // answer here reaches: `subscriptions/listen` closes at once, since the
-  // server advertises nothing to listen for.
+  // server advertises nothing to listen for. A client that disconnects only
+  // ends the stream early: the fallback's teardown closes it, never errors it.
   const body = response.body === null ? null : await response.arrayBuffer();
   // The bearer lapsed between the check above and a tool's own: the same
   // HTTP refusal, so the client refreshes rather than the model giving up.
   return caller.refusal ?? new Response(body, response);
+}
+
+/**
+ * Whether the SDK's report is a request it refused for the client's own fault:
+ * a 415, an unsupported revision, a missing capability, a header the body
+ * contradicts, or a full listen table. A misbehaving connector should not fill
+ * the error log with lines that read as server faults.
+ */
+function clientMistake(error: Error): boolean {
+  return (
+    error instanceof UnsupportedProtocolVersionError ||
+    error instanceof MissingRequiredClientCapabilityError ||
+    /^(Rejected |Unsupported Media Type|subscriptions\/listen refused)/.test(error.message)
+  );
 }
 
 /** No stream to open and no session to end, so neither method exists here. */

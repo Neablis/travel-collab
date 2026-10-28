@@ -68,7 +68,9 @@ test("connected apps: an app connected by consent works until its owner disconne
   // ---- the app works ----------------------------------------------------------
   const before = await whoami(page.request, tokens.access_token);
   expect(before.status(), "whoami while connected").toBe(200);
-  const { result } = (await before.json()) as { result: { isError?: boolean; content: { text: string }[] } };
+  // A 2025-11-25 call is answered as one SSE event.
+  const data = (await before.text()).split("\n").find((line) => line.startsWith("data: "))!;
+  const { result } = JSON.parse(data.slice("data: ".length)) as { result: { isError?: boolean; content: { text: string }[] } };
   expect(result.isError, result.content[0]!.text).toBeUndefined();
   expect(JSON.parse(result.content[0]!.text).userId).toBe(`dev-${username}`);
 
