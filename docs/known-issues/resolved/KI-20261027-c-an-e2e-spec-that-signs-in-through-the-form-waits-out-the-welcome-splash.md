@@ -39,7 +39,7 @@
   (PR 607).
 - **First noted:** 2026-10-26 at the gate tick on PR 593; answered and filed 2026-10-27 at the
   close.
-- **Fix (2026-10-28, KI sweep):** every browser context the suite makes now drops the cue
+- **Fix (2026-10-28, KI sweep):** every context made through the worker's `browser.newContext` now drops the cue
   before the page can read it: `e2e/fixtures/test.ts` adds an init script on each context that
   clears `tc_welcome`, which runs before `LAUNCH_SCRIPT` and `LaunchOverlay` in every document. So
   `signInAsDevUser`, `adminBootstrap`'s operator sign-in and the 27 direct *Sign in with dev login*
@@ -47,6 +47,13 @@
   cookie is still set by the server exactly as for a person; there is no production switch.
   `m54-welcome.spec.ts` opts back in with the new `keepWelcomeCue: true` option (read by an auto
   fixture before `context`/`page` are made). The locator handler stays as the backstop.
+  Two contexts are outside it, harmlessly: `auth.setup.ts` (base `@playwright/test`, which never
+  shows the splash because it waits for *Your trips*) and `m39-installable.spec.ts`'s
+  `launchPersistentContext`.
+- **What this gives up:** before this fix, the 5 s handler in every signing-in spec would have
+  caught a splash that never leaves. Now `m54-welcome.spec.ts` is the only guard, and it signs in
+  only to `/home`. A splash that sticks only after a sign-in that lands elsewhere (an invite claim,
+  a slow-hydrating trip page) would stay green; if that case matters, give m54 a second landing.
 - **Proof:** with `keepWelcomeCue: true` taken out of `m54-welcome.spec.ts`, all 4 of its tests
   failed at `expect(getByTestId('welcome-moment')).toBeVisible()`, `element(s) not found` (the
   cue is dropped); restored, 4 of 4 pass (it is kept).
