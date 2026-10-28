@@ -1,4 +1,4 @@
-### KI-2026-10-18-a — a cloud session's local Postgres has no pgvector, so its migrate stops at 0047
+### KI-2026-10-18-a — a cloud session's local Postgres has no pgvector, so its migrate stops at 0047 — RESOLVED
 
 - **Severity:** medium for agents. Nothing in production or CI; every cloud session that runs the
   app or an integration test against the local cluster.
@@ -24,3 +24,9 @@
 - **Still open because:** only a fresh cloud session proves the hook end to end. Move this entry to
   `resolved/` once one starts at the newest migration with no warning.
 - **First noted:** 2026-10-18, on PR 481.
+- **Resolved (2026-10-28):** its closing condition held in a fresh cloud session started
+  2026-10-28: the session-start hook printed no `session-start: WARNING` line,
+  `/usr/share/postgresql/16/extension/vector.control` is present, and
+  `pnpm --filter web db:state` reports `localhost:5433/travel — 70/70 migrations applied.`
+  A scratch database on the same cluster also migrated 0001–0069 (0054's `CREATE EXTENSION
+  vector` included) to 70/70.
