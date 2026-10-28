@@ -41,7 +41,7 @@ below says.
 | 8 | 621 | merged (`acb7f93`) | `4adf894` | 40615939223 (122580588168) | `dispatch.int.test.ts:235,245` seen red; Mitchell's production walk (a) |
 | 9 | 623 | merged (`acb7f93`) | `702213f` | 40616329456 (122581792088) | `conformance.test.ts:199,203` seen red on `1c353dd` |
 | 10 | 624 | merged (`acb7f93`) | `5b69f63` | 40620414814 (122595146153) | `route.int.test.ts:165-282` seen red on SDK 1.32.2; Mitchell's production walk (b); resolves KI-2026-10-27-j |
-| 11 | none yet | building | – | – | *Two gates hold* waits on it |
+| 11 | 626 | merged (`ce7775d`) | `76a5943` | 40627526441 (122618161237) | `dispatch.int.test.ts:287,306,316,344,362` seen red; ticks *Two gates hold*; files KI-2026-10-28-c |
 
 **The riskiest part is 2** (an authorization server open to any client): it gets the extra fresh
 `part-reviewer` pass on its whole diff before it is called ready. Part 1 is second (it revokes

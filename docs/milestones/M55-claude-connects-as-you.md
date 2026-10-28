@@ -384,11 +384,16 @@ final head before it merged. These were re-read over REST (`commits/<sha>/check-
 | 8 | 621 | `4adf894` | 40615939223 | 122580588168 | 122578358960 | 122578358358, 122578358373 |
 | 9 | 623 | `702213f` | 40616329456 | 122581792088 | 122579608920 | 122579608847, 122579608882 |
 | 10 | 624 | `5b69f63` | 40620414814 | 122595146153 | 122592887135 | 122592887155, 122592887285 |
+| 11 | 626 | `76a5943` | 40627526441 | 122618161237 | 122615972842 | 122615972787, 122615972920 |
 
 Parts 7 to 10 were a second stack (622 → 621 → 623 → 624), merged together in `acb7f93` on
 2026-10-28 between 02:29:20Z and 02:29:22Z. Their rows were read over REST on 2026-10-28, at the
 close, and every job named is `success`. None has a migration. File and line references for
 parts 7 to 10 are at `acb7f93`.
+
+Part 11 (PR 626) was built alone on `main` and merged as `ce7775d` on 2026-10-28 at 03:56:24Z.
+Its row was read over REST at the close, every job named is `success`, and it has no migration.
+File and line references for part 11 are at `ce7775d`.
 
 **Mitchell's production walk, 2026-10-28.** After merging parts 7 to 10 he wrote, in Claude
 session `session_01PDLEVTzjdgQwSZDrkHgYmg`: *"All merged, walked the changes, confirmed
@@ -508,25 +513,39 @@ the cloud proxy (KI-2026-10-13-f), so this rests on the step's conclusion.
   with no grant expires after 24 hours, and `resolveClient`, which authorize calls, answers
   `expired-client`. PR 615 records `expected 201 to be 429` with the quota decision ignored, and
   the expiry red. CI 122335573509 is green on `728759c`.
-- [ ] **Two gates hold:** a tool whose scope was not granted answers `insufficient-scope`; a
+- [x] **Two gates hold:** a tool whose scope was not granted answers `insufficient-scope`; a
   `get_trip` on a trip the person cannot see answers `not-found`; a free account cannot complete
   consent; a lapsed plan's grant is refused and works again on re-subscribing.
-  **Open, waiting on part 11.** Mitchell chose on 2026-10-28 to make MCP answer `not-found` on a
-  stranger's trip (*Answered mid-build*), rather than amend the clause to v1's `forbidden`. Part 11
-  is being built for that, with the `get_trip`-through-a-grant test this box lacks. The box is
-  ticked when part 11 merges with that test seen red and CI green.
-  *Open, 2026-10-28.* Three of the four clauses have tests:
+  *Amended at the close, 2026-10-28, to match what part 11 shipped:* "cannot see" means cannot
+  read. A viewer calling an editor tool on a trip they can read still answers `forbidden`, because
+  a viewer already knows the trip exists and learns nothing from the reason.
+  *Evidence:*
   - **Scope:** `app/api/mcp/route.int.test.ts:133` (a tool error naming `insufficient-scope`) and
-    `server/public-api/oauthActor.int.test.ts:65`.
+    `server/public-api/oauthActor.int.test.ts:65`; over a grant after part 11,
+    `server/mcp/dispatch.int.test.ts:362` (`forbidden` is mapped by code, not by 403, so a missing
+    scope keeps `insufficient-scope`).
+  - **Not-found (part 11, PR 626):** Mitchell chose on 2026-10-28 that MCP answer `not-found` on a
+    stranger's trip (*Answered mid-build*) rather than amend the clause to v1's `forbidden`. Over
+    MCP, a trip the caller cannot read now answers exactly like an id that does not exist, on
+    `get_trip`, `list_notebook_pages`, `get_notebook_page`, `update_notebook_page`,
+    `set_trip_cover`, `move_trip_cover` and `create_playbook` (its trip is `source.tripId`, in the
+    body). The Playbook tools already answered a stranger's private Playbook with the same 404 as a
+    missing one. v1 itself (web app, public API) is unchanged. Tests in
+    `server/mcp/dispatch.int.test.ts` at `ce7775d`: `:287` (the `it.each` over all seven tools,
+    comparing the whole `CallToolResult` of a stranger's trip with a random id's), `:306` and
+    `:316` (a viewer calling an editor tool still answers `forbidden`, including on a trip that
+    will not parse), `:344` (a re-check that throws answers v1's `server-error`). PR 626's
+    red-first table: before the fix, all six first tools answered
+    `+ "text": "You do not have access to this trip. (forbidden)"` against
+    `- "text": "No such trip. (not-found)"`, and `create_playbook` the same on `ef9326c`.
+    PR 626 merged as `ce7775d` (2026-10-28T03:56:24Z). Re-read over REST at the close: on its
+    final head `76a5943`, run 40627526441 (`ci`) has `ci-ok` 122618161237, `test / integration`
+    122615972842 and `test / e2e` 122615972787, 122615972920, all `success`.
   - **Free account:** `app/api/oauth/authorize/route.int.test.ts:96` (402, nothing issued).
   - **Lapsed plan:** `oauthActor.int.test.ts:100` (402, then 200 after re-subscribing).
 
-  The `get_trip` clause has no test through a grant, and its wording disagrees with the code.
-  v1 answers a stranger's trip **403 `forbidden`**, not `not-found`
-  (`server/public-api/route.int.test.ts:298-310`: *"403 and not 404: `tripAccessFor` answers
-  `forbidden` for a stranger…"*). The only OAuth trip test, `oauthActor.int.test.ts:78`, covers
-  the owner's own trip. *(Mitchell's answer: neither amend the clause nor accept v1's 403; MCP
-  answers `not-found`, part 11.)*
+  Part 11 also filed **KI-2026-10-28-c**: a stranger can still tell a trip whose stored doc will
+  not parse from a missing one (pre-existing, outside the box's clause).
 - [x] **Parity:** a conformance test fails on a tool that names no v1 declaration, and on a tool
   whose input schema differs from its route's.
   *Evidence:* `server/mcp/conformance.test.ts:134` (*refuse a tool whose handler has no
@@ -649,11 +668,10 @@ the cloud proxy (KI-2026-10-13-f), so this rests on the step's conclusion.
   122592887155 and 122592887285, `ci-ok` 122595146153, all green. **On production:** Mitchell's
   production walk, 2026-10-28, item (b). It closes ADR-083 amendment L and KI-2026-10-27-j.
 
-## Retro — written 2026-10-28 (16 of 17 boxes ticked)
+## Retro — written 2026-10-28 (17 of 17 boxes ticked)
 
-This is a draft, written on part 0 (PR 613) before the close. One box is open: *Two gates hold*,
-which waits on part 11 (MCP answers `not-found` on a stranger's trip). `pnpm milestone close M55`
-has not been run, and the plan has not been deleted. Parts 7 to 10 (D12, D13, and the two parts
+Written on part 0 (PR 613) and finished at the close, after part 11 (PR 626, `ce7775d`) ticked
+*Two gates hold*, the last open box: MCP now answers `not-found` on a stranger's trip. Parts 7 to 10 (D12, D13, and the two parts
 Mitchell added from his Inspector run) each added a box; Mitchell's production walk of
 2026-10-28 ticked *The inspector* and *[walk]*.
 
@@ -726,8 +744,12 @@ Mitchell added from his Inspector run) each added a box; Mitchell's production w
 
 ### Leftovers
 
-- **Two gates hold:** part 11, being built. Mitchell chose `not-found` over MCP for a stranger's
-  trip; the box is ticked when part 11 merges with its test seen red.
+- **Two gates hold:** ticked at the close on part 11 (PR 626, `ce7775d`). Its wording was amended
+  to what shipped: a viewer calling an editor tool still answers `forbidden`.
+- **KI-2026-10-28-c** (new, filed by part 11): a stranger can still tell a trip whose stored doc
+  will not parse from a missing one. Pre-existing; not fixed in M55.
+- **KI-2026-10-25-w** (the unit job red once on `window is not defined`): part 11 recorded a
+  fourth occurrence on PR 626 (`76a5943`). Its fix is in PR 627, outside M55.
 - **The inspector** and **[walk]:** ticked on Mitchell's production walk, 2026-10-28, with no
   screenshot attached.
 - **`scopes_supported` is wider than D5 says.** Production lists `trips:write` and
@@ -801,8 +823,8 @@ The earlier session reported request counts per agent type, but no units, so its
 unknown and is not in any total here. **Known total: 13.19M units** (5.50M + 7.69M), without
 the earlier session.
 
-**Parts:** 11 merged or building (part 0, the six code parts of the first stack, and parts 7 to
-10; part 11 is building).
+**Parts:** 12 (part 0, the six code parts of the first stack, parts 7 to 10, and part 11); every
+code part merged.
 
 **Lines added: 11,652.** This is
 `git diff --shortstat 837eef5 1c353dd -- apps packages`. `837eef5` is PR 614's base, and it is
@@ -813,7 +835,9 @@ gives 108 files changed, 11,652 insertions and 508 deletions. No `*.generated.js
 compares with M54's (which had no snapshot). **Parts 7 to 10 add 661**
 (`git diff --shortstat 1c353dd acb7f93 -- apps packages`: 16 files, 661 insertions, 80
 deletions; `pnpm-lock.yaml` is outside that path), so **8,119 without the snapshot** for parts 1
-to 10.
+to 10. **Part 11 adds 185** (`git diff --shortstat acb7f93 ce7775d -- apps packages`: 4 files,
+185 insertions, 14 deletions; `ce7775d` is the only first-parent commit in that range), so
+**8,304 without the snapshot** for parts 1 to 11.
 
 **Targets**
 
@@ -830,8 +854,8 @@ to 10.
 M54 is the last closed milestone.
 
 - **Dollars per 1,000 lines added (under 20):** not measurable, because no session recorded a
-  cost. M54 was $41.0. In units, the two measured sessions spent 13.19M over 8,119 lines without
-  the snapshot (about 1.62M units per 1,000 lines). That excludes the earlier session, so it
+  cost. M54 was $41.0. In units, the two measured sessions spent 13.19M over 8,304 lines without
+  the snapshot (about 1.59M units per 1,000 lines). That excludes the earlier session, so it
   understates the total.
 - **Orchestrator's share (under 15%):** missed at 29.9% in the previous build session and 21.2%
   in this one; M54 was 20.4%. The cause is in *What could be better*: one orchestrator context
