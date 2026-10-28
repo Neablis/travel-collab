@@ -1,4 +1,9 @@
-import { Server, type Tool } from "@modelcontextprotocol/server";
+import {
+  MissingRequiredClientCapabilityError,
+  Server,
+  type Tool,
+  UnsupportedProtocolVersionError,
+} from "@modelcontextprotocol/server";
 import { DECLARED } from "@/server/public-api/route";
 import { callTool, type McpCaller } from "./dispatch";
 import { inputSchemaFor } from "./schemas";
@@ -42,6 +47,9 @@ export function buildServer(tools: readonly McpTool[], caller: McpCaller): Serve
     capabilities: { tools: { listChanged: false } },
     cacheHints: { "tools/list": TOOLS_LIST_CACHE },
   });
+  // The 2025 transport's own refusals, such as a 406, and a failed send or
+  // encode arrive here, not at the handler's `onerror`.
+  server.onerror = reportMcpError;
   const listed = listedTools(tools);
   server.setRequestHandler("tools/list", () => ({ tools: listed }));
   server.setRequestHandler("tools/call", async ({ params }) => {
@@ -52,4 +60,27 @@ export function buildServer(tools: readonly McpTool[], caller: McpCaller): Serve
     return callTool(tool, params.arguments ?? {}, caller);
   });
   return server;
+}
+
+/**
+ * Log what the SDK reports. Reporting only: it has already answered the client
+ * in-band. A misbehaving connector should not fill the error log with lines
+ * that read as server faults, so a client's mistake is a warning.
+ */
+export function reportMcpError(error: Error): void {
+  if (clientMistake(error)) console.warn("mcp request rejected", { error });
+  else console.error("mcp handler error", { error });
+}
+
+/**
+ * Whether the SDK refused the request for the client's own fault: a 406 or
+ * 415, an unsupported revision, a missing capability, a header the body
+ * contradicts, or a full listen table.
+ */
+function clientMistake(error: Error): boolean {
+  return (
+    error instanceof UnsupportedProtocolVersionError ||
+    error instanceof MissingRequiredClientCapabilityError ||
+    /^(Rejected |Not Acceptable|Unsupported Media Type|subscriptions\/listen refused)/.test(error.message)
+  );
 }

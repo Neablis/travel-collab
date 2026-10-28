@@ -210,6 +210,46 @@ describe("POST /api/mcp on MCP 2026-07-28, with no initialize", () => {
   });
 });
 
+describe("POST /api/mcp logs a client's mistake as a warning, not an error", () => {
+  const call = rpc("tools/call", { name: "whoami", arguments: {} });
+  const unsupported = "2099-01-01";
+  const envelope = { "io.modelcontextprotocol/protocolVersion": unsupported, "io.modelcontextprotocol/clientCapabilities": {} };
+  const mistakes: Record<string, { send: (secret: string) => Promise<Response>; status: number }> = {
+    "a revision the SDK does not serve": {
+      send: (secret) =>
+        mcp(rpc("tools/call", { name: "whoami", arguments: {}, _meta: envelope }), {
+          authorization: `Bearer ${secret}`,
+          "mcp-protocol-version": unsupported,
+          "mcp-method": "tools/call",
+          "mcp-name": "whoami",
+        }),
+      status: 400,
+    },
+    "a body that is not JSON": { send: (secret) => mcp(call, { ...bearer(secret), "content-type": "text/plain" }), status: 415 },
+    // Refused by the 2025 transport, whose reports reach the server's own
+    // `onerror` rather than the handler's.
+    "a 2025 client that will not take a stream": {
+      send: (secret) => mcp(call, { ...bearer(secret), accept: "application/json" }),
+      status: 406,
+    },
+  };
+
+  it.each(Object.keys(mistakes))("for %s", async (mistake) => {
+    const access = await connect(await entitled(), ["account:read"]);
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const res = await mistakes[mistake]!.send(access);
+      expect(res.status).toBe(mistakes[mistake]!.status);
+      expect(warn).toHaveBeenCalledWith("mcp request rejected", { error: expect.any(Error) });
+      expect(error).not.toHaveBeenCalled();
+    } finally {
+      warn.mockRestore();
+      error.mockRestore();
+    }
+  });
+});
+
 describe("POST /api/mcp on MCP 2025-11-25, after the handshake", () => {
   it("answers initialize with 2025-11-25, then tools/list", async () => {
     const access = await connect(await entitled(), ["account:read"]);
