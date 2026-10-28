@@ -2,7 +2,7 @@ import type { CallToolResult } from "@modelcontextprotocol/server";
 import { tripAccessFor } from "@/server/access/trip-access";
 import { runInMcpDispatch } from "@/server/oauth/dispatchContext";
 import { forgetKey, REPLAYED_HEADER, requestHash } from "@/server/public-api/idempotency";
-import { DECLARED } from "@/server/public-api/route";
+import { DECLARED, NO_SUCH_TRIP, type DeclaredHandler } from "@/server/public-api/route";
 import { readableSavedDay } from "@/server/savedDays";
 import { pathParams, type McpTool } from "./tools";
 
@@ -78,8 +78,19 @@ export async function callTool(tool: McpTool, input: Record<string, unknown>, ca
   }
   if (refusesCredential(response)) caller.refusal = response.clone();
   const answer: unknown = await response.json().catch(() => null);
-  if (!response.ok && (await hidesTrip(answer, params.tripId, userId))) return toolError(NO_SUCH_TRIP);
-  if (!response.ok) return toolError(refusalText(tool, input, response.status, answer));
+  if (!response.ok) {
+    let hidden: boolean;
+    try {
+      hidden = await hidesTrip(declared, answer, tripIdOf(declared, params, body), userId);
+    } catch (error) {
+      // A database that did not answer is a 500, as it is in v1's own gate,
+      // never a throw out of the tool call.
+      console.error("MCP trip re-check threw", { tool: tool.name, error });
+      return toolError(refusalText(tool, input, 500, null));
+    }
+    if (hidden) return toolError(`${NO_SUCH_TRIP} (not-found)`);
+    return toolError(refusalText(tool, input, response.status, answer));
+  }
   const result = tool.answer === undefined ? answer : tool.answer(answer);
   return { content: [{ type: "text", text: JSON.stringify(result) }] };
 }
@@ -103,8 +114,17 @@ function refusesCredential(response: Response): boolean {
   );
 }
 
-/** v1's answer to a trip id that does not exist, in `refusalText`'s words. */
-const NO_SUCH_TRIP = "No such trip. (not-found)";
+/** The trip v1 gated the call on: from the path, or from the body where v1 reads it there. */
+function tripIdOf(
+  declared: DeclaredHandler[typeof DECLARED],
+  params: Record<string, string>,
+  body: string | undefined,
+): string | undefined {
+  if (declared.trip === undefined) return undefined;
+  if (declared.trip === "path") return params.tripId;
+  const parsed = declared.def.body?.safeParse(body === undefined ? undefined : JSON.parse(body));
+  return parsed?.success ? (declared.trip.body(parsed.data) ?? undefined) : undefined;
+}
 
 /**
  * Whether v1 refused a trip the caller cannot read at all. v1 answers a
@@ -113,10 +133,20 @@ const NO_SUCH_TRIP = "No such trip. (not-found)";
  * member short of the role can read the trip and keeps `forbidden`; matched on
  * the code, not 403, which `insufficient-scope` shares.
  */
-async function hidesTrip(answer: unknown, tripId: string | undefined, userId: string): Promise<boolean> {
+async function hidesTrip(
+  declared: DeclaredHandler[typeof DECLARED],
+  answer: unknown,
+  tripId: string | undefined,
+  userId: string,
+): Promise<boolean> {
   if (tripId === undefined) return false;
   if ((answer as { error?: { code?: unknown } } | null)?.error?.code !== "forbidden") return false;
-  return !(await tripAccessFor(userId, tripId, "viewer")).ok;
+  // v1's gate already asked "may this user read it", so its refusal is the
+  // answer; a second read would only widen the timing gap a missing id lacks.
+  if ((declared.role ?? "viewer") === "viewer") return true;
+  // Only `forbidden`: a member whose trip will not parse is still a member.
+  const access = await tripAccessFor(userId, tripId, "viewer");
+  return !access.ok && access.denial === "forbidden";
 }
 
 function toolError(text: string): CallToolResult {

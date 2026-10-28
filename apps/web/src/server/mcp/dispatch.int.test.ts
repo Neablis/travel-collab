@@ -84,7 +84,7 @@ async function connectAs(scopes: ApiScope[] = ["library:read", "library:write"])
     if (tool === undefined) throw new Error(`There is no tool named ${name}.`);
     const result = await callTool(tool, input, { request, userId: ownerId, grantId: grant.id });
     const text = (result.content[0] as { text: string }).text;
-    return { isError: result.isError === true, text, json: () => JSON.parse(text) };
+    return { isError: result.isError === true, text, json: () => JSON.parse(text), result };
   };
   return { call, ownerId };
 }
@@ -271,19 +271,21 @@ describe("a trip the caller cannot read", () => {
   // v1 answers a stranger `forbidden` (M22); over MCP that would tell a model
   // the trip exists (M55's *Two gates hold*), so it answers as a missing id.
   it.each([
-    ["get_trip", {}],
-    ["list_notebook_pages", {}],
-    ["get_notebook_page", { pageId: randomUUID() }],
-    ["update_notebook_page", { pageId: randomUUID(), title: "Mine now" }],
-    ["set_trip_cover", { url: IMAGE_URL, alt: "The harbour", position: 30 }],
-    ["move_trip_cover", { position: 15 }],
+    ["get_trip", (tripId: string) => ({ tripId })],
+    ["list_notebook_pages", (tripId: string) => ({ tripId })],
+    ["get_notebook_page", (tripId: string) => ({ tripId, pageId: randomUUID() })],
+    ["update_notebook_page", (tripId: string) => ({ tripId, pageId: randomUUID(), title: "Mine now" })],
+    ["set_trip_cover", (tripId: string) => ({ tripId, url: IMAGE_URL, alt: "The harbour", position: 30 })],
+    ["move_trip_cover", (tripId: string) => ({ tripId, position: 15 })],
+    // Its trip is in the body, where v1 gates it.
+    ["create_playbook", (tripId: string) => ({ name: "Kept", source: { tripId, days: [{ dayId: randomUUID() }] } })],
   ])("%s answers a stranger's trip as it answers an id that does not exist", async (name, input) => {
-    const call = await connect(ALL);
+    const call = await connect([...ALL, "library:write"]);
     const { tripId } = await strangersTrip();
-    const missing = await call(name, { tripId: randomUUID(), ...input });
+    const missing = await call(name, input(randomUUID()));
     expect(missing).toMatchObject({ isError: true, text: "No such trip. (not-found)" });
-    const stranger = await call(name, { tripId, ...input });
-    expect([stranger.isError, stranger.text]).toEqual([missing.isError, missing.text]);
+    const stranger = await call(name, input(tripId));
+    expect(stranger.result).toEqual(missing.result);
   });
 
   // A member short of the role can read the trip, so it learns nothing new and keeps the reason.
@@ -292,6 +294,34 @@ describe("a trip the caller cannot read", () => {
     const { ownerId, tripId } = await strangersTrip();
     await grantMembership(db, { tripId, userId: viewer, role: "viewer", invitedBy: ownerId, now: new Date().toISOString() });
     const moved = await call("move_trip_cover", { tripId, position: 15 });
+    expect(moved).toMatchObject({ isError: true, text: "You do not have access to this trip. (forbidden)" });
+  });
+
+  // The re-check as viewer reaches the parse a stranger never does: a member
+  // whose trip will not parse is still a member, and is not told it is missing.
+  it("still tells a viewer it may not edit a trip that will not parse", async () => {
+    const { call, ownerId: viewer } = await connectAs(ALL);
+    const { ownerId, tripId } = await strangersTrip();
+    const now = new Date().toISOString();
+    await grantMembership(db, { tripId, userId: viewer, role: "viewer", invitedBy: ownerId, now });
+    // A role no `TripRole` names fails only the overlay's parse, after the role
+    // check. The owner is premium, or the lapse cap would make it a viewer.
+    const premium = livePlanVersion("premium");
+    await issueGrant({
+      userId: ownerId,
+      planId: premium.planId,
+      planVersion: premium.version,
+      source: "admin",
+      grantedBy: "dev-operator",
+      reason: "M55 MCP dispatch fixture.",
+      expiresAt: null,
+    });
+    const odd = `mcp-odd-${randomUUID().slice(0, 8)}`;
+    await upsertUser({ id: odd, email: `${odd}@example.test`, name: null, image: null });
+    await grantMembership(db, { tripId, userId: odd, role: "bogus" as never, invitedBy: ownerId, now });
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    const moved = await call("move_trip_cover", { tripId, position: 15 });
+    errors.mockRestore();
     expect(moved).toMatchObject({ isError: true, text: "You do not have access to this trip. (forbidden)" });
   });
 

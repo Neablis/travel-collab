@@ -387,10 +387,13 @@ function tooLarge(max: number): string {
 /** 401s carry `WWW-Authenticate`, because a bearer scheme that does not is guessing. */
 const BEARER_CHALLENGE = { "WWW-Authenticate": "Bearer" };
 
+/** v1's words for a trip id that does not exist, which MCP also gives a stranger (M55 part 11). */
+export const NO_SUCH_TRIP = "No such trip.";
+
 const DENIAL_TO_ERROR: Record<TripAccessDenial, { code: z.infer<typeof ApiErrorCode>; status: number; message: string }> = {
   // A stranger and an under-privileged member get the same answer, because
   // telling them apart would confirm the trip exists.
-  "not-found": { code: "not-found", status: 404, message: "No such trip." },
+  "not-found": { code: "not-found", status: 404, message: NO_SUCH_TRIP },
   forbidden: { code: "forbidden", status: 403, message: "You do not have access to this trip." },
   "malformed-trip": {
     code: "server-error",
