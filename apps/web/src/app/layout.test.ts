@@ -3,15 +3,11 @@ import { join } from "node:path";
 import type { ReactElement } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-// `next/font/google` is transformed by Next's SWC plugin at build time; imported
-// under vitest it is a plain object and calling it throws
-// `TypeError: Bricolage_Grotesque is not a function`. The three fonts are not
-// what this file is about — a stub that returns the one field the layout reads
-// (`variable`) is enough to get the tree.
-vi.mock("next/font/google", () => {
-  const font = () => ({ variable: "font-var" });
-  return { Bricolage_Grotesque: font, IBM_Plex_Mono: font, IBM_Plex_Sans: font };
-});
+// `next/font/local` is transformed by Next's SWC plugin at build time; imported
+// under vitest it is a plain function that throws on the call. The fonts are
+// not what this file is about — a stub that returns the one field the layout
+// reads (`variable`) is enough to get the tree.
+vi.mock("next/font/local", () => ({ default: () => ({ variable: "font-var" }) }));
 
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";

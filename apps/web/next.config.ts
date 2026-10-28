@@ -52,8 +52,8 @@ const contentSecurityPolicy = [
   // frame-ancestors) already close the classic injection escalations. Worth
   // revisiting, not worth blocking this fix on.
   //
-  // No third-party script is loaded in production: next/font/google
-  // self-hosts at build time, and @vercel/analytics and
+  // No third-party script is loaded in production: the fonts are committed
+  // files served by next/font/local (app/typefaces.ts), and @vercel/analytics and
   // @vercel/speed-insights serve from /_vercel/insights and
   // /_vercel/speed-insights on our own origin. In dev both fetch a debug
   // script from va.vercel-scripts.com instead, and React Refresh needs
@@ -83,8 +83,8 @@ const contentSecurityPolicy = [
   // called by the server, never by the browser.
   `img-src 'self' data: blob: https://tiles.openfreemap.org https://images.unsplash.com${toolbar("https://vercel.live", "https://vercel.com")}`,
 
-  // next/font/google downloads and self-hosts at build time, so no
-  // fonts.gstatic.com origin is needed here.
+  // The fonts are committed files (next/font/local, app/typefaces.ts), so
+  // no fonts.gstatic.com origin is needed here.
   `font-src 'self' data:${toolbar("https://vercel.live", "https://assets.vercel.com")}`,
 
   // Vector tiles, glyphs and the style JSON, all fetched by maplibre. The

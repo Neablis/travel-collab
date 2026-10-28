@@ -1,7 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
-import { Bricolage_Grotesque, IBM_Plex_Mono, IBM_Plex_Sans } from "next/font/google";
 // MapLibre's stylesheet is not imported here: it travels with the map
 // (`MapLens.tsx`, `SharedDayMap.tsx`), so a route with no map does not wait
 // on it.
@@ -17,10 +16,7 @@ import { LEAVE_LANDING_IF_SIGNED_IN } from "@/lib/sessionHint";
 import { appColors } from "@/lib/appColors.generated";
 import { SITE_DESCRIPTION, SITE_NAME, siteRobots } from "@/lib/siteMetadata";
 import { deploymentOrigin } from "@/lib/deploymentOrigin";
-
-const display = Bricolage_Grotesque({ subsets: ["latin"], weight: ["500", "600"], variable: "--font-next-display" });
-const sans = IBM_Plex_Sans({ subsets: ["latin"], weight: ["400", "500", "600"], variable: "--font-next-sans" });
-const mono = IBM_Plex_Mono({ subsets: ["latin"], weight: ["400", "500"], variable: "--font-next-mono" });
+import { fontVariables } from "./typefaces";
 
 // Where absolute URLs in metadata (og:image, og:url) resolve from. Vercel's
 // documented hierarchy, written out rather than left to Next's default so a
@@ -121,7 +117,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html
       lang="en"
       data-look={LOOK}
-      className={`${display.variable} ${sans.variable} ${mono.variable}`}
+      className={fontVariables}
       suppressHydrationWarning
     >
       <head>

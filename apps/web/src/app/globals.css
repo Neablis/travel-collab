@@ -333,6 +333,21 @@
   --color-a-asst-ink: var(--color-ink);
 }
 
+/* The three faces, each put back together from its unicode-range subsets
+   (`app/typefaces.ts` has why they are separate calls). Non-latin first and
+   the latin call last, since only the latin one carries the metric-matched
+   fallback, which would otherwise catch latin-ext characters. Unlayered `:root`
+   (0,1,0), so a look's `html[data-look=…]` (0,1,1) still overrides it. */
+:root {
+  --font-next-display: var(--font-next-display-latin-ext), var(--font-next-display-vietnamese),
+    var(--font-next-display-latin);
+  --font-next-sans: var(--font-next-sans-latin-ext), var(--font-next-sans-vietnamese),
+    var(--font-next-sans-cyrillic), var(--font-next-sans-cyrillic-ext), var(--font-next-sans-greek),
+    var(--font-next-sans-latin);
+  --font-next-mono: var(--font-next-mono-latin-ext), var(--font-next-mono-vietnamese),
+    var(--font-next-mono-cyrillic), var(--font-next-mono-cyrillic-ext), var(--font-next-mono-latin);
+}
+
 @theme inline {
   --font-display: var(--font-next-display), ui-sans-serif, sans-serif;
   --font-sans: var(--font-next-sans), ui-sans-serif, system-ui, sans-serif;
