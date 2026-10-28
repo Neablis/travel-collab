@@ -2,7 +2,7 @@ import type { CallToolResult } from "@modelcontextprotocol/server";
 import { tripAccessFor } from "@/server/access/trip-access";
 import { runInMcpDispatch } from "@/server/oauth/dispatchContext";
 import { forgetKey, REPLAYED_HEADER, requestHash } from "@/server/public-api/idempotency";
-import { DECLARED, NO_SUCH_TRIP, type DeclaredHandler } from "@/server/public-api/route";
+import { DECLARED, NO_SUCH_TRIP, SERVER_FAILED, type DeclaredHandler } from "@/server/public-api/route";
 import { readableSavedDay } from "@/server/savedDays";
 import { pathParams, type McpTool } from "./tools";
 
@@ -79,14 +79,15 @@ export async function callTool(tool: McpTool, input: Record<string, unknown>, ca
   if (refusesCredential(response)) caller.refusal = response.clone();
   const answer: unknown = await response.json().catch(() => null);
   if (!response.ok) {
+    const tripId = tripIdOf(declared, params, body);
     let hidden: boolean;
     try {
-      hidden = await hidesTrip(declared, answer, tripIdOf(declared, params, body), userId);
+      hidden = await hidesTrip(declared, answer, tripId, userId);
     } catch (error) {
-      // A database that did not answer is a 500, as it is in v1's own gate,
+      // A database that did not answer is v1's own gate's 500, in its words,
       // never a throw out of the tool call.
-      console.error("MCP trip re-check threw", { tool: tool.name, error });
-      return toolError(refusalText(tool, input, 500, null));
+      console.error("MCP trip re-check threw", { tool: tool.name, scope: declared.def.scope, tripId, error });
+      return toolError(refusalText(tool, input, 500, { error: { code: "server-error", message: SERVER_FAILED } }));
     }
     if (hidden) return toolError(`${NO_SUCH_TRIP} (not-found)`);
     return toolError(refusalText(tool, input, response.status, answer));

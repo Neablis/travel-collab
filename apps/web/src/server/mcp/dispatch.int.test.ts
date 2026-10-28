@@ -37,6 +37,20 @@ vi.mock("@/server/public-api/idempotency", async (importOriginal) => {
   };
 });
 
+// A test may make the dispatch's re-check throw. v1's gate asks a trip tool's
+// own role, so a throw on `viewer` alone reaches only the re-check of an editor tool.
+const recheck = vi.hoisted(() => ({ throws: false }));
+vi.mock("@/server/access/trip-access", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@/server/access/trip-access")>();
+  return {
+    ...real,
+    tripAccessFor: async (...args: Parameters<typeof real.tripAccessFor>) => {
+      if (recheck.throws && args[2] === "viewer") throw new Error("connection terminated");
+      return real.tripAccessFor(...args);
+    },
+  };
+});
+
 // The real guarded fetcher, given a fake network, as `public-api/cover.int.test.ts` gives it:
 // a cover URL's set-time check runs, and no request leaves the machine.
 const IMAGE_URL = "https://cdn.example.com/harbour.png";
@@ -323,6 +337,25 @@ describe("a trip the caller cannot read", () => {
     const moved = await call("move_trip_cover", { tripId, position: 15 });
     errors.mockRestore();
     expect(moved).toMatchObject({ isError: true, text: "You do not have access to this trip. (forbidden)" });
+  });
+
+  // A re-check that throws answers as v1's own gate does when it throws, so a
+  // model branching on `server-error` sees this one too.
+  it("answers a re-check that throws as v1's server-error", async () => {
+    const call = await connect(ALL);
+    const { tripId } = await strangersTrip();
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    recheck.throws = true;
+    try {
+      const moved = await call("move_trip_cover", { tripId, position: 15 });
+      expect(moved.result).toEqual({
+        content: [{ type: "text", text: "Something went wrong. The failure has been logged. (server-error)" }],
+        isError: true,
+      });
+    } finally {
+      recheck.throws = false;
+      errors.mockRestore();
+    }
   });
 
   // The scope gate runs first, and its 403 is not the trip's: it names the scope to grant.

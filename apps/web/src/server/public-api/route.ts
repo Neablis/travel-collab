@@ -390,6 +390,9 @@ const BEARER_CHALLENGE = { "WWW-Authenticate": "Bearer" };
 /** v1's words for a trip id that does not exist, which MCP also gives a stranger (M55 part 11). */
 export const NO_SUCH_TRIP = "No such trip.";
 
+/** v1's words for a fault it caught and logged, which MCP's own trip re-check also gives (M55 part 11). */
+export const SERVER_FAILED = "Something went wrong. The failure has been logged.";
+
 const DENIAL_TO_ERROR: Record<TripAccessDenial, { code: z.infer<typeof ApiErrorCode>; status: number; message: string }> = {
   // A stranger and an under-privileged member get the same answer, because
   // telling them apart would confirm the trip exists.
@@ -486,7 +489,7 @@ function declare(method: HttpMethod, def: MethodDef): DeclaredHandler {
       resolution = await resolveActor(request);
     } catch (error) {
       console.error("v1 credential resolution threw", { method, scope: def.scope, error });
-      return fail("server-error", "Something went wrong. The failure has been logged.", 500);
+      return fail("server-error", SERVER_FAILED, 500);
     }
     if (!resolution.ok) return refusalResponse(resolution.refusal);
     const actor = resolution.actor;
@@ -639,7 +642,7 @@ function declare(method: HttpMethod, def: MethodDef): DeclaredHandler {
         outcome = await tripAccessFor(actor.userId, tripId, def.role ?? "viewer");
       } catch (error) {
         console.error("v1 trip gate threw", { method, scope: def.scope, tripId, error });
-        return fail("server-error", "Something went wrong. The failure has been logged.", 500);
+        return fail("server-error", SERVER_FAILED, 500);
       }
       if (!outcome.ok) {
         const mapped = DENIAL_TO_ERROR[outcome.denial];
@@ -705,7 +708,7 @@ async function idempotently(
     reservation = await reserveKey(actor.userId, key, { method, path, requestHash: requestHash(body) }, reservedAt);
   } catch (error) {
     console.error("v1 idempotency reserve threw", { method, scope: def.scope, error });
-    return fail("server-error", "Something went wrong. The failure has been logged.", 500);
+    return fail("server-error", SERVER_FAILED, 500);
   }
   switch (reservation.kind) {
     case "mismatch":
@@ -793,7 +796,7 @@ async function respond(
     }
     // Anything else is ours to explain and never the caller's to read.
     console.error("v1 handler threw", { method, scope: def.scope, error });
-    return { response: fail("server-error", "Something went wrong. The failure has been logged.", 500), keep: false };
+    return { response: fail("server-error", SERVER_FAILED, 500), keep: false };
   }
 
   // ---- response shape --------------------------------------------------
@@ -809,7 +812,7 @@ async function respond(
       scope: def.scope,
       issues: shape.error.issues,
     });
-    return { response: fail("server-error", "Something went wrong. The failure has been logged.", 500), keep: true };
+    return { response: fail("server-error", SERVER_FAILED, 500), keep: true };
   }
 
   // ---- bookkeeping, never blocking -------------------------------------
