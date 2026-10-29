@@ -132,6 +132,7 @@ export function TripHeader({
   // The phone's `⋯`, which History hands focus back to on close: its own
   // button is `display: none` there, and focus sent to it falls to <body>.
   const tripActions = useRef<HTMLButtonElement>(null);
+  const overflowAnchor = useRef<HTMLSpanElement>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   // *Add cover*, where focus goes once the band's *Remove* has taken the band away.
@@ -321,8 +322,14 @@ export function TripHeader({
   // title. Undo and redo stay inside History (Mitchell, 2026-10-09), and the
   // post-change toast still offers an undo. The `span` is what History's
   // popover hangs from on a phone.
+  //
+  // Drawn in one place at every width, hidden by CSS from `md`, and named to
+  // the popover by a ref: `useIsPhone` starts `false` and corrects in an
+  // effect, and when that moved the `⋯` from beside the popover into it as its
+  // anchor, React replaced the button just after load, dropping its focus
+  // or the menu already open (KI-2026-10-26-u).
   const overflowMenu = (
-    <span className="inline-flex md:hidden">
+    <span ref={overflowAnchor} className="inline-flex md:hidden">
       <Menu open={menuOpen} onOpenChange={setMenuOpen}>
         <MenuTrigger>
           <Button ref={tripActions} variant="ghost" aria-label="Trip actions">
@@ -623,10 +630,12 @@ export function TripHeader({
                     open={historyOpen || preview.seq !== null}
                     // Hung from the overflow menu on a phone, where this
                     // popover's own button is not on screen.
-                    anchor={isPhone ? overflowMenu : undefined}
+                    anchor={isPhone ? overflowAnchor : undefined}
                     onCloseAutoFocus={
                       isPhone
                         ? (event) => {
+                            // Prevented already: focus was moved on during the exit (KI-2026-10-26-t).
+                            if (event.defaultPrevented) return;
                             event.preventDefault();
                             tripActions.current?.focus();
                           }
@@ -681,7 +690,7 @@ export function TripHeader({
                       snapshots={isDemoTripId(tripId) ? undefined : { tripId, busy: pending, onRestored: applyOutcome }}
                     />
                   </Popover>
-                  {!isPhone && overflowMenu}
+                  {overflowMenu}
                 </div>
               </PeopleProvider>
             </div>

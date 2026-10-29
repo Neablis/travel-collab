@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { tripDetailFixture, historyFixture } from "@tc/factories";
@@ -589,6 +589,38 @@ describe("TripHeader — the phone's overflow menu (M39 D6)", () => {
     await openMenu();
     await userEvent.click(screen.getByRole("menuitem", { name: "Trip settings" }));
     expect(await screen.findByRole("dialog", { name: /trip settings/i })).toBeTruthy();
+  });
+
+  // `useIsPhone` starts `false` and corrects in an effect. When that moved the
+  // `⋯` into History's popover as its anchor, React replaced the button just
+  // after load, and a keyboard user already on it lost focus to <body>, or an
+  // open menu vanished (KI-2026-10-26-u). jsdom's trip arrives after that
+  // correction, so the width turns phone here while the header is drawn,
+  // through a `matchMedia` that announces the change, as a browser's does.
+  it("keeps its button, and the focus on it, when the width turns phone", async () => {
+    const listeners = new Set<() => void>();
+    let phone = false;
+    const media = vi.spyOn(window, "matchMedia").mockImplementation(
+      (query: string) =>
+        ({
+          get matches() {
+            return query === "(max-width: 767px)" && phone;
+          },
+          media: query,
+          addEventListener: (_: string, listener: () => void) => listeners.add(listener),
+          removeEventListener: (_: string, listener: () => void) => listeners.delete(listener),
+        }) as unknown as MediaQueryList,
+    );
+    await renderHeader();
+    const button = screen.getByRole("button", { name: "Trip actions" });
+    act(() => button.focus());
+
+    phone = true;
+    act(() => listeners.forEach((listener) => listener()));
+
+    expect(screen.getByRole("button", { name: "Trip actions" })).toBe(button);
+    expect(button.matches(":focus")).toBe(true);
+    media.mockRestore();
   });
 
   // History's own button is `display: none` on a phone, so closing the panel

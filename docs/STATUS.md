@@ -63,12 +63,12 @@ KI-2026-10-27-e to -i, KI-2026-10-28-b (an MCP tool that throws is not logged an
 message) and -c (a stranger can tell a broken trip from a missing one), and the candidate *Claude
 can search for a cover photo* in `docs/candidates.md`. KI-2026-10-25-w's fix is PR 627, outside
 M55.
-Open follow-ups from M54: KI-20261027-a to -d, KI-20261026-t, -u,
--x and -y, and KI-20261013-a's first-load gap. Open follow-ups from M49: KI-20261025-w, and the candidate
+Open follow-ups from M54: KI-20261027-a to -c, KI-20261026-x
+and -y, and KI-20261013-a's first-load gap. Open follow-ups from M49: KI-20261025-w, and the candidate
 **Next action:** Mitchell merges M54's part 0 (PR 593). Then scope M43 with him
 (`plan-a-milestone`): the Overview's identity in the database, its derived title, and the `open`
-widget's design and filters. Open follow-ups from M54: KI-20261027-a to -d, KI-20261026-t, -u,
--x and -y, and KI-20261013-a's first-load gap. Open follow-up from M49: the candidate
+widget's design and filters. Open follow-ups from M54: KI-20261027-a to -c, KI-20261026-x
+and -y, and KI-20261013-a's first-load gap. Open follow-up from M49: the candidate
 *Reposition a playbook day's cover*.
 Open follow-ups from M52: KI-2026-10-24-a to -o (`docs/known-issues/open/`). Outside M52:
 PR 491 (dependabot) is red, and GitHub reports 5 dependabot vulnerabilities on `main` (2 high,

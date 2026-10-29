@@ -49,7 +49,7 @@ export function CityDetailBlock({ payload, accents }: { payload: CityDetailPaylo
                 ? "Not on the itinerary yet"
                 : city.dayOrdinals.map((ordinal) => `Day ${ordinal}`).join(", ")}
             </span>
-            <span role="cell" className="shrink-0 font-mono text-2xs text-slate">
+            <span role="cell" className="shrink-0 font-mono text-xs text-slate">
               {city.activityCount === 1 ? "1 stop" : `${city.activityCount} stops`}
             </span>
           </span>

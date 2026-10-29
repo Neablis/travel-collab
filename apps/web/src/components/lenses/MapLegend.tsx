@@ -18,9 +18,9 @@
 export function MapLegend() {
   return (
     <div
-      className="absolute flex items-center gap-3.5 rounded-full border border-hairline bg-surface px-3.5 py-1.5 text-slate"
-      // eslint-disable-next-line no-restricted-syntax -- computed position/z-index (18px right/top, z 45) and 11px legend text have no token equivalent, matching AssistantRail's computed-geometry pattern
-      style={{ right: "18px", top: "18px", zIndex: 45, fontSize: "11px" }}
+      className="absolute flex items-center gap-3.5 rounded-full border border-hairline bg-surface px-3.5 py-1.5 text-xs text-slate"
+      // eslint-disable-next-line no-restricted-syntax -- computed position/z-index (18px right/top, z 45) have no token equivalent, matching AssistantRail's computed-geometry pattern
+      style={{ right: "18px", top: "18px", zIndex: 45 }}
     >
       <span className="flex items-center gap-1.5">
         <span

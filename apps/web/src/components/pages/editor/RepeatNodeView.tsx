@@ -92,7 +92,7 @@ export function RepeatNodeView({ node, selected, editor }: ReactNodeViewProps) {
           data-testid="repeat-rail"
           data-resolved={resolved}
           className={cn(
-            "absolute -top-3.5 left-0 text-2xs leading-none font-semibold select-none",
+            "absolute -top-3.5 left-0 text-xs leading-none font-semibold select-none",
             resolved ? "text-brand-pressed" : "text-slate",
           )}
         >

@@ -91,7 +91,7 @@ export function Sheet({
   // landed on `<body>`. Read in `onOpenAutoFocus`: Radix fires it before it
   // moves focus in, so the opener still has it then.
   const opener = useRef<HTMLElement | null>(null);
-  useLetGoOfFocusOnClose(open);
+  const { keepFocusMovedOn } = useLetGoOfFocusOnClose(open);
   return (
     <RadixDialog.Root open={open} onOpenChange={onOpenChange}>
       <RadixDialog.Portal>
@@ -108,14 +108,14 @@ export function Sheet({
             const at = document.activeElement;
             opener.current = at instanceof HTMLElement && at !== document.body ? at : null;
           }}
-          onCloseAutoFocus={(event) => {
+          onCloseAutoFocus={keepFocusMovedOn((event) => {
             onCloseAutoFocus?.(event);
             const back = opener.current;
             opener.current = null;
             if (event.defaultPrevented || back === null || !back.isConnected) return;
             event.preventDefault();
             back.focus();
-          }}
+          })}
           className={cn(
             "overlay-layer fixed flex w-full flex-col bg-surface shadow-overlay",
             // `max-w-measure` is what makes the rail a rail; dropping it for

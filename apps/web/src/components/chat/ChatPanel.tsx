@@ -269,6 +269,8 @@ export function ChatPanel({
         title="Delete this message?"
         // Opened from a menu, so there is no trigger to go back to.
         onCloseAutoFocus={(event) => {
+          // Prevented already: focus was moved on during the exit (KI-2026-10-26-t).
+          if (event.defaultPrevented) return;
           event.preventDefault();
           focusLine(deletingFrom.current);
         }}

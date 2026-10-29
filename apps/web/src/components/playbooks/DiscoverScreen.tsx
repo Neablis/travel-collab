@@ -587,7 +587,7 @@ export function DiscoverScreen({
               if (options === null) return null;
               return (
                 <div key={def.id} className="flex flex-col gap-1.75">
-                  <Text as="span" variant="muted" className="font-mono text-2xs tracking-wider uppercase">
+                  <Text as="span" variant="muted" className="font-mono text-xs tracking-wider uppercase">
                     {def.label}
                   </Text>
                   <div className="flex flex-wrap gap-1.5">
@@ -713,7 +713,7 @@ export function DiscoverScreen({
             if (options === null) return null;
             return (
               <div key={def.id} className="flex flex-col gap-2">
-                <Text as="span" variant="muted" className="font-mono text-2xs tracking-wider uppercase">
+                <Text as="span" variant="muted" className="font-mono text-xs tracking-wider uppercase">
                   {def.label}
                 </Text>
                 <div className="flex flex-wrap gap-2">
@@ -741,7 +741,7 @@ export function DiscoverScreen({
 
           {/* Sort, in the sheet with the filters and NOT counted as one. */}
           <div className="flex flex-col gap-2">
-            <Text as="span" variant="muted" className="font-mono text-2xs tracking-wider uppercase">
+            <Text as="span" variant="muted" className="font-mono text-xs tracking-wider uppercase">
               Sort
             </Text>
             <div className="flex flex-wrap gap-2">

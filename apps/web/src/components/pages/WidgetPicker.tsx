@@ -403,7 +403,7 @@ export function WidgetPicker({
                 onClick={() => setShape(f.value)}
               >
                 <KindGlyph rows={f.glyph} on={on} />
-                <span className="text-2xs leading-none font-semibold">{f.label}</span>
+                <span className="text-xs leading-none font-semibold">{f.label}</span>
               </button>
             );
           })}
@@ -483,7 +483,7 @@ export function WidgetPicker({
                       handle that cannot be dragged is a promise the surface
                       cannot keep, so it is bound to `draggable` like the
                       cursor is. */}
-                  {draggable ? <span aria-hidden className="text-2xs text-slate">&#8759;</span> : null}
+                  {draggable ? <span aria-hidden className="text-xs text-slate">&#8759;</span> : null}
                   <span className="text-sm font-semibold text-ink">{w.title}</span>
                   {/* Only under All. With one kind filtered on, every row is
                       that kind, so the chip would repeat the filter on every
@@ -491,12 +491,12 @@ export function WidgetPicker({
                       inline/block/list when you are filtering the widgets.
                       They will always all be the same"). */}
                   {shape === null && (
-                    <Badge variant="neutral" className="font-mono text-2xs font-normal">
+                    <Badge variant="neutral" className="font-mono font-normal">
                       {SHAPE_LABEL[w.shape]}
                     </Badge>
                   )}
                   {followsToday(w) && (
-                    <Badge variant="brand" className="text-2xs font-normal">
+                    <Badge variant="brand" className="font-normal">
                       follows today
                     </Badge>
                   )}

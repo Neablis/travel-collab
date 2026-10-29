@@ -1,4 +1,4 @@
-### KI-2026-10-26-t — Tab pressed during a modal's exit animation is undone: focus snaps back to the opener at unmount
+### KI-2026-10-26-t — Tab pressed during a modal's exit animation is undone: focus snaps back to the opener at unmount — RESOLVED
 
 - **Severity:** cosmetic, low reach. Focus is never lost or hidden; it lands on the opener, which
   is where a closed modal sends it anyway. Only a keyboard user who tabs on within the exit
@@ -20,3 +20,19 @@
   during the exit and asserts focus is on the next control after the animation ends.
 - **Cross-reference:** M54 part 1, PR 594's review; ADR-082 §2.
 - **First noted:** 2026-10-26, on PR 594's review.
+- **Resolved 2026-10-29 (KI sweep, UI focus) — the overlays' `onCloseAutoFocus` keeps a move made during the exit.**
+  `useLetGoOfFocusOnClose` now returns `keepFocusMovedOn(handler)`, which `Menu`, `Popover`,
+  `Sheet` and `Dialog` wrap their `onCloseAutoFocus` in. At the unmount, when focus is somewhere
+  other than `<body>`, the leaving overlay or where the close put it, the caller's handler still
+  runs (the trip header's menu opens what was chosen from it), then focus goes back where the
+  person moved it and the event is `preventDefault()`ed, so Radix's own return does not run.
+  Done in the hook rather than in each caller, because the palette's own handler (`returnTo`)
+  snapped back too.
+  - **Reproduction.** New steps in `m54-motion.spec.ts` (`tabStaysThroughTheExit`): close with
+    the timeline frozen, Tab, release the timeline, wait for the unmount, assert the control the
+    Tab reached still has focus. Before the fix, on the built app: the phone `⋯` menu and the ⌘K
+    dialog failed 18/20 and 20/20 at `expect(page.locator("[data-tabbed-to]")).toBeFocused()`
+    (`Received: inactive`). The account menu (a popover) passed 20/20 before and after.
+  - **Proof.** After: `m54-motion.spec.ts --repeat-each=20 --retries=0`, 201 passed. Unit tests in
+    `useExitPresence.test.tsx` for both sides (moved on: kept and prevented; still on the opener:
+    the return runs), the first seen red with `movedOn` forced false (`expected false to be true`).

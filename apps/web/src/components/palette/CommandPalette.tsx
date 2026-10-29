@@ -294,8 +294,10 @@ export function CommandPalette() {
       onOpenChange={setOpen}
       title="Go to or do"
       onCloseAutoFocus={(event) => {
+        // Prevented already: focus was moved on during the exit, and stays
+        // (KI-2026-10-26-t). The chosen command still runs.
         const back = returnTo.current;
-        if (back?.isConnected && back !== document.body) {
+        if (!event.defaultPrevented && back?.isConnected && back !== document.body) {
           event.preventDefault();
           back.focus();
         }

@@ -74,7 +74,7 @@ export function OverviewLensFallback() {
     <div className="pt-8 pb-22 max-md:pt-0 max-md:pb-6">
       <div className="tc-overview-letter">
         <div className="mb-6.5 flex min-h-7 items-center justify-between gap-4 border-b border-hairline pb-4.5">
-          <span className="font-mono text-2xs tracking-widest text-slate uppercase">Overview</span>
+          <span className="font-mono text-xs tracking-widest text-slate uppercase">Overview</span>
         </div>
         <OverviewLensSkeleton />
       </div>

@@ -42,8 +42,13 @@ export function Popover({
    * screen. The phone's trip header hides History's own button and opens it
    * from its overflow menu, so the panel is anchored to that menu instead of
    * to a `display: none` box at (0, 0). Absent, the trigger is the anchor.
+   *
+   * A ref to an element the caller renders where it always does, not the
+   * element itself: rendered in here, it moved in the tree whenever the
+   * caller started or stopped passing it, and React replaced it, button,
+   * focus and open menu included (KI-2026-10-26-u).
    */
-  anchor?: React.ReactNode;
+  anchor?: React.RefObject<HTMLElement | null>;
   /**
    * Where focus goes when the content closes. Radix returns it to the
    * trigger; a caller whose trigger is off screen (see `anchor`) calls
@@ -72,19 +77,19 @@ export function Popover({
   const generatedId = useId();
   const ownId = isValidElement<{ id?: unknown }>(trigger) ? trigger.props.id : undefined;
   const triggerId = typeof ownId === "string" && ownId !== "" ? ownId : generatedId;
-  useLetGoOfFocusOnClose(open);
+  const { keepFocusMovedOn } = useLetGoOfFocusOnClose(open);
   return (
     <RadixPopover.Root open={open} onOpenChange={onOpenChange}>
       <RadixPopover.Trigger asChild id={triggerId}>
         {trigger}
       </RadixPopover.Trigger>
-      {anchor !== undefined && <RadixPopover.Anchor asChild>{anchor}</RadixPopover.Anchor>}
+      {anchor !== undefined && <RadixPopover.Anchor virtualRef={anchor} />}
       <RadixPopover.Portal>
         <RadixPopover.Content
           align={align}
           sideOffset={6}
           collisionPadding={collisionPadding}
-          onCloseAutoFocus={onCloseAutoFocus}
+          onCloseAutoFocus={keepFocusMovedOn(onCloseAutoFocus)}
           // The account menu's fade and 4px rise, like every overlay's (spec
           // decision 10, globals.css); `inert` while it leaves (ADR-082 §2).
           data-motion="rise"

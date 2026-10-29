@@ -259,7 +259,7 @@ function phoneTabHref(tab: PhoneTabId, pathname: string): string {
 }
 
 const TAB_CLASS =
-  "flex min-h-11 flex-1 flex-col items-center justify-center gap-1 text-2xs leading-none no-underline";
+  "flex min-h-11 flex-1 flex-col items-center justify-center gap-1 text-xs leading-none no-underline";
 
 /**
  * The bar itself, taking the route as plain values so it can be rendered from

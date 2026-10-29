@@ -136,3 +136,83 @@ describe("useLetGoOfFocusOnClose", () => {
     expect(screen.getByRole("button", { name: "Open" })).toBeDefined();
   });
 });
+
+type CloseHandler = { current: ((event: Event) => void) | null };
+
+// What an overlay's `onCloseAutoFocus` becomes: the caller's handler, wrapped
+// by the hook. The caller here is one like the palette's: it gives focus back
+// to its opener unless the event says focus is already taken care of.
+function ReturnHarness({
+  open,
+  onClose,
+  handler,
+}: {
+  open: boolean;
+  onClose: CloseHandler;
+  handler: (event: Event) => void;
+}) {
+  const { keepFocusMovedOn } = useLetGoOfFocusOnClose(open);
+  onClose.current = keepFocusMovedOn(handler);
+  return (
+    <>
+      <button type="button">Open</button>
+      <button type="button">Next</button>
+      <div data-motion="rise" data-state={open ? "open" : "closed"}>
+        <button type="button">Inside</button>
+      </div>
+    </>
+  );
+}
+
+describe("keepFocusMovedOn (KI-2026-10-26-t)", () => {
+  const closeFromInside = () => {
+    const handler = vi.fn((event: Event) => {
+      if (!event.defaultPrevented) screen.getByRole("button", { name: "Open" }).focus();
+    });
+    const onClose: CloseHandler = { current: null };
+    const { rerender } = render(<ReturnHarness open={false} onClose={onClose} handler={handler} />);
+    screen.getByRole("button", { name: "Open" }).focus();
+    rerender(<ReturnHarness open onClose={onClose} handler={handler} />);
+    screen.getByRole("button", { name: "Inside" }).focus();
+    rerender(<ReturnHarness open={false} onClose={onClose} handler={handler} />);
+    return { onCloseAutoFocus: onClose.current!, handler };
+  };
+
+  // A Tab during the exit: the return at the unmount must not take it back.
+  it("leaves focus where the person moved it during the exit, and cancels Radix's return", () => {
+    const { onCloseAutoFocus } = closeFromInside();
+    screen.getByRole("button", { name: "Next" }).focus();
+
+    const event = new Event("focusScope.autoFocusOnUnmount", { cancelable: true });
+    onCloseAutoFocus(event);
+    expect(screen.getByRole("button", { name: "Next" }).matches(":focus")).toBe(true);
+    expect(event.defaultPrevented).toBe(true);
+  });
+
+  // Not even for a moment: a focus on the opener and back scrolls to it, has
+  // a screen reader announce it, and runs every focus listener on the way
+  // (PR 633 review). The caller's handler still runs, for what it does
+  // besides focusing (the trip header's menu opens what was chosen).
+  it("never focuses the opener on the way, and still runs the caller's handler once", () => {
+    const { onCloseAutoFocus, handler } = closeFromInside();
+    screen.getByRole("button", { name: "Next" }).focus();
+    const openerFocused = vi.fn();
+    screen.getByRole("button", { name: "Open" }).addEventListener("focus", openerFocused);
+
+    onCloseAutoFocus(new Event("focusScope.autoFocusOnUnmount", { cancelable: true }));
+    expect(openerFocused).not.toHaveBeenCalled();
+    expect(handler).toHaveBeenCalledTimes(1);
+  });
+
+  // Still where the close put it: the return goes ahead as it always did.
+  it("lets the return run when focus is still on the opener", () => {
+    const { onCloseAutoFocus, handler } = closeFromInside();
+    expect(screen.getByRole("button", { name: "Open" }).matches(":focus")).toBe(true);
+
+    const event = new Event("focusScope.autoFocusOnUnmount", { cancelable: true });
+    onCloseAutoFocus(event);
+    expect(screen.getByRole("button", { name: "Open" }).matches(":focus")).toBe(true);
+    expect(event.defaultPrevented).toBe(false);
+    expect(handler).toHaveBeenCalledTimes(1);
+  });
+});

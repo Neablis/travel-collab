@@ -76,7 +76,7 @@ function KindTag({ kind }: { kind: PlacePick["kind"] }) {
     <span
       aria-hidden
       data-testid="place-kind"
-      className="font-mono text-2xs tracking-wider uppercase text-slate"
+      className="font-mono text-xs tracking-wider uppercase text-slate"
     >
       {KIND_LABEL[kind]}
     </span>

@@ -339,7 +339,7 @@ function PendingCard({
       <div className="flex items-center gap-1.75">
         <span
           aria-hidden
-          className="grid size-4.5 place-items-center rounded-full bg-brand text-2xs font-bold text-surface"
+          className="grid size-4.5 place-items-center rounded-full bg-brand text-xs font-bold text-surface"
         >
           ↻
         </span>

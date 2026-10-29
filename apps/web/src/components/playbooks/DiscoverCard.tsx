@@ -171,7 +171,9 @@ export function DiscoverCard({
         data-city={city}
         data-matched={matched}
         className={cn(
-          "relative truncate rounded-full px-2.5 py-0.5 text-2xs font-semibold tracking-wide uppercase group-hover/chip:underline",
+          "relative truncate rounded-full px-2.5 py-0.5 font-semibold tracking-wide uppercase group-hover/chip:underline",
+          // The front door's sea keeps its micro-label size; the app's floor is 12px (KI-2026-10-05-i).
+          sea !== null ? "text-2xs" : "text-xs",
           matched ? "bg-brand-tint text-brand-pressed" : "border border-hairline bg-surface text-slate",
           // Off the sea, a block that may shrink, so one name too long for
           // its `FitRow` ends in an ellipsis inside its link.
@@ -212,7 +214,7 @@ export function DiscoverCard({
         title={hidden.join(", ")}
         aria-hidden
         data-testid="city-chips-more"
-        className="rounded-full border border-hairline bg-surface px-2.5 py-0.5 text-2xs font-semibold tracking-wide whitespace-nowrap text-slate uppercase"
+        className="rounded-full border border-hairline bg-surface px-2.5 py-0.5 text-xs font-semibold tracking-wide whitespace-nowrap text-slate uppercase"
       >
         +{hidden.length} more
       </span>
@@ -429,7 +431,7 @@ export function DiscoverCard({
         >
           {day.preview.map((stop, i) => (
             <li key={i} className={cn("flex gap-2.5 text-sm", sea === null && "w-full")}>
-              <DataText size="xs" className="w-15.5 shrink-0 pt-0.5 text-2xs" data-testid="preview-time">
+              <DataText size="xs" className={cn("w-15.5 shrink-0 pt-0.5", sea !== null && "text-2xs")} data-testid="preview-time">
                 {/* The trailing space is the crawler's separator: the flex
                     gap leaves no character between time and title, so an
                     extracted snippet ran them together ("7:30 amSantarosa").

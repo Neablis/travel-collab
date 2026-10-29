@@ -44,7 +44,7 @@ export function ReviewRail({ summary }: { summary: ReviewSummary }) {
             className="flex items-center gap-2"
             aria-label={`${starsPhrase(bar.stars)}: ${bar.count}`}
           >
-            <DataText size="xs" className="w-4 text-2xs" aria-hidden>
+            <DataText size="xs" className="w-4" aria-hidden>
               {bar.stars}
             </DataText>
             <span aria-hidden className="h-1.5 flex-1 overflow-hidden rounded-full bg-moss">
@@ -54,7 +54,7 @@ export function ReviewRail({ summary }: { summary: ReviewSummary }) {
                 style={{ width: `${bar.widthPct}%` }}
               />
             </span>
-            <DataText size="xs" className="w-6 text-right text-2xs" aria-hidden>
+            <DataText size="xs" className="w-6 text-right" aria-hidden>
               {bar.count}
             </DataText>
           </li>
