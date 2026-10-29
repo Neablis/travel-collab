@@ -473,10 +473,19 @@ Same spirit as the domain purity wall (`docs/guidelines/quality-enforcement.md`)
 3. **Raw elements banned outside `ui/`** (list above) — ESLint
    `no-restricted-syntax` on JSX element names.
 4. **No arbitrary Tailwind values** (`[13px]`, `[#hex]`) — lint.
-5. **Nothing under the 12px floor outside the front door** (2026-10-29,
+5. **No new size under the 12px floor outside the front door** (2026-10-29,
    KI-2026-10-05-i) — `scripts/check-type-floor.mjs`, in `pnpm lint`. It fails
-   on `text-2xs` or `text-3xs` in a class string anywhere in `apps/web/src`
-   but `app/(front)/**`, `components/front/**`, the invite landing and
-   `DiscoverCard` (the sea draws it; its micro sizes are on the sea's branch
-   only), each named in the script. Use `text-xs`, or a primitive that
-   carries it (`Badge`, `DataText size="xs"`).
+   anywhere in `apps/web/src` on `text-2xs`/`text-3xs` in a string, on their
+   custom property however it is read (`var(--text-2xs)`,
+   `text-(length:--text-2xs)`), and on an inline `fontSize` under 12px. Use
+   `text-xs`, or a primitive that carries it (`Badge`, `DataText size="xs"`).
+   Exceptions, each named in the script:
+   - the front door: `app/(front)/**`, `components/front/**` and the invite
+     landing;
+   - `DiscoverCard`, which the sea draws too: its micro sizes only on the sea's
+     branch (`sea !== null`), checked by the expression, not the file;
+   - **still under the floor in the app, grandfathered:** the inline 10-11.5px
+     handoff labels in `AccountMenu`, `CalendarLens`, `MapDayStrip`, `MapLens`,
+     `MapRail`, `DayChips` and `UnscheduledRack` (15 in all), and the
+     `var(--text-2xs)` rules for the notebook's widget tables in `globals.css`,
+     which the wall does not read. Those lists only shrink.

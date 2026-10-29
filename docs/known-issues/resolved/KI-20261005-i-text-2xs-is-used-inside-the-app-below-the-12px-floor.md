@@ -79,6 +79,12 @@
     `TYPE FLOOR WALL BREACHED: 1 use(s)`); against `origin/main`'s tree it reports all 37. Its
     test (`scripts/__tests__/check-type-floor.test.mjs`) seen red by dropping the invite landing
     from the allowlist. `design-system.md`, Enforcement item 5.
+  - **PR 633 review.** The wall now also catches the custom property (`var(--text-2xs)`,
+    `text-(length:--text-2xs)`) and inline `fontSize` under 12px, and holds `DiscoverCard` to its
+    `sea !== null` branch rather than exempting the file. That found more in-app sizes under the
+    floor: `Preview`'s 10px chip and `MapLegend`'s 11px text moved to `text-xs`; 15 inline
+    handoff labels in seven map, calendar, chip and rack files are named in the wall as
+    grandfathered (design-system.md, Enforcement 5), since 12px there needs a layout walk.
   - **Proof of layout.** Unit tests of the 14 touched components that have them: 439 passed.
     `m37-playbook-cover` (chips on a 390px card), `m42-demo-trips` (screenshots), `m14`,
     `responsive` and the other specs run with them on the built app: 126 passed.

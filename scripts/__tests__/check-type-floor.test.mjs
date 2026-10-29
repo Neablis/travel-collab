@@ -51,3 +51,41 @@ test("passes the front door, the invite landing, comments, other tokens and test
   assert.equal(status, 0, stderr);
   assert.match(stdout, /type floor wall OK \(5 files scanned\)/);
 });
+
+// The same sizes by other routes (PR 633 review): the custom property, read
+// through `var()` or Tailwind's `text-(length:…)`, and an inline font size.
+test("fails on the token's custom property and on an inline size under 12px", () => {
+  const { status, stderr } = runWall({
+    "components/ui/A.tsx": 'export const A = () => <i className="text-(length:--text-2xs)" />;\n',
+    "components/ui/B.tsx": 'export const B = { fontSize: "var(--text-3xs)" };\n',
+    "components/ui/C.tsx": 'export const C = () => <i style={{ fontSize: "10px" }} />;\n',
+    "components/ui/D.tsx": "export const D = { fontSize: 11 };\n",
+    "components/ui/E.tsx": 'export const E = { fontSize: "12px", lineHeight: "10px" };\n',
+  });
+  assert.equal(status, 1);
+  assert.match(stderr, /A\.tsx:1: --text-2xs/);
+  assert.match(stderr, /B\.tsx:1: --text-3xs/);
+  assert.match(stderr, /C\.tsx:1: fontSize 10px/);
+  assert.match(stderr, /D\.tsx:1: fontSize 11px/);
+  assert.doesNotMatch(stderr, /E\.tsx/);
+  assert.match(stderr, /TYPE FLOOR WALL BREACHED: 4 use\(s\)/);
+});
+
+// `DiscoverCard` is drawn by the front door's sea too, and only its sea branch
+// may go under the floor: a size outside `sea !== null` fails like any other.
+test("allows DiscoverCard its sizes on the sea's branch only", () => {
+  const { status, stderr } = runWall({
+    "components/playbooks/DiscoverCard.tsx": [
+      'export const A = (sea: unknown) => cn("px-2", sea !== null ? "text-2xs" : "text-xs");',
+      'export const B = (sea: unknown) => cn("w-15", sea !== null && "text-2xs");',
+      'export const C = (sea: unknown) => (sea !== null ? <li className="text-2xs" /> : null);',
+      'export const D = () => <span className="text-2xs" />;',
+      'export const E = (sea: unknown) => (sea !== null ? null : <li className="text-2xs" />);',
+      "",
+    ].join("\n"),
+  });
+  assert.equal(status, 1);
+  assert.match(stderr, /DiscoverCard\.tsx:4: text-2xs/);
+  assert.match(stderr, /DiscoverCard\.tsx:5: text-2xs/);
+  assert.match(stderr, /TYPE FLOOR WALL BREACHED: 2 use\(s\)/);
+});

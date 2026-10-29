@@ -97,7 +97,10 @@ export function Preview({
           sized off the chip,
           not guessed: `top-1.5` (6px) + the chip's measured 18.5px height =
           24.5px, so 28px clears it with 3.5px to spare — `pt-6` (24px)
-          would still have left a half-pixel of overlap. `pt-*` is emitted
+          would still have left a half-pixel of overlap. (Measured at the
+          chip's old 10px; at `text-xs`, the 12px floor since KI-2026-10-05-i,
+          it is 12 × 1.35 + 4 ≈ 20.2px tall, 26.2px with its inset, which 28px
+          still clears.) `pt-*` is emitted
           after the `p-*` shorthand in Tailwind's compiled stylesheet, so it
           wins over a caller's own padding (e.g. NewTripWizard's `p-1.5`)
           for the top edge only — the same cascade-order fact the `relative`
@@ -112,8 +115,7 @@ export function Preview({
           what `getByText(/Preview/)` finds in tests. */}
       {size === "container" ? (
         <span
-          className="absolute right-1.5 top-1.5 max-w-full truncate rounded-full bg-ink/80 px-2 py-0.5 font-mono uppercase tracking-wide text-surface"
-          style={{ fontSize: "10px" }}
+          className="absolute right-1.5 top-1.5 max-w-full truncate rounded-full bg-ink/80 px-2 py-0.5 font-mono text-xs uppercase tracking-wide text-surface"
         >
           Preview · {milestone}
         </span>
