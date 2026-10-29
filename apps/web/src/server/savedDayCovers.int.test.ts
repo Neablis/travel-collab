@@ -19,6 +19,7 @@ import {
   setSavedDayCoverFromUrl,
   setSavedDayCoverPosition,
 } from "./savedDayCovers";
+import { discoverDays } from "./playbooks";
 import { storeSavedDay } from "./savedDays";
 
 const OWNER = `url-cover-owner-${randomUUID().slice(0, 8)}`;
@@ -174,6 +175,23 @@ describe("setSavedDayCoverFromUrl", () => {
     });
     const moved = await setSavedDayCoverFromUrl(savedDayId, { url, position: 20 }, OWNER, { fetchImage });
     expect(moved).toMatchObject({ position: 20, alt: null, credit: null });
+  });
+});
+
+// Mitchell, 2026-10-29: a URL cover showed on the day's own page and not on
+// its Discover card. Discover reads with a raw `db.execute`, which never runs
+// `coverJson`'s `mapWith`, so the card's cover came back with no `proxySrc`.
+describe("a URL cover on a Discover card", () => {
+  it("carries the signed path the day's own read does", async () => {
+    const savedDayId = await seedDay();
+    const url = "https://cdn.example.com/harbour.png";
+    const stored = await setSavedDayCoverFromUrl(savedDayId, { url }, OWNER, { fetchImage });
+    if (stored.source !== "url") throw new Error("expected a URL cover");
+    const { days } = await discoverDays({
+      cities: [], scope: "yours", sort: "newest", budget: "any", length: "any", readerId: OWNER,
+    });
+    const card = days.find((d) => d.savedDayId === savedDayId);
+    expect(card?.cover).toMatchObject({ source: "url", url, proxySrc: stored.proxySrc });
   });
 });
 
