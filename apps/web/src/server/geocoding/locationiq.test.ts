@@ -252,4 +252,32 @@ describe("LocationIQ geocoder adapter", () => {
     );
     await expect(createLocationIQGeocoder("K").forward("zzzz")).resolves.toEqual([]);
   });
+
+  it("reverse: asks for the point and normalizes its one row", async () => {
+    const fetchMock = vi.fn(async (_input: string | URL | Request) =>
+      new Response(
+        JSON.stringify({
+          lat: "42.4430",
+          lon: "-76.5124",
+          display_name: "Deep Dive, West State Street, Ithaca, Tompkins County, New York, 14850, USA",
+          address: { country_code: "us", city: "Ithaca" },
+        }),
+        { status: 200 },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await createLocationIQGeocoder("KEY123").reverse!({ lat: 42.443083, lng: -76.512429 });
+    expect(result).toMatchObject({ countryCode: "US", city: "Ithaca" });
+    const url = new URL(fetchMock.mock.calls[0]![0] as string);
+    expect(url.pathname).toBe("/v1/reverse");
+    expect(url.searchParams.get("lat")).toBe("42.443083");
+    expect(url.searchParams.get("lon")).toBe("-76.512429");
+  });
+
+  it("reverse: nothing at the point is null, not an error", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ error: "Unable to geocode" }), { status: 404 })));
+    await expect(createLocationIQGeocoder("KEY123").reverse!({ lat: 0, lng: -30 })).resolves.toBeNull();
+  });
 });
+

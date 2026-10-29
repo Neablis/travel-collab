@@ -69,7 +69,9 @@ describe("resolveStopLocation", () => {
     const r = await resolveStopLocation({ name: "Fushimi Inari", countryCode: "JP" }, { userId: "u1", region }, d);
     expect(r.outcome).toBe("name");
     expect(d.g.forward).toHaveBeenCalledWith("Fushimi Inari", { limit: 1, viewbox: region, countryCode: "JP" });
-    expect(r.location.countryCode).toBe("JP"); // the caller's value wins over the vendor's
+    // The matched point's country, not the caller's: a stop's country is where
+    // it is. (A real lookup filtered to JP cannot answer DE; the stub can.)
+    expect(r.location.countryCode).toBe("DE");
   });
 
   it("a name with no country of its own is restricted to the trip's countries; one with a country is not", async () => {
@@ -147,5 +149,86 @@ describe("resolveStopLocation", () => {
       location: { name: "X" },
       outcome: "unavailable",
     });
+  });
+});
+
+// The Finger Lakes trip (2026-10-03): correct New York pins stored with
+// `countryCode: "JP"`, so every card read "Ithaca, Japan". The pins here are
+// real, so the offline borders (`countryAtPoint`) answer for them as they would
+// in production; only LocationIQ is stubbed.
+describe("resolveStopLocation: a stop's country is the country at its own pin", () => {
+  const DEEP_DIVE = { name: "Deep Dive", lat: 42.443083, lng: -76.512429, city: "Ithaca", countryCode: "JP" };
+  const ITHACA = { lat: 42.4431, lng: -76.5124, canonicalName: "Deep Dive, Ithaca, New York, USA", countryCode: "US", city: "Ithaca" };
+  // Mid-Atlantic, past every coastal water the offline borders reach.
+  const AT_SEA = { name: "Ferry", lat: 40, lng: -40, countryCode: "PT" };
+  // Japan is already on the trip: what the trip holds must not excuse a wrong country.
+  const trip = { userId: "u1", region: null, countries: ["JP", "US"] };
+
+  it("a country the point is not in is replaced by the point's own, even one the trip already holds", async () => {
+    const d = deps({ reverse: vi.fn(async () => ITHACA) });
+    const r = await resolveStopLocation(DEEP_DIVE, trip, d);
+    expect(r).toEqual({ location: { ...DEEP_DIVE, countryCode: "US" }, outcome: "provided" });
+    expect(d.g.reverse).toHaveBeenCalledWith({ lat: 42.443083, lng: -76.512429 });
+    expect(d.charge).toHaveBeenCalledWith("u1");
+  });
+
+  // The allowance this module protects: a write whose country is already right,
+  // or that sent none, costs no LocationIQ lookup.
+  it("a country the point is in, or none at all, is settled offline and spends nothing", async () => {
+    const d = deps({ reverse: vi.fn(async () => ITHACA) });
+    const right = { ...DEEP_DIVE, countryCode: "US" };
+    expect((await resolveStopLocation(right, trip, d)).location).toEqual(right);
+
+    const bare = { name: DEEP_DIVE.name, lat: DEEP_DIVE.lat, lng: DEEP_DIVE.lng, city: DEEP_DIVE.city };
+    expect((await resolveStopLocation(bare, trip, d)).location).toEqual({ ...bare, countryCode: "US" });
+
+    expect(d.g.reverse).not.toHaveBeenCalled();
+    expect(d.charge).not.toHaveBeenCalled();
+  });
+
+  // The bundled borders are simplified, so on a disagreement the vendor decides,
+  // and may side with the caller (a pin a few metres over a border).
+  it("on a disagreement LocationIQ decides, and can keep the caller's country", async () => {
+    const claimed = { ...DEEP_DIVE, countryCode: "CA" };
+    const d = deps({ reverse: vi.fn(async () => ({ ...ITHACA, countryCode: "CA" })) });
+    expect((await resolveStopLocation(claimed, trip, d)).location).toEqual(claimed);
+    expect(d.g.reverse).toHaveBeenCalledTimes(1);
+  });
+
+  it("an address's country is the caller's text and is never checked", async () => {
+    const d = deps({ reverse: vi.fn(async () => ITHACA) });
+    const input = { ...DEEP_DIVE, address: { countryCode: "JP" as const, lines: ["1-2-3 Nishi-Azabu"] } };
+    const r = await resolveStopLocation(input, trip, d);
+    expect(r.location).toEqual(input);
+    expect(d.g.reverse).not.toHaveBeenCalled();
+    expect(d.charge).not.toHaveBeenCalled();
+  });
+
+  it("when LocationIQ can't answer a disagreement, the offline country wins over the caller's", async () => {
+    const refused = deps({ reverse: vi.fn(async () => ITHACA) }, { allowed: false, reason: "user", retryAfterSeconds: 60 });
+    expect((await resolveStopLocation(DEEP_DIVE, trip, refused)).location.countryCode).toBe("US");
+    expect(refused.g.reverse).not.toHaveBeenCalled();
+
+    const failing = deps({
+      reverse: vi.fn(async () => {
+        throw new Error("reverse geocode failed: 500");
+      }),
+    });
+    expect((await resolveStopLocation(DEEP_DIVE, trip, failing)).location.countryCode).toBe("US");
+
+    const noReverse = deps();
+    expect((await resolveStopLocation(DEEP_DIVE, trip, noReverse)).location.countryCode).toBe("US");
+    expect(noReverse.charge).not.toHaveBeenCalled();
+  });
+
+  it("a pin outside every bundled border asks LocationIQ, and keeps the caller's country when it can't say", async () => {
+    const answered = deps({ reverse: vi.fn(async () => ({ ...ITHACA, countryCode: "CV" })) });
+    expect((await resolveStopLocation(AT_SEA, trip, answered)).location.countryCode).toBe("CV");
+    expect(answered.charge).toHaveBeenCalledWith("u1");
+
+    const sea = deps({ reverse: vi.fn(async () => null) });
+    expect(await resolveStopLocation(AT_SEA, trip, sea)).toEqual({ location: AT_SEA, outcome: "provided" });
+    const refused = deps({ reverse: vi.fn(async () => ITHACA) }, { allowed: false, reason: "global", retryAfterSeconds: 60 });
+    expect((await resolveStopLocation(AT_SEA, trip, refused)).location).toEqual(AT_SEA);
   });
 });
