@@ -45,15 +45,17 @@ const SEA_BRANCH = { file: "components/playbooks/DiscoverCard.tsx", condition: "
 // eslint-disable citing `dc.html`, on tight surfaces (the map's rail and strip,
 // the day chips, the calendar's cells, the rack) where 12px needs a layout
 // walk this wall did not do (KI-2026-10-29-a). Their classes are still checked here; a new
-// inline size anywhere else fails. Taking a file off the list is the fix.
-const GRANDFATHERED_INLINE = new Set([
-  "components/AccountMenu.tsx",
-  "components/lenses/CalendarLens.tsx",
-  "components/lenses/MapDayStrip.tsx",
-  "components/lenses/MapLens.tsx",
-  "components/lenses/MapRail.tsx",
-  "components/trip/DayChips.tsx",
-  "components/trip/UnscheduledRack.tsx",
+// inline size anywhere else fails, and so does one more in a listed file: each
+// is allowed only the count it had. Lowering a count, or taking a file off the
+// list, is the fix.
+const GRANDFATHERED_INLINE = new Map([
+  ["components/AccountMenu.tsx", 1],
+  ["components/lenses/CalendarLens.tsx", 4],
+  ["components/lenses/MapDayStrip.tsx", 1],
+  ["components/lenses/MapLens.tsx", 1],
+  ["components/lenses/MapRail.tsx", 4],
+  ["components/trip/DayChips.tsx", 2],
+  ["components/trip/UnscheduledRack.tsx", 2],
 ]);
 
 const CLASS = /(?<![\w-])text-(2xs|3xs)(?![\w-])/g;
@@ -95,8 +97,9 @@ function scan(fileName, where, source) {
   const kind = fileName.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS;
   const file = ts.createSourceFile(fileName, source, ts.ScriptTarget.Latest, true, kind);
   const seaOnly = where === SEA_BRANCH.file;
-  const inlineAllowed = GRANDFATHERED_INLINE.has(where);
+  const inlineAllowed = GRANDFATHERED_INLINE.get(where) ?? 0;
   const hits = [];
+  const inline = [];
   const lineOf = (node) => file.getLineAndCharacterOfPosition(node.getStart(file)).line + 1;
   const visit = (node) => {
     if (
@@ -113,13 +116,19 @@ function scan(fileName, where, source) {
       }
     }
     const named = (ts.isPropertyAssignment(node) || ts.isJsxAttribute(node)) && node.name.getText(file).replace(/["']/g, "") === "fontSize";
-    if (named && !inlineAllowed) {
+    if (named) {
       const px = inlinePx(node.initializer);
-      if (px !== null && px < FLOOR_PX) hits.push({ line: lineOf(node), token: `fontSize ${px}px` });
+      if (px !== null && px < FLOOR_PX) inline.push({ line: lineOf(node), token: `fontSize ${px}px` });
     }
     ts.forEachChild(node, visit);
   };
   visit(file);
+  // A grandfathered file passes while it holds no more inline sizes than its
+  // count; one more names them all, since the new one cannot be told apart.
+  if (inline.length > inlineAllowed) {
+    const over = inlineAllowed > 0 ? ` (${inline.length} here, ${inlineAllowed} grandfathered)` : "";
+    hits.push(...inline.map((hit) => ({ ...hit, token: hit.token + over })));
+  }
   return hits;
 }
 

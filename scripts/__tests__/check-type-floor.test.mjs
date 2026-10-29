@@ -89,3 +89,16 @@ test("allows DiscoverCard its sizes on the sea's branch only", () => {
   assert.match(stderr, /DiscoverCard\.tsx:5: text-2xs/);
   assert.match(stderr, /TYPE FLOOR WALL BREACHED: 2 use\(s\)/);
 });
+
+// A grandfathered file keeps only the inline sizes it had (KI-2026-10-29-a):
+// one more fails, naming them all, and so the list can only shrink (PR 633
+// review: the list exempted whole files before).
+test("holds a grandfathered file to its count of inline sizes", () => {
+  const atCount = runWall({ "components/AccountMenu.tsx": 'export const A = { fontSize: "11px" };\n' });
+  assert.equal(atCount.status, 0, atCount.stderr);
+  const over = runWall({
+    "components/AccountMenu.tsx": 'export const A = { fontSize: "11px" };\nexport const B = { fontSize: 9 };\n',
+  });
+  assert.equal(over.status, 1);
+  assert.match(over.stderr, /AccountMenu\.tsx:2: fontSize 9px \(2 here, 1 grandfathered\)/);
+});
