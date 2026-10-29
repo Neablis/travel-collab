@@ -22,3 +22,19 @@
   cause can be read without the log.
 - **Cross-reference:** KI-2026-10-11-c; KI-2026-10-13-e; PR 433.
 - **First noted:** 2026-10-13, during M46 part 1's review.
+- **In-repo half done (2026-10-28, KI sweep):** `test / unit` already wrote its failure lines to
+  the step summary and one `::error`; that block is now `scripts/ci-failure-summary.sh`, and
+  `test / scripts` (node:test, which has no annotating reporter) and `test / integration` run
+  through it too. `apps/web/vitest.config.ts` (the integration lane) now adds vitest's
+  `github-actions` reporter when `GITHUB_ACTIONS=true`, as `vitest.unit.config.ts` does, so each
+  failed integration test is annotated with its name, line and first error. Proven locally: a
+  scratch failing `*.int.test.ts` under `GITHUB_ACTIONS=true` printed
+  `::error file=…,title=src/zz-ki-scratch.int.test.ts > scratch%3A a red integration test names itself,line=4,…::AssertionError: expected 2 to be 3`
+  and, against `main`'s config, no `::error` line at all; a failing node:test file through the
+  wrapper gave `::error title=test / scripts exited 1::✖ the journal wall rejects a renumber …
+  AssertionError [ERR_ASSERTION]: …`. Not yet seen on a real red CI run.
+- **Still open because:** the log hosts (`*.blob.core.windows.net`,
+  `results-receiver.actions.githubusercontent.com`) are still refused by the session's network
+  policy, which is not repo code. The e2e jobs and `static /` jobs are not wrapped: e2e already
+  uses Playwright's `github` reporter, and typecheck/lint are annotated by setup-node's problem
+  matchers.

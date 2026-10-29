@@ -44,6 +44,16 @@ failure as if it were a defect is what cost the day.
 
 Full story: **KI-27** in `docs/known-issues/`, including both recurrences.
 
+**Node's heap here is about 2 GB, and the production build needs more.** Node sizes
+its default heap from the container's memory, which comes to about 2.3 GB in these
+sessions. `next build` dies in its TypeScript step with `JavaScript heap out of memory`
+(measured 2026-10-28; it passes with 8 GB). So `test:e2e:ci-like` gives its build
+`--max-old-space-size=8192`. A `NODE_OPTIONS` you set yourself still applies, after
+that flag, so your own `--max-old-space-size` wins. CI never runs that script: its e2e job
+calls `pnpm --filter web build` directly. Anything else heavy you run by hand needs the
+same flag: `NODE_OPTIONS=--max-old-space-size=8192 pnpm --filter web build`, and the same
+for `pnpm --filter web typecheck` (KI-2026-10-27-f).
+
 ## Postgres
 
 A native cluster on **5433**, started and migrated by

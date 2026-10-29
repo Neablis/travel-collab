@@ -41,6 +41,9 @@ export default defineConfig({
     // And one pinned fast-check seed, as in the unit lane: quota.int.test.ts's
     // floors count branches only some cases reach (KI-2026-10-14-c).
     setupFiles: ["./src/test-support/networkGuard.setup.ts", "./src/test-support/fastCheckSeed.setup.ts"],
-    reporters: ["dot"],
+    // `github-actions` in CI, as in vitest.unit.config.ts: naming a reporter
+    // drops the implicit one, and without it a red integration run left only
+    // "exit code 1", which a cloud session cannot read past (KI-2026-10-13-f).
+    reporters: process.env.GITHUB_ACTIONS === "true" ? ["dot", "github-actions"] : ["dot"],
   },
 });

@@ -15,7 +15,7 @@ export function buildSteps(environment) {
         "[vercel-build-migrate] REFUSING to migrate: PREVIEW_DB_IS_DISPOSABLE is not " +
         `"true" (got ${JSON.stringify(environment.PREVIEW_DB_IS_DISPOSABLE ?? null)}).\n` +
         "\n" +
-        "This build would run drizzle-kit migrate against whatever DATABASE_URL it\n" +
+        "This build would run the migrations against whatever DATABASE_URL it\n" +
         "was given, and nothing here can prove that is a disposable preview branch.\n" +
         "\n" +
         "To fix: point the Preview scope's DATABASE_URL at a preview branch, then set\n" +
@@ -25,7 +25,9 @@ export function buildSteps(environment) {
   }
   return {
     run: [
-      "pnpm drizzle-kit migrate",
+      // Not `pnpm drizzle-kit migrate`: its spinner hid the Postgres error,
+      // and it cannot tell a renumbered migration (KI-2026-10-17-c).
+      "node scripts/preview-migrate.mjs",
       // --lock: every open PR's preview imports into this one database.
       "node --import ./scripts/lib/ts-resolve-register.mjs scripts/import-content-production.ts --lock",
     ],

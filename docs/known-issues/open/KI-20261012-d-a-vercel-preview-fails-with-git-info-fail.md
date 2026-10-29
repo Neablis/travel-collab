@@ -19,3 +19,17 @@
   request once on `git_info_fail`.
 - **Cross-reference:** `.claude/skills/review-a-part/SKILL.md` step 6 (where the preview URL goes).
 - **First noted:** 2026-10-12, M45.
+- **Fix direction implemented, not yet run (2026-10-28, KI sweep):** `vercel-preview.yml` now
+  polls the deployment it created (`GET /v13/deployments/<id>`, every 5 s for up to ~2 min)
+  until it is BUILDING or later. If it went to ERROR with `git_info_fail` (in `errorCode` or
+  `errorMessage`), it asks for the deployment once more and polls that one; a second
+  `git_info_fail`, or any other error before building, fails the job with an `::error` naming
+  the deployment, where it used to stay green. The job's timeout went from 5 to 8 minutes.
+  Checked only offline: the YAML parses, the step's script passes `bash -n`, and run under
+  `bash -eo pipefail` with a fake `curl` it retried once and passed (first `git_info_fail`,
+  then BUILDING), failed after two `git_info_fail`s, failed on another pre-build error, and
+  passed straight through on QUEUED → BUILDING. **Not executed against Vercel** (no token
+  here, and a request is an outward action).
+- **Still open because:** the polling and the retry have never met the real API. Resolve this
+  after a labelled PR's preview run goes green through the new step, and note the first real
+  `git_info_fail` retry when one happens.
