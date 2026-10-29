@@ -59,8 +59,7 @@ confirmed fixed"*). Evidence, retro and spend are in
 
 **Next action:** Mitchell merges M55's part 0 (PR 613, ready for review). Then M43 is current
 (`docs/milestones/M43-notebooks-keep-up.md`, not scoped). Open follow-ups from M55:
-KI-2026-10-27-e to -i, KI-2026-10-28-b (an MCP tool that throws is not logged and leaks its
-message) and -c (a stranger can tell a broken trip from a missing one), and the candidate *Claude
+KI-2026-10-27-e to -i (KI-2026-10-28-b and -c are resolved by PR 632), and the candidate *Claude
 can search for a cover photo* in `docs/candidates.md`. KI-2026-10-25-w's fix is PR 627, outside
 M55.
 Open follow-ups from M54: KI-20261027-a to -d, KI-20261026-t, -u,

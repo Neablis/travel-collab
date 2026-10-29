@@ -37,3 +37,22 @@
   `server/access`, `server/mcp`, `server/public-api`, `server/snapshots`, `server/suggestions`,
   `server/projections`, `app/api/v1`, `app/api/mcp`, `app/api/trips` and `app/api/invites` passes.
   **Resolved:** 2026-10-28.
+- **The duplicate route, found in PR 632's review:** `duplicateTrip` (`cloneTrip.ts`) read the
+  source with `getTripDetail` before its own membership check, so `POST /api/trips/:id/duplicate`
+  answered a stranger 404 (missing), 403 (healthy) and an unhandled ZodError (broken). It now asks
+  `tripAccessFor(actor, id, "viewer")` first and maps each denial; the route answers
+  `malformed-trip` 500, to a member only. Red first in `trip-access.int.test.ts` (*duplicating a
+  trip whose stored doc will not parse*): the unfixed route threw `ZodError: … "path": [ "name" ]
+  … "Invalid input: expected string, received number"`. Now the stranger's answer to the broken
+  trip equals the healthy one's (403, same body), and the owner gets 500.
+- **The per-member parse, tested (PR 632 review):** a doc with `members: [null, { userId: 42,
+  role: "boss" }, <the owner>]` gives the stranger 403 and the owner 500. Seen red with
+  `getStoredTripMembers` reduced to `listed as TripMember[]`: `TypeError: Cannot read properties
+  of null (reading 'userId')`. A doc with no `members` at all gives the owner 403, the documented
+  behaviour above; seen red (`expected 500 to be 403`) with `readTrip` forced to `malformed-trip`.
+- **Known edge, left (PR 632 review):** with the doc's `members` unreadable there is no owner to
+  bill, and `collaboratorsEntitled([])` answers entitled, so a granted editor on a LAPSED owner's
+  broken trip is not capped to viewer here and gets `malformed-trip` (500) from an editor endpoint
+  instead of 403. It is a member either way and could learn the trip is broken from a viewer read,
+  so it reveals nothing; fixing it would mean a different owner source for the cap (the
+  `TripCreated` actor), outside this entry.

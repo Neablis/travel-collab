@@ -35,6 +35,7 @@ const { GET: GET_WEATHER } = await import("@/app/api/trips/[tripId]/weather/rout
 const { GET: GET_PAGE } = await import("@/app/api/trips/[tripId]/pages/[pageId]/route");
 const { POST: POST_COMMAND } = await import("@/app/api/trips/[tripId]/commands/route");
 const { POST: POST_BATCH } = await import("@/app/api/trips/[tripId]/commands/batch/route");
+const { POST: POST_DUPLICATE } = await import("@/app/api/trips/[tripId]/duplicate/route");
 
 // No DB truncation: every test seeds its own randomUUID() trip and reads back
 // through it — the convention the sibling route int tests use.
@@ -73,6 +74,26 @@ async function ageDocToPreM18(tripId: string): Promise<void> {
     // test: what is stored has never been parsed.
     .set({ doc: doc as unknown as TripDetail })
     .where(eq(tripDetails.tripId, tripId));
+}
+
+/** Rewrite the stored doc so it no longer parses (KI-2026-10-28-c). */
+async function breakStoredDoc(
+  tripId: string,
+  change: (doc: Record<string, unknown>) => Record<string, unknown>,
+): Promise<void> {
+  const [row] = await db.select().from(tripDetails).where(eq(tripDetails.tripId, tripId));
+  await db
+    .update(tripDetails)
+    .set({ doc: change(row!.doc as unknown as Record<string, unknown>) as unknown as TripDetail })
+    .where(eq(tripDetails.tripId, tripId));
+}
+
+/** The status `requireTripAccess` refuses `userId` a viewer read of a trip with. */
+async function readStatusFor(tripId: string, userId: string): Promise<number> {
+  currentUserId = userId;
+  const access = await requireTripAccess(tripId, "viewer");
+  if (!("error" in access)) throw new Error(`${userId} should not have read a malformed trip`);
+  return access.error.status;
 }
 
 // **M20 link 6: this suite's trip owner has to be able to collaborate.**
@@ -137,22 +158,44 @@ describe("requireTripAccess", () => {
     const { tripId } = await seedDay();
     const member = `trip-access-member-${randomUUID().slice(0, 8)}`;
     await grantMembership(db, { tripId, userId: member, role: "viewer", invitedBy: OWNER, now: new Date().toISOString() });
-    const [row] = await db.select().from(tripDetails).where(eq(tripDetails.tripId, tripId));
-    await db
-      .update(tripDetails)
-      .set({ doc: { ...row!.doc, name: 7 } as unknown as TripDetail })
-      .where(eq(tripDetails.tripId, tripId));
+    await breakStoredDoc(tripId, (doc) => ({ ...doc, name: 7 }));
     const errors = vi.spyOn(console, "error").mockImplementation(() => {});
     try {
-      const statusFor = async (userId: string) => {
-        currentUserId = userId;
-        const access = await requireTripAccess(tripId, "viewer");
-        if (!("error" in access)) throw new Error(`${userId} should not have read a malformed trip`);
-        return access.error.status;
-      };
-      expect(await statusFor(STRANGER)).toBe(403);
-      expect(await statusFor(OWNER)).toBe(500);
-      expect(await statusFor(member)).toBe(500);
+      expect(await readStatusFor(tripId, STRANGER)).toBe(403);
+      expect(await readStatusFor(tripId, OWNER)).toBe(500);
+      expect(await readStatusFor(tripId, member)).toBe(500);
+    } finally {
+      errors.mockRestore();
+    }
+  });
+
+  // The members of a broken doc are read entry by entry: one that is not a
+  // `TripMember` is dropped, never trusted or thrown on (a `null` read as a
+  // member is a TypeError, which is not the parse failure and leaves as a 500).
+  it("reads a broken doc's members entry by entry, keeping only the valid ones", async () => {
+    const { tripId } = await seedDay();
+    await breakStoredDoc(tripId, (doc) => ({
+      ...doc,
+      name: 7,
+      members: [null, { userId: 42, role: "boss" }, { userId: OWNER, role: "owner" }],
+    }));
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      expect(await readStatusFor(tripId, STRANGER)).toBe(403);
+      expect(await readStatusFor(tripId, OWNER)).toBe(500);
+    } finally {
+      errors.mockRestore();
+    }
+  });
+
+  // With no readable member list nobody can be shown to be the log's owner, so
+  // the owner is answered as anyone else is: told nothing (the safe direction).
+  it("403s even the owner of a broken doc whose member list is missing", async () => {
+    const { tripId } = await seedDay();
+    await breakStoredDoc(tripId, (doc) => ({ ...doc, name: 7, members: undefined }));
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      expect(await readStatusFor(tripId, OWNER)).toBe(403);
     } finally {
       errors.mockRestore();
     }
@@ -201,6 +244,34 @@ describe("requireTripAccess", () => {
 // being typed `TripDetail` is not the guarantee it looks like — the raw
 // `trip_details.doc` was typed exactly that way for eight milestones and every
 // consumer inherited the lie. These are the callers the entry says it never had.
+// `POST /api/trips/:id/duplicate` read the source with `getTripDetail` before
+// its own membership check, so a stranger got 404 for a missing trip, 403 for a
+// healthy one and an unhandled throw for a broken one (KI-2026-10-28-c, PR 632).
+describe("duplicating a trip whose stored doc will not parse", () => {
+  const duplicate = (tripId: string) =>
+    POST_DUPLICATE(new Request(`http://localhost/api/trips/${tripId}/duplicate`, { method: "POST" }), {
+      params: Promise.resolve({ tripId }),
+    });
+
+  it("answers a stranger as for a healthy trip, and the owner that it is broken", async () => {
+    const { tripId: healthy } = await seedDay();
+    const { tripId: broken } = await seedDay();
+    await breakStoredDoc(broken, (doc) => ({ ...doc, name: 7 }));
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      currentUserId = STRANGER;
+      const toHealthy = await duplicate(healthy);
+      const toBroken = await duplicate(broken);
+      expect(toBroken.status).toBe(toHealthy.status);
+      expect(await toBroken.json()).toEqual(await toHealthy.json());
+      currentUserId = OWNER;
+      expect((await duplicate(broken)).status).toBe(500);
+    } finally {
+      errors.mockRestore();
+    }
+  });
+});
+
 describe("withEffectiveMembers", () => {
   it("supplies the contract's defaults for a doc written before the fields existed", async () => {
     const { tripId } = await seedDay();

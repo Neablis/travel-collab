@@ -14,6 +14,10 @@ import { createShare, revokeShare } from "./access/shares";
 
 const actor = "user-1";
 
+// Duplicate asks the access seam, whose module also holds the session wrapper;
+// the actor is passed in, so no session is read.
+vi.mock("./auth", () => ({ auth: vi.fn(async () => null) }));
+
 // **A pass-through, except when a test switches it on** (KI-2026-09-25-h), the
 // same seam `public-api/export.int.test.ts` uses. Switched on, projecting any
 // event other than a trip's genesis throws inside the transaction projecting

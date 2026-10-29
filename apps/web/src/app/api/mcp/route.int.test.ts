@@ -345,7 +345,7 @@ describe("POST /api/mcp when a tool's own code throws", () => {
       const reply = await callWhoami[revision]!(access);
       expect(JSON.stringify(reply)).not.toContain("oauth_grants_secret");
       expect(reply).toMatchObject({
-        result: { content: [{ type: "text", text: "Something went wrong on our side." }], isError: true },
+        result: { content: [{ type: "text", text: "Something went wrong. The failure has been logged. (server-error)" }], isError: true },
       });
       expect(error).toHaveBeenCalledWith("mcp tool threw", { tool: "whoami", error: expect.objectContaining({ message: LEAKED }) });
     } finally {

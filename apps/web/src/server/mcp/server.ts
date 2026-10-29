@@ -4,7 +4,7 @@ import {
   type Tool,
   UnsupportedProtocolVersionError,
 } from "@modelcontextprotocol/server";
-import { DECLARED } from "@/server/public-api/route";
+import { DECLARED, SERVER_FAILED } from "@/server/public-api/route";
 import { callTool, type McpCaller } from "./dispatch";
 import { inputSchemaFor } from "./schemas";
 import type { McpTool } from "./tools";
@@ -71,8 +71,12 @@ export function buildServer(tools: readonly McpTool[], caller: McpCaller): Serve
   return server;
 }
 
-/** What a tool call whose own code threw answers: nothing of the exception. */
-const TOOL_FAILED = "Something went wrong on our side.";
+/**
+ * What a tool call whose own code threw answers: nothing of the exception, in
+ * the words and code `dispatch.ts` answers a throwing re-check with, so a
+ * model branches on one `server-error`.
+ */
+const TOOL_FAILED = `${SERVER_FAILED} (server-error)`;
 
 /**
  * Log what the SDK reports. Reporting only: it has already answered the client

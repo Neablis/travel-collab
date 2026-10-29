@@ -39,6 +39,8 @@
 - **Fix (2026-10-28):** the intended one. `buildServer`'s `tools/call` handler in
   `apps/web/src/server/mcp/server.ts` wraps `callTool` in a `try` / `catch` that logs
   `console.error("mcp tool threw", { tool, error })`, with no input, and answers
-  `{ isError: true }` with "Something went wrong on our side." **Proof:** the same two tests pass
+  `{ isError: true }` with v1's own `SERVER_FAILED` words and code, "Something went wrong. The
+  failure has been logged. (server-error)", the text `dispatch.ts` already answers a throwing
+  re-check with (PR 632 review). **Proof:** the same two tests pass
   (`Tests 20 passed (20)` for the file), asserting the exact log call, the generic tool error,
   and that the thrown text is nowhere in the reply. **Resolved:** 2026-10-28.
