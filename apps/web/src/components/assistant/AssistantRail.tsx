@@ -1,7 +1,7 @@
 "use client";
 
 import * as RadixDialog from "@radix-ui/react-dialog";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -718,7 +718,14 @@ export function AssistantRail({
     if (onChat) (chatPanelRef.current?.querySelector<HTMLElement>("input") ?? chatPanelRef.current)?.focus();
     else composerRef.current?.focus();
   };
-  useEffect(() => {
+  // The three focus moves below run in layout effects, inside the commit that
+  // drew what they focus: a passive effect ran a scheduler task later, so a
+  // test reading focus as soon as the DOM showed the change could read it
+  // first (KI-2026-10-27-d). Only the timing moved: each keeps its PR 442
+  // guard, so a sheet's composer takes focus in no case it did not before,
+  // and ⌘K's commands still run from the palette's close, before the render
+  // whose commit runs these.
+  useLayoutEffect(() => {
     // Asked whatever the presentation, so a sheet's open is spent too.
     if (takeFocus?.() !== true || isSheet) return;
     focusOpenTab();
@@ -743,7 +750,7 @@ export function AssistantRail({
     if (tab !== chat?.tab) stripChose.current = true;
     chat?.onTabChange(tab);
   };
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (shownTab.current === openTab) return;
     shownTab.current = openTab;
     const fromStrip = stripChose.current;
@@ -761,7 +768,7 @@ export function AssistantRail({
   // to the composer, but only from the panel: focus the person has moved
   // since stays where they put it. Not in a sheet, for the PR 442 reason above.
   const chatReady = chat?.ready === true;
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!onChat || !chatReady || isSheet || document.activeElement !== chatPanelRef.current) return;
     focusOpenTab();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- when the read lands; `focusOpenTab` reads this render's
