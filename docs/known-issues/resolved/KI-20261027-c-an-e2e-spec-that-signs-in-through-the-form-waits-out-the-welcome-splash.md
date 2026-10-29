@@ -1,4 +1,4 @@
-### KI-2026-10-27-c — An e2e spec that signs in through the form waits out the ~1.6 s welcome splash, and nothing in the suite can switch it off
+### KI-2026-10-27-c — An e2e spec that signs in through the form waits out the ~1.6 s welcome splash, and nothing in the suite can switch it off — RESOLVED
 
 - **Severity:** cleanup (suite time, no user impact). About 1.2–1.6 s of real time per form
   sign-in, bounded at 5 s; never a failure unless the splash sticks.
@@ -39,3 +39,27 @@
   (PR 607).
 - **First noted:** 2026-10-26 at the gate tick on PR 593; answered and filed 2026-10-27 at the
   close.
+- **Fix (2026-10-28, KI sweep):** every context made through the worker's `browser.newContext` now drops the cue
+  before the page can read it: `e2e/fixtures/test.ts` adds an init script on each context that
+  clears `tc_welcome`, which runs before `LAUNCH_SCRIPT` and `LaunchOverlay` in every document. So
+  `signInAsDevUser`, `adminBootstrap`'s operator sign-in and the 27 direct *Sign in with dev login*
+  clicks all skip the splash with no edit of their own, and a new spec gets it by default. The
+  cookie is still set by the server exactly as for a person; there is no production switch.
+  `m54-welcome.spec.ts` opts back in with the new `keepWelcomeCue: true` option (read by an auto
+  fixture before `context`/`page` are made). The locator handler stays as the backstop.
+  Two contexts are outside it, harmlessly: `auth.setup.ts` (base `@playwright/test`, which never
+  shows the splash because it waits for *Your trips*) and `m39-installable.spec.ts`'s
+  `launchPersistentContext`.
+- **What this gives up:** before this fix, the 5 s handler in every signing-in spec would have
+  caught a splash that never leaves. Now `m54-welcome.spec.ts` is the only guard, and it signs in
+  only to `/home`. A splash that sticks only after a sign-in that lands elsewhere (an invite claim,
+  a slow-hydrating trip page) would stay green; if that case matters, give m54 a second landing.
+- **Proof:** with `keepWelcomeCue: true` taken out of `m54-welcome.spec.ts`, all 4 of its tests
+  failed at `expect(getByTestId('welcome-moment')).toBeVisible()`, `element(s) not found` (the
+  cue is dropped); restored, 4 of 4 pass (it is kept).
+- **Time saved, measured:** one fresh sign-in through `signInAsDevUser` and the first action after
+  it, 10 runs each at one worker against a production build: **2331 ms with the cue kept, 968 ms
+  dropped, 1.36 s saved per sign-in**. There are about 50 form sign-ins in the suite, so up to
+  about 70 s of worker time a full run (shared by the shards' workers, so less wall-clock). Over
+  13 spec files that sign in (38 tests, one worker), the summed test time went 122.9 s to
+  110.4 s (-12.4 s; noisy run to run).

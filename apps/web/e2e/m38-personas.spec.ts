@@ -47,11 +47,31 @@ function newcomer(prefix: string): string {
   return `${prefix}${randomUUID().replace(/-/g, "").slice(0, 12)}`;
 }
 
-/** Waits on the preferences PATCH a persona pick or a name commit sends. */
-function preferencesSaved(page: Page) {
-  return page.waitForResponse(
-    (r) => new URL(r.url()).pathname === "/api/account/preferences" && r.request().method() === "PATCH" && r.ok(),
-  );
+/** Far past the moment a pick or a commit sends its PATCH; well inside the test's 90s. */
+const PATCH_SENT_WITHIN_MS = 20_000;
+
+/**
+ * Waits on the preferences PATCH a persona pick or a name commit sends, and
+ * says which way it went wrong (KI-2026-10-26-y).
+ *
+ * It used to wait for an OK response and nothing else, so a PATCH never sent,
+ * one sent and never answered and one answered with an error all looked the
+ * same: a wait that ran out the test's whole 90s, once at :112 on PR 606's
+ * CI. Not reproduced here in 44 runs of 13s each, so the cause is still open;
+ * the next occurrence names it. Not sent fails here after 20s; not answered
+ * fails at `response()` on the test's clock; an error fails with its status.
+ */
+async function preferencesSaved(page: Page): Promise<void> {
+  const request = await page
+    .waitForRequest((r) => new URL(r.url()).pathname === "/api/account/preferences" && r.method() === "PATCH", {
+      timeout: PATCH_SENT_WITHIN_MS,
+    })
+    .catch((cause: unknown) => {
+      throw new Error(`no PATCH /api/account/preferences was sent within ${PATCH_SENT_WITHIN_MS}ms`, { cause });
+    });
+  const response = await request.response();
+  if (response === null) throw new Error(`PATCH /api/account/preferences got no answer: ${request.failure()?.errorText}`);
+  expect(response.ok(), `PATCH /api/account/preferences answered ${response.status()}: ${await response.text()}`).toBe(true);
 }
 
 /** Account → Profile: a display name, an avatar and a colour, each waited to the server. */
@@ -60,6 +80,8 @@ async function choosePersona(page: Page, persona: { name: string; avatar: string
   const nameField = page.getByLabel("Display name", { exact: true });
   await expect(nameField).toBeEnabled();
   await nameField.fill(persona.name);
+  // The name is what Enter commits: a field that lost it sends nothing.
+  await expect(nameField).toHaveValue(persona.name);
   await Promise.all([preferencesSaved(page), nameField.press("Enter")]);
   for (const [group, option] of [
     ["Avatar", persona.avatar],

@@ -355,35 +355,49 @@ test.describe("responsive (narrow viewport)", () => {
   // Only 360 is narrow enough to wrap, so unlike the card there is one width
   // worth asserting. The hero sits ABOVE the trip grid, so any height it
   // gains pushes every card and every menu anchored to one.
-  test("a long money figure cannot change the hero's height at 360px (KI-56)", async ({ page }) => {
-    const { tripId } = await page.request
-      .post("/api/trips", { data: { name: e2eTripName("Narrow hero") } })
-      .then((r) => r.json());
-    for (const command of commandsFor("threeDayTrip", tripId)) {
-      await page.request.post(`/api/trips/${tripId}/commands`, { data: command });
-    }
+  //
+  // **On an account of its own, and the grid inside `next-trip-hero` only**
+  // (KI-2026-10-28-a). Measured 3 failures in 20 on the shared account: twice
+  // `.hero-grid` resolved to two elements, because `home/loading.tsx` streams
+  // `NextTripHeroSkeleton` (the same class) first and Next's swap leaves both
+  // in the document for a moment; once the hero was another worker's trip,
+  // replaced by a newer one between the budget-line wait and the measurement,
+  // so the slot it read was the new hero's, still empty. One account, one
+  // trip, one hero: the next test's reasoning.
+  test.describe("on an account of its own", () => {
+    test.use({ storageState: { cookies: [], origins: [] } });
 
-    await page.setViewportSize({ width: 360, height: 900 });
-    await page.goto("/home");
-    const hero = page.locator(".hero-grid");
-    await expect(hero).toBeVisible();
-    await expect(hero.getByText(/planned of|No budget yet/)).toBeVisible();
+    test("a long money figure cannot change the hero's height at 360px (KI-56)", async ({ page }) => {
+      await signInAsDevUser(page, freshUsername());
+      const name = e2eTripName("Narrow hero");
+      const { tripId } = await page.request.post("/api/trips", { data: { name } }).then((r) => r.json());
+      for (const command of commandsFor("threeDayTrip", tripId)) {
+        await page.request.post(`/api/trips/${tripId}/commands`, { data: command });
+      }
 
-    const growth = await hero.evaluate((el) => {
-      const slot = el.querySelector('div[class*="min-h-"]');
-      const line = slot?.firstElementChild;
-      if (!line) return null;
-      const height = () => el.getBoundingClientRect().height;
-      const original = line.textContent;
-      const before = height();
-      line.textContent = "¥12,345,678 planned of ¥50,000,000";
-      const after = height();
-      line.textContent = original;
-      return after - before;
+      await page.setViewportSize({ width: 360, height: 900 });
+      await page.goto("/home");
+      const card = page.getByTestId("next-trip-hero");
+      await expect(card.getByRole("heading", { level: 2, name })).toBeVisible();
+      const hero = card.locator(".hero-grid");
+      await expect(hero.getByText(/planned of|No budget yet/)).toBeVisible();
+
+      const growth = await hero.evaluate((el) => {
+        const slot = el.querySelector('div[class*="min-h-"]');
+        const line = slot?.firstElementChild;
+        if (!line) return null;
+        const height = () => el.getBoundingClientRect().height;
+        const original = line.textContent;
+        const before = height();
+        line.textContent = "¥12,345,678 planned of ¥50,000,000";
+        const after = height();
+        line.textContent = original;
+        return after - before;
+      });
+
+      expect(growth, "the hero's cost-line slot was not found").not.toBeNull();
+      expect(Math.abs(growth!)).toBeLessThan(1);
     });
-
-    expect(growth, "the hero's cost-line slot was not found").not.toBeNull();
-    expect(Math.abs(growth!)).toBeLessThan(1);
   });
 });
 

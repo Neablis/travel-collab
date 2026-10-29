@@ -1,4 +1,4 @@
-### KI-2026-10-26-x — `m49-cover-reposition` e2e flakes: fails on a first attempt, passes on retry
+### KI-2026-10-26-x — `m49-cover-reposition` e2e flakes: fails on a first attempt, passes on retry — RESOLVED
 
 - **Severity:** reliability. A flake, not a known product defect: the spec passes on retry and
   has passed in every ci-like run recorded on M49 part 4 (PR 585) and M54.
@@ -23,3 +23,22 @@
 - **Cross-reference:** M54 part 4 (covers fade in); M49 part 4 (PR 585); KI-20261024-c (CI red
   once, cause unknown).
 - **First noted:** 2026-10-26, M54.
+- **Reproduced (2026-10-28, KI sweep, production build):** `e2e/m49-cover-reposition.spec.ts
+  --repeat-each=10 --retries=0` passed 20 of 20; at `--repeat-each=30`, **2 failed of 60**, both in
+  the keyboard test (:136), at two different places:
+  1. :160, `expect.poll(framing) Expected: 60 / Received: 61`, the Esc half's `ArrowDown` moving
+     nothing. `startRepositioning(page, "keyboard")` returned once *Drag image to reposition* was
+     visible, but `RepositionCover` focuses its slider in an effect after that paint, and the arrow
+     was pressed in between. The first half already waited for the slider's focus; the second did
+     not. **This is the cover's own flake, and the fix.**
+  2. `createEmptyTripViaWizard` (`helpers.ts:521`), `create an empty one` *element was detached
+     from the DOM, retrying*, then never found again for 30s. Not a cover fade-in race and not
+     m49's: it is the shared wizard helper, the same signature KI-2026-10-24-c records on
+     `m4-money-and-lenses.spec.ts:5`. Not reproduced in 75 further runs of m4 and m49 together
+     (`--repeat-each=25`, 0 failed), and not fixed here: it needs an entry of its own.
+- **Fix:** `startRepositioning` waits for the slider to be focused before a keyboard caller
+  presses anything (`e2e/m49-cover-reposition.spec.ts`). No app change; the cover fade-in
+  (`CoverImage`) was not involved in either failure.
+- **Proof:** `--repeat-each=30 --retries=0` after the fix, **60 passed of 60**; with m4 at
+  `--repeat-each=25`, 75 of 75. The failure seen before the fix is the red: it is the arrow
+  landing before focus, and the new wait is on exactly that focus.

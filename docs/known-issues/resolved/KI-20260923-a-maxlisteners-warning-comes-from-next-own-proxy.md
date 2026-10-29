@@ -1,4 +1,4 @@
-### KI-2026-09-23-a — the e2e lane's `MaxListenersExceededWarning` is Next.js's own proxy, not this repo's code
+### KI-2026-09-23-a — the e2e lane's `MaxListenersExceededWarning` is Next.js's own proxy, not this repo's code — RESOLVED
 
 - **Severity:** noise, not behaviour. Nothing leaks, nothing fails, no test is
   affected. What is wrong is that a full e2e run prints it **834 times** and it
@@ -78,3 +78,12 @@
   2026-09-23.
 - **First noted:** 2026-09-23.
 - **Re-verified 2026-09-25 (overnight sweep), statically:** still true. `next` is still pinned at `16.3.3` (`apps/web/package.json:65`, lock `:4965`). `grep -n -i "compress\|proxy\|rewrites" apps/web/next.config.ts` finds nothing. Both vendored modules the stack names still ship in the installed package, at `node_modules/.pnpm/next@16.3.3_*/node_modules/next/dist/compiled/{compression,httpxy}`. The warning count was **not** re-measured, because e2e runs are out of a validator's budget. The entry's own closing condition, a Next upgrade, has not happened.
+- **Closed by its own condition (2026-10-28, KI sweep): the Next upgrade happened and the warning
+  is gone.** `next` is now `16.4.3` (`apps/web/package.json`, `^16.4.3`). Re-measured against a
+  production build, with `NODE_OPTIONS=--trace-warnings` added to the test lane's own: 
+  `m6-optimistic` (15 warnings in 2026-09-23's run) **0**; then `responsive`, `m38-personas`,
+  `m41-command-palette`, `m49-cover-reposition`, `m54-welcome`, `m20-entitlements` (123 then) and
+  `m6-optimistic` in one run, 72 tests, **0**. Positive control, so a zero means something: an
+  `--import` of a script that adds 11 `close` listeners inside the `next start` process printed
+  `[WebServer] (node:…) MaxListenersExceededWarning … 11 close listeners added to
+  [EventEmitter]` with its stack in the same lane. Nothing changed in this repo's code.

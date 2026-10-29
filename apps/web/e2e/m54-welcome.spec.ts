@@ -8,8 +8,9 @@ import { expect, test, welcomeSplash } from "./fixtures/test";
 // splash must not stay, and once it has gone the page answers.
 //
 // Signed out, so the sign-in below is the one that sets the welcome cue; with
-// motion on, so the splash plays as most people see it.
-test.use({ storageState: { cookies: [], origins: [] }, reducedMotion: "no-preference" });
+// motion on, so the splash plays as most people see it. And keeping the cue,
+// which every other spec's browser drops (`keepWelcomeCue`, KI-2026-10-27-c).
+test.use({ storageState: { cookies: [], origins: [] }, reducedMotion: "no-preference", keepWelcomeCue: true });
 
 // The longest a splash may stay once it says the name: the welcome's hold and
 // its unlock, with room for a slow runner. A splash that never leaves fails here.

@@ -1,4 +1,5 @@
 import { test as base, type Browser, type BrowserContext, type Page } from "@playwright/test";
+import { WELCOME_COOKIE } from "../../src/lib/welcomeCue";
 import { serveMapTiles, watchOffHostRequests } from "./mapTiles";
 
 export { expect } from "@playwright/test";
@@ -12,11 +13,42 @@ export const welcomeSplash = (page: Page) => page.getByTestId("welcome-moment");
 const SPLASH_GONE_WITHIN_MS = 5_000;
 
 /**
- * Every page waits out the welcome splash before it acts or asserts. Any
- * sign-in through the form lands behind it for a second or so, and it takes
- * the pointer, so a spec that signs in and clicks at once would otherwise race
- * it. Playwright runs a locator handler whenever the splash is up before an
- * action or an auto-waiting assertion; on any other load it is never shown.
+ * Whether the context being made keeps the sign-in's welcome cue. Set per test
+ * from the `keepWelcomeCue` option, which only `m54-welcome.spec.ts` turns on.
+ */
+let keepWelcomeCueOnNewContexts = false;
+
+/**
+ * **A sign-in through the form does not play the welcome splash here**
+ * (KI-2026-10-27-c). `recordSignIn` sets the `tc_welcome` cookie, and the
+ * page after the sign-in shows the splash for about 1.6s because its head
+ * script finds it. Every spec that signs in through the form used to wait
+ * that out: at `origin/main` on 2026-10-28, 24 `signInAsDevUser` calls and 27
+ * other clicks of *Sign in with dev login*, in 37 files, none about the splash.
+ *
+ * An init script runs in each document before any of the page's own scripts,
+ * so clearing the cookie there means `LAUNCH_SCRIPT` and `LaunchOverlay` both
+ * see no cue, which is what a reload after a sign-in sees. Nothing in the app
+ * changes and there is no switch in production: the cookie is set exactly as
+ * it is for a person, and only the test's browser drops it. `m54-welcome.spec.ts`
+ * keeps it (`keepWelcomeCue`), because the splash is its subject.
+ */
+async function spendTheWelcomeCue(context: BrowserContext) {
+  await context.addInitScript((name: string) => {
+    // An opaque origin (`about:blank`) throws on `document.cookie`.
+    try {
+      document.cookie = `${name}=; Path=/; Max-Age=0; SameSite=Lax`;
+    } catch {}
+  }, WELCOME_COOKIE);
+}
+
+/**
+ * Every page waits out the welcome splash before it acts or asserts, as a
+ * backstop to `spendTheWelcomeCue`: a context that keeps the cue still lands
+ * behind it for a second or so, and it takes the pointer, so a spec that
+ * signs in and clicks at once would otherwise race it. Playwright runs a
+ * locator handler whenever the splash is up before an action or an
+ * auto-waiting assertion; on any other load it is never shown.
  * `m54-welcome.spec.ts`, which is about the splash, removes it.
  */
 function waitOutTheWelcomeSplash(context: BrowserContext) {
@@ -56,7 +88,7 @@ function waitOutTheWelcomeSplash(context: BrowserContext) {
  * React hook and fails it.
  */
 export const test = base.extend<
-  { network: { offHostRequests: () => string[] } },
+  { network: { offHostRequests: () => string[] }; keepWelcomeCue: boolean; welcomeCueForThisTest: void },
   { serveMapTilesOnEveryContext: void }
 >({
   serveMapTilesOnEveryContext: [
@@ -65,6 +97,7 @@ export const test = base.extend<
       const withMapTiles: Browser["newContext"] = async (options) => {
         const context = await newContext(options);
         await serveMapTiles(context);
+        if (!keepWelcomeCueOnNewContexts) await spendTheWelcomeCue(context);
         waitOutTheWelcomeSplash(context);
         return context;
       };
@@ -73,6 +106,23 @@ export const test = base.extend<
       browser.newContext = newContext;
     },
     { scope: "worker", auto: true },
+  ],
+
+  /** `true` keeps the sign-in's welcome cue, so the splash plays: `m54-welcome.spec.ts` only. */
+  keepWelcomeCue: [false, { option: true }],
+
+  /**
+   * Hands `keepWelcomeCue` to the worker's `newContext` above. Auto, so
+   * Playwright sets it up before the test's own fixtures, `context` and `page`
+   * among them, and every context the test makes sees this test's value.
+   */
+  welcomeCueForThisTest: [
+    async ({ keepWelcomeCue }, provide) => {
+      keepWelcomeCueOnNewContexts = keepWelcomeCue;
+      await provide();
+      keepWelcomeCueOnNewContexts = false;
+    },
+    { auto: true },
   ],
 
   /**

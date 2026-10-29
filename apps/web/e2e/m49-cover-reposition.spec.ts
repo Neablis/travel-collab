@@ -81,7 +81,13 @@ async function startRepositioning(page: Page, by: "mouse" | "keyboard"): Promise
     await page.keyboard.press("Enter");
   }
   await expect(page.getByText("Drag image to reposition")).toBeVisible();
-  return page.getByRole("slider", { name: "Cover position" });
+  const slider = page.getByRole("slider", { name: "Cover position" });
+  // By keyboard, the next key is the move itself, so focus has to be on the
+  // slider before it is pressed: the hint is drawn a moment before focus moves
+  // from the menu, and an arrow pressed in that moment moves nothing
+  // (KI-2026-10-26-x: `Expected: 60 / Received: 61` at the Esc half, 1 in 60).
+  if (by === "keyboard") await expect(slider).toBeFocused();
+  return slider;
 }
 
 test.describe("on an account of its own", () => {
