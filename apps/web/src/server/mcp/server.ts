@@ -57,10 +57,22 @@ export function buildServer(tools: readonly McpTool[], caller: McpCaller): Serve
     if (tool === undefined) {
       return { content: [{ type: "text", text: `No tool is called "${params.name}".` }], isError: true };
     }
-    return callTool(tool, params.arguments ?? {}, caller);
+    // The SDK answers a handler's throw in-band with the exception's message
+    // and tells no `onerror`, so a fault here went unlogged while its text
+    // reached the model (KI-2026-10-28-b). Logged without the input, which is
+    // the caller's content.
+    try {
+      return await callTool(tool, params.arguments ?? {}, caller);
+    } catch (error) {
+      console.error("mcp tool threw", { tool: tool.name, error });
+      return { content: [{ type: "text", text: TOOL_FAILED }], isError: true };
+    }
   });
   return server;
 }
+
+/** What a tool call whose own code threw answers: nothing of the exception. */
+const TOOL_FAILED = "Something went wrong on our side.";
 
 /**
  * Log what the SDK reports. Reporting only: it has already answered the client

@@ -37,6 +37,28 @@ vi.mock("@/server/public-api/actor", async (importOriginal) => {
   };
 });
 
+// A tool whose own code throws after v1 answered (KI-2026-10-28-b): `whoami`'s
+// answer shaping throws a message no client should read, while the flag is set.
+const LEAKED = 'relation "oauth_grants_secret" does not exist';
+const breaks = vi.hoisted(() => ({ answer: false }));
+vi.mock("./tools", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./tools")>();
+  return {
+    ...actual,
+    TOOLS: actual.TOOLS.map((tool) =>
+      tool.name !== "whoami"
+        ? tool
+        : {
+            ...tool,
+            answer: (body: unknown) => {
+              if (breaks.answer) throw new Error(LEAKED);
+              return tool.answer === undefined ? body : tool.answer(body);
+            },
+          },
+    ),
+  };
+});
+
 const { POST, GET, DELETE } = await import("./route");
 
 const METADATA = `${oauthIssuer()}/.well-known/oauth-protected-resource/api/mcp`;
@@ -304,6 +326,32 @@ describe("POST /api/mcp when a tool call meets a refused credential", () => {
     const { result } = await res.json();
     expect(result.isError).toBe(true);
     expect(result.content[0].text).toMatch(/\(insufficient-scope\)/);
+  });
+});
+
+describe("POST /api/mcp when a tool's own code throws", () => {
+  const callWhoami: Record<string, (secret: string) => Promise<unknown>> = {
+    "2025-11-25": async (secret) => oneEvent(await mcp(rpc("tools/call", { name: "whoami", arguments: {} }), bearer(secret))),
+    [MODERN]: async (secret) => (await modern(secret, "tools/call", { name: "whoami", arguments: {} }, "whoami")).json(),
+  };
+
+  // The SDK answers a handler's throw with its message and tells no `onerror`,
+  // so the fault went unlogged and its text reached the model (KI-2026-10-28-b).
+  it.each(Object.keys(callWhoami))("logs it with the tool's name and answers a generic tool error, on %s", async (revision) => {
+    const access = await connect(await entitled(), ["account:read"]);
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    breaks.answer = true;
+    try {
+      const reply = await callWhoami[revision]!(access);
+      expect(JSON.stringify(reply)).not.toContain("oauth_grants_secret");
+      expect(reply).toMatchObject({
+        result: { content: [{ type: "text", text: "Something went wrong on our side." }], isError: true },
+      });
+      expect(error).toHaveBeenCalledWith("mcp tool threw", { tool: "whoami", error: expect.objectContaining({ message: LEAKED }) });
+    } finally {
+      breaks.answer = false;
+      error.mockRestore();
+    }
   });
 });
 
