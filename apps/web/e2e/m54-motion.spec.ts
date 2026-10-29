@@ -15,10 +15,14 @@ import { e2eTripName } from "./tripNames";
 // animation on a real `@keyframes`, which fires `animationend`), not waited for.
 test.use({ reducedMotion: "no-preference" });
 
-async function freezeAnimations(page: Page) {
+async function freezeAnimations(page: Page): Promise<() => Promise<void>> {
   const cdp = await page.context().newCDPSession(page);
   await cdp.send("Animation.enable");
   await cdp.send("Animation.setPlaybackRate", { playbackRate: 0 });
+  // Lets the timeline run again, for the one step that needs the exit to end.
+  return async () => {
+    await cdp.send("Animation.setPlaybackRate", { playbackRate: 1 });
+  };
 }
 
 // The overlay that is leaving (`data-state="closed"` and still mounted): is it
@@ -50,13 +54,26 @@ async function aTrip(page: Page, prefix: string): Promise<string> {
   return ((await created.json()) as { tripId: string }).tripId;
 }
 
-// The phone header draws its `⋯` once as a desktop header would, then again in
-// its phone place once `useIsPhone` corrects in an effect, which is a new
-// button (KI-2026-10-26-u). Focused or clicked before that, the trigger these
-// tests hold is replaced under them. The trip's status badge is drawn in the
-// phone's row by the same correction, so its showing means the `⋯` has moved.
-async function phoneHeaderSettled(page: Page) {
-  await expect(page.getByText("Active", { exact: true })).toBeVisible();
+// A Tab pressed while the overlay is still leaving goes where a Tab goes, and
+// stays there once the exit ends and Radix unmounts the overlay: its focus
+// return, made for an overlay closed with focus inside, must not take the move
+// back (KI-2026-10-26-t). Marked rather than named, so the step does not
+// depend on which control comes next.
+async function tabStaysThroughTheExit(page: Page, release: () => Promise<void>, leaving: Locator, opener: Locator) {
+  await page.keyboard.press("Tab");
+  await expect(opener).not.toBeFocused();
+  const marked = await page.evaluate(() => {
+    const at = document.activeElement;
+    if (at === null || at === document.body) return false;
+    at.setAttribute("data-tabbed-to", "");
+    return true;
+  });
+  expect(marked, "the Tab moved focus to a control").toBe(true);
+  await release();
+  await expect(leaving).toHaveCount(0);
+  // Radix returns focus a task after the unmount: give it that task and more.
+  await page.evaluate(() => new Promise((resolve) => setTimeout(resolve, 100)));
+  await expect(page.locator("[data-tabbed-to]")).toBeFocused();
 }
 
 test("the account menu (a popover) leaves without taking a click or holding focus", async ({ page }) => {
@@ -64,7 +81,7 @@ test("the account menu (a popover) leaves without taking a click or holding focu
   await page.getByRole("button", { name: /^Account menu/ }).click();
   await expect(page.getByRole("dialog", { name: /^Account menu/ })).toBeVisible();
 
-  await freezeAnimations(page);
+  const release = await freezeAnimations(page);
   await page.keyboard.press("Escape");
   expect(await leavingOverlay(page, "dialog")).toEqual({
     inert: true,
@@ -73,7 +90,10 @@ test("the account menu (a popover) leaves without taking a click or holding focu
     exit: ["tc-sink-out"],
   });
   // Back on the opener for the exit, not parked on `<body>` until it ends.
-  await expect(page.getByRole("button", { name: /^Account menu/ })).toBeFocused();
+  const opener = page.getByRole("button", { name: /^Account menu/ });
+  await expect(opener).toBeFocused();
+
+  await tabStaysThroughTheExit(page, release, page.getByRole("dialog"), opener);
 });
 
 // The `Menu` primitive's one header use is the phone's `⋯`. Opened by mouse,
@@ -83,7 +103,6 @@ test("a menu leaves without taking a click or holding focus", async ({ page }) =
   await page.setViewportSize({ width: 390, height: 844 });
   const tripId = await aTrip(page, "MotionMenu");
   await page.goto(`/trips/${tripId}`);
-  await phoneHeaderSettled(page);
   await page.getByRole("button", { name: "Trip actions" }).click();
   await expect(page.getByRole("menuitem", { name: "History" })).toBeVisible();
 
@@ -106,16 +125,17 @@ test("a menu opened by keyboard gives focus back to its trigger the moment it cl
   const tripId = await aTrip(page, "MotionMenuKeys");
   await page.goto(`/trips/${tripId}`);
   await boardHydrated(page);
-  await phoneHeaderSettled(page);
   const trigger = page.getByRole("button", { name: "Trip actions" });
   await trigger.focus();
   await page.keyboard.press("Enter");
   await expect(page.getByRole("menuitem", { name: "History" })).toBeVisible();
 
-  await freezeAnimations(page);
+  const release = await freezeAnimations(page);
   await page.keyboard.press("Escape");
   await expect(page.getByRole("menu")).toHaveAttribute("data-state", "closed");
   await expect(trigger).toBeFocused();
+
+  await tabStaysThroughTheExit(page, release, page.getByRole("menu"), trigger);
 });
 
 // Opened from a focused control, so there is an opener to go back to, and it
@@ -146,6 +166,24 @@ test("a dialog (⌘K) leaves without it or its scrim taking a click or holding f
   await expect(page.getByRole("dialog", { name: "Go to or do" })).toHaveAttribute("data-state", "open");
   await page.keyboard.type("cal");
   await expect(page.getByRole("combobox", { name: "Go to or do" })).toHaveValue("cal");
+});
+
+// The palette gives focus back itself (`onCloseAutoFocus`), which is a return
+// of its own a Tab made during the exit must outlast too.
+test("a Tab during a dialog's (⌘K) exit is not taken back when it unmounts", async ({ page }) => {
+  await page.goto("/home");
+  await expect(page.getByRole("heading", { level: 1, name: "Your trips" })).toBeVisible();
+  const opener = page.getByRole("button", { name: /^Account menu/ });
+  await opener.focus();
+
+  await page.keyboard.press("ControlOrMeta+KeyK");
+  await expect(page.getByRole("dialog", { name: "Go to or do" })).toBeVisible();
+
+  const release = await freezeAnimations(page);
+  await page.keyboard.press("Escape");
+  await expect(opener).toBeFocused();
+
+  await tabStaysThroughTheExit(page, release, page.getByRole("dialog"), opener);
 });
 
 // ADR-082 §2, decision 20: under reduced motion nothing animates, so Radix

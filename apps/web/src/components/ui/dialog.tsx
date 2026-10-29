@@ -34,7 +34,7 @@ export function Dialog({
   onCloseAutoFocus?: (event: Event) => void;
   children: React.ReactNode;
 }) {
-  useLetGoOfFocusOnClose(open);
+  const { keepFocusMovedOn } = useLetGoOfFocusOnClose(open);
   return (
     <RadixDialog.Root open={open} onOpenChange={onOpenChange}>
       <RadixDialog.Portal>
@@ -79,7 +79,7 @@ export function Dialog({
           // is already outside the inline-style wall's scope, so the directive
           // that used to sit here suppressed nothing.)
           style={{ maxHeight: "85vh" }}
-          onCloseAutoFocus={onCloseAutoFocus}
+          onCloseAutoFocus={keepFocusMovedOn(onCloseAutoFocus)}
         >
           <div className="mb-3 flex items-start justify-between gap-3">
             {/* Level 2, styled as the level 3 it used to be: a dialog sits

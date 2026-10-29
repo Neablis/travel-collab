@@ -8,7 +8,11 @@ import { useLetGoOfFocusOnClose } from "../../lib/useExitPresence";
 type MenuState = { open: boolean; onOpenChange: (open: boolean) => void };
 
 const MenuStateContext = createContext<
-  (MenuState & { triggerRef: React.RefObject<HTMLButtonElement | null> }) | null
+  | (MenuState & {
+      triggerRef: React.RefObject<HTMLButtonElement | null>;
+      keepFocusMovedOn: (handler?: (event: Event) => void) => (event: Event) => void;
+    })
+  | null
 >(null);
 
 /**
@@ -19,9 +23,9 @@ export function Menu({ open, onOpenChange, children }: MenuState & { children: R
   // Focus goes back to the trigger as the menu closes, and a menu opened by
   // mouse never focused it (`MenuTrigger` cancels the pointerdown).
   const triggerRef = useRef<HTMLButtonElement | null>(null);
-  useLetGoOfFocusOnClose(open, triggerRef);
+  const { keepFocusMovedOn } = useLetGoOfFocusOnClose(open, triggerRef);
   return (
-    <MenuStateContext.Provider value={{ open, onOpenChange, triggerRef }}>
+    <MenuStateContext.Provider value={{ open, onOpenChange, triggerRef, keepFocusMovedOn }}>
       <RadixMenu.Root open={open} onOpenChange={onOpenChange}>
         {children}
       </RadixMenu.Root>
@@ -63,6 +67,7 @@ export function MenuContent({
   align = "end",
   sideOffset = 6,
   collisionPadding = 8,
+  onCloseAutoFocus,
   ...props
 }: React.ComponentProps<typeof RadixMenu.Content>) {
   // Read for `inert` alone: a leaving menu takes no click and holds no focus
@@ -76,6 +81,8 @@ export function MenuContent({
         align={align}
         sideOffset={sideOffset}
         collisionPadding={collisionPadding}
+        // A Tab pressed during the exit is not taken back at the unmount (KI-2026-10-26-t).
+        onCloseAutoFocus={state === null ? onCloseAutoFocus : state.keepFocusMovedOn(onCloseAutoFocus)}
         className={cn(
           "overlay-layer min-w-48 rounded-lg border border-hairline bg-surface p-1 shadow-overlay",
           className,

@@ -1,4 +1,4 @@
-### KI-2026-10-26-u — The phone trip header's `⋯` button is replaced just after load, dropping its focus or open menu
+### KI-2026-10-26-u — The phone trip header's `⋯` button is replaced just after load, dropping its focus or open menu — RESOLVED
 
 - **Severity:** correctness, low reach. Only in the first moments after a trip page loads on a
   phone: a keyboard user who has already reached `⋯` loses focus to `<body>`, and a menu already
@@ -23,3 +23,20 @@
   `m54-motion.spec.ts` and run them `--repeat-each=20`; they stay green once this is fixed.
 - **Cross-reference:** M54 part 1, PR 594; M39 D6 (the phone row's `⋯`).
 - **First noted:** 2026-10-26, root-causing PR 594's flaky menu focus test.
+- **Resolved 2026-10-29 (KI sweep, UI focus) — the `⋯` is drawn in one place at every width.**
+  `TripHeader` renders `overflowMenu` after History's popover at every width (`md:hidden` hides
+  it on a desktop, as before), and the popover hangs from it on a phone through a ref:
+  `Popover`'s `anchor` is now a `RefObject`, passed to `RadixPopover.Anchor`'s `virtualRef`, so
+  the element is never rendered inside the popover and `isPhone` never moves it.
+  - **Reproduction.** The tripwire as written: `phoneHeaderSettled` dropped from both menu tests
+    in `m54-motion.spec.ts`, on the built app, `--repeat-each=20 --retries=0`. Before the fix
+    the keyboard test failed 2 in 20, once at
+    `expect(page.getByRole("menuitem", { name: "History" })).toBeVisible()`
+    (`element(s) not found`) and once at `expect(trigger).toBeFocused()` (`Received:
+    inactive`); the mouse test passed 20/20.
+  - **Proof.** The same run after the fix: 201 passed, both menu tests 20/20. A unit test in
+    `TripHeader.test.tsx` turns the width phone while the header is drawn, through a
+    `matchMedia` that announces the change, and asserts the same button keeps its focus: red
+    against the old header (`AssertionError: expected <button …> to be <button …> //
+    Object.is equality`), green after. `m39-phone-header`, `responsive` and the other
+    header-touching specs green on the built app (126 passed).

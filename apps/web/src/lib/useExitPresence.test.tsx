@@ -136,3 +136,55 @@ describe("useLetGoOfFocusOnClose", () => {
     expect(screen.getByRole("button", { name: "Open" })).toBeDefined();
   });
 });
+
+type CloseHandler = { current: ((event: Event) => void) | null };
+
+// What an overlay's `onCloseAutoFocus` becomes: the caller's handler (here
+// one like the palette's, which focuses its opener), wrapped by the hook.
+function ReturnHarness({ open, onClose }: { open: boolean; onClose: CloseHandler }) {
+  const { keepFocusMovedOn } = useLetGoOfFocusOnClose(open);
+  onClose.current = keepFocusMovedOn(() => screen.getByRole("button", { name: "Open" }).focus());
+  return (
+    <>
+      <button type="button">Open</button>
+      <button type="button">Next</button>
+      <div data-motion="rise" data-state={open ? "open" : "closed"}>
+        <button type="button">Inside</button>
+      </div>
+    </>
+  );
+}
+
+describe("keepFocusMovedOn (KI-2026-10-26-t)", () => {
+  const closeFromInside = () => {
+    const onClose: CloseHandler = { current: null };
+    const { rerender } = render(<ReturnHarness open={false} onClose={onClose} />);
+    screen.getByRole("button", { name: "Open" }).focus();
+    rerender(<ReturnHarness open onClose={onClose} />);
+    screen.getByRole("button", { name: "Inside" }).focus();
+    rerender(<ReturnHarness open={false} onClose={onClose} />);
+    return onClose.current!;
+  };
+
+  // A Tab during the exit: the return at the unmount must not take it back.
+  it("leaves focus where the person moved it during the exit, and cancels Radix's return", () => {
+    const onCloseAutoFocus = closeFromInside();
+    screen.getByRole("button", { name: "Next" }).focus();
+
+    const event = new Event("focusScope.autoFocusOnUnmount", { cancelable: true });
+    onCloseAutoFocus(event);
+    expect(screen.getByRole("button", { name: "Next" }).matches(":focus")).toBe(true);
+    expect(event.defaultPrevented).toBe(true);
+  });
+
+  // Still where the close put it: the return goes ahead as it always did.
+  it("lets the return run when focus is still on the opener", () => {
+    const onCloseAutoFocus = closeFromInside();
+    expect(screen.getByRole("button", { name: "Open" }).matches(":focus")).toBe(true);
+
+    const event = new Event("focusScope.autoFocusOnUnmount", { cancelable: true });
+    onCloseAutoFocus(event);
+    expect(screen.getByRole("button", { name: "Open" }).matches(":focus")).toBe(true);
+    expect(event.defaultPrevented).toBe(false);
+  });
+});
