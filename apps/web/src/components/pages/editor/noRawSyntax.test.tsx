@@ -1,5 +1,5 @@
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
-import { afterEach, beforeAll, beforeEach, describe, expect, it, onTestFinished } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { scenarios } from "@tc/factories";
 import { MACRO_NAMES, PRESETS } from "@tc/pages";
 import { newPageDoc, type MacroNode, type TripGlobals } from "@tc/contracts";
@@ -17,6 +17,18 @@ import {
 import { PageEditor } from "./PageEditor";
 import { ReadOnlyPageDoc } from "./ReadOnlyPageDoc";
 import { registerPhoneAsk } from "@/components/nav/phoneAsk";
+
+// The weather widget's read and the page list a link widget offers. Unmocked
+// they went to the page's own origin, which has no server here
+// (KI-2026-10-28-d); this is the answer they got in CI, where nothing listens.
+vi.mock("@/lib/apiClient", async (orig) => ({
+  ...(await orig<typeof import("@/lib/apiClient")>()),
+  fetchTripWeather: vi.fn(async () => ({ ok: false as const, error: { status: 0, message: "Network error" } })),
+}));
+vi.mock("@/lib/pagesClient", async (orig) => ({
+  ...(await orig<typeof import("@/lib/pagesClient")>()),
+  fetchPages: vi.fn(async () => ({ ok: false as const, error: { status: 0, message: "Network error" } })),
+}));
 
 // The M14 gate box *"No user-visible macro syntax anywhere, in either mode"*,
 // at the document: both modes of the editor, and the read-only fallback. What

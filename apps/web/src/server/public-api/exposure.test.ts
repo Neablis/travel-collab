@@ -70,7 +70,9 @@ function normalise(specifier: string, fromFile: string): string {
 
 function importsOf(source: string, fromFile: string): Import[] {
   const out: Import[] = [];
-  const statics = /(?:import|export)\s+(?:type\s+)?([\s\S]*?)\s*from\s*["']([^"']+)["']/g;
+  // The lookahead keeps a bare `import "x";` out of this clause: without it the
+  // lazy clause would run on to the next statement's `from` and misread it.
+  const statics = /(?:import|export)\s+(?:type\s+)?(?![\s"'])([\s\S]*?)\s*from\s*["']([^"']+)["']/g;
   for (const [, clause = "", specifier = ""] of source.matchAll(statics)) {
     const named = /^\{([\s\S]*)\}$/.exec(clause.trim());
     out.push({
@@ -82,6 +84,11 @@ function importsOf(source: string, fromFile: string): Import[] {
             .filter(Boolean)
         : null,
     });
+  }
+  // A bare side-effect import binds nothing, but whatever the module runs at
+  // load time, and everything it imports, is still reached.
+  for (const [, specifier = ""] of source.matchAll(/\bimport\s*["']([^"']+)["']/g)) {
+    out.push({ module: normalise(specifier, fromFile), symbols: null });
   }
   for (const [, specifier = ""] of source.matchAll(/import\(\s*["']([^"']+)["']\s*\)/g)) {
     out.push({ module: normalise(specifier, fromFile), symbols: null });
@@ -193,19 +200,27 @@ describe("exposure.ts decides every internal route, and the API obeys it", () =>
 
 describe("the import reader the never check depends on", () => {
   const file = path.join(HERE, "x.ts");
-  it("reads named, renamed, type-only, multi-line, namespace, relative and dynamic imports", () => {
+  it("reads named, renamed, type-only, multi-line, namespace, relative, bare and dynamic imports", () => {
     const src = [
       `import { a, b as c, type D } from "@/server/m";`,
       `import {\n  e,\n  f,\n} from "./sibling";`,
       `import * as ns from "@/server/whole";`,
       `const x = await import("@/server/lazy");`,
       `export { g } from "@/server/re";`,
+      `import "@/server/side-effect";`,
+      `import { h } from "@/server/after-bare";`,
+      `import  "@/server/side-effect-spaced";`,
+      `import { i } from "@/server/after-spaced";`,
     ].join("\n");
     expect(importsOf(src, file)).toEqual([
       { module: "@/server/m", symbols: ["a", "b", "D"] },
       { module: "@/server/public-api/sibling", symbols: ["e", "f"] },
       { module: "@/server/whole", symbols: null },
       { module: "@/server/re", symbols: ["g"] },
+      { module: "@/server/after-bare", symbols: ["h"] },
+      { module: "@/server/after-spaced", symbols: ["i"] },
+      { module: "@/server/side-effect", symbols: null },
+      { module: "@/server/side-effect-spaced", symbols: null },
       { module: "@/server/lazy", symbols: null },
     ]);
   });

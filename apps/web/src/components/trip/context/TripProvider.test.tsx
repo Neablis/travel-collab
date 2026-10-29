@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
+import { cleanup, render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import { describe, expect, it, vi, beforeEach, afterEach, type MockInstance } from "vitest";
 import { tripDetailFixture, historyFixture } from "@tc/factories";
 import { PRESENCE_WINDOW_MS } from "@tc/contracts";
@@ -22,6 +22,33 @@ function oneDayTripDetailFixture() {
   });
 }
 
+/**
+ * Lets a read still out at unmount answer with `window` gone, as a test
+ * file's teardown takes it, and returns what that answer threw. The provider's
+ * background reads are `void`ed, so a state update landing then is not a
+ * rejection any caller sees: React reads `window.event` to price it, the
+ * ReferenceError rejects the voided promise, and the unit job fails after
+ * every file passed (KI-2026-10-25-w, KI-2026-10-28-d).
+ */
+async function lateAnswerErrors(release: () => void): Promise<unknown[]> {
+  const errors: unknown[] = [];
+  const record = (reason: unknown) => errors.push(reason);
+  process.on("unhandledRejection", record);
+  const page = globalThis as { window?: unknown };
+  const saved = page.window;
+  delete page.window;
+  try {
+    release();
+    // Long enough for the answer's continuation to run and Node to report
+    // what it rejected with.
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  } finally {
+    page.window = saved;
+    process.off("unhandledRejection", record);
+  }
+  return errors;
+}
+
 vi.mock("@/lib/apiClient", async (orig) => {
   const actual = await orig<typeof import("@/lib/apiClient")>();
   return {
@@ -34,6 +61,10 @@ vi.mock("@/lib/apiClient", async (orig) => {
     sendTripCommand: (...args: unknown[]) => sendTripCommandMock(...args),
     sendTripCommandBatch: (...args: unknown[]) => sendTripCommandBatchMock(...args),
     sendTripUnits: (...args: unknown[]) => sendTripUnitsMock(...args),
+    // The suggestion list's read (`useTripSuggestions`). Unmocked, the spread
+    // above sends it to jsdom's own origin, which the network guard refuses in
+    // this lane (KI-2026-10-28-d).
+    fetchTripSuggestions: vi.fn(async () => ({ ok: true as const, value: { changes: [], rev: "0" } })),
   };
 });
 
@@ -282,6 +313,29 @@ describe("TripProvider — the server's first data", () => {
     await act(async () => answer({ ok: true, value: { headSeq: seedHead + 5, events: [], resync: false } }));
     await settle();
     expect(fetchTripDetailMock).not.toHaveBeenCalled();
+  });
+
+  // The refetch the poll asked for is still out at unmount: its answer must
+  // set nothing (KI-2026-10-28-d).
+  it("sets nothing when a remote change's refetch answers after the page is gone", async () => {
+    const first = tripFirstDataFixture();
+    const seedHead = headSeqOf(first.history.history);
+    fetchTripEventsMock.mockResolvedValue({ ok: true, value: { headSeq: seedHead + 1, events: [], resync: false } });
+    let answer!: () => void;
+    const held = new Promise<void>((resolve) => (answer = resolve));
+    fetchTripDetailMock.mockImplementation(async () => {
+      await held;
+      return { ok: true, value: first.trip.trip };
+    });
+    const { unmount } = render(
+      <TripProvider tripId={first.trip.trip.tripId} initial={first}>
+        <StatusProbe />
+      </TripProvider>,
+    );
+    await waitFor(() => expect(fetchTripDetailMock).toHaveBeenCalledTimes(1));
+    unmount();
+
+    expect(await lateAnswerErrors(answer)).toEqual([]);
   });
 
   it("reads all three on mount without it", async () => {
@@ -1654,6 +1708,26 @@ describe("TripProvider broadcast (M13 link 2)", () => {
       // eslint-disable-next-line testing-library/no-unnecessary-act -- settling the microtask queue, same as the KI-70 suite above
       await act(async () => {});
     }
+
+    // An access re-read still out at unmount: its answer must set nothing
+    // (KI-2026-10-28-d).
+    it("sets nothing when an access re-read answers after the page is gone", async () => {
+      await mountAt("7");
+      let answer!: () => void;
+      const held = new Promise<void>((resolve) => (answer = resolve));
+      fetchTripAccessMock.mockImplementation(async () => {
+        await held;
+        return { ok: true, value: { ...accessAs("editor").value, accessRev: "8" } };
+      });
+      fireEvent.click(screen.getByRole("button", { name: "refresh-access" }));
+      await waitFor(() => expect(fetchTripAccessMock).toHaveBeenCalledTimes(2));
+      // The detail refetch it starts beside the access read has landed.
+      // eslint-disable-next-line testing-library/no-unnecessary-act -- settling the microtask queue, as `mountAt` does
+      await act(async () => {});
+      cleanup();
+
+      expect(await lateAnswerErrors(answer)).toEqual([]);
+    });
 
     it("takes the first revision it sees as the baseline, and re-reads nothing for it", async () => {
       await mountAt("7");

@@ -317,6 +317,21 @@ export function TripProvider({
   const seenAccessRev = useRef<string | null>(seed?.access.accessRev ?? null);
   const readingAccessRev = useRef<string | null>(null);
 
+  // Nothing a read sets lands after the provider unmounts: the first load, a
+  // time-travel read (`enter`), the poll's refetch (`onRemoteChange`) and the
+  // access re-read (`reloadAccess`) all set state after an await, so React
+  // reading `window.event` to price a late update, after a test's jsdom is
+  // gone, would reject a promise no caller sees
+  // (KI-2026-10-28-d; `useTripSuggestions` has the same guard for
+  // KI-2026-10-25-w).
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+
   const adoptAccess = useCallback((value: TripAccess) => {
     setAccess(value);
     // **The read's own revision is the baseline** (KI-2026-10-05-g, spec W22).
@@ -365,6 +380,7 @@ export function TripProvider({
         // the boundary; this read only decides what the UI *offers*.
         cachedRead(tripKeys.access(tripId), () => fetchTripAccess(tripId)),
       ]);
+      if (!mounted.current) return;
       if (accessResult.ok) adoptAccess(accessResult.value);
       else {
         setAccess(null);
@@ -473,6 +489,7 @@ export function TripProvider({
     async (seqArg: number) => {
       if (pending) return; // cannot branch history preview from unconfirmed state
       const result = await fetchTripDetailAt(tripId, seqArg);
+      if (!mounted.current) return;
       if (result.ok) {
         setPreviewSeq(seqArg);
         setPreviewTrip(result.value);
@@ -704,6 +721,7 @@ export function TripProvider({
         cachedRead(tripKeys.detail(tripId), () => fetchTripDetail(tripId)),
         cachedRead(tripKeys.history(tripId), () => fetchTripHistory(tripId)),
       ]);
+      if (!mounted.current) return;
       // A failed refetch is silent for the same reason a failed poll is: the
       // next tick tries again, and nothing local is lost by missing one.
       if (!detailResult.ok || !historyResult.ok) return;
@@ -739,6 +757,7 @@ export function TripProvider({
     onRemoteChange();
     const ticket = ++accessTicket.current;
     const result = await cachedRead(tripKeys.access(tripId), () => fetchTripAccess(tripId));
+    if (!mounted.current) return result.ok ? result.value : null;
     // Silent on failure, like the detail re-read: the last good answer stays,
     // and `accessUnknown` is about the load, not about a background read.
     if (ticket === accessTicket.current && result.ok) adoptAccess(result.value);

@@ -1,5 +1,5 @@
 import { cleanup } from "@testing-library/react";
-import { afterEach, vi } from "vitest";
+import { afterAll, afterEach, expect, vi } from "vitest";
 import { clearQueryCache } from "./src/lib/queryCache";
 // **No automated test may reach a third party** (Mitchell, 2026-09-24): the
 // fetch guard, and Sentry's DSN forced empty. Shared with the integration lane
@@ -8,10 +8,34 @@ import { clearQueryCache } from "./src/lib/queryCache";
 // passthrough: so a request with a handler is still answered by MSW and
 // an unhandled one lands on the guard rather than on the network.
 import "./src/test-support/networkGuard.setup";
+import { installOwnOriginGuard, nameCurrentTestWith, takeRefusedOwnOrigin } from "./src/test-support/networkGuard";
 // Every fast-check property draws from one pinned seed, so a witness floor
 // holds or fails for a reason rather than on a rare draw (KI-2026-10-14-c).
 // `FC_SEED=random` explores; the why is in the file.
 import "./src/test-support/fastCheckSeed.setup";
+
+// **This lane only: no request to the test page's own origin**
+// (KI-2026-10-28-d). The guard above lets loopback through, which the
+// integration lane needs; a unit test has no server, so an `apiClient` reader
+// it forgot to mock is refused, and the test it was sent from fails naming it.
+// After each test and after the file, so one sent late, by a component a test
+// left mounted, fails the file rather than vanishing. Why, and what it does not
+// cover, is in `networkGuard.ts`.
+installOwnOriginGuard();
+nameCurrentTestWith(() => expect.getState().currentTestName);
+function failOnOwnOriginRequests(): void {
+  const refused = takeRefusedOwnOrigin();
+  if (refused.length === 0) return;
+  throw new Error(
+    `This test sent ${refused.length} request(s) to the test page's own origin, which a unit test ` +
+      `has no server for. Mock the apiClient reader that sent each, or answer it with MSW ` +
+      `(KI-2026-10-28-d):\n  ${[
+        ...new Set(refused.map(({ url, sentDuring }) => (sentDuring ? `${url} (sent during "${sentDuring}")` : url))),
+      ].join("\n  ")}`,
+  );
+}
+afterEach(failOnOwnOriginRequests);
+afterAll(failOnOwnOriginRequests);
 
 // `src/server/config.ts` throws at import time if DATABASE_URL is unset (main's
 // "fail loudly, no silent localhost fallback" change). Unit tests run in jsdom
