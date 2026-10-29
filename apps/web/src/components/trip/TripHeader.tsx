@@ -634,6 +634,8 @@ export function TripHeader({
                     onCloseAutoFocus={
                       isPhone
                         ? (event) => {
+                            // Prevented already: focus was moved on during the exit (KI-2026-10-26-t).
+                            if (event.defaultPrevented) return;
                             event.preventDefault();
                             tripActions.current?.focus();
                           }

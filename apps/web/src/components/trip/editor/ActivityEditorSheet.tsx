@@ -271,7 +271,8 @@ export function ActivityEditorSheet() {
       // that is still on the page (KI-2026-10-09-b).
       onCloseAutoFocus={(event) => {
         const back = returnFocus?.current;
-        if (back == null || !back.isConnected) return;
+        // Prevented already: focus was moved on during the exit (KI-2026-10-26-t).
+        if (event.defaultPrevented || back == null || !back.isConnected) return;
         event.preventDefault();
         back.focus();
       }}

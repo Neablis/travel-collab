@@ -58,9 +58,11 @@ function letGoOfFocus(opener: HTMLElement | null = null): { lifted: HTMLElement[
  * Radix's return to the trigger (or the caller's own, as the palette's and
  * `Sheet`'s) would take back a Tab pressed during the exit. So when focus is
  * by then somewhere other than `<body>`, the leaving overlay or where the
- * close put it, the person moved it: the caller's handler still runs (it may
- * do more than focus, as the trip header's menu opens what was chosen), and
- * then focus is left where they put it and Radix's own return is cancelled.
+ * close put it, the person moved it: the event is `preventDefault()`ed first,
+ * which cancels Radix's own return, then the caller's handler still runs (it
+ * may do more than focus, as the trip header's menu opens what was chosen).
+ * A handler that only gives focus back checks `event.defaultPrevented` and
+ * skips; one that focuses anyway is undone, as a last resort.
  */
 export function useLetGoOfFocusOnClose(open: boolean, trigger?: RefObject<HTMLElement | null>) {
   const opener = useRef<HTMLElement | null>(null);
@@ -95,10 +97,12 @@ export function useLetGoOfFocusOnClose(open: boolean, trigger?: RefObject<HTMLEl
         at !== document.body &&
         at !== gaveTo.current &&
         at.closest('[data-motion][data-state="closed"]') === null;
+      // Prevented before the caller's handler runs, so a handler that only
+      // returns focus skips itself (each checks `defaultPrevented`) and the
+      // opener is never focused on the way back (PR 633 review).
+      if (movedOn) event.preventDefault();
       handler?.(event);
-      if (!movedOn) return;
-      event.preventDefault();
-      if (document.activeElement !== at && at.isConnected) at.focus();
+      if (movedOn && document.activeElement !== at && at.isConnected) at.focus();
     },
     [],
   );

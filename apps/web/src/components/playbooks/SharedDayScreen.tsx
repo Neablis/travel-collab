@@ -1095,7 +1095,8 @@ export function SharedDayScreen({
           title="Cover photo"
           onCloseAutoFocus={(event) => {
             const control = coverControl.current;
-            if (control === null || !control.isConnected) return;
+            // Prevented already: focus was moved on during the exit (KI-2026-10-26-t).
+            if (event.defaultPrevented || control === null || !control.isConnected) return;
             event.preventDefault();
             control.focus();
           }}
