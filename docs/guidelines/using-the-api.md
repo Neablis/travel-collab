@@ -288,12 +288,12 @@ A stop's `location` can carry coordinates, a postal address, or just a name.
 The map draws coordinates only, so on `POST`/`PATCH …/activities` the server
 fills them in when you leave them out, in this order:
 
-1. **`lat` + `lng`** — used as sent. No lookup. Send both or neither. The one
-   exception is a `countryCode` the trip has no other stop in: the server looks
-   up the country at your coordinates (one lookup from your allowance) and, if
-   they disagree, stores the coordinates' country. A pin in Ithaca is in the
-   United States whatever the field says. A location with an `address` keeps
-   its country as written.
+1. **`lat` + `lng`** — used as sent, with no search. Send both or neither.
+   The stop's `countryCode` is then the country at those coordinates: the
+   server looks it up (one lookup from your allowance) and stores it, whatever
+   you sent and whatever else is on the trip. A pin in Ithaca is in the United
+   States. A location with an `address` keeps the address's country instead,
+   and if the lookup can't run (allowance spent, vendor down) your value is kept.
 2. **`address`** — geocoded as a structured address.
 3. **`name`** — geocoded as free text, preferring places near the trip's other stops
    and in a country: `countryCode`, if you set it, restricts the lookup to that

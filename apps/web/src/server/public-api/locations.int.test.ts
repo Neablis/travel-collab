@@ -20,9 +20,10 @@ vi.mock("@/server/auth", () => ({ auth: vi.fn(async () => null) }));
 // `getGeocoder` itself, so mocking the module is what reaches it.
 const forward = vi.fn(async () => [] as unknown[]);
 const forwardAddress = vi.fn(async () => [] as unknown[]);
+const reverse = vi.fn(async () => null as unknown);
 vi.mock("@/server/geocoding", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/server/geocoding")>()),
-  getGeocoder: () => ({ forward, forwardAddress }),
+  getGeocoder: () => ({ forward, forwardAddress, reverse }),
 }));
 
 const { POST: CREATE_TRIP } = await import("@/app/api/v1/trips/route");
@@ -104,6 +105,8 @@ beforeEach(() => {
   forwardAddress.mockReset();
   forward.mockResolvedValue([]);
   forwardAddress.mockResolvedValue([]);
+  reverse.mockReset();
+  reverse.mockResolvedValue(null);
 });
 
 describe("v1 stop writes resolve their location", () => {
@@ -130,7 +133,25 @@ describe("v1 stop writes resolve their location", () => {
     expect(forward).not.toHaveBeenCalled();
   });
 
-  it("POST with coordinates never calls the geocoder", async () => {
+  // The Finger Lakes trip (2026-10-03): a correct New York pin stored with
+  // `countryCode: "JP"` read "Ithaca, Japan" on every card.
+  it("POST with coordinates stores the country at the pin, not the one sent", async () => {
+    const { secret, tripId } = await caller();
+    reverse.mockResolvedValueOnce({ lat: 42.4431, lng: -76.5124, canonicalName: "Ithaca, New York, USA", countryCode: "US" });
+
+    const res = await ADD_STOP(
+      req(secret, { title: "Karaoke", location: { name: "Deep Dive", lat: 42.443083, lng: -76.512429, countryCode: "JP" } }, "POST"),
+      P({ tripId }),
+    );
+
+    expect(res.status).toBe(201);
+    expect(res.headers.get("Geocode-Outcome")).toBe("provided");
+    const stop = Object.values((await res.json()).activities)[0] as { location: Record<string, unknown> };
+    expect(stop.location).toMatchObject({ name: "Deep Dive", lat: 42.443083, lng: -76.512429, countryCode: "US" });
+    expect(reverse).toHaveBeenCalledWith({ lat: 42.443083, lng: -76.512429 });
+  });
+
+  it("POST with coordinates never calls the geocoder's search", async () => {
     const { secret, tripId } = await caller();
 
     const res = await ADD_STOP(

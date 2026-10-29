@@ -69,7 +69,9 @@ describe("resolveStopLocation", () => {
     const r = await resolveStopLocation({ name: "Fushimi Inari", countryCode: "JP" }, { userId: "u1", region }, d);
     expect(r.outcome).toBe("name");
     expect(d.g.forward).toHaveBeenCalledWith("Fushimi Inari", { limit: 1, viewbox: region, countryCode: "JP" });
-    expect(r.location.countryCode).toBe("JP"); // the caller's value wins over the vendor's
+    // The matched point's country, not the caller's: a stop's country is where
+    // it is. (A real lookup filtered to JP cannot answer DE; the stub can.)
+    expect(r.location.countryCode).toBe("DE");
   });
 
   it("a name with no country of its own is restricted to the trip's countries; one with a country is not", async () => {
@@ -152,45 +154,47 @@ describe("resolveStopLocation", () => {
 
 // The Finger Lakes trip (2026-10-03): correct New York pins stored with
 // `countryCode: "JP"`, so every card read "Ithaca, Japan".
-describe("resolveStopLocation: a caller's country is checked against its own pin", () => {
+describe("resolveStopLocation: a stop's country is the country at its own pin", () => {
   const DEEP_DIVE = { name: "Deep Dive", lat: 42.443083, lng: -76.512429, city: "Ithaca", countryCode: "JP" };
   const ITHACA = { lat: 42.4431, lng: -76.5124, canonicalName: "Deep Dive, Ithaca, New York, USA", countryCode: "US", city: "Ithaca" };
-  const usTrip = { userId: "u1", region: null, countries: ["US"] };
+  // Japan is already on the trip: what the trip holds must not excuse a wrong country.
+  const trip = { userId: "u1", region: null, countries: ["JP", "US"] };
 
-  it("a country the point is not in is replaced by the point's own, and nothing else changes", async () => {
+  it("a country the point is not in is replaced by the point's own, even one the trip already holds", async () => {
     const d = deps({ reverse: vi.fn(async () => ITHACA) });
-    const r = await resolveStopLocation(DEEP_DIVE, usTrip, d);
+    const r = await resolveStopLocation(DEEP_DIVE, trip, d);
     expect(r).toEqual({ location: { ...DEEP_DIVE, countryCode: "US" }, outcome: "provided" });
     expect(d.g.reverse).toHaveBeenCalledWith({ lat: 42.443083, lng: -76.512429 });
     expect(d.charge).toHaveBeenCalledWith("u1");
   });
 
-  it("a country the trip already holds spends no lookup", async () => {
+  it("a pin sent with no country gets the point's country", async () => {
     const d = deps({ reverse: vi.fn(async () => ITHACA) });
-    const r = await resolveStopLocation({ ...DEEP_DIVE, countryCode: "US" }, usTrip, d);
-    expect(r.location.countryCode).toBe("US");
-    expect(d.g.reverse).not.toHaveBeenCalled();
-    expect(d.charge).not.toHaveBeenCalled();
+    const bare = { name: DEEP_DIVE.name, lat: DEEP_DIVE.lat, lng: DEEP_DIVE.lng, city: DEEP_DIVE.city };
+    const r = await resolveStopLocation(bare, trip, d);
+    expect(r.location).toEqual({ ...bare, countryCode: "US" });
   });
 
-  it("a new country the point really is in is kept", async () => {
+  it("a country the point really is in is kept as sent", async () => {
     const niagara = { name: "Table Rock", lat: 43.0794, lng: -79.0782, countryCode: "CA" };
     const d = deps({ reverse: vi.fn(async () => ({ ...ITHACA, countryCode: "CA" })) });
-    const r = await resolveStopLocation(niagara, usTrip, d);
+    const r = await resolveStopLocation(niagara, { ...trip, countries: ["US"] }, d);
     expect(r.location).toEqual(niagara);
+    expect(d.g.reverse).toHaveBeenCalledTimes(1);
   });
 
   it("an address's country is the caller's text and is never checked", async () => {
     const d = deps({ reverse: vi.fn(async () => ITHACA) });
     const input = { ...DEEP_DIVE, address: { countryCode: "JP" as const, lines: ["1-2-3 Nishi-Azabu"] } };
-    const r = await resolveStopLocation(input, usTrip, d);
+    const r = await resolveStopLocation(input, trip, d);
     expect(r.location).toEqual(input);
     expect(d.g.reverse).not.toHaveBeenCalled();
+    expect(d.charge).not.toHaveBeenCalled();
   });
 
-  it("no quota, a vendor failure, no reverse, or nothing at the point: the caller's country stands", async () => {
+  it("no quota, a vendor failure, no reverse, or nothing at the point: what the caller sent stands", async () => {
     const refused = deps({ reverse: vi.fn(async () => ITHACA) }, { allowed: false, reason: "user", retryAfterSeconds: 60 });
-    expect((await resolveStopLocation(DEEP_DIVE, usTrip, refused)).location.countryCode).toBe("JP");
+    expect((await resolveStopLocation(DEEP_DIVE, trip, refused)).location.countryCode).toBe("JP");
     expect(refused.g.reverse).not.toHaveBeenCalled();
 
     const failing = deps({
@@ -198,12 +202,12 @@ describe("resolveStopLocation: a caller's country is checked against its own pin
         throw new Error("reverse geocode failed: 500");
       }),
     });
-    expect(await resolveStopLocation(DEEP_DIVE, usTrip, failing)).toEqual({ location: DEEP_DIVE, outcome: "provided" });
+    expect(await resolveStopLocation(DEEP_DIVE, trip, failing)).toEqual({ location: DEEP_DIVE, outcome: "provided" });
 
     const noReverse = deps();
-    expect((await resolveStopLocation(DEEP_DIVE, usTrip, noReverse)).location.countryCode).toBe("JP");
+    expect((await resolveStopLocation(DEEP_DIVE, trip, noReverse)).location.countryCode).toBe("JP");
     expect(noReverse.charge).not.toHaveBeenCalled();
     const sea = deps({ reverse: vi.fn(async () => null) });
-    expect((await resolveStopLocation(DEEP_DIVE, usTrip, sea)).location.countryCode).toBe("JP");
+    expect((await resolveStopLocation(DEEP_DIVE, trip, sea)).location.countryCode).toBe("JP");
   });
 });
