@@ -238,12 +238,6 @@ describe("requireTripAccess", () => {
   });
 });
 
-// KI-74. The sibling declared one function below `requireTripAccess`, carrying
-// the defect the parse there was added to fix: `withEffectiveMembers` spreads
-// whatever it was handed and calls the result a `TripDetail`. Its parameter
-// being typed `TripDetail` is not the guarantee it looks like — the raw
-// `trip_details.doc` was typed exactly that way for eight milestones and every
-// consumer inherited the lie. These are the callers the entry says it never had.
 // `POST /api/trips/:id/duplicate` read the source with `getTripDetail` before
 // its own membership check, so a stranger got 404 for a missing trip, 403 for a
 // healthy one and an unhandled throw for a broken one (KI-2026-10-28-c, PR 632).
@@ -272,6 +266,12 @@ describe("duplicating a trip whose stored doc will not parse", () => {
   });
 });
 
+// KI-74. The sibling declared one function below `requireTripAccess`, carrying
+// the defect the parse there was added to fix: `withEffectiveMembers` spreads
+// whatever it was handed and calls the result a `TripDetail`. Its parameter
+// being typed `TripDetail` is not the guarantee it looks like — the raw
+// `trip_details.doc` was typed exactly that way for eight milestones and every
+// consumer inherited the lie. These are the callers the entry says it never had.
 describe("withEffectiveMembers", () => {
   it("supplies the contract's defaults for a doc written before the fields existed", async () => {
     const { tripId } = await seedDay();
