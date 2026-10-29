@@ -2,12 +2,10 @@ import { randomUUID } from "node:crypto";
 import type { BatchableCommand, TripDetail, TripLineage } from "@tc/contracts";
 import { decideTripCommand, diffTripStates, evolveTrip, hydrate, type TripState } from "@tc/domain";
 import { executeTripCreation, type CommandResult } from "./commands";
-import { hasAtLeast } from "./accessPolicy";
-import { effectiveMembers } from "./access/members";
+import { tripAccessFor, type TripAccessDenial } from "./access/trip-access";
 import { readShareForClone } from "./access/shares";
 import { demoTripDetail, demoTripHeadSeq } from "./demoTrip";
 import { isDemoTripId } from "@/lib/demoTrip";
-import { db } from "./db/client";
 import { getTripHead } from "./history";
 import { getTripDetail } from "./projections";
 
@@ -130,6 +128,13 @@ async function cloneFrom(
   return executeTripCreation(create, commands, actorId);
 }
 
+/** What `duplicateTrip` answers each access denial with; the route maps the code to a status. */
+const DUPLICATE_DENIALS: Record<TripAccessDenial, { code: string; message: string }> = {
+  "not-found": { code: "not-found", message: "This trip does not exist." },
+  forbidden: { code: "forbidden", message: "Not a member of this trip." },
+  "malformed-trip": { code: "malformed-trip", message: "This trip could not be read." },
+};
+
 /**
  * "Duplicate trip" — a copy of a trip you can already see, at its current
  * history point.
@@ -145,25 +150,28 @@ export async function duplicateTrip(sourceTripId: string, actorId: string): Prom
   // "Make this trip mine", from a demo at `/demo/<slug>`, is this same endpoint
   // (ADR-031). It has to branch before the membership check below rather than
   // satisfy it: the demo grants every visitor `viewer` at the access seam, but
-  // its member list names invented people, so `hasAtLeast` would refuse a real
+  // its member list names invented people, so `tripAccessFor` would refuse a real
   // account. Everything after this line — the id remap, the diff, the one
   // transaction that creates and fills the copy — is the path any other copy
   // takes.
   if (isDemoTripId(sourceTripId)) return cloneDemoTrip(sourceTripId, actorId);
+  // The access seam first, so a stranger is answered as for a healthy trip
+  // even when the stored doc will not parse, and only a member is told it is
+  // broken (KI-2026-10-28-c).
+  const access = await tripAccessFor(actorId, sourceTripId, "viewer");
+  if (!access.ok) return { ok: false, error: DUPLICATE_DENIALS[access.denial] };
+  // The projection itself, not the seam's overlaid detail: the copy is of the
+  // planning state, and its members and recosted totals are not part of that.
   const source = await getTripDetail(sourceTripId);
   if (source === null) {
-    return { ok: false, error: { code: "not-found", message: "This trip does not exist." } };
-  }
-  const members = await effectiveMembers(db, sourceTripId, source.members);
-  if (!hasAtLeast(actorId, members, "viewer")) {
-    return { ok: false, error: { code: "forbidden", message: "Not a member of this trip." } };
+    return { ok: false, error: DUPLICATE_DENIALS["not-found"] };
   }
   if (source.status === "deleted") {
     return { ok: false, error: { code: "trip-deleted", message: "This trip has been deleted." } };
   }
   const atSeq = await getTripHead(sourceTripId);
   if (atSeq === null) {
-    return { ok: false, error: { code: "not-found", message: "This trip does not exist." } };
+    return { ok: false, error: DUPLICATE_DENIALS["not-found"] };
   }
   return cloneFrom(
     source,

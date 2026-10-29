@@ -3,7 +3,7 @@ import { TripDetail, type TripRole } from "@tc/contracts";
 import { auth } from "../auth";
 import { hasAtLeast, memberRole } from "../accessPolicy";
 import { db } from "../db/client";
-import { getTripDetail } from "../projections";
+import { getStoredTripMembers, getTripDetail } from "../projections";
 import { effectiveMembers } from "./members";
 import { overlayMembers } from "./overlay";
 import { listGuests } from "./guests";
@@ -204,11 +204,11 @@ export async function tripAccessFor(
  * The trip with its effective member list, parsed — the half of
  * {@link tripAccessFor} that is not about who is asking.
  *
- * `mayRead` is asked BEFORE the member overlay's parse, so a stranger is told
- * `forbidden` there, never a `malformed-trip` that would confirm the trip
- * exists. It is asked AFTER the stored doc's parse in `getTripDetail`, so a
- * stranger asking for a trip whose stored doc is malformed IS told
- * `malformed-trip` (KI-2026-10-28-c).
+ * `mayRead` is asked BEFORE any `malformed-trip` is answered, so a stranger is
+ * told `forbidden`, never a `malformed-trip` that would confirm the trip
+ * exists: before the member overlay's parse, and, when the stored doc's own
+ * parse in `getTripDetail` fails, of the members read without that parse
+ * (KI-2026-10-28-c). The healthy path reads the doc once, as before.
  */
 async function readTrip(
   tripId: string,
@@ -239,8 +239,11 @@ async function readTrip(
   try {
     projected = await getTripDetail(tripId);
   } catch (error) {
-    if (error instanceof z.ZodError) return { ok: false, denial: "malformed-trip" };
-    throw error;
+    if (!(error instanceof z.ZodError)) throw error;
+    // Who may be told it is broken is asked of the members, read without the
+    // parse that failed: a stranger is `forbidden`, as for a healthy trip.
+    const members = await effectiveMembers(db, tripId, await getStoredTripMembers(tripId));
+    return { ok: false, denial: mayRead(members) ? "malformed-trip" : "forbidden" };
   }
   if (projected === null) return { ok: false, denial: "not-found" };
   const members = await effectiveMembers(db, tripId, projected.members);

@@ -270,12 +270,14 @@ describe("listSuggestionChanges", () => {
   });
 
   // The role comes through the access seam, which answers a stored trip it
-  // cannot parse as a denial. Here that denial is a refusal, not a throw.
+  // cannot parse as a denial. Here that denial is a refusal, not a throw. The
+  // members stay readable: the seam tells only a member the trip is broken
+  // (KI-2026-10-28-c), and a doc naming none would leave the owner a stranger.
   it("refuses, rather than throws, on a trip whose stored document does not parse", async () => {
     const [change] = await suggest(draft([rename("Sam's Kyoto")]));
     await db
       .update(tripDetails)
-      .set({ doc: { tripId, name: 7 } as unknown as never })
+      .set({ doc: { tripId, name: 7, members: [{ userId: OWNER, role: "owner" }] } as unknown as never })
       .where(eq(tripDetails.tripId, tripId));
     const errors = vi.spyOn(console, "error").mockImplementation(() => {});
     await expect(listSuggestionChanges(tripId, OWNER)).resolves.toMatchObject({

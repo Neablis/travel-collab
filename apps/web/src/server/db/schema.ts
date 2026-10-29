@@ -537,8 +537,10 @@ export const tripDetails = pgTable("trip_details", {
   // no runtime check: it relabels `unknown` as `TripDetail` for the compiler
   // and nothing else, so a `doc` written by an older version of the contract —
   // or by hand — is typed `TripDetail` while satisfying none of it. Reading
-  // this column is therefore only safe through `getTripDetail`, which parses;
-  // a `db.select().from(tripDetails)` written anywhere else re-opens the hole.
+  // this column is therefore only safe through `getTripDetail`, which parses,
+  // or `getStoredTripMembers`, which parses each member of a doc that failed
+  // that parse (KI-2026-10-28-c); a `db.select().from(tripDetails)` written
+  // anywhere else re-opens the hole.
   // The same caveat applies to every `$type` in this file.
   doc: jsonb("doc").$type<TripDetail>().notNull(),
 });

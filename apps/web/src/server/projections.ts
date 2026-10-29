@@ -4,6 +4,7 @@ import {
   StoredActivityKind,
   TripDetail,
   TripEvent,
+  TripMember,
   isPageEventType,
   seedKeyOf,
   serializePageDoc,
@@ -279,6 +280,24 @@ function parseStoredDetail(tripId: string, doc: unknown): ReturnType<typeof Trip
     });
   }
   return parsed;
+}
+
+/**
+ * The log's members of a trip whose stored doc fails {@link getTripDetail}'s
+ * parse, read without it: each entry that is a `TripMember` on its own, and
+ * none when the list itself is unreadable. Only for deciding who may be told
+ * the trip is broken (KI-2026-10-28-c); the doc itself is still unreadable.
+ * Dropping an entry only narrows who is told, which is the safe direction.
+ */
+export async function getStoredTripMembers(tripId: string): Promise<TripMember[]> {
+  if (!isUuid(tripId)) return [];
+  const rows = await db.select({ doc: tripDetails.doc }).from(tripDetails).where(eq(tripDetails.tripId, tripId));
+  const listed: unknown = (rows[0]?.doc as { members?: unknown } | undefined)?.members;
+  if (!Array.isArray(listed)) return [];
+  return listed.flatMap((entry) => {
+    const member = TripMember.safeParse(entry);
+    return member.success ? [member.data] : [];
+  });
 }
 
 /**

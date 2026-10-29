@@ -1,4 +1,4 @@
-### KI-2026-10-28-b — An MCP tool whose own code throws is not logged, and its raw error message goes back to the client
+### KI-2026-10-28-b — An MCP tool whose own code throws is not logged, and its raw error message goes back to the client — RESOLVED
 
 - **Severity:** correctness (security, low to medium): an information leak, plus server faults
   that nobody sees. The message of whatever threw (a database driver's text, a stack-shaped
@@ -30,3 +30,17 @@
   handler exception was also answered in-band with its message
   (`dist/esm/shared/protocol.js:427`, `message: error.message ?? 'Internal error'`) and reached
   `onerror` only if sending that reply failed (`:443`).
+- **Reproduced before fixing:** a test in `apps/web/src/app/api/mcp/route.int.test.ts` makes
+  `whoami`'s `tool.answer` throw `relation "oauth_grants_secret" does not exist` and calls it
+  through the real `POST /api/mcp`, on both revisions. Against the unmodified handler both failed:
+  `AssertionError: expected '{"jsonrpc":"2.0","id":1,"error":{"cod…' not to contain
+  'oauth_grants_secret'`, the reply being
+  `{"jsonrpc":"2.0","id":1,"error":{"code":-32603,"message":"relation \"oauth_grants_secret\" does not exist"}}`.
+- **Fix (2026-10-28):** the intended one. `buildServer`'s `tools/call` handler in
+  `apps/web/src/server/mcp/server.ts` wraps `callTool` in a `try` / `catch` that logs
+  `console.error("mcp tool threw", { tool, error })`, with no input, and answers
+  `{ isError: true }` with v1's own `SERVER_FAILED` words and code, "Something went wrong. The
+  failure has been logged. (server-error)", the text `dispatch.ts` already answers a throwing
+  re-check with (PR 632 review). **Proof:** the same two tests pass
+  (`Tests 20 passed (20)` for the file), asserting the exact log call, the generic tool error,
+  and that the thrown text is nowhere in the reply. **Resolved:** 2026-10-28.
