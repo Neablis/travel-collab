@@ -149,3 +149,61 @@ describe("resolveStopLocation", () => {
     });
   });
 });
+
+// The Finger Lakes trip (2026-10-03): correct New York pins stored with
+// `countryCode: "JP"`, so every card read "Ithaca, Japan".
+describe("resolveStopLocation: a caller's country is checked against its own pin", () => {
+  const DEEP_DIVE = { name: "Deep Dive", lat: 42.443083, lng: -76.512429, city: "Ithaca", countryCode: "JP" };
+  const ITHACA = { lat: 42.4431, lng: -76.5124, canonicalName: "Deep Dive, Ithaca, New York, USA", countryCode: "US", city: "Ithaca" };
+  const usTrip = { userId: "u1", region: null, countries: ["US"] };
+
+  it("a country the point is not in is replaced by the point's own, and nothing else changes", async () => {
+    const d = deps({ reverse: vi.fn(async () => ITHACA) });
+    const r = await resolveStopLocation(DEEP_DIVE, usTrip, d);
+    expect(r).toEqual({ location: { ...DEEP_DIVE, countryCode: "US" }, outcome: "provided" });
+    expect(d.g.reverse).toHaveBeenCalledWith({ lat: 42.443083, lng: -76.512429 });
+    expect(d.charge).toHaveBeenCalledWith("u1");
+  });
+
+  it("a country the trip already holds spends no lookup", async () => {
+    const d = deps({ reverse: vi.fn(async () => ITHACA) });
+    const r = await resolveStopLocation({ ...DEEP_DIVE, countryCode: "US" }, usTrip, d);
+    expect(r.location.countryCode).toBe("US");
+    expect(d.g.reverse).not.toHaveBeenCalled();
+    expect(d.charge).not.toHaveBeenCalled();
+  });
+
+  it("a new country the point really is in is kept", async () => {
+    const niagara = { name: "Table Rock", lat: 43.0794, lng: -79.0782, countryCode: "CA" };
+    const d = deps({ reverse: vi.fn(async () => ({ ...ITHACA, countryCode: "CA" })) });
+    const r = await resolveStopLocation(niagara, usTrip, d);
+    expect(r.location).toEqual(niagara);
+  });
+
+  it("an address's country is the caller's text and is never checked", async () => {
+    const d = deps({ reverse: vi.fn(async () => ITHACA) });
+    const input = { ...DEEP_DIVE, address: { countryCode: "JP" as const, lines: ["1-2-3 Nishi-Azabu"] } };
+    const r = await resolveStopLocation(input, usTrip, d);
+    expect(r.location).toEqual(input);
+    expect(d.g.reverse).not.toHaveBeenCalled();
+  });
+
+  it("no quota, a vendor failure, no reverse, or nothing at the point: the caller's country stands", async () => {
+    const refused = deps({ reverse: vi.fn(async () => ITHACA) }, { allowed: false, reason: "user", retryAfterSeconds: 60 });
+    expect((await resolveStopLocation(DEEP_DIVE, usTrip, refused)).location.countryCode).toBe("JP");
+    expect(refused.g.reverse).not.toHaveBeenCalled();
+
+    const failing = deps({
+      reverse: vi.fn(async () => {
+        throw new Error("reverse geocode failed: 500");
+      }),
+    });
+    expect(await resolveStopLocation(DEEP_DIVE, usTrip, failing)).toEqual({ location: DEEP_DIVE, outcome: "provided" });
+
+    const noReverse = deps();
+    expect((await resolveStopLocation(DEEP_DIVE, usTrip, noReverse)).location.countryCode).toBe("JP");
+    expect(noReverse.charge).not.toHaveBeenCalled();
+    const sea = deps({ reverse: vi.fn(async () => null) });
+    expect((await resolveStopLocation(DEEP_DIVE, usTrip, sea)).location.countryCode).toBe("JP");
+  });
+});

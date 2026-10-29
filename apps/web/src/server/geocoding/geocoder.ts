@@ -61,4 +61,9 @@ export interface Geocoder {
     address: PostalAddress,
     opts?: Omit<GeocodeOptions, "countryCode" | "countryCodes">,
   ): Promise<GeocodeResult[]>;
+  // What is AT a coordinate: one result, or null when the vendor has nothing
+  // there (open sea). Used to check a caller's `countryCode` against the pin it
+  // came with, never to rename a stop. Optional so a stub that never needs it
+  // stays two methods; a geocoder without it checks nothing.
+  reverse?(point: LatLng): Promise<GeocodeResult | null>;
 }

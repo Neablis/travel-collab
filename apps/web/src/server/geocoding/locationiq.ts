@@ -5,6 +5,8 @@ const FREE_TEXT = "https://us1.locationiq.com/v1/search";
 // free-text one (confirmed against LocationIQ's published OpenAPI spec,
 // 2026-09-18). `q` and the structured params never travel together.
 const STRUCTURED = "https://us1.locationiq.com/v1/search/structured";
+// Reverse answers ONE row, not a list, and takes lat/lon rather than `q`.
+const REVERSE = "https://us1.locationiq.com/v1/reverse";
 
 type LocationIQRow = {
   lat: string;
@@ -33,12 +35,7 @@ type LocationIQRow = {
   };
 };
 
-async function search(
-  endpoint: string,
-  apiKey: string,
-  params: Record<string, string>,
-  opts?: GeocodeOptions,
-): Promise<GeocodeResult[]> {
+function vendorUrl(endpoint: string, apiKey: string, params: Record<string, string>): URL {
   const url = new URL(endpoint);
   url.searchParams.set("key", apiKey);
   for (const [name, value] of Object.entries(params)) url.searchParams.set(name, value);
@@ -57,6 +54,31 @@ async function search(
   // browser's locale choose would mean the same stop reads differently
   // depending on who happened to add it.
   url.searchParams.set("accept-language", "en");
+  return url;
+}
+
+function toResult(r: LocationIQRow): GeocodeResult {
+  return {
+    lat: Number(r.lat),
+    lng: Number(r.lon),
+    canonicalName: r.display_name,
+    countryCode: r.address?.country_code?.toUpperCase(),
+    city: r.address?.city ?? r.address?.town ?? r.address?.village ?? r.address?.hamlet,
+    area:
+      r.address?.suburb ??
+      r.address?.neighbourhood ??
+      r.address?.quarter ??
+      r.address?.city_district,
+  };
+}
+
+async function search(
+  endpoint: string,
+  apiKey: string,
+  params: Record<string, string>,
+  opts?: GeocodeOptions,
+): Promise<GeocodeResult[]> {
+  const url = vendorUrl(endpoint, apiKey, params);
   url.searchParams.set("limit", String(opts?.limit ?? 5));
   // LocationIQ orders viewbox as west,south,east,north. No `bounded=1`:
   // this biases ranking rather than filtering the result set (KI-15).
@@ -81,18 +103,7 @@ async function search(
   if (res.status === 404) return [];
   if (!res.ok) throw new Error(`geocode failed: ${res.status}`);
   const rows = (await res.json()) as LocationIQRow[];
-  return rows.map<GeocodeResult>((r) => ({
-    lat: Number(r.lat),
-    lng: Number(r.lon),
-    canonicalName: r.display_name,
-    countryCode: r.address?.country_code?.toUpperCase(),
-    city: r.address?.city ?? r.address?.town ?? r.address?.village ?? r.address?.hamlet,
-    area:
-      r.address?.suburb ??
-      r.address?.neighbourhood ??
-      r.address?.quarter ??
-      r.address?.city_district,
-  }));
+  return rows.map(toResult);
 }
 
 export function createLocationIQGeocoder(apiKey: string): Geocoder {
@@ -117,6 +128,14 @@ export function createLocationIQGeocoder(apiKey: string): Geocoder {
       // concatenated into `street`, where it would make a house-level match
       // fail.
       return search(STRUCTURED, apiKey, params, { ...opts, countryCode: address.countryCode });
+    },
+    async reverse({ lat, lng }) {
+      const url = vendorUrl(REVERSE, apiKey, { lat: String(lat), lon: String(lng) });
+      const res = await fetch(url, { headers: { Accept: "application/json" } });
+      // Nothing at that point (open sea) is the same 404 a search miss is.
+      if (res.status === 404) return null;
+      if (!res.ok) throw new Error(`reverse geocode failed: ${res.status}`);
+      return toResult((await res.json()) as LocationIQRow);
     },
   };
 }

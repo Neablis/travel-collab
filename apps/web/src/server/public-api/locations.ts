@@ -20,6 +20,14 @@ import { PublicApiError } from "./commands";
 // only adds lat/lng and fills country/city/area the caller left empty.
 // `precision` stays absent (= unknown): nothing here checks what granularity
 // the vendor's point describes.
+//
+// **One exception: a country that contradicts the caller's own pin.** Five
+// Finger Lakes stops were stored on 2026-10-03 with correct New York
+// coordinates and `countryCode: "JP"`, so every card read "Ithaca, Japan" and
+// the trip's country hint (`tripCountriesOf`) gained Japan for every later
+// lookup. Coordinates and a country cannot both be right when they disagree,
+// and the coordinates are what the map draws, so the point's own country wins
+// (`checkedCountry`).
 
 /**
  * What a lookup for this trip is biased with: the box around its located stops
@@ -106,7 +114,7 @@ export async function resolveStopLocation(
   ctx: ResolveContext,
   deps: ResolveDeps = defaultResolveDeps,
 ): Promise<LocationResolution> {
-  if (input.lat !== undefined) return { location: input, outcome: "provided" };
+  if (input.lat !== undefined) return { location: await checkedCountry(input, ctx, deps), outcome: "provided" };
 
   let decision: QuotaDecision;
   try {
@@ -148,6 +156,36 @@ export async function resolveStopLocation(
     },
     outcome,
   };
+}
+
+/**
+ * A caller's coordinates with the country actually at them.
+ *
+ * **Looked up only when the country is new to the trip**, which is the one
+ * case that can be wrong without anything noticing: a stop in a country the
+ * trip already holds spends nothing, so a trip built by an agent that sends
+ * its own pins costs one lookup per country, not one per stop.
+ *
+ * Skipped when the location has an `address`, because `Location` refines its
+ * `countryCode` to equal the address's and the address is the caller's
+ * authored text, not a value we may overwrite. Best-effort like the rest of
+ * this module: no quota, a vendor failure, no `reverse` on the geocoder or
+ * nothing at the point all keep the caller's country.
+ */
+async function checkedCountry(input: Location, ctx: ResolveContext, deps: ResolveDeps): Promise<Location> {
+  const claimed = input.countryCode;
+  if (claimed === undefined || input.address || input.lat === undefined || input.lng === undefined) return input;
+  if ((ctx.countries ?? []).includes(claimed)) return input;
+
+  try {
+    // Asked of the geocoder before the charge, so one that cannot answer spends nothing.
+    const geocoder = deps.geocoder();
+    if (!geocoder.reverse || !(await deps.charge(ctx.userId)).allowed) return input;
+    const found = await geocoder.reverse({ lat: input.lat, lng: input.lng });
+    return found?.countryCode && found.countryCode !== claimed ? { ...input, countryCode: found.countryCode } : input;
+  } catch {
+    return input;
+  }
 }
 
 /** What a v1 lookup answers when the geocoder is down or unconfigured: ours, and temporary. */
