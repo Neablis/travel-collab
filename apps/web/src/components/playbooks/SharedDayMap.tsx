@@ -380,7 +380,7 @@ export function SharedDayMap({
           <span aria-hidden className="size-2.5 shrink-0 rounded-full bg-brand" />
           <span className="min-w-0 flex-1">
             <span className="block text-sm font-semibold text-ink">{heading}</span>
-            <span className="block truncate text-2xs text-slate">{note}</span>
+            <span className="block truncate text-xs text-slate">{note}</span>
           </span>
           <span className="text-xs font-semibold text-brand">{routeOpen ? "Hide route" : "Show route"}</span>
         </Button>
@@ -462,7 +462,7 @@ export function SharedDayMap({
               and a lone numbered pin needs no key at all. */}
           {(shape === "route" || cities.length > 0) && (
             <div
-              className="absolute top-4 right-4 z-10 flex items-center gap-3.5 rounded-full border border-hairline bg-surface px-3.5 py-1.5 text-2xs text-slate"
+              className="absolute top-4 right-4 z-10 flex items-center gap-3.5 rounded-full border border-hairline bg-surface px-3.5 py-1.5 text-xs text-slate"
               data-testid="shared-day-map-legend"
             >
               {shape === "route" ? (

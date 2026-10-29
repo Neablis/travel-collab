@@ -791,7 +791,7 @@ export function SharedDayScreen({
               <div>
                 {/* The ledger's label (`dc.html:6875`). The one string here that
                     reads the day count, because it names what is being listed. */}
-                <DataText size="xs" className="block pb-2.5 text-2xs tracking-widest uppercase" data-testid="ledger-label">
+                <DataText size="xs" className="block pb-2.5 tracking-widest uppercase" data-testid="ledger-label">
                   {ledgerLabel(day.dayCount, dayScope)}
                 </DataText>
                 <ol className="flex flex-col" data-testid="stop-list">
@@ -847,7 +847,7 @@ export function SharedDayScreen({
                               {/* §33.1's continuous numbering. Scoped to one day
                                   it restarts at 1 — see `playbookDays`. */}
                               <span
-                                className="grid size-6 shrink-0 place-items-center rounded-full bg-brand font-mono text-2xs font-semibold text-surface"
+                                className="grid size-6 shrink-0 place-items-center rounded-full bg-brand font-mono text-xs font-semibold text-surface"
                                 data-testid="stop-number"
                               >
                                 {shown}
@@ -856,7 +856,7 @@ export function SharedDayScreen({
                                 <div className="flex flex-wrap items-center gap-2">
                                   <span className="font-semibold text-ink">{stop.title}</span>
                                   {stop.location?.city !== undefined && (
-                                    <span className="rounded-full bg-moss px-2.5 py-0.5 text-2xs text-slate">
+                                    <span className="rounded-full bg-moss px-2.5 py-0.5 text-xs text-slate">
                                       {stop.location.city}
                                     </span>
                                   )}
@@ -880,7 +880,7 @@ export function SharedDayScreen({
                                 <span className="grid h-6 w-6 shrink-0 place-items-center">
                                   <span className="h-6 border-l-2 border-hairline" />
                                 </span>
-                                <DataText size="xs" className="text-2xs">
+                                <DataText size="xs">
                                   {gap}
                                 </DataText>
                               </div>

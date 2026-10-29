@@ -182,7 +182,7 @@ export function ReviewsSection({
                 <DataText
                   size="xs"
                   id="review-note-count"
-                  className={cn("text-2xs", over && "text-danger-ink")}
+                  className={cn("text-xs", over && "text-danger-ink")}
                   data-testid="note-count"
                 >
                   {noteCountLabel(note)}
@@ -250,7 +250,7 @@ export function ReviewsSection({
                     {row.who}
                   </Text>
                   <Stars value={row.stars} label={starsPhrase(row.stars)} className="text-xs" />
-                  <DataText size="xs" className="text-2xs">
+                  <DataText size="xs">
                     {row.when}
                   </DataText>
                   {row.badge !== null && (

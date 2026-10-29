@@ -118,7 +118,7 @@ export function TierPanel({ plans }: { plans: readonly AdminPlanPanelRow[] }) {
                 the question this panel exists for now that publishing has left
                 the UI. */}
             <div className="flex flex-col gap-1.5">
-              <Text as="span" className="text-2xs font-semibold uppercase tracking-wider text-slate">
+              <Text as="span" className="text-xs font-semibold uppercase tracking-wider text-slate">
                 Published versions
               </Text>
               <Table data-testid="tier-versions">

@@ -54,7 +54,7 @@ const OUTCOME: Record<AdminAccountTurn["outcome"], string> = {
 
 /** The section labels the spec draws: 11px/600, tracked, uppercase, slate. */
 function SectionLabel({ children }: { children: React.ReactNode }) {
-  return <span className="text-2xs font-semibold tracking-wide text-slate uppercase">{children}</span>;
+  return <span className="text-xs font-semibold tracking-wide text-slate uppercase">{children}</span>;
 }
 
 /** *← All accounts*, back to the table with its view kept. */

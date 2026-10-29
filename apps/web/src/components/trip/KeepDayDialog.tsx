@@ -216,7 +216,7 @@ function KeepPreview({ selected, all }: { selected: KeepDayCandidate[]; all: Kee
         return (
           <div key={day.dayId}>
             {selected.length > 1 && (
-              <Text as="span" className="mb-1 block text-2xs tracking-wider text-slate uppercase">
+              <Text as="span" className="mb-1 block text-xs tracking-wider text-slate uppercase">
                 Day {i + 1} · from Day {from}
                 {day.city === null ? "" : ` · ${day.city}`}
               </Text>
@@ -228,7 +228,7 @@ function KeepPreview({ selected, all }: { selected: KeepDayCandidate[]; all: Kee
             ) : (
               day.stops.map((stop, k) => (
                 <div key={k} className="flex gap-2.5 py-0.75 text-sm">
-                  <span className="w-21 flex-none pt-0.5 font-mono text-2xs text-slate">
+                  <span className="w-21 flex-none pt-0.5 font-mono text-xs text-slate">
                     {stop.timeWindow === null ? "" : toClockLabel(stop.timeWindow.start, clock)}
                   </span>
                   <span className="text-ink">{stop.title}</span>
@@ -537,8 +537,9 @@ export function KeepDayDialog({
                   notebook's `DaysFilter`, and the city, date and stop count
                   stay. The measurements above were taken on the chip (`px-2`,
                   a `text-xs` meta line, `gap-1.5`); the shared cell is
-                  narrower on every count (`px-1`, `text-2xs`, `gap-1`), so two
-                  columns only gained slack. */}
+                  as wide or narrower on every count (`px-1`, a `text-xs` meta
+                  line since KI-2026-10-05-i, `gap-1`), so two columns only
+                  gained slack. */}
               <DayGrid
                 label="Days to keep"
                 count={days.length}

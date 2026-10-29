@@ -473,3 +473,10 @@ Same spirit as the domain purity wall (`docs/guidelines/quality-enforcement.md`)
 3. **Raw elements banned outside `ui/`** (list above) — ESLint
    `no-restricted-syntax` on JSX element names.
 4. **No arbitrary Tailwind values** (`[13px]`, `[#hex]`) — lint.
+5. **Nothing under the 12px floor outside the front door** (2026-10-29,
+   KI-2026-10-05-i) — `scripts/check-type-floor.mjs`, in `pnpm lint`. It fails
+   on `text-2xs` or `text-3xs` in a class string anywhere in `apps/web/src`
+   but `app/(front)/**`, `components/front/**`, the invite landing and
+   `DiscoverCard` (the sea draws it; its micro sizes are on the sea's branch
+   only), each named in the script. Use `text-xs`, or a primitive that
+   carries it (`Badge`, `DataText size="xs"`).

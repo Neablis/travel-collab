@@ -233,7 +233,7 @@ export function DayGrid({
                 `detail` inherits from these two spans, so no caller has to
                 repeat the rule. */}
             <span className="font-medium">{title}</span>
-            <span className={cn("text-2xs", on ? "text-surface" : "text-slate")}>{detail}</span>
+            <span className={cn("text-xs", on ? "text-surface" : "text-slate")}>{detail}</span>
           </Button>
         );
       })}

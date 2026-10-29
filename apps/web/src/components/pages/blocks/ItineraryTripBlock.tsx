@@ -72,7 +72,7 @@ export function ItineraryTripBlock({ payload, accents }: { payload: ItineraryTri
                   only makes it look machine-written again, which is the half of
                   *"Still have the non human readable timestamp here"* that
                   survives the formatter. */}
-              <span className="text-2xs text-slate">{day.date ?? "No date"}</span>
+              <span className="text-xs text-slate">{day.date ?? "No date"}</span>
             </span>
             <span role="cell" className="flex min-w-0 flex-col gap-0.5">
               <span className="text-sm text-ink">{summarise(day)}</span>
@@ -83,7 +83,7 @@ export function ItineraryTripBlock({ payload, accents }: { payload: ItineraryTri
                   what the deleted lens's day header carried. The date is in the
                   left column already, so it is dropped from this line rather
                   than printed twice. */}
-              <span className="text-2xs text-slate">{meta(day)}</span>
+              <span className="text-xs text-slate">{meta(day)}</span>
             </span>
           </span>
         );

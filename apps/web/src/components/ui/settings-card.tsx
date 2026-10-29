@@ -37,7 +37,7 @@ export function SettingsCard({
       aria-label={heading}
       className={cn("overflow-hidden rounded-lg border border-hairline bg-surface", className)}
     >
-      <div className="border-b border-hairline bg-moss px-4.5 py-3 text-2xs font-semibold tracking-wider uppercase text-slate">
+      <div className="border-b border-hairline bg-moss px-4.5 py-3 text-xs font-semibold tracking-wider uppercase text-slate">
         {heading}
       </div>
       <div className="flex flex-col px-4.5 pt-1 pb-2">{children}</div>

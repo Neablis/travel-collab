@@ -386,7 +386,7 @@ export function OverviewLens({
         <div className="mb-6.5 flex min-h-7 items-center justify-between gap-4 border-b border-hairline pb-4.5">
           {linkedPageId === null ? (
             <span className="flex min-w-0 items-baseline gap-3">
-              <span className="font-mono text-2xs tracking-widest text-slate uppercase">{wholeTripId === null ? "Overview" : "Today"}</span>
+              <span className="font-mono text-xs tracking-widest text-slate uppercase">{wholeTripId === null ? "Overview" : "Today"}</span>
               {/* Decision 11's quiet way to the usual Overview, as a link card
                   reaches another notebook here (`?page=`). */}
               {wholeTripId === null ? null : (
@@ -398,7 +398,7 @@ export function OverviewLens({
           ) : (
             // The way back: the demo draws no Notebooks menu, so without it a
             // visitor who followed a card had only the Overview tab to leave by.
-            <span className="flex min-w-0 items-center gap-2 font-mono text-2xs tracking-widest text-slate uppercase">
+            <span className="flex min-w-0 items-center gap-2 font-mono text-xs tracking-widest text-slate uppercase">
               <Link href={`${pathname ?? ""}?view=Overview`} className="text-slate hover:text-ink">
                 {tabLabel}
               </Link>
