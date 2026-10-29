@@ -434,6 +434,9 @@ here two days later.
     day, a trip, and so on) and acts accordingly. Outside a specific trip, for example Home's
     account assistant, it has a tool to start a new trip from scratch. M45's
     start-a-trip-from-a-day proposal and Approve flow is the natural shape.
+  - **Designed 2026-10-29** with the New-trip redesign:
+    `docs/specs/2026-10-29-new-trip-picker-and-trip-builder-design.md` (a picker for everyone, a
+    paid trip builder on a draft, `hand_off` so the assistant never declines without a button).
   **Not placed.**
 
 - **Trip chat follow-ups from M46's preview walk (asked 2026-10-13).** Mitchell, testing PR 439:
