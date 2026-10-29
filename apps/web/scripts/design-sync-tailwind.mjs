@@ -7,7 +7,7 @@ const inputPath = path.resolve('src/app/globals.css');
 const outputPath = path.resolve('.ds-compiled.css');
 const css = fs.readFileSync(inputPath, 'utf8');
 
-// next/font/google assigns --font-next-{display,sans,mono} to hashed local
+// next/font/local assigns --font-next-{display,sans,mono} to hashed local
 // family names at runtime — nothing static for the sync to pick up. Bridge
 // them to the real self-hosted families shipped via cfg.extraFonts
 // (.design-sync/fonts-src/fonts.css) so var(--font-next-*) resolves outside

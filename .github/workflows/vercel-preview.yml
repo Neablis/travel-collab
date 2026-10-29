@@ -103,7 +103,7 @@ jobs:
           team="teamId=team_FOAEiiLfMMxICIFszLWvzfzF"
           # Creates the deployment and prints its id.
           request() {
-            curl --fail-with-body -sS -X POST "$api?$team" \
+            curl --fail-with-body -sS --max-time 30 -X POST "$api?$team" \
               -H "Authorization: Bearer $VERCEL_TOKEN" \
               -H "Content-Type: application/json" \
               -d "$body" | jq '{id, url, readyState}' | tee -a "$GITHUB_STEP_SUMMARY" | jq -r .id
@@ -113,7 +113,8 @@ jobs:
           # quietly after ~2 minutes: a slow queue is not a failure.
           settle() {
             for _ in $(seq 1 24); do
-              d=$(curl --fail-with-body -sS "$api/$1?$team" -H "Authorization: Bearer $VERCEL_TOKEN")
+              # A stalled or failed poll is one missed look, not a failed job.
+              d=$(curl --fail-with-body -sS --max-time 15 "$api/$1?$team" -H "Authorization: Bearer $VERCEL_TOKEN") || { sleep 5; continue; }
               case "$(jq -r .readyState <<<"$d")" in
                 ERROR) jq -r '[.errorCode, .errorMessage] | map(select(.)) | join(": ") | if . == "" then "ERROR" else . end' <<<"$d"; return ;;
                 BUILDING|READY|CANCELED) jq -r .readyState <<<"$d"; return ;;

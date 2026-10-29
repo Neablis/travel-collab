@@ -15,7 +15,7 @@ export function buildSteps(environment) {
         "[vercel-build-migrate] REFUSING to migrate: PREVIEW_DB_IS_DISPOSABLE is not " +
         `"true" (got ${JSON.stringify(environment.PREVIEW_DB_IS_DISPOSABLE ?? null)}).\n` +
         "\n" +
-        "This build would run drizzle-kit migrate against whatever DATABASE_URL it\n" +
+        "This build would run the migrations against whatever DATABASE_URL it\n" +
         "was given, and nothing here can prove that is a disposable preview branch.\n" +
         "\n" +
         "To fix: point the Preview scope's DATABASE_URL at a preview branch, then set\n" +

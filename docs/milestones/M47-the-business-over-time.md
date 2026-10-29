@@ -189,7 +189,7 @@ the first two are below, and the third (the close) adds its own at hand-off.
   `dpl_EdknDNvmQD5p7zfDw3anh9ooBqLe` READY). The plan's *Migrations* rule ("the one that merges
   second regenerates") protects production's journal order but not a preview branch that already
   applied the old file. Filed as
-  [KI-2026-10-17-c](../known-issues/open/KI-20261017-c-renumbering-a-migration-the-preview-branch-applied-breaks-every-preview-build.md),
+  [KI-2026-10-17-c](../known-issues/resolved/KI-20261017-c-renumbering-a-migration-the-preview-branch-applied-breaks-every-preview-build.md),
   with the recovery and three fix directions.
 - **The tracker's planned merge order was wrong about who would regenerate.** It expected part 3
   to regenerate as `0057`; part 3 merged first and part 4 regenerated. Nothing broke beyond the
