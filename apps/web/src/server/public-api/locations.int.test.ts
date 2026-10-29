@@ -151,7 +151,8 @@ describe("v1 stop writes resolve their location", () => {
     expect(reverse).toHaveBeenCalledWith({ lat: 42.443083, lng: -76.512429 });
   });
 
-  it("POST with coordinates never calls the geocoder's search", async () => {
+  // Settled from the bundled borders: no LocationIQ call of any kind, no charge.
+  it("POST with coordinates and no country is given the pin's country without calling the geocoder", async () => {
     const { secret, tripId } = await caller();
 
     const res = await ADD_STOP(
@@ -164,6 +165,9 @@ describe("v1 stop writes resolve their location", () => {
     expect(res.headers.get("Geocode-Outcome-End")).toBeNull();
     expect(forward).not.toHaveBeenCalled();
     expect(forwardAddress).not.toHaveBeenCalled();
+    expect(reverse).not.toHaveBeenCalled();
+    const stop = Object.values((await res.json()).activities)[0] as { location: Record<string, unknown> };
+    expect(stop.location.countryCode).toBe("JP");
   });
 
   // A geocoding failure never fails a stop write (plan, Global Constraints).

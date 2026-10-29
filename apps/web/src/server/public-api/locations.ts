@@ -1,5 +1,6 @@
 import { GEOCODE_OUTCOME_END_HEADER, GEOCODE_OUTCOME_HEADER, type GeocodeOutcome, type Location } from "@tc/contracts";
-import { getGeocoder, type BoundingBox, type Geocoder, type GeocodeResult } from "@/server/geocoding";
+import { getGeocoder, type BoundingBox, type Geocoder, type GeocodeResult, type LatLng } from "@/server/geocoding";
+import { countryAtPoint } from "@/server/geocoding/countryAt";
 import { countryFilterFor } from "@/server/geocoding/region";
 import { consumeQuota, geocodeQuota, type QuotaDecision } from "@/server/quota";
 import { PublicApiError } from "./commands";
@@ -27,8 +28,8 @@ import { PublicApiError } from "./commands";
 // the rest of the trip says. Five Finger Lakes stops were stored on 2026-10-03
 // with correct New York coordinates and `countryCode: "JP"`, so every card
 // read "Ithaca, Japan" and the trip's country hint (`tripCountriesOf`) gained
-// Japan for every later lookup. The caller's country survives only when the
-// pin cannot be asked (`countryAtPin`).
+// Japan for every later lookup. The check is offline unless the caller and the
+// bundled borders disagree, so a correct write spends nothing (`countryAtPin`).
 
 /**
  * What a lookup for this trip is biased with: the box around its located stops
@@ -165,29 +166,50 @@ export async function resolveStopLocation(
  * A caller's coordinates with the country actually at them, filled when the
  * caller sent none and corrected when it sent another.
  *
- * **Every stop is asked, whatever else is on the trip**: one charged reverse
- * lookup per located write. A trip's other stops say nothing about where this
- * one is, so a country can be wrong on a trip that already holds it (the
- * Finger Lakes trip now holds Japan).
+ * **Every stop is checked, whatever else is on the trip.** A trip's other stops
+ * say nothing about where this one is, so a country can be wrong on a trip that
+ * already holds it (the Finger Lakes trip now holds Japan).
+ *
+ * **Offline first, so a correct write spends nothing.** `countryAtPoint` reads
+ * bundled borders: when it agrees with the caller, or the caller sent no
+ * country, its answer is stored with no vendor call and no quota charge. That
+ * keeps the rule this module started with, that a write with coordinates does
+ * not spend the LocationIQ allowance. Only a disagreement, or a point outside
+ * every bundled border, asks LocationIQ's `reverse` (one charged lookup),
+ * because a pin near a border is where the simplified borders can be wrong.
+ * When that lookup can't run (no quota, a vendor failure, no `reverse`,
+ * nothing at the point), the offline answer stands, else what the caller sent.
  *
  * Skipped when the location has an `address`, because `Location` refines its
  * `countryCode` to equal the address's and the address is the caller's
- * authored text, not a value we may overwrite. Best-effort like the rest of
- * this module: no quota, a vendor failure, no `reverse` on the geocoder or
- * nothing at the point all keep what the caller sent.
+ * authored text, not a value we may overwrite.
  */
 async function countryAtPin(input: Location, ctx: ResolveContext, deps: ResolveDeps): Promise<Location> {
   if (input.address || input.lat === undefined || input.lng === undefined) return input;
+  const point = { lat: input.lat, lng: input.lng };
 
+  const offline = countryAtPoint(point);
+  if (offline && (input.countryCode === undefined || offline === input.countryCode)) {
+    return withCountry(input, offline);
+  }
+  const country = (await vendorCountryAt(point, ctx, deps)) ?? offline;
+  return country ? withCountry(input, country) : input;
+}
+
+/** LocationIQ's country at a point, charged; null when the lookup can't run or finds nothing. */
+async function vendorCountryAt(point: LatLng, ctx: ResolveContext, deps: ResolveDeps): Promise<string | null> {
   try {
     // Asked of the geocoder before the charge, so one that cannot answer spends nothing.
     const geocoder = deps.geocoder();
-    if (!geocoder.reverse || !(await deps.charge(ctx.userId)).allowed) return input;
-    const found = await geocoder.reverse({ lat: input.lat, lng: input.lng });
-    return found?.countryCode && found.countryCode !== input.countryCode ? { ...input, countryCode: found.countryCode } : input;
+    if (!geocoder.reverse || !(await deps.charge(ctx.userId)).allowed) return null;
+    return (await geocoder.reverse(point))?.countryCode ?? null;
   } catch {
-    return input;
+    return null;
   }
+}
+
+function withCountry(input: Location, countryCode: string): Location {
+  return input.countryCode === countryCode ? input : { ...input, countryCode };
 }
 
 /** What a v1 lookup answers when the geocoder is down or unconfigured: ours, and temporary. */

@@ -289,11 +289,15 @@ The map draws coordinates only, so on `POST`/`PATCH …/activities` the server
 fills them in when you leave them out, in this order:
 
 1. **`lat` + `lng`** — used as sent, with no search. Send both or neither.
-   The stop's `countryCode` is then the country at those coordinates: the
-   server looks it up (one lookup from your allowance) and stores it, whatever
-   you sent and whatever else is on the trip. A pin in Ithaca is in the United
-   States. A location with an `address` keeps the address's country instead,
-   and if the lookup can't run (allowance spent, vendor down) your value is kept.
+   The stop's `countryCode` is then the country at those coordinates, whatever
+   you sent and whatever else is on the trip: a pin in Ithaca is in the United
+   States. The server checks it against bundled country borders, which costs
+   nothing, so a pin sent with its right country, or with none, spends no
+   lookup. Only when your country and the borders disagree, or the pin is far
+   out at sea, does the server ask the geocoder (one lookup from your
+   allowance) and store its answer; if that lookup can't run (allowance spent,
+   vendor down), the borders' answer is kept, or yours when they have none.
+   A location with an `address` keeps the address's country instead.
 2. **`address`** — geocoded as a structured address.
 3. **`name`** — geocoded as free text, preferring places near the trip's other stops
    and in a country: `countryCode`, if you set it, restricts the lookup to that
